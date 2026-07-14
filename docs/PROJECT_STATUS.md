@@ -5,8 +5,8 @@
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：无
-- 活动实现任务：无
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-001`
+- 活动实现任务：`TASK-001` — Codex Implementer
 
 ## 已完成或已批准
 
@@ -14,26 +14,26 @@
 - `docs/PRD.md`、`docs/SYSTEM_DESIGN.md` 和 `docs/IMPLEMENTATION_ROADMAP.md` 已批准。
 - 多 Agent 协作模式 ADR-001 已接受并生效。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
-- 产品负责人已明确批准 `TASK-001` 的 Python 3.12、uv、build backend、开发依赖、文件范围、网络下载和验证命令；任务状态为 `READY`。
+- 产品负责人已明确批准 `TASK-001` 的 Python 3.12、uv、build backend、开发依赖、文件范围、网络下载和验证命令；任务已分配给 Codex，状态为 `IN_PROGRESS`。
 
 ## 当前阻塞
 
-- `TASK-001` 无产品或技术阻塞，等待状态同步 commit、worktree 和角色任务包。
+- `TASK-001` 当前无已知产品或技术阻塞；实现者遇到白名单外依赖或范围冲突时必须停止。
 - `TASK-002` 及后续写入型实现任务继续按依赖保持 `BLOCKED`。
 
 ## 下一步
 
-1. Status Integrator 提交本次 `TASK-001` 授权与 `READY` 状态同步。
-2. 主控以返回的最新 `main` SHA 创建 `TASK-001` 独立 worktree 和分支，并生成 Implementer/Reviewer 任务包。
-3. `TASK-001` 实现期间，可并行运行 `agent-prompts/PREFLIGHT-TASK-002-READONLY.md`。
+1. Codex 在 `codex/task-001-project-scaffold` 完成实现、检查、交接报告和 commit。
+2. `TASK-001` 实现期间，并行运行 `agent-prompts/PREFLIGHT-TASK-002-READONLY.md`。
+3. 主控收到实现 commit 后把任务转为 `IN_REVIEW`，再生成绑定该 SHA 的 Grok Reviewer 任务包。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-001` 状态同步、worktree 和 Implementer | 状态同步只写控制面；实现只写独立 worktree |
+| 立即启动 | `TASK-001` Codex Implementer | 只写 `/Users/hua/Documents/yia-worktrees/task-001` |
 | 可并行启动 | `TASK-002` Read-only Preflight | 无；只在聊天中返回摘要 |
-| 等待依赖 | `TASK-002` 及后续实现任务 | 等待 `TASK-001` `DONE` |
+| 等待依赖 | `TASK-001` Grok Reviewer；`TASK-002` 及后续实现任务 | Reviewer 等实现 SHA；后续实现等 `TASK-001` `DONE` |
 
 ## 已授权方向但尚未授权执行
 

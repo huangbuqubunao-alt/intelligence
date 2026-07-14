@@ -1,7 +1,7 @@
 # TASK-001：工程脚手架与质量门禁
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer`
 - Owner role: TL / 实现 Agent
 - Size: M
 - Risk: High
@@ -68,3 +68,13 @@
 - Approval: `批准 TASK-001 推荐方案及上一条列出的依赖、版本范围、文件范围、uv 命令和网络下载权限。`
 - 允许网络下载：上述直接依赖及其由 uv 锁定的必要传递依赖。
 - 明确不授权：uv 升级、任何运行时依赖、MLX/模型、云调用、真实 Vault、launchd 或范围外文件。
+
+## 分配记录
+
+- Assigned at: 2026-07-14
+- Base: `main@82871a2a0fa15c648e9a7d9f5ce7932544852534`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-001`
+- Branch: `codex/task-001-project-scaffold`
+- Implementer: Codex 独立会话
+- Reviewer: Grok 独立会话，在实现 commit 后启动
+- Parallel: `TASK-002` Read-only Preflight

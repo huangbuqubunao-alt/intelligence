@@ -2,9 +2,9 @@
 
 ## 当前门禁
 
-项目状态：`TASK_001_READY`
+项目状态：`TASK_001_IN_PROGRESS`
 
-DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。产品负责人已批准 `TASK-001` 的依赖版本范围、build backend、文件范围、uv 命令和网络下载权限；`TASK-001` 进入 `READY`，等待主控分配 worktree、实现者和 Reviewer。
+DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。`TASK-001` 已从 `main@82871a2a0fa15c648e9a7d9f5ce7932544852534` 创建独立 worktree，分配给 Codex Implementer；Grok Reviewer 等实现 commit 后启动。
 
 `TASK-001` 实现期间允许运行 `agent-prompts/PREFLIGHT-TASK-002-READONLY.md`。该会话不是实现任务，不得修改文件、安装依赖、创建 commit 或改变任务状态。
 
@@ -24,7 +24,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。产品负责人已批准 `
 | 任务 | 名称 | 负责人角色 | 当前状态 | 依赖 |
 |---|---|---|---|---|
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
-| [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | TL/实现 Agent | READY | 000 |
+| [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex Implementer | IN_PROGRESS | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | 实现 Agent | BLOCKED | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | BLOCKED | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | 实现 Agent | BLOCKED | 002 |
