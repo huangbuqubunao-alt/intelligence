@@ -1,8 +1,8 @@
 # TASK-002：配置与领域契约
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: `Codex`（等待实现 commit）
+- Reviewer: `Codex`（已授权；等待控制面同步 commit 后启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
@@ -90,3 +90,35 @@
 - Reviewer: Codex；仅在主控确认实现 commit、交接证据和 `IN_REVIEW` 状态后启动。
 - Implementer packet: `agent-prompts/TASK-002-IMPLEMENTER-GROK.md`
 - Parallel read-only work: `agent-prompts/PREFLIGHT-TASK-003-004-READONLY.md`；不构成后续任务开工授权。
+
+## 主控预审修复轮
+
+- Pre-review at: 2026-07-15
+- Reviewed implementation head: `4355a59f6f95e409bcf15b3b8004bb112d0033b3`
+- Git evidence: 分支、父提交、单提交范围、8 个允许文件和干净工作树均通过；本轮不否定已通过的依赖与基础检查。
+- Initial status decision: 保持 `IN_PROGRESS`，退回原 Grok Implementer；不基于首个实现提交启动 Reviewer。
+- Correction packet: `agent-prompts/TASK-002-CORRECTION-GROK.md`
+
+必须关闭的既有契约缺口：
+
+1. `api_key_env` 被误填为密钥样式值时，Pydantic 异常不得回显该输入；回归测试必须真正输入受控哨兵值，不能检查一个从未进入系统的无关字符串。
+2. 返回自由形状 `dict[str, Any]` 的 YAML 原始加载器不得作为公共 API 导出；公开入口必须返回已验证具名类型。
+3. Pipeline/Job 转换集合不得作为可被调用方修改的公共 `dict` 暴露；保留私有实现或提供运行时不可变语义。
+
+边界澄清：
+
+- 统一错误码以 System Design 第 12 节列出的八项为冻结集合；`InvalidTransitionError` 可以保留为领域异常，但不得静默扩展公共 `ErrorCode`。
+- `target_stage` 的持久化属于已批准 ADR-003/TASK-003；TASK-002 只冻结 `ProcessingStage`、状态转换和“失败不推进 Pipeline”的领域语义，不新增 Job 存储模型。
+- Provider 调用关联与元数据如存在多种公共接口实现方式，不得在修复轮自行新增 Wrapper 或字段；在交接中输出 `DECISION NEEDED`，交由主控先澄清契约。
+
+## 修复证据与审查授权
+
+- Correction code commit: `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
+- Evidence/source head: `8f50df2f7e93d778f32947ca471740b6713c9aff`
+- Commit chain: `46f8497e... -> 4355a59... -> 8492c42... -> 8f50df2...`
+- Implementer state: 已停止写入；worktree 在主控只读核对时干净。
+- Pre-review result: 三个强制修复项和额外 `ErrorCode` 已有代码与测试证据；受控密钥哨兵在直接/nested error 的文本、`repr`、结构化 errors、cause/context 中均未出现。
+- Status decision: `IN_REVIEW`
+- Reviewer packet: `agent-prompts/TASK-002-REVIEWER-CODEX.md`
+- Review scope: `46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff`
+- Reviewer write scope: 只可补充并提交 `handoffs/TASK-002.md`，不得修改业务代码、测试、依赖或公共任务状态。
