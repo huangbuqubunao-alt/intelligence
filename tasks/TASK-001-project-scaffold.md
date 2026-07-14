@@ -1,7 +1,7 @@
 # TASK-001：工程脚手架与质量门禁
 
-- Status: `IN_REVIEW`
-- Assignee: `Grok Reviewer`（Implementer: Codex）
+- Status: `ACCEPTED`
+- Assignee: `Integrator`（Implementer: Codex；Reviewer: Grok）
 - Owner role: TL / 实现 Agent
 - Size: M
 - Risk: High
@@ -88,3 +88,14 @@
 - Orchestrator pre-review: 锁定、同步、构建、CLI、pytest、Ruff、mypy、归档内容和忽略规则复核通过；未发现 P0/P1
 - Reviewer packet: `agent-prompts/TASK-001-REVIEWER-GROK.md`
 - Reviewer write scope: 仅 `handoffs/TASK-001.md` Reviewer 部分
+
+## 审查与主控验收
+
+- Reviewed at: 2026-07-14
+- Reviewed implementation commit: `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`
+- Review evidence commit: `ed2707c597dc0f5e7593f9ad78e284130fbc24e2`
+- Reviewer verdict: `APPROVE`
+- Unresolved P0/P1: `None`
+- P2 disposition: 未锚定 `data/`、`logs/` 不违反当前 AC-3，不阻断整合；风险登记到 `docs/PROJECT_STATUS.md`，并由 `TASK-014` 在发布前复核。
+- Orchestrator verdict: `ACCEPT`
+- Integration scope: 只整合上述实现 commit 与审查证据 commit；不得顺便修改内容。
