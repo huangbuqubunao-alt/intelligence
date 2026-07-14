@@ -240,4 +240,5 @@
 - [x] `docs/SYSTEM_DESIGN.md` 同步依赖、Provider、时长、预算和保留策略。
 - [x] `docs/IMPLEMENTATION_ROADMAP.md` 状态改为已审批。
 - [x] `tasks/TASK-000-product-decisions.md` 进入主控验收。
-- [ ] 规划基线进入 Git 主线后，把 `TASK-000` 设为 `DONE`、`TASK-001` 设为 `READY`；其他任务继续按依赖保持 `BLOCKED`。
+- [x] 规划基线已以 `c0f1f553db52b1cb4eb354e5c689c2abc5556223` 进入 Git 主线，`TASK-000` 设为 `DONE`。
+- [ ] `TASK-001` 获得本次依赖安装、锁文件和工具链写入授权后设为 `READY`；其他任务继续按依赖保持 `BLOCKED`。

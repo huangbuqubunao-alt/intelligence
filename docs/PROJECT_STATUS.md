@@ -3,7 +3,7 @@
 - 更新时间：2026-07-14
 - 当前阶段：Phase 0 — 审批与基础
 - 主控状态：ACTIVE
-- Git 基线：尚无 commit
+- Git 基线：`main@c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 活动 worktree：无
 - 活动实现任务：无
 
@@ -12,29 +12,26 @@
 - DEC-01 至 DEC-10 已由产品负责人全部批准。
 - `docs/PRD.md`、`docs/SYSTEM_DESIGN.md` 和 `docs/IMPLEMENTATION_ROADMAP.md` 已批准。
 - 多 Agent 协作模式 ADR-001 已接受并生效。
-- `TASK-000` 已通过产品/主控验收，状态为 `ACCEPTED`。
+- `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
 
 ## 当前阻塞
 
-- 仓库 `main` 尚无首个 commit，因此不能创建可靠的并行 worktree。
-- `TASK-000` 只有在规划基线进入主线并通过整合后检查后才能设为 `DONE`。
-- `TASK-001` 在基线完成前保持 `BLOCKED`；其依赖安装和工具链写入仍需任务级执行授权。
+- `TASK-001` 的依赖安装、`pyproject.toml`、`uv.lock` 和工具链配置属于红线动作，仍需产品负责人对本次执行范围明确授权。
+- `TASK-001` 获得授权并进入 `READY` 前，所有后续写入型实现任务继续保持 `BLOCKED`。
 
 ## 下一步
 
-1. 在新的 Integrator 执行对话中运行 `agent-prompts/TASK-000-INTEGRATOR.md`。
-2. Integrator 后台执行时，可在第二个只读 Codex/Grok 会话运行 `agent-prompts/PREFLIGHT-TASK-001-READONLY.md`；用户无需等待前者完成。
-3. Integrator 创建只包含规划、协作和任务文档的初始基线 commit，并返回 SHA 与检查结果。
-4. 主控对话验收该 commit，把 `TASK-000` 设为 `DONE`、`TASK-001` 设为 `READY`。
-5. 主控结合只读预检结果，即时生成 `TASK-001` 的 Implementer 与 Reviewer 任务包。
+1. 如尚未执行，在独立只读 Codex/Grok 会话运行 `agent-prompts/PREFLIGHT-TASK-001-READONLY.md` 并把摘要返回主控。
+2. 产品负责人明确批准或调整 `TASK-001` 的依赖、包管理器、锁文件和工具链执行范围。
+3. 主控确认预检与授权后，把 `TASK-001` 设为 `READY`，创建独立 worktree，并即时生成 Implementer 与 Reviewer 任务包。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-000` Integrator | 仅主 worktree 的规划基线 |
-| 可并行启动 | `TASK-001` Read-only Preflight | 无；只在聊天中返回摘要 |
-| 等待依赖 | `TASK-001` 实现及所有后续实现任务 | 等待首个基线 commit 和任务级授权 |
+| 立即启动 | `TASK-001` Read-only Preflight | 无；只在聊天中返回摘要 |
+| 可并行启动 | 无写入型任务 | 等待任务级授权 |
+| 等待依赖 | `TASK-001` 实现及所有后续实现任务 | 等待 `TASK-001` 依赖/工具链执行授权 |
 
 ## 已授权方向但尚未授权执行
 
@@ -46,8 +43,8 @@
 
 ## 当前风险
 
-- 首次基线 commit 前所有文件均为未跟踪文件，不能启动并行开发。
 - TASK-001 需要验证 Python 3.12、uv 与 MLX 相关包在本机的实际兼容性。
+- 初始 commit 使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；不影响当前基线，但正式协作前可由用户决定是否配置显式 Git 身份。
 
 ## 主控接收执行结果的最小格式
 

@@ -2,11 +2,11 @@
 
 ## 当前门禁
 
-项目状态：`PLANNING_BASELINE_PENDING`
+项目状态：`FOUNDATION_BASELINE_ESTABLISHED`
 
-DEC-01 至 DEC-10 已批准，`TASK-000` 已通过产品验收，等待规划基线进入 Git 主线。在基线 commit 完成前不得领取实现任务；`TASK-001` 仍需要任务级依赖/工具链执行授权。
+DEC-01 至 DEC-10 已批准，`TASK-000` 已通过验收并以 `c0f1f553db52b1cb4eb354e5c689c2abc5556223` 进入 `main`。`TASK-001` 的依赖安装、锁文件和工具链写入仍需要任务级执行授权，因此保持 `BLOCKED`。
 
-等待基线期间允许运行 `agent-prompts/PREFLIGHT-TASK-001-READONLY.md`。该会话不是实现任务，不得修改文件、安装依赖、创建 commit 或改变任务状态。
+等待授权期间允许运行 `agent-prompts/PREFLIGHT-TASK-001-READONLY.md`。该会话不是实现任务，不得修改文件、安装依赖、创建 commit 或改变任务状态。
 
 ## 状态定义
 
@@ -23,7 +23,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000` 已通过产品验收，等待规划基
 
 | 任务 | 名称 | 负责人角色 | 当前状态 | 依赖 |
 |---|---|---|---|---|
-| [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | ACCEPTED | 无 |
+| [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | TL/实现 Agent | BLOCKED | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | 实现 Agent | BLOCKED | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | BLOCKED | 002 |

@@ -1,6 +1,6 @@
 # TASK-000：关闭 V1 开工决策
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Orchestrator + User`
 - Owner role: PO + TL
 - Size: S
@@ -56,4 +56,4 @@
 - Approver: 用户（产品负责人）
 - Approved at: 2026-07-14
 - Approval: `批准 DEC-01 至 DEC-10 的推荐方案。`
-- Integration state: 等待规划基线 commit；进入主线并完成检查后才能设为 `DONE`。
+- Integration state: `main@c0f1f553db52b1cb4eb354e5c689c2abc5556223`；整合后工作区干净，规划检查通过，最终状态 `DONE`。
