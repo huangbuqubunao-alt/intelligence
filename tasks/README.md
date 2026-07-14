@@ -2,11 +2,11 @@
 
 ## 当前门禁
 
-项目状态：`TASK_002_READY`
+项目状态：`TASK_002_IN_PROGRESS`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
-`TASK-002` 只读 Preflight 已完成并关闭；C-01 至 C-08 已获批准，ADR-002 已冻结其契约，且 `TASK-001` 依赖已满足。产品负责人已批准指定版本范围、必要传递依赖、网络下载和依赖文件写入，`TASK-002` 进入 `READY`，等待主控分配 worktree、Implementer 和 Reviewer。
+`TASK-002` 已从 `main@46f8497e771e1461034942dd7967f19d85f79f81` 创建独立 worktree 和分支，分配 Grok 为唯一 Implementer、Codex 为后续独立 Reviewer，状态为 `IN_PROGRESS`。Reviewer 只在实现 commit 完成后启动。
 
 ## 状态定义
 
@@ -25,7 +25,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 |---|---|---|---|---|
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
-| [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | 实现 Agent | READY | 001 |
+| [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok + Codex + Integrator | IN_PROGRESS | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | BLOCKED | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | 实现 Agent | BLOCKED | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |

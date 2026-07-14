@@ -1,13 +1,17 @@
 # TASK-002：配置与领域契约
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Grok`
+- Reviewer: `Codex`（等待实现 commit）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
 - Depends on: TASK-001
 - Contract: `docs/decisions/ADR-002-config-domain-contracts.md`、`docs/SYSTEM_DESIGN.md` V1.1
 - Approval: `APPROVED` — 2026-07-14 产品负责人任务级授权
+- Base: `main@46f8497e771e1461034942dd7967f19d85f79f81`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Branch: `grok/task-002-config-domain-contracts`
 
 ## 目标
 
@@ -78,3 +82,11 @@
 - 允许网络下载：上述两个直接依赖及其由 uv 解析和锁定的必要传递依赖。
 - 允许依赖写入：使用 uv 更新 `pyproject.toml`、`uv.lock`，并运行 `uv lock --check`、`uv sync --locked` 和本任务全部验证命令。
 - 明确不授权：可选 extras、其他运行时依赖、云调用、真实密钥、真实 Vault、launchd、数据库 Schema 或范围外文件。
+
+## 分配记录
+
+- Assigned at: 2026-07-14
+- Implementer: Grok，独占 `/Users/hua/Documents/yia-worktrees/task-002` 的写入权。
+- Reviewer: Codex；仅在主控确认实现 commit、交接证据和 `IN_REVIEW` 状态后启动。
+- Implementer packet: `agent-prompts/TASK-002-IMPLEMENTER-GROK.md`
+- Parallel read-only work: `agent-prompts/PREFLIGHT-TASK-003-004-READONLY.md`；不构成后续任务开工授权。

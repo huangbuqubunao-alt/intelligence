@@ -5,8 +5,8 @@
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：无写入任务；`/Users/hua/Documents/yia-worktrees/task-001` 只保留待后续清理
-- 活动任务：`TASK-002` 已获任务级依赖授权并进入 `READY`，等待状态同步 commit、独立 worktree 和角色分配
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-002`（`grok/task-002-config-domain-contracts`）；`/Users/hua/Documents/yia-worktrees/task-001` 只保留待后续清理
+- 活动任务：`TASK-002` 为 `IN_PROGRESS`；Grok 是唯一 Implementer，Codex Reviewer 等待实现 commit
 
 ## 已完成或已批准
 
@@ -20,22 +20,22 @@
 
 ## 当前阻塞
 
-- `TASK-002` 无产品、依赖或技术阻塞；在本次控制面同步进入 `main` 前不得创建实现 worktree。
+- `TASK-002` 无产品、依赖或技术阻塞；worktree 已从 `main@46f8497e771e1461034942dd7967f19d85f79f81` 创建，等待分配状态同步后启动 Implementer。
 - `TASK-003`、`TASK-004` 及后续写入型任务继续依赖 `TASK-002` 完成并整合。
 
 ## 下一步
 
-1. Status Integrator 提交本次 `TASK-002` 授权与 `READY` 状态同步。
-2. 主控以返回的最新 `main` SHA 创建 `TASK-002` 独立 worktree，指定 Implementer 与不同模型的 Reviewer，并即时生成角色任务包。
-3. `TASK-002` 完成、审查和整合后，按已批准路线图并行启动 `TASK-003` 与 `TASK-004`。
+1. Status Integrator 提交 `TASK-002` 的 worktree、角色和 `IN_PROGRESS` 分配同步。
+2. Grok 在独立 worktree 执行 Implementer 包；提交实现与交接证据后，主控再生成 Codex Reviewer 包。
+3. 实现期间可并行运行 `TASK-003`/`TASK-004` 只读预检；两项写入实现仍须等待 `TASK-002` 完成、审查和整合。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-002` 授权/`READY` 状态同步 | Status Integrator 只写本次批准的控制面文件 |
-| 可并行启动 | 无；`TASK-002` 是当前串行关键路径，Read-only Preflight 已完成并关闭 | 无 |
-| 等待依赖 | `TASK-002` Implementer；`TASK-003`、`TASK-004` 及后续任务 | Implementer 等状态同步 commit；后续任务等 `TASK-002` `DONE` |
+| 立即启动 | `TASK-002` 分配状态同步；同步后启动 Grok Implementer | Status Integrator 只写控制面；Grok 只写 TASK-002 worktree 的 8 个批准文件 |
+| 可并行启动 | `TASK-003`/`TASK-004` Read-only Preflight | 独立只读会话，仅返回摘要，不写仓库 |
+| 等待依赖 | Codex Reviewer；`TASK-003`、`TASK-004` 写入实现及后续任务 | Reviewer 等实现 commit；后续实现等 `TASK-002` `DONE` |
 
 ## 授权边界
 
@@ -50,6 +50,7 @@
 
 - TASK-001 的 `.gitignore` 使用未锚定 `data/`、`logs/`，会忽略任意同名嵌套目录；不违反当前 AC-3，已登记为 `TASK-014` 发布门禁检查项。
 - TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；实现者、主控和 Reviewer 均实测为 `uv-build==0.11.28`。
+- TASK-002 同时冻结配置与跨模块领域接口；Implementer 不得为了减少文件量退回自由形状 `dict`，Reviewer 需重点检查边界校验、错误脱敏和状态职责分离。
 - MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。
 - 初始 commit 使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；不影响当前基线，但正式协作前可由用户决定是否配置显式 Git 身份。
 
