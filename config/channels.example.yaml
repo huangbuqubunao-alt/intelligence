@@ -1,0 +1,11 @@
+# Example channel list — no secrets, no real user data.
+channels:
+  - channel_id: UC_x5XG1OV2P6uZZ5FSM9Ttw
+    enabled: true
+    priority: 80
+  - channel_id: UCce-E6q86EMIo3kaHYUO7Xw
+    enabled: true
+    priority: 50
+  - channel_id: UCExampleLowPriority
+    enabled: false
+    priority: 10
