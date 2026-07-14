@@ -255,14 +255,19 @@ uv run ruff check .
 
 ## 主控验收
 
-- Orchestrator：
-- Verdict：`ACCEPT | REJECT`
-- 依据：
-- 批准整合的 commit：
+- Orchestrator：主控对话
+- Verdict：`ACCEPT`
+- 依据：独立 Reviewer 为 `APPROVE`；AC-1 至 AC-8、全部任务卡命令和两个独立探针均通过；无 P0/P1/P2，剩余 P3 不阻断 V1。
+- 批准整合的 commit：`d98de3537187ac346e404d7899d0a9d90c228483`
 
 ## 整合结果
 
-- Integrator：
-- 主线 commit：
-- 整合后检查：
-- 最终状态：`DONE | BLOCKED`
+- Integrator：最终产品 Integrator
+- Acceptance anchor：`1d8d16115173297aecb04a1a2ecfc2dc2927e3ff`
+- Execution base：`e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`
+- 主线 merge commit：`823d68a2dffc1745e04cbbe54c817bf0c117a6fa`
+- Merge parents：`e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`、`d98de3537187ac346e404d7899d0a9d90c228483`
+- 整合后检查：locked sync、focused/full pytest（46/47 passed）、mypy、Ruff、CLI help、cached diff、双父提交和祖先关系全部 `PASS`。
+- 范围：第一父差异精确为批准的 8 个文件；无意外文件。
+- 身份与洁净度：`Mozhu <huangbuqubunao@gmail.com>`；main/source worktree 均干净，source 分支/worktree 保留。
+- 最终状态：`DONE`

@@ -1,6 +1,6 @@
 # TASK-004：频道发现与元数据
 
-- Status: `BLOCKED`
+- Status: `READY`
 - Assignee: `UNASSIGNED`
 - Owner role: 实现 Agent
 - Size: M

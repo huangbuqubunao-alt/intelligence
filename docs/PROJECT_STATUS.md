@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-15
-- 当前阶段：Phase 0 — 审批与基础
+- 当前阶段：Phase 0/1 — 状态基础与采集主链并行准备
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-002`（`grok/task-002-config-domain-contracts`）；`/Users/hua/Documents/yia-worktrees/task-001` 只保留待后续清理
-- 活动任务：`TASK-002` 为 `ACCEPTED`；实现与独立审查均完成，等待 acceptance 状态同步后生成精确基线的最终整合包
+- 保留 worktree：`/Users/hua/Documents/yia-worktrees/task-001`、`/Users/hua/Documents/yia-worktrees/task-002`；均已停止写入，仅保留审计证据，后续单独清理
+- 活动任务：无写入型实现正在运行；`TASK-003` 与 `TASK-004` 均为 `READY`、`UNASSIGNED`，等待从同一最新主线基线并行分配
 
 ## 已完成或已批准
 
@@ -16,31 +16,31 @@
 - C-01 至 C-08 已由产品负责人批准，配置与领域契约 ADR-002 已接受并同步到 System Design；当前系统设计版本为 V1.2。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
 - `TASK-001` 已由 Codex 实现、Grok 独立审查、主控验收，并以 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 整合到 `main`；整合后全部门禁通过，状态为 `DONE`。
-- 产品负责人已批准 `TASK-002` 使用 `pydantic>=2.13.4,<2.14`、`PyYAML>=6.0.3,<7`，并允许必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 写入以及任务卡中的 uv 命令；实现、修复和独立审查证据已提交，`TASK-002` 状态为 `ACCEPTED`。
+- 产品负责人已批准 `TASK-002` 使用 `pydantic>=2.13.4,<2.14`、`PyYAML>=6.0.3,<7`；实现、修复、独立审查及整合后检查均通过，并以 merge commit `823d68a2dffc1745e04cbbe54c817bf0c117a6fa` 进入 `main`，状态为 `DONE`。
 - `TASK-003`/`TASK-004` 只读预检已完成且未修改仓库；产品负责人已批准 ADR-003 S-01 至 S-08 与 ADR-004 D-01 至 D-08。
 - `TASK-004` 已获任务级授权：`yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 和所列 uv 命令；真实 YouTube 冒烟、Cookie、账号登录、remote components、ffmpeg 仍未授权。
 - 产品负责人已授权“复用优先”交付策略，ADR-005 已接受；附件候选和其他组件的 `DIRECT/ADAPT/REFERENCE/REJECT` 结论记录于 `docs/REUSE_REGISTER.md`。
 
 ## 当前阻塞
 
-- `TASK-002` 已完成原实现 `4355a59f6f95e409bcf15b3b8004bb112d0033b3`、修复代码 `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`、实现交接 `8f50df2f7e93d778f32947ca471740b6713c9aff` 和独立 Grok 审查 `d98de3537187ac346e404d7899d0a9d90c228483`。Reviewer 为 `APPROVE`，AC-1 至 AC-8 全部通过且无 P0/P1/P2；主控验收为 `ACCEPT`，任务转为 `ACCEPTED`，尚未整合。
-- `TASK-003` 的 Schema/迁移审批已满足；仅等待 `TASK-002` 完成、审查、整合并关闭为 `DONE`。
-- `TASK-004` 的发现契约和依赖审批已满足；仅等待 `TASK-002` 完成、审查、整合并关闭为 `DONE`。
+- `TASK-003` 与 `TASK-004` 无审批或依赖阻塞，均可分配；在主控创建独立 worktree、分支和开工包前不得自行开工。
+- `TASK-005` 及后续任务仍按任务图等待上游完成。
 
 ## 下一步
 
-1. Status Integrator 提交 TASK-002 的 `ACCEPTED` 状态和主控验收记录；不得合并产品分支。
-2. 主控收到精确 acceptance commit 后生成最终 TASK-002 Integrator 包，绑定该 main SHA 与 source head `d98de353...`。
-3. Integrator 非快进合并、重跑全部门禁并报告 merge commit；通过后主控再关闭为 `DONE`。
-4. `TASK-002` 关闭为 `DONE` 后，从同一最新 main 基线并行创建 TASK-003/TASK-004 worktree；开工包必须包含 `Reuse decision`。
+1. Status Integrator 只提交 TASK-002 最终关闭及 TASK-003/TASK-004 就绪状态，不运行产品代码或创建 worktree。
+2. 主控收到精确关闭 commit 后，以该 commit 为共同 base，分别创建 TASK-003 与 TASK-004 的独立 worktree、分支和 Implementer 包。
+3. TASK-003 与 TASK-004 可由两个独立写入会话并行实现；每个任务完成实现后再启动各自独立 Reviewer。
+4. 所有开工包必须包含 `Reuse decision`；TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components 和 ffmpeg。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | Status Integrator 同步 TASK-002 主控验收与 `ACCEPTED` 状态 | 只提交指定 4 个 Markdown，不触碰产品分支 |
-| 可并行启动 | 无需新增 Scout；Implementer 与 Reviewer 均保持停止写入 | 最终 Integrator 等待精确 acceptance base |
-| 等待依赖 | `TASK-003`、`TASK-004` 写入实现及后续任务 | 只等 `TASK-002` `DONE` |
+| 立即启动 | Status Integrator 关闭 TASK-002，并把 TASK-003/TASK-004 设为 `READY` | 只提交指定控制面 Markdown |
+| 状态提交后并行 | TASK-003 Implementer；TASK-004 Implementer | 两个独立 worktree、分支和写入会话 |
+| 等待实现证据 | TASK-003 Reviewer；TASK-004 Reviewer | 各自 Implementer 停止写入后再启动 |
+| 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界
 
@@ -57,7 +57,7 @@
 
 - TASK-001 的 `.gitignore` 使用未锚定 `data/`、`logs/`，会忽略任意同名嵌套目录；不违反当前 AC-3，已登记为 `TASK-014` 发布门禁检查项。
 - TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；实现者、主控和 Reviewer 均实测为 `uv-build==0.11.28`。
-- TASK-002 同时冻结配置与跨模块领域接口；Implementer 不得为了减少文件量退回自由形状 `dict`，Reviewer 需重点检查边界校验、错误脱敏和状态职责分离。
+- TASK-002 已冻结配置与跨模块领域接口；后续任务不得为了减少文件量退回自由形状 `dict`，如需改变公共契约必须先回到主控决策。
 - TASK-002 修复提交已关闭原预审发现的密钥错误回显、公共自由 `dict`、可变公共状态表和额外 `ErrorCode`；Reviewer 已独立重跑哨兵、公开 API、运行时不可变性及完整 AC-1 至 AC-8。
 - TASK-002 的 Provider request correlation/调用元数据已由 Reviewer 对照 System Design §5.1/§5.2 复核，未发现必须新增 Wrapper 或公共字段的冲突。
 - TASK-002 Reviewer 已判定 Provider request correlation/调用元数据与冻结字段一致；剩余 P3 为 `MappingProxyType` 对私有 backing dict 的 live view，公共写入仍被拒绝，不阻断 V1 整合。
@@ -66,7 +66,7 @@
 - `video-to-subtitle-summary-skill`、`yt2md` 只能按复用登记选择性参考；其中存在 faster-whisper/ffmpeg/付费 API/直接 Vault 写入或 TLS 风险，不能整套引入。
 - `youtube-skills` 依赖 TranscriptAPI 账号、密钥和 credits，与 V1 本地优先边界冲突，已标记为 V1 `REJECT`。
 - MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。
-- 初始 commit 使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；不影响当前基线，但正式协作前可由用户决定是否配置显式 Git 身份。
+- 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式
 

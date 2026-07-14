@@ -1,6 +1,6 @@
 # TASK-002：配置与领域契约
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Grok`
 - Reviewer: `Grok`（全新独立会话；`APPROVE`）
 - Owner role: 实现 Agent
@@ -145,4 +145,17 @@
 - Contract decision: Provider request correlation/调用元数据、八项 `ErrorCode` 和 `target_stage` 职责与冻结规格一致；`DECISION NEEDED=None`。
 - Orchestrator verdict: `ACCEPT`
 - Accepted source head for integration: `d98de3537187ac346e404d7899d0a9d90c228483`
-- Status: `ACCEPTED`，尚未合并；TASK-003/TASK-004 继续等待 TASK-002 `DONE`。
+- Status at acceptance: `ACCEPTED`；随后由最终 Integrator 整合并由主控关闭为 `DONE`。
+
+## 最终整合与关闭
+
+- Acceptance anchor: `1d8d16115173297aecb04a1a2ecfc2dc2927e3ff`
+- Execution base: `e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`
+- Accepted source/review head: `d98de3537187ac346e404d7899d0a9d90c228483`
+- Merge commit: `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`
+- Merge parents: `e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`、`d98de3537187ac346e404d7899d0a9d90c228483`
+- First-parent scope: 精确为任务批准的 8 个文件；无范围外文件。
+- Post-merge checks: `uv lock --check`、`uv sync --locked`、focused/full pytest（46/47 passed）、mypy、Ruff、CLI help、cached diff 与祖先关系全部 `PASS`。
+- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；main 与 source worktree 均干净，source 分支/worktree 保留。
+- Final status: `DONE`
+- Downstream release: `TASK-003` 与 `TASK-004` 的依赖已满足，均转为 `READY`。

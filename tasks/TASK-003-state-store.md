@@ -1,6 +1,6 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `BLOCKED`
+- Status: `READY`
 - Assignee: `UNASSIGNED`
 - Owner role: 实现 Agent；TL 审批 Schema
 - Size: M
