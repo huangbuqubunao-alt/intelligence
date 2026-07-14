@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml  # type: ignore[import-untyped]
@@ -16,12 +16,15 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationError,
     ValidationInfo,
     field_validator,
     model_validator,
 )
 
 _ENV_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_REDACTED: Final = "[REDACTED]"
+_SENSITIVE_CONFIG_FIELDS: Final = frozenset({"api_key_env"})
 # extra=forbid at every boundary; not strict so YAML ints may coerce to floats.
 _FROZEN: Final = ConfigDict(extra="forbid", frozen=True)
 
@@ -130,13 +133,61 @@ def _validate_iana_timezone(value: str) -> str:
 
 
 def _validate_env_var_name(value: str) -> str:
-    if not _ENV_NAME_RE.fullmatch(value):
+    # Never embed the rejected input in the message: callers may paste secrets here.
+    if not isinstance(value, str) or not _ENV_NAME_RE.fullmatch(value):
         msg = (
             "api_key_env must match [A-Za-z_][A-Za-z0-9_]* "
             "(environment variable name only; values are never stored)"
         )
         raise ValueError(msg)
     return value
+
+
+def _redact_sensitive_validation_error(exc: ValidationError) -> ValidationError:
+    """Return a ValidationError that never echoes api_key_env input values."""
+    line_errors: list[dict[str, Any]] = []
+    changed = False
+    for err in exc.errors(include_url=False):
+        loc = err.get("loc", ())
+        if any(part in _SENSITIVE_CONFIG_FIELDS for part in loc):
+            changed = True
+            line_errors.append(
+                {
+                    "type": "value_error",
+                    "loc": loc,
+                    "msg": (
+                        "api_key_env must match [A-Za-z_][A-Za-z0-9_]* "
+                        "(environment variable name only; values are never stored)"
+                    ),
+                    "input": _REDACTED,
+                    "ctx": {"error": "invalid environment variable name"},
+                }
+            )
+        else:
+            line_errors.append(
+                {
+                    "type": err["type"],
+                    "loc": err["loc"],
+                    "msg": err["msg"],
+                    "input": err.get("input"),
+                    **(
+                        {"ctx": err["ctx"]}
+                        if "ctx" in err and err["ctx"] is not None
+                        else {}
+                    ),
+                }
+            )
+    if not changed:
+        return exc
+    return ValidationError.from_exception_data(exc.title, line_errors)  # type: ignore[arg-type]
+
+
+def _format_config_error(prefix: str, path: Path, exc: BaseException) -> str:
+    if isinstance(exc, ValidationError):
+        exc = _redact_sensitive_validation_error(exc)
+    text = str(exc)
+    # Defense in depth: never leave raw secret-shaped tokens in ConfigError text.
+    return f"{prefix} for {path}: {text}"
 
 
 def _dedupe_preserve_order(items: list[str], *, field_name: str) -> tuple[str, ...]:
@@ -302,12 +353,30 @@ class CloudSettings(_ConfigModel):
         return _validate_env_var_name(value)
 
     @model_validator(mode="after")
-    def _enabled_requires_model(self) -> CloudSettings:
+    def _enabled_requires_model(self) -> Self:
         if self.enabled:
             if self.model is None or not str(self.model).strip():
                 msg = "cloud.model is required when cloud.enabled is true"
                 raise ValueError(msg)
         return self
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _redact_sensitive_validation(cls, data: Any, handler: Any) -> Self:
+        try:
+            return handler(data)  # type: ignore[no-any-return]
+        except ValidationError as exc:
+            raise _redact_sensitive_validation_error(exc) from None
+
+    def __repr__(self) -> str:
+        # Valid instances only store env var names; never values.
+        return (
+            "CloudSettings("
+            f"enabled={self.enabled!r}, provider={self.provider!r}, "
+            f"model={self.model!r}, api_key_env={self.api_key_env!r}, "
+            f"max_calls_per_run={self.max_calls_per_run!r}, "
+            f"max_input_tokens_per_video={self.max_input_tokens_per_video!r})"
+        )
 
 
 class StorageSettings(_ConfigModel):
@@ -345,6 +414,14 @@ class AppSettings(_ConfigModel):
     cloud: CloudSettings = Field(default_factory=CloudSettings)
     storage: StorageSettings
 
+    @model_validator(mode="wrap")
+    @classmethod
+    def _redact_sensitive_validation(cls, data: Any, handler: Any) -> Self:
+        try:
+            return handler(data)  # type: ignore[no-any-return]
+        except ValidationError as exc:
+            raise _redact_sensitive_validation_error(exc) from None
+
 
 class SettingsOverrides(_ConfigModel):
     """Named, validated CLI override surface. No free-form dicts."""
@@ -379,8 +456,8 @@ class ConfigError(Exception):
         self.message = message
 
 
-def load_yaml_mapping(path: Path) -> dict[str, Any]:
-    """Load a YAML mapping with SafeLoader only; reject non-mapping roots."""
+def _load_yaml_mapping(path: Path) -> dict[str, Any]:
+    """Internal YAML mapping load via SafeLoader only; not part of the public contract."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -397,11 +474,11 @@ def load_yaml_mapping(path: Path) -> dict[str, Any]:
 
 
 def load_channels(path: Path) -> tuple[ChannelConfig, ...]:
-    raw = load_yaml_mapping(path)
+    raw = _load_yaml_mapping(path)
     try:
         channels_file = ChannelsFile.model_validate(raw)
     except Exception as exc:
-        raise ConfigError(f"channels validation failed for {path}: {exc}") from exc
+        raise ConfigError(_format_config_error("channels validation failed", path, exc)) from exc
     return channels_file.channels
 
 
@@ -432,11 +509,11 @@ def load_settings(
     *,
     overrides: SettingsOverrides | None = None,
 ) -> AppSettings:
-    raw = load_yaml_mapping(path)
+    raw = _load_yaml_mapping(path)
     try:
         settings = AppSettings.model_validate(raw)
     except Exception as exc:
-        raise ConfigError(f"settings validation failed for {path}: {exc}") from exc
+        raise ConfigError(_format_config_error("settings validation failed", path, exc)) from exc
     if overrides is not None:
         settings = _apply_overrides(settings, overrides)
     return settings
@@ -470,7 +547,6 @@ __all__ = [
     "SettingsOverrides",
     "AppConfig",
     "ConfigError",
-    "load_yaml_mapping",
     "load_channels",
     "load_settings",
     "load_app_config",

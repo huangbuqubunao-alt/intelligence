@@ -14,6 +14,7 @@ import yaml
 from pydantic import ValidationError
 
 from youtube_intel import config as config_mod
+from youtube_intel import domain as domain_mod
 from youtube_intel.config import (
     ChannelConfig,
     CloudSettings,
@@ -29,9 +30,10 @@ from youtube_intel.config import (
     load_app_config,
     load_channels,
     load_settings,
-    load_yaml_mapping,
 )
 from youtube_intel.domain import (
+    JOB_TRANSITIONS,
+    PIPELINE_TRANSITIONS,
     SCORE_DIMENSION_NAMES,
     AnalysisInput,
     AnalysisPoint,
@@ -474,7 +476,7 @@ def test_safe_load_rejects_python_tags(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     with pytest.raises(ConfigError, match="invalid YAML|YAML"):
-        load_yaml_mapping(evil)
+        load_settings(evil)
 
 
 def test_secrets_never_loaded_or_shown() -> None:
@@ -482,12 +484,42 @@ def test_secrets_never_loaded_or_shown() -> None:
     text = repr(cloud)
     assert "OPENAI_API_KEY" in text
     assert "sk-" not in text
-    # Validation errors must not embed secret values we never accepted
     with pytest.raises(ValidationError) as exc_info:
         CloudSettings(api_key_env="not valid!!")
     err = str(exc_info.value)
-    assert "sk-live-secret" not in err
+    assert "not valid!!" not in err
     assert "api_key_env" in err
+
+
+def test_api_key_env_secret_shaped_input_redacted_in_errors(tmp_path: Path) -> None:
+    """AC-8: sentinel secret-shaped input must appear as input and never leak."""
+    sentinel = "sk-redaction-probe-123"
+
+    with pytest.raises(ValidationError) as ve:
+        CloudSettings(api_key_env=sentinel)
+    ve_text = str(ve.value)
+    ve_repr = repr(ve.value)
+    assert sentinel not in ve_text
+    assert sentinel not in ve_repr
+    assert "api_key_env" in ve_text
+    for err in ve.value.errors():
+        assert err.get("input") != sentinel
+        assert sentinel not in str(err)
+
+    data = _minimal_settings_dict()
+    data["cloud"] = {
+        "enabled": False,
+        "provider": "openai",
+        "api_key_env": sentinel,
+        "max_calls_per_run": 5,
+        "max_input_tokens_per_video": 30000,
+    }
+    path = _write_settings(tmp_path, data)
+    with pytest.raises(ConfigError) as ce:
+        load_settings(path)
+    ce_text = str(ce.value)
+    assert sentinel not in ce_text
+    assert "api_key_env" in ce_text or "settings validation failed" in ce_text
 
 
 def test_app_settings_repr_has_no_secret_values(tmp_path: Path) -> None:
@@ -676,7 +708,8 @@ def test_cross_module_io_objects() -> None:
 
 def test_error_codes_and_structured_app_error() -> None:
     codes = {c.value for c in ErrorCode}
-    assert codes >= {
+    # Exact set from System Design §12 — no unapproved extras.
+    assert codes == {
         "TRANSIENT_NETWORK",
         "RATE_LIMITED",
         "PROVIDER_UNAVAILABLE",
@@ -686,6 +719,7 @@ def test_error_codes_and_structured_app_error() -> None:
         "PERMISSION_DENIED",
         "LOCAL_RESOURCE",
     }
+    assert "INVALID_TRANSITION" not in codes
     err = AppError(
         code=ErrorCode.RATE_LIMITED,
         message="limited",
@@ -794,22 +828,45 @@ def test_domain_module_has_no_concrete_sdk_imports() -> None:
             assert node.module.split(".")[0] not in banned
 
 
-def test_public_contracts_avoid_free_form_dict_annotations() -> None:
-    # Public model fields should not be bare dict
-    for model in (
-        ScoreResult,
-        AnalysisResult,
-        DiscoveryBatch,
-        ScoringInput,
-        AnalysisInput,
-        AppError,
-        ProviderCallMetadata,
-    ):
-        for name, field in model.model_fields.items():
-            ann = str(field.annotation)
-            assert "dict[" not in ann.lower() and ann != "dict", (
-                f"{model.__name__}.{name} uses free-form dict: {ann}"
-            )
+def _annotation_is_free_form_dict(annotation: object) -> bool:
+    text = str(annotation)
+    lowered = text.lower().replace(" ", "")
+    if lowered in {"dict", "typing.dict", "builtins.dict"}:
+        return True
+    if re.search(r"\bdict\[", lowered):
+        return True
+    if "dict[str,typing.any]" in lowered or "dict[str,any]" in lowered:
+        return True
+    return False
+
+
+def test_public_contracts_avoid_free_form_dict() -> None:
+    """Public exports must not expose free-form dict loaders or model fields."""
+    assert "load_yaml_mapping" not in config_mod.__all__
+    assert getattr(config_mod, "load_yaml_mapping", None) is None
+
+    for mod in (config_mod, domain_mod):
+        for name in mod.__all__:
+            obj = getattr(mod, name)
+            if inspect.isfunction(obj):
+                hints = getattr(obj, "__annotations__", {})
+                for ann_name, ann in hints.items():
+                    assert not _annotation_is_free_form_dict(ann), (
+                        f"{mod.__name__}.{name} annotation {ann_name}: {ann}"
+                    )
+            if inspect.isclass(obj) and hasattr(obj, "model_fields"):
+                for field_name, field in obj.model_fields.items():
+                    ann = field.annotation
+                    assert not _annotation_is_free_form_dict(ann), (
+                        f"{obj.__name__}.{field_name} uses free-form dict: {ann}"
+                    )
+
+    # Public loaders return typed contracts, not mappings.
+    channels = load_channels(CHANNELS_EXAMPLE)
+    settings = load_settings(SETTINGS_EXAMPLE)
+    assert isinstance(channels, tuple)
+    assert not isinstance(channels, dict)
+    assert not isinstance(settings, dict)
 
 
 # ---------------------------------------------------------------------------
@@ -824,6 +881,23 @@ def test_pipeline_and_job_are_distinct_enums() -> None:
     assert "FAILED_FINAL" not in {s.value for s in PipelineStatus}
     assert JobStatus.RETRY_PENDING.value == "RETRY_PENDING"
     assert JobStatus.FAILED_FINAL.value == "FAILED_FINAL"
+
+
+def test_transition_maps_are_runtime_immutable() -> None:
+    assert isinstance(PIPELINE_TRANSITIONS, type(domain_mod.PIPELINE_TRANSITIONS))
+    with pytest.raises(TypeError):
+        PIPELINE_TRANSITIONS[PipelineStatus.DISCOVERED] = frozenset()  # type: ignore[index]
+    with pytest.raises(TypeError):
+        JOB_TRANSITIONS[JobStatus.PENDING] = frozenset()  # type: ignore[index]
+    with pytest.raises((TypeError, AttributeError)):
+        PIPELINE_TRANSITIONS.clear()  # type: ignore[attr-defined]
+    with pytest.raises((TypeError, AttributeError)):
+        JOB_TRANSITIONS.clear()  # type: ignore[attr-defined]
+    # Values remain immutable frozensets.
+    discovered = PIPELINE_TRANSITIONS[PipelineStatus.DISCOVERED]
+    assert isinstance(discovered, frozenset)
+    with pytest.raises(AttributeError):
+        discovered.add(PipelineStatus.COMPLETE)  # type: ignore[attr-defined]
 
 
 def test_legal_and_illegal_pipeline_transitions() -> None:

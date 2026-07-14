@@ -5,9 +5,10 @@ This module must not import concrete provider SDKs or free-form dict public APIs
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from enum import Enum
+from types import MappingProxyType
 from typing import Final, Protocol, runtime_checkable
 
 from pydantic import (
@@ -109,6 +110,8 @@ class JobStatus(str, Enum):
 
 
 class ErrorCode(str, Enum):
+    """Unified error codes frozen in System Design §12 (exact set; no extras)."""
+
     TRANSIENT_NETWORK = "TRANSIENT_NETWORK"
     RATE_LIMITED = "RATE_LIMITED"
     PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
@@ -117,7 +120,6 @@ class ErrorCode(str, Enum):
     CONFIG_INVALID = "CONFIG_INVALID"
     PERMISSION_DENIED = "PERMISSION_DENIED"
     LOCAL_RESOURCE = "LOCAL_RESOURCE"
-    INVALID_TRANSITION = "INVALID_TRANSITION"
 
 
 SCORE_DIMENSION_NAMES: Final[tuple[str, ...]] = (
@@ -129,7 +131,8 @@ SCORE_DIMENSION_NAMES: Final[tuple[str, ...]] = (
     "industry_impact",
 )
 
-PIPELINE_TRANSITIONS: Final[dict[PipelineStatus, frozenset[PipelineStatus]]] = {
+# Private mutable builders → public runtime-immutable mappings (values are frozensets).
+_PIPELINE_TRANSITIONS: dict[PipelineStatus, frozenset[PipelineStatus]] = {
     PipelineStatus.DISCOVERED: frozenset(
         {PipelineStatus.METADATA_READY, PipelineStatus.DEFERRED}
     ),
@@ -147,8 +150,11 @@ PIPELINE_TRANSITIONS: Final[dict[PipelineStatus, frozenset[PipelineStatus]]] = {
     PipelineStatus.COMPLETE: frozenset(),
     PipelineStatus.SKIPPED_DURATION_LIMIT: frozenset(),
 }
+PIPELINE_TRANSITIONS: Final[Mapping[PipelineStatus, frozenset[PipelineStatus]]] = (
+    MappingProxyType(_PIPELINE_TRANSITIONS)
+)
 
-JOB_TRANSITIONS: Final[dict[JobStatus, frozenset[JobStatus]]] = {
+_JOB_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.PENDING: frozenset({JobStatus.RUNNING}),
     JobStatus.RUNNING: frozenset(
         {JobStatus.SUCCEEDED, JobStatus.RETRY_PENDING, JobStatus.FAILED_FINAL}
@@ -157,6 +163,9 @@ JOB_TRANSITIONS: Final[dict[JobStatus, frozenset[JobStatus]]] = {
     JobStatus.SUCCEEDED: frozenset(),
     JobStatus.FAILED_FINAL: frozenset(),
 }
+JOB_TRANSITIONS: Final[Mapping[JobStatus, frozenset[JobStatus]]] = MappingProxyType(
+    _JOB_TRANSITIONS
+)
 
 
 # ---------------------------------------------------------------------------
@@ -535,11 +544,14 @@ class ChannelRef(_DomainModel):
 
 
 class InvalidTransitionError(Exception):
-    """Raised when a pipeline or job transition is not allowed."""
+    """Raised when a pipeline or job transition is not allowed.
 
-    def __init__(self, message: str, *, code: ErrorCode = ErrorCode.INVALID_TRANSITION) -> None:
+    Not mapped to a dedicated ErrorCode: System Design §12 does not freeze an
+    INVALID_TRANSITION code. Callers may treat this as a programming/contract error.
+    """
+
+    def __init__(self, message: str) -> None:
         super().__init__(message)
-        self.code = code
         self.message = message
 
 
@@ -571,7 +583,12 @@ def pipeline_after_job_failure(
     pipeline_status: PipelineStatus,
     job_status: JobStatus,
 ) -> PipelineStatus:
-    """Failed or retrying jobs do not change the video's last successful pipeline status."""
+    """Failed or retrying jobs do not change the video's last successful pipeline status.
+
+    C-07 recovery stage identity is expressed by ``ProcessingStage`` (Job target stage
+    enum). This task does not freeze a Job aggregate with a ``target_stage`` field;
+    persistence of that field is TASK-003 scope.
+    """
     if job_status not in {JobStatus.RETRY_PENDING, JobStatus.FAILED_FINAL}:
         raise InvalidTransitionError(
             "pipeline_after_job_failure only applies to RETRY_PENDING or FAILED_FINAL"
