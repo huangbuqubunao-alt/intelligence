@@ -2,7 +2,7 @@
 
 - Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: `Codex`（已授权；等待控制面同步 commit 后启动）
+- Reviewer: `Grok`（全新独立会话；等待改派控制面 commit 后启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
@@ -119,6 +119,17 @@
 - Implementer state: 已停止写入；worktree 在主控只读核对时干净。
 - Pre-review result: 三个强制修复项和额外 `ErrorCode` 已有代码与测试证据；受控密钥哨兵在直接/nested error 的文本、`repr`、结构化 errors、cause/context 中均未出现。
 - Status decision: `IN_REVIEW`
-- Reviewer packet: `agent-prompts/TASK-002-REVIEWER-CODEX.md`
+- Reviewer packet: `agent-prompts/TASK-002-REVIEWER-GROK.md`
 - Review scope: `46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff`
 - Reviewer write scope: 只可补充并提交 `handoffs/TASK-002.md`，不得修改业务代码、测试、依赖或公共任务状态。
+
+## Reviewer 改派记录
+
+- Reassigned at: 2026-07-15
+- Requested by: 产品负责人
+- Previous reviewer: Codex，未启动、未写 TASK-002 worktree。
+- Active reviewer: Grok，全新独立会话；不得复用 Implementer 对话、总结或隐藏上下文。
+- Independence mitigation: Reviewer 必须从冻结规格、完整 `base...source head` Diff 和重新运行的检查独立重建 AC-1 至 AC-8；同模型自审不能替代证据，任何未解决 P0/P1 必须 `REJECT`。
+- Superseded packet: `agent-prompts/TASK-002-REVIEWER-CODEX.md`，禁止执行。
+- Active packet: `agent-prompts/TASK-002-REVIEWER-GROK.md`
+- Status remains: `IN_REVIEW`

@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-002`（`grok/task-002-config-domain-contracts`）；`/Users/hua/Documents/yia-worktrees/task-001` 只保留待后续清理
-- 活动任务：`TASK-002` 为 `IN_REVIEW`；Grok 已停止写入，Codex Reviewer 等待控制面授权提交后启动
+- 活动任务：`TASK-002` 为 `IN_REVIEW`；Grok Implementer 已停止写入，等待全新独立 Grok Reviewer 会话启动
 
 ## 已完成或已批准
 
@@ -29,8 +29,8 @@
 
 ## 下一步
 
-1. Status Integrator 提交 TASK-002 修复记录、`IN_REVIEW` 状态和 Codex Reviewer 包；不得改动已准备内容或产品分支。
-2. 控制面提交完成后，在独立 Codex Reviewer 会话执行 `agent-prompts/TASK-002-REVIEWER-CODEX.md`；Reviewer 只可补充交接报告。
+1. Status Integrator 提交 TASK-002 Reviewer 从 Codex 到独立 Grok 新会话的改派；不得改动产品分支。
+2. 改派提交完成后，在全新 Grok Reviewer 会话执行 `agent-prompts/TASK-002-REVIEWER-GROK.md`；不得复用 Implementer 会话，Reviewer 只可补充交接报告。
 3. Reviewer 返回 `APPROVE` 后由主控逐项验收；`REJECT` 则退回原 Grok Implementer。
 4. `TASK-002` 验收、整合并关闭为 `DONE` 后，从同一最新 main 基线并行创建 TASK-003/TASK-004 worktree；开工包必须包含 `Reuse decision`。
 
@@ -38,8 +38,8 @@
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | Status Integrator 同步 TASK-002 修复记录与 Reviewer 授权 | 只提交指定 6 个 Markdown，不触碰产品分支 |
-| 可并行启动 | 无需新增 Scout；Grok Implementer 保持停止写入 | Reviewer 必须等状态同步 commit 后启动 |
+| 立即启动 | Status Integrator 同步 TASK-002 Grok Reviewer 改派 | 只提交指定 6 个 Markdown，不触碰产品分支 |
+| 可并行启动 | 无需新增 Scout；Grok Implementer 保持停止写入 | 全新 Grok Reviewer 必须等改派 commit 后启动 |
 | 等待依赖 | `TASK-003`、`TASK-004` 写入实现及后续任务 | 只等 `TASK-002` `DONE` |
 
 ## 授权边界
