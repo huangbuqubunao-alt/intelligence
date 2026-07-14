@@ -1,7 +1,7 @@
 # TASK-001：工程脚手架与质量门禁
 
-- Status: `ACCEPTED`
-- Assignee: `Integrator`（Implementer: Codex；Reviewer: Grok）
+- Status: `DONE`
+- Assignee: `COMPLETED`（Implementer: Codex；Reviewer: Grok；Integrator: Status Integrator）
 - Owner role: TL / 实现 Agent
 - Size: M
 - Risk: High
@@ -99,3 +99,13 @@
 - P2 disposition: 未锚定 `data/`、`logs/` 不违反当前 AC-3，不阻断整合；风险登记到 `docs/PROJECT_STATUS.md`，并由 `TASK-014` 在发布前复核。
 - Orchestrator verdict: `ACCEPT`
 - Integration scope: 只整合上述实现 commit 与审查证据 commit；不得顺便修改内容。
+
+## 整合结果
+
+- Integrated at: 2026-07-14
+- Main base: `a668ad4ecdcf63008b300e70e03aa595c0366741`
+- Merge commit: `5273e069aa34392db957e82b8803a709bdd1ab1f`
+- Merge parents: `a668ad4ecdcf63008b300e70e03aa595c0366741`、`ed2707c597dc0f5e7593f9ad78e284130fbc24e2`
+- Post-merge checks: `uv lock --check`、`uv sync --locked`、`uv build`、CLI help、pytest、Ruff、mypy、Git Diff/状态全部通过
+- Final status: `DONE`
+- Cleanup: source branch 与 worktree 暂时保留，不影响后续任务；删除需另行确认

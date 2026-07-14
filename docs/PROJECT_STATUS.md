@@ -5,8 +5,8 @@
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-001`
-- 活动整合任务：`TASK-001` — 等待 Integrator
+- 活动 worktree：无写入任务；`/Users/hua/Documents/yia-worktrees/task-001` 只保留待后续清理
+- 活动任务：无；下一候选为 `TASK-002`，仍需任务级依赖授权
 
 ## 已完成或已批准
 
@@ -15,26 +15,25 @@
 - 多 Agent 协作模式 ADR-001 已接受并生效。
 - C-01 至 C-08 已由产品负责人批准，配置与领域契约 ADR-002 已接受并同步到 System Design V1.1 与 `TASK-002`。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
-- `TASK-001` 已由 Codex 在 `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c` 完成实现；Grok 以证据提交 `ed2707c597dc0f5e7593f9ad78e284130fbc24e2` 给出 `APPROVE`，主控复核后状态为 `ACCEPTED`。
+- `TASK-001` 已由 Codex 实现、Grok 独立审查、主控验收，并以 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 整合到 `main`；整合后全部门禁通过，状态为 `DONE`。
 
 ## 当前阻塞
 
-- `TASK-001` 无未解决 P0/P1，等待 Integrator 把已验收实现与审查证据整合到 `main`。
-- `TASK-002` 契约已经冻结，但仍依赖 `TASK-001` 完成；实际安装/锁定 `pydantic`、`PyYAML` 仍需任务级授权，因此状态保持 `BLOCKED`。
+- `TASK-002` 契约已经冻结且 `TASK-001` 依赖已满足；实际安装/锁定 `pydantic`、`PyYAML` 仍需任务级授权，因此状态保持 `BLOCKED`。
 
 ## 下一步
 
-1. Integrator 在最新干净 `main` 上整合实现 commit `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c` 和审查证据 commit `ed2707c597dc0f5e7593f9ad78e284130fbc24e2`，不得修改内容。
-2. 整合后重新运行锁定、同步、构建、CLI、pytest、Ruff、mypy 和 Diff/状态检查；通过后由主控关闭任务为 `DONE`。
-3. `TASK-001` 为 `DONE` 后，核对主线锁定工具链并申请 `TASK-002` 的 `pydantic`/`PyYAML` 安装授权，再创建独立 worktree。
+1. 主控基于已锁定的 Python 3.12 工具链提出 `TASK-002` 的 `pydantic`、`PyYAML` 精确版本范围和网络/锁文件授权方案。
+2. 产品负责人批准后，把 `TASK-002` 从 `BLOCKED` 改为 `READY`，再创建独立 worktree 和 Implementer 任务包。
+3. `TASK-002` 完成并整合后，按已批准路线图并行启动 `TASK-003` 与 `TASK-004`。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-001` Integrator | 只整合两个已验收 commit，不修改内容 |
+| 立即启动 | `TASK-002` 任务级依赖与版本授权准备 | 主控只读核对；不安装、不写锁文件 |
 | 可并行启动 | 无；`TASK-002` Read-only Preflight 已完成并关闭 | 无 |
-| 等待依赖 | `TASK-002` 及后续实现任务 | 等 `TASK-001` 审查、验收、整合为 `DONE` |
+| 等待依赖 | `TASK-002` Implementer 及后续实现任务 | 等 `pydantic`、`PyYAML` 安装/锁定授权 |
 
 ## 已授权方向但尚未授权执行
 

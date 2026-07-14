@@ -145,14 +145,17 @@
 
 ## 主控验收
 
-- Orchestrator：
-- Verdict：`ACCEPT | REJECT`
-- 依据：
-- 批准整合的 commit：
+- Orchestrator：主控 Codex 对话
+- Verdict：`ACCEPT`
+- 依据：实现者、主控和独立 Reviewer 均复跑验收门禁；Grok `APPROVE`；无未解决 P0/P1；范围和红线检查通过。
+- 批准整合的 commit：实现 `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`；审查证据 `ed2707c597dc0f5e7593f9ad78e284130fbc24e2`
+- P2 处置：未锚定 `data/`、`logs/` 不阻断当前 AC-3，已登记到 `TASK-014` 发布门禁。
 
 ## 整合结果
 
-- Integrator：
-- 主线 commit：
-- 整合后检查：
-- 最终状态：`DONE | BLOCKED`
+- Integrator：Status Integrator
+- 主线 commit：`5273e069aa34392db957e82b8803a709bdd1ab1f`
+- Merge parents：`a668ad4ecdcf63008b300e70e03aa595c0366741`、`ed2707c597dc0f5e7593f9ad78e284130fbc24e2`
+- 整合后检查：`uv lock --check`、`uv sync --locked`、`uv build`、`uv run python -m youtube_intel --help`、pytest、Ruff、mypy、Git Diff/状态全部通过。
+- 最终状态：`DONE`
+- 剩余风险：未锚定 `data/`、`logs/` 由 `TASK-014` 跟踪；build backend 仍按已批准范围在隔离环境解析。
