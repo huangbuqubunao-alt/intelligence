@@ -1,0 +1,29 @@
+# Virtual environments and build artifacts
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Python and quality-tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime state
+data/
+logs/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.key
+*.pem
+
+# macOS metadata
+.DS_Store
