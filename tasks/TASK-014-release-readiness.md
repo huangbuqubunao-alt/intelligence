@@ -1,0 +1,51 @@
+# TASK-014：发布准备
+
+- Status: `BLOCKED`
+- Assignee: `UNASSIGNED`
+- Owner role: PO + TL + QA
+- Size: S
+- Risk: Medium
+- Depends on: TASK-013
+
+## 目标
+
+在不新增功能的前提下完成 V1 文档、安装运行、备份恢复、安全检查和发布门禁，形成明确的 Go/No-Go 决策。
+
+## 范围
+
+- 核对 README、配置示例、初始化、手动运行、doctor、launchd、备份/恢复和故障处理说明。
+- 核对 PRD、System Design、实际 CLI、Schema 版本和验收报告一致。
+- 由 PO/TL/QA/隐私 Reviewer 逐项签署发布清单。
+
+## 范围外
+
+- 不修复新发现缺陷；缺陷必须退回对应任务或新建范围明确的任务卡。
+- 不新增依赖、重构、格式化全仓库或实现 V2 功能。
+- 不自动部署、加载 launchd 或写入真实 Vault。
+
+## 验收标准
+
+- [ ] 从干净环境按 README 可安装并完成离线 smoke；备份/恢复说明在临时数据上验证。
+- [ ] `docs/ACCEPTANCE_REPORT.md` 无未解释的 P0/P1 失败，所有剩余风险有负责人和处置决定。
+- [ ] 四类 Reviewer 完成清单并给出 Go；任一红线项不满足则明确 No-Go，不得标记 V1 完成。
+
+## 验证
+
+- [ ] `python -m pytest`
+- [ ] `ruff check . && mypy src`
+- [ ] `python -m youtube_intel doctor`（只使用临时/示例配置）
+- [ ] `git diff --check && git status --short`
+- [ ] 人工检查：无密钥、无真实 Vault 内容、无未审批依赖/Schema/调度改动。
+
+## 预计触达文件
+
+- `README.md`
+- `docs/OPERATIONS.md`
+- `docs/ACCEPTANCE_REPORT.md`
+- `docs/RELEASE_CHECKLIST.md`
+
+## 交付证据
+
+- Go/No-Go 记录和签署人。
+- 干净环境 smoke、备份和恢复结果。
+- 版本号、Schema 版本、已知限制和下一步任务链接。

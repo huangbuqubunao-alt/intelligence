@@ -1,0 +1,52 @@
+# TASK-012：CLI、调度与日志
+
+- Status: `BLOCKED`
+- Assignee: `UNASSIGNED`
+- Owner role: 实现 Agent
+- Size: M
+- Risk: Medium
+- Depends on: TASK-010
+- Approval required: 加载/注册真实 launchd 服务前需用户明确授权
+
+## 目标
+
+提供稳定的手动运行、诊断、恢复和周报命令，生成可检索的结构化日志，并提供不会静默安装的 launchd 样例。
+
+## 范围
+
+- 实现 System Design 约定的 `check`、`process`、`retry`、`weekly`、`doctor` 命令语义和退出码。
+- 为每次运行生成 `run_id`，日志包含阶段、视频、Job、耗时、错误码和安全化消息。
+- 提供 launchd plist 模板、安装/卸载说明和路径占位符校验；不自动加载。
+
+## 范围外
+
+- 不开发 GUI 或 Web 管理页。
+- 不在初始化时自动调用 `launchctl`。
+- 不把字幕全文、模型原始响应或密钥写日志。
+
+## 验收标准
+
+- [ ] 每个命令有帮助文本、参数校验和确定退出码；错误配置在领取任务前失败。
+- [ ] `doctor` 可检查配置、目录、SQLite、启用 Provider 和 Vault 边界，但不会执行昂贵处理或泄露密钥。
+- [ ] 结构化日志可按 `run_id`/`video_id`/阶段关联；launchd 样例可通过静态校验且不会被测试加载到用户系统。
+
+## 验证
+
+- [ ] `python -m pytest tests/integration/test_operations.py`
+- [ ] `python -m youtube_intel --help`
+- [ ] `plutil -lint config/launchd/com.yia.agent.plist.example`
+- [ ] `mypy src && ruff check .`
+
+## 预计触达文件
+
+- `src/youtube_intel/__main__.py`
+- `src/youtube_intel/cli.py`
+- `src/youtube_intel/logging.py`
+- `config/launchd/com.yia.agent.plist.example`
+- `tests/integration/test_operations.py`
+
+## 交付证据
+
+- 命令/退出码矩阵。
+- 脱敏日志样例和无全文检查结果。
+- 声明未加载真实 launchd 服务；如加载则附用户授权和回滚步骤。
