@@ -7,7 +7,10 @@ name = "youtube-intel"
 version = "0.1.0"
 description = "A local-first YouTube intelligence agent"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.4,<2.14",
+    "pyyaml>=6.0.3,<7",
+]
 
 [dependency-groups]
 dev = [

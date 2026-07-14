@@ -1,0 +1,53 @@
+# Example settings — placeholders only. Never put real API keys or real vault paths.
+general:
+  timezone: Asia/Shanghai
+  output_language: zh-CN
+  transcript_languages:
+    - zh
+    - en
+
+execution:
+  worker_concurrency: 1
+  max_video_duration_minutes: 180
+
+thresholds:
+  summary_score: 7.0
+
+weekly:
+  top_n: 10
+
+retry:
+  max_attempts: 3
+  base_delay_seconds: 2
+  max_delay_seconds: 60
+  jitter_ratio: 0.2
+
+timeouts:
+  http_seconds: 30
+  local_model_seconds: 300
+  cloud_model_seconds: 120
+
+transcription:
+  model: mlx-community/whisper-large-v3-turbo
+
+local_scoring:
+  model: qwen2.5:14b
+  temperature: 0.0
+  max_output_tokens: 1200
+  max_transcript_chars: 30000
+
+cloud:
+  enabled: false
+  provider: openai
+  # model required only when enabled: true
+  api_key_env: OPENAI_API_KEY
+  max_calls_per_run: 5
+  max_input_tokens_per_video: 30000
+
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  # Placeholder absolute path only — replace locally; never commit a real vault path.
+  vault_root: /absolute/path/to/obsidian/vault
+  vault_subdir: YouTube Intel
