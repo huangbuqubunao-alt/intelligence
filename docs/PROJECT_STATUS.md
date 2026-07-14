@@ -3,7 +3,8 @@
 - 更新时间：2026-07-14
 - 当前阶段：Phase 0 — 审批与基础
 - 主控状态：ACTIVE
-- Git 基线：`main@c0f1f553db52b1cb4eb354e5c689c2abc5556223`
+- 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
+- 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：无
 - 活动实现任务：无
 
@@ -13,29 +14,30 @@
 - `docs/PRD.md`、`docs/SYSTEM_DESIGN.md` 和 `docs/IMPLEMENTATION_ROADMAP.md` 已批准。
 - 多 Agent 协作模式 ADR-001 已接受并生效。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
+- 产品负责人已明确批准 `TASK-001` 的 Python 3.12、uv、build backend、开发依赖、文件范围、网络下载和验证命令；任务状态为 `READY`。
 
 ## 当前阻塞
 
-- `TASK-001` 的依赖安装、`pyproject.toml`、`uv.lock` 和工具链配置属于红线动作，仍需产品负责人对本次执行范围明确授权。
-- `TASK-001` 获得授权并进入 `READY` 前，所有后续写入型实现任务继续保持 `BLOCKED`。
+- `TASK-001` 无产品或技术阻塞，等待状态同步 commit、worktree 和角色任务包。
+- `TASK-002` 及后续写入型实现任务继续按依赖保持 `BLOCKED`。
 
 ## 下一步
 
-1. 如尚未执行，在独立只读 Codex/Grok 会话运行 `agent-prompts/PREFLIGHT-TASK-001-READONLY.md` 并把摘要返回主控。
-2. 产品负责人明确批准或调整 `TASK-001` 的依赖、包管理器、锁文件和工具链执行范围。
-3. 主控确认预检与授权后，把 `TASK-001` 设为 `READY`，创建独立 worktree，并即时生成 Implementer 与 Reviewer 任务包。
+1. Status Integrator 提交本次 `TASK-001` 授权与 `READY` 状态同步。
+2. 主控以返回的最新 `main` SHA 创建 `TASK-001` 独立 worktree 和分支，并生成 Implementer/Reviewer 任务包。
+3. `TASK-001` 实现期间，可并行运行 `agent-prompts/PREFLIGHT-TASK-002-READONLY.md`。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-001` Read-only Preflight | 无；只在聊天中返回摘要 |
-| 可并行启动 | 无写入型任务 | 等待任务级授权 |
-| 等待依赖 | `TASK-001` 实现及所有后续实现任务 | 等待 `TASK-001` 依赖/工具链执行授权 |
+| 立即启动 | `TASK-001` 状态同步、worktree 和 Implementer | 状态同步只写控制面；实现只写独立 worktree |
+| 可并行启动 | `TASK-002` Read-only Preflight | 无；只在聊天中返回摘要 |
+| 等待依赖 | `TASK-002` 及后续实现任务 | 等待 `TASK-001` `DONE` |
 
 ## 已授权方向但尚未授权执行
 
-- 已批准 uv、依赖白名单和 `uv.lock` 方向；尚未授权本轮实际安装/写入工具链。
+- `TASK-001` 已授权：本机 Python 3.12、uv、`uv_build>=0.11.28,<0.12`、`pytest>=9.1.1,<10`、`ruff>=0.15.21,<0.16`、`mypy>=2.3,<3`、必要传递依赖、网络下载和锁文件/工具链写入。
 - 已批准 OpenAI 作为 V1 首个云 Adapter；尚未授权写密钥或真实付费调用。
 - 已批准 MLX Whisper；尚未授权下载模型。
 - 已批准 SQLite 逻辑方向；最终 SQL Schema 仍需任务级审批。
@@ -43,7 +45,8 @@
 
 ## 当前风险
 
-- TASK-001 需要验证 Python 3.12、uv 与 MLX 相关包在本机的实际兼容性。
+- TASK-001 仍需用真实 `uv.lock`、同步、构建和质量命令证明已批准工具链在 Python 3.12 上兼容。
+- MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。
 - 初始 commit 使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；不影响当前基线，但正式协作前可由用户决定是否配置显式 Git 身份。
 
 ## 主控接收执行结果的最小格式
