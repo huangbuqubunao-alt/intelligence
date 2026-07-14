@@ -8,16 +8,26 @@
 - Base branch/commit: `main@46f8497e771e1461034942dd7967f19d85f79f81`
 - Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
-- Head commit: `070b379053bd878c4aa5747f403e6537d6fec4b1`
+- Code evidence commit (implementation + pre-review fix): `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
+- Branch tip: see `git rev-parse HEAD` after this handoff commit (not hard-coded here)
 - Started: 2026-07-14
-- Reported: 2026-07-14
+- Reported: 2026-07-15
 
 ## 目标与范围
 
 - 任务目标：把已审批的配置 Schema、核心领域对象、Provider 输入输出、三层状态模型和统一错误码固化为类型与运行时校验契约。
 - 允许修改：`src/youtube_intel/config.py`、`src/youtube_intel/domain.py`、`config/channels.example.yaml`、`config/settings.example.yaml`、`tests/unit/test_contracts.py`、`pyproject.toml`、`uv.lock`、`handoffs/TASK-002.md`
-- 实际修改：上述 8 个文件（无范围外文件）
+- 实际修改：上述 8 个文件（无范围外文件）；预审修复仅触及 `config.py`、`domain.py`、`test_contracts.py` + 本交接
 - 明确未做：Provider Adapter、SQLite、CLI 命令选项、采样算法、真实密钥解析、Vault 写入、网络调用、任务状态更新、合并 `main`
+
+## 预审修复摘要（相对 `4355a59`）
+
+| 阻断项 | 处理 |
+|---|---|
+| AC-8 密钥错误脱敏 | `api_key_env` 校验错误经 wrap validator / `_redact_sensitive_validation_error` 将 `input` 替换为 `[REDACTED]`；消息不含输入值；ConfigError 路径同步脱敏 |
+| 公共自由 dict | `load_yaml_mapping` 改为私有 `_load_yaml_mapping`，移出 `__all__`；公共导出仅为强类型模型与 `load_channels`/`load_settings`/`load_app_config` |
+| 公共集合只读 | `PIPELINE_TRANSITIONS` / `JOB_TRANSITIONS` 为 `MappingProxyType`；底层 `_PIPELINE_TRANSITIONS` / `_JOB_TRANSITIONS` 私有 |
+| 未批准 ErrorCode | 移除 `INVALID_TRANSITION`；`ErrorCode` 严格等于 System Design §12 的 8 项 |
 
 ## ADR-002 逐项追踪
 
@@ -27,106 +37,117 @@
 | C-02 | `worker_concurrency=1`；重试默认 3/2s/60s/0.2；超时 30/300/120 | `ExecutionSettings`、`RetrySettings`、`TimeoutSettings` | PASS |
 | C-03 | 本地评分 `temperature=0.0`、`max_output_tokens=1200`、`max_transcript_chars=30000` | `LocalScoringSettings` | PASS |
 | C-04 | 项目路径相对；`vault_root` 绝对；`vault_subdir` 安全相对；规范化与符号链接边界 | `StorageSettings` 校验 | PASS |
-| C-05 | 跨模块结构化对象；无自由 `dict`；输入输出分离 | `domain.py` 全部 I/O 模型与 Protocol | PASS |
+| C-05 | 跨模块结构化对象；无自由 `dict`；输入输出分离 | `domain.py` I/O 模型与 Protocol；配置公共 API 无 dict 导出 | PASS |
 | C-06 | 六个评分维度；Analysis 固定字段/基数/证据引用；kind 枚举 | `ScoreDimensions`、`AnalysisResult`、`AnalysisPoint`、`EvidenceExcerpt` | PASS |
-| C-07 | 三层状态分离；合法转换表；失败 Job 保留 Pipeline | `PipelineStatus`/`ProcessingStage`/`JobStatus` + transition helpers | PASS |
+| C-07 | 三层状态分离；合法转换表；失败 Job 保留 Pipeline | enums + immutable transition maps + helpers | PASS |
 | C-08 | 统一 `uv run python -m …` 命令形式 | 本交接检查结果均使用该形式 | PASS |
 
-## 依赖锁摘要
+## 自审报告（预审要求）
 
-直接依赖：
+### Provider：`request_id` / 稳定输入哈希 / 调用元数据
+
+- System Design §5 语义签名未要求每个方法参数带 `request_id`。
+- 稳定输入哈希：`ScoringInput.request_hash`、`AnalysisInput.request_hash`，并回写到 `ScoreResult` / `AnalysisResult`。
+- 调用元数据：`ProviderCallMetadata`（`provider`、`started_at`、`finished_at`、可选 version/model/diagnostics）挂在 `DiscoveryBatch.call` 与 `NotAvailable.call`。
+- 未新增未冻结的 `request_id` 公共字段；应用层可在编排中生成哈希后注入上述 I/O 对象。
+- **结论**：与冻结的 §5 / §5.2 契约一致；不扩大范围。
+
+### ErrorCode 是否擅自扩容
+
+- 修复后 `ErrorCode` **仅** System Design §12 八项：`TRANSIENT_NETWORK`、`RATE_LIMITED`、`PROVIDER_UNAVAILABLE`、`INVALID_RESPONSE`、`CONTENT_UNAVAILABLE`、`CONFIG_INVALID`、`PERMISSION_DENIED`、`LOCAL_RESOURCE`。
+- 已删除初始实现中的 `INVALID_TRANSITION`；非法状态转换使用 `InvalidTransitionError` 异常，不映射未批准错误码。
+
+### C-07 `target_stage` 恢复语义由谁承载
+
+- **阶段集合**：`ProcessingStage` 枚举（Job 目标执行阶段）。
+- **失败不改写视频进度**：`pipeline_after_job_failure(pipeline_status, job_status)` 在 `RETRY_PENDING` / `FAILED_FINAL` 时原样返回最近成功的 `PipelineStatus`。
+- **本任务未冻结** 带 `job_id` / `status` / `target_stage` 字段的 Job 聚合实体；该持久化形状属 TASK-003 / System Design §8.3。
+- **未自行新增** Job 公共模型字段（避免 DECISION NEEDED 范围扩张）。
+
+## 依赖锁摘要
 
 | 包 | 约束 | 锁定版本 |
 |---|---|---|
 | pydantic | `>=2.13.4,<2.14` | `2.13.4` |
 | PyYAML | `>=6.0.3,<7` | `6.0.3` |
 
-必要传递依赖（运行时）：`pydantic-core==2.46.4`、`annotated-types==0.7.0`、`typing-extensions==4.16.0`、`typing-inspection==0.4.2`
-
-未启用可选 extras；未新增 `pydantic-settings` 或 `types-PyYAML`。PyYAML 导入使用 `# type: ignore[import-untyped]`。
+传递：`pydantic-core==2.46.4`、`annotated-types==0.7.0`、`typing-extensions==4.16.0`、`typing-inspection==0.4.2`。无新依赖、无 extras。
 
 ## 脱敏有效/无效配置示例
 
-### 有效（示例文件）
+### 有效
 
 ```text
-load_channels(config/channels.example.yaml) -> 3 channels, sorted by priority desc then channel_id asc
-load_settings(config/settings.example.yaml) -> AppSettings with defaults and placeholders only
-api_key_env=OPENAI_API_KEY (name only; no secret value present)
+api_key_env=OPENAI_API_KEY (name only)
 vault_root=/absolute/path/to/obsidian/vault (placeholder)
 ```
 
-### 无效阈值（字段路径明确、无密钥）
+### 密钥形输入脱敏（哨兵真实作为输入）
 
 ```text
-thresholds.summary_score=11
--> ConfigError: settings validation failed ... summary_score ...
-assert "sk-" not in error message
-```
-
-### 无效时区
-
-```text
-general.timezone=Mars/Phobos
--> ConfigError containing timezone/IANA; no secret values
+sentinel = "sk-redaction-probe-123"
+CloudSettings(api_key_env=sentinel) -> ValidationError
+assert sentinel not in str/repr/errors
+load_settings(YAML with cloud.api_key_env=sentinel) -> ConfigError
+assert sentinel not in str(ConfigError)
 ```
 
 ### 恶意 YAML tag
 
 ```text
-!!python/object/apply:os.system ['echo pwned']
--> ConfigError via yaml.safe_load (SafeLoader); no code execution
+!!python/object/apply:os.system ...
+-> ConfigError via SafeLoader (public path: load_settings)
 ```
 
 ## 验收证据
 
 | 验收项 | PASS/FAIL/BLOCKED | 证据 |
 |---|---|---|
-| AC-1 有效示例加载；未知字段/非法阈值/无效时区/越界路径失败 | PASS | `test_example_configs_load`、`test_unknown_root_and_nested_fields_rejected`、`test_invalid_iana_timezone`、path tests |
-| AC-2 priority/阈值/Top N 边界；并发非 1 失败 | PASS | parametrized bounds tests + `test_concurrency_must_be_one` |
-| AC-3 重试/超时/本地评分/云端预算默认与约束 | PASS | `test_retry_defaults_and_constraints`、`test_timeouts_must_be_positive`、`test_local_scoring_*`、`test_cloud_*` |
-| AC-4 项目路径/Vault 路径边界 | PASS | `test_project_paths_*`、`test_vault_root_and_subdir_rules`、`test_vault_symlink_escape_rejected` |
-| AC-5 无具体 SDK 导入；公共接口无自由 dict | PASS | `test_domain_module_has_no_concrete_sdk_imports`、`test_public_contracts_avoid_free_form_dict_annotations` |
-| AC-6 Score/Analysis 字段与基数 | PASS | `test_score_result_dimensions_and_cardinalities`、`test_analysis_result_structure_and_evidence_refs` |
-| AC-7 三层状态分离；非法转换拒绝；失败 Job 保留阶段 | PASS | `test_pipeline_and_job_are_distinct_enums`、transition tests、`test_failed_job_preserves_pipeline_status` |
-| AC-8 密钥仅为 env 名；repr/错误/快照不泄露值 | PASS | `test_secrets_never_loaded_or_shown`、`test_app_settings_repr_has_no_secret_values` |
+| AC-1 | PASS | example load + unknown/timezone/path tests |
+| AC-2 | PASS | priority/threshold/top_n/concurrency bounds |
+| AC-3 | PASS | retry/timeout/local_scoring/cloud tests |
+| AC-4 | PASS | project/vault/symlink path tests |
+| AC-5 | PASS | `test_public_contracts_avoid_free_form_dict` + no SDK imports |
+| AC-6 | PASS | score/analysis cardinality + evidence refs |
+| AC-7 | PASS | distinct enums + transitions + failure preserves pipeline + immutable maps |
+| AC-8 | PASS | `test_api_key_env_secret_shaped_input_redacted_in_errors` (sentinel as real input) |
 
-## 检查结果
+## 检查结果（代码证据提交 `8492c42` 上）
 
-| 命令/人工检查 | 结果 | 关键输出或说明 |
+| 命令/人工检查 | 结果 | 说明 |
 |---|---|---|
-| `uv lock --check` | PASS | lock consistent |
-| `uv sync --locked` | PASS | 18 packages checked |
-| `uv run python -m pytest tests/unit/test_contracts.py` | PASS | 44 passed |
-| `uv run python -m pytest` | PASS | 45 passed (includes smoke) |
-| `uv run mypy src` | PASS | no issues in 4 source files |
-| `uv run ruff check .` | PASS | All checks passed |
-| `uv run python -m youtube_intel --help` | PASS | usage shown |
-| `git diff --check` | PASS | no whitespace errors |
-| 人工：无效阈值/时区/恶意 tag/密钥脱敏 | PASS | covered by unit tests with field-path assertions |
+| `uv lock --check` | PASS | |
+| `uv sync --locked` | PASS | |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS | 46 passed |
+| `uv run python -m pytest` | PASS | 47 passed |
+| `uv run mypy src` | PASS | |
+| `uv run ruff check .` | PASS | |
+| `uv run python -m youtube_intel --help` | PASS | |
+| `git diff --check` | PASS | |
+| 哨兵密钥脱敏人工复核 | PASS | ValidationError + ConfigError 均不含 sentinel |
 
 ## Diff 复核
 
-- 修改文件：仅允许的 8 个文件（实现后提交前确认）
-- 是否存在任务范围外修改：否（未改 `__init__.py`、CLI、任务状态、ADR、其他测试）
-- 是否存在生成文件或格式化噪声：`.venv` 与缓存未纳入提交
-- 是否触及红线：否 — 仅批准依赖；无真实密钥、无真实 Vault、无云调用、无 launchd、无 DB Schema
+- base...code-evidence 允许范围内 8 文件；修复提交仅 3 个代码/测试文件。
+- 无范围外修改、无生成物、无真实密钥/Vault/云调用。
+- 未 amend `4355a59`；修复为独立 commit `8492c42`。
 
 ## 失败、跳过与风险
 
-- 已解决失败：Ruff F401 未使用导入（`Literal`、测试导入）已清理
-- 跳过检查及原因：None
+- 已解决：预审三项阻断 + 未批准 `INVALID_TRANSITION` 移除
+- 跳过检查：None
 - 剩余风险：
-  - `vault_subdir` 符号链接检查依赖本机 `Path.resolve`；写入时 TASK-009 仍须再次边界校验（System Design 已要求）
-  - 配置层不读取 `api_key_env` 对应环境变量值；运行时解析留给后续任务
-  - `SettingsOverrides` 以整节替换语义提供 CLI 覆盖面，未发明 TASK-012 具体命令行选项
+  - 写入路径边界需在后续任务再次校验
+  - `api_key_env` 仍不读取环境变量值
+  - Job 聚合 `target_stage` 字段待 TASK-003 冻结 Schema
 - `DECISION NEEDED`：`None`
 
 ## 实现者结论
 
 - 建议状态：`IN_REVIEW`
-- Commit SHA：`070b379053bd878c4aa5747f403e6537d6fec4b1`
-- 复现/验证说明：
+- 代码证据 Commit SHA：`8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
+- 初始实现 Commit：`4355a59f6f95e409bcf15b3b8004bb112d0033b3`
+- 复现：
 
 ```bash
 cd /Users/hua/Documents/yia-worktrees/task-002
