@@ -1,8 +1,8 @@
 # TASK-002：配置与领域契约
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Grok`
-- Reviewer: `Grok`（全新独立会话；等待改派控制面 commit 后启动）
+- Reviewer: `Grok`（全新独立会话；`APPROVE`）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
@@ -87,7 +87,7 @@
 
 - Assigned at: 2026-07-14
 - Implementer: Grok，独占 `/Users/hua/Documents/yia-worktrees/task-002` 的写入权。
-- Reviewer: Codex；仅在主控确认实现 commit、交接证据和 `IN_REVIEW` 状态后启动。
+- Initial reviewer assignment: Codex；从未启动，后由产品负责人改派为独立 Grok Reviewer。
 - Implementer packet: `agent-prompts/TASK-002-IMPLEMENTER-GROK.md`
 - Parallel read-only work: `agent-prompts/PREFLIGHT-TASK-003-004-READONLY.md`；不构成后续任务开工授权。
 
@@ -118,7 +118,7 @@
 - Commit chain: `46f8497e... -> 4355a59... -> 8492c42... -> 8f50df2...`
 - Implementer state: 已停止写入；worktree 在主控只读核对时干净。
 - Pre-review result: 三个强制修复项和额外 `ErrorCode` 已有代码与测试证据；受控密钥哨兵在直接/nested error 的文本、`repr`、结构化 errors、cause/context 中均未出现。
-- Status decision: `IN_REVIEW`
+- Status at review authorization: `IN_REVIEW`
 - Reviewer packet: `agent-prompts/TASK-002-REVIEWER-GROK.md`
 - Review scope: `46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff`
 - Reviewer write scope: 只可补充并提交 `handoffs/TASK-002.md`，不得修改业务代码、测试、依赖或公共任务状态。
@@ -132,4 +132,17 @@
 - Independence mitigation: Reviewer 必须从冻结规格、完整 `base...source head` Diff 和重新运行的检查独立重建 AC-1 至 AC-8；同模型自审不能替代证据，任何未解决 P0/P1 必须 `REJECT`。
 - Superseded packet: `agent-prompts/TASK-002-REVIEWER-CODEX.md`，禁止执行。
 - Active packet: `agent-prompts/TASK-002-REVIEWER-GROK.md`
-- Status remains: `IN_REVIEW`
+- Status at reassignment: `IN_REVIEW`
+
+## 独立审查与主控验收
+
+- Reviewed source head: `8f50df2f7e93d778f32947ca471740b6713c9aff`
+- Review evidence commit: `d98de3537187ac346e404d7899d0a9d90c228483`
+- Reviewer verdict: `APPROVE`
+- Reviewer checks: locked sync、focused/full pytest（46/47 passed）、mypy、Ruff、CLI help、Diff/状态与两个独立探针全部通过。
+- Acceptance matrix: AC-1 至 AC-8 全部 `PASS`。
+- Findings: P0/P1/P2 无；P3 为公开 `MappingProxyType` 仍由私有 backing dict 支撑，以及后续写入时路径重检/运行时密钥解析职责。
+- Contract decision: Provider request correlation/调用元数据、八项 `ErrorCode` 和 `target_stage` 职责与冻结规格一致；`DECISION NEEDED=None`。
+- Orchestrator verdict: `ACCEPT`
+- Accepted source head for integration: `d98de3537187ac346e404d7899d0a9d90c228483`
+- Status: `ACCEPTED`，尚未合并；TASK-003/TASK-004 继续等待 TASK-002 `DONE`。

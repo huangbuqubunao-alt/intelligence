@@ -2,11 +2,11 @@
 
 ## 当前门禁
 
-项目状态：`TASK_002_IN_REVIEW`
+项目状态：`TASK_002_ACCEPTED`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
-`TASK-002` 已从 `main@46f8497e771e1461034942dd7967f19d85f79f81` 创建独立 worktree 和分支；Grok 完成原实现 `4355a59...`、修复代码 `8492c42...` 和交接证据 head `8f50df2...` 后已停止写入。主控只读预审确认 Git 范围、干净状态和密钥哨兵探针，任务为 `IN_REVIEW`。产品负责人因使用量安排将 Reviewer 改派为全新独立 Grok 会话；不得复用 Implementer 上下文。
+`TASK-002` 的实现、预审修复和独立 Grok 审查已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，Verdict 为 `APPROVE`，AC-1 至 AC-8 全部通过且无 P0/P1/P2。主控验收为 `ACCEPT`，状态为 `ACCEPTED`，等待绑定精确 main base 的最终整合包。
 
 `TASK-003`/`TASK-004` 只读预检已完成且仓库无变更。产品负责人已批准 ADR-003 S-01 至 S-08 和 ADR-004 D-01 至 D-08（含 yt-dlp extras/依赖/锁文件动作）；两项审批门禁已满足，但仍须等待 `TASK-002` 完成后才能进入 `READY`。
 
@@ -29,7 +29,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 |---|---|---|---|---|
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
-| [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | IN_REVIEW | 001 |
+| [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | ACCEPTED | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | BLOCKED | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | 实现 Agent | BLOCKED | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |
