@@ -15,3 +15,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | ADR | 状态 | 日期 | 决策 |
 |---|---|---|---|
 | [ADR-001](ADR-001-multi-agent-development-model.md) | Accepted | 2026-07-14 | 以任务和 worktree 为单位组织 Codex/Grok 多 Agent 开发 |
+| [ADR-002](ADR-002-config-domain-contracts.md) | Accepted | 2026-07-14 | 冻结 V1 配置、跨模块对象与三层状态契约 |

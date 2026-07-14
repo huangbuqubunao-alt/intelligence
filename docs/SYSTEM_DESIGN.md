@@ -1,8 +1,9 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.0
+- 版本：V1.1
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
+- 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
 
 ## 1. 设计目标
 
@@ -92,6 +93,25 @@ class KnowledgeSink:
 - Provider 不自行决定全局重试；只报告是否可能重试和建议等待时间。
 - Provider 不写 SQLite 状态；由应用层在事务边界更新。
 
+### 5.2 跨模块输入输出
+
+以下名称和字段为 V1 公共契约。集合在领域层使用只读序列；跨模块不得用自由形状 `dict` 替代具名对象。
+
+| 对象 | 必需字段 | 可选字段与约束 |
+|---|---|---|
+| `ProviderCallMetadata` | `provider`、`started_at`、`finished_at` | `provider_version`、`model`、`diagnostics`；`diagnostics` 为 `DiagnosticEntry` 序列 |
+| `DiagnosticEntry` | `code`、`message` | 消息必须安全化，不含密钥或字幕全文 |
+| `DiscoveryCursor` | `channel_id` | `last_checked_at`、`latest_published_at`、`latest_video_id`、`provider_cursor` |
+| `DiscoveryBatch` | `channel_id`、`video_ids`、`next_cursor`、`call` | `video_ids` 去重并保持 Provider 顺序；只有完整保存批次后才能推进 `next_cursor` |
+| `ScoringInput` | `video`、`transcript_text`、`transcript_content_hash`、`language`、`request_hash` | `transcript_text` 必须已按 `max_transcript_chars` 形成有限输入 |
+| `AnalysisInput` | `video`、`transcript_text`、`transcript_content_hash`、`score`、`language`、`request_hash` | 文本必须已通过云端长度、隐私和预算策略 |
+| `NotAvailable` | `reason_code`、`message`、`retryable`、`call` | `reason_code` 为 `NO_MATCHING_LANGUAGE`、`NO_CONTENT` 或 `CONTENT_UNAVAILABLE`；`retry_after_seconds` 仅在 Provider 给出时存在 |
+| `NoteRef` | `kind`、`relative_path`、`content_hash` | `kind` 为 `video` 或 `weekly`；不得暴露 Vault 之外的路径 |
+| `WeeklyReportItem` | `video`、`score`、`note_ref`、`one_sentence_summary` | 仅接受已完成且符合周报策略的项目 |
+| `WeeklyReportInput` | `iso_year`、`iso_week`、`timezone`、`items`、`generated_at` | `items` 先按分数降序，再按 `video_id` 稳定排序 |
+
+`request_hash` 由规范化输入、操作、Provider、模型以及 Prompt/Schema 版本共同生成。Provider 返回新对象，不原地修改输入对象。
+
 ## 6. 核心数据对象
 
 ### 6.1 VideoMetadata
@@ -117,17 +137,49 @@ class KnowledgeSink:
 
 - `schema_version`。
 - `score`：0 到 10。
-- `reason`、`topics`、`should_summarize`。
-- 可选维度子分。
+- `reason`：去除首尾空白后长度 `1..2000`。
+- `topics`：`1..10` 个去重字符串，每项长度 `1..80`。
+- `should_summarize`。
+- 可选 `dimensions`，字段固定为 `technical`、`business`、`product`、`originality`、`practicality`、`industry_impact`；每项为 `0..10` 或缺省。
 - `provider`、`model`、`prompt_version`、`request_hash`。
 
 阈值判断由应用策略完成，不能完全信任模型给出的 `should_summarize`。两者不一致时记录诊断，并以配置策略为准。
 
 ### 6.4 AnalysisResult
 
-字段遵循 PRD 的深度分析契约，额外包含 `schema_version`、`provider`、`model`、`prompt_version`、`request_hash` 和事实/推断标记。
+字段固定如下：
 
-## 7. Pipeline 状态机
+| 字段 | 类型与基数 |
+|---|---|
+| `one_sentence_summary` | 字符串，长度 `1..500` |
+| `core_points` | `AnalysisPoint`，`1..10` 项 |
+| `key_facts` | `AnalysisPoint`，`0..20` 项，`kind` 必须为 `fact` |
+| `product_opportunities` | `AnalysisPoint`，`0..10` 项 |
+| `business_opportunities` | `AnalysisPoint`，`0..10` 项 |
+| `actionable_directions` | `AnalysisPoint`，`0..10` 项 |
+| `hypotheses_to_validate` | `AnalysisPoint`，`0..10` 项 |
+| `action_recommendations` | `AnalysisPoint`，`0..10` 项 |
+| `risks` | `AnalysisPoint`，`0..10` 项 |
+| `keywords` | `1..20` 个去重字符串，每项长度 `1..80` |
+| `evidence` | `EvidenceExcerpt`，`0..20` 项 |
+
+另有必需元数据：`schema_version`、`provider`、`model`、`prompt_version`、`request_hash`。
+
+`AnalysisPoint` 包含 `text`、`kind` 和 `evidence_ids`：`text` 长度为 `1..2000`，`kind` 只能为 `fact | inference | recommendation`，`evidence_ids` 最多 10 个且必须引用同一结果中存在的证据。`EvidenceExcerpt` 包含唯一稳定 `evidence_id`、`source`、长度 `1..2000` 的 `excerpt`，以及可选的 `start_seconds`、`end_seconds`。`source` 只能为 `metadata | transcript`，时间范围必须非负且结束时间不早于开始时间。没有可定位时间的输入允许省略时间，但不得捏造。
+
+## 7. 三层状态模型
+
+状态由不同对象分别承担，不能把同名值复制到多层：
+
+| 类型 | 值 | 职责 |
+|---|---|---|
+| `PipelineStatus` | `DISCOVERED`、`METADATA_READY`、`DEFERRED`、`TRANSCRIPT_READY`、`SCORED`、`LOW_VALUE_READY`、`ANALYSIS_READY`、`NOTE_WRITTEN`、`COMPLETE`、`SKIPPED_DURATION_LIMIT` | 视频最近成功的业务进度或处置结果 |
+| `ProcessingStage` | `DISCOVERY`、`METADATA`、`TRANSCRIPT`、`SCORING`、`ANALYSIS`、`NOTE_WRITE`、`WEEKLY_REPORT` | Job 的目标执行阶段 |
+| `JobStatus` | `PENDING`、`RUNNING`、`RETRY_PENDING`、`SUCCEEDED`、`FAILED_FINAL` | 单次任务尝试和调度生命周期 |
+
+`RETRY_PENDING` 和 `FAILED_FINAL` 只属于 `JobStatus`，不属于 `PipelineStatus`。
+
+### 7.1 Pipeline 转换
 
 ```text
 DISCOVERED
@@ -140,23 +192,45 @@ DISCOVERED
 METADATA_READY 且时长超过 180 分钟（无 --force）
   -> SKIPPED_DURATION_LIMIT
 
-任一处理中状态
-  -> RETRY_PENDING
-  -> 原失败阶段
-
-不可恢复或超过重试上限
-  -> FAILED_FINAL
-
 未结束直播
   -> DEFERRED
   -> METADATA_READY（条件满足后）
 ```
 
-### 7.1 状态规则
+允许的成功转换只有：
+
+| 当前 `PipelineStatus` | 可进入 |
+|---|---|
+| `DISCOVERED` | `METADATA_READY`、`DEFERRED` |
+| `DEFERRED` | `METADATA_READY` |
+| `METADATA_READY` | `TRANSCRIPT_READY`、`SKIPPED_DURATION_LIMIT` |
+| `TRANSCRIPT_READY` | `SCORED` |
+| `SCORED` | `LOW_VALUE_READY`、`ANALYSIS_READY` |
+| `LOW_VALUE_READY` | `COMPLETE` |
+| `ANALYSIS_READY` | `NOTE_WRITTEN` |
+| `NOTE_WRITTEN` | `COMPLETE` |
+| `COMPLETE`、`SKIPPED_DURATION_LIMIT` | 无；新 Pipeline 版本或显式强制重跑创建新 Job，不篡改历史 |
+
+`ANALYSIS_READY` 表示分析阶段已经按策略完成：可以有有效 `AnalysisResult`，也可以因云端关闭、预算/隐私策略不允许而形成结构化跳过结果。后者必须记录跳过原因，并允许 `TASK-009` 在 `analysis=None` 时继续高价值笔记路径，不能把“未调用云端”伪装成云分析成功。
+
+### 7.2 Job 转换与恢复
+
+```text
+PENDING -> RUNNING -> SUCCEEDED
+                   -> RETRY_PENDING -> PENDING
+                   -> FAILED_FINAL
+```
+
+- Job 进入 `SUCCEEDED` 后，应用层才按转换表推进视频 `PipelineStatus`。
+- Job 进入 `RETRY_PENDING` 或 `FAILED_FINAL` 时，视频保留最近成功的 `PipelineStatus`；`target_stage` 指明恢复阶段。
+- 过期 `RUNNING` 租约由恢复逻辑转回可调度状态，并增加尝试审计，不能伪装成成功。
+- 人工重跑创建新 `job_id`；旧 Job、错误码、次数和时间戳保持不变。
+
+### 7.3 状态规则
 
 - 状态只能按明确转换表前进；不得用文件存在与否推断完整业务状态。
 - 每阶段成功时同时提交产物索引和新状态，或两者都不提交。
-- `COMPLETE`、`FAILED_FINAL`、`SKIPPED_DURATION_LIMIT` 是终态；人工重跑/`--force` 会创建新任务尝试，不篡改历史尝试。
+- `COMPLETE`、`SKIPPED_DURATION_LIMIT` 是视频处置终态；`SUCCEEDED`、`FAILED_FINAL` 是 Job 终态。
 - 数据更新（如标题变化）不应让已完成视频从头重跑；只有输入哈希或 Pipeline 版本变化时按策略失效相关阶段。
 
 ## 8. SQLite 逻辑模型
@@ -172,7 +246,7 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `title`, `source_url` | 当前元数据 |
 | `published_at`, `duration_seconds` | 时间与时长 |
 | `language`, `live_status`, `availability` | 标准化状态 |
-| `pipeline_status`, `failed_stage` | 当前状态 |
+| `pipeline_status` | 最近成功的 `PipelineStatus`；失败尝试见 `jobs` |
 | `score`, `should_summarize` | 评分摘要 |
 | `discovered_at`, `updated_at`, `completed_at` | 审计时间 |
 
@@ -186,8 +260,8 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 |---|---|
 | `job_id` PK | 任务尝试身份 |
 | `video_id` nullable | 周报等全局任务可为空 |
-| `job_type`, `target_stage` | 工作类型 |
-| `status` | pending/running/retry_pending/succeeded/failed_final |
+| `job_type`, `target_stage` | 工作类型与 `ProcessingStage` |
+| `status` | `JobStatus` |
 | `attempt_count`, `max_attempts` | 尝试控制 |
 | `available_at`, `lease_until` | 退避和崩溃恢复 |
 | `last_error_code`, `last_error_message` | 诊断信息 |
@@ -242,6 +316,8 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 ### 11.1 本地评分
 
 - 输入包括元数据和受配置限制的字幕片段。
+- 默认 `temperature=0.0`、`max_output_tokens=1200`、`max_transcript_chars=30000`。
+- `max_transcript_chars` 按 Python 字符长度计，不是 token 限制；超过限制必须先形成稳定有限输入。
 - 字幕截取应尽量覆盖开头、正文和结尾，而非只取前 2000 token；具体采样算法由 `TASK-007` 验证。
 - 温度、最大输出和超时显式配置。
 - JSON 通过严格 Schema 验证；修复失败进入重试。
@@ -272,6 +348,8 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 
 错误日志必须包含 `run_id`、`job_id`、`video_id`、阶段、错误码和安全化消息。
 
+V1 重试配置默认值为：`max_attempts=3`、`base_delay_seconds=2`、`max_delay_seconds=60`、`jitter_ratio=0.2`。`max_attempts` 为正整数，延迟为正数，基础延迟不得大于最大延迟，抖动范围为 `0..1`。通用 HTTP、本地模型和云模型默认超时分别为 `30`、`300`、`120` 秒，均必须为正数。`RATE_LIMITED` 返回有效 `Retry-After` 时以它为准，不受本地指数退避上限截断。
+
 ## 13. 文件与 Obsidian 设计
 
 ```text
@@ -288,13 +366,60 @@ logs/YYYY-MM-DD.jsonl
 ```
 
 - 所有路径基于配置根目录解析并做边界校验。
+- `data_dir`、`logs_dir`、`templates_dir` 必须是相对项目根目录的路径；项目根由应用启动时确定，不能取决于进程当前工作目录。
+- `vault_root` 必须是绝对路径；`vault_subdir` 必须是相对路径，且规范化后仍位于 `vault_root` 内。
+- 配置加载和每次写入前都重新解析最终目标并检查边界；`..`、绝对子路径和符号链接逃逸必须失败。
 - 笔记渲染使用外部模板。
 - 自动管理区可使用明确标记；`我的思考` 为用户区，upsert 时必须保留。
 - Dataview Frontmatter 值使用稳定类型和 ISO 时间。
 
 ## 14. 配置与密钥
 
-建议配置层级：默认值 < YAML < CLI 参数；密钥不进入该层级，只从环境变量/系统密钥存储解析。
+配置层级固定为：内建默认值 < YAML < CLI 参数。每层的未知字段都必须拒绝。密钥值不进入该层级；配置只能保存环境变量名，实际值从进程环境或后续批准的系统密钥存储解析。
+
+### 14.1 V1 配置字段
+
+`channels[]` 来自 `config/channels.yaml`，其余字段来自 `config/settings.yaml`；CLI 只覆盖其明确公开的字段。
+
+| 字段 | 默认值 | 校验与语义 |
+|---|---:|---|
+| `channels[].channel_id` | 无 | 必填、非空、在列表中唯一 |
+| `channels[].enabled` | `true` | 布尔值 |
+| `channels[].priority` | `50` | 整数 `0..100`，数值越大越优先 |
+| `general.timezone` | `Asia/Shanghai` | 有效 IANA 时区 |
+| `general.output_language` | `zh-CN` | 非空语言标签 |
+| `general.transcript_languages` | 无 | 必填的非空、有序、去重语言标签列表 |
+| `execution.worker_concurrency` | `1` | V1 只接受 `1` |
+| `execution.max_video_duration_minutes` | `180` | 正数；只有显式 `--force` 可覆盖 |
+| `thresholds.summary_score` | `7.0` | 数值 `0..10` |
+| `weekly.top_n` | `10` | 整数 `1..100` |
+| `retry.max_attempts` | `3` | 正整数 |
+| `retry.base_delay_seconds` | `2` | 正数且不大于 `max_delay_seconds` |
+| `retry.max_delay_seconds` | `60` | 正数 |
+| `retry.jitter_ratio` | `0.2` | 数值 `0..1` |
+| `timeouts.http_seconds` | `30` | 正数 |
+| `timeouts.local_model_seconds` | `300` | 正数 |
+| `timeouts.cloud_model_seconds` | `120` | 正数 |
+| `transcription.model` | `mlx-community/whisper-large-v3-turbo` | 非空模型标识 |
+| `local_scoring.model` | 无 | 必填的非空 Ollama 模型标识 |
+| `local_scoring.temperature` | `0.0` | 数值 `0..2` |
+| `local_scoring.max_output_tokens` | `1200` | 正整数 |
+| `local_scoring.max_transcript_chars` | `30000` | 正整数，字符数而非 token 数 |
+| `cloud.enabled` | `false` | 布尔值 |
+| `cloud.provider` | `openai` | V1 只接受 `openai` |
+| `cloud.model` | 无 | `enabled=true` 时必填 |
+| `cloud.api_key_env` | `OPENAI_API_KEY` | 只保存合法环境变量名，不保存值 |
+| `cloud.max_calls_per_run` | `5` | 正整数且不得超过 `5` |
+| `cloud.max_input_tokens_per_video` | `30000` | 正整数且不得超过 `30000` |
+| `storage.data_dir` | `data` | 项目根相对路径 |
+| `storage.logs_dir` | `logs` | 项目根相对路径 |
+| `storage.templates_dir` | `templates` | 项目根相对路径 |
+| `storage.vault_root` | 无 | 必填绝对路径；示例只能使用占位路径 |
+| `storage.vault_subdir` | 无 | 必填安全相对路径 |
+
+同一优先级频道使用 `channel_id` 升序作为稳定次级排序。环境变量名必须匹配 `[A-Za-z_][A-Za-z0-9_]*`。配置对象的 `repr`、校验错误、日志和测试快照不得解析或显示密钥值。
+
+### 14.2 启动校验
 
 启动时完成：
 
@@ -343,4 +468,4 @@ launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、�
 
 ## 18. 已批准基线与仍需任务级审批的事项
 
-产品与技术方向见 `docs/PRD.md` 的 `DEC-*` 和 `docs/PRODUCT_DECISIONS.md`，均已批准。以下动作仍须在对应任务中单独授权：实际安装/升级依赖、最终 SQLite Schema、真实密钥或付费云调用、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。
+产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 `docs/decisions/ADR-002-config-domain-contracts.md`，均已批准。以下动作仍须在对应任务中单独授权：实际安装/升级依赖、最终 SQLite Schema、真实密钥或付费云调用、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。

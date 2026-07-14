@@ -6,7 +6,7 @@
 
 DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。`TASK-001` 已从 `main@82871a2a0fa15c648e9a7d9f5ce7932544852534` 创建独立 worktree，分配给 Codex Implementer；Grok Reviewer 等实现 commit 后启动。
 
-`TASK-001` 实现期间允许运行 `agent-prompts/PREFLIGHT-TASK-002-READONLY.md`。该会话不是实现任务，不得修改文件、安装依赖、创建 commit 或改变任务状态。
+`TASK-002` 只读 Preflight 已完成并关闭；C-01 至 C-08 已获批准，ADR-002 已冻结其契约。`TASK-002` 仍须等待 `TASK-001` 完成以及 `pydantic`、`PyYAML` 的任务级安装/锁定授权，不得提前实现。
 
 ## 状态定义
 
