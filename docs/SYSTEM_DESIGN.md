@@ -1,9 +1,12 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.1
+- 版本：V1.2
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
+- SQLite 状态契约：`docs/decisions/ADR-003-sqlite-state-store-contract.md`
+- 发现与 yt-dlp 契约：`docs/decisions/ADR-004-discovery-ytdlp-contract.md`
+- 复用策略：`docs/decisions/ADR-005-reuse-first-delivery-policy.md`
 
 ## 1. 设计目标
 
@@ -43,6 +46,13 @@ Adapters: SQLite, filesystem, RSS/yt-dlp, MLX Whisper, Ollama, OpenAI, Obsidian
 ```
 
 依赖只允许向内：Domain 不得导入具体 SDK、文件系统或 SQLite 实现。Adapter 失败必须映射为应用层可识别的统一错误类型。
+
+### 3.1 复用边界
+
+- 通用能力优先复用标准库或已批准官方组件：SQLite、yt-dlp/EJS/Deno、MLX Whisper、Ollama、OpenAI SDK 和模板引擎。
+- 外部组件只能位于 Adapter/Provider 边界后，不拥有领域对象、Pipeline/Job 状态、重试策略、审计或 Vault 写入规则。
+- 完整第三方应用只作为设计/测试参考；直接依赖、选择性适配、许可证和否决证据见 `docs/REUSE_REGISTER.md`。
+- 复用不得引入未批准账号、Cookie、远程服务、系统工具、动态代码下载或数据外发。
 
 ## 4. 核心组件职责
 
@@ -111,6 +121,14 @@ class KnowledgeSink:
 | `WeeklyReportInput` | `iso_year`、`iso_week`、`timezone`、`items`、`generated_at` | `items` 先按分数降序，再按 `video_id` 稳定排序 |
 
 `request_hash` 由规范化输入、操作、Provider、模型以及 Prompt/Schema 版本共同生成。Provider 返回新对象，不原地修改输入对象。
+
+### 5.3 发现与字幕清单边界
+
+- `DiscoveryBatch` 的提交点是“全部候选以 `DISCOVERED` 入库且 `next_cursor` 在同一事务提交”；不等待整批元数据成功。
+- 元数据按视频独立 Job 获取和重试；单个不可用内容不得阻塞频道游标。
+- TASK-004 通过官方 yt-dlp Python API 复用页面解析和 EJS challenge 能力，只公开有序去重的 `available_languages`。
+- 人工/自动字幕轨道和临时下载 URL 不进入 `VideoMetadata`；TASK-005 在获取字幕时重新查询轨道明细。
+- 完整契约、依赖范围和未授权行为见 ADR-004。
 
 ## 6. 核心数据对象
 
@@ -233,9 +251,9 @@ PENDING -> RUNNING -> SUCCEEDED
 - `COMPLETE`、`SKIPPED_DURATION_LIMIT` 是视频处置终态；`SUCCEEDED`、`FAILED_FINAL` 是 Job 终态。
 - 数据更新（如标题变化）不应让已完成视频从头重跑；只有输入哈希或 Pipeline 版本变化时按策略失效相关阶段。
 
-## 8. SQLite 逻辑模型
+## 8. SQLite 状态模型
 
-V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队列状态漂移；`transcripts` 统一归入 `artifacts`。最终 SQL 由 `TASK-003` 提交并需人工审批。
+V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队列状态漂移；`transcripts` 统一归入 `artifacts`。ADR-003 S-01 至 S-08 已批准最终物理 Schema、索引、事务、租约和 migration 规则；TASK-003 必须逐项实现，不得自行简化。
 
 ### 8.1 `videos`
 
@@ -243,10 +261,11 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 |---|---|
 | `video_id` PK | YouTube 视频 ID |
 | `channel_id`, `channel_name` | 频道身份 |
-| `title`, `source_url` | 当前元数据 |
+| `title`, `description`, `source_url` | 当前元数据 |
 | `published_at`, `duration_seconds` | 时间与时长 |
-| `language`, `live_status`, `availability` | 标准化状态 |
+| `default_language`, `available_languages_json`, `live_status`, `availability` | 标准化状态 |
 | `pipeline_status` | 最近成功的 `PipelineStatus`；失败尝试见 `jobs` |
+| `pipeline_version` | 当前业务进度所属 Pipeline 版本 |
 | `score`, `should_summarize` | 评分摘要 |
 | `discovered_at`, `updated_at`, `completed_at` | 审计时间 |
 
@@ -259,31 +278,37 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | 字段 | 说明 |
 |---|---|
 | `job_id` PK | 任务尝试身份 |
-| `video_id` nullable | 周报等全局任务可为空 |
+| `scope_key` | 频道、视频阶段或周报的稳定逻辑键 |
+| `video_id` nullable | 频道发现和周报等全局任务可为空 |
 | `job_type`, `target_stage` | 工作类型与 `ProcessingStage` |
+| `pipeline_version` | 活动 Job 去重维度 |
 | `status` | `JobStatus` |
 | `attempt_count`, `max_attempts` | 尝试控制 |
 | `available_at`, `lease_until` | 退避和崩溃恢复 |
 | `last_error_code`, `last_error_message` | 诊断信息 |
 | `created_at`, `updated_at` | 审计时间 |
 
-同一视频、阶段和 Pipeline 版本最多存在一个未完成逻辑任务。
+部分唯一索引 `scope_key + pipeline_version` 覆盖视频和 `video_id IS NULL` 的全局任务，保证同一逻辑范围最多一个未完成 Job。
 
-### 8.4 `artifacts`
+### 8.4 `job_attempts`
+
+每次自动领取建立独立 attempt，记录编号、owner、开始/结束、租约、结果和安全化错误。`attempt_count` 是摘要，不能替代逐次历史；租约过期必须记录 `LEASE_EXPIRED`。
+
+### 8.5 `artifacts`
 
 记录字幕、规范文本、评分原始响应、分析结果和笔记等文件的路径、哈希、种类、Provider、模型、版本和创建时间。文件内容不直接塞入 SQLite。
 
-### 8.5 `provider_calls`
+### 8.6 `provider_calls`
 
 以 `request_hash` 做唯一键，记录操作、Provider、模型、状态、响应产物、token/成本（可获得时）和耗时，用于昂贵调用去重与审计。
 
-### 8.6 `reports`
+### 8.7 `reports`
 
 以 `timezone + ISO week + report_type` 唯一，记录周期、路径、内容哈希、状态和更新时间。
 
-### 8.7 `schema_migrations`
+### 8.8 `schema_migrations`
 
-记录单调递增 Schema 版本和应用时间。迁移必须可在数据库副本上验证；V1 不承诺自动回滚破坏性迁移。
+记录单调递增版本、名称、SQL checksum 和应用时间；`PRAGMA user_version` 镜像最新成功版本。migration 使用 `BEGIN IMMEDIATE` 全有或全无，历史 SQL 不得重写，V1 不提供 downgrade 或破坏性自动迁移。
 
 ## 9. 幂等与并发
 
@@ -291,6 +316,8 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 - Provider 调用缓存键至少包含：操作、规范化输入哈希、Provider、模型、Prompt/Schema 版本。
 - Obsidian 笔记文件名包含 `video_id`，先写同目录临时文件，再原子替换。
 - 每个 Job 使用带过期时间的租约；默认只运行一个 Worker。未来增加并发时不改变语义。
+- 所有写入使用调用方注入的 UTC 时钟；Job 领取、续租、过期回收和状态推进使用 expected-state CAS。
+- 连接启用 `foreign_keys=ON`、`busy_timeout=5000`、`synchronous=NORMAL`；文件数据库初始化并验证 WAL。
 - 周报通过稳定周期键 upsert；内容排序固定，保证相同输入得到相同结果。
 - 进程在外部调用成功但落库前崩溃时，下次先查本地产物/Provider 调用缓存，再决定是否重调。
 
@@ -308,6 +335,7 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 
 - “永不重复转写”修订为“相同音频哈希 + Whisper 实现/模型 + 参数版本不重复转写”；升级模型后允许显式重建。
 - 原字幕和规范文本分开保存，避免清洗规则变化后必须重新下载。
+- TASK-005 重新查询人工/自动字幕轨道；TASK-004 的 `available_languages` 只作为能力摘要，不缓存临时 URL。
 - V1 使用 `mlx-whisper`，默认模型为 `mlx-community/whisper-large-v3-turbo`，模型和参数可配置。
 - 成功转写后立即删除音频；失败/中断音频最多保留 7 天。清理失败只告警，不让已完成转写失败。
 
@@ -468,4 +496,4 @@ launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、�
 
 ## 18. 已批准基线与仍需任务级审批的事项
 
-产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 `docs/decisions/ADR-002-config-domain-contracts.md`，均已批准。以下动作仍须在对应任务中单独授权：实际安装/升级依赖、最终 SQLite Schema、真实密钥或付费云调用、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。
+产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 ADR-002 至 ADR-005，均已批准。ADR-003 已批准 TASK-003 最终 SQLite Schema；ADR-004 已批准 TASK-004 的 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载和锁文件动作。以下仍须在对应任务中单独授权：其他实际安装/升级依赖、真实密钥或付费云调用、真实 YouTube 冒烟、Cookie/账号登录、ffmpeg、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。

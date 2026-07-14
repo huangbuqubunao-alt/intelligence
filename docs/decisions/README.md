@@ -16,3 +16,6 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 |---|---|---|---|
 | [ADR-001](ADR-001-multi-agent-development-model.md) | Accepted | 2026-07-14 | 以任务和 worktree 为单位组织 Codex/Grok 多 Agent 开发 |
 | [ADR-002](ADR-002-config-domain-contracts.md) | Accepted | 2026-07-14 | 冻结 V1 配置、跨模块对象与三层状态契约 |
+| [ADR-003](ADR-003-sqlite-state-store-contract.md) | Accepted | 2026-07-14 | 冻结 V1 SQLite 物理 Schema、事务、租约与迁移契约 |
+| [ADR-004](ADR-004-discovery-ytdlp-contract.md) | Accepted | 2026-07-14 | 冻结发现提交点、字幕清单归属与 yt-dlp 依赖边界 |
+| [ADR-005](ADR-005-reuse-first-delivery-policy.md) | Accepted | 2026-07-14 | 成熟组件优先复用，项目自有领域、状态、策略与安全控制面 |

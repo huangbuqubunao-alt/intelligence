@@ -1,6 +1,6 @@
 # Codex + Grok Build 多 Agent 协作协议
 
-- 版本：V1.1
+- 版本：V1.2
 - 状态：`ACTIVE`
 - 适用范围：YouTube Intelligence Agent V1
 - 控制面：主控产品/项目管理对话
@@ -21,6 +21,7 @@
 | `docs/PRODUCT_DECISIONS.md` | 产品/技术决策及批准状态 |
 | `docs/PROJECT_STATUS.md` | 当前基线、活动任务、阻塞、风险和下一步的短摘要 |
 | `docs/IMPLEMENTATION_ROADMAP.md` | 依赖、阶段和并行关系 |
+| `docs/REUSE_REGISTER.md` | 外部组件的复用等级、来源、许可证和否决理由 |
 | `tasks/TASK-*.md` | 单次实现范围和任务级验收 |
 | `agent-prompts/TASK-*.md` | 主控按最新基线生成的任务/角色执行包 |
 | `handoffs/TASK-*.md` | 实现、检查、审查和风险证据 |
@@ -44,6 +45,7 @@
 ### 3.2 实现者
 
 - 在独立 worktree 中完成一张任务卡。
+- 开工前复核任务包的 `Reuse decision`；发现成熟候选更合适或登记已过期时先报告，不自行扩大依赖。
 - 只修改任务卡允许的文件；需要额外文件时先报告。
 - 运行检查、检查 Diff、填写交接报告并提交 commit。
 - 不更新公共任务看板，不合并 `main`。
@@ -161,6 +163,7 @@ Allowed scope: <task card / explicit files>
 Required checks: <commands>
 Reviewer: <agent/session>
 Special approvals: <none or links>
+Reuse decision: <DIRECT | ADAPT | REFERENCE | REJECT/DEFER + source/version>
 Parallel now: <task/preflight or none>
 Waiting: <blocked tasks and dependency>
 ```
@@ -171,12 +174,13 @@ Waiting: <blocked tasks and dependency>
 
 1. 实现者阅读 `AGENTS.md`、PRD、System Design 和任务卡。
 2. 复述目标、验收、依赖、预计文件；确认没有红线。
-3. 做满足验收的最小改动。
-4. 运行任务卡指定检查；不得用删除/跳过测试换取通过。
-5. 检查 `git status` 和相对基线的完整 Diff。
-6. 填写 `handoffs/TASK-<id>.md` 的实现部分。
-7. 创建范围明确的 commit 并报告 SHA。
-8. 主控对话把任务转为 `IN_REVIEW`，再启动 Reviewer。
+3. 根据 ADR-005 使用已批准组件或记录拒绝理由；适配代码保留来源、commit 和许可证证据。
+4. 做满足验收的最小改动。
+5. 运行任务卡指定检查；不得用删除/跳过测试换取通过。
+6. 检查 `git status` 和相对基线的完整 Diff。
+7. 填写 `handoffs/TASK-<id>.md` 的实现部分和复用证据。
+8. 创建范围明确的 commit 并报告 SHA。
+9. 主控对话把任务转为 `IN_REVIEW`，再启动 Reviewer。
 
 ## 9. 审查流程
 
@@ -184,7 +188,7 @@ Reviewer 必须：
 
 1. 确认审查的 base、branch 和 commit。
 2. 独立读取规格与任务卡。
-3. 检查正确性、回归、测试遗漏、异常路径、安全、范围和红线。
+3. 检查正确性、回归、测试遗漏、异常路径、安全、范围、许可证/来源和红线。
 4. 重新运行关键命令，而不是只读实现者输出。
 5. 按 P0/P1/P2/P3 记录问题和文件/行号。
 6. 在交接报告写 `APPROVE` 或 `REJECT`，不直接修代码。

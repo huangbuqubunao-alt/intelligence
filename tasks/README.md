@@ -8,6 +8,10 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-002` 已从 `main@46f8497e771e1461034942dd7967f19d85f79f81` 创建独立 worktree 和分支，分配 Grok 为唯一 Implementer、Codex 为后续独立 Reviewer，状态为 `IN_PROGRESS`。Reviewer 只在实现 commit 完成后启动。
 
+`TASK-003`/`TASK-004` 只读预检已完成且仓库无变更。产品负责人已批准 ADR-003 S-01 至 S-08 和 ADR-004 D-01 至 D-08（含 yt-dlp extras/依赖/锁文件动作）；两项审批门禁已满足，但仍须等待 `TASK-002` 完成后才能进入 `READY`。
+
+ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
+
 ## 状态定义
 
 - `BLOCKED`：存在明确依赖或审批阻塞。
@@ -52,6 +56,7 @@ Branch: <branch>
 Allowed scope: <task card or files>
 Required checks: <commands>
 Special approvals: <none or links>
+Reuse decision: <DIRECT | ADAPT | REFERENCE | REJECT/DEFER + source/version>
 ```
 
 实现者使用 `handoffs/TEMPLATE.md` 建立任务交接报告。Reviewer 只在实现 commit 之后启动，并在交接报告给出 `APPROVE` 或 `REJECT`。
