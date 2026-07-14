@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-001`
-- 活动实现任务：`TASK-001` — Codex Implementer
+- 活动审查任务：`TASK-001` — Grok Reviewer
 
 ## 已完成或已批准
 
@@ -15,26 +15,26 @@
 - 多 Agent 协作模式 ADR-001 已接受并生效。
 - C-01 至 C-08 已由产品负责人批准，配置与领域契约 ADR-002 已接受并同步到 System Design V1.1 与 `TASK-002`。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
-- 产品负责人已明确批准 `TASK-001` 的 Python 3.12、uv、build backend、开发依赖、文件范围、网络下载和验证命令；任务已分配给 Codex，状态为 `IN_PROGRESS`。
+- `TASK-001` 已由 Codex 在 `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c` 完成实现；主控已独立复跑锁定、同步、构建、CLI、测试、Lint、类型检查和归档检查，现分配给 Grok 独立审查，状态为 `IN_REVIEW`。
 
 ## 当前阻塞
 
-- `TASK-001` 当前无已知产品或技术阻塞；实现者遇到白名单外依赖或范围冲突时必须停止。
+- `TASK-001` 当前无已知 P0/P1；等待 Grok 对固定实现 commit 给出 `APPROVE` 或 `REJECT`。
 - `TASK-002` 契约已经冻结，但仍依赖 `TASK-001` 完成；实际安装/锁定 `pydantic`、`PyYAML` 仍需任务级授权，因此状态保持 `BLOCKED`。
 
 ## 下一步
 
-1. Codex 在 `codex/task-001-project-scaffold` 完成实现、检查、交接报告和 commit。
-2. 主控收到实现 commit 后把任务转为 `IN_REVIEW`，再生成绑定该 SHA 的 Grok Reviewer 任务包。
+1. Grok 在同一 worktree 审查固定实现 commit `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`，只补充交接报告并提交审查证据。
+2. `APPROVE` 后由主控复核 findings 和证据并决定是否设为 `ACCEPTED`；`REJECT` 则退回原 Codex Implementer。
 3. `TASK-001` 整合为 `DONE` 后，核对其锁定工具链并申请 `TASK-002` 的 `pydantic`/`PyYAML` 安装授权，再创建独立 worktree。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | `TASK-001` Codex Implementer | 只写 `/Users/hua/Documents/yia-worktrees/task-001` |
+| 立即启动 | `TASK-001` Grok Reviewer | 只读实现文件；只可写 `handoffs/TASK-001.md` Reviewer 部分 |
 | 可并行启动 | 无；`TASK-002` Read-only Preflight 已完成并关闭 | 无 |
-| 等待依赖 | `TASK-001` Grok Reviewer；`TASK-002` 及后续实现任务 | Reviewer 等实现 SHA；后续实现等 `TASK-001` `DONE` |
+| 等待依赖 | `TASK-002` 及后续实现任务 | 等 `TASK-001` 审查、验收、整合为 `DONE` |
 
 ## 已授权方向但尚未授权执行
 
@@ -47,7 +47,7 @@
 
 ## 当前风险
 
-- TASK-001 仍需用真实 `uv.lock`、同步、构建和质量命令证明已批准工具链在 Python 3.12 上兼容。
+- TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；当前实测为 `uv-build==0.11.28`，Reviewer 需复核该证据。
 - MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。
 - 初始 commit 使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；不影响当前基线，但正式协作前可由用户决定是否配置显式 Git 身份。
 

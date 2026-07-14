@@ -2,9 +2,9 @@
 
 ## 当前门禁
 
-项目状态：`TASK_001_IN_PROGRESS`
+项目状态：`TASK_001_IN_REVIEW`
 
-DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。`TASK-001` 已从 `main@82871a2a0fa15c648e9a7d9f5ce7932544852534` 创建独立 worktree，分配给 Codex Implementer；Grok Reviewer 等实现 commit 后启动。
+DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。`TASK-001` 的 Codex 实现 commit 为 `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`，已进入 Grok 独立审查；审查对象固定为 `82871a2a0fa15c648e9a7d9f5ce7932544852534...00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`。
 
 `TASK-002` 只读 Preflight 已完成并关闭；C-01 至 C-08 已获批准，ADR-002 已冻结其契约。`TASK-002` 仍须等待 `TASK-001` 完成以及 `pydantic`、`PyYAML` 的任务级安装/锁定授权，不得提前实现。
 
@@ -24,7 +24,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000` 为 `DONE`。`TASK-001` 已从 `main@82
 | 任务 | 名称 | 负责人角色 | 当前状态 | 依赖 |
 |---|---|---|---|---|
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
-| [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex Implementer | IN_PROGRESS | 000 |
+| [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Grok Reviewer | IN_REVIEW | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | 实现 Agent | BLOCKED | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | BLOCKED | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | 实现 Agent | BLOCKED | 002 |

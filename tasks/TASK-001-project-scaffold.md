@@ -1,7 +1,7 @@
 # TASK-001：工程脚手架与质量门禁
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer`
+- Status: `IN_REVIEW`
+- Assignee: `Grok Reviewer`（Implementer: Codex）
 - Owner role: TL / 实现 Agent
 - Size: M
 - Risk: High
@@ -77,4 +77,14 @@
 - Branch: `codex/task-001-project-scaffold`
 - Implementer: Codex 独立会话
 - Reviewer: Grok 独立会话，在实现 commit 后启动
-- Parallel: `TASK-002` Read-only Preflight
+- Parallel: `TASK-002` Read-only Preflight 已完成并关闭
+
+## 实现结果
+
+- Implemented at: 2026-07-14
+- Implementation commit: `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`
+- Implementer: Codex 独立会话
+- Changed scope: 仅本任务批准的 8 个文件
+- Orchestrator pre-review: 锁定、同步、构建、CLI、pytest、Ruff、mypy、归档内容和忽略规则复核通过；未发现 P0/P1
+- Reviewer packet: `agent-prompts/TASK-001-REVIEWER-GROK.md`
+- Reviewer write scope: 仅 `handoffs/TASK-001.md` Reviewer 部分
