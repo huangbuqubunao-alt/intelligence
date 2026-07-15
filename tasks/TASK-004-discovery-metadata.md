@@ -95,3 +95,12 @@
 - Severity: `P1`；必须修复后才能启动 Reviewer。
 - Status decision: 保持 `IN_PROGRESS`，退回原 Grok Implementer；不得基于 `392edfb...` 启动 Codex Reviewer。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-GROK.md`
+
+## 主控预审修复核对（二次）
+
+- Checked source head: `10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
+- Git evidence: 修复提交仅触及前一轮允许的 3 个文件，`dcc7d85...HEAD` 仍处于原 TASK-004 的 17 文件范围，worktree 干净，`git diff --check` 通过；不否定实现者已报告的离线检查或未授权边界。
+- Finding: 首个修复把原始映射的类型注解改为私有并将 `__all__` 收为类名，但仍定义非私有 `map_info_dict_to_video_metadata(info: object)`，并在公开 `YtDlpMetadataProvider.__init__` 保留 `ydl_factory: object | None` 与 `last_opts: object | None`。`__all__` 不是访问控制；用 `object` 包装自由 dict 也不使其成为冻结领域契约。两项均违反首轮修复包要求的“私有命名、不得用 Any/别名/无类型包装伪装公开接口”。
+- Severity: `P1`；不得以 `10f5ffa...` 启动 Reviewer。
+- Status decision: 保持 `IN_PROGRESS`，由原 Grok Implementer 做第二轮最小修复；这一轮允许更新原任务范围内的 `tests/integration/test_discovery_adapter.py`，以移除其对残余公开映射名的依赖。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-2-GROK.md`

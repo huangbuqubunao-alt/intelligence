@@ -8,7 +8,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-002` 的实现、预审修复、独立 Grok 审查和最终整合均已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，merge commit 为 `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`。整合后全部门禁通过，状态为 `DONE`。
 
-`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 由 Codex 实现、Grok 等待审查；TASK-004 首个 Grok 实现 `392edfb897003c1583b538667d10a2a89926a94b` 的预审发现 P1 公共自由 `dict` 泄漏，已退回同一 Grok 会话修复，Codex Reviewer 尚未启动。两项状态均为 `IN_PROGRESS`。
+`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 由 Codex 实现、Grok 等待审查；TASK-004 首个 Grok 实现 `392edfb897003c1583b538667d10a2a89926a94b` 的预审发现 P1 公共自由 `dict` 泄漏。首个修复 `10f5ffaaa3e8651a02e2f94c1736b8417acf3021` 仍保留非私有映射入口及以 `object` 包装的公开测试注入，已退回同一 Grok 会话做第二轮最小修复，Codex Reviewer 尚未启动。两项状态均为 `IN_PROGRESS`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -31,7 +31,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + Grok Reviewer（等待实现） | IN_PROGRESS | 002 |
-| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer（P1 修复中）+ Codex Reviewer（未启动） | IN_PROGRESS | 002 |
+| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer（P1 第二轮修复中）+ Codex Reviewer（未启动） | IN_PROGRESS | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |
