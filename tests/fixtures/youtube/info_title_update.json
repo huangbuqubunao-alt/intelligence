@@ -1,0 +1,19 @@
+{
+  "id": "public_vid1",
+  "title": "Public Example Video (Updated Title)",
+  "description": "A public video description.",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/watch?v=public_vid1",
+  "timestamp": 1720612800,
+  "duration": 600,
+  "language": "en",
+  "live_status": "not_live",
+  "availability": "public",
+  "subtitles": {
+    "en": [{"url": "https://example.invalid/en.vtt", "ext": "vtt"}]
+  },
+  "automatic_captions": {
+    "ja": [{"url": "https://example.invalid/ja.vtt", "ext": "vtt"}]
+  }
+}

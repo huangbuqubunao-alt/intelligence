@@ -1,0 +1,17 @@
+{
+  "id": "shorts_vid1",
+  "title": "Short Clip",
+  "description": "A short",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/shorts/shorts_vid1",
+  "timestamp": 1720700000,
+  "duration": 45,
+  "language": "en",
+  "live_status": "not_live",
+  "availability": "public",
+  "subtitles": {},
+  "automatic_captions": {
+    "en": [{"url": "https://example.invalid/en.vtt", "ext": "vtt"}]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "upcoming_vid1",
+  "title": "Scheduled Premiere",
+  "description": "Soon",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/watch?v=upcoming_vid1",
+  "timestamp": 1720900000,
+  "duration": 0,
+  "live_status": "is_upcoming",
+  "availability": "public",
+  "subtitles": {},
+  "automatic_captions": {}
+}

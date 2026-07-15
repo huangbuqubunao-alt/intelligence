@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns:media="http://search.yahoo.com/mrss/"
+      xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Channel</title>
+  <entry>
+    <id>yt:video:vid_new_1</id>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest Video</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <id>yt:video:vid_dup</id>
+    <yt:videoId>vid_dup</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Duplicate First</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <id>yt:video:vid_dup</id>
+    <yt:videoId>vid_dup</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Duplicate Second</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <id>yt:video:vid_mid</id>
+    <yt:videoId>vid_mid</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Middle Video</title>
+    <published>2026-07-08T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <id>yt:video:vid_old</id>
+    <yt:videoId>vid_old</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Older Video</title>
+    <published>2026-07-01T12:00:00+00:00</published>
+  </entry>
+</feed>

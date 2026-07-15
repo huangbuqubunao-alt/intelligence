@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_b</yt:videoId>
+    <yt:channelId>UC_tie</yt:channelId>
+    <title>B</title>
+    <published>2026-07-05T10:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_a</yt:videoId>
+    <yt:channelId>UC_tie</yt:channelId>
+    <title>A</title>
+    <published>2026-07-05T10:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_c</yt:videoId>
+    <yt:channelId>UC_tie</yt:channelId>
+    <title>C</title>
+    <published>2026-07-05T10:00:00+00:00</published>
+  </entry>
+</feed>
