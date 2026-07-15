@@ -2,15 +2,21 @@
 
 ## 状态
 
-Proposed
+Accepted
 
 ## 日期
 
 2026-07-15
 
-## 批准状态
+## 批准记录
 
-本 ADR 汇总 TASK-005 只读预检的建议，并由主控按已合并的 ADR-002/003、TASK-003 Repository 和 ADR-005 复用边界作了收敛。T-01 至 T-15 尚待产品负责人明确批准；在批准前不构成公共契约、依赖、网络、文件写入或实现授权，TASK-005 必须保持 `BLOCKED`。
+产品负责人于 2026-07-15 在主控对话中明确批准：
+
+```text
+批准 ADR-006 T-01 至 T-15 推荐方案；TASK-005 不新增 Schema/migration，不修改 state.py 或 complete_stage。真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍不授权。
+```
+
+批准范围为本 ADR T-01 至 T-15 的完整契约，包括“不新增 manifest Schema”和“不修改 Repository 完成语义”。该批准冻结设计，不构成 TASK-005 worktree、Implementer、依赖安装、网络下载、真实内容或文件写入授权；TASK-005 在 TASK-004 `DONE` 和正式分配包完成前保持 `BLOCKED`。
 
 ## 背景
 
@@ -18,7 +24,7 @@ PRD 已批准“人工字幕 > 自动字幕 > 本地 Whisper”，但尚未冻�
 
 TASK-005 应直接复用 TASK-004 已锁定的 `yt-dlp[default,deno]==2026.7.4` 和 Python 标准库，不另写 YouTube 字幕协议，也不让第三方工具拥有本项目的领域、状态或文件边界。
 
-## 推荐决策
+## 已批准决策
 
 ### T-01：候选全局顺序
 
@@ -51,6 +57,8 @@ TASK-005 应直接复用 TASK-004 已锁定的 `yt-dlp[default,deno]==2026.7.4` 
 - `source_content_hash: str`、`source_byte_count: int`：原始来源产物的 SHA-256 与字节数。
 - `normalization_version: str`：规范化与质量规则版本。
 - `quality_flags: tuple[TranscriptQualityFlag, ...]`：替代自由字符串。
+
+`TranscriptQualityFlag` 固定为 `ROLLING_CUES_DEDUPED`、`SPEAKER_LABELS_PRESENT`、`NON_SPEECH_MARKERS_PRESENT`。它们只记录通过质量门禁后的非失败诊断；空文本、非法 UTF-8、过短、乱码比例、重复率、压缩比或资源上限失败必须切换候选，不能作为 `TranscriptReady` 的 flag 继续下游。
 
 Provider 调用元数据放在 `TranscriptReady.call` / `TranscriptionRequired.call`，不把 SQLite artifact key、临时 URL 或绝对路径塞入领域对象。现有 `text_path`/`timed_text_path` 分别指向安全 DATA-relative 的规范文本/原始字幕。
 
@@ -117,4 +125,4 @@ Provider 不实现全局退避；应用层沿用最多 3 attempts、base 2 秒�
 - TASK-005 预计只修改领域契约、字幕 Service/Adapter、固定夹具、测试和 handoff，不修改 Schema、state、依赖或锁文件。
 - 离线测试必须覆盖完整选择矩阵、边界阈值、原子文件恢复、Provider-call/Artifact 缓存、空 Artifact stage completion 和敏感信息脱敏。
 - 真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥继续未授权。
-- 即使本 ADR 被接受，TASK-005 仍须等待 TASK-004 `DONE`、最新 main worktree/分支分配和任务级命令/网络授权。
+- 本 ADR 已接受，但 TASK-005 仍须等待 TASK-004 `DONE`、最新 main worktree/分支分配和任务级命令/网络授权。

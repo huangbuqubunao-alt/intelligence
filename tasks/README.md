@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_CORRECTION_5A_IN_REVIEW__TASK_005_ADR_PROPOSED`
+项目状态：`TASK_003_DONE__TASK_004_CORRECTION_5A_IN_REVIEW__TASK_005_ADR_ACCEPTED`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -10,7 +10,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-003` 已由 Codex Integrator 以 merge commit `072511f20b587f973b29437d79080f6cb7863f1a` 整合到 main，整合后门禁全通过，状态为 `DONE`。TASK-004 已将包含 TASK-003 的 main 同步进 source，并以 correction 5/5A head `9750df2503a1aee135fdfbcca9f1706bcc9bd8de` 对齐真实 SQLite Repository、补齐 Service 级 CAS、Fake parity、输入边界及固定范围 Diff 门禁；现进入第四次全新独立 Codex 审查，不得提前 `ACCEPTED`。
 
-TASK-005 只读预检已完成且未修改仓库。主控已把待决的字幕选择、规范化、质量、缓存、错误和 Artifact 恢复契约收敛为 `ADR-006` T-01 至 T-15，状态为 `Proposed`；TASK-005 继续 `BLOCKED`，等待产品负责人批准以及 TASK-004 `DONE`。推荐方案不新增 Schema/migration，也不修改 TASK-003 Repository。
+TASK-005 只读预检已完成且未修改仓库。产品负责人已批准 `ADR-006` T-01 至 T-15，字幕选择、规范化、质量、缓存、错误和 Artifact 恢复契约已冻结；V1 不新增 Schema/migration，也不修改 TASK-003 Repository。TASK-005 继续 `BLOCKED`，只等待 TASK-004 `DONE` 与正式分配/命令授权。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -34,7 +34,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer 已停止 + 第四个独立 Codex Reviewer | IN_REVIEW | 002 |
-| [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 只读预检完成；ADR-006 Proposed；实现者未分配 | BLOCKED | 003, 004 |
+| [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | ADR-006 Accepted；实现者未分配 | BLOCKED | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | 实现 Agent + 隐私 Reviewer | BLOCKED | 007 |

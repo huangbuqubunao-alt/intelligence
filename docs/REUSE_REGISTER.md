@@ -23,7 +23,8 @@
 | Python `sqlite3` / `importlib.resources` | `DIRECT` | SQLite、migration 资源 | TASK-003 | 不引入 ORM；项目自有 Schema/事务语义 |
 | `pydantic>=2.13.4,<2.14` | `DIRECT` | 配置和领域边界校验 | TASK-002 | 不泄露密钥；公共对象以 ADR-002 为准 |
 | `PyYAML>=6.0.3,<7` | `DIRECT` | YAML 配置 | TASK-002 | 只用安全加载；未知字段拒绝 |
-| `yt-dlp[default,deno]>=2026.7.4,<2026.8` | `DIRECT` | YouTube 元数据、字幕目录、EJS challenge | TASK-004 | Python Adapter、无媒体下载/Cookie/remote components；真实冒烟另批 |
+| `yt-dlp[default,deno]>=2026.7.4,<2026.8` | `DIRECT` | YouTube 元数据、字幕目录、选中字幕正文、EJS challenge | TASK-004/005 | Python Adapter、只取选中字幕正文、无媒体下载/Cookie/remote components/ffmpeg；真实网络另批 |
+| Python `json` / `html` / `unicodedata` / `hashlib` / `pathlib` / `tempfile` / `os` / `re` | `DIRECT` | JSON3/VTT/SRT 解析、NFC 规范化、哈希与原子文件处理 | TASK-005 | 按 ADR-006 的格式、质量、路径和日志边界实现；不新增解析依赖 |
 | `mlx-whisper` | `DIRECT-PENDING` | Apple Silicon 本地转写 | TASK-006 | 方向已批，版本、安装和模型下载仍须任务级批准 |
 | Ollama HTTP API | `DIRECT-PENDING` | 本地评分 | TASK-007 | 本地服务；模型、超时和输出 Schema 受配置约束 |
 | OpenAI SDK/API | `DIRECT-PENDING` | 可选云端分析 | TASK-008 | 默认关闭；依赖、密钥和真实调用分别审批 |
@@ -85,3 +86,10 @@
 - 周报幂等、CLI 编排、结构化日志和发布验收。
 
 这不是“重复造轮子”，而是产品的差异化控制面；底层抓取、模型和模板能力继续优先复用成熟组件。
+
+## 6. TASK-005 已批准复用边界
+
+- ADR-006 T-12 已批准在 TASK-004 整合后复用锁定的 `yt-dlp==2026.7.4` Python API 和 Python 标准库；不新增或升级生产依赖，不修改 `pyproject.toml`/`uv.lock`。
+- `imlewc/video-to-subtitle-summary-skill@2c794d74` 仅 `ADAPT/REFERENCE` 语言排序、清洗夹具和无下载断言；不得复制其 subprocess、ffmpeg、代理、付费 API、`.env` 或直接文件输出架构。
+- `youtube-transcript-api` 继续 `DEFER`；只有 yt-dlp 经正式实现/审查证明不足时，才重新提交依赖和许可证审批。
+- 真实 YouTube/字幕、Cookie/登录、`.netrc`、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍未授权；ADR-006 接受不改变这些门禁。

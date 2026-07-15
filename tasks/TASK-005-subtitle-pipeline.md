@@ -6,7 +6,8 @@
 - Size: M
 - Risk: High
 - Depends on: TASK-003, TASK-004
-- Decision gate: `ADR-006` 为 `Proposed`；T-01 至 T-15 尚待产品负责人批准
+- Decision gate: `ADR-006` 为 `Accepted`；产品负责人已于 2026-07-15 批准 T-01 至 T-15
+- Execution gate: 仍等待 TASK-004 `DONE`、正式 worktree/角色/范围和任务级命令授权；当前不构成实现或网络授权
 
 ## 目标
 
@@ -73,15 +74,15 @@
 
 ## 并行只读预检
 
-- TASK-005 继续为 `BLOCKED`，不得实现、安装依赖、修改锁文件、下载字幕或访问真实 YouTube。
-- TASK-004 correction 5 写入期间，可由独立只读 Scout 针对已提交 Git 对象、main 文档和已冻结领域/状态契约并行盘点字幕选择、规范化、产物、错误、复用和审批空白；不得读取正在变化的 TASK-004 live worktree。
+- TASK-005 只读预检已完成；全程未修改仓库、安装依赖、下载字幕或访问真实 YouTube。
 - Preflight packet: `agent-prompts/PREFLIGHT-TASK-005-READONLY.md`。
-- Scout 输出仅作为主控补齐 TASK-005 契约和后续审批包的依据，不改变依赖满足状态，不构成 `READY` 或实现授权。
+- Scout 输出已经主控收敛为 ADR-006；预检本身不改变依赖满足状态，不构成 `READY` 或实现授权。
 
 ## 只读预检结论与待批准决策
 
 - Scout observed main: `58c79afc8ab9f74d98c8181a6565be5c9246e4a4`；全程只读，主线无变化。
 - 预检确认既有领域对象不足以无歧义表达“字幕就绪”与“需要本地转写”，语言/格式/质量/缓存细则也尚未冻结。
-- 主控已将建议收敛为 `docs/decisions/ADR-006-subtitle-acquisition-contract.md` 的 T-01 至 T-15；状态为 `Proposed`，等待产品负责人批准。
+- 主控已将建议收敛为 `docs/decisions/ADR-006-subtitle-acquisition-contract.md` 的 T-01 至 T-15；产品负责人已全部批准，ADR 状态为 `Accepted`。
 - 主控不采纳预检中“直接新增 transcript manifest migration”和“修改 complete_stage 支持 job-neutral Artifact”的原建议。推荐方案使用现有两个 Artifact kind、稳定 key/path、Provider-call 记录、文件哈希验证和空 Artifact stage completion；若实现证据证明不足，再单独升级 Schema/Repository ADR。
-- TASK-005 继续为 `BLOCKED`：即使 T-01 至 T-15 获批，也必须等待 TASK-004 独立审查、整合并关闭为 `DONE`，再生成正式 worktree、Implementer、Reviewer 与任务级命令/网络授权。
+- TASK-005 继续为 `BLOCKED`：契约审批已满足，但必须等待 TASK-004 独立审查、整合并关闭为 `DONE`，再生成正式 worktree、Implementer、Reviewer 与任务级命令授权。
+- 真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥继续未授权；本次批准也不授权修改 Schema/migration、`state.py`、`complete_stage`、`pyproject.toml` 或 `uv.lock`。

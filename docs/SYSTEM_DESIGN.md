@@ -1,12 +1,13 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.2
+- 版本：V1.3
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
 - SQLite 状态契约：`docs/decisions/ADR-003-sqlite-state-store-contract.md`
 - 发现与 yt-dlp 契约：`docs/decisions/ADR-004-discovery-ytdlp-contract.md`
 - 复用策略：`docs/decisions/ADR-005-reuse-first-delivery-policy.md`
+- 字幕获取与缓存契约：`docs/decisions/ADR-006-subtitle-acquisition-contract.md`
 
 ## 1. 设计目标
 
@@ -80,7 +81,7 @@ class MetadataProvider:
     def fetch(video_id) -> VideoMetadata: ...
 
 class TranscriptProvider:
-    def fetch(video, language_preferences) -> TranscriptArtifact | NotAvailable: ...
+    def fetch(video, language_preferences) -> TranscriptFetchResult: ...
 
 class ScoringProvider:
     def score(ScoringInput) -> ScoreResult: ...
@@ -116,11 +117,15 @@ class KnowledgeSink:
 | `ScoringInput` | `video`、`transcript_text`、`transcript_content_hash`、`language`、`request_hash` | `transcript_text` 必须已按 `max_transcript_chars` 形成有限输入 |
 | `AnalysisInput` | `video`、`transcript_text`、`transcript_content_hash`、`score`、`language`、`request_hash` | 文本必须已通过云端长度、隐私和预算策略 |
 | `NotAvailable` | `reason_code`、`message`、`retryable`、`call` | `reason_code` 为 `NO_MATCHING_LANGUAGE`、`NO_CONTENT` 或 `CONTENT_UNAVAILABLE`；`retry_after_seconds` 仅在 Provider 给出时存在 |
+| `TranscriptReady` | `outcome="ready"`、`artifact`、`call` | 只表示规范文本已经通过质量门禁；`call` 为 `ProviderCallMetadata` |
+| `TranscriptionRequired` | `outcome="transcription_required"`、`reason`、`call`、`attempted_track_count` | `reason` 只允许 `NO_TRACKS`、`NO_MATCHING_LANGUAGE`、`ALL_CANDIDATES_INVALID`；真正失败继续使用 `AppError` |
 | `NoteRef` | `kind`、`relative_path`、`content_hash` | `kind` 为 `video` 或 `weekly`；不得暴露 Vault 之外的路径 |
 | `WeeklyReportItem` | `video`、`score`、`note_ref`、`one_sentence_summary` | 仅接受已完成且符合周报策略的项目 |
 | `WeeklyReportInput` | `iso_year`、`iso_week`、`timezone`、`items`、`generated_at` | `items` 先按分数降序，再按 `video_id` 稳定排序 |
 
 `request_hash` 由规范化输入、操作、Provider、模型以及 Prompt/Schema 版本共同生成。Provider 返回新对象，不原地修改输入对象。
+
+`TranscriptFetchResult` 是 `TranscriptReady | TranscriptionRequired` 的具名判别联合。字幕格式只允许 `SubtitleFormat.JSON3 | VTT | SRT`；`TranscriptQualityFlag` 只允许 `ROLLING_CUES_DEDUPED`、`SPEAKER_LABELS_PRESENT`、`NON_SPEECH_MARKERS_PRESENT`，且只记录已通过质量门禁的非失败诊断。不得退回自由字符串、自由 `dict`、`Any` 或宽 `object`。`NotAvailable` 保留给其他 Provider 不可用语义；字幕“无轨道/无匹配/候选全无效”必须使用 `TranscriptionRequired`。
 
 ### 5.3 发现与字幕清单边界
 
@@ -146,10 +151,15 @@ class KnowledgeSink:
 
 - `video_id`、`language`。
 - `source_type`：`manual_subtitle | auto_subtitle | whisper`。
-- `text_path`、可选 `timed_text_path`。
-- `content_hash`、`char_count`、`segment_count`。
+- `requested_language`：字幕来源时记录触发匹配的配置语言；Whisper 或无单一匹配语言时允许为空。
+- `source_format`：人工/自动字幕为 `JSON3 | VTT | SRT`；Whisper 允许为空。
+- `text_path`、可选 `timed_text_path`；两者必须是安全 DATA-relative path。
+- `source_content_hash`、`source_byte_count`、`content_hash`、`char_count`、`segment_count`。
+- `normalization_version`。
 - `provider`、`model`、`created_at`。
-- `quality_flags`：空文本、重复率异常、乱码或过短等。
+- `quality_flags`：只读 `TranscriptQualityFlag` 序列，不使用任意字符串。
+
+Provider 调用元数据属于 `TranscriptReady.call` / `TranscriptionRequired.call`；SQLite artifact key、临时字幕 URL 和本机绝对路径不得进入领域对象。
 
 ### 6.3 ScoreResult
 
@@ -336,8 +346,15 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 - “永不重复转写”修订为“相同音频哈希 + Whisper 实现/模型 + 参数版本不重复转写”；升级模型后允许显式重建。
 - 原字幕和规范文本分开保存，避免清洗规则变化后必须重新下载。
 - TASK-005 重新查询人工/自动字幕轨道；TASK-004 的 `available_languages` 只作为能力摘要，不缓存临时 URL。
+- TASK-005 候选全局顺序为人工/自动、配置语言顺序、exact/base/variant、实际语言、JSON3/VTT/SRT、轨道名和 Provider 原始位置；候选质量失败时继续下一候选。
+- 规范化使用严格 UTF-8、LF、HTML entity 单次解码和 NFC；删除时间行/样式控制内容，保留 speaker 与音效语义，并以 ADR-006 T-08 的资源和质量阈值判定候选。
+- 原始请求键与 canonical 键分层版本化；普通缓存命中不联网探测，只有显式 refresh generation 重新枚举并生成新路径。
+- 原始字幕与 canonical 文本使用现有 `SUBTITLE_SOURCE` / `TRANSCRIPT_CANONICAL`，同目录临时写、fsync、原子替换并验证 SHA-256；V1 不新增 manifest migration。
+- 首次成功以当前 Job 写入 Artifact；缓存命中验证既有记录和文件后，以 `complete_stage(artifacts=(), provider_call=None)` 推进当前 Job/Pipeline，不修改 TASK-003 Repository 语义。
 - V1 使用 `mlx-whisper`，默认模型为 `mlx-community/whisper-large-v3-turbo`，模型和参数可配置。
 - 成功转写后立即删除音频；失败/中断音频最多保留 7 天。清理失败只告警，不让已完成转写失败。
+
+字幕获取、质量阈值、错误映射、复用和恢复的完整冻结契约见 ADR-006 T-01 至 T-15。
 
 ## 11. 模型调用策略
 
@@ -496,4 +513,4 @@ launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、�
 
 ## 18. 已批准基线与仍需任务级审批的事项
 
-产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 ADR-002 至 ADR-005，均已批准。ADR-003 已批准 TASK-003 最终 SQLite Schema；ADR-004 已批准 TASK-004 的 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载和锁文件动作。以下仍须在对应任务中单独授权：其他实际安装/升级依赖、真实密钥或付费云调用、真实 YouTube 冒烟、Cookie/账号登录、ffmpeg、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。
+产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 ADR-002 至 ADR-006，均已批准。ADR-003 已批准 TASK-003 最终 SQLite Schema；ADR-004 已批准 TASK-004 的 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载和锁文件动作；ADR-006 已批准 TASK-005 的字幕选择、规范化、缓存、错误和“不改 Schema/Repository”契约。以下仍须在对应任务中单独授权：正式 worktree/写入范围、其他实际安装/升级依赖、真实密钥或付费云调用、真实 YouTube/字幕、Cookie/账号登录、remote components、ffmpeg、媒体下载、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。

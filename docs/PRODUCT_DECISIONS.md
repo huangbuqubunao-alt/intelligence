@@ -16,6 +16,16 @@
 
 批准范围为本文档 DEC-01 至 DEC-10 的全部推荐决定。批准只确定 V1 方向；真实密钥、云调用、依赖安装、Schema 变更、真实 Vault 和 launchd 操作仍须遵守任务卡中的具体审批门禁。
 
+## 后续架构与任务级批准
+
+### ADR-006：字幕获取、规范化与缓存契约
+
+- 批准日期：2026-07-15
+- 批准范围：ADR-006 T-01 至 T-15，包括人工/自动全局排序、语言匹配、JSON3/VTT/SRT、具名结果联合、领域对象扩展、规范化/质量阈值、分层幂等键、原子文件恢复、错误映射、yt-dlp/标准库复用和显式 refresh。
+- 明确约束：TASK-005 不新增 Schema/migration，不修改 `state.py` 或 `complete_stage`；使用现有 `SUBTITLE_SOURCE` / `TRANSCRIPT_CANONICAL`、Provider-call、稳定 key/path、文件哈希验证和空 Artifact stage completion。
+- 继续未授权：真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥；本次也不创建 worktree、不分配 Implementer、不授权依赖安装或开始实现。
+- 原始批准文本见 `docs/decisions/ADR-006-subtitle-acquisition-contract.md`。
+
 ## 决策摘要
 
 | ID | 推荐方案 | 主要理由 |
