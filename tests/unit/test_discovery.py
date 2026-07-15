@@ -437,7 +437,7 @@ def test_private_partial_does_not_forge_empty_metadata() -> None:
 
 
 def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
-    """Prove safe options via private builder + Provider fake factory capture path."""
+    """Prove safe options via private builder + private test hooks on Provider."""
     opts = youtube_mod._build_ydl_opts(socket_timeout=30.0)
     assert opts["skip_download"] is True
     assert opts["noplaylist"] is True
@@ -472,15 +472,15 @@ def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
             assert "public_vid1" in url
             return _load_json("info_public.json")
 
-    def factory(raw_opts: object) -> _Handle:
-        assert isinstance(raw_opts, dict)
+    def factory(raw_opts: dict[str, Any]) -> _Handle:
         captured.append(dict(raw_opts))
         return _Handle()
 
-    provider = YtDlpMetadataProvider(
-        timeout_seconds=30.0,
+    provider = YtDlpMetadataProvider(timeout_seconds=30.0)
+    youtube_mod._bind_test_hooks(
+        provider,
         ydl_factory=factory,
-        last_opts=captured,
+        opts_sink=captured,
         clock=lambda: FIXED_NOW,
     )
     meta = provider.fetch("public_vid1")
@@ -494,10 +494,7 @@ def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
         assert "cookiefile" not in item
         assert "remote_components" not in item
         assert "ffmpeg_location" not in item
-    # Free-form opts are not a public attribute on the provider.
-    assert not hasattr(provider, "last_opts") or "last_opts" not in getattr(
-        provider, "__annotations__", {}
-    )
+    assert "last_opts" not in vars(provider)
     assert not hasattr(YtDlpMetadataProvider, "last_opts")
 
 
@@ -508,16 +505,11 @@ def _annotation_mentions_free_dict(annotation: object) -> bool:
     origin = get_origin(annotation)
     args = get_args(annotation)
 
-    # dict[...] or Dict[...]
     if origin is dict:
         return True
-    # Mapping / MutableMapping with free-form value side
     if origin is not None:
         origin_name = getattr(origin, "__name__", str(origin))
         if origin_name in {"Mapping", "MutableMapping", "dict"}:
-            # Mapping[str, Any] or Mapping[str, object] both free-form payloads
-            if len(args) >= 2:
-                return True
             return True
         return any(_annotation_mentions_free_dict(arg) for arg in args)
 
@@ -531,29 +523,43 @@ def _annotation_mentions_free_dict(annotation: object) -> bool:
     return False
 
 
-def test_public_youtube_api_has_no_free_form_dict_annotations() -> None:
-    """Regression (P1): cross-module public surface must not expose free dict types."""
+def test_public_youtube_api_has_no_free_form_dict_surface() -> None:
+    """Regression (P1): public surface has no free-dict helpers or test injection."""
     assert youtube_mod.__all__ == ["YtDlpMetadataProvider"]
 
-    # Former public free-dict helpers must not remain public exports.
-    for banned in (
+    # Non-private raw-boundary callables/values must not exist.
+    banned_public_names = (
         "SAFE_YDL_OPTS",
         "build_ydl_opts",
         "summarize_available_languages",
         "map_live_status",
         "map_availability",
         "map_published_at",
-    ):
+        "map_info_dict_to_video_metadata",
+        "bind_test_hooks",
+        "YdlFactory",
+        "Clock",
+    )
+    for banned in banned_public_names:
         assert banned not in youtube_mod.__all__
-        assert banned not in vars(youtube_mod) or banned.startswith("_")
+        assert banned not in vars(youtube_mod), f"non-private residual still present: {banned}"
 
-    # Private builders exist under private names.
+    # Private builders / hooks exist only under private names.
     assert hasattr(youtube_mod, "_SAFE_YDL_OPTS")
     assert hasattr(youtube_mod, "_build_ydl_opts")
     assert hasattr(youtube_mod, "_map_info_dict_to_video_metadata")
+    assert hasattr(youtube_mod, "_bind_test_hooks")
+    assert getattr(youtube_mod, "map_info_dict_to_video_metadata", None) is None
 
     public_cls = YtDlpMetadataProvider
-    # Class body annotations (if any) and __init__/fetch signatures.
+    sig = inspect.signature(public_cls.__init__)
+    param_names = [name for name in sig.parameters if name != "self"]
+    assert param_names == ["timeout_seconds"], (
+        f"public constructor must only take timeout_seconds, got {param_names}"
+    )
+    forbidden_ctor = {"ydl_factory", "last_opts", "clock", "opts_sink", "factory"}
+    assert forbidden_ctor.isdisjoint(sig.parameters.keys())
+
     for name, method in (
         ("__init__", public_cls.__init__),
         ("fetch", public_cls.fetch),
@@ -563,37 +569,14 @@ def test_public_youtube_api_has_no_free_form_dict_annotations() -> None:
             assert not _annotation_mentions_free_dict(annotation), (
                 f"YtDlpMetadataProvider.{name} param {param} has free-dict annotation: {annotation!r}"
             )
+            # No object/Any disguised injection slots on the public constructor.
+            if name == "__init__" and param not in {"return", "timeout_seconds"}:
+                assert annotation is not object and annotation is not Any
 
-    # Public instance attributes declared on the class must not be free dicts.
     for attr_name, annotation in getattr(public_cls, "__annotations__", {}).items():
         if attr_name.startswith("_"):
             continue
         assert not _annotation_mentions_free_dict(annotation), (
             f"public attribute {attr_name} has free-dict annotation: {annotation!r}"
         )
-
-    # No public last_opts attribute type on the class.
-    assert "last_opts" not in getattr(public_cls, "__annotations__", {})
-    sig = inspect.signature(public_cls.__init__)
-    for param_name, param in sig.parameters.items():
-        if param_name == "self":
-            continue
-        if param.annotation is not inspect.Parameter.empty:
-            ann = param.annotation
-            # String annotations from from __future__ import annotations
-            if isinstance(ann, str):
-                assert "dict[" not in ann
-                assert "Mapping[" not in ann or "Any" not in ann
-            else:
-                assert not _annotation_mentions_free_dict(ann)
-
-    # Residual integration helper (not in __all__) must not advertise Mapping[str, Any].
-    residual = getattr(youtube_mod, "map_info_dict_to_video_metadata", None)
-    if residual is not None:
-        residual_hints = get_type_hints(residual, include_extras=True)
-        for param, annotation in residual_hints.items():
-            assert not _annotation_mentions_free_dict(annotation), (
-                f"residual helper param {param} still exposes free-dict type: {annotation!r}"
-            )
-        # And must not be a public export.
-        assert "map_info_dict_to_video_metadata" not in youtube_mod.__all__
+        assert attr_name not in {"last_opts", "ydl_factory", "clock"}

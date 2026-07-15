@@ -24,10 +24,8 @@ from youtube_intel.domain import (
     LiveStatus,
     PipelineStatus,
 )
-from youtube_intel.providers.youtube import (
-    YtDlpMetadataProvider,
-    map_info_dict_to_video_metadata,
-)
+from youtube_intel.providers import youtube as youtube_mod
+from youtube_intel.providers.youtube import YtDlpMetadataProvider
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "youtube"
 FIXED_NOW = datetime(2026, 7, 15, 9, 30, 0, tzinfo=UTC)
@@ -101,7 +99,7 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
     assert len(repo.videos) == 4
     assert len(repo.save_events) == 2
 
-    captured: list[dict[str, Any]] = []
+    captured: list[object] = []
     ydl_holder: list[_ScriptedYdl] = []
 
     def factory(opts: dict[str, Any]) -> _ScriptedYdl:
@@ -127,11 +125,13 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
         ydl_holder.append(scripted)
         return scripted
 
-    meta = YtDlpMetadataProvider(
-        timeout_seconds=25.0,
+    # Public constructor is domain config only; fakes bind through private hooks.
+    meta = YtDlpMetadataProvider(timeout_seconds=25.0)
+    youtube_mod._bind_test_hooks(
+        meta,
         ydl_factory=factory,
         clock=lambda: FIXED_NOW,
-        last_opts=captured,
+        opts_sink=captured,
     )
     service_m = DiscoveryService(
         YouTubeRssSourceProvider(opener=lambda r, t: _FakeResponse(body), clock=lambda: FIXED_NOW),
@@ -187,6 +187,7 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
     # Option capture: no media download / cookies / remote components / ffmpeg
     assert captured
     for opts in captured:
+        assert isinstance(opts, dict)
         assert opts["skip_download"] is True
         assert opts["noplaylist"] is True
         assert opts["writesubtitles"] is False
@@ -228,8 +229,8 @@ def test_metadata_mapping_from_all_fixtures_is_stable() -> None:
         "info_restricted.json",
     ]
     for name in names:
-        first = map_info_dict_to_video_metadata(_load_json(name))
-        second = map_info_dict_to_video_metadata(_load_json(name))
+        first = youtube_mod._map_info_dict_to_video_metadata(_load_json(name))
+        second = youtube_mod._map_info_dict_to_video_metadata(_load_json(name))
         assert first == second
 
 

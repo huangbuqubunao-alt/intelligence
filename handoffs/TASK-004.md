@@ -205,17 +205,73 @@
 - 修复仅触及：`src/youtube_intel/providers/youtube.py`、`tests/unit/test_discovery.py`、`handoffs/TASK-004.md`
 - 行为/错误码/语言排序/依赖锁/未授权边界未改
 
-### 修复后剩余风险
+### 修复后剩余风险（首轮，已被二次修复取代）
 
-- 残差导入名 `map_info_dict_to_video_metadata` 仍可被模块内 import（非 `__all__`）；后续清理集成测试导入后可完全删除。
-- 构造参数名 `ydl_factory` / `last_opts` 仍为离线钩子入口，类型已去 free-dict，但运行时仍接受 sink/callable。
+- 残差导入名 `map_info_dict_to_video_metadata` 与构造注入参数：见下方“二次预审修复”。
 - 任务状态保持 `IN_PROGRESS`；Reviewer 尚未启动。
+
+## 二次预审修复（P1 完整收口）
+
+### 首轮未通过点
+
+1. 非私有 `map_info_dict_to_video_metadata(info: object)` 仍邀请跨模块传入 yt-dlp 原始 payload（`__all__` 不是访问控制）。
+2. 公开构造仍含 `ydl_factory` / `last_opts` / `clock`；写成 `object` 属于伪装，不是隔离。
+
+### 私有化方式
+
+- 删除非私有 `map_info_dict_to_video_metadata`；映射仅保留 `_map_info_dict_to_video_metadata` 等私有 helper。
+- `YtDlpMetadataProvider.__init__(*, timeout_seconds: float = 30.0)` 仅领域配置参数。
+- 默认 `_ydl_factory` / `_clock` / `_opts_sink=None` 为实例私有字段。
+- 离线注入经私有 `_bind_test_hooks(provider, ydl_factory=..., clock=..., opts_sink=...)`（或等价私有属性赋值）；产品代码不得依赖。
+- 可保留公开 `last_call: ProviderCallMetadata | None`（具名领域元数据，非 free dict）。
+
+### 集成测试更新
+
+- 不再从 `youtube.py` 导入任何非私有 mapping helper。
+- 使用 `YtDlpMetadataProvider(timeout_seconds=...)` + `youtube_mod._bind_test_hooks(...)`。
+- 稳定性映射改走 `youtube_mod._map_info_dict_to_video_metadata`。
+
+### 回归测试
+
+- `test_public_youtube_api_has_no_free_form_dict_surface`：
+  - `__all__ == ["YtDlpMetadataProvider"]`
+  - 不存在非私有 `map_*` / `build_*` / `SAFE_*` / residual mapper
+  - 构造参数仅为 `timeout_seconds`
+  - 无 free-dict 注解；无 `ydl_factory`/`last_opts`/`clock` 注入槽
+- Provider fake 路径与安全 options 断言仍保留并增强。
+
+### 检查结果（二次修复后）
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked` | PASS |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS |
+| `uv run python -m pytest` | PASS |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+### Code evidence
+
+- Prior head（首轮修复）：`10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
+- Correction-2 commit：见分支 tip（消息 `fix: make yt-dlp test hooks private`）
+- 本轮仅改：`src/youtube_intel/providers/youtube.py`、`tests/unit/test_discovery.py`、`tests/integration/test_discovery_adapter.py`、`handoffs/TASK-004.md`
+- 行为/错误码/语言排序/依赖锁/未授权边界未改
+
+### 剩余风险
+
+- 测试仍可触及私有 `_bind_test_hooks` / `_map_*`（Python 无真正封装）；属 Adapter 内部测试约定，非公共契约。
+- YouTube 页面/RSS 漂移、mutagen GPL 传递、TASK-003 组合契约仍待后续。
+- 任务状态保持 `IN_PROGRESS`；不启动 Reviewer。
 
 ## 实现者结论
 
-- 建议状态：`IN_PROGRESS`（预审修复已提交；不自行启动 Reviewer / 不改公共任务状态）
+- 建议状态：`IN_PROGRESS`（二次预审修复已提交；不自行启动 Reviewer / 不改公共任务状态）
 - 首个实现 Commit：`392edfb897003c1583b538667d10a2a89926a94b`
-- Correction Commit：见分支 tip（消息 `fix: hide yt-dlp raw mapping internals`）
+- Correction-1 Commit：`10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
+- Correction-2 Commit：见分支 tip（消息 `fix: make yt-dlp test hooks private`）
 - 复现/验证说明：
 
 ```bash

@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, MutableSequence
 from datetime import UTC, datetime
-from typing import Any, Final, Protocol, cast
+from typing import Any, Final, Protocol
 
 # yt-dlp is the only approved direct runtime dependency for this adapter.
 import yt_dlp  # type: ignore[import-untyped]
@@ -312,27 +312,6 @@ def _default_ydl_factory(opts: dict[str, Any]) -> _YdlHandle:
     return handle
 
 
-def _as_ydl_factory(value: object | None) -> _YdlFactory | None:
-    """Validate a test/injected factory without advertising free-dict types publicly."""
-    if value is None:
-        return None
-    if not callable(value):
-        msg = "ydl_factory must be callable"
-        raise TypeError(msg)
-    return cast(_YdlFactory, value)
-
-
-def _as_opts_sink(value: object | None) -> MutableSequence[object] | None:
-    """Validate an optional sink used only by offline tests to capture option evidence."""
-    if value is None:
-        return None
-    append = getattr(value, "append", None)
-    if not callable(append):
-        msg = "last_opts sink must support append"
-        raise TypeError(msg)
-    return cast(MutableSequence[object], value)
-
-
 # ---------------------------------------------------------------------------
 # Public Adapter (cross-module contract surface)
 # ---------------------------------------------------------------------------
@@ -341,28 +320,20 @@ def _as_opts_sink(value: object | None) -> MutableSequence[object] | None:
 class YtDlpMetadataProvider:
     """MetadataProvider implementation using yt-dlp Python API only.
 
-    Public construction is configuration-only. Optional offline test hooks accept
-    untyped callables/sinks so free-form yt-dlp option/info dicts never appear in
-    this class's public annotations or ``__all__`` exports.
+    Public construction is domain configuration only (``timeout_seconds``).
+    Free-form yt-dlp option/info dicts, factories, clocks, and option sinks are
+    private implementation details and must not appear on the public surface.
     """
 
-    def __init__(
-        self,
-        *,
-        timeout_seconds: float = 30.0,
-        clock: Callable[[], datetime] | None = None,
-        ydl_factory: object | None = None,
-        last_opts: object | None = None,
-    ) -> None:
+    def __init__(self, *, timeout_seconds: float = 30.0) -> None:
         if timeout_seconds <= 0:
             msg = "timeout_seconds must be positive"
             raise ValueError(msg)
         self._timeout_seconds = timeout_seconds
-        factory = _as_ydl_factory(ydl_factory)
-        self._ydl_factory: _YdlFactory = factory or _default_ydl_factory
-        self._clock: _Clock = clock or _utcnow
-        # Private sink for offline option evidence; never part of domain contracts.
-        self._opts_sink: MutableSequence[object] | None = _as_opts_sink(last_opts)
+        self._ydl_factory: _YdlFactory = _default_ydl_factory
+        self._clock: _Clock = _utcnow
+        # Private sink used only when tests call ``_bind_test_hooks``.
+        self._opts_sink: MutableSequence[object] | None = None
         self.last_call: ProviderCallMetadata | None = None
 
     def fetch(self, video_id: str) -> VideoMetadata:
@@ -612,33 +583,24 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
     )
 
 
-# ---------------------------------------------------------------------------
-# Offline-test residual import names (NOT in __all__; not cross-module contract)
-#
-# Integration tests written against the first implementer commit import these
-# names. They are deliberately untyped as free-form Mapping[str, Any] / dict
-# at the *public* annotation surface: helpers take ``object`` and validate
-# privately. Do not add them to ``__all__``.
-# ---------------------------------------------------------------------------
+def _bind_test_hooks(
+    provider: YtDlpMetadataProvider,
+    *,
+    ydl_factory: _YdlFactory | None = None,
+    clock: _Clock | None = None,
+    opts_sink: MutableSequence[object] | None = None,
+) -> None:
+    """Private, test-scoped wiring for offline fakes (not a public constructor).
 
-
-def map_info_dict_to_video_metadata(info: object) -> VideoMetadata:
-    """Residual import for offline fixtures; not a public cross-module export.
-
-    Prefer going through ``YtDlpMetadataProvider.fetch``. Kept so existing
-    integration tests continue to map fixture payloads without a free-dict
-    annotation on the public ``__all__`` surface.
+    Cross-module product code must not call this. Unit/integration tests may use
+    it (or assign the same private attributes) after constructing the provider.
     """
-    if not isinstance(info, Mapping):
-        raise AdapterError(
-            _app_error(
-                ErrorCode.INVALID_RESPONSE,
-                "yt-dlp info payload is not a mapping",
-                retryable=False,
-                stage=ProcessingStage.METADATA,
-            )
-        )
-    return _map_info_dict_to_video_metadata(info)
+    if ydl_factory is not None:
+        provider._ydl_factory = ydl_factory
+    if clock is not None:
+        provider._clock = clock
+    if opts_sink is not None:
+        provider._opts_sink = opts_sink
 
 
 __all__ = [
