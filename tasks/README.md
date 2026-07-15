@@ -8,7 +8,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-002` 的实现、预审修复、独立 Grok 审查和最终整合均已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，merge commit 为 `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`。整合后全部门禁通过，状态为 `DONE`。
 
-`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 Codex 实现证据为 `adab4bb00dd7e917b295c22fd8357a4f11515912`，现由全新独立 Grok 审查。TASK-004 的 Codex 审查证据 `f34cbb09d628ebb256bf5f2895adfd10dbd61812` 为 `REJECT`：4 个 P1 涉及错误边界、身份一致性、RSS 完整性与 HTTP 分类；原 Grok Implementer 从该 evidence head 做范围受控修复。两项再次并行，TASK-003 为 `IN_REVIEW`，TASK-004 为 `IN_PROGRESS`。
+`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 Codex 实现证据为 `adab4bb00dd7e917b295c22fd8357a4f11515912`，现由全新独立 Grok 审查。TASK-004 的 Codex 审查 `f34cbb...` 为 `REJECT`，原 Grok 的第三轮修复证据为 `30932e1742e948683f9e1c0f63236451b8d731bd`；主控静态核验已关闭 4 个 P1、2 个 P2 与 1 个 P3，等待 TASK-003 Reviewer 结束后启动第二次独立 Codex 审查。TASK-003 为 `IN_REVIEW`，TASK-004 为 `IN_PROGRESS`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 

@@ -119,3 +119,10 @@
 - Verdict: `REJECT`。P1：畸形 yt-dlp payload 逸出原始 `ValueError`；返回 `video_id` 不校验请求 ID；RSS 不完整 entry 被跳过仍推进游标；HTTP 404/403/503 的分类顺序使终态/重试语义反转。P2：RSS read 失败不关闭 response，`needs_auth` 可能标为 `PUBLIC`。P3：公开注解回归哨兵会漏掉 `Any`。
 - Status decision: 回到 `IN_PROGRESS`，由原 Grok Implementer 从 source head `f34cbb...` 修复；不得以当前 evidence 启动第二个 Codex Reviewer 或设为 `ACCEPTED`。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-3-GROK.md`
+
+## Reviewer REJECT 修复核对（四次）
+
+- Checked source head: `30932e1742e948683f9e1c0f63236451b8d731bd`，父提交为 review evidence `f34cbb09d628ebb256bf5f2895adfd10dbd61812`。
+- Scope evidence: correction commit 只修改 `discovery.py`、`providers/youtube.py`、unit/integration discovery tests 与 handoff 五个已批准文件；相对 `dcc7d85...` 的完整范围仍为原 17 文件，worktree 干净，`git diff --check` 通过。
+- Static evidence: safe malformed payload mapping、请求/响应 ID 核验、RSS 完整 entry 原子失败、HTTP 404/403/5xx 优先分类、read failure finally-close、`needs_auth -> RESTRICTED` 及 `Any/object` public-surface 哨兵均有实现和离线回归；未改变依赖、公共领域契约、无下载/无登录边界或 TASK-003。
+- Status decision: 保持 `IN_PROGRESS`，不以主控预核验取代独立审查。当前唯一 Grok Reviewer 正在 TASK-003；其结束后才授权全新 Codex Reviewer 审查本 head。
