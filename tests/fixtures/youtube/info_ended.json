@@ -1,0 +1,17 @@
+{
+  "id": "ended_vid1",
+  "title": "Past Live Stream",
+  "description": "Replay",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/watch?v=ended_vid1",
+  "timestamp": 1720500000,
+  "duration": 3600,
+  "live_status": "was_live",
+  "was_live": true,
+  "availability": "public",
+  "subtitles": {
+    "en": [{"url": "https://example.invalid/en.vtt", "ext": "vtt"}]
+  },
+  "automatic_captions": {}
+}

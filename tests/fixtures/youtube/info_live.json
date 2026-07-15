@@ -1,0 +1,15 @@
+{
+  "id": "live_vid1",
+  "title": "Live Now",
+  "description": "Streaming",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/watch?v=live_vid1",
+  "timestamp": 1720800000,
+  "duration": 0,
+  "live_status": "is_live",
+  "is_live": true,
+  "availability": "public",
+  "subtitles": {},
+  "automatic_captions": {}
+}

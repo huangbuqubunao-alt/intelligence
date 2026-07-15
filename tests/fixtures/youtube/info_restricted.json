@@ -1,0 +1,14 @@
+{
+  "id": "restricted_vid1",
+  "title": "Members Only",
+  "description": "Paywall",
+  "channel_id": "UC_example",
+  "channel": "Example Channel",
+  "webpage_url": "https://www.youtube.com/watch?v=restricted_vid1",
+  "timestamp": 1720400000,
+  "duration": 120,
+  "availability": "subscriber_only",
+  "live_status": "not_live",
+  "subtitles": {},
+  "automatic_captions": {}
+}
