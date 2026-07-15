@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-003`（`codex/task-003-state-store`）与 `/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`），共同 base 为 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`；TASK-001/TASK-002 worktree 只保留审计证据
-- 活动任务：`TASK-003` 为 `IN_PROGRESS`，Codex 实现中；`TASK-004` 保持 `IN_PROGRESS`，Grok 的首个修复 `10f5ffa...` 仍以非私有名称/`object` 包装暴露 Adapter 测试边界，等待第二轮 P1 修复后再启动 Codex Reviewer
+- 活动任务：`TASK-003` 为 `IN_PROGRESS`，Codex 实现中；`TASK-004` 的第二轮 P1 修复 `9db800f...` 已通过主控只读核验，等待状态同步为 `IN_REVIEW` 后启动全新独立 Codex Reviewer
 
 ## 已完成或已批准
 
@@ -28,18 +28,18 @@
 
 ## 下一步
 
-1. Status Integrator 只提交 TASK-004 第二轮预审修复记录与 Grok Correction 2 包，不运行产品代码或写任务 worktree。
-2. 原 TASK-004 Grok Implementer 从 source head `10f5ffa...` 完成真正私有化的公共边界修复并提交新的代码证据；TASK-003 继续独立实现。
-3. 只有修复证据通过主控只读核对后，才将 TASK-004 置为 `IN_REVIEW` 并启动全新 Codex Reviewer。
+1. Status Integrator 将 TASK-004 置为 `IN_REVIEW`，记录 source head `9db800f...`，并提交独立 Codex Reviewer 包；不运行产品代码或写任务 worktree。
+2. 全新独立 Codex Reviewer 在 TASK-004 source worktree 复核 `dcc7d85...9db800f...`、重新运行任务门禁，并做公开 Surface/私有测试钩子和离线安全选项探针；TASK-003 继续独立实现。
+3. Reviewer 仅在手工交接报告中记录 `APPROVE` 或 `REJECT`；主控收到独立证据后再决定是否 `ACCEPTED`。
 4. TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components 和 ffmpeg。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | Status Integrator 同步 TASK-004 第二轮预审修复包 | 只提交指定控制面 Markdown |
-| 并行进行 | TASK-003 Codex Implementer；TASK-004 Grok Correction 2 | 两个独立 worktree、分支和写入会话 |
-| 等待各自实现证据 | TASK-003 Grok Reviewer；TASK-004 Codex Reviewer | 仅在对应实现/修复完成后启动 |
+| 立即启动 | Status Integrator 同步 TASK-004 审查授权包 | 只提交指定控制面 Markdown |
+| 并行进行 | TASK-003 Codex Implementer；TASK-004 Codex Reviewer | 两个独立 worktree、分支和写入会话 |
+| 等待各自审查证据 | TASK-003 Grok Reviewer；TASK-004 主控验收 | 仅在对应 Reviewer 提交独立证据后启动 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界
@@ -63,7 +63,7 @@
 - TASK-002 Reviewer 已判定 Provider request correlation/调用元数据与冻结字段一致；剩余 P3 为 `MappingProxyType` 对私有 backing dict 的 live view，公共写入仍被拒绝，不阻断 V1 整合。
 - TASK-003 将使用已批准的 `scope_key + job_attempts`；Reviewer 需重点验证全局 Job 去重、租约 CAS 和逐次审计，而非只检查建表成功。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。
-- TASK-004 首个实现将 `SAFE_YDL_OPTS`、`build_ydl_opts` 和含 `Mapping`/`dict` 的 Adapter helper 显式置入 `__all__`，且 `YtDlpMetadataProvider` 公开了 `last_opts: list[dict[str, Any]]` 注入/属性。首个修复 `10f5ffa...` 虽隐藏了这些注解，却仍保留非私有 `map_info_dict_to_video_metadata(info: object)` 以及公开的 `ydl_factory`/`last_opts` 注入参数；以 `object` 包装自由结构不符合修复包。TASK-004 仍为 P1 修复中，Reviewer 暂不得启动。
+- TASK-004 首个实现将 `SAFE_YDL_OPTS`、`build_ydl_opts` 和含 `Mapping`/`dict` 的 Adapter helper 显式置入 `__all__`，且 `YtDlpMetadataProvider` 公开了 `last_opts: list[dict[str, Any]]` 注入/属性。首个修复 `10f5ffa...` 虽隐藏了这些注解，却仍保留非私有 `map_info_dict_to_video_metadata(info: object)` 以及公开的 `ydl_factory`/`last_opts` 注入参数；以 `object` 包装自由结构不符合修复包。第二轮修复 `9db800f...` 已移除残余公开 mapper 与所有公开测试钩子，改为私有 `_map_*` / `_bind_test_hooks`；主控静态核验其构造面、模块符号、修复 commit 的 4 文件范围和完整 17 文件范围均通过。独立 Reviewer 仍须重跑门禁并独立判断。
 - `video-to-subtitle-summary-skill`、`yt2md` 只能按复用登记选择性参考；其中存在 faster-whisper/ffmpeg/付费 API/直接 Vault 写入或 TLS 风险，不能整套引入。
 - `youtube-skills` 依赖 TranscriptAPI 账号、密钥和 credits，与 V1 本地优先边界冲突，已标记为 V1 `REJECT`。
 - MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。

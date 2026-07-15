@@ -1,6 +1,6 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
 - Reviewer: `Codex`（全新独立会话；等待实现 commit）
 - Owner role: 实现 Agent
@@ -104,3 +104,11 @@
 - Severity: `P1`；不得以 `10f5ffa...` 启动 Reviewer。
 - Status decision: 保持 `IN_PROGRESS`，由原 Grok Implementer 做第二轮最小修复；这一轮允许更新原任务范围内的 `tests/integration/test_discovery_adapter.py`，以移除其对残余公开映射名的依赖。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-2-GROK.md`
+
+## 主控预审修复核对（三次）
+
+- Checked source head: `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
+- Git evidence: source worktree 干净；第二轮修复 commit 仅为 `src/youtube_intel/providers/youtube.py`、`tests/unit/test_discovery.py`、`tests/integration/test_discovery_adapter.py`、`handoffs/TASK-004.md` 四个已批准文件；相对 `dcc7d85...` 的完整范围仍精确属于原 TASK-004 17 文件集合，`git diff --check` 通过。
+- Public-contract evidence: `YtDlpMetadataProvider.__init__` 只保留 `timeout_seconds: float`；删除残余非私有 `map_info_dict_to_video_metadata`；raw dict、字段映射、factory、时钟和 options sink 都只使用 `_` 私有名称；`__all__` 仅为 `YtDlpMetadataProvider`。离线集成测试不再导入非私有 mapping helper，回归测试检查上述 Surface。
+- Status decision: 主控预审 P1 已关闭；同步后状态为 `IN_REVIEW`，由全新独立 Codex Reviewer 审查。此条不是最终验收，不得设为 `ACCEPTED` 或 `DONE`。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-CODEX.md`
