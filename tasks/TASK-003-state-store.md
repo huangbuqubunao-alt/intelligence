@@ -1,6 +1,6 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Reviewer: `Grok`（全新独立会话；已 `APPROVE`）
 - Owner role: 实现 Agent；TL 审批 Schema
@@ -87,6 +87,13 @@
 - Integrator: 全新 Codex Integrator 会话，在 main 执行非快进 merge；不得开发、修复、重构、修改任务状态或清理 source branch/worktree。
 - 进入 main 的第一父差异只能为 `state.py`、`migrations/001_initial.sql`、两份 TASK-003 测试和 `handoffs/TASK-003.md`；必须重跑两组 focused tests、全量 pytest、mypy、Ruff、`uv build` 和 migration SQL 包含性检查。
 - Integrator packet: `agent-prompts/TASK-003-INTEGRATOR.md`。合并成功且门禁通过后，主控另行同步 `DONE`；本轮绝不得自行关闭。
+
+## 整合结果
+
+- Integrator: 全新 Codex Integrator；execution base 为 `c524a05a0bdec6f2496a78b24f82fa5d394ae1a2`，source head 为 `f07795f854e02b15e8c438622042e360b7c0e8b9`。
+- Main merge commit: `072511f20b587f973b29437d79080f6cb7863f1a`；父提交为 `c524a05...` 与 `f07795...`，第一父差异精确为任务 5 文件。
+- 整合后检查：`uv lock --check`、`uv sync --locked`、focused 30/9、全量 pytest 86、mypy、Ruff、`uv build` 与 sdist/wheel migration SQL 包含性均 PASS。
+- Final status: `DONE`。source branch/worktree 保留；P3 路径脱敏、周号正则与 at-most-once best-effort 风险继续由发布门禁跟踪。
 
 ## 分配记录
 

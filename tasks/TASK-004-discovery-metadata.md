@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: `Codex`（第二次独立审查 `REJECT`，已结束）
+- Reviewer: `Grok`（全新独立会话；审查 correction 4）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -135,3 +135,11 @@
 - 已独立通过：其他 malformed date/duration、请求/响应 ID mismatch、RSS 缺 videoId/published/title、较旧 entry 恢复、全部 response close、HTTP 404/403/429/503/599、正文脱敏、`needs_auth -> RESTRICTED`、公开 Surface、yt-dlp 安全 options、无下载/无 Cookie/无 remote components。
 - Status decision: 回到 `IN_PROGRESS`，只退回原 Grok Implementer 修复上述两个 P1；不得修改依赖、公共契约、task 状态以外的控制面，亦不得启动第三位 Reviewer。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-4-GROK.md`
+
+## 第二次审查 P1 修复核对（五次）
+
+- Checked source head: `54c0ab201388cba35e481d7a511f21575946ad14`，父提交为第二次 review evidence `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`。
+- Scope evidence: correction 4 精确修改 `providers/youtube.py`、`discovery.py`、两份 discovery 测试与 handoff 五个已批准文件；相对 `dcc7d85...` 的完整范围仍为原 17 文件，worktree 干净，`git diff --check` 通过。
+- Static evidence: `_coerce_age_limit()` / `_map_availability()` 接受请求 video ID，非法 age_limit 返回 `INVALID_RESPONSE`、nonretryable、METADATA 且保留身份；RSS entry channelId 缺失或不匹配立即 `INVALID_RESPONSE`，不再回填请求 channel。unit/integration 回归验证不保存候选/不推进 cursor 与较旧条目恢复。
+- Status decision: 进入 `IN_REVIEW`；授权一个**全新、独立于所有此前 TASK-004 Implementer 与 Reviewer 会话的 Grok Reviewer**，不得以主控核验取代独立审查。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-3-GROK.md`
