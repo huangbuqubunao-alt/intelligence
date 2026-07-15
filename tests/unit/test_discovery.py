@@ -443,6 +443,67 @@ def test_service_rejects_naive_now_and_empty_pipeline_version() -> None:
     assert repo.videos == videos_after_discover
 
 
+def test_service_rejects_whitespace_only_pipeline_version_with_zero_side_effects() -> None:
+    """Pure whitespace pipeline_version is CONFIG_INVALID before Source/Meta/Repo."""
+    blank_versions = (" ", "   ", "\t", "\n", " \t\n ")
+
+    class CountingSource:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def discover(self, channel: object, cursor: object) -> object:
+            self.calls += 1
+            raise AssertionError("source must not be called for blank pipeline_version")
+
+    class CountingMeta:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def fetch(self, video_id: str) -> object:
+            self.calls += 1
+            raise AssertionError("metadata provider must not be called for blank pipeline_version")
+
+    for blank in blank_versions:
+        source = CountingSource()
+        meta = CountingMeta()
+        repo = FakeDiscoveryRepository()
+        service = DiscoveryService(source, repo, meta)
+
+        with pytest.raises(AdapterError) as disc_exc:
+            service.discover_and_save(CHANNEL, pipeline_version=blank, now=FIXED_NOW)
+        err = disc_exc.value.error
+        assert err.code is ErrorCode.CONFIG_INVALID
+        assert "IntegrityError" not in str(disc_exc.value)
+        assert "CHECK constraint" not in str(disc_exc.value)
+        assert source.calls == 0
+        assert meta.calls == 0
+        assert repo.videos == {}
+        assert repo.cursors == {}
+        assert repo.save_events == []
+        assert repo.metadata == {}
+        assert repo.video_records == {}
+        assert repo.unavailable == {}
+
+        with pytest.raises(AdapterError) as meta_exc:
+            service.fetch_and_store_metadata(
+                "vid_new_1",
+                pipeline_version=blank,
+                now=FIXED_NOW,
+            )
+        meta_err = meta_exc.value.error
+        assert meta_err.code is ErrorCode.CONFIG_INVALID
+        assert "IntegrityError" not in str(meta_exc.value)
+        assert "CHECK constraint" not in str(meta_exc.value)
+        assert source.calls == 0
+        assert meta.calls == 0
+        assert repo.videos == {}
+        assert repo.cursors == {}
+        assert repo.save_events == []
+        assert repo.metadata == {}
+        assert repo.video_records == {}
+        assert repo.unavailable == {}
+
+
 def test_metadata_success_upserts_independently() -> None:
     provider = _rss_provider(_load_bytes("rss_sample.xml"))
     repo = FakeDiscoveryRepository()

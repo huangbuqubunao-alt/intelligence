@@ -131,10 +131,18 @@ def _raise_adapter(
 
 @runtime_checkable
 class ChannelCursorView(Protocol):
-    """Minimal read-only cursor view matching SQLite ChannelCursorRecord surface."""
+    """Minimal read-only cursor view matching SQLite ChannelCursorRecord surface.
 
-    channel_id: str
-    revision: int
+    Read-only fields are declared as ``@property`` members so frozen TASK-003
+    records structurally satisfy the Protocol under mypy (mutable attributes
+    are not covariant with frozen dataclass fields).
+    """
+
+    @property
+    def channel_id(self) -> str: ...
+
+    @property
+    def revision(self) -> int: ...
 
     def as_discovery_cursor(self) -> DiscoveryCursor:
         """Project the persisted frontier to the frozen domain cursor object."""
@@ -143,13 +151,26 @@ class ChannelCursorView(Protocol):
 
 @runtime_checkable
 class VideoRecordView(Protocol):
-    """Minimal read-only video view matching SQLite VideoRecord surface used here."""
+    """Minimal read-only video view matching SQLite VideoRecord surface used here.
 
-    video_id: str
-    pipeline_status: PipelineStatus
-    availability: Availability | None
-    title: str | None
-    pipeline_version: str
+    Read-only fields use ``@property`` so frozen TASK-003 ``VideoRecord`` is a
+    structural subtype without wrappers, casts, or state.py changes.
+    """
+
+    @property
+    def video_id(self) -> str: ...
+
+    @property
+    def pipeline_status(self) -> PipelineStatus: ...
+
+    @property
+    def availability(self) -> Availability | None: ...
+
+    @property
+    def title(self) -> str | None: ...
+
+    @property
+    def pipeline_version(self) -> str: ...
 
 
 @runtime_checkable
@@ -254,7 +275,7 @@ class FakeDiscoveryRepository:
                     retryable=False,
                 )
             )
-        if not pipeline_version:
+        if not pipeline_version.strip():
             raise AdapterError(
                 _app_error(
                     ErrorCode.CONFIG_INVALID,
@@ -451,7 +472,7 @@ class DiscoveryService:
                 "discovery requires timezone-aware UTC now",
                 retryable=False,
             )
-        if not pipeline_version:
+        if not pipeline_version.strip():
             _raise_adapter(
                 ErrorCode.CONFIG_INVALID,
                 "discovery requires pipeline_version",
@@ -510,7 +531,7 @@ class DiscoveryService:
                 stage=ProcessingStage.METADATA,
                 video_id=video_id,
             )
-        if not pipeline_version:
+        if not pipeline_version.strip():
             _raise_adapter(
                 ErrorCode.CONFIG_INVALID,
                 "metadata fetch requires pipeline_version",

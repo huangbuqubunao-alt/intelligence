@@ -27,6 +27,7 @@ from youtube_intel.domain import (
     LiveStatus,
     PipelineStatus,
     ProviderCallMetadata,
+    SourceProvider,
     VideoMetadata,
 )
 from youtube_intel.providers import youtube as youtube_mod
@@ -416,6 +417,18 @@ def _rss_source(body: bytes) -> YouTubeRssSourceProvider:
     )
 
 
+def _wire_sqlite_discovery_service(
+    source: SourceProvider,
+    repository: SQLiteStateRepository,
+) -> DiscoveryService:
+    """Real static wiring: SQLiteStateRepository is assignable to DiscoveryRepository.
+
+    Independent reviewers re-run the same assignment under ``MYPYPATH=src uv run mypy -c``.
+    """
+    checked: DiscoveryRepository = repository
+    return DiscoveryService(source, checked)
+
+
 def test_sqlite_repository_matches_discovery_protocol(tmp_path: Path) -> None:
     """Runtime structural check: initialized SQLite repo is a DiscoveryRepository."""
     repository = _sqlite_repo(tmp_path)
@@ -426,6 +439,11 @@ def test_sqlite_repository_matches_discovery_protocol(tmp_path: Path) -> None:
 
     # Static typing must accept the concrete SQLite repository here.
     assert _accepts_discovery_repository(repository) == "SQLiteStateRepository"
+
+    body = (FIXTURES / "rss_sample.xml").read_bytes()
+    source = _rss_source(body)
+    wired = _wire_sqlite_discovery_service(source, repository)
+    assert isinstance(wired, DiscoveryService)
 
 
 def test_sqlite_discovery_service_atomic_batch_and_stable_rerun(tmp_path: Path) -> None:

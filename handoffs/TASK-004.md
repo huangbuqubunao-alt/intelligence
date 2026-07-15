@@ -861,6 +861,96 @@ Reviewer 已逐项读取三份必读测试的实际断言，不仅比对通过�
 - 未解决阻断项：P1 共 2 项。根据本 Reviewer 包，任一 P0/P1/P2 存在必须 `REJECT`。
 - **最终 Verdict：`REJECT`。** 退回原 Grok Implementer；Reviewer 未修改业务代码、测试、依赖、锁文件、任务状态或 main。
 
+## Correction 6 — 静态 Protocol 可替代性与空白 pipeline_version（Implementer）
+
+- Role: Implementer (review-fix / correction 6)
+- Agent/session: Grok 新会话（接替已关闭旧 Implementer；主控授权继续同一分支/worktree）
+- Starting review evidence: `d510794ffccf54948f967f010685aef1c0a02f3d`（父 `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，仅 handoff）
+- Control-plane sync (main, not merged into source): `091a591f56c9aec73d4e7d979635b866493326a9`（父 `6c24f4341f98cad961fa3d442d49e5982a0d97cf`），文件 `agent-prompts/TASK-004-CORRECTION-6-GROK.md`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Branch: `grok/task-004-discovery-metadata`
+- Status: 保持 `IN_PROGRESS`；未合并 main、未设 `ACCEPTED/DONE`
+- Reuse decision: `DIRECT` — 标准库 Protocol/dataclass、stdlib SQLite/RSS、已锁定 yt-dlp；无新增/升级依赖
+
+### 允许修改范围（实际）
+
+| 文件 | 变更 |
+|---|---|
+| `src/youtube_intel/discovery.py` | 只读 view Protocol 改为 `@property`；Service（及 Fake save）拒绝纯空白 `pipeline_version` |
+| `tests/unit/test_discovery.py` | 纯空白版本零副作用 unit 覆盖 |
+| `tests/integration/test_discovery_adapter.py` | 真实 SQLite 静态 wiring helper + 运行时组合断言 |
+| `handoffs/TASK-004.md` | 本 correction 证据 |
+
+未修改：`state.py`、migration、Schema、`domain.py`、`providers/youtube.py`、fixtures、`pyproject.toml`、`uv.lock`、控制面。
+
+### Red 证据（修复前，HEAD=`d510794`）
+
+1. **P1-1 静态 probe 失败**（精确命令，无 DB/网络）：
+
+```bash
+MYPYPATH=src uv run mypy -c '
+from youtube_intel.discovery import DiscoveryRepository, DiscoveryService
+from youtube_intel.domain import SourceProvider
+from youtube_intel.state import SQLiteStateRepository
+
+def wire(source: SourceProvider, repository: SQLiteStateRepository) -> DiscoveryService:
+    checked: DiscoveryRepository = repository
+    return DiscoveryService(source, checked)
+'
+```
+
+结果：`assignment` / 返回类型冲突 — `ChannelCursorRecord` 不满足可变属性 `ChannelCursorView`，`VideoRecord` 不满足 `VideoRecordView`（1 error, member conflicts on `get_channel_cursor` / `save_discovery_batch` / 其他返回类型）。
+
+2. **P1-2 纯空白版本副作用**：对 `" "` / `"   "` / `"\t"` / `"\n"` / `" \t\n "`，`discover_and_save` 与 `fetch_and_store_metadata` 在修复前均进入 Source/Metadata Provider（call count `1`），未返回 `CONFIG_INVALID`。
+
+### 最小修复
+
+1. **P1-1**：`ChannelCursorView` / `VideoRecordView` 的只读字段改为 `@property` Protocol 成员，使 TASK-003 frozen records 结构化满足；`DiscoveryRepository` 四个具名方法、关键字参数与领域返回语义不变；无 `Any`/`cast`/`type: ignore`/wrapper/猴子补丁，无生产代码导入具体 Repository 以外的 state 实现细节。
+2. **P1-2**：`discover_and_save` / `fetch_and_store_metadata`（及 Fake `save_discovery_batch` 对称边界）在任何 Source、Metadata Provider 或 Repository 调用前使用 `not pipeline_version.strip()`，将纯空白与空字符串同样映射为 `AdapterError(AppError(CONFIG_INVALID))`。
+
+### Green 证据
+
+| 命令 | 结果 |
+|---|---|
+| 上述精确 mypy static wiring probe | PASS：`Success: no issues found in 1 source file` |
+| `uv lock --check` | PASS；Resolved 34 packages |
+| `uv sync --locked` | PASS；Checked 30 packages |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS；30 passed |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS；36 passed（+1 whitespace） |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS；10 passed |
+| `uv run python -m pytest` | PASS；132 passed |
+| `uv run mypy src` | PASS；7 source files |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build` | PASS；sdist + wheel 均含 `youtube_intel/migrations/001_initial.sql`；构建产物已清理 |
+| `git diff --check` / `git diff --check 58c79af...HEAD` | PASS |
+| 提交前 `git status --short` | 仅本 correction 允许文件；worktree 最终干净 |
+
+### P1 关闭矩阵
+
+| 项 | 结论 | 证据 |
+|---|---|---|
+| P1-1 真实 Repository 静态可替代 | **CLOSED** | 独立 mypy probe 无 `arg-type`/assignment；runtime `isinstance(SQLiteStateRepository, DiscoveryRepository)` 保留；`_wire_sqlite_discovery_service` 做真实赋值 wiring |
+| P1-2 纯空白 pipeline_version 零副作用 | **CLOSED** | unit `test_service_rejects_whitespace_only_pipeline_version_with_zero_side_effects`：五类空白、两条 Service 路径、Provider call count 0、Repo 不变、无 IntegrityError/CHECK 文本 |
+
+### Diff 复核
+
+- `d510794...HEAD`（correction 6）：仅上述 4 个允许文件。
+- `58c79af...HEAD`（完整 TASK-004 产品范围）：仍为原批准 17 路径；无 state/migration/domain/provider/dependency/lock/control-plane 产品变更进入本 correction。
+- 无 cache、数据库、构建产物、真实响应、Cookie、密钥、媒体或字幕进入 Git。
+
+### 跳过项与剩余风险
+
+- Skipped：真实 YouTube/Cookie/remote/ffmpeg/media only（未授权）。
+- 剩余风险：YouTube 字段漂移需未来单独授权冒烟；`mutagen` GPL 分发义务待 TASK-014；本轮不声称跨 Provider/DB 严格 exactly-once。
+- Decision needed：`None`
+
+### 实现者结论
+
+- 建议状态：`IN_REVIEW`（由主控授权第五位独立 Reviewer；本 Implementer 不改状态看板）
+- Correction code evidence commit：见本提交 SHA
+- 既有运行时 Repository 组合、CAS、RSS/yt-dlp 安全行为与无下载边界未重做或扩大
+
 ## 主控验收
 
 - Orchestrator：
