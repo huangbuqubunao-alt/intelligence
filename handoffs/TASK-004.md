@@ -738,6 +738,129 @@ uv run python -m youtube_intel --help
 - Decision needed：`None`
 - 不修改业务代码/测试/依赖/锁/任务状态/main；仅提交本 handoff 作为 review evidence。
 
+## 第四位独立 Reviewer 结论（Correction 5/5A 恢复审查）
+
+- Reviewer agent/session：Codex（第四位全新独立 Reviewer；与原 Grok Implementer 及前三位 Reviewer 独立）
+- Prior BLOCKED reason：main 当时有 ADR-006 接受文档的并发未提交修改；在产品检查、探针、handoff 写入和 evidence commit 前按门禁停止。本轮恢复时已清除，不计为产品 finding。
+- Prior main review authorization：`5f8646645bbaad274c094777261deff4636521fc`
+- Main resume authorization：`6c24f4341f98cad961fa3d442d49e5982a0d97cf`
+- Reviewed implementation head：`9750df2503a1aee135fdfbcca9f1706bcc9bd8de`
+- Review evidence commit：本节提交后的 branch tip；唯一父提交必须为 `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`
+- Verdict：`REJECT`
+- Decision needed：`None`；退回原 Grok Implementer 修复下述两个 P1，Reviewer 不修改业务代码或测试
+
+### 恢复、授权与范围门禁
+
+- main resume 父链：PASS。`6c24f434...` 唯一父提交为 `5f864664...`，main 在恢复时干净。
+- Main control diff：PASS。`5f864664...6c24f434...` 精确为恢复包列出的 10 个 Markdown 文件；仅接受 ADR-006、同步 System Design V1.3 与 TASK-005 门禁，没有 TASK-004 产品/source、测试、依赖、锁文件或 handoff 变更。
+- TASK-004 控制面：PASS。仍为 `IN_REVIEW`，reviewed source 仍为 `9750df...`，未预写第四位 Reviewer 结论。
+- source branch/HEAD：PASS。`grok/task-004-discovery-metadata@9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，恢复时干净。
+- Git identity：PASS。`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- source 父链：PASS。`9750df...` 唯一父为 `d87253e...`，`d87253e...` 唯一父为 merge `eb9246b...`，merge 两父为 `1883367d...` 与 `58c79af...`。
+- Correction 5A 范围：PASS。`d87253e...9750df...` 仅 `discovery.py`、unit/integration discovery tests 与本 handoff 四个允许文件。
+- 完整产品范围：PASS。`58c79af...9750df...` 精确为原批准 17 路径；无 `domain.py`、`state.py`、migration、CLI、任务状态或范围外文件。
+- 空白/Diff：PASS。`git diff --check 58c79af...9750df...` 返回 0；无 mode/binary 变更。
+
+### 独立复跑检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS；Resolved 34 packages |
+| `uv sync --locked` | PASS；Checked 30 packages |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS；实际收集 30，30 passed |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS；实际收集 35，35 passed |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS；实际收集 10，10 passed |
+| `uv run python -m pytest` | PASS；实际收集 131，131 passed |
+| `uv run mypy src` | PASS；7 source files，0 issues |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS；仅输出 CLI help |
+| `uv build` | 首次仅因 sandbox 禁止访问 PyPI/`uv-build` 失败；按已批准原命令授权重跑后 PASS，生成 sdist + wheel |
+| sdist/wheel migration 包含性 | PASS；两者均包含 `youtube_intel/migrations/001_initial.sql` |
+| fixed `git diff --check` | PASS |
+| pre-handoff `git status --short` | PASS；source/main 均干净 |
+
+Reviewer 已逐项读取三份必读测试的实际断言，不仅比对通过数字。现有 tests 未被 `mypy src` 检查，因此下述静态组合问题可在 131 tests 与 `mypy src` 全绿时仍然存在。
+
+### 独立离线探针 A–D
+
+#### A. 单一 Repository 公共契约：`FAIL`
+
+- PASS：真实初始化的 `SQLiteStateRepository` 在运行时满足 `DiscoveryRepository`，`isinstance(...) == True`。
+- PASS：Protocol 精确使用 `get_channel_cursor`、`save_discovery_batch`、`upsert_video_metadata`、`mark_video_unavailable`，关键字参数名与 TASK-003 API 一致。
+- PASS：Protocol 方法没有 `Any`/宽 `object`/自由 `dict`/`Mapping`；`discovery.py` 无 state/SQLite 具体导入、重复 SQLite wrapper 或猴子补丁。
+- **FAIL：真实 mypy 组合拒绝 SQLite Repository。** 独立执行 `MYPYPATH=src uv run mypy -c '<SQLiteStateRepository -> DiscoveryRepository/DiscoveryService wiring>'` 返回 2 个 `arg-type` 错误：`get_channel_cursor` 的 `ChannelCursorRecord | None` 不满足 `ChannelCursorView | None`，`save_discovery_batch` 的 `ChannelCursorRecord` 不满足 `ChannelCursorView`，并继续报告其他返回类型冲突。
+- 原因定位：`discovery.py:133` 的 `ChannelCursorView` 和 `discovery.py:145` 的 `VideoRecordView` 以可变 Protocol attribute 声明所谓“只读”字段，静态上不能由 TASK-003 的 frozen `ChannelCursorRecord`/`VideoRecord` 满足。`tests/integration/test_discovery_adapter.py:419` 的 helper 虽声称静态接受，但 tests 不在必跑 mypy 命令范围内。
+
+#### B. 真实 SQLite 原子性与 Service 级 CAS：`PASS`
+
+- 空库经 `DiscoveryService` 写入 2 个候选和 cursor；revision `1`，pipeline version/初次 UTC 审计正确。
+- 稳定重跑后 revision `2`，视频总数仍为 2，事先推进至 `METADATA_READY` 的记录不倒退。
+- 独立 Racing Source 在 Service 读取 revision `0` 后、返回 stale batch 前插入真实 SQLite commit；Service 抛 `ConcurrencyConflict`。intervening candidate/cursor revision `1` 保留，3 个 stale candidates 全部不存在，无部分写入。
+
+#### C. metadata/unavailable、Fake parity 与边界零副作用：`FAIL`
+
+- PASS：真实 SQLite metadata success 更新标题但不将 `METADATA_READY` 倒退；`CONTENT_UNAVAILABLE` 将已发现视频更新为 `private`，并保持安全 `AppError`/request video ID。
+- PASS：Fake 与 SQLite 对未知 video ID 均返回 `False`，且不创建 video/unavailable record；正常 unavailable 路径使用已发现视频。
+- PASS：naive datetime 与 `pipeline_version=""` 在 Source/Metadata 调用前返回 `CONFIG_INVALID`，call count `0`，Repository 不变。
+- **FAIL：全空格 `pipeline_version="   "` 未在应用边界拒绝。** discovery 实测 Source call count `1`，metadata 实测 Provider call count `1`；两路随后均泄漏 `sqlite3.IntegrityError: CHECK constraint failed: length(trim(pipeline_version)) > 0`，而非 Provider/Repository 调用前的 `CONFIG_INVALID`。事务最终回滚，但已发生外部 Provider 调用。
+- 定位：`discovery.py:454` 与 `discovery.py:513` 仅使用 `if not pipeline_version`；`tests/unit/test_discovery.py:386` 只覆盖空字符串，没有覆盖纯空白字符串。
+
+#### D. correction 3/4 安全回归：`PASS`
+
+- malformed publish payload、request/response ID mismatch 和非法 `age_limit` 均为安全 `INVALID_RESPONSE`，且保留 request video ID，不泄漏 raw payload。
+- RSS entry 缺失/空白/不匹配 channelId 均整批 `INVALID_RESPONSE`，Fake Repository 零变化。
+- HTTP `404/403/429/503/599` 分别映射为 `CONTENT_UNAVAILABLE/PERMISSION_DENIED/RATE_LIMITED/PROVIDER_UNAVAILABLE/PROVIDER_UNAVAILABLE`，retryability 正确，消息无响应正文、Cookie 或本机路径。
+- `needs_auth -> RESTRICTED`；RSS success/timeout/OSError/non-bytes/oversize/malformed XML 六条 response 路径均 `closed=True`。
+- 公开 Provider surface 仅 `YtDlpMetadataProvider(timeout_seconds=...)`，公开注解无 `Any`/宽 `object`/自由 mapping。
+- 离线 Fake 捕获证明 `skip_download=True`、`download=False`，字幕/缩略图/info JSON 写入 flags 为 false，无 Cookie/登录/`.netrc`/remote components/ffmpeg/path/postprocessor。真实 `YoutubeDL`、`open`、`subprocess.Popen/run` 设为调用即失败哨兵，未触发。
+
+### AC / ADR-004 判定矩阵
+
+| 项目 | 结论 | 核心证据 |
+|---|---|---|
+| AC-1 固定夹具发现/分类 | PASS | 35 unit + 10 integration；RSS、Shorts、live/upcoming/ended/private/restricted 覆盖 |
+| AC-2 重复稳定、不重复/不错误推进 | PASS | 真实 SQLite 稳定重跑只推进 revision，视频无重复、Pipeline 不倒退 |
+| AC-3 错误分类与脱敏 | PASS | D 的 malformed/HTTP/response-close/正文脱敏探针 |
+| AC-4 metadata 独立失败/语言摘要 | PASS | 已保存候选/cursor 不回滚；metadata/unavailable 独立；语言摘要无 URL |
+| AC-5 yt-dlp 无下载/无登录/无 remote | PASS | safe options、`download=False` 与 I/O/真实 YoutubeDL 哨兵 |
+| D-01 发现批次提交点 | PASS | B：candidates + cursor 单事务，Service 级 stale CAS 无部分写入 |
+| D-02 顺序、重复、游标 | PASS | Provider 顺序/去重/frontier/空批次断言与稳定重跑 |
+| D-03 metadata 失败与 Pipeline/Job 职责 | PASS | metadata 成功/不可用独立，安全 AppError，Pipeline 不倒退 |
+| D-04 字幕清单归属 | PASS | 仅有序去重 `available_languages`，无轨道 URL/格式/类型公开字段 |
+| D-05 RSS/yt-dlp Adapter 边界 | PASS | stdlib RSS，yt-dlp Python API，非法外部输入 fail-closed，无媒体/认证路径 |
+| D-06 依赖与安装授权 | PASS | 直接依赖精确 `yt-dlp[default,deno]>=2026.7.4,<2026.8`，锁定版本正确 |
+| D-07 离线测试矩阵 | **FAIL** | 全绿 tests 未运行真实 Protocol 静态 wiring，也未覆盖全空白 `pipeline_version`，两个 P1 均被漏报 |
+| D-08 文件所有权/Repository 接口 | **FAIL** | 文件范围通过，runtime 可调用；但冻结 consumer Protocol 静态不接受真实 SQLite Repository |
+
+### Findings（P0–P3）
+
+- P0：无。
+- **P1-1 — DiscoveryRepository 仍不满足必需的真实 mypy 组合契约。** `discovery.py:133-154` 的最小视图用可变 Protocol attributes 表示“只读”字段，导致 TASK-003 frozen records 不能作为协变返回类型满足它们。这直接违反 correction 5/Reviewer A 的核心完成标准；必跑 `mypy src` 因没有真实 wiring 调用而漏报。
+- **P1-2 — 全空白 pipeline version 在配置校验前调用 Provider，并泄漏 SQLite IntegrityError。** `discovery.py:454` / `:513` 仅检查 truthiness；`"   "` 使 Source/Metadata call count 各为 1，然后暴露 SQLite CHECK 约束消息。这违反 correction 5A 要求的 `CONFIG_INVALID` + Provider/Repository 零副作用，也违反 FR-01 的处理前失败语义。
+- P2：无。
+- P3：无。
+
+### 范围、红线、复用与许可证
+
+- 范围：PASS。Correction 5/5A 仅修改 TASK-004 允许的 `discovery.py`、两份 discovery tests 与 handoff；没有修改 TASK-003 Schema/Repository、migration、`domain.py`、Provider、依赖或 lock。
+- 类型边界：无借助 `Any`/宽 `object`/自由 mapping、重复 wrapper 或运行时猴子补丁隐藏 Repository 签名；P1-1 是 Protocol 静态可替代性本身未成立。
+- 复用：PASS。仍为标准库 RSS + 官方 yt-dlp Python API；直接/关键锁定版本为 `yt-dlp==2026.7.4`、`yt-dlp-ejs==0.8.0`、`deno==2.9.2`，无额外直接依赖，无来源不明代码复制。
+- 既有依赖：`pydantic==2.13.4`、`PyYAML==6.0.3`，未升级。
+- 安装元数据许可证：yt-dlp `Unlicense`；yt-dlp-ejs `Unlicense AND MIT AND ISC`；Deno `MIT`；pydantic/PyYAML `MIT`。
+- `mutagen==1.48.1` 为已批准 default extra 的 GPL-2.0-or-later 传递依赖；本轮没有扩大或消除其发布分发风险，继续留给 TASK-014。
+- 红线/污染：PASS。Git 无 `.venv`、cache、`dist/`、数据库、媒体、字幕、真实响应、Cookie、密钥或 Vault 内容；fixtures 为小型 `example.invalid`/`UC_example` 合成数据。
+
+### 跳过项、剩余风险与最终判定
+
+- 真实 YouTube 冒烟：`NOT RUN (not authorized)`。
+- Cookie/账号登录/浏览器会话/`.netrc`：`NOT RUN (not authorized)`。
+- remote components：`NOT RUN (not authorized)`。
+- ffmpeg：`NOT RUN (not authorized)`。
+- 媒体/字幕下载：`NOT RUN (not authorized)`。
+- 剩余风险：YouTube RSS/页面字段漂移需未来单独授权冒烟；`mutagen` GPL 分发义务待 TASK-014；私有 `_bind_test_hooks` / `_map_*` 仍依赖 Python 命名约定。
+- 未解决阻断项：P1 共 2 项。根据本 Reviewer 包，任一 P0/P1/P2 存在必须 `REJECT`。
+- **最终 Verdict：`REJECT`。** 退回原 Grok Implementer；Reviewer 未修改业务代码、测试、依赖、锁文件、任务状态或 main。
+
 ## 主控验收
 
 - Orchestrator：
