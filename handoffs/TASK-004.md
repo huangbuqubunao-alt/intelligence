@@ -385,6 +385,20 @@
 - CAS 冲突在真实 SQLite 上传播 `ConcurrencyConflict`（state 已有异常）；Fake 仍用 `AdapterError(LOCAL_RESOURCE)`
 - 剩余风险：编排层 Job 诊断仍属后续任务；Provider 文案漂移
 
+## Pre-review Correction 5A
+
+- Starting head：`d87253e4b6203232ccb933604f0523ef6d868ba8`
+- Correction 5A commit：见分支 tip
+- 仅改：`discovery.py`、unit/integration discovery 测试、`handoffs/TASK-004.md`
+- 未 merge main、未 amend、未改 state/migrations/youtube/domain/deps
+
+| 预审项 | 修复 | 证据 |
+|---|---|---|
+| 固定范围 `git diff --check` 尾随空白 | 清除 handoff 全部行尾空白；不用 Markdown 硬换行双空格 | `git diff --check 58c79af...HEAD` → 0 |
+| Service 级 SQLite CAS | `test_sqlite_service_cas_conflict_after_intervening_commit`：Source 返回前 intervening commit；Service 用旧 expected 保存 → `ConcurrencyConflict`；intervening 保留、stale 候选不写 | integration |
+| Fake/SQLite unknown unavailable 对齐 | `mark_video_unavailable` 对未知 video 返回 False 且不写 `unavailable`；失败路径只用已发现候选 | `test_fake_mark_unknown_video_matches_sqlite_parity`；e2e 用 `vid_dup` |
+| 边界负例 | naive `now` / 空 `pipeline_version` → `CONFIG_INVALID`，Provider/Repo 无写入 | `test_service_rejects_naive_now_and_empty_pipeline_version` |
+
 ## 实现者结论
 
 - 建议状态：`IN_PROGRESS`（第二位 Reviewer REJECT 修复已提交；等待主控核验后再开 Reviewer）
@@ -632,10 +646,10 @@ uv run python -m youtube_intel --help
 - initial worktree：PASS，干净（`git status --porcelain` 为空）
 - Git identity：PASS，`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`
 - main authorization：PASS，控制面 `/Users/hua/Documents/youtubek agent` 的 `main` 精确位于 `b966e8aa056e2d922641d75ecdd4824bea5aaeb8`
-- 直接父链：PASS，`54c0ab2...` 的唯一父提交为 `5d66c28...`；可达链  
+- 直接父链：PASS，`54c0ab2...` 的唯一父提交为 `5d66c28...`；可达链
   `dcc7d85... <- 392edfb... <- 10f5ffa... <- 9db800f... <- f34cbb... <- 30932e1... <- 5d66c28... <- 54c0ab2...`
-- Correction-4 自身范围：PASS，精确 5 文件：  
-  `src/youtube_intel/providers/youtube.py`、`src/youtube_intel/discovery.py`、  
+- Correction-4 自身范围：PASS，精确 5 文件：
+  `src/youtube_intel/providers/youtube.py`、`src/youtube_intel/discovery.py`、
   `tests/unit/test_discovery.py`、`tests/integration/test_discovery_adapter.py`、`handoffs/TASK-004.md`
 - 完整范围：PASS，相对 product base 精确为原批准 17 路径；无 `domain.py`/`state.py`/CLI/tasks 状态/二进制/mode 变化
 

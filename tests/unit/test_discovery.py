@@ -340,6 +340,7 @@ def test_metadata_failure_does_not_rollback_discovery() -> None:
 
     batch = service.discover_and_save(CHANNEL, **SAVE_KW)
     assert batch.video_ids
+    assert "vid_new_1" in batch.video_ids  # must be a discovered candidate
     saved_cursor = repo.cursors["UC_example"]
     saved_videos = dict(repo.videos)
 
@@ -364,6 +365,82 @@ def test_metadata_failure_does_not_rollback_discovery() -> None:
     assert repo.videos == saved_videos
     assert "vid_new_1" in repo.unavailable
     assert repo.unavailable["vid_new_1"] is Availability.PRIVATE
+
+
+def test_fake_mark_unknown_video_matches_sqlite_parity() -> None:
+    """Unknown video: return False and do not write unavailable state."""
+    repo = FakeDiscoveryRepository()
+    before = dict(repo.unavailable)
+    updated = repo.mark_video_unavailable(
+        "never_seen",
+        availability=Availability.PRIVATE,
+        now=FIXED_NOW,
+    )
+    assert updated is False
+    assert repo.unavailable == before
+    assert "never_seen" not in repo.unavailable
+    assert "never_seen" not in repo.videos
+    assert "never_seen" not in repo.video_records
+
+
+def test_service_rejects_naive_now_and_empty_pipeline_version() -> None:
+    """Application boundary: naive now / empty pipeline_version → CONFIG_INVALID."""
+    provider = _rss_provider(_load_bytes("rss_sample.xml"))
+    repo = FakeDiscoveryRepository()
+    service = DiscoveryService(provider, repo)
+
+    naive = datetime(2026, 7, 15, 8, 0, 0)  # no tzinfo
+    with pytest.raises(AdapterError) as naive_exc:
+        service.discover_and_save(
+            CHANNEL,
+            pipeline_version=PIPELINE_VERSION,
+            now=naive,
+        )
+    assert naive_exc.value.error.code is ErrorCode.CONFIG_INVALID
+    assert repo.videos == {}
+    assert repo.cursors == {}
+    assert repo.save_events == []
+
+    with pytest.raises(AdapterError) as empty_exc:
+        service.discover_and_save(
+            CHANNEL,
+            pipeline_version="",
+            now=FIXED_NOW,
+        )
+    assert empty_exc.value.error.code is ErrorCode.CONFIG_INVALID
+    assert repo.videos == {}
+    assert repo.cursors == {}
+    assert repo.save_events == []
+
+    class BoomMeta:
+        def fetch(self, video_id: str) -> object:
+            raise AssertionError("metadata provider must not be called")
+
+    service_m = DiscoveryService(provider, repo, BoomMeta())
+    # Discover once with valid boundary so metadata path can be checked alone.
+    service.discover_and_save(CHANNEL, **SAVE_KW)
+    videos_after_discover = dict(repo.videos)
+    meta_before = dict(repo.metadata)
+
+    with pytest.raises(AdapterError) as meta_naive:
+        service_m.fetch_and_store_metadata(
+            "vid_new_1",
+            pipeline_version=PIPELINE_VERSION,
+            now=naive,
+        )
+    assert meta_naive.value.error.code is ErrorCode.CONFIG_INVALID
+    assert repo.metadata == meta_before
+    assert repo.videos == videos_after_discover
+
+    with pytest.raises(AdapterError) as meta_empty:
+        service_m.fetch_and_store_metadata(
+            "vid_new_1",
+            pipeline_version="",
+            now=FIXED_NOW,
+        )
+    assert meta_empty.value.error.code is ErrorCode.CONFIG_INVALID
+    assert repo.metadata == meta_before
+    assert repo.videos == videos_after_discover
 
 
 def test_metadata_success_upserts_independently() -> None:

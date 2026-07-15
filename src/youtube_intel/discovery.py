@@ -402,15 +402,14 @@ class FakeDiscoveryRepository:
                     video_id=video_id,
                 )
             )
-        self.unavailable[video_id] = availability
         existing = self.video_records.get(video_id)
         if existing is None and video_id not in self.videos:
-            # Match SQLite "no row updated" for unknown candidates, while still
-            # recording the availability for offline service assertions.
+            # Match SQLite: unknown video → False and no side-effect writes.
             return False
         status = existing.pipeline_status if existing is not None else self.videos[video_id]
         version = existing.pipeline_version if existing is not None else ""
         title = existing.title if existing is not None else None
+        self.unavailable[video_id] = availability
         self.video_records[video_id] = FakeVideoRecord(
             video_id=video_id,
             pipeline_status=status,

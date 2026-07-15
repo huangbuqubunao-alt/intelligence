@@ -21,10 +21,12 @@ from youtube_intel.discovery import (
 from youtube_intel.domain import (
     Availability,
     ChannelRef,
+    DiscoveryBatch,
     DiscoveryCursor,
     ErrorCode,
     LiveStatus,
     PipelineStatus,
+    ProviderCallMetadata,
     VideoMetadata,
 )
 from youtube_intel.providers import youtube as youtube_mod
@@ -117,7 +119,6 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
                 "live_vid1": _load_json("info_live.json"),
                 "upcoming_vid1": _load_json("info_upcoming.json"),
                 "ended_vid1": _load_json("info_ended.json"),
-                "private_vid1": DownloadError("Private video. Sign in if you've been granted access"),
                 "deleted_vid1": DownloadError("This video has been removed by the uploader"),
                 "restricted_vid1": ExtractorError(
                     "This video is not available in your country",
@@ -126,6 +127,8 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
                 "rate_vid1": DownloadError("HTTP Error 429: Too Many Requests"),
                 "timeout_vid1": DownloadError("The read operation timed out"),
                 "parse_vid1": DownloadError("Unable to extract yt initial player response"),
+                # Use a discovered candidate id so mark_video_unavailable has a real row.
+                "vid_dup": DownloadError("Private video. Sign in if you've been granted access"),
             },
         )
         ydl_holder.append(scripted)
@@ -161,9 +164,9 @@ def test_end_to_end_discovery_then_metadata_offline() -> None:
     assert ended.live_status is LiveStatus.ENDED
 
     with pytest.raises(AdapterError) as private_exc:
-        service_m.fetch_and_store_metadata("private_vid1", **SAVE_KW)
+        service_m.fetch_and_store_metadata("vid_dup", **SAVE_KW)
     assert private_exc.value.error.code is ErrorCode.CONTENT_UNAVAILABLE
-    assert repo.unavailable["private_vid1"] is Availability.PRIVATE
+    assert repo.unavailable["vid_dup"] is Availability.PRIVATE
     # Discovery state not rolled back for RSS candidates
     for video_id in ("vid_new_1", "vid_dup", "vid_mid", "vid_old"):
         assert video_id in repo.videos
@@ -552,3 +555,64 @@ def test_sqlite_metadata_success_and_unavailable_paths(tmp_path: Path) -> None:
     assert unavailable.availability is Availability.PRIVATE
     assert unavailable.title is None  # no fabricated metadata
     assert unavailable.pipeline_status is PipelineStatus.DISCOVERED
+
+
+def test_sqlite_service_cas_conflict_after_intervening_commit(tmp_path: Path) -> None:
+    """Service-level CAS: intervening commit after cursor read must reject stale save."""
+    body = (FIXTURES / "rss_sample.xml").read_bytes()
+    repository = _sqlite_repo(tmp_path)
+    inner = _rss_source(body)
+    intervening_revision: list[int] = []
+
+    def _intervene() -> None:
+        # Service has already read expected_cursor=None/revision=0.
+        # Commit a different batch through the real Repository first.
+        intervening = DiscoveryBatch(
+            channel_id="UC_example",
+            video_ids=("vid_intervening",),
+            next_cursor=DiscoveryCursor(
+                channel_id="UC_example",
+                last_checked_at=FIXED_NOW,
+                latest_published_at=FIXED_NOW,
+                latest_video_id="vid_intervening",
+                provider_cursor="intervening",
+            ),
+            call=ProviderCallMetadata(
+                provider="intervening-test",
+                started_at=FIXED_NOW,
+                finished_at=FIXED_NOW,
+            ),
+        )
+        saved = repository.save_discovery_batch(
+            intervening,
+            expected_cursor=None,
+            expected_revision=0,
+            pipeline_version=PIPELINE_VERSION,
+            now=FIXED_NOW,
+        )
+        intervening_revision.append(saved.revision)
+
+    class _RacingSource:
+        def discover(
+            self,
+            channel: ChannelRef,
+            cursor: DiscoveryCursor,
+        ) -> DiscoveryBatch:
+            assert cursor.channel_id == channel.channel_id
+            _intervene()
+            # Stale batch returned after intervening commit advanced the cursor.
+            return inner.discover(channel, cursor)
+
+    service = DiscoveryService(_RacingSource(), repository)
+    with pytest.raises(ConcurrencyConflict):
+        service.discover_and_save(CHANNEL, **SAVE_KW)
+
+    assert intervening_revision == [1]
+    kept = repository.get_channel_cursor("UC_example")
+    assert kept is not None
+    assert kept.revision == 1
+    assert kept.as_discovery_cursor().latest_video_id == "vid_intervening"
+    assert repository.get_video("vid_intervening") is not None
+    # Stale Service batch candidates must not be written.
+    for stale_id in ("vid_new_1", "vid_dup", "vid_mid", "vid_old"):
+        assert repository.get_video(stale_id) is None
