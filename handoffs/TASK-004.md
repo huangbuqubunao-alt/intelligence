@@ -425,6 +425,110 @@ uv run python -m youtube_intel --help
 - 即使修复上述 findings，YouTube RSS/页面字段漂移仍需未来单独授权的真实冒烟验证。
 - 未解决 P0/P1：P0 无；P1 共 4 项，全部阻断合并。
 
+## 第二位独立 Reviewer 结论（Correction-3）
+
+- Reviewer agent/session：Codex（第二位全新独立 Reviewer；不是 `f34cbb...` 的 Reviewer 会话）
+- Product base：`dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Reviewed implementation head：`30932e1742e948683f9e1c0f63236451b8d731bd`
+- Previous rejected review evidence：`f34cbb09d628ebb256bf5f2895adfd10dbd61812`
+- Main review authorization：`main@fb1cdd728081c9c1ae0c0bcb82b7490332090b28`
+- Review evidence commit：见本节提交后的 branch tip；其父提交必须为 `30932e1742e948683f9e1c0f63236451b8d731bd`
+- Verdict：`REJECT`
+- Decision needed：`None`；退回原 Grok Implementer 修复，不由 Reviewer 修改业务代码
+
+### 开始门禁与提交链
+
+- `pwd`：PASS，`/Users/hua/Documents/yia-worktrees/task-004`
+- branch：PASS，`grok/task-004-discovery-metadata`
+- initial HEAD：PASS，`30932e1742e948683f9e1c0f63236451b8d731bd`
+- initial worktree：PASS，干净
+- Git identity：PASS，author/committer 均为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`
+- main authorization：PASS，主 worktree HEAD 精确为 `fb1cdd728081c9c1ae0c0bcb82b7490332090b28`
+- 直接父链：PASS，`dcc7d85... <- 392edfb... <- 10f5ffa... <- 9db800f... <- f34cbb... <- 30932e1...`
+- Correction-3 自身范围：PASS，精确为 `discovery.py`、`providers/youtube.py`、两份 discovery 测试和本 handoff 共 5 个文件
+- 完整范围：PASS，相对 product base 精确为原批准的 17 个路径；无二进制或 mode 变化
+
+### 独立复跑检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS；Resolved 34 packages |
+| `uv sync --locked` | PASS；Resolved 34 / Checked 30 packages |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS；31 passed |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS；5 passed |
+| `uv run python -m pytest` | PASS；83 passed |
+| `uv run mypy src` | PASS；6 source files，0 issues |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS；仅打印 CLI help |
+| `git diff --check dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...30932e1742e948683f9e1c0f63236451b8d731bd` | PASS |
+
+### 独立离线、非写入探针
+
+所有探针均使用 `PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -B - <<'PY' ... PY`，仅使用内存 Fake/合成 XML/合成 yt-dlp payload；不实例化真实 `YoutubeDL`、不联网、不写 source/main。
+
+| 探针与命令设计 | 预期 | 实际 |
+|---|---|---|
+| P-1 malformed payload + ID identity：公开 `YtDlpMetadataProvider.fetch -> DiscoveryService.fetch_and_store_metadata -> FakeDiscoveryRepository`；invalid date、抛 `TypeError` 的 duration、非法 `age_limit`，另跑 response/request ID mismatch；payload 含伪路径/Cookie/secret 哨兵 | 全部为 `AdapterError(INVALID_RESPONSE)`、nonretryable、`METADATA`、`video_id=requested id`；不泄漏 payload/路径/Cookie/原异常；Repository 零写入；ID mismatch 拒绝 | **FAIL**。invalid date、duration 与 ID mismatch 均符合预期，Repository 未写入；但非法 `age_limit` 的 `AppError.video_id=None`，未保留请求 ID。没有原始 `ValueError/TypeError` 或敏感文本泄漏 |
+| P-2 RSS 完整性/原子性/关闭：分别删除 entry 的 `videoId`、`published`、`title`、`channelId`；失败后用包含较旧修复 entry 的 feed 重跑；另注入 read timeout、OSError、非 bytes、malformed XML 并追踪 `close()` | 任一必要字段缺失均整批 `INVALID_RESPONSE` nonretryable，candidate/cursor 零提交；修复后较旧条目仍发现；四类 read/parse 路径都关闭 response | **FAIL**。缺 videoId/published/title、原子性、旧条目恢复及 timeout/OSError/type/XML close 全部通过；缺 `channelId` 却成功，保存 `vid_new_good`/`vid_old_fixed` 并推进 cursor |
+| P-3 HTTP/availability：公开 Provider Fake 抛含伪正文/路径/Cookie 的 404、403、429、503、599 `DownloadError`；另返回 `availability=needs_auth` payload | 404=`CONTENT_UNAVAILABLE`/nonretryable；403=`PERMISSION_DENIED`/nonretryable；429=`RATE_LIMITED`/retryable；503/599=`PROVIDER_UNAVAILABLE`/retryable；消息无正文；needs_auth=`RESTRICTED` | PASS；状态优先于宽文本，重试语义与脱敏均正确，`needs_auth` 为 `RESTRICTED` |
+| P-4 public surface + safe options：`inspect.signature/get_type_hints` 扫描 module-owned public symbols；把真实 `YoutubeDL`、`open`、`subprocess.Popen/run` 设为调用即失败；Fake 捕获 opts 与 extract call | 仅公开 `YtDlpMetadataProvider`；构造仅 `timeout_seconds`；无 public raw map/build/SAFE、factory/callback/sink/raw-payload 或宽注解；`skip_download/noplaylist/ignoreconfig=True`、写入 flags false、`download=False`、无 auth/remote/ffmpeg/文件写入；raw map 不跨边界 | PASS；module-owned public symbol 仅 Provider，领域输出为 `VideoMetadata`/`ProviderCallMetadata`，全部 option/I/O 哨兵符合预期 |
+
+### Correction-3 finding 关闭矩阵
+
+| 首轮 finding | 第二次独立结论 | 证据 |
+|---|---|---|
+| P1 malformed yt-dlp payload 逸出原始转换异常 | **PARTIAL / FAIL** | 原始 `ValueError/TypeError` 已安全封装，但 `_coerce_age_limit()` 构造错误时未传 requested video ID；P-1 复现 `video_id=None` |
+| P1 request/response video ID 不一致 | PASS | P-1 mismatch 子探针：`INVALID_RESPONSE`，请求 ID 保留，Repository 零写入 |
+| P1 RSS 不完整 entry 静默跳过并推进 cursor | **PARTIAL / FAIL** | videoId/published/title 已 fail whole batch；但 entry 缺必要 `channelId` 时回填请求 ID 并提交，P-2 复现 |
+| P1 HTTP 404/403/503 分类顺序错误 | PASS | P-3：404/403/429/503/599 code 与 retryability 全部正确，且无响应正文 |
+| P2 RSS read failure 不关闭 response | PASS | P-2：timeout、OSError、非 bytes 和 XML parse failure 均 `closed=True` |
+| P2 `needs_auth` 被标为 PUBLIC | PASS | P-3：公开 Provider path 返回 `Availability.RESTRICTED` |
+| P3 public annotation sentinel 漏掉 `Any` | PASS | 测试 helper 与 P-4 runtime scan 均拒绝 `Any`/`object`/自由 dict/Mapping |
+
+### 验收矩阵
+
+| 项目 | 结论 | 第二位 Reviewer 证据 |
+|---|---|---|
+| AC-1 固定夹具发现/分类 | PASS | 31 unit + 5 integration；正常发现、seen filtering、Shorts、live/upcoming/ended/private/deleted/restricted 均通过 |
+| AC-2 重复稳定、无重复/错误推进游标 | **FAIL** | 正常 feed 幂等通过；P-2 证明缺必要 channelId 的不完整 entry 仍被接受并推进 cursor |
+| AC-3 错误分类与正文脱敏 | **FAIL** | HTTP/正文脱敏通过；P-1 证明 malformed `age_limit` 错误未保留请求 video ID，不能满足安全关联诊断契约 |
+| AC-4 元数据独立失败/语言摘要 | PASS | ID mismatch/invalid payload 均未进入 Repository；已提交发现不回滚；manual-first/auto-new 语言摘要稳定且无 URL |
+| AC-5 yt-dlp 无下载/无登录/无 remote components | PASS | P-4 捕获 options、`download=False` 和 I/O 哨兵通过 |
+| D-01 发现批次提交点 | PASS（有效 batch） | 窄 Repository Protocol/Fake 证明 candidates + cursor CAS 全有或全无；真实 SQLite 组合仍留待整合后验证 |
+| D-02 顺序、重复和游标规则 | PASS（有效 entry） | Provider order、首个重复、`published_at+video_id` frontier、旧未知不回填、空 batch 保留 cursor 字段均通过 |
+| D-03 元数据失败与 Pipeline/Job 职责 | **FAIL** | code/retry stage 与独立写入边界通过；但 malformed age-limit 错误丢失请求 video ID，无法安全关联该 METADATA Job |
+| D-04 字幕清单归属 | PASS | 仅输出 manual-first/auto-new `available_languages`；无轨道 URL/格式/type；未改 `domain.py` |
+| D-05 RSS/yt-dlp Adapter 边界 | **FAIL** | Python API/安全 options/正文脱敏通过；P-1/P-2 证明 malformed 诊断关联和必要 RSS channel 字段完整性仍不满足边界 |
+| D-06 依赖与安装授权 | PASS | 唯一直接新增 `yt-dlp[default,deno]>=2026.7.4,<2026.8`；锁为 `2026.7.4`；无既有 package version remove/upgrade |
+| D-07 离线测试矩阵 | **FAIL** | 全部 83 tests 通过，但现有回归未断言 bad-age `video_id`，也未覆盖 missing channelId；两项独立探针失败 |
+| D-08 文件所有权/Repository 接口 | PASS | 完整 17 路径、correction 5 文件；未改 domain/state/CLI/task status，未导入具体 SQLite 类，Protocol 保持窄接口 |
+
+### Findings（P0-P3）
+
+- P0：无。
+- **P1 — malformed `age_limit` 的安全错误丢失请求 video ID。** `src/youtube_intel/providers/youtube.py:133-147` 的 `_coerce_age_limit()` 独立创建 `AppError(INVALID_RESPONSE)`，但没有接收或设置 `video_id`。公开 `fetch("reqvid01")` 的 P-1 实测 `stage=METADATA`、nonretryable、无敏感泄漏，但 `AppError.video_id=None`；不满足本轮“诊断仅保留请求 video ID”与 System Design §12 的错误关联要求。`tests/unit/test_discovery.py:615-629` 对 bad-age 只断言 code/message，未检查 `video_id`，因此 83 tests 全绿仍漏报。
+- **P1 — RSS entry 缺必要 channel ID 时仍被接受并提交。** `src/youtube_intel/discovery.py:674-678` 在 entry 缺 `yt:channelId/channelId` 时直接回填 `expected_channel_id`，所以后续 mismatch 检查无法区分“缺字段”和“字段正确”。P-2 的合成 feed 缺 `channelId` 后成功保存两个 candidates 并推进 cursor；违反本 Reviewer 包要求的 RSS 完整性、AC-2、D-05/D-07。`tests/unit/test_discovery.py:674-725` 只回归 missing videoId，没有覆盖必要频道字段。
+- P2：无。
+- P3：无。
+
+### Scope / red-line / reuse / license 复核
+
+- 范围：PASS。Correction-3 仅 5 个批准文件；product base 全量仅原 17 路径；无 mode/binary/生成物提交，审查后写 handoff 前 worktree 仍干净。
+- 依赖：PASS。`pyproject.toml` 只新增已批准的 `yt-dlp[default,deno]`；lock 只新增其 15 个 marker/extra 传递包，没有删除或升级既有包。Correction-3 未触及依赖或 lock。
+- 锁定版本：`yt-dlp==2026.7.4`、`yt-dlp-ejs==0.8.0`、`deno==2.9.2`；另含批准 extras 的 brotli/brotlicffi、certifi、cffi/pycparser、charset-normalizer、idna、mutagen、pycryptodomex、requests、urllib3、websockets。
+- 许可证：本地 installed metadata 复核 `yt-dlp=Unlicense`、`yt-dlp-ejs=Unlicense AND MIT AND ISC`、`deno/Brotli/charset-normalizer=MIT`、`Requests=Apache-2.0`、`urllib3=MIT`、`certifi=MPL-2.0`、`idna/websockets=BSD-3-Clause`、`pycryptodomex=BSD/Public Domain`、`mutagen=GPL-2.0-or-later`；marker-only 包未安装于当前 CPython 3.12 环境。`mutagen` 的 GPL 分发义务仍是发布阶段风险，不由 Reviewer 改依赖。
+- 复用：PASS。实际仍是 `DIRECT` 官方 yt-dlp Python API + stdlib RSS；无额外直接运行依赖；未复制 `REFERENCE` 项目代码，未引入 TranscriptAPI、TLS 禁用、付费代理或直接 Vault 路径。
+- 公共 surface：PASS。`YtDlpMetadataProvider` 构造仅 `timeout_seconds`；module-owned public symbol 仅该 Provider；无 public raw map/build/SAFE/test injection 或宽注解；私有 raw mapping 不跨 Adapter 边界。
+- 红线/敏感信息：PASS。无 auth/Cookie/browser session/remote components/ffmpeg/subprocess/媒体/字幕/缩略图/info JSON 写入，无密钥、真实响应缓存、私人路径、真实 Vault、Schema、main 或任务状态修改；fixtures 为小型合成 JSON/XML。
+- TASK-003：未读取、写入、检查、清理或等待其 worktree；真实 SQLite 组合契约仍留待两个任务分别验收并整合后验证。
+
+### 跳过项与剩余风险
+
+- 真实 YouTube 冒烟：`NOT RUN`（未授权）。
+- Cookie/账号登录/浏览器会话、remote components、ffmpeg、媒体/字幕下载：`NOT RUN`（明确禁止）。
+- 剩余非本轮阻断风险：YouTube RSS/页面字段漂移仍需未来单独授权的真实冒烟；`mutagen` GPL-2.0-or-later 分发义务需发布任务复核；真实 SQLite consumer 组合测试仍待整合后执行。
+- 未解决 P0/P1：P0 无；P1 共 2 项，阻断合并。
+
 ## 主控验收
 
 - Orchestrator：
