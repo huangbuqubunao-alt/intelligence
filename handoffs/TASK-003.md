@@ -119,12 +119,85 @@
 
 ## Reviewer 结论
 
-- Reviewer agent/session：待主控在实现 commit 后启动 Grok 全新独立会话。
-- 审查 commit：待填。
-- 重新运行的检查：待填。
-- Findings：待填。
-- Verdict：`APPROVE | REJECT`（待填）
-- 未解决 P0/P1：待填。
+- Reviewer agent/session：`Grok / TASK-003 independent reviewer`（全新独立会话；未读取 TASK-004）
+- Reviewed implementation head：`adab4bb00dd7e917b295c22fd8357a4f11515912`
+- Product base：`dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Main review authorization：`main@9ec416bdf38b4ee97fe4e7e8bd3a20e09f1ed163`
+- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-003` @ `codex/task-003-state-store`
+- Preflight：HEAD=`adab4bb...`；worktree 干净；身份 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`；相对 base 完整 Diff 精确为批准的 5 文件（`state.py`、`001_initial.sql`、两份 TASK-003 测试、本 handoff）
+- 审查 evidence commit：见本提交 SHA（仅修改本文件，父提交为 `adab4bb...`，未 amend）
+- 控制面阅读：`AGENTS.md`、`COLLABORATION.md`、`PROJECT_STATUS.md`、PRD/System Design §3/5/8/9/12、`REUSE_REGISTER`、ADR-002 C-05/C-07/C-08、ADR-003 S-01～S-08、TASK-003 任务卡、Implementer 包、Reviewer 包、实现与测试
+
+### 重新运行的检查
+
+| 命令 | 结果 | 关键输出 |
+|---|---|---|
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS | `30 passed` |
+| `uv run python -m pytest tests/unit/test_state_transitions.py` | PASS | `9 passed` |
+| `uv run python -m pytest` | PASS | `86 passed`（含既有 TASK-002 测试） |
+| `uv run mypy src` | PASS | `Success: no issues found in 5 source files` |
+| `uv run ruff check .` | PASS | `All checks passed!` |
+| `uv build` | PASS | sdist/wheel 成功生成 |
+| `git diff --check dcc7d85...adab4bb` | PASS | 无空白错误 |
+| sdist SQL 包含 | PASS | `youtube_intel-0.1.0/src/youtube_intel/migrations/001_initial.sql` |
+| wheel SQL 包含 | PASS | `youtube_intel/migrations/001_initial.sql` |
+| SQL SHA-256 | PASS | `10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006` |
+| 依赖/范围 | PASS | 仅 stdlib `sqlite3`/`importlib.resources` 等；无 ORM/外部 DB 依赖；未改 `pyproject.toml`/`uv.lock`/`domain.py` |
+
+### 独立非写入探针
+
+| 探针 | 命令/方法 | 预期 | 实际 |
+|---|---|---|---|
+| 1 Migration/Schema | 临时文件库：`initialize` 幂等；PRAGMA；8 表与 11 个显式索引；活动 Job 部分唯一/RUNNING 租约 CHECK；篡改 checksum 与 `user_version`；注入失败 migration（首表后非法 SQL） | 初始化成功且可重复；PRAGMA=`foreign_keys ON`/`busy_timeout 5000`/`synchronous NORMAL`/`WAL`/`read_uncommitted OFF`；约束生效；历史不一致拒绝；失败不留半表/history/`user_version` | **全部 PASS**。checksum 与打包 SQL 一致；失败 migration 后 `tables=∅`、`user_version=0`、无 history |
+| 2 双连接 Job/lease | 两个 `SQLiteStateRepository` 连同一临时文件 DB：双领取、owner/非 owner 续租、过期 `LEASE_EXPIRED`→`RETRY_PENDING`、禁止直接领 RETRY、`activate_retry_jobs` 后第二 owner attempt 2、达上限 `FAILED_FINAL`、人工 rerun 新 ID、活动 scope 唯一 | 恰一 owner；attempt 审计完整；续租 CAS；恢复与最大次数正确；旧历史保留 | **全部 PASS**（含 attempt 1/2 历史与 rerun 后 `IntegrityConflict`） |
+| 3 事务/安全 | 故障注入：`discovery.after_candidates`、`stage.after_artifacts`/`after_provider_call`/`after_pipeline`、`report.before_commit`；Provider 并发预留；过期后 `VerifiedArtifact` 恢复；路径/脱敏/六维 hash；SQL 参数化静态检查 | 中间失败全回滚；并发预留只读；产物恢复 SUCCEEDED；安全边界生效；无 exactly-once 声明 | **全部 PASS**（33 项子断言 0 失败） |
+
+### AC-1 至 AC-5 判定
+
+| 验收项 | 判定 | 依据 |
+|---|---|---|
+| AC-1 初始化/幂等/版本 checksum/失败回滚 | **PASS** | 集成测试 + 探针 1；`schema_migrations` 权威、`user_version` 镜像、不一致失败、失败 migration 全回滚 |
+| AC-2 并发 upsert/游标 CAS/Job 租约/非法 Pipeline | **PASS** | 集成测试 + 探针 2/3；`BEGIN IMMEDIATE`、游标 revision CAS、双连接领取、续租 owner CAS、`transition_pipeline` 前检查 |
+| AC-3 唯一性（video/活动 Job/周报） | **PASS** | PK/部分唯一索引 `scope_key+pipeline_version`（含全局 Job）/reports 周期唯一；行为测试与探针覆盖 |
+| AC-4 逐次 attempt + 阶段完成原子性 | **PASS** | `job_attempts` 与活动部分唯一索引；阶段三故障点全回滚；成功时 Job+Artifact+Provider call+Pipeline 同事务 |
+| AC-5 sdist/wheel 含 migration 且不改工程配置 | **PASS** | `uv build` 归档检查；Diff 无 `pyproject.toml`/`uv.lock` |
+
+### ADR-003 S-01 至 S-08 判定
+
+| 条目 | 判定 | 依据 |
+|---|---|---|
+| S-01 类型/时间/通用约束 | **PASS** | UTC 微秒 `Z` 格式强制；布尔/枚举/哈希/金额 CHECK；语言列表紧凑有序去重；SQLite 不存正文 |
+| S-02 最终表/列/索引 | **PASS** | `001_initial.sql` 8 表、FK `ON DELETE RESTRICT`、CHECK、调度/审计/部分唯一索引与 ADR 一致 |
+| S-03 migration/版本/打包 | **PASS** | `importlib.resources` 读取；固定 checksum；history+user_version 严格校验；sdist/wheel 均含 SQL |
+| S-04 连接与 PRAGMA | **PASS** | 每连接设置并验证；初始化 WAL；并发用临时文件 DB |
+| S-05 Repository 语义 | **PASS** | 具名 frozen/slots record；S-05 八组语义齐备；四类事务边界有回滚证据 |
+| S-06 Job 租约与恢复 | **PASS** | 稳定排序领取、CAS、attempt 插入、续租同步、过期 `LEASE_EXPIRED`、显式激活、最大次数、人工新 ID |
+| S-07 Provider call 恢复 | **PASS** | 六维 request hash、预留/并发读、owner 完成/失败、过期前先查确定性产物+verified hash；**仅 at-most-once best effort**，代码未声称 exactly-once |
+| S-08 范围与门禁 | **PASS** | 仅 5 文件；离线临时 SQLite+受控时钟；全部门禁独立复跑通过 |
+
+### 范围 / 复用 / 许可证
+
+- Diff 范围：**PASS**（仅允许 5 文件）
+- 复用：**DIRECT** stdlib `sqlite3`/`importlib.resources`/`datetime`/`hashlib`/`json`；**REFERENCE** SQLite 事务/WAL/部分唯一索引语义；**REJECT** ORM/迁移框架/第三方 DB
+- 许可证：无新增第三方代码；无 NOTICE 义务
+- 红线：无密钥、真实 Vault、云调用、破坏性 migration、Provider/编排实现
+
+### Findings（P0–P3）
+
+| 级别 | 数量 | 说明 |
+|---|---|---|
+| P0 | 0 | — |
+| P1 | 0 | — |
+| P2 | 0 | — |
+| P3 | 2 | （1）`_safe_error_message` 的绝对路径脱敏可能顺带裁剪 URL 路径片段，仅影响诊断文案，不落密钥/正文。（2）周报 `scope_key` 周号正则允许非严格 ISO 周（如 `W00`），业务层仍受 reports 表 `iso_week 1..53` 约束；不阻断 V1。 |
+
+### Verdict
+
+- **`APPROVE`**
+- 未解决 P0/P1：**None**
+- 跳过项：**None**（未触碰 TASK-004；未改业务代码/测试/依赖/main/任务状态）
+- 剩余风险：外部 Provider 成功但落库前崩溃时 SQLite 无法保证严格 exactly-once；实现正确坚持租约 + 确定性本地产物 + 先查缓存的 at-most-once best effort。真实文件 hash 由调用方经 `VerifiedArtifact` 证明后由 Repository 比对索引。退避/保留策略仍由上层决定。
+- `DECISION NEEDED`：`None`
 
 ## 主控验收
 
