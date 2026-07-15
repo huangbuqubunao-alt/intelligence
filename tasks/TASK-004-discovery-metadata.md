@@ -85,3 +85,13 @@
 - Reviewer: Codex 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。
 - Implementer packet: `agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
 - Parallel task: TASK-003 Codex Implementer；不得读取或写入其 worktree，不等待其完成。
+
+## 主控预审修复轮
+
+- Pre-review at: 2026-07-15
+- Reviewed source head: `392edfb897003c1583b538667d10a2a89926a94b`
+- Git evidence: base、单提交父链、17 个允许文件、`git diff --check` 和干净 worktree 均通过；本轮不否定已通过的依赖、离线检查或未授权边界。
+- Finding: `src/youtube_intel/providers/youtube.py` 把 `SAFE_YDL_OPTS`、`build_ydl_opts`、`map_info_dict_to_video_metadata` 等含自由 `dict`/`Mapping[str, Any]` 的 Adapter 内部边界显式列入 `__all__`；`YtDlpMetadataProvider` 也公开 `last_opts: list[dict[str, Any]]`。这违反 System Design §5.2、ADR-002 C-05 和本任务包的“外部自由 dict 只限 Adapter 内部”约束。
+- Severity: `P1`；必须修复后才能启动 Reviewer。
+- Status decision: 保持 `IN_PROGRESS`，退回原 Grok Implementer；不得基于 `392edfb...` 启动 Codex Reviewer。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-GROK.md`
