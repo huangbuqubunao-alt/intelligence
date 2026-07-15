@@ -11,6 +11,7 @@ from typing import Any, get_args, get_origin, get_type_hints
 from urllib.error import HTTPError, URLError
 
 import pytest
+from yt_dlp.utils import DownloadError
 
 from youtube_intel.discovery import (
     AdapterError,
@@ -499,9 +500,9 @@ def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
 
 
 def _annotation_mentions_free_dict(annotation: object) -> bool:
-    """True when an annotation is free-form dict / Mapping[str, Any] (or nested)."""
-    if annotation is Any:
-        return False
+    """True for free-form dict/Mapping or unchecked wide types (Any/object)."""
+    if annotation is Any or annotation is object:
+        return True
     origin = get_origin(annotation)
     args = get_args(annotation)
 
@@ -516,9 +517,11 @@ def _annotation_mentions_free_dict(annotation: object) -> bool:
     if annotation is dict:
         return True
     text = str(annotation)
+    if text in {"typing.Any", "Any", "object"}:
+        return True
     if "dict[" in text or "Dict[" in text:
         return True
-    if "Mapping[" in text and "Any" in text:
+    if "Mapping[" in text:
         return True
     return False
 
@@ -580,3 +583,226 @@ def test_public_youtube_api_has_no_free_form_dict_surface() -> None:
             f"public attribute {attr_name} has free-dict annotation: {annotation!r}"
         )
         assert attr_name not in {"last_opts", "ydl_factory", "clock"}
+
+
+# ---------------------------------------------------------------------------
+# Reviewer REJECT regressions (P1/P2/P3)
+# ---------------------------------------------------------------------------
+
+
+def test_malformed_ytdlp_payload_is_safe_adapter_error() -> None:
+    """P1: invalid external fields must not leak ValueError/TypeError/payload text."""
+    bad_date = {
+        "id": "public1x",
+        "title": "T",
+        "channel_id": "UC_example",
+        "channel": "Example Channel",
+        "upload_date": "20261399",  # invalid calendar date
+        "duration": 10,
+        "availability": "public",
+        "live_status": "not_live",
+    }
+    with pytest.raises(AdapterError) as exc_info:
+        youtube_mod._map_info_dict_to_video_metadata(bad_date, requested_video_id="public1x")
+    err = exc_info.value.error
+    assert err.code is ErrorCode.INVALID_RESPONSE
+    assert err.retryable is False
+    assert err.stage is ProcessingStage.METADATA
+    assert err.video_id == "public1x"
+    assert "20261399" not in err.message
+    assert "Traceback" not in err.message
+
+    bad_age = {
+        "id": "public1x",
+        "title": "T",
+        "channel_id": "UC_example",
+        "channel": "Example Channel",
+        "timestamp": 1720612800,
+        "duration": 10,
+        "availability": "public",
+        "live_status": "not_live",
+        "age_limit": "not-a-number",
+    }
+    with pytest.raises(AdapterError) as exc_info2:
+        youtube_mod._map_info_dict_to_video_metadata(bad_age, requested_video_id="public1x")
+    assert exc_info2.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert "not-a-number" not in exc_info2.value.error.message
+
+    # Via Provider.fetch path as well.
+    class _Handle:
+        def extract_info(self, url: str, download: bool = True) -> object:
+            return bad_date
+
+    provider = YtDlpMetadataProvider(timeout_seconds=10.0)
+    youtube_mod._bind_test_hooks(provider, ydl_factory=lambda opts: _Handle())
+    with pytest.raises(AdapterError) as fetch_exc:
+        provider.fetch("public1x")
+    assert fetch_exc.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert fetch_exc.value.error.video_id == "public1x"
+    assert not isinstance(fetch_exc.value.__cause__, (ValueError, TypeError))
+
+
+def test_response_video_id_must_match_request() -> None:
+    """P1: mismatched payload id must not be stored under the wrong identity."""
+    payload = _load_json("info_public.json")
+    assert payload["id"] == "public_vid1"
+
+    class _Handle:
+        def extract_info(self, url: str, download: bool = True) -> object:
+            return payload
+
+    provider = YtDlpMetadataProvider(timeout_seconds=10.0)
+    youtube_mod._bind_test_hooks(provider, ydl_factory=lambda opts: _Handle())
+    repo = FakeDiscoveryRepository()
+    service = DiscoveryService(
+        _rss_provider(_load_bytes("rss_sample.xml")),
+        repo,
+        provider,
+    )
+    with pytest.raises(AdapterError) as exc_info:
+        service.fetch_and_store_metadata("request1")
+    err = exc_info.value.error
+    assert err.code is ErrorCode.INVALID_RESPONSE
+    assert err.video_id == "request1"
+    assert "other" not in err.message
+    assert "public_vid1" not in err.message or err.video_id == "request1"
+    assert repo.metadata == {}
+    assert "public_vid1" not in repo.metadata
+    assert "request1" not in repo.metadata
+
+
+def test_incomplete_rss_entry_fails_without_advancing_cursor() -> None:
+    """P1: incomplete entry fails whole batch; later fixed older entry can still be found."""
+    incomplete = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Missing video id</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    provider = _rss_provider(incomplete)
+    repo = FakeDiscoveryRepository()
+    service = DiscoveryService(provider, repo)
+    with pytest.raises(AdapterError) as exc_info:
+        service.discover_and_save(CHANNEL)
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert exc_info.value.error.retryable is False
+    assert repo.videos == {}
+    assert "UC_example" not in repo.cursors
+
+    # Later provider returns complete feed including older fixed entry.
+    fixed = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_fixed_old</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Previously incomplete</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    provider2 = _rss_provider(fixed)
+    service2 = DiscoveryService(provider2, repo)
+    batch = service2.discover_and_save(CHANNEL)
+    assert "vid_fixed_old" in batch.video_ids
+    assert "vid_new_1" in batch.video_ids
+    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+
+
+def test_ytdlp_http_status_classification_order() -> None:
+    """P1: 404/403/503 must classify before broad 'unavailable' text matches."""
+    cases = [
+        (
+            "HTTP Error 404: Not Found (video unavailable)",
+            ErrorCode.CONTENT_UNAVAILABLE,
+            False,
+        ),
+        (
+            "HTTP Error 403: Forbidden (video unavailable)",
+            ErrorCode.PERMISSION_DENIED,
+            False,
+        ),
+        (
+            "HTTP Error 503: Service Unavailable",
+            ErrorCode.PROVIDER_UNAVAILABLE,
+            True,
+        ),
+        (
+            "HTTP Error 429: Too Many Requests",
+            ErrorCode.RATE_LIMITED,
+            True,
+        ),
+    ]
+    for message, code, retryable in cases:
+        err = youtube_mod._map_ytdlp_exception(
+            DownloadError(message),
+            video_id="vid_http1",
+        ).error
+        assert err.code is code, message
+        assert err.retryable is retryable, message
+        assert err.video_id == "vid_http1"
+        assert "HTML" not in err.message
+        assert "<" not in err.message
+        # Safe fixed messages only — never the raw provider exception text.
+        assert message not in err.message
+        assert err.message.startswith("yt-dlp") or err.message.startswith("video content")
+
+
+def test_rss_response_closed_on_read_timeout() -> None:
+    """P2: response must close on read failures, not only success."""
+
+    class _TimeoutResponse:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def read(self, n: int = -1) -> bytes:
+            raise TimeoutError("read timed out")
+
+        def close(self) -> None:
+            self.closed = True
+
+    resp = _TimeoutResponse()
+    provider = YouTubeRssSourceProvider(
+        timeout_seconds=5.0,
+        opener=lambda request, timeout: resp,
+        clock=lambda: FIXED_NOW,
+    )
+    with pytest.raises(AdapterError) as exc_info:
+        provider.discover(CHANNEL, DiscoveryCursor(channel_id="UC_example"))
+    assert exc_info.value.error.code is ErrorCode.TRANSIENT_NETWORK
+    assert resp.closed is True
+
+
+def test_needs_auth_is_restricted_not_public() -> None:
+    """P2: needs_auth under V1 no-login policy maps to RESTRICTED."""
+    info = {
+        "id": "authvid1",
+        "title": "Members content",
+        "description": "x",
+        "channel_id": "UC_example",
+        "channel": "Example Channel",
+        "timestamp": 1720612800,
+        "duration": 60,
+        "availability": "needs_auth",
+        "live_status": "not_live",
+        "subtitles": {},
+        "automatic_captions": {},
+    }
+    meta = youtube_mod._map_info_dict_to_video_metadata(info, requested_video_id="authvid1")
+    assert meta.availability is Availability.RESTRICTED

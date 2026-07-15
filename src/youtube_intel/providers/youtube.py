@@ -130,181 +130,243 @@ def _map_live_status(info: Mapping[str, Any]) -> LiveStatus:
     return LiveStatus.NONE
 
 
+def _coerce_age_limit(info: Mapping[str, Any]) -> int | None:
+    """Parse optional age_limit safely; malformed values become INVALID_RESPONSE."""
+    age_raw = info.get("age_limit")
+    if age_raw is None or age_raw == "":
+        return None
+    try:
+        return int(age_raw)
+    except (TypeError, ValueError):
+        raise AdapterError(
+            _app_error(
+                ErrorCode.INVALID_RESPONSE,
+                "yt-dlp info has invalid age_limit",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+            )
+        ) from None
+
+
 def _map_availability(info: Mapping[str, Any]) -> Availability:
+    # Validate age_limit whenever present so free-form payload cannot raise ValueError.
+    age_limit = _coerce_age_limit(info)
+
     raw = info.get("availability")
     if isinstance(raw, str):
         value = raw.strip().lower()
-        if value in {"public", "unlisted", "needs_auth"}:
-            if value == "needs_auth" and not info.get("title"):
-                return Availability.PRIVATE
-            if value in {"public", "unlisted"}:
-                return Availability.PUBLIC
+        if value in {"public", "unlisted"}:
+            return Availability.PUBLIC
+        if value == "needs_auth":
+            # V1 has no login/cookie path; treat as restricted, never public.
+            return Availability.RESTRICTED
         if value == "private":
             return Availability.PRIVATE
         if value in {"premium", "subscriber_only", "premium_only"}:
             return Availability.RESTRICTED
         if value in {"unavailable"}:
             return Availability.UNAVAILABLE
-    if info.get("age_limit") and int(info.get("age_limit") or 0) >= 18 and not info.get("title"):
+    if age_limit is not None and age_limit >= 18 and not info.get("title"):
         return Availability.RESTRICTED
     return Availability.PUBLIC
 
 
 def _map_published_at(info: Mapping[str, Any]) -> datetime | None:
-    ts = info.get("timestamp")
-    if isinstance(ts, (int, float)) and ts > 0:
-        return datetime.fromtimestamp(float(ts), tz=UTC)
-    release = info.get("release_timestamp")
-    if isinstance(release, (int, float)) and release > 0:
-        return datetime.fromtimestamp(float(release), tz=UTC)
-    upload_date = info.get("upload_date")
-    if isinstance(upload_date, str) and len(upload_date) == 8 and upload_date.isdigit():
-        year = int(upload_date[0:4])
-        month = int(upload_date[4:6])
-        day = int(upload_date[6:8])
-        return datetime(year, month, day, tzinfo=UTC)
+    """Return a UTC datetime or None; never raise on malformed external fields."""
+    try:
+        ts = info.get("timestamp")
+        if isinstance(ts, (int, float)) and ts > 0:
+            return datetime.fromtimestamp(float(ts), tz=UTC)
+        release = info.get("release_timestamp")
+        if isinstance(release, (int, float)) and release > 0:
+            return datetime.fromtimestamp(float(release), tz=UTC)
+        upload_date = info.get("upload_date")
+        if isinstance(upload_date, str) and len(upload_date) == 8 and upload_date.isdigit():
+            year = int(upload_date[0:4])
+            month = int(upload_date[4:6])
+            day = int(upload_date[6:8])
+            return datetime(year, month, day, tzinfo=UTC)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
     return None
 
 
-def _map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
-    """Private: map a yt-dlp info mapping to approved ``VideoMetadata``."""
-    video_id = info.get("id") or info.get("display_id")
-    if not isinstance(video_id, str) or not video_id.strip():
-        raise AdapterError(
-            _app_error(
-                ErrorCode.INVALID_RESPONSE,
-                "yt-dlp info missing video id",
-                retryable=False,
-                stage=ProcessingStage.METADATA,
-            )
-        )
-    video_id = video_id.strip()
+def _map_info_dict_to_video_metadata(
+    info: Mapping[str, Any],
+    *,
+    requested_video_id: str | None = None,
+) -> VideoMetadata:
+    """Private: map a yt-dlp info mapping to approved ``VideoMetadata``.
 
-    title = info.get("title")
-    if not isinstance(title, str) or not title.strip():
+    All external field conversion failures become safe ``AdapterError`` payloads.
+    When ``requested_video_id`` is set, response identity must match exactly.
+    """
+    safe_video_id = requested_video_id
+    try:
+        video_id = info.get("id") or info.get("display_id")
+        if not isinstance(video_id, str) or not video_id.strip():
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "yt-dlp info missing video id",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=safe_video_id,
+                )
+            )
+        video_id = video_id.strip()
+        if safe_video_id is None:
+            safe_video_id = video_id
+
+        title = info.get("title")
+        if not isinstance(title, str) or not title.strip():
+            availability = _map_availability(info)
+            if availability is Availability.PUBLIC:
+                availability = Availability.UNAVAILABLE
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.CONTENT_UNAVAILABLE,
+                    f"video content unavailable ({availability.value})",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=safe_video_id,
+                )
+            )
+        title = title.strip()
+
+        channel_id = info.get("channel_id") or info.get("uploader_id")
+        if not isinstance(channel_id, str) or not channel_id.strip():
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "yt-dlp info missing channel_id",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=safe_video_id,
+                )
+            )
+        channel_id = channel_id.strip()
+
+        channel_name = info.get("channel") or info.get("uploader") or info.get("channel_name")
+        if not isinstance(channel_name, str) or not channel_name.strip():
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "yt-dlp info missing channel name",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=safe_video_id,
+                )
+            )
+        channel_name = channel_name.strip()
+
+        description = info.get("description")
+        if description is None:
+            description = ""
+        elif not isinstance(description, str):
+            description = str(description)
+
+        source_url = info.get("webpage_url") or info.get("original_url")
+        if not isinstance(source_url, str) or not source_url.strip():
+            source_url = _WATCH_URL.format(video_id=video_id)
+        else:
+            source_url = source_url.strip()
+
+        published_at = _map_published_at(info)
+        if published_at is None:
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "yt-dlp info missing or invalid publish timestamp",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=safe_video_id,
+                )
+            )
+
+        duration_raw = info.get("duration")
+        if duration_raw is None:
+            duration_seconds = 0
+        else:
+            try:
+                duration_seconds = int(duration_raw)
+            except (TypeError, ValueError):
+                raise AdapterError(
+                    _app_error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "yt-dlp info has invalid duration",
+                        retryable=False,
+                        stage=ProcessingStage.METADATA,
+                        video_id=safe_video_id,
+                    )
+                ) from None
+            if duration_seconds < 0:
+                raise AdapterError(
+                    _app_error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "yt-dlp info has negative duration",
+                        retryable=False,
+                        stage=ProcessingStage.METADATA,
+                        video_id=safe_video_id,
+                    )
+                )
+
+        default_language: str | None = None
+        for key in ("language", "original_language"):
+            val = info.get(key)
+            if isinstance(val, str) and val.strip():
+                default_language = val.strip()
+                break
+
+        subtitles = info.get("subtitles") if isinstance(info.get("subtitles"), Mapping) else None
+        auto = (
+            info.get("automatic_captions")
+            if isinstance(info.get("automatic_captions"), Mapping)
+            else None
+        )
+        available_languages = _summarize_available_languages(subtitles, auto)
+
+        live_status = _map_live_status(info)
         availability = _map_availability(info)
-        if availability is Availability.PUBLIC:
-            availability = Availability.UNAVAILABLE
-        raise AdapterError(
-            _app_error(
-                ErrorCode.CONTENT_UNAVAILABLE,
-                f"video content unavailable ({availability.value})",
-                retryable=False,
-                stage=ProcessingStage.METADATA,
-                video_id=video_id,
-            )
-        )
-    title = title.strip()
 
-    channel_id = info.get("channel_id") or info.get("uploader_id")
-    if not isinstance(channel_id, str) or not channel_id.strip():
-        raise AdapterError(
-            _app_error(
-                ErrorCode.INVALID_RESPONSE,
-                "yt-dlp info missing channel_id",
-                retryable=False,
-                stage=ProcessingStage.METADATA,
-                video_id=video_id,
-            )
+        metadata = VideoMetadata(
+            video_id=video_id,
+            channel_id=channel_id,
+            channel_name=channel_name,
+            title=title,
+            description=description,
+            source_url=source_url,
+            published_at=published_at,
+            duration_seconds=duration_seconds,
+            default_language=default_language,
+            available_languages=available_languages,
+            live_status=live_status,
+            availability=availability,
         )
-    channel_id = channel_id.strip()
-
-    channel_name = info.get("channel") or info.get("uploader") or info.get("channel_name")
-    if not isinstance(channel_name, str) or not channel_name.strip():
+    except AdapterError:
+        raise
+    except (TypeError, ValueError, OverflowError, OSError):
         raise AdapterError(
             _app_error(
                 ErrorCode.INVALID_RESPONSE,
-                "yt-dlp info missing channel name",
+                "yt-dlp info payload is malformed",
                 retryable=False,
                 stage=ProcessingStage.METADATA,
-                video_id=video_id,
+                video_id=safe_video_id,
             )
-        )
-    channel_name = channel_name.strip()
+        ) from None
 
-    description = info.get("description")
-    if description is None:
-        description = ""
-    elif not isinstance(description, str):
-        description = str(description)
-
-    source_url = info.get("webpage_url") or info.get("original_url")
-    if not isinstance(source_url, str) or not source_url.strip():
-        source_url = _WATCH_URL.format(video_id=video_id)
-    else:
-        source_url = source_url.strip()
-
-    published_at = _map_published_at(info)
-    if published_at is None:
+    if requested_video_id is not None and metadata.video_id != requested_video_id:
         raise AdapterError(
             _app_error(
                 ErrorCode.INVALID_RESPONSE,
-                "yt-dlp info missing publish timestamp",
+                "yt-dlp info video id does not match request",
                 retryable=False,
                 stage=ProcessingStage.METADATA,
-                video_id=video_id,
+                video_id=requested_video_id,
             )
         )
-
-    duration_raw = info.get("duration")
-    if duration_raw is None:
-        duration_seconds = 0
-    else:
-        try:
-            duration_seconds = int(duration_raw)
-        except (TypeError, ValueError) as exc:
-            raise AdapterError(
-                _app_error(
-                    ErrorCode.INVALID_RESPONSE,
-                    "yt-dlp info has invalid duration",
-                    retryable=False,
-                    stage=ProcessingStage.METADATA,
-                    video_id=video_id,
-                )
-            ) from exc
-        if duration_seconds < 0:
-            raise AdapterError(
-                _app_error(
-                    ErrorCode.INVALID_RESPONSE,
-                    "yt-dlp info has negative duration",
-                    retryable=False,
-                    stage=ProcessingStage.METADATA,
-                    video_id=video_id,
-                )
-            )
-
-    default_language: str | None = None
-    for key in ("language", "original_language"):
-        val = info.get(key)
-        if isinstance(val, str) and val.strip():
-            default_language = val.strip()
-            break
-
-    subtitles = info.get("subtitles") if isinstance(info.get("subtitles"), Mapping) else None
-    auto = (
-        info.get("automatic_captions")
-        if isinstance(info.get("automatic_captions"), Mapping)
-        else None
-    )
-    available_languages = _summarize_available_languages(subtitles, auto)
-
-    live_status = _map_live_status(info)
-    availability = _map_availability(info)
-
-    return VideoMetadata(
-        video_id=video_id,
-        channel_id=channel_id,
-        channel_name=channel_name,
-        title=title,
-        description=description,
-        source_url=source_url,
-        published_at=published_at,
-        duration_seconds=duration_seconds,
-        default_language=default_language,
-        available_languages=available_languages,
-        live_status=live_status,
-        availability=availability,
-    )
+    return metadata
 
 
 def _default_ydl_factory(opts: dict[str, Any]) -> _YdlHandle:
@@ -434,8 +496,21 @@ class YtDlpMetadataProvider:
                     video_id=video_id,
                 )
             )
-        # Drop free-form dict at the boundary immediately.
-        return _map_info_dict_to_video_metadata(info)
+        # Drop free-form dict at the boundary immediately; keep request identity.
+        try:
+            return _map_info_dict_to_video_metadata(info, requested_video_id=video_id)
+        except AdapterError:
+            raise
+        except (TypeError, ValueError, OverflowError, OSError):
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "yt-dlp info payload is malformed",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=video_id,
+                )
+            ) from None
 
 
 def _call_meta(
@@ -468,15 +543,59 @@ def _call_meta(
     )
 
 
+def _extract_http_status(message_lower: str) -> int | None:
+    """Extract HTTP status before broad free-text matching."""
+    match = re.search(r"\bhttp(?:\s+error)?\s+(\d{3})\b", message_lower)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\b([45]\d{2})\b", message_lower)
+    if match:
+        return int(match.group(1))
+    return None
+
+
 def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
+    # Redact for safety; classification uses a lower-cased copy only.
     text = _redact_message(str(exc) or exc.__class__.__name__)
     lower = text.lower()
 
-    if "429" in lower or "rate limit" in lower or "too many requests" in lower:
+    # Fixed HTTP classification order (before broad text matches).
+    status = _extract_http_status(lower)
+    if status == 429 or "rate limit" in lower or "too many requests" in lower:
         return AdapterError(
             _app_error(
                 ErrorCode.RATE_LIMITED,
                 "yt-dlp metadata rate limited",
+                retryable=True,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+    if status == 404:
+        return AdapterError(
+            _app_error(
+                ErrorCode.CONTENT_UNAVAILABLE,
+                "video content unavailable (unavailable)",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+    if status in {401, 403}:
+        return AdapterError(
+            _app_error(
+                ErrorCode.PERMISSION_DENIED,
+                "yt-dlp metadata access denied",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+    if status is not None and 500 <= status <= 599:
+        return AdapterError(
+            _app_error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "yt-dlp metadata provider unavailable",
                 retryable=True,
                 stage=ProcessingStage.METADATA,
                 video_id=video_id,
@@ -561,7 +680,7 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
-    if re.search(r"\b5\d\d\b", lower) or "http error" in lower:
+    if "http error" in lower:
         return AdapterError(
             _app_error(
                 ErrorCode.PROVIDER_UNAVAILABLE,

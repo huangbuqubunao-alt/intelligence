@@ -262,3 +262,44 @@ def test_repeated_discovery_batch_does_not_duplicate_or_regress() -> None:
     service.discover_and_save(CHANNEL)
     assert repo.videos["vid_dup"] is PipelineStatus.METADATA_READY
     assert len([e for e in repo.save_events]) == 2
+
+
+def test_provider_rejects_mismatched_and_http_errors_offline() -> None:
+    """Integration: request/response id match + HTTP classification stay safe offline."""
+    body = (FIXTURES / "rss_sample.xml").read_bytes()
+    _, repo = _rss_service(body)
+
+    class _Handle:
+        def __init__(self, result: object) -> None:
+            self._result = result
+
+        def extract_info(self, url: str, download: bool = True) -> object:
+            assert download is False
+            if isinstance(self._result, BaseException):
+                raise self._result
+            return self._result
+
+    # Mismatched id must not land in repository.
+    wrong = _load_json("info_public.json")
+    meta = YtDlpMetadataProvider(timeout_seconds=20.0)
+    youtube_mod._bind_test_hooks(meta, ydl_factory=lambda opts: _Handle(wrong))
+    service = DiscoveryService(
+        YouTubeRssSourceProvider(opener=lambda r, t: _FakeResponse(body), clock=lambda: FIXED_NOW),
+        repo,
+        meta,
+    )
+    with pytest.raises(AdapterError) as mismatch:
+        service.fetch_and_store_metadata("reqid01")
+    assert mismatch.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert mismatch.value.error.video_id == "reqid01"
+    assert repo.metadata == {}
+
+    # 503 is retryable provider unavailable even when message says unavailable.
+    youtube_mod._bind_test_hooks(
+        meta,
+        ydl_factory=lambda opts: _Handle(DownloadError("HTTP Error 503: Service Unavailable")),
+    )
+    with pytest.raises(AdapterError) as http503:
+        meta.fetch("reqid01")
+    assert http503.value.error.code is ErrorCode.PROVIDER_UNAVAILABLE
+    assert http503.value.error.retryable is True

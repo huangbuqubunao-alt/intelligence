@@ -266,12 +266,51 @@
 - YouTube 页面/RSS 漂移、mutagen GPL 传递、TASK-003 组合契约仍待后续。
 - 任务状态保持 `IN_PROGRESS`；不启动 Reviewer。
 
+## Reviewer REJECT 修复（Correction-3）
+
+- Prior reviewed implementation head：`9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
+- Review evidence / required source head：`f34cbb09d628ebb256bf5f2895adfd10dbd61812`
+- Correction-3 commit：见分支 tip（消息 `fix: harden discovery adapter error boundaries`）
+- 本轮仅改：`discovery.py`、`providers/youtube.py`、unit/integration tests、`handoffs/TASK-004.md`
+- 任务状态保持 `IN_PROGRESS`；不启动 Reviewer、不合并 main
+
+| Finding | 修复 | 回归 |
+|---|---|---|
+| P1 raw yt-dlp payload 绕过错误边界 | `_map_published_at` 捕获日期错误；`_coerce_age_limit` 非法值 → `AdapterError(INVALID_RESPONSE)`；`fetch`/`_map_info_dict_to_video_metadata` 统一封装，不泄漏 ValueError/TypeError/payload | `test_malformed_ytdlp_payload_is_safe_adapter_error` |
+| P1 请求/响应 video_id 不一致 | 映射后强制 `metadata.video_id == requested_video_id`，否则 `INVALID_RESPONSE` 且 `AppError.video_id=请求ID`，不写 Repository | `test_response_video_id_must_match_request`；integration `test_provider_rejects_mismatched_and_http_errors_offline` |
+| P1 RSS 不完整 entry 静默丢弃 | 缺 videoId/published/title 或无效时间戳 → 整批 `INVALID_RESPONSE` nonretryable；不推进 cursor | `test_incomplete_rss_entry_fails_without_advancing_cursor`（含后续修复后仍可发现较旧条目） |
+| P1 yt-dlp HTTP 分类顺序错误 | 先解析 404→`CONTENT_UNAVAILABLE`、403/401→`PERMISSION_DENIED`、5xx→`PROVIDER_UNAVAILABLE`、429→`RATE_LIMITED`，再做宽文本匹配 | `test_ytdlp_http_status_classification_order`；integration 503 路径 |
+| P2 RSS response 未关闭 | `_read_limited` 在 `finally` 中关闭（成功/timeout/OSError/类型/超限） | `test_rss_response_closed_on_read_timeout` |
+| P2 needs_auth 标 PUBLIC | V1 无登录：`needs_auth` → `RESTRICTED` | `test_needs_auth_is_restricted_not_public` |
+| P3 公开注解哨兵放过 Any | `_annotation_mentions_free_dict` 对 `Any`/`object`/Mapping 视为失败 | `test_public_youtube_api_has_no_free_form_dict_surface` |
+
+### 检查结果（Correction-3）
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked` | PASS |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS |
+| `uv run python -m pytest` | PASS (83) |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `git diff --check` | PASS |
+
+### 跳过与风险
+
+- 真实 YouTube / Cookie / remote components / ffmpeg / 媒体字幕下载：未运行（未授权）
+- 剩余风险：Provider 页面文案变化仍可能影响非 HTTP 文本分类；私有测试 hook 约定仍依赖 Python 命名隐私；TASK-003 组合契约待整合
+
 ## 实现者结论
 
-- 建议状态：`IN_PROGRESS`（二次预审修复已提交；不自行启动 Reviewer / 不改公共任务状态）
+- 建议状态：`IN_PROGRESS`（Reviewer REJECT 修复已提交；等待主控预核验后再开 Reviewer）
 - 首个实现 Commit：`392edfb897003c1583b538667d10a2a89926a94b`
-- Correction-1 Commit：`10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
-- Correction-2 Commit：见分支 tip（消息 `fix: make yt-dlp test hooks private`）
+- Correction-1：`10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
+- Correction-2：`9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
+- Review REJECT evidence：`f34cbb09d628ebb256bf5f2895adfd10dbd61812`
+- Correction-3：见分支 tip（`fix: harden discovery adapter error boundaries`）
 - 复现/验证说明：
 
 ```bash
@@ -282,6 +321,7 @@ uv run python -m pytest tests/integration/test_discovery_adapter.py
 uv run python -m pytest
 uv run mypy src
 uv run ruff check .
+uv run python -m youtube_intel --help
 ```
 
 ## Reviewer 结论
@@ -290,8 +330,8 @@ uv run ruff check .
 - Product base：`dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Reviewed implementation head：`9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
 - Review authorization baseline：`main@372a31eb53eed39faeba9df545c5e665c7a63ba1`
-- Review evidence commit：本 Reviewer 证据提交；精确 SHA 由提交后 `git rev-parse HEAD` 回传
-- Verdict：`REJECT`
+- Review evidence commit：`f34cbb09d628ebb256bf5f2895adfd10dbd61812`
+- Verdict：`REJECT`（已由原 Implementer 在 Correction-3 修复；待主控预核验后重启 Reviewer）
 - Decision needed：`None`；退回原 Grok Implementer 修复，不由 Reviewer 修改业务代码
 
 ### 开始门禁与范围

@@ -547,53 +547,56 @@ class YouTubeRssSourceProvider:
         return self._read_limited(response)
 
     def _read_limited(self, response: object) -> bytes:
-        read_attr = getattr(response, "read", None)
-        if not callable(read_attr):
-            _raise_adapter(
-                ErrorCode.INVALID_RESPONSE,
-                "RSS response object is not readable",
-                retryable=False,
-            )
-            raise AssertionError("unreachable")
-        read_fn: Callable[..., object] = read_attr
-        # Prefer reading max+1 to detect overflow without trusting Content-Length.
         try:
-            data = read_fn(self._max_response_bytes + 1)
-        except TimeoutError:
-            _raise_adapter(
-                ErrorCode.TRANSIENT_NETWORK,
-                "RSS feed read timed out",
-                retryable=True,
-            )
-            raise AssertionError("unreachable")
-        except OSError:
-            _raise_adapter(
-                ErrorCode.TRANSIENT_NETWORK,
-                "RSS feed read failed",
-                retryable=True,
-            )
-            raise AssertionError("unreachable")
-        if not isinstance(data, (bytes, bytearray)):
-            _raise_adapter(
-                ErrorCode.INVALID_RESPONSE,
-                "RSS response body is not bytes",
-                retryable=False,
-            )
-            raise AssertionError("unreachable")
-        body = bytes(data)
-        if len(body) > self._max_response_bytes:
-            _raise_adapter(
-                ErrorCode.INVALID_RESPONSE,
-                "RSS response exceeds configured size limit",
-                retryable=False,
-            )
-        close = getattr(response, "close", None)
-        if callable(close):
+            read_attr = getattr(response, "read", None)
+            if not callable(read_attr):
+                _raise_adapter(
+                    ErrorCode.INVALID_RESPONSE,
+                    "RSS response object is not readable",
+                    retryable=False,
+                )
+                raise AssertionError("unreachable")
+            read_fn: Callable[..., object] = read_attr
+            # Prefer reading max+1 to detect overflow without trusting Content-Length.
             try:
-                close()
+                data = read_fn(self._max_response_bytes + 1)
+            except TimeoutError:
+                _raise_adapter(
+                    ErrorCode.TRANSIENT_NETWORK,
+                    "RSS feed read timed out",
+                    retryable=True,
+                )
+                raise AssertionError("unreachable")
             except OSError:
-                pass
-        return body
+                _raise_adapter(
+                    ErrorCode.TRANSIENT_NETWORK,
+                    "RSS feed read failed",
+                    retryable=True,
+                )
+                raise AssertionError("unreachable")
+            if not isinstance(data, (bytes, bytearray)):
+                _raise_adapter(
+                    ErrorCode.INVALID_RESPONSE,
+                    "RSS response body is not bytes",
+                    retryable=False,
+                )
+                raise AssertionError("unreachable")
+            body = bytes(data)
+            if len(body) > self._max_response_bytes:
+                _raise_adapter(
+                    ErrorCode.INVALID_RESPONSE,
+                    "RSS response exceeds configured size limit",
+                    retryable=False,
+                )
+            return body
+        finally:
+            # Always close on success, timeout, OSError, type/size failures.
+            close = getattr(response, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except OSError:
+                    pass
 
     def _map_http_error(self, exc: urllib.error.HTTPError) -> None:
         status = int(getattr(exc, "code", 0) or 0)
@@ -657,9 +660,7 @@ class YouTubeRssSourceProvider:
         if not entry_nodes:
             entry_nodes = list(root.findall("entry"))
         for node in entry_nodes:
-            parsed = self._parse_entry(node, expected_channel_id=expected_channel_id)
-            if parsed is not None:
-                entries.append(parsed)
+            entries.append(self._parse_entry(node, expected_channel_id=expected_channel_id))
         return entries
 
     def _parse_entry(
@@ -667,18 +668,37 @@ class YouTubeRssSourceProvider:
         node: Element,
         *,
         expected_channel_id: str,
-    ) -> _RssEntry | None:
+    ) -> _RssEntry:
+        """Parse one entry; incomplete/invalid fields fail the whole discovery batch."""
         video_id = _child_text(node, "yt:videoId") or _child_text(node, "videoId")
         channel_id = (
             _child_text(node, "yt:channelId")
             or _child_text(node, "channelId")
             or expected_channel_id
         )
-        title = _child_text(node, "atom:title") or _child_text(node, "title") or ""
+        title = _child_text(node, "atom:title") or _child_text(node, "title")
         published_raw = _child_text(node, "atom:published") or _child_text(node, "published")
-        if not video_id or not published_raw:
-            # Skip incomplete entries rather than failing the whole feed.
-            return None
+        if not video_id:
+            _raise_adapter(
+                ErrorCode.INVALID_RESPONSE,
+                "RSS entry missing video id",
+                retryable=False,
+            )
+            raise AssertionError("unreachable")
+        if not published_raw:
+            _raise_adapter(
+                ErrorCode.INVALID_RESPONSE,
+                "RSS entry missing published timestamp",
+                retryable=False,
+            )
+            raise AssertionError("unreachable")
+        if not title:
+            _raise_adapter(
+                ErrorCode.INVALID_RESPONSE,
+                "RSS entry missing title",
+                retryable=False,
+            )
+            raise AssertionError("unreachable")
         if channel_id != expected_channel_id:
             _raise_adapter(
                 ErrorCode.INVALID_RESPONSE,
