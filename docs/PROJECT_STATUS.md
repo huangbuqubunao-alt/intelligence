@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-15
-- 当前阶段：Phase 0/1 — 状态基础完成，采集主链独立审查与字幕任务准备
+- 当前阶段：Phase 0/1 — 状态基础完成，采集主链审查修复与字幕任务准备
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`）；`/Users/hua/Documents/yia-worktrees/task-003` 已完成，仅保留审计证据；TASK-001/TASK-002 worktree 同样只保留审计证据
-- 活动任务：`TASK-003` 已以 merge commit `072511f...` 整合并为 `DONE`；`TASK-004` correction 5/5A source head 为 `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，Repository 组合修复与预审补证齐全，状态为 `IN_REVIEW`；`TASK-005` 只读预检与 ADR-006 审批已完成，仍等待 TASK-004 `DONE`
+- 活动任务：`TASK-003` 已以 merge commit `072511f...` 整合并为 `DONE`；`TASK-004` 第四次 review evidence head 为 `d510794ffccf54948f967f010685aef1c0a02f3d`，Reviewer 因静态 Repository wiring 与纯空白版本边界两个 P1 给出 `REJECT`，现由原 Grok Implementer 执行 Correction 6；`TASK-005` 只读预检与 ADR-006 审批已完成，仍等待 TASK-004 `DONE`
 
 ## 已完成或已批准
 
@@ -24,23 +24,24 @@
 
 ## 当前阻塞
 
-- `TASK-004` 第四个独立 Codex Reviewer 首次启动时因 main 正在准备 ADR-006 未提交 Markdown 而按洁净度门禁在检查前停止；source/handoff 未修改，没有产品 finding。ADR-006 接受同步进入 main 后，使用恢复授权包继续审查；在 `APPROVE` 与主控验收前不得合并或设为 `ACCEPTED`。
+- `TASK-004` 第四个独立 Codex Reviewer 已在 main 恢复干净后完成审查并 `REJECT`：运行时 Protocol 与 131 tests 均通过，但真实 mypy wiring 不接受 frozen Repository records；纯空白 `pipeline_version` 也会先调用 Provider 再泄漏 `sqlite3.IntegrityError`。Correction 6 完成并重新审查前不得合并或设为 `ACCEPTED`。
 - `TASK-005` 的 ADR-006 审批已满足，但仍等待 TASK-004 `DONE`、正式 worktree/角色/范围和任务级命令授权；当前不得实现或访问真实字幕网络。
 - `TASK-006` 及后续任务继续按任务图等待 TASK-005。
 
 ## 下一步
 
-1. 第四个独立 Codex Reviewer 使用 `agent-prompts/TASK-004-REVIEWER-4-RESUME-CODEX.md` 恢复，在 source `9750df...` 重跑 Repository 组合、CAS、Fake parity、边界、安全回归和全量门禁；main 的 ADR-006 接受记录不改变其固定 reviewed head。
-2. TASK-004 Reviewer 若 `APPROVE`，主控再做验收、生成 Integrator 包并关闭为 `DONE`；若 `REJECT`，退回原 Grok Implementer，Reviewer 不修业务代码。
-3. TASK-004 `DONE` 后，主控从最新 main 创建 TASK-005 worktree，并单独确认 Implementer/Reviewer、文件范围、`uv sync --locked` 等命令权限；不得把 ADR 批准当作开工授权。
-4. TASK-004/TASK-005 继续禁止真实 YouTube/字幕、Cookie、账号、remote components、ffmpeg、媒体下载、真实 Vault 与密钥。
+1. Status Integrator 先提交 `agent-prompts/TASK-004-FOURTH-REVIEW-REJECT-INTEGRATOR.md` 所列 5 个控制面文件，统一 TASK-004 为 `IN_PROGRESS`；不得运行产品检查或修改 source。
+2. 原 Grok Implementer 从 source `d510794...` 执行 `agent-prompts/TASK-004-CORRECTION-6-GROK.md`，只修严格只读 Protocol 静态 wiring 与纯空白版本零副作用，完成离线门禁后提交新 evidence。
+3. Correction 6 经主控静态核验后再授权独立 Reviewer；只有 `APPROVE`、主控验收与 Integrator 整合完成，TASK-004 才能设为 `DONE`。
+4. TASK-004 `DONE` 后再从最新 main 正式分配 TASK-005；TASK-004/TASK-005 继续禁止真实 YouTube/字幕、Cookie、账号、remote components、ffmpeg、媒体下载、真实 Vault 与密钥。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即恢复 | TASK-004 第四次独立 Codex Reviewer | ADR acceptance sync 成功后执行恢复包；独占 source worktree |
-| 已完成可关闭 | ADR-006 acceptance Status Integrator | 接受记录已进入 main 后关闭终端 |
+| 立即同步 | TASK-004 review reject / Correction 6 Status Integrator | 只写 main 的 5 个控制面 Markdown；提交后关闭 |
+| 同步后立即启动 | TASK-004 原 Grok Implementer | 独占 source worktree，从 `d510794...` 执行 Correction 6 |
+| 已完成可关闭 | TASK-004 第四次 Codex Reviewer | evidence `d510794...` 已提交，Verdict=`REJECT` |
 | 已完成可关闭 | TASK-005 只读 Scout | 报告已回传且仓库无变更 |
 | 等待 TASK-004 `DONE` | TASK-005 正式分配 | ADR 已 Accepted，但不构成实现、命令或网络授权 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
@@ -74,7 +75,7 @@
 - 主控随后按 ADR-004 D-08 执行真实组合 Surface 探针，得到 `runtime_protocol_match=False`，并确认 `SQLiteStateRepository` 缺少 TASK-004 Protocol 要求的 `get_cursor`、`upsert_metadata`、`mark_unavailable`；同名 `save_discovery_batch` 也缺少 consumer 侧未传递的 `expected_revision`、`pipeline_version`、`now`。若直接整合，`DiscoveryService` 无法以真实 SQLite Repository 运行，因此作为新 P1 退回 correction 5；修复必须对齐 TASK-003 已接受 API，不能改 Schema/state 或用宽类型/重复 wrapper 隐藏不兼容。
 - TASK-004 source 以 merge `eb9246b...` 同步 main/TASK-003 后，correction 5 `d87253e...` 已把 consumer Protocol/Service/Fake 对齐四个 TASK-003 具名方法，并加入真实 SQLite 组合测试；未修改 state、migration、domain 或新依赖。主控预审又要求固定范围无尾随空白、真实 Service 级 CAS 竞态、Fake/SQLite 未知视频 parity 和 naive UTC/空 pipeline version 零副作用边界。
 - TASK-004 correction 5A `9750df2...` 静态关闭上述补证：相对 `d87253e...` 仅改四个允许文件，`58c79af...HEAD` 固定 Diff check 为 0，完整产品范围仍为原 17 路径；Implementer 自报 state 30、unit 35、integration 10、全量 131、mypy/Ruff/CLI/build 全 PASS。该自报不替代第四次独立 Codex Reviewer，任务保持 `IN_REVIEW`。
-- TASK-004 第四次 Reviewer 的首次尝试因 main 存在 ADR-006 acceptance 的 9 个未提交控制面文件而在任何产品检查前 `BLOCKED`；这是调度/洁净度门禁，不是产品失败，source 仍为 `9750df...` 且干净。恢复授权与 ADR 接受记录将在同一控制面提交进入 main，避免第二次同步。
+- TASK-004 第四次 Reviewer 在恢复后完成审查，evidence `d510794ffccf54948f967f010685aef1c0a02f3d` 仅修改 handoff，Verdict=`REJECT`。P1-1 是可变 Protocol attributes 使 frozen `ChannelCursorRecord`/`VideoRecord` 无法通过真实 mypy wiring；P1-2 是纯空白 `pipeline_version` 在 Source/Metadata Provider 调用后才触发 SQLite CHECK。Correction 6 必须以只读严格类型和应用边界零副作用测试关闭，不能用宽类型、cast/ignore、wrapper 或修改 TASK-003 掩盖。
 - TASK-005 只读 Scout 确认的字幕输出、选择、格式、质量、缓存与恢复空白已由 Accepted ADR-006 T-01 至 T-15 关闭。V1 使用现有两个 Artifact kind、稳定 key/path、Provider-call/文件哈希验证及空 Artifact stage completion，不新增 manifest migration 或 job-neutral Artifact 语义；若实现证据否定该路径，必须停止并新建 ADR。
 - `yt-dlp[default]` 的已批准必要传递依赖包含 `mutagen`（GPL-2.0-or-later）。本地开发/测试不阻断 TASK-004，但二进制或依赖捆绑分发前必须由 TASK-014 生成许可证清单并作出兼容分发决定。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。

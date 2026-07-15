@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Grok`
-- Reviewer: `Codex`（第四个全新独立会话；审查 correction 5A head `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`）
+- Reviewer: 第四个独立 Codex Reviewer 已 `REJECT`；等待原 Grok Implementer 完成 Correction 6 后重新授权审查
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -167,3 +167,16 @@
 - Scope evidence: `58c79af...9750df...` 的完整产品差异仍精确为原 TASK-004 17 路径；未修改 `domain.py`、`state.py`、migration、依赖范围或锁定版本之外的文件。
 - Status decision: 同步后进入 `IN_REVIEW`。原 Grok Implementer 必须停止写入并关闭/暂停会话；授权第四个全新独立 Codex Reviewer，且不得由前三次 Reviewer 或实现者自审替代。
 - Reviewer packet: `agent-prompts/TASK-004-REVIEWER-4-CODEX.md`。
+
+## 第四次独立审查拒绝与 Correction 6
+
+- Reviewed implementation head: `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`。
+- Review evidence: `d510794ffccf54948f967f010685aef1c0a02f3d`，唯一父提交精确为 reviewed head，范围仅 `handoffs/TASK-004.md`；source/main 均干净。
+- Reviewer checks: state integration 30、discovery unit 35、discovery integration 10、全量 131、`mypy src`、Ruff、CLI、build、migration 包含性和固定 Diff 均 PASS；运行时 Protocol、真实 SQLite 原子性/CAS、Fake parity 与 correction 3/4 安全回归通过。
+- Verdict: `REJECT`。P0/P2/P3 均为 0，P1 共 2 项：
+  1. `ChannelCursorView` / `VideoRecordView` 用可变 Protocol attributes 表达只读字段，导致 TASK-003 frozen records 虽运行时匹配，却不能在真实 mypy wiring 中作为 `DiscoveryRepository` 返回类型；现有 `mypy src` 没有组合调用而漏报。
+  2. discovery/metadata Service 只按 truthiness 检查 `pipeline_version`，纯空白值会先调用 Provider，再泄漏 SQLite `IntegrityError`，未满足处理前 `CONFIG_INVALID` 和零副作用。
+- Acceptance impact: AC-1 至 AC-5、D-01 至 D-06 继续 PASS；D-07/D-08 因两个 P1 为 FAIL。不得基于 131 tests 全绿提前验收。
+- Status decision: 回到 `IN_PROGRESS`，退回原 Grok Implementer；Correction 6 只允许修改 `discovery.py`、两份 discovery 测试与 handoff，不得修改 `state.py`、Schema/migration、domain、Provider、依赖或 lock。
+- Required proof: 使用严格只读 Protocol 表达使 frozen records 通过真实 mypy wiring；discovery/metadata 对多种纯空白版本在任何 Provider/Repository 调用前返回安全 `CONFIG_INVALID`，并保留现有全部组合、安全和无下载回归。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-6-GROK.md`。
