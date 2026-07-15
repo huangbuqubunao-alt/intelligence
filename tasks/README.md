@@ -2,13 +2,13 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_004_READY`
+项目状态：`TASK_003_004_IN_PROGRESS`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
 `TASK-002` 的实现、预审修复、独立 Grok 审查和最终整合均已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，merge commit 为 `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`。整合后全部门禁通过，状态为 `DONE`。
 
-`TASK-003`/`TASK-004` 只读预检已完成且仓库无变更。产品负责人已批准 ADR-003 S-01 至 S-08 和 ADR-004 D-01 至 D-08（含 yt-dlp extras/依赖/锁文件动作）；依赖与审批门禁均满足，两项状态均为 `READY`、`UNASSIGNED`，可从同一最新主线基线并行分配。
+`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 由 Codex 实现、Grok 等待审查；TASK-004 由 Grok 实现、Codex 等待审查。两项状态均为 `IN_PROGRESS`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -30,8 +30,8 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
-| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | 实现 Agent | READY | 002 |
-| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | 实现 Agent | READY | 002 |
+| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + Grok Reviewer（等待实现） | IN_PROGRESS | 002 |
+| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer + Codex Reviewer（等待实现） | IN_PROGRESS | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |

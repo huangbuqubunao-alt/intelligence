@@ -1,7 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Grok`
+- Reviewer: `Codex`（全新独立会话；等待实现 commit）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -73,3 +74,14 @@
 - `docs/REUSE_REGISTER.md` 中 TASK-004 复用选择与实际 Diff 一致的检查结果。
 - 如运行真实冒烟，记录命令、时间、频道和脱敏结果；未运行则明确说明。
 - Provider 页面/响应变更风险说明。
+
+## 分配记录
+
+- Assigned at: 2026-07-15
+- Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Branch: `grok/task-004-discovery-metadata`
+- Implementer: Grok 独立会话，独占该 worktree 写入权。
+- Reviewer: Codex 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。
+- Implementer packet: `agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
+- Parallel task: TASK-003 Codex Implementer；不得读取或写入其 worktree，不等待其完成。

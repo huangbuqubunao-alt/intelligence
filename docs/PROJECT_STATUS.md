@@ -5,8 +5,8 @@
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 保留 worktree：`/Users/hua/Documents/yia-worktrees/task-001`、`/Users/hua/Documents/yia-worktrees/task-002`；均已停止写入，仅保留审计证据，后续单独清理
-- 活动任务：无写入型实现正在运行；`TASK-003` 与 `TASK-004` 均为 `READY`、`UNASSIGNED`，等待从同一最新主线基线并行分配
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-003`（`codex/task-003-state-store`）与 `/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`），共同 base 为 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`；TASK-001/TASK-002 worktree 只保留审计证据
+- 活动任务：`TASK-003` 与 `TASK-004` 均为 `IN_PROGRESS`；Codex 独占 TASK-003，Grok 独占 TASK-004，两个 Reviewer 均等待各自实现 commit
 
 ## 已完成或已批准
 
@@ -23,23 +23,23 @@
 
 ## 当前阻塞
 
-- `TASK-003` 与 `TASK-004` 无审批或依赖阻塞，均可分配；在主控创建独立 worktree、分支和开工包前不得自行开工。
+- `TASK-003` 与 `TASK-004` 无审批或依赖阻塞；当前风险仅来自各自实现与独立审查结果。
 - `TASK-005` 及后续任务仍按任务图等待上游完成。
 
 ## 下一步
 
-1. Status Integrator 只提交 TASK-002 最终关闭及 TASK-003/TASK-004 就绪状态，不运行产品代码或创建 worktree。
-2. 主控收到精确关闭 commit 后，以该 commit 为共同 base，分别创建 TASK-003 与 TASK-004 的独立 worktree、分支和 Implementer 包。
-3. TASK-003 与 TASK-004 可由两个独立写入会话并行实现；每个任务完成实现后再启动各自独立 Reviewer。
-4. 所有开工包必须包含 `Reuse decision`；TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components 和 ffmpeg。
+1. Status Integrator 只提交 TASK-003/TASK-004 的分配状态和两份 Implementer 包，不运行产品代码或写任务 worktree。
+2. 用户在两个独立终端分别启动 TASK-003 Codex Implementer 与 TASK-004 Grok Implementer，启动后立即回到主控，无需等待任一任务先完成。
+3. 任一实现先返回 commit，主控先处理该任务并生成其 Reviewer 包；另一实现继续运行，不相互等待。
+4. TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components 和 ffmpeg。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | Status Integrator 关闭 TASK-002，并把 TASK-003/TASK-004 设为 `READY` | 只提交指定控制面 Markdown |
-| 状态提交后并行 | TASK-003 Implementer；TASK-004 Implementer | 两个独立 worktree、分支和写入会话 |
-| 等待实现证据 | TASK-003 Reviewer；TASK-004 Reviewer | 各自 Implementer 停止写入后再启动 |
+| 立即启动 | Status Integrator 同步 TASK-003/TASK-004 分配 | 只提交指定控制面 Markdown |
+| 状态提交后并行 | TASK-003 Codex Implementer；TASK-004 Grok Implementer | 两个独立 worktree、分支和写入会话 |
+| 等待各自实现证据 | TASK-003 Grok Reviewer；TASK-004 Codex Reviewer | 对应 Implementer 停止写入后即可独立启动 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界

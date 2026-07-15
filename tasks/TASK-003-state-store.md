@@ -1,7 +1,8 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Reviewer: `Grok`（全新独立会话；等待实现 commit）
 - Owner role: 实现 Agent；TL 审批 Schema
 - Size: M
 - Risk: High
@@ -64,3 +65,14 @@
 - 产品负责人对 ADR-003 S-01 至 S-08 的审批记录（已满足）。
 - 测试命令和关键约束场景结果。
 - 迁移前后 Schema 版本/checksum 以及构建产物包含 SQL 的输出。
+
+## 分配记录
+
+- Assigned at: 2026-07-15
+- Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Branch: `codex/task-003-state-store`
+- Implementer: Codex 独立会话，独占该 worktree 写入权。
+- Reviewer: Grok 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。
+- Implementer packet: `agent-prompts/TASK-003-IMPLEMENTER-CODEX.md`
+- Parallel task: TASK-004 Grok Implementer；不得读取或写入其 worktree，不等待其完成。
