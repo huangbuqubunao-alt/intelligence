@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: 第四个独立 Codex Reviewer 已 `REJECT`；等待原 Grok Implementer 完成 Correction 6 后重新授权审查
+- Reviewer: `Codex`（第五个全新独立会话；审查 correction 6 head `7272528a3c5603087446251ee96ae4766fedeb96`）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -180,3 +180,13 @@
 - Status decision: 回到 `IN_PROGRESS`，退回原 Grok Implementer；Correction 6 只允许修改 `discovery.py`、两份 discovery 测试与 handoff，不得修改 `state.py`、Schema/migration、domain、Provider、依赖或 lock。
 - Required proof: 使用严格只读 Protocol 表达使 frozen records 通过真实 mypy wiring；discovery/metadata 对多种纯空白版本在任何 Provider/Repository 调用前返回安全 `CONFIG_INVALID`，并保留现有全部组合、安全和无下载回归。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-6-GROK.md`。
+
+## Correction 6 主控预核验与第五次审查授权
+
+- Correction 6 head: `7272528a3c5603087446251ee96ae4766fedeb96`，唯一父提交为第四次 review evidence `d510794ffccf54948f967f010685aef1c0a02f3d`；source worktree 干净，Git 身份正确。
+- Scope evidence: correction commit 精确修改 `discovery.py`、两份 discovery 测试和 handoff 四个允许文件；`58c79af...HEAD` 完整产品范围仍为原批准 17 路径，固定 Diff check 为 0；无 state/migration/domain/provider/dependency/lock/control-plane 变化。
+- Static evidence: `ChannelCursorView` / `VideoRecordView` 的只读字段改为 property，未使用 Any/object/cast/ignore/wrapper 或具体 SQLite import；discovery/metadata Service 在外部调用前以 `pipeline_version.strip()` 拒绝纯空白。
+- Implementer self-report: state 30、unit 36、integration 10、全量 132、mypy src、真实 wiring probe、Ruff、CLI、build/migration 全 PASS；这些数字尚待 Reviewer 独立复跑。
+- Orchestrator focused pre-review: 同一真实 mypy wiring probe PASS；whitespace focused unit `1 passed`。该预核验只证明可进入审查，不是 `APPROVE` 或最终验收。
+- Status decision: 同步后进入 `IN_REVIEW`；Grok Implementer 停止写入。授权第五个全新独立 Codex Reviewer 审查固定 head，不得提前设为 `ACCEPTED/DONE`。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-5-CODEX.md`。
