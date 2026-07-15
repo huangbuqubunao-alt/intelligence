@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: `Codex`（全新独立会话；等待 correction 5 完成后再授权）
+- Reviewer: `Codex`（第四个全新独立会话；审查 correction 5A head `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -155,3 +155,15 @@
 - Correction 5 ownership: 只在 TASK-004 已批准文件中对齐 consumer Protocol/Service/Fake，并在 `tests/integration/test_discovery_adapter.py` 增加真实 `SQLiteStateRepository` 组合测试；不得修改 `state.py`、migration、Schema、`domain.py`、依赖或锁文件。
 - Contract rule: 保留单一 Repository 语义和 TASK-003 已接受的具名方法，不新增重复 SQLite wrapper，不让生产 `discovery.py` 导入具体 `SQLiteStateRepository`。应用边界必须显式提供 cursor revision、`pipeline_version` 和 UTC `now`；公共注解不得以 `Any`、宽 `object` 或自由 `dict` 掩盖不兼容。
 - Correction packet: `agent-prompts/TASK-004-CORRECTION-5-GROK.md`。
+
+## Repository 兼容修复与 correction 5A 核对
+
+- Source sync merge: `eb9246bf5ce650441aaa2d8b8c7f37f22fe6779d`，父提交为第三次 review evidence `1883367d...` 与控制面 main `58c79af...`；该 merge 只把已完成 TASK-003 与控制面同步到 source，不是 correction 产品提交。
+- Correction 5 code evidence: `d87253e4b6203232ccb933604f0523ef6d868ba8`。consumer Protocol/Service/Fake 已改用 TASK-003 的 `get_channel_cursor`、`save_discovery_batch`、`upsert_video_metadata`、`mark_video_unavailable` 具名 API，并增加真实临时 SQLite 组合测试；correction commit 只修改本轮允许文件。
+- 主控预审发现固定范围 `58c79af...d87253e...` 的 handoff 有尾随空白，Service CAS 证据直接调用 Repository、Fake 对未知视频 unavailable 的行为与 SQLite 不一致，且缺 naive UTC/空 pipeline version 的无副作用边界测试。该预审不否定已有 Repository API 对齐，但在审查前要求 5A 补证。
+- Correction 5A head: `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，父提交精确为 `d87253e...`，只修改 `discovery.py`、unit/integration discovery tests 与 handoff 四个允许文件；source worktree 干净，Git 身份正确。
+- 5A 关闭项：固定范围 `git diff --check 58c79af...9750df...` 返回 0；真实 Service 层竞态使 intervening SQLite commit 保留、stale batch 全不写并抛 `ConcurrencyConflict`；Fake 对未知视频与 SQLite 一致返回 `False` 且不写 unavailable；naive `now`/空 `pipeline_version` 返回 `CONFIG_INVALID` 且 Provider/Repository 零副作用。
+- Implementer 自报门禁：state integration 30、discovery unit 35、discovery integration 10、全量 131、mypy、Ruff、CLI、build 全 PASS；sdist/wheel 均含 migration SQL。主控只核验了 Git、Diff 与静态证据，这些数字必须由 Reviewer 独立重跑。
+- Scope evidence: `58c79af...9750df...` 的完整产品差异仍精确为原 TASK-004 17 路径；未修改 `domain.py`、`state.py`、migration、依赖范围或锁定版本之外的文件。
+- Status decision: 同步后进入 `IN_REVIEW`。原 Grok Implementer 必须停止写入并关闭/暂停会话；授权第四个全新独立 Codex Reviewer，且不得由前三次 Reviewer 或实现者自审替代。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-4-CODEX.md`。
