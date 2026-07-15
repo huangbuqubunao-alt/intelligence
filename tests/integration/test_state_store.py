@@ -1,0 +1,1241 @@
+"""Integration tests for the TASK-003 SQLite state repository."""
+
+from __future__ import annotations
+
+import hashlib
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from datetime import timedelta as td
+from importlib import resources
+from pathlib import Path
+
+import pytest
+
+from youtube_intel import state as state_mod
+from youtube_intel.domain import (
+    Availability,
+    DiscoveryBatch,
+    DiscoveryCursor,
+    ErrorCode,
+    JobStatus,
+    LiveStatus,
+    PipelineStatus,
+    ProcessingStage,
+    ProviderCallMetadata,
+    VideoMetadata,
+)
+from youtube_intel.state import (
+    ArtifactKind,
+    ArtifactWrite,
+    ConcurrencyConflict,
+    IntegrityConflict,
+    JobAttemptOutcome,
+    JobType,
+    LeaseConflict,
+    MigrationError,
+    ProviderCallCompletion,
+    ProviderCallRequest,
+    ProviderCallStatus,
+    ReportStatus,
+    ReportWrite,
+    RetentionClass,
+    SQLiteStateRepository,
+    StorageRoot,
+    VerifiedArtifact,
+    build_provider_request_hash,
+)
+
+NOW = datetime(2026, 7, 15, 8, 30, tzinfo=UTC)
+HASH_A = "a" * 64
+HASH_B = "b" * 64
+INPUT_HASH = "c" * 64
+REQUEST_HASH = build_provider_request_hash(
+    operation="transcribe",
+    normalized_input_hash=INPUT_HASH,
+    provider="fake-provider",
+    model="fake-model",
+    prompt_version=None,
+    schema_version="v1",
+)
+
+EXPECTED_TABLES = {
+    "artifacts",
+    "channel_cursors",
+    "job_attempts",
+    "jobs",
+    "provider_calls",
+    "reports",
+    "schema_migrations",
+    "videos",
+}
+EXPECTED_COLUMNS = {
+    "schema_migrations": ("version", "name", "checksum", "applied_at"),
+    "videos": (
+        "video_id",
+        "channel_id",
+        "channel_name",
+        "title",
+        "description",
+        "source_url",
+        "published_at",
+        "duration_seconds",
+        "default_language",
+        "available_languages_json",
+        "live_status",
+        "availability",
+        "pipeline_status",
+        "pipeline_version",
+        "score",
+        "should_summarize",
+        "discovered_at",
+        "updated_at",
+        "completed_at",
+    ),
+    "channel_cursors": (
+        "channel_id",
+        "last_checked_at",
+        "latest_published_at",
+        "latest_video_id",
+        "provider_cursor",
+        "last_error_code",
+        "last_error_message",
+        "revision",
+        "updated_at",
+    ),
+    "jobs": (
+        "job_id",
+        "scope_key",
+        "video_id",
+        "job_type",
+        "target_stage",
+        "pipeline_version",
+        "status",
+        "attempt_count",
+        "max_attempts",
+        "available_at",
+        "lease_owner",
+        "lease_until",
+        "last_error_code",
+        "last_error_message",
+        "created_at",
+        "updated_at",
+        "finished_at",
+    ),
+    "job_attempts": (
+        "attempt_id",
+        "job_id",
+        "attempt_number",
+        "lease_owner",
+        "started_at",
+        "lease_until",
+        "finished_at",
+        "outcome",
+        "error_code",
+        "error_message",
+    ),
+    "artifacts": (
+        "artifact_id",
+        "artifact_key",
+        "video_id",
+        "job_id",
+        "kind",
+        "storage_root",
+        "relative_path",
+        "content_hash",
+        "provider",
+        "model",
+        "producer_version",
+        "retention_class",
+        "created_at",
+        "expires_at",
+        "deleted_at",
+    ),
+    "provider_calls": (
+        "request_hash",
+        "operation",
+        "provider",
+        "model",
+        "prompt_version",
+        "schema_version",
+        "status",
+        "reservation_owner",
+        "lease_until",
+        "available_at",
+        "attempt_count",
+        "response_artifact_id",
+        "input_tokens",
+        "output_tokens",
+        "cost_microusd",
+        "last_error_code",
+        "last_error_message",
+        "started_at",
+        "finished_at",
+        "updated_at",
+    ),
+    "reports": (
+        "report_id",
+        "timezone",
+        "iso_year",
+        "iso_week",
+        "report_type",
+        "relative_path",
+        "content_hash",
+        "status",
+        "created_at",
+        "updated_at",
+    ),
+}
+
+
+def _database_path(tmp_path: Path) -> Path:
+    return tmp_path / "state.sqlite3"
+
+
+def _raw_connection(path: Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(path, isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _call() -> ProviderCallMetadata:
+    return ProviderCallMetadata(
+        provider="fake-source",
+        started_at=NOW,
+        finished_at=NOW,
+    )
+
+
+def _cursor(*, provider_cursor: str, latest_video_id: str | None) -> DiscoveryCursor:
+    return DiscoveryCursor(
+        channel_id="UC_TEST",
+        last_checked_at=NOW,
+        latest_published_at=NOW,
+        latest_video_id=latest_video_id,
+        provider_cursor=provider_cursor,
+    )
+
+
+def _batch(
+    *video_ids: str,
+    provider_cursor: str = "cursor-1",
+) -> DiscoveryBatch:
+    return DiscoveryBatch(
+        channel_id="UC_TEST",
+        video_ids=video_ids,
+        next_cursor=_cursor(
+            provider_cursor=provider_cursor,
+            latest_video_id=video_ids[-1] if video_ids else None,
+        ),
+        call=_call(),
+    )
+
+
+def _metadata(*, title: str = "Initial title") -> VideoMetadata:
+    return VideoMetadata(
+        video_id="video-1",
+        channel_id="UC_TEST",
+        channel_name="Test channel",
+        title=title,
+        description="Description",
+        source_url="https://www.youtube.com/watch?v=video-1",
+        published_at=NOW,
+        duration_seconds=123,
+        default_language="en",
+        available_languages=("en", "zh", "en"),
+        live_status=LiveStatus.NONE,
+        availability=Availability.PUBLIC,
+    )
+
+
+def _repository_with_video(tmp_path: Path) -> SQLiteStateRepository:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    repository.save_discovery_batch(
+        _batch("video-1"),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    return repository
+
+
+def _create_video_job(
+    repository: SQLiteStateRepository,
+    *,
+    job_id: str,
+    max_attempts: int = 3,
+    created_at: datetime = NOW,
+) -> None:
+    repository.create_job(
+        job_id=job_id,
+        scope_key="video:video-1:METADATA",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.METADATA,
+        pipeline_version="pipeline-v1",
+        max_attempts=max_attempts,
+        available_at=NOW,
+        now=created_at,
+    )
+
+
+def _artifact(
+    *,
+    artifact_id: str = "artifact-1",
+    artifact_key: str = "video:video-1:metadata:v1",
+    content_hash: str = HASH_A,
+    job_id: str | None = None,
+) -> ArtifactWrite:
+    return ArtifactWrite(
+        artifact_id=artifact_id,
+        artifact_key=artifact_key,
+        video_id="video-1",
+        job_id=job_id,
+        kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+        storage_root=StorageRoot.DATA,
+        relative_path="transcripts/video-1.txt",
+        content_hash=content_hash,
+        provider="fake-provider",
+        model=None,
+        producer_version="v1",
+        retention_class=RetentionClass.LONG_LIVED,
+        expires_at=None,
+    )
+
+
+def _provider_request() -> ProviderCallRequest:
+    return ProviderCallRequest(
+        operation="transcribe",
+        normalized_input_hash=INPUT_HASH,
+        provider="fake-provider",
+        model="fake-model",
+        prompt_version=None,
+        schema_version="v1",
+        deterministic_artifact_key="video:video-1:metadata:v1",
+    )
+
+
+def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+
+    first = repository.initialize(now=NOW)
+    second = repository.initialize(now=NOW)
+
+    sql = (
+        resources.files("youtube_intel")
+        .joinpath("migrations", "001_initial.sql")
+        .read_bytes()
+    )
+    assert first == second
+    assert first.version == 1
+    assert first.name == "001_initial.sql"
+    assert first.checksum == hashlib.sha256(sql).hexdigest()
+
+    with _raw_connection(path) as connection:
+        tables = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+            if not row["name"].startswith("sqlite_")
+        }
+        migration_count = connection.execute(
+            "SELECT COUNT(*) FROM schema_migrations"
+        ).fetchone()[0]
+    assert tables == EXPECTED_TABLES
+    assert migration_count == 1
+
+
+def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    settings = repository.database_settings()
+
+    assert settings.foreign_keys is True
+    assert settings.busy_timeout_ms == 5000
+    assert settings.synchronous == "NORMAL"
+    assert settings.journal_mode == "WAL"
+    assert settings.read_uncommitted is False
+
+
+def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        actual_columns = {
+            table: tuple(
+                row["name"]
+                for row in connection.execute(f'PRAGMA table_info("{table}")')
+            )
+            for table in EXPECTED_COLUMNS
+        }
+        explicit_indexes = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'index' AND sql IS NOT NULL"
+            )
+        }
+        active_job_index = connection.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type = 'index' AND name = 'uq_jobs_active_scope_pipeline'"
+        ).fetchone()[0]
+
+    assert actual_columns == EXPECTED_COLUMNS
+    assert explicit_indexes == {
+        "idx_artifacts_retention",
+        "idx_artifacts_video_kind_created",
+        "idx_jobs_schedule",
+        "idx_jobs_video_stage_created",
+        "idx_provider_calls_recovery",
+        "idx_videos_availability_updated",
+        "idx_videos_channel_published",
+        "idx_videos_pipeline_updated",
+        "uq_job_attempts_active",
+        "uq_job_attempts_number",
+        "uq_jobs_active_scope_pipeline",
+    }
+    assert "scope_key, pipeline_version" in active_job_index
+    assert "PENDING" in active_job_index
+    assert "RUNNING" in active_job_index
+    assert "RETRY_PENDING" in active_job_index
+
+
+@pytest.mark.parametrize("corruption", ["name", "checksum", "user_version"])
+def test_initialize_rejects_migration_history_mismatch(
+    tmp_path: Path, corruption: str
+) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        if corruption == "name":
+            connection.execute(
+                "UPDATE schema_migrations SET name = 'renamed.sql' WHERE version = 1"
+            )
+        elif corruption == "checksum":
+            connection.execute(
+                "UPDATE schema_migrations SET checksum = ? WHERE version = 1",
+                ("0" * 64,),
+            )
+        else:
+            connection.execute("PRAGMA user_version = 0")
+
+    with pytest.raises(MigrationError, match="migration history mismatch"):
+        repository.initialize(now=NOW)
+
+
+def test_failed_migration_rolls_back_schema_and_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    broken_sql = "CREATE TABLE half_applied (value TEXT);\nTHIS IS NOT SQL;\n"
+    migration = state_mod._Migration(
+        version=1,
+        name="001_initial.sql",
+        sql=broken_sql,
+        checksum=hashlib.sha256(broken_sql.encode()).hexdigest(),
+    )
+    monkeypatch.setattr(repository, "_load_migrations", lambda: (migration,))
+
+    with pytest.raises(MigrationError, match="failed to apply migration"):
+        repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        tables = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+    assert "half_applied" not in tables
+    assert "schema_migrations" not in tables
+    assert version == 0
+
+
+def test_discovery_batch_and_cursor_are_atomic_with_empty_batch_support(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    first = repository.save_discovery_batch(
+        _batch("video-1", "video-2"),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    empty_batch = _batch(provider_cursor="cursor-2")
+    second = repository.save_discovery_batch(
+        empty_batch,
+        expected_cursor=_cursor(
+            provider_cursor="cursor-1",
+            latest_video_id="video-2",
+        ),
+        expected_revision=1,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+
+    assert first.revision == 1
+    assert second.revision == 2
+    assert second.provider_cursor == "cursor-2"
+    assert repository.get_video("video-1").title is None
+    assert repository.get_video("video-2").pipeline_status is PipelineStatus.DISCOVERED
+
+
+def test_discovery_rejects_stale_cursor_without_partial_candidates(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    repository.save_discovery_batch(
+        _batch("video-1"),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+
+    with pytest.raises(ConcurrencyConflict, match="channel cursor changed"):
+        repository.save_discovery_batch(
+            _batch("stale-video", provider_cursor="cursor-stale"),
+            expected_cursor=None,
+            expected_revision=0,
+            pipeline_version="pipeline-v1",
+            now=NOW,
+        )
+
+    assert repository.get_video("stale-video") is None
+    assert repository.get_channel_cursor("UC_TEST").revision == 1
+
+
+def test_discovery_failure_after_candidates_rolls_back_batch_and_cursor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    def fail_after_candidates(point: str) -> None:
+        if point == "discovery.after_candidates":
+            raise RuntimeError("injected failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_after_candidates)
+
+    with pytest.raises(RuntimeError, match="injected failure"):
+        repository.save_discovery_batch(
+            _batch("rolled-back-video"),
+            expected_cursor=None,
+            expected_revision=0,
+            pipeline_version="pipeline-v1",
+            now=NOW,
+        )
+
+    assert repository.get_video("rolled-back-video") is None
+    assert repository.get_channel_cursor("UC_TEST") is None
+
+
+def test_metadata_upsert_preserves_discovery_and_pipeline_state(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    repository.save_discovery_batch(
+        _batch("video-1"),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    discovered = repository.get_video("video-1")
+
+    first = repository.upsert_video_metadata(
+        _metadata(), pipeline_version="pipeline-v1", now=NOW
+    )
+    for expected, target in (
+        (PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY),
+        (PipelineStatus.METADATA_READY, PipelineStatus.TRANSCRIPT_READY),
+        (PipelineStatus.TRANSCRIPT_READY, PipelineStatus.SCORED),
+        (PipelineStatus.SCORED, PipelineStatus.LOW_VALUE_READY),
+        (PipelineStatus.LOW_VALUE_READY, PipelineStatus.COMPLETE),
+    ):
+        assert repository.advance_pipeline(
+            "video-1",
+            expected_status=expected,
+            target_status=target,
+            pipeline_version="pipeline-v1",
+            now=NOW,
+        )
+    updated = repository.upsert_video_metadata(
+        _metadata(title="Renamed title"),
+        pipeline_version="other-version",
+        now=NOW,
+    )
+
+    assert first.available_languages == ("en", "zh")
+    assert updated.title == "Renamed title"
+    assert updated.discovered_at == discovered.discovered_at
+    assert updated.pipeline_status is PipelineStatus.COMPLETE
+    assert updated.pipeline_version == "pipeline-v1"
+
+
+def test_mark_unavailable_does_not_fabricate_metadata(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    repository.save_discovery_batch(
+        _batch("video-1"),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+
+    assert repository.mark_video_unavailable(
+        "video-1", availability=Availability.PRIVATE, now=NOW
+    )
+    video = repository.get_video("video-1")
+
+    assert video.availability is Availability.PRIVATE
+    assert video.title is None
+    assert video.source_url is None
+
+
+def test_active_job_uniqueness_covers_video_and_global_scopes(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="video-job-1")
+
+    with pytest.raises(IntegrityConflict, match="active job"):
+        _create_video_job(repository, job_id="video-job-2")
+
+    repository.create_job(
+        job_id="global-job-1",
+        scope_key="channel:UC_TEST:discovery",
+        video_id=None,
+        job_type=JobType.CHANNEL_DISCOVERY,
+        target_stage=ProcessingStage.DISCOVERY,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    with pytest.raises(IntegrityConflict, match="active job"):
+        repository.create_job(
+            job_id="global-job-2",
+            scope_key="channel:UC_TEST:discovery",
+            video_id=None,
+            job_type=JobType.CHANNEL_DISCOVERY,
+            target_stage=ProcessingStage.DISCOVERY,
+            pipeline_version="pipeline-v1",
+            max_attempts=3,
+            available_at=NOW,
+            now=NOW,
+        )
+
+
+def test_global_job_scope_key_requires_a_non_empty_canonical_scope(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    with pytest.raises(ValueError, match="scope_key is not canonical"):
+        repository.create_job(
+            job_id="invalid-global-job",
+            scope_key="channel::discovery",
+            video_id=None,
+            job_type=JobType.CHANNEL_DISCOVERY,
+            target_stage=ProcessingStage.DISCOVERY,
+            pipeline_version="pipeline-v1",
+            max_attempts=3,
+            available_at=NOW,
+            now=NOW,
+        )
+
+
+def test_claim_uses_stable_order_and_creates_attempt(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    repository.create_job(
+        job_id="job-b",
+        scope_key="weekly:Asia-Shanghai:2026-W29:weekly-b",
+        video_id=None,
+        job_type=JobType.WEEKLY_REPORT,
+        target_stage=ProcessingStage.WEEKLY_REPORT,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.create_job(
+        job_id="job-a",
+        scope_key="weekly:Asia-Shanghai:2026-W29:weekly-a",
+        video_id=None,
+        job_type=JobType.WEEKLY_REPORT,
+        target_stage=ProcessingStage.WEEKLY_REPORT,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+
+    claimed = repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=5), now=NOW
+    )
+
+    assert claimed.job_id == "job-a"
+    assert claimed.status is JobStatus.RUNNING
+    assert claimed.attempt_count == 1
+    attempts = repository.list_job_attempts("job-a")
+    assert [(item.attempt_number, item.lease_owner) for item in attempts] == [
+        (1, "worker-1")
+    ]
+    completed = repository.complete_job("job-a", owner="worker-1", now=NOW)
+    assert completed.status is JobStatus.SUCCEEDED
+    assert repository.list_job_attempts("job-a")[0].outcome is JobAttemptOutcome.SUCCEEDED
+
+
+def test_two_connections_cannot_double_claim_one_job(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="single-job")
+
+    def claim(owner: str) -> str | None:
+        independent = SQLiteStateRepository(_database_path(tmp_path))
+        job = independent.claim_next_job(
+            owner=owner,
+            lease_until=NOW + td(minutes=5),
+            now=NOW,
+        )
+        return None if job is None else job.lease_owner
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        owners = list(executor.map(claim, ("worker-a", "worker-b")))
+
+    assert sum(owner is not None for owner in owners) == 1
+    assert len(repository.list_job_attempts("single-job")) == 1
+
+
+def test_renew_requires_current_owner_and_unexpired_lease(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="renew-job")
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=5), now=NOW
+    )
+
+    assert not repository.renew_job(
+        "renew-job",
+        owner="other-worker",
+        lease_until=NOW + td(minutes=10),
+        now=NOW + td(minutes=1),
+    )
+    assert repository.renew_job(
+        "renew-job",
+        owner="worker-1",
+        lease_until=NOW + td(minutes=10),
+        now=NOW + td(minutes=1),
+    )
+    assert not repository.renew_job(
+        "renew-job",
+        owner="worker-1",
+        lease_until=NOW + td(minutes=20),
+        now=NOW + td(minutes=11),
+    )
+    assert repository.list_job_attempts("renew-job")[0].lease_until == NOW + td(
+        minutes=10
+    )
+
+
+def test_retry_must_be_activated_and_attempt_history_is_preserved(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="retry-job")
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=5), now=NOW
+    )
+
+    failed = repository.fail_job(
+        "retry-job",
+        owner="worker-1",
+        error_code=ErrorCode.TRANSIENT_NETWORK,
+        error_message="Authorization: Bearer top-secret\nraw response body",
+        retry_at=NOW + td(minutes=10),
+        now=NOW + td(minutes=1),
+    )
+    assert failed.status is JobStatus.RETRY_PENDING
+    assert repository.claim_next_job(
+        owner="worker-2", lease_until=NOW + td(minutes=20), now=NOW + td(minutes=10)
+    ) is None
+    assert repository.activate_retry_jobs(now=NOW + td(minutes=9)) == ()
+    activated = repository.activate_retry_jobs(now=NOW + td(minutes=10))
+    assert [job.job_id for job in activated] == ["retry-job"]
+
+    claimed = repository.claim_next_job(
+        owner="worker-2",
+        lease_until=NOW + td(minutes=20),
+        now=NOW + td(minutes=10),
+    )
+    assert claimed.attempt_count == 2
+    succeeded = repository.complete_stage(
+        job_id="retry-job",
+        owner="worker-2",
+        video_id="video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        artifacts=(),
+        provider_call=None,
+        now=NOW + td(minutes=11),
+    ).job
+    assert succeeded.status is JobStatus.SUCCEEDED
+    attempts = repository.list_job_attempts("retry-job")
+    assert [attempt.outcome for attempt in attempts] == [
+        JobAttemptOutcome.RETRY_PENDING,
+        JobAttemptOutcome.SUCCEEDED,
+    ]
+
+    with _raw_connection(_database_path(tmp_path)) as connection:
+        stored = " ".join(
+            str(value)
+            for row in connection.execute(
+                "SELECT last_error_message FROM jobs WHERE job_id = 'retry-job' "
+                "UNION ALL SELECT error_message FROM job_attempts "
+                "WHERE job_id = 'retry-job'"
+            )
+            for value in row
+            if value is not None
+        )
+    assert "top-secret" not in stored
+    assert "raw response body" not in stored
+
+
+def test_lease_recovery_requeues_then_stops_at_max_attempts(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="crashed-job", max_attempts=2)
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=1), now=NOW
+    )
+
+    recovered = repository.reclaim_expired_jobs(now=NOW + td(minutes=2))
+    assert recovered[0].status is JobStatus.RETRY_PENDING
+    repository.activate_retry_jobs(now=NOW + td(minutes=2))
+    repository.claim_next_job(
+        owner="worker-2",
+        lease_until=NOW + td(minutes=3),
+        now=NOW + td(minutes=2),
+    )
+    final = repository.reclaim_expired_jobs(now=NOW + td(minutes=4))
+
+    assert final[0].status is JobStatus.FAILED_FINAL
+    assert final[0].attempt_count == 2
+    assert [attempt.outcome for attempt in repository.list_job_attempts("crashed-job")] == [
+        JobAttemptOutcome.LEASE_EXPIRED,
+        JobAttemptOutcome.LEASE_EXPIRED,
+    ]
+
+
+def test_manual_rerun_creates_new_job_without_rewriting_old_history(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="old-job", max_attempts=1)
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=1), now=NOW
+    )
+    repository.reclaim_expired_jobs(now=NOW + td(minutes=2))
+    before = repository.list_job_attempts("old-job")
+
+    rerun = repository.rerun_job(
+        "old-job",
+        new_job_id="new-job",
+        available_at=NOW + td(minutes=2),
+        now=NOW + td(minutes=2),
+    )
+
+    assert rerun.job_id == "new-job"
+    assert rerun.status is JobStatus.PENDING
+    assert rerun.attempt_count == 0
+    assert repository.get_job("old-job").status is JobStatus.FAILED_FINAL
+    assert repository.list_job_attempts("old-job") == before
+
+
+def test_artifact_upsert_is_idempotent_and_rejects_key_corruption(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+
+    first = repository.upsert_artifact(_artifact(), now=NOW)
+    second = repository.upsert_artifact(_artifact(), now=NOW + td(minutes=1))
+
+    assert first == second
+    with pytest.raises(IntegrityConflict, match="artifact key"):
+        repository.upsert_artifact(
+            _artifact(artifact_id="artifact-other", content_hash=HASH_B),
+            now=NOW + td(minutes=2),
+        )
+
+
+def test_provider_call_reservation_is_exclusive_and_owner_checked(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    artifact = repository.upsert_artifact(_artifact(), now=NOW)
+
+    first = repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=5),
+        available_at=NOW,
+        now=NOW,
+    )
+    concurrent = repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-2",
+        lease_until=NOW + td(minutes=5),
+        available_at=NOW,
+        now=NOW,
+    )
+
+    assert first.acquired is True
+    assert concurrent.acquired is False
+    assert first.record.attempt_count == 1
+    with pytest.raises(LeaseConflict, match="provider call reservation"):
+        repository.complete_provider_call(
+            REQUEST_HASH,
+            owner="worker-2",
+            response_artifact_id=artifact.artifact_id,
+            input_tokens=10,
+            output_tokens=5,
+            cost_microusd=25,
+            now=NOW + td(minutes=1),
+        )
+    completed = repository.complete_provider_call(
+        REQUEST_HASH,
+        owner="worker-1",
+        response_artifact_id=artifact.artifact_id,
+        input_tokens=10,
+        output_tokens=5,
+        cost_microusd=25,
+        now=NOW + td(minutes=1),
+    )
+    assert completed.status is ProviderCallStatus.SUCCEEDED
+    assert completed.response_artifact_id == artifact.artifact_id
+
+
+def test_provider_retry_and_expired_reservation_takeover(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=1),
+        available_at=NOW,
+        now=NOW,
+    )
+    failed = repository.fail_provider_call(
+        REQUEST_HASH,
+        owner="worker-1",
+        retryable=True,
+        available_at=NOW + td(minutes=5),
+        error_code=ErrorCode.PROVIDER_UNAVAILABLE,
+        error_message="api_key=very-secret\nprovider raw response",
+        now=NOW + td(seconds=30),
+    )
+    assert failed.status is ProviderCallStatus.FAILED_RETRYABLE
+
+    too_early = repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-2",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW + td(minutes=5),
+        now=NOW + td(minutes=4),
+    )
+    acquired = repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-2",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW + td(minutes=5),
+        now=NOW + td(minutes=5),
+    )
+    assert too_early.acquired is False
+    assert acquired.acquired is True
+    assert acquired.record.attempt_count == 2
+
+    with _raw_connection(_database_path(tmp_path)) as connection:
+        message = connection.execute(
+            "SELECT last_error_message FROM provider_calls WHERE request_hash = ?",
+            (REQUEST_HASH,),
+        ).fetchone()[0]
+    assert "very-secret" not in (message or "")
+    assert "provider raw response" not in (message or "")
+
+
+def test_expired_provider_reservation_recovers_verified_artifact(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="crashed-worker",
+        lease_until=NOW + td(minutes=1),
+        available_at=NOW,
+        now=NOW,
+    )
+    artifact = repository.upsert_artifact(_artifact(), now=NOW + td(minutes=2))
+
+    recovered = repository.reserve_provider_call(
+        _provider_request(),
+        owner="recovery-worker",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW,
+        now=NOW + td(minutes=2),
+        verified_artifact=VerifiedArtifact(
+            artifact_key=artifact.artifact_key,
+            content_hash=artifact.content_hash,
+        ),
+    )
+
+    assert recovered.acquired is False
+    assert recovered.recovered_from_artifact is True
+    assert recovered.record.status is ProviderCallStatus.SUCCEEDED
+    assert recovered.record.response_artifact_id == artifact.artifact_id
+
+
+def test_stage_completion_commits_job_artifact_call_and_pipeline_together(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    repository.create_job(
+        job_id="stage-job",
+        scope_key="video:video-1:TRANSCRIPT",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.TRANSCRIPT,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW,
+        now=NOW,
+    )
+    artifact = _artifact(job_id="stage-job")
+
+    with pytest.raises(IntegrityConflict, match="stage artifacts"):
+        repository.complete_stage(
+            job_id="stage-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.METADATA_READY,
+            target_status=PipelineStatus.TRANSCRIPT_READY,
+            pipeline_version="pipeline-v1",
+            artifacts=(_artifact(job_id=None),),
+            provider_call=None,
+            now=NOW + td(seconds=30),
+        )
+    assert repository.get_artifact_by_key(artifact.artifact_key) is None
+
+    result = repository.complete_stage(
+        job_id="stage-job",
+        owner="worker-1",
+        video_id="video-1",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="pipeline-v1",
+        artifacts=(artifact,),
+        provider_call=ProviderCallCompletion(
+            request_hash=REQUEST_HASH,
+            response_artifact_id=artifact.artifact_id,
+            input_tokens=12,
+            output_tokens=4,
+            cost_microusd=50,
+        ),
+        now=NOW + td(minutes=1),
+    )
+
+    assert result.job.status is JobStatus.SUCCEEDED
+    assert result.video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert result.artifacts[0].job_id == "stage-job"
+    assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
+
+
+def test_stage_completion_rejects_a_job_for_another_target_stage(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    _create_video_job(repository, job_id="wrong-stage-job")
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+
+    with pytest.raises(ConcurrencyConflict, match="target stage"):
+        repository.complete_stage(
+            job_id="wrong-stage-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.METADATA_READY,
+            target_status=PipelineStatus.TRANSCRIPT_READY,
+            pipeline_version="pipeline-v1",
+            artifacts=(),
+            provider_call=None,
+            now=NOW + td(minutes=1),
+        )
+
+    assert repository.get_job("wrong-stage-job").status is JobStatus.RUNNING
+    assert repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+
+
+@pytest.mark.parametrize(
+    "failure_point",
+    [
+        "stage.after_artifacts",
+        "stage.after_provider_call",
+        "stage.after_pipeline",
+    ],
+)
+def test_stage_completion_failure_rolls_back_every_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_point: str,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    repository.create_job(
+        job_id="stage-job",
+        scope_key="video:video-1:TRANSCRIPT",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.TRANSCRIPT,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW,
+        now=NOW,
+    )
+    artifact = _artifact(job_id="stage-job")
+
+    def fail_at_requested_boundary(point: str) -> None:
+        if point == failure_point:
+            raise RuntimeError("injected stage failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_at_requested_boundary)
+    with pytest.raises(RuntimeError, match="injected stage failure"):
+        repository.complete_stage(
+            job_id="stage-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.METADATA_READY,
+            target_status=PipelineStatus.TRANSCRIPT_READY,
+            pipeline_version="pipeline-v1",
+            artifacts=(artifact,),
+            provider_call=ProviderCallCompletion(
+                request_hash=REQUEST_HASH,
+                response_artifact_id=artifact.artifact_id,
+                input_tokens=None,
+                output_tokens=None,
+                cost_microusd=None,
+            ),
+            now=NOW + td(minutes=1),
+        )
+
+    assert repository.get_artifact_by_key(artifact.artifact_key) is None
+    assert repository.get_provider_call(REQUEST_HASH).status is ProviderCallStatus.PENDING
+    assert repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+    assert repository.get_job("stage-job").status is JobStatus.RUNNING
+    assert repository.list_job_attempts("stage-job")[0].finished_at is None
+
+
+def test_weekly_report_upsert_uses_stable_period_and_transaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    first = repository.upsert_report(
+        ReportWrite(
+            report_id="report-1",
+            timezone="Asia/Shanghai",
+            iso_year=2026,
+            iso_week=29,
+            relative_path=None,
+            content_hash=None,
+            status=ReportStatus.PENDING,
+        ),
+        now=NOW,
+    )
+    updated = repository.upsert_report(
+        ReportWrite(
+            report_id="report-duplicate-id",
+            timezone="Asia/Shanghai",
+            iso_year=2026,
+            iso_week=29,
+            relative_path="reports/2026-W29.md",
+            content_hash=HASH_A,
+            status=ReportStatus.WRITTEN,
+        ),
+        now=NOW + td(minutes=1),
+    )
+    assert first.report_id == updated.report_id == "report-1"
+    assert updated.status is ReportStatus.WRITTEN
+
+    def fail_before_commit(point: str) -> None:
+        if point == "report.before_commit":
+            raise RuntimeError("injected report failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_before_commit)
+    with pytest.raises(RuntimeError, match="injected report failure"):
+        repository.upsert_report(
+            ReportWrite(
+                report_id="report-2",
+                timezone="UTC",
+                iso_year=2026,
+                iso_week=29,
+                relative_path=None,
+                content_hash=None,
+                status=ReportStatus.PENDING,
+            ),
+            now=NOW,
+        )
+    assert repository.get_report(
+        timezone="UTC", iso_year=2026, iso_week=29
+    ) is None

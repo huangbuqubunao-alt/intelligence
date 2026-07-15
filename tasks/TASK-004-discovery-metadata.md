@@ -1,7 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Grok`
+- Reviewer: `Codex`（全新独立会话；等待 correction 5 完成后再授权）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -73,3 +74,84 @@
 - `docs/REUSE_REGISTER.md` 中 TASK-004 复用选择与实际 Diff 一致的检查结果。
 - 如运行真实冒烟，记录命令、时间、频道和脱敏结果；未运行则明确说明。
 - Provider 页面/响应变更风险说明。
+
+## 分配记录
+
+- Assigned at: 2026-07-15
+- Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Branch: `grok/task-004-discovery-metadata`
+- Implementer: Grok 独立会话，独占该 worktree 写入权。
+- Reviewer: Codex 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。
+- Implementer packet: `agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
+- Parallel task: TASK-003 Codex Implementer；不得读取或写入其 worktree，不等待其完成。
+
+## 主控预审修复轮
+
+- Pre-review at: 2026-07-15
+- Reviewed source head: `392edfb897003c1583b538667d10a2a89926a94b`
+- Git evidence: base、单提交父链、17 个允许文件、`git diff --check` 和干净 worktree 均通过；本轮不否定已通过的依赖、离线检查或未授权边界。
+- Finding: `src/youtube_intel/providers/youtube.py` 把 `SAFE_YDL_OPTS`、`build_ydl_opts`、`map_info_dict_to_video_metadata` 等含自由 `dict`/`Mapping[str, Any]` 的 Adapter 内部边界显式列入 `__all__`；`YtDlpMetadataProvider` 也公开 `last_opts: list[dict[str, Any]]`。这违反 System Design §5.2、ADR-002 C-05 和本任务包的“外部自由 dict 只限 Adapter 内部”约束。
+- Severity: `P1`；必须修复后才能启动 Reviewer。
+- Status decision: 保持 `IN_PROGRESS`，退回原 Grok Implementer；不得基于 `392edfb...` 启动 Codex Reviewer。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-GROK.md`
+
+## 主控预审修复核对（二次）
+
+- Checked source head: `10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
+- Git evidence: 修复提交仅触及前一轮允许的 3 个文件，`dcc7d85...HEAD` 仍处于原 TASK-004 的 17 文件范围，worktree 干净，`git diff --check` 通过；不否定实现者已报告的离线检查或未授权边界。
+- Finding: 首个修复把原始映射的类型注解改为私有并将 `__all__` 收为类名，但仍定义非私有 `map_info_dict_to_video_metadata(info: object)`，并在公开 `YtDlpMetadataProvider.__init__` 保留 `ydl_factory: object | None` 与 `last_opts: object | None`。`__all__` 不是访问控制；用 `object` 包装自由 dict 也不使其成为冻结领域契约。两项均违反首轮修复包要求的“私有命名、不得用 Any/别名/无类型包装伪装公开接口”。
+- Severity: `P1`；不得以 `10f5ffa...` 启动 Reviewer。
+- Status decision: 保持 `IN_PROGRESS`，由原 Grok Implementer 做第二轮最小修复；这一轮允许更新原任务范围内的 `tests/integration/test_discovery_adapter.py`，以移除其对残余公开映射名的依赖。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-2-GROK.md`
+
+## 主控预审修复核对（三次）
+
+- Checked source head: `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
+- Git evidence: source worktree 干净；第二轮修复 commit 仅为 `src/youtube_intel/providers/youtube.py`、`tests/unit/test_discovery.py`、`tests/integration/test_discovery_adapter.py`、`handoffs/TASK-004.md` 四个已批准文件；相对 `dcc7d85...` 的完整范围仍精确属于原 TASK-004 17 文件集合，`git diff --check` 通过。
+- Public-contract evidence: `YtDlpMetadataProvider.__init__` 只保留 `timeout_seconds: float`；删除残余非私有 `map_info_dict_to_video_metadata`；raw dict、字段映射、factory、时钟和 options sink 都只使用 `_` 私有名称；`__all__` 仅为 `YtDlpMetadataProvider`。离线集成测试不再导入非私有 mapping helper，回归测试检查上述 Surface。
+- Status decision: 主控预审 P1 已关闭；同步后状态为 `IN_REVIEW`，由全新独立 Codex Reviewer 审查。此条不是最终验收，不得设为 `ACCEPTED` 或 `DONE`。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-CODEX.md`
+
+## 独立审查拒绝与修复轮（三次）
+
+- Review evidence: `f34cbb09d628ebb256bf5f2895adfd10dbd61812`，审查对象为 `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`；Reviewer 只提交 `handoffs/TASK-004.md`，完整 17 文件范围、依赖、复用、公开 Surface 与安全 options 均通过。
+- Verdict: `REJECT`。P1：畸形 yt-dlp payload 逸出原始 `ValueError`；返回 `video_id` 不校验请求 ID；RSS 不完整 entry 被跳过仍推进游标；HTTP 404/403/503 的分类顺序使终态/重试语义反转。P2：RSS read 失败不关闭 response，`needs_auth` 可能标为 `PUBLIC`。P3：公开注解回归哨兵会漏掉 `Any`。
+- Status decision: 回到 `IN_PROGRESS`，由原 Grok Implementer 从 source head `f34cbb...` 修复；不得以当前 evidence 启动第二个 Codex Reviewer 或设为 `ACCEPTED`。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-3-GROK.md`
+
+## Reviewer REJECT 修复核对（四次）
+
+- Checked source head: `30932e1742e948683f9e1c0f63236451b8d731bd`，父提交为 review evidence `f34cbb09d628ebb256bf5f2895adfd10dbd61812`。
+- Scope evidence: correction commit 只修改 `discovery.py`、`providers/youtube.py`、unit/integration discovery tests 与 handoff 五个已批准文件；相对 `dcc7d85...` 的完整范围仍为原 17 文件，worktree 干净，`git diff --check` 通过。
+- Static evidence: safe malformed payload mapping、请求/响应 ID 核验、RSS 完整 entry 原子失败、HTTP 404/403/5xx 优先分类、read failure finally-close、`needs_auth -> RESTRICTED` 及 `Any/object` public-surface 哨兵均有实现和离线回归；未改变依赖、公共领域契约、无下载/无登录边界或 TASK-003。
+- Status decision: 已进入 `IN_REVIEW`；不以主控预核验取代独立审查。TASK-003 Reviewer 已结束，现授权一个**全新、独立于首个 TASK-004 Reviewer 的 Codex 会话**审查本 head。
+- Second-review packet: `agent-prompts/TASK-004-REVIEWER-2-CODEX.md`
+
+## 第二次独立审查拒绝与修复轮（四次）
+
+- Review evidence: `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`，审查对象为 `30932e1742e948683f9e1c0f63236451b8d731bd`；父提交精确为 source head，范围仅 `handoffs/TASK-004.md`。
+- Verdict: `REJECT`。P1-1：`providers/youtube.py` 的 `_coerce_age_limit()` 在非法 age_limit 时返回安全 `INVALID_RESPONSE`，但 `AppError.video_id=None`，未保存请求 video ID。P1-2：`discovery.py` 将 entry 缺失的 RSS channelId 回填为请求 channel，绕过完整性失败，仍保存候选并推进 cursor。
+- 已独立通过：其他 malformed date/duration、请求/响应 ID mismatch、RSS 缺 videoId/published/title、较旧 entry 恢复、全部 response close、HTTP 404/403/429/503/599、正文脱敏、`needs_auth -> RESTRICTED`、公开 Surface、yt-dlp 安全 options、无下载/无 Cookie/无 remote components。
+- Status decision: 回到 `IN_PROGRESS`，只退回原 Grok Implementer 修复上述两个 P1；不得修改依赖、公共契约、task 状态以外的控制面，亦不得启动第三位 Reviewer。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-4-GROK.md`
+
+## 第二次审查 P1 修复核对（五次）
+
+- Checked source head: `54c0ab201388cba35e481d7a511f21575946ad14`，父提交为第二次 review evidence `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`。
+- Scope evidence: correction 4 精确修改 `providers/youtube.py`、`discovery.py`、两份 discovery 测试与 handoff 五个已批准文件；相对 `dcc7d85...` 的完整范围仍为原 17 文件，worktree 干净，`git diff --check` 通过。
+- Static evidence: `_coerce_age_limit()` / `_map_availability()` 接受请求 video ID，非法 age_limit 返回 `INVALID_RESPONSE`、nonretryable、METADATA 且保留身份；RSS entry channelId 缺失或不匹配立即 `INVALID_RESPONSE`，不再回填请求 channel。unit/integration 回归验证不保存候选/不推进 cursor 与较旧条目恢复。
+- Status decision: 进入 `IN_REVIEW`；授权一个**全新、独立于所有此前 TASK-004 Implementer 与 Reviewer 会话的 Grok Reviewer**，不得以主控核验取代独立审查。
+- Reviewer packet: `agent-prompts/TASK-004-REVIEWER-3-GROK.md`
+
+## 第三次独立审查与主控组合验收
+
+- Reviewed implementation head: `54c0ab201388cba35e481d7a511f21575946ad14`。
+- Review evidence: `1883367d313623c42d9d3624b16307ca8d502709`，父提交精确为 reviewed head，范围仅 `handoffs/TASK-004.md`。
+- Reviewer verdict: `APPROVE`。`uv lock --check`、`uv sync --locked`、unit 33、integration 6、全量 86、mypy、Ruff、CLI help 与固定 Diff 检查全部通过；AC-1 至 AC-5、ADR-004 D-01 至 D-08 在 TASK-004 独立分支/Fake Repository 范围内全部 PASS，无 P0/P1/P2/P3。Reviewer 未运行真实 YouTube、Cookie/登录、remote components、ffmpeg 或媒体/字幕下载。
+- 主控组合契约探针：`SQLiteStateRepository` 不能满足当前 `DiscoveryRepository`。运行时 `isinstance(..., DiscoveryRepository) == False`；TASK-004 需要 `get_cursor`、`upsert_metadata`、`mark_unavailable`，而 main 的 TASK-003 提供 `get_channel_cursor`、`upsert_video_metadata`、`mark_video_unavailable`；双方 `save_discovery_batch` 还在 `expected_revision`、`pipeline_version`、`now` 和返回值上不一致。
+- Severity: `P1`。这不是对第三次 Reviewer 已覆盖项目的否定，而是 ADR-004 D-08 明确推迟到两项整合后执行的真实 SQLite 组合契约门禁；当前实现若直接合入，`DiscoveryService` 首次读取 cursor 即无法调用 SQLite Repository。
+- Status decision: **不进入 `ACCEPTED`**，回到 `IN_PROGRESS`。原 Grok Implementer 必须先把包含 TASK-003 的最新控制面 main 合入 TASK-004 source 分支，再做 correction 5；不得 rebase、reset、cherry-pick、改写历史或修改 main。
+- Correction 5 ownership: 只在 TASK-004 已批准文件中对齐 consumer Protocol/Service/Fake，并在 `tests/integration/test_discovery_adapter.py` 增加真实 `SQLiteStateRepository` 组合测试；不得修改 `state.py`、migration、Schema、`domain.py`、依赖或锁文件。
+- Contract rule: 保留单一 Repository 语义和 TASK-003 已接受的具名方法，不新增重复 SQLite wrapper，不让生产 `discovery.py` 导入具体 `SQLiteStateRepository`。应用边界必须显式提供 cursor revision、`pipeline_version` 和 UTC `now`；公共注解不得以 `Any`、宽 `object` 或自由 `dict` 掩盖不兼容。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-5-GROK.md`。

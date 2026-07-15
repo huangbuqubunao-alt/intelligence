@@ -1,7 +1,8 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `DONE`
+- Assignee: `Codex`
+- Reviewer: `Grok`（全新独立会话；已 `APPROVE`）
 - Owner role: 实现 Agent；TL 审批 Schema
 - Size: M
 - Risk: High
@@ -64,3 +65,43 @@
 - 产品负责人对 ADR-003 S-01 至 S-08 的审批记录（已满足）。
 - 测试命令和关键约束场景结果。
 - 迁移前后 Schema 版本/checksum 以及构建产物包含 SQL 的输出。
+
+## 实现证据与审查排队
+
+- Implementer evidence head: `adab4bb00dd7e917b295c22fd8357a4f11515912` on `codex/task-003-state-store`。
+- 静态 pre-review: source worktree 干净；相对 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 的完整 Diff 精确为任务允许的 5 个文件，`git diff --check` 通过。主控已对照 ADR-003 审阅 migration、Repository 的事务/CAS/租约/attempt/Provider call/阶段完成边界，未发现预审 P0/P1；这不替代独立复跑。
+- Status decision: 保持 `IN_PROGRESS`，不提前生成或启动 Reviewer；项目当前已有 TASK-004 独立 Reviewer，TASK-003 的全新 Grok Reviewer 必须等待唯一 Reviewer 容量释放。
+- 后续：TASK-004 Reviewer 已结束；主控已生成包含精确 source head 的 TASK-003 review authorization 与 Reviewer 包，Reviewer 只可写 `handoffs/TASK-003.md`。
+
+## 独立审查与主控验收
+
+- Reviewed implementation head: `adab4bb00dd7e917b295c22fd8357a4f11515912`
+- Review evidence: `f07795f854e02b15e8c438622042e360b7c0e8b9`，父提交为 `adab4bb...`，范围仅 `handoffs/TASK-003.md`。
+- Reviewer: 全新独立 Grok 会话；Verdict: `APPROVE`。focused 30/9、全量 86、mypy、Ruff、`uv build` 与 migration SQL 包含性全部通过；AC-1 至 AC-5、ADR-003 S-01 至 S-08 全部 PASS。
+- Findings: 无 P0/P1/P2。P3：路径脱敏可能裁去 URL 片段；周报 `scope_key` 的周号正则略宽，但数据库 `iso_week` CHECK 仍限制 `1..53`。跨外部 Provider 成功与数据库提交只提供 at-most-once best effort，不提供严格 exactly-once。
+- 主控验收：`ACCEPTED`。实现与审查范围、复用和任务级门禁一致；等待独立 Integrator 合入 main 并重跑受影响检查，合入前不得改为 `DONE`。
+
+## 最终整合授权
+
+- Accepted source/review head: `f07795f854e02b15e8c438622042e360b7c0e8b9`；review evidence 的父提交为 `adab4bb...`，仅追加本任务 handoff。
+- Integrator: 全新 Codex Integrator 会话，在 main 执行非快进 merge；不得开发、修复、重构、修改任务状态或清理 source branch/worktree。
+- 进入 main 的第一父差异只能为 `state.py`、`migrations/001_initial.sql`、两份 TASK-003 测试和 `handoffs/TASK-003.md`；必须重跑两组 focused tests、全量 pytest、mypy、Ruff、`uv build` 和 migration SQL 包含性检查。
+- Integrator packet: `agent-prompts/TASK-003-INTEGRATOR.md`。合并成功且门禁通过后，主控另行同步 `DONE`；本轮绝不得自行关闭。
+
+## 整合结果
+
+- Integrator: 全新 Codex Integrator；execution base 为 `c524a05a0bdec6f2496a78b24f82fa5d394ae1a2`，source head 为 `f07795f854e02b15e8c438622042e360b7c0e8b9`。
+- Main merge commit: `072511f20b587f973b29437d79080f6cb7863f1a`；父提交为 `c524a05...` 与 `f07795...`，第一父差异精确为任务 5 文件。
+- 整合后检查：`uv lock --check`、`uv sync --locked`、focused 30/9、全量 pytest 86、mypy、Ruff、`uv build` 与 sdist/wheel migration SQL 包含性均 PASS。
+- Final status: `DONE`。source branch/worktree 保留；P3 路径脱敏、周号正则与 at-most-once best-effort 风险继续由发布门禁跟踪。
+
+## 分配记录
+
+- Assigned at: 2026-07-15
+- Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Branch: `codex/task-003-state-store`
+- Implementer: Codex 独立会话，独占该 worktree 写入权。
+- Reviewer: Grok 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。
+- Implementer packet: `agent-prompts/TASK-003-IMPLEMENTER-CODEX.md`
+- Parallel task: TASK-004 Grok Implementer；不得读取或写入其 worktree，不等待其完成。
