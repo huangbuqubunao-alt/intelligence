@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Grok`
-- Reviewer: `Codex`（第五个全新独立会话；审查 correction 6 head `7272528a3c5603087446251ee96ae4766fedeb96`）
+- Reviewer: `Codex`（第五次独立审查 `APPROVE`；review evidence `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -190,3 +190,13 @@
 - Orchestrator focused pre-review: 同一真实 mypy wiring probe PASS；whitespace focused unit `1 passed`。该预核验只证明可进入审查，不是 `APPROVE` 或最终验收。
 - Status decision: 同步后进入 `IN_REVIEW`；Grok Implementer 停止写入。授权第五个全新独立 Codex Reviewer 审查固定 head，不得提前设为 `ACCEPTED/DONE`。
 - Reviewer packet: `agent-prompts/TASK-004-REVIEWER-5-CODEX.md`。
+
+## 第五次独立审查与主控验收
+
+- Reviewed implementation: `7272528a3c5603087446251ee96ae4766fedeb96`。
+- Review evidence: `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`，唯一父提交为 reviewed implementation，范围仅 `handoffs/TASK-004.md`；source/main 均干净。
+- Reviewer verdict: `APPROVE`。state 30、unit 36、integration 10、全量 132、mypy src、真实静态 wiring probe、Ruff、CLI、build/migration 和固定 Diff 全 PASS。
+- Independent evidence: frozen Repository records 静态/运行时可替代；五类纯空白版本在两条公开 Service 路径均为 `CONFIG_INVALID`、Provider call count 0、真实 SQLite 无变化；correction 3/4 安全回归通过。
+- Acceptance matrix: AC-1 至 AC-5、ADR-004 D-01 至 D-08 全 PASS；P0/P1/P2/P3 均无。跳过项仅为未授权真实 YouTube/字幕、认证和媒体路径。
+- 主控验收：Reviewer、范围、红线、复用、许可证记录和命令证据一致；TASK-004 进入 `ACCEPTED`，等待最终 Product Integrator。此状态不是 `DONE`，不得提前解锁 TASK-005。
+- Integrator packet: `agent-prompts/TASK-004-INTEGRATOR.md`。
