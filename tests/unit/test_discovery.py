@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 from urllib.error import HTTPError, URLError
 
 import pytest
@@ -26,13 +27,10 @@ from youtube_intel.domain import (
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
+    VideoMetadata,
 )
-from youtube_intel.providers.youtube import (
-    SAFE_YDL_OPTS,
-    build_ydl_opts,
-    map_info_dict_to_video_metadata,
-    summarize_available_languages,
-)
+from youtube_intel.providers import youtube as youtube_mod
+from youtube_intel.providers.youtube import YtDlpMetadataProvider
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "youtube"
 CHANNEL = ChannelRef(channel_id="UC_example")
@@ -371,8 +369,8 @@ def test_metadata_success_upserts_independently() -> None:
     service.discover_and_save(CHANNEL)
 
     class FixedMeta:
-        def fetch(self, video_id: str) -> object:
-            return map_info_dict_to_video_metadata(_load_json("info_public.json"))
+        def fetch(self, video_id: str) -> VideoMetadata:
+            return youtube_mod._map_info_dict_to_video_metadata(_load_json("info_public.json"))
 
     service_with_meta = DiscoveryService(provider, repo, FixedMeta())
     meta = service_with_meta.fetch_and_store_metadata("public_vid1")
@@ -383,13 +381,15 @@ def test_metadata_success_upserts_independently() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Language summary + metadata mapping (unit, no yt-dlp network)
+# Language summary + metadata mapping (unit, private helpers + Provider path)
 # ---------------------------------------------------------------------------
 
 
 def test_available_languages_manual_then_auto_dedup_no_urls() -> None:
     info = _load_json("info_public.json")
-    langs = summarize_available_languages(info["subtitles"], info["automatic_captions"])
+    langs = youtube_mod._summarize_available_languages(
+        info["subtitles"], info["automatic_captions"]
+    )
     assert langs == ("en", "zh-Hans", "ja", "fr")
     serialized = json.dumps(langs)
     assert "http" not in serialized
@@ -397,7 +397,7 @@ def test_available_languages_manual_then_auto_dedup_no_urls() -> None:
 
 
 def test_map_public_shorts_live_upcoming_ended_restricted() -> None:
-    public = map_info_dict_to_video_metadata(_load_json("info_public.json"))
+    public = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_public.json"))
     assert public.availability is Availability.PUBLIC
     assert public.live_status is LiveStatus.NONE
     assert public.duration_seconds == 600
@@ -405,39 +405,40 @@ def test_map_public_shorts_live_upcoming_ended_restricted() -> None:
     assert public.available_languages[0] == "en"
     assert public.title == "Public Example Video"
 
-    shorts = map_info_dict_to_video_metadata(_load_json("info_shorts.json"))
+    shorts = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_shorts.json"))
     assert shorts.duration_seconds == 45
     assert shorts.availability is Availability.PUBLIC
 
-    live = map_info_dict_to_video_metadata(_load_json("info_live.json"))
+    live = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_live.json"))
     assert live.live_status is LiveStatus.LIVE
 
-    upcoming = map_info_dict_to_video_metadata(_load_json("info_upcoming.json"))
+    upcoming = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_upcoming.json"))
     assert upcoming.live_status is LiveStatus.UPCOMING
 
-    ended = map_info_dict_to_video_metadata(_load_json("info_ended.json"))
+    ended = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_ended.json"))
     assert ended.live_status is LiveStatus.ENDED
 
-    restricted = map_info_dict_to_video_metadata(_load_json("info_restricted.json"))
+    restricted = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_restricted.json"))
     assert restricted.availability is Availability.RESTRICTED
 
 
 def test_title_update_mapping() -> None:
-    updated = map_info_dict_to_video_metadata(_load_json("info_title_update.json"))
+    updated = youtube_mod._map_info_dict_to_video_metadata(_load_json("info_title_update.json"))
     assert updated.video_id == "public_vid1"
     assert "Updated Title" in updated.title
 
 
 def test_private_partial_does_not_forge_empty_metadata() -> None:
     with pytest.raises(AdapterError) as exc_info:
-        map_info_dict_to_video_metadata(_load_json("info_private_partial.json"))
+        youtube_mod._map_info_dict_to_video_metadata(_load_json("info_private_partial.json"))
     err = exc_info.value.error
     assert err.code is ErrorCode.CONTENT_UNAVAILABLE
     assert "private" in err.message.lower()
 
 
 def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
-    opts = build_ydl_opts(socket_timeout=30.0)
+    """Prove safe options via private builder + Provider fake factory capture path."""
+    opts = youtube_mod._build_ydl_opts(socket_timeout=30.0)
     assert opts["skip_download"] is True
     assert opts["noplaylist"] is True
     assert opts["quiet"] is True
@@ -457,9 +458,142 @@ def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
         "hls_prefer_native",
     }
     assert forbidden_keys.isdisjoint(opts.keys())
-    assert forbidden_keys.isdisjoint(SAFE_YDL_OPTS.keys())
-    # No absolute path values
+    assert forbidden_keys.isdisjoint(youtube_mod._SAFE_YDL_OPTS.keys())
     for value in opts.values():
         if isinstance(value, str):
             assert not value.startswith("/Users/")
             assert "cookie" not in value.lower()
+
+    captured: list[object] = []
+
+    class _Handle:
+        def extract_info(self, url: str, download: bool = True) -> object:
+            assert download is False
+            assert "public_vid1" in url
+            return _load_json("info_public.json")
+
+    def factory(raw_opts: object) -> _Handle:
+        assert isinstance(raw_opts, dict)
+        captured.append(dict(raw_opts))
+        return _Handle()
+
+    provider = YtDlpMetadataProvider(
+        timeout_seconds=30.0,
+        ydl_factory=factory,
+        last_opts=captured,
+        clock=lambda: FIXED_NOW,
+    )
+    meta = provider.fetch("public_vid1")
+    assert isinstance(meta, VideoMetadata)
+    assert meta.title == "Public Example Video"
+    assert captured
+    for item in captured:
+        assert isinstance(item, dict)
+        assert item["skip_download"] is True
+        assert item["writesubtitles"] is False
+        assert "cookiefile" not in item
+        assert "remote_components" not in item
+        assert "ffmpeg_location" not in item
+    # Free-form opts are not a public attribute on the provider.
+    assert not hasattr(provider, "last_opts") or "last_opts" not in getattr(
+        provider, "__annotations__", {}
+    )
+    assert not hasattr(YtDlpMetadataProvider, "last_opts")
+
+
+def _annotation_mentions_free_dict(annotation: object) -> bool:
+    """True when an annotation is free-form dict / Mapping[str, Any] (or nested)."""
+    if annotation is Any:
+        return False
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    # dict[...] or Dict[...]
+    if origin is dict:
+        return True
+    # Mapping / MutableMapping with free-form value side
+    if origin is not None:
+        origin_name = getattr(origin, "__name__", str(origin))
+        if origin_name in {"Mapping", "MutableMapping", "dict"}:
+            # Mapping[str, Any] or Mapping[str, object] both free-form payloads
+            if len(args) >= 2:
+                return True
+            return True
+        return any(_annotation_mentions_free_dict(arg) for arg in args)
+
+    if annotation is dict:
+        return True
+    text = str(annotation)
+    if "dict[" in text or "Dict[" in text:
+        return True
+    if "Mapping[" in text and "Any" in text:
+        return True
+    return False
+
+
+def test_public_youtube_api_has_no_free_form_dict_annotations() -> None:
+    """Regression (P1): cross-module public surface must not expose free dict types."""
+    assert youtube_mod.__all__ == ["YtDlpMetadataProvider"]
+
+    # Former public free-dict helpers must not remain public exports.
+    for banned in (
+        "SAFE_YDL_OPTS",
+        "build_ydl_opts",
+        "summarize_available_languages",
+        "map_live_status",
+        "map_availability",
+        "map_published_at",
+    ):
+        assert banned not in youtube_mod.__all__
+        assert banned not in vars(youtube_mod) or banned.startswith("_")
+
+    # Private builders exist under private names.
+    assert hasattr(youtube_mod, "_SAFE_YDL_OPTS")
+    assert hasattr(youtube_mod, "_build_ydl_opts")
+    assert hasattr(youtube_mod, "_map_info_dict_to_video_metadata")
+
+    public_cls = YtDlpMetadataProvider
+    # Class body annotations (if any) and __init__/fetch signatures.
+    for name, method in (
+        ("__init__", public_cls.__init__),
+        ("fetch", public_cls.fetch),
+    ):
+        hints = get_type_hints(method, include_extras=True)
+        for param, annotation in hints.items():
+            assert not _annotation_mentions_free_dict(annotation), (
+                f"YtDlpMetadataProvider.{name} param {param} has free-dict annotation: {annotation!r}"
+            )
+
+    # Public instance attributes declared on the class must not be free dicts.
+    for attr_name, annotation in getattr(public_cls, "__annotations__", {}).items():
+        if attr_name.startswith("_"):
+            continue
+        assert not _annotation_mentions_free_dict(annotation), (
+            f"public attribute {attr_name} has free-dict annotation: {annotation!r}"
+        )
+
+    # No public last_opts attribute type on the class.
+    assert "last_opts" not in getattr(public_cls, "__annotations__", {})
+    sig = inspect.signature(public_cls.__init__)
+    for param_name, param in sig.parameters.items():
+        if param_name == "self":
+            continue
+        if param.annotation is not inspect.Parameter.empty:
+            ann = param.annotation
+            # String annotations from from __future__ import annotations
+            if isinstance(ann, str):
+                assert "dict[" not in ann
+                assert "Mapping[" not in ann or "Any" not in ann
+            else:
+                assert not _annotation_mentions_free_dict(ann)
+
+    # Residual integration helper (not in __all__) must not advertise Mapping[str, Any].
+    residual = getattr(youtube_mod, "map_info_dict_to_video_metadata", None)
+    if residual is not None:
+        residual_hints = get_type_hints(residual, include_extras=True)
+        for param, annotation in residual_hints.items():
+            assert not _annotation_mentions_free_dict(annotation), (
+                f"residual helper param {param} still exposes free-dict type: {annotation!r}"
+            )
+        # And must not be a public export.
+        assert "map_info_dict_to_video_metadata" not in youtube_mod.__all__

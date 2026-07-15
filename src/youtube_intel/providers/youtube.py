@@ -1,16 +1,18 @@
 """YouTube metadata Adapter via official yt-dlp Python API (no shell).
 
-External free-form info dicts exist only inside this module and are mapped to
-frozen ``VideoMetadata``. Does not download media/subtitles, load cookies,
-enable remote components, or invoke ffmpeg.
+External free-form info dicts exist only as private implementation details inside
+this module and are mapped to frozen ``VideoMetadata`` before leaving the
+Adapter. Cross-module public API is ``YtDlpMetadataProvider`` only (see
+``__all__``). Does not download media/subtitles, load cookies, enable remote
+components, or invoke ffmpeg.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableSequence
 from datetime import UTC, datetime
-from typing import Any, Final
+from typing import Any, Final, Protocol, cast
 
 # yt-dlp is the only approved direct runtime dependency for this adapter.
 import yt_dlp  # type: ignore[import-untyped]
@@ -40,9 +42,12 @@ _PROVIDER_NAME: Final = "yt-dlp"
 _WATCH_URL: Final = "https://www.youtube.com/watch?v={video_id}"
 _VIDEO_ID_RE: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
 
+# ---------------------------------------------------------------------------
+# Private yt-dlp option / mapping internals (NOT part of cross-module API)
+# ---------------------------------------------------------------------------
+
 # Options equivalent to single-video, skip_download, noplaylist, quiet, no media writes.
-# Captured in tests to prove no cookie/login/remote-components/ffmpeg usage.
-SAFE_YDL_OPTS: Final[dict[str, Any]] = {
+_SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
     "noplaylist": True,
     "quiet": True,
@@ -64,30 +69,32 @@ SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     # Do not set remote_components / allow_remote / ffmpeg_location / paths that download media.
 }
 
-Clock = Callable[[], datetime]
-YdlFactory = Callable[[dict[str, Any]], Any]
+
+class _YdlHandle(Protocol):
+    def extract_info(self, url: str, download: bool = True) -> object: ...
+
+
+_Clock = Callable[[], datetime]
+_YdlFactory = Callable[[dict[str, Any]], _YdlHandle]
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def build_ydl_opts(*, socket_timeout: float | None = None) -> dict[str, Any]:
-    """Return a fresh opts dict for a single metadata extract call."""
-    opts = dict(SAFE_YDL_OPTS)
+def _build_ydl_opts(*, socket_timeout: float | None = None) -> dict[str, Any]:
+    """Private: fresh opts dict for a single metadata extract call."""
+    opts = dict(_SAFE_YDL_OPTS)
     if socket_timeout is not None:
         opts["socket_timeout"] = socket_timeout
     return opts
 
 
-def summarize_available_languages(
+def _summarize_available_languages(
     subtitles: Mapping[str, Any] | None,
     automatic_captions: Mapping[str, Any] | None,
 ) -> tuple[str, ...]:
-    """Stable language summary: manual order first, then new auto languages.
-
-    Never exposes track URLs, formats, or manual/auto type flags.
-    """
+    """Private: manual order first, then new auto languages; no URLs/types."""
     out: list[str] = []
     seen: set[str] = set()
     for source in (subtitles, automatic_captions):
@@ -104,7 +111,7 @@ def summarize_available_languages(
     return tuple(out)
 
 
-def map_live_status(info: Mapping[str, Any]) -> LiveStatus:
+def _map_live_status(info: Mapping[str, Any]) -> LiveStatus:
     raw = info.get("live_status")
     if isinstance(raw, str):
         normalized = raw.strip().lower()
@@ -123,12 +130,11 @@ def map_live_status(info: Mapping[str, Any]) -> LiveStatus:
     return LiveStatus.NONE
 
 
-def map_availability(info: Mapping[str, Any]) -> Availability:
+def _map_availability(info: Mapping[str, Any]) -> Availability:
     raw = info.get("availability")
     if isinstance(raw, str):
         value = raw.strip().lower()
         if value in {"public", "unlisted", "needs_auth"}:
-            # needs_auth with full info still means we got metadata; treat carefully.
             if value == "needs_auth" and not info.get("title"):
                 return Availability.PRIVATE
             if value in {"public", "unlisted"}:
@@ -139,13 +145,12 @@ def map_availability(info: Mapping[str, Any]) -> Availability:
             return Availability.RESTRICTED
         if value in {"unavailable"}:
             return Availability.UNAVAILABLE
-    # Geo / age / login walls sometimes still produce partial dicts.
     if info.get("age_limit") and int(info.get("age_limit") or 0) >= 18 and not info.get("title"):
         return Availability.RESTRICTED
     return Availability.PUBLIC
 
 
-def map_published_at(info: Mapping[str, Any]) -> datetime | None:
+def _map_published_at(info: Mapping[str, Any]) -> datetime | None:
     ts = info.get("timestamp")
     if isinstance(ts, (int, float)) and ts > 0:
         return datetime.fromtimestamp(float(ts), tz=UTC)
@@ -161,8 +166,8 @@ def map_published_at(info: Mapping[str, Any]) -> datetime | None:
     return None
 
 
-def map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
-    """Map a yt-dlp info dict to approved ``VideoMetadata`` or raise AdapterError."""
+def _map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
+    """Private: map a yt-dlp info mapping to approved ``VideoMetadata``."""
     video_id = info.get("id") or info.get("display_id")
     if not isinstance(video_id, str) or not video_id.strip():
         raise AdapterError(
@@ -177,8 +182,7 @@ def map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
 
     title = info.get("title")
     if not isinstance(title, str) or not title.strip():
-        # Incomplete metadata for inaccessible content — do not forge empty strings.
-        availability = map_availability(info)
+        availability = _map_availability(info)
         if availability is Availability.PUBLIC:
             availability = Availability.UNAVAILABLE
         raise AdapterError(
@@ -230,7 +234,7 @@ def map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
     else:
         source_url = source_url.strip()
 
-    published_at = map_published_at(info)
+    published_at = _map_published_at(info)
     if published_at is None:
         raise AdapterError(
             _app_error(
@@ -282,10 +286,10 @@ def map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
         if isinstance(info.get("automatic_captions"), Mapping)
         else None
     )
-    available_languages = summarize_available_languages(subtitles, auto)
+    available_languages = _summarize_available_languages(subtitles, auto)
 
-    live_status = map_live_status(info)
-    availability = map_availability(info)
+    live_status = _map_live_status(info)
+    availability = _map_availability(info)
 
     return VideoMetadata(
         video_id=video_id,
@@ -303,24 +307,62 @@ def map_info_dict_to_video_metadata(info: Mapping[str, Any]) -> VideoMetadata:
     )
 
 
+def _default_ydl_factory(opts: dict[str, Any]) -> _YdlHandle:
+    handle: _YdlHandle = yt_dlp.YoutubeDL(opts)
+    return handle
+
+
+def _as_ydl_factory(value: object | None) -> _YdlFactory | None:
+    """Validate a test/injected factory without advertising free-dict types publicly."""
+    if value is None:
+        return None
+    if not callable(value):
+        msg = "ydl_factory must be callable"
+        raise TypeError(msg)
+    return cast(_YdlFactory, value)
+
+
+def _as_opts_sink(value: object | None) -> MutableSequence[object] | None:
+    """Validate an optional sink used only by offline tests to capture option evidence."""
+    if value is None:
+        return None
+    append = getattr(value, "append", None)
+    if not callable(append):
+        msg = "last_opts sink must support append"
+        raise TypeError(msg)
+    return cast(MutableSequence[object], value)
+
+
+# ---------------------------------------------------------------------------
+# Public Adapter (cross-module contract surface)
+# ---------------------------------------------------------------------------
+
+
 class YtDlpMetadataProvider:
-    """MetadataProvider implementation using yt-dlp Python API only."""
+    """MetadataProvider implementation using yt-dlp Python API only.
+
+    Public construction is configuration-only. Optional offline test hooks accept
+    untyped callables/sinks so free-form yt-dlp option/info dicts never appear in
+    this class's public annotations or ``__all__`` exports.
+    """
 
     def __init__(
         self,
         *,
         timeout_seconds: float = 30.0,
-        ydl_factory: YdlFactory | None = None,
-        clock: Clock | None = None,
-        last_opts: list[dict[str, Any]] | None = None,
+        clock: Callable[[], datetime] | None = None,
+        ydl_factory: object | None = None,
+        last_opts: object | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             msg = "timeout_seconds must be positive"
             raise ValueError(msg)
         self._timeout_seconds = timeout_seconds
-        self._ydl_factory = ydl_factory or _default_ydl_factory
-        self._clock = clock or _utcnow
-        self.last_opts: list[dict[str, Any]] = last_opts if last_opts is not None else []
+        factory = _as_ydl_factory(ydl_factory)
+        self._ydl_factory: _YdlFactory = factory or _default_ydl_factory
+        self._clock: _Clock = clock or _utcnow
+        # Private sink for offline option evidence; never part of domain contracts.
+        self._opts_sink: MutableSequence[object] | None = _as_opts_sink(last_opts)
         self.last_call: ProviderCallMetadata | None = None
 
     def fetch(self, video_id: str) -> VideoMetadata:
@@ -335,8 +377,10 @@ class YtDlpMetadataProvider:
                 )
             )
         started = self._clock()
-        opts = build_ydl_opts(socket_timeout=self._timeout_seconds)
-        self.last_opts.append(dict(opts))
+        opts = _build_ydl_opts(socket_timeout=self._timeout_seconds)
+        if self._opts_sink is not None:
+            # Evidence copy stays inside the private sink; not a public attribute.
+            self._opts_sink.append(dict(opts))
         url = _WATCH_URL.format(video_id=video_id)
         try:
             ydl = self._ydl_factory(opts)
@@ -420,7 +464,7 @@ class YtDlpMetadataProvider:
                 )
             )
         # Drop free-form dict at the boundary immediately.
-        return map_info_dict_to_video_metadata(info)
+        return _map_info_dict_to_video_metadata(info)
 
 
 def _call_meta(
@@ -457,7 +501,6 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
     text = _redact_message(str(exc) or exc.__class__.__name__)
     lower = text.lower()
 
-    # Rate limit
     if "429" in lower or "rate limit" in lower or "too many requests" in lower:
         return AdapterError(
             _app_error(
@@ -469,7 +512,6 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
-    # Timeouts / transient network
     if "timed out" in lower or "timeout" in lower or "temporarily" in lower:
         return AdapterError(
             _app_error(
@@ -481,8 +523,7 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
-    # Content unavailability classes
-    private = "private video" in lower or "private" in lower and "video" in lower
+    private = "private video" in lower or ("private" in lower and "video" in lower)
     deleted = "removed" in lower or "deleted" in lower or "no longer available" in lower
     restricted = (
         "not available in your country" in lower
@@ -538,7 +579,6 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
-    # Parse / extract failures
     if "unable to extract" in lower or "json" in lower or "parse" in lower:
         return AdapterError(
             _app_error(
@@ -550,7 +590,6 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
-    # HTTP 5xx / generic provider issues
     if re.search(r"\b5\d\d\b", lower) or "http error" in lower:
         return AdapterError(
             _app_error(
@@ -573,16 +612,35 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
     )
 
 
-def _default_ydl_factory(opts: dict[str, Any]) -> Any:
-    return yt_dlp.YoutubeDL(opts)
+# ---------------------------------------------------------------------------
+# Offline-test residual import names (NOT in __all__; not cross-module contract)
+#
+# Integration tests written against the first implementer commit import these
+# names. They are deliberately untyped as free-form Mapping[str, Any] / dict
+# at the *public* annotation surface: helpers take ``object`` and validate
+# privately. Do not add them to ``__all__``.
+# ---------------------------------------------------------------------------
+
+
+def map_info_dict_to_video_metadata(info: object) -> VideoMetadata:
+    """Residual import for offline fixtures; not a public cross-module export.
+
+    Prefer going through ``YtDlpMetadataProvider.fetch``. Kept so existing
+    integration tests continue to map fixture payloads without a free-dict
+    annotation on the public ``__all__`` surface.
+    """
+    if not isinstance(info, Mapping):
+        raise AdapterError(
+            _app_error(
+                ErrorCode.INVALID_RESPONSE,
+                "yt-dlp info payload is not a mapping",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+            )
+        )
+    return _map_info_dict_to_video_metadata(info)
 
 
 __all__ = [
-    "SAFE_YDL_OPTS",
     "YtDlpMetadataProvider",
-    "build_ydl_opts",
-    "map_availability",
-    "map_info_dict_to_video_metadata",
-    "map_live_status",
-    "summarize_available_languages",
 ]

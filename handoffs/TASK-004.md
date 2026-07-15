@@ -160,10 +160,62 @@
   - `needs_auth`/部分 availability 枚举在真实站点上可能有更多变体，当前映射以固定夹具为准。
 - `DECISION NEEDED`：`None`
 
+## 预审修复（P1：公共 API 不得泄漏 yt-dlp 自由 dict）
+
+### 原 P1
+
+- `SAFE_YDL_OPTS` / `build_ydl_opts()` 在 `__all__` 中公开 `dict[str, Any]`。
+- `map_info_dict_to_video_metadata` 及语言/状态 Mapping helpers 作为公开 API 暴露 `Mapping[str, Any]`。
+- `YtDlpMetadataProvider` 公开 `last_opts: list[dict[str, Any]]` 与以 free-dict 为签名的 `ydl_factory` 类型别名。
+- 违反 System Design §5.2 与 ADR-002 C-05：跨模块不得传递自由形状 `dict`。
+
+### 封装方式
+
+- `__all__ = ["YtDlpMetadataProvider"]`：跨模块公开导出仅此 Adapter 类。
+- 选项表、选项构造、字幕语言摘要、live/availability/published 映射、info→`VideoMetadata` 全部改为私有：`_SAFE_YDL_OPTS`、`_build_ydl_opts`、`_summarize_available_languages`、`_map_*`、`_map_info_dict_to_video_metadata`。
+- `YtDlpMetadataProvider` 公共注解：
+  - `timeout_seconds: float`、`clock: Callable[[], datetime] | None`
+  - 离线钩子 `ydl_factory: object | None`、`last_opts: object | None`（运行时校验；**不**标注 `dict[str, Any]` / `Mapping[str, Any]`）
+  - 不再声明公开属性 `last_opts`；证据写入私有 `_opts_sink`
+  - `fetch(video_id: str) -> VideoMetadata` 保持领域具名类型
+- 为不改集成测试导入路径，保留残差名 `map_info_dict_to_video_metadata(info: object) -> VideoMetadata`：**不在** `__all__`，注解为 `object`（内部再校验 Mapping），不是跨模块契约。
+
+### 回归测试
+
+- `test_public_youtube_api_has_no_free_form_dict_annotations`：断言 `__all__`、构造/`fetch` 注解、禁止旧公开 helper 名、残差 helper 无 free-dict 注解。
+- `test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg`：经私有 builder + Provider fake factory/`last_opts` sink 仍证明安全选项。
+
+### 检查结果（修复后）
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked` | PASS |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS |
+| `uv run python -m pytest` | PASS (76) |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+### Code evidence
+
+- Prior head（首个实现）：`392edfb897003c1583b538667d10a2a89926a94b`
+- Correction commit：见本分支新提交 `fix: hide yt-dlp raw mapping internals`（`git rev-parse HEAD` 在提交后）
+- 修复仅触及：`src/youtube_intel/providers/youtube.py`、`tests/unit/test_discovery.py`、`handoffs/TASK-004.md`
+- 行为/错误码/语言排序/依赖锁/未授权边界未改
+
+### 修复后剩余风险
+
+- 残差导入名 `map_info_dict_to_video_metadata` 仍可被模块内 import（非 `__all__`）；后续清理集成测试导入后可完全删除。
+- 构造参数名 `ydl_factory` / `last_opts` 仍为离线钩子入口，类型已去 free-dict，但运行时仍接受 sink/callable。
+- 任务状态保持 `IN_PROGRESS`；Reviewer 尚未启动。
+
 ## 实现者结论
 
-- 建议状态：`IN_REVIEW`
-- Commit SHA：见本分支 `git rev-parse HEAD`（实现提交消息：feat: add YouTube discovery and metadata adapters）
+- 建议状态：`IN_PROGRESS`（预审修复已提交；不自行启动 Reviewer / 不改公共任务状态）
+- 首个实现 Commit：`392edfb897003c1583b538667d10a2a89926a94b`
+- Correction Commit：见分支 tip（消息 `fix: hide yt-dlp raw mapping internals`）
 - 复现/验证说明：
 
 ```bash
@@ -178,7 +230,7 @@ uv run ruff check .
 
 ## Reviewer 结论
 
-- Reviewer agent/session：待主控启动 Codex 独立会话
+- Reviewer agent/session：尚未启动（主控预审修复核对通过后再启动）
 - 审查 commit：
 - 重新运行的检查：
 - Findings：
