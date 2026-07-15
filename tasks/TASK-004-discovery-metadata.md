@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Grok`
-- Reviewer: `Codex`（全新独立会话；等待实现 commit）
+- Reviewer: `Codex`（全新独立会话；第二次独立审查 correction 3）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -125,4 +125,5 @@
 - Checked source head: `30932e1742e948683f9e1c0f63236451b8d731bd`，父提交为 review evidence `f34cbb09d628ebb256bf5f2895adfd10dbd61812`。
 - Scope evidence: correction commit 只修改 `discovery.py`、`providers/youtube.py`、unit/integration discovery tests 与 handoff 五个已批准文件；相对 `dcc7d85...` 的完整范围仍为原 17 文件，worktree 干净，`git diff --check` 通过。
 - Static evidence: safe malformed payload mapping、请求/响应 ID 核验、RSS 完整 entry 原子失败、HTTP 404/403/5xx 优先分类、read failure finally-close、`needs_auth -> RESTRICTED` 及 `Any/object` public-surface 哨兵均有实现和离线回归；未改变依赖、公共领域契约、无下载/无登录边界或 TASK-003。
-- Status decision: 保持 `IN_PROGRESS`，不以主控预核验取代独立审查。当前唯一 Grok Reviewer 正在 TASK-003；其结束后才授权全新 Codex Reviewer 审查本 head。
+- Status decision: 已进入 `IN_REVIEW`；不以主控预核验取代独立审查。TASK-003 Reviewer 已结束，现授权一个**全新、独立于首个 TASK-004 Reviewer 的 Codex 会话**审查本 head。
+- Second-review packet: `agent-prompts/TASK-004-REVIEWER-2-CODEX.md`

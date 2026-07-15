@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-003`（`codex/task-003-state-store`）与 `/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`），共同 base 为 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`；TASK-001/TASK-002 worktree 只保留审计证据
-- 活动任务：`TASK-003` 为 `IN_REVIEW`，全新独立 Grok Reviewer 正在审查 `adab4bb...`；`TASK-004` 保持 `IN_PROGRESS`，Grok 第三轮修复 `30932e1...` 已通过主控静态核验，等待唯一 Reviewer 容量
+- 活动任务：`TASK-003` 已由独立 Grok Reviewer 审查通过，状态为 `ACCEPTED`，等待整合；`TASK-004` 为 `IN_REVIEW`，第三轮修复 `30932e1...` 等待全新独立 Codex Reviewer 复核
 
 ## 已完成或已批准
 
@@ -23,25 +23,26 @@
 
 ## 当前阻塞
 
-- `TASK-003` 与 `TASK-004` 无审批或依赖阻塞；当前风险仅来自各自实现与独立审查结果。
+- `TASK-003` 已无审批或审查阻塞，但仍须经独立 Integrator 合入 main 并重跑受影响门禁，之后才可设为 `DONE`。
+- `TASK-004` 已无审批或实现阻塞，当前仅等待 correction 3 的独立 Reviewer 结论；本轮审查未通过前不得合并或设为 `ACCEPTED`。
 - `TASK-005` 及后续任务仍按任务图等待上游完成。
 
 ## 下一步
 
-1. Status Integrator 记录 TASK-004 第三轮修复 evidence `30932e1...` 与“等待 Reviewer 容量”的事实；不运行产品代码或写任务 worktree。
-2. 全新独立 Grok Reviewer 在 TASK-003 source worktree 复核 `dcc7d85...adab4bb...`、重跑全部任务门禁，并审查迁移、Schema、CAS、租约、attempt 和原子阶段提交。
-3. TASK-003 Reviewer 结束后，主控依据其 `APPROVE/REJECT` 释放审查容量：若通过，启动 TASK-004 的全新独立 Codex Reviewer 审查 `30932e1...`；若拒绝，先处理 TASK-003 原 Implementer 修复。
-4. Reviewer 不得修改业务代码，Implementer 不得启动 Reviewer。主控只在独立审查证据返回后决定 `ACCEPTED`。
-5. TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components 和 ffmpeg。
+1. 全新独立 Codex Reviewer 在 TASK-004 source worktree 复核 `dcc7d85...30932e1...`，重新运行全部任务门禁，并对 correction 3 的 4 个 P1、2 个 P2 与 1 个 P3 设计独立离线探针。
+2. TASK-004 Reviewer 返回 `APPROVE` 后，主控逐项验收并决定 `ACCEPTED`；若 `REJECT`，只退回原 Grok Implementer 修复。
+3. 主控为已接受的 TASK-003 生成 Integrator 包；Integrator 只能在独立 worktree 合入 `f07795...` 并重跑 TASK-003 受影响检查，成功后才可关闭为 `DONE`。
+4. Reviewer 不得修改业务代码，Implementer 不得启动 Reviewer；TASK-003/TASK-004 的 Integrator 均不得顺便开发或重构。
+5. TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components、ffmpeg 及媒体/字幕下载。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | Status Integrator 同步 TASK-004 修复 evidence | 只提交指定控制面 Markdown |
-| 并行进行 | TASK-003 独立 Grok Reviewer；TASK-004 evidence 同步 | 独立 TASK-003 worktree 与 main 控制面 |
-| 等待 Reviewer 容量 | TASK-004 全新独立 Codex Reviewer | TASK-003 Reviewer 结束后立即决定 |
-| 等待各自证据 | TASK-004 主控验收；TASK-003 主控验收 | 审查完成后才进入下一阶段 |
+| 立即启动 | TASK-004 全新独立 Codex Reviewer | 仅 TASK-004 handoff 审查证据 |
+| 可并行准备 | TASK-003 Integrator 开工包 | 只写 main 控制面；不得启动 merge |
+| 等待 TASK-004 审查 | TASK-004 主控验收与 Integrator 包 | Reviewer 结论返回后才决定 |
+| 等待整合 | TASK-003 `DONE` | 仅在 Integrator 合并与门禁通过后关闭 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界
@@ -63,8 +64,7 @@
 - TASK-002 修复提交已关闭原预审发现的密钥错误回显、公共自由 `dict`、可变公共状态表和额外 `ErrorCode`；Reviewer 已独立重跑哨兵、公开 API、运行时不可变性及完整 AC-1 至 AC-8。
 - TASK-002 的 Provider request correlation/调用元数据已由 Reviewer 对照 System Design §5.1/§5.2 复核，未发现必须新增 Wrapper 或公共字段的冲突。
 - TASK-002 Reviewer 已判定 Provider request correlation/调用元数据与冻结字段一致；剩余 P3 为 `MappingProxyType` 对私有 backing dict 的 live view，公共写入仍被拒绝，不阻断 V1 整合。
-- TASK-003 将使用已批准的 `scope_key + job_attempts`；Reviewer 需重点验证全局 Job 去重、租约 CAS 和逐次审计，而非只检查建表成功。
-- TASK-003 实现 `adab4bb...` 已在独立 worktree 完成：相对共同 base 的 Diff 精确为 `state.py`、`001_initial.sql`、两份 TASK-003 测试和交接报告；主控静态检查迁移 Schema、显式 `BEGIN IMMEDIATE`、全局 scope 去重、租约 CAS、逐次 attempt 和阶段事务边界，未发现新的预审 P0/P1。实现者报告的完整离线测试、mypy、Ruff、`uv build` 和归档 SQL 包含性仍须由独立 Grok Reviewer 重跑；在 TASK-004 Reviewer 结束前保持 `IN_PROGRESS`。
+- TASK-003 的独立 Grok Reviewer 已以 `f07795...` 审查 `adab4bb...` 并给出 `APPROVE`：focused 30/9、全量 86、mypy、Ruff、`uv build` 及迁移资源均通过，AC-1 至 AC-5 与 ADR-003 S-01 至 S-08 均为 PASS。无 P0/P1/P2；非阻断 P3 为路径脱敏可能裁去 URL 片段、周报 `scope_key` 的周号正则略宽但表级 `iso_week` 仍限制 `1..53`。TASK-003 仅提供 at-most-once best effort，不声称跨外部 Provider 与数据库提交的严格 exactly-once；这些风险随整合与发布门禁保留。
 - TASK-004 独立 Reviewer 证据 `f34cbb...` 为 `REJECT`：P1 包括 yt-dlp 畸形 payload 逸出 `ValueError`、请求/响应 video ID 不一致、RSS 不完整 entry 静默跳过且推进游标、HTTP 404/403/503 的终态/重试语义反转；P2 包括 RSS read 失败未关闭 response 与 `needs_auth` 误标 PUBLIC，P3 为公开注解测试遗漏 `Any`。范围、依赖、公开 Surface 和安全 options 均通过，但上述 P1 阻断合并。
 - TASK-004 第三轮修复 `30932e1...` 已关闭 Reviewer 列出的 4 个 P1、2 个 P2 与 1 个 P3：静态核验确认 malformed mapping 在 Adapter 边界安全封装、返回 ID 与请求 ID 交叉校验、RSS 不完整 entry 使全批失败并不推进 cursor、HTTP 状态在宽泛文本前分类、response 在 finally 关闭、`needs_auth` 为 `RESTRICTED`、公开注解哨兵拒绝 `Any/object`。完整 17 文件范围与 correction 5 文件范围均通过；该结论不替代第二次独立审查。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。

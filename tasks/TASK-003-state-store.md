@@ -1,8 +1,8 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `Grok`（全新独立会话；审查 `adab4bb...`）
+- Reviewer: `Grok`（全新独立会话；已 `APPROVE`）
 - Owner role: 实现 Agent；TL 审批 Schema
 - Size: M
 - Risk: High
@@ -73,12 +73,13 @@
 - Status decision: 保持 `IN_PROGRESS`，不提前生成或启动 Reviewer；项目当前已有 TASK-004 独立 Reviewer，TASK-003 的全新 Grok Reviewer 必须等待唯一 Reviewer 容量释放。
 - 后续：TASK-004 Reviewer 已结束；主控已生成包含精确 source head 的 TASK-003 review authorization 与 Reviewer 包，Reviewer 只可写 `handoffs/TASK-003.md`。
 
-## 审查授权
+## 独立审查与主控验收
 
 - Reviewed implementation head: `adab4bb00dd7e917b295c22fd8357a4f11515912`
-- Reviewer: 全新独立 Grok 会话；仅在 `/Users/hua/Documents/yia-worktrees/task-003` 的 `codex/task-003-state-store` 分支工作。
-- Scope: Reviewer 只可在审查完成后写入并提交 `handoffs/TASK-003.md`；不得修改业务代码、Schema、依赖、锁文件、任务状态或 main。
-- Reviewer packet: `agent-prompts/TASK-003-REVIEWER-GROK.md`
+- Review evidence: `f07795f854e02b15e8c438622042e360b7c0e8b9`，父提交为 `adab4bb...`，范围仅 `handoffs/TASK-003.md`。
+- Reviewer: 全新独立 Grok 会话；Verdict: `APPROVE`。focused 30/9、全量 86、mypy、Ruff、`uv build` 与 migration SQL 包含性全部通过；AC-1 至 AC-5、ADR-003 S-01 至 S-08 全部 PASS。
+- Findings: 无 P0/P1/P2。P3：路径脱敏可能裁去 URL 片段；周报 `scope_key` 的周号正则略宽，但数据库 `iso_week` CHECK 仍限制 `1..53`。跨外部 Provider 成功与数据库提交只提供 at-most-once best effort，不提供严格 exactly-once。
+- 主控验收：`ACCEPTED`。实现与审查范围、复用和任务级门禁一致；等待独立 Integrator 合入 main 并重跑受影响检查，合入前不得改为 `DONE`。
 
 ## 分配记录
 
