@@ -1,6 +1,6 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Grok`
 - Reviewer: `Codex`（全新独立会话；等待实现 commit）
 - Owner role: 实现 Agent
@@ -112,3 +112,10 @@
 - Public-contract evidence: `YtDlpMetadataProvider.__init__` 只保留 `timeout_seconds: float`；删除残余非私有 `map_info_dict_to_video_metadata`；raw dict、字段映射、factory、时钟和 options sink 都只使用 `_` 私有名称；`__all__` 仅为 `YtDlpMetadataProvider`。离线集成测试不再导入非私有 mapping helper，回归测试检查上述 Surface。
 - Status decision: 主控预审 P1 已关闭；同步后状态为 `IN_REVIEW`，由全新独立 Codex Reviewer 审查。此条不是最终验收，不得设为 `ACCEPTED` 或 `DONE`。
 - Reviewer packet: `agent-prompts/TASK-004-REVIEWER-CODEX.md`
+
+## 独立审查拒绝与修复轮（三次）
+
+- Review evidence: `f34cbb09d628ebb256bf5f2895adfd10dbd61812`，审查对象为 `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`；Reviewer 只提交 `handoffs/TASK-004.md`，完整 17 文件范围、依赖、复用、公开 Surface 与安全 options 均通过。
+- Verdict: `REJECT`。P1：畸形 yt-dlp payload 逸出原始 `ValueError`；返回 `video_id` 不校验请求 ID；RSS 不完整 entry 被跳过仍推进游标；HTTP 404/403/503 的分类顺序使终态/重试语义反转。P2：RSS read 失败不关闭 response，`needs_auth` 可能标为 `PUBLIC`。P3：公开注解回归哨兵会漏掉 `Any`。
+- Status decision: 回到 `IN_PROGRESS`，由原 Grok Implementer 从 source head `f34cbb...` 修复；不得以当前 evidence 启动第二个 Codex Reviewer 或设为 `ACCEPTED`。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-3-GROK.md`

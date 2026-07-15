@@ -1,8 +1,8 @@
 # TASK-003：SQLite 状态存储
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Grok`（全新独立会话；等待实现 commit）
+- Reviewer: `Grok`（全新独立会话；审查 `adab4bb...`）
 - Owner role: 实现 Agent；TL 审批 Schema
 - Size: M
 - Risk: High
@@ -71,7 +71,14 @@
 - Implementer evidence head: `adab4bb00dd7e917b295c22fd8357a4f11515912` on `codex/task-003-state-store`。
 - 静态 pre-review: source worktree 干净；相对 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 的完整 Diff 精确为任务允许的 5 个文件，`git diff --check` 通过。主控已对照 ADR-003 审阅 migration、Repository 的事务/CAS/租约/attempt/Provider call/阶段完成边界，未发现预审 P0/P1；这不替代独立复跑。
 - Status decision: 保持 `IN_PROGRESS`，不提前生成或启动 Reviewer；项目当前已有 TASK-004 独立 Reviewer，TASK-003 的全新 Grok Reviewer 必须等待唯一 Reviewer 容量释放。
-- 后续：TASK-004 Reviewer 结束后，主控生成包含精确 source head 的 TASK-003 review authorization 与 Reviewer 包；Reviewer 只可写 `handoffs/TASK-003.md`。
+- 后续：TASK-004 Reviewer 已结束；主控已生成包含精确 source head 的 TASK-003 review authorization 与 Reviewer 包，Reviewer 只可写 `handoffs/TASK-003.md`。
+
+## 审查授权
+
+- Reviewed implementation head: `adab4bb00dd7e917b295c22fd8357a4f11515912`
+- Reviewer: 全新独立 Grok 会话；仅在 `/Users/hua/Documents/yia-worktrees/task-003` 的 `codex/task-003-state-store` 分支工作。
+- Scope: Reviewer 只可在审查完成后写入并提交 `handoffs/TASK-003.md`；不得修改业务代码、Schema、依赖、锁文件、任务状态或 main。
+- Reviewer packet: `agent-prompts/TASK-003-REVIEWER-GROK.md`
 
 ## 分配记录
 
