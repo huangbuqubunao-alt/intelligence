@@ -2,13 +2,13 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_ACCEPTED__TASK_004_IN_REVIEW`
+项目状态：`TASK_003_ACCEPTED__TASK_004_CORRECTION_4`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
 `TASK-002` 的实现、预审修复、独立 Grok 审查和最终整合均已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，merge commit 为 `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`。整合后全部门禁通过，状态为 `DONE`。
 
-`TASK-003`/`TASK-004` 从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree。TASK-003 Codex 实现证据为 `adab4bb00dd7e917b295c22fd8357a4f11515912`，独立 Grok 审查证据为 `f07795f854e02b15e8c438622042e360b7c0e8b9`，Verdict=`APPROVE`，状态为 `ACCEPTED` 等待整合。TASK-004 的首个 Codex 审查 `f34cbb...` 为 `REJECT`；原 Grok 第三轮修复 evidence 为 `30932e1742e948683f9e1c0f63236451b8d731bd`，已关闭 4 个 P1、2 个 P2 与 1 个 P3，现由全新独立 Codex 会话进行第二次审查，状态为 `IN_REVIEW`。
+`TASK-003`/`TASK-004` 从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree。TASK-003 Codex 实现证据为 `adab4bb00dd7e917b295c22fd8357a4f11515912`，独立 Grok 审查证据为 `f07795f854e02b15e8c438622042e360b7c0e8b9`，Verdict=`APPROVE`，状态为 `ACCEPTED`，等待 Codex Integrator 合入。TASK-004 的第二次独立 Codex 审查 evidence `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58` 为 `REJECT`：非法 age_limit 的安全错误遗漏请求 video ID，RSS entry 缺 channelId 时仍保存候选/推进 cursor。原 Grok 仅修复这两个 P1，TASK-004 回到 `IN_PROGRESS`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -30,8 +30,8 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
-| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer（APPROVE）+ Integrator（待分配） | ACCEPTED | 002 |
-| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer（修复已提交）+ 全新独立 Codex Reviewer | IN_REVIEW | 002 |
+| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer（APPROVE）+ Codex Integrator | ACCEPTED | 002 |
+| [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer（correction 4）+ Codex Reviewer（REJECT，已结束） | IN_PROGRESS | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |

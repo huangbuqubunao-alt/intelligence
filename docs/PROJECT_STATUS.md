@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-003`（`codex/task-003-state-store`）与 `/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`），共同 base 为 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`；TASK-001/TASK-002 worktree 只保留审计证据
-- 活动任务：`TASK-003` 已由独立 Grok Reviewer 审查通过，状态为 `ACCEPTED`，等待整合；`TASK-004` 为 `IN_REVIEW`，第三轮修复 `30932e1...` 等待全新独立 Codex Reviewer 复核
+- 活动任务：`TASK-003` 为 `ACCEPTED`，最终 Integrator 包已就绪；`TASK-004` 的第二次独立 Codex 审查 `5d66c28...` 为 `REJECT`，原 Grok Implementer 正在进行最小 correction 4
 
 ## 已完成或已批准
 
@@ -24,25 +24,25 @@
 ## 当前阻塞
 
 - `TASK-003` 已无审批或审查阻塞，但仍须经独立 Integrator 合入 main 并重跑受影响门禁，之后才可设为 `DONE`。
-- `TASK-004` 已无审批或实现阻塞，当前仅等待 correction 3 的独立 Reviewer 结论；本轮审查未通过前不得合并或设为 `ACCEPTED`。
+- `TASK-004` 因 correction 3 的两个 P1 退回原 Grok Implementer；修复、完整离线门禁和下一轮独立审查通过前不得合并或设为 `ACCEPTED`。
 - `TASK-005` 及后续任务仍按任务图等待上游完成。
 
 ## 下一步
 
-1. 全新独立 Codex Reviewer 在 TASK-004 source worktree 复核 `dcc7d85...30932e1...`，重新运行全部任务门禁，并对 correction 3 的 4 个 P1、2 个 P2 与 1 个 P3 设计独立离线探针。
-2. TASK-004 Reviewer 返回 `APPROVE` 后，主控逐项验收并决定 `ACCEPTED`；若 `REJECT`，只退回原 Grok Implementer 修复。
-3. 主控为已接受的 TASK-003 生成 Integrator 包；Integrator 只能在独立 worktree 合入 `f07795...` 并重跑 TASK-003 受影响检查，成功后才可关闭为 `DONE`。
-4. Reviewer 不得修改业务代码，Implementer 不得启动 Reviewer；TASK-003/TASK-004 的 Integrator 均不得顺便开发或重构。
+1. 原 Grok Implementer 在 TASK-004 source worktree 从 `5d66c28...` 修复两个 P1：所有畸形 age_limit 错误保留请求 video ID；RSS entry 缺失 channelId 使整批失败并且不保存候选或推进游标。
+2. Codex Integrator 在 main 合入已接受的 TASK-003 `f07795...`，仅合入任务的 5 文件并重新运行 TASK-003 受影响门禁；成功后主控再关闭为 `DONE`。
+3. TASK-004 correction 4 通过主控范围核验后，才分配一个全新的独立 Reviewer；前两次 Reviewer 会话不得复用。
+4. TASK-004 Reviewer 返回 `APPROVE` 后，主控逐项验收并决定 `ACCEPTED`；若再次 `REJECT`，只退回原 Grok Implementer。
 5. TASK-004 继续禁止真实 YouTube 冒烟、Cookie、账号、remote components、ffmpeg 及媒体/字幕下载。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即启动 | TASK-004 全新独立 Codex Reviewer | 仅 TASK-004 handoff 审查证据 |
-| 可并行准备 | TASK-003 Integrator 开工包 | 只写 main 控制面；不得启动 merge |
-| 等待 TASK-004 审查 | TASK-004 主控验收与 Integrator 包 | Reviewer 结论返回后才决定 |
-| 等待整合 | TASK-003 `DONE` | 仅在 Integrator 合并与门禁通过后关闭 |
+| 立即启动 | TASK-004 Grok correction 4 | 仅 TASK-004 source worktree 的 5 个允许文件 |
+| 可并行启动 | TASK-003 Codex Integrator | 仅 main merge，已接受 source 的 5 个文件 |
+| 等待 correction 4 | TASK-004 下一轮独立 Reviewer | 新修复提交与主控范围核验完成后才分配 |
+| 等待整合结果 | TASK-003 `DONE` | 仅在 Integrator merge 与门禁通过后关闭 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界
@@ -67,6 +67,7 @@
 - TASK-003 的独立 Grok Reviewer 已以 `f07795...` 审查 `adab4bb...` 并给出 `APPROVE`：focused 30/9、全量 86、mypy、Ruff、`uv build` 及迁移资源均通过，AC-1 至 AC-5 与 ADR-003 S-01 至 S-08 均为 PASS。无 P0/P1/P2；非阻断 P3 为路径脱敏可能裁去 URL 片段、周报 `scope_key` 的周号正则略宽但表级 `iso_week` 仍限制 `1..53`。TASK-003 仅提供 at-most-once best effort，不声称跨外部 Provider 与数据库提交的严格 exactly-once；这些风险随整合与发布门禁保留。
 - TASK-004 独立 Reviewer 证据 `f34cbb...` 为 `REJECT`：P1 包括 yt-dlp 畸形 payload 逸出 `ValueError`、请求/响应 video ID 不一致、RSS 不完整 entry 静默跳过且推进游标、HTTP 404/403/503 的终态/重试语义反转；P2 包括 RSS read 失败未关闭 response 与 `needs_auth` 误标 PUBLIC，P3 为公开注解测试遗漏 `Any`。范围、依赖、公开 Surface 和安全 options 均通过，但上述 P1 阻断合并。
 - TASK-004 第三轮修复 `30932e1...` 已关闭 Reviewer 列出的 4 个 P1、2 个 P2 与 1 个 P3：静态核验确认 malformed mapping 在 Adapter 边界安全封装、返回 ID 与请求 ID 交叉校验、RSS 不完整 entry 使全批失败并不推进 cursor、HTTP 状态在宽泛文本前分类、response 在 finally 关闭、`needs_auth` 为 `RESTRICTED`、公开注解哨兵拒绝 `Any/object`。完整 17 文件范围与 correction 5 文件范围均通过；该结论不替代第二次独立审查。
+- TASK-004 第二次独立 Codex 审查 `5d66c28...` 重新运行全部门禁仍发现两个 P1：`_coerce_age_limit()` 处理非法值时虽返回 `INVALID_RESPONSE`，但 `AppError.video_id` 为 `None` 而未保留请求身份；RSS entry 缺 channelId 时实现以请求 channel 回填，仍保存候选并推进 cursor。其他 correction 3 覆盖项均通过。TASK-004 回到 `IN_PROGRESS`，correction 4 必须只修复这两项及其离线回归。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。
 - TASK-004 首个实现将 `SAFE_YDL_OPTS`、`build_ydl_opts` 和含 `Mapping`/`dict` 的 Adapter helper 显式置入 `__all__`，且 `YtDlpMetadataProvider` 公开了 `last_opts: list[dict[str, Any]]` 注入/属性。首个修复 `10f5ffa...` 虽隐藏了这些注解，却仍保留非私有 `map_info_dict_to_video_metadata(info: object)` 以及公开的 `ydl_factory`/`last_opts` 注入参数；以 `object` 包装自由结构不符合修复包。第二轮修复 `9db800f...` 已移除残余公开 mapper 与所有公开测试钩子，改为私有 `_map_*` / `_bind_test_hooks`；主控静态核验其构造面、模块符号、修复 commit 的 4 文件范围和完整 17 文件范围均通过。独立 Reviewer 仍须重跑门禁并独立判断。
 - `video-to-subtitle-summary-skill`、`yt2md` 只能按复用登记选择性参考；其中存在 faster-whisper/ffmpeg/付费 API/直接 Vault 写入或 TLS 风险，不能整套引入。

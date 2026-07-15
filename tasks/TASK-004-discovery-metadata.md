@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Grok`
-- Reviewer: `Codex`（全新独立会话；第二次独立审查 correction 3）
+- Reviewer: `Codex`（第二次独立审查 `REJECT`，已结束）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -127,3 +127,11 @@
 - Static evidence: safe malformed payload mapping、请求/响应 ID 核验、RSS 完整 entry 原子失败、HTTP 404/403/5xx 优先分类、read failure finally-close、`needs_auth -> RESTRICTED` 及 `Any/object` public-surface 哨兵均有实现和离线回归；未改变依赖、公共领域契约、无下载/无登录边界或 TASK-003。
 - Status decision: 已进入 `IN_REVIEW`；不以主控预核验取代独立审查。TASK-003 Reviewer 已结束，现授权一个**全新、独立于首个 TASK-004 Reviewer 的 Codex 会话**审查本 head。
 - Second-review packet: `agent-prompts/TASK-004-REVIEWER-2-CODEX.md`
+
+## 第二次独立审查拒绝与修复轮（四次）
+
+- Review evidence: `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`，审查对象为 `30932e1742e948683f9e1c0f63236451b8d731bd`；父提交精确为 source head，范围仅 `handoffs/TASK-004.md`。
+- Verdict: `REJECT`。P1-1：`providers/youtube.py` 的 `_coerce_age_limit()` 在非法 age_limit 时返回安全 `INVALID_RESPONSE`，但 `AppError.video_id=None`，未保存请求 video ID。P1-2：`discovery.py` 将 entry 缺失的 RSS channelId 回填为请求 channel，绕过完整性失败，仍保存候选并推进 cursor。
+- 已独立通过：其他 malformed date/duration、请求/响应 ID mismatch、RSS 缺 videoId/published/title、较旧 entry 恢复、全部 response close、HTTP 404/403/429/503/599、正文脱敏、`needs_auth -> RESTRICTED`、公开 Surface、yt-dlp 安全 options、无下载/无 Cookie/无 remote components。
+- Status decision: 回到 `IN_PROGRESS`，只退回原 Grok Implementer 修复上述两个 P1；不得修改依赖、公共契约、task 状态以外的控制面，亦不得启动第三位 Reviewer。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-4-GROK.md`

@@ -81,6 +81,13 @@
 - Findings: 无 P0/P1/P2。P3：路径脱敏可能裁去 URL 片段；周报 `scope_key` 的周号正则略宽，但数据库 `iso_week` CHECK 仍限制 `1..53`。跨外部 Provider 成功与数据库提交只提供 at-most-once best effort，不提供严格 exactly-once。
 - 主控验收：`ACCEPTED`。实现与审查范围、复用和任务级门禁一致；等待独立 Integrator 合入 main 并重跑受影响检查，合入前不得改为 `DONE`。
 
+## 最终整合授权
+
+- Accepted source/review head: `f07795f854e02b15e8c438622042e360b7c0e8b9`；review evidence 的父提交为 `adab4bb...`，仅追加本任务 handoff。
+- Integrator: 全新 Codex Integrator 会话，在 main 执行非快进 merge；不得开发、修复、重构、修改任务状态或清理 source branch/worktree。
+- 进入 main 的第一父差异只能为 `state.py`、`migrations/001_initial.sql`、两份 TASK-003 测试和 `handoffs/TASK-003.md`；必须重跑两组 focused tests、全量 pytest、mypy、Ruff、`uv build` 和 migration SQL 包含性检查。
+- Integrator packet: `agent-prompts/TASK-003-INTEGRATOR.md`。合并成功且门禁通过后，主控另行同步 `DONE`；本轮绝不得自行关闭。
+
 ## 分配记录
 
 - Assigned at: 2026-07-15
