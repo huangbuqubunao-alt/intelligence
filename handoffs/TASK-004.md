@@ -964,3 +964,106 @@ def wire(source: SourceProvider, repository: SQLiteStateRepository) -> Discovery
 - 主线 commit：
 - 整合后检查：
 - 最终状态：
+
+## 第五位独立 Codex Reviewer 结论（Correction 6）
+
+- Reviewer agent/session：Codex（第五次全新独立 Reviewer；未参与 correction 6 实现）
+- Main review authorization：`22dd5b5915d8c271274a06a2baa9865174bbad97`（唯一父为 `091a591f56c9aec73d4e7d979635b866493326a9`）
+- Reviewed implementation head：`7272528a3c5603087446251ee96ae4766fedeb96`
+- Reviewed implementation parent：`d510794ffccf54948f967f010685aef1c0a02f3d`
+- Review evidence commit：本节提交后的 branch tip；唯一父提交必须为 `7272528a3c5603087446251ee96ae4766fedeb96`
+- Verdict：`APPROVE`
+- Decision needed：`None`
+
+### 启动、授权与固定 Diff 门禁
+
+- Main gate：PASS。Reviewer 包动态解析为 `22dd5b5...`，等于 main HEAD；其父为指定 `091a591...`，开始与 evidence 写入前 main 均 Git-clean。
+- Source gate：PASS。分支 `grok/task-004-discovery-metadata`，HEAD/父提交精确为 `7272528...` / `d510794...`；Git identity 为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`；开始与 evidence 写入前 source 均 clean。
+- 单父链：PASS。`git rev-list --parents -n 1 7272528...` 仅列出父 `d510794...`；没有 amend/rebase/额外 merge。
+- Correction 6 范围：PASS。`d510794...7272528...` 精确只修改 `discovery.py`、两份 discovery tests 与本 handoff 四个批准文件。
+- 完整产品范围：PASS。`58c79af...7272528...` 精确为原批准 17 路径：`discovery.py`、`providers/youtube.py`、两份 discovery tests、10 个 YouTube fixtures、`pyproject.toml`、`uv.lock` 与本 handoff。
+- 禁改文件：PASS。Correction 6 未修改 `state.py`、migration/Schema、`domain.py`、`providers/youtube.py`、fixtures、依赖、lock、main、TASK-005 或任务状态。
+- `git diff --check 58c79af...7272528...`：PASS（0 output）。无 mode/binary 变更或受跟踪数据库、构建产物、媒体、字幕、Cookie、密钥/Vault 内容。
+
+### 独立复跑检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS；Resolved 34 packages |
+| `uv sync --locked` | PASS；Checked 30 packages |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS；30 passed |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS；36 passed |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS；10 passed |
+| `uv run python -m pytest` | PASS；132 passed |
+| `uv run mypy src` | PASS；7 source files，0 issues |
+| Reviewer 包中的精确 `MYPYPATH=src uv run mypy -c '...'` wiring probe | PASS；1 source file，0 issues |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS；只输出 CLI help |
+| `uv build` | 首次仅因 sandbox 禁止访问 PyPI/`uv-build` 失败；按本任务既有授权在沙箱外原命令重跑后 PASS |
+| sdist/wheel migration 包含性 | PASS；两者均含 `youtube_intel/migrations/001_initial.sql` |
+| fixed `git diff --check` | PASS |
+| pre-handoff `git status --short` | PASS；main/source 均 clean，仅存在被忽略的 `.venv`/cache/`dist` 构建临时物 |
+
+Reviewer 完整读取 AGENTS/COLLABORATION、PROJECT_STATUS、PRD、SYSTEM_DESIGN、REUSE_REGISTER、TASK-004 卡、本 Reviewer 包、ADR-003 S-05、ADR-004、第四次 Reviewer REJECT、Correction 6 Implementer、三份指定测试、完整 `discovery.py` 以及 `state.py` 的 frozen records/四个 Repository 方法；先审测试再审实现，没有采信 Implementer 的自报通过结论。
+
+### 独立探针 A — 静态 Repository 可替代性：`PASS`
+
+- 精确 mypy wiring：`SQLiteStateRepository` 可赋给 `DiscoveryRepository`，并直接传给 `DiscoveryService`；返回 0，无 assignment/argument/return conflict。
+- 真实签名/返回：`get_channel_cursor -> ChannelCursorRecord | None`、`save_discovery_batch -> ChannelCursorRecord`、`upsert_video_metadata -> VideoRecord`、`mark_video_unavailable -> bool`；运行时逐项验证实际对象/布尔值。
+- 只读语义：`ChannelCursorView.channel_id/revision` 与 `VideoRecordView` 五字段均为无 setter 的 `property`；真实 records 均 `@dataclass(frozen=True, slots=True)`，尝试写回触发 `FrozenInstanceError/AttributeError`。
+- 真实组合：初始化临时 SQLite 后 `isinstance(repository, DiscoveryRepository) == True`；真实 `DiscoveryService` 完成 offline discovery、cursor revision 1/2、metadata upsert 与 unavailable 标记。
+- 架构/类型边界：AST 核对 Protocol 只有四个具名方法；生产 `discovery.py` 不导入 `youtube_intel.state`/`sqlite3`/`SQLiteStateRepository`，Protocol 注解无 `Any`、宽 `object`、自由 `dict/Mapping`、`cast`、`type: ignore`、wrapper、具体 SQLite 或重复 Repository 实现。
+- Reviewer 的初版临时 AST 哨兵曾把 docstring 中“SQLiteStateRepository”说明文字误判为 import；只修正 `/private/tmp` 探针为 AST import/class 检查后重跑 PASS，仓库未改动，该 harness 误报不是产品 finding。
+
+### 独立探针 B — 纯空白版本零副作用：`PASS`
+
+- 使用 `/private/tmp` 离线 probe 和每例独立真实临时 `SQLiteStateRepository`，覆盖精确五类：`" "`、`"   "`、`"\t"`、`"\n"`、`" \t\n "`。
+- discovery 与 metadata 两条公开 `DiscoveryService` 路径均返回 `AdapterError(AppError(CONFIG_INVALID))`；stage 分别为 `DISCOVERY` / `METADATA`，retryable 为 false。
+- 每例 Source/Metadata call count 均为 0；直接查询真实 SQLite 的 `videos/channel_cursors` 与 metadata/availability 非空计数始终为 `(0, 0, 0, 0)`。
+- 错误字符串不含 `sqlite3`、`IntegrityError`、CHECK 文本、SQL、临时数据库路径或 payload。
+- 另用同一独立 probe 验证 `pipeline_version=""` 与 naive datetime 两条 Service 路径继续在 Provider 前 `CONFIG_INVALID`、数据库不变；`pipeline_version="pipeline-v1"` 正常完成 discovery + metadata，call count 各 1，真实 cursor/video/title/availability 正确。
+
+### Correction 3/4 安全回归独立复核：`PASS`
+
+- Correction 6 相对父提交的 `providers/youtube.py`、`state.py`、`domain.py`、依赖与 lock 均 byte-for-byte 未变；仍重新读取相关实现并运行独立 `/private/tmp` regression probe。
+- malformed publish date/非法 `age_limit` 均安全映射 `INVALID_RESPONSE` 并保留请求 video ID；raw field/payload 不泄漏。
+- 请求/响应 video ID mismatch 被拒绝且错误关联请求 ID；`needs_auth -> RESTRICTED`；人工/自动语言仅形成有序去重摘要，无 URL。
+- HTTP `404/403/429/503/599` 独立映射为 `CONTENT_UNAVAILABLE/PERMISSION_DENIED/RATE_LIMITED/PROVIDER_UNAVAILABLE/PROVIDER_UNAVAILABLE`，retryability 正确，raw provider 文本不泄漏。
+- RSS success/timeout/OSError/non-bytes/oversize/malformed XML 路径均关闭 response；entry channel ID 缺失、纯空白或不匹配均整批 `INVALID_RESPONSE`，Repository 不变。
+- Provider public surface 仍只有 `YtDlpMetadataProvider(timeout_seconds=...)`；安全 options 保持 `skip_download=True`、`download=False`、字幕/缩略图/info JSON 写入 false、`usenetrc=False`，无 Cookie/登录/`.netrc`、remote components、ffmpeg、paths 或 postprocessors。
+
+### AC / ADR-004 判定矩阵
+
+| 项目 | 结论 | 核心独立证据 |
+|---|---|---|
+| AC-1 固定夹具发现/分类 | PASS | unit 36 + integration 10；RSS、Shorts、live/upcoming/ended/private/restricted 全覆盖 |
+| AC-2 稳定重跑、去重、正确推进 | PASS | 真实 SQLite 组合重跑 revision 前进、视频无重复、Pipeline 不倒退；stale Service CAS 无部分写入 |
+| AC-3 错误分类与脱敏 | PASS | 独立 malformed/ID/HTTP/response-close probe 与空白错误泄漏哨兵 |
+| AC-4 metadata 独立失败/语言摘要 | PASS | 已保存 discovery 不回滚；metadata/unavailable 真实 SQLite 路径与有序语言摘要通过 |
+| AC-5 无下载/认证/remote | PASS | options、`download=False`、public surface 与无受跟踪媒体/字幕产物检查 |
+| D-01 发现批次提交点 | PASS | 真实 candidates + cursor 单事务、空批次、failure injection 与 Service stale CAS |
+| D-02 顺序/重复/游标 | PASS | Provider 顺序、批内去重、稳定 frontier、空批次保留与重复重跑 |
+| D-03 metadata/Pipeline/Job 职责 | PASS | 独立 metadata upsert/unavailable；错误安全且不倒退 Pipeline/不回滚 discovery |
+| D-04 字幕清单归属 | PASS | 仅 `available_languages` 摘要，无轨道 URL/格式/manual-auto 公共字段 |
+| D-05 RSS/yt-dlp Adapter 边界 | PASS | stdlib RSS、yt-dlp Python API、非法外部输入 fail-closed、无认证/媒体路径 |
+| D-06 依赖/安装授权 | PASS | 唯一直依赖仍为 `yt-dlp[default,deno]>=2026.7.4,<2026.8`；Correction 6 无 dependency/lock 变更 |
+| D-07 离线测试矩阵 | PASS | 132 tests + Reviewer A/B/安全回归独立 probe；精确 mypy wiring 已进入必跑证据 |
+| D-08 文件所有权/Repository | PASS | 4-file correction、17-file product Diff；单一窄 Protocol 静态/运行时接受真实 SQLite，无 concrete import/wrapper |
+
+### 五轴、Findings 与范围/红线/复用
+
+- Correctness：PASS。两个第四次 Reviewer P1 均独立 CLOSED；错误路径、真实 SQLite 原子/CAS、稳定重跑和边界行为有外部证据。
+- Readability：PASS。`@property` 明确表达只读协变返回语义；`.strip()` 是最小边界修复，无无关控制流或死代码。
+- Architecture：PASS。consumer Protocol 保持四方法单一版本，Dependency 指向领域/Protocol；没有具体 SQLite coupling、重复 wrapper 或 monkey patch。
+- Security：PASS。空白配置在外部调用/DB 前 fail-closed；错误不泄漏 SQL/路径/payload；既有无 Cookie/下载/remote/ffmpeg 边界无回归。
+- Performance：PASS。property typing 与一次短字符串 `.strip()` 不新增 I/O、查询、循环或不受限数据处理。
+- Findings：P0 无；P1 无；P2 无；P3 无。
+- Reuse：PASS。标准库 RSS/Protocol/dataclass/SQLite + 官方锁定 yt-dlp；安装版本为 `yt-dlp==2026.7.4`、`yt-dlp-ejs==0.8.0`、`deno==2.9.2`，没有新增/升级直接依赖或复制 REFERENCE/REJECT 项目代码。
+- License：本机安装元数据仍为 yt-dlp `Unlicense`、yt-dlp-ejs `Unlicense AND MIT AND ISC`、Deno `MIT`、pydantic/PyYAML `MIT`；`mutagen==1.48.1` 的 `GPL-2.0-or-later` 分发风险未扩大，继续留 TASK-014。
+
+### 跳过项、剩余风险与最终判定
+
+- 真实 YouTube/字幕：`NOT RUN (not authorized)`。
+- Cookie/账号登录/浏览器会话/`.netrc`、remote components、ffmpeg、媒体/字幕下载、真实 Vault/密钥：`NOT RUN (not authorized)`。
+- 剩余风险：YouTube RSS/页面字段漂移需未来单独授权真实冒烟；`mutagen` GPL 分发义务待 TASK-014；V1 仍只声称 Provider/DB 边界可恢复与原子本地事务，不声称跨外部 Provider 与 SQLite 的严格 exactly-once。
+- **最终 Verdict：`APPROVE`。** 两项 P1 均独立关闭，所有必跑门禁、AC-1 至 AC-5、ADR-004 D-01 至 D-08、范围/红线/复用检查通过；Reviewer 未修改业务代码、测试、依赖、锁文件、main 或任务状态。
