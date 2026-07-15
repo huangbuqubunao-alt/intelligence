@@ -66,6 +66,13 @@
 - 测试命令和关键约束场景结果。
 - 迁移前后 Schema 版本/checksum 以及构建产物包含 SQL 的输出。
 
+## 实现证据与审查排队
+
+- Implementer evidence head: `adab4bb00dd7e917b295c22fd8357a4f11515912` on `codex/task-003-state-store`。
+- 静态 pre-review: source worktree 干净；相对 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 的完整 Diff 精确为任务允许的 5 个文件，`git diff --check` 通过。主控已对照 ADR-003 审阅 migration、Repository 的事务/CAS/租约/attempt/Provider call/阶段完成边界，未发现预审 P0/P1；这不替代独立复跑。
+- Status decision: 保持 `IN_PROGRESS`，不提前生成或启动 Reviewer；项目当前已有 TASK-004 独立 Reviewer，TASK-003 的全新 Grok Reviewer 必须等待唯一 Reviewer 容量释放。
+- 后续：TASK-004 Reviewer 结束后，主控生成包含精确 source head 的 TASK-003 review authorization 与 Reviewer 包；Reviewer 只可写 `handoffs/TASK-003.md`。
+
 ## 分配记录
 
 - Assigned at: 2026-07-15

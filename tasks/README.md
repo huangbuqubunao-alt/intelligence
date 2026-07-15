@@ -8,7 +8,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-002` 的实现、预审修复、独立 Grok 审查和最终整合均已完成；审查证据 commit 为 `d98de3537187ac346e404d7899d0a9d90c228483`，merge commit 为 `823d68a2dffc1745e04cbbe54c817bf0c117a6fa`。整合后全部门禁通过，状态为 `DONE`。
 
-`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 由 Codex 实现、Grok 等待审查；TASK-004 的首个 Grok 实现与首轮修复先后因 P1 公共边界泄漏被退回。第二轮修复 `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa` 已通过主控只读核验：无非私有 raw mapper、公开构造面仅保留 `timeout_seconds`、测试钩子均为私有。TASK-004 将进入独立 Codex 审查。TASK-003 为 `IN_PROGRESS`，TASK-004 为 `IN_REVIEW`。
+`TASK-003`/`TASK-004` 已从共同基线 `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176` 建立独立 worktree 并并行分配。TASK-003 Codex 实现证据为 `adab4bb00dd7e917b295c22fd8357a4f11515912`，主控已核对 5 文件范围和 ADR-003 静态契约，等待 TASK-004 Reviewer 结束后由全新 Grok 复审。TASK-004 的第二轮修复 `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa` 已进入独立 Codex 审查。为遵守最多一个活跃 Reviewer 的 WIP 限制，TASK-003 仍为 `IN_PROGRESS`，TASK-004 为 `IN_REVIEW`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -30,7 +30,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-000](TASK-000-product-decisions.md) | 关闭 V1 开工决策 | PO + TL | DONE | 无 |
 | [TASK-001](TASK-001-project-scaffold.md) | 工程脚手架与质量门禁 | Codex + Grok + Integrator | DONE | 000 |
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
-| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + Grok Reviewer（等待实现） | IN_PROGRESS | 002 |
+| [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer（实现已提交）+ 独立 Grok Reviewer（等待容量） | IN_PROGRESS | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Grok Implementer（完成，等待审查）+ 独立 Codex Reviewer | IN_REVIEW | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 实现 Agent | BLOCKED | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
