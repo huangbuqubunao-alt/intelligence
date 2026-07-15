@@ -303,14 +303,49 @@
 - 真实 YouTube / Cookie / remote components / ffmpeg / 媒体字幕下载：未运行（未授权）
 - 剩余风险：Provider 页面文案变化仍可能影响非 HTTP 文本分类；私有测试 hook 约定仍依赖 Python 命名隐私；TASK-003 组合契约待整合
 
+## Second Reviewer REJECT 修复（Correction-4）
+
+- Prior reviewed implementation head：`30932e1742e948683f9e1c0f63236451b8d731bd`
+- Second review evidence / required source head：`5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`
+- Correction-4 commit：见分支 tip（消息 `fix: preserve discovery error identity and RSS integrity`）
+- 本轮仅改：`providers/youtube.py`、`discovery.py`、unit/integration tests、`handoffs/TASK-004.md`
+- 任务状态保持 `IN_PROGRESS`；不启动 Reviewer、不合并 main
+
+| Finding | 修复 | 回归 |
+|---|---|---|
+| P1 非法 age_limit 丢失请求 video_id | `_coerce_age_limit` / `_map_availability` 接受并传播 `video_id=`；最终 `INVALID_RESPONSE` nonretryable METADATA 且 `error.video_id == requested_video_id`；不泄漏原始 age_limit/ValueError/TypeError | `test_illegal_age_limit_preserves_requested_video_id`；`test_malformed_ytdlp_payload_is_safe_adapter_error` 加强断言 |
+| P1 RSS entry channelId 用请求 channel 回填 | 不再 `or expected_channel_id`；缺失/空 channelId → 整批 `INVALID_RESPONSE` nonretryable；不写 candidates、不推进 cursor；修复后较旧 entry 仍可发现 | unit `test_rss_missing_channel_id_fails_without_backfill_or_cursor_advance`；integration `test_rss_missing_channel_id_does_not_mutate_repository` |
+
+### 检查结果（Correction-4）
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked` | PASS |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS |
+| `uv run python -m pytest` | PASS |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `git diff --check` | PASS |
+
+### 跳过与风险
+
+- 真实 YouTube / Cookie / remote components / ffmpeg / 媒体字幕：未运行（未授权）
+- correction 3 既有回归保留（malformed date、ID mismatch、缺 videoId/title、HTTP 分类、response close、needs_auth、公开 surface）
+- 剩余风险：Provider 文案漂移；TASK-003 组合契约待整合；私有测试 hook 约定
+
 ## 实现者结论
 
-- 建议状态：`IN_PROGRESS`（Reviewer REJECT 修复已提交；等待主控预核验后再开 Reviewer）
+- 建议状态：`IN_PROGRESS`（第二位 Reviewer REJECT 修复已提交；等待主控核验后再开 Reviewer）
 - 首个实现 Commit：`392edfb897003c1583b538667d10a2a89926a94b`
 - Correction-1：`10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
 - Correction-2：`9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
 - Review REJECT evidence：`f34cbb09d628ebb256bf5f2895adfd10dbd61812`
-- Correction-3：见分支 tip（`fix: harden discovery adapter error boundaries`）
+- Correction-3：`30932e1742e948683f9e1c0f63236451b8d731bd`
+- Second Review REJECT evidence：`5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`
+- Correction-4：见分支 tip（`fix: preserve discovery error identity and RSS integrity`）
 - 复现/验证说明：
 
 ```bash

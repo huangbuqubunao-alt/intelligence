@@ -264,6 +264,71 @@ def test_repeated_discovery_batch_does_not_duplicate_or_regress() -> None:
     assert len([e for e in repo.save_events]) == 2
 
 
+def test_rss_missing_channel_id_does_not_mutate_repository() -> None:
+    """Integration: missing entry channelId fails safely without candidates/cursor advance."""
+    missing = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_no_ch</yt:videoId>
+    <title>No channel</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    service, repo = _rss_service(missing)
+    seeded = DiscoveryCursor(channel_id="UC_example", latest_video_id="seed_keep")
+    repo.cursors["UC_example"] = seeded
+    with pytest.raises(AdapterError) as exc_info:
+        service.discover_and_save(CHANNEL)
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert exc_info.value.error.retryable is False
+    assert repo.videos == {}
+    assert repo.cursors["UC_example"] == seeded
+    assert repo.save_events == []
+
+    # Fixed feed: older entry now complete and discoverable from empty frontier.
+    fixed = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_no_ch</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Restored channel</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    repo.cursors["UC_example"] = DiscoveryCursor(channel_id="UC_example")
+    service2, _ = _rss_service(fixed)
+    # Reuse same repo for cursor/candidate assertions.
+    service2 = DiscoveryService(
+        YouTubeRssSourceProvider(
+            timeout_seconds=20.0,
+            opener=lambda request, timeout: _FakeResponse(fixed),
+            clock=lambda: FIXED_NOW,
+            feed_url_template="https://example.invalid/feeds/{channel_id}.xml",
+        ),
+        repo,
+    )
+    batch = service2.discover_and_save(CHANNEL)
+    assert "vid_no_ch" in batch.video_ids
+    assert "vid_new_1" in batch.video_ids
+    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+
+
 def test_provider_rejects_mismatched_and_http_errors_offline() -> None:
     """Integration: request/response id match + HTTP classification stay safe offline."""
     body = (FIXTURES / "rss_sample.xml").read_bytes()

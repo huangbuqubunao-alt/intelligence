@@ -130,8 +130,16 @@ def _map_live_status(info: Mapping[str, Any]) -> LiveStatus:
     return LiveStatus.NONE
 
 
-def _coerce_age_limit(info: Mapping[str, Any]) -> int | None:
-    """Parse optional age_limit safely; malformed values become INVALID_RESPONSE."""
+def _coerce_age_limit(
+    info: Mapping[str, Any],
+    *,
+    video_id: str | None = None,
+) -> int | None:
+    """Parse optional age_limit safely; malformed values become INVALID_RESPONSE.
+
+    Always attaches the request/response video identity when available so callers
+    never receive an identity-less AppError for this external field.
+    """
     age_raw = info.get("age_limit")
     if age_raw is None or age_raw == "":
         return None
@@ -144,13 +152,18 @@ def _coerce_age_limit(info: Mapping[str, Any]) -> int | None:
                 "yt-dlp info has invalid age_limit",
                 retryable=False,
                 stage=ProcessingStage.METADATA,
+                video_id=video_id,
             )
         ) from None
 
 
-def _map_availability(info: Mapping[str, Any]) -> Availability:
+def _map_availability(
+    info: Mapping[str, Any],
+    *,
+    video_id: str | None = None,
+) -> Availability:
     # Validate age_limit whenever present so free-form payload cannot raise ValueError.
-    age_limit = _coerce_age_limit(info)
+    age_limit = _coerce_age_limit(info, video_id=video_id)
 
     raw = info.get("availability")
     if isinstance(raw, str):
@@ -220,7 +233,7 @@ def _map_info_dict_to_video_metadata(
 
         title = info.get("title")
         if not isinstance(title, str) or not title.strip():
-            availability = _map_availability(info)
+            availability = _map_availability(info, video_id=safe_video_id)
             if availability is Availability.PUBLIC:
                 availability = Availability.UNAVAILABLE
             raise AdapterError(
@@ -327,7 +340,7 @@ def _map_info_dict_to_video_metadata(
         available_languages = _summarize_available_languages(subtitles, auto)
 
         live_status = _map_live_status(info)
-        availability = _map_availability(info)
+        availability = _map_availability(info, video_id=safe_video_id)
 
         metadata = VideoMetadata(
             video_id=video_id,

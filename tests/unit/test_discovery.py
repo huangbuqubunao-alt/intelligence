@@ -625,8 +625,13 @@ def test_malformed_ytdlp_payload_is_safe_adapter_error() -> None:
     }
     with pytest.raises(AdapterError) as exc_info2:
         youtube_mod._map_info_dict_to_video_metadata(bad_age, requested_video_id="public1x")
-    assert exc_info2.value.error.code is ErrorCode.INVALID_RESPONSE
-    assert "not-a-number" not in exc_info2.value.error.message
+    age_err = exc_info2.value.error
+    assert age_err.code is ErrorCode.INVALID_RESPONSE
+    assert age_err.retryable is False
+    assert age_err.stage is ProcessingStage.METADATA
+    assert age_err.video_id == "public1x"
+    assert "not-a-number" not in age_err.message
+    assert "age_limit" not in age_err.message or "invalid age_limit" in age_err.message
 
     # Via Provider.fetch path as well.
     class _Handle:
@@ -640,6 +645,61 @@ def test_malformed_ytdlp_payload_is_safe_adapter_error() -> None:
     assert fetch_exc.value.error.code is ErrorCode.INVALID_RESPONSE
     assert fetch_exc.value.error.video_id == "public1x"
     assert not isinstance(fetch_exc.value.__cause__, (ValueError, TypeError))
+
+
+def test_illegal_age_limit_preserves_requested_video_id() -> None:
+    """P1 (correction 4): invalid age_limit AppError always carries request identity."""
+    requested = "reqage1"
+    payload = {
+        "id": requested,
+        "title": "Age gated title",
+        "description": "desc",
+        "channel_id": "UC_example",
+        "channel": "Example Channel",
+        "timestamp": 1720612800,
+        "duration": 90,
+        "availability": "public",
+        "live_status": "not_live",
+        "age_limit": {"nested": "illegal"},  # non-int-coercible free-form value
+        "subtitles": {},
+        "automatic_captions": {},
+    }
+
+    # Direct helper path.
+    with pytest.raises(AdapterError) as map_exc:
+        youtube_mod._map_info_dict_to_video_metadata(payload, requested_video_id=requested)
+    map_err = map_exc.value.error
+    assert map_err.code is ErrorCode.INVALID_RESPONSE
+    assert map_err.retryable is False
+    assert map_err.stage is ProcessingStage.METADATA
+    assert map_err.video_id == requested
+    assert "nested" not in map_err.message
+    assert "illegal" not in map_err.message
+    assert not isinstance(map_exc.value.__cause__, (ValueError, TypeError))
+
+    # Provider.fetch + repository must not store anything.
+    class _Handle:
+        def extract_info(self, url: str, download: bool = True) -> object:
+            assert requested in url
+            return payload
+
+    provider = YtDlpMetadataProvider(timeout_seconds=10.0)
+    youtube_mod._bind_test_hooks(provider, ydl_factory=lambda opts: _Handle())
+    repo = FakeDiscoveryRepository()
+    service = DiscoveryService(
+        _rss_provider(_load_bytes("rss_sample.xml")),
+        repo,
+        provider,
+    )
+    with pytest.raises(AdapterError) as fetch_exc:
+        service.fetch_and_store_metadata(requested)
+    fetch_err = fetch_exc.value.error
+    assert fetch_err.code is ErrorCode.INVALID_RESPONSE
+    assert fetch_err.retryable is False
+    assert fetch_err.stage is ProcessingStage.METADATA
+    assert fetch_err.video_id == requested
+    assert repo.metadata == {}
+    assert requested not in repo.metadata
 
 
 def test_response_video_id_must_match_request() -> None:
@@ -719,6 +779,75 @@ def test_incomplete_rss_entry_fails_without_advancing_cursor() -> None:
 """
     provider2 = _rss_provider(fixed)
     service2 = DiscoveryService(provider2, repo)
+    batch = service2.discover_and_save(CHANNEL)
+    assert "vid_fixed_old" in batch.video_ids
+    assert "vid_new_1" in batch.video_ids
+    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+
+
+def test_rss_missing_channel_id_fails_without_backfill_or_cursor_advance() -> None:
+    """P1 (correction 4): entry channelId is required; never backfill from request channel."""
+    missing_channel = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_fixed_old</yt:videoId>
+    <title>Missing channel id</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    provider = _rss_provider(missing_channel)
+    repo = FakeDiscoveryRepository()
+    # Seed a pre-existing cursor that must remain untouched on failure.
+    seeded = DiscoveryCursor(
+        channel_id="UC_example",
+        latest_video_id="seed_vid",
+        latest_published_at=T0,
+        provider_cursor="seed-cursor",
+    )
+    repo.cursors["UC_example"] = seeded
+    videos_before = dict(repo.videos)
+    service = DiscoveryService(provider, repo)
+
+    with pytest.raises(AdapterError) as exc_info:
+        service.discover_and_save(CHANNEL)
+    err = exc_info.value.error
+    assert err.code is ErrorCode.INVALID_RESPONSE
+    assert err.retryable is False
+    assert "backfill" not in err.message.lower()
+    # Repository and cursor must be unchanged.
+    assert repo.videos == videos_before
+    assert repo.cursors["UC_example"] == seeded
+    assert repo.save_events == []
+
+    # After the feed is fixed (older entry now has channelId), discovery succeeds.
+    fixed = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <yt:videoId>vid_new_1</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Newest</title>
+    <published>2026-07-10T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>vid_fixed_old</yt:videoId>
+    <yt:channelId>UC_example</yt:channelId>
+    <title>Previously missing channel</title>
+    <published>2026-07-09T12:00:00+00:00</published>
+  </entry>
+</feed>
+"""
+    # Reset to empty cursor frontier so both entries are candidates.
+    repo.cursors["UC_example"] = DiscoveryCursor(channel_id="UC_example")
+    service2 = DiscoveryService(_rss_provider(fixed), repo)
     batch = service2.discover_and_save(CHANNEL)
     assert "vid_fixed_old" in batch.video_ids
     assert "vid_new_1" in batch.video_ids

@@ -671,17 +671,21 @@ class YouTubeRssSourceProvider:
     ) -> _RssEntry:
         """Parse one entry; incomplete/invalid fields fail the whole discovery batch."""
         video_id = _child_text(node, "yt:videoId") or _child_text(node, "videoId")
-        channel_id = (
-            _child_text(node, "yt:channelId")
-            or _child_text(node, "channelId")
-            or expected_channel_id
-        )
+        # Entry channelId must be present on the feed itself; never backfill from request.
+        channel_id = _child_text(node, "yt:channelId") or _child_text(node, "channelId")
         title = _child_text(node, "atom:title") or _child_text(node, "title")
         published_raw = _child_text(node, "atom:published") or _child_text(node, "published")
         if not video_id:
             _raise_adapter(
                 ErrorCode.INVALID_RESPONSE,
                 "RSS entry missing video id",
+                retryable=False,
+            )
+            raise AssertionError("unreachable")
+        if not channel_id:
+            _raise_adapter(
+                ErrorCode.INVALID_RESPONSE,
+                "RSS entry missing channel id",
                 retryable=False,
             )
             raise AssertionError("unreachable")
