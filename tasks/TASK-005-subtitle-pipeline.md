@@ -49,3 +49,10 @@
 - 测试矩阵和结果。
 - 一个脱敏的 TranscriptArtifact 示例。
 - 字幕质量规则的已知误判风险。
+
+## 并行只读预检
+
+- TASK-005 继续为 `BLOCKED`，不得实现、安装依赖、修改锁文件、下载字幕或访问真实 YouTube。
+- TASK-004 correction 5 写入期间，可由独立只读 Scout 针对已提交 Git 对象、main 文档和已冻结领域/状态契约并行盘点字幕选择、规范化、产物、错误、复用和审批空白；不得读取正在变化的 TASK-004 live worktree。
+- Preflight packet: `agent-prompts/PREFLIGHT-TASK-005-READONLY.md`。
+- Scout 输出仅作为主控补齐 TASK-005 契约和后续审批包的依据，不改变依赖满足状态，不构成 `READY` 或实现授权。

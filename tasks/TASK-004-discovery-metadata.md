@@ -1,8 +1,8 @@
 # TASK-004：频道发现与元数据
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Grok`
-- Reviewer: `Grok`（全新独立会话；审查 correction 4）
+- Reviewer: `Codex`（全新独立会话；等待 correction 5 完成后再授权）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -143,3 +143,15 @@
 - Static evidence: `_coerce_age_limit()` / `_map_availability()` 接受请求 video ID，非法 age_limit 返回 `INVALID_RESPONSE`、nonretryable、METADATA 且保留身份；RSS entry channelId 缺失或不匹配立即 `INVALID_RESPONSE`，不再回填请求 channel。unit/integration 回归验证不保存候选/不推进 cursor 与较旧条目恢复。
 - Status decision: 进入 `IN_REVIEW`；授权一个**全新、独立于所有此前 TASK-004 Implementer 与 Reviewer 会话的 Grok Reviewer**，不得以主控核验取代独立审查。
 - Reviewer packet: `agent-prompts/TASK-004-REVIEWER-3-GROK.md`
+
+## 第三次独立审查与主控组合验收
+
+- Reviewed implementation head: `54c0ab201388cba35e481d7a511f21575946ad14`。
+- Review evidence: `1883367d313623c42d9d3624b16307ca8d502709`，父提交精确为 reviewed head，范围仅 `handoffs/TASK-004.md`。
+- Reviewer verdict: `APPROVE`。`uv lock --check`、`uv sync --locked`、unit 33、integration 6、全量 86、mypy、Ruff、CLI help 与固定 Diff 检查全部通过；AC-1 至 AC-5、ADR-004 D-01 至 D-08 在 TASK-004 独立分支/Fake Repository 范围内全部 PASS，无 P0/P1/P2/P3。Reviewer 未运行真实 YouTube、Cookie/登录、remote components、ffmpeg 或媒体/字幕下载。
+- 主控组合契约探针：`SQLiteStateRepository` 不能满足当前 `DiscoveryRepository`。运行时 `isinstance(..., DiscoveryRepository) == False`；TASK-004 需要 `get_cursor`、`upsert_metadata`、`mark_unavailable`，而 main 的 TASK-003 提供 `get_channel_cursor`、`upsert_video_metadata`、`mark_video_unavailable`；双方 `save_discovery_batch` 还在 `expected_revision`、`pipeline_version`、`now` 和返回值上不一致。
+- Severity: `P1`。这不是对第三次 Reviewer 已覆盖项目的否定，而是 ADR-004 D-08 明确推迟到两项整合后执行的真实 SQLite 组合契约门禁；当前实现若直接合入，`DiscoveryService` 首次读取 cursor 即无法调用 SQLite Repository。
+- Status decision: **不进入 `ACCEPTED`**，回到 `IN_PROGRESS`。原 Grok Implementer 必须先把包含 TASK-003 的最新控制面 main 合入 TASK-004 source 分支，再做 correction 5；不得 rebase、reset、cherry-pick、改写历史或修改 main。
+- Correction 5 ownership: 只在 TASK-004 已批准文件中对齐 consumer Protocol/Service/Fake，并在 `tests/integration/test_discovery_adapter.py` 增加真实 `SQLiteStateRepository` 组合测试；不得修改 `state.py`、migration、Schema、`domain.py`、依赖或锁文件。
+- Contract rule: 保留单一 Repository 语义和 TASK-003 已接受的具名方法，不新增重复 SQLite wrapper，不让生产 `discovery.py` 导入具体 `SQLiteStateRepository`。应用边界必须显式提供 cursor revision、`pipeline_version` 和 UTC `now`；公共注解不得以 `Any`、宽 `object` 或自由 `dict` 掩盖不兼容。
+- Correction packet: `agent-prompts/TASK-004-CORRECTION-5-GROK.md`。
