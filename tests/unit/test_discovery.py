@@ -16,6 +16,7 @@ from yt_dlp.utils import DownloadError
 from youtube_intel.discovery import (
     AdapterError,
     DiscoveryService,
+    FakeChannelCursor,
     FakeDiscoveryRepository,
     YouTubeRssSourceProvider,
     is_newer_than_cursor,
@@ -40,6 +41,8 @@ T8 = datetime(2026, 7, 8, 12, 0, 0, tzinfo=UTC)
 T9 = datetime(2026, 7, 9, 12, 0, 0, tzinfo=UTC)
 T10 = datetime(2026, 7, 10, 12, 0, 0, tzinfo=UTC)
 FIXED_NOW = datetime(2026, 7, 15, 8, 0, 0, tzinfo=UTC)
+PIPELINE_VERSION = "pipeline-v1"
+SAVE_KW = {"pipeline_version": PIPELINE_VERSION, "now": FIXED_NOW}
 
 
 class _FakeResponse:
@@ -292,15 +295,15 @@ def test_discover_and_save_all_or_nothing_and_idempotent() -> None:
     repo = FakeDiscoveryRepository()
     service = DiscoveryService(provider, repo)
 
-    batch = service.discover_and_save(CHANNEL)
+    batch = service.discover_and_save(CHANNEL, **SAVE_KW)
     assert batch.video_ids == ("vid_new_1", "vid_dup", "vid_mid", "vid_old")
     assert set(repo.videos) == set(batch.video_ids)
     assert all(status is PipelineStatus.DISCOVERED for status in repo.videos.values())
-    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+    assert repo.cursors["UC_example"].cursor.latest_video_id == "vid_new_1"
     assert len(repo.save_events) == 1
 
     # Repeat with advanced cursor → empty batch still updates last_checked_at
-    batch2 = service.discover_and_save(CHANNEL)
+    batch2 = service.discover_and_save(CHANNEL, **SAVE_KW)
     assert batch2.video_ids == ()
     assert len(repo.videos) == 4
     assert len(repo.save_events) == 2
@@ -313,7 +316,7 @@ def test_candidate_write_failure_rolls_back_cursor() -> None:
     repo = FakeDiscoveryRepository(fail_on_video_id="vid_mid")
     service = DiscoveryService(provider, repo)
     with pytest.raises(AdapterError):
-        service.discover_and_save(CHANNEL)
+        service.discover_and_save(CHANNEL, **SAVE_KW)
     assert repo.videos == {}
     assert "UC_example" not in repo.cursors
     assert repo.save_events == []
@@ -324,7 +327,7 @@ def test_expected_cursor_conflict_rolls_back() -> None:
     repo = FakeDiscoveryRepository(cursor_conflict=True)
     service = DiscoveryService(provider, repo)
     with pytest.raises(AdapterError) as exc_info:
-        service.discover_and_save(CHANNEL)
+        service.discover_and_save(CHANNEL, **SAVE_KW)
     assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
     assert repo.videos == {}
     assert repo.cursors == {}
@@ -335,7 +338,7 @@ def test_metadata_failure_does_not_rollback_discovery() -> None:
     repo = FakeDiscoveryRepository()
     service = DiscoveryService(provider, repo)
 
-    batch = service.discover_and_save(CHANNEL)
+    batch = service.discover_and_save(CHANNEL, **SAVE_KW)
     assert batch.video_ids
     saved_cursor = repo.cursors["UC_example"]
     saved_videos = dict(repo.videos)
@@ -354,27 +357,27 @@ def test_metadata_failure_does_not_rollback_discovery() -> None:
 
     service_with_meta = DiscoveryService(provider, repo, BoomMeta())
     with pytest.raises(AdapterError) as exc_info:
-        service_with_meta.fetch_and_store_metadata("vid_new_1")
+        service_with_meta.fetch_and_store_metadata("vid_new_1", **SAVE_KW)
     assert exc_info.value.error.code is ErrorCode.CONTENT_UNAVAILABLE
     # Discovery state intact
     assert repo.cursors["UC_example"] == saved_cursor
     assert repo.videos == saved_videos
     assert "vid_new_1" in repo.unavailable
-    assert repo.unavailable["vid_new_1"][0] is Availability.PRIVATE
+    assert repo.unavailable["vid_new_1"] is Availability.PRIVATE
 
 
 def test_metadata_success_upserts_independently() -> None:
     provider = _rss_provider(_load_bytes("rss_sample.xml"))
     repo = FakeDiscoveryRepository()
     service = DiscoveryService(provider, repo)
-    service.discover_and_save(CHANNEL)
+    service.discover_and_save(CHANNEL, **SAVE_KW)
 
     class FixedMeta:
         def fetch(self, video_id: str) -> VideoMetadata:
             return youtube_mod._map_info_dict_to_video_metadata(_load_json("info_public.json"))
 
     service_with_meta = DiscoveryService(provider, repo, FixedMeta())
-    meta = service_with_meta.fetch_and_store_metadata("public_vid1")
+    meta = service_with_meta.fetch_and_store_metadata("public_vid1", **SAVE_KW)
     assert meta.video_id == "public_vid1"
     assert repo.metadata["public_vid1"].title == "Public Example Video"
     # Discovery still present
@@ -692,7 +695,7 @@ def test_illegal_age_limit_preserves_requested_video_id() -> None:
         provider,
     )
     with pytest.raises(AdapterError) as fetch_exc:
-        service.fetch_and_store_metadata(requested)
+        service.fetch_and_store_metadata(requested, **SAVE_KW)
     fetch_err = fetch_exc.value.error
     assert fetch_err.code is ErrorCode.INVALID_RESPONSE
     assert fetch_err.retryable is False
@@ -720,7 +723,7 @@ def test_response_video_id_must_match_request() -> None:
         provider,
     )
     with pytest.raises(AdapterError) as exc_info:
-        service.fetch_and_store_metadata("request1")
+        service.fetch_and_store_metadata("request1", **SAVE_KW)
     err = exc_info.value.error
     assert err.code is ErrorCode.INVALID_RESPONSE
     assert err.video_id == "request1"
@@ -753,7 +756,7 @@ def test_incomplete_rss_entry_fails_without_advancing_cursor() -> None:
     repo = FakeDiscoveryRepository()
     service = DiscoveryService(provider, repo)
     with pytest.raises(AdapterError) as exc_info:
-        service.discover_and_save(CHANNEL)
+        service.discover_and_save(CHANNEL, **SAVE_KW)
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
     assert exc_info.value.error.retryable is False
     assert repo.videos == {}
@@ -779,10 +782,10 @@ def test_incomplete_rss_entry_fails_without_advancing_cursor() -> None:
 """
     provider2 = _rss_provider(fixed)
     service2 = DiscoveryService(provider2, repo)
-    batch = service2.discover_and_save(CHANNEL)
+    batch = service2.discover_and_save(CHANNEL, **SAVE_KW)
     assert "vid_fixed_old" in batch.video_ids
     assert "vid_new_1" in batch.video_ids
-    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+    assert repo.cursors["UC_example"].cursor.latest_video_id == "vid_new_1"
 
 
 def test_rss_missing_channel_id_fails_without_backfill_or_cursor_advance() -> None:
@@ -806,18 +809,23 @@ def test_rss_missing_channel_id_fails_without_backfill_or_cursor_advance() -> No
     provider = _rss_provider(missing_channel)
     repo = FakeDiscoveryRepository()
     # Seed a pre-existing cursor that must remain untouched on failure.
-    seeded = DiscoveryCursor(
+    seeded_cursor = DiscoveryCursor(
         channel_id="UC_example",
         latest_video_id="seed_vid",
         latest_published_at=T0,
         provider_cursor="seed-cursor",
+    )
+    seeded = FakeChannelCursor(
+        channel_id="UC_example",
+        revision=1,
+        cursor=seeded_cursor,
     )
     repo.cursors["UC_example"] = seeded
     videos_before = dict(repo.videos)
     service = DiscoveryService(provider, repo)
 
     with pytest.raises(AdapterError) as exc_info:
-        service.discover_and_save(CHANNEL)
+        service.discover_and_save(CHANNEL, **SAVE_KW)
     err = exc_info.value.error
     assert err.code is ErrorCode.INVALID_RESPONSE
     assert err.retryable is False
@@ -846,12 +854,16 @@ def test_rss_missing_channel_id_fails_without_backfill_or_cursor_advance() -> No
 </feed>
 """
     # Reset to empty cursor frontier so both entries are candidates.
-    repo.cursors["UC_example"] = DiscoveryCursor(channel_id="UC_example")
+    repo.cursors["UC_example"] = FakeChannelCursor(
+        channel_id="UC_example",
+        revision=0,
+        cursor=DiscoveryCursor(channel_id="UC_example"),
+    )
     service2 = DiscoveryService(_rss_provider(fixed), repo)
-    batch = service2.discover_and_save(CHANNEL)
+    batch = service2.discover_and_save(CHANNEL, **SAVE_KW)
     assert "vid_fixed_old" in batch.video_ids
     assert "vid_new_1" in batch.video_ids
-    assert repo.cursors["UC_example"].latest_video_id == "vid_new_1"
+    assert repo.cursors["UC_example"].cursor.latest_video_id == "vid_new_1"
 
 
 def test_ytdlp_http_status_classification_order() -> None:

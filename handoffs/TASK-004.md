@@ -336,6 +336,55 @@
 - correction 3 既有回归保留（malformed date、ID mismatch、缺 videoId/title、HTTP 分类、response close、needs_auth、公开 surface）
 - 剩余风险：Provider 文案漂移；TASK-003 组合契约待整合；私有测试 hook 约定
 
+## Correction-5：SQLite DiscoveryRepository 组合契约
+
+- Third-review evidence head：`1883367d313623c42d9d3624b16307ca8d502709`
+- Control sync head：`58c79afc8ab9f74d98c8181a6565be5c9246e4a4`
+- Source sync merge：`eb9246bf5ce650441aaa2d8b8c7f37f22fe6779d`（`chore: sync TASK-003 for discovery repository contract`）
+- Correction-5 code commit：见分支 tip
+- 任务状态保持 `IN_PROGRESS`；不启动 Reviewer、不合并 main
+
+### 接口映射（One-Version Rule → TASK-003 API）
+
+| 旧 TASK-004 consumer | 对齐后（与 SQLiteStateRepository 同名） |
+|---|---|
+| `get_cursor` | `get_channel_cursor` → `ChannelCursorView \| None`（新频道 `None`/revision `0`） |
+| `save_discovery_batch(batch, expected_cursor=)` | `save_discovery_batch(batch, expected_cursor=, expected_revision=, pipeline_version=, now=)` → cursor view |
+| `upsert_metadata` | `upsert_video_metadata(metadata, pipeline_version=, now=)` |
+| `mark_unavailable(..., error=)` | `mark_video_unavailable(video_id, availability=, now=)` → `bool` |
+
+- 最小只读 Protocol view：`ChannelCursorView` / `VideoRecordView`（不导入具体 SQLite 类型）
+- `DiscoveryService.discover_and_save` / `fetch_and_store_metadata` 显式接收 `pipeline_version` 与 timezone-aware UTC `now`
+- `isinstance(SQLiteStateRepository(...), DiscoveryRepository) is True`；mypy 接受真实 Repository 传给 Service
+- 未修改 `state.py` / migrations / `domain.py` / `providers/youtube.py` / 依赖
+
+### 组合测试证据
+
+- `test_sqlite_repository_matches_discovery_protocol`
+- `test_sqlite_discovery_service_atomic_batch_and_stable_rerun`（原子候选+cursor、revision、稳定重跑、CAS 冲突无部分提交）
+- `test_sqlite_metadata_success_and_unavailable_paths`（元数据 upsert、pipeline 不倒退、CONTENT_UNAVAILABLE 更新 availability、安全 AppError）
+
+### 检查结果（Correction-5）
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked` | PASS |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS (30) |
+| `uv run python -m pytest tests/unit/test_discovery.py` | PASS (33) |
+| `uv run python -m pytest tests/integration/test_discovery_adapter.py` | PASS (9) |
+| `uv run python -m pytest` | PASS (128) |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build` | PASS；sdist/wheel 含 `youtube_intel/migrations/001_initial.sql` |
+
+### 跳过与风险
+
+- 真实 YouTube / Cookie / remote components / ffmpeg / 媒体字幕：未运行（未授权）
+- CAS 冲突在真实 SQLite 上传播 `ConcurrencyConflict`（state 已有异常）；Fake 仍用 `AdapterError(LOCAL_RESOURCE)`
+- 剩余风险：编排层 Job 诊断仍属后续任务；Provider 文案漂移
+
 ## 实现者结论
 
 - 建议状态：`IN_PROGRESS`（第二位 Reviewer REJECT 修复已提交；等待主控核验后再开 Reviewer）

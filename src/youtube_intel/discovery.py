@@ -125,75 +125,144 @@ def _raise_adapter(
 
 
 # ---------------------------------------------------------------------------
-# Narrow repository consumer protocol (TASK-003 implements; Fake for tests)
+# Narrow repository consumer protocol (aligned with TASK-003 SQLite API)
 # ---------------------------------------------------------------------------
 
 
 @runtime_checkable
+class ChannelCursorView(Protocol):
+    """Minimal read-only cursor view matching SQLite ChannelCursorRecord surface."""
+
+    channel_id: str
+    revision: int
+
+    def as_discovery_cursor(self) -> DiscoveryCursor:
+        """Project the persisted frontier to the frozen domain cursor object."""
+        ...
+
+
+@runtime_checkable
+class VideoRecordView(Protocol):
+    """Minimal read-only video view matching SQLite VideoRecord surface used here."""
+
+    video_id: str
+    pipeline_status: PipelineStatus
+    availability: Availability | None
+    title: str | None
+    pipeline_version: str
+
+
+@runtime_checkable
 class DiscoveryRepository(Protocol):
-    """Consumer-side store semantics for discovery + metadata persistence.
+    """Consumer Protocol with the same four named methods as SQLiteStateRepository.
 
     Concrete SQLite classes live in TASK-003 and must not be imported here.
+    Structural typing (not inheritance) is the integration contract.
     """
 
-    def get_cursor(self, channel_id: str) -> DiscoveryCursor:
-        """Return the persisted cursor for ``channel_id`` (or an empty one)."""
+    def get_channel_cursor(self, channel_id: str) -> ChannelCursorView | None:
+        """Return persisted cursor record, or None for a never-seen channel."""
         ...
 
     def save_discovery_batch(
         self,
         batch: DiscoveryBatch,
         *,
-        expected_cursor: DiscoveryCursor,
-    ) -> None:
-        """Atomically upsert all batch candidates as DISCOVERED and CAS cursor.
-
-        All candidates and ``batch.next_cursor`` succeed together, or the whole
-        transaction rolls back (including when expected cursor does not match).
-        """
+        expected_cursor: DiscoveryCursor | None,
+        expected_revision: int,
+        pipeline_version: str,
+        now: datetime,
+    ) -> ChannelCursorView:
+        """Atomically upsert DISCOVERED candidates and CAS cursor in one transaction."""
         ...
 
-    def upsert_metadata(self, metadata: VideoMetadata) -> None:
-        """Persist complete video metadata for an already-discovered candidate."""
+    def upsert_video_metadata(
+        self,
+        metadata: VideoMetadata,
+        *,
+        pipeline_version: str,
+        now: datetime,
+    ) -> VideoRecordView:
+        """Persist complete video metadata without regressing pipeline status."""
         ...
 
-    def mark_unavailable(
+    def mark_video_unavailable(
         self,
         video_id: str,
         *,
         availability: Availability,
-        error: AppError,
-    ) -> None:
-        """Record content unavailability without rolling back discovery state."""
+        now: datetime,
+    ) -> bool:
+        """Mark availability for content-unavailable candidates; returns whether updated."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class FakeChannelCursor:
+    """In-memory cursor view used by FakeDiscoveryRepository."""
+
+    channel_id: str
+    revision: int
+    cursor: DiscoveryCursor
+
+    def as_discovery_cursor(self) -> DiscoveryCursor:
+        return self.cursor
+
+
+@dataclass(frozen=True, slots=True)
+class FakeVideoRecord:
+    """In-memory video view used by FakeDiscoveryRepository."""
+
+    video_id: str
+    pipeline_status: PipelineStatus
+    availability: Availability | None
+    title: str | None
+    pipeline_version: str
 
 
 @dataclass
 class FakeDiscoveryRepository:
     """In-memory Fake proving all-or-nothing batch/cursor and independent metadata."""
 
-    cursors: dict[str, DiscoveryCursor] = field(default_factory=dict)
+    cursors: dict[str, FakeChannelCursor] = field(default_factory=dict)
     videos: dict[str, PipelineStatus] = field(default_factory=dict)
     metadata: dict[str, VideoMetadata] = field(default_factory=dict)
-    unavailable: dict[str, tuple[Availability, AppError]] = field(default_factory=dict)
+    unavailable: dict[str, Availability] = field(default_factory=dict)
+    video_records: dict[str, FakeVideoRecord] = field(default_factory=dict)
     save_events: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     fail_save_once: bool = False
     fail_on_video_id: str | None = None
     cursor_conflict: bool = False
 
-    def get_cursor(self, channel_id: str) -> DiscoveryCursor:
-        existing = self.cursors.get(channel_id)
-        if existing is not None:
-            return existing
-        return DiscoveryCursor(channel_id=channel_id)
+    def get_channel_cursor(self, channel_id: str) -> FakeChannelCursor | None:
+        return self.cursors.get(channel_id)
 
     def save_discovery_batch(
         self,
         batch: DiscoveryBatch,
         *,
-        expected_cursor: DiscoveryCursor,
-    ) -> None:
-        if batch.channel_id != expected_cursor.channel_id:
+        expected_cursor: DiscoveryCursor | None,
+        expected_revision: int,
+        pipeline_version: str,
+        now: datetime,
+    ) -> FakeChannelCursor:
+        if now.tzinfo is None:
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.CONFIG_INVALID,
+                    "discovery save requires timezone-aware UTC now",
+                    retryable=False,
+                )
+            )
+        if not pipeline_version:
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.CONFIG_INVALID,
+                    "discovery save requires pipeline_version",
+                    retryable=False,
+                )
+            )
+        if expected_cursor is not None and batch.channel_id != expected_cursor.channel_id:
             raise AdapterError(
                 _app_error(
                     ErrorCode.INVALID_RESPONSE,
@@ -217,15 +286,29 @@ class FakeDiscoveryRepository:
                     retryable=True,
                 )
             )
-        current = self.get_cursor(batch.channel_id)
-        if current != expected_cursor:
-            raise AdapterError(
-                _app_error(
-                    ErrorCode.LOCAL_RESOURCE,
-                    "expected cursor mismatch; discovery batch rolled back",
-                    retryable=True,
+        current = self.get_channel_cursor(batch.channel_id)
+        if current is None:
+            if expected_cursor is not None or expected_revision != 0:
+                raise AdapterError(
+                    _app_error(
+                        ErrorCode.LOCAL_RESOURCE,
+                        "expected cursor mismatch; discovery batch rolled back",
+                        retryable=True,
+                    )
                 )
-            )
+        else:
+            if (
+                expected_cursor is None
+                or current.as_discovery_cursor() != expected_cursor
+                or current.revision != expected_revision
+            ):
+                raise AdapterError(
+                    _app_error(
+                        ErrorCode.LOCAL_RESOURCE,
+                        "expected cursor mismatch; discovery batch rolled back",
+                        retryable=True,
+                    )
+                )
         if self.fail_save_once:
             self.fail_save_once = False
             raise AdapterError(
@@ -244,32 +327,98 @@ class FakeDiscoveryRepository:
                 )
             )
 
-        # Snapshot for rollback semantics
         videos_before = dict(self.videos)
         cursors_before = dict(self.cursors)
+        records_before = dict(self.video_records)
         try:
             for video_id in batch.video_ids:
                 # Idempotent upsert: never create a second row or regress pipeline.
                 if video_id not in self.videos:
                     self.videos[video_id] = PipelineStatus.DISCOVERED
-            self.cursors[batch.channel_id] = batch.next_cursor
+                    self.video_records[video_id] = FakeVideoRecord(
+                        video_id=video_id,
+                        pipeline_status=PipelineStatus.DISCOVERED,
+                        availability=None,
+                        title=None,
+                        pipeline_version=pipeline_version,
+                    )
+            new_revision = 1 if current is None else current.revision + 1
+            saved = FakeChannelCursor(
+                channel_id=batch.channel_id,
+                revision=new_revision,
+                cursor=batch.next_cursor,
+            )
+            self.cursors[batch.channel_id] = saved
             self.save_events.append((batch.channel_id, batch.video_ids))
+            return saved
         except Exception:
             self.videos = videos_before
             self.cursors = cursors_before
+            self.video_records = records_before
             raise
 
-    def upsert_metadata(self, metadata: VideoMetadata) -> None:
+    def upsert_video_metadata(
+        self,
+        metadata: VideoMetadata,
+        *,
+        pipeline_version: str,
+        now: datetime,
+    ) -> FakeVideoRecord:
+        del now  # Fake does not persist timestamps; signature matches SQLite.
+        existing = self.video_records.get(metadata.video_id)
+        status = (
+            existing.pipeline_status
+            if existing is not None
+            else self.videos.get(metadata.video_id, PipelineStatus.DISCOVERED)
+        )
+        version = existing.pipeline_version if existing is not None else pipeline_version
+        record = FakeVideoRecord(
+            video_id=metadata.video_id,
+            pipeline_status=status,
+            availability=metadata.availability,
+            title=metadata.title,
+            pipeline_version=version,
+        )
         self.metadata[metadata.video_id] = metadata
+        self.video_records[metadata.video_id] = record
+        self.videos[metadata.video_id] = status
+        return record
 
-    def mark_unavailable(
+    def mark_video_unavailable(
         self,
         video_id: str,
         *,
         availability: Availability,
-        error: AppError,
-    ) -> None:
-        self.unavailable[video_id] = (availability, error)
+        now: datetime,
+    ) -> bool:
+        del now
+        if availability is Availability.PUBLIC:
+            raise AdapterError(
+                _app_error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "unavailable marker cannot use public availability",
+                    retryable=False,
+                    stage=ProcessingStage.METADATA,
+                    video_id=video_id,
+                )
+            )
+        self.unavailable[video_id] = availability
+        existing = self.video_records.get(video_id)
+        if existing is None and video_id not in self.videos:
+            # Match SQLite "no row updated" for unknown candidates, while still
+            # recording the availability for offline service assertions.
+            return False
+        status = existing.pipeline_status if existing is not None else self.videos[video_id]
+        version = existing.pipeline_version if existing is not None else ""
+        title = existing.title if existing is not None else None
+        self.video_records[video_id] = FakeVideoRecord(
+            video_id=video_id,
+            pipeline_status=status,
+            availability=availability,
+            title=title,
+            pipeline_version=version,
+        )
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -290,15 +439,41 @@ class DiscoveryService:
         self._repository = repository
         self._metadata_provider = metadata_provider
 
-    def discover_and_save(self, channel: ChannelRef) -> DiscoveryBatch:
-        expected = self._repository.get_cursor(channel.channel_id)
-        if expected.channel_id != channel.channel_id:
+    def discover_and_save(
+        self,
+        channel: ChannelRef,
+        *,
+        pipeline_version: str,
+        now: datetime,
+    ) -> DiscoveryBatch:
+        if now.tzinfo is None:
             _raise_adapter(
-                ErrorCode.INVALID_RESPONSE,
-                "stored cursor channel_id does not match channel",
+                ErrorCode.CONFIG_INVALID,
+                "discovery requires timezone-aware UTC now",
                 retryable=False,
             )
-        batch = self._source.discover(channel, expected)
+        if not pipeline_version:
+            _raise_adapter(
+                ErrorCode.CONFIG_INVALID,
+                "discovery requires pipeline_version",
+                retryable=False,
+            )
+        record = self._repository.get_channel_cursor(channel.channel_id)
+        if record is None:
+            expected_cursor: DiscoveryCursor | None = None
+            expected_revision = 0
+            provider_cursor = DiscoveryCursor(channel_id=channel.channel_id)
+        else:
+            expected_cursor = record.as_discovery_cursor()
+            expected_revision = record.revision
+            provider_cursor = expected_cursor
+            if expected_cursor.channel_id != channel.channel_id:
+                _raise_adapter(
+                    ErrorCode.INVALID_RESPONSE,
+                    "stored cursor channel_id does not match channel",
+                    retryable=False,
+                )
+        batch = self._source.discover(channel, provider_cursor)
         if batch.channel_id != channel.channel_id:
             _raise_adapter(
                 ErrorCode.INVALID_RESPONSE,
@@ -311,11 +486,39 @@ class DiscoveryService:
                 "provider next_cursor.channel_id does not match channel",
                 retryable=False,
             )
-        self._repository.save_discovery_batch(batch, expected_cursor=expected)
+        self._repository.save_discovery_batch(
+            batch,
+            expected_cursor=expected_cursor,
+            expected_revision=expected_revision,
+            pipeline_version=pipeline_version,
+            now=_ensure_aware(now),
+        )
         return batch
 
-    def fetch_and_store_metadata(self, video_id: str) -> VideoMetadata:
+    def fetch_and_store_metadata(
+        self,
+        video_id: str,
+        *,
+        pipeline_version: str,
+        now: datetime,
+    ) -> VideoMetadata:
         """Fetch one video's metadata; failures never roll back discovery batches."""
+        if now.tzinfo is None:
+            _raise_adapter(
+                ErrorCode.CONFIG_INVALID,
+                "metadata fetch requires timezone-aware UTC now",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        if not pipeline_version:
+            _raise_adapter(
+                ErrorCode.CONFIG_INVALID,
+                "metadata fetch requires pipeline_version",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
         if self._metadata_provider is None:
             _raise_adapter(
                 ErrorCode.CONFIG_INVALID,
@@ -325,18 +528,23 @@ class DiscoveryService:
                 video_id=video_id,
             )
             raise AssertionError("unreachable")
+        aware_now = _ensure_aware(now)
         try:
             metadata = self._metadata_provider.fetch(video_id)
         except AdapterError as exc:
             if exc.error.code is ErrorCode.CONTENT_UNAVAILABLE:
                 availability = _availability_from_error_message(exc.error.message)
-                self._repository.mark_unavailable(
+                self._repository.mark_video_unavailable(
                     video_id,
                     availability=availability,
-                    error=exc.error,
+                    now=aware_now,
                 )
             raise
-        self._repository.upsert_metadata(metadata)
+        self._repository.upsert_video_metadata(
+            metadata,
+            pipeline_version=pipeline_version,
+            now=aware_now,
+        )
         return metadata
 
 
@@ -777,9 +985,13 @@ def _default_urlopen(request: urllib.request.Request, timeout: float) -> object:
 
 __all__ = [
     "AdapterError",
+    "ChannelCursorView",
     "DiscoveryRepository",
     "DiscoveryService",
+    "FakeChannelCursor",
     "FakeDiscoveryRepository",
+    "FakeVideoRecord",
+    "VideoRecordView",
     "YouTubeRssSourceProvider",
     "is_newer_than_cursor",
 ]
