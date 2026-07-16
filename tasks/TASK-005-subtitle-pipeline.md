@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（全新独立会话；不得复用 Implementer 对话，等待 source commit）
+- Reviewer: `Codex`（全新独立会话；不得复用 Implementer 对话，已授权但尚未启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -88,3 +88,24 @@
 - 2026-07-16 正式分配：base 为 `main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`；worktree 为 `/Users/hua/Documents/yia-worktrees/task-005`；branch 为 `codex/task-005-subtitle-pipeline`；Codex 为唯一 Implementer，完成后由全新独立 Codex Reviewer 审查，Reviewer 不得复用 Implementer 对话。
 - 实施只允许任务卡列出的 8 个路径：`domain.py`、`transcripts.py`、`providers/subtitles.py`、三份既定测试、`tests/fixtures/subtitles/**` 与 `handoffs/TASK-005.md`。不新增/升级依赖，不改 `state.py`、migration、`complete_stage`、`pyproject.toml` 或 `uv.lock`。允许 `uv sync --locked` 仅为已有锁定依赖的缓存缺失下载，以及全部离线 `uv` 验证/构建命令。
 - 真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍未授权；Implementer 不得启动或访问这些路径。
+
+## 实现证据与审查授权
+
+- Implementation commit：
+  `98d19700818bcae14efc412aaaaeb6eed97a1535`
+- Parent/base：
+  `b28f52d0e4950f78dba315d4afe211ea5f75b93c`
+- Source branch/worktree：
+  `codex/task-005-subtitle-pipeline` /
+  `/Users/hua/Documents/yia-worktrees/task-005`
+- 完整 Diff 精确为 11 个文件，全部属于批准的 8 个路径组；source worktree 干净，
+  `git diff --check` 通过，身份为 `Mozhu <huangbuqubunao@gmail.com>`。
+- Implementer 自报 contracts 50、policy 24、integration 31、全量 191、mypy、
+  SQLite wiring、Ruff、CLI、lock/sync、offline build 全 PASS；该记录不是独立
+  Reviewer 结论。
+- 变更共 4,384 行，其中 `transcripts.py` 1,664 行、integration test 1,020 行。
+  Reviewer 必须独立审查职责边界、复杂度、测试质量、安全与性能；不得只按行数拒绝，
+  也不得只因测试通过而批准。
+- Reviewer packet：`agent-prompts/TASK-005-REVIEWER-CODEX.md`。
+- Reviewer 只可在 source handoff 记录结论并创建单文件 evidence commit；不得修改
+  业务代码、测试或 main。
