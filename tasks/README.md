@@ -12,6 +12,12 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 TASK-005 只读预检已完成且未修改仓库。产品负责人已批准 `ADR-006` T-01 至 T-15，字幕选择、规范化、质量、缓存、错误和 Artifact 恢复契约已冻结；V1 不新增 Schema/migration，也不修改 TASK-003 Repository。TASK-003/004 依赖现已完成，产品负责人已授权固定 base/worktree、Codex Implementer、全新独立 Codex Reviewer、8 个允许路径与既有锁定依赖的离线 `uv` 检查；任务现为 `IN_PROGRESS`。
 
+TASK-006/TASK-007 Codex 只读预检已完成且未修改仓库，结论为
+`DECISION NEEDED`。ADR-007 L-01 至 L-15 当前为 `Proposed`：建议在 TASK-005
+`DONE` 后先创建并完成 `TASK-005A` 共享契约切片，再从同一 main 并行两项实现。
+该提案未获产品负责人批准，TASK-005A 尚不存在，TASK-006/TASK-007 继续为
+`BLOCKED/UNASSIGNED`。
+
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
 ## 状态定义
@@ -35,15 +41,15 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | Codex Implementer；全新独立 Codex Reviewer 等待实现 | IN_PROGRESS | 003, 004 |
-| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
-| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |
-| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | 实现 Agent + 隐私 Reviewer | BLOCKED | 007 |
-| [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | 实现 Agent | BLOCKED | 003, 007 |
-| [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | TL/实现 Agent | BLOCKED | 003-009 |
-| [TASK-011](TASK-011-weekly-report.md) | 周报 | 实现 Agent | BLOCKED | 009, 010 |
-| [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 实现 Agent | BLOCKED | 010 |
-| [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | QA Agent | BLOCKED | 011, 012 |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + TL + QA | BLOCKED | 013 |
+| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex（未分配） | BLOCKED | 005；待 ADR-007/共享契约 |
+| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex（未分配） | BLOCKED | 005；待 ADR-007/共享契约 |
+| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |
+| [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Codex（未分配） | BLOCKED | 003, 007 |
+| [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | BLOCKED | 003-009 |
+| [TASK-011](TASK-011-weekly-report.md) | 周报 | Codex（未分配） | BLOCKED | 009, 010 |
+| [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | Codex（未分配） | BLOCKED | 010 |
+| [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | Codex QA（未分配） | BLOCKED | 011, 012 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配） | BLOCKED | 013 |
 
 ## 主控分配模板
 

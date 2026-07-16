@@ -125,7 +125,10 @@ TASK-006 本地转写  TASK-007 本地评分
 
 - `TASK-000` 整合期间，可并行执行 `TASK-001` 的只读环境与方案预检；不得写仓库、安装依赖或提前实现脚手架。
 - `TASK-003` 与 `TASK-004` 可在 `TASK-002` 契约冻结后并行。
-- `TASK-006` 与 `TASK-007` 可在 `TASK-005` 冻结 TranscriptArtifact 契约后并行。
+- `TASK-006` 与 `TASK-007` 原计划在 `TASK-005` 冻结 TranscriptArtifact 后并行。
+  2026-07-16 只读预检进一步确认两项任务共享 config/domain/state 契约；ADR-007
+  获批后必须先完成 `TASK-005A` 共享契约切片，再从同一已验收 main 并行创建两个
+  worktree。ADR-007 未批准或 TASK-005A 未完成时不得分配写入任务。
 - `TASK-008` 与 `TASK-009` 可在 `TASK-007` 完成后并行；笔记任务把 AnalysisResult 视为可选输入，最终集成由 `TASK-010` 完成。
 - `TASK-011` 的纯周计算与模板可在 `TASK-010` 期间并行，但数据库查询集成依赖状态模型稳定。
 - `TASK-012` 的日志格式可提前，CLI 命令集成依赖 `TASK-010`。

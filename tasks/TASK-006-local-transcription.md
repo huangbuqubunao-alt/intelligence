@@ -5,8 +5,18 @@
 - Owner role: 实现 Agent；TL 审批实现选择
 - Size: M
 - Risk: High
-- Depends on: TASK-005
-- Approval required: Whisper 实现/模型依赖、最大时长、缓存清理策略
+- Depends on: TASK-005；ADR-007 批准后拟新增的 TASK-005A
+- Approval required: ADR-007、Whisper 包/传递依赖、模型下载、ffmpeg、媒体下载、资源门禁和真实冒烟
+
+## 2026-07-16 只读预检
+
+- Scout observed main：`b335b12358bbbc9dada1abfafc5a2fe9a68494be`
+- Repository changes：None
+- 结论：`DECISION NEEDED`
+- ADR-007 L-01 至 L-15 已提出但尚未批准；本任务继续
+  `BLOCKED/UNASSIGNED`，不得创建 worktree 或安装/下载。
+- 必须在 TASK-005 `DONE` 后复核最终 TranscriptArtifact；共享 config/domain/state
+  变更必须先由未来 TASK-005A 整合，不能与 TASK-007 分支重复实现。
 
 ## 目标
 
@@ -14,7 +24,8 @@
 
 ## 范围
 
-- 按 `DEC-03` 实现 Whisper Adapter，并按 `DEC-05` 执行时长上限/强制策略。
+- 按 `DEC-03` 实现 Whisper Adapter；时长纯策略由本任务测试，Pipeline 跳过与
+  `--force` 状态审计归 TASK-010。
 - 音频下载、转写参数、超时、资源错误和清理均可观察。
 - 缓存键包含音频哈希、实现/模型和参数版本，模型升级不会误用旧结果。
 
@@ -23,6 +34,8 @@
 - 不使用未批准的云端转写服务。
 - 不对已有有效字幕的视频下载音频。
 - 不静默下载超出长度或资源策略的视频。
+- 不在运行时隐式下载包、模型或系统工具。
+- 不在本任务新增 Schema/migration；过期清理使用共享契约并由 TASK-012 执行。
 
 ## 验收标准
 
@@ -32,9 +45,13 @@
 
 ## 验证
 
-- [ ] `python -m pytest tests/unit/test_transcription_policy.py`
-- [ ] `python -m pytest tests/integration/test_whisper_provider.py`
-- [ ] `mypy src && ruff check .`
+- [ ] `uv lock --check`
+- [ ] `uv run python -m pytest tests/unit/test_transcription_policy.py`
+- [ ] `uv run python -m pytest tests/integration/test_whisper_provider.py`
+- [ ] `uv run mypy src`
+- [ ] `uv run ruff check .`
+- [ ] `uv build`
+- [ ] `git diff --check`
 - [ ] 受控本机冒烟：记录短音频时长、模型、耗时、峰值资源的可用指标和退出码。
 
 ## 预计触达文件
@@ -44,9 +61,16 @@
 - `tests/unit/test_transcription_policy.py`
 - `tests/integration/test_whisper_provider.py`
 - `tests/fixtures/audio/` 下一个短且可再分发的夹具
+- `pyproject.toml`、`uv.lock`（仅在任务级依赖授权后）
+- `handoffs/TASK-006.md`
+
+共享 `config.py`、`domain.py`、`state.py`、示例配置和既有契约/状态测试不属于
+TASK-006 分支；它们必须由未来 TASK-005A 先行完成。真实媒体、模型、ffmpeg 冒烟
+不得进入默认离线检查。
 
 ## 交付证据
 
 - 依赖和实现选择审批记录。
 - 自动测试与本机冒烟结果。
 - 性能/资源基线和未解决风险。
+- 音频夹具来源、再分发许可证、模型 revision/hash、ffmpeg 构建与许可证证据。

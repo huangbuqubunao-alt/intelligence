@@ -25,8 +25,8 @@
 | `PyYAML>=6.0.3,<7` | `DIRECT` | YAML 配置 | TASK-002 | 只用安全加载；未知字段拒绝 |
 | `yt-dlp[default,deno]>=2026.7.4,<2026.8` | `DIRECT` | YouTube 元数据、字幕目录、选中字幕正文、EJS challenge | TASK-004/005 | Python Adapter、只取选中字幕正文、无媒体下载/Cookie/remote components/ffmpeg；真实网络另批 |
 | Python `json` / `html` / `unicodedata` / `hashlib` / `pathlib` / `tempfile` / `os` / `re` | `DIRECT` | JSON3/VTT/SRT 解析、NFC 规范化、哈希与原子文件处理 | TASK-005 | 按 ADR-006 的格式、质量、路径和日志边界实现；不新增解析依赖 |
-| `mlx-whisper` | `DIRECT-PENDING` | Apple Silicon 本地转写 | TASK-006 | 方向已批，版本、安装和模型下载仍须任务级批准 |
-| Ollama HTTP API | `DIRECT-PENDING` | 本地评分 | TASK-007 | 本地服务；模型、超时和输出 Schema 受配置约束 |
+| `mlx-whisper>=0.4.3,<0.5` | `DIRECT-PENDING` | Apple Silicon 本地转写 | TASK-006 | PyPI 0.4.3、MIT、Python >=3.8；含 MLX/torch 等传递依赖，安装与锁定仍须任务级批准 |
+| Ollama `>=0.32.1,<0.33` HTTP API | `DIRECT-PENDING` | 本地评分 | TASK-007 | MIT；只允许 loopback 标准库 HTTP、固定模型 digest、无自动拉取；安装/服务/模型另批 |
 | OpenAI SDK/API | `DIRECT-PENDING` | 可选云端分析 | TASK-008 | 默认关闭；依赖、密钥和真实调用分别审批 |
 | Jinja2 | `DIRECT-PENDING` | Markdown 模板 | TASK-009/011 | 首次安装仍需任务级版本和锁文件批准 |
 
@@ -93,3 +93,20 @@
 - `imlewc/video-to-subtitle-summary-skill@2c794d74` 仅 `ADAPT/REFERENCE` 语言排序、清洗夹具和无下载断言；不得复制其 subprocess、ffmpeg、代理、付费 API、`.env` 或直接文件输出架构。
 - `youtube-transcript-api` 继续 `DEFER`；只有 yt-dlp 经正式实现/审查证明不足时，才重新提交依赖和许可证审批。
 - 真实 YouTube/字幕、Cookie/登录、`.netrc`、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍未授权；ADR-006 接受不改变这些门禁。
+
+## 7. TASK-006/TASK-007 预检核验
+
+以下为 ADR-007 提案证据，不是安装、下载或真实调用授权：
+
+| 组件 | 推荐等级 | 已核实证据 | 待批准/剩余风险 |
+|---|---|---|---|
+| `mlx-whisper>=0.4.3,<0.5` | `DIRECT-PENDING` | PyPI 最新稳定 0.4.3（2025-08-29）、MIT、Python >=3.8、pure Python wheel；官方包依赖 MLX、numba、numpy、torch、tqdm、more-itertools、tiktoken、huggingface_hub、scipy | Python 3.12/arm64 实际解析、传递版本、安装体积与资源冒烟 |
+| `mlx-community/whisper-large-v3-turbo` | `DIRECT-PENDING` | revision `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb`；权重 1,613,977,612 bytes；LFS SHA-256 `951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6` | 转换仓库 model card 无 license metadata；网络下载、磁盘、缓存和本机推理另批 |
+| FFmpeg 8.1.2（Homebrew） | `DEFER` | mlx-whisper 官方文件加载调用 ffmpeg；Homebrew 当前公式提供 Apple Silicon bottle | Homebrew build 标记 GPL-3.0-or-later；安装、调用、压缩音频冒烟与分发决策另批 |
+| Python `urllib.request` / `json` | `DIRECT` | 标准库足够完成单机低并发 Ollama HTTP、响应限流、关闭与 Fake transport | 由共享契约冻结 loopback、安全读取和错误映射 |
+| Ollama `>=0.32.1,<0.33` | `DIRECT-PENDING` | 官方项目 MIT；API 默认本地 `11434`；支持 `/api/tags` 与 `/api/generate` JSON Schema/`stream=false`/`think=false` | 安装、启动、本机服务访问、no-cloud 运行与版本验证另批 |
+| `qwen3:8b` | `DIRECT-PENDING` | Ollama digest `sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`；model layer 5,225,374,496 bytes、Q4_K_M；上游 Qwen3-8B 为 Apache-2.0 | 模型拉取、磁盘/内存、中文评分基线与黄金样例另批 |
+| `httpx` / Ollama Python SDK | `DEFER/REJECT` | 当前低并发本地接口不需要额外运行依赖 | 若未来标准库证据不足，必须另提版本、锁文件与下载审批 |
+
+官方来源记录在 `docs/decisions/ADR-007-local-model-pipeline-contracts.md`。首次实施前
+Implementer 仍须重新核实版本、许可证和维护状态，Reviewer 独立复核。

@@ -7,6 +7,7 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`，固定 base `b28f52d...`）；TASK-001 至 TASK-004 worktree 仅保留审计证据，不是当前写入目标
 - 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 已获实施授权，Codex Implementer 写入，等待实现 commit 后由全新独立 Codex Reviewer 审查
+- Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
 
@@ -21,28 +22,32 @@
 - `TASK-004` 已获任务级授权：`yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 和所列 uv 命令；真实 YouTube 冒烟、Cookie、账号登录、remote components、ffmpeg 仍未授权。
 - 产品负责人已授权“复用优先”交付策略，ADR-005 已接受；附件候选和其他组件的 `DIRECT/ADAPT/REFERENCE/REJECT` 结论记录于 `docs/REUSE_REGISTER.md`。
 - 产品负责人已于 2026-07-15 批准 ADR-006 T-01 至 T-15；TASK-005 的选择、格式、领域结果、规范化、质量、缓存、错误与 Artifact 恢复契约已冻结，V1 明确不新增 Schema/migration、不修改 `state.py` 或 `complete_stage`。
+- TASK-006/TASK-007 Codex 只读 Scout 已在 `main@b335b12358bbbc9dada1abfafc5a2fe9a68494be` 完成预检且仓库无变化；其结论为 `DECISION NEEDED`，不构成任何实现、依赖、模型、服务或系统工具授权。
+- 主控基于预检与官方来源建立 ADR-007 L-01 至 L-15 提案，拟在 TASK-005 `DONE` 后先完成 `TASK-005A` 共享契约切片，再从同一 main 基线并行 TASK-006/TASK-007。ADR-007 当前为 `Proposed`，尚未获产品负责人批准。
 
 ## 当前阻塞
 
 - `TASK-005` 正在离线实现；真实 YouTube/字幕、Cookie/登录、remote components、ffmpeg、媒体下载与真实 Vault/密钥继续未授权。
-- `TASK-006` 及后续任务继续按任务图等待 TASK-005 的审查、整合和关闭。
+- `TASK-006`/`TASK-007` 继续等待 TASK-005 的审查、整合和关闭，同时等待 ADR-007 批准与共享契约切片完成；`mlx-whisper` 安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/媒体冒烟均未授权。
 
 ## 下一步
 
 1. Codex Implementer 在固定 worktree/base 上执行 `agent-prompts/TASK-005-IMPLEMENTER-CODEX.md`；只使用固定夹具与临时目录，提交 8 个获批路径内的实现和交接证据。
-2. 可并行启动 `agent-prompts/PREFLIGHT-TASK-006-007-READONLY.md`，只盘点下一批任务的依赖/契约/授权空白；不得读取 TASK-005 live worktree或提前实现。
-3. 主控在 source commit、完整 Diff 和离线门禁齐全后，授权一个全新独立 Codex Reviewer；Reviewer 不得复用 Implementer 会话，`APPROVE` 后再进入主控验收和整合。
-4. TASK-006/007 写入实现及后续任务在 TASK-005 `DONE` 前继续不分配。
+2. TASK-006/TASK-007 只读预检已结束，对应 Scout 终端可关闭；ADR-007 提案等待产品负责人逐项批准或修改。
+3. 主控在 TASK-005 source commit、完整 Diff 和离线门禁齐全后，授权一个全新独立 Codex Reviewer；Reviewer 不得复用 Implementer 会话，`APPROVE` 后再进入主控验收和整合。
+4. ADR-007 获批后才创建 `TASK-005A` 任务卡；该共享切片必须在 TASK-006/TASK-007 worktree 之前整合为 `DONE`。
+5. TASK-006/007 写入实现及所有模型、服务、系统工具、媒体下载动作在对应门禁满足前继续不分配。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
 | 立即启动 | TASK-005 Codex Implementer | 独占 task-005 worktree；仅 8 个批准路径与离线检查 |
-| 可并行启动 | TASK-006/007 Read-only Scout | 只读 main；不得访问 TASK-005 live worktree或产生仓库变更 |
+| 已完成可关闭 | TASK-006/007 Read-only Scout | 预检已回传且仓库无变化；无需保持终端 |
 | 等待实现 commit | TASK-005 全新独立 Codex Reviewer | 不得复用 Implementer 会话、提前启动或写业务代码 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
-| 等待依赖 | `TASK-006` 及后续写入任务 | 按任务图等待 TASK-005 `DONE` |
+| 等待产品决定 | ADR-007 / 未来 TASK-005A | 不创建任务或 worktree；等待 L-01 至 L-15 批准 |
+| 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005、ADR-007 与共享契约切片 |
 
 ## 授权边界
 
@@ -85,6 +90,11 @@
 - `video-to-subtitle-summary-skill`、`yt2md` 只能按复用登记选择性参考；其中存在 faster-whisper/ffmpeg/付费 API/直接 Vault 写入或 TLS 风险，不能整套引入。
 - `youtube-skills` 依赖 TranscriptAPI 账号、密钥和 credits，与 V1 本地优先边界冲突，已标记为 V1 `REJECT`。
 - MLX Whisper 的安装、模型下载和资源兼容性属于 `TASK-006`，不扩入 `TASK-001`。
+- TASK-006/TASK-007 预检确认，`mlx-whisper`、模型、ffmpeg、Ollama 与评分模型的方向批准不等于任务级安装/下载授权；ADR-007 当前仅提出精确版本、digest、缓存、HTTP、安全和拆分门禁。
+- 官方 PyPI 显示 `mlx-whisper` 最新稳定版为 `0.4.3`、MIT、Python `>=3.8`，但包含 `torch` 等必要传递依赖；本机 Python 3.12/arm64 的实际解析、安装和资源表现尚未验证。
+- 默认 MLX Whisper 转换模型已核实 revision `a4aaeec...`、权重 `1,613,977,612` bytes 与 LFS SHA-256；转换仓库 model card 未声明 license，不能仅用上游 OpenAI 模型 MIT 自动替代该证据。
+- TASK-007 推荐标准库 loopback HTTP，不新增 httpx；拟验证 Ollama `>=0.32.1,<0.33` 和 `qwen3:8b` 固定 digest。Ollama 安装/服务、模型拉取和真实调用仍未授权。
+- 当前 `videos` 已有 `score`/`should_summarize` 列，但 `complete_stage` 尚不能原子写评分摘要；TASK-006/TASK-007 也会共享 config/domain/state。若不先完成共享契约切片，两个实现分支会冲突或产生 `SCORED` 状态与摘要不一致。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式
