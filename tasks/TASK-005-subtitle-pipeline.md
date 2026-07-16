@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第一次独立审查 `REJECT`；等待 Correction 1 后重新授权）
+- Reviewer: `Codex`（第一次审查 `REJECT`；第二个全新独立会话已授权但尚未启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -132,3 +132,20 @@
 - Correction packet：`agent-prompts/TASK-005-CORRECTION-1-CODEX.md`。
 - 任务退回原 Codex Implementer，状态为 `IN_PROGRESS`；不得启动 Reviewer 或后续
   TASK-006/007。
+
+## Correction 1 实现证据与第二次审查
+
+- Correction commit：
+  `55156f9f53a610ccbf9c8806f19f19f2c16bb1cf`
+- Parent：
+  `515c34894bb138115a4658d962fb5ef0aa7d9d80`
+- Correction 精确修改 `transcripts.py`、`providers/subtitles.py`、policy/
+  integration tests 与 handoff 5 文件；完整产品范围仍为原批准的 11 文件。
+- Implementer 自报五个 P1 均有 RED/GREEN：异常链脱敏、VTT 语义、Adapter
+  fail-closed、Provider-call 幂等/快速恢复、verified raw→canonical 重建。
+- Implementer 自报 contracts 50、policy 30、integration 53、全量 219、两项 mypy、
+  Ruff、CLI、lock/sync、offline build、包内容与 Diff 全 PASS；依赖/锁未变。
+- Correction 新增/修改约 1,489 行；该自报和测试数量不构成独立验收。
+- 第二次 Reviewer packet：`agent-prompts/TASK-005-REVIEWER-2-CODEX.md`。
+- Reviewer 必须为全新独立 Codex 会话，复跑 R1-R5、原 A-F、AC/T/五轴；只可写
+  source handoff。任务状态为 `IN_REVIEW`，未 ACCEPTED/DONE。
