@@ -1,6 +1,6 @@
 # TASK-004：频道发现与元数据
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Grok`
 - Reviewer: `Codex`（第五次独立审查 `APPROVE`；review evidence `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`）
 - Owner role: 实现 Agent
@@ -200,3 +200,12 @@
 - Acceptance matrix: AC-1 至 AC-5、ADR-004 D-01 至 D-08 全 PASS；P0/P1/P2/P3 均无。跳过项仅为未授权真实 YouTube/字幕、认证和媒体路径。
 - 主控验收：Reviewer、范围、红线、复用、许可证记录和命令证据一致；TASK-004 进入 `ACCEPTED`，等待最终 Product Integrator。此状态不是 `DONE`，不得提前解锁 TASK-005。
 - Integrator packet: `agent-prompts/TASK-004-INTEGRATOR.md`。
+
+## 最终整合与关闭
+
+- Product Integrator：Codex。
+- Acceptance/execution base：`da469f54e05be39ede86648c4b5976c80b0bdec7`；source head：`d4d6d01ceba3b9524305bb41ece81b8783f3db4b`。
+- Merge commit：`dc3f097ce125bc8390b04d0913b5d00f44eae3e8`；父提交精确为 execution base 与 source head；第一父产品差异精确为原批准的 17 个路径，无冲突或范围外文件。
+- 整合后门禁：`uv lock --check`、`uv sync --locked`、state integration 30、discovery unit 36、discovery integration 10、全量 132、`mypy src`、精确 SQLite wiring probe、Ruff、CLI help、`uv build`、sdist/wheel migration 包含性及 Diff 检查均 `PASS`。`uv sync` 首次仅受 sandbox 网络限制，按既有 TASK-004 授权以原命令重跑通过。
+- 未授权路径：真实 YouTube/字幕、Cookie/账号登录、remote components、ffmpeg、媒体/字幕下载与真实 Vault/密钥均未运行。
+- 关闭决定：实现、第五次独立审查、主控验收和最终整合后门禁均已完成；本次控制面提交后 TASK-004 为 `DONE`。source 分支与 worktree 保留审计，不在本任务内清理。

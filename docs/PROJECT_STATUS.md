@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-15
-- 当前阶段：Phase 0/1 — 状态基础完成，采集主链待整合与字幕任务准备
+- 更新时间：2026-07-16
+- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕任务等待正式实施授权
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`）；`/Users/hua/Documents/yia-worktrees/task-003` 已完成，仅保留审计证据；TASK-001/TASK-002 worktree 同样只保留审计证据
-- 活动任务：`TASK-003` 已以 merge commit `072511f...` 整合并为 `DONE`；`TASK-004` review evidence head 为 `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`，第五次 Reviewer `APPROVE` 且主控验收为 `ACCEPTED`，等待最终 Product Integrator；`TASK-005` 只读预检与 ADR-006 审批已完成，仍等待 TASK-004 `DONE`
+- 保留的审计 worktree：`/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`，source `d4d6d01...`）和 `/Users/hua/Documents/yia-worktrees/task-003`；它们都不是当前写入目标
+- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合，等待本次控制面收口为 `DONE`；`TASK-005` 的设计与依赖均已满足，但仍未获正式实施授权
 
 ## 已完成或已批准
 
@@ -24,26 +24,23 @@
 
 ## 当前阻塞
 
-- `TASK-004` 已独立审查并主控验收通过，但 source `d4d6d01...` 尚未进入 main；最终 Integrator 合并与整合后全量门禁通过前不得写为 `DONE` 或解锁 TASK-005。
-- `TASK-005` 的 ADR-006 审批已满足，但仍等待 TASK-004 `DONE`、正式 worktree/角色/范围和任务级命令授权；当前不得实现或访问真实字幕网络。
+- `TASK-005` 的 ADR-006 设计审批和 TASK-003/004 依赖均已满足；仍缺产品负责人对正式 worktree、实现者/Reviewer、允许文件范围和离线验证命令的任务级授权。当前不得实现或访问真实字幕网络。
 - `TASK-006` 及后续任务继续按任务图等待 TASK-005。
 
 ## 下一步
 
-1. Status Integrator 提交 `agent-prompts/TASK-004-ACCEPTANCE-INTEGRATION-AUTHORIZATION-INTEGRATOR.md` 所列 5 个控制面文件，记录 `ACCEPTED` 并固定 Integrator 执行基线。
-2. Codex Product Integrator 执行 `agent-prompts/TASK-004-INTEGRATOR.md`，以非提交 merge 合入 `d4d6d01...`，检查精确 17 路径并重跑全量 132/mypy/wiring/Ruff/CLI/build/migration。
-3. Integrator 成功后，主控另行生成 TASK-004 closure，将其设为 `DONE` 并把 TASK-005 从依赖阻塞推进到可分配状态。
-4. TASK-005 正式分配前仍不得创建 worktree、安装依赖或运行真实字幕/认证/媒体路径。
+1. Status Integrator 提交 `agent-prompts/TASK-004-CLOSURE-AND-TASK-005-GATE-INTEGRATOR.md` 所列 6 个控制面文件，关闭 TASK-004 为 `DONE`，并确认 TASK-005 仍为 `BLOCKED/UNASSIGNED`。
+2. 产品负责人决定是否批准 TASK-005 的正式实施包：独立 worktree/角色、冻结的 8 个文件范围和现有离线 `uv` 验证命令；该决定不含真实字幕网络或任何新增依赖。
+3. 获批后，主控基于最新 main 生成 TASK-005 分配包；在此之前不得创建 worktree、安装依赖或运行真实字幕/认证/媒体路径。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即同步 | TASK-004 acceptance / integration authorization Status Integrator | 只写 main 的 5 个控制面 Markdown |
-| 同步后立即执行 | TASK-004 Codex Product Integrator | 独占 main；合并固定 source `d4d6d01...` 并跑整合门禁 |
-| 已完成可关闭 | TASK-004 第五次 Codex Reviewer | evidence `d4d6d01...` 已提交，Verdict=`APPROVE` |
+| 立即同步 | TASK-004 closure Status Integrator | 只写 main 的 6 个控制面 Markdown |
+| 已完成可关闭 | TASK-004 Product Integrator 与第五次 Reviewer | merge `dc3f097...` 与 review evidence `d4d6d01...` 已保留 |
 | 已完成可关闭 | TASK-005 只读 Scout | 报告已回传且仓库无变更 |
-| 等待 TASK-004 `DONE` | TASK-005 正式分配 | ADR 已 Accepted，但不构成实现、命令或网络授权 |
+| 等待产品负责人实施授权 | TASK-005 正式分配 | ADR 已 Accepted，依赖已合并；仍不构成实现、命令或网络授权 |
 | 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
 
 ## 授权边界
@@ -78,6 +75,7 @@
 - TASK-004 第四次 Reviewer 在恢复后完成审查，evidence `d510794ffccf54948f967f010685aef1c0a02f3d` 仅修改 handoff，Verdict=`REJECT`。P1-1 是可变 Protocol attributes 使 frozen `ChannelCursorRecord`/`VideoRecord` 无法通过真实 mypy wiring；P1-2 是纯空白 `pipeline_version` 在 Source/Metadata Provider 调用后才触发 SQLite CHECK。Correction 6 必须以只读严格类型和应用边界零副作用测试关闭，不能用宽类型、cast/ignore、wrapper 或修改 TASK-003 掩盖。
 - TASK-004 correction 6 `7272528a3c5603087446251ee96ae4766fedeb96` 只改四个允许文件：Protocol 只读字段改为 property，Service 在外部调用前拒绝纯空白版本；主控独立复跑真实 mypy wiring probe 和 whitespace focused unit 均 PASS。完整 17 路径与固定 Diff check 通过；仍须第五次 Reviewer 独立复跑 132 tests、build、真实 SQLite 零副作用和全部 AC/D 门禁。
 - TASK-004 第五次 Reviewer evidence `d4d6d01ceba3b9524305bb41ece81b8783f3db4b` 只修改 handoff，Verdict=`APPROVE`：132 tests、mypy src、精确静态 wiring、真实 SQLite 空白零副作用、correction 3/4 安全回归、AC-1 至 AC-5 与 D-01 至 D-08 全 PASS，无 P0/P1/P2/P3。剩余 YouTube 字段漂移、`mutagen` GPL 分发和非严格 exactly-once 风险不阻断整合，继续由真实冒烟/TASK-014/编排边界跟踪。
+- TASK-004 已由 Codex Product Integrator 以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合到 main；双父精确为 `da469f54...` 与 `d4d6d01...`，第一父差异精确为 17 个批准路径。整合后 lock/sync、state 30、unit 36、integration 10、全量 132、mypy/wiring、Ruff、CLI、build 与 migration 包含性均 PASS。真实 YouTube/字幕、Cookie/登录、remote components、ffmpeg、媒体/字幕下载、真实 Vault/密钥仍未运行且未获授权。
 - TASK-005 只读 Scout 确认的字幕输出、选择、格式、质量、缓存与恢复空白已由 Accepted ADR-006 T-01 至 T-15 关闭。V1 使用现有两个 Artifact kind、稳定 key/path、Provider-call/文件哈希验证及空 Artifact stage completion，不新增 manifest migration 或 job-neutral Artifact 语义；若实现证据否定该路径，必须停止并新建 ADR。
 - `yt-dlp[default]` 的已批准必要传递依赖包含 `mutagen`（GPL-2.0-or-later）。本地开发/测试不阻断 TASK-004，但二进制或依赖捆绑分发前必须由 TASK-014 生成许可证清单并作出兼容分发决定。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。

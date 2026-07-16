@@ -953,17 +953,17 @@ def wire(source: SourceProvider, repository: SQLiteStateRepository) -> Discovery
 
 ## 主控验收
 
-- Orchestrator：
-- Verdict：
-- 依据：
-- 批准整合的 commit：
+- Orchestrator：Codex 主控对话。
+- Verdict：`ACCEPT`。
+- 依据：第五次独立 Reviewer 在 `d4d6d01ceba3b9524305bb41ece81b8783f3db4b` 对 Correction 6 给出 `APPROVE`；AC-1 至 AC-5、ADR-004 D-01 至 D-08、132 tests、静态 wiring、真实 SQLite 零副作用、范围/红线/复用门禁均有独立 PASS 证据，无 P0/P1/P2/P3。
+- 批准整合的 commit：`d4d6d01ceba3b9524305bb41ece81b8783f3db4b`。
 
 ## 整合结果
 
-- Integrator：
-- 主线 commit：
-- 整合后检查：
-- 最终状态：
+- Integrator：Codex Product Integrator。
+- 主线 commit：`dc3f097ce125bc8390b04d0913b5d00f44eae3e8`，双父精确为 `da469f54e05be39ede86648c4b5976c80b0bdec7` 与 `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`。
+- 整合后检查：固定 17 文件第一父范围、`uv lock --check`、`uv sync --locked`、state integration 30、discovery unit 36、discovery integration 10、全量 132、`mypy src`、精确 SQLite wiring probe、Ruff、CLI help、`uv build`、sdist/wheel migration 包含性和 Diff 检查均 `PASS`；构建产物已清理。真实 YouTube/字幕、认证、remote components、ffmpeg、媒体/字幕下载、真实 Vault/密钥未运行（未授权）。
+- 最终状态：本次控制面关闭提交后为 `DONE`；source 分支/worktree 保留审计。
 
 ## 第五位独立 Codex Reviewer 结论（Correction 6）
 
