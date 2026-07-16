@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DESIGN_APPROVED_AWAITING_IMPLEMENTATION_AUTHORIZATION`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_IN_PROGRESS_OFFLINE_IMPLEMENTATION`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -10,7 +10,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-003` 已由 Codex Integrator 以 merge commit `072511f20b587f973b29437d79080f6cb7863f1a` 整合到 main，整合后门禁全通过，状态为 `DONE`。`TASK-004` 已由 Codex Product Integrator 以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合：双父、固定 17 文件范围及 lock/sync、state 30、unit 36、integration 10、全量 132、mypy/wiring、Ruff、CLI、build/migration 门禁均通过；状态在本次收口后为 `DONE`。
 
-TASK-005 只读预检已完成且未修改仓库。产品负责人已批准 `ADR-006` T-01 至 T-15，字幕选择、规范化、质量、缓存、错误和 Artifact 恢复契约已冻结；V1 不新增 Schema/migration，也不修改 TASK-003 Repository。TASK-003/004 依赖现已完成；TASK-005 仍 `BLOCKED`，只等待正式 worktree、角色、允许文件范围与离线验证命令的任务级授权。
+TASK-005 只读预检已完成且未修改仓库。产品负责人已批准 `ADR-006` T-01 至 T-15，字幕选择、规范化、质量、缓存、错误和 Artifact 恢复契约已冻结；V1 不新增 Schema/migration，也不修改 TASK-003 Repository。TASK-003/004 依赖现已完成，产品负责人已授权固定 base/worktree、Codex Implementer、全新独立 Codex Reviewer、8 个允许路径与既有锁定依赖的离线 `uv` 检查；任务现为 `IN_PROGRESS`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -34,7 +34,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-002](TASK-002-config-domain-contracts.md) | 配置与领域契约 | Grok Implementer + 独立 Grok Reviewer + Integrator | DONE | 001 |
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
-| [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | ADR-006 Accepted；等待正式实施授权 | BLOCKED | 003, 004 |
+| [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | Codex Implementer；全新独立 Codex Reviewer 等待实现 | IN_PROGRESS | 003, 004 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 实现 Agent | BLOCKED | 005 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 实现 Agent | BLOCKED | 005 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | 实现 Agent + 隐私 Reviewer | BLOCKED | 007 |

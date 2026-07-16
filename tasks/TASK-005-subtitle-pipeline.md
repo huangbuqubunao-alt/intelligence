@@ -1,13 +1,14 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Reviewer: `Codex`（全新独立会话；不得复用 Implementer 对话，等待 source commit）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
 - Depends on: TASK-003, TASK-004
 - Decision gate: `ADR-006` 为 `Accepted`；产品负责人已于 2026-07-15 批准 T-01 至 T-15
-- Execution gate: TASK-003/004 已在 main `DONE`；仍等待正式 worktree/角色/范围和任务级离线命令授权。ADR-006 设计批准不构成实现或网络授权
+- Execution gate: TASK-003/004 已在 main `DONE`；产品负责人已授权固定 worktree、角色、范围、既有锁定依赖的离线 `uv` 命令和构建。ADR-006 设计批准不授权真实产品网络
 
 ## 目标
 
@@ -84,5 +85,6 @@
 - 预检确认既有领域对象不足以无歧义表达“字幕就绪”与“需要本地转写”，语言/格式/质量/缓存细则也尚未冻结。
 - 主控已将建议收敛为 `docs/decisions/ADR-006-subtitle-acquisition-contract.md` 的 T-01 至 T-15；产品负责人已全部批准，ADR 状态为 `Accepted`。
 - 主控不采纳预检中“直接新增 transcript manifest migration”和“修改 complete_stage 支持 job-neutral Artifact”的原建议。推荐方案使用现有两个 Artifact kind、稳定 key/path、Provider-call 记录、文件哈希验证和空 Artifact stage completion；若实现证据证明不足，再单独升级 Schema/Repository ADR。
-- TASK-005 继续为 `BLOCKED`：契约审批和 TASK-003/004 依赖已满足；仍必须先获得正式 worktree、Implementer、Reviewer、允许文件范围与任务级离线命令授权，再生成开工包。
-- 真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥继续未授权；本次批准也不授权修改 Schema/migration、`state.py`、`complete_stage`、`pyproject.toml` 或 `uv.lock`。
+- 2026-07-16 正式分配：base 为 `main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`；worktree 为 `/Users/hua/Documents/yia-worktrees/task-005`；branch 为 `codex/task-005-subtitle-pipeline`；Codex 为唯一 Implementer，完成后由全新独立 Codex Reviewer 审查，Reviewer 不得复用 Implementer 对话。
+- 实施只允许任务卡列出的 8 个路径：`domain.py`、`transcripts.py`、`providers/subtitles.py`、三份既定测试、`tests/fixtures/subtitles/**` 与 `handoffs/TASK-005.md`。不新增/升级依赖，不改 `state.py`、migration、`complete_stage`、`pyproject.toml` 或 `uv.lock`。允许 `uv sync --locked` 仅为已有锁定依赖的缓存缺失下载，以及全部离线 `uv` 验证/构建命令。
+- 真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍未授权；Implementer 不得启动或访问这些路径。

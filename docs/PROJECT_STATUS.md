@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-16
-- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕任务等待正式实施授权
+- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕切片已分配并进入离线实现
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 保留的审计 worktree：`/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`，source `d4d6d01...`）和 `/Users/hua/Documents/yia-worktrees/task-003`；它们都不是当前写入目标
-- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 的设计与依赖均已满足，但仍未获正式实施授权
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`，固定 base `b28f52d...`）；TASK-001 至 TASK-004 worktree 仅保留审计证据，不是当前写入目标
+- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 已获实施授权，Codex Implementer 写入，等待实现 commit 后由全新独立 Codex Reviewer 审查
 
 ## 已完成或已批准
 
@@ -24,22 +24,25 @@
 
 ## 当前阻塞
 
-- `TASK-005` 的 ADR-006 设计审批和 TASK-003/004 依赖均已满足；仍缺产品负责人对正式 worktree、实现者/Reviewer、允许文件范围和离线验证命令的任务级授权。当前不得实现或访问真实字幕网络。
-- `TASK-006` 及后续任务继续按任务图等待 TASK-005。
+- `TASK-005` 正在离线实现；真实 YouTube/字幕、Cookie/登录、remote components、ffmpeg、媒体下载与真实 Vault/密钥继续未授权。
+- `TASK-006` 及后续任务继续按任务图等待 TASK-005 的审查、整合和关闭。
 
 ## 下一步
 
-1. 产品负责人决定是否批准 TASK-005 的正式实施包：独立 worktree/角色、冻结的 8 个文件范围和现有离线 `uv` 验证命令；该决定不含真实字幕网络或任何新增依赖。
-2. 获批后，主控基于最新 main 生成 TASK-005 状态同步与分配包；在此之前不得创建 worktree、安装依赖或运行真实字幕/认证/媒体路径。
+1. Codex Implementer 在固定 worktree/base 上执行 `agent-prompts/TASK-005-IMPLEMENTER-CODEX.md`；只使用固定夹具与临时目录，提交 8 个获批路径内的实现和交接证据。
+2. 可并行启动 `agent-prompts/PREFLIGHT-TASK-006-007-READONLY.md`，只盘点下一批任务的依赖/契约/授权空白；不得读取 TASK-005 live worktree或提前实现。
+3. 主控在 source commit、完整 Diff 和离线门禁齐全后，授权一个全新独立 Codex Reviewer；Reviewer 不得复用 Implementer 会话，`APPROVE` 后再进入主控验收和整合。
+4. TASK-006/007 写入实现及后续任务在 TASK-005 `DONE` 前继续不分配。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 已完成可关闭 | TASK-004 Product Integrator 与第五次 Reviewer | merge `dc3f097...` 与 review evidence `d4d6d01...` 已保留 |
-| 已完成可关闭 | TASK-005 只读 Scout | 报告已回传且仓库无变更 |
-| 等待产品负责人实施授权 | TASK-005 正式分配 | ADR 已 Accepted，依赖已合并；仍不构成实现、命令或网络授权 |
-| 等待依赖 | `TASK-005` 及后续写入任务 | 按任务图等待上游 `DONE` |
+| 立即启动 | TASK-005 Codex Implementer | 独占 task-005 worktree；仅 8 个批准路径与离线检查 |
+| 可并行启动 | TASK-006/007 Read-only Scout | 只读 main；不得访问 TASK-005 live worktree或产生仓库变更 |
+| 等待实现 commit | TASK-005 全新独立 Codex Reviewer | 不得复用 Implementer 会话、提前启动或写业务代码 |
+| 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
+| 等待依赖 | `TASK-006` 及后续写入任务 | 按任务图等待 TASK-005 `DONE` |
 
 ## 授权边界
 
@@ -51,6 +54,7 @@
 - `TASK-004` 已批准 ADR-004 与 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 和所列 uv 命令；不含真实网络冒烟、Cookie、账号、remote components 或 ffmpeg。
 - ADR-005 允许主控决定普通复用方式，但新增依赖、系统工具、远程服务、密钥、付费、许可证义务和真实数据操作仍需原有具体审批。
 - ADR-006 已批准 TASK-005 使用现有 yt-dlp/标准库和既有 Artifact/Repository 语义；不授权新增依赖/锁文件、Schema/migration、`state.py`/`complete_stage`、真实 YouTube/字幕或其他红线操作。
+- TASK-005 已获正式实施授权：Codex Implementer、全新独立 Codex Reviewer、固定 base/worktree/8 文件范围、已有锁定依赖的 `uv sync --locked`（仅缓存缺失的包下载）与离线检查/构建。该授权不改变上述真实网络、认证、媒体、Vault 或依赖/Schema 红线。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
