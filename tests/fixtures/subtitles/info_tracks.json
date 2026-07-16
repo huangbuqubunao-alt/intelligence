@@ -1,0 +1,38 @@
+{
+  "id": "video123",
+  "subtitles": {
+    "en": [
+      {
+        "ext": "json3",
+        "name": "English",
+        "url": "https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3"
+      },
+      {
+        "ext": "vtt",
+        "name": "English",
+        "url": "https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=vtt"
+      },
+      {
+        "ext": "srv3",
+        "name": "English",
+        "url": "https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=srv3"
+      }
+    ]
+  },
+  "automatic_captions": {
+    "zh-CN": [
+      {
+        "ext": "vtt",
+        "name": "Chinese (Simplified)",
+        "url": "https://www.youtube.com/api/timedtext?v=video123&lang=zh-CN&kind=asr&fmt=vtt"
+      }
+    ],
+    "en": [
+      {
+        "ext": "json3",
+        "name": "English auto-generated",
+        "url": "https://www.youtube.com/api/timedtext?v=video123&lang=en&kind=asr&fmt=json3"
+      }
+    ]
+  }
+}

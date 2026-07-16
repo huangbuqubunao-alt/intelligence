@@ -8,8 +8,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from enum import Enum
+from pathlib import PurePosixPath
 from types import MappingProxyType
-from typing import Final, Protocol, runtime_checkable
+from typing import Final, Literal, Protocol, TypeAlias, runtime_checkable
 
 from pydantic import (
     BaseModel,
@@ -54,6 +55,24 @@ class TranscriptSourceType(str, Enum):
     MANUAL_SUBTITLE = "manual_subtitle"
     AUTO_SUBTITLE = "auto_subtitle"
     WHISPER = "whisper"
+
+
+class SubtitleFormat(str, Enum):
+    JSON3 = "json3"
+    VTT = "vtt"
+    SRT = "srt"
+
+
+class TranscriptQualityFlag(str, Enum):
+    ROLLING_CUES_DEDUPED = "ROLLING_CUES_DEDUPED"
+    SPEAKER_LABELS_PRESENT = "SPEAKER_LABELS_PRESENT"
+    NON_SPEECH_MARKERS_PRESENT = "NON_SPEECH_MARKERS_PRESENT"
+
+
+class TranscriptionReason(str, Enum):
+    NO_TRACKS = "NO_TRACKS"
+    NO_MATCHING_LANGUAGE = "NO_MATCHING_LANGUAGE"
+    ALL_CANDIDATES_INVALID = "ALL_CANDIDATES_INVALID"
 
 
 class PointKind(str, Enum):
@@ -221,15 +240,82 @@ class TranscriptArtifact(_DomainModel):
     video_id: str = Field(min_length=1)
     language: str = Field(min_length=1)
     source_type: TranscriptSourceType
+    requested_language: str | None
+    source_format: SubtitleFormat | None
     text_path: str = Field(min_length=1)
     timed_text_path: str | None = None
-    content_hash: str = Field(min_length=1)
+    source_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_byte_count: int = Field(gt=0)
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     char_count: int = Field(ge=0)
     segment_count: int = Field(ge=0)
+    normalization_version: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     model: str | None = None
     created_at: datetime
-    quality_flags: tuple[str, ...] = ()
+    quality_flags: tuple[TranscriptQualityFlag, ...] = ()
+
+    @field_validator("requested_language")
+    @classmethod
+    def _validate_requested_language(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value or value.strip() != value:
+            msg = "requested_language must be non-empty without surrounding whitespace"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("text_path", "timed_text_path")
+    @classmethod
+    def _safe_data_relative_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value or value.strip() != value or "\\" in value:
+            msg = "transcript paths must be safe DATA-relative POSIX paths"
+            raise ValueError(msg)
+        path = PurePosixPath(value)
+        if (
+            path.is_absolute()
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or not path.parts
+            or path.parts[0] != "transcripts"
+        ):
+            msg = "transcript paths must be safe DATA-relative paths under transcripts/"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("quality_flags")
+    @classmethod
+    def _unique_quality_flags(
+        cls,
+        value: tuple[TranscriptQualityFlag, ...],
+    ) -> tuple[TranscriptQualityFlag, ...]:
+        if len(value) != len(set(value)):
+            msg = "quality_flags must be unique"
+            raise ValueError(msg)
+        return value
+
+    @model_validator(mode="after")
+    def _source_specific_fields(self) -> TranscriptArtifact:
+        if self.source_type is TranscriptSourceType.WHISPER:
+            if self.requested_language is not None:
+                msg = "requested_language must be None for whisper"
+                raise ValueError(msg)
+            if self.source_format is not None:
+                msg = "source_format must be None for whisper"
+                raise ValueError(msg)
+            return self
+
+        if self.requested_language is None:
+            msg = "requested_language is required for subtitle sources"
+            raise ValueError(msg)
+        if self.source_format is None:
+            msg = "source_format is required for subtitle sources"
+            raise ValueError(msg)
+        if self.timed_text_path is None:
+            msg = "timed_text_path is required for subtitle sources"
+            raise ValueError(msg)
+        return self
 
 
 class ScoreDimensions(_DomainModel):
@@ -475,6 +561,22 @@ class NotAvailable(_DomainModel):
         return self
 
 
+class TranscriptReady(_DomainModel):
+    outcome: Literal["ready"] = "ready"
+    artifact: TranscriptArtifact
+    call: ProviderCallMetadata
+
+
+class TranscriptionRequired(_DomainModel):
+    outcome: Literal["transcription_required"] = "transcription_required"
+    reason: TranscriptionReason
+    call: ProviderCallMetadata
+    attempted_track_count: int = Field(ge=0)
+
+
+TranscriptFetchResult: TypeAlias = TranscriptReady | TranscriptionRequired
+
+
 class NoteRef(_DomainModel):
     kind: NoteKind
     relative_path: str = Field(min_length=1)
@@ -617,7 +719,7 @@ class TranscriptProvider(Protocol):
         self,
         video: VideoMetadata,
         language_preferences: Sequence[str],
-    ) -> TranscriptArtifact | NotAvailable: ...
+    ) -> TranscriptFetchResult: ...
 
 
 @runtime_checkable
@@ -654,6 +756,9 @@ __all__ = [
     "LiveStatus",
     "Availability",
     "TranscriptSourceType",
+    "SubtitleFormat",
+    "TranscriptQualityFlag",
+    "TranscriptionReason",
     "PointKind",
     "EvidenceSource",
     "NotAvailableReason",
@@ -677,6 +782,9 @@ __all__ = [
     "ScoringInput",
     "AnalysisInput",
     "NotAvailable",
+    "TranscriptReady",
+    "TranscriptionRequired",
+    "TranscriptFetchResult",
     "NoteRef",
     "WeeklyReportItem",
     "WeeklyReportInput",
