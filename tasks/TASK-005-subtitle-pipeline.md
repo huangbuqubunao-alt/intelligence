@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `Codex`（全新独立会话；不得复用 Implementer 对话，已授权但尚未启动）
+- Reviewer: `Codex`（第一次独立审查 `REJECT`；等待 Correction 1 后重新授权）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -109,3 +109,26 @@
 - Reviewer packet：`agent-prompts/TASK-005-REVIEWER-CODEX.md`。
 - Reviewer 只可在 source handoff 记录结论并创建单文件 evidence commit；不得修改
   业务代码、测试或 main。
+
+## 第一次独立审查结果
+
+- Review evidence：
+  `515c34894bb138115a4658d962fb5ef0aa7d9d80`
+- Parent：
+  `98d19700818bcae14efc412aaaaeb6eed97a1535`
+- Review commit 只修改 `handoffs/TASK-005.md`，source/main 均干净。
+- 规定门禁最终均通过：focused 50/24/31、全量 191、mypy、SQLite wiring、Ruff、
+  CLI、offline build、lock/sync 和 Diff check。
+- Verdict：`REJECT`；P0=0、P1=5、P2=1、P3=0。
+- P1：
+  1. JSON/Unicode 异常 cause/context 保留字幕正文；
+  2. 合法 VTT 多 speaker 与 `NOTEworthy` cue identifier 发生语义丢失；
+  3. 真实 HTTPMessage 短读、unsupported-only 格式与超长目录字段未 fail-closed；
+  4. Provider reservation 顺序和失败释放破坏并发幂等、快速恢复与重复
+     all-invalid 稳定结果；
+  5. canonical-only 版本失效不能从 verified raw 离线重建。
+- P2：`SubtitleAcquisitionService`/`fetch` 职责聚合且测试依赖私有 hooks；本身不
+  单独阻断，但修复 P1 时不得继续扩大。
+- Correction packet：`agent-prompts/TASK-005-CORRECTION-1-CODEX.md`。
+- 任务退回原 Codex Implementer，状态为 `IN_PROGRESS`；不得启动 Reviewer 或后续
+  TASK-006/007。
