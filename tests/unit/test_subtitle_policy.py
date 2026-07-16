@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 
 import pytest
 
@@ -241,6 +242,68 @@ cue-one\r
     )
 
 
+def test_vtt_preserves_each_named_voice_span_in_source_order() -> None:
+    raw = b"""WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+<v Alice>Hello from the first speaker.</v> <v Bob>Reply from the second speaker.</v>
+"""
+
+    normalized = normalize_subtitle(raw, SubtitleFormat.VTT)
+
+    assert normalized.text == (
+        "Alice: Hello from the first speaker. "
+        "Bob: Reply from the second speaker.\n"
+    )
+    assert normalized.quality_flags == (
+        TranscriptQualityFlag.SPEAKER_LABELS_PRESENT,
+    )
+
+
+@pytest.mark.parametrize(
+    ("cue_text", "expected"),
+    [
+        (
+            "<v Alice>This single voice remains attributed to Alice.</v>",
+            "Alice: This single voice remains attributed to Alice.\n",
+        ),
+        (
+            "This cue has no voice tag and keeps its original text order.",
+            "This cue has no voice tag and keeps its original text order.\n",
+        ),
+    ],
+)
+def test_vtt_single_voice_and_unvoiced_cues_keep_existing_semantics(
+    cue_text: str,
+    expected: str,
+) -> None:
+    raw = (
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:00:04.000\n"
+        f"{cue_text}\n"
+    ).encode()
+
+    assert normalize_subtitle(raw, SubtitleFormat.VTT).text == expected
+
+
+def test_vtt_note_is_a_standalone_token_not_a_cue_identifier_prefix() -> None:
+    raw = b"""WEBVTT
+
+NOTE this control block is ignored
+private control text
+
+NOTEworthy-cue-id
+00:00:00.000 --> 00:00:04.000
+This legitimate cue identifier must preserve the subtitle body.
+"""
+
+    normalized = normalize_subtitle(raw, SubtitleFormat.VTT)
+
+    assert normalized.text == (
+        "This legitimate cue identifier must preserve the subtitle body.\n"
+    )
+
+
 def test_srt_removes_timing_and_styles_but_keeps_non_speech_markers() -> None:
     raw = b"""1
 00:00:00,000 --> 00:00:01,000
@@ -314,10 +377,45 @@ def test_malformed_supported_formats_fail_closed(
     assert raw.decode(errors="ignore") not in str(exc_info.value)
 
 
+def _assert_redacted_exception(
+    error: BaseException,
+    *,
+    marker: str,
+) -> None:
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert marker not in str(error)
+    assert marker not in "".join(
+        traceback.format_exception(type(error), error, error.__traceback__)
+    )
+
+
+def test_malformed_json3_exception_chain_does_not_retain_subtitle_body() -> None:
+    marker = "PRIVATE_JSON3_SUBTITLE_MARKER_73D81"
+    raw = f'{{"events":[{{"segs":[{{"utf8":"{marker}"}}]}}]'.encode()
+
+    with pytest.raises(InvalidSubtitleCandidate) as exc_info:
+        normalize_subtitle(raw, SubtitleFormat.JSON3)
+
+    assert exc_info.value.reason is InvalidSubtitleReason.MALFORMED
+    _assert_redacted_exception(exc_info.value, marker=marker)
+
+
 def test_invalid_utf8_is_rejected_without_replacement_decode() -> None:
     with pytest.raises(InvalidSubtitleCandidate) as exc_info:
         normalize_subtitle(b"\xff\xfe\xfa", SubtitleFormat.SRT)
     assert exc_info.value.reason is InvalidSubtitleReason.INVALID_UTF8
+
+
+def test_invalid_utf8_exception_chain_does_not_retain_raw_bytes() -> None:
+    marker = "PRIVATE_UTF8_SUBTITLE_MARKER_91A42"
+    raw = marker.encode() + b"\xff"
+
+    with pytest.raises(InvalidSubtitleCandidate) as exc_info:
+        normalize_subtitle(raw, SubtitleFormat.SRT)
+
+    assert exc_info.value.reason is InvalidSubtitleReason.INVALID_UTF8
+    _assert_redacted_exception(exc_info.value, marker=marker)
 
 
 def _quality_metrics(**overrides: int) -> SubtitleQualityMetrics:

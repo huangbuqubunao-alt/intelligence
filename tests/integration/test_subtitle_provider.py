@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import traceback
 import urllib.error
 from datetime import UTC, datetime
 from datetime import timedelta as td
+from http.client import HTTPMessage
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 from yt_dlp.utils import DownloadError
@@ -36,17 +38,24 @@ from youtube_intel.providers import subtitles as subtitles_mod
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.state import (
     JobType,
+    ProviderCallRequest,
     ProviderCallStatus,
     SQLiteStateRepository,
 )
 from youtube_intel.transcripts import (
+    FORMAT_POLICY_VERSION,
+    QUALITY_POLICY_VERSION,
+    SELECTION_POLICY_VERSION,
     InvalidSubtitleCandidate,
     InvalidSubtitleReason,
     SubtitleAcquisitionService,
+    SubtitleReadResult,
     SubtitleTrack,
+    SubtitleTrackListing,
     TranscriptError,
     TranscriptJobContext,
     TranscriptRepository,
+    build_raw_request_hash,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
@@ -76,18 +85,21 @@ class _Response:
         *,
         content_length: int | None = None,
         final_url: str | None = None,
+        headers: object | None = None,
     ) -> None:
+        if content_length is not None and headers is not None:
+            raise ValueError("content_length and headers are mutually exclusive")
         self._body = body
         self._offset = 0
-        self.headers = (
-            {}
-            if content_length is None
-            else {"Content-Length": str(content_length)}
+        self.headers = headers if headers is not None else (
+            {} if content_length is None else {"Content-Length": str(content_length)}
         )
         self.closed = False
         self._final_url = final_url
+        self.read_calls = 0
 
     def read(self, size: int = -1) -> bytes:
+        self.read_calls += 1
         if size < 0:
             size = len(self._body) - self._offset
         chunk = self._body[self._offset : self._offset + size]
@@ -246,6 +258,127 @@ def test_dangerous_selected_track_url_fails_closed() -> None:
     assert "127.0.0.1" not in exc_info.value.error.message
 
 
+def _directory_entry(
+    *,
+    source_format: str = "json3",
+    name: str = "English",
+    url: str = "https://www.youtube.com/api/timedtext?v=video123",
+) -> dict[str, str]:
+    return {"ext": source_format, "name": name, "url": url}
+
+
+def _directory_payload(
+    entries: list[dict[str, str]],
+    *,
+    language: str = "en",
+) -> dict[str, object]:
+    return {
+        "id": "video123",
+        "subtitles": {language: entries},
+        "automatic_captions": {},
+    }
+
+
+def _url_with_length(length: int) -> str:
+    prefix = "https://www.youtube.com/api/timedtext?"
+    assert length >= len(prefix)
+    return prefix + ("q" * (length - len(prefix)))
+
+
+def test_directory_rejects_unsupported_only_but_keeps_supported_mixed_tracks() -> None:
+    unsupported, _ = _adapter_for_info(
+        _directory_payload([_directory_entry(source_format="ttml")])
+    )
+
+    with pytest.raises(TranscriptError) as unsupported_exc:
+        unsupported.enumerate_tracks("video123")
+
+    assert unsupported_exc.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert unsupported_exc.value.error.retryable is False
+
+    mixed, _ = _adapter_for_info(
+        _directory_payload(
+            [
+                _directory_entry(source_format="ttml"),
+                _directory_entry(source_format="json3"),
+            ]
+        )
+    )
+    listing = mixed.enumerate_tracks("video123")
+
+    assert len(listing.tracks) == 1
+    assert listing.tracks[0].source_format is SubtitleFormat.JSON3
+
+
+@pytest.mark.parametrize(
+    ("field", "boundary", "first_invalid"),
+    [
+        ("name", 1_000, 1_001),
+        ("language", 128, 129),
+        ("ext", 32, 33),
+        ("url", 8_192, 8_193),
+    ],
+)
+def test_directory_field_limits_accept_boundary_and_reject_first_invalid(
+    field: str,
+    boundary: int,
+    first_invalid: int,
+) -> None:
+    def payload_for(length: int) -> dict[str, object]:
+        language = "e" * length if field == "language" else "en"
+        supported = _directory_entry(
+            name=("n" * length if field == "name" else "English"),
+            url=(_url_with_length(length) if field == "url" else _url_with_length(80)),
+        )
+        entries = [supported]
+        if field == "ext":
+            entries.append(
+                _directory_entry(
+                    source_format="x" * length,
+                    url=_url_with_length(80),
+                )
+            )
+        return _directory_payload(entries, language=language)
+
+    at_boundary, _ = _adapter_for_info(payload_for(boundary))
+    listing = at_boundary.enumerate_tracks("video123")
+    assert len(listing.tracks) == 1
+
+    over_boundary, _ = _adapter_for_info(payload_for(first_invalid))
+    with pytest.raises(TranscriptError) as exc_info:
+        over_boundary.enumerate_tracks("video123")
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+def test_directory_track_count_accepts_512_and_rejects_513() -> None:
+    at_boundary, _ = _adapter_for_info(
+        _directory_payload([_directory_entry()] * 512)
+    )
+    assert len(at_boundary.enumerate_tracks("video123").tracks) == 512
+
+    over_boundary, _ = _adapter_for_info(
+        _directory_payload([_directory_entry()] * 513)
+    )
+    with pytest.raises(TranscriptError) as exc_info:
+        over_boundary.enumerate_tracks("video123")
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+def test_structurally_invalid_unsupported_track_invalidates_mixed_directory() -> None:
+    payload = _directory_payload(
+        [
+            _directory_entry(source_format="json3"),
+            {"ext": "ttml", "name": "Unsupported without URL"},
+        ]
+    )
+    adapter, _ = _adapter_for_info(payload)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
 def test_selected_body_read_is_limited_closed_and_returns_call_metadata() -> None:
     response = _Response(
         (FIXTURES / "manual_en.json3").read_bytes(),
@@ -305,6 +438,100 @@ def test_selected_body_short_read_and_size_limit_close_response() -> None:
         adapter.read_track(track)
     assert size_exc.value.reason is InvalidSubtitleReason.RESOURCE_LIMIT
     assert oversized.closed is True
+
+
+def test_real_http_message_content_length_is_case_insensitive_and_detects_short_read(
+) -> None:
+    headers = HTTPMessage()
+    headers.add_header("cOnTeNt-LeNgTh", "10")
+    response = _Response(b"short", headers=headers)
+    adapter = YtDlpSubtitleAdapter(max_response_bytes=20)
+    subtitles_mod._bind_test_hooks(
+        adapter,
+        opener=lambda request, timeout: response,
+        clock=lambda: NOW,
+    )
+    track = SubtitleTrack(
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        language="en",
+        source_format=SubtitleFormat.JSON3,
+        name="English",
+        url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3",
+        provider_position=0,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.read_track(track)
+
+    assert exc_info.value.error.code is ErrorCode.TRANSIENT_NETWORK
+    assert exc_info.value.error.retryable is True
+    assert response.closed is True
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ("invalid",),
+        ("-1",),
+        ("5", "5"),
+        ("5", "6"),
+    ],
+)
+def test_invalid_or_duplicate_content_length_fails_before_body_read(
+    values: tuple[str, ...],
+) -> None:
+    headers = HTTPMessage()
+    for value in values:
+        headers.add_header("Content-Length", value)
+    response = _Response(b"valid body", headers=headers)
+    adapter = YtDlpSubtitleAdapter(max_response_bytes=20)
+    subtitles_mod._bind_test_hooks(
+        adapter,
+        opener=lambda request, timeout: response,
+        clock=lambda: NOW,
+    )
+    track = SubtitleTrack(
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        language="en",
+        source_format=SubtitleFormat.JSON3,
+        name="English",
+        url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3",
+        provider_position=0,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.read_track(track)
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert response.read_calls == 0
+    assert response.closed is True
+
+
+def test_overlimit_content_length_fails_before_body_read() -> None:
+    headers = HTTPMessage()
+    headers.add_header("Content-Length", "21")
+    response = _Response(b"valid body", headers=headers)
+    adapter = YtDlpSubtitleAdapter(max_response_bytes=20)
+    subtitles_mod._bind_test_hooks(
+        adapter,
+        opener=lambda request, timeout: response,
+        clock=lambda: NOW,
+    )
+    track = SubtitleTrack(
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        language="en",
+        source_format=SubtitleFormat.JSON3,
+        name="English",
+        url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3",
+        provider_position=0,
+    )
+
+    with pytest.raises(InvalidSubtitleCandidate) as exc_info:
+        adapter.read_track(track)
+
+    assert exc_info.value.reason is InvalidSubtitleReason.RESOURCE_LIMIT
+    assert response.read_calls == 0
+    assert response.closed is True
 
 
 @pytest.mark.parametrize(
@@ -548,7 +775,28 @@ def _service(
             refresh_generation=refresh_generation,
         ),
         clock=lambda: now,
-        provider_lease_seconds=60,
+    )
+
+
+def _provider_request_for(
+    adapter: YtDlpSubtitleAdapter,
+    languages: tuple[str, ...] = ("en",),
+) -> ProviderCallRequest:
+    raw_request_hash = build_raw_request_hash(
+        video_id="video123",
+        language_preferences=languages,
+        provider=adapter.provider_name,
+        provider_version=adapter.provider_version,
+        refresh_generation=0,
+    )
+    return ProviderCallRequest(
+        operation="subtitle.fetch",
+        normalized_input_hash=raw_request_hash,
+        provider=adapter.provider_name,
+        model=None,
+        prompt_version=SELECTION_POLICY_VERSION,
+        schema_version=FORMAT_POLICY_VERSION,
+        deterministic_artifact_key=f"subtitle-source:{raw_request_hash}",
     )
 
 
@@ -565,6 +813,44 @@ def _reset_pipeline_for_cache_test(
             (PipelineStatus.METADATA_READY.value, "video123"),
         )
     _create_and_claim_transcript_job(repository, job_id=job_id, now=now)
+
+
+def _use_next_canonical_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> str:
+    original_builder = transcripts_mod.build_canonical_request_hash
+    next_normalization_version = "subtitle-normalization-v2"
+
+    def versioned_canonical_hash(
+        *,
+        source_content_hash: str,
+        source_format: SubtitleFormat,
+        normalization_version: str = next_normalization_version,
+        quality_policy_version: str = QUALITY_POLICY_VERSION,
+    ) -> str:
+        return original_builder(
+            source_content_hash=source_content_hash,
+            source_format=source_format,
+            normalization_version=normalization_version,
+            quality_policy_version=quality_policy_version,
+        )
+
+    monkeypatch.setattr(
+        transcripts_mod,
+        "NORMALIZATION_VERSION",
+        next_normalization_version,
+    )
+    monkeypatch.setattr(
+        transcripts_mod,
+        "_CANONICAL_PRODUCER_VERSION",
+        f"{next_normalization_version}+{QUALITY_POLICY_VERSION}",
+    )
+    monkeypatch.setattr(
+        transcripts_mod,
+        "build_canonical_request_hash",
+        versioned_canonical_hash,
+    )
+    return next_normalization_version
 
 
 def test_first_success_writes_two_artifacts_and_completes_real_sqlite(
@@ -649,6 +935,130 @@ def test_empty_language_preferences_are_config_invalid_before_network(
     assert exc_info.value.error.code is ErrorCode.CONFIG_INVALID
     assert handle.calls == []
     assert opener.calls == 0
+
+
+@pytest.mark.parametrize("existing_state", ["pending", "retry_not_due"])
+def test_existing_unavailable_provider_call_is_checked_before_any_network(
+    tmp_path: Path,
+    existing_state: str,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, handle = _bound_adapter(_load_json("info_tracks.json"), opener)
+    request = _provider_request_for(adapter)
+    repository.reserve_provider_call(
+        request,
+        owner="competing-worker",
+        lease_until=NOW + td(minutes=5),
+        available_at=NOW,
+        now=NOW,
+    )
+    if existing_state == "retry_not_due":
+        repository.fail_provider_call(
+            request.request_hash,
+            owner="competing-worker",
+            retryable=True,
+            available_at=NOW + td(minutes=5),
+            error_code=ErrorCode.TRANSIENT_NETWORK,
+            error_message="safe retryable provider failure",
+            now=NOW,
+        )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=tmp_path / "data",
+            job_id="subtitle-job",
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.PROVIDER_UNAVAILABLE
+    assert exc_info.value.error.retryable is True
+    assert handle.calls == []
+    assert opener.calls == 0
+
+
+def _assert_exception_graph_is_redacted(
+    error: BaseException,
+    *,
+    forbidden: tuple[str, ...],
+) -> None:
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        rendered = "".join(
+            traceback.format_exception(
+                type(current),
+                current,
+                current.__traceback__,
+                chain=False,
+            )
+        )
+        retained_payload = " ".join(
+            repr(getattr(current, attribute, ""))
+            for attribute in ("doc", "object")
+        )
+        for value in forbidden:
+            assert value not in str(current)
+            assert value not in rendered
+            assert value not in retained_payload
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+
+
+def test_recovered_invalid_raw_file_does_not_leak_through_service_exception_chain(
+    tmp_path: Path,
+) -> None:
+    marker = "PRIVATE_NESTED_SUBTITLE_MARKER_4B670"
+    raw = f'{{"events":[{{"segs":[{{"utf8":"{marker}"}}]}}]'.encode()
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener(raw)
+    payload = _load_json("info_tracks.json")
+    payload["subtitles"]["en"] = [payload["subtitles"]["en"][0]]
+    payload["automatic_captions"] = {}
+    adapter, _ = _bound_adapter(payload, opener)
+    raw_request_hash = build_raw_request_hash(
+        video_id="video123",
+        language_preferences=("en",),
+        provider=adapter.provider_name,
+        provider_version=adapter.provider_version,
+        refresh_generation=0,
+    )
+    metadata = transcripts_mod._SourceMetadata(
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        requested_language="en",
+        actual_language="en",
+        source_format=SubtitleFormat.JSON3,
+    )
+    relative_path = transcripts_mod._source_relative_path(
+        video_id="video123",
+        raw_request_hash=raw_request_hash,
+        metadata=metadata,
+    )
+    data_root = tmp_path / "data"
+    raw_path = data_root / relative_path
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_bytes(raw)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id="subtitle-job",
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    _assert_exception_graph_is_redacted(
+        exc_info.value,
+        forbidden=(marker, str(raw), str(raw_path), "api/timedtext"),
+    )
 
 
 def test_verified_cache_hit_uses_empty_stage_completion_without_network(
@@ -744,6 +1154,163 @@ def test_explicit_refresh_generation_reenumerates_and_uses_a_new_path(
     assert opener.calls == network_before + 1
     assert refreshed.artifact.text_path != first.artifact.text_path
     assert refreshed.artifact.timed_text_path != first.artifact.timed_text_path
+
+
+def test_missing_current_canonical_is_rebuilt_from_verified_raw_without_network(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    old_raw_path = data_root / first.artifact.timed_text_path
+    old_canonical_path = data_root / first.artifact.text_path
+    next_normalization_version = _use_next_canonical_version(monkeypatch)
+
+    rebuild_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="canonical-rebuild-job",
+        now=rebuild_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("canonical rebuild must not enumerate tracks"),
+        opener,
+    )
+    rebuilt = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="canonical-rebuild-job",
+        now=rebuild_now,
+    ).fetch(_video(), ("en",))
+
+    assert isinstance(rebuilt, TranscriptReady)
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    assert rebuilt.artifact.timed_text_path == first.artifact.timed_text_path
+    assert rebuilt.artifact.text_path != first.artifact.text_path
+    assert rebuilt.artifact.normalization_version == next_normalization_version
+    assert old_raw_path.exists()
+    assert old_canonical_path.exists()
+    assert (data_root / rebuilt.artifact.text_path).exists()
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        artifact_rows = connection.execute(
+            "SELECT kind, job_id, artifact_key, relative_path "
+            "FROM artifacts ORDER BY created_at, artifact_id"
+        ).fetchall()
+    assert len(artifact_rows) == 3
+    raw_rows = [row for row in artifact_rows if row[0] == "subtitle_source"]
+    canonical_rows = [
+        row for row in artifact_rows if row[0] == "transcript_canonical"
+    ]
+    assert len(raw_rows) == 1
+    assert raw_rows[0][1] == "subtitle-job"
+    assert len(canonical_rows) == 2
+    assert {row[1] for row in canonical_rows} == {
+        "subtitle-job",
+        "canonical-rebuild-job",
+    }
+
+    repeat_now = NOW + td(minutes=40)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="canonical-repeat-job",
+        now=repeat_now,
+    )
+    adapter, repeat_handle = _bound_adapter(
+        DownloadError("rebuilt canonical cache must not enumerate tracks"),
+        opener,
+    )
+    monkeypatch.setattr(
+        transcripts_mod,
+        "normalize_subtitle",
+        lambda body, source_format: pytest.fail(
+            "normalization must not repeat after canonical rebuild"
+        ),
+    )
+    repeated = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="canonical-repeat-job",
+        now=repeat_now,
+    ).fetch(_video(), ("en",))
+
+    assert isinstance(repeated, TranscriptReady)
+    assert repeated.artifact == rebuilt.artifact
+    assert repeat_handle.calls == []
+    assert opener.calls == body_calls_before
+
+
+@pytest.mark.parametrize("mutation", ["missing", "tampered", "provider_metadata"])
+def test_invalid_raw_cache_still_fails_closed_during_canonical_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    assert first.artifact.timed_text_path is not None
+    raw_path = data_root / first.artifact.timed_text_path
+    _use_next_canonical_version(monkeypatch)
+    if mutation == "missing":
+        raw_path.unlink()
+    elif mutation == "tampered":
+        raw_path.write_bytes(b"tampered raw subtitle body")
+    else:
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET provider = ? WHERE kind = ?",
+                ("unexpected-provider", "subtitle_source"),
+            )
+
+    rebuild_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id=f"invalid-raw-{mutation}-job",
+        now=rebuild_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("invalid raw cache must not trigger network repair"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id=f"invalid-raw-{mutation}-job",
+            now=rebuild_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
 
 
 @pytest.mark.parametrize("mutation", ["missing", "tampered"])
@@ -925,6 +1492,130 @@ def test_all_invalid_candidates_return_named_result_after_trying_each(
     )
 
 
+def test_recorded_all_invalid_result_is_stable_without_repeating_provider_calls(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "malformed.json3").read_bytes())
+    payload = _load_json("info_tracks.json")
+    payload["subtitles"]["en"] = [payload["subtitles"]["en"][0]]
+    payload["automatic_captions"] = {}
+    adapter, handle = _bound_adapter(payload, opener)
+    service = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=tmp_path / "data",
+        job_id="subtitle-job",
+    )
+
+    first = service.fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptionRequired)
+    assert first.reason is TranscriptionReason.ALL_CANDIDATES_INVALID
+    assert first.attempted_track_count == 1
+    directory_calls_before = len(handle.calls)
+    body_calls_before = opener.calls
+
+    repeated = service.fetch(_video(), ("en",))
+
+    assert isinstance(repeated, TranscriptionRequired)
+    assert repeated.reason is TranscriptionReason.ALL_CANDIDATES_INVALID
+    assert repeated.attempted_track_count == 0
+    assert repeated.call.provider == first.call.provider
+    assert repeated.call.started_at == first.call.started_at
+    assert repeated.call.finished_at == first.call.finished_at
+    assert len(handle.calls) == directory_calls_before
+    assert opener.calls == body_calls_before
+
+
+class _StaticSubtitleAdapter:
+    provider_name = "static-subtitles"
+    provider_version = "1"
+
+    def __init__(self, *, on_read: Callable[[], None] | None = None) -> None:
+        self.enumerate_calls = 0
+        self.read_calls = 0
+        self._on_read = on_read
+        self._call = ProviderCallMetadata(
+            provider=self.provider_name,
+            provider_version=self.provider_version,
+            started_at=NOW,
+            finished_at=NOW,
+        )
+        self._track = SubtitleTrack(
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            language="en",
+            source_format=SubtitleFormat.JSON3,
+            name="English",
+            url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3",
+            provider_position=0,
+        )
+
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        self.enumerate_calls += 1
+        return SubtitleTrackListing(tracks=(self._track,), call=self._call)
+
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        self.read_calls += 1
+        if self._on_read is not None:
+            self._on_read()
+        return SubtitleReadResult(
+            body=(FIXTURES / "manual_en.json3").read_bytes(),
+            call=self._call,
+        )
+
+
+def test_two_services_compete_without_duplicate_enumeration_or_body_read(
+    tmp_path: Path,
+) -> None:
+    first_repository = _repository_with_transcript_job(tmp_path)
+    second_repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    second_adapter = _StaticSubtitleAdapter()
+    second_service = SubtitleAcquisitionService(
+        adapter=second_adapter,
+        repository=second_repository,
+        data_root=tmp_path / "data",
+        context=TranscriptJobContext(
+            job_id="subtitle-job",
+            owner="competing-worker",
+            pipeline_version="pipeline-v1",
+        ),
+        clock=lambda: NOW,
+        provider_lease_seconds=60,
+    )
+    competition_errors: list[TranscriptError] = []
+
+    def run_competing_service() -> None:
+        try:
+            second_service.fetch(_video(), ("en",))
+        except TranscriptError as error:
+            competition_errors.append(error)
+
+    first_adapter = _StaticSubtitleAdapter(on_read=run_competing_service)
+    first_service = SubtitleAcquisitionService(
+        adapter=first_adapter,
+        repository=first_repository,
+        data_root=tmp_path / "data",
+        context=TranscriptJobContext(
+            job_id="subtitle-job",
+            owner="worker-1",
+            pipeline_version="pipeline-v1",
+        ),
+        clock=lambda: NOW,
+        provider_lease_seconds=60,
+    )
+
+    first_result = first_service.fetch(_video(), ("en",))
+
+    assert isinstance(first_result, TranscriptReady)
+    assert len(competition_errors) == 1
+    assert competition_errors[0].error.code is ErrorCode.PROVIDER_UNAVAILABLE
+    assert competition_errors[0].error.retryable is True
+    assert first_adapter.enumerate_calls == 1
+    assert first_adapter.read_calls == 1
+    assert second_adapter.enumerate_calls == 0
+    assert second_adapter.read_calls == 0
+
+
 def test_files_survive_stage_db_failure_and_next_attempt_repairs_indexes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -951,6 +1642,13 @@ def test_files_survive_stage_db_failure_and_next_attempt_repairs_indexes(
     assert tuple(data_root.rglob("canonical.*.txt"))
     with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
         assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 0
+    request = _provider_request_for(adapter)
+    provider_record = repository.get_provider_call(request.request_hash)
+    assert provider_record is not None
+    assert provider_record.status is ProviderCallStatus.FAILED_RETRYABLE
+    assert provider_record.reservation_owner is None
+    assert provider_record.lease_until is None
+    assert provider_record.available_at == NOW
 
     monkeypatch.setattr(repository, "_inject_failure", lambda point: None)
     repository.fail_job(
@@ -958,10 +1656,10 @@ def test_files_survive_stage_db_failure_and_next_attempt_repairs_indexes(
         owner="worker-1",
         error_code=ErrorCode.LOCAL_RESOURCE,
         error_message="stage persistence failed",
-        retry_at=NOW + td(minutes=2),
-        now=NOW + td(seconds=30),
+        retry_at=NOW + td(seconds=2),
+        now=NOW + td(seconds=1),
     )
-    retry_now = NOW + td(minutes=2)
+    retry_now = NOW + td(seconds=2)
     repository.activate_retry_jobs(now=retry_now)
     claimed = repository.claim_next_job(
         owner="worker-1",

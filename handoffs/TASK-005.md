@@ -450,6 +450,134 @@ TASK-006 可继续以 ADR-006 的公共形状设计，但不得在 TASK-005 修�
   触发，不是范围、依赖、许可证或变更行数自动触发。
 - Decision needed：`None`；现有 ADR-006 已足以定义期望行为，退回原 Implementer 修复。
 
+## Implementer Correction 1
+
+- Implementer/session：原 TASK-005 Codex Implementer，2026-07-16 修正会话
+- 修正起点：Reviewer evidence
+  `515c34894bb138115a4658d962fb5ef0aa7d9d80`
+- 被修正实现：`98d19700818bcae14efc412aaaaeb6eed97a1535`
+- 修正提交：本节所在提交；SHA 由提交后回传
+- 范围：仅关闭 Reviewer 的 P1-1 至 P1-5，并在原文件内完成 P2 要求的具名 helper
+  提取；未承担重新 Review、main 整合或任务状态修改
+
+### RED 与 GREEN 证据
+
+先只加入 Reviewer 反例、未改生产代码：
+
+| 分片 | RED 命令与结果 | 关键失败 |
+|---|---|---|
+| P1-1/P1-2 | `uv run python -m pytest tests/unit/test_subtitle_policy.py -q` → `4 failed, 26 passed` | JSON3/UTF-8 异常链保留 payload；多 voice 丢失 Bob；`NOTEworthy` cue 被删除 |
+| P1-3/P1-4/P1-5 与嵌套 P1-1 | `uv run python -m pytest tests/integration/test_subtitle_provider.py -q` → `20 failed, 30 passed` | 真实 `HTTPMessage` 短读与目录边界失守；Provider 状态在枚举后检查；租约不释放；all-invalid 漂移；canonical 缺失直接 `LOCAL_RESOURCE` |
+
+实现后：
+
+| 分片 | GREEN 证据 |
+|---|---|
+| P1-1 异常链脱敏 | malformed JSON3、非法 UTF-8、unindexed recovered raw → Service 三条路径均验证 message、cause、context、格式化 traceback 和底层 `doc`/`object` 不含 marker、raw bytes、临时 URL 或绝对路径 |
+| P1-2 VTT 语义 | 多 voice、单 voice、无 voice、NOTE block、`NOTEworthy-cue-id` 全部通过；正文顺序不变 |
+| P1-3 Adapter fail-closed | 真实 `HTTPMessage` 大小写、短读、非法/重复/负数/超限 Content-Length；unsupported-only/mixed/结构非法；512 tracks、name 1000、language 128、ext 32、URL 8192 的边界与 +1 全部通过 |
+| P1-4 Provider 状态与恢复 | active PENDING、not-due FAILED_RETRYABLE、重复 all-invalid、两个真实 SQLite Service 竞争、stage failure 后 2 秒重试全部通过 |
+| P1-5 canonical-only 失效 | verified raw 本地重建、零枚举、零正文 opener、旧 raw/canonical 保留、新 key/path/Job 可追踪、重复命中不重新规范化全部通过；追加 raw 缺失/篡改/provider metadata 反例时先为 `1 failed, 2 passed`，修正 metadata 验证后为 `3 passed` |
+
+最终 focused 结果：
+
+- `tests/unit/test_subtitle_policy.py`：`30 passed`
+- `tests/integration/test_subtitle_provider.py`：`53 passed`
+
+### Provider-call 状态矩阵
+
+| 既有状态 | 目录枚举 | 正文读取 | 结果/动作 |
+|---|---:|---:|---|
+| 无记录、无 raw cache | 允许；用于区分 no tracks/no match | 仅 ranked candidate 且 reservation acquired 后允许 | 首次正常流程 |
+| active `PENDING` | 0 | 0 | retryable `PROVIDER_UNAVAILABLE` |
+| not-due `FAILED_RETRYABLE` | 0 | 0 | retryable `PROVIDER_UNAVAILABLE` |
+| expired `PENDING` / due `FAILED_RETRYABLE` | 状态到期后允许；正文前仍须取得 reservation | 若确定性 source 文件存在则为 0 | 验证文件并补索引 |
+| `SUCCEEDED` | 0 | 0 | 只走 verified raw/canonical cache；当前 canonical 缺失则从 raw 重建 |
+| 本任务记录的 all-invalid `FAILED_FINAL` | 0 | 0 | 稳定 `ALL_CANDIDATES_INVALID`，`attempted_track_count=0`，call 只由安全 record、当前 Adapter 版本和稳定时间构造 |
+| reservation 未取得 | 不再新增调用 | 0 | 按 record 状态返回 cache、负结果或安全 Provider 错误 |
+
+`complete_stage` 失败时，原始 stage persistence 异常不被替换；Service 在抛出
+retryable `LOCAL_RESOURCE` 前调用现有
+`fail_provider_call(retryable=True, available_at=now)`，清空 owner/lease。故默认
+300 秒 Provider lease 不再阻塞默认 2 秒 Job backoff 后的下一 attempt。失败记录本身
+失败时仍保留并抛出原始 stage persistence 错误。
+
+### verified raw → canonical 重建
+
+- raw Artifact 必须通过 video、kind、DATA root、deleted 状态、raw producer version、
+  当前 Adapter provider、空 model、`transcripts/<video>/<raw hash>/` 父路径、
+  metadata token、格式扩展名、文件大小和 SHA-256 全部验证。
+- 当前 normalization/quality version 的 canonical key 不存在时，不访问 Adapter；
+  对 verified raw 执行当前 parser、normalizer 和 quality policy。
+- 只写当前 deterministic canonical 文件和当前 Job 的
+  `TRANSCRIPT_CANONICAL` Artifact；`provider_call=None` 完成阶段。
+- 原 raw Artifact 的 `job_id`、key、path 和 provider metadata 不修改、不重绑定；
+  旧 raw、旧 canonical Artifact 与文件均保留。
+- 新 canonical 允许属于当前 Job，不再错误要求与历史 raw Artifact 同一 Job；
+  provider/source 绑定仍验证一致。
+- raw 缺失、篡改、路径/metadata/producer 不一致或当前 policy 下无效，继续
+  nonretryable `LOCAL_RESOURCE` fail-closed。
+- Provider/selection/format/refresh 仍进入 raw request hash；normalization/quality
+  version 只进入 canonical request hash。
+
+### P2 局部可读性处理
+
+- `transcripts.py`：提取 `_is_vtt_control_block`、`_parse_vtt_block`、
+  `_preserve_vtt_voice_spans`、`_normalize_recovered_raw`、
+  `_preflight_provider_call`、`_existing_provider_outcome`、
+  `_recorded_all_invalid_result` 和 `_rebuild_canonical_from_raw`。
+- `providers/subtitles.py`：提取 `_MappedDirectory`、统一目录字段/数量验证和
+  `_content_length`。
+- `SubtitleAcquisitionService.fetch` 从 Reviewer 记录的 284 行降为 280 行；没有新增
+  产品模块、公开测试 hook、wrapper、`cast`、`type: ignore` 或宽 Repository shim。
+- `TranscriptRepository` 只增加现有
+  `SQLiteStateRepository.get_provider_call(request_hash)` 的窄具名只读方法；
+  `state.py`、Schema/migration 和 `complete_stage` 均未修改。
+
+### 修正后完整检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS：`Resolved 34 packages` |
+| `uv sync --locked` | PASS：`Checked 30 packages`，无依赖或锁变化 |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS：`50 passed` |
+| `uv run python -m pytest tests/unit/test_subtitle_policy.py` | PASS：`30 passed` |
+| `uv run python -m pytest tests/integration/test_subtitle_provider.py` | PASS：`53 passed` |
+| `uv run python -m pytest` | PASS：`219 passed` |
+| `uv run mypy src` | PASS：9 source files |
+| `env MYPYPATH=src uv run mypy -c '<SQLite wiring>'` | PASS：`SQLiteStateRepository` 静态满足扩展后的 `TranscriptRepository` |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS：生成 sdist/wheel |
+| sdist/wheel 内容 | PASS：均含 `migrations/001_initial.sql`、`transcripts.py`、`providers/subtitles.py`；随后只清理本轮 `dist/` |
+| `git diff --check`（提交前等价工作区检查） | PASS |
+
+提交后仍按修正包精确执行
+`git diff --check 515c34894bb138115a4658d962fb5ef0aa7d9d80...HEAD`，结果随最终回传。
+
+### Diff、依赖、复用与红线复核
+
+- Correction 工作区 Diff 仅为：
+  `src/youtube_intel/transcripts.py`、
+  `src/youtube_intel/providers/subtitles.py`、
+  `tests/unit/test_subtitle_policy.py`、
+  `tests/integration/test_subtitle_provider.py` 和本 handoff；均属于允许的 6 个路径组。
+- 完整 `b28f52d...HEAD` 产品范围仍精确属于原批准的 8 个路径组、11 个文件。
+- `pyproject.toml` SHA-256 仍为
+  `49ca5e31c32d8dbadc3770901f227ed9dd95237a1ac1cb0b977019c5f13d1fa9`；
+  `uv.lock` 仍为
+  `81a3fd81e51cac69ca4d072c481b63cc9a265b491eab9c65ea782963f85a9c49`。
+- 未修改 `domain.py`、`tests/unit/test_contracts.py`、`state.py`、migration、配置、
+  CLI、discovery/youtube Adapter、任务/ADR、依赖或锁文件。
+- 复用决策不变：直接复用既有 `yt-dlp==2026.7.4` 与标准库；外部 MIT 项目仍只参考
+  测试思想，未复制代码；`youtube-transcript-api` 继续 DEFER；subprocess/ffmpeg、
+  auth、remote component、媒体、Vault 继续 REJECT。
+- 未运行真实 YouTube/字幕、RSS、Cookie/登录/`.netrc`、remote components、
+  ffmpeg、媒体、真实 Vault 或密钥路径；这些均未授权且本修正不需要。
+- Remaining risks：真实上游 yt-dlp payload 漂移仍待 TASK-013；复杂非标准字幕仍采取
+  保守 fail-closed；既有 mutagen GPL 分发门禁仍待 TASK-014。本修正未扩大这些风险。
+- Decision needed：`None`。
+
 ## 主控验收
 
 - Orchestrator：

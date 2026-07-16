@@ -7,6 +7,7 @@ import socket
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping, MutableSequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from http.client import HTTPMessage
 from typing import IO, Any, Final, Protocol
@@ -42,6 +43,11 @@ _SAFE_HOST_RE: Final = re.compile(
 )
 _USER_AGENT: Final = "youtube-intel/0.1 (+local subtitle fetch; no media)"
 _READ_CHUNK_BYTES: Final = 64 * 1024
+_MAX_TRACK_COUNT: Final = 512
+_MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
+_MAX_LANGUAGE_CODE_POINTS: Final = 128
+_MAX_EXTENSION_CODE_POINTS: Final = 32
+_MAX_TRACK_URL_CODE_POINTS: Final = 8_192
 
 _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
@@ -213,6 +219,13 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
 
 
 def _validate_track_url(value: str, *, video_id: str | None) -> None:
+    if len(value) > _MAX_TRACK_URL_CODE_POINTS:
+        raise _error(
+            ErrorCode.INVALID_RESPONSE,
+            "subtitle track URL is invalid",
+            retryable=False,
+            video_id=video_id,
+        )
     try:
         parsed = urlsplit(value)
         port = parsed.port
@@ -245,21 +258,64 @@ def _format_from_extension(value: str) -> SubtitleFormat | None:
     return None
 
 
-def _track_name(value: Any) -> str:
+def _track_name(value: Any, *, video_id: str) -> str:
+    if value is None:
+        return ""
     if isinstance(value, str):
+        if len(value) > _MAX_TRACK_NAME_CODE_POINTS:
+            raise _error(
+                ErrorCode.INVALID_RESPONSE,
+                "subtitle track name is invalid",
+                retryable=False,
+                video_id=video_id,
+            )
         return " ".join(value.split())
     if isinstance(value, Mapping):
         simple = value.get("simpleText")
         if isinstance(simple, str):
+            if len(simple) > _MAX_TRACK_NAME_CODE_POINTS:
+                raise _error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "subtitle track name is invalid",
+                    retryable=False,
+                    video_id=video_id,
+                )
             return " ".join(simple.split())
         runs = value.get("runs")
         if isinstance(runs, list):
             pieces: list[str] = []
             for run in runs:
-                if isinstance(run, Mapping) and isinstance(run.get("text"), str):
-                    pieces.append(str(run["text"]))
-            return " ".join("".join(pieces).split())
-    return ""
+                if not isinstance(run, Mapping) or not isinstance(
+                    run.get("text"), str
+                ):
+                    raise _error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "subtitle track name is invalid",
+                        retryable=False,
+                        video_id=video_id,
+                    )
+                pieces.append(str(run["text"]))
+            joined = "".join(pieces)
+            if len(joined) > _MAX_TRACK_NAME_CODE_POINTS:
+                raise _error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "subtitle track name is invalid",
+                    retryable=False,
+                    video_id=video_id,
+                )
+            return " ".join(joined.split())
+    raise _error(
+        ErrorCode.INVALID_RESPONSE,
+        "subtitle track name is invalid",
+        retryable=False,
+        video_id=video_id,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _MappedDirectory:
+    tracks: tuple[SubtitleTrack, ...]
+    next_position: int
 
 
 def _map_directory(
@@ -268,9 +324,9 @@ def _map_directory(
     source_type: TranscriptSourceType,
     start_position: int,
     video_id: str,
-) -> tuple[list[SubtitleTrack], int]:
+) -> _MappedDirectory:
     if payload is None:
-        return [], start_position
+        return _MappedDirectory((), start_position)
     if not isinstance(payload, Mapping):
         raise _error(
             ErrorCode.INVALID_RESPONSE,
@@ -284,8 +340,9 @@ def _map_directory(
         if (
             not isinstance(raw_language, str)
             or not raw_language
+            or len(raw_language) > _MAX_LANGUAGE_CODE_POINTS
             or raw_language.strip() != raw_language
-            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", raw_language)
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", raw_language)
             is None
             or not isinstance(raw_entries, list)
         ):
@@ -296,6 +353,13 @@ def _map_directory(
                 video_id=video_id,
             )
         for raw_entry in raw_entries:
+            if position >= _MAX_TRACK_COUNT:
+                raise _error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "subtitle track directory exceeds its track limit",
+                    retryable=False,
+                    video_id=video_id,
+                )
             current_position = position
             position += 1
             if not isinstance(raw_entry, Mapping):
@@ -306,36 +370,100 @@ def _map_directory(
                     video_id=video_id,
                 )
             raw_extension = raw_entry.get("ext")
-            if not isinstance(raw_extension, str):
+            if (
+                not isinstance(raw_extension, str)
+                or not raw_extension
+                or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
+                or raw_extension.strip() != raw_extension
+            ):
                 raise _error(
                     ErrorCode.INVALID_RESPONSE,
-                    "subtitle track format is missing",
+                    "subtitle track format is invalid",
                     retryable=False,
                     video_id=video_id,
                 )
-            source_format = _format_from_extension(raw_extension)
-            if source_format is None:
-                continue
             raw_url = raw_entry.get("url")
-            if not isinstance(raw_url, str) or not raw_url:
+            if (
+                not isinstance(raw_url, str)
+                or not raw_url
+                or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
+            ):
                 raise _error(
                     ErrorCode.INVALID_RESPONSE,
-                    "subtitle track URL is missing",
+                    "subtitle track URL is invalid",
                     retryable=False,
                     video_id=video_id,
                 )
             _validate_track_url(raw_url, video_id=video_id)
+            name = _track_name(raw_entry.get("name"), video_id=video_id)
+            source_format = _format_from_extension(raw_extension)
+            if source_format is None:
+                continue
             tracks.append(
                 SubtitleTrack(
                     source_type=source_type,
                     language=raw_language,
                     source_format=source_format,
-                    name=_track_name(raw_entry.get("name")),
+                    name=name,
                     url=raw_url,
                     provider_position=current_position,
                 )
             )
-    return tracks, position
+    return _MappedDirectory(tuple(tracks), position)
+
+
+def _content_length(
+    headers: object,
+    *,
+    max_response_bytes: int,
+) -> int | None:
+    values: list[object] = []
+    get_all = getattr(headers, "get_all", None)
+    if callable(get_all):
+        raw_values = get_all("Content-Length")
+        if raw_values is not None:
+            if not isinstance(raw_values, list):
+                raise _error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "selected subtitle content length is invalid",
+                    retryable=False,
+                    video_id=None,
+                )
+            values.extend(raw_values)
+    elif isinstance(headers, Mapping):
+        values.extend(
+            value
+            for key, value in headers.items()
+            if isinstance(key, str) and key.casefold() == "content-length"
+        )
+    else:
+        raise _error(
+            ErrorCode.INVALID_RESPONSE,
+            "selected subtitle response headers are invalid",
+            retryable=False,
+            video_id=None,
+        )
+    if not values:
+        return None
+    if len(values) != 1 or not isinstance(values[0], str):
+        raise _error(
+            ErrorCode.INVALID_RESPONSE,
+            "selected subtitle content length is invalid",
+            retryable=False,
+            video_id=None,
+        )
+    raw_length = values[0].strip()
+    if not raw_length.isascii() or not raw_length.isdecimal():
+        raise _error(
+            ErrorCode.INVALID_RESPONSE,
+            "selected subtitle content length is invalid",
+            retryable=False,
+            video_id=None,
+        )
+    content_length = int(raw_length)
+    if content_length > max_response_bytes:
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.RESOURCE_LIMIT)
+    return content_length
 
 
 def _parse_retry_after(raw: str | None) -> float | None:
@@ -465,20 +593,28 @@ class YtDlpSubtitleAdapter:
                 retryable=False,
                 video_id=video_id,
             )
-        manual, position = _map_directory(
+        manual = _map_directory(
             payload.get("subtitles"),
             source_type=TranscriptSourceType.MANUAL_SUBTITLE,
             start_position=0,
             video_id=video_id,
         )
-        automatic, _ = _map_directory(
+        automatic = _map_directory(
             payload.get("automatic_captions"),
             source_type=TranscriptSourceType.AUTO_SUBTITLE,
-            start_position=position,
+            start_position=manual.next_position,
             video_id=video_id,
         )
+        tracks = (*manual.tracks, *automatic.tracks)
+        if automatic.next_position > 0 and not tracks:
+            raise _error(
+                ErrorCode.INVALID_RESPONSE,
+                "subtitle track directory has no supported formats",
+                retryable=False,
+                video_id=video_id,
+            )
         return SubtitleTrackListing(
-            tracks=tuple((*manual, *automatic)),
+            tracks=tracks,
             call=self.last_call,
         )
 
@@ -574,33 +710,10 @@ class YtDlpSubtitleAdapter:
                     video_id=None,
                 )
             headers_value = getattr(response, "headers", None)
-            headers = headers_value if isinstance(headers_value, Mapping) else None
-            content_length: int | None = None
-            if headers is not None:
-                raw_length = headers.get("Content-Length") or headers.get(
-                    "content-length"
-                )
-                if raw_length is not None:
-                    try:
-                        content_length = int(str(raw_length))
-                    except ValueError:
-                        raise _error(
-                            ErrorCode.INVALID_RESPONSE,
-                            "selected subtitle content length is invalid",
-                            retryable=False,
-                            video_id=None,
-                        ) from None
-                    if content_length < 0:
-                        raise _error(
-                            ErrorCode.INVALID_RESPONSE,
-                            "selected subtitle content length is invalid",
-                            retryable=False,
-                            video_id=None,
-                        )
-                    if content_length > self._max_response_bytes:
-                        raise InvalidSubtitleCandidate(
-                            InvalidSubtitleReason.RESOURCE_LIMIT
-                        )
+            content_length = _content_length(
+                headers_value,
+                max_response_bytes=self._max_response_bytes,
+            )
 
             chunks: list[bytes] = []
             total = 0
