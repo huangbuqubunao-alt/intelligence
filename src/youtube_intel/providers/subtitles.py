@@ -117,6 +117,31 @@ def _error(
     )
 
 
+def _safe_boundary_error(
+    error: AppError,
+    *,
+    subject: str,
+    video_id: str | None,
+) -> TranscriptError:
+    messages = {
+        ErrorCode.CONFIG_INVALID: f"{subject} configuration is invalid",
+        ErrorCode.PERMISSION_DENIED: f"{subject} access denied",
+        ErrorCode.CONTENT_UNAVAILABLE: f"{subject} content unavailable",
+        ErrorCode.RATE_LIMITED: f"{subject} rate limited",
+        ErrorCode.TRANSIENT_NETWORK: f"{subject} request failed",
+        ErrorCode.PROVIDER_UNAVAILABLE: f"{subject} provider unavailable",
+        ErrorCode.INVALID_RESPONSE: f"{subject} response is invalid",
+        ErrorCode.LOCAL_RESOURCE: f"{subject} local resource failed",
+    }
+    return _error(
+        error.code,
+        messages[error.code],
+        retryable=error.retryable,
+        retry_after_seconds=error.retry_after_seconds,
+        video_id=video_id,
+    )
+
+
 def _call(
     started: datetime,
     finished: datetime,
@@ -554,35 +579,44 @@ class YtDlpSubtitleAdapter:
         opts["socket_timeout"] = self._timeout_seconds
         if self._opts_sink is not None:
             self._opts_sink.append(dict(opts))
+        failure: TranscriptError | None = None
+        payload: object | None = None
         try:
             payload = self._ydl_factory(opts).extract_info(
                 _WATCH_URL.format(video_id=video_id),
                 download=False,
             )
-        except TranscriptError:
-            raise
+        except TranscriptError as exc:
+            failure = _safe_boundary_error(
+                exc.error,
+                subject="subtitle track directory",
+                video_id=video_id,
+            )
+            self.last_call = _call(started, self._clock(), diagnostic="directory_error")
         except (DownloadError, ExtractorError) as exc:
             self.last_call = _call(started, self._clock(), diagnostic="directory_error")
-            raise _map_directory_error(exc, video_id=video_id) from None
+            failure = _map_directory_error(exc, video_id=video_id)
         except (TimeoutError, socket.timeout):
             self.last_call = _call(started, self._clock(), diagnostic="directory_timeout")
-            raise _error(
+            failure = _error(
                 ErrorCode.TRANSIENT_NETWORK,
                 "subtitle track directory request timed out",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
         except OSError as exc:
             self.last_call = _call(started, self._clock(), diagnostic="directory_os_error")
-            raise _map_directory_error(exc, video_id=video_id) from None
+            failure = _map_directory_error(exc, video_id=video_id)
         except Exception:
             self.last_call = _call(started, self._clock(), diagnostic="directory_error")
-            raise _error(
+            failure = _error(
                 ErrorCode.PROVIDER_UNAVAILABLE,
                 "subtitle track directory provider failed",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
+        if failure is not None:
+            raise failure
 
         finished = self._clock()
         self.last_call = _call(started, finished)
@@ -629,6 +663,8 @@ class YtDlpSubtitleAdapter:
                 "Accept-Encoding": "identity",
             },
         )
+        response: object | None = None
+        failure: TranscriptError | None = None
         try:
             response = self._opener(request, self._timeout_seconds)
         except urllib.error.HTTPError as exc:
@@ -677,16 +713,36 @@ class YtDlpSubtitleAdapter:
                 exc.close()
             except Exception:  # noqa: BLE001
                 pass
-            raise mapped from None
+            failure = mapped
         except (urllib.error.URLError, TimeoutError, socket.timeout, OSError):
             self.last_call = _call(started, self._clock(), diagnostic="body_network_error")
-            raise _error(
+            failure = _error(
                 ErrorCode.TRANSIENT_NETWORK,
                 "selected subtitle body request failed",
                 retryable=True,
                 video_id=None,
-            ) from None
+            )
+        except Exception:
+            self.last_call = _call(started, self._clock(), diagnostic="body_error")
+            failure = _error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "selected subtitle body provider failed",
+                retryable=True,
+                video_id=None,
+            )
+        if failure is not None:
+            raise failure
+        if response is None:
+            raise _error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "selected subtitle body provider failed",
+                retryable=True,
+                video_id=None,
+            )
 
+        result: SubtitleReadResult | None = None
+        invalid_reason: InvalidSubtitleReason | None = None
+        failure = None
         try:
             final_url = None
             geturl = getattr(response, "geturl", None)
@@ -743,19 +799,31 @@ class YtDlpSubtitleAdapter:
                 )
             finished = self._clock()
             self.last_call = _call(started, finished)
-            return SubtitleReadResult(body=b"".join(chunks), call=self.last_call)
-        except TranscriptError:
-            raise
-        except InvalidSubtitleCandidate:
-            raise
+            result = SubtitleReadResult(body=b"".join(chunks), call=self.last_call)
+        except TranscriptError as exc:
+            failure = _safe_boundary_error(
+                exc.error,
+                subject="selected subtitle body",
+                video_id=None,
+            )
+        except InvalidSubtitleCandidate as exc:
+            invalid_reason = exc.reason
         except (urllib.error.URLError, TimeoutError, socket.timeout, OSError):
             self.last_call = _call(started, self._clock(), diagnostic="body_network_error")
-            raise _error(
+            failure = _error(
                 ErrorCode.TRANSIENT_NETWORK,
                 "selected subtitle body request failed",
                 retryable=True,
                 video_id=None,
-            ) from None
+            )
+        except Exception:
+            self.last_call = _call(started, self._clock(), diagnostic="body_error")
+            failure = _error(
+                ErrorCode.INVALID_RESPONSE,
+                "selected subtitle body response is invalid",
+                retryable=False,
+                video_id=None,
+            )
         finally:
             close = getattr(response, "close", None)
             if callable(close):
@@ -763,6 +831,18 @@ class YtDlpSubtitleAdapter:
                     close()
                 except Exception:  # noqa: BLE001
                     pass
+        if invalid_reason is not None:
+            raise InvalidSubtitleCandidate(invalid_reason)
+        if failure is not None:
+            raise failure
+        if result is None:
+            raise _error(
+                ErrorCode.INVALID_RESPONSE,
+                "selected subtitle body response is invalid",
+                retryable=False,
+                video_id=None,
+            )
+        return result
 
 
 def _bind_test_hooks(

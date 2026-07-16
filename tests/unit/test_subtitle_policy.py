@@ -384,10 +384,15 @@ def _assert_redacted_exception(
 ) -> None:
     assert error.__cause__ is None
     assert error.__context__ is None
-    assert marker not in str(error)
-    assert marker not in "".join(
-        traceback.format_exception(type(error), error, error.__traceback__)
+    retained = (
+        str(error),
+        repr(error.args),
+        repr(vars(error)),
+        "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        ),
     )
+    assert all(marker not in value for value in retained)
 
 
 def test_malformed_json3_exception_chain_does_not_retain_subtitle_body() -> None:

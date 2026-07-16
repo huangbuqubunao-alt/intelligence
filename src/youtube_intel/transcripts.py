@@ -68,6 +68,9 @@ _RAW_PRODUCER_VERSION: Final = (
 _CANONICAL_PRODUCER_VERSION: Final = (
     f"{NORMALIZATION_VERSION}+{QUALITY_POLICY_VERSION}"
 )
+_NO_TRACKS_MESSAGE: Final = "subtitle provider returned no tracks"
+_NO_MATCH_MESSAGE: Final = "no subtitle tracks matched language preferences"
+_ALL_INVALID_MESSAGE: Final = "all subtitle candidates invalid"
 _FILE_CHUNK_BYTES: Final = 64 * 1024
 _MAX_CANONICAL_BYTES: Final = 4_000_000
 _SAFE_VIDEO_ID: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
@@ -756,6 +759,47 @@ def _service_error(
     )
 
 
+def _copy_app_error(error: AppError, *, video_id: str) -> AppError:
+    return AppError(
+        code=error.code,
+        message=error.message,
+        retryable=error.retryable,
+        retry_after_seconds=error.retry_after_seconds,
+        run_id=error.run_id,
+        job_id=error.job_id,
+        video_id=error.video_id or video_id,
+        stage=error.stage,
+    )
+
+
+def _persisted_error_message_is_safe(value: str | None) -> bool:
+    if (
+        value is None
+        or not value
+        or len(value) > 500
+        or value != " ".join(value.split())
+    ):
+        return False
+    lowered = value.casefold()
+    return not any(
+        marker in lowered
+        for marker in (
+            "http://",
+            "https://",
+            "file://",
+            "/users/",
+            "/private/",
+            "authorization",
+            "bearer ",
+            "cookie",
+            "token",
+            "secret",
+            "api_key",
+            "api-key",
+        )
+    )
+
+
 def _aware_utc(value: datetime, *, video_id: str) -> datetime:
     if value.tzinfo is None:
         raise _service_error(
@@ -807,8 +851,14 @@ def _decode_source_metadata(
         )
     token, extension = parts[1], parts[2]
     padding = "=" * (-len(token) % 4)
+    invalid = False
+    decoded: Any = None
+    source_type: TranscriptSourceType | None = None
+    source_format: SubtitleFormat | None = None
+    requested_language = ""
+    actual_language = ""
     try:
-        decoded: Any = json.loads(
+        decoded = json.loads(
             base64.urlsafe_b64decode(token + padding).decode("utf-8")
         )
         if (
@@ -822,17 +872,20 @@ def _decode_source_metadata(
         requested_language = decoded[1]
         actual_language = decoded[2]
     except (ValueError, UnicodeError, json.JSONDecodeError):
+        invalid = True
+    if invalid or source_type is None or source_format is None:
         raise _service_error(
             ErrorCode.LOCAL_RESOURCE,
             "cached subtitle source path metadata is invalid",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     if (
         source_type is TranscriptSourceType.WHISPER
         or source_format.value != extension
         or not requested_language
         or not actual_language
+        or actual_language.strip() != actual_language
     ):
         raise _service_error(
             ErrorCode.LOCAL_RESOURCE,
@@ -846,6 +899,36 @@ def _decode_source_metadata(
         actual_language=actual_language,
         source_format=source_format,
     )
+
+
+def _validate_source_provenance(
+    metadata: _SourceMetadata,
+    language_preferences: Sequence[str],
+    *,
+    video_id: str,
+) -> None:
+    invalid = False
+    expected_requested_language: str | None = None
+    try:
+        actual = normalize_language_tag(metadata.actual_language)
+        for preference in language_preferences:
+            requested = normalize_language_tag(preference)
+            if _language_match_rank(actual, requested) is not None:
+                expected_requested_language = preference
+                break
+    except ValueError:
+        invalid = True
+    if (
+        invalid
+        or expected_requested_language is None
+        or metadata.requested_language != expected_requested_language
+    ):
+        raise _service_error(
+            ErrorCode.LOCAL_RESOURCE,
+            "cached subtitle source provenance is inconsistent",
+            retryable=False,
+            video_id=video_id,
+        )
 
 
 _FLAG_TO_CODE: Final = {
@@ -863,15 +946,19 @@ def _encode_quality_flags(flags: Sequence[TranscriptQualityFlag]) -> str:
 def _decode_quality_flags(value: str, *, video_id: str) -> tuple[TranscriptQualityFlag, ...]:
     if value == "-":
         return ()
+    invalid = False
+    flags: tuple[TranscriptQualityFlag, ...] = ()
     try:
         flags = tuple(_CODE_TO_FLAG[code] for code in value)
     except KeyError:
+        invalid = True
+    if invalid:
         raise _service_error(
             ErrorCode.LOCAL_RESOURCE,
             "cached transcript quality metadata is invalid",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     if len(flags) != len(set(flags)):
         raise _service_error(
             ErrorCode.LOCAL_RESOURCE,
@@ -880,6 +967,31 @@ def _decode_quality_flags(value: str, *, video_id: str) -> tuple[TranscriptQuali
             video_id=video_id,
         )
     return flags
+
+
+def _validate_cached_quality_metadata(
+    canonical_text: str,
+    flags: tuple[TranscriptQualityFlag, ...],
+    encoded_flags: str,
+    *,
+    video_id: str,
+) -> None:
+    canonical_cues = canonical_text.splitlines()
+    speaker_expected = any(_SPEAKER_PREFIX.match(cue) for cue in canonical_cues)
+    non_speech_expected = any(_NON_SPEECH_MARKER.search(cue) for cue in canonical_cues)
+    has_speaker_flag = TranscriptQualityFlag.SPEAKER_LABELS_PRESENT in flags
+    has_non_speech_flag = TranscriptQualityFlag.NON_SPEECH_MARKERS_PRESENT in flags
+    if (
+        _encode_quality_flags(flags) != encoded_flags
+        or has_speaker_flag != speaker_expected
+        or has_non_speech_flag != non_speech_expected
+    ):
+        raise _service_error(
+            ErrorCode.LOCAL_RESOURCE,
+            "cached transcript quality metadata is inconsistent",
+            retryable=False,
+            video_id=video_id,
+        )
 
 
 def _source_relative_path(
@@ -914,6 +1026,7 @@ def _resolve_data_path(
     relative_path: str,
     *,
     video_id: str,
+    boundary_error_code: ErrorCode = ErrorCode.PERMISSION_DENIED,
 ) -> Path:
     pure = PurePosixPath(relative_path)
     if (
@@ -925,8 +1038,12 @@ def _resolve_data_path(
         or pure.parts[0] != "transcripts"
     ):
         raise _service_error(
-            ErrorCode.PERMISSION_DENIED,
-            "subtitle artifact path is outside the DATA boundary",
+            boundary_error_code,
+            (
+                "cached subtitle artifact path is inconsistent"
+                if boundary_error_code is ErrorCode.LOCAL_RESOURCE
+                else "subtitle artifact path is outside the DATA boundary"
+            ),
             retryable=False,
             video_id=video_id,
         )
@@ -934,8 +1051,12 @@ def _resolve_data_path(
     target = (root / Path(*pure.parts)).resolve()
     if not target.is_relative_to(root):
         raise _service_error(
-            ErrorCode.PERMISSION_DENIED,
-            "subtitle artifact path is outside the DATA boundary",
+            boundary_error_code,
+            (
+                "cached subtitle artifact path is inconsistent"
+                if boundary_error_code is ErrorCode.LOCAL_RESOURCE
+                else "subtitle artifact path is outside the DATA boundary"
+            ),
             retryable=False,
             video_id=video_id,
         )
@@ -948,11 +1069,13 @@ def _read_verified_file(
     expected_hash: str | None,
     max_bytes: int,
     video_id: str,
+    permission_error_code: ErrorCode = ErrorCode.LOCAL_RESOURCE,
 ) -> tuple[bytes, str]:
+    failure: TranscriptError | None = None
+    chunks: list[bytes] = []
+    hasher = hashlib.sha256()
     try:
         with path.open("rb") as handle:
-            chunks: list[bytes] = []
-            hasher = hashlib.sha256()
             total = 0
             while True:
                 chunk = handle.read(_FILE_CHUNK_BYTES)
@@ -969,26 +1092,28 @@ def _read_verified_file(
                 chunks.append(chunk)
                 hasher.update(chunk)
     except FileNotFoundError:
-        raise _service_error(
+        failure = _service_error(
             ErrorCode.LOCAL_RESOURCE,
             "cached subtitle artifact is missing",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     except PermissionError:
-        raise _service_error(
-            ErrorCode.PERMISSION_DENIED,
+        failure = _service_error(
+            permission_error_code,
             "subtitle artifact is not readable",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     except OSError:
-        raise _service_error(
+        failure = _service_error(
             ErrorCode.LOCAL_RESOURCE,
             "subtitle artifact could not be read",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
+    if failure is not None:
+        raise failure
     digest = hasher.hexdigest()
     if expected_hash is not None and digest != expected_hash:
         raise _service_error(
@@ -1030,9 +1155,11 @@ def _atomic_write(
             expected_hash=expected_hash,
             max_bytes=max_bytes,
             video_id=video_id,
+            permission_error_code=ErrorCode.PERMISSION_DENIED,
         )
         return
     temp_path: Path | None = None
+    failure: TranscriptError | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         root = data_root.resolve()
@@ -1082,28 +1209,28 @@ def _atomic_write(
         os.replace(temp_path, path)
         temp_path = None
         _fsync_directory(path.parent)
-    except TranscriptError:
-        raise
     except PermissionError:
-        raise _service_error(
+        failure = _service_error(
             ErrorCode.PERMISSION_DENIED,
             "subtitle artifact path is not writable",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     except OSError:
-        raise _service_error(
+        failure = _service_error(
             ErrorCode.LOCAL_RESOURCE,
             "subtitle artifact could not be written",
             retryable=False,
             video_id=video_id,
-        ) from None
+        )
     finally:
         if temp_path is not None:
             try:
                 temp_path.unlink(missing_ok=True)
             except OSError:
                 pass
+    if failure is not None:
+        raise failure
 
 
 def _normalize_recovered_raw(
@@ -1160,15 +1287,20 @@ class SubtitleAcquisitionService:
         *,
         video_id: str,
     ) -> ArtifactRecord | None:
+        failed = False
+        record: ArtifactRecord | None = None
         try:
-            return self._repository.get_artifact_by_key(artifact_key)
+            record = self._repository.get_artifact_by_key(artifact_key)
         except Exception:
+            failed = True
+        if failed:
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
                 "subtitle artifact index could not be read",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
+        return record
 
     def _get_provider_call(
         self,
@@ -1176,15 +1308,20 @@ class SubtitleAcquisitionService:
         *,
         video_id: str,
     ) -> ProviderCallRecord | None:
+        failed = False
+        record: ProviderCallRecord | None = None
         try:
-            return self._repository.get_provider_call(request_hash)
+            record = self._repository.get_provider_call(request_hash)
         except Exception:
+            failed = True
+        if failed:
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
                 "subtitle provider call state could not be read",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
+        return record
 
     def _provider_request(self, raw_request_hash: str) -> ProviderCallRequest:
         return ProviderCallRequest(
@@ -1197,19 +1334,37 @@ class SubtitleAcquisitionService:
             deterministic_artifact_key=_raw_artifact_key(raw_request_hash),
         )
 
-    def _recorded_all_invalid_result(
+    def _recorded_terminal_result(
         self,
         record: ProviderCallRecord,
     ) -> TranscriptionRequired | None:
+        if record.status is not ProviderCallStatus.FAILED_FINAL:
+            return None
+        reason: TranscriptionReason | None = None
+        diagnostic = ""
         if (
-            record.status is not ProviderCallStatus.FAILED_FINAL
-            or record.last_error_code != ErrorCode.INVALID_RESPONSE.value
-            or record.last_error_message != "all subtitle candidates invalid"
+            record.last_error_code == ErrorCode.CONTENT_UNAVAILABLE.value
+            and record.last_error_message == _NO_TRACKS_MESSAGE
         ):
+            reason = TranscriptionReason.NO_TRACKS
+            diagnostic = "cached_no_tracks"
+        elif (
+            record.last_error_code == ErrorCode.CONTENT_UNAVAILABLE.value
+            and record.last_error_message == _NO_MATCH_MESSAGE
+        ):
+            reason = TranscriptionReason.NO_MATCHING_LANGUAGE
+            diagnostic = "cached_no_matching_language"
+        elif (
+            record.last_error_code == ErrorCode.INVALID_RESPONSE.value
+            and record.last_error_message == _ALL_INVALID_MESSAGE
+        ):
+            reason = TranscriptionReason.ALL_CANDIDATES_INVALID
+            diagnostic = "cached_all_candidates_invalid"
+        if reason is None:
             return None
         finished_at = record.finished_at or record.updated_at
         return TranscriptionRequired(
-            reason=TranscriptionReason.ALL_CANDIDATES_INVALID,
+            reason=reason,
             call=ProviderCallMetadata(
                 provider=record.provider,
                 provider_version=self._adapter.provider_version,
@@ -1217,8 +1372,8 @@ class SubtitleAcquisitionService:
                 finished_at=finished_at,
                 diagnostics=(
                     DiagnosticEntry(
-                        code="cached_all_candidates_invalid",
-                        message="cached all candidates invalid result",
+                        code=diagnostic,
+                        message=diagnostic.replace("_", " "),
                     ),
                 ),
             ),
@@ -1230,6 +1385,7 @@ class SubtitleAcquisitionService:
         *,
         record: ProviderCallRecord,
         raw_request_hash: str,
+        language_preferences: Sequence[str],
         now: datetime,
         video_id: str,
     ) -> TranscriptFetchResult | None:
@@ -1237,6 +1393,7 @@ class SubtitleAcquisitionService:
             cached = self._load_cached(
                 video_id=video_id,
                 raw_request_hash=raw_request_hash,
+                language_preferences=language_preferences,
                 now=now,
             )
             if cached is not None:
@@ -1247,9 +1404,9 @@ class SubtitleAcquisitionService:
                 retryable=False,
                 video_id=video_id,
             )
-        all_invalid = self._recorded_all_invalid_result(record)
-        if all_invalid is not None:
-            return all_invalid
+        terminal_result = self._recorded_terminal_result(record)
+        if terminal_result is not None:
+            return terminal_result
         if (
             record.status is ProviderCallStatus.PENDING
             and record.lease_until is not None
@@ -1265,9 +1422,25 @@ class SubtitleAcquisitionService:
                 video_id=video_id,
             )
         if record.status is ProviderCallStatus.FAILED_FINAL:
+            code: ErrorCode | None = None
+            try:
+                if record.last_error_code is not None:
+                    code = ErrorCode(record.last_error_code)
+            except ValueError:
+                code = None
+            if (
+                code is None
+                or not _persisted_error_message_is_safe(record.last_error_message)
+            ):
+                raise _service_error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "subtitle provider terminal state is inconsistent",
+                    retryable=False,
+                    video_id=video_id,
+                )
             raise _service_error(
-                ErrorCode.PROVIDER_UNAVAILABLE,
-                "subtitle provider call failed permanently",
+                code,
+                record.last_error_message or "subtitle provider call failed",
                 retryable=False,
                 video_id=video_id,
             )
@@ -1278,6 +1451,7 @@ class SubtitleAcquisitionService:
         *,
         request: ProviderCallRequest,
         raw_request_hash: str,
+        language_preferences: Sequence[str],
         now: datetime,
         video_id: str,
     ) -> TranscriptFetchResult | None:
@@ -1287,6 +1461,7 @@ class SubtitleAcquisitionService:
         return self._existing_provider_outcome(
             record=record,
             raw_request_hash=raw_request_hash,
+            language_preferences=language_preferences,
             now=now,
             video_id=video_id,
         )
@@ -1297,6 +1472,7 @@ class SubtitleAcquisitionService:
         video_id: str,
         now: datetime,
     ) -> None:
+        failed = False
         try:
             self._repository.complete_stage(
                 job_id=self._context.job_id,
@@ -1310,12 +1486,14 @@ class SubtitleAcquisitionService:
                 now=now,
             )
         except Exception:
+            failed = True
+        if failed:
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
                 "cached transcript stage could not be committed",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
 
     def _rebuild_canonical_from_raw(
         self,
@@ -1462,6 +1640,7 @@ class SubtitleAcquisitionService:
         *,
         video_id: str,
         raw_request_hash: str,
+        language_preferences: Sequence[str],
         now: datetime,
     ) -> TranscriptReady | None:
         raw_record = self._get_artifact(
@@ -1497,10 +1676,30 @@ class SubtitleAcquisitionService:
                 video_id=video_id,
             )
         metadata = _decode_source_metadata(raw_relative.name, video_id=video_id)
+        if (
+            _source_relative_path(
+                video_id=video_id,
+                raw_request_hash=raw_request_hash,
+                metadata=metadata,
+            )
+            != raw_record.relative_path
+        ):
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "cached subtitle source path metadata is inconsistent",
+                retryable=False,
+                video_id=video_id,
+            )
+        _validate_source_provenance(
+            metadata,
+            language_preferences,
+            video_id=video_id,
+        )
         raw_path = _resolve_data_path(
             self._data_root,
             raw_record.relative_path,
             video_id=video_id,
+            boundary_error_code=ErrorCode.LOCAL_RESOURCE,
         )
         raw_body, raw_hash = _read_verified_file(
             raw_path,
@@ -1536,6 +1735,7 @@ class SubtitleAcquisitionService:
             or canonical_record.deleted_at is not None
             or canonical_record.producer_version != _CANONICAL_PRODUCER_VERSION
             or canonical_record.provider != raw_record.provider
+            or canonical_record.model != raw_record.model
         ):
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
@@ -1569,6 +1769,7 @@ class SubtitleAcquisitionService:
             self._data_root,
             canonical_record.relative_path,
             video_id=video_id,
+            boundary_error_code=ErrorCode.LOCAL_RESOURCE,
         )
         canonical_body, canonical_hash = _read_verified_file(
             canonical_path,
@@ -1576,15 +1777,19 @@ class SubtitleAcquisitionService:
             max_bytes=_MAX_CANONICAL_BYTES,
             video_id=video_id,
         )
+        invalid_utf8 = False
+        canonical_text = ""
         try:
             canonical_text = canonical_body.decode("utf-8", errors="strict")
         except UnicodeDecodeError:
+            invalid_utf8 = True
+        if invalid_utf8:
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
                 "cached canonical transcript is not valid UTF-8",
                 retryable=False,
                 video_id=video_id,
-            ) from None
+            )
         if not canonical_text.endswith("\n"):
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
@@ -1592,6 +1797,12 @@ class SubtitleAcquisitionService:
                 retryable=False,
                 video_id=video_id,
             )
+        _validate_cached_quality_metadata(
+            canonical_text,
+            quality_flags,
+            name_parts[2],
+            video_id=video_id,
+        )
         artifact = TranscriptArtifact(
             video_id=video_id,
             language=metadata.actual_language,
@@ -1606,8 +1817,8 @@ class SubtitleAcquisitionService:
             char_count=len(canonical_text),
             segment_count=len(canonical_text.splitlines()),
             normalization_version=NORMALIZATION_VERSION,
-            provider=raw_record.provider or self._adapter.provider_name,
-            model=raw_record.model,
+            provider=canonical_record.provider or self._adapter.provider_name,
+            model=canonical_record.model,
             created_at=canonical_record.created_at,
             quality_flags=quality_flags,
         )
@@ -1635,8 +1846,10 @@ class SubtitleAcquisitionService:
         now: datetime,
         video_id: str,
     ) -> ProviderReservation:
+        failed = False
+        reservation: ProviderReservation | None = None
         try:
-            return self._repository.reserve_provider_call(
+            reservation = self._repository.reserve_provider_call(
                 request,
                 owner=self._context.owner,
                 lease_until=now + timedelta(seconds=self._provider_lease_seconds),
@@ -1644,12 +1857,15 @@ class SubtitleAcquisitionService:
                 now=now,
             )
         except Exception:
+            failed = True
+        if failed or reservation is None:
             raise _service_error(
                 ErrorCode.LOCAL_RESOURCE,
                 "subtitle provider call reservation failed",
                 retryable=True,
                 video_id=video_id,
-            ) from None
+            )
+        return reservation
 
     def _record_provider_failure(
         self,
@@ -1675,86 +1891,72 @@ class SubtitleAcquisitionService:
         except Exception:
             pass
 
-    def fetch(
+    def _terminal_result(
         self,
-        video: VideoMetadata,
-        language_preferences: Sequence[str],
-    ) -> TranscriptFetchResult:
-        video_id = video.video_id
-        if _SAFE_VIDEO_ID.fullmatch(video_id) is None:
-            raise _service_error(
-                ErrorCode.INVALID_RESPONSE,
-                "video_id is unsafe for transcript storage",
-                retryable=False,
-                video_id=video_id,
-            )
-        now = _aware_utc(self._clock(), video_id=video_id)
-        try:
-            raw_request_hash = build_raw_request_hash(
-                video_id=video_id,
-                language_preferences=language_preferences,
-                provider=self._adapter.provider_name,
-                provider_version=self._adapter.provider_version,
-                refresh_generation=self._context.refresh_generation,
-            )
-        except ValueError:
-            raise _service_error(
-                ErrorCode.CONFIG_INVALID,
-                "subtitle language preferences are invalid",
-                retryable=False,
-                video_id=video_id,
-            ) from None
-        provider_request = self._provider_request(raw_request_hash)
-        existing_outcome = self._preflight_provider_call(
-            request=provider_request,
-            raw_request_hash=raw_request_hash,
-            now=now,
+        *,
+        request_hash: str,
+        reason: TranscriptionReason,
+        call: ProviderCallMetadata,
+        attempted_track_count: int,
+        video_id: str,
+        now: datetime,
+    ) -> TranscriptionRequired:
+        if reason is TranscriptionReason.NO_TRACKS:
+            code = ErrorCode.CONTENT_UNAVAILABLE
+            message = _NO_TRACKS_MESSAGE
+        elif reason is TranscriptionReason.NO_MATCHING_LANGUAGE:
+            code = ErrorCode.CONTENT_UNAVAILABLE
+            message = _NO_MATCH_MESSAGE
+        else:
+            code = ErrorCode.INVALID_RESPONSE
+            message = _ALL_INVALID_MESSAGE
+        failure = AppError(
+            code=code,
+            message=message,
+            retryable=False,
             video_id=video_id,
+            stage=ProcessingStage.TRANSCRIPT,
         )
-        if existing_outcome is not None:
-            return existing_outcome
-        cached = self._load_cached(
-            video_id=video_id,
-            raw_request_hash=raw_request_hash,
+        self._record_provider_failure(
+            request_hash=request_hash,
+            error=failure,
             now=now,
+            message=message,
         )
-        if cached is not None:
-            return cached
+        return TranscriptionRequired(
+            reason=reason,
+            call=call,
+            attempted_track_count=attempted_track_count,
+        )
 
+    def _fetch_reserved(
+        self,
+        *,
+        video_id: str,
+        language_preferences: Sequence[str],
+        raw_request_hash: str,
+        provider_request: ProviderCallRequest,
+        now: datetime,
+    ) -> TranscriptFetchResult:
         listing = self._adapter.enumerate_tracks(video_id)
         if not listing.tracks:
-            return TranscriptionRequired(
+            return self._terminal_result(
+                request_hash=provider_request.request_hash,
                 reason=TranscriptionReason.NO_TRACKS,
                 call=listing.call,
                 attempted_track_count=0,
+                video_id=video_id,
+                now=now,
             )
         ranked = rank_subtitle_candidates(listing.tracks, language_preferences)
         if not ranked:
-            return TranscriptionRequired(
+            return self._terminal_result(
+                request_hash=provider_request.request_hash,
                 reason=TranscriptionReason.NO_MATCHING_LANGUAGE,
                 call=listing.call,
                 attempted_track_count=0,
-            )
-
-        reservation = self._reserve_provider_call(
-            request=provider_request,
-            now=now,
-            video_id=video_id,
-        )
-        if not reservation.acquired:
-            reservation_outcome = self._existing_provider_outcome(
-                record=reservation.record,
-                raw_request_hash=raw_request_hash,
+                video_id=video_id,
                 now=now,
-                video_id=video_id,
-            )
-            if reservation_outcome is not None:
-                return reservation_outcome
-            raise _service_error(
-                ErrorCode.PROVIDER_UNAVAILABLE,
-                "subtitle provider call is already reserved or unavailable",
-                retryable=True,
-                video_id=video_id,
             )
 
         attempted = 0
@@ -1784,6 +1986,7 @@ class SubtitleAcquisitionService:
                         expected_hash=None,
                         max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes,
                         video_id=video_id,
+                        permission_error_code=ErrorCode.PERMISSION_DENIED,
                     )
                     normalized = _normalize_recovered_raw(
                         raw_body,
@@ -1800,13 +2003,6 @@ class SubtitleAcquisitionService:
                     )
             except InvalidSubtitleCandidate:
                 continue
-            except TranscriptError as exc:
-                self._record_provider_failure(
-                    request_hash=provider_request.request_hash,
-                    error=exc.error,
-                    now=now,
-                )
-                raise
 
             canonical_request_hash = build_canonical_request_hash(
                 source_content_hash=normalized.source_content_hash,
@@ -1903,19 +2099,12 @@ class SubtitleAcquisitionService:
             except Exception:
                 stage_persistence_failed = True
             if stage_persistence_failed:
-                failure = AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="subtitle files were saved but stage persistence failed",
+                raise _service_error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "subtitle files were saved but stage persistence failed",
                     retryable=True,
                     video_id=video_id,
-                    stage=ProcessingStage.TRANSCRIPT,
                 )
-                self._record_provider_failure(
-                    request_hash=provider_request.request_hash,
-                    error=failure,
-                    now=now,
-                )
-                raise TranscriptError(failure)
             return TranscriptReady(
                 artifact=TranscriptArtifact(
                     video_id=video_id,
@@ -1939,24 +2128,131 @@ class SubtitleAcquisitionService:
                 call=last_call,
             )
 
-        failure = AppError(
-            code=ErrorCode.INVALID_RESPONSE,
-            message="all subtitle candidates invalid",
-            retryable=False,
-            video_id=video_id,
-            stage=ProcessingStage.TRANSCRIPT,
-        )
-        self._record_provider_failure(
+        return self._terminal_result(
             request_hash=provider_request.request_hash,
-            error=failure,
-            now=now,
-            message="all subtitle candidates invalid",
-        )
-        return TranscriptionRequired(
             reason=TranscriptionReason.ALL_CANDIDATES_INVALID,
             call=last_call,
             attempted_track_count=attempted,
+            video_id=video_id,
+            now=now,
         )
+
+    def fetch(
+        self,
+        video: VideoMetadata,
+        language_preferences: Sequence[str],
+    ) -> TranscriptFetchResult:
+        video_id = video.video_id
+        if _SAFE_VIDEO_ID.fullmatch(video_id) is None:
+            raise _service_error(
+                ErrorCode.INVALID_RESPONSE,
+                "video_id is unsafe for transcript storage",
+                retryable=False,
+                video_id=video_id,
+            )
+        now = _aware_utc(self._clock(), video_id=video_id)
+        try:
+            raw_request_hash = build_raw_request_hash(
+                video_id=video_id,
+                language_preferences=language_preferences,
+                provider=self._adapter.provider_name,
+                provider_version=self._adapter.provider_version,
+                refresh_generation=self._context.refresh_generation,
+            )
+        except ValueError:
+            invalid_preferences = True
+            raw_request_hash = ""
+        else:
+            invalid_preferences = False
+        if invalid_preferences:
+            raise _service_error(
+                ErrorCode.CONFIG_INVALID,
+                "subtitle language preferences are invalid",
+                retryable=False,
+                video_id=video_id,
+            )
+        provider_request = self._provider_request(raw_request_hash)
+        existing_outcome = self._preflight_provider_call(
+            request=provider_request,
+            raw_request_hash=raw_request_hash,
+            language_preferences=language_preferences,
+            now=now,
+            video_id=video_id,
+        )
+        if existing_outcome is not None:
+            return existing_outcome
+        cached = self._load_cached(
+            video_id=video_id,
+            raw_request_hash=raw_request_hash,
+            language_preferences=language_preferences,
+            now=now,
+        )
+        if cached is not None:
+            return cached
+
+        reservation = self._reserve_provider_call(
+            request=provider_request,
+            now=now,
+            video_id=video_id,
+        )
+        if not reservation.acquired:
+            reservation_outcome = self._existing_provider_outcome(
+                record=reservation.record,
+                raw_request_hash=raw_request_hash,
+                language_preferences=language_preferences,
+                now=now,
+                video_id=video_id,
+            )
+            if reservation_outcome is not None:
+                return reservation_outcome
+            raise _service_error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "subtitle provider call is already reserved or unavailable",
+                retryable=True,
+                video_id=video_id,
+            )
+        owner_result: TranscriptFetchResult | None = None
+        owner_failure: AppError | None = None
+        try:
+            owner_result = self._fetch_reserved(
+                video_id=video_id,
+                language_preferences=language_preferences,
+                raw_request_hash=raw_request_hash,
+                provider_request=provider_request,
+                now=now,
+            )
+        except TranscriptError as exc:
+            owner_failure = _copy_app_error(exc.error, video_id=video_id)
+        except Exception:
+            owner_failure = AppError(
+                code=ErrorCode.LOCAL_RESOURCE,
+                message="subtitle acquisition failed",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.TRANSCRIPT,
+            )
+        if owner_failure is not None:
+            self._record_provider_failure(
+                request_hash=provider_request.request_hash,
+                error=owner_failure,
+                now=now,
+            )
+            raise TranscriptError(owner_failure)
+        if owner_result is None:
+            fallback = AppError(
+                code=ErrorCode.LOCAL_RESOURCE,
+                message="subtitle acquisition returned no result",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.TRANSCRIPT,
+            )
+            self._record_provider_failure(
+                request_hash=provider_request.request_hash,
+                error=fallback,
+                now=now,
+            )
+            raise TranscriptError(fallback)
+        return owner_result
 
 
 __all__ = [

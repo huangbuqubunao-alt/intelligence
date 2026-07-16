@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
+import threading
 import traceback
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from datetime import timedelta as td
 from http.client import HTTPMessage
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 from yt_dlp.utils import DownloadError
@@ -38,9 +41,12 @@ from youtube_intel.providers import subtitles as subtitles_mod
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.state import (
     JobType,
+    ProviderCallRecord,
     ProviderCallRequest,
     ProviderCallStatus,
+    ProviderReservation,
     SQLiteStateRepository,
+    VerifiedArtifact,
 )
 from youtube_intel.transcripts import (
     FORMAT_POLICY_VERSION,
@@ -998,18 +1004,53 @@ def _assert_exception_graph_is_redacted(
                 chain=False,
             )
         )
-        retained_payload = " ".join(
-            repr(getattr(current, attribute, ""))
-            for attribute in ("doc", "object")
+        retained = (
+            str(current),
+            repr(current.args),
+            repr(vars(current)),
+            rendered,
         )
         for value in forbidden:
-            assert value not in str(current)
-            assert value not in rendered
-            assert value not in retained_payload
+            assert all(value not in payload for payload in retained)
         if current.__cause__ is not None:
             pending.append(current.__cause__)
         if current.__context__ is not None:
             pending.append(current.__context__)
+
+
+def test_adapter_directory_error_is_redacted_through_service_exception_graph(
+    tmp_path: Path,
+) -> None:
+    marker = "PRIVATE_DIRECTORY_ERROR_MARKER_8A19F"
+    private_url = "https://private.invalid/timedtext?token=secret"
+    private_path = "/Users/example/private/subtitle.json3"
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, handle = _bound_adapter(
+        DownloadError(
+            f"HTTP Error 403: Forbidden {marker} {private_url} {private_path}"
+        ),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=tmp_path / "data",
+            job_id="subtitle-job",
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.PERMISSION_DENIED
+    assert exc_info.value.error.retryable is False
+    assert exc_info.value.error.stage is ProcessingStage.TRANSCRIPT
+    assert exc_info.value.error.video_id == "video123"
+    assert len(handle.calls) == 1
+    assert opener.calls == 0
+    _assert_exception_graph_is_redacted(
+        exc_info.value,
+        forbidden=(marker, private_url, private_path),
+    )
 
 
 def test_recovered_invalid_raw_file_does_not_leak_through_service_exception_chain(
@@ -1254,7 +1295,77 @@ def test_missing_current_canonical_is_rebuilt_from_verified_raw_without_network(
     assert opener.calls == body_calls_before
 
 
-@pytest.mark.parametrize("mutation", ["missing", "tampered", "provider_metadata"])
+def test_invalid_utf8_canonical_cache_is_redacted_without_network(
+    tmp_path: Path,
+) -> None:
+    marker = "PRIVATE_CANONICAL_UTF8_MARKER_B640C"
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    canonical_path = data_root / first.artifact.text_path
+    invalid_body = marker.encode() + b"\xff"
+    canonical_path.write_bytes(invalid_body)
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute(
+            "UPDATE artifacts SET content_hash = ? WHERE kind = ?",
+            (
+                hashlib.sha256(invalid_body).hexdigest(),
+                "transcript_canonical",
+            ),
+        )
+
+    cache_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="invalid-canonical-utf8-job",
+        now=cache_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("invalid canonical UTF-8 must not trigger network repair"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id="invalid-canonical-utf8-job",
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    _assert_exception_graph_is_redacted(
+        exc_info.value,
+        forbidden=(marker, repr(invalid_body), str(canonical_path)),
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "tampered",
+        "provider_metadata",
+        "model_metadata",
+        "producer_metadata",
+        "path_metadata",
+        "format_metadata",
+    ],
+)
 def test_invalid_raw_cache_still_fails_closed_during_canonical_rebuild(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1278,11 +1389,57 @@ def test_invalid_raw_cache_still_fails_closed_during_canonical_rebuild(
         raw_path.unlink()
     elif mutation == "tampered":
         raw_path.write_bytes(b"tampered raw subtitle body")
-    else:
+    elif mutation == "provider_metadata":
         with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
             connection.execute(
                 "UPDATE artifacts SET provider = ? WHERE kind = ?",
                 ("unexpected-provider", "subtitle_source"),
+            )
+    elif mutation == "model_metadata":
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET model = ? WHERE kind = ?",
+                ("unexpected-model", "subtitle_source"),
+            )
+    elif mutation == "producer_metadata":
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET producer_version = ? WHERE kind = ?",
+                ("unexpected-producer", "subtitle_source"),
+            )
+    elif mutation == "path_metadata":
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+                (
+                    f"transcripts/video123/wrong-request/{raw_path.name}",
+                    "subtitle_source",
+                ),
+            )
+    else:
+        raw_request_hash = build_raw_request_hash(
+            video_id="video123",
+            language_preferences=("en",),
+            provider=adapter.provider_name,
+            provider_version=adapter.provider_version,
+            refresh_generation=0,
+        )
+        vtt_metadata = transcripts_mod._SourceMetadata(
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            requested_language="en",
+            actual_language="en",
+            source_format=SubtitleFormat.VTT,
+        )
+        vtt_relative_path = transcripts_mod._source_relative_path(
+            video_id="video123",
+            raw_request_hash=raw_request_hash,
+            metadata=vtt_metadata,
+        )
+        raw_path.rename(data_root / vtt_relative_path)
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+                (vtt_relative_path, "subtitle_source"),
             )
 
     rebuild_now = NOW + td(minutes=20)
@@ -1311,6 +1468,230 @@ def test_invalid_raw_cache_still_fails_closed_during_canonical_rebuild(
     assert exc_info.value.error.retryable is False
     assert handle.calls == []
     assert opener.calls == body_calls_before
+
+
+def test_raw_metadata_requested_language_must_match_current_ordered_preferences(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    assert first.artifact.timed_text_path is not None
+    raw_request_hash = build_raw_request_hash(
+        video_id="video123",
+        language_preferences=("en",),
+        provider=adapter.provider_name,
+        provider_version=adapter.provider_version,
+        refresh_generation=0,
+    )
+    tampered_metadata = transcripts_mod._SourceMetadata(
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        requested_language="fr",
+        actual_language="en",
+        source_format=SubtitleFormat.JSON3,
+    )
+    tampered_relative_path = transcripts_mod._source_relative_path(
+        video_id="video123",
+        raw_request_hash=raw_request_hash,
+        metadata=tampered_metadata,
+    )
+    original_path = data_root / first.artifact.timed_text_path
+    tampered_path = data_root / tampered_relative_path
+    original_path.rename(tampered_path)
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute(
+            "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+            (tampered_relative_path, "subtitle_source"),
+        )
+    _use_next_canonical_version(monkeypatch)
+
+    rebuild_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="requested-language-mismatch-job",
+        now=rebuild_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("provenance mismatch must not trigger network repair"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id="requested-language-mismatch-job",
+            now=rebuild_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    assert repository.get_job("requested-language-mismatch-job").status is JobStatus.RUNNING
+    assert (
+        repository.get_video("video123").pipeline_status
+        is PipelineStatus.METADATA_READY
+    )
+
+
+@pytest.mark.parametrize("artifact_kind", ["raw", "canonical"])
+def test_indexed_cache_symlink_escape_is_local_resource_without_network(
+    tmp_path: Path,
+    artifact_kind: str,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    assert first.artifact.timed_text_path is not None
+    relative_path = (
+        first.artifact.timed_text_path
+        if artifact_kind == "raw"
+        else first.artifact.text_path
+    )
+    cached_path = data_root / relative_path
+    cached_body = cached_path.read_bytes()
+    outside_path = tmp_path / f"outside-{artifact_kind}.cache"
+    outside_path.write_bytes(cached_body)
+    cached_path.unlink()
+    cached_path.symlink_to(outside_path)
+
+    cache_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id=f"{artifact_kind}-symlink-job",
+        now=cache_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("cache symlink must not trigger network repair"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id=f"{artifact_kind}-symlink-job",
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    assert repository.get_job(f"{artifact_kind}-symlink-job").status is JobStatus.RUNNING
+    assert (
+        repository.get_video("video123").pipeline_status
+        is PipelineStatus.METADATA_READY
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["model", "provider", "producer", "path", "quality"],
+)
+def test_canonical_metadata_mismatch_fails_closed_without_network(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    canonical_path = data_root / first.artifact.text_path
+    if mutation == "quality":
+        name_parts = canonical_path.name.split(".")
+        replacement = "n" if name_parts[2] != "n" else "s"
+        tampered_path = canonical_path.with_name(
+            f"{name_parts[0]}.{name_parts[1]}.{replacement}.{name_parts[3]}"
+        )
+        canonical_path.rename(tampered_path)
+        relative_path = str(tampered_path.relative_to(data_root))
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+                (relative_path, "transcript_canonical"),
+            )
+    else:
+        column, value = {
+            "model": ("model", "unexpected-model"),
+            "provider": ("provider", "unexpected-provider"),
+            "producer": ("producer_version", "unexpected-producer"),
+            "path": (
+                "relative_path",
+                f"transcripts/video123/wrong-request/{canonical_path.name}",
+            ),
+        }[mutation]
+        with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+            connection.execute(
+                f"UPDATE artifacts SET {column} = ? WHERE kind = ?",
+                (value, "transcript_canonical"),
+            )
+
+    cache_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id=f"canonical-{mutation}-mismatch-job",
+        now=cache_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("canonical metadata mismatch must not trigger network repair"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id=f"canonical-{mutation}-mismatch-job",
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    assert (
+        repository.get_job(f"canonical-{mutation}-mismatch-job").status
+        is JobStatus.RUNNING
+    )
+    assert (
+        repository.get_video("video123").pipeline_status
+        is PipelineStatus.METADATA_READY
+    )
 
 
 @pytest.mark.parametrize("mutation", ["missing", "tampered"])
@@ -1440,18 +1821,33 @@ def test_no_tracks_and_no_matching_language_are_named_results(
 ) -> None:
     repository = _repository_with_transcript_job(tmp_path)
     opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
-    adapter, _ = _bound_adapter(payload, opener)
-
-    result = _service(
+    adapter, handle = _bound_adapter(payload, opener)
+    service = _service(
         adapter=adapter,
         repository=repository,
         data_root=tmp_path / "data",
         job_id="subtitle-job",
-    ).fetch(_video(), languages)
+    )
+
+    result = service.fetch(_video(), languages)
 
     assert isinstance(result, TranscriptionRequired)
     assert result.reason is reason
     assert result.attempted_track_count == attempted
+    assert opener.calls == 0
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        provider_status = connection.execute(
+            "SELECT status, reservation_owner, lease_until FROM provider_calls"
+        ).fetchone()
+    assert provider_status == (ProviderCallStatus.FAILED_FINAL.value, None, None)
+    directory_calls_before = len(handle.calls)
+
+    repeated = service.fetch(_video(), languages)
+
+    assert isinstance(repeated, TranscriptionRequired)
+    assert repeated.reason is reason
+    assert repeated.attempted_track_count == 0
+    assert len(handle.calls) == directory_calls_before
     assert opener.calls == 0
     assert repository.get_job("subtitle-job").status is JobStatus.RUNNING
     assert (
@@ -1527,14 +1923,62 @@ def test_recorded_all_invalid_result_is_stable_without_repeating_provider_calls(
     assert opener.calls == body_calls_before
 
 
+def test_non_all_invalid_final_provider_error_replays_exact_persisted_semantics(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, handle = _bound_adapter(_load_json("info_tracks.json"), opener)
+    request = _provider_request_for(adapter)
+    repository.reserve_provider_call(
+        request,
+        owner="worker-1",
+        lease_until=NOW + td(minutes=5),
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.fail_provider_call(
+        request.request_hash,
+        owner="worker-1",
+        retryable=False,
+        available_at=NOW,
+        error_code=ErrorCode.PERMISSION_DENIED,
+        error_message="selected subtitle body access denied",
+        now=NOW,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=tmp_path / "data",
+            job_id="subtitle-job",
+        ).fetch(_video(), ("en",))
+
+    error = exc_info.value.error
+    assert error.code is ErrorCode.PERMISSION_DENIED
+    assert error.message == "selected subtitle body access denied"
+    assert error.retryable is False
+    assert error.stage is ProcessingStage.TRANSCRIPT
+    assert error.video_id == "video123"
+    assert handle.calls == []
+    assert opener.calls == 0
+
+
+class _ConcurrentAdapterProbe:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.enumerate_calls = 0
+        self.read_calls = 0
+        self.acquired_lease_until: datetime | None = None
+
+
 class _StaticSubtitleAdapter:
     provider_name = "static-subtitles"
     provider_version = "1"
 
-    def __init__(self, *, on_read: Callable[[], None] | None = None) -> None:
-        self.enumerate_calls = 0
-        self.read_calls = 0
-        self._on_read = on_read
+    def __init__(self, probe: _ConcurrentAdapterProbe) -> None:
+        self._probe = probe
         self._call = ProviderCallMetadata(
             provider=self.provider_name,
             provider_version=self.provider_version,
@@ -1551,69 +1995,114 @@ class _StaticSubtitleAdapter:
         )
 
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
-        self.enumerate_calls += 1
+        with self._probe.lock:
+            self._probe.enumerate_calls += 1
         return SubtitleTrackListing(tracks=(self._track,), call=self._call)
 
     def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
-        self.read_calls += 1
-        if self._on_read is not None:
-            self._on_read()
+        with self._probe.lock:
+            self._probe.read_calls += 1
         return SubtitleReadResult(
             body=(FIXTURES / "manual_en.json3").read_bytes(),
             call=self._call,
         )
 
 
-def test_two_services_compete_without_duplicate_enumeration_or_body_read(
+class _BarrierSQLiteStateRepository(SQLiteStateRepository):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        preflight_barrier: threading.Barrier,
+        competitor_observed: threading.Event,
+        probe: _ConcurrentAdapterProbe,
+    ) -> None:
+        super().__init__(path)
+        self._preflight_barrier = preflight_barrier
+        self._competitor_observed = competitor_observed
+        self._probe = probe
+
+    def get_provider_call(self, request_hash: str) -> ProviderCallRecord | None:
+        self._preflight_barrier.wait(timeout=5)
+        record = super().get_provider_call(request_hash)
+        self._preflight_barrier.wait(timeout=5)
+        return record
+
+    def reserve_provider_call(
+        self,
+        request: ProviderCallRequest,
+        *,
+        owner: str,
+        lease_until: datetime,
+        available_at: datetime,
+        now: datetime,
+        verified_artifact: VerifiedArtifact | None = None,
+    ) -> ProviderReservation:
+        reservation = super().reserve_provider_call(
+            request,
+            owner=owner,
+            lease_until=lease_until,
+            available_at=available_at,
+            now=now,
+            verified_artifact=verified_artifact,
+        )
+        if reservation.acquired:
+            with self._probe.lock:
+                self._probe.acquired_lease_until = reservation.record.lease_until
+            if not self._competitor_observed.wait(timeout=5):
+                raise AssertionError("competing reservation was not observed")
+        else:
+            self._competitor_observed.set()
+        return reservation
+
+
+def test_two_real_sqlite_services_compete_before_any_remote_or_file_side_effect(
     tmp_path: Path,
 ) -> None:
-    first_repository = _repository_with_transcript_job(tmp_path)
-    second_repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    second_adapter = _StaticSubtitleAdapter()
-    second_service = SubtitleAcquisitionService(
-        adapter=second_adapter,
-        repository=second_repository,
-        data_root=tmp_path / "data",
-        context=TranscriptJobContext(
-            job_id="subtitle-job",
-            owner="competing-worker",
-            pipeline_version="pipeline-v1",
-        ),
-        clock=lambda: NOW,
-        provider_lease_seconds=60,
-    )
-    competition_errors: list[TranscriptError] = []
+    _repository_with_transcript_job(tmp_path)
+    preflight_barrier = threading.Barrier(2)
+    competitor_observed = threading.Event()
+    probe = _ConcurrentAdapterProbe()
 
-    def run_competing_service() -> None:
+    def service() -> SubtitleAcquisitionService:
+        repository = _BarrierSQLiteStateRepository(
+            tmp_path / "state.sqlite3",
+            preflight_barrier=preflight_barrier,
+            competitor_observed=competitor_observed,
+            probe=probe,
+        )
+        return SubtitleAcquisitionService(
+            adapter=_StaticSubtitleAdapter(probe),
+            repository=repository,
+            data_root=tmp_path / "data",
+            context=TranscriptJobContext(
+                job_id="subtitle-job",
+                owner="worker-1",
+                pipeline_version="pipeline-v1",
+            ),
+            clock=lambda: NOW,
+        )
+
+    def run(candidate: SubtitleAcquisitionService) -> object:
         try:
-            second_service.fetch(_video(), ("en",))
+            return candidate.fetch(_video(), ("en",))
         except TranscriptError as error:
-            competition_errors.append(error)
+            return error
 
-    first_adapter = _StaticSubtitleAdapter(on_read=run_competing_service)
-    first_service = SubtitleAcquisitionService(
-        adapter=first_adapter,
-        repository=first_repository,
-        data_root=tmp_path / "data",
-        context=TranscriptJobContext(
-            job_id="subtitle-job",
-            owner="worker-1",
-            pipeline_version="pipeline-v1",
-        ),
-        clock=lambda: NOW,
-        provider_lease_seconds=60,
-    )
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(executor.map(run, (service(), service())))
 
-    first_result = first_service.fetch(_video(), ("en",))
-
-    assert isinstance(first_result, TranscriptReady)
-    assert len(competition_errors) == 1
-    assert competition_errors[0].error.code is ErrorCode.PROVIDER_UNAVAILABLE
-    assert competition_errors[0].error.retryable is True
-    assert first_adapter.enumerate_calls == 1
-    assert first_adapter.read_calls == 1
-    assert second_adapter.enumerate_calls == 0
-    assert second_adapter.read_calls == 0
+    ready = tuple(result for result in results if isinstance(result, TranscriptReady))
+    errors = tuple(result for result in results if isinstance(result, TranscriptError))
+    assert len(ready) == 1, results
+    assert len(errors) == 1
+    assert errors[0].error.code is ErrorCode.PROVIDER_UNAVAILABLE
+    assert errors[0].error.retryable is True
+    assert probe.enumerate_calls == 1
+    assert probe.read_calls == 1
+    assert probe.acquired_lease_until == NOW + td(seconds=300)
+    assert len(tuple((tmp_path / "data").rglob("source.*"))) == 1
+    assert len(tuple((tmp_path / "data").rglob("canonical.*.txt"))) == 1
 
 
 def test_files_survive_stage_db_failure_and_next_attempt_repairs_indexes(
@@ -1714,5 +2203,16 @@ def test_permission_error_during_atomic_write_is_safe_and_not_indexed(
 
     assert exc_info.value.error.code is ErrorCode.PERMISSION_DENIED
     assert "/Users/" not in exc_info.value.error.message
+    _assert_exception_graph_is_redacted(
+        exc_info.value,
+        forbidden=("/Users/example/secret",),
+    )
     with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
         assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 0
+    request = _provider_request_for(adapter)
+    provider_record = repository.get_provider_call(request.request_hash)
+    assert provider_record is not None
+    assert provider_record.status is ProviderCallStatus.FAILED_FINAL
+    assert provider_record.last_error_code == ErrorCode.PERMISSION_DENIED.value
+    assert provider_record.reservation_owner is None
+    assert provider_record.lease_until is None

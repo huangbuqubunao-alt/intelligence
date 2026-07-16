@@ -912,6 +912,185 @@ retryable `LOCAL_RESOURCE` 前调用现有
 - 结论：TASK-006 的最终公共类型契约仍成立，不需要修改 ADR-007；但 TASK-005 因本次
   `REJECT` 尚未关闭，TASK-006/007 继续保持 blocked，不得据此启动写入实现。
 
+## Implementer Correction 2
+
+- Implementer：Codex
+- Source commit：`5bb750e8d2f1336b321dbca64e7c409f66853b0f`
+- 授权父提交：`a3954bf782430678fa5e0040084bf0d907a52d05`
+- 目标：关闭 Reviewer 2 的三个 P1，同时保持 ADR-006、TASK-006 公共契约、
+  TASK-003 Repository/Schema 和现有依赖不变。
+
+### RED 证据
+
+先只修改测试并运行 Reviewer 2 三组反例：
+
+```text
+uv run python -m pytest tests/integration/test_subtitle_provider.py -q \
+  -k 'adapter_directory_error_is_redacted or invalid_utf8_canonical_cache_is_redacted \
+  or raw_metadata_requested_language or indexed_cache_symlink \
+  or canonical_model_mismatch or no_tracks_and_no_matching_language \
+  or non_all_invalid_final or two_real_sqlite \
+  or permission_error_during_atomic_write'
+```
+
+- 实际：`11 failed, 49 deselected`。
+- P1-1 RED：
+  - `DownloadError` 中的 marker、临时 URL、绝对路径仍可从外层异常图读取；
+  - canonical 非法 UTF-8 的 `UnicodeDecodeError.object` 仍保留原 bytes；
+  - 原子写 `PermissionError` 的绝对路径仍在 `__context__`。
+- P1-2 RED：
+  - no tracks/no match 后无 `provider_calls` 终态；
+  - non-all-invalid `FAILED_FINAL(PERMISSION_DENIED)` 重放为
+    `PROVIDER_UNAVAILABLE`；
+  - barrier 强制两个真实 SQLite Service 同时完成无记录预检时无法证明只有一个
+    目录枚举；
+  - 原子写失败后 reservation 未进入释放后的稳定终态。
+- P1-3 RED：
+  - 当前偏好 `("en",)` 接受 `requested_language="fr"` token 并重建；
+  - raw/canonical 越界 symlink 返回 `PERMISSION_DENIED`；
+  - canonical 非空 model、provider/producer/path/quality 不一致未完整 fail-closed。
+
+### P1-1：完整异常图脱敏
+
+- 代码：
+  - `src/youtube_intel/providers/subtitles.py:120` 的
+    `_safe_boundary_error` 只复制 `ErrorCode`、retryable、retry-after、stage 所需
+    的固定安全诊断；
+  - `enumerate_tracks`（`:569`）和 `read_track`（`:655`）捕获底层异常后先退出活动
+    `except`，再抛新 `TranscriptError`；
+  - `src/youtube_intel/transcripts.py:762` 的 `_copy_app_error` 只复制结构化安全字段；
+  - cache metadata/quality/UTF-8 decode、Repository 包装、文件读写和 reservation
+    包装均改为在活动 `except` 外抛安全异常。
+- 测试：
+  - `tests/unit/test_subtitle_policy.py:398,415`；
+  - `tests/integration/test_subtitle_provider.py:1021,1056,1298,2180`。
+- GREEN：
+  - 递归检查每个异常节点的 message、args、`vars()`、`__cause__`、`__context__`
+    和格式化 traceback；
+  - marker、字幕 bytes、临时 URL、绝对路径均不存在；
+  - Adapter/Service 仍保留原 `ErrorCode`、retryable、`TRANSCRIPT` stage 和 video ID。
+
+### P1-2：pre-enumeration reservation、终态重放和失败释放
+
+- `src/youtube_intel/transcripts.py:1842` 在任何目录枚举或正文读取前，用既有
+  `provider_calls` CAS 取得默认 300 秒 reservation。
+- `:1932` 的 `_fetch_reserved` 只允许 reservation owner 执行目录、正文与文件写入；
+  `fetch`（`:2140`）在统一安全边界记录所有 Provider、解析、文件和 stage 提交失败，
+  再在活动 `except` 外重抛。
+- `:1337` 只把本任务精确记录的 no-tracks、no-match、all-invalid 终态映射回相应
+  `TranscriptionRequired`；`:1383` 对其他 `FAILED_FINAL` 验证合法
+  `ErrorCode`/安全消息后精确重放，不再泛化为 `PROVIDER_UNAVAILABLE`。
+- `:1894` 为 no tracks/no match/all-invalid 写入 nonretryable 终态并清除 owner/lease；
+  retryable 错误按原 retry-after 写 `available_at`。失败状态持久化异常不覆盖原始业务
+  结果或错误。
+- 测试矩阵：
+  - no tracks/no match 首次与重复：`:1815`；
+  - all-invalid 首次/重复：`:1857,1891`；
+  - non-all-invalid 精确重放：`:1926`；
+  - 两个真实 SQLite Service 双阶段 barrier 竞争：`:2059`；
+  - stage failure、默认 2 秒 Job retry、文件恢复：`:2108`；
+  - 原子写 Permission failure 释放：`:2180`；
+  - SUCCEEDED verified cache、canonical rebuild 和第二次稳定命中沿用既有测试。
+- GREEN：
+  - 双 Service `enum_total=1`、`body_total=1`，竞争失败方零文件写入；
+  - owner reservation 的 `lease_until == NOW + 300s`；
+  - 文件 Permission failure 为 `FAILED_FINAL(PERMISSION_DENIED)`，owner/lease 为
+    `NULL`；
+  - stage failure 为 `FAILED_RETRYABLE`，owner/lease 清除，2 秒 Job retry 后从已写
+    raw 文件恢复且不重复正文读取。
+
+### P1-3：raw/canonical provenance 与 cache 分类
+
+- `src/youtube_intel/transcripts.py:904` 校验 metadata token 的
+  `requested_language` 必须是当前有序偏好中第一个实际匹配项，并保持 actual language
+  的 track 不变量。
+- `_load_cached`（`:1638`）验证 raw 的 key、video、kind、root、deleted、producer、
+  provider、空 model、request-hash parent、token canonical encoding、当前语言选择、
+  SHA 与真实路径边界。
+- canonical 验证自身的 key lookup、video、kind、root、deleted、provider、model、
+  producer、request hash/path、SHA、UTF-8 framing 与 quality token/内容语义；
+  返回值使用已验证的 canonical provider/model，不再用 raw 字段掩盖不一致。
+- `_resolve_data_path`（`:1024`）和 `_read_verified_file`（`:1066`）区分：
+  - 已索引 cache 缺失、篡改、不可读、symlink/realpath 越界：
+    nonretryable `LOCAL_RESOURCE`；
+  - 新写入目标的 DATA 边界或权限失败：`PERMISSION_DENIED`。
+- 测试矩阵：
+  - valid raw → 新 canonical 与第二次稳定命中沿用 `:1192`；
+  - raw missing/tampered/provider/model/producer/path/format：`:1369`；
+  - 当前语言/token 不一致：`:1473`；
+  - raw/canonical symlink：`:1551`；
+  - canonical model/provider/producer/path/quality：`:1616`；
+  - ordinary canonical missing/tampered 与 Job/Pipeline 不推进沿用 `:1701`。
+- GREEN：上述无效 cache 均零网络、nonretryable `LOCAL_RESOURCE`，Job 保持
+  `RUNNING`，Pipeline 保持 `METADATA_READY`。
+
+### P2、架构与公共契约
+
+- P2-1 有改善但未声称关闭：
+  - 新增窄私有 helper 分离安全异常转换、provenance、终态映射和 reservation owner
+    编排；
+  - `fetch` 只保留验证、preflight/cache、CAS 和 owner 安全边界；
+  - integration tests 仍依赖私有 `_bind_test_hooks`、`_SourceMetadata` 和
+    Repository failure injection，职责聚合仍交第三次 Reviewer 判断。
+- P2-2 未修改：name `runs` 与空 language bucket 的嵌套 metadata 资源放大仍登记为
+  P2；本轮未新增公共模块、依赖或未冻结阈值。
+- 未修改 `domain.py`、`state.py`、migration、配置、CLI、discovery、任务文件、
+  ADR、依赖清单或锁文件；TASK-006 的 `TranscriptProvider` /
+  `TranscriptArtifact` 公共形状不变。
+
+### 验证
+
+```text
+uv lock --check
+  PASS — Resolved 34 packages
+uv sync --locked
+  PASS — Checked 30 packages
+uv run python -m pytest tests/unit/test_contracts.py
+  PASS — 50 passed
+uv run python -m pytest tests/unit/test_subtitle_policy.py
+  PASS — 30 passed
+uv run python -m pytest tests/integration/test_subtitle_provider.py
+  PASS — 68 passed
+uv run python -m pytest
+  PASS — 234 passed
+uv run mypy src
+  PASS — 9 source files
+env MYPYPATH=src uv run mypy -c '<TranscriptRepository wiring>'
+  PASS — 1 source file
+uv run ruff check .
+  PASS
+uv run python -m youtube_intel --help
+  PASS
+uv build --offline
+  PASS — sdist + wheel
+```
+
+- sdist/wheel 均包含：
+  `migrations/001_initial.sql`、`youtube_intel/transcripts.py`、
+  `youtube_intel/providers/subtitles.py`；检查后仅清理本轮生成且被忽略的 `dist/`。
+- `pyproject.toml` SHA-256：
+  `49ca5e31c32d8dbadc3770901f227ed9dd95237a1ac1cb0b977019c5f13d1fa9`，
+  与 source commit 相同。
+- `uv.lock` SHA-256：
+  `81a3fd81e51cac69ca4d072c481b63cc9a265b491eab9c65ea782963f85a9c49`，
+  与 source commit 相同。
+- Correction 2 只修改允许的 5 个文件：
+  `transcripts.py`、`providers/subtitles.py`、两个 subtitle tests 和本 handoff。
+- 未运行真实 YouTube/字幕、Cookie/登录/`.netrc`、remote components、ffmpeg、
+  媒体、真实 Vault/密钥；未产生 source 内数据库、cache、媒体或构建产物。
+
+### 复用、许可证、剩余风险
+
+- 继续只复用既有 `yt-dlp==2026.7.4` 与 Python 标准库；无新增/升级依赖，无复制
+  外部代码。
+- `imlewc/video-to-subtitle-summary-skill@2c794d74` 继续仅为测试思想
+  `REFERENCE`；`youtube-transcript-api` 继续 `DEFER`。
+- `mutagen==1.48.1` 的 `GPL-2.0-or-later` 分发风险未扩大，继续由 TASK-014 跟踪。
+- 剩余风险：上述两个 P2、真实上游 yt-dlp payload/URL 漂移（TASK-013）、复杂非标准
+  字幕的保守 fail-closed 误判；无剩余已知 P0/P1。
+- Skipped checks：规定离线门禁无跳过；仅按明确禁令跳过真实外部网络/认证/媒体/Vault。
+- Decision needed：`None`。
+
 ## 主控验收
 
 - Orchestrator：
