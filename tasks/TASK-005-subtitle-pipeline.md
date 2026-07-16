@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第一次审查 `REJECT`；第二个全新独立会话已授权但尚未启动）
+- Reviewer: `Codex`（第一次、第二次独立审查均 `REJECT`；Correction 2 完成后再分配第三个全新独立会话）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -149,3 +149,34 @@
 - 第二次 Reviewer packet：`agent-prompts/TASK-005-REVIEWER-2-CODEX.md`。
 - Reviewer 必须为全新独立 Codex 会话，复跑 R1-R5、原 A-F、AC/T/五轴；只可写
   source handoff。任务状态为 `IN_REVIEW`，未 ACCEPTED/DONE。
+
+## 第二次独立审查结果与 Correction 2
+
+- Review evidence：
+  `5bb750e8d2f1336b321dbca64e7c409f66853b0f`
+- Parent：
+  `55156f9f53a610ccbf9c8806f19f19f2c16bb1cf`
+- Review commit 只修改 `handoffs/TASK-005.md`，source/main 均干净。
+- 规定门禁全部通过：focused 50/30/53、全量 219、两项 mypy、Ruff、CLI、
+  offline build、包内容、lock/sync 与固定 Diff check。
+- Verdict：`REJECT`；P0=0、P1=3、P2=2、P3=0。
+- 已独立关闭并须保持回归：R2 VTT speaker/cue 语义、R3 HTTP/目录 fail-closed。
+- 未关闭 P1：
+  1. 真实 Adapter/Service 与 canonical decode 的异常图仍通过 `__context__`
+     持有正文 marker、临时 URL 或绝对路径；
+  2. 非 all-invalid `FAILED_FINAL` 重放错误码漂移，reservation 后文件失败遗留
+     active lease，两个真实 SQLite Service 竞态会重复目录枚举；
+  3. verified raw metadata token 未严格绑定当前语言请求，canonical `model`
+     不一致被掩盖，已索引越界 symlink 的 cache 失效分类不符合冻结契约。
+- P2：Service/文件/cache/Provider 状态职责与私有 hook 聚合；嵌套 metadata 的
+  name runs/空 language bucket 仍有资源放大面。P2 不单独扩大本轮范围，但不得因
+  Correction 继续恶化。
+- Correction 2 packet：`agent-prompts/TASK-005-CORRECTION-2-CODEX.md`。
+- Correction 2 从 `5bb750e8...` 创建新的非 merge commit，继续由原 Codex
+  Implementer 执行；只允许 `transcripts.py`、`providers/subtitles.py`、
+  policy/integration tests、subtitle fixtures 与 handoff。
+- 不修改 `domain.py`、contracts test、`state.py`、Schema/migration、
+  `complete_stage`、配置、CLI、`pyproject.toml` 或 `uv.lock`；不得使用宽类型、
+  wrapper、进程内锁或异常显示隐藏来绕过问题。
+- 任务退回 `IN_PROGRESS`。Correction 2 提交前不得启动第三个 Reviewer；TASK-006/
+  TASK-007 继续 `BLOCKED/UNASSIGNED`。
