@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第一次、第二次独立审查均 `REJECT`；Correction 2 完成后再分配第三个全新独立会话）
+- Reviewer: `Codex`（第一次、第二次独立审查均 `REJECT`；第三个全新独立会话已授权但尚未启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -180,3 +180,28 @@
   wrapper、进程内锁或异常显示隐藏来绕过问题。
 - 任务退回 `IN_PROGRESS`。Correction 2 提交前不得启动第三个 Reviewer；TASK-006/
   TASK-007 继续 `BLOCKED/UNASSIGNED`。
+
+## Correction 2 实现证据与第三次审查
+
+- Correction commit：
+  `f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f`
+- Parent：
+  `5bb750e8d2f1336b321dbca64e7c409f66853b0f`
+- Correction 2 为单一非 merge 后继，精确修改 `transcripts.py`、
+  `providers/subtitles.py`、policy/integration tests 与 handoff 5 文件；完整产品
+  范围仍为原批准的 11 文件。
+- Implementer 记录 Reviewer 2 三组反例先 RED `11 failed` 后 GREEN：
+  1. Adapter/cache/Service 完整异常图脱敏；
+  2. pre-enumeration reservation、终态重放、失败 lease 释放和真实双 Service 竞态；
+  3. raw/canonical language/token/provider/model/quality/path/symlink provenance。
+- Implementer 自报 contracts 50、policy 30、integration 68、全量 234、两项 mypy、
+  Ruff、CLI、lock/sync、offline build、包内容与固定 Diff 全 PASS；依赖/锁不变。
+- 上述证据仅为 Implementer 自报，不构成独立验收。两个 P2 仍保留：职责/私有 hook
+  聚合与嵌套 metadata 资源放大。
+- 第三次 Reviewer packet：`agent-prompts/TASK-005-REVIEWER-3-CODEX.md`。
+- Reviewer 必须为全新独立 Codex 会话，不得复用 Implementer 或前两个 Reviewer；
+  独立复跑 Q1-Q5、R2/R3、AC-1 至 AC-5、ADR-006 T-01 至 T-15 和五轴审查。
+- Reviewer 只可追加并提交 source `handoffs/TASK-005.md`，不得修改业务代码、测试、
+  fixture、依赖、锁文件、main 或任务状态。
+- 任务状态为 `IN_REVIEW`，未 ACCEPTED/DONE；TASK-006/TASK-007 继续
+  `BLOCKED/UNASSIGNED`。
