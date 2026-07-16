@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 保留的审计 worktree：`/Users/hua/Documents/yia-worktrees/task-004`（`grok/task-004-discovery-metadata`，source `d4d6d01...`）和 `/Users/hua/Documents/yia-worktrees/task-003`；它们都不是当前写入目标
-- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合，等待本次控制面收口为 `DONE`；`TASK-005` 的设计与依赖均已满足，但仍未获正式实施授权
+- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 的设计与依赖均已满足，但仍未获正式实施授权
 
 ## 已完成或已批准
 
@@ -29,15 +29,13 @@
 
 ## 下一步
 
-1. Status Integrator 提交 `agent-prompts/TASK-004-CLOSURE-AND-TASK-005-GATE-INTEGRATOR.md` 所列 6 个控制面文件，关闭 TASK-004 为 `DONE`，并确认 TASK-005 仍为 `BLOCKED/UNASSIGNED`。
-2. 产品负责人决定是否批准 TASK-005 的正式实施包：独立 worktree/角色、冻结的 8 个文件范围和现有离线 `uv` 验证命令；该决定不含真实字幕网络或任何新增依赖。
-3. 获批后，主控基于最新 main 生成 TASK-005 分配包；在此之前不得创建 worktree、安装依赖或运行真实字幕/认证/媒体路径。
+1. 产品负责人决定是否批准 TASK-005 的正式实施包：独立 worktree/角色、冻结的 8 个文件范围和现有离线 `uv` 验证命令；该决定不含真实字幕网络或任何新增依赖。
+2. 获批后，主控基于最新 main 生成 TASK-005 状态同步与分配包；在此之前不得创建 worktree、安装依赖或运行真实字幕/认证/媒体路径。
 
 ## 当前并行调度
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 立即同步 | TASK-004 closure Status Integrator | 只写 main 的 6 个控制面 Markdown |
 | 已完成可关闭 | TASK-004 Product Integrator 与第五次 Reviewer | merge `dc3f097...` 与 review evidence `d4d6d01...` 已保留 |
 | 已完成可关闭 | TASK-005 只读 Scout | 报告已回传且仓库无变更 |
 | 等待产品负责人实施授权 | TASK-005 正式分配 | ADR 已 Accepted，依赖已合并；仍不构成实现、命令或网络授权 |
