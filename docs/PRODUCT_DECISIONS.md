@@ -18,6 +18,21 @@
 
 ## 后续架构与任务级批准
 
+### ADR-007：本地模型共享契约与分阶段门禁
+
+- 批准日期：2026-07-17
+- 批准范围：ADR-007 L-01 至 L-15，包括 `TASK-005A` 共享切片、评分建议与最终
+  决定分离、评分摘要原子写入、三段采样、Ollama loopback HTTP、固定模型
+  digest、Whisper 参数/模型 revision、音频 Artifact 清理与资源门禁。
+- 执行顺序：先建立并完成 `TASK-005A`，再从其 `DONE` main commit 为 TASK-006 和
+  TASK-007 创建同一基线的独立 worktree；两项在此之前继续 `BLOCKED`。
+- 明确未授权：`mlx-whisper` 解析/锁定/安装、Whisper 权重下载、ffmpeg 安装或调用、
+  Ollama 安装/启动、`qwen3:8b` 拉取、任何真实模型/媒体/YouTube 冒烟、Cookie/登录、
+  remote components、真实 Vault/密钥。上述每项仍须当次任务级批准。
+- `TASK-005A` 不新增 Schema/migration 或依赖；它只冻结共享配置、领域对象与现有
+  SQLite 完成/Artifact 索引语义。正式实施的 worktree、角色和命令授权另行记录。
+- 原始决定见 `docs/decisions/ADR-007-local-model-pipeline-contracts.md`。
+
 ### ADR-006：字幕获取、规范化与缓存契约
 
 - 批准日期：2026-07-15

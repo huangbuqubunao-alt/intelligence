@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.3
+- 版本：V1.4
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
@@ -8,6 +8,7 @@
 - 发现与 yt-dlp 契约：`docs/decisions/ADR-004-discovery-ytdlp-contract.md`
 - 复用策略：`docs/decisions/ADR-005-reuse-first-delivery-policy.md`
 - 字幕获取与缓存契约：`docs/decisions/ADR-006-subtitle-acquisition-contract.md`
+- 本地模型与共享契约：`docs/decisions/ADR-007-local-model-pipeline-contracts.md`
 
 ## 1. 设计目标
 
@@ -114,7 +115,10 @@ class KnowledgeSink:
 | `DiagnosticEntry` | `code`、`message` | 消息必须安全化，不含密钥或字幕全文 |
 | `DiscoveryCursor` | `channel_id` | `last_checked_at`、`latest_published_at`、`latest_video_id`、`provider_cursor` |
 | `DiscoveryBatch` | `channel_id`、`video_ids`、`next_cursor`、`call` | `video_ids` 去重并保持 Provider 顺序；只有完整保存批次后才能推进 `next_cursor` |
-| `ScoringInput` | `video`、`transcript_text`、`transcript_content_hash`、`language`、`request_hash` | `transcript_text` 必须已按 `max_transcript_chars` 形成有限输入 |
+| `TranscriptSample` | `head`、`body`、`tail`、`selected_char_count`、`source_content_hash`、`sampling_version` | 不可变；三段不重叠，版本固定为 `sampling-v1` |
+| `ScoringInput` | `video`、`sample`、`transcript_content_hash`、`language`、`request_hash` | `sample.source_content_hash` 必须等于完整规范文本哈希；入选元数据的稳定顺序见 ADR-007 L-06 |
+| `ScoringDecision` | `threshold`、`final_should_summarize`、`model_disagrees` | 最终值严格由 `score >= threshold` 推导，不覆盖模型建议 |
+| `ScoringOutcome` | `result`、`decision`、`call` | `result` 保留模型原始 `should_summarize`；`call` 为对应评分调用元数据 |
 | `AnalysisInput` | `video`、`transcript_text`、`transcript_content_hash`、`score`、`language`、`request_hash` | 文本必须已通过云端长度、隐私和预算策略 |
 | `NotAvailable` | `reason_code`、`message`、`retryable`、`call` | `reason_code` 为 `NO_MATCHING_LANGUAGE`、`NO_CONTENT` 或 `CONTENT_UNAVAILABLE`；`retry_after_seconds` 仅在 Provider 给出时存在 |
 | `TranscriptReady` | `outcome="ready"`、`artifact`、`call` | 只表示规范文本已经通过质量门禁；`call` 为 `ProviderCallMetadata` |
@@ -351,8 +355,12 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 - 原始请求键与 canonical 键分层版本化；普通缓存命中不联网探测，只有显式 refresh generation 重新枚举并生成新路径。
 - 原始字幕与 canonical 文本使用现有 `SUBTITLE_SOURCE` / `TRANSCRIPT_CANONICAL`，同目录临时写、fsync、原子替换并验证 SHA-256；V1 不新增 manifest migration。
 - 首次成功以当前 Job 写入 Artifact；缓存命中验证既有记录和文件后，以 `complete_stage(artifacts=(), provider_call=None)` 推进当前 Job/Pipeline，不修改 TASK-003 Repository 语义。
-- V1 使用 `mlx-whisper`，默认模型为 `mlx-community/whisper-large-v3-turbo`，模型和参数可配置。
-- 成功转写后立即删除音频；失败/中断音频最多保留 7 天。清理失败只告警，不让已完成转写失败。
+- V1 使用 `mlx-whisper`，默认模型为 `mlx-community/whisper-large-v3-turbo`；model
+  revision、权重 hash、解码参数与资源门禁以 ADR-007 L-10、L-11、L-15 为准，运行时
+  不得隐式联网。
+- 成功转写后立即删除音频；失败/中断音频最多保留 7 天。删除确认与过期枚举使用
+  `mark_artifact_deleted` / `list_expired_artifacts`，只处理 DATA 根下已登记且哈希匹配
+  的文件；清理失败只告警，不让已完成转写失败。
 
 字幕获取、质量阈值、错误映射、复用和恢复的完整冻结契约见 ADR-006 T-01 至 T-15。
 
@@ -360,12 +368,17 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 
 ### 11.1 本地评分
 
-- 输入包括元数据和受配置限制的字幕片段。
-- 默认 `temperature=0.0`、`max_output_tokens=1200`、`max_transcript_chars=30000`。
-- `max_transcript_chars` 按 Python 字符长度计，不是 token 限制；超过限制必须先形成稳定有限输入。
-- 字幕截取应尽量覆盖开头、正文和结尾，而非只取前 2000 token；具体采样算法由 `TASK-007` 验证。
-- 温度、最大输出和超时显式配置。
-- JSON 通过严格 Schema 验证；修复失败进入重试。
+- 输入包括稳定顺序元数据和 `TranscriptSample`；最大内容长度按 Python Unicode code
+  point 计，不是 token 限制。`n > M` 时按 ADR-007 L-05 的 `head/body/tail` 长度和
+  中心正文规则采样，Prompt 标签不计入内容预算。
+- `ScoreResult.should_summarize` 是模型建议；`ScoringDecision.final_should_summarize`
+  必须由阈值策略决定，并记录 `model_disagrees`。评分阶段在同一事务写入原始/结构化
+  Artifact、Provider call、`videos.score` 与最终 `videos.should_summarize`。
+- 默认 `temperature=0.0`、`max_output_tokens=1200`、`max_transcript_chars=30000`，
+  最小长度为 3；`max_description_chars=4000`，范围 0..20000。完整哈希维度、Prompt/
+  Schema 版本、一次格式修复和错误映射以 ADR-007 L-05、L-06、L-09 为准。
+- Ollama 只允许标准库访问受限 loopback `http` base URL；不自动启动、拉取模型、访问
+  cloud tag 或远程地址。版本/digest 必须通过 `/api/tags` 预检，实际安装和调用另批。
 
 ### 11.2 云端分析
 
@@ -446,10 +459,18 @@ logs/YYYY-MM-DD.jsonl
 | `timeouts.local_model_seconds` | `300` | 正数 |
 | `timeouts.cloud_model_seconds` | `120` | 正数 |
 | `transcription.model` | `mlx-community/whisper-large-v3-turbo` | 非空模型标识 |
+| `transcription.model_revision` | `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` | 固定 40 位 revision；权重大小/hash 与 ADR-007 L-11 一致 |
+| `transcription.parameter_policy_version` | `mlx-whisper-v1` | 非空；解码参数固定并进入参数哈希 |
+| `transcription.min_free_disk_gib` | `8` | 正数资源门禁 |
+| `transcription.min_available_memory_gib` | `6` | 正数资源门禁 |
+| `transcription.max_audio_bytes` | `2000000000` | 正整数资源门禁 |
 | `local_scoring.model` | 无 | 必填的非空 Ollama 模型标识 |
+| `local_scoring.base_url` | `http://127.0.0.1:11434` | 仅 `http` loopback；无 userinfo/query/fragment/路径 |
+| `local_scoring.expected_model_digest` | 无 | 必填 `sha256:` digest；须与 `/api/tags` 精确匹配 |
 | `local_scoring.temperature` | `0.0` | 数值 `0..2` |
 | `local_scoring.max_output_tokens` | `1200` | 正整数 |
-| `local_scoring.max_transcript_chars` | `30000` | 正整数，字符数而非 token 数 |
+| `local_scoring.max_transcript_chars` | `30000` | 整数 `>=3`，字符数而非 token 数 |
+| `local_scoring.max_description_chars` | `4000` | 整数 `0..20000`，按 Unicode code point 截断 |
 | `cloud.enabled` | `false` | 布尔值 |
 | `cloud.provider` | `openai` | V1 只接受 `openai` |
 | `cloud.model` | 无 | `enabled=true` 时必填 |

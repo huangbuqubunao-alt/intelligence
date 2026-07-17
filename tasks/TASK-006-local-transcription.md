@@ -5,7 +5,7 @@
 - Owner role: 实现 Agent；TL 审批实现选择
 - Size: M
 - Risk: High
-- Depends on: TASK-005；ADR-007 批准后拟新增的 TASK-005A
+- Depends on: TASK-005A
 - Approval required: ADR-007、Whisper 包/传递依赖、模型下载、ffmpeg、媒体下载、资源门禁和真实冒烟
 
 ## 2026-07-16 只读预检
@@ -13,10 +13,11 @@
 - Scout observed main：`b335b12358bbbc9dada1abfafc5a2fe9a68494be`
 - Repository changes：None
 - 结论：`DECISION NEEDED`
-- ADR-007 L-01 至 L-15 已提出但尚未批准；本任务继续
-  `BLOCKED/UNASSIGNED`，不得创建 worktree 或安装/下载。
-- 必须在 TASK-005 `DONE` 后复核最终 TranscriptArtifact；共享 config/domain/state
-  变更必须先由未来 TASK-005A 整合，不能与 TASK-007 分支重复实现。
+- ADR-007 L-01 至 L-15 已于 2026-07-17 接受；本任务仍为 `BLOCKED/UNASSIGNED`，
+  不得创建 worktree 或安装/下载。
+- 共享 config/domain/state 变更必须先由 TASK-005A 整合为 `DONE`，不能与 TASK-007
+  分支重复实现；之后仍须获得 `mlx-whisper` 解析/锁定/安装、模型、ffmpeg、媒体和
+  本机冒烟的独立任务级授权。
 
 ## 目标
 
@@ -65,7 +66,7 @@
 - `handoffs/TASK-006.md`
 
 共享 `config.py`、`domain.py`、`state.py`、示例配置和既有契约/状态测试不属于
-TASK-006 分支；它们必须由未来 TASK-005A 先行完成。真实媒体、模型、ffmpeg 冒烟
+TASK-006 分支；它们必须由 TASK-005A 先行完成。真实媒体、模型、ffmpeg 冒烟
 不得进入默认离线检查。
 
 ## 交付证据

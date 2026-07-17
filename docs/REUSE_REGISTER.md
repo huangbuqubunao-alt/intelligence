@@ -94,9 +94,12 @@
 - `youtube-transcript-api` 继续 `DEFER`；只有 yt-dlp 经正式实现/审查证明不足时，才重新提交依赖和许可证审批。
 - 真实 YouTube/字幕、Cookie/登录、`.netrc`、remote components、ffmpeg、媒体下载、真实 Vault/密钥仍未授权；ADR-006 接受不改变这些门禁。
 
-## 7. TASK-006/TASK-007 预检核验
+## 7. ADR-007 已接受的 TASK-006/TASK-007 复用边界
 
-以下为 ADR-007 提案证据，不是安装、下载或真实调用授权：
+以下为 ADR-007 已接受的设计与复用结论，不是安装、下载、服务启动或真实调用授权。
+TASK-005A 只直接复用现有 `pydantic`、SQLite Repository 和 Python 标准库，不新增
+第三方组件；TASK-006/TASK-007 的首次实际使用仍须在实施时重新复核版本、许可证和
+维护状态。
 
 | 组件 | 推荐等级 | 已核实证据 | 待批准/剩余风险 |
 |---|---|---|---|

@@ -5,17 +5,18 @@
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
-- Depends on: TASK-005；ADR-007 批准后拟新增的 TASK-005A
+- Depends on: TASK-005A
 
 ## 2026-07-16 只读预检
 
 - Scout observed main：`b335b12358bbbc9dada1abfafc5a2fe9a68494be`
 - Repository changes：None
 - 结论：`DECISION NEEDED`
-- ADR-007 L-01 至 L-15 已提出但尚未批准；本任务继续
-  `BLOCKED/UNASSIGNED`，不得创建 worktree、安装 Ollama 或拉取模型。
-- 推荐标准库 loopback HTTP；共享配置、采样、决策对象与评分摘要原子持久化必须先由
-  未来 TASK-005A 整合，TASK-007 不修改依赖或锁文件。
+- ADR-007 L-01 至 L-15 已于 2026-07-17 接受；本任务仍为 `BLOCKED/UNASSIGNED`，
+  不得创建 worktree、安装 Ollama 或拉取模型。
+- 共享配置、采样、决策对象与评分摘要原子持久化必须先由 TASK-005A 整合为 `DONE`；
+  TASK-007 继续不修改依赖或锁文件。Ollama 安装/启动、模型拉取与本机文本冒烟仍须
+  独立任务级授权。
 
 ## 目标
 
@@ -63,7 +64,7 @@
 
 本任务使用 Python 标准库 HTTP，不新增 `httpx`/Ollama SDK，不修改
 `pyproject.toml`/`uv.lock`。共享 `config.py`、`domain.py`、`state.py`、示例配置和
-既有契约/状态测试必须由未来 TASK-005A 先行完成。
+既有契约/状态测试必须由 TASK-005A 先行完成。
 
 ## 交付证据
 
