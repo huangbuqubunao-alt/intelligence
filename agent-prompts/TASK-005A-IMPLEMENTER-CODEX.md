@@ -10,27 +10,40 @@ L-02 至 L-06、L-08、L-10、L-11、L-14、L-15 所归属的共享配置、领�
 - Main assignment authorization：动态运行
   `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-ASSIGNMENT-INTEGRATOR.md`
 - Required assignment parent / source base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
+- Main startup-correction authorization：动态运行
+  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-IMPLEMENTER-START-CORRECTION-INTEGRATOR.md`
+- Required startup-correction parent：`99f0512ef9aa6f06c5cfc7daf46a4171a44c44e5`
 - Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
 
 开始前，main 的动态 assignment authorization 必须是 Required assignment parent 的单一
-直接后继；source branch/HEAD 必须精确为 source base、source worktree 干净。若 main
-或 source 的基线、父链、身份、分支、洁净度、TASK-005A `IN_PROGRESS` 状态或本包范围
-不符，立即报告 `BLOCKED`。不得 stash、reset、checkout、merge、rebase、cherry-pick、
-pull、清理、修改 main 或自行选择其他 SHA。
+直接后继，动态 startup-correction authorization 必须是 assignment authorization 的单一
+直接后继；source branch/HEAD 必须精确为 source base、source worktree 干净。
+
+**控制面与 source 快照必须区分：**main 中 TASK-005A 任务卡和 Project Status 的
+`IN_PROGRESS/Codex` 是本轮唯一有效状态；source 是特意从 assignment 前的 base 创建，
+因此其中 `tasks/TASK-005A-local-model-shared-contracts.md` 与 `docs/PROJECT_STATUS.md`
+仍显示历史 `BLOCKED/UNASSIGNED`，这是预期快照，绝不是阻塞理由，也不得修改。若 main
+控制面不是 `IN_PROGRESS/Codex`、source 不是上述历史快照，或任何基线、父链、身份、
+分支、洁净度、本包范围不符，立即报告 `BLOCKED`。不得 stash、reset、checkout、merge、
+rebase、cherry-pick、pull、清理、修改 main 或自行选择其他 SHA。
 
 ## 必读与事实优先级
 
 完整读取：
 
 1. `AGENTS.md`
-2. `docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/SYSTEM_DESIGN.md`
+2. source 的 `docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/SYSTEM_DESIGN.md`
 3. ADR-002、ADR-003、ADR-005、ADR-006、ADR-007
 4. `docs/REUSE_REGISTER.md`
 5. `tasks/TASK-005A-local-model-shared-contracts.md`
 6. `handoffs/TEMPLATE.md`
 7. 本 Implementer 包
+
+另从 **main** 读取 assignment authorization、startup-correction authorization、main 的
+TASK-005A 任务卡和 `docs/PROJECT_STATUS.md`，以确认上段所述实时控制面；source 中的
+历史状态文件只用于已冻结规格，不能替代 main 的分配记录。
 
 先用 Codebase Memory 图谱定位现有配置、`ScoringInput`/`ScoreResult`、Artifact 与
 `SQLiteStateRepository.complete_stage` 的调用/类型边界；若图谱不足再读精确文件。若
