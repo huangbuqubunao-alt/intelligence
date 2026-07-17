@@ -1,9 +1,9 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（实施完成后由全新独立会话审查）
-- Owner role: Codex Implementer
+- Reviewer: `Codex`（全新独立会话，固定实现 SHA 后审查）
+- Owner role: Codex Independent Reviewer
 - Size: M
 - Risk: High
 - Depends on: TASK-005
@@ -122,3 +122,15 @@
 - 仅允许本卡列出的 8 个路径；允许 `uv sync --locked` 只为已有锁定依赖的缓存缺失包
   下载及本卡离线验证/构建。任何模型、Provider、真实网络、服务、Schema/migration、
   依赖或锁文件操作仍被禁止。
+
+## 审查授权记录
+
+- Source implementation head：`85cd5362460044773317a48cbaae58e55aa735af`
+- Source implementation parent/base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
+- Source 范围：精确为本卡列出的 8 个路径；`pyproject.toml` 与 `uv.lock` 相对 base
+  无差异，source worktree 已由主控静态核验为干净。
+- Reviewer：必须为未参与本实现的全新独立 Codex 会话，只能在 source worktree 的
+  `handoffs/TASK-005A.md` 追加审查证据并创建单一 evidence commit；不得改业务代码、
+  测试、依赖、锁文件、任务状态或 main。
+- Reviewer packet：`agent-prompts/TASK-005A-REVIEWER-CODEX.md`；其 main 动态授权
+  必须由本次控制面同步 commit 解析。独立审查通过前不得设为 `ACCEPTED`、整合或关闭。

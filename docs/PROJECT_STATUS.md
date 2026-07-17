@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-17
-- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约切片实施中
+- 更新时间：2026-07-18
+- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约切片独立审查中
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-005A` 由 Codex Implementer 在独立 worktree 实施；TASK-004/TASK-005 均已关闭为 `DONE`
+- 活动任务：`TASK-005A` 实现已提交，等待全新独立 Codex Reviewer；TASK-004/TASK-005 均已关闭为 `DONE`
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -36,8 +36,8 @@
 
 ## 下一步
 
-1. TASK-005A Implementer 在固定 worktree 实现共享契约；完成后提交交接与实现证据。
-2. 全新独立 Codex Reviewer 审查并通过后，由 Integrator 整合 TASK-005A 为 `DONE`。
+1. 全新独立 Codex Reviewer 在固定 source SHA 上复跑离线门禁、独立探针和五轴审查。
+2. 审查通过后，主控验收并由 Integrator 整合 TASK-005A 为 `DONE`。
 3. 再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree；模型、服务、系统
    工具和媒体下载在对应门禁满足前继续不分配。
 
@@ -51,8 +51,8 @@
 | 已完成可关闭 | TASK-005 第三次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 Implementer、第四次 Reviewer 与 Product Integrator | evidence 已合并为 `cfc302...`；不得修改代码或重新分配 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
-| 立即启动 | TASK-005A Codex Implementer | 独占 task-005a worktree；只写 8 个批准路径 |
-| 等待实现 | TASK-005A 全新 Codex Reviewer | 只在 Implementer 提交后由主控生成固定 SHA 审查包 |
+| 已完成可关闭 | TASK-005A Codex Implementer | source `85cd536...` 已提交；不得继续写入或自行发起审查 |
+| 立即启动 | TASK-005A 全新独立 Codex Reviewer | 只在 task-005a source 审查固定 `85cd536...`；只可写 handoff evidence |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005A `DONE` 与各自资源授权 |
 
 ## 授权边界
@@ -116,6 +116,12 @@
 - 默认 MLX Whisper 转换模型已核实 revision `a4aaeec...`、权重 `1,613,977,612` bytes 与 LFS SHA-256；转换仓库 model card 未声明 license，不能仅用上游 OpenAI 模型 MIT 自动替代该证据。
 - TASK-007 推荐标准库 loopback HTTP，不新增 httpx；拟验证 Ollama `>=0.32.1,<0.33` 和 `qwen3:8b` 固定 digest。Ollama 安装/服务、模型拉取和真实调用仍未授权。
 - 当前 `videos` 已有 `score`/`should_summarize` 列，但 `complete_stage` 尚不能原子写评分摘要；TASK-006/TASK-007 也会共享 config/domain/state。若不先完成共享契约切片，两个实现分支会冲突或产生 `SCORED` 状态与摘要不一致。
+- TASK-005A implementation `85cd5362460044773317a48cbaae58e55aa735af` 为 approved
+  base `82f45a1...` 的唯一非 merge 后继，完整 Diff 精确为配置示例、`config.py`、
+  `domain.py`、`state.py`、三份指定测试和 handoff 共 8 个批准路径；`pyproject.toml`
+  与 `uv.lock` 无差异。Implementer 自报 focused 52/10/34、全量 250、mypy、Ruff、CLI
+  与 offline build 均通过，但这些结果尚未由独立 Reviewer 验收。实际模型、服务、媒体
+  和文件删除仍严格延后至分别授权的后续任务。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式
