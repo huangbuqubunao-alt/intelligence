@@ -6,6 +6,7 @@ import base64
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import tempfile
@@ -772,6 +773,54 @@ def _copy_app_error(error: AppError, *, video_id: str) -> AppError:
     )
 
 
+def _adapter_boundary_error(
+    error: AppError,
+    *,
+    operation: str,
+    video_id: str,
+) -> AppError:
+    if error.code is ErrorCode.CONFIG_INVALID:
+        detail = "configuration invalid"
+    elif error.code is ErrorCode.PERMISSION_DENIED:
+        detail = "access denied"
+    elif error.code is ErrorCode.CONTENT_UNAVAILABLE:
+        detail = "content unavailable"
+    elif error.code is ErrorCode.RATE_LIMITED:
+        detail = "rate limited"
+    elif error.code is ErrorCode.TRANSIENT_NETWORK:
+        detail = "network request failed"
+    elif error.code is ErrorCode.PROVIDER_UNAVAILABLE:
+        detail = "provider unavailable"
+    elif error.code is ErrorCode.INVALID_RESPONSE:
+        detail = "response invalid"
+    else:
+        detail = "local resource failed"
+    retry_after = error.retry_after_seconds
+    if (
+        retry_after is not None
+        and (not error.retryable or not math.isfinite(retry_after) or retry_after < 0)
+    ):
+        retry_after = None
+    return AppError(
+        code=error.code,
+        message=f"subtitle adapter {detail} during {operation}",
+        retryable=error.retryable,
+        retry_after_seconds=retry_after,
+        video_id=video_id,
+        stage=ProcessingStage.TRANSCRIPT,
+    )
+
+
+def _unexpected_adapter_error(*, operation: str, video_id: str) -> AppError:
+    return AppError(
+        code=ErrorCode.PROVIDER_UNAVAILABLE,
+        message=f"subtitle adapter provider unavailable during {operation}",
+        retryable=True,
+        video_id=video_id,
+        stage=ProcessingStage.TRANSCRIPT,
+    )
+
+
 def _persisted_error_message_is_safe(value: str | None) -> bool:
     if (
         value is None
@@ -815,11 +864,62 @@ def _raw_artifact_key(raw_request_hash: str) -> str:
     return f"subtitle-source:{raw_request_hash}"
 
 
+def _raw_artifact_id(
+    *,
+    raw_request_hash: str,
+    metadata: _SourceMetadata,
+    source_content_hash: str,
+    provider: str,
+) -> str:
+    provenance_hash = _stable_hash(
+        {
+            "actual_language": metadata.actual_language,
+            "provider": provider,
+            "provenance_version": "subtitle-source-provenance-v1",
+            "raw_request_hash": raw_request_hash,
+            "requested_language": metadata.requested_language,
+            "source_content_hash": source_content_hash,
+            "source_format": metadata.source_format.value,
+            "source_type": metadata.source_type.value,
+            "source_producer_version": _RAW_PRODUCER_VERSION,
+        }
+    )
+    return f"subtitle-source-{provenance_hash}"
+
+
 def _canonical_artifact_key(
     raw_request_hash: str,
     canonical_request_hash: str,
 ) -> str:
     return f"transcript-canonical:{raw_request_hash}:{canonical_request_hash}"
+
+
+def _canonical_artifact_id(
+    *,
+    raw_artifact_id: str,
+    raw_content_hash: str,
+    provider: str,
+    model: str | None,
+    raw_request_hash: str,
+    canonical_request_hash: str,
+    content_hash: str,
+    quality_flags: Sequence[TranscriptQualityFlag],
+) -> str:
+    provenance_hash = _stable_hash(
+        {
+            "canonical_content_hash": content_hash,
+            "canonical_producer_version": _CANONICAL_PRODUCER_VERSION,
+            "canonical_request_hash": canonical_request_hash,
+            "model": model,
+            "provider": provider,
+            "provenance_version": "transcript-canonical-provenance-v1",
+            "quality_flags": _encode_quality_flags(quality_flags),
+            "raw_artifact_id": raw_artifact_id,
+            "raw_content_hash": raw_content_hash,
+            "raw_request_hash": raw_request_hash,
+        }
+    )
+    return f"transcript-canonical-{provenance_hash}"
 
 
 def _encode_source_metadata(metadata: _SourceMetadata) -> str:
@@ -1334,6 +1434,101 @@ class SubtitleAcquisitionService:
             deterministic_artifact_key=_raw_artifact_key(raw_request_hash),
         )
 
+    def _validate_cached_provider_binding(
+        self,
+        *,
+        provider_record: ProviderCallRecord | None,
+        provider_request: ProviderCallRequest,
+        raw_record: ArtifactRecord,
+        video_id: str,
+    ) -> None:
+        if (
+            provider_record is None
+            or provider_record.status is not ProviderCallStatus.SUCCEEDED
+            or provider_record.request_hash != provider_request.request_hash
+            or provider_record.operation != provider_request.operation
+            or provider_record.provider != provider_request.provider
+            or provider_record.model != provider_request.model
+            or provider_record.prompt_version != provider_request.prompt_version
+            or provider_record.schema_version != provider_request.schema_version
+            or provider_record.response_artifact_id != raw_record.artifact_id
+            or provider_record.reservation_owner is not None
+            or provider_record.lease_until is not None
+            or provider_record.finished_at is None
+            or raw_record.artifact_key
+            != provider_request.deterministic_artifact_key
+        ):
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "cached subtitle source is not bound to its provider result",
+                retryable=False,
+                video_id=video_id,
+            )
+
+    def _enumerate_adapter_tracks(self, video_id: str) -> SubtitleTrackListing:
+        listing: SubtitleTrackListing | None = None
+        failure: AppError | None = None
+        try:
+            listing = self._adapter.enumerate_tracks(video_id)
+        except TranscriptError as exc:
+            failure = _adapter_boundary_error(
+                exc.error,
+                operation="track enumeration",
+                video_id=video_id,
+            )
+        except Exception:
+            failure = _unexpected_adapter_error(
+                operation="track enumeration",
+                video_id=video_id,
+            )
+        if failure is not None:
+            raise TranscriptError(failure)
+        if listing is None:
+            raise TranscriptError(
+                _unexpected_adapter_error(
+                    operation="track enumeration",
+                    video_id=video_id,
+                )
+            )
+        return listing
+
+    def _read_adapter_track(
+        self,
+        track: SubtitleTrack,
+        *,
+        video_id: str,
+    ) -> SubtitleReadResult:
+        result: SubtitleReadResult | None = None
+        failure: AppError | None = None
+        invalid_reason: InvalidSubtitleReason | None = None
+        try:
+            result = self._adapter.read_track(track)
+        except InvalidSubtitleCandidate as exc:
+            invalid_reason = exc.reason
+        except TranscriptError as exc:
+            failure = _adapter_boundary_error(
+                exc.error,
+                operation="body read",
+                video_id=video_id,
+            )
+        except Exception:
+            failure = _unexpected_adapter_error(
+                operation="body read",
+                video_id=video_id,
+            )
+        if invalid_reason is not None:
+            raise InvalidSubtitleCandidate(invalid_reason)
+        if failure is not None:
+            raise TranscriptError(failure)
+        if result is None:
+            raise TranscriptError(
+                _unexpected_adapter_error(
+                    operation="body read",
+                    video_id=video_id,
+                )
+            )
+        return result
+
     def _recorded_terminal_result(
         self,
         record: ProviderCallRecord,
@@ -1395,6 +1590,7 @@ class SubtitleAcquisitionService:
                 raw_request_hash=raw_request_hash,
                 language_preferences=language_preferences,
                 now=now,
+                provider_record=record,
             )
             if cached is not None:
                 return cached
@@ -1557,8 +1753,15 @@ class SubtitleAcquisitionService:
                 retryable=False,
                 video_id=video_id,
             )
-        canonical_artifact_id = (
-            f"transcript-canonical-{raw_request_hash}-{canonical_request_hash}"
+        canonical_artifact_id = _canonical_artifact_id(
+            raw_artifact_id=raw_record.artifact_id,
+            raw_content_hash=raw_record.content_hash,
+            provider=provider,
+            model=raw_record.model,
+            raw_request_hash=raw_request_hash,
+            canonical_request_hash=canonical_request_hash,
+            content_hash=normalized.content_hash,
+            quality_flags=normalized.quality_flags,
         )
         stage_persistence_failed = False
         try:
@@ -1642,13 +1845,21 @@ class SubtitleAcquisitionService:
         raw_request_hash: str,
         language_preferences: Sequence[str],
         now: datetime,
+        provider_record: ProviderCallRecord | None,
     ) -> TranscriptReady | None:
+        provider_request = self._provider_request(raw_request_hash)
         raw_record = self._get_artifact(
             _raw_artifact_key(raw_request_hash),
             video_id=video_id,
         )
         if raw_record is None:
             return None
+        self._validate_cached_provider_binding(
+            provider_record=provider_record,
+            provider_request=provider_request,
+            raw_record=raw_record,
+            video_id=video_id,
+        )
         if (
             raw_record.video_id != video_id
             or raw_record.kind is not ArtifactKind.SUBTITLE_SOURCE
@@ -1707,6 +1918,19 @@ class SubtitleAcquisitionService:
             max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes,
             video_id=video_id,
         )
+        expected_raw_artifact_id = _raw_artifact_id(
+            raw_request_hash=raw_request_hash,
+            metadata=metadata,
+            source_content_hash=raw_hash,
+            provider=self._adapter.provider_name,
+        )
+        if raw_record.artifact_id != expected_raw_artifact_id:
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "cached subtitle source provenance is not production-bound",
+                retryable=False,
+                video_id=video_id,
+            )
         canonical_request_hash = build_canonical_request_hash(
             source_content_hash=raw_hash,
             source_format=metadata.source_format,
@@ -1730,6 +1954,11 @@ class SubtitleAcquisitionService:
             )
         if (
             canonical_record.video_id != video_id
+            or canonical_record.artifact_key
+            != _canonical_artifact_key(
+                raw_request_hash,
+                canonical_request_hash,
+            )
             or canonical_record.kind is not ArtifactKind.TRANSCRIPT_CANONICAL
             or canonical_record.storage_root is not StorageRoot.DATA
             or canonical_record.deleted_at is not None
@@ -1803,6 +2032,23 @@ class SubtitleAcquisitionService:
             name_parts[2],
             video_id=video_id,
         )
+        expected_canonical_artifact_id = _canonical_artifact_id(
+            raw_artifact_id=raw_record.artifact_id,
+            raw_content_hash=raw_record.content_hash,
+            provider=raw_record.provider or "",
+            model=raw_record.model,
+            raw_request_hash=raw_request_hash,
+            canonical_request_hash=canonical_request_hash,
+            content_hash=canonical_hash,
+            quality_flags=quality_flags,
+        )
+        if canonical_record.artifact_id != expected_canonical_artifact_id:
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "cached transcript provenance is not production-bound",
+                retryable=False,
+                video_id=video_id,
+            )
         artifact = TranscriptArtifact(
             video_id=video_id,
             language=metadata.actual_language,
@@ -1938,7 +2184,7 @@ class SubtitleAcquisitionService:
         provider_request: ProviderCallRequest,
         now: datetime,
     ) -> TranscriptFetchResult:
-        listing = self._adapter.enumerate_tracks(video_id)
+        listing = self._enumerate_adapter_tracks(video_id)
         if not listing.tracks:
             return self._terminal_result(
                 request_hash=provider_request.request_hash,
@@ -1994,7 +2240,10 @@ class SubtitleAcquisitionService:
                         video_id=video_id,
                     )
                 else:
-                    read_result = self._adapter.read_track(candidate.track)
+                    read_result = self._read_adapter_track(
+                        candidate.track,
+                        video_id=video_id,
+                    )
                     last_call = read_result.call
                     raw_body = read_result.body
                     normalized = normalize_subtitle(
@@ -2038,9 +2287,21 @@ class SubtitleAcquisitionService:
                 max_bytes=_MAX_CANONICAL_BYTES,
                 video_id=video_id,
             )
-            raw_artifact_id = f"subtitle-source-{raw_request_hash}"
-            canonical_artifact_id = (
-                f"transcript-canonical-{raw_request_hash}-{canonical_request_hash}"
+            raw_artifact_id = _raw_artifact_id(
+                raw_request_hash=raw_request_hash,
+                metadata=metadata,
+                source_content_hash=normalized.source_content_hash,
+                provider=self._adapter.provider_name,
+            )
+            canonical_artifact_id = _canonical_artifact_id(
+                raw_artifact_id=raw_artifact_id,
+                raw_content_hash=normalized.source_content_hash,
+                provider=self._adapter.provider_name,
+                model=None,
+                raw_request_hash=raw_request_hash,
+                canonical_request_hash=canonical_request_hash,
+                content_hash=normalized.content_hash,
+                quality_flags=normalized.quality_flags,
             )
             artifacts = (
                 ArtifactWrite(
@@ -2186,6 +2447,7 @@ class SubtitleAcquisitionService:
             raw_request_hash=raw_request_hash,
             language_preferences=language_preferences,
             now=now,
+            provider_record=None,
         )
         if cached is not None:
             return cached

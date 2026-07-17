@@ -6,10 +6,11 @@ import re
 import socket
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Mapping, MutableSequence
+from collections.abc import Callable, Mapping, MutableSequence, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http.client import HTTPMessage
+from io import StringIO
 from typing import IO, Any, Final, Protocol
 from urllib.parse import urlsplit
 
@@ -307,28 +308,58 @@ def _track_name(value: Any, *, video_id: str) -> str:
                 )
             return " ".join(simple.split())
         runs = value.get("runs")
-        if isinstance(runs, list):
-            pieces: list[str] = []
-            for run in runs:
-                if not isinstance(run, Mapping) or not isinstance(
-                    run.get("text"), str
-                ):
-                    raise _error(
-                        ErrorCode.INVALID_RESPONSE,
-                        "subtitle track name is invalid",
-                        retryable=False,
-                        video_id=video_id,
-                    )
-                pieces.append(str(run["text"]))
-            joined = "".join(pieces)
-            if len(joined) > _MAX_TRACK_NAME_CODE_POINTS:
+        if isinstance(runs, Sequence) and not isinstance(
+            runs,
+            (str, bytes, bytearray),
+        ):
+            joined = StringIO()
+            code_point_count = 0
+            iteration_failed = False
+            try:
+                for run_count, run in enumerate(runs, start=1):
+                    if run_count > _MAX_TRACK_NAME_CODE_POINTS:
+                        raise _error(
+                            ErrorCode.INVALID_RESPONSE,
+                            "subtitle track name is invalid",
+                            retryable=False,
+                            video_id=video_id,
+                        )
+                    if not isinstance(run, Mapping):
+                        raise _error(
+                            ErrorCode.INVALID_RESPONSE,
+                            "subtitle track name is invalid",
+                            retryable=False,
+                            video_id=video_id,
+                        )
+                    text = run.get("text")
+                    if not isinstance(text, str):
+                        raise _error(
+                            ErrorCode.INVALID_RESPONSE,
+                            "subtitle track name is invalid",
+                            retryable=False,
+                            video_id=video_id,
+                        )
+                    code_point_count += len(text)
+                    if code_point_count > _MAX_TRACK_NAME_CODE_POINTS:
+                        raise _error(
+                            ErrorCode.INVALID_RESPONSE,
+                            "subtitle track name is invalid",
+                            retryable=False,
+                            video_id=video_id,
+                        )
+                    joined.write(text)
+            except TranscriptError:
+                raise
+            except Exception:
+                iteration_failed = True
+            if iteration_failed:
                 raise _error(
                     ErrorCode.INVALID_RESPONSE,
                     "subtitle track name is invalid",
                     retryable=False,
                     video_id=video_id,
                 )
-            return " ".join(joined.split())
+            return " ".join(joined.getvalue().split())
     raise _error(
         ErrorCode.INVALID_RESPONSE,
         "subtitle track name is invalid",
@@ -341,6 +372,7 @@ def _track_name(value: Any, *, video_id: str) -> str:
 class _MappedDirectory:
     tracks: tuple[SubtitleTrack, ...]
     next_position: int
+    bucket_count: int
 
 
 def _map_directory(
@@ -348,10 +380,11 @@ def _map_directory(
     *,
     source_type: TranscriptSourceType,
     start_position: int,
+    start_bucket_count: int,
     video_id: str,
 ) -> _MappedDirectory:
     if payload is None:
-        return _MappedDirectory((), start_position)
+        return _MappedDirectory((), start_position, start_bucket_count)
     if not isinstance(payload, Mapping):
         raise _error(
             ErrorCode.INVALID_RESPONSE,
@@ -361,80 +394,102 @@ def _map_directory(
         )
     tracks: list[SubtitleTrack] = []
     position = start_position
-    for raw_language, raw_entries in payload.items():
-        if (
-            not isinstance(raw_language, str)
-            or not raw_language
-            or len(raw_language) > _MAX_LANGUAGE_CODE_POINTS
-            or raw_language.strip() != raw_language
-            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", raw_language)
-            is None
-            or not isinstance(raw_entries, list)
-        ):
-            raise _error(
-                ErrorCode.INVALID_RESPONSE,
-                "subtitle track directory payload is malformed",
-                retryable=False,
-                video_id=video_id,
-            )
-        for raw_entry in raw_entries:
-            if position >= _MAX_TRACK_COUNT:
+    bucket_count = start_bucket_count
+    iteration_failed = False
+    try:
+        for raw_language, raw_entries in payload.items():
+            bucket_count += 1
+            if bucket_count > _MAX_TRACK_COUNT:
                 raise _error(
                     ErrorCode.INVALID_RESPONSE,
-                    "subtitle track directory exceeds its track limit",
+                    "subtitle track directory exceeds its language bucket limit",
                     retryable=False,
                     video_id=video_id,
                 )
-            current_position = position
-            position += 1
-            if not isinstance(raw_entry, Mapping):
-                raise _error(
-                    ErrorCode.INVALID_RESPONSE,
-                    "subtitle track payload is malformed",
-                    retryable=False,
-                    video_id=video_id,
-                )
-            raw_extension = raw_entry.get("ext")
             if (
-                not isinstance(raw_extension, str)
-                or not raw_extension
-                or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
-                or raw_extension.strip() != raw_extension
+                not isinstance(raw_language, str)
+                or not raw_language
+                or len(raw_language) > _MAX_LANGUAGE_CODE_POINTS
+                or raw_language.strip() != raw_language
+                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", raw_language)
+                is None
+                or not isinstance(raw_entries, list)
             ):
                 raise _error(
                     ErrorCode.INVALID_RESPONSE,
-                    "subtitle track format is invalid",
+                    "subtitle track directory payload is malformed",
                     retryable=False,
                     video_id=video_id,
                 )
-            raw_url = raw_entry.get("url")
-            if (
-                not isinstance(raw_url, str)
-                or not raw_url
-                or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
-            ):
-                raise _error(
-                    ErrorCode.INVALID_RESPONSE,
-                    "subtitle track URL is invalid",
-                    retryable=False,
-                    video_id=video_id,
+            for raw_entry in raw_entries:
+                if position >= _MAX_TRACK_COUNT:
+                    raise _error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "subtitle track directory exceeds its track limit",
+                        retryable=False,
+                        video_id=video_id,
+                    )
+                current_position = position
+                position += 1
+                if not isinstance(raw_entry, Mapping):
+                    raise _error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "subtitle track payload is malformed",
+                        retryable=False,
+                        video_id=video_id,
+                    )
+                raw_extension = raw_entry.get("ext")
+                if (
+                    not isinstance(raw_extension, str)
+                    or not raw_extension
+                    or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
+                    or raw_extension.strip() != raw_extension
+                ):
+                    raise _error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "subtitle track format is invalid",
+                        retryable=False,
+                        video_id=video_id,
+                    )
+                raw_url = raw_entry.get("url")
+                if (
+                    not isinstance(raw_url, str)
+                    or not raw_url
+                    or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
+                ):
+                    raise _error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "subtitle track URL is invalid",
+                        retryable=False,
+                        video_id=video_id,
+                    )
+                _validate_track_url(raw_url, video_id=video_id)
+                name = _track_name(raw_entry.get("name"), video_id=video_id)
+                source_format = _format_from_extension(raw_extension)
+                if source_format is None:
+                    continue
+                tracks.append(
+                    SubtitleTrack(
+                        source_type=source_type,
+                        language=raw_language,
+                        source_format=source_format,
+                        name=name,
+                        url=raw_url,
+                        provider_position=current_position,
+                    )
                 )
-            _validate_track_url(raw_url, video_id=video_id)
-            name = _track_name(raw_entry.get("name"), video_id=video_id)
-            source_format = _format_from_extension(raw_extension)
-            if source_format is None:
-                continue
-            tracks.append(
-                SubtitleTrack(
-                    source_type=source_type,
-                    language=raw_language,
-                    source_format=source_format,
-                    name=name,
-                    url=raw_url,
-                    provider_position=current_position,
-                )
-            )
-    return _MappedDirectory(tuple(tracks), position)
+    except TranscriptError:
+        raise
+    except Exception:
+        iteration_failed = True
+    if iteration_failed:
+        raise _error(
+            ErrorCode.INVALID_RESPONSE,
+            "subtitle track directory payload is malformed",
+            retryable=False,
+            video_id=video_id,
+        )
+    return _MappedDirectory(tuple(tracks), position, bucket_count)
 
 
 def _content_length(
@@ -631,12 +686,14 @@ class YtDlpSubtitleAdapter:
             payload.get("subtitles"),
             source_type=TranscriptSourceType.MANUAL_SUBTITLE,
             start_position=0,
+            start_bucket_count=0,
             video_id=video_id,
         )
         automatic = _map_directory(
             payload.get("automatic_captions"),
             source_type=TranscriptSourceType.AUTO_SUBTITLE,
             start_position=manual.next_position,
+            start_bucket_count=manual.bucket_count,
             video_id=video_id,
         )
         tracks = (*manual.tracks, *automatic.tracks)

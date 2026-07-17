@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import traceback
 import urllib.error
+from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from datetime import timedelta as td
@@ -20,6 +21,7 @@ from yt_dlp.utils import DownloadError
 
 from youtube_intel import transcripts as transcripts_mod
 from youtube_intel.domain import (
+    AppError,
     Availability,
     DiscoveryBatch,
     DiscoveryCursor,
@@ -2216,3 +2218,481 @@ def test_permission_error_during_atomic_write_is_safe_and_not_indexed(
     assert provider_record.last_error_code == ErrorCode.PERMISSION_DENIED.value
     assert provider_record.reservation_owner is None
     assert provider_record.lease_until is None
+
+
+class _HostileAdapterBase:
+    provider_name = "hostile-subtitles"
+    provider_version = "1"
+
+    def __init__(self, marker: str, private_url: str, private_path: str) -> None:
+        self._marker = marker
+        self._private_url = private_url
+        self._private_path = private_path
+        self._call = ProviderCallMetadata(
+            provider=self.provider_name,
+            provider_version=self.provider_version,
+            started_at=NOW,
+            finished_at=NOW,
+        )
+        self._track = SubtitleTrack(
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            language="en",
+            source_format=SubtitleFormat.JSON3,
+            name="English",
+            url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3",
+            provider_position=0,
+        )
+
+    def _raise_hostile_error(self) -> None:
+        app_error = AppError(
+            code=ErrorCode.RATE_LIMITED,
+            message=f"{self._marker} {self._private_url} {self._private_path}",
+            retryable=True,
+            retry_after_seconds=23,
+            video_id="wrong-video",
+            stage=ProcessingStage.METADATA,
+        )
+        try:
+            raise RuntimeError(f"nested cause {self._marker}")
+        except RuntimeError as cause:
+            try:
+                raise ValueError(f"nested context {self._private_path}")
+            except ValueError:
+                raise TranscriptError(app_error) from cause
+
+
+class _HostileEnumerateAdapter(_HostileAdapterBase):
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        self._raise_hostile_error()
+        raise AssertionError("unreachable")
+
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        raise AssertionError("body read must not run")
+
+
+class _HostileReadAdapter(_HostileAdapterBase):
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        return SubtitleTrackListing(tracks=(self._track,), call=self._call)
+
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        self._raise_hostile_error()
+        raise AssertionError("unreachable")
+
+
+@pytest.mark.parametrize(
+    "adapter_type",
+    [_HostileEnumerateAdapter, _HostileReadAdapter],
+)
+def test_public_adapter_errors_are_rebuilt_at_the_service_boundary(
+    tmp_path: Path,
+    adapter_type: type[_HostileAdapterBase],
+) -> None:
+    marker = f"HOSTILE_{adapter_type.__name__}_MARKER_79C2"
+    private_url = "https://private.invalid/timedtext?token=hostile"
+    private_path = "/Users/example/private/hostile-subtitle.json3"
+    repository = _repository_with_transcript_job(tmp_path)
+    adapter = adapter_type(marker, private_url, private_path)
+    service = SubtitleAcquisitionService(
+        adapter=adapter,
+        repository=repository,
+        data_root=tmp_path / "data",
+        context=TranscriptJobContext(
+            job_id="subtitle-job",
+            owner="worker-1",
+            pipeline_version="pipeline-v1",
+        ),
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        service.fetch(_video(), ("en",))
+
+    error = exc_info.value.error
+    assert error.code is ErrorCode.RATE_LIMITED
+    assert error.retryable is True
+    assert error.retry_after_seconds == 23
+    assert error.video_id == "video123"
+    assert error.stage is ProcessingStage.TRANSCRIPT
+    expected_message = (
+        "subtitle adapter rate limited during track enumeration"
+        if adapter_type is _HostileEnumerateAdapter
+        else "subtitle adapter rate limited during body read"
+    )
+    assert error.message == expected_message
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    _assert_exception_graph_is_redacted(
+        exc_info.value,
+        forbidden=(marker, private_url, private_path, "wrong-video"),
+    )
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        provider_row = connection.execute(
+            "SELECT last_error_code, last_error_message FROM provider_calls"
+        ).fetchone()
+    assert provider_row == (error.code.value, error.message)
+    database_bytes = (tmp_path / "state.sqlite3").read_bytes()
+    assert all(
+        value.encode() not in database_bytes
+        for value in (marker, private_url, private_path, "wrong-video")
+    )
+
+
+@pytest.mark.parametrize("mutation", ["source_type", "actual_language"])
+def test_raw_cache_provenance_is_bound_to_the_provider_response_record(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    assert first.artifact.timed_text_path is not None
+    raw_request_hash = build_raw_request_hash(
+        video_id="video123",
+        language_preferences=("en",),
+        provider=adapter.provider_name,
+        provider_version=adapter.provider_version,
+        refresh_generation=0,
+    )
+    tampered_metadata = transcripts_mod._SourceMetadata(
+        source_type=(
+            TranscriptSourceType.AUTO_SUBTITLE
+            if mutation == "source_type"
+            else TranscriptSourceType.MANUAL_SUBTITLE
+        ),
+        requested_language="en",
+        actual_language="en-US" if mutation == "actual_language" else "en",
+        source_format=SubtitleFormat.JSON3,
+    )
+    tampered_relative_path = transcripts_mod._source_relative_path(
+        video_id="video123",
+        raw_request_hash=raw_request_hash,
+        metadata=tampered_metadata,
+    )
+    original_path = data_root / first.artifact.timed_text_path
+    original_path.rename(data_root / tampered_relative_path)
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute(
+            "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+            (tampered_relative_path, "subtitle_source"),
+        )
+
+    cache_now = NOW + td(minutes=20)
+    job_id = f"raw-{mutation}-provenance-job"
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id=job_id,
+        now=cache_now,
+    )
+    body_calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("raw provenance failure must not trigger network"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id=job_id,
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == body_calls_before
+    assert repository.get_job(job_id).status is JobStatus.RUNNING
+    assert (
+        repository.get_video("video123").pipeline_status
+        is PipelineStatus.METADATA_READY
+    )
+
+
+def test_raw_cache_must_match_the_succeeded_provider_response_artifact(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute(
+            "UPDATE provider_calls SET response_artifact_id = ?",
+            ("forged-response-artifact",),
+        )
+
+    cache_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="response-binding-job",
+        now=cache_now,
+    )
+    calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("response binding failure must not trigger network"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id="response-binding-job",
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == calls_before
+
+
+def test_canonical_rolling_flag_is_bound_to_its_production_record(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), opener)
+    data_root = tmp_path / "data"
+    first = _service(
+        adapter=adapter,
+        repository=repository,
+        data_root=data_root,
+        job_id="subtitle-job",
+    ).fetch(_video(), ("en",))
+    assert isinstance(first, TranscriptReady)
+    canonical_path = data_root / first.artifact.text_path
+    name_parts = canonical_path.name.split(".")
+    assert "r" not in name_parts[2]
+    forged_flags = f"r{name_parts[2]}"
+    tampered_path = canonical_path.with_name(
+        f"{name_parts[0]}.{name_parts[1]}.{forged_flags}.{name_parts[3]}"
+    )
+    canonical_path.rename(tampered_path)
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute(
+            "UPDATE artifacts SET relative_path = ? WHERE kind = ?",
+            (
+                str(tampered_path.relative_to(data_root)),
+                "transcript_canonical",
+            ),
+        )
+
+    cache_now = NOW + td(minutes=20)
+    _reset_pipeline_for_cache_test(
+        tmp_path,
+        repository,
+        job_id="rolling-provenance-job",
+        now=cache_now,
+    )
+    calls_before = opener.calls
+    adapter, handle = _bound_adapter(
+        DownloadError("quality provenance failure must not trigger network"),
+        opener,
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        _service(
+            adapter=adapter,
+            repository=repository,
+            data_root=data_root,
+            job_id="rolling-provenance-job",
+            now=cache_now,
+        ).fetch(_video(), ("en",))
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.retryable is False
+    assert handle.calls == []
+    assert opener.calls == calls_before
+    assert repository.get_job("rolling-provenance-job").status is JobStatus.RUNNING
+    assert (
+        repository.get_video("video123").pipeline_status
+        is PipelineStatus.METADATA_READY
+    )
+
+
+class _CountingRuns(Sequence[Mapping[str, str]]):
+    def __init__(self, count: int, *, text: str = "x") -> None:
+        self._count = count
+        self._text = text
+        self.consumed = 0
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __getitem__(self, index: int) -> Mapping[str, str]:
+        if index < 0 or index >= self._count:
+            raise IndexError
+        self.consumed += 1
+        return {"text": self._text}
+
+
+class _CountingBuckets(Mapping[str, list[dict[str, str]]]):
+    def __init__(self, count: int) -> None:
+        self._count = count
+        self.consumed = 0
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __iter__(self) -> Iterator[str]:
+        for index in range(self._count):
+            self.consumed += 1
+            yield f"en-{index}"
+
+    def __getitem__(self, key: str) -> list[dict[str, str]]:
+        return []
+
+
+def _streaming_directory_payload(
+    *,
+    subtitles: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "id": "video123",
+        "subtitles": subtitles,
+        "automatic_captions": {},
+    }
+
+
+def test_track_name_runs_stop_at_the_first_frozen_boundary_overflow() -> None:
+    boundary_runs = _CountingRuns(1_000)
+    boundary_payload = _directory_payload(
+        [
+            {
+                "ext": "json3",
+                "name": {"runs": boundary_runs},
+                "url": _url_with_length(80),
+            }
+        ]
+    )
+    at_boundary, _ = _adapter_for_info(boundary_payload)
+
+    listing = at_boundary.enumerate_tracks("video123")
+
+    assert len(listing.tracks) == 1
+    assert len(listing.tracks[0].name) == 1_000
+    assert boundary_runs.consumed == 1_000
+
+    oversized_runs = _CountingRuns(500_000)
+    oversized_payload = _directory_payload(
+        [
+            {
+                "ext": "json3",
+                "name": {"runs": oversized_runs},
+                "url": _url_with_length(80),
+            }
+        ]
+    )
+    oversized, _ = _adapter_for_info(oversized_payload)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        oversized.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert exc_info.value.error.retryable is False
+    assert oversized_runs.consumed == 1_001
+
+    empty_runs = _CountingRuns(1_001, text="")
+    empty_payload = _directory_payload(
+        [
+            {
+                "ext": "json3",
+                "name": {"runs": empty_runs},
+                "url": _url_with_length(80),
+            }
+        ]
+    )
+    empty, _ = _adapter_for_info(empty_payload)
+
+    with pytest.raises(TranscriptError) as empty_exc:
+        empty.enumerate_tracks("video123")
+
+    assert empty_exc.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert empty_runs.consumed == 1_001
+
+
+def test_empty_language_buckets_stop_at_the_first_track_limit_overflow() -> None:
+    boundary_buckets = _CountingBuckets(512)
+    boundary, _ = _adapter_for_info(
+        _streaming_directory_payload(subtitles=boundary_buckets)
+    )
+
+    assert boundary.enumerate_tracks("video123").tracks == ()
+    assert boundary_buckets.consumed == 512
+
+    oversized_buckets = _CountingBuckets(200_000)
+    oversized, _ = _adapter_for_info(
+        _streaming_directory_payload(subtitles=oversized_buckets)
+    )
+
+    with pytest.raises(TranscriptError) as exc_info:
+        oversized.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert exc_info.value.error.retryable is False
+    assert oversized_buckets.consumed == 513
+
+
+def test_nested_metadata_iteration_errors_are_safe_and_fail_closed() -> None:
+    marker = "PRIVATE_ITERATION_MARKER_6D30"
+
+    class FailingRuns(_CountingRuns):
+        def __getitem__(self, index: int) -> Mapping[str, str]:
+            if index == 2:
+                raise RuntimeError(marker)
+            return super().__getitem__(index)
+
+    runs = FailingRuns(10)
+    runs_payload = _directory_payload(
+        [
+            {
+                "ext": "json3",
+                "name": {"runs": runs},
+                "url": _url_with_length(80),
+            }
+        ]
+    )
+    runs_adapter, _ = _adapter_for_info(runs_payload)
+
+    with pytest.raises(TranscriptError) as runs_exc:
+        runs_adapter.enumerate_tracks("video123")
+
+    assert runs_exc.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert runs_exc.value.error.retryable is False
+    _assert_exception_graph_is_redacted(runs_exc.value, forbidden=(marker,))
+
+    class FailingBuckets(_CountingBuckets):
+        def __iter__(self) -> Iterator[str]:
+            yield "en-0"
+            raise RuntimeError(marker)
+
+    buckets_adapter, _ = _adapter_for_info(
+        _streaming_directory_payload(subtitles=FailingBuckets(10))
+    )
+
+    with pytest.raises(TranscriptError) as buckets_exc:
+        buckets_adapter.enumerate_tracks("video123")
+
+    assert buckets_exc.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert buckets_exc.value.error.retryable is False
+    _assert_exception_graph_is_redacted(buckets_exc.value, forbidden=(marker,))

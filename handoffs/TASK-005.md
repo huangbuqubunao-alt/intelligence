@@ -1456,6 +1456,160 @@ provider/model/producer/path、symlink/realpath 与新写目标 Permission 分�
 - 结论：TASK-006 可依赖的公共类型形状没有回归，不需要修改 ADR-007；但 TASK-005
   因本次 `REJECT` 尚未关闭，TASK-006/007 继续 blocked，不得启动写入实现。
 
+## Implementer Correction 3
+
+- Implementer/session：原 TASK-005 Codex Implementer，2026-07-17 Correction 3 会话
+- 修正起点：第三次 Reviewer evidence
+  `30c665181db77607648aa1a6fdbb1d5502b71d7d`
+- 被审查实现：
+  `f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f`
+- main 动态授权：
+  `d783f705bd749b9e691456fd85f8af1635d9f32f`，唯一父提交为
+  `2c8492b54e045547b7b3bad742419d8f6fdf0089`
+- 修正提交：本节所在提交；最终 SHA 由提交后回传
+- 范围：只关闭第三次 Reviewer 的 P1-1 至 P1-3；未修改公共领域对象、Repository、
+  Schema/migration、`complete_stage`、依赖/锁、配置、CLI、TASK-004 或 main
+
+### TDD RED 与 GREEN
+
+先只加入第三次 Reviewer 的独立反例，未改生产代码：
+
+```text
+uv run python -m pytest tests/integration/test_subtitle_provider.py -q \
+  -k 'public_adapter_errors_are_rebuilt or raw_cache_provenance_is_bound \
+  or raw_cache_must_match or canonical_rolling_flag_is_bound \
+  or track_name_runs_stop or empty_language_buckets_stop'
+
+RED — 8 failed, 68 deselected
+```
+
+- P1-1：enumerate/read 两个 hostile public Adapter 的
+  `wrong-video/METADATA` 与敏感 message 原样穿透。
+- P1-2：raw `manual→auto`、`en→en-US`、Provider response Artifact ID 篡改和
+  canonical `s→rs` rolling flag 伪造均被当作 cache hit。
+- P1-3：自定义 1,000-run boundary sequence 被直接拒绝；200,000 空 bucket 被完整
+  遍历并当作普通 0 tracks；500,000 runs 没有首个越界消费保证。
+
+实现后新增反例组：
+
+```text
+9 passed, 68 deselected
+```
+
+新增 GREEN 还覆盖 1,001 个空 run 条目和 runs/buckets 迭代器异常；后者均返回安全、
+nonretryable `INVALID_RESPONSE`。
+
+### P1-1：公共 SubtitleAdapter Service 信任边界
+
+- `transcripts.py:776` 的 `_adapter_boundary_error` 只保留合法 `ErrorCode`、
+  retryable 与有限、非负且仅用于 retryable error 的 Retry-After；message 由
+  operation/error code 固定生成，强制当前 `video_id` 与 `TRANSCRIPT`。
+- `transcripts.py:1468`、`:1495` 分别隔离 `enumerate_tracks` 与 `read_track`；
+  新异常在活动 `except` 外抛出。`InvalidSubtitleCandidate` 只复制冻结 reason，继续
+  保持候选回退。
+- `test_subtitle_provider.py:2286` 使用两个 hostile Adapter，经完整 Service + 真实
+  SQLite 验证 `RATE_LIMITED/retryable/retry-after=23` 保持；错误 video/stage、
+  marker、临时 URL、绝对路径、嵌套 cause/context 与 traceback 均不可达。
+- SQLite `provider_calls.last_error_*` 只保存固定安全 message/code；数据库字节不含
+  hostile marker、URL、绝对路径或错误 video ID。
+
+### P1-2：可信生产记录与 provenance binding
+
+- raw request 的成功 `provider_calls` 记录必须精确匹配 operation、provider、model、
+  selection/format versions、request hash，处于 `SUCCEEDED` 且 owner/lease 已清除。
+- `provider_calls.response_artifact_id` 必须解析到当前 raw Artifact；该 Artifact 的
+  `artifact_key` 必须等于 Provider request 的 deterministic key。虽然当前
+  Repository 字段名是 `response_artifact_id` 而不是任务包概念措辞中的
+  `response_artifact_key`，两者通过同一 raw record 的 ID→exact key 解析完成绑定。
+- `transcripts.py:867` 的 raw Artifact ID 是稳定 provenance hash，覆盖 raw request
+  hash、source type、requested/actual language、format、source SHA、provider 和 raw
+  producer version；raw request hash 已覆盖有序语言偏好、Provider/version、
+  selection/format policy 与 refresh generation。
+- `transcripts.py:897` 的 canonical Artifact ID 绑定 response-linked raw Artifact
+  ID/SHA、canonical request hash、canonical SHA、完整 quality flags、
+  provider/model 与 canonical producer version；canonical Artifact key 仍精确为
+  当前 deterministic canonical key。
+- cache load 同时验证 exact key/path token、生产 ID、Provider-call 响应绑定与文件
+  SHA。token/path 自洽不再能改变 source type、仍可匹配的 actual language 或
+  `ROLLING_CUES_DEDUPED`。
+- `test_subtitle_provider.py:2341`、`:2421`、`:2469` 验证上述四类单变量篡改均零网络、
+  nonretryable `LOCAL_RESOURCE`，Job 保持 `RUNNING`、Pipeline 保持
+  `METADATA_READY`。
+- 正向回归：首次 raw→canonical、ordinary cache hit、canonical-only rebuild、重建后
+  第二次稳定 hit 与 refresh generation 全部通过；cache hit 不重新下载、不调用
+  `normalize_subtitle`，旧 Artifact 不修改、不重绑定。
+
+### P1-3：嵌套 metadata 流式上限
+
+- `providers/subtitles.py:287` 用最大 1,000 code points 的 `StringIO` 流式累积 name
+  runs，不再创建完整 `pieces` list；run 条目与累计 code points 分别计数。
+- 第 1,001 个单字符或空 run 被消费后立即拒绝，不再消费剩余 500,000 输入；1,000
+  runs/code points 精确通过。
+- `providers/subtitles.py:378` 对所有 language bucket 计数，包括空 entry list；
+  manual/automatic 两个目录共享累计值。第 513 个 bucket 立即拒绝，512 个空 bucket
+  精确通过；非空 entries 继续独立受总 track 数 512 上限。
+- runs、bucket/items、entry 或 Mapping 的迭代异常均在 Adapter mapping 边界转成固定
+  安全 `INVALID_RESPONSE`，没有进入正文 opener。
+- `test_subtitle_provider.py:2577`、`:2634`、`:2656` 使用计数 Sequence/Mapping 证明
+  精确消费上限、空片段不可绕过和异常图脱敏；既有真实 `HTTPMessage`、512/513
+  tracks、name/language/ext/URL 边界与 response close 回归继续通过。
+
+### P2、架构与公共契约
+
+- P2 有局部改善但未声称关闭：新增窄 Service Adapter sanitizer、Provider/cache
+  binding validator、provenance ID builder 和 streaming metadata parser。
+- `fetch`、`_load_cached`、`_fetch_reserved` 未加入重复 cleanup 分支；但
+  `SubtitleAcquisitionService` 仍聚合 Provider、文件/cache、provenance 和 stage
+  编排，integration tests 仍使用既有私有 hook，继续登记为 P2。
+- 未新增公开模块/hook、wrapper、monkey patch、`Any`/宽 `object` 公共接口、自由
+  `dict` 公共契约、`cast`、`type: ignore` 或进程内锁。
+- TASK-006 依赖的 `TranscriptProvider`、`TranscriptArtifact`、三个 quality flags、
+  三个 transcription reasons 和八个 `ErrorCode` 公共形状未变化。
+
+### 完整检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS：`Resolved 34 packages` |
+| `uv sync --locked` | PASS：`Checked 30 packages`，无依赖/锁变化 |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS：`50 passed` |
+| `uv run python -m pytest tests/unit/test_subtitle_policy.py` | PASS：`30 passed` |
+| `uv run python -m pytest tests/integration/test_subtitle_provider.py` | PASS：`77 passed` |
+| `uv run python -m pytest` | PASS：`243 passed` |
+| `uv run mypy src` | PASS：9 source files |
+| `env MYPYPATH=src uv run mypy -c '<TranscriptRepository wiring>'` | PASS：1 source file |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS：生成 sdist/wheel |
+| sdist/wheel 内容 | PASS：均含 `migrations/001_initial.sql`、`transcripts.py`、`providers/subtitles.py`；随后只清理本轮 ignored `dist/` |
+
+`pyproject.toml` SHA-256 保持
+`49ca5e31c32d8dbadc3770901f227ed9dd95237a1ac1cb0b977019c5f13d1fa9`；
+`uv.lock` 保持
+`81a3fd81e51cac69ca4d072c481b63cc9a265b491eab9c65ea782963f85a9c49`，
+均与 implementation base 字节一致。
+
+### Diff、复用、红线与剩余风险
+
+- Correction 3 只修改：
+  `src/youtube_intel/transcripts.py`、
+  `src/youtube_intel/providers/subtitles.py`、
+  `tests/integration/test_subtitle_provider.py` 和本 handoff；均属于允许的 6 个路径组。
+- 完整 base...HEAD 产品范围仍属于原批准的 8 个路径组/11 个文件；未修改
+  `domain.py`、contracts test、`state.py`、migration、配置、CLI、discovery/youtube
+  Adapter、任务/ADR、`pyproject.toml` 或 `uv.lock`。
+- 复用决策不变：只直接使用既有 `yt-dlp==2026.7.4` 与 Python 标准库；无新增/
+  升级依赖、Schema 或外部代码复制。MIT reference 仍仅参考测试思想；
+  `youtube-transcript-api` 继续 DEFER；既有 mutagen GPL 风险继续由 TASK-014 跟踪。
+- 未运行真实 YouTube/字幕、RSS、Cookie/登录/`.netrc`、remote components、
+  ffmpeg/subprocess、媒体、真实 Vault/密钥；这些均明确未授权。
+- Remaining risks：Service/私有 hook P2；真实上游 payload/URL 漂移待 TASK-013；
+  复杂非标准字幕继续保守 fail-closed；既有 mutagen 分发门禁待 TASK-014。
+- Skipped checks：规定离线门禁无跳过；只跳过明确禁止的真实外部路径。
+- Decision needed：`None`。现有 Artifact/Provider-call 字段足以通过 response-linked
+  Artifact ID、deterministic key、provenance ID 和文件 SHA 完成可信 binding，无需
+  Schema/T-13 升级。
+
 ## 主控验收
 
 - Orchestrator：
