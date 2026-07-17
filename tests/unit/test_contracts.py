@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from youtube_intel import config as config_mod
 from youtube_intel import domain as domain_mod
+from youtube_intel import transcripts as transcripts_mod
 from youtube_intel.config import (
     ChannelConfig,
     CloudSettings,
@@ -65,9 +66,15 @@ from youtube_intel.domain import (
     ScoringInput,
     ScoringProvider,
     SourceProvider,
+    SubtitleFormat,
     SummaryProvider,
     TranscriptArtifact,
+    TranscriptFetchResult,
+    TranscriptionReason,
+    TranscriptionRequired,
     TranscriptProvider,
+    TranscriptQualityFlag,
+    TranscriptReady,
     TranscriptSourceType,
     VideoMetadata,
     WeeklyReportInput,
@@ -78,6 +85,7 @@ from youtube_intel.domain import (
     transition_job,
     transition_pipeline,
 )
+from youtube_intel.providers import subtitles as subtitles_mod
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHANNELS_EXAMPLE = REPO_ROOT / "config" / "channels.example.yaml"
@@ -760,13 +768,12 @@ def test_provider_protocols_are_structural() -> None:
         def fetch(
             self,
             video: VideoMetadata,
-            language_preferences: object,
-        ) -> TranscriptArtifact | NotAvailable:
-            return NotAvailable(
-                reason_code=NotAvailableReason.NO_MATCHING_LANGUAGE,
-                message="none",
-                retryable=False,
+            language_preferences: tuple[str, ...],
+        ) -> TranscriptFetchResult:
+            return TranscriptionRequired(
+                reason=TranscriptionReason.NO_MATCHING_LANGUAGE,
                 call=_call(),
+                attempted_track_count=0,
             )
 
     assert isinstance(FakeTranscript(), TranscriptProvider)
@@ -840,6 +847,16 @@ def _annotation_is_free_form_dict(annotation: object) -> bool:
     return False
 
 
+def _annotation_is_wide(annotation: object) -> bool:
+    text = str(annotation).lower().replace(" ", "")
+    return (
+        _annotation_is_free_form_dict(annotation)
+        or text in {"any", "typing.any", "object", "builtins.object"}
+        or re.search(r"(^|[|,\[])object([|,\]]|$)", text) is not None
+        or re.search(r"(^|[|,\[])any([|,\]]|$)", text) is not None
+    )
+
+
 def test_public_contracts_avoid_free_form_dict() -> None:
     """Public exports must not expose free-form dict loaders or model fields."""
     assert "load_yaml_mapping" not in config_mod.__all__
@@ -867,6 +884,56 @@ def test_public_contracts_avoid_free_form_dict() -> None:
     assert isinstance(channels, tuple)
     assert not isinstance(channels, dict)
     assert not isinstance(settings, dict)
+
+
+def test_task_005_public_annotations_avoid_any_object_and_free_dict() -> None:
+    for mod in (domain_mod, transcripts_mod, subtitles_mod):
+        for name in mod.__all__:
+            exported = getattr(mod, name)
+            objects: list[tuple[str, object]] = [(name, exported)]
+            if inspect.isclass(exported):
+                objects.extend(
+                    (f"{name}.{member_name}", member)
+                    for member_name, member in exported.__dict__.items()
+                    if (
+                        member_name == "__init__"
+                        or not member_name.startswith("_")
+                    )
+                    and (
+                        inspect.isfunction(member)
+                        or isinstance(member, property)
+                    )
+                )
+            for qualified_name, obj in objects:
+                target = obj.fget if isinstance(obj, property) else obj
+                annotations = getattr(target, "__annotations__", {})
+                for annotation_name, annotation in annotations.items():
+                    assert not _annotation_is_wide(annotation), (
+                        f"{mod.__name__}.{qualified_name} annotation "
+                        f"{annotation_name}: {annotation}"
+                    )
+
+
+def test_task_005_runtime_modules_do_not_use_subprocess_or_ffmpeg() -> None:
+    for module_path in (
+        REPO_ROOT / "src" / "youtube_intel" / "transcripts.py",
+        REPO_ROOT / "src" / "youtube_intel" / "providers" / "subtitles.py",
+    ):
+        source = module_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imported_roots = {
+            alias.name.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported_roots.update(
+            node.module.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        assert "subprocess" not in imported_roots
+        assert "ffmpeg" not in source.casefold()
 
 
 # ---------------------------------------------------------------------------
@@ -971,15 +1038,145 @@ def test_diagnostic_entry_and_transcript_artifact() -> None:
         video_id="v1",
         language="en",
         source_type=TranscriptSourceType.MANUAL_SUBTITLE,
-        text_path="data/transcripts/v1/canonical.txt",
-        content_hash="hash",
+        requested_language="en",
+        source_format=SubtitleFormat.JSON3,
+        text_path="transcripts/v1/request/canonical.txt",
+        timed_text_path="transcripts/v1/request/source.json3",
+        source_content_hash="a" * 64,
+        source_byte_count=128,
+        content_hash="b" * 64,
         char_count=10,
         segment_count=1,
+        normalization_version="subtitle-normalization-v1",
         provider="youtube",
         created_at=NOW,
+        quality_flags=(TranscriptQualityFlag.SPEAKER_LABELS_PRESENT,),
     )
     assert call.diagnostics[0].code == "INFO"
     assert artifact.source_type is TranscriptSourceType.MANUAL_SUBTITLE
+    assert artifact.quality_flags == (TranscriptQualityFlag.SPEAKER_LABELS_PRESENT,)
+
+    ready = TranscriptReady(artifact=artifact, call=call)
+    assert ready.outcome == "ready"
+    required = TranscriptionRequired(
+        reason=TranscriptionReason.ALL_CANDIDATES_INVALID,
+        call=call,
+        attempted_track_count=3,
+    )
+    assert required.outcome == "transcription_required"
+
+
+def test_transcript_artifact_source_specific_contract() -> None:
+    common = {
+        "video_id": "v1",
+        "language": "en-US",
+        "text_path": "transcripts/v1/request/canonical.txt",
+        "source_content_hash": "a" * 64,
+        "source_byte_count": 128,
+        "content_hash": "b" * 64,
+        "char_count": 42,
+        "segment_count": 2,
+        "normalization_version": "subtitle-normalization-v1",
+        "created_at": NOW,
+    }
+
+    subtitle = TranscriptArtifact(
+        **common,
+        source_type=TranscriptSourceType.AUTO_SUBTITLE,
+        requested_language="en",
+        source_format=SubtitleFormat.VTT,
+        timed_text_path="transcripts/v1/request/source.vtt",
+        provider="youtube",
+    )
+    assert subtitle.requested_language == "en"
+
+    whisper = TranscriptArtifact(
+        **common,
+        source_type=TranscriptSourceType.WHISPER,
+        requested_language=None,
+        source_format=None,
+        timed_text_path=None,
+        provider="mlx-whisper",
+        model="mlx-community/whisper-large-v3-turbo",
+    )
+    assert whisper.source_format is None
+
+    with pytest.raises(ValidationError, match="requested_language"):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            requested_language=None,
+            source_format=SubtitleFormat.SRT,
+            timed_text_path="transcripts/v1/request/source.srt",
+            provider="youtube",
+        )
+    with pytest.raises(ValidationError, match="source_format"):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.AUTO_SUBTITLE,
+            requested_language="en",
+            source_format=None,
+            timed_text_path="transcripts/v1/request/source.vtt",
+            provider="youtube",
+        )
+    with pytest.raises(ValidationError, match="timed_text_path"):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            requested_language="en",
+            source_format=SubtitleFormat.JSON3,
+            timed_text_path=None,
+            provider="youtube",
+        )
+    with pytest.raises(ValidationError, match="must be None"):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.WHISPER,
+            requested_language="en",
+            source_format=None,
+            timed_text_path=None,
+            provider="mlx-whisper",
+        )
+    with pytest.raises(ValidationError):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            requested_language="en",
+            source_format=SubtitleFormat.JSON3,
+            timed_text_path="../source.json3",
+            provider="youtube",
+        )
+    with pytest.raises(ValidationError, match="unique"):
+        TranscriptArtifact(
+            **common,
+            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+            requested_language="en",
+            source_format=SubtitleFormat.JSON3,
+            timed_text_path="transcripts/v1/request/source.json3",
+            provider="youtube",
+            quality_flags=(
+                TranscriptQualityFlag.NON_SPEECH_MARKERS_PRESENT,
+                TranscriptQualityFlag.NON_SPEECH_MARKERS_PRESENT,
+            ),
+        )
+
+
+def test_transcript_public_contract_is_named_and_narrow() -> None:
+    assert TranscriptFetchResult == TranscriptReady | TranscriptionRequired
+    assert {item.value for item in SubtitleFormat} == {"json3", "vtt", "srt"}
+    assert {item.value for item in TranscriptQualityFlag} == {
+        "ROLLING_CUES_DEDUPED",
+        "SPEAKER_LABELS_PRESENT",
+        "NON_SPEECH_MARKERS_PRESENT",
+    }
+    assert {item.value for item in TranscriptionReason} == {
+        "NO_TRACKS",
+        "NO_MATCHING_LANGUAGE",
+        "ALL_CANDIDATES_INVALID",
+    }
+    assert inspect.signature(TranscriptProvider.fetch).return_annotation == (
+        "TranscriptFetchResult"
+    )
 
 
 def test_load_app_config_integration(tmp_path: Path) -> None:
