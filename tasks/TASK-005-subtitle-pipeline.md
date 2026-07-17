@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第四次全新独立会话待启动；前三次独立审查均 `REJECT`）
+- Reviewer: `Codex`（第四次全新独立审查 `APPROVE`；等待 Product Integrator）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -246,3 +246,13 @@
 - 既有 Service/私有 hook 聚合 P2 未宣称关闭；第四次 Reviewer 必须重新判断其严重性，且不得仅按测试数量或行数给出 Verdict。
 - 第四次 Reviewer packet：`agent-prompts/TASK-005-REVIEWER-4-CODEX.md`。Reviewer 必须为全新独立 Codex 会话，仅可向 source handoff 追加 evidence，复跑三个 P1 探针、此前 Q2/Q4、AC-1 至 AC-5、ADR-006 T-01 至 T-15 和五轴审查。
 - TASK-005 当前为 `IN_REVIEW`，未 ACCEPTED/DONE；TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。
+
+## 第四次独立审查结果与主控验收
+
+- Review evidence：`d5268ef08b360e932b5dda9d0fb70d71b13587a4`
+- Parent：`abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`
+- Review commit 只修改 `handoffs/TASK-005.md`，source/main 均干净。
+- Reviewer 独立复跑 lock/sync、focused 50/30/77、全量 243、mypy、SQLite wiring、Ruff、CLI、offline build、包内容与固定 Diff，结果全部 PASS。
+- P1 probe A 公共 Adapter 边界、B 可信 provenance、C streaming bounds 全部 PASS；此前 Q2/Q4、AC-1 至 AC-5 与 ADR-006 T-01 至 T-15 全部 PASS。
+- Verdict：`APPROVE`；P0=0、P1=0、P2=1、P3=0。唯一 P2 为 Service 职责/私有 test hook 聚合，非阻断但必须在交接与发布门禁中保持可见。
+- 主控验收为 `ACCEPTED`，仅允许后续 Product Integrator 整合 source evidence；尚未合并或关闭为 DONE。TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。

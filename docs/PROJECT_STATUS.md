@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-17
-- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕 Correction 3 已提交，等待第四次独立审查
+- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕第四次独立审查 APPROVE，等待验收同步与产品整合
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`，固定 base `b28f52d...`）；TASK-001 至 TASK-004 worktree 仅保留审计证据，不是当前写入目标
-- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` Correction 3 `abf2acba25f9732a9511ecd54c4b92ef6c0d68e1` 已由原 Codex Implementer 提交，等待第四次全新独立 Codex Reviewer
+- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 第四次独立 Reviewer evidence `d5268ef08b360e932b5dda9d0fb70d71b13587a4` 为 `APPROVE`，等待主控验收同步与 Product Integrator
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -27,13 +27,13 @@
 
 ## 当前阻塞
 
-- `TASK-005` Correction 3 尚未通过独立审查；在 Reviewer 复跑公共 Adapter 安全边界、可信 cache provenance 和流式 metadata 资源边界前，不得验收、整合或解锁下游。真实 YouTube/字幕、Cookie/登录、remote components、ffmpeg、媒体下载与真实 Vault/密钥继续未授权。
+- `TASK-005` 已获第四次独立审查 `APPROVE`，但尚未进行主线整合与关闭；在 Integrator 合并并重跑受影响门禁前，不得解锁下游。Service/私有 test hook 聚合 P2 继续登记为非阻断风险。真实 YouTube/字幕、Cookie/登录、remote components、ffmpeg、媒体下载与真实 Vault/密钥继续未授权。
 - `TASK-006`/`TASK-007` 继续等待 TASK-005 的审查、整合和关闭，同时等待 ADR-007 批准与共享契约切片完成；`mlx-whisper` 安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/媒体冒烟均未授权。
 
 ## 下一步
 
-1. 主线同步后，启动第四个全新独立 Codex Reviewer 审查 source `abf2acb...`；不得复用前三个 Reviewer 或 Implementer 会话。
-2. Reviewer 必须独立复跑所有离线门禁和三个 P1 探针；在 `APPROVE` 前不得准备 integration 或 closure 包。
+1. Status Integrator 同步 TASK-005=`ACCEPTED`，不执行 merge 或关闭。
+2. 验收同步后即时生成 Product Integrator 包，以 source `d5268ef...` 合并并重跑受影响的离线门禁；通过后再关闭为 DONE。
 3. TASK-006/TASK-007 只读预检已结束，对应 Scout 终端可关闭；ADR-007 提案等待产品负责人逐项批准或修改。
 4. ADR-007 获批后才创建 `TASK-005A` 任务卡；该共享切片必须在 TASK-006/TASK-007 worktree 之前整合为 `DONE`。
 5. TASK-006/007 写入实现及所有模型、服务、系统工具、媒体下载动作在对应门禁满足前继续不分配。
@@ -42,11 +42,12 @@
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 同步后立即启动 | TASK-005 Fourth Independent Reviewer | 全新 Codex Reviewer 独占 task-005 source worktree；只可写 handoff 并独立复跑离线门禁/探针 |
+| 同步后立即启动 | TASK-005 acceptance sync | Status Integrator 只写 4 个控制面 Markdown 文件；不得 merge 或写 source |
 | 已完成可关闭 | TASK-006/007 Read-only Scout | 预检已回传且仓库无变化；无需保持终端 |
 | 已完成可关闭 | TASK-005 第二次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 第三次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 Correction 3 Implementer | source 已提交 `abf2acb...`；不得与 Reviewer 并发写入 |
+| 已完成可关闭 | TASK-005 Fourth Independent Reviewer | evidence `d5268ef...` 为 `APPROVE`；不得修改代码或重新分配 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
 | 等待产品决定 | ADR-007 / 未来 TASK-005A | 不创建任务或 worktree；等待 L-01 至 L-15 批准 |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005、ADR-007 与共享契约切片 |
@@ -94,6 +95,7 @@
 - TASK-005 Correction 2 `f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f` 为 second review evidence 的单一非 merge 后继，精确修改 5 个允许文件；Implementer 记录 Reviewer 2 的独立反例先 RED 11 failed 后 GREEN，并自报 contracts 50、policy 30、integration 68、全量 234、两项 mypy、Ruff、CLI、offline build、包内容与固定 Diff 全 PASS。静态证据显示 reservation 已前移至目录枚举前、异常安全转换与 provenance 校验已加强；这不构成 Reviewer APPROVE，两个 P2 仍保留。
 - TASK-005 第三次独立 Codex Reviewer evidence `30c665181db77607648aa1a6fdbb1d5502b71d7d` 只修改 handoff，Verdict=`REJECT`：规定的 focused 50/30/68、全量 234、两项 mypy、Ruff、CLI、offline build、包内容和 Diff 均 PASS；Q2 reservation/CAS/终态/lease/2 秒恢复与 Q4 VTT/HTTP/安全回归 PASS，但 Q1/Q3/Q5 发现 3 个 P1。具体为公共 SubtitleAdapter 的敏感 message 与错误 stage/video 穿透 Service；raw source type/actual language 和 canonical rolling flag 可被自洽篡改后命中；500,000 name runs 与 200,000 空 language buckets 触发无界处理，原资源 P2 升级为 P1。Service 职责/私有 hook 聚合继续保留为单一 P2。
 - TASK-005 Correction 3 `abf2acba25f9732a9511ecd54c4b92ef6c0d68e1` 为 third review evidence 的单一非 merge 后继，精确修改 `transcripts.py`、`providers/subtitles.py`、integration tests 与 handoff 4 文件；Implementer 记录 Service 对 enumerate/read 的公共 Adapter 错误重建、成功 Provider-call/response Artifact/key/SHA 的 provenance binding 及第 1001/513 项的流式资源拒绝，并自报 contracts 50、policy 30、integration 77、全量 243、mypy/wiring、Ruff、CLI、offline build、包内容与固定 Diff 全 PASS。该证据尚未经第四次独立审查；Service/私有 hook 聚合 P2 仍保留。
+- TASK-005 第四次独立 Codex Reviewer evidence `d5268ef08b360e932b5dda9d0fb70d71b13587a4` 只修改 handoff，Verdict=`APPROVE`：独立复跑 lock/sync、focused 50/30/77、全量 243、mypy/wiring、Ruff、CLI、offline build、包内容与固定 Diff 全 PASS；P1 probe A 公共 Adapter 边界、B 可信 provenance、C streaming bounds 以及 Q2/Q4、AC-1 至 AC-5、ADR-006 T-01 至 T-15 全部 PASS。无 P0/P1/P3；Service/私有 test hook 聚合 P2 保留，不阻断验收或整合。真实网络、认证、媒体与 Vault 路径未运行且未授权。
 - `yt-dlp[default]` 的已批准必要传递依赖包含 `mutagen`（GPL-2.0-or-later）。本地开发/测试不阻断 TASK-004，但二进制或依赖捆绑分发前必须由 TASK-014 生成许可证清单并作出兼容分发决定。
 - TASK-004 将候选/游标提交与元数据成功解耦，并由 TASK-005 重查字幕轨道；Reviewer 需防止实现者为了复用外部工具而改变该边界。
 - TASK-004 首个实现将 `SAFE_YDL_OPTS`、`build_ydl_opts` 和含 `Mapping`/`dict` 的 Adapter helper 显式置入 `__all__`，且 `YtDlpMetadataProvider` 公开了 `last_opts: list[dict[str, Any]]` 注入/属性。首个修复 `10f5ffa...` 虽隐藏了这些注解，却仍保留非私有 `map_info_dict_to_video_metadata(info: object)` 以及公开的 `ydl_factory`/`last_opts` 注入参数；以 `object` 包装自由结构不符合修复包。第二轮修复 `9db800f...` 已移除残余公开 mapper 与所有公开测试钩子，改为私有 `_map_*` / `_bind_test_hooks`；主控静态核验其构造面、模块符号、修复 commit 的 4 文件范围和完整 17 文件范围均通过。独立 Reviewer 仍须重跑门禁并独立判断。
