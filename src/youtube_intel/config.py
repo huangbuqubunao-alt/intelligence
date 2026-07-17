@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Final, Literal, Self
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml  # type: ignore[import-untyped]
@@ -25,6 +26,7 @@ from pydantic import (
 _ENV_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED: Final = "[REDACTED]"
 _SENSITIVE_CONFIG_FIELDS: Final = frozenset({"api_key_env"})
+_LOOPBACK_HTTP_HOSTS: Final = frozenset({"127.0.0.1", "localhost", "::1"})
 # extra=forbid at every boundary; not strict so YAML ints may coerce to floats.
 _FROZEN: Final = ConfigDict(extra="forbid", frozen=True)
 
@@ -139,6 +141,37 @@ def _validate_env_var_name(value: str) -> str:
             "api_key_env must match [A-Za-z_][A-Za-z0-9_]* "
             "(environment variable name only; values are never stored)"
         )
+        raise ValueError(msg)
+    return value
+
+
+def _validate_loopback_http_base_url(value: str) -> str:
+    if not value or value != value.strip():
+        msg = "local_scoring.base_url must be a non-empty URL without surrounding whitespace"
+        raise ValueError(msg)
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        msg = "local_scoring.base_url must contain a valid loopback port"
+        raise ValueError(msg) from exc
+    if parsed.scheme != "http":
+        msg = "local_scoring.base_url must use http"
+        raise ValueError(msg)
+    if (
+        "@" in parsed.netloc
+        or parsed.hostname not in _LOOPBACK_HTTP_HOSTS
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        msg = (
+            "local_scoring.base_url must be a loopback http origin without "
+            "userinfo, path, query, or fragment"
+        )
+        raise ValueError(msg)
+    if port is not None and not 0 < port <= 65535:
+        msg = "local_scoring.base_url port must be in 1..65535"
         raise ValueError(msg)
     return value
 
@@ -314,6 +347,27 @@ class TimeoutSettings(_ConfigModel):
 
 class TranscriptionSettings(_ConfigModel):
     model: str = "mlx-community/whisper-large-v3-turbo"
+    model_revision: Literal["a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"] = (
+        "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+    )
+    model_weights_bytes: Literal[1_613_977_612] = 1_613_977_612
+    model_weights_sha256: Literal[
+        "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+    ] = "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+    parameter_policy_version: Literal["mlx-whisper-v1"] = "mlx-whisper-v1"
+    task: Literal["transcribe"] = "transcribe"
+    language_hint: str | None = None
+    temperature: float = 0.0
+    compression_ratio_threshold: float = 2.4
+    logprob_threshold: float = -1.0
+    no_speech_threshold: float = 0.6
+    condition_on_previous_text: Literal[True] = True
+    word_timestamps: Literal[False] = False
+    initial_prompt: None = None
+    fp16: Literal[True] = True
+    min_free_disk_gib: int = Field(default=8, gt=0)
+    min_available_memory_gib: int = Field(default=6, gt=0)
+    max_audio_bytes: int = Field(default=2_000_000_000, gt=0)
 
     @field_validator("model")
     @classmethod
@@ -323,18 +377,54 @@ class TranscriptionSettings(_ConfigModel):
             raise ValueError(msg)
         return value
 
+    @field_validator("language_hint")
+    @classmethod
+    def _language_hint(cls, value: str | None) -> str | None:
+        if value is not None and (not value or value != value.strip()):
+            msg = "transcription.language_hint must be None or a non-empty language tag"
+            raise ValueError(msg)
+        return value
+
+    @model_validator(mode="after")
+    def _fixed_decode_parameters(self) -> TranscriptionSettings:
+        if (
+            self.temperature != 0.0
+            or self.compression_ratio_threshold != 2.4
+            or self.logprob_threshold != -1.0
+            or self.no_speech_threshold != 0.6
+        ):
+            msg = "transcription decode parameters are fixed by mlx-whisper-v1"
+            raise ValueError(msg)
+        return self
+
 
 class LocalScoringSettings(_ConfigModel):
     model: str = Field(min_length=1)
+    base_url: str = "http://127.0.0.1:11434"
+    expected_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_output_tokens: int = Field(default=1200, gt=0)
-    max_transcript_chars: int = Field(default=30000, gt=0)
+    max_transcript_chars: int = Field(default=30000, ge=3)
+    max_description_chars: int = Field(default=4000, ge=0, le=20_000)
 
     @field_validator("model")
     @classmethod
     def _model(cls, value: str) -> str:
         if not value or value != value.strip():
             msg = "local_scoring.model must be a non-empty Ollama model identifier"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("base_url")
+    @classmethod
+    def _base_url(cls, value: str) -> str:
+        return _validate_loopback_http_base_url(value)
+
+    @field_validator("expected_model_digest")
+    @classmethod
+    def _expected_model_digest(cls, value: str) -> str:
+        if value != value.strip():
+            msg = "local_scoring.expected_model_digest must not contain surrounding whitespace"
             raise ValueError(msg)
         return value
 

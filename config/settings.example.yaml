@@ -29,12 +29,32 @@ timeouts:
 
 transcription:
   model: mlx-community/whisper-large-v3-turbo
+  model_revision: a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb
+  model_weights_bytes: 1613977612
+  model_weights_sha256: 951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6
+  parameter_policy_version: mlx-whisper-v1
+  task: transcribe
+  language_hint: null
+  temperature: 0.0
+  compression_ratio_threshold: 2.4
+  logprob_threshold: -1.0
+  no_speech_threshold: 0.6
+  condition_on_previous_text: true
+  word_timestamps: false
+  initial_prompt: null
+  fp16: true
+  min_free_disk_gib: 8
+  min_available_memory_gib: 6
+  max_audio_bytes: 2000000000
 
 local_scoring:
-  model: qwen2.5:14b
+  model: qwen3:8b
+  base_url: http://127.0.0.1:11434
+  expected_model_digest: sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41
   temperature: 0.0
   max_output_tokens: 1200
   max_transcript_chars: 30000
+  max_description_chars: 4000
 
 cloud:
   enabled: false

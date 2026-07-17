@@ -40,6 +40,7 @@ from youtube_intel.state import (
     ReportStatus,
     ReportWrite,
     RetentionClass,
+    ScoringSummaryWrite,
     SQLiteStateRepository,
     StorageRoot,
     VerifiedArtifact,
@@ -287,21 +288,24 @@ def _artifact(
     artifact_key: str = "video:video-1:metadata:v1",
     content_hash: str = HASH_A,
     job_id: str | None = None,
+    kind: ArtifactKind = ArtifactKind.TRANSCRIPT_CANONICAL,
+    retention_class: RetentionClass = RetentionClass.LONG_LIVED,
+    expires_at: datetime | None = None,
 ) -> ArtifactWrite:
     return ArtifactWrite(
         artifact_id=artifact_id,
         artifact_key=artifact_key,
         video_id="video-1",
         job_id=job_id,
-        kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+        kind=kind,
         storage_root=StorageRoot.DATA,
         relative_path="transcripts/video-1.txt",
         content_hash=content_hash,
         provider="fake-provider",
         model=None,
         producer_version="v1",
-        retention_class=RetentionClass.LONG_LIVED,
-        expires_at=None,
+        retention_class=retention_class,
+        expires_at=expires_at,
     )
 
 
@@ -1184,6 +1188,274 @@ def test_stage_completion_failure_rolls_back_every_write(
     assert repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
     assert repository.get_job("stage-job").status is JobStatus.RUNNING
     assert repository.list_job_attempts("stage-job")[0].finished_at is None
+
+
+def test_scoring_stage_requires_summary_and_commits_it_atomically(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    repository.create_job(
+        job_id="scoring-job",
+        scope_key="video:video-1:SCORING",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.SCORING,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW,
+        now=NOW,
+    )
+    artifact = _artifact(
+        artifact_id="scoring-artifact",
+        artifact_key="video:video-1:scoring-structured:v1",
+        job_id="scoring-job",
+        kind=ArtifactKind.SCORING_STRUCTURED,
+    )
+
+    with pytest.raises(IntegrityConflict, match="scoring summary"):
+        repository.complete_stage(
+            job_id="scoring-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.TRANSCRIPT_READY,
+            target_status=PipelineStatus.SCORED,
+            pipeline_version="pipeline-v1",
+            artifacts=(artifact,),
+            provider_call=None,
+            now=NOW + td(minutes=1),
+        )
+    assert repository.get_video("video-1").score is None
+    assert repository.get_job("scoring-job").status is JobStatus.RUNNING
+
+    result = repository.complete_stage(
+        job_id="scoring-job",
+        owner="worker-1",
+        video_id="video-1",
+        expected_status=PipelineStatus.TRANSCRIPT_READY,
+        target_status=PipelineStatus.SCORED,
+        pipeline_version="pipeline-v1",
+        artifacts=(artifact,),
+        provider_call=ProviderCallCompletion(
+            request_hash=REQUEST_HASH,
+            response_artifact_id=artifact.artifact_id,
+            input_tokens=12,
+            output_tokens=4,
+            cost_microusd=50,
+        ),
+        now=NOW + td(minutes=1),
+        scoring_summary=ScoringSummaryWrite(score=7.5, should_summarize=True),
+    )
+
+    assert result.job.status is JobStatus.SUCCEEDED
+    assert result.video.pipeline_status is PipelineStatus.SCORED
+    assert result.video.score == 7.5
+    assert result.video.should_summarize is True
+    assert result.provider_call is not None
+    assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
+
+
+def test_non_scoring_stage_rejects_a_scoring_summary(tmp_path: Path) -> None:
+    repository = _repository_with_video(tmp_path)
+    _create_video_job(repository, job_id="metadata-job")
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+
+    with pytest.raises(IntegrityConflict, match="scoring summary"):
+        repository.complete_stage(
+            job_id="metadata-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.DISCOVERED,
+            target_status=PipelineStatus.METADATA_READY,
+            pipeline_version="pipeline-v1",
+            artifacts=(),
+            provider_call=None,
+            now=NOW + td(minutes=1),
+            scoring_summary=ScoringSummaryWrite(score=7.5, should_summarize=True),
+        )
+    assert repository.get_video("video-1").score is None
+    assert repository.get_job("metadata-job").status is JobStatus.RUNNING
+
+
+def test_scoring_summary_failure_rolls_back_every_stage_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="pipeline-v1",
+        now=NOW,
+    )
+    repository.create_job(
+        job_id="scoring-job",
+        scope_key="video:video-1:SCORING",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.SCORING,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    repository.claim_next_job(
+        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
+    )
+    repository.reserve_provider_call(
+        _provider_request(),
+        owner="worker-1",
+        lease_until=NOW + td(minutes=10),
+        available_at=NOW,
+        now=NOW,
+    )
+    artifact = _artifact(
+        artifact_id="scoring-artifact",
+        artifact_key="video:video-1:scoring-structured:v1",
+        job_id="scoring-job",
+        kind=ArtifactKind.SCORING_STRUCTURED,
+    )
+
+    def fail_after_scoring_summary(point: str) -> None:
+        if point == "stage.after_scoring_summary":
+            raise RuntimeError("injected scoring summary failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_after_scoring_summary)
+    with pytest.raises(RuntimeError, match="injected scoring summary failure"):
+        repository.complete_stage(
+            job_id="scoring-job",
+            owner="worker-1",
+            video_id="video-1",
+            expected_status=PipelineStatus.TRANSCRIPT_READY,
+            target_status=PipelineStatus.SCORED,
+            pipeline_version="pipeline-v1",
+            artifacts=(artifact,),
+            provider_call=ProviderCallCompletion(
+                request_hash=REQUEST_HASH,
+                response_artifact_id=artifact.artifact_id,
+                input_tokens=12,
+                output_tokens=4,
+                cost_microusd=50,
+            ),
+            now=NOW + td(minutes=1),
+            scoring_summary=ScoringSummaryWrite(score=7.5, should_summarize=True),
+        )
+
+    assert repository.get_artifact_by_key(artifact.artifact_key) is None
+    assert repository.get_provider_call(REQUEST_HASH).status is ProviderCallStatus.PENDING
+    video = repository.get_video("video-1")
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert video.score is None
+    assert video.should_summarize is None
+    assert repository.get_job("scoring-job").status is JobStatus.RUNNING
+
+
+def test_artifact_deletion_cas_and_expiry_listing_are_index_only(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    earlier = repository.upsert_artifact(
+        _artifact(
+            artifact_id="expired-z",
+            artifact_key="video:video-1:audio:expired-z",
+            kind=ArtifactKind.AUDIO,
+            retention_class=RetentionClass.EPHEMERAL_AUDIO,
+            expires_at=NOW - td(days=2),
+        ),
+        now=NOW,
+    )
+    later = repository.upsert_artifact(
+        _artifact(
+            artifact_id="expired-a",
+            artifact_key="video:video-1:audio:expired-a",
+            content_hash=HASH_B,
+            kind=ArtifactKind.AUDIO,
+            retention_class=RetentionClass.EPHEMERAL_AUDIO,
+            expires_at=NOW - td(days=1),
+        ),
+        now=NOW,
+    )
+    repository.upsert_artifact(
+        _artifact(
+            artifact_id="unexpired",
+            artifact_key="video:video-1:audio:unexpired",
+            content_hash="c" * 64,
+            kind=ArtifactKind.AUDIO,
+            retention_class=RetentionClass.EPHEMERAL_AUDIO,
+            expires_at=NOW + td(days=1),
+        ),
+        now=NOW,
+    )
+
+    expired = repository.list_expired_artifacts(
+        RetentionClass.EPHEMERAL_AUDIO,
+        now=NOW,
+        limit=10,
+    )
+    assert tuple(record.artifact_id for record in expired) == ("expired-z", "expired-a")
+    assert repository.list_expired_artifacts(
+        RetentionClass.EPHEMERAL_AUDIO,
+        now=NOW,
+        limit=1,
+    ) == (earlier,)
+    assert not repository.mark_artifact_deleted(
+        earlier.artifact_id,
+        expected_content_hash=HASH_B,
+        now=NOW,
+    )
+    assert not repository.mark_artifact_deleted(
+        "unknown-artifact",
+        expected_content_hash=HASH_A,
+        now=NOW,
+    )
+    assert repository.mark_artifact_deleted(
+        earlier.artifact_id,
+        expected_content_hash=HASH_A,
+        now=NOW,
+    )
+    assert not repository.mark_artifact_deleted(
+        earlier.artifact_id,
+        expected_content_hash=HASH_A,
+        now=NOW + td(minutes=1),
+    )
+    assert repository.list_expired_artifacts(
+        RetentionClass.EPHEMERAL_AUDIO,
+        now=NOW,
+        limit=10,
+    ) == (later,)
 
 
 def test_weekly_report_upsert_uses_stable_period_and_transaction(

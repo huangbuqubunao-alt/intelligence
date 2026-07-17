@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -303,6 +304,27 @@ class ProviderCallCompletion:
     input_tokens: int | None
     output_tokens: int | None
     cost_microusd: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringSummaryWrite:
+    """Final application decision persisted only with SCORING stage completion."""
+
+    score: float
+    should_summarize: bool
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.score, bool)
+            or not isinstance(self.score, (int, float))
+            or not math.isfinite(self.score)
+            or not 0 <= self.score <= 10
+        ):
+            msg = "score must be a finite value in 0..10"
+            raise ValueError(msg)
+        if not isinstance(self.should_summarize, bool):
+            msg = "should_summarize must be a bool"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1759,6 +1781,70 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def mark_artifact_deleted(
+        self,
+        artifact_id: str,
+        expected_content_hash: str,
+        now: datetime,
+    ) -> bool:
+        """Record an already-performed file deletion with hash compare-and-swap.
+
+        The repository never deletes a file. Callers must verify storage-root and
+        filesystem boundaries before invoking this index-only confirmation.
+        """
+
+        _validate_sha256(expected_content_hash, field_name="expected_content_hash")
+        if not artifact_id.strip():
+            msg = "artifact_id must be non-empty"
+            raise ValueError(msg)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE artifacts SET deleted_at = :now "
+                    "WHERE artifact_id = :artifact_id "
+                    "AND content_hash = :content_hash AND deleted_at IS NULL",
+                    {
+                        "now": format_utc_datetime(now),
+                        "artifact_id": artifact_id,
+                        "content_hash": expected_content_hash,
+                    },
+                ).rowcount
+                return changed == 1
+        finally:
+            connection.close()
+
+    def list_expired_artifacts(
+        self,
+        retention_class: RetentionClass,
+        now: datetime,
+        limit: int,
+    ) -> tuple[ArtifactRecord, ...]:
+        """Return registered, undeleted expired artifacts in stable cleanup order."""
+
+        if limit <= 0:
+            msg = "limit must be positive"
+            raise ValueError(msg)
+        now_text = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM artifacts "
+                "WHERE retention_class = :retention_class "
+                "AND expires_at IS NOT NULL AND expires_at <= :now "
+                "AND deleted_at IS NULL "
+                "ORDER BY expires_at ASC, created_at ASC, artifact_id ASC "
+                "LIMIT :limit",
+                {
+                    "retention_class": retention_class.value,
+                    "now": now_text,
+                    "limit": limit,
+                },
+            ).fetchall()
+            return tuple(self._artifact_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
     @staticmethod
     def _provider_request_matches(
         row: sqlite3.Row, request: ProviderCallRequest
@@ -2149,8 +2235,19 @@ class SQLiteStateRepository:
         artifacts: tuple[ArtifactWrite, ...],
         provider_call: ProviderCallCompletion | None,
         now: datetime,
+        scoring_summary: ScoringSummaryWrite | None = None,
     ) -> StageCompletionResult:
         transition_pipeline(expected_status, target_status)
+        is_scoring_completion = (
+            expected_status is PipelineStatus.TRANSCRIPT_READY
+            and target_status is PipelineStatus.SCORED
+        )
+        if is_scoring_completion and scoring_summary is None:
+            msg = "scoring summary is required for TRANSCRIPT_READY -> SCORED"
+            raise IntegrityConflict(msg)
+        if not is_scoring_completion and scoring_summary is not None:
+            msg = "scoring summary is only allowed for TRANSCRIPT_READY -> SCORED"
+            raise IntegrityConflict(msg)
         expected_stage = _processing_stage_for_transition(
             expected_status, target_status
         )
@@ -2206,24 +2303,47 @@ class SQLiteStateRepository:
                         }
                         else None
                     )
-                    changed = connection.execute(
-                        "UPDATE videos SET pipeline_status = :target_status, "
-                        "updated_at = :now, completed_at = :completed_at "
-                        "WHERE video_id = :video_id "
-                        "AND pipeline_status = :expected_status "
-                        "AND pipeline_version = :pipeline_version",
-                        {
-                            "target_status": target_status.value,
-                            "now": now_text,
-                            "completed_at": completed_at,
-                            "video_id": video_id,
-                            "expected_status": expected_status.value,
-                            "pipeline_version": pipeline_version,
-                        },
-                    ).rowcount
+                    if scoring_summary is None:
+                        changed = connection.execute(
+                            "UPDATE videos SET pipeline_status = :target_status, "
+                            "updated_at = :now, completed_at = :completed_at "
+                            "WHERE video_id = :video_id "
+                            "AND pipeline_status = :expected_status "
+                            "AND pipeline_version = :pipeline_version",
+                            {
+                                "target_status": target_status.value,
+                                "now": now_text,
+                                "completed_at": completed_at,
+                                "video_id": video_id,
+                                "expected_status": expected_status.value,
+                                "pipeline_version": pipeline_version,
+                            },
+                        ).rowcount
+                    else:
+                        changed = connection.execute(
+                            "UPDATE videos SET pipeline_status = :target_status, "
+                            "score = :score, should_summarize = :should_summarize, "
+                            "updated_at = :now, completed_at = :completed_at "
+                            "WHERE video_id = :video_id "
+                            "AND pipeline_status = :expected_status "
+                            "AND pipeline_version = :pipeline_version",
+                            {
+                                "target_status": target_status.value,
+                                "score": scoring_summary.score,
+                                "should_summarize": int(
+                                    scoring_summary.should_summarize
+                                ),
+                                "now": now_text,
+                                "completed_at": completed_at,
+                                "video_id": video_id,
+                                "expected_status": expected_status.value,
+                                "pipeline_version": pipeline_version,
+                            },
+                        ).rowcount
                     if changed != 1:
                         msg = "pipeline changed before stage completion"
                         raise ConcurrencyConflict(msg)
+                    self._inject_failure("stage.after_scoring_summary")
                     self._inject_failure("stage.after_pipeline")
                     job = self._finish_job_success_in_transaction(
                         connection, job_id=job_id, owner=owner, now=now_text
