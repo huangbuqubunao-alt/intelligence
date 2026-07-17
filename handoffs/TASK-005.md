@@ -1610,6 +1610,72 @@ nonretryable `INVALID_RESPONSE`。
   Artifact ID、deterministic key、provenance ID 和文件 SHA 完成可信 binding，无需
   Schema/T-13 升级。
 
+## 第四次独立 Codex Reviewer 结论
+
+- Reviewer agent/session：Codex，2026-07-17 全新独立第四次 Reviewer 会话
+- Reviewed Correction 3 head：`abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`
+- Correction 3 parent：`30c665181db77607648aa1a6fdbb1d5502b71d7d`
+- Implementation base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
+- Review evidence commit：本节所在提交；SHA 由提交后回传。
+
+### 授权、父链与范围门禁
+
+- main 位于动态 authorization `f571470d80b1d5805b77960591e7549eae86fe48`，其唯一父提交为要求的 `d783f705bd749b9e691456fd85f8af1635d9f32f`；main 开审及提交前均干净。
+- source 开审时精确为 `codex/task-005-subtitle-pipeline@abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`，唯一父提交为 `30c665181db77607648aa1a6fdbb1d5502b71d7d`，且干净。身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- 原实现、三个 review/correction 链均为预期单父提交；`30c665...` 只修改 handoff。Correction 3 Diff 精确为 `handoffs/TASK-005.md`、`src/youtube_intel/providers/subtitles.py`、`src/youtube_intel/transcripts.py`、`tests/integration/test_subtitle_provider.py`。
+- 完整 base...Correction 3 产品 Diff 仍精确为批准的 8 个路径组/11 个文件。`domain.py`、contracts test、`state.py`、migration、`complete_stage`、配置、CLI、discovery/youtube Adapter、`pyproject.toml` 与 `uv.lock` 未被 Correction 3 修改；后两者相对 base 字节未变。
+- 未发现真实数据、凭证、Cookie、媒体、数据库、cache 或构建产物；`git diff --check b28f52d...abf2acb...` 通过。离线构建后确认 sdist 与 wheel 都包含 `migrations/001_initial.sql`、`transcripts.py`、`providers/subtitles.py`；只删除本轮 ignored `dist/`。
+
+### 规定命令复跑
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS：Resolved 34 packages |
+| `uv sync --locked` | PASS：Checked 30 packages |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS：50 passed |
+| `uv run python -m pytest tests/unit/test_subtitle_policy.py` | PASS：30 passed |
+| `uv run python -m pytest tests/integration/test_subtitle_provider.py` | PASS：77 passed |
+| `uv run python -m pytest` | PASS：243 passed |
+| `uv run mypy src` | PASS：9 source files，无问题 |
+| `env MYPYPATH=src uv run mypy -c '<SQLite wiring>'` | PASS：真实 `SQLiteStateRepository` 静态满足 `TranscriptRepository` |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS：sdist + wheel，内容核验通过 |
+
+### P1 独立关闭探针
+
+#### A. 公共 Adapter 不可信边界 — PASS
+
+在真实临时 SQLite/Service 路径中实现两个独立 hostile public Adapter：一个在 `enumerate_tracks`，一个在 `read_track` 抛出 `RATE_LIMITED`。两者包含新的 marker、临时 URL、绝对路径、错误 `video_id/stage`，并嵌套 cause/context。递归检查外层异常图的 message、args、属性、cause/context 后确认：只保留 `RATE_LIMITED/retryable/retry-after=19`；结果强制为当前 `video123`/`TRANSCRIPT` 与固定安全消息；marker、URL、路径和底层异常均不可达，新的 `TranscriptError.__cause__`、`__context__` 均为 `None`。代码位于 `transcripts.py:776-811`、`:1468-1535`。
+
+#### B. 可信 provenance，而非 token 自洽 — PASS
+
+以真实临时 SQLite 的成功 raw/canonical cache 为起点，单独篡改 `provider_calls.response_artifact_id` 为伪造值，然后使用会失败的零网络 Adapter。Service 在 `transcripts.py:1437-1466` 的成功 Provider-call/response Artifact/deterministic-key 验证处拒绝该对象：零枚举、零正文读取、nonretryable `LOCAL_RESOURCE`，当前 Job 保持 `RUNNING`、Pipeline 保持 `METADATA_READY`。静态复核还确认 raw provenance ID 绑定 source type、requested/actual language、format、raw hash、provider 与 producer；canonical provenance ID 绑定 raw Artifact/哈希、版本、quality flags、provider/model 与 canonical hash（`:867-934`、`:1916-2054`）。普通 verified hit、raw→canonical rebuild、canonical-only rebuild、第二次稳定 hit 和 refresh 均由全量 integration suite 覆盖并通过，旧 Artifact 不重绑定。
+
+#### C. 流式 metadata 边界与提前停止 — PASS
+
+使用不同的自定义 `Sequence`/`Mapping`，其在越界后的下一元素访问时抛异常。name 的 1,000 runs/code points 精确通过；1,001 个非空及空 runs 都仅消费 1,001 个元素后以 nonretryable `INVALID_RESPONSE` 停止，未访问后续元素。空 language buckets 的 512 边界通过；第 513 个被消费后立即失败且未迭代第 514 个。代码 `providers/subtitles.py:287-368` 使用受限 `StringIO` 累积，`:378-492` 对 manual/automatic 共享 bucket 计数；迭代/结构错误在 opener 前安全 fail-closed。
+
+### 已关闭路径、AC、ADR 与五轴复核
+
+- Q2：pre-enumeration CAS reservation、终态重放、lease 释放、默认 2 秒恢复、verified cache 空 Artifact completion 均由全量 integration tests 与 5 个定向 SQLite/恢复回归通过。
+- Q4：VTT speaker/cue、真实 `HTTPMessage` 短读/Content-Length、危险 redirect、response close 与 yt-dlp 安全 options 均由 integration suite 与定向回归通过。
+- AC-1 至 AC-5：PASS。ADR-006 T-01 至 T-15：PASS。特别是 T-10 的缓存/文件恢复、T-11 的错误边界和 T-13 的可验证 provenance 均有上列独立证据。
+- correctness：PASS；readability：P2（`SubtitleAcquisitionService` 仍聚合编排、缓存与 Provider 状态）；architecture：PASS；security：PASS；performance：PASS（runs/buckets 已在首个越界处停止，无完整嵌套输入复制）。
+- TASK-006 最终公共契约复核：PASS。`TranscriptProvider.fetch` 仍返回 `TranscriptReady | TranscriptionRequired`；17-field `TranscriptArtifact`、3 个 formats、3 个 quality flags、3 个 transcription reasons 与既有 8 个 `ErrorCode` 未回归。
+
+### Findings、范围与 verdict
+
+- P0：无。
+- P1：无。
+- P2：`SubtitleAcquisitionService` 的职责聚合及 integration tests 对既有私有 hook 的依赖仍是维护性风险；本轮未观察到由此导致的新 cleanup、安全、正确性或资源缺陷。
+- P3：无。
+- Scope/red-line/reuse：PASS。仅使用既有 yt-dlp/标准库；无依赖、Schema、认证、真实网络、媒体、Vault 或许可证范围扩张。`imlewc/...` 仍仅为 REFERENCE，`youtube-transcript-api` 仍为 DEFER，既有 mutagen GPL 分发门禁继续由 TASK-014 跟踪。
+- Skipped checks：真实 YouTube/字幕、RSS、Cookie/登录/`.netrc`、remote components、ffmpeg、媒体、真实 Vault 和密钥均未运行，因为未获授权；规定离线门禁无跳过。
+- Remaining risks：真实上游 payload/URL 漂移待 TASK-013；复杂非标准字幕仍保守 fail-closed；上述 P2 与 mutagen 分发门禁不阻断本审查。
+- Decision needed：None。
+- Verdict：`APPROVE`。
+
 ## 主控验收
 
 - Orchestrator：
