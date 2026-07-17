@@ -1678,14 +1678,14 @@ nonretryable `INVALID_RESPONSE`。
 
 ## 主控验收
 
-- Orchestrator：
-- Verdict：`ACCEPT | REJECT`
-- 依据：
-- 批准整合的 commit：
+- Orchestrator：Codex
+- Verdict：`ACCEPT`
+- 依据：第四次独立 Codex Reviewer evidence `d5268ef08b360e932b5dda9d0fb70d71b13587a4` 为 `APPROVE`，P0/P1=0；独立复跑 focused 50/30/77、全量 243、mypy/wiring、Ruff、CLI、offline build、包内容、P1 A/B/C、Q2/Q4、AC-1 至 AC-5 与 ADR-006 T-01 至 T-15 全 PASS。Service/私有 test hook 聚合 P2 记录为非阻断风险。
+- 批准整合的 commit：`d5268ef08b360e932b5dda9d0fb70d71b13587a4`
 
 ## 整合结果
 
-- Integrator：
-- 主线 commit：
-- 整合后检查：
-- 最终状态：`DONE | BLOCKED`
+- Integrator：Codex Product Integrator
+- 主线 commit：`cfc302ddc41cd908777f49de292327640b6f8314`
+- 整合后检查：merge parents 为 `1e5e5f8ade1a9566e6ee32b6d720cbcc94f03bc8` 与 `d5268ef08b360e932b5dda9d0fb70d71b13587a4`；first-parent Diff 精确为 11 个批准文件；lock/sync、focused 50/30/77、全量 243、mypy、SQLite wiring、Ruff、CLI、offline build 与 migration/字幕模块 package inclusion 全 PASS。
+- 最终状态：`DONE`

@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第四次全新独立审查 `APPROVE`；Product Integrator 已授权但未启动）
+- Reviewer: `Codex`（第四次全新独立审查 `APPROVE`；Product Integrator 已完成整合）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -263,3 +263,11 @@
 - Integrator 必须验证 first-parent Diff 精确为原批准的 11 个文件、依赖/锁未变、sdist/wheel 包含 migration 与字幕模块，并保留 source 分支/worktree。
 - Integrator 不得实现、重审、修复 P2、修改任务状态、push 或清理；合并后状态仍为 `ACCEPTED`，只有独立 closure 同步才可设为 DONE。
 - Product Integrator packet：`agent-prompts/TASK-005-INTEGRATOR.md`。TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。
+
+## 整合结果与关闭
+
+- Merge commit：`cfc302ddc41cd908777f49de292327640b6f8314`
+- Merge parents：`1e5e5f8ade1a9566e6ee32b6d720cbcc94f03bc8`、`d5268ef08b360e932b5dda9d0fb70d71b13587a4`
+- Product Integrator 确认 first-parent Diff 精确为批准的 11 个文件，`pyproject.toml`/`uv.lock` 无差异；整合后 lock/sync、focused 50/30/77、全量 243、mypy、SQLite wiring、Ruff、CLI、offline build 与 migration/字幕模块 package inclusion 全 PASS。
+- source 分支/worktree 保留且干净；未 push、未清理，无意外文件。TASK-005 关闭为 `DONE`。
+- 非阻断 P2（Service 职责/私有 test hook 聚合）、上游字幕 payload 漂移、真实网络/认证/媒体/Vault 未授权和 mutagen 分发许可证门禁继续由后续任务/发布门禁跟踪。TASK-006/TASK-007 仍为 `BLOCKED/UNASSIGNED`，等待 ADR-007 与 TASK-005A。
