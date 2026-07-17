@@ -2,7 +2,7 @@
 
 - Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第四次全新独立审查 `APPROVE`；等待 Product Integrator）
+- Reviewer: `Codex`（第四次全新独立审查 `APPROVE`；Product Integrator 已授权但未启动）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -256,3 +256,10 @@
 - P1 probe A 公共 Adapter 边界、B 可信 provenance、C streaming bounds 全部 PASS；此前 Q2/Q4、AC-1 至 AC-5 与 ADR-006 T-01 至 T-15 全部 PASS。
 - Verdict：`APPROVE`；P0=0、P1=0、P2=1、P3=0。唯一 P2 为 Service 职责/私有 test hook 聚合，非阻断但必须在交接与发布门禁中保持可见。
 - 主控验收为 `ACCEPTED`，仅允许后续 Product Integrator 整合 source evidence；尚未合并或关闭为 DONE。TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。
+
+## Product Integrator 授权
+
+- 已验收 source evidence 固定为 `d5268ef08b360e932b5dda9d0fb70d71b13587a4`；仅允许无冲突 `--no-ff --no-commit` 合并后重跑受影响离线门禁。
+- Integrator 必须验证 first-parent Diff 精确为原批准的 11 个文件、依赖/锁未变、sdist/wheel 包含 migration 与字幕模块，并保留 source 分支/worktree。
+- Integrator 不得实现、重审、修复 P2、修改任务状态、push 或清理；合并后状态仍为 `ACCEPTED`，只有独立 closure 同步才可设为 DONE。
+- Product Integrator packet：`agent-prompts/TASK-005-INTEGRATOR.md`。TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。

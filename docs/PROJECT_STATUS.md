@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-17
-- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕第四次独立审查 APPROVE，等待验收同步与产品整合
+- 当前阶段：Phase 1 — 状态、发现与元数据主链已完成；字幕已 ACCEPTED，等待 Product Integrator 整合
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`，固定 base `b28f52d...`）；TASK-001 至 TASK-004 worktree 仅保留审计证据，不是当前写入目标
-- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 第四次独立 Reviewer evidence `d5268ef08b360e932b5dda9d0fb70d71b13587a4` 为 `APPROVE`，等待主控验收同步与 Product Integrator
+- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 已验收为 `ACCEPTED`，source evidence 为 `d5268ef08b360e932b5dda9d0fb70d71b13587a4`，等待已授权的 Product Integrator
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -32,8 +32,8 @@
 
 ## 下一步
 
-1. Status Integrator 同步 TASK-005=`ACCEPTED`，不执行 merge 或关闭。
-2. 验收同步后即时生成 Product Integrator 包，以 source `d5268ef...` 合并并重跑受影响的离线门禁；通过后再关闭为 DONE。
+1. Status Integrator 同步 Product Integrator 包；不执行 merge 或关闭。
+2. Product Integrator 从 source `d5268ef...` 无冲突合并并重跑受影响的离线门禁；通过后仍需单独 closure 同步为 DONE。
 3. TASK-006/TASK-007 只读预检已结束，对应 Scout 终端可关闭；ADR-007 提案等待产品负责人逐项批准或修改。
 4. ADR-007 获批后才创建 `TASK-005A` 任务卡；该共享切片必须在 TASK-006/TASK-007 worktree 之前整合为 `DONE`。
 5. TASK-006/007 写入实现及所有模型、服务、系统工具、媒体下载动作在对应门禁满足前继续不分配。
@@ -42,12 +42,13 @@
 
 | 分组 | 工作 | 写入权限 |
 |---|---|---|
-| 同步后立即启动 | TASK-005 acceptance sync | Status Integrator 只写 4 个控制面 Markdown 文件；不得 merge 或写 source |
+| 同步后立即启动 | TASK-005 integrator-packet sync | Status Integrator 只写 5 个控制面 Markdown 文件；不得 merge 或写 source |
 | 已完成可关闭 | TASK-006/007 Read-only Scout | 预检已回传且仓库无变化；无需保持终端 |
 | 已完成可关闭 | TASK-005 第二次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 第三次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 Correction 3 Implementer | source 已提交 `abf2acb...`；不得与 Reviewer 并发写入 |
 | 已完成可关闭 | TASK-005 Fourth Independent Reviewer | evidence `d5268ef...` 为 `APPROVE`；不得修改代码或重新分配 |
+| 等待同步后启动 | TASK-005 Product Integrator | main 的唯一写入者；只合并 accepted source 并重跑离线门禁 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
 | 等待产品决定 | ADR-007 / 未来 TASK-005A | 不创建任务或 worktree；等待 L-01 至 L-15 批准 |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005、ADR-007 与共享契约切片 |
