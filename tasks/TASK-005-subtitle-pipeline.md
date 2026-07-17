@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第一次、第二次、第三次独立审查均 `REJECT`；Correction 3 完成后再分配第四个全新独立会话）
+- Reviewer: `Codex`（第四次全新独立会话待启动；前三次独立审查均 `REJECT`）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -235,3 +235,14 @@
   可信 provenance，必须按 ADR-006 T-13 报 `DECISION NEEDED`，不得自行加 Schema。
 - 任务退回 `IN_PROGRESS`。Correction 3 提交前不得启动第四个 Reviewer；TASK-006/
   TASK-007 继续 `BLOCKED/UNASSIGNED`。
+
+## Correction 3 实现证据与第四次审查
+
+- Correction commit：`abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`
+- Parent：`30c665181db77607648aa1a6fdbb1d5502b71d7d`
+- Correction 为单一非 merge 后继，精确修改 `transcripts.py`、`providers/subtitles.py`、integration tests 与 handoff 4 个允许文件；完整产品范围仍为原批准的 11 个文件，依赖/锁未变。
+- Implementer 记录三个 P1 的 RED/GREEN：Service 对 enumerate/read 公共 Adapter 边界重建安全错误并强制当前 video/stage；verified cache 绑定成功 Provider-call、response Artifact、确定性 key、provenance ID 与 SHA；name runs/buckets 使用流式计数并在第 1001/513 项提前拒绝。
+- Implementer 自报 contracts 50、policy 30、integration 77、全量 243、mypy、SQLite wiring、Ruff、CLI、lock/sync、offline build、包内容与固定 Diff 全 PASS；这些结论不构成独立验收。
+- 既有 Service/私有 hook 聚合 P2 未宣称关闭；第四次 Reviewer 必须重新判断其严重性，且不得仅按测试数量或行数给出 Verdict。
+- 第四次 Reviewer packet：`agent-prompts/TASK-005-REVIEWER-4-CODEX.md`。Reviewer 必须为全新独立 Codex 会话，仅可向 source handoff 追加 evidence，复跑三个 P1 探针、此前 Q2/Q4、AC-1 至 AC-5、ADR-006 T-01 至 T-15 和五轴审查。
+- TASK-005 当前为 `IN_REVIEW`，未 ACCEPTED/DONE；TASK-006/TASK-007 继续 `BLOCKED/UNASSIGNED`。
