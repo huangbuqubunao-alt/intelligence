@@ -1,9 +1,9 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `Codex`（全新独立会话，固定实现 SHA 后审查）
-- Owner role: Codex Independent Reviewer
+- Reviewer: `Codex`（Correction 1 提交后由全新独立会话审查）
+- Owner role: Codex Implementer（Correction 1）
 - Size: M
 - Risk: High
 - Depends on: TASK-005
@@ -134,3 +134,20 @@
   测试、依赖、锁文件、任务状态或 main。
 - Reviewer packet：`agent-prompts/TASK-005A-REVIEWER-CODEX.md`；其 main 动态授权
   必须由本次控制面同步 commit 解析。独立审查通过前不得设为 `ACCEPTED`、整合或关闭。
+
+## 第一轮审查拒绝与 Correction 1
+
+- Reviewer evidence：`3cec2d6a7b60b11912c10e714dc1473197d7374f`，唯一父提交为原实现
+  `85cd5362460044773317a48cbaae58e55aa735af`，且只修改 source handoff。
+- Verdict：`REJECT`。P1：四个新增公开 Pydantic 领域对象可被
+  `model_copy(update=...)` 在不经字段/模型验证下构造成非法 `TranscriptSample`、
+  hash 不匹配 `ScoringInput`、错误类型 `ScoringDecision` 与违背 `score >= threshold`
+  的 `ScoringOutcome`，阻断 AC-2 与 ADR-007 L-03/L-05/L-06。
+- 已独立通过：所有离线门禁，Probe A（配置）、C（SQLite 原子性）和 D（Artifact
+  index）。拒绝只针对该 P1；不重开后续模型、服务、媒体或文件删除边界。
+- Correction 1 source scope：只能修改 `src/youtube_intel/domain.py`、
+  `tests/unit/test_contracts.py` 和 `handoffs/TASK-005A.md`。它必须使公开 functional
+  update 重新验证或拒绝未验证 update，并为全部四个对象加入回归；不得把行为改动扩展
+  到既有非本任务领域对象、Schema、依赖、锁文件或其他产品路径。
+- Correction packet：`agent-prompts/TASK-005A-CORRECTION-1-CODEX.md`。修复提交后
+  必须再次获得全新独立 Codex Reviewer 审查；不得直接验收、整合或关闭。
