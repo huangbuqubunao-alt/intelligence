@@ -1,8 +1,8 @@
 # TASK-005：字幕获取与规范化
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `Codex`（第一次、第二次独立审查均 `REJECT`；第三个全新独立会话已授权但尚未启动）
+- Reviewer: `Codex`（第一次、第二次、第三次独立审查均 `REJECT`；Correction 3 完成后再分配第四个全新独立会话）
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
@@ -205,3 +205,33 @@
   fixture、依赖、锁文件、main 或任务状态。
 - 任务状态为 `IN_REVIEW`，未 ACCEPTED/DONE；TASK-006/TASK-007 继续
   `BLOCKED/UNASSIGNED`。
+
+## 第三次独立审查结果与 Correction 3
+
+- Review evidence：
+  `30c665181db77607648aa1a6fdbb1d5502b71d7d`
+- Parent：
+  `f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f`
+- Review commit 只修改 `handoffs/TASK-005.md`，source/main 均干净。
+- 规定门禁全部通过：focused 50/30/68、全量 234、两项 mypy、Ruff、CLI、
+  offline build、包内容、lock/sync 与固定 Diff check。
+- Verdict：`REJECT`；P0=0、P1=3、P2=1、P3=0。
+- 已独立关闭并须保持回归：Q2 pre-enumeration reservation/CAS、终态重放、lease
+  释放和 2 秒恢复；Q4 VTT、HTTPMessage、字段边界、redirect 与安全 options。
+- 未关闭/新 P1：
+  1. 公开 `SubtitleAdapter` 的敏感 message、错误 stage/video 可穿透 Service；
+  2. raw `source_type`/仍可匹配的 `actual_language` 和 canonical
+     `ROLLING_CUES_DEDUPED` token 可被自洽篡改后命中并推进；
+  3. 500,000 name runs 全量复制后才拒绝，200,000 空 language buckets 绕过
+     512-track 上限；原资源 P2 已升级为 P1。
+- P2：Service/文件/cache/Provider 状态职责与 integration tests 私有 hook 聚合；
+  不单独扩大本轮范围，但不得因 Correction 继续恶化。
+- Correction 3 packet：`agent-prompts/TASK-005-CORRECTION-3-CODEX.md`。
+- Correction 3 从 `30c6651...` 创建新的非 merge commit，继续由原 Codex
+  Implementer 执行；只允许 `transcripts.py`、`providers/subtitles.py`、
+  policy/integration tests、subtitle fixtures 与 handoff。
+- 不修改 `domain.py`、contracts test、`state.py`、Schema/migration、
+  `complete_stage`、配置、CLI、`pyproject.toml` 或 `uv.lock`。若现有字段无法实现
+  可信 provenance，必须按 ADR-006 T-13 报 `DECISION NEEDED`，不得自行加 Schema。
+- 任务退回 `IN_PROGRESS`。Correction 3 提交前不得启动第四个 Reviewer；TASK-006/
+  TASK-007 继续 `BLOCKED/UNASSIGNED`。
