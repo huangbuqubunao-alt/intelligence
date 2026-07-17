@@ -14,8 +14,8 @@ TASK-005 已由 Codex Product Integrator 以 merge commit `cfc302ddc41cd908777f4
 
 TASK-006/TASK-007 Codex 只读预检已完成且未修改仓库，结论为
 `DECISION NEEDED`。ADR-007 L-01 至 L-15 已于 2026-07-17 接受：必须先完成
-`TASK-005A` 共享契约切片，再从同一 main 并行两项实现。TASK-005A 尚未获得正式
-实施分配；TASK-006/TASK-007 继续为 `BLOCKED/UNASSIGNED`。
+`TASK-005A` 共享契约切片，再从同一 main 并行两项实现。TASK-005A 已从固定 base
+分配给 Codex Implementer；TASK-006/TASK-007 继续为 `BLOCKED/UNASSIGNED`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -40,7 +40,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
-| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | Codex（未分配） | BLOCKED | 005；待正式实施分配 |
+| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | Codex Implementer；独立 Codex Reviewer 待实现 commit | IN_PROGRESS | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex（未分配） | BLOCKED | 005A；待资源授权 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex（未分配） | BLOCKED | 005A；待服务/模型授权 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |

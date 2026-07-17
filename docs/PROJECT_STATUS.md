@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-17
-- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；ADR-007 已接受，等待 TASK-005A 共享契约切片的正式实施分配
+- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约切片实施中
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：无；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为 TASK-005 审计证据，不是当前写入目标
-- 活动任务：`TASK-004` 已以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合并关闭为 `DONE`；`TASK-005` 已以 merge commit `cfc302ddc41cd908777f49de292327640b6f8314` 整合并关闭为 `DONE`
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
+- 活动任务：`TASK-005A` 由 Codex Implementer 在独立 worktree 实施；TASK-004/TASK-005 均已关闭为 `DONE`
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -23,17 +23,23 @@
 - 产品负责人已授权“复用优先”交付策略，ADR-005 已接受；附件候选和其他组件的 `DIRECT/ADAPT/REFERENCE/REJECT` 结论记录于 `docs/REUSE_REGISTER.md`。
 - 产品负责人已于 2026-07-15 批准 ADR-006 T-01 至 T-15；TASK-005 的选择、格式、领域结果、规范化、质量、缓存、错误与 Artifact 恢复契约已冻结，V1 明确不新增 Schema/migration、不修改 `state.py` 或 `complete_stage`。
 - TASK-006/TASK-007 Codex 只读 Scout 已在 `main@b335b12358bbbc9dada1abfafc5a2fe9a68494be` 完成预检且仓库无变化；其结论为 `DECISION NEEDED`，不构成任何实现、依赖、模型、服务或系统工具授权。
-- 产品负责人已于 2026-07-17 批准 ADR-007 L-01 至 L-15；已创建 `TASK-005A` 共享契约任务。该任务不实现 Provider 或安装模型，必须先获正式 worktree/角色/命令授权并整合为 `DONE`，之后 TASK-006/TASK-007 才可从同一 main 基线并行分配。
+- 产品负责人已于 2026-07-17 批准 ADR-007 L-01 至 L-15，并已授权 TASK-005A 从
+  `main@82f45a1c04f9eba3264cd743b28bc339d79b34fc` 在独立 Codex worktree 实施。该任务
+  不实现 Provider 或安装模型；完成、独立审查并整合为 `DONE` 后，TASK-006/TASK-007
+  才可从同一 main 基线并行分配。
 
 ## 当前阻塞
 
-- `TASK-005A` 等待正式实施分配；`TASK-006`/`TASK-007` 等待它整合为 `DONE` 与各自的资源授权。`mlx-whisper` 安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/媒体冒烟均未授权。
+- `TASK-006`/`TASK-007` 等待 TASK-005A 整合为 `DONE` 与各自的资源授权。`mlx-whisper`
+  安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/
+  媒体冒烟均未授权。
 
 ## 下一步
 
-1. 为 `TASK-005A` 批准正式 worktree、Implementer/Reviewer、允许文件范围和既有锁定工具链命令；不得修改 Schema/migration、依赖或锁文件。
-2. TASK-005A 整合为 `DONE` 后，再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree。
-3. TASK-006/007 写入实现及所有模型、服务、系统工具、媒体下载动作在对应门禁满足前继续不分配。
+1. TASK-005A Implementer 在固定 worktree 实现共享契约；完成后提交交接与实现证据。
+2. 全新独立 Codex Reviewer 审查并通过后，由 Integrator 整合 TASK-005A 为 `DONE`。
+3. 再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree；模型、服务、系统
+   工具和媒体下载在对应门禁满足前继续不分配。
 
 ## 当前并行调度
 
@@ -45,7 +51,8 @@
 | 已完成可关闭 | TASK-005 第三次独立 Codex Reviewer | evidence 已提交且 Verdict=`REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005 Implementer、第四次 Reviewer 与 Product Integrator | evidence 已合并为 `cfc302...`；不得修改代码或重新分配 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
-| 立即可规划 | TASK-005A 正式实施分配 | ADR-007 已接受；任务卡已建立，等待用户明确分配授权 |
+| 立即启动 | TASK-005A Codex Implementer | 独占 task-005a worktree；只写 8 个批准路径 |
+| 等待实现 | TASK-005A 全新 Codex Reviewer | 只在 Implementer 提交后由主控生成固定 SHA 审查包 |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005A `DONE` 与各自资源授权 |
 
 ## 授权边界
@@ -59,9 +66,9 @@
 - ADR-005 允许主控决定普通复用方式，但新增依赖、系统工具、远程服务、密钥、付费、许可证义务和真实数据操作仍需原有具体审批。
 - ADR-006 已批准 TASK-005 使用现有 yt-dlp/标准库和既有 Artifact/Repository 语义；不授权新增依赖/锁文件、Schema/migration、`state.py`/`complete_stage`、真实 YouTube/字幕或其他红线操作。
 - TASK-005 已获正式实施授权：Codex Implementer、全新独立 Codex Reviewer、固定 base/worktree/8 文件范围、已有锁定依赖的 `uv sync --locked`（仅缓存缺失的包下载）与离线检查/构建。该授权不改变上述真实网络、认证、媒体、Vault 或依赖/Schema 红线。
-- ADR-007 已接受，允许主控建立 TASK-005A 共享契约任务，但不自动授予该任务的
-  worktree、代码写入、依赖/模型/系统工具、服务或真实资源命令权限。TASK-005A 不得
-  新增 Schema/migration、依赖或锁文件；TASK-006/007 的独立资源门禁继续生效。
+- ADR-007 已接受；TASK-005A 已获固定 worktree、代码写入和既有锁定依赖离线门禁的
+  独立授权，但不得新增 Schema/migration、依赖或锁文件，也不授权模型/系统工具、
+  服务或真实资源命令。TASK-006/007 的独立资源门禁继续生效。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险

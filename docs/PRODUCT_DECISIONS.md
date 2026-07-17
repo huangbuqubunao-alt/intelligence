@@ -31,6 +31,11 @@
   remote components、真实 Vault/密钥。上述每项仍须当次任务级批准。
 - `TASK-005A` 不新增 Schema/migration 或依赖；它只冻结共享配置、领域对象与现有
   SQLite 完成/Artifact 索引语义。正式实施的 worktree、角色和命令授权另行记录。
+- 2026-07-17 TASK-005A 实施授权：从 `main@82f45a1c04f9eba3264cd743b28bc339d79b34fc`
+  创建 `/Users/hua/Documents/yia-worktrees/task-005a` 与
+  `codex/task-005a-local-model-shared-contracts`；Codex 为唯一 Implementer，完成后由
+  全新独立 Codex Reviewer 审查。只允许任务卡列出的 8 个文件；允许既有锁定依赖的
+  `uv sync --locked`（仅缓存缺失包下载）及任务卡离线验证/构建命令。
 - 原始决定见 `docs/decisions/ADR-007-local-model-pipeline-contracts.md`。
 
 ### ADR-006：字幕获取、规范化与缓存契约

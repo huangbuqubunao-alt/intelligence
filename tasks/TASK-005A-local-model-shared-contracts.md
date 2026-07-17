@@ -1,15 +1,15 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
-- Reviewer: `UNASSIGNED`（实施完成后必须由全新独立 Codex Reviewer 审查）
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Reviewer: `Codex`（实施完成后由全新独立会话审查）
 - Owner role: Codex Implementer
 - Size: M
 - Risk: High
 - Depends on: TASK-005
 - Decision gate: `ADR-007` 为 `Accepted`；产品负责人已于 2026-07-17 批准 L-01 至 L-15
-- Execution gate: 缺正式 worktree/分支、Implementer/Reviewer 分配和本任务命令授权；
-  未满足前不得创建写入 worktree、修改产品代码或运行写入型工具命令
+- Execution gate: 已授权固定 worktree/分支、Codex Implementer、全新独立 Codex
+  Reviewer 和既有锁定依赖的离线门禁；不得新增 Schema/migration、依赖或锁文件
 
 ## 目标
 
@@ -110,3 +110,15 @@
 - 配置/领域/Repository 测试和故障注入结果；真实 SQLite 原子写评分摘要的证据。
 - 复用、许可证与未新增依赖/模型/网络的审计。
 - 后续 TASK-006/TASK-007 可共同使用的 main merge SHA；在此之前两项不得分配。
+
+## 正式分配记录
+
+- Approved base：`main@82f45a1c04f9eba3264cd743b28bc339d79b34fc`
+- Worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Branch：`codex/task-005a-local-model-shared-contracts`
+- Implementer：Codex 独立会话，独占该 worktree 写入权
+- Reviewer：全新独立 Codex 会话；只在 Implementer 提交并由主控固定 source SHA 后启动
+- Implementer packet：`agent-prompts/TASK-005A-IMPLEMENTER-CODEX.md`
+- 仅允许本卡列出的 8 个路径；允许 `uv sync --locked` 只为已有锁定依赖的缓存缺失包
+  下载及本卡离线验证/构建。任何模型、Provider、真实网络、服务、Schema/migration、
+  依赖或锁文件操作仍被禁止。
