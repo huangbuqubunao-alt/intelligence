@@ -90,3 +90,72 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：`Pending creation of this single implementation commit`
 - 复现/验证说明：使用上述锁定 uv 命令；默认测试完全离线，无 Provider、模型或真实文件系统资源调用。
+
+## Reviewer 结论
+
+- Reviewer agent/session：Independent Codex Reviewer
+- 审查 commit：`85cd5362460044773317a48cbaae58e55aa735af`（唯一父提交：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`）
+- 审查控制面：main 动态 authorization `315d4490ed60b051411ee7eef8d1127d72898c95` 是要求父提交 `3ee490c19950482ecd014668ce510ba5c742b743` 的唯一直接后继；main/source 均在开始时干净，main TASK-005A 为 `IN_REVIEW`，source 分支/head/身份均符合 Reviewer 包。source 任务卡的 `BLOCKED/UNASSIGNED` 是分配前快照。
+- 范围/红线/复用：relative base...head 精确为 8 个批准路径；`pyproject.toml` 与 `uv.lock` 无差异，`git diff --check` 通过。未发现 migration、Provider、`transcripts.py`、`discovery.py`、CLI、网络/模型/媒体/密钥或文件删除实现；仅复用现有 Pydantic、SQLite Repository 与标准库。
+
+### 重新运行的检查
+
+| 命令/检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS — 34 packages resolved |
+| `uv sync --locked` | PASS — 30 packages checked |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS — 52 passed |
+| `uv run python -m pytest tests/unit/test_state_transitions.py` | PASS — 10 passed |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS — 34 passed |
+| `uv run python -m pytest` | PASS — 250 passed |
+| `uv run mypy src` | PASS — 9 source files, no issues |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS — sdist/wheel both include `youtube_intel/migrations/001_initial.sql`; generated ignored `dist/` removed after inspection |
+| `git diff --check 82f45a1c04f9eba3264cd743b28bc339d79b34fc...85cd5362460044773317a48cbaae58e55aa735af` | PASS |
+
+### 独立探针
+
+- Probe A — configuration/resource boundary：PASS。以未复用既有测试的输入核验固定 Whisper revision/weights/decode policy、`8/6/2_000_000_000` 默认资源门禁、`0` 边界拒绝、`max_description_chars` 边界、正确 digest，以及 `127.0.0.1`/`localhost`/`[::1]` 的 `http` origin；https、非 loopback、userinfo、path/query/fragment、空白和错误 digest 均 fail-closed。静态扫描未发现 Provider/模型/网络导入或调用；userinfo sentinel 未出现在验证错误中。
+- Probe B — public contracts/final policy：FAIL（见 P1-1）。普通 attribute assignment 被 frozen 拒绝，但公开 `model_copy(update=...)` 无验证地构造了所有四个对象的非法实例：`TranscriptSample(head="", selected_char_count=0)`、hash 不匹配的 `ScoringInput`、字段类型错误的 `ScoringDecision`，以及 `score == threshold` 却 `final_should_summarize=False` 的 `ScoringOutcome`。因此无法独立证明 immutable named contract、hash binding 和 final policy 的 fail-closed 语义。
+- Probe C — SQLite scoring atomicity：PASS。使用真实临时 SQLite、不同 job/video/artifact/provider-call 样本验证只有 `TRANSCRIPT_READY -> SCORED` 接受 summary；缺 summary、其他阶段、bool/NaN/infinity/越界 score、pipeline/job CAS mismatch 都拒绝。对 artifact、provider-call、score summary、pipeline 和已写入 Job success 后的故障分别注入失败；每次 Artifact/Provider call/score/should_summarize/Pipeline/Job 均完整回滚。成功路径保留独立的 `ScoreResult.should_summarize=False`，并持久化 policy summary `True`。
+- Probe D — Artifact cleanup index：PASS。使用真实临时 SQLite 和 sentinel file 验证 hash CAS、unknown/hash mismatch/repeat、UTC、正 limit、retention class、`expires_at/created_at/artifact_id` 稳定排序；两个 API 未读取、枚举或删除 sentinel filesystem path。
+
+### 验收与 ADR-007 追溯
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| AC-1 配置与示例 | PASS | Probe A 与 config/example 审查通过。 |
+| AC-2 不可变公共评分契约与最终策略 | FAIL | P1-1 允许 `model_copy` 绕过字段、hash 和 outcome validators。 |
+| AC-3 评分摘要原子写入 | PASS | Probe C 覆盖真实 SQLite 与五个故障点。 |
+| AC-4 Artifact 删除确认/过期索引 | PASS | Probe D 证明 index-only、CAS 与排序边界。 |
+| AC-5 范围、复用、无 Provider/网络/Schema/lock 改动 | PASS | Git/static 审计通过。 |
+| L-02 | PARTIAL/FAIL | 共享切片范围正确，但公共领域契约未 fail-closed。 |
+| L-03 | FAIL | `ScoringOutcome.model_copy` 可令 final policy 偏离 `score >= threshold`。 |
+| L-04 | PASS | `ScoringSummaryWrite` 与 `complete_stage` 事务探针通过。 |
+| L-05/L-06 | FAIL | `TranscriptSample` 计数与 `ScoringInput` 完整 hash binding 可被 `model_copy` 绕过；实际采样/request-hash 编排仍正确留给 TASK-007。 |
+| L-07/L-08/L-09 | PARTIAL/PASS boundary | 本任务负责的 config/repository 边界通过；标准库 HTTP、`/api/tags`/`/api/generate`、JSON repair/cache 与实际模型调用仍留给 TASK-007。 |
+| L-10/L-11/L-15 | PARTIAL/PASS boundary | 固定配置/资源表达通过；mlx-whisper install/download/manifest/spawn timeout/实测仍留给 TASK-006/TASK-014。 |
+| L-12 | DEFERRED | 音频/ffmpeg/真实媒体按 ADR 留给 TASK-006。 |
+| L-13 | DEFERRED | 180 分钟 `--force` 与审计 migration 留给 TASK-010。 |
+| L-14 | PASS boundary | index-only CAS/enumeration 已完成；DATA 根实际删除仍由 TASK-006/TASK-012 负责。 |
+
+### Findings
+
+- P1-1 — `src/youtube_intel/domain.py:27-31`, `src/youtube_intel/domain.py:540-592`: the new public Pydantic contracts rely only on `frozen=True`, but `BaseModel.model_copy(update=...)` intentionally applies updates without validation. It creates an invalid `TranscriptSample` (`head=""`, `selected_char_count=0`), a hash-mismatched `ScoringInput`, a wrongly typed `ScoringDecision`, and an outcome whose final decision contradicts `score >= threshold`. This defeats the shared fail-closed contract required by AC-2 / ADR-007 L-03, L-05 and L-06. Make public functional updates revalidate (or disallow unchecked copying) and add regression tests for each affected invariant.
+- P0：None。
+- P2：None。
+- P3：None。
+
+### 五轴结论与交付
+
+- Correctness：REJECT，P1-1 breaks required public invariant enforcement.
+- Architecture：otherwise follows the named config/domain/repository boundary; no Provider or Schema coupling observed.
+- Security：loopback parsing and index-only Artifact APIs passed independent probes; no secrets, network or deletion capability introduced.
+- Performance：bounded config/domain checks and indexed Artifact query are appropriate; no unbounded new processing observed.
+- Readability：implementation and tests are clear; the missing revalidation is the material issue.
+- Skipped checks：none of the required offline checks. Real model/service/media/network/Vault/file-deleter operations were intentionally not run because they are later-task, unauthorized boundaries.
+- Remaining risks：P1-1 must be fixed and independently re-reviewed. Later TASK-006/007/010/012 responsibilities above remain out of scope.
+- `DECISION NEEDED`：None.
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1-1.
