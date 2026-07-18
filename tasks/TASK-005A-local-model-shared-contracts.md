@@ -1,9 +1,9 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Reviewer: `Codex`（Correction 1 独立审查已通过）
-- Owner role: Codex Product Integrator（等待正式授权）
+- Owner role: 已由 Codex Product Integrator 整合并关闭
 - Size: M
 - Risk: High
 - Depends on: TASK-005
@@ -176,5 +176,17 @@
 - AC-1 至 AC-5、适用 ADR-007 边界、SQLite 原子回滚和 Artifact CAS/index-only 探针均
   `PASS`；P0/P1/P2/P3 均无。Correction 与完整范围、依赖/锁、Provider/migration/网络/
   删除红线和复用审查均通过。
-- TASK-005A 现为 `ACCEPTED`，尚未整合或 `DONE`；必须先由主控生成固定 execution base
-  的 Product Integrator 包并复跑整合后门禁。
+- TASK-005A 的独立审查已完成；后续整合与关闭记录见下节。
+
+## 最终整合与关闭
+
+- Product Integrator 以 merge commit `865f4fed90dcc22ea43688442c1c4f210b4d31b7` 将已验收
+  source `e726656ffcc96b3c61d12f649c5574dc927add62` 整合到 `main`；其两父提交精确为
+  execution base `7cdea4b1ff5996bfdcb42c00a245d5ae2b4e02e7` 与该 source evidence。
+- first-parent 产品差异精确为本任务批准的 8 个路径；`pyproject.toml` 与 `uv.lock` 无
+  差异。整合后 focused `53/10/34`、全量 `251`、mypy、Ruff、CLI、`uv sync --locked`
+  与离线 build/package migration inclusion 均通过。
+- 状态为 `DONE`。source worktree/branch 保留为审计证据；未 push 或清理。Integrator
+  生成的 `dist/` 仅为 ignored/uncommitted 构建产物，未被纳入任何提交或删除操作。
+- `TASK-006`/`TASK-007` 的代码依赖现已满足，但仍为 `BLOCKED/UNASSIGNED`，分别等待
+  明确的模型/服务/系统工具与真实资源任务级授权。

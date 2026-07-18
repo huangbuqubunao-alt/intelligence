@@ -303,3 +303,17 @@
   responsibilities remain intentionally out of scope.
 - Decision needed: `None`.
 - Verdict: `APPROVE`.
+
+## Product integration and closure
+
+- Product Integrator execution base: `7cdea4b1ff5996bfdcb42c00a245d5ae2b4e02e7`.
+- Accepted source: `e726656ffcc96b3c61d12f649c5574dc927add62`.
+- Merge: `865f4fed90dcc22ea43688442c1c4f210b4d31b7`, with those commits as its
+  exact first and second parents.
+- First-parent product range is exactly the 8 approved TASK-005A paths; lockfiles
+  are unchanged. Post-merge focused `53/10/34`, full `251`, mypy, Ruff, CLI,
+  `uv sync --locked`, and offline build/package migration checks all passed.
+- Final status: `DONE`. The source worktree remains retained and clean. No push,
+  source cleanup, or ignored `dist/` cleanup was performed.
+- Deferred work: TASK-006/TASK-007 now have their code dependency satisfied but
+  remain `BLOCKED/UNASSIGNED` pending their separate resource approvals.

@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -12,10 +12,11 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 TASK-005 已由 Codex Product Integrator 以 merge commit `cfc302ddc41cd908777f49de292327640b6f8314` 整合到 main，双父和 first-parent 11 文件范围正确；整合后全部受影响离线门禁、offline build 与 package inclusion 通过，并已 closure 同步为 `DONE`。唯一 Service/私有 test hook 聚合 P2 继续登记。ADR-007 已接受，已建立 TASK-005A 共享契约任务；TASK-006/007 仍等待该任务 `DONE` 与各自资源授权。
 
-TASK-006/TASK-007 Codex 只读预检已完成且未修改仓库，结论为
-`DECISION NEEDED`。ADR-007 L-01 至 L-15 已于 2026-07-17 接受：必须先完成
-`TASK-005A` 共享契约切片，再从同一 main 并行两项实现。TASK-005A 已从固定 base
-分配给 Codex Implementer；TASK-006/TASK-007 继续为 `BLOCKED/UNASSIGNED`。
+TASK-005A 已由 Codex Product Integrator 以 merge commit
+`865f4fed90dcc22ea43688442c1c4f210b4d31b7` 整合并关闭为 `DONE`：双父与 first-parent
+8 路径范围正确，整合后全部离线门禁及 package inclusion 通过。TASK-006/TASK-007 Codex
+只读预检结论仍为 `DECISION NEEDED`；两任务的代码依赖现已满足，但分别等待明确的模型、
+服务、系统工具和真实资源任务级授权，继续为 `BLOCKED/UNASSIGNED`。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -40,7 +41,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
-| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | Codex Product Integrator（待正式授权） | ACCEPTED | 005 |
+| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex（未分配） | BLOCKED | 005A；待资源授权 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex（未分配） | BLOCKED | 005A；待服务/模型授权 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |

@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-18
-- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约已验收，等待最终整合
+- 当前阶段：Phase 1 — 状态、发现、元数据、字幕与本地模型共享契约主链已完成；等待 TASK-006/TASK-007 资源授权
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-005A` 已被第二轮独立 Codex Reviewer 批准，等待 Product Integrator 正式授权；TASK-004/TASK-005 均已关闭为 `DONE`
+- 活动任务：TASK-001 至 TASK-005A 均已关闭为 `DONE`；`TASK-006`/`TASK-007` 仅等待各自资源任务级授权
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -30,16 +30,15 @@
 
 ## 当前阻塞
 
-- `TASK-006`/`TASK-007` 等待 TASK-005A 整合为 `DONE` 与各自的资源授权。`mlx-whisper`
+- `TASK-006`/`TASK-007` 的 TASK-005A 代码依赖已满足，仅等待各自的资源授权。`mlx-whisper`
   安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/
   媒体冒烟均未授权。
 
 ## 下一步
 
-1. 主控生成固定 execution base 的 TASK-005A Product Integrator 包。
-2. Integrator 合并已验收 source、复跑整合后门禁并由主控收口为 `DONE`。
-3. 再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree；模型、服务、系统
-   工具和媒体下载在对应门禁满足前继续不分配。
+1. 为 TASK-006/TASK-007 分别冻结精确依赖、模型/服务、系统工具和真实资源授权边界。
+2. 在各自授权满足后，从当前已验收 `main` 创建互不冲突的独立 worktree 并分配。
+3. 在此之前，模型、服务、系统工具和媒体下载继续不分配。
 
 ## 当前并行调度
 
@@ -53,8 +52,8 @@
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
-| 等待授权 | TASK-005A Codex Product Integrator | 仅可在主控固定 execution base 后整合已验收 source |
-| 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005A `DONE` 与各自资源授权 |
+| 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
+| 等待资源授权 | `TASK-006`/`TASK-007` 及后续写入任务 | TASK-005A 已 `DONE`；等待各自资源授权 |
 
 ## 授权边界
 
@@ -138,7 +137,12 @@
 - TASK-005A 第二轮独立 Reviewer evidence `e726656ffcc96b3c61d12f649c5574dc927add62`
   只修改 handoff，Verdict=`APPROVE`：完整离线门禁、Pydantic `model_copy` fail-closed
   边界、无 update copy、SQLite 原子回滚和 Artifact index-only 探针，以及 AC-1 至
-  AC-5/适用 ADR-007 边界均通过；P0/P1/P2/P3 均无。任务已 `ACCEPTED`，尚未整合。
+  AC-5/适用 ADR-007 边界均通过；P0/P1/P2/P3 均无。
+- TASK-005A 已由 Codex Product Integrator 以 merge commit
+  `865f4fed90dcc22ea43688442c1c4f210b4d31b7` 整合并关闭为 `DONE`。两父提交固定为
+  `7cdea4b...` 与 `e726656...`，first-parent 差异精确为 8 个批准路径；focused
+  `53/10/34`、全量 `251`、mypy、Ruff、CLI、locked sync、offline build 和 migration
+  package inclusion 全部通过。`dist/` 仅为 ignored/uncommitted 构建产物，未被删除或提交。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式
