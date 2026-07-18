@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: Codex Implementer（阶段 A）
+- Owner role: 全新独立 Codex Reviewer（阶段 A）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -39,6 +39,21 @@
 - 允许范围严格为本卡“预计触达文件”列出的 `transcription.py`、`providers/whisper.py`、
   两份测试、`tests/fixtures/audio/**`、`pyproject.toml`、`uv.lock` 和
   `handoffs/TASK-006.md`。不得改任务状态或 main。
+
+## 实现证据与独立审查授权
+
+- Source：`codex/task-006-local-transcription@c6ff804569b376c347719296d80fbe1abf99057a`；
+  唯一父提交为共同 base `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`，worktree 已干净。
+- base...source 精确包含本卡允许的 8 类路径：`transcription.py`、`providers/whisper.py`、
+  两份测试、`tests/fixtures/audio/README.md`、`pyproject.toml`、`uv.lock` 和 handoff；
+  `git diff --check` 通过。直接依赖精确新增 `mlx-whisper>=0.4.3,<0.5`，实际锁定
+  `0.4.3`，无其他新增直接依赖。
+- Implementer 自报 focused `6+6`、全量 `263`、mypy、Ruff、CLI、locked sync、offline
+  build 和 migration packaging 全部通过；这些只构成待复跑证据，不构成验收。
+- Reviewer：必须为全新独立 Codex 会话，仅可在 source worktree 的
+  `handoffs/TASK-006.md` 追加审查并创建一个以 `c6ff804...` 为唯一父提交的 evidence
+  commit。不得改业务代码、测试、依赖、锁文件、任务状态或 main。审查包由动态 main
+  commit 解析；`TASK-007` 正在并行写入，Reviewer 不得读取、检查或操作其 worktree。
 
 ## 目标
 
