@@ -36,6 +36,15 @@
   `codex/task-005a-local-model-shared-contracts`；Codex 为唯一 Implementer，完成后由
   全新独立 Codex Reviewer 审查。只允许任务卡列出的 8 个文件；允许既有锁定依赖的
   `uv sync --locked`（仅缓存缺失包下载）及任务卡离线验证/构建命令。
+- 2026-07-19 TASK-006 阶段 A 与 TASK-007 离线实施授权：两项从共同
+  `main@6b4d59c882ccdcbd0e5a6069a6661e0672921a80` 分别创建独立 Codex worktree。
+  TASK-006 允许 `mlx-whisper>=0.4.3,<0.5`、必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改及任务卡离线验证；TASK-007 只允许任务卡列出的
+  离线代码/夹具/测试，不修改依赖或锁文件。两项均由 Codex Implementer 完成后交全新
+  独立 Codex Reviewer 审查。
+- 此次授权明确不包含 Whisper 模型下载/加载、ffmpeg、媒体或 YouTube 下载、真实转写
+  冒烟、Ollama 安装/启动、`qwen3:8b` 拉取、真实模型调用、Cookie/登录、remote
+  components、真实 Vault/密钥或文件删除。任何一项仍须单独任务级批准。
 - 原始决定见 `docs/decisions/ADR-007-local-model-pipeline-contracts.md`。
 
 ### ADR-006：字幕获取、规范化与缓存契约

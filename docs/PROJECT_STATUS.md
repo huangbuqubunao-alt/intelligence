@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-18
-- 当前阶段：Phase 1 — 状态、发现、元数据、字幕与本地模型共享契约主链已完成；等待 TASK-006/TASK-007 资源授权
+- 当前阶段：Phase 2 — TASK-006 阶段 A 与 TASK-007 离线实现并行进行；真实本地模型资源保持分阶段门禁
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
-- 活动任务：TASK-001 至 TASK-005A 均已关闭为 `DONE`；`TASK-006`/`TASK-007` 仅等待各自资源任务级授权
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
+- 活动任务：`TASK-006` 阶段 A（包/离线实现）与 `TASK-007`（离线评分实现）由各自 Codex Implementer 并行执行；均等待后续独立 Codex Reviewer
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -30,15 +30,16 @@
 
 ## 当前阻塞
 
-- `TASK-006`/`TASK-007` 的 TASK-005A 代码依赖已满足，仅等待各自的资源授权。`mlx-whisper`
-  安装、Whisper 模型下载、ffmpeg、Ollama 安装/启动、qwen3:8b 拉取和任何真实模型/
-  媒体冒烟均未授权。
+- TASK-006 仅获 `mlx-whisper` 包/锁定与离线实现授权；Whisper 模型下载/加载、ffmpeg、
+  媒体/YouTube 下载和真实转写冒烟仍未授权。TASK-007 仅获离线 Fake/标准库实现授权；
+  Ollama 安装/启动、`qwen3:8b` 拉取和真实模型调用仍未授权。
 
 ## 下一步
 
-1. 为 TASK-006/TASK-007 分别冻结精确依赖、模型/服务、系统工具和真实资源授权边界。
-2. 在各自授权满足后，从当前已验收 `main` 创建互不冲突的独立 worktree 并分配。
-3. 在此之前，模型、服务、系统工具和媒体下载继续不分配。
+1. 两名 Codex Implementer 在隔离 worktree 并行完成 TASK-006 阶段 A 与 TASK-007 离线
+   实现；不得进入任何真实资源路径。
+2. 各自提交后，由全新独立 Codex Reviewer 顺序复跑检查与红线探针。
+3. 在产品级实现/审查通过前，继续不批准模型下载、Ollama、ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
 
@@ -53,7 +54,9 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 等待资源授权 | `TASK-006`/`TASK-007` 及后续写入任务 | TASK-005A 已 `DONE`；等待各自资源授权 |
+| 正在并行 | TASK-006 Codex Implementer（阶段 A） | 仅包解析/锁定与离线实现；独占 pyproject/uv.lock |
+| 正在并行 | TASK-007 Codex Implementer（离线） | 仅标准库/Fake 实现；不改依赖或锁文件 |
+| 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
 
@@ -69,6 +72,9 @@
 - ADR-007 已接受；TASK-005A 已获固定 worktree、代码写入和既有锁定依赖离线门禁的
   独立授权，但不得新增 Schema/migration、依赖或锁文件，也不授权模型/系统工具、
   服务或真实资源命令。TASK-006/007 的独立资源门禁继续生效。
+- 2026-07-19 已分配 TASK-006 阶段 A 和 TASK-007 离线实现。TASK-006 可解析、锁定并
+  安装 `mlx-whisper>=0.4.3,<0.5` 与必要传递依赖；TASK-007 不改依赖/锁文件。真实
+  模型、Ollama、ffmpeg、媒体、YouTube、认证、Vault/密钥和文件删除仍未授权。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险

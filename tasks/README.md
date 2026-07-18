@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_007_IN_PROGRESS`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -14,9 +14,10 @@ TASK-005 已由 Codex Product Integrator 以 merge commit `cfc302ddc41cd908777f4
 
 TASK-005A 已由 Codex Product Integrator 以 merge commit
 `865f4fed90dcc22ea43688442c1c4f210b4d31b7` 整合并关闭为 `DONE`：双父与 first-parent
-8 路径范围正确，整合后全部离线门禁及 package inclusion 通过。TASK-006/TASK-007 Codex
-只读预检结论仍为 `DECISION NEEDED`；两任务的代码依赖现已满足，但分别等待明确的模型、
-服务、系统工具和真实资源任务级授权，继续为 `BLOCKED/UNASSIGNED`。
+8 路径范围正确，整合后全部离线门禁及 package inclusion 通过。产品负责人现已从共同
+base `6b4d59c...` 并行分配 TASK-006 阶段 A 与 TASK-007 离线实现：TASK-006 独占
+`pyproject.toml`/`uv.lock`，只获包解析/锁定/安装授权；TASK-007 不改依赖/锁文件且仅用
+离线 Fake。两项真实模型、服务、ffmpeg、媒体和凭据路径继续未授权。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -42,8 +43,8 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
-| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex（未分配） | BLOCKED | 005A；待资源授权 |
-| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex（未分配） | BLOCKED | 005A；待服务/模型授权 |
+| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex Implementer（阶段 A） | IN_PROGRESS | 005A；模型/ffmpeg/媒体另批 |
+| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex Implementer（离线） | IN_PROGRESS | 005A；Ollama/模型另批 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Codex（未分配） | BLOCKED | 003, 007 |
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | BLOCKED | 003-009 |

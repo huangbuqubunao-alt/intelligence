@@ -1,12 +1,13 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
-- Owner role: 实现 Agent；TL 审批实现选择
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Owner role: Codex Implementer（阶段 A）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
-- Approval required: ADR-007、Whisper 包/传递依赖、模型下载、ffmpeg、媒体下载、资源门禁和真实冒烟
+- Approval required: 阶段 A 已获 `mlx-whisper` 包/传递依赖、锁文件与离线实现授权；模型、
+  ffmpeg、媒体、资源实测和真实冒烟仍须逐项另批
 
 ## 2026-07-16 只读预检
 
@@ -18,6 +19,26 @@
 - 共享 config/domain/state 变更必须先由 TASK-005A 整合为 `DONE`，不能与 TASK-007
   分支重复实现；之后仍须获得 `mlx-whisper` 解析/锁定/安装、模型、ffmpeg、媒体和
   本机冒烟的独立任务级授权。
+
+## 2026-07-19 阶段 A 分配与边界
+
+- Main control-plane base：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。worktree：
+  `/Users/hua/Documents/yia-worktrees/task-006`；branch：
+  `codex/task-006-local-transcription`；Implementer：Codex；完成后由全新独立 Codex
+  Reviewer 审查。
+- 允许 `mlx-whisper>=0.4.3,<0.5`、uv 解析出的必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改，以及 `uv add`、`uv lock`、`uv sync --locked` 与本卡
+  离线验证/构建命令。Implementer 必须记录实际解析版本、许可证和 Python 3.12/arm64
+  兼容性；若解析需要白名单外直接依赖或不兼容，立即停止并报告。
+- 本轮只实现可由 Fake/受控夹具验证的 Adapter、策略、缓存、超时/资源错误与清理语义。
+  允许一个可再分发或确定性生成的短 WAV 测试夹具；不得下载模型或音频，且不得执行真实
+  转写。
+- 继续禁止：任何 Whisper 权重/模型下载或加载、`ffmpeg` 安装/调用、媒体或 YouTube
+  下载、Cookie/登录/`.netrc`、remote components、真实 Vault/密钥、真实资源或模型冒烟。
+  不新增 Schema/migration，不修改共享 `config.py`、`domain.py`、`state.py`。
+- 允许范围严格为本卡“预计触达文件”列出的 `transcription.py`、`providers/whisper.py`、
+  两份测试、`tests/fixtures/audio/**`、`pyproject.toml`、`uv.lock` 和
+  `handoffs/TASK-006.md`。不得改任务状态或 main。
 
 ## 目标
 

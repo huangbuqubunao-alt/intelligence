@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
-- Owner role: 实现 Agent
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Owner role: Codex Implementer（离线实现）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -17,6 +17,24 @@
 - 共享配置、采样、决策对象与评分摘要原子持久化必须先由 TASK-005A 整合为 `DONE`；
   TASK-007 继续不修改依赖或锁文件。Ollama 安装/启动、模型拉取与本机文本冒烟仍须
   独立任务级授权。
+
+## 2026-07-19 离线实现分配与边界
+
+- Main control-plane base：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。worktree：
+  `/Users/hua/Documents/yia-worktrees/task-007`；branch：
+  `codex/task-007-local-scoring`；Implementer：Codex；完成后由全新独立 Codex
+  Reviewer 审查。
+- 仅允许本卡“预计触达文件”列出的 `scoring.py`、`providers/ollama.py`、
+  `prompts/scoring.md`、两份测试、`tests/fixtures/scoring/**` 和
+  `handoffs/TASK-007.md`。复用 Python 标准库 HTTP/JSON 与既有锁定依赖；不得修改
+  `pyproject.toml`、`uv.lock`、Schema/migration、共享 `config.py`/`domain.py`/`state.py`
+  或任务状态。
+- 所有验证必须离线：允许 Fake transport/本地测试替身，不得请求实际 `127.0.0.1:11434`
+  或任何外部地址。若环境缺少已锁定包，只允许 `uv sync --locked --offline`；它失败时停止，
+  不得联网补包。
+- 继续禁止：Ollama 安装或启动、`qwen3:8b` 拉取、真实模型/服务调用、cloud tag、模型
+  下载、媒体/YouTube、Cookie/登录、remote components、ffmpeg、真实 Vault/密钥或文件
+  删除。真实文本冒烟属于后续单独授权。
 
 ## 目标
 
