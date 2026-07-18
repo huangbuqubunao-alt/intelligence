@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import PurePosixPath
 from types import MappingProxyType
-from typing import Final, Literal, Protocol, TypeAlias, runtime_checkable
+from typing import Final, Literal, Never, Protocol, Self, TypeAlias, runtime_checkable
 
 from pydantic import (
     BaseModel,
@@ -529,7 +529,22 @@ class DiscoveryBatch(_DomainModel):
         return value
 
 
-class TranscriptSample(_DomainModel):
+class _UpdateProtectedScoringContract(_DomainModel):
+    """Preserve validation boundaries for shared scoring contracts."""
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for scoring contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
+
+
+class TranscriptSample(_UpdateProtectedScoringContract):
     """A bounded, ordered selection from one canonical transcript.
 
     The scoring service owns the ``sampling-v1`` slicing algorithm. This contract
@@ -552,7 +567,7 @@ class TranscriptSample(_DomainModel):
         return self
 
 
-class ScoringInput(_DomainModel):
+class ScoringInput(_UpdateProtectedScoringContract):
     video: VideoMetadata
     sample: TranscriptSample
     transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -567,13 +582,13 @@ class ScoringInput(_DomainModel):
         return self
 
 
-class ScoringDecision(_DomainModel):
+class ScoringDecision(_UpdateProtectedScoringContract):
     threshold: float = Field(ge=0, le=10)
     final_should_summarize: bool
     model_disagrees: bool
 
 
-class ScoringOutcome(_DomainModel):
+class ScoringOutcome(_UpdateProtectedScoringContract):
     result: ScoreResult
     decision: ScoringDecision
     call: ProviderCallMetadata

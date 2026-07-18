@@ -729,6 +729,50 @@ def test_scoring_sample_and_outcome_bind_hash_and_final_policy() -> None:
         )
 
 
+def test_scoring_contract_model_copy_rejects_all_updates() -> None:
+    sample = _sample()
+    scoring_input = ScoringInput(
+        video=_video(),
+        sample=sample,
+        transcript_content_hash=TRANSCRIPT_HASH,
+        language="en",
+        request_hash="request-hash",
+    )
+    decision = ScoringDecision(
+        threshold=7.0,
+        final_should_summarize=True,
+        model_disagrees=False,
+    )
+    outcome = ScoringOutcome(result=_score(), decision=decision, call=_call())
+
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={"head": "", "selected_char_count": 0})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        scoring_input.model_copy(update={"transcript_content_hash": "c" * 64})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        decision.model_copy(update={"final_should_summarize": "not-a-boolean"})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        outcome.model_copy(
+            update={
+                "decision": ScoringDecision(
+                    threshold=7.0,
+                    final_should_summarize=False,
+                    model_disagrees=True,
+                )
+            }
+        )
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={"unknown": "value"})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        decision.model_copy(update={"threshold": 7.5})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={})
+
+    copied_sample = sample.model_copy()
+    assert copied_sample == sample
+    assert copied_sample is not sample
+
+
 def test_analysis_result_structure_and_evidence_refs() -> None:
     evidence = (
         EvidenceExcerpt(

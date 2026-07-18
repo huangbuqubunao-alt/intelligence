@@ -159,3 +159,59 @@
 - `DECISION NEEDED`：None.
 - Verdict：`REJECT`
 - 未解决 P0/P1：P1-1.
+
+## Correction 1 — Pydantic `model_copy(update=...)` P1 closure
+
+- Role: `Codex Implementer (Correction 1)`
+- Starting review evidence: `3cec2d6a7b60b11912c10e714dc1473197d7374f`
+- Scope: only `src/youtube_intel/domain.py`, `tests/unit/test_contracts.py`, and this
+  handoff; no task status, Reviewer, merge, dependency, lockfile, Schema, Provider,
+  network, model, media, Cookie, Vault, or deletion work.
+
+### RED / GREEN
+
+- RED: before the implementation change,
+  `uv run python -m pytest tests/unit/test_contracts.py -k model_copy_rejects_all_updates`
+  failed because `TranscriptSample.model_copy(update={...})` did not raise; that
+  independently reproduced P1-1 from the Reviewer evidence.
+- GREEN: `_UpdateProtectedScoringContract` is private and inherited only by the four
+  TASK-005A public contracts: `TranscriptSample`, `ScoringInput`, `ScoringDecision`,
+  and `ScoringOutcome`. It explicitly rejects every `model_copy(update=...)` call,
+  including empty updates; `model_copy()` without an update still returns a new frozen
+  instance. `_DomainModel` and all pre-existing domain objects retain their public
+  behavior.
+- Regression coverage independently exercises the Reviewer's empty/count-mismatched
+  sample, transcript-hash mismatch, wrong-type decision, and `score == threshold` /
+  `final_should_summarize=False` outcome updates. It also covers unknown, valid, and
+  empty updates plus the no-update copy path.
+
+### Checks
+
+| Command | Result |
+|---|---|
+| `uv lock --check` | PASS — 34 locked packages resolved. |
+| `uv sync --locked` | PASS — 30 packages checked; no relock or dependency change. |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS — 53 passed. |
+| `uv run python -m pytest tests/unit/test_state_transitions.py` | PASS — 10 passed. |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS — 34 passed. |
+| `uv run python -m pytest` | PASS — 251 passed. |
+| `uv run mypy src` | PASS — no issues in 9 source files. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS. |
+| `uv build --offline` | PASS — sdist and wheel both contain `youtube_intel/migrations/001_initial.sql`; the newly generated ignored `dist/` was removed. |
+| Pre-commit `git diff --check` | PASS. |
+
+### Reuse, range, and risk
+
+- `DIRECT`: the existing locked Pydantic 2.13.4 API and Python typing/collections
+  interfaces. No new dependency, public free-form payload, `Any`, wide `object`,
+  cast, ignore, construction bypass, or shared `_DomainModel` behavior change was
+  introduced.
+- Full product range remains the approved eight TASK-005A paths; the correction range
+  is the three permitted paths above. `pyproject.toml` and `uv.lock` match the
+  original base byte-for-byte.
+- Skipped checks: none. Real models, services, media, network, authentication, Vault,
+  and file deletion remain intentionally unrun and unauthorized later-task work.
+- Remaining risk: public functional updates for these four contracts are deliberately
+  unavailable; a future need for validated updates requires a separately specified
+  API and regression suite. `DECISION NEEDED`: `None`.
