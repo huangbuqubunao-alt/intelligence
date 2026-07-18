@@ -126,3 +126,119 @@
 - 主线 commit: 待整合。
 - 整合后检查: 待整合。
 - 最终状态: 待整合。
+
+---
+
+## 独立 Reviewer 审查证据（2026-07-19）
+
+### 审查身份、授权与范围
+
+- Reviewer：全新独立 Codex Reviewer；未参与该实现。
+- 审查基线：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。
+- 被审实现：`c6ff804569b376c347719296d80fbe1abf99057a`，分支
+  `codex/task-006-local-transcription`，审查开始及全部产品检查前均为干净工作树。
+- 动态授权：主仓库
+  `git log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-CODEX.md` 解析为
+  `92740a7c68c19657c5b0f70ce8655a6a72062a1d`。该提交的
+  `docs/PROJECT_STATUS.md` 将此精确 source `c6ff804...` 标为 `IN_REVIEW`；未读取、
+  运行、修改或报告 TASK-007 worktree。
+- `git diff --check 6b4d59c...c6ff804...` 通过。完整范围恰为允许的 8 个路径：两份产品模块、
+  两份 TASK-006 测试、音频夹具说明、`pyproject.toml`、`uv.lock` 和本 handoff。
+- 红线/范围复核：未见 Schema/migration、`state.py`、密钥、Vault、Cookie/登录、真实网络、
+  媒体、ffmpeg、模型加载或任务状态改动；`dist/` 仅为 ignored 的离线构建产物。
+
+### 重新运行的必需检查
+
+| 命令 | 独立结果 |
+|---|---|
+| `uv lock --check` | PASS — `Resolved 80 packages`。 |
+| `uv sync --locked` | PASS — `Checked 57 packages`；未触发模型或媒体资源。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS — 6 passed。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS — 6 passed。 |
+| `uv run python -m pytest` | PASS — 263 passed。 |
+| `uv run mypy src` | PASS — 11 source files 无问题。 |
+| `uv run ruff check .` | PASS。 |
+| `uv run python -m youtube_intel --help` | PASS。 |
+| `uv build --offline` | PASS — 生成 sdist/wheel；两者均含 `youtube_intel/migrations/001_initial.sql`，与源文件 SHA-256 同为 `10bd726f...2693006`。 |
+
+### 独立探针
+
+#### A. 依赖、导入与离线边界
+
+- `pyproject.toml` 的唯一新增直接依赖为
+  `mlx-whisper>=0.4.3,<0.5`；锁定版本为 `0.4.3`。本地安装元数据复核为 MIT、
+  `Requires-Python >=3.8`，其 `Requires-Dist` 与锁定闭包一致：MLX/MLX Metal、
+  numba/llvmlite/numpy、scipy、torch（及平台 marker 的 CUDA 条目）、tiktoken/regex、
+  Hugging Face Hub/httpx 及其必要传递依赖、more-itertools、tqdm。没有第二个新增直接依赖。
+- AST/静态探针确认 `providers/whisper.py` 不导入 `mlx_whisper`、`subprocess`、
+  `urllib`、`requests`、`http`、`socket` 或 `huggingface_hub`；Adapter 只能调用必需注入的
+  `WhisperExecutor`。未导入或调用真实 `mlx_whisper.transcribe`，未调用 ffmpeg、模型下载或网络 API。
+- `tests/fixtures/audio/` 只有 `README.md`；测试以标准库 `wave` 在临时目录生成确定性静音
+  PCM WAV。没有可再分发现实媒体或下载夹具。
+
+#### B. 缓存、策略与错误完整性
+
+- 临时离线 Fake-executor 探针先验证完全相同请求命中缓存，再分别改变音频 SHA-256、模型、
+  revision、参数策略版本；共 5 次 executor 调用，只有完全相同的请求复用。超时、资源错误、
+  `ValueError`、未知错误及畸形返回分别映射为安全的
+  `LOCAL_RESOURCE`、`LOCAL_RESOURCE`、`INVALID_RESPONSE`、`PROVIDER_UNAVAILABLE`、
+  `INVALID_RESPONSE`，消息不含临时绝对路径或 `SECRET` 文本。
+- 超长策略在 executor 之前短路；失败或畸形返回不写入缓存，随后成功调用和第二次缓存命中均通过。
+- 这些探针没有导入模型包模块或调用真实模型。
+
+#### C. 真实 SQLite 与 DATA 根清理探针
+
+- 临时目录中以真实 `SQLiteStateRepository` 初始化 migration、写入 discovery/video/artifact，
+  再调用 `cleanup_successful_audio`。正常已登记的 `DATA` / `AUDIO` /
+  `EPHEMERAL_AUDIO` 且哈希匹配的记录得到 `DELETED`：文件消失、SQLite `deleted_at` 已设置。
+- 错误 kind、retention、storage root 和文件哈希不匹配均被拒绝并保留音频；符号链接逃逸被拒绝，
+  根外目标和链接均保留（当前诊断值为 `MISSING`）。清理失败不会删除已创建的 transcript marker。
+- **失败反例（阻断）**：伪造/缺失 Artifact id 和已由另一方标记删除的陈旧 Artifact snapshot 均返回
+  `INDEX_CONFLICT`，但对应音频文件已经被删除。这与“只删除已登记、哈希匹配且 CAS 成功的
+  Artifact；拒绝 missing/stale CAS”的要求不符。
+
+### 验收矩阵与阶段诚实性
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| 阶段 A 离线短音频、策略/资源/超时错误 | PASS | Fake 与合成 WAV 的定向及独立探针均通过。 |
+| 缓存命中及模型/revision/参数/音频变化失效 | PASS | 定向测试和独立 5 维变化探针通过。 |
+| 成功、失败、超长音频保留/清理语义 | FAIL | 成功、普通失败和超长路径通过；missing/stale CAS 会删除音频，见 P1。 |
+| 无隐藏真实模型、进程、ffmpeg 或媒体主张 | PASS | Adapter 为注入 executor 边界；资源/模型/ffmpeg/媒体门禁仍明确 deferred。 |
+
+### Findings（P0–P3）
+
+- P0：无。
+- **P1-1 — CAS 失败仍删除文件，且不验证 Artifact 当前已登记。**
+  `src/youtube_intel/transcription.py:216-222` 在调用
+  `repository.mark_artifact_deleted(...)` 前已经执行 `resolved.unlink()`。因此 caller 传入
+  不存在的 `artifact_id` 或从并发更新前取得的 snapshot 时，真正的 SQLite CAS 返回 `False`，
+  函数返回 `INDEX_CONFLICT`，但已删除 DATA 文件。现有回归测试甚至在
+  `tests/unit/test_transcription_policy.py:199-207` 将这种 index conflict 后文件不存在作为预期。
+  这会制造未标记的物理删除，违反 ADR-007 L-14、System Design §10 及本轮 C 探针的
+  missing/stale-CAS 约束；必须在后续修复中以可验证的登记/并发协议关闭，不能把失败当作成功。
+- P2-1 — 清理哈希验证对合法大音频一次性读取全部内容。`src/youtube_intel/transcription.py:210`
+  使用 `resolved.read_bytes()`；策略允许最多 2,000,000,000 bytes（第 77 行），且此路径不捕获
+  `MemoryError`。应改为分块 SHA-256，以维持本地资源边界；此项不改变 P1 阻断结论。
+- P3：无。
+
+### 复用、许可证、秘密与未运行路径
+
+- 复用结论：`mlx-whisper` 为已授权范围内的 `DIRECT`；本审查独立复核直接包元数据和完整锁定依赖闭包。
+  传递的 Hub/httpx 能力来自包依赖，未被 Phase A 代码导入或调用。模型转换仓库许可证风险仍按
+  ADR-007/TASK-014 延后，因本轮没有下载模型。
+- Secret 扫描：对完整 base...source Diff 以私钥、AWS、GitHub 和典型 API key 模式扫描，无命中。
+- 刻意未运行且仍未获授权：`mlx_whisper.transcribe`、模型/权重/Hugging Face 下载或加载、ffmpeg、
+  任何媒体/YouTube 请求、Cookie/登录、remote components、Vault/凭据、真实资源和性能冒烟、
+  multiprocessing 实际终止。
+
+### Reviewer 结论
+
+- Verdict: **REJECT**。
+- 未解决 P0/P1：P1-1。
+- 原因：P1-1 使成功清理不再以真实 Artifact CAS 成功为前提，且缺失或陈旧索引会丢失文件；
+  因此 Phase A AC 的音频保留/恢复项未满足。其余规定的离线检查、范围、依赖、许可证、夹具、
+  Phase A 资源边界和缓存/错误探针均通过。
+- 建议：退回原 Implementer，在不扩展 Schema、真实资源或任务范围的前提下提出可验证的
+  Artifact 登记与 CAS/文件删除恢复协议，并加入真实 SQLite 的 missing/stale-CAS 回归；随后由新的
+  独立 Reviewer 重跑全部门禁。
