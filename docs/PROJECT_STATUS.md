@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-18
-- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约 P1 修复中
+- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约 Correction 1 独立审查中
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-005A` 第一轮审查已拒绝，Codex Implementer 正在执行限定的 Correction 1；TASK-004/TASK-005 均已关闭为 `DONE`
+- 活动任务：`TASK-005A` Correction 1 已提交，等待全新独立 Codex Reviewer；TASK-004/TASK-005 均已关闭为 `DONE`
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -36,9 +36,9 @@
 
 ## 下一步
 
-1. TASK-005A Codex Implementer 只修复 Pydantic `model_copy(update=...)` 绕过，并提交
-   Correction 1 的回归证据。
-2. 全新独立 Codex Reviewer 审查 Correction 1；通过后主控验收并由 Integrator 整合为 `DONE`。
+1. 全新独立 Codex Reviewer 审查固定 Correction 1，重点验证 `model_copy(update=...)`
+   边界、无 update 复制、四个公开不变量和既有 AC/ADR 回归。
+2. 审查通过后，主控验收并由 Integrator 整合 TASK-005A 为 `DONE`。
 3. 再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree；模型、服务、系统
    工具和媒体下载在对应门禁满足前继续不分配。
 
@@ -53,8 +53,8 @@
 | 已完成可关闭 | TASK-005 Implementer、第四次 Reviewer 与 Product Integrator | evidence 已合并为 `cfc302...`；不得修改代码或重新分配 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
-| 立即启动 | TASK-005A Codex Implementer Correction 1 | 独占 task-005a source；仅修复 `model_copy` 不变量绕过与回归 |
-| 等待修复 | TASK-005A 下一轮独立 Codex Reviewer | 只在 Correction 1 提交并固定 SHA 后启动 |
+| 已完成可关闭 | TASK-005A Codex Implementer Correction 1 | source `3a7df10...` 已提交；不得继续写入或自行审查 |
+| 立即启动 | TASK-005A 第二轮独立 Codex Reviewer | 只在 task-005a source 审查固定 `3a7df10...`；只可写 handoff evidence |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005A `DONE` 与各自资源授权 |
 
 ## 授权边界
@@ -130,6 +130,12 @@
   与跨字段验证，生成 hash 不匹配输入和错误最终评分策略。这是 AC-2、ADR-007 L-03/L-05/
   L-06 的 P1；Correction 1 必须仅通过重新验证或拒绝 unchecked update 关闭，并接受新一轮
   独立审查。后续模型、服务、媒体和文件删除继续未授权。
+- TASK-005A Correction 1 `3a7df1029a77b7dec84a76c304c10e372f755b77` 为 reviewer evidence 的
+  单一非 merge 后继，精确修改 `domain.py`、contracts test 和 handoff 三个允许路径。
+  修复策略仅为本任务四个新增评分对象禁止所有 `model_copy(update=...)`，保留无 update
+  复制，避免全局改变既有领域模型；Implementer 自报 contracts 53、全量 251、mypy、
+  Ruff、CLI、lock/sync、offline build 与 package inclusion 均通过。该结果仍必须由
+  第二个全新独立 Reviewer 验证。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式

@@ -40,7 +40,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-003](TASK-003-state-store.md) | SQLite 状态存储 | Codex Implementer + 独立 Grok Reviewer + Codex Integrator | DONE | 002 |
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
-| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | Codex Implementer Correction 1；新 Reviewer 等待修复 | IN_PROGRESS | 005 |
+| [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 全新独立 Codex Reviewer（Correction 1 `3a7df10...`） | IN_REVIEW | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex（未分配） | BLOCKED | 005A；待资源授权 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | Codex（未分配） | BLOCKED | 005A；待服务/模型授权 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |

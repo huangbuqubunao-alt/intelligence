@@ -1,9 +1,9 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `Codex`（Correction 1 提交后由全新独立会话审查）
-- Owner role: Codex Implementer（Correction 1）
+- Reviewer: `Codex`（Correction 1 后由全新独立会话审查）
+- Owner role: Codex Independent Reviewer（Correction 1）
 - Size: M
 - Risk: High
 - Depends on: TASK-005
@@ -151,3 +151,16 @@
   到既有非本任务领域对象、Schema、依赖、锁文件或其他产品路径。
 - Correction packet：`agent-prompts/TASK-005A-CORRECTION-1-CODEX.md`。修复提交后
   必须再次获得全新独立 Codex Reviewer 审查；不得直接验收、整合或关闭。
+
+## Correction 1 审查授权
+
+- Correction 1 source head：`3a7df1029a77b7dec84a76c304c10e372f755b77`；唯一父提交为
+  第一轮 reviewer evidence `3cec2d6a7b60b11912c10e714dc1473197d7374f`。
+- Correction Diff：精确为 `src/youtube_intel/domain.py`、
+  `tests/unit/test_contracts.py` 和 `handoffs/TASK-005A.md`；原始 base 的完整产品范围
+  仍精确为 8 个批准路径，lock/config 未变。
+- 修复策略：仅对本任务四个新增评分公开对象禁止所有带 `update` 的
+  `model_copy`；无 update 复制继续保留。它不得改变既有非本任务 `_DomainModel` 的
+  public 行为。
+- Reviewer packet：`agent-prompts/TASK-005A-REVIEWER-2-CODEX.md`。独立审查尚未启动；
+  未通过前不得设为 `ACCEPTED`、整合或关闭。
