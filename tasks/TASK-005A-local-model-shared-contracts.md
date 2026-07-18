@@ -1,9 +1,9 @@
 # TASK-005A：本地模型共享契约
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `Codex`（Correction 1 后由全新独立会话审查）
-- Owner role: Codex Independent Reviewer（Correction 1）
+- Reviewer: `Codex`（Correction 1 独立审查已通过）
+- Owner role: Codex Product Integrator（等待正式授权）
 - Size: M
 - Risk: High
 - Depends on: TASK-005
@@ -164,3 +164,17 @@
   public 行为。
 - Reviewer packet：`agent-prompts/TASK-005A-REVIEWER-2-CODEX.md`。独立审查尚未启动；
   未通过前不得设为 `ACCEPTED`、整合或关闭。
+
+## Correction 1 独立审查结论
+
+- Reviewer evidence：`e726656ffcc96b3c61d12f649c5574dc927add62`，唯一父提交为
+  Correction 1 `3a7df1029a77b7dec84a76c304c10e372f755b77`，且只修改 source handoff。
+- Verdict：`APPROVE`。全部离线门禁通过：focused `53/10/34`、全量 `251`、mypy、Ruff、
+  CLI、offline build、migration packaging 与 fixed Diff；P1 `model_copy` 探针验证四个
+  新评分对象的所有 `update` fail-closed，而 shallow/deep 无 update copy 仍有效/frozen，
+  既有 `ScoreResult` 行为未回归。
+- AC-1 至 AC-5、适用 ADR-007 边界、SQLite 原子回滚和 Artifact CAS/index-only 探针均
+  `PASS`；P0/P1/P2/P3 均无。Correction 与完整范围、依赖/锁、Provider/migration/网络/
+  删除红线和复用审查均通过。
+- TASK-005A 现为 `ACCEPTED`，尚未整合或 `DONE`；必须先由主控生成固定 execution base
+  的 Product Integrator 包并复跑整合后门禁。

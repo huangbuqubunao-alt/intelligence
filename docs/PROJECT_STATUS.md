@@ -1,12 +1,12 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-18
-- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约 Correction 1 独立审查中
+- 当前阶段：Phase 1 — 状态、发现、元数据与字幕主链已完成；TASK-005A 共享契约已验收，等待最终整合
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-005a`（`codex/task-005a-local-model-shared-contracts`）；`/Users/hua/Documents/yia-worktrees/task-005`（`codex/task-005-subtitle-pipeline`）保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-005A` Correction 1 已提交，等待全新独立 Codex Reviewer；TASK-004/TASK-005 均已关闭为 `DONE`
+- 活动任务：`TASK-005A` 已被第二轮独立 Codex Reviewer 批准，等待 Product Integrator 正式授权；TASK-004/TASK-005 均已关闭为 `DONE`
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -36,9 +36,8 @@
 
 ## 下一步
 
-1. 全新独立 Codex Reviewer 审查固定 Correction 1，重点验证 `model_copy(update=...)`
-   边界、无 update 复制、四个公开不变量和既有 AC/ADR 回归。
-2. 审查通过后，主控验收并由 Integrator 整合 TASK-005A 为 `DONE`。
+1. 主控生成固定 execution base 的 TASK-005A Product Integrator 包。
+2. Integrator 合并已验收 source、复跑整合后门禁并由主控收口为 `DONE`。
 3. 再从同一已验收 main 为 TASK-006/TASK-007 创建独立 worktree；模型、服务、系统
    工具和媒体下载在对应门禁满足前继续不分配。
 
@@ -53,8 +52,8 @@
 | 已完成可关闭 | TASK-005 Implementer、第四次 Reviewer 与 Product Integrator | evidence 已合并为 `cfc302...`；不得修改代码或重新分配 |
 | 已完成可关闭 | TASK-004 Product Integrator、第五次 Reviewer 与 TASK-005 Scout | 证据已保留，无活跃写入 |
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
-| 已完成可关闭 | TASK-005A Codex Implementer Correction 1 | source `3a7df10...` 已提交；不得继续写入或自行审查 |
-| 立即启动 | TASK-005A 第二轮独立 Codex Reviewer | 只在 task-005a source 审查固定 `3a7df10...`；只可写 handoff evidence |
+| 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
+| 等待授权 | TASK-005A Codex Product Integrator | 仅可在主控固定 execution base 后整合已验收 source |
 | 等待依赖 | `TASK-006`/`TASK-007` 及后续写入任务 | 等待 TASK-005A `DONE` 与各自资源授权 |
 
 ## 授权边界
@@ -136,6 +135,10 @@
   复制，避免全局改变既有领域模型；Implementer 自报 contracts 53、全量 251、mypy、
   Ruff、CLI、lock/sync、offline build 与 package inclusion 均通过。该结果仍必须由
   第二个全新独立 Reviewer 验证。
+- TASK-005A 第二轮独立 Reviewer evidence `e726656ffcc96b3c61d12f649c5574dc927add62`
+  只修改 handoff，Verdict=`APPROVE`：完整离线门禁、Pydantic `model_copy` fail-closed
+  边界、无 update copy、SQLite 原子回滚和 Artifact index-only 探针，以及 AC-1 至
+  AC-5/适用 ADR-007 边界均通过；P0/P1/P2/P3 均无。任务已 `ACCEPTED`，尚未整合。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## 主控接收执行结果的最小格式
