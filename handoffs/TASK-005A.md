@@ -215,3 +215,91 @@
 - Remaining risk: public functional updates for these four contracts are deliberately
   unavailable; a future need for validated updates requires a separately specified
   API and regression suite. `DECISION NEEDED`: `None`.
+
+## Second Independent Codex Reviewer — Correction 1
+
+- Task: `TASK-005A`
+- Role: `Second Independent Codex Reviewer`
+- Reviewed Correction 1 head: `3a7df1029a77b7dec84a76c304c10e372f755b77`
+- Starting evidence / only parent: `3cec2d6a7b60b11912c10e714dc1473197d7374f`
+- Review authorization: main `22d65d4a27a7dfe95fec88f1985ed8ae98703d65`, the sole
+  direct child of required `bb61921bc93c17e01e9b3f4e2971933b30802b21`.
+
+### Checks rerun
+
+| Command or inspection | Result |
+|---|---|
+| `uv lock --check` | PASS — 34 packages resolved |
+| `uv sync --locked` | PASS — 30 locked packages checked |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS — 53 passed |
+| `uv run python -m pytest tests/unit/test_state_transitions.py` | PASS — 10 passed |
+| `uv run python -m pytest tests/integration/test_state_store.py` | PASS — 34 passed |
+| `uv run python -m pytest` | PASS — 251 passed |
+| `uv run mypy src` | PASS — no issues in 9 source files |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS — sdist and wheel both contain `youtube_intel/migrations/001_initial.sql`; only the newly generated ignored `dist/` was removed afterwards |
+| `git diff --check 82f45a1c04f9eba3264cd743b28bc339d79b34fc...3a7df1029a77b7dec84a76c304c10e372f755b77` | PASS |
+
+### P1 `model_copy` boundary probe
+
+- PASS. With independently constructed valid instances, every `update` for all four
+  new public contracts fails closed with the stable `ValueError`: empty mapping,
+  original invalid sample, valid update, unknown field, hash mismatch, wrong type,
+  nested sample/decision replacement, and `score == threshold` with final `false`.
+- PASS. `model_copy(update=None)` in both shallow and `deep=True` modes returns a
+  distinct instance of the same type, revalidates from its dumped value, and remains
+  frozen for `TranscriptSample`, `ScoringInput`, `ScoringDecision`, and
+  `ScoringOutcome`.
+- PASS. Static probe with `MYPYPATH=src` accepts the no-update public signature and
+  rejects a normal mapping update as incompatible with `Mapping[str, Never]`; the
+  runtime boundary also rejects calls widened through a base type. No product caller
+  exposes a bypass. `ScoreResult.model_copy(update=...)` remains available, proving
+  the correction did not alter pre-existing `_DomainModel` behavior.
+- Static/diff audit found no `model_construct`, `__dict__`, `object.__setattr__`,
+  free public `dict`, `Any`, wide `object`, `cast`, or `type: ignore` bypass.
+
+### Regression, AC, and ADR-007 matrix
+
+| Item | Result | Independent evidence |
+|---|---|---|
+| Probe A / AC-1 | PASS | Fixed decode/resource values and rejection of zero resources, malformed digest, non-loopback/non-http/userinfo/path/query/fragment URLs, and transcript/description boundaries. |
+| AC-2 / L-03, L-05, L-06 | PASS | P1 probe above preserves immutable named contracts, full-hash binding, and threshold-derived final policy. |
+| Probe C / AC-3 / L-04 | PASS | Real temporary SQLite uses a distinct scoring Job/video/artifact/call: injected post-summary failure rolls back artifact, provider call, summary, Pipeline, and Job; success commits all five atomically. |
+| Probe D / AC-4 / L-14 | PASS | Real temporary SQLite verifies expiry ordering/limit and hash CAS for unknown, mismatched, successful, and repeated calls; a sentinel registered relative path was neither read nor deleted. |
+| AC-5 / L-02 | PASS | Scope and static audit show no Provider, model, network, media, authentication, Vault, migration, dependency, lockfile, or file-deletion capability. |
+| L-07/L-08/L-09 | PASS at this task boundary | Config and repository boundary are present; loopback HTTP, service/model preflight, JSON repair, and caching flow remain TASK-007 work. |
+| L-10/L-11/L-15 | PASS at this task boundary | Fixed configuration and initial resource thresholds are present; installation, download, spawn execution, and calibration remain TASK-006/TASK-014 work. |
+| L-12/L-13 | DEFERRED as specified | Audio/ffmpeg/media and duration `--force`/audit migration remain TASK-006 and TASK-010 work. |
+
+### Scope, reuse, and five-axis review
+
+- Correction Diff is exactly `src/youtube_intel/domain.py`,
+  `tests/unit/test_contracts.py`, and this handoff; its sole parent is first-review
+  evidence. Original base...Correction head remains exactly the approved eight
+  TASK-005A paths. `pyproject.toml` and `uv.lock` blobs match base exactly.
+- Reuse remains limited to locked Pydantic, the existing SQLite/Artifact Repository,
+  and Python standard library. No new dependency, SDK, model, network/media/auth,
+  Vault, Schema/migration, real data, credential, build artifact, or deletion ability
+  was introduced.
+- Correctness: PASS — the prior P1 and all independent probes are closed. Architecture:
+  PASS — a private, narrowly inherited guard isolates the four new contracts without
+  widening existing domain behavior. Security: PASS — updates fail closed and no new
+  external or file-deletion surface exists. Performance: PASS — constant-time guard
+  and bounded existing SQLite queries add no material overhead. Readability: PASS —
+  the guard, its stable error, and regression intent are compact and explicit.
+
+### Findings and verdict
+
+- P0: None.
+- P1: None.
+- P2: None.
+- P3: None.
+- Skipped checks: None of the required offline checks. Real models, services, media,
+  network, authentication, Vault, and actual file deletion were deliberately not run:
+  they are unauthorized later-task responsibilities, not review omissions.
+- Remaining risks: future validated functional-update support for these four public
+  contracts needs a separately specified API and regression suite. TASK-006/007/010/012
+  responsibilities remain intentionally out of scope.
+- Decision needed: `None`.
+- Verdict: `APPROVE`.
