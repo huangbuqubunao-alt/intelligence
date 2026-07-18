@@ -1,0 +1,10 @@
+{
+  "score": 8.5,
+  "reason": "Explains a concrete product strategy with useful trade-offs.",
+  "topics": ["product strategy", "experimentation"],
+  "should_summarize": true,
+  "dimensions": {
+    "product": 9.0,
+    "practicality": 8.0
+  }
+}

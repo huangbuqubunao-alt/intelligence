@@ -1,0 +1,6 @@
+{
+  "score": 10.5,
+  "reason": "This score is intentionally out of range.",
+  "topics": ["invalid response"],
+  "should_summarize": true
+}
