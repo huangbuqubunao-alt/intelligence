@@ -12,6 +12,7 @@ from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
     RetentionClass,
+    ScoringSummaryWrite,
     SQLiteStateRepository,
     StorageRoot,
     build_provider_request_hash,
@@ -122,6 +123,15 @@ def test_provider_request_hash_covers_every_cache_dimension() -> None:
         changed = dict(base)
         changed[field] = replacement
         assert build_provider_request_hash(**changed) != original
+
+
+def test_scoring_summary_write_rejects_invalid_final_values() -> None:
+    assert ScoringSummaryWrite(score=7.0, should_summarize=True).score == 7.0
+
+    with pytest.raises(ValueError, match="score"):
+        ScoringSummaryWrite(score=10.1, should_summarize=True)
+    with pytest.raises(ValueError, match="should_summarize"):
+        ScoringSummaryWrite(score=7.0, should_summarize=1)
 
 
 @pytest.mark.parametrize("relative_path", ["/private/note.md", "../note.md", "C:/note.md"])

@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import PurePosixPath
 from types import MappingProxyType
-from typing import Final, Literal, Protocol, TypeAlias, runtime_checkable
+from typing import Final, Literal, Never, Protocol, Self, TypeAlias, runtime_checkable
 
 from pydantic import (
     BaseModel,
@@ -529,12 +529,83 @@ class DiscoveryBatch(_DomainModel):
         return value
 
 
-class ScoringInput(_DomainModel):
+class _UpdateProtectedScoringContract(_DomainModel):
+    """Preserve validation boundaries for shared scoring contracts."""
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for scoring contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
+
+
+class TranscriptSample(_UpdateProtectedScoringContract):
+    """A bounded, ordered selection from one canonical transcript.
+
+    The scoring service owns the ``sampling-v1`` slicing algorithm. This contract
+    preserves its selected segments and binds them to the full canonical content
+    hash so a sample cannot be reused for different transcript content.
+    """
+
+    head: str = Field(min_length=1)
+    body: str = ""
+    tail: str = ""
+    selected_char_count: int = Field(ge=3)
+    source_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sampling_version: Literal["sampling-v1"] = "sampling-v1"
+
+    @model_validator(mode="after")
+    def _selected_character_count_matches_segments(self) -> TranscriptSample:
+        if self.selected_char_count != len(self.head) + len(self.body) + len(self.tail):
+            msg = "selected_char_count must equal the total selected sample characters"
+            raise ValueError(msg)
+        return self
+
+
+class ScoringInput(_UpdateProtectedScoringContract):
     video: VideoMetadata
-    transcript_text: str
-    transcript_content_hash: str = Field(min_length=1)
+    sample: TranscriptSample
+    transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     language: str = Field(min_length=1)
     request_hash: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _sample_binds_to_full_transcript(self) -> ScoringInput:
+        if self.sample.source_content_hash != self.transcript_content_hash:
+            msg = "transcript_content_hash must match sample.source_content_hash"
+            raise ValueError(msg)
+        return self
+
+
+class ScoringDecision(_UpdateProtectedScoringContract):
+    threshold: float = Field(ge=0, le=10)
+    final_should_summarize: bool
+    model_disagrees: bool
+
+
+class ScoringOutcome(_UpdateProtectedScoringContract):
+    result: ScoreResult
+    decision: ScoringDecision
+    call: ProviderCallMetadata
+
+    @model_validator(mode="after")
+    def _final_decision_is_derived_from_score(self) -> ScoringOutcome:
+        expected_final = self.result.score >= self.decision.threshold
+        if self.decision.final_should_summarize is not expected_final:
+            msg = "final_should_summarize must equal score >= threshold"
+            raise ValueError(msg)
+        expected_disagreement = (
+            self.result.should_summarize != self.decision.final_should_summarize
+        )
+        if self.decision.model_disagrees is not expected_disagreement:
+            msg = "model_disagrees must equal model suggestion disagreement"
+            raise ValueError(msg)
+        return self
 
 
 class AnalysisInput(_DomainModel):
@@ -779,7 +850,10 @@ __all__ = [
     "ProviderCallMetadata",
     "DiscoveryCursor",
     "DiscoveryBatch",
+    "TranscriptSample",
     "ScoringInput",
+    "ScoringDecision",
+    "ScoringOutcome",
     "AnalysisInput",
     "NotAvailable",
     "TranscriptReady",

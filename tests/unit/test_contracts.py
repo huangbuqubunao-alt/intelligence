@@ -27,6 +27,7 @@ from youtube_intel.config import (
     StorageSettings,
     ThresholdSettings,
     TimeoutSettings,
+    TranscriptionSettings,
     WeeklySettings,
     load_app_config,
     load_channels,
@@ -63,7 +64,9 @@ from youtube_intel.domain import (
     ProviderCallMetadata,
     ScoreDimensions,
     ScoreResult,
+    ScoringDecision,
     ScoringInput,
+    ScoringOutcome,
     ScoringProvider,
     SourceProvider,
     SubtitleFormat,
@@ -75,6 +78,7 @@ from youtube_intel.domain import (
     TranscriptProvider,
     TranscriptQualityFlag,
     TranscriptReady,
+    TranscriptSample,
     TranscriptSourceType,
     VideoMetadata,
     WeeklyReportInput,
@@ -91,6 +95,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHANNELS_EXAMPLE = REPO_ROOT / "config" / "channels.example.yaml"
 SETTINGS_EXAMPLE = REPO_ROOT / "config" / "settings.example.yaml"
 NOW = datetime(2026, 7, 14, 12, 0, 0, tzinfo=UTC)
+TRANSCRIPT_HASH = "a" * 64
+MODEL_DIGEST = "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +116,10 @@ def _minimal_settings_dict(**overrides: object) -> dict[str, object]:
             "output_language": "zh-CN",
             "transcript_languages": ["zh", "en"],
         },
-        "local_scoring": {"model": "qwen2.5:14b"},
+        "local_scoring": {
+            "model": "qwen3:8b",
+            "expected_model_digest": MODEL_DIGEST,
+        },
         "storage": {
             "vault_root": "/tmp/yia-test-vault",
             "vault_subdir": "YouTube Intel",
@@ -179,6 +188,19 @@ def _score(**kwargs: object) -> ScoreResult:
     return ScoreResult.model_validate(data)
 
 
+def _sample(**kwargs: object) -> TranscriptSample:
+    data: dict[str, object] = {
+        "head": "head",
+        "body": "body",
+        "tail": "tail",
+        "selected_char_count": 12,
+        "source_content_hash": TRANSCRIPT_HASH,
+        "sampling_version": "sampling-v1",
+    }
+    data.update(kwargs)
+    return TranscriptSample.model_validate(data)
+
+
 # ---------------------------------------------------------------------------
 # Example config and defaults / priority
 # ---------------------------------------------------------------------------
@@ -201,6 +223,13 @@ def test_example_configs_load() -> None:
     assert settings.local_scoring.temperature == 0.0
     assert settings.local_scoring.max_output_tokens == 1200
     assert settings.local_scoring.max_transcript_chars == 30000
+    assert settings.local_scoring.max_description_chars == 4000
+    assert settings.local_scoring.expected_model_digest == MODEL_DIGEST
+    assert settings.transcription.model_revision == "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+    assert settings.transcription.parameter_policy_version == "mlx-whisper-v1"
+    assert settings.transcription.min_free_disk_gib == 8
+    assert settings.transcription.min_available_memory_gib == 6
+    assert settings.transcription.max_audio_bytes == 2_000_000_000
     assert settings.cloud.enabled is False
     assert settings.cloud.api_key_env == "OPENAI_API_KEY"
     assert settings.cloud.max_calls_per_run == 5
@@ -375,14 +404,93 @@ def test_timeouts_must_be_positive() -> None:
 
 
 def test_local_scoring_defaults_and_bounds() -> None:
-    scoring = LocalScoringSettings(model="qwen2.5:14b")
+    scoring = LocalScoringSettings(
+        model="qwen3:8b",
+        expected_model_digest=MODEL_DIGEST,
+    )
     assert scoring.temperature == 0.0
     assert scoring.max_output_tokens == 1200
     assert scoring.max_transcript_chars == 30000
+    assert scoring.max_description_chars == 4000
+    assert scoring.base_url == "http://127.0.0.1:11434"
     with pytest.raises(ValidationError):
-        LocalScoringSettings(model="qwen", temperature=2.1)
+        LocalScoringSettings(
+            model="qwen",
+            expected_model_digest=MODEL_DIGEST,
+            temperature=2.1,
+        )
     with pytest.raises(ValidationError):
-        LocalScoringSettings(model="qwen", max_output_tokens=0)
+        LocalScoringSettings(
+            model="qwen",
+            expected_model_digest=MODEL_DIGEST,
+            max_output_tokens=0,
+        )
+
+    for base_url in (
+        "https://127.0.0.1:11434",
+        "http://example.com:11434",
+        "http://user@127.0.0.1:11434",
+        "http://127.0.0.1:11434/api",
+        "http://127.0.0.1:11434?debug=true",
+        "http://127.0.0.1:11434#fragment",
+    ):
+        with pytest.raises(ValidationError):
+            LocalScoringSettings(
+                model="qwen3:8b",
+                expected_model_digest=MODEL_DIGEST,
+                base_url=base_url,
+            )
+    with pytest.raises(ValidationError):
+        LocalScoringSettings(
+            model="qwen3:8b",
+            expected_model_digest="sha256:" + "A" * 64,
+        )
+    with pytest.raises(ValidationError):
+        LocalScoringSettings(
+            model="qwen3:8b",
+            expected_model_digest=MODEL_DIGEST,
+            max_transcript_chars=2,
+        )
+    with pytest.raises(ValidationError):
+        LocalScoringSettings(
+            model="qwen3:8b",
+            expected_model_digest=MODEL_DIGEST,
+            max_description_chars=20_001,
+        )
+
+
+def test_transcription_settings_freeze_revision_decode_policy_and_resources() -> None:
+    transcription = TranscriptionSettings()
+
+    assert transcription.model == "mlx-community/whisper-large-v3-turbo"
+    assert transcription.model_revision == "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+    assert transcription.model_weights_bytes == 1_613_977_612
+    assert (
+        transcription.model_weights_sha256
+        == "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+    )
+    assert transcription.parameter_policy_version == "mlx-whisper-v1"
+    assert transcription.task == "transcribe"
+    assert transcription.temperature == 0.0
+    assert transcription.compression_ratio_threshold == 2.4
+    assert transcription.logprob_threshold == -1.0
+    assert transcription.no_speech_threshold == 0.6
+    assert transcription.condition_on_previous_text is True
+    assert transcription.word_timestamps is False
+    assert transcription.initial_prompt is None
+    assert transcription.fp16 is True
+    assert transcription.min_free_disk_gib == 8
+    assert transcription.min_available_memory_gib == 6
+    assert transcription.max_audio_bytes == 2_000_000_000
+
+    with pytest.raises(ValidationError):
+        TranscriptionSettings(parameter_policy_version="mlx-whisper-v2")
+    with pytest.raises(ValidationError):
+        TranscriptionSettings(task="translate")
+    with pytest.raises(ValidationError, match="decode parameters"):
+        TranscriptionSettings(temperature=0.1)
+    with pytest.raises(ValidationError):
+        TranscriptionSettings(min_free_disk_gib=0)
 
 
 def test_cloud_enabled_requires_model_and_budget_caps() -> None:
@@ -568,6 +676,103 @@ def test_score_result_dimensions_and_cardinalities() -> None:
         ScoreDimensions(technical=10.1)
 
 
+def test_scoring_sample_and_outcome_bind_hash_and_final_policy() -> None:
+    sample = _sample()
+    scoring_input = ScoringInput(
+        video=_video(),
+        sample=sample,
+        transcript_content_hash=TRANSCRIPT_HASH,
+        language="en",
+        request_hash="request-hash",
+    )
+    assert scoring_input.sample == sample
+    with pytest.raises(ValidationError, match="selected_char_count"):
+        _sample(selected_char_count=11)
+    with pytest.raises(ValidationError, match="sampling_version"):
+        _sample(sampling_version="sampling-v2")
+    with pytest.raises(ValidationError, match="transcript_content_hash"):
+        ScoringInput(
+            video=_video(),
+            sample=sample,
+            transcript_content_hash="c" * 64,
+            language="en",
+            request_hash="request-hash",
+        )
+
+    result = _score(score=6.5, should_summarize=True)
+    decision = ScoringDecision(
+        threshold=7.0,
+        final_should_summarize=False,
+        model_disagrees=True,
+    )
+    outcome = ScoringOutcome(result=result, decision=decision, call=_call())
+    assert outcome.decision.final_should_summarize is False
+    with pytest.raises(ValidationError, match="final_should_summarize"):
+        ScoringOutcome(
+            result=result,
+            decision=ScoringDecision(
+                threshold=7.0,
+                final_should_summarize=True,
+                model_disagrees=False,
+            ),
+            call=_call(),
+        )
+    with pytest.raises(ValidationError, match="model_disagrees"):
+        ScoringOutcome(
+            result=result,
+            decision=ScoringDecision(
+                threshold=7.0,
+                final_should_summarize=False,
+                model_disagrees=False,
+            ),
+            call=_call(),
+        )
+
+
+def test_scoring_contract_model_copy_rejects_all_updates() -> None:
+    sample = _sample()
+    scoring_input = ScoringInput(
+        video=_video(),
+        sample=sample,
+        transcript_content_hash=TRANSCRIPT_HASH,
+        language="en",
+        request_hash="request-hash",
+    )
+    decision = ScoringDecision(
+        threshold=7.0,
+        final_should_summarize=True,
+        model_disagrees=False,
+    )
+    outcome = ScoringOutcome(result=_score(), decision=decision, call=_call())
+
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={"head": "", "selected_char_count": 0})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        scoring_input.model_copy(update={"transcript_content_hash": "c" * 64})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        decision.model_copy(update={"final_should_summarize": "not-a-boolean"})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        outcome.model_copy(
+            update={
+                "decision": ScoringDecision(
+                    threshold=7.0,
+                    final_should_summarize=False,
+                    model_disagrees=True,
+                )
+            }
+        )
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={"unknown": "value"})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        decision.model_copy(update={"threshold": 7.5})
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        sample.model_copy(update={})
+
+    copied_sample = sample.model_copy()
+    assert copied_sample == sample
+    assert copied_sample is not sample
+
+
 def test_analysis_result_structure_and_evidence_refs() -> None:
     evidence = (
         EvidenceExcerpt(
@@ -657,8 +862,8 @@ def test_cross_module_io_objects() -> None:
 
     scoring_in = ScoringInput(
         video=_video(),
-        transcript_text="text",
-        transcript_content_hash="h",
+        sample=_sample(),
+        transcript_content_hash=TRANSCRIPT_HASH,
         language="zh",
         request_hash="rh",
     )
@@ -1008,8 +1213,8 @@ def test_provider_returns_new_objects_not_mutated_input() -> None:
     video = _video()
     scoring_input = ScoringInput(
         video=video,
-        transcript_text="hello",
-        transcript_content_hash="h",
+        sample=_sample(),
+        transcript_content_hash=TRANSCRIPT_HASH,
         language="en",
         request_hash="r",
     )
@@ -1184,7 +1389,7 @@ def test_load_app_config_integration(tmp_path: Path) -> None:
     settings = _write_settings(tmp_path)
     cfg = load_app_config(channels, settings)
     assert cfg.channels
-    assert cfg.settings.local_scoring.model == "qwen2.5:14b"
+    assert cfg.settings.local_scoring.model == "qwen3:8b"
 
 
 def test_manual_invalid_threshold_and_timezone_error_paths(tmp_path: Path) -> None:
