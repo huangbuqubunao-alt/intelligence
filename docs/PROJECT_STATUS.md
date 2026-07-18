@@ -6,7 +6,7 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` 阶段 A source 已提交，等待全新独立 Codex Reviewer；`TASK-007` 离线评分实现仍由 Codex Implementer 写入
+- 活动任务：`TASK-006` 阶段 A 与 `TASK-007` 离线评分 source 均已提交，各自等待隔离的全新独立 Codex Reviewer
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -36,9 +36,9 @@
 
 ## 下一步
 
-1. 全新独立 Codex Reviewer 复跑 TASK-006 阶段 A 的离线门禁、依赖/许可证和资源红线
-   探针；同时不干扰 TASK-007 Implementer。
-2. TASK-007 source 提交后，再为其生成独立 Reviewer 包。
+1. 两名全新独立 Codex Reviewer 在各自 source worktree 复跑离线门禁和红线探针，互不
+   读取或操作对方 worktree。
+2. 两项审查结论回传后，主控分别验收；任一 P0/P1 都只退回其原 Implementer。
 3. 在产品级实现/审查通过前，继续不批准模型下载、Ollama、ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -55,7 +55,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在审查 | TASK-006 全新独立 Codex Reviewer（阶段 A） | source `c6ff804...`；仅可写审查 handoff |
-| 正在并行 | TASK-007 Codex Implementer（离线） | 仅标准库/Fake 实现；不改依赖或锁文件 |
+| 正在审查 | TASK-007 全新独立 Codex Reviewer（离线） | source `258358f...`；仅可写审查 handoff |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界

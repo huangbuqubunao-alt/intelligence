@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: Codex Implementer（离线实现）
+- Owner role: 全新独立 Codex Reviewer（离线实现）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -35,6 +35,20 @@
 - 继续禁止：Ollama 安装或启动、`qwen3:8b` 拉取、真实模型/服务调用、cloud tag、模型
   下载、媒体/YouTube、Cookie/登录、remote components、ffmpeg、真实 Vault/密钥或文件
   删除。真实文本冒烟属于后续单独授权。
+
+## 实现证据与独立审查授权
+
+- Source：`codex/task-007-local-scoring@258358fcd5227e144c9294beafdf7ec6e2feea63`；
+  唯一父提交为共同 base `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`，worktree 已干净。
+- base...source 精确包含本卡允许的 7 个路径组、共 11 个文件：`scoring.py`、
+  `providers/ollama.py`、`prompts/scoring.md`、两份测试、5 个评分夹具和 handoff。
+  `pyproject.toml` 与 `uv.lock` 无差异，`git diff --check` 通过。
+- Implementer 自报评分单测 `4`、Fake Ollama 集成 `6`、全量 `261`、mypy、Ruff、CLI、
+  离线 sync/build 和 migration packaging 全部通过；这些只构成待复跑证据，不构成验收。
+- Reviewer：必须为全新独立 Codex 会话，仅可在 source worktree 的
+  `handoffs/TASK-007.md` 追加审查并创建一个以 `258358f...` 为唯一父提交的 evidence
+  commit。不得改业务代码、测试、依赖、锁文件、任务状态或 main；审查包由动态 main
+  commit 解析。不得读取、检查或操作 TASK-006 worktree。
 
 ## 目标
 
