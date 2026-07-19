@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（阶段 A）
+- Owner role: 原 Codex Implementer（Correction 1）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -54,6 +54,26 @@
   `handoffs/TASK-006.md` 追加审查并创建一个以 `c6ff804...` 为唯一父提交的 evidence
   commit。不得改业务代码、测试、依赖、锁文件、任务状态或 main。审查包由动态 main
   commit 解析；`TASK-007` 正在并行写入，Reviewer 不得读取、检查或操作其 worktree。
+
+## 第一轮独立审查拒绝与 Correction 1
+
+- Reviewer evidence：`f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`，唯一父提交为实现
+  `c6ff804569b376c347719296d80fbe1abf99057a`，且只修改 source handoff。Verdict：
+  `REJECT`；P1 位于 `transcription.py` 的音频清理路径：它在调用 SQLite
+  `mark_artifact_deleted()` CAS 前删除文件。真实 SQLite 探针证明未知 Artifact id 或陈旧
+  CAS 会返回 `INDEX_CONFLICT`，但文件已不可恢复地删除。
+- 产品负责人已批准最小 Correction：保留现有 Repository “文件已删除后才 index-only
+  confirmation”的冻结契约和 `state.py`/Schema 边界。删除前必须用现有 Repository 读取
+  Artifact 并验证 id/key/hash、`AUDIO`/`EPHEMERAL_AUDIO`、DATA 根、未删除状态和受控
+  路径；任一预检不符时不得删除，并安全返回 `INDEX_CONFLICT`。仅预检成功后才能删除，
+  然后调用既有 post-delete CAS 确认。
+- 该设计明确保留“预检与 post-delete CAS 之间”的 at-most-once cleanup 并发窗口：若最终
+  CAS 失败，必须返回安全诊断而不是伪报 index 成功；不得改为提前标记删除、不得宣称严格
+  exactly-once。消除该窗口需要新的 deletion reservation 契约/Schema，超出本任务授权。
+- Correction 1 只能修改 `src/youtube_intel/transcription.py`、
+  `tests/unit/test_transcription_policy.py`、`tests/integration/test_whisper_provider.py` 和
+  `handoffs/TASK-006.md`。不得改依赖/锁、`state.py`、migration、公共任务状态或 main；
+  TASK-007 Reviewer 正在独立审查，Correction Implementer 不得读取或操作其 worktree。
 
 ## 目标
 

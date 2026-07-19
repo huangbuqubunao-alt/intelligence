@@ -6,7 +6,8 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` 阶段 A 与 `TASK-007` 离线评分 source 均已提交，各自等待隔离的全新独立 Codex Reviewer
+- 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
+  Correction 1；`TASK-007` 离线评分正由隔离的独立 Codex Reviewer 审查
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -36,10 +37,11 @@
 
 ## 下一步
 
-1. 两名全新独立 Codex Reviewer 在各自 source worktree 复跑离线门禁和红线探针，互不
-   读取或操作对方 worktree。
-2. 两项审查结论回传后，主控分别验收；任一 P0/P1 都只退回其原 Implementer。
-3. 在产品级实现/审查通过前，继续不批准模型下载、Ollama、ffmpeg、媒体或凭据操作。
+1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
+   SQLite 冲突回归；不得改变 Repository/Schema 契约。
+2. TASK-007 独立 Reviewer 继续完成离线审查，不与该修复互相读取或写入。
+3. 各自通过独立审查后再由主控验收；在此之前继续不批准模型下载、Ollama、ffmpeg、媒体
+   或凭据操作。
 
 ## 当前并行调度
 
@@ -54,7 +56,7 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 正在审查 | TASK-006 全新独立 Codex Reviewer（阶段 A） | source `c6ff804...`；仅可写审查 handoff |
+| 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
 | 正在审查 | TASK-007 全新独立 Codex Reviewer（离线） | source `258358f...`；仅可写审查 handoff |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
@@ -75,6 +77,11 @@
 - 2026-07-19 已分配 TASK-006 阶段 A 和 TASK-007 离线实现。TASK-006 可解析、锁定并
   安装 `mlx-whisper>=0.4.3,<0.5` 与必要传递依赖；TASK-007 不改依赖/锁文件。真实
   模型、Ollama、ffmpeg、媒体、YouTube、认证、Vault/密钥和文件删除仍未授权。
+- TASK-006 第一轮独立 Reviewer evidence `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426` 仅改
+  handoff，Verdict=`REJECT`：真实 SQLite 证明未知 Artifact id 或陈旧 CAS 时清理路径会在
+  index confirmation 前删文件。产品负责人批准的 Correction 1 维持 `state.py` 的
+  post-delete index-only 语义，要求先以现有 Artifact 读取验证删除前置条件；最终 CAS
+  竞态明确只是 at-most-once cleanup 风险，不引入 reservation/Schema 或 exactly-once 声明。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
