@@ -7,9 +7,11 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
-  Correction 1；`TASK-007` 离线评分正由隔离的独立 Codex Reviewer 审查
-- TASK-007 第一轮独立审查发现的 Ollama 异常脱敏与 SQLite 原子完成两个 P1 已由
-  Correction 1 source `f46881bc...` 修复；现进入全新独立 Codex Reviewer 的离线复审。
+  Correction 1；`TASK-007` 第二轮独立审查发现主响应恢复 P1，已退回原 Codex Implementer
+  Correction 2。
+- TASK-007 Correction 1 已关闭 Ollama 异常脱敏与 SQLite 原子完成两个 P1；第二轮审查
+  evidence `d8eaeab...` 发现“修复失败时主响应未保存，重排 Job 重复主调用”的 P1。Correction 2
+  仅补齐 ADR-007 L-09 的持久恢复路径，仍不授权任何真实 Ollama 或模型资源。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -41,9 +43,9 @@
 
 1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
    SQLite 冲突回归；不得改变 Repository/Schema 契约。
-2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 1：完整异常图脱敏、短读/畸形映射、
-   真实 SQLite 原子完成、已验证持久缓存与 rollback；不得改业务代码或访问 TASK-006。
-3. TASK-006 修复与 TASK-007 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
+2. 原 TASK-007 Implementer 仅修复修复失败后的主响应 Artifact 持久化与重试复用；不得修改
+   Schema、Repository、依赖、领域契约或访问 TASK-006。
+3. TASK-006 修复与 TASK-007 Correction 2 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -60,7 +62,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
-| 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 1） | source `f46881b...`；仅可写审查 handoff，复核异常图与 SQLite 原子恢复 |
+| 正在修复 | TASK-007 原 Codex Implementer（Correction 2） | P1：修复失败后保存并复用受验证的主响应；仅 5 个允许路径 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -94,6 +96,11 @@
   非 merge 后继，精确修改 `scoring.py`、`providers/ollama.py`、两份既有评分测试和 handoff
   五个允许文件。Implementer 自报 lock/sync offline、focused 23、全量 274、mypy、Ruff、CLI、
   offline build、迁移包内容及固定 Diff 全 PASS；这不替代全新独立 Reviewer 的复跑与探针。
+- TASK-007 第二轮独立 Reviewer evidence `d8eaeabdd2454141eeb646d9254f4a0a24626605` 是
+  Correction 1 的唯一子提交且仅修改 handoff，Verdict=`REJECT`：全部离线门禁仍通过，但当
+  主结构化响应无效且一次修复也失败时，主响应没有保存为受请求约束的 `SCORING_RAW`；重排 Job
+  会再发起主调用与修复，违反 ADR-007 L-09。Correction 2 仅可在既有 Artifact/Provider Call/
+  fail-provider-call 语义内保存并验证主响应恢复输入，禁止 Schema、依赖、领域或真实资源扩张。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险

@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（Correction 1；离线复审）
+- Owner role: 原 Codex Implementer（Correction 2；离线恢复修复）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -156,3 +156,34 @@
 - 第二次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以
   `f46881bc...` 为唯一父提交的 evidence commit；禁止改业务代码、测试、依赖、锁文件、任务
   状态或 main，也不得访问 TASK-006 worktree。
+
+## 第二次独立审查拒绝与 Correction 2
+
+- 第二次审查证据：`d8eaeabdd2454141eeb646d9254f4a0a24626605`；唯一父提交为
+  Correction 1 `f46881bc4a8ca0fda4d5ef7006b372bc566cff97`，且仅修改
+  `handoffs/TASK-007.md`。全部规定离线门禁通过，但 Verdict 为 `REJECT`，P0=0、P1=1、
+  P2=0、P3=0。
+- P1：主结构化响应无效后触发一次修复；若修复仍无效，`OllamaScoringProvider` 丢弃主响应。
+  因而 `RepositoryBackedScoringService` 仅记录失败 Provider Call，重排 Job 会再次执行主调用与
+  修复，违反 ADR-007 L-09 的“优先复用已保存主响应”恢复要求。
+
+### Correction 2 的冻结边界
+
+- 起点必须是上述审查证据；Correction commit 必须以 `d8eaeab...` 为唯一父提交。只允许修改
+  `src/youtube_intel/scoring.py`、`src/youtube_intel/providers/ollama.py`、
+  `tests/unit/test_scoring.py`、`tests/integration/test_ollama_provider.py`、必要的
+  `tests/fixtures/scoring/**` 和 `handoffs/TASK-007.md`。不得触达 `state.py`、Schema/migration、
+  `domain.py`、配置、Prompt、依赖、锁文件、任务状态或 main。
+- 当主响应已收到但解析失败且一次修复也失败时，必须在现有请求哈希、确定性 Artifact key、文件
+  哈希和 Provider Call 语义内，安全持久化主响应作为 `SCORING_RAW` 恢复输入，并记录可重试失败；
+  不得把它伪造成 `SCORING_STRUCTURED`、评分摘要、`SCORED` Pipeline 或成功 Job。
+- 同一已验证请求的重排 Job 必须先验证该恢复输入的路径、大小、哈希、Artifact kind、请求/视频/
+  Provider/模型/provenance 绑定；验证成功时不得再次发送主评分请求，只允许对已保存主响应执行恰好
+  一次修复请求。缺失、篡改或不匹配时必须按既有安全重试语义 fail-closed，绝不能伪造评分或泄漏原文。
+- 必须以临时真实 SQLite 和 in-process Fake transport 增加 RED/GREEN 回归：第一次“主响应无效+
+  修复失败”后保存恢复输入；第二次仅修复且不重发主请求；第二次修复成功时原子写入 raw/structured
+  Artifacts、成功 Provider Call、评分摘要、Pipeline CAS 与 Job；任一数据库写入失败全部回滚。错误图、
+  缓存篡改和重复重排不得泄漏正文、Prompt、URL、字幕或绝对路径。
+- 继续只允许离线 Fake/临时 SQLite；禁止实际 loopback 或外网 Ollama、模型下载/拉取、安装/启动服务、
+  媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。完成后必须由另一全新独立 Codex Reviewer
+  重审；Implementer 不得自行改变任务状态、合并或启动 Reviewer。

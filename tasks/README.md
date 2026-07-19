@@ -44,7 +44,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 原 Codex Implementer（Correction 1） | IN_PROGRESS | 005A；模型/ffmpeg/媒体另批 |
-| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 全新独立 Codex Reviewer（Correction 1） | IN_REVIEW | 005A；Ollama/模型另批 |
+| [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 原 Codex Implementer（Correction 2） | IN_PROGRESS | 005A；Ollama/模型另批 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Codex（未分配） | BLOCKED | 003, 007 |
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | BLOCKED | 003-009 |
