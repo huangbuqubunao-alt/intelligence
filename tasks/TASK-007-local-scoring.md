@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 1；离线实现）
+- Owner role: 全新独立 Codex Reviewer（Correction 1；离线复审）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -140,3 +140,19 @@
 - 继续只使用 Fake transport 与临时 SQLite；禁止真实 Ollama/网络、安装或启动服务、模型
   拉取、媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。Correction 完成后必须再次由
   全新独立 Codex Reviewer 审查，Implementer 不得自行改变任务状态、合并或启动 Reviewer。
+
+### Correction 1 实现证据与第二次独立审查
+
+- Correction source：`f46881bc4a8ca0fda4d5ef7006b372bc566cff97`，唯一父提交为第一轮
+  review evidence `266c488c17fc82cb648053b5e1066211a7bea9a9`；source worktree 干净。
+- Correction 精确修改 `src/youtube_intel/scoring.py`、`src/youtube_intel/providers/ollama.py`、
+  `tests/unit/test_scoring.py`、`tests/integration/test_ollama_provider.py` 和
+  `handoffs/TASK-007.md`。相对共同 base 的完整产品范围仍为原批准的 11 个文件；
+  `pyproject.toml`、`uv.lock` 无差异。
+- Implementer 自报完整异常图脱敏、`IncompleteRead`/畸形/超限安全映射、一次 repair、
+  repository-backed `SCORING_RAW`/`SCORING_STRUCTURED`、Provider Call、评分摘要、
+  `complete_stage` 原子完成、已验证持久缓存和 injected rollback 已有离线回归；它只构成待复跑
+  证据，不构成 `APPROVE` 或验收。
+- 第二次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以
+  `f46881bc...` 为唯一父提交的 evidence commit；禁止改业务代码、测试、依赖、锁文件、任务
+  状态或 main，也不得访问 TASK-006 worktree。

@@ -8,8 +8,8 @@
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
   Correction 1；`TASK-007` 离线评分正由隔离的独立 Codex Reviewer 审查
-- TASK-007 第一轮独立审查现已结束并发现 Ollama 异常脱敏与 SQLite 原子完成两个 P1；
-  原 Codex Implementer 正在执行 Correction 1。
+- TASK-007 第一轮独立审查发现的 Ollama 异常脱敏与 SQLite 原子完成两个 P1 已由
+  Correction 1 source `f46881bc...` 修复；现进入全新独立 Codex Reviewer 的离线复审。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -41,11 +41,10 @@
 
 1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
    SQLite 冲突回归；不得改变 Repository/Schema 契约。
-2. 原 TASK-007 Implementer 仅在既有评分/Adapter 与测试范围内修复完整异常链脱敏、短读
-   分类，并用已有 Repository 的 Provider Call 与 `complete_stage` 完成原子评分持久化；
-   不得改变 Schema、依赖或共享领域契约。
-3. 两项 Correction 均完成后，各自再进入全新独立 Codex Reviewer；在此之前继续不批准模型
-   下载、Ollama、ffmpeg、媒体或凭据操作。
+2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 1：完整异常图脱敏、短读/畸形映射、
+   真实 SQLite 原子完成、已验证持久缓存与 rollback；不得改业务代码或访问 TASK-006。
+3. TASK-006 修复与 TASK-007 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
+   ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
 
@@ -61,7 +60,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
-| 正在修复 | TASK-007 原 Codex Implementer（Correction 1） | P1：异常链不可泄漏，评分必须使用已有 SQLite 原子完成；仅评分/Adapter、既有测试、夹具与 handoff |
+| 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 1） | source `f46881b...`；仅可写审查 handoff，复核异常图与 SQLite 原子恢复 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -91,6 +90,10 @@
   可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、
   `ArtifactWrite`、`ScoringSummaryWrite` 与 `complete_stage` 的原子完成契约。Correction 1
   仅限补齐该既有契约与离线真实 SQLite 回归，禁止 Schema、依赖、领域契约和真实 Ollama 路径。
+- TASK-007 Correction 1 `f46881bc4a8ca0fda4d5ef7006b372bc566cff97` 是上述 evidence 的唯一
+  非 merge 后继，精确修改 `scoring.py`、`providers/ollama.py`、两份既有评分测试和 handoff
+  五个允许文件。Implementer 自报 lock/sync offline、focused 23、全量 274、mypy、Ruff、CLI、
+  offline build、迁移包内容及固定 Diff 全 PASS；这不替代全新独立 Reviewer 的复跑与探针。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
