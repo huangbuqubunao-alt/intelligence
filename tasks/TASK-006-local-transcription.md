@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（Correction 1；等待 TASK-007 Reviewer 容量）
+- Owner role: 原 Codex Implementer（Correction 2；安全拒绝枚举修复）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -89,6 +89,24 @@
 - 独立 Reviewer 必须是全新 Codex 会话，只能在 source handoff 写入并创建以 `17afcd...` 为唯一
   父提交的 evidence commit。为遵守单 Reviewer WIP 限制，必须等待正在执行的 TASK-007 Reviewer
   结束后再启动；不得改业务代码、任务状态、main 或访问 TASK-007 worktree。
+
+## 第二次独立审查拒绝与 Correction 2
+
+- Evidence：`47599db196b1b9440de3ae57ec3547935f64b1dc`，唯一父提交为 `17afcd...`，且仅修改
+  handoff。Verdict=`REJECT`，P1=1；规定离线门禁均通过。
+- P1：符号链接/路径逃逸预检正确保留音频与根外目标，却返回 `PATH_OUTSIDE_DATA`；本轮授权要求
+  一切未知/缺失/错误索引/路径逃逸拒绝均使用安全、可重试的 `INDEX_CONFLICT`。
+
+### Correction 2 的冻结边界
+
+- 起点必须为 `47599db...`，Correction commit 以它为唯一父提交。只允许 `transcription.py`、
+  `tests/unit/test_transcription_policy.py`、`tests/integration/test_whisper_provider.py` 与 handoff；
+  不得改 Provider、`state.py`、Schema/migration、依赖/锁、任务状态或 main。
+- 仅将符号链接、绝对路径、相对路径逃逸与 root escape 的清理 preflight 统一映射为安全、可重试的
+  `INDEX_CONFLICT`，保持文件/目标不删除、错误内容不泄漏路径。未知/缺失/哈希/错误 kind/retention/
+  root、有效删除和 final CAS 竞态的现有语义不得退化；不得引入 reservation 或 exactly-once 声明。
+- 以临时真实 SQLite/DATA 根与合成文件补充 RED/GREEN 回归；真实模型、ffmpeg、媒体、网络、Vault/
+  凭据和文件删除仍不授权。完成后由全新独立 Codex Reviewer 重审，Implementer 不得改状态、合并或启动 Reviewer。
 
 ## 目标
 

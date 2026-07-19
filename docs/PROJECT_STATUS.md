@@ -6,8 +6,9 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` Correction 1 已提交并排队审查；`TASK-007` 第三轮独立审查发现恢复索引
-  缺失时错误重发主评分 P1，已退回原 Codex Implementer Correction 3。
+- 活动任务：`TASK-006` 第二轮独立审查发现符号链接/路径逃逸错误枚举 P1，已退回原 Codex
+  Implementer Correction 2；`TASK-007` 第三轮独立审查发现恢复索引缺失时错误重发主评分 P1，
+  已退回原 Codex Implementer Correction 3。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -40,8 +41,8 @@
 
 ## 下一步
 
-1. 等待 TASK-007 Reviewer 结束后，再启动全新独立 Codex Reviewer 复核 TASK-006 Correction 1
-   的 Artifact 预检、删除和 post-delete CAS 语义；不得改业务代码或访问 TASK-007。
+1. 原 TASK-006 Implementer 仅将符号链接/路径逃逸预检的安全拒绝枚举统一为 `INDEX_CONFLICT`，
+   保留文件并补充离线回归；不得改 Schema/Repository 或访问 TASK-007。
 2. 原 TASK-007 Implementer 仅修复“恢复标记存在而 recovery Artifact 缺失/不匹配”时 fail-closed，
    并补充真实 SQLite 回归；不得修改 Schema、依赖、领域契约或访问 TASK-006。
 3. TASK-006 修复与 TASK-007 Correction 3 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
@@ -60,7 +61,7 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 等待 Reviewer 容量 | TASK-006 全新独立 Codex Reviewer（Correction 1） | source `17afcd...`；审查包已就绪，待 TASK-007 Reviewer 结束后启动 |
+| 正在修复 | TASK-006 原 Codex Implementer（Correction 2） | P1：符号链接/路径逃逸统一 `INDEX_CONFLICT`；仅 4 个允许路径 |
 | 正在修复 | TASK-007 原 Codex Implementer（Correction 3） | P1：有恢复标记但索引 Artifact 缺失时 fail-closed；仅 5 个允许路径 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
@@ -92,6 +93,11 @@
   post-delete CAS 竞态、kind/retention/root/hash、符号链接/路径逃逸的真实 SQLite 回归；自报
   focused `10/9`、全量 `270`、mypy、Ruff、CLI、locked sync、offline build 与 migration package
   inclusion 全 PASS。这些仅构成待独立复跑证据；预检到最终 CAS 间仍只声称 at-most-once cleanup。
+- TASK-006 第二轮独立 Reviewer evidence `47599db196b1b9440de3ae57ec3547935f64b1dc` 是
+  Correction 1 的唯一子提交且仅改 handoff，Verdict=`REJECT`：所有离线门禁及 unknown/stale/
+  CAS/hash/root 边界均通过，但符号链接/路径逃逸虽保留文件，返回 `PATH_OUTSIDE_DATA` 而非
+  已授权的统一 `INDEX_CONFLICT`。Correction 2 只可调整这一安全拒绝诊断与回归，禁止改变
+  删除顺序、CAS、Schema/Repository、依赖或真实资源边界。
 - TASK-007 第一轮独立 Reviewer evidence `266c488c17fc82cb648053b5e1066211a7bea9a9` 仅改
   handoff，Verdict=`REJECT`：`OllamaScoringProvider` 的修复响应、短读和部分畸形/超限响应
   可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、
