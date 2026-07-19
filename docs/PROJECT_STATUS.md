@@ -6,11 +6,11 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` Correction 1 已提交，等待独立离线复审；`TASK-007` Correction 2
-  正由全新独立 Codex Reviewer 离线复审。一次只运行一个 Reviewer，TASK-006 审查包已就绪但须
-  等待 TASK-007 Reviewer 结束。
-- TASK-007 Correction 2 source `567b0f...` 已针对 ADR-007 L-09 保存失败修复的主响应、验证恢复
-  Artifact，并在重排时只执行一次修复。该实现证据不构成验收；真实 Ollama 或模型资源仍未授权。
+- 活动任务：`TASK-006` Correction 1 已提交并排队审查；`TASK-007` 第三轮独立审查发现恢复索引
+  缺失时错误重发主评分 P1，已退回原 Codex Implementer Correction 3。
+- TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
+  重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
+  fail-closed 分支，真实 Ollama 或模型资源仍未授权。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -42,9 +42,9 @@
 
 1. 等待 TASK-007 Reviewer 结束后，再启动全新独立 Codex Reviewer 复核 TASK-006 Correction 1
    的 Artifact 预检、删除和 post-delete CAS 语义；不得改业务代码或访问 TASK-007。
-2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 2 的失败主响应保存、无主调用恢复、
-   Artifact/provenance 验证和原子成功/rollback；不得改业务代码或访问 TASK-006。
-3. TASK-006 修复与 TASK-007 Correction 2 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
+2. 原 TASK-007 Implementer 仅修复“恢复标记存在而 recovery Artifact 缺失/不匹配”时 fail-closed，
+   并补充真实 SQLite 回归；不得修改 Schema、依赖、领域契约或访问 TASK-006。
+3. TASK-006 修复与 TASK-007 Correction 3 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -61,7 +61,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 等待 Reviewer 容量 | TASK-006 全新独立 Codex Reviewer（Correction 1） | source `17afcd...`；审查包已就绪，待 TASK-007 Reviewer 结束后启动 |
-| 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 2） | source `567b0f...`；仅可写审查 handoff，复核 L-09 恢复与原子完成 |
+| 正在修复 | TASK-007 原 Codex Implementer（Correction 3） | P1：有恢复标记但索引 Artifact 缺失时 fail-closed；仅 5 个允许路径 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -111,6 +111,12 @@
   五个允许文件；相对共同 base 的完整产品范围仍为 11 个批准路径，锁文件无差异。Implementer
   自报 focused `16/14`、全量 `281`、mypy、Ruff、CLI、locked offline sync、offline build 和
   migration package inclusion 全 PASS；这只构成待独立复跑证据。
+- TASK-007 第三轮独立 Reviewer evidence `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632` 是
+  Correction 2 的唯一子提交且仅修改 handoff，Verdict=`REJECT`：所有离线门禁仍通过，present-
+  Artifact 恢复、修复一次和 atomic rollback 均通过；但已删除 recovery Artifact 索引记录时，
+  实现把它当作首轮请求而再次发送主评分。Correction 3 必须以现有 `ProviderCall` 的安全、
+  request-bound 恢复标记区分重试，不改 Schema；标记存在而 Artifact 缺失/篡改/不匹配时必须
+  安全失败且不发送主评分或修复。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险

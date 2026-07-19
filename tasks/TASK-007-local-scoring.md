@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（Correction 2；离线恢复复审）
+- Owner role: 原 Codex Implementer（Correction 3；离线缺失恢复标记修复）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -201,3 +201,28 @@
 - 第三次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以
   `567b0f...` 为唯一父提交的 evidence commit；禁止改业务代码、测试、依赖、锁文件、任务状态或
   main，也不得访问 TASK-006 worktree。
+
+## 第三次独立审查拒绝与 Correction 3
+
+- 第三次审查 evidence：`1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`，唯一父提交为
+  `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`，且仅改 handoff。Verdict=`REJECT`，P1=1；
+  所有规定离线门禁通过。
+- P1：初次主响应/修复失败后，Provider Call 已处于恢复重试语义；若其 recovery Artifact 索引行
+  被删除，服务把 `get_artifact_by_key()` 的 `None` 误认为首轮执行并调用主评分。ADR-007 L-09
+  要求它安全 fail-closed，绝不得重新 preflight、主评分或修复。
+
+### Correction 3 的冻结边界
+
+- 起点为 `1d27d3b...`，Correction commit 必须以它为唯一父提交。只允许修改
+  `src/youtube_intel/scoring.py`、`src/youtube_intel/providers/ollama.py`、两份既有评分测试、
+  必要的 `tests/fixtures/scoring/**` 与 handoff；不得改 `state.py`、Schema/migration、domain/config/
+  Prompt、依赖/锁、main 或任务状态。
+- 必须使用既有 retryable Provider Call 的安全、固定字符串标记与请求哈希/确定性 Artifact key 绑定，
+  区分“首轮请求”与“需要 recovery 的重排”。不得把原始响应、Prompt、字幕、URL、路径或密钥写进
+  错误/标记。若 recovery-required 标记存在而 Artifact 缺失、索引/文件/哈希/绑定不匹配，必须安全
+  `INVALID_RESPONSE` 失败、保留正确的 retry 语义，且零 GET/主评分/修复 transport 调用与零伪造结果。
+- 以真实临时 SQLite 和 in-process Fake transport 增加回归：删除 Artifact 索引行、缺失文件和
+  provenance 篡改均由 recovery-required retry fail-closed；有效 recovery 仍只修复一次并保持原子
+  成功/rollback。不得弱化 present-Artifact、异常脱敏、一次修复或缓存身份测试。
+- 继续禁止真实 Ollama/网络/模型、安装/服务、媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。
+  完成后必须再由全新独立 Codex Reviewer 审查；Implementer 不得改变状态、合并或启动 Reviewer。
