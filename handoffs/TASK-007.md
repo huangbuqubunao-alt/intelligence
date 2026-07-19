@@ -82,3 +82,167 @@
 - Commit SHA：见包含本报告的实现提交；主控回传精确 SHA。
 - 复现/验证说明：在此 worktree 执行上表命令；Provider 集成测试只使用测试内的
   `_FakeTransport`，不使用默认 `urllib` transport。
+
+---
+
+## Independent Codex Reviewer — 2026-07-19
+
+### Review authority and boundary
+
+- Reviewer: fresh independent Codex Reviewer; this reviewer did not implement TASK-007.
+- Dynamic authorization: main commit `ecabaf70774858a90f949e635926a0ef0a83577e`
+  (`docs: authorize TASK-007 independent review`) adds the reviewer card for source
+  `codex/task-007-local-scoring` at `IN_REVIEW`.
+- Reviewed range: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80...`
+  `258358fcd5227e144c9294beafdf7ec6e2feea63`.
+- Source gate: PASS before review — branch is `codex/task-007-local-scoring`, HEAD is
+  `258358fcd5227e144c9294beafdf7ec6e2feea63`, and both short and full porcelain status
+  were empty. TASK-006 was neither read, run, modified, cleaned, nor reported.
+
+### Required offline reruns
+
+| Command / inspection | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 34 packages. |
+| `uv sync --locked --offline` | PASS — 34 resolved, 30 checked; no network authority used. |
+| `uv run python -m pytest tests/unit/test_scoring.py tests/integration/test_ollama_provider.py` | PASS — 10 passed. |
+| `uv run python -m pytest` | PASS — 261 passed. |
+| `uv run mypy src` | PASS — no issues in 11 source files. |
+| `uv run ruff check .` | PASS — all checks passed. |
+| `uv run python -m youtube_intel --help` | PASS. |
+| `uv build --offline` | PASS — sdist and wheel built. |
+| sdist/wheel listing | PASS — both contain `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check 6b4d59c...258358f` | PASS — no whitespace errors. |
+| `git diff --exit-code 6b4d59c 258358f -- pyproject.toml uv.lock` | PASS — no dependency or lockfile change. |
+
+### Independent probes
+
+#### A — offline HTTP and response safety: FAIL (P1-1)
+
+- PASS: all executed checks used an injected in-process Fake transport; no default
+  `urllib` transport or listening `127.0.0.1:11434` service was invoked. Fake checks
+  confirmed loopback configuration rejection, exact `GET /api/tags` then
+  `POST /api/generate` paths, `read(1_000_001)`, response closing, 300-second timeout,
+  `stream=false`, `think=false`, JSON Schema `format`, and the expected 401/403, 429,
+  5xx, timeout, malformed API payload, and oversized-body mappings where implemented.
+- PASS: normal invalid model JSON/schema fixtures make exactly one repair call.
+- FAIL: the error boundary is not safe or complete.
+  - `src/youtube_intel/providers/ollama.py:322-342` wraps JSON/Pydantic failures in
+    `_InvalidModelResponse`, and `:137-145` raises `OllamaProviderError` *from* that
+    exception. An injected invalid repair response containing the sentinel
+    `/private/secret-transcript-response` remained reachable as
+    `exc.__cause__.__cause__.doc`. Raw model output therefore escapes through the
+    exception chain despite the safe top-level message.
+  - `:208-212` raises the private `_InvalidModelResponse` for a valid JSON generate
+    envelope with a missing or >20,000-character `response`; its caller at `:124-132`
+    does not catch it. The caller receives a private exception instead of the required
+    `AppError(INVALID_RESPONSE)`.
+  - `:259-285` catches `TimeoutError`, `socket.timeout`, and `OSError`, but not
+    `http.client.IncompleteRead`. An injected short read propagates unwrapped rather
+    than mapping to `TRANSIENT_NETWORK` as required by ADR-007 L-09.
+- Required remediation: make every malformed/short/oversized response path produce a
+  redacted named `AppError` with exception chaining suppressed, then add Fake-transport
+  regression tests that inspect the complete exception chain.
+
+#### B — sampling, request hashes, and policy truth: PASS for the in-memory layer
+
+- An independent Unicode probe verified code-point-limited head/body/tail selection,
+  the `n <= M` boundary, and `selected_char_count`.
+- Independent changes to title, channel, date, duration, default/final language,
+  selected description prefix, full transcript (including an unselected character),
+  selected sample content, model, temperature, output limit, prompt version, schema
+  version, and operation all changed the primary request hash. A suffix beyond the
+  configured description limit correctly did not.
+- At `score == threshold`, `final_should_summarize` was `True` even when the Fake model
+  returned `should_summarize=False`; the disagreement diagnostic was retained without
+  altering the model result. Identical input reused `InMemoryScoringCache`; changing
+  title caused a second Fake call.
+
+#### C — real SQLite completion and cache recovery: FAIL (P1-2)
+
+- `uv run python -m pytest tests/integration/test_state_store.py -k
+  'scoring_stage_requires_summary_and_commits_it_atomically or
+  scoring_summary_failure_rolls_back_every_stage_write'` PASS — 2 passed using
+  temporary real SQLite. This proves the pre-existing repository can atomically commit
+  a scoring summary/provider call and roll it all back after injected failure.
+- TASK-007 does not use that capability. `src/youtube_intel/scoring.py:37-55` defines
+  only an in-memory `get`/`put` cache, and `:177-252` accepts only provider/settings/
+  cache/clock and never reserves/completes a Provider call or calls
+  `SQLiteStateRepository.complete_stage`. Repository completion tests therefore do
+  not exercise new code. Static review found no other production reference to
+  `ScoringService` or `OllamaScoringProvider`.
+- Consequently this implementation cannot atomically store `SCORING_RAW`,
+  `SCORING_STRUCTURED`, Provider call completion, `ScoringSummaryWrite`, Pipeline CAS,
+  and Job success; it also cannot recover a verified SQLite cache across attempts or
+  distinguish primary versus repair persistence.
+- Required remediation: compose the existing repository reservation/completion APIs
+  around the scoring provider, persist both artifacts and the application decision in
+  one transaction, and add real temporary-SQLite tests for success, post-write rollback,
+  verified cache hit, and all request-separation misses.
+
+#### D — scope and phase honesty: PASS, with the P1 limitations above
+
+- Range is exactly the permitted 11 files within the seven approved path groups:
+  handoff, prompt, two source modules, two test modules, and five scoring fixtures.
+- No `httpx`, Ollama SDK, dependency, lockfile, Schema/migration, bootstrap, pull, or
+  real-service action was introduced. The source uses standard-library `urllib`/`json`.
+- Secret-pattern review found only the benign `max_output_tokens` identifier; manual
+  diff review found no credential, token, authorization value, or absolute local path.
+- Reuse/license evidence is present in `docs/REUSE_REGISTER.md:109-112`: standard
+  library use is `DIRECT`; Ollama/qwen3 are `DIRECT-PENDING`; `httpx` and the Ollama
+  Python SDK remain deferred/rejected. Fake coverage does not claim to validate a real
+  model.
+
+### Acceptance and ADR-007 matrix
+
+| Item | Result | Independent evidence |
+|---|---|---|
+| AC-1 fixed valid/out-of-range/missing/invalid/repair fixtures | PARTIAL / FAIL | 10 focused Fake tests pass, but P1-1 leaves malformed envelope, short-read, and repair-error paths without the required safe mapping/redaction. |
+| AC-2 bounded sampling and same-input cache | PARTIAL / FAIL | Sampling/hash and process-local reuse pass (Probe B); verified persistent cache/recovery required by Probe C is absent (P1-2). |
+| AC-3 threshold-derived final policy and disagreement record | PASS logically / FAIL durably | Probe B proves `>=` and preserved disagreement; P1-2 means it is not written atomically with `SCORED`. |
+| L-03 model recommendation vs application decision | PASS | `ScoringService` derives final policy from score; independent equality-boundary probe passed. |
+| L-04 atomic scoring summary | FAIL | Repository support exists, but TASK-007 does not call it (P1-2). |
+| L-05 three-part sampling | PASS | Probe B verified boundaries, Unicode code points, version, and full-hash binding. |
+| L-06 metadata/hash boundary | PASS | Probe B independently varied every required metadata/input/version dimension. |
+| L-07 standard-library loopback HTTP | PARTIAL / FAIL | Configuration/path/schema/transport controls pass; P1-1 breaks required response safety. |
+| L-08 fixed local model preflight | PASS at Fake-only boundary | Exact model/digest Fake preflight occurs before generate; no install, pull, or real call was performed. |
+| L-09 response repair, cache, and errors | FAIL | Raw exception-chain leak, incomplete/malformed mappings, and no persistent provider-call/cache flow (P1-1/P1-2). |
+
+### Findings
+
+- P0: None.
+- P1-1 — `src/youtube_intel/providers/ollama.py:124-145, 208-212, 259-285, 322-342`:
+  malformed/oversized generate envelopes and `IncompleteRead` escape without a named
+  safe error, while invalid repair responses retain raw model output in the exception
+  chain. This violates the privacy/redaction and error-mapping boundary.
+- P1-2 — `src/youtube_intel/scoring.py:37-55, 177-252`: scoring is not connected to
+  repository Provider-call lifecycle or atomic stage completion, so its raw/structured
+  result, final decision, cache, Pipeline CAS, and Job completion cannot be durable or
+  recoverable as required.
+- P2: None.
+- P3: None.
+
+### Five-axis review, risks, and resources intentionally not run
+
+- Correctness: REJECT — P1-1 and P1-2 leave mandatory failure and completion behavior
+  unimplemented.
+- Architecture: REJECT — a reusable in-memory policy helper exists, but no production
+  composition reaches the existing state transaction boundary.
+- Security/privacy: REJECT — raw untrusted response survives exception chaining.
+- Performance/resources: PASS at the implemented boundary — bounded response read and
+  bounded sample/cache operations; no new dependency or unbounded loop observed.
+- Readability: PASS apart from the materially incomplete error/persistence paths; names
+  and the focused Fake tests are otherwise clear.
+- Intentionally unrun/unauthorized: default `urllib` transport and any real Ollama
+  endpoint (including loopback), Ollama installation/start/stop, `qwen3:8b` pull or
+  cloud tags/URLs, ffmpeg/media/YouTube/Cookie/remote components, Vault/credentials,
+  and any deletion path. No network access was used by the reviewer.
+- Remaining risk: P1-1 can expose model response data to callers/loggers; P1-2 means a
+  successful scoring call cannot make the system's persisted stage/state truthful.
+- `DECISION NEEDED`: `None`.
+
+### Verdict
+
+`REJECT` — approval requires all offline acceptance criteria and no unresolved P0/P1;
+P1-1 and P1-2 remain open. No task status was changed, no merge was performed, and the
+implementation source was not amended.
