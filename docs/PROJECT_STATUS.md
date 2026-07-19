@@ -6,8 +6,8 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` 第二轮独立审查发现符号链接/路径逃逸错误枚举 P1，已退回原 Codex
-  Implementer Correction 2；`TASK-007` 已整合并关闭为 `DONE`。
+- 活动任务：`TASK-006` Correction 2 已由原 Codex Implementer 提交，等待全新独立 Codex
+  Reviewer 复跑离线门禁与路径逃逸安全探针；`TASK-007` 已整合并关闭为 `DONE`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -40,10 +40,10 @@
 
 ## 下一步
 
-1. 原 TASK-006 Implementer 仅将符号链接/路径逃逸预检的安全拒绝枚举统一为 `INDEX_CONFLICT`，
-   保留文件并补充离线回归；不得改 Schema/Repository 或访问 TASK-007。
+1. 全新独立 TASK-006 Reviewer 验证 Correction 2 是否将符号链接、绝对/相对逃逸与 DATA-root
+   escape 全部安全映射为 `INDEX_CONFLICT`，且不删除文件或根外目标；不得访问 TASK-007。
 2. TASK-007 已完成；继续跟踪真实 Ollama/模型兼容性和质量的后续单独授权，不得访问 TASK-006。
-3. TASK-006 修复与其独立审查各自通过后再由主控关闭；在此之前继续不批准模型下载、Ollama、
+3. TASK-006 审查通过后再由主控验收、整合和关闭；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -59,7 +59,7 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 正在修复 | TASK-006 原 Codex Implementer（Correction 2） | P1：符号链接/路径逃逸统一 `INDEX_CONFLICT`；仅 4 个允许路径 |
+| 正在审查 | TASK-006 第三次全新独立 Codex Reviewer（Correction 2） | 验证路径逃逸统一 `INDEX_CONFLICT`、零物理删除与既有 CAS/Artifact 语义；仅 source handoff 可写 |
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
@@ -96,6 +96,12 @@
   CAS/hash/root 边界均通过，但符号链接/路径逃逸虽保留文件，返回 `PATH_OUTSIDE_DATA` 而非
   已授权的统一 `INDEX_CONFLICT`。Correction 2 只可调整这一安全拒绝诊断与回归，禁止改变
   删除顺序、CAS、Schema/Repository、依赖或真实资源边界。
+- TASK-006 Correction 2 `51b308828a6f2c433a9b4e92fb4a24e042f55d77` 是第二轮 review
+  evidence 的唯一非 merge 后继，精确修改 `transcription.py`、两份既有转写测试和 handoff 四个
+  允许文件；完整产品范围仍为既定八路径，`state.py`、Schema/migration、依赖和锁文件未变。Implementer
+  自报绝对/相对路径逃逸、DATA-root escape 与符号链接均统一为安全可重试的 `INDEX_CONFLICT`，并保留
+  所有文件/根外目标；focused `11/10`、全量 `272`、mypy、Ruff、CLI、locked offline sync、offline
+  build 与 migration package inclusion 均 PASS。这些仍须由全新独立 Reviewer 复跑。
 - TASK-007 第一轮独立 Reviewer evidence `266c488c17fc82cb648053b5e1066211a7bea9a9` 仅改
   handoff，Verdict=`REJECT`：`OllamaScoringProvider` 的修复响应、短读和部分畸形/超限响应
   可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、

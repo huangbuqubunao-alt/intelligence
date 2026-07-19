@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 2；安全拒绝枚举修复）
+- Owner role: 第三次全新独立 Codex Reviewer（Correction 2；安全拒绝枚举复审）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -107,6 +107,22 @@
   root、有效删除和 final CAS 竞态的现有语义不得退化；不得引入 reservation 或 exactly-once 声明。
 - 以临时真实 SQLite/DATA 根与合成文件补充 RED/GREEN 回归；真实模型、ffmpeg、媒体、网络、Vault/
   凭据和文件删除仍不授权。完成后由全新独立 Codex Reviewer 重审，Implementer 不得改状态、合并或启动 Reviewer。
+
+### Correction 2 实现证据与第三次独立审查
+
+- Correction source：`51b308828a6f2c433a9b4e92fb4a24e042f55d77`，唯一父提交为第二轮 review
+  evidence `47599db196b1b9440de3ae57ec3547935f64b1dc`；source worktree 干净。Correction 精确
+  修改 `transcription.py`、`tests/unit/test_transcription_policy.py`、
+  `tests/integration/test_whisper_provider.py` 和 handoff；完整产品范围仍为批准的八路径，
+  `state.py`、Schema/migration、依赖和锁文件未改变。
+- Implementer 自报：绝对路径、相对 `..` 路径、DATA-root escape 与符号链接现在均安全、可重试地
+  返回 `INDEX_CONFLICT`，不删除文件或根外目标；新增路径逃逸单测与临时真实 SQLite/DATA
+  符号链接回归。locked offline sync、focused `11/10`、全量 `272`、mypy、Ruff、CLI、offline
+  build、migration package inclusion 和固定 Diff 检查均 PASS；这些仅构成待独立复跑证据。
+- 第三次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以 `51b308...` 为
+  唯一父提交的 evidence commit。必须复跑全部离线门禁，并以真实临时 SQLite/DATA 根证明所有路径
+  逃逸统一为 `INDEX_CONFLICT`、零物理删除，同时不退化既有 Artifact/CAS/retention 语义；不得访问
+  TASK-007、改业务代码、任务状态或 main。
 
 ## 目标
 
