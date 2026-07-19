@@ -303,3 +303,115 @@
 - Correction commit SHA：待全部最终范围/敏感信息/Diff 复核完成后创建。
 - `DECISION NEEDED`：None。残余 CAS 窗口已按本节显式记录，未以未获批准的 reservation、lock、Schema 或
   `state.py` 变更掩盖。
+
+---
+
+## Correction 1 — 第二次独立 Codex Reviewer 审查证据（2026-07-19）
+
+### 授权、身份与范围
+
+- Reviewer：全新独立 Codex Reviewer；未参与实现或第一轮审查。
+- 动态授权：主仓库对
+  `agent-prompts/TASK-006-REVIEWER-2-CODEX.md` 的最新提交为
+  `7fd56716eac58a7878c5e64f99d811f0c5cfdc3e`；其 prompt blob
+  `4f7d1933a62012d710001854defe8def0628ead5` 与被读取的授权文件一致。
+  主控授权记录已将 TASK-006 Correction 1 置为 `IN_REVIEW`。
+- 审查范围：完整 `6b4d59c882ccdcbd0e5a6069a6661e0672921a80...17afcd349827b36e5ba18fb0eab443c1ae5fb53f`；
+  被审 source 为干净的 `codex/task-006-local-transcription`，HEAD 精确为
+  `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`，唯一父提交为
+  `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`。
+- Correction-only Diff 精确为本报告、`src/youtube_intel/transcription.py`、
+  `tests/unit/test_transcription_policy.py` 与
+  `tests/integration/test_whisper_provider.py`。未改 lockfile、依赖、Schema/migration、
+  `state.py`、任务状态、`main` 或 Provider surface。
+
+### 独立重新运行的检查
+
+| 命令/检查 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 80 packages`。 |
+| `uv sync --locked --offline` | PASS | `Resolved 80 packages`，`Checked 57 packages`；没有 cache miss 或网络请求。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS | 10 passed。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS | 9 passed。 |
+| `uv run python -m pytest` | PASS | 270 passed。 |
+| `uv run mypy src` | PASS | 11 个 source files 无问题。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI 帮助正常输出。 |
+| `uv build --offline` | PASS | 成功生成 sdist 与 wheel。 |
+| migration package inclusion | PASS | sdist 与 wheel 均含 `youtube_intel/migrations/001_initial.sql`。 |
+| `git diff --check 6b4d59c...17afcd...` | PASS | 无空白错误。 |
+
+### 独立临时 SQLite / DATA-root 探针
+
+- 使用临时真实 `SQLiteStateRepository`、临时 DATA 根和合成字节。未知、缺失、已删除、
+  以及 current Artifact 的 kind/retention/root/path/hash 不匹配均返回
+  `INDEX_CONFLICT` 且音频保留；调用方提供 `../` 路径也在 preflight 返回
+  `INDEX_CONFLICT` 并保留音频。
+- 当前、匹配的 `DATA` / `AUDIO` / `EPHEMERAL_AUDIO` Artifact 能删除音频并写入
+  `deleted_at`。模拟 final CAS race 时文件已删除但结果为非成功
+  `INDEX_CONFLICT`；未引入 reservation、Schema 或 exactly-once 声明。
+- 文件字节哈希被篡改时得到 `HASH_MISMATCH` 且保留音频。SQLite 自身拒绝把 `../...`
+  作为 Artifact relative path 持久化。
+- **反例：** 当前 Artifact 的音频文件被替换为符号链接时，函数在
+  `src/youtube_intel/transcription.py:235-236` 返回 `PATH_OUTSIDE_DATA`，而不是本轮
+  授权要求的安全 `INDEX_CONFLICT`；链接和根外目标都保留。单元测试也在
+  `tests/unit/test_transcription_policy.py:303` 固化了错误枚举。
+
+### Fake-only、缓存、资源与错误边界探针
+
+- 静态 AST 检查确认 `providers/whisper.py` 不导入 `mlx_whisper`、`subprocess`、
+  `urllib`、`socket` 或 `huggingface_hub`；仅注入 Fake executor，未加载模型、调用
+  ffmpeg 或访问网络/媒体。
+- 相同音频/模型/revision/参数策略只执行 Fake 一次；更改模型产生不同 cache key 并再次
+  执行。超长纯策略在 executor 前短路，Fake timeout 映射为可重试的
+  `LOCAL_RESOURCE`，错误消息不含临时绝对路径或合成的 secret 文本。
+
+### AC 与 ADR-007 矩阵
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| AC：离线短音频、资源/超时观察 | PASS | Fake/合成 WAV 定向测试与独立探针。 |
+| AC：音频、模型/revision/参数缓存身份 | PASS | 10/9 focused tests 与独立 cache-key 探针。 |
+| AC：成功、失败、超长的音频保留/清理 | FAIL | 文件保留安全性通过，但符号链接拒绝的结果码违反本轮显式 `INDEX_CONFLICT` 合约。 |
+| ADR-007 L-10/L-11 | PASS | 锁定依赖已离线安装；没有模型 import、加载或下载。 |
+| ADR-007 L-12 | PASS | 无 yt-dlp 媒体下载、ffmpeg、Cookie、remote component 或网络路径。 |
+| ADR-007 L-13/L-15 | PASS | duration/resource 仍是纯策略并在 executor 前执行；未改状态机或真实资源逻辑。 |
+| ADR-007 L-14 | FAIL | preflight、哈希、DATA 边界和 post-delete CAS 均通过；但 symlink 拒绝未返回规定的 `INDEX_CONFLICT`。 |
+
+### 五轴审查、复用与红线
+
+- Correctness：除下列 P1 外，预检、流式 SHA-256、有效删除与 post-delete CAS race
+  均符合 Correction 1 目标。
+- Readability：具名 enum 和小型协议使控制流可读；无无关重构或死代码发现。
+- Architecture：继续复用既有 `get_artifact_by_key` / `mark_artifact_deleted`，没有绕过
+  Repository、添加 reservation 或修改 Schema。
+- Security：路径、根边界、哈希与错误脱敏均保留；P1 是安全拒绝的公共诊断契约不一致，
+  不是物理删除逃逸。
+- Performance：SHA-256 为 1 MiB 流式读取；未发现无界集合、N+1 或模型热路径。
+- Reuse：Correction 仅 `DIRECT` 复用既有 SQLite Artifact API 与 Python 标准库；没有新增
+  依赖或外部代码。完整 Diff 的凭据格式扫描未发现密钥；匹配到的 `task-006-local-...`
+  只是分支文本。
+- Scope/red-line：完整范围为任务批准的 8 个路径，Correction 为批准的 4 个路径；无
+  lockfile correction、Schema、密钥、Vault、任务状态或生产配置变更。
+
+### 刻意跳过的未授权路径
+
+- 未运行或访问：`mlx_whisper.transcribe`、模型/权重下载或加载、Hugging Face、ffmpeg、
+  YouTube/媒体、Cookie/登录、remote components、Vault/credentials、真实资源/性能冒烟、
+  multiprocessing 终止。所有临时数据均在测试临时目录中创建。
+
+### Findings（P0–P3）与结论
+
+- P0：无。
+- **P1-1 — 符号链接/路径逃逸的拒绝枚举违反当前审查授权。**
+  `src/youtube_intel/transcription.py:228-246` 对符号链接、绝对/逃逸路径返回
+  `PATH_OUTSIDE_DATA`；`tests/unit/test_transcription_policy.py:286-307` 明确将其作为
+  预期。本轮授权要求这些情况“each return safe `INDEX_CONFLICT` and retain audio”。独立
+  SQLite/DATA-root 探针复现：`symlink-escape: PATH_OUTSIDE_DATA; safety=True`。虽然文件
+  与根外目标都保留，调用方不能依赖指定的统一 conflict 语义；修复应只调整该安全拒绝
+  结果及其离线回归，不应触及 CAS、Schema、reservation 或真实资源路径。
+- P2：无。
+- P3：无。
+- Verdict：**REJECT**。
+- 未解决 P0/P1：P1-1。
+- `DECISION NEEDED`：None；这是明确授权/测试契约的不一致，不需要扩展范围或新增批准。
