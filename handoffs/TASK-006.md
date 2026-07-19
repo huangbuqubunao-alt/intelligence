@@ -415,3 +415,57 @@
 - Verdict：**REJECT**。
 - 未解决 P0/P1：P1-1。
 - `DECISION NEEDED`：None；这是明确授权/测试契约的不一致，不需要扩展范围或新增批准。
+
+---
+
+## Correction 2 — safe conflict for cleanup path escapes（2026-07-19）
+
+### 授权、范围与复用
+
+- 授权提交已核验为 `5cb2a0d3ce5bc9f883e83e4861fc528a92a1f884`；开始时工作树干净，
+  `47599db196b1b9440de3ae57ec3547935f64b1dc` 的唯一父提交为
+  `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`。主控 TASK-006 状态为
+  `IN_PROGRESS`，Assignee 为 Codex；本次没有修改任务状态、`main`、Reviewer、merge 或 push。
+- 精确修改范围为 `src/youtube_intel/transcription.py`、
+  `tests/unit/test_transcription_policy.py`、
+  `tests/integration/test_whisper_provider.py` 和本报告。未修改 Provider、`state.py`、
+  Schema/migration、依赖/锁文件、配置或凭据。
+- `DIRECT` 复用既有 `AudioDeletionRepository`/SQLite Artifact API 与 Python 标准库
+  `pathlib`；没有新增依赖、reservation、Schema 或 exactly-once 语义。
+
+### P1 closure
+
+- `cleanup_successful_audio()` 对绝对路径、含 `..` 的相对路径、末端符号链接及解析后逃出
+  DATA 根的路径，现均返回无路径/内容的可重试 `INDEX_CONFLICT`。这些分支在哈希或 `unlink()`
+  前返回，因而保留链接、目标和根外合成音频。
+- 未改变未知/缺失 Artifact、哈希不匹配、kind/retention/root 资格、有效删除或最终 CAS race 的
+  原有路径。保留 `PATH_OUTSIDE_DATA` 枚举以避免无关的公共契约删除；本任务指定的全部清理逃逸
+  预检均不再返回它。
+- 单元 RED 先确认旧实现的符号链接、`../` 与绝对路径都返回
+  `PATH_OUTSIDE_DATA`；GREEN 后统一为 `INDEX_CONFLICT`，且没有调用 index 删除。SQLite 的
+  Artifact 写入 API 会拒绝不安全 relative path，故该两类受控索引快照测试不绕过或篡改真实
+  SQLite；另有临时真实 SQLite/DATA 根回归覆盖已登记音频替换为符号链接，确认链接、外部合成目标
+  和 `deleted_at` 全部保留。
+
+### Correction checks
+
+| 命令/检查 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 80 packages`。 |
+| `uv sync --locked --offline` | PASS | `Resolved 80 packages`，`Checked 57 packages`。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS | 11 passed；先 RED 后覆盖符号链接、`..` 与绝对逃逸。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS | 10 passed；临时真实 SQLite/DATA 符号链接保留回归。 |
+| `uv run python -m pytest` | PASS | 272 passed。 |
+| `uv run mypy src` | PASS | 11 source files 无问题。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI 帮助正常输出。 |
+| `uv build --offline` | PASS | sdist/wheel 构建成功。 |
+| migration package inclusion | PASS | sdist 与 wheel 均含 `youtube_intel/migrations/001_initial.sql`。 |
+| `git diff --check 47599db...HEAD` | PASS | 单一 correction commit 创建后无空白错误。 |
+
+### 未运行的未授权路径
+
+- 未下载或加载模型/权重，未调用 `mlx_whisper`、ffmpeg、媒体/YouTube、网络、Cookie、remote
+  components、Vault 或 credentials；未运行真实转录。
+- 所有新音频、SQLite 数据库、DATA 根、符号链接和删除尝试都在 pytest 临时目录中；没有删除真实
+  资源。未尝试 reservation、migration、依赖/锁变更或其它任务范围。

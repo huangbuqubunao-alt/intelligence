@@ -283,7 +283,7 @@ def test_cleanup_preflight_rejects_missing_or_deleted_registered_artifact(
         assert repository.calls == []
 
 
-def test_cleanup_rejects_symlink_and_path_escape_without_leaking_paths(
+def test_cleanup_rejects_symlink_without_leaking_paths(
     tmp_path: Path,
 ) -> None:
     audio, path = _audio(tmp_path)
@@ -300,8 +300,32 @@ def test_cleanup_rejects_symlink_and_path_escape_without_leaking_paths(
         now=FIXED_NOW,
     )
 
-    assert result is AudioCleanupResult.PATH_OUTSIDE_DATA
+    assert result is AudioCleanupResult.INDEX_CONFLICT
     assert path.is_symlink()
     assert outside.exists()
     assert str(path) not in result.value
     assert "payload" not in result.value
+
+
+def test_cleanup_rejects_relative_and_absolute_escapes_without_deletion(
+    tmp_path: Path,
+) -> None:
+    audio, _ = _audio(tmp_path)
+    outside = tmp_path / "outside-synthetic.wav"
+    outside.write_bytes(b"outside synthetic audio")
+
+    for relative_path in ("../outside-synthetic.wav", str(outside)):
+        record = replace(_record(audio), relative_path=relative_path)
+        repository = _FakeArtifactRepository(record=record)
+
+        result = cleanup_successful_audio(
+            record,
+            data_root=tmp_path / "data",
+            repository=repository,
+            now=FIXED_NOW,
+        )
+
+        assert result is AudioCleanupResult.INDEX_CONFLICT
+        assert outside.exists()
+        assert repository.calls == []
+        assert str(outside) not in result.value

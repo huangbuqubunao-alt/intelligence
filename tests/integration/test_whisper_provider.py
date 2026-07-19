@@ -278,6 +278,30 @@ def test_sqlite_cleanup_preflight_keeps_unknown_and_stale_audio_intact(
     assert str(audio_path) not in stale.value
 
 
+def test_sqlite_cleanup_retains_symlinked_audio_and_target(tmp_path: Path) -> None:
+    repository, record, audio_path = _indexed_audio(tmp_path)
+    outside = tmp_path / "outside-synthetic.wav"
+    outside.write_bytes(b"outside synthetic audio")
+    audio_path.unlink()
+    audio_path.symlink_to(outside)
+
+    result = cleanup_successful_audio(
+        record,
+        data_root=audio_path.parents[1],
+        repository=repository,
+        now=FIXED_NOW,
+    )
+
+    confirmed = repository.get_artifact_by_key(record.artifact_key)
+    assert result is AudioCleanupResult.INDEX_CONFLICT
+    assert audio_path.is_symlink()
+    assert outside.exists()
+    assert confirmed is not None
+    assert confirmed.deleted_at is None
+    assert str(audio_path) not in result.value
+    assert str(outside) not in result.value
+
+
 def test_sqlite_cleanup_deletes_only_after_preflight_and_confirms_index(
     tmp_path: Path,
 ) -> None:

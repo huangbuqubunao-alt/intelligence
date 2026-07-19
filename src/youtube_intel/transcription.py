@@ -227,13 +227,13 @@ def cleanup_successful_audio(
 
     relative = PurePosixPath(audio.relative_path.replace("\\", "/"))
     if relative.is_absolute() or any(part == ".." for part in relative.parts):
-        return AudioCleanupResult.PATH_OUTSIDE_DATA
+        return AudioCleanupResult.INDEX_CONFLICT
 
     try:
         root = data_root.resolve(strict=True)
         candidate = root.joinpath(*relative.parts)
         if candidate.is_symlink():
-            return AudioCleanupResult.PATH_OUTSIDE_DATA
+            return AudioCleanupResult.INDEX_CONFLICT
         resolved = candidate.resolve(strict=True)
     except FileNotFoundError:
         return AudioCleanupResult.MISSING
@@ -243,7 +243,7 @@ def cleanup_successful_audio(
     try:
         resolved.relative_to(root)
     except ValueError:
-        return AudioCleanupResult.PATH_OUTSIDE_DATA
+        return AudioCleanupResult.INDEX_CONFLICT
 
     try:
         digest = _sha256_file(resolved)
