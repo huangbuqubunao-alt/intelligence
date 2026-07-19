@@ -1,5 +1,15 @@
 # TASK-007 交接报告
 
+## Main integration and closure — 2026-07-19
+
+- Accepted source `95087c115b799d6f4e1e063a0adba0a6d10352ce` was merged to main as
+  `3d49ecaf31a4ab800d6a58b5b44f815ab830a06c` with parents `7b33f6f...` and `95087c...`.
+- The first-parent product range is the approved 11 paths. Post-merge locked offline sync, focused
+  scoring tests `17/14`, full suite `282`, mypy, Ruff, CLI, offline build and migration package inclusion
+  passed; source remains clean and retained.
+- Status is `DONE` after the separate main control-plane closure commit. Real Ollama/model, network,
+  media, Vault and credential paths remain unrun and require separate authority.
+
 ## 元数据
 
 - Task: `TASK-007`

@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
-- Owner role: Product Integrator（待授权；固定 accepted source）
+- Owner role: 已整合并关闭（merge `3d49ec...`）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -251,3 +251,12 @@
   retryable `INVALID_RESPONSE` 且零 transport。
 - 主控验收：`ACCEPTED`。允许下一步仅生成 Integrator 包并整合固定 source `95087c...`；不得改
   实现、依赖、锁、Schema、真实资源授权或 TASK-006。
+
+### Product Integrator 结果
+
+- Merge：`3d49ecaf31a4ab800d6a58b5b44f815ab830a06c`，双父为
+  `7b33f6fd73ee5ab7019a7647d71a3b5e78b99e35` 与 `95087c115b799d6f4e1e063a0adba0a6d10352ce`。
+  first-parent 差异精确为批准的 11 路径，锁文件和依赖无差异；main/source worktree 均干净且 source 保留。
+- 整合后 lock/sync offline、focused `17/14`、全量 `282`、mypy、Ruff、CLI、offline build 和
+  migration package inclusion 全 PASS。真实 Ollama/模型、网络、媒体、Vault 与凭据路径仍未运行且未授权。
+- 已满足 `DONE` 前的整合证据；仅等待 Status Integrator 同步关闭状态，禁止顺便修改产品代码或任务依赖。

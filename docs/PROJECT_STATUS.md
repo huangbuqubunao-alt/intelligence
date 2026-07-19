@@ -7,7 +7,7 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第二轮独立审查发现符号链接/路径逃逸错误枚举 P1，已退回原 Codex
-  Implementer Correction 2；`TASK-007` 已获第四次独立审查 `APPROVE`，等待产品 Integrator。
+  Implementer Correction 2；`TASK-007` 已整合并关闭为 `DONE`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -42,8 +42,8 @@
 
 1. 原 TASK-006 Implementer 仅将符号链接/路径逃逸预检的安全拒绝枚举统一为 `INDEX_CONFLICT`，
    保留文件并补充离线回归；不得改 Schema/Repository 或访问 TASK-007。
-2. 为 TASK-007 生成固定来源的 Product Integrator 包并在 main 运行整合后离线门禁；不得访问 TASK-006。
-3. TASK-006 修复与 TASK-007 整合各自通过后再由主控关闭；在此之前继续不批准模型下载、Ollama、
+2. TASK-007 已完成；继续跟踪真实 Ollama/模型兼容性和质量的后续单独授权，不得访问 TASK-006。
+3. TASK-006 修复与其独立审查各自通过后再由主控关闭；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -60,7 +60,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 2） | P1：符号链接/路径逃逸统一 `INDEX_CONFLICT`；仅 4 个允许路径 |
-| 已验收待整合 | TASK-007 Product Integrator（待授权） | source `95087c...`；仅可整合固定 11 路径并重跑离线门禁 |
+| 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -130,6 +130,10 @@
   mypy、Ruff、CLI、locked offline sync/build、migration package inclusion 和固定 Diff 全 PASS；
   真实 SQLite/Fake probe 也确认 present recovery 单次 repair、rollback 可恢复，以及恢复索引/文件/
   哈希/模型/provenance 不匹配时零 transport 的 retryable `INVALID_RESPONSE`。P0–P3 均无。
+- TASK-007 已由 Product Integrator 以 merge commit `3d49ecaf31a4ab800d6a58b5b44f815ab830a06c`
+  整合到 main：双父精确为 `7b33f6f...` 与 `95087c...`，first-parent 差异严格为批准的 11 路径，
+  锁/依赖未变。整合后 focused `17/14`、全量 `282`、mypy、Ruff、CLI、locked offline sync/build
+  和 migration package inclusion 全 PASS。真实 Ollama/模型兼容性与质量仍需单独授权，不阻断离线关闭。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
