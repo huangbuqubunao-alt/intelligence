@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from http.client import IncompleteRead
 from pathlib import Path
+from types import TracebackType
+from typing import Any
 
 import pytest
 
@@ -36,6 +39,14 @@ class _Response:
         self.closed = True
 
 
+class _IncompleteResponse(_Response):
+    def __init__(self, partial: bytes) -> None:
+        super().__init__(partial)
+
+    def read(self, size: int = -1) -> bytes:
+        raise IncompleteRead(self._payload, len(self._payload) + 1)
+
+
 class _FakeTransport:
     def __init__(self, responses: list[object]) -> None:
         self._responses = responses
@@ -46,7 +57,56 @@ class _FakeTransport:
         url = getattr(request, "full_url")
         data = getattr(request, "data")
         self.requests.append((method, url, data))
-        return _Response(self._responses.pop(0))
+        response = self._responses.pop(0)
+        if isinstance(response, _Response):
+            return response
+        return _Response(response)
+
+
+def _assert_exception_graph_is_redacted(error: BaseException, sentinel: str) -> None:
+    seen: set[int] = set()
+
+    def visit(value: Any) -> None:
+        value_id = id(value)
+        if value_id in seen:
+            return
+        seen.add(value_id)
+        if isinstance(value, str):
+            assert sentinel not in value
+            return
+        if isinstance(value, BaseException):
+            visit(value.args)
+            visit(value.__cause__)
+            visit(value.__context__)
+            visit(vars(value))
+            visit_traceback(value.__traceback__)
+            return
+        if isinstance(value, dict):
+            for item in value.values():
+                visit(item)
+            return
+        if isinstance(value, (tuple, list, set, frozenset)):
+            for item in value:
+                visit(item)
+
+    def visit_traceback(traceback: TracebackType | None) -> None:
+        while traceback is not None:
+            module_name = str(traceback.tb_frame.f_globals.get("__name__", ""))
+            if not module_name.startswith("youtube_intel"):
+                traceback = traceback.tb_next
+                continue
+            for name, local in traceback.tb_frame.f_locals.items():
+                try:
+                    visit(local)
+                except AssertionError as error:
+                    msg = (
+                        "sentinel reached traceback local "
+                        f"{traceback.tb_frame.f_code.co_name}.{name}"
+                    )
+                    raise AssertionError(msg) from error
+            traceback = traceback.tb_next
+
+    visit(error)
 
 
 def _fixture(name: str) -> str:
@@ -60,7 +120,7 @@ def _settings() -> LocalScoringSettings:
     )
 
 
-def _input() -> object:
+def _input(*, transcript_text: str = "A sufficiently long canonical transcript for scoring.") -> object:
     video = VideoMetadata(
         video_id="video-123",
         channel_id="channel-123",
@@ -74,7 +134,7 @@ def _input() -> object:
     )
     return build_scoring_input(
         video=video,
-        transcript_text="A sufficiently long canonical transcript for scoring.",
+        transcript_text=transcript_text,
         language="en",
         settings=_settings(),
     )
@@ -122,6 +182,17 @@ def test_fake_transport_returns_valid_scoring_result_without_real_ollama() -> No
     assert payload["options"]["temperature"] == 0.0
 
 
+def test_provider_exposes_the_final_generate_envelope_for_artifact_persistence() -> None:
+    generate = _generate(_fixture("valid_result.json"))
+    provider = _provider(_FakeTransport([_tags(), generate]))
+
+    provider.score(_input())
+
+    assert json.loads(
+        provider.consume_raw_response(request_hash=_input().request_hash)
+    ) == generate
+
+
 @pytest.mark.parametrize(
     "invalid_fixture",
     ["out_of_range_result.json", "missing_field_result.json", "invalid_json.txt"],
@@ -158,6 +229,54 @@ def test_invalid_repair_response_fails_closed_as_invalid_response() -> None:
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
     assert exc_info.value.error.retryable is True
     assert len(transport.requests) == 3
+
+
+def test_invalid_repair_response_is_redacted_through_the_complete_exception_graph() -> None:
+    sentinel = "/private/secret-transcript-response"
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate("not json"),
+            _generate('{"reason":"' + sentinel + '"}'),
+        ]
+    )
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        _provider(transport).score(_input())
+
+    _assert_exception_graph_is_redacted(exc_info.value, sentinel)
+
+
+@pytest.mark.parametrize(
+    ("response", "error_code"),
+    [
+        ({}, ErrorCode.INVALID_RESPONSE),
+        ({"response": "x" * 20_001}, ErrorCode.INVALID_RESPONSE),
+        (_IncompleteResponse(b"partial /private/secret-response"), ErrorCode.TRANSIENT_NETWORK),
+    ],
+)
+def test_invalid_or_short_generate_response_fails_as_a_named_redacted_error(
+    response: object,
+    error_code: ErrorCode,
+) -> None:
+    transport = _FakeTransport([_tags(), response])
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        _provider(transport).score(_input())
+
+    assert exc_info.value.error.code is error_code
+    assert exc_info.value.error.video_id == "video-123"
+    _assert_exception_graph_is_redacted(exc_info.value, "/private/secret-response")
+
+
+def test_transport_failure_redacts_the_rendered_prompt_and_transcript_from_tracebacks() -> None:
+    sentinel = "/private/temporary-transcript-url"
+    transport = _FakeTransport([_tags(), _IncompleteResponse(b"partial")])
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        _provider(transport).score(_input(transcript_text=sentinel))
+
+    _assert_exception_graph_is_redacted(exc_info.value, sentinel)
 
 
 def test_mismatched_digest_fails_before_any_generate_request() -> None:

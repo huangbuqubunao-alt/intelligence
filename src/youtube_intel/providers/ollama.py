@@ -7,6 +7,8 @@ import socket
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from http.client import IncompleteRead
 from typing import Final, NoReturn, Protocol, cast
 
 from youtube_intel.config import LocalScoringSettings
@@ -82,6 +84,12 @@ class _InvalidModelResponse(Exception):
     """Private parse marker; response content is never exposed in errors or logs."""
 
 
+@dataclass(frozen=True, slots=True)
+class _GeneratedResponse:
+    response_text: str
+    raw_response: str
+
+
 def _default_transport(request: urllib.request.Request, timeout: float) -> _Response:
     return cast(_Response, urllib.request.urlopen(request, timeout=timeout))  # noqa: S310
 
@@ -104,6 +112,12 @@ def _safe_error(
     )
 
 
+def _raise_sanitized(error: AppError) -> NoReturn:
+    """Raise a fresh safe error after sensitive stack frames have been cleared."""
+
+    raise OllamaProviderError(error)
+
+
 class OllamaScoringProvider:
     """Score through a loopback-only ``urllib`` transport with one repair attempt."""
 
@@ -120,44 +134,133 @@ class OllamaScoringProvider:
         self._settings = settings
         self._prompt = prompt
         self._transport = transport
+        self._last_raw_response: str | None = None
+        self._last_request_hash: str | None = None
 
     def score(self, scoring_input: ScoringInput) -> ScoreResult:
-        self._verify_expected_model(scoring_input)
-        primary_response = self._generate(
-            prompt=self._render_primary_prompt(scoring_input),
-            scoring_input=scoring_input,
-        )
-        try:
-            return self._parse_score_result(primary_response, scoring_input)
-        except _InvalidModelResponse:
-            repair_response = self._generate(
-                prompt=self._render_repair_prompt(primary_response, scoring_input),
-                scoring_input=scoring_input,
-            )
-            try:
-                return self._parse_score_result(repair_response, scoring_input)
-            except _InvalidModelResponse as exc:
-                raise _safe_error(
-                    ErrorCode.INVALID_RESPONSE,
-                    "Ollama scoring response remained invalid after one repair",
-                    retryable=True,
-                    video_id=scoring_input.video.video_id,
-                ) from exc
+        """Return one validated score, never exposing untrusted failures."""
 
-    def _verify_expected_model(self, scoring_input: ScoringInput) -> None:
-        payload = self._request_json(
+        video_id = scoring_input.video.video_id
+        request_hash = scoring_input.request_hash
+        result: ScoreResult | None = None
+        failure: AppError | None = None
+        primary_response: _GeneratedResponse | None = None
+        repair_response: _GeneratedResponse | None = None
+        self._last_raw_response = None
+        self._last_request_hash = None
+        try:
+            try:
+                self._verify_expected_model(video_id)
+                primary_response = self._generate(
+                    prompt=self._render_primary_prompt(scoring_input),
+                    video_id=video_id,
+                )
+                result = self._parse_score_result(
+                    primary_response.response_text,
+                    request_hash,
+                )
+            except _InvalidModelResponse:
+                if primary_response is None:
+                    failure = AppError(
+                        code=ErrorCode.INVALID_RESPONSE,
+                        message="Ollama scoring response was invalid",
+                        retryable=True,
+                        video_id=video_id,
+                        stage=ProcessingStage.SCORING,
+                    )
+                else:
+                    repair_response = self._generate(
+                        prompt=self._render_repair_prompt(
+                            primary_response.response_text,
+                            request_hash,
+                        ),
+                        video_id=video_id,
+                    )
+                    try:
+                        result = self._parse_score_result(
+                            repair_response.response_text,
+                            request_hash,
+                        )
+                    except _InvalidModelResponse:
+                        failure = AppError(
+                            code=ErrorCode.INVALID_RESPONSE,
+                            message=(
+                                "Ollama scoring response remained invalid after one repair"
+                            ),
+                            retryable=True,
+                            video_id=video_id,
+                            stage=ProcessingStage.SCORING,
+                        )
+        except OllamaProviderError as error:
+            failure = error.error
+        except Exception:
+            failure = AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="Ollama scoring failed with an invalid response",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+
+        if result is not None:
+            if primary_response is not None:
+                self._last_raw_response = (
+                    primary_response.raw_response
+                    if repair_response is None
+                    else repair_response.raw_response
+                )
+                self._last_request_hash = request_hash
+                return result
+            failure = AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="Ollama scoring returned an invalid response",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+
+        primary_response = None
+        repair_response = None
+        result = None
+        del scoring_input
+        del self
+        _raise_sanitized(
+            failure
+            if failure is not None
+            else AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="Ollama scoring returned no result",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+        )
+
+    def consume_raw_response(self, *, request_hash: str) -> str:
+        """Return the final raw model response once for artifact persistence."""
+
+        if request_hash != self._last_request_hash or self._last_raw_response is None:
+            msg = "raw Ollama response is unavailable for the scoring request"
+            raise ValueError(msg)
+        response = self._last_raw_response
+        self._last_raw_response = None
+        self._last_request_hash = None
+        return response
+
+    def _verify_expected_model(self, video_id: str) -> None:
+        payload, _ = self._request_json(
             urllib.request.Request(
                 self._endpoint(_TAGS_PATH),
                 headers={"Accept": "application/json"},
                 method="GET",
             ),
-            scoring_input=scoring_input,
+            video_id=video_id,
         )
         if not isinstance(payload, Mapping):
-            self._raise_invalid_tags(scoring_input)
+            self._raise_invalid_tags(video_id)
         models = payload.get("models")
         if not isinstance(models, list):
-            self._raise_invalid_tags(scoring_input)
+            self._raise_invalid_tags(video_id)
         for item in models:
             if not isinstance(item, Mapping):
                 continue
@@ -169,18 +272,18 @@ class OllamaScoringProvider:
             ErrorCode.CONFIG_INVALID,
             "configured Ollama model is missing or has an unexpected digest",
             retryable=False,
-            video_id=scoring_input.video.video_id,
+            video_id=video_id,
         )
 
-    def _raise_invalid_tags(self, scoring_input: ScoringInput) -> NoReturn:
+    def _raise_invalid_tags(self, video_id: str) -> NoReturn:
         raise _safe_error(
             ErrorCode.INVALID_RESPONSE,
             "Ollama model preflight returned an invalid response",
             retryable=True,
-            video_id=scoring_input.video.video_id,
+            video_id=video_id,
         )
 
-    def _generate(self, *, prompt: str, scoring_input: ScoringInput) -> str:
+    def _generate(self, *, prompt: str, video_id: str) -> _GeneratedResponse:
         body = json.dumps(
             {
                 "model": self._settings.model,
@@ -196,132 +299,159 @@ class OllamaScoringProvider:
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
-        payload = self._request_json(
+        payload, raw_response = self._request_json(
             urllib.request.Request(
                 self._endpoint(_GENERATE_PATH),
                 data=body,
                 headers={"Content-Type": "application/json", "Accept": "application/json"},
                 method="POST",
             ),
-            scoring_input=scoring_input,
+            video_id=video_id,
         )
         if not isinstance(payload, Mapping):
             raise _InvalidModelResponse
         response = payload.get("response")
         if not isinstance(response, str) or len(response) > _MAX_MODEL_RESPONSE_CHARS:
             raise _InvalidModelResponse
-        return response
+        return _GeneratedResponse(response_text=response, raw_response=raw_response)
 
     def _request_json(
         self,
         request: urllib.request.Request,
         *,
-        scoring_input: ScoringInput,
-    ) -> object:
+        video_id: str,
+    ) -> tuple[object, str]:
+        response: _Response | None = None
+        failure_code: ErrorCode | None = None
+        failure_message = ""
+        http_status: int | None = None
         try:
             response = self._transport(request, 300.0)
         except urllib.error.HTTPError as exc:
+            http_status = exc.code
             try:
                 exc.close()
             except OSError:
                 pass
-            self._raise_http_error(exc.code, scoring_input)
         except (TimeoutError, socket.timeout):
-            raise _safe_error(
-                ErrorCode.TRANSIENT_NETWORK,
-                "Ollama request timed out",
-                retryable=True,
-                video_id=scoring_input.video.video_id,
-            ) from None
+            failure_code = ErrorCode.TRANSIENT_NETWORK
+            failure_message = "Ollama request timed out"
         except urllib.error.URLError as exc:
             reason = exc.reason
             if isinstance(reason, (TimeoutError, socket.timeout)):
-                raise _safe_error(
-                    ErrorCode.TRANSIENT_NETWORK,
-                    "Ollama request timed out",
-                    retryable=True,
-                    video_id=scoring_input.video.video_id,
-                ) from None
-            raise _safe_error(
-                ErrorCode.PROVIDER_UNAVAILABLE,
-                "Ollama local provider is unavailable",
-                retryable=True,
-                video_id=scoring_input.video.video_id,
-            ) from None
-        except OSError:
-            raise _safe_error(
-                ErrorCode.PROVIDER_UNAVAILABLE,
-                "Ollama local provider is unavailable",
-                retryable=True,
-                video_id=scoring_input.video.video_id,
-            ) from None
+                failure_code = ErrorCode.TRANSIENT_NETWORK
+                failure_message = "Ollama request timed out"
+            else:
+                failure_code = ErrorCode.PROVIDER_UNAVAILABLE
+                failure_message = "Ollama local provider is unavailable"
+        except Exception:
+            failure_code = ErrorCode.PROVIDER_UNAVAILABLE
+            failure_message = "Ollama local provider is unavailable"
 
+        if http_status is not None:
+            self._raise_http_error(http_status, video_id)
+        if failure_code is not None:
+            raise _safe_error(
+                failure_code,
+                failure_message,
+                retryable=True,
+                video_id=video_id,
+            )
+        if response is None:
+            raise _safe_error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "Ollama local provider is unavailable",
+                retryable=True,
+                video_id=video_id,
+            )
+
+        body: bytes | object | None = None
+        read_failed = False
         try:
             body = response.read(_MAX_RESPONSE_BYTES + 1)
-        except (TimeoutError, socket.timeout, OSError):
+        except (IncompleteRead, TimeoutError, socket.timeout, OSError):
+            read_failed = True
+        except Exception:
+            read_failed = True
+        finally:
+            try:
+                response.close()
+            except Exception:
+                read_failed = True
+        if read_failed:
             raise _safe_error(
                 ErrorCode.TRANSIENT_NETWORK,
                 "Ollama response could not be read completely",
                 retryable=True,
-                video_id=scoring_input.video.video_id,
-            ) from None
-        finally:
-            response.close()
+                video_id=video_id,
+            )
+        if not isinstance(body, bytes):
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama returned an invalid API response body",
+                retryable=True,
+                video_id=video_id,
+            )
         if len(body) > _MAX_RESPONSE_BYTES:
             raise _safe_error(
                 ErrorCode.INVALID_RESPONSE,
                 "Ollama response exceeded the configured safety limit",
                 retryable=True,
-                video_id=scoring_input.video.video_id,
+                video_id=video_id,
             )
         try:
-            return json.loads(body.decode("utf-8"))
+            decoded = body.decode("utf-8")
+            return json.loads(decoded), decoded
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise _safe_error(
                 ErrorCode.INVALID_RESPONSE,
                 "Ollama returned a non-JSON API response",
                 retryable=True,
-                video_id=scoring_input.video.video_id,
-            ) from None
+                video_id=video_id,
+            )
 
-    def _raise_http_error(self, status: int, scoring_input: ScoringInput) -> NoReturn:
+    def _raise_http_error(self, status: int, video_id: str) -> NoReturn:
         if status == 429:
             raise _safe_error(
                 ErrorCode.RATE_LIMITED,
                 "Ollama local provider rate limited the request",
                 retryable=True,
-                video_id=scoring_input.video.video_id,
+                video_id=video_id,
             )
         if 500 <= status <= 599:
             raise _safe_error(
                 ErrorCode.PROVIDER_UNAVAILABLE,
                 "Ollama local provider is unavailable",
                 retryable=True,
-                video_id=scoring_input.video.video_id,
+                video_id=video_id,
             )
         if status in {401, 403}:
             raise _safe_error(
                 ErrorCode.PERMISSION_DENIED,
                 "Ollama local provider denied access",
                 retryable=False,
-                video_id=scoring_input.video.video_id,
+                video_id=video_id,
             )
         raise _safe_error(
             ErrorCode.INVALID_RESPONSE,
             "Ollama returned an invalid HTTP response",
             retryable=False,
-            video_id=scoring_input.video.video_id,
+            video_id=video_id,
         )
 
     def _parse_score_result(
         self,
         response_text: str,
-        scoring_input: ScoringInput,
+        request_hash: str,
     ) -> ScoreResult:
+        invalid_json = False
         try:
             parsed: object = json.loads(response_text)
-        except json.JSONDecodeError as exc:
-            raise _InvalidModelResponse from exc
+        except json.JSONDecodeError:
+            invalid_json = True
+            parsed = None
+        if invalid_json:
+            raise _InvalidModelResponse
         if not isinstance(parsed, dict):
             raise _InvalidModelResponse
         if not set(parsed).issubset(_MODEL_RESULT_FIELDS):
@@ -333,13 +463,17 @@ class OllamaScoringProvider:
                 "provider": _PROVIDER_NAME,
                 "model": self._settings.model,
                 "prompt_version": PROMPT_VERSION,
-                "request_hash": scoring_input.request_hash,
+                "request_hash": request_hash,
             }
         )
+        invalid_model = False
         try:
             return ScoreResult.model_validate(candidate)
-        except ValueError as exc:
-            raise _InvalidModelResponse from exc
+        except ValueError:
+            invalid_model = True
+        if invalid_model:
+            raise _InvalidModelResponse
+        raise AssertionError("unreachable validated model response")
 
     def _render_primary_prompt(self, scoring_input: ScoringInput) -> str:
         return self._prompt.replace(
@@ -370,11 +504,11 @@ class OllamaScoringProvider:
     def _render_repair_prompt(
         self,
         invalid_response: str,
-        scoring_input: ScoringInput,
+        request_hash: str,
     ) -> str:
         repair_hash = build_provider_request_hash(
             operation=_REPAIR_OPERATION,
-            normalized_input_hash=scoring_input.request_hash,
+            normalized_input_hash=request_hash,
             provider=_PROVIDER_NAME,
             model=self._settings.model,
             prompt_version=PROMPT_VERSION,

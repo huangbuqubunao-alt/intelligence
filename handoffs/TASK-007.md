@@ -246,3 +246,126 @@
 `REJECT` — approval requires all offline acceptance criteria and no unresolved P0/P1;
 P1-1 and P1-2 remain open. No task status was changed, no merge was performed, and the
 implementation source was not amended.
+
+---
+
+## Correction 1 — Codex Implementer — 2026-07-19
+
+### Authorization, base, and scope
+
+- Dynamic gate: main authorization commit `5667e9b40aa364e6f05c764808c32db99d1c5275`
+  authorizes the original Codex correction role while `TASK-007` remains `IN_PROGRESS`.
+- Source branch/base: `codex/task-007-local-scoring`, correction parent
+  `266c488c17fc82cb648053b5e1066211a7bea9a9`. The correction is intentionally one
+  child commit of that parent; it does not amend the reviewer evidence commit.
+- Modified correction paths only: `src/youtube_intel/scoring.py`,
+  `src/youtube_intel/providers/ollama.py`, `tests/unit/test_scoring.py`,
+  `tests/integration/test_ollama_provider.py`, and this handoff.
+- No task status, main worktree, dependency/lockfile, migration/schema, production
+  configuration, credential, network, Vault, media, or deletion authority was used.
+
+### P1 closure matrix
+
+| Finding | Closure | Offline evidence |
+|---|---|---|
+| P1-1 — unsafe/missing Ollama response failures | CLOSED | Fake-transport tests now exercise invalid primary/repair content, missing and overlong generate envelopes, short reads, and transport failures; every path yields a redacted named `AppError` through `OllamaProviderError`. |
+| P1-2 — no durable atomic scoring composition | CLOSED | A repository-backed scoring composition reserves/completes the existing Provider call, writes raw/structured artifacts and `ScoringSummaryWrite` through the existing atomic completion API, and validates a persisted cache with temporary real SQLite. |
+
+#### P1-1: exception, transport, and response boundary
+
+- `OllamaScoringProvider.score()` now exits failures only through a fresh safe error
+  after untrusted prompt/model-response references have left library traceback frames.
+  It preserves the required scoring stage and `video_id`, suppresses raw exception
+  chains, and does not log response bodies.
+- The final `POST /api/generate` JSON envelope is retained only on success and exposed
+  once by `consume_raw_response(request_hash=...)` for the repository composition;
+  failure paths clear it.
+- A missing/non-string or overlong `response` field maps to
+  `ErrorCode.INVALID_RESPONSE`; `http.client.IncompleteRead`, timeouts, socket and
+  read/close failures map to `ErrorCode.TRANSIENT_NETWORK`; bounded-body, decoding and
+  JSON failures remain safe named errors. HTTP mappings remain deterministic (429 rate
+  limited, 5xx unavailable, 401/403 permission denied).
+- Regression sentinels `/private/secret-transcript-response` and
+  `/private/temporary-transcript-url` are recursively checked across error attributes,
+  causes, contexts, and `youtube_intel` traceback frames. They cannot occur in the
+  returned error graph. Tests continue to inject only `_FakeTransport`.
+
+#### P1-2: SQLite state, artifacts, cache, and rollback
+
+- `RepositoryBackedScoringService` keeps the existing pure `ScoringService` intact,
+  while composing the existing repository contracts at the application boundary. It
+  builds the frozen primary request hash, reserves the Provider call, and completes
+  `TRANSCRIPT_READY -> SCORED` with the existing owner/CAS and pipeline version.
+- On success it persists `SCORING_RAW` (the final full Ollama generate envelope,
+  `RAW_RESPONSE_30D`) and `SCORING_STRUCTURED` (canonical `ScoreResult`, long-lived),
+  completes the Provider call with the raw artifact ID, records the threshold-derived
+  `ScoringSummaryWrite`, pipeline status, and job success in the existing transaction.
+  The model recommendation remains on `ScoreResult`; the application decision is
+  `score >= configured threshold`, with `MODEL_POLICY_DISAGREEMENT` retained.
+- A non-acquired successful reservation is a cache candidate only after raw and
+  structured artifact keys/kinds/provenance, file containment, size, SHA-256,
+  structured schema, request hash, provider/model, and Provider-call raw-artifact
+  binding all verify. A verified hit re-completes the owned stage without another
+  model call and reports `PERSISTED_CACHE_HIT`; invalid/missing records fail closed.
+- Every injected failure after artifact preparation, Provider-call handling, summary
+  preparation, or pipeline completion leaves the temporary SQLite video at
+  `TRANSCRIPT_READY`, no committed artifacts/summary, and no successful Provider call.
+  The exact temporary payload files created by this attempt are removed on rollback;
+  no broad delete is used.
+- The raw persistence regression uses `/private/raw-scoring-response` and applies the
+  same recursive error-graph redaction assertion to library traceback frames.
+
+### Hash, reuse, and licence record
+
+- The primary hash is now reused by both the pure and repository-backed services and
+  changes with all frozen dimensions: video ID/title/channel/date/duration/default and
+  chosen language, bounded description, full transcript content hash and sample,
+  model/temperature/output limit, prompt version, schema version, and operation.
+- `DIRECT`: Python standard-library `urllib` and `json`, plus existing in-repository
+  Pydantic/domain/state contracts. No dependency or lockfile changed.
+- `DIRECT-PENDING`: Ollama and `qwen3:8b` remain configuration/Fake-bound runtime
+  integrations only. Existing reuse/license evidence remains
+  `docs/REUSE_REGISTER.md` §7 and ADR-007 L-08 (Ollama MIT; qwen3 upstream
+  Apache-2.0). No model or service was installed, started, pulled, or queried.
+- `REJECT`: no Ollama SDK, `httpx`, cloud tag discovery, bootstrap, or real-service
+  helper was introduced.
+
+### Final offline verification
+
+| Command / check | Result | Evidence |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 34 packages in 1ms`. |
+| `uv sync --locked --offline` | PASS | 34 resolved; 30 checked; no network download. |
+| `uv run python -m pytest tests/unit/test_scoring.py tests/integration/test_ollama_provider.py` | PASS | `23 passed in 0.21s`. |
+| `uv run python -m pytest` | PASS | `274 passed in 1.81s`. |
+| `uv run mypy src` | PASS | No issues in 11 source files. |
+| `uv run ruff check .` | PASS | All checks passed. |
+| `uv run python -m youtube_intel --help` | PASS | CLI help rendered. |
+| `uv build --offline` | PASS | Wheel and sdist built. |
+| Wheel/sdist migration listing | PASS | Both include `youtube_intel/migrations/001_initial.sql`. |
+
+### Complete correction diff review
+
+- `src/youtube_intel/providers/ollama.py`: closes response/error redaction and
+  short-read/malformed-envelope handling; exposes a one-shot successful raw envelope
+  handoff only for durable composition.
+- `src/youtube_intel/scoring.py`: adds the minimal repository-backed application
+  composition, verified persistent cache, deterministic artifact persistence, safe
+  failure boundary, and rollback of only files created by the failed attempt.
+- `tests/integration/test_ollama_provider.py`: adds Fake-only envelope, short-read,
+  transport and complete error-graph sentinel regressions.
+- `tests/unit/test_scoring.py`: covers each hash dimension, real temporary-SQLite
+  atomic success, verified cache reuse, four post-write rollback points, and persisted
+  raw-response redaction.
+- `handoffs/TASK-007.md`: records this correction and its reproducible evidence.
+- No generated build artifact is staged; no unrelated file is part of the correction.
+
+### Intentionally unrun resources and remaining risk
+
+- Not run or touched: default `urllib` transport, any real Ollama endpoint or model,
+  network/cloud/YouTube URLs, media/ffmpeg, Vault, cookies/credentials, external data
+  deletion, and main-worktree task-state operations. These were outside authority.
+- Remaining risk: a separately authorized real Ollama/model compatibility and quality
+  calibration run is still needed; this correction proves only deterministic
+  Fake-transport behavior plus temporary local SQLite/artifact behavior.
+- `DECISION NEEDED`: `None`.
