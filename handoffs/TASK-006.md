@@ -469,3 +469,100 @@
   components、Vault 或 credentials；未运行真实转录。
 - 所有新音频、SQLite 数据库、DATA 根、符号链接和删除尝试都在 pytest 临时目录中；没有删除真实
   资源。未尝试 reservation、migration、依赖/锁变更或其它任务范围。
+
+---
+
+## Correction 2 — 第三次独立 Codex Reviewer 审查证据（2026-07-19）
+
+### 授权、身份与范围
+
+- Reviewer：全新独立 Codex Reviewer；未参与实现或前两次审查。
+- 主仓库授权提交：`3eeeac58a5662c4098b1d483f70c9b94fca23699`（`TASK-006-REVIEWER-3-CODEX.md`）；
+  主控任务状态为 `IN_REVIEW`。
+- 被审 source：`51b308828a6f2c433a9b4e92fb4a24e042f55d77`，唯一父提交
+  `47599db196b1b9440de3ae57ec3547935f64b1dc`；审查开始时工作树干净。
+- 全量 `6b4d59c...51b308...` Diff 为八个授权路径。Correction 2 相对 `47599db...` 仅改本报告、
+  `transcription.py` 和两份测试；`pyproject.toml`/`uv.lock` 无 correction 差异。没有 Schema、
+  migration、`state.py`、任务状态、配置、凭据、真实资源、merge、push 或 source clean 操作。
+
+### 离线门禁与包检查
+
+| 命令 | 独立结果 |
+|---|---|
+| `uv lock --check` | PASS — Resolved 80 packages。 |
+| `uv sync --locked --offline` | PASS — Resolved 80，Checked 57 packages。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS — 11 passed。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS — 10 passed。 |
+| `uv run python -m pytest` | PASS — 272 passed。 |
+| `uv run mypy src` | PASS — 11 source files 无问题。 |
+| `uv run ruff check .` | PASS。 |
+| `uv run python -m youtube_intel --help` | PASS。 |
+| `uv build --offline` | PASS — 生成 sdist/wheel。 |
+| migration 包产物检查 | PASS — sdist 和 wheel 均含 `youtube_intel/migrations/001_initial.sql`。 |
+| `git diff --check 6b4d59c...51b308...` | PASS。 |
+
+### 独立探针
+
+- **缓存身份反例（FAIL）**：共享 Fake-only cache 的 `language_hint="en"` 与 `"fr"` 两次请求，
+  结果为 `{'calls': ['en'], 'first_text': 'text-en', 'second_text': 'text-en',
+  'second_cache_hit': True}`。没有模型、音频解码或文件读取；`language_hint` 未进入缓存键。
+- **真实临时 SQLite/DATA-root 矩阵**：unknown、missing、已删除/stale、索引 hash 不匹配、绝对与
+  `..` 路径、末端符号链接及中间目录符号链接 DATA-root escape 均为 `INDEX_CONFLICT`，文件/链接/
+  根外合成目标均保留，诊断不含路径。匹配 `AUDIO`/`DATA`/`EPHEMERAL_AUDIO` 的成功路径为 `DELETED`
+  并写入 `deleted_at`。
+- **最终 CAS race**：真实 SQLite wrapper 在 unlink 后先完成既有 CAS、再返回 `False`；结果
+  `{'result': 'INDEX_CONFLICT', 'file_removed': True, 'index_marked': True}`，符合已授权的
+  at-most-once 窗口，未引入 reservation、Schema 或 exactly-once 声明。
+- **错误 Artifact 枚举反例（FAIL）**：错误 kind、retention、storage root 的传入 Artifact 均保留
+  文件，但分别返回 `INELIGIBLE_ARTIFACT`；当前审查包要求这些安全拒绝统一为可重试
+  `INDEX_CONFLICT`。
+- 静态检查确认没有 `mlx_whisper`、`subprocess`、网络客户端或 ffmpeg 调用；安装元数据为
+  `mlx-whisper==0.4.3`、MIT、`Requires-Python: >=3.8`。完整 Diff 的常见私钥/AWS/GitHub/OpenAI
+  key 模式扫描无命中。
+
+### AC / ADR-007 与五轴审查
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| AC：离线 Fake/合成 WAV、资源与超时 | PASS | 规定 focused tests 和静态边界通过。 |
+| AC：音频、实现/模型与参数的缓存身份 | FAIL | 不同 `language_hint` 命中旧语言的缓存文本。 |
+| AC：成功、失败、超长的安全清理 | FAIL | 路径与 CAS 通过；kind/root/retention 的强制拒绝枚举不符。 |
+| ADR-007 L-10/L-11 | FAIL | 无模型加载/下载；但 L-10 `language_hint` 未进入缓存身份。 |
+| ADR-007 L-12 | PASS | 无媒体、ffmpeg、Cookie、remote component 或网络路径。 |
+| ADR-007 L-13/L-15（阶段 A） | PASS | 纯策略在 Fake executor 前拒绝；未改状态机或真实资源逻辑。 |
+| ADR-007 L-14 | FAIL | 当前审查包指定的错误 Artifact 安全枚举不符合。 |
+
+- Correctness：两项 P1 如下；Correction 2 的路径逃逸和最终 CAS 语义未退化。
+- Readability：cleanup 预检顺序清楚，1 MiB 分块 SHA-256 避免整文件读取；未见无关重构或死代码。
+- Architecture：复用冻结的 Repository read/post-delete CAS，未增加 reservation、Schema 或 wrapper；
+  但可变 decode 参数未被缓存边界隔离。
+- Security/privacy：路径脱敏与零物理逃逸通过；P1-2 破坏明确的可重试 fail-closed 枚举契约。
+- Performance/resources：没有 N+1、无界循环或模型热路径；P1-1 可能错误省略所需转写。
+- Scope/red lines/reuse/licensing：范围正确，Correction 未改依赖/锁、Schema、密钥或生产配置；
+  仅直接复用既有 SQLite Artifact API、Python 标准库和已授权 `mlx-whisper`。模型许可证与真实
+  兼容性继续 deferred。
+
+### 刻意跳过的未授权路径
+
+- 未下载、导入或加载 Whisper 模型/权重，未调用 `mlx_whisper.transcribe`、ffmpeg、媒体/YouTube、
+  网络、Cookie、remote components、Vault/credentials、真实资源/性能冒烟或 multiprocessing 终止。
+- 所有探针只使用系统临时目录的合成字节、SQLite、DATA 根和测试文件；未删除真实文件。
+
+### Findings（P0–P3）与结论
+
+- P0：无。
+- **P1-1 — `language_hint` 不在缓存身份中，可返回错误语言的旧转写。**
+  `src/youtube_intel/providers/whisper.py:54-85` 允许 `language_hint` 变化，而 147-152 行调用的
+  `src/youtube_intel/transcription.py:106-129` 缓存键未包含它。独立 Fake probe 已复现 `fr` 请求
+  命中 `en` 文本。必须将实际语言提示纳入稳定键，或禁止该参数可变并补回归测试。
+- **P1-2 — 错误 kind/root/retention 的 Artifact 未返回强制的 `INDEX_CONFLICT`。**
+  `src/youtube_intel/transcription.py:214-220` 返回 `INELIGIBLE_ARTIFACT`，且
+  `tests/unit/test_transcription_policy.py:224-237` 固化这一行为。当前审查包要求 wrong-kind、
+  wrong-retention、wrong-root 与 unknown/missing/stale/hash mismatch 一样返回可重试
+  `INDEX_CONFLICT`；真实 SQLite probe 已复现三种不符枚举。修复并覆盖实际 Repository 路径后再审。
+- P2：无。
+- P3：无。
+- Verdict：**REJECT**。
+- 未解决 P0/P1：P1-1、P1-2。
+- `DECISION NEEDED`：None。P1-1 位于 `providers/whisper.py`；若后续 correction 保持本轮四文件
+  范围，主控须先明确扩展范围。
