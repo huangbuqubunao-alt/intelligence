@@ -6,8 +6,9 @@
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
-  Correction 1；`TASK-007` Correction 2 已提交，正等待全新独立 Codex Reviewer 离线复审。
+- 活动任务：`TASK-006` Correction 1 已提交，等待独立离线复审；`TASK-007` Correction 2
+  正由全新独立 Codex Reviewer 离线复审。一次只运行一个 Reviewer，TASK-006 审查包已就绪但须
+  等待 TASK-007 Reviewer 结束。
 - TASK-007 Correction 2 source `567b0f...` 已针对 ADR-007 L-09 保存失败修复的主响应、验证恢复
   Artifact，并在重排时只执行一次修复。该实现证据不构成验收；真实 Ollama 或模型资源仍未授权。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
@@ -39,8 +40,8 @@
 
 ## 下一步
 
-1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
-   SQLite 冲突回归；不得改变 Repository/Schema 契约。
+1. 等待 TASK-007 Reviewer 结束后，再启动全新独立 Codex Reviewer 复核 TASK-006 Correction 1
+   的 Artifact 预检、删除和 post-delete CAS 语义；不得改业务代码或访问 TASK-007。
 2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 2 的失败主响应保存、无主调用恢复、
    Artifact/provenance 验证和原子成功/rollback；不得改业务代码或访问 TASK-006。
 3. TASK-006 修复与 TASK-007 Correction 2 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
@@ -59,7 +60,7 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
+| 等待 Reviewer 容量 | TASK-006 全新独立 Codex Reviewer（Correction 1） | source `17afcd...`；审查包已就绪，待 TASK-007 Reviewer 结束后启动 |
 | 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 2） | source `567b0f...`；仅可写审查 handoff，复核 L-09 恢复与原子完成 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
@@ -85,6 +86,12 @@
   index confirmation 前删文件。产品负责人批准的 Correction 1 维持 `state.py` 的
   post-delete index-only 语义，要求先以现有 Artifact 读取验证删除前置条件；最终 CAS
   竞态明确只是 at-most-once cleanup 风险，不引入 reservation/Schema 或 exactly-once 声明。
+- TASK-006 Correction 1 `17afcd349827b36e5ba18fb0eab443c1ae5fb53f` 是第一轮 review evidence
+  的唯一非 merge 后继，精确修改 `transcription.py`、两份既有转写测试和 handoff 四个允许文件。
+  Implementer 记录未知/缺失/不匹配 Artifact 时保留音频并返回 `INDEX_CONFLICT`，以及成功确认、
+  post-delete CAS 竞态、kind/retention/root/hash、符号链接/路径逃逸的真实 SQLite 回归；自报
+  focused `10/9`、全量 `270`、mypy、Ruff、CLI、locked sync、offline build 与 migration package
+  inclusion 全 PASS。这些仅构成待独立复跑证据；预检到最终 CAS 间仍只声称 at-most-once cleanup。
 - TASK-007 第一轮独立 Reviewer evidence `266c488c17fc82cb648053b5e1066211a7bea9a9` 仅改
   handoff，Verdict=`REJECT`：`OllamaScoringProvider` 的修复响应、短读和部分畸形/超限响应
   可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、

@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 1）
+- Owner role: 全新独立 Codex Reviewer（Correction 1；等待 TASK-007 Reviewer 容量）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -74,6 +74,21 @@
   `tests/unit/test_transcription_policy.py`、`tests/integration/test_whisper_provider.py` 和
   `handoffs/TASK-006.md`。不得改依赖/锁、`state.py`、migration、公共任务状态或 main；
   TASK-007 Reviewer 正在独立审查，Correction Implementer 不得读取或操作其 worktree。
+
+### Correction 1 实现证据与独立审查排队
+
+- Correction source：`17afcd349827b36e5ba18fb0eab443c1ae5fb53f`，唯一父提交为第一轮 review
+  evidence `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`；source worktree 干净。Correction
+  精确修改 `transcription.py`、`tests/unit/test_transcription_policy.py`、
+  `tests/integration/test_whisper_provider.py` 和 handoff，`state.py`、Schema/migration、依赖和
+  锁文件未改变。
+- Implementer 自报：删除前读取和核验当前 Artifact 索引；未知/缺失/已删除/不匹配时保留音频并返回
+  `INDEX_CONFLICT`；真实 SQLite 覆盖成功确认、最终 CAS 竞态、kind/retention/root/hash、符号链接
+  与路径逃逸安全诊断。lock/sync、focused `10/9`、全量 `270`、mypy、Ruff、CLI、offline build
+  和 migration package inclusion 全 PASS；这些只构成待独立复跑证据。
+- 独立 Reviewer 必须是全新 Codex 会话，只能在 source handoff 写入并创建以 `17afcd...` 为唯一
+  父提交的 evidence commit。为遵守单 Reviewer WIP 限制，必须等待正在执行的 TASK-007 Reviewer
+  结束后再启动；不得改业务代码、任务状态、main 或访问 TASK-007 worktree。
 
 ## 目标
 
