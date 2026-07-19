@@ -152,6 +152,8 @@ class InMemoryTranscriptionCache(TranscriptionCache[CachedValue]):
 
 
 class AudioDeletionRepository(Protocol):
+    def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None: ...
+
     def mark_artifact_deleted(
         self,
         artifact_id: str,
@@ -168,6 +170,32 @@ class AudioCleanupResult(str, Enum):
     HASH_MISMATCH = "HASH_MISMATCH"
     IO_ERROR = "IO_ERROR"
     INDEX_CONFLICT = "INDEX_CONFLICT"
+
+
+def _matches_registered_audio(
+    expected: ArtifactRecord,
+    registered: ArtifactRecord | None,
+) -> bool:
+    """Require the current index row to still authorize this exact cleanup."""
+    return (
+        registered is not None
+        and registered.artifact_id == expected.artifact_id
+        and registered.artifact_key == expected.artifact_key
+        and registered.kind is ArtifactKind.AUDIO
+        and registered.storage_root is StorageRoot.DATA
+        and registered.relative_path == expected.relative_path
+        and registered.content_hash == expected.content_hash
+        and registered.retention_class is RetentionClass.EPHEMERAL_AUDIO
+        and registered.deleted_at is None
+    )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def cleanup_successful_audio(
@@ -191,23 +219,34 @@ def cleanup_successful_audio(
     ):
         return AudioCleanupResult.INELIGIBLE_ARTIFACT
 
+    if not _matches_registered_audio(
+        audio,
+        repository.get_artifact_by_key(audio.artifact_key),
+    ):
+        return AudioCleanupResult.INDEX_CONFLICT
+
     relative = PurePosixPath(audio.relative_path.replace("\\", "/"))
     if relative.is_absolute() or any(part == ".." for part in relative.parts):
         return AudioCleanupResult.PATH_OUTSIDE_DATA
 
     try:
         root = data_root.resolve(strict=True)
-        candidate = data_root.joinpath(*relative.parts)
+        candidate = root.joinpath(*relative.parts)
+        if candidate.is_symlink():
+            return AudioCleanupResult.PATH_OUTSIDE_DATA
         resolved = candidate.resolve(strict=True)
-        resolved.relative_to(root)
-    except (FileNotFoundError, OSError, ValueError):
+    except FileNotFoundError:
         return AudioCleanupResult.MISSING
+    except OSError:
+        return AudioCleanupResult.IO_ERROR
 
-    if candidate.is_symlink():
+    try:
+        resolved.relative_to(root)
+    except ValueError:
         return AudioCleanupResult.PATH_OUTSIDE_DATA
 
     try:
-        digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        digest = _sha256_file(resolved)
     except OSError:
         return AudioCleanupResult.IO_ERROR
     if digest != audio.content_hash:

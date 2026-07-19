@@ -27,9 +27,20 @@ FIXED_NOW = datetime(2026, 7, 19, 10, 0, tzinfo=UTC)
 
 
 class _FakeArtifactRepository:
-    def __init__(self, result: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        record: ArtifactRecord | None,
+        result: bool = True,
+    ) -> None:
+        self.record = record
         self.result = result
         self.calls: list[tuple[str, str, datetime]] = []
+        self.lookups: list[str] = []
+
+    def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None:
+        self.lookups.append(artifact_key)
+        return self.record
 
     def mark_artifact_deleted(
         self,
@@ -166,7 +177,7 @@ def test_cache_key_binds_audio_model_revision_and_parameter_policy(tmp_path: Pat
 
 def test_successful_cleanup_requires_verified_data_relative_audio(tmp_path: Path) -> None:
     audio, path = _audio(tmp_path)
-    repository = _FakeArtifactRepository()
+    repository = _FakeArtifactRepository(record=_record(audio))
 
     result = cleanup_successful_audio(
         _record(audio),
@@ -180,10 +191,10 @@ def test_successful_cleanup_requires_verified_data_relative_audio(tmp_path: Path
     assert repository.calls == [(audio.artifact_id, audio.content_hash, FIXED_NOW)]
 
 
-def test_cleanup_mismatch_or_index_conflict_never_deletes_unverified_audio(tmp_path: Path) -> None:
+def test_cleanup_hash_mismatch_never_deletes_unverified_audio(tmp_path: Path) -> None:
     audio, path = _audio(tmp_path)
     path.write_bytes(b"tampered")
-    repository = _FakeArtifactRepository()
+    repository = _FakeArtifactRepository(record=_record(audio))
 
     mismatch = cleanup_successful_audio(
         _record(audio),
@@ -196,20 +207,23 @@ def test_cleanup_mismatch_or_index_conflict_never_deletes_unverified_audio(tmp_p
     assert path.exists()
     assert repository.calls == []
 
+
+def test_final_cleanup_cas_race_reports_conflict_after_deletion(tmp_path: Path) -> None:
     audio, path = _audio(tmp_path)
     conflict = cleanup_successful_audio(
         _record(audio),
         data_root=tmp_path / "data",
-        repository=_FakeArtifactRepository(result=False),
+        repository=_FakeArtifactRepository(record=_record(audio), result=False),
         now=FIXED_NOW,
     )
+
     assert conflict is AudioCleanupResult.INDEX_CONFLICT
     assert not path.exists()
 
 
 def test_cleanup_rejects_a_non_audio_or_non_ephemeral_index_record(tmp_path: Path) -> None:
     audio, path = _audio(tmp_path)
-    repository = _FakeArtifactRepository()
+    repository = _FakeArtifactRepository(record=_record(audio))
 
     result = cleanup_successful_audio(
         replace(_record(audio), kind=ArtifactKind.SUBTITLE_SOURCE),
@@ -221,3 +235,73 @@ def test_cleanup_rejects_a_non_audio_or_non_ephemeral_index_record(tmp_path: Pat
     assert result is AudioCleanupResult.INELIGIBLE_ARTIFACT
     assert path.exists()
     assert repository.calls == []
+
+
+def test_cleanup_preflight_rejects_mismatched_registered_artifact(tmp_path: Path) -> None:
+    audio, path = _audio(tmp_path)
+    expected = _record(audio)
+
+    for registered in (
+        replace(expected, artifact_id="other-audio"),
+        replace(expected, kind=ArtifactKind.SUBTITLE_SOURCE),
+        replace(expected, storage_root=StorageRoot.VAULT),
+        replace(expected, retention_class=RetentionClass.LONG_LIVED),
+        replace(expected, content_hash="f" * 64),
+    ):
+        repository = _FakeArtifactRepository(record=registered)
+
+        result = cleanup_successful_audio(
+            expected,
+            data_root=tmp_path / "data",
+            repository=repository,
+            now=FIXED_NOW,
+        )
+
+        assert result is AudioCleanupResult.INDEX_CONFLICT
+        assert path.exists()
+        assert repository.calls == []
+
+
+def test_cleanup_preflight_rejects_missing_or_deleted_registered_artifact(
+    tmp_path: Path,
+) -> None:
+    audio, path = _audio(tmp_path)
+    expected = _record(audio)
+
+    for registered in (None, replace(expected, deleted_at=FIXED_NOW)):
+        repository = _FakeArtifactRepository(record=registered)
+
+        result = cleanup_successful_audio(
+            expected,
+            data_root=tmp_path / "data",
+            repository=repository,
+            now=FIXED_NOW,
+        )
+
+        assert result is AudioCleanupResult.INDEX_CONFLICT
+        assert path.exists()
+        assert repository.calls == []
+
+
+def test_cleanup_rejects_symlink_and_path_escape_without_leaking_paths(
+    tmp_path: Path,
+) -> None:
+    audio, path = _audio(tmp_path)
+    outside = tmp_path / "outside-secret.wav"
+    outside.write_bytes(b"outside payload")
+    path.unlink()
+    path.symlink_to(outside)
+    record = _record(audio)
+
+    result = cleanup_successful_audio(
+        record,
+        data_root=tmp_path / "data",
+        repository=_FakeArtifactRepository(record=record),
+        now=FIXED_NOW,
+    )
+
+    assert result is AudioCleanupResult.PATH_OUTSIDE_DATA
+    assert path.is_symlink()
+    assert outside.exists()
+    assert str(path) not in result.value
+    assert "payload" not in result.value

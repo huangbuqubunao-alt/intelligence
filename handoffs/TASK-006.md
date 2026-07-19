@@ -242,3 +242,64 @@
 - 建议：退回原 Implementer，在不扩展 Schema、真实资源或任务范围的前提下提出可验证的
   Artifact 登记与 CAS/文件删除恢复协议，并加入真实 SQLite 的 missing/stale-CAS 回归；随后由新的
   独立 Reviewer 重跑全部门禁。
+
+---
+
+## Correction 1 — P1 cleanup preflight closure（2026-07-19）
+
+### 范围与复用
+
+- Correction parent：`f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`（review evidence）；本报告
+  随本次 correction commit 一并提交。
+- 精确四文件范围：`src/youtube_intel/transcription.py`、
+  `tests/unit/test_transcription_policy.py`、
+  `tests/integration/test_whisper_provider.py`、本报告。
+- 未修改：`state.py`、Schema/migration、依赖/锁文件、Provider surface、任务状态或 `main`；
+  未运行模型、ffmpeg、媒体、网络、凭据、Vault 或非测试临时文件删除。
+- `DIRECT`：复用既有 `SQLiteStateRepository.get_artifact_by_key()` 和
+  `mark_artifact_deleted()` 的公开语义，以及 Python 标准库 `hashlib`/`pathlib`；未新增依赖或
+  外部代码。哈希改为 1 MiB 分块读取，避免对允许的大音频整读入内存。
+
+### P1 closure
+
+- `cleanup_successful_audio()` 现在在任何 `unlink()` 前读取当前 Artifact，并验证精确
+  `artifact_id`、`artifact_key`、content hash、`AUDIO`、`DATA`、DATA-relative path、
+  `EPHEMERAL_AUDIO` 与 `deleted_at is None`。缺失、已删除、未知 ID 或任一索引快照不一致均返回
+  无路径/内容的 `INDEX_CONFLICT`，并保留音频字节。
+- 随后才验证受控 DATA-root 路径、拒绝符号链接或逃逸、流式计算文件 SHA-256；失败保留字节并只返回
+  枚举诊断。成功时仍严格遵循既有设计：先受控删除文件，再调用未修改的 index-only
+  `mark_artifact_deleted()`。
+- 临时真实 SQLite regressions 证明：未知 ID 与已删除的陈旧 snapshot 都保留音频；有效记录才会删除
+  并写入 `deleted_at`；错误 kind/retention/root/hash、缺失/已删除记录、符号链接/路径逃逸都不删除。
+  最终 CAS race 也有覆盖，诊断不包含临时路径或内容。
+
+### 残余 at-most-once window
+
+- 预检读取成功到文件已删除、再到最终 CAS 的窗口无法在不新增 reservation/lock/Schema 或改变
+  `state.py` 契约的条件下消除。若并发方在预检后改变索引，文件已删除时最终 CAS 仍可能返回 `False`；
+  函数返回非成功的 `INDEX_CONFLICT`，不报告索引成功、不重试也不声称 exactly-once。
+- 因此该清理是已文档化的 at-most-once best effort：P1 的 missing/stale-before-unlink 数据丢失已关闭，
+  但 post-unlink CAS 竞争不能回滚物理删除，留待任何未来已批准的跨资源协调设计。
+
+### Correction checks
+
+| 命令/检查 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 80 packages`。 |
+| `uv sync --locked` | PASS | `Checked 57 packages`；未触发模型或媒体资源。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS | 10 passed；预检与路径安全回归。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS | 9 passed；真实 SQLite unknown/stale/success/race 回归。 |
+| `uv run python -m pytest` | PASS | 270 passed。 |
+| `uv run mypy src` | PASS | 11 source files 无问题。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI 帮助正常输出。 |
+| `uv build --offline` | PASS | sdist/wheel 构建成功。 |
+| migration package inclusion | PASS | sdist 与 wheel 均含 `youtube_intel/migrations/001_initial.sql`。 |
+| `git diff --check` | PASS | 无空白错误；最终提交前复跑。 |
+
+### Implementer correction conclusion
+
+- 建议状态：`IN_REVIEW`
+- Correction commit SHA：待全部最终范围/敏感信息/Diff 复核完成后创建。
+- `DECISION NEEDED`：None。残余 CAS 窗口已按本节显式记录，未以未获批准的 reservation、lock、Schema 或
+  `state.py` 变更掩盖。

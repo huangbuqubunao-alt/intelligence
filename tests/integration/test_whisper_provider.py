@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import wave
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -18,12 +19,22 @@ from youtube_intel.providers.whisper import (
     WhisperDecodePolicy,
     WhisperResponse,
 )
+from youtube_intel.state import (
+    ArtifactKind,
+    ArtifactRecord,
+    ArtifactWrite,
+    RetentionClass,
+    SQLiteStateRepository,
+    StorageRoot,
+)
 from youtube_intel.transcription import (
     AudioArtifact,
+    AudioCleanupResult,
     AudioResourceSnapshot,
     DurationDecision,
     InMemoryTranscriptionCache,
     TranscriptionPolicy,
+    cleanup_successful_audio,
 )
 
 FIXED_NOW = datetime(2026, 7, 19, 10, 0, tzinfo=UTC)
@@ -39,6 +50,29 @@ class _FakeWhisperExecutor:
         if isinstance(self.response, BaseException):
             raise self.response
         return self.response
+
+
+class _FinalCasRaceRepository:
+    """Simulate the unavoidable race after cleanup preflight and unlink."""
+
+    def __init__(self, repository: SQLiteStateRepository) -> None:
+        self._repository = repository
+
+    def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None:
+        return self._repository.get_artifact_by_key(artifact_key)
+
+    def mark_artifact_deleted(
+        self,
+        artifact_id: str,
+        expected_content_hash: str,
+        now: datetime,
+    ) -> bool:
+        assert self._repository.mark_artifact_deleted(
+            artifact_id,
+            expected_content_hash,
+            now,
+        )
+        return False
 
 
 def _synthetic_wav(tmp_path: Path) -> tuple[AudioArtifact, Path]:
@@ -68,6 +102,38 @@ def _adapter(executor: _FakeWhisperExecutor) -> MlxWhisperAdapter:
         cache=InMemoryTranscriptionCache(),
         clock=lambda: FIXED_NOW,
     )
+
+
+def _indexed_audio(
+    tmp_path: Path,
+) -> tuple[SQLiteStateRepository, ArtifactRecord, Path]:
+    data_root = tmp_path / "data"
+    audio_path = data_root / "audio" / "fixture.wav"
+    audio_path.parent.mkdir(parents=True)
+    body = b"deterministic registered audio"
+    audio_path.write_bytes(body)
+
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    repository.initialize(now=FIXED_NOW)
+    record = repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id="audio-1",
+            artifact_key="audio-key",
+            video_id=None,
+            job_id=None,
+            kind=ArtifactKind.AUDIO,
+            storage_root=StorageRoot.DATA,
+            relative_path="audio/fixture.wav",
+            content_hash=hashlib.sha256(body).hexdigest(),
+            provider="test",
+            model=None,
+            producer_version="test-v1",
+            retention_class=RetentionClass.EPHEMERAL_AUDIO,
+            expires_at=FIXED_NOW,
+        ),
+        now=FIXED_NOW,
+    )
+    return repository, record, audio_path
 
 
 def test_fake_executor_is_cached_and_receives_frozen_decode_policy(tmp_path: Path) -> None:
@@ -174,6 +240,78 @@ def test_malformed_executor_result_is_mapped_to_a_typed_error(tmp_path: Path) ->
         )
 
     assert raised.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+def test_sqlite_cleanup_preflight_keeps_unknown_and_stale_audio_intact(
+    tmp_path: Path,
+) -> None:
+    repository, record, audio_path = _indexed_audio(tmp_path / "unknown")
+
+    unknown = cleanup_successful_audio(
+        replace(record, artifact_id="unknown-audio"),
+        data_root=audio_path.parents[1],
+        repository=repository,
+        now=FIXED_NOW,
+    )
+
+    assert unknown is AudioCleanupResult.INDEX_CONFLICT
+    assert audio_path.exists()
+    assert str(audio_path) not in unknown.value
+    assert "registered audio" not in unknown.value
+
+    repository, record, audio_path = _indexed_audio(tmp_path / "stale")
+    assert repository.mark_artifact_deleted(
+        record.artifact_id,
+        record.content_hash,
+        FIXED_NOW,
+    )
+
+    stale = cleanup_successful_audio(
+        record,
+        data_root=audio_path.parents[1],
+        repository=repository,
+        now=FIXED_NOW,
+    )
+
+    assert stale is AudioCleanupResult.INDEX_CONFLICT
+    assert audio_path.exists()
+    assert str(audio_path) not in stale.value
+
+
+def test_sqlite_cleanup_deletes_only_after_preflight_and_confirms_index(
+    tmp_path: Path,
+) -> None:
+    repository, record, audio_path = _indexed_audio(tmp_path)
+
+    result = cleanup_successful_audio(
+        record,
+        data_root=audio_path.parents[1],
+        repository=repository,
+        now=FIXED_NOW,
+    )
+
+    confirmed = repository.get_artifact_by_key(record.artifact_key)
+    assert result is AudioCleanupResult.DELETED
+    assert not audio_path.exists()
+    assert confirmed is not None
+    assert confirmed.deleted_at == FIXED_NOW
+
+
+def test_sqlite_cleanup_reports_final_cas_race_without_leaking_paths(
+    tmp_path: Path,
+) -> None:
+    repository, record, audio_path = _indexed_audio(tmp_path)
+
+    result = cleanup_successful_audio(
+        record,
+        data_root=audio_path.parents[1],
+        repository=_FinalCasRaceRepository(repository),
+        now=FIXED_NOW,
+    )
+
+    assert result is AudioCleanupResult.INDEX_CONFLICT
+    assert not audio_path.exists()
+    assert str(audio_path) not in result.value
 
 
 def test_phase_a_adapter_does_not_import_a_model_or_system_decoder() -> None:
