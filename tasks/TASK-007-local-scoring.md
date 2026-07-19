@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 3；离线缺失恢复标记修复）
+- Owner role: 全新独立 Codex Reviewer（Correction 3；离线缺失恢复复审）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -226,3 +226,17 @@
   成功/rollback。不得弱化 present-Artifact、异常脱敏、一次修复或缓存身份测试。
 - 继续禁止真实 Ollama/网络/模型、安装/服务、媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。
   完成后必须再由全新独立 Codex Reviewer 审查；Implementer 不得改变状态、合并或启动 Reviewer。
+
+### Correction 3 实现证据与第四次独立审查
+
+- Correction source：`9da12c2a6932d04b936d6ae1543acb55a72ec9dd`，唯一父提交为第三次 review
+  evidence `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`；source worktree 干净。Correction
+  精确修改 `scoring.py`、评分 unit 测试和 handoff，完整 product Diff 仍为批准的 11 路径，依赖/
+  锁文件未变。
+- Implementer 自报：retryable Provider Call 使用安全、请求绑定 recovery-required 标记；有标记但
+  索引/文件/哈希/provenance 不匹配时返回 retryable `INVALID_RESPONSE` 且零 preflight/主评分/修复
+  调用；有效 recovery 仍只修复一次并原子完成。focused `17/14`、全量 `282`、mypy、Ruff、CLI、
+  offline sync/build 与 migration package inclusion 全 PASS，仅为待复跑证据。
+- 第四次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以 `9da12c...`
+  为唯一父提交的 evidence commit；不得修改业务代码、测试、依赖、锁、任务状态或 main，也不得访问
+  TASK-006 worktree。
