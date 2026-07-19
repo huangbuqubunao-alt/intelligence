@@ -636,3 +636,127 @@ merge was performed, and no product source or test was amended.
   require separate resource authority. This correction proves only deterministic Fake
   transport plus temporary SQLite/filesystem recovery behavior.
 - `DECISION NEEDED`: `None`.
+
+---
+
+## Correction 2 — Third Independent Codex Reviewer — 2026-07-19
+
+### Authority, source gate, and scope
+
+- Fresh, independent review of `codex/task-007-local-scoring` only. Dynamic main
+  authorization resolved to `57f02d8c1bbbaa3e323aa2fe097a139cda0d464f`
+  (`docs: authorize TASK-007 recovery review`); the main task card remains
+  `IN_REVIEW`.
+- Source gate passed before review: clean worktree, HEAD
+  `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`, sole parent
+  `d8eaeabdd2454141eeb646d9254f4a0a24626605`, and common base
+  `6b4d59c882ccdcbd0e5a6069a6661e0672921a80` all matched the packet.
+- The complete `base...source` range contains exactly the approved handoff, prompt,
+  two source modules, two scoring tests, and five scoring fixtures. Correction 2
+  changes only this handoff, `scoring.py`, `providers/ollama.py`, and the two
+  existing scoring tests. `pyproject.toml` and `uv.lock` are byte-identical to the
+  common base; no file is deleted.
+
+### Required offline reruns
+
+| Command / inspection | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 34 packages. |
+| `uv sync --locked --offline` | PASS — resolved 34 and checked 30; no download fallback. |
+| `uv run python -m pytest tests/unit/test_scoring.py` | PASS — 16 passed. |
+| `uv run python -m pytest tests/integration/test_ollama_provider.py` | PASS — 14 passed. |
+| `uv run python -m pytest` | PASS — 281 passed. |
+| `uv run mypy src` | PASS — no issues in 11 source files. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS — CLI help rendered. |
+| `uv build --offline` | PASS — sdist and wheel built. |
+| package inspection | PASS — both artifacts contain `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check 6b4d59c...567b0f6` | PASS — no whitespace errors. |
+
+### Independent L-09 probes
+
+1. **Persisted failed repair — PASS.** With a temporary real SQLite/data root and an
+   in-process Fake HTTP transport, invalid primary and repair responses produced a
+   request-keyed `SCORING_RAW` recovery Artifact with `RAW_RESPONSE_30D`, DATA root,
+   deterministic path, SHA-256, provider/model/video bindings, and a retryable failed
+   Provider Call. No structured Artifact, summary, `SCORED` transition, or successful
+   Job appeared. Recursive inspection of error message/args/cause/context/attributes
+   and `youtube_intel` traceback locals found none of the primary response, repair
+   response, prompt/subtitle, or temporary absolute-path sentinels.
+2. **Requeued recovery and transaction rollback — PASS.** Requeuing that identical Job
+   validated the saved response and made exactly one `POST /api/generate` repair; the
+   full Fake sequence was `GET /api/tags`, primary POST, initial-repair POST,
+   recovery-repair POST. Thus requeue made no tags preflight or primary scoring call.
+   A valid repair atomically created raw/structured Artifacts, completed the Provider
+   Call, wrote the threshold-owned summary, advanced the Pipeline and completed the
+   Job. Independent injections at `stage.after_artifacts`,
+   `stage.after_provider_call`, `stage.after_scoring_summary`, and
+   `stage.after_pipeline` rolled back the new success rows/files while retaining a
+   subsequently usable validated recovery input.
+3. **Fail-closed validation — PARTIAL / FAIL.** Hash, path, video, provider, model,
+   producer, retention, storage-root, kind, expiry, modified file and missing-file
+   variants all failed closed without a new primary call. However, deleting the indexed
+   recovery Artifact row (the missing request-keyed recovery record) made
+   `_load_verified_recovery_raw_response()` return `None` at
+   `scoring.py:815-818`; `_score()` then calls `_call_provider()` at `512-517`.
+   The real temporary SQLite/Fake-provider probe observed `primary_calls == 2` and no
+   recovery repair. This violates the explicit L-09/missing-recovery requirement: a
+   recovery attempt must not fabricate a result or issue a new primary request.
+
+### Acceptance and ADR-007 matrix
+
+| Item | Result | Independent evidence |
+|---|---|---|
+| AC-1 — strict valid/invalid/repair behavior | PASS | 14 Fake-transport integration tests plus Probe 1 covered valid, invalid, one-repair and redacted-error behavior. |
+| AC-2 — bounded sampling and cache/recovery | FAIL | Sampling and verified-success cache pass, but P1-1 makes a missing indexed recovery record fall back to a new primary call. |
+| AC-3 — threshold-derived durable final policy | PASS | Probe 2 confirmed the threshold-owned summary, Pipeline CAS and Job completion are atomic. |
+| L-03 — recommendation separate from application decision | PASS | Existing threshold decision remains derived from score, not the model suggestion. |
+| L-04 — atomic scoring summary | PASS | Success and all four post-artifact rollback probes used real temporary SQLite. |
+| L-05 — bounded three-part sampling | PASS | Focused tests and range review retain fixed sampling/version behavior. |
+| L-06 — metadata/hash boundary | PASS | Focused tests cover frozen input/model/prompt/schema/operation cache dimensions. |
+| L-07 — standard-library local HTTP | PASS at Fake-only boundary | Injected transport only; no default transport or endpoint was invoked. |
+| L-08 — fixed model preflight | PASS at Fake-only boundary | Exact model/digest Fake preflight precedes primary generation. |
+| L-09 — repair, recovery and errors | FAIL | P1-1 allows a missing indexed recovery Artifact to initiate a new primary request. |
+
+### Findings
+
+- P0: None.
+- P1-1 — `src/youtube_intel/scoring.py:499-517, 808-818`: a recovery Artifact that is
+  absent from the index is indistinguishable from the first scoring attempt. On a
+  requeued retry after a failed primary+repair, `_load_verified_recovery_raw_response`
+  returns `None`, so the service sends another primary request. The correction's
+  stated fail-closed contract and ADR-007 L-09 require a missing recovery input for
+  that retry to fail safely without a new primary or claimed cache hit. Persist and
+  verify an explicit recovery-required marker/binding with the retryable Provider Call,
+  then reject absence or mismatch before the primary-call branch. Add a regression that
+  deletes the recovery index row, not only its payload file.
+- P2: None.
+- P3: None.
+
+### Five-axis review, scope, and resources
+
+- **Correctness:** REJECT — P1-1 breaks the mandatory missing-recovery behavior.
+- **Architecture:** REJECT — the successful recovery composition is narrowly aligned
+  with the existing Repository API, but it lacks durable state that distinguishes an
+  initial request from a recovery-required retry.
+- **Security/privacy:** PASS for redaction and validated present-artifact paths; P1-1
+  remains an integrity/fail-closed weakness, not a demonstrated content leak.
+- **Performance:** PASS — bounded reads and a single repair ceiling remain intact; no
+  unbounded query, loop, or added runtime dependency was introduced.
+- **Readability:** PASS — the recovery branch and focused Fake tests are clear; the
+  defect is a missing state distinction rather than an unclear implementation.
+- Scope/red-line/reuse checks: PASS except P1-1. No dependency, lockfile, schema,
+  migration, config, domain, task-status or main-history change; no deleted test or
+  weakened assertion; no SDK or `httpx` added. Diff secret scan found no sensitive
+  material.
+- Intentionally unrun/unauthorized: default `urllib` transport, all real Ollama
+  endpoints (including loopback), Ollama installation/start/stop, model or cloud-tag
+  pull, media/YouTube/Cookie/remote-component/ffmpeg paths, Vault/credentials and
+  deletion paths. All dynamic probes used only temporary SQLite/data roots and
+  in-process Fakes; no network action occurred.
+
+### Verdict
+
+`REJECT` — all prescribed offline gates pass, but `APPROVE` requires no unresolved
+P0/P1. P1-1 must be corrected and independently re-reviewed. No task status was
+changed, and no merge, push, or product-source amendment was performed.
