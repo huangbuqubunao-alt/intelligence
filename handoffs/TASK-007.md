@@ -369,3 +369,150 @@ implementation source was not amended.
   calibration run is still needed; this correction proves only deterministic
   Fake-transport behavior plus temporary local SQLite/artifact behavior.
 - `DECISION NEEDED`: `None`.
+
+---
+
+## Correction 1 — Second Independent Codex Reviewer — 2026-07-19
+
+### Authority, source gate, and scope
+
+- Reviewer: fresh independent Codex Reviewer; this reviewer did not implement TASK-007
+  or Correction 1.
+- Dynamic authorization: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H --
+  agent-prompts/TASK-007-REVIEWER-2-CODEX.md` resolved to
+  `1eb3380ea329592a4259b5ead24fde5403f7fa0f`; the main task card lists TASK-007 as
+  `IN_REVIEW`.
+- Source gate: PASS before review — branch `codex/task-007-local-scoring`, clean source
+  worktree, HEAD `f46881bc4a8ca0fda4d5ef7006b372bc566cff97`, sole parent
+  `266c488c17fc82cb648053b5e1066211a7bea9a9`, and merge-base/common base
+  `6b4d59c882ccdcbd0e5a6069a6661e0672921a80` all matched the review package.
+- Complete `base...source` range contains exactly the approved handoff, prompt, two source
+  modules, two scoring tests, and five scoring fixtures. Correction 1 changes only its
+  five authorized paths: this handoff, `scoring.py`, `providers/ollama.py`, and the two
+  scoring test files. `pyproject.toml` and `uv.lock` are byte-identical to the base.
+
+### Required offline reruns
+
+| Command / inspection | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 34 locked packages. |
+| `uv sync --locked --offline` | PASS — resolved 34; checked 30; no network fallback. |
+| `uv run python -m pytest tests/unit/test_scoring.py` | PASS — 11 passed. |
+| `uv run python -m pytest tests/integration/test_ollama_provider.py` | PASS — 12 passed. |
+| `uv run python -m pytest` | PASS — 274 passed. |
+| `uv run mypy src` | PASS — no issues in 11 source files. |
+| `uv run ruff check .` | PASS — all checks passed. |
+| `uv run python -m youtube_intel --help` | PASS — CLI help rendered. |
+| `uv build --offline` | PASS — sdist and wheel built. |
+| package listing | PASS — both artifacts contain `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check 6b4d59c...f46881b` | PASS — no whitespace errors. |
+| dependency/lock diff against base | PASS — no diff in `pyproject.toml` or `uv.lock`. |
+
+### Independent probes
+
+#### A — Fake transport, complete exception graph, and response safety: PASS
+
+- A new in-process Fake transport (no default `urllib` call) covered invalid primary and
+  repair payloads containing distinct raw/prompt/transcript/URL sentinels; missing,
+  non-string, and 20,001-character generate envelopes; invalid UTF-8/API JSON/schema;
+  `IncompleteRead`; read timeout; 401/403; 429; and 500/599. All 15 error cases returned
+  the expected named `AppError` code, retryability, `video_id`, and `SCORING` stage.
+- Recursive inspection of `message`, `args`, `__cause__`, `__context__`, attributes, and
+  `youtube_intel` traceback locals found no raw response, prompt, transcript, URL, or
+  absolute-path sentinel. Every Fake response was closed.
+- Invalid structured primary output caused exactly one repair POST; a valid repair
+  succeeded. No probe invoked an Ollama endpoint, including loopback.
+
+#### B — real SQLite success, rollback, cache, and integrity: PARTIAL / FAIL
+
+- PASS: a new temporary real SQLite/data-root probe completed one
+  `TRANSCRIPT_READY -> SCORED` transition. It atomically indexed `SCORING_RAW` with
+  `RAW_RESPONSE_30D`, `SCORING_STRUCTURED` with `LONG_LIVED`, a successful Provider Call
+  bound to the raw Artifact, `ScoringSummaryWrite`, Pipeline CAS, and Job success. A
+  model recommendation of `True` did not override the threshold-derived final decision
+  of `False`.
+- PASS: injected failures at `stage.after_artifacts`, `stage.after_provider_call`,
+  `stage.after_scoring_summary`, and `stage.after_pipeline` left no indexed or local
+  scoring artifacts, no score/decision, `TRANSCRIPT_READY`, a running Job, and a safe
+  retryable Provider Call.
+- PASS: a reset/retry of a verified request reused the persisted result without a second
+  Fake provider call. Changing normalized input, model, prompt version, schema version,
+  or operation caused a new Fake call. File-hash, artifact-video provenance, and
+  Provider-call/raw-Artifact binding tampering all failed closed without a provider call.
+- FAIL (P1-1 below): a primary structured-response failure followed by a failed repair
+  does not persist the primary raw envelope. An actual requeued retry therefore performs
+  another Fake preflight, primary request, and repair instead of reusing that saved
+  primary response, contrary to ADR-007 L-09.
+
+#### C — architecture, resource bounds, and red lines: PASS except P1-1
+
+- `providers/ollama.py` has no SQLite write; `RepositoryBackedScoringService` uses the
+  established Protocol/repository boundary with `ProviderCallRequest`, `ArtifactWrite`,
+  `ProviderCallCompletion`, `ScoringSummaryWrite`, and `complete_stage` CAS semantics.
+- The successful raw envelope is bound to its request hash and one-shot: a wrong hash
+  cannot consume it; the right hash consumes it once; a second consume fails. Six unsafe
+  base origins (TLS, remote host, userinfo, path, query, fragment) were rejected before
+  transport. A 1,000,001-byte response was read with the configured capped size,
+  rejected, and closed. A persisted `../` artifact path failed closed before any new
+  provider call.
+- Static and dynamic review found no Ollama SDK, `httpx`, dependency/lock/schema/domain/
+  config change, direct Provider SQLite write, real-resource action, generated artifact,
+  or silent weakening of sample/policy tests. Secret-pattern hits were only benign test
+  sentinels and `max_output_tokens`; no credential, token, or private key was added.
+- Reuse evidence remains consistent with `docs/REUSE_REGISTER.md` §7: standard-library
+  `urllib.request`/`json` and existing SQLite/Pydantic contracts are `DIRECT`; Ollama and
+  `qwen3:8b` remain `DIRECT-PENDING`; `httpx` and the Ollama SDK remain deferred/rejected.
+
+### Acceptance and ADR-007 matrix
+
+| Item | Result | Evidence |
+|---|---|---|
+| AC-1 — strict valid/invalid/repair provider behavior | PASS | Probe A plus 12 focused Fake-transport tests cover schema, envelope, transport, redaction, and exactly-one repair behavior. |
+| AC-2 — bounded sampling and cache/recovery | PARTIAL / FAIL | Verified-success cache and all frozen request dimensions pass; P1-1 leaves the required failed-repair primary-response recovery absent. |
+| AC-3 — threshold-derived durable final decision | PASS | Probe B confirmed `score < threshold` persisted `should_summarize=False` despite a `True` model suggestion, atomically with `SCORED`. |
+| L-03 — recommendation vs final decision | PASS | Threshold decision is `score >= threshold`; disagreement is retained without mutating the model result. |
+| L-04 — atomic score summary | PASS | Probe B success and all four transaction-boundary rollbacks passed using real SQLite. |
+| L-05 — three-part sampling | PASS | Source/test review confirms the frozen head/centre/tail formulas, bounded count, and `sampling-v1`. |
+| L-06 — metadata/hash boundary | PASS | Probe B proved cache separation for normalized input, model, prompt, schema, and operation; focused tests cover the constituent metadata/sample fields. |
+| L-07 — standard-library loopback HTTP | PASS | Fake-only `urllib` adapter, loopback configuration rejection, capped read, schema format, `stream=false`, and `think=false` were verified. |
+| L-08 — fixed model preflight | PASS at Fake-only boundary | Exact model/digest check precedes generation; no model, service, or network action was performed. |
+| L-09 — response repair, saved primary reuse, and errors | FAIL | Safe mapping/repair/capped reads pass, but P1-1 violates the required primary-response reuse after repair failure. |
+
+### Findings
+
+- P0: None.
+- P1-1 — `src/youtube_intel/providers/ollama.py:140-237` and
+  `src/youtube_intel/scoring.py:590-638`: when a primary response is structurally invalid
+  and its one allowed repair also fails, the Provider clears the primary raw envelope and
+  returns only a safe error. The repository service marks the Provider Call retryable but
+  writes neither `SCORING_RAW` nor a recovery record. In an independent real-SQLite
+  requeue probe, the first failed attempt left both artifact keys absent; the second
+  attempt issued a second Fake preflight/primary/repair sequence (six transport calls in
+  total). ADR-007 L-09 requires the next Job attempt to prioritize the already saved
+  primary response. Required remediation: persist a capped, request-bound primary raw
+  envelope on repair-failure paths and add a safe recovery flow that validates/reuses it
+  for the single repair without issuing another primary request.
+- P2: None.
+- P3: None.
+
+### Five-axis review and intentionally unrun resources
+
+- Correctness: REJECT — P1-1 leaves a mandatory L-09 recovery path unimplemented.
+- Architecture: REJECT — successful completion composes the repository correctly, but
+  the failed-repair primary response cannot enter the repository/cache lifecycle.
+- Security/privacy: PASS for the implemented boundary — response limits, loopback-only
+  config, Fake-only probes, closed responses, and complete safe exception graphs held.
+- Performance/resources: PASS — response read is capped; artifact verification is
+  bounded; no unbounded query, retry loop, or new dependency was introduced.
+- Readability: PASS — named Protocols, artifacts, outcomes, and focused tests make the
+  success/rollback flow understandable; the missing failed-repair persistence is a
+  behavioral, not naming/style, issue.
+- Intentionally unrun/unauthorized: default transport and every real Ollama endpoint,
+  Ollama install/start/stop, model/cloud-tag pull, media/YouTube/Cookie/remote-component/
+  ffmpeg paths, Vault/credentials, and deletion paths. No network access was used.
+
+### Verdict
+
+`REJECT` — all required offline gates pass, but approval requires no unresolved P0/P1.
+P1-1 must be corrected and independently reviewed again. No task status was changed, no
+merge was performed, and no product source or test was amended.
