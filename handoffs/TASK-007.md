@@ -840,3 +840,113 @@ changed, and no merge, push, or product-source amendment was performed.
   scoring quality calibration. This correction proves only temporary SQLite/filesystem
   state and deterministic in-process Fake behavior.
 - `DECISION NEEDED`: `None`.
+
+---
+
+## Correction 3 — Fourth Independent Codex Reviewer — 2026-07-19
+
+### Authority, source gate, scope, and reuse
+
+- Fresh independent review of `codex/task-007-local-scoring` only. Dynamic main
+  authorization resolved to `6b326451dfae599df138e5f7f42c26acb283761e`
+  (`docs: authorize TASK-007 recovery marker review`); its current main status names
+  this source `9da12c...` as awaiting the new independent Reviewer and keeps
+  TASK-007 `IN_REVIEW`.
+- Source gate passed before all checks: clean worktree, HEAD
+  `9da12c2a6932d04b936d6ae1543acb55a72ec9dd`, required sole parent
+  `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`, and common base
+  `6b4d59c882ccdcbd0e5a6069a6661e0672921a80` all matched the packet.
+- Full `base...source` review found exactly the approved handoff, prompt, two source
+  modules, two scoring tests, and five fixtures. The Correction 3 range from its
+  parent changes only this handoff, `src/youtube_intel/scoring.py`, and
+  `tests/unit/test_scoring.py`; no scope or lockfile change occurred.
+- Reuse review: `DIRECT` reuse remains Python standard-library HTTP/JSON, the existing
+  SQLite `ProviderCall`/Artifact/retry transaction contracts, and the existing private
+  saved-primary repair hook. `ADAPT` is limited to a private request-hash recovery
+  marker. No SDK, `httpx`, dependency, model, service, schema, migration, domain or
+  public-interface change was introduced.
+
+### Required offline reruns
+
+| Command / inspection | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 34 packages. |
+| `uv sync --locked --offline` | PASS — resolved 34 and checked 30; no download fallback. |
+| `uv run python -m pytest tests/unit/test_scoring.py` | PASS — 17 passed. |
+| `uv run python -m pytest tests/integration/test_ollama_provider.py` | PASS — 14 passed. |
+| `uv run python -m pytest` | PASS — 282 passed. |
+| `uv run mypy src` | PASS — no issues in 11 source files. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS — CLI help rendered. |
+| `uv build --offline` | PASS — sdist and wheel built. |
+| package inspection | PASS — sdist and wheel both include `scoring.py`, `providers/ollama.py`, and `migrations/001_initial.sql`. |
+| `git diff --check 6b4d59c...9da12c2` | PASS — no whitespace errors. |
+
+### Independent temporary SQLite/Fake-transport probes
+
+1. **Failed primary plus repair — PASS.** A temporary real SQLite/data root with the
+   real `OllamaScoringProvider` and an in-process Fake transport returned an invalid
+   primary and invalid repair. It made exactly `GET /api/tags`, primary `POST`, and one
+   repair `POST`; then persisted the request-bound `SCORING_RAW`/`RAW_RESPONSE_30D`
+   recovery Artifact and the safe `SCORING_RECOVERY_REQUIRED:<request_hash>` marker.
+   No structured Artifact, score/summary, Pipeline success, Provider Call success or
+   Job success appeared. Recursive message/args/cause/context/attributes and
+   `youtube_intel` traceback-local inspection found no raw-response, prompt/URL, or
+   absolute-path sentinel.
+2. **Recovery, one repair, and rollback — PASS.** Requeueing a valid recovery input
+   made exactly one `POST /api/generate` repair, with no tags preflight and no primary
+   generation. A post-artifact `stage.after_provider_call` injection rolled back new
+   raw/structured rows/files, Provider Call success, summary, Pipeline and Job success
+   while retaining the recovery input. A later requeue again made exactly one repair
+   and atomically completed the raw/structured Artifacts, Provider Call, threshold-owned
+   summary, `SCORED` CAS and Job.
+3. **Fail-closed recovery marker — PASS.** In fresh temporary real SQLite/data roots,
+   deleting the indexed recovery Artifact row, deleting its file, altering file content
+   (hash mismatch), altering its model, and altering its producer provenance each
+   returned retryable `INVALID_RESPONSE` with **zero** Fake transport calls. Each case
+   had no cache hit/result, no normal raw/structured Artifact, no score/summary,
+   Pipeline success or Job success; the retryable Provider Call marker stayed
+   request-bound and all recursive leakage sentinels remained absent.
+
+### Acceptance and ADR-007 matrix
+
+| Item | Result | Independent evidence |
+|---|---|---|
+| AC-1 — strict valid/invalid/repair behavior | PASS | 14 Fake-transport integration tests plus Probe 1 retain exact one-repair behavior and safe errors. |
+| AC-2 — bounded sampling, cache identity and recoverability | PASS | 17 scoring tests retain frozen hash dimensions; Probes 1–3 verify request-bound recovery and fail-closed index loss. |
+| AC-3 — threshold-derived durable final policy | PASS | Probe 2 verified atomic score/summary, Pipeline CAS and Job success; model recommendation remains separate. |
+| L-03 — recommendation separate from application decision | PASS | `_outcome()` derives final policy only from `score >= threshold`; policy-disagreement regression remains green. |
+| L-04 — atomic scoring summary | PASS | Success and injected completion rollback used a real temporary SQLite repository. |
+| L-05 — bounded three-part sampling | PASS | Range review and focused sampling regressions retain fixed `sampling-v1` behavior. |
+| L-06 — metadata/hash boundary | PASS | Focused tests retain input/model/prompt/schema/operation cache-key separation. |
+| L-07 — standard-library local HTTP | PASS at Fake-only boundary | Only injected transport ran; no default transport, loopback or remote endpoint was accessed. |
+| L-08 — fixed model preflight | PASS at Fake-only boundary | Initial primary path used exact Fake tags model/digest; recovery correctly omits a new preflight. |
+| L-09 — one repair, recovery and safe errors | PASS | Marker is checked before the primary branch; all five unavailable/tampered recovery variants made zero transport calls. |
+
+### Five-axis review, red lines, skipped paths, and findings
+
+- **Correctness:** PASS — present recovery, rollback and every required missing/index,
+  file, hash, model and provenance failure path satisfy the request-bound contract.
+- **Readability/simplicity:** PASS — the marker is a private fixed prefix plus request
+  hash; no new abstraction or public contract was added.
+- **Architecture:** PASS — uses existing Provider Call, Artifact and `complete_stage`
+  transactions without changing repository or domain ownership.
+- **Security/privacy:** PASS — marker excludes raw payload/prompt/path; artifact
+  provenance/hash/path checks and recursive error-graph probes fail closed.
+- **Performance:** PASS — recovery read remains bounded to 1,000,000 bytes; one repair
+  maximum and zero I/O transport on invalid recovery state remain intact.
+- Scope/red-line review: PASS. No deleted/weakened test, dependency/lockfile, schema,
+  migration, config, credential, secret, task-status, main/history or real-resource
+  action. Diff secret-pattern hits are only test sentinels and benign
+  `max_output_tokens` identifiers; manual diff review found no credential/token/key.
+- Intentionally unrun/unauthorized: default `urllib` transport; every real Ollama
+  endpoint including loopback; Ollama/model installation, start/stop/pull; cloud tag,
+  media/YouTube/Cookie/ffmpeg, Vault, credentials and deletion paths. All probes used
+  disposable SQLite/data roots and in-process Fakes only.
+- P0: None. P1: None. P2: None. P3: None. `DECISION NEEDED`: `None`.
+
+### Verdict
+
+`APPROVE` — no unresolved P0/P1 remain. This Reviewer changed only this evidence
+handoff; no task status, product source, merge, push, rebase, reset or cleanup action
+was performed.
