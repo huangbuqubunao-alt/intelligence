@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（离线实现）
+- Owner role: 原 Codex Implementer（Correction 1；离线实现）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -104,3 +104,39 @@
 - Prompt/Schema 版本示例。
 - 黄金样例人工评分偏差说明。
 - Ollama 版本、模型 tag/digest/许可证、Fake HTTP、安全读取和 no-cloud 边界证据。
+
+## 第一轮独立审查拒绝与 Correction 1
+
+- 第一轮审查证据：`266c488c17fc82cb648053b5e1066211a7bea9a9`；唯一父提交为原实现
+  `258358fcd5227e144c9294beafdf7ec6e2feea63`，且仅修改 `handoffs/TASK-007.md`。
+- Verdict：`REJECT`；P0=0、P1=2、P2=0、P3=0。审查已独立复跑 lock/sync、评分测试、全量
+  测试、mypy、Ruff、CLI、离线构建、迁移包内容和完整 Diff；真实 Ollama/模型/媒体/Vault
+  路径均未运行。
+- P1-1：`providers/ollama.py` 的异常边界会让修复响应正文经 cause/context/traceback 可达；
+  `http.client.IncompleteRead`、缺失/超长 `response` 等路径也可能以私有异常逃逸，而非返回
+  具名、脱敏、含请求视频身份的应用错误。
+- P1-2：`scoring.py` 仅有进程内缓存，未把 `SCORING_RAW`、`SCORING_STRUCTURED`、Provider
+  Call、`ScoringSummaryWrite`、Pipeline CAS 与 Job 成功放在已有 `complete_stage` 的同一
+  SQLite 事务中，因此成功评分既不可持久恢复也不能保证状态真实。
+
+### Correction 1 的冻结边界
+
+- 起点必须是上述 review evidence；Correction commit 必须以它为唯一父提交。只允许修改：
+  `src/youtube_intel/scoring.py`、`src/youtube_intel/providers/ollama.py`、
+  `tests/unit/test_scoring.py`、`tests/integration/test_ollama_provider.py`、必要的
+  `tests/fixtures/scoring/**` 和 `handoffs/TASK-007.md`。
+- 必须复用已有 SQLite Repository/`ProviderCallRequest`、`ProviderCallCompletion`、
+  `ArtifactWrite`、`ScoringSummaryWrite` 与 `complete_stage`；不得修改或绕过
+  `state.py`、Schema/migration、`domain.py`、配置、依赖或锁文件，也不得重写现有公共
+  Provider 契约。
+- 成功路径必须在一个 `TRANSCRIPT_READY -> SCORED` 事务中持久化原始响应
+  (`SCORING_RAW`/`RAW_RESPONSE_30D`)、结构化结果
+  (`SCORING_STRUCTURED`/`LONG_LIVED`)、成功 Provider Call、最终评分摘要、Pipeline CAS
+  和 Job 成功；注入任一后写失败必须全部回滚。相同已验证输入必须复用持久结果，改变
+  输入/模型/Prompt/Schema/operation 必须未命中。
+- 所有公开评分调用的异常边界必须抑制未受信任正文、URL、Prompt、字幕及本机绝对路径在
+  `message`、`__cause__`、`__context__` 或 traceback 中泄漏；短读必须映射为
+  `TRANSIENT_NETWORK`，畸形/超限响应映射为安全 `INVALID_RESPONSE`，且只允许一次修复调用。
+- 继续只使用 Fake transport 与临时 SQLite；禁止真实 Ollama/网络、安装或启动服务、模型
+  拉取、媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。Correction 完成后必须再次由
+  全新独立 Codex Reviewer 审查，Implementer 不得自行改变任务状态、合并或启动 Reviewer。

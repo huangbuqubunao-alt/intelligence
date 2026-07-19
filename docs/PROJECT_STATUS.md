@@ -8,6 +8,8 @@
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
   Correction 1；`TASK-007` 离线评分正由隔离的独立 Codex Reviewer 审查
+- TASK-007 第一轮独立审查现已结束并发现 Ollama 异常脱敏与 SQLite 原子完成两个 P1；
+  原 Codex Implementer 正在执行 Correction 1。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -39,9 +41,11 @@
 
 1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
    SQLite 冲突回归；不得改变 Repository/Schema 契约。
-2. TASK-007 独立 Reviewer 继续完成离线审查，不与该修复互相读取或写入。
-3. 各自通过独立审查后再由主控验收；在此之前继续不批准模型下载、Ollama、ffmpeg、媒体
-   或凭据操作。
+2. 原 TASK-007 Implementer 仅在既有评分/Adapter 与测试范围内修复完整异常链脱敏、短读
+   分类，并用已有 Repository 的 Provider Call 与 `complete_stage` 完成原子评分持久化；
+   不得改变 Schema、依赖或共享领域契约。
+3. 两项 Correction 均完成后，各自再进入全新独立 Codex Reviewer；在此之前继续不批准模型
+   下载、Ollama、ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
 
@@ -57,7 +61,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
-| 正在审查 | TASK-007 全新独立 Codex Reviewer（离线） | source `258358f...`；仅可写审查 handoff |
+| 正在修复 | TASK-007 原 Codex Implementer（Correction 1） | P1：异常链不可泄漏，评分必须使用已有 SQLite 原子完成；仅评分/Adapter、既有测试、夹具与 handoff |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -82,6 +86,11 @@
   index confirmation 前删文件。产品负责人批准的 Correction 1 维持 `state.py` 的
   post-delete index-only 语义，要求先以现有 Artifact 读取验证删除前置条件；最终 CAS
   竞态明确只是 at-most-once cleanup 风险，不引入 reservation/Schema 或 exactly-once 声明。
+- TASK-007 第一轮独立 Reviewer evidence `266c488c17fc82cb648053b5e1066211a7bea9a9` 仅改
+  handoff，Verdict=`REJECT`：`OllamaScoringProvider` 的修复响应、短读和部分畸形/超限响应
+  可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、
+  `ArtifactWrite`、`ScoringSummaryWrite` 与 `complete_stage` 的原子完成契约。Correction 1
+  仅限补齐该既有契约与离线真实 SQLite 回归，禁止 Schema、依赖、领域契约和真实 Ollama 路径。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
@@ -128,7 +137,9 @@
 - 官方 PyPI 显示 `mlx-whisper` 最新稳定版为 `0.4.3`、MIT、Python `>=3.8`，但包含 `torch` 等必要传递依赖；本机 Python 3.12/arm64 的实际解析、安装和资源表现尚未验证。
 - 默认 MLX Whisper 转换模型已核实 revision `a4aaeec...`、权重 `1,613,977,612` bytes 与 LFS SHA-256；转换仓库 model card 未声明 license，不能仅用上游 OpenAI 模型 MIT 自动替代该证据。
 - TASK-007 推荐标准库 loopback HTTP，不新增 httpx；拟验证 Ollama `>=0.32.1,<0.33` 和 `qwen3:8b` 固定 digest。Ollama 安装/服务、模型拉取和真实调用仍未授权。
-- 当前 `videos` 已有 `score`/`should_summarize` 列，但 `complete_stage` 尚不能原子写评分摘要；TASK-006/TASK-007 也会共享 config/domain/state。若不先完成共享契约切片，两个实现分支会冲突或产生 `SCORED` 状态与摘要不一致。
+- TASK-005A 已使 `complete_stage` 能在 `TRANSCRIPT_READY -> SCORED` 时原子写入评分摘要；
+  TASK-007 Correction 1 必须复用这一既有契约，不能继续以仅内存缓存替代持久 Provider Call、
+  Artifact、Pipeline CAS 和 Job 完成。
 - TASK-005A implementation `85cd5362460044773317a48cbaae58e55aa735af` 为 approved
   base `82f45a1...` 的唯一非 merge 后继，完整 Diff 精确为配置示例、`config.py`、
   `domain.py`、`state.py`、三份指定测试和 handoff 共 8 个批准路径；`pyproject.toml`
