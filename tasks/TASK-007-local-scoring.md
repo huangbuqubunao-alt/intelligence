@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Owner role: 全新独立 Codex Reviewer（Correction 3；离线缺失恢复复审）
+- Owner role: Product Integrator（待授权；固定 accepted source）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -240,3 +240,14 @@
 - 第四次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以 `9da12c...`
   为唯一父提交的 evidence commit；不得修改业务代码、测试、依赖、锁、任务状态或 main，也不得访问
   TASK-006 worktree。
+
+### Correction 3 第四次独立审查与主控验收
+
+- Review evidence：`95087c115b799d6f4e1e063a0adba0a6d10352ce`，唯一父提交为 `9da12c...`，
+  仅修改 handoff。Verdict=`APPROVE`，P0/P1/P2/P3 均无。
+- Reviewer 独立复跑 focused `17/14`、全量 `282`、mypy、Ruff、CLI、locked offline sync/build、
+  migration package inclusion 与固定 Diff；临时真实 SQLite/Fake transport 证明有效 recovery
+  只修复一次、rollback 后可恢复，恢复标记存在时索引/文件/哈希/模型/provenance 任一不匹配皆
+  retryable `INVALID_RESPONSE` 且零 transport。
+- 主控验收：`ACCEPTED`。允许下一步仅生成 Integrator 包并整合固定 source `95087c...`；不得改
+  实现、依赖、锁、Schema、真实资源授权或 TASK-006。

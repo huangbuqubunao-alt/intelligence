@@ -7,7 +7,7 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第二轮独立审查发现符号链接/路径逃逸错误枚举 P1，已退回原 Codex
-  Implementer Correction 2；`TASK-007` Correction 3 已提交，正等待全新独立 Codex Reviewer 离线复审。
+  Implementer Correction 2；`TASK-007` 已获第四次独立审查 `APPROVE`，等待产品 Integrator。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -42,9 +42,8 @@
 
 1. 原 TASK-006 Implementer 仅将符号链接/路径逃逸预检的安全拒绝枚举统一为 `INDEX_CONFLICT`，
    保留文件并补充离线回归；不得改 Schema/Repository 或访问 TASK-007。
-2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 3 的 recovery-required 标记、缺失索引零
-   transport fail-closed 和既有恢复原子语义；不得改业务代码或访问 TASK-006。
-3. TASK-006 修复与 TASK-007 Correction 3 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
+2. 为 TASK-007 生成固定来源的 Product Integrator 包并在 main 运行整合后离线门禁；不得访问 TASK-006。
+3. TASK-006 修复与 TASK-007 整合各自通过后再由主控关闭；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -61,7 +60,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 2） | P1：符号链接/路径逃逸统一 `INDEX_CONFLICT`；仅 4 个允许路径 |
-| 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 3） | source `9da12c...`；仅可写审查 handoff，复核缺失索引零 transport |
+| 已验收待整合 | TASK-007 Product Integrator（待授权） | source `95087c...`；仅可整合固定 11 路径并重跑离线门禁 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -126,6 +125,11 @@
   非 merge 后继，精确修改 `scoring.py`、评分 unit 测试和 handoff 三个允许文件；完整产品范围仍为
   11 个批准路径、锁文件无差异。Implementer 自报 focused `17/14`、全量 `282`、mypy、Ruff、CLI、
   locked offline sync、offline build 与 migration package inclusion 全 PASS；这只构成待独立复跑证据。
+- TASK-007 第四次独立 Reviewer evidence `95087c115b799d6f4e1e063a0adba0a6d10352ce` 是
+  Correction 3 的唯一子提交且仅修改 handoff，Verdict=`APPROVE`：focused `17/14`、全量 `282`、
+  mypy、Ruff、CLI、locked offline sync/build、migration package inclusion 和固定 Diff 全 PASS；
+  真实 SQLite/Fake probe 也确认 present recovery 单次 repair、rollback 可恢复，以及恢复索引/文件/
+  哈希/模型/provenance 不匹配时零 transport 的 retryable `INVALID_RESPONSE`。P0–P3 均无。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
