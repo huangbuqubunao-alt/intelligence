@@ -1,8 +1,8 @@
 # TASK-007：Ollama 本地评分
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 2；离线恢复修复）
+- Owner role: 全新独立 Codex Reviewer（Correction 2；离线恢复复审）
 - Size: M
 - Risk: Medium
 - Depends on: TASK-005A
@@ -187,3 +187,17 @@
 - 继续只允许离线 Fake/临时 SQLite；禁止实际 loopback 或外网 Ollama、模型下载/拉取、安装/启动服务、
   媒体/YouTube、Cookie、ffmpeg、Vault/凭据和文件删除。完成后必须由另一全新独立 Codex Reviewer
   重审；Implementer 不得自行改变任务状态、合并或启动 Reviewer。
+
+### Correction 2 实现证据与第三次独立审查
+
+- Correction source：`567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`，唯一父提交为第二次 review
+  evidence `d8eaeabdd2454141eeb646d9254f4a0a24626605`；source worktree 干净。Correction
+  精确修改 `scoring.py`、`providers/ollama.py`、两份既有评分测试和 handoff；共同 base
+  `6b4d59c...` 的完整产品范围仍为批准的 11 路径，`pyproject.toml` 与 `uv.lock` 无差异。
+- Implementer 自报：主响应无效且修复失败时保存请求绑定的恢复 raw Artifact；重排验证该 Artifact
+  后不再 preflight 或主评分、仅执行一次修复；缺失/篡改/模型不匹配安全 fail-closed。离线门禁为
+  scoring unit `16`、Fake integration `14`、全量 `281`、mypy、Ruff、CLI、offline sync/build 与
+  migration package inclusion 全 PASS；这些只构成待复跑证据，不构成验收。
+- 第三次 Reviewer 必须是全新独立 Codex 会话，只能在 source handoff 写入并创建以
+  `567b0f...` 为唯一父提交的 evidence commit；禁止改业务代码、测试、依赖、锁文件、任务状态或
+  main，也不得访问 TASK-006 worktree。

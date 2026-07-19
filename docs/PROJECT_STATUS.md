@@ -7,11 +7,9 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
 - 活动任务：`TASK-006` 第一轮审查发现 Artifact 清理 P1，已退回原 Codex Implementer
-  Correction 1；`TASK-007` 第二轮独立审查发现主响应恢复 P1，已退回原 Codex Implementer
-  Correction 2。
-- TASK-007 Correction 1 已关闭 Ollama 异常脱敏与 SQLite 原子完成两个 P1；第二轮审查
-  evidence `d8eaeab...` 发现“修复失败时主响应未保存，重排 Job 重复主调用”的 P1。Correction 2
-  仅补齐 ADR-007 L-09 的持久恢复路径，仍不授权任何真实 Ollama 或模型资源。
+  Correction 1；`TASK-007` Correction 2 已提交，正等待全新独立 Codex Reviewer 离线复审。
+- TASK-007 Correction 2 source `567b0f...` 已针对 ADR-007 L-09 保存失败修复的主响应、验证恢复
+  Artifact，并在重排时只执行一次修复。该实现证据不构成验收；真实 Ollama 或模型资源仍未授权。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
 
 ## 已完成或已批准
@@ -43,8 +41,8 @@
 
 1. 原 TASK-006 Implementer 仅修复 Artifact 预检/删除/post-delete CAS 顺序，并补充真实
    SQLite 冲突回归；不得改变 Repository/Schema 契约。
-2. 原 TASK-007 Implementer 仅修复修复失败后的主响应 Artifact 持久化与重试复用；不得修改
-   Schema、Repository、依赖、领域契约或访问 TASK-006。
+2. 全新独立 Codex Reviewer 复核 TASK-007 Correction 2 的失败主响应保存、无主调用恢复、
+   Artifact/provenance 验证和原子成功/rollback；不得改业务代码或访问 TASK-006。
 3. TASK-006 修复与 TASK-007 Correction 2 复审各自通过后再由主控验收；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
@@ -62,7 +60,7 @@
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
 | 正在修复 | TASK-006 原 Codex Implementer（Correction 1） | P1：CAS 冲突前不得删除；仅 4 个允许路径 |
-| 正在修复 | TASK-007 原 Codex Implementer（Correction 2） | P1：修复失败后保存并复用受验证的主响应；仅 5 个允许路径 |
+| 正在审查 | TASK-007 全新独立 Codex Reviewer（Correction 2） | source `567b0f...`；仅可写审查 handoff，复核 L-09 恢复与原子完成 |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
 ## 授权边界
@@ -101,6 +99,11 @@
   主结构化响应无效且一次修复也失败时，主响应没有保存为受请求约束的 `SCORING_RAW`；重排 Job
   会再发起主调用与修复，违反 ADR-007 L-09。Correction 2 仅可在既有 Artifact/Provider Call/
   fail-provider-call 语义内保存并验证主响应恢复输入，禁止 Schema、依赖、领域或真实资源扩张。
+- TASK-007 Correction 2 `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c` 是上述 evidence 的唯一
+  非 merge 后继，精确修改 `scoring.py`、`providers/ollama.py`、两份既有评分测试和 handoff
+  五个允许文件；相对共同 base 的完整产品范围仍为 11 个批准路径，锁文件无差异。Implementer
+  自报 focused `16/14`、全量 `281`、mypy、Ruff、CLI、locked offline sync、offline build 和
+  migration package inclusion 全 PASS；这只构成待独立复跑证据。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
 
 ## 当前风险
