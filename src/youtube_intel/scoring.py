@@ -54,6 +54,7 @@ _RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v1"
 _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v1"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
 _MAX_PERSISTED_ARTIFACT_BYTES: Final = 1_000_000
+_RECOVERY_PRIMARY_ARTIFACT_SUFFIX: Final = "recovery-primary"
 _CLOCK = Callable[[], datetime]
 
 
@@ -82,6 +83,13 @@ class _RawResponseScoringProvider(Protocol):
     def score(self, scoring_input: ScoringInput) -> ScoreResult: ...
 
     def consume_raw_response(self, *, request_hash: str) -> str: ...
+
+    def _repair_saved_primary_response(
+        self,
+        *,
+        primary_raw_response: str,
+        scoring_input: ScoringInput,
+    ) -> ScoreResult: ...
 
 
 class _ScoringRepository(Protocol):
@@ -123,6 +131,13 @@ class _ScoringRepository(Protocol):
     ) -> object: ...
 
     def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None: ...
+
+    def upsert_artifact(
+        self,
+        artifact: ArtifactWrite,
+        *,
+        now: datetime,
+    ) -> ArtifactRecord: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,11 +496,32 @@ class RepositoryBackedScoringService:
                 )
             )
 
-        result, raw_response = self._call_provider(
-            scoring_input=scoring_input,
-            request=request,
-            now=now,
-        )
+        try:
+            recovery_raw_response = self._load_verified_recovery_raw_response(
+                request=request,
+                video_id=video.video_id,
+                now=now,
+            )
+        except ScoringPersistenceError as error:
+            self._record_failure(
+                request_hash=request.request_hash,
+                error=error.error,
+                now=now,
+            )
+            raise
+        if recovery_raw_response is None:
+            result, raw_response = self._call_provider(
+                scoring_input=scoring_input,
+                request=request,
+                now=now,
+            )
+        else:
+            result, raw_response = self._repair_saved_primary_response(
+                primary_raw_response=recovery_raw_response,
+                scoring_input=scoring_input,
+                request=request,
+                now=now,
+            )
         outcome = self._outcome(
             result,
             started_at=now,
@@ -616,6 +652,19 @@ class RepositoryBackedScoringService:
                     video_id=scoring_input.video.video_id,
                 )
         if failure is not None:
+            recovery_raw_response = self._consume_raw_response_if_available(
+                request_hash=request.request_hash
+            )
+            if recovery_raw_response is not None:
+                try:
+                    self._persist_recovery_primary_response(
+                        raw_response=recovery_raw_response,
+                        request=request,
+                        video_id=scoring_input.video.video_id,
+                        now=now,
+                    )
+                except ScoringPersistenceError as persistence_error:
+                    failure = persistence_error.error
             self._record_failure(
                 request_hash=request.request_hash,
                 error=failure,
@@ -636,6 +685,192 @@ class RepositoryBackedScoringService:
             )
             raise ScoringPersistenceError(fallback)
         return result, raw_response
+
+    def _repair_saved_primary_response(
+        self,
+        *,
+        primary_raw_response: str,
+        scoring_input: ScoringInput,
+        request: ProviderCallRequest,
+        now: datetime,
+    ) -> tuple[ScoreResult, str]:
+        failure: AppError | None = None
+        result: ScoreResult | None = None
+        raw_response: str | None = None
+        try:
+            result = self._provider._repair_saved_primary_response(
+                primary_raw_response=primary_raw_response,
+                scoring_input=scoring_input,
+            )
+            if result.request_hash != request.request_hash:
+                raise ValueError("repaired scoring result belongs to a different request")
+            raw_response = self._provider.consume_raw_response(
+                request_hash=request.request_hash
+            )
+        except Exception as error:
+            candidate = getattr(error, "error", None)
+            if isinstance(candidate, AppError):
+                failure = candidate
+            else:
+                failure = self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "saved local scoring response could not be repaired",
+                    retryable=True,
+                    video_id=scoring_input.video.video_id,
+                )
+        if failure is not None:
+            self._record_failure(
+                request_hash=request.request_hash,
+                error=failure,
+                now=now,
+            )
+            raise ScoringPersistenceError(failure)
+        if result is None or raw_response is None:
+            fallback = self._error(
+                ErrorCode.INVALID_RESPONSE,
+                "saved local scoring response produced no result",
+                retryable=True,
+                video_id=scoring_input.video.video_id,
+            )
+            self._record_failure(
+                request_hash=request.request_hash,
+                error=fallback,
+                now=now,
+            )
+            raise ScoringPersistenceError(fallback)
+        return result, raw_response
+
+    def _consume_raw_response_if_available(self, *, request_hash: str) -> str | None:
+        try:
+            return self._provider.consume_raw_response(request_hash=request_hash)
+        except Exception:
+            return None
+
+    def _persist_recovery_primary_response(
+        self,
+        *,
+        raw_response: str,
+        request: ProviderCallRequest,
+        video_id: str,
+        now: datetime,
+    ) -> None:
+        raw_content = raw_response.encode("utf-8")
+        if len(raw_content) > _MAX_PERSISTED_ARTIFACT_BYTES:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "local scoring recovery response exceeded its safety limit",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+        artifact_key = self._recovery_primary_artifact_key(request)
+        content_hash = hashlib.sha256(raw_content).hexdigest()
+        artifact = ArtifactWrite(
+            artifact_id=(
+                "scoring-recovery-"
+                + _sha256_text(artifact_key + content_hash)
+            ),
+            artifact_key=artifact_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.SCORING_RAW,
+            storage_root=StorageRoot.DATA,
+            relative_path=self._recovery_primary_relative_path(request),
+            content_hash=content_hash,
+            provider=request.provider,
+            model=request.model,
+            producer_version=_RAW_ARTIFACT_PRODUCER_VERSION,
+            retention_class=RetentionClass.RAW_RESPONSE_30D,
+            expires_at=now + _RAW_ARTIFACT_RETENTION,
+        )
+        written_paths: tuple[Path, ...] = ()
+        try:
+            path, created = self._write_artifact_file(
+                relative_path=artifact.relative_path,
+                content=raw_content,
+                content_hash=content_hash,
+            )
+            if created:
+                written_paths = (path,)
+            self._repository.upsert_artifact(artifact, now=now)
+        except Exception:
+            self._remove_written_paths(written_paths)
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "local scoring recovery response could not be persisted",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            ) from None
+
+    def _load_verified_recovery_raw_response(
+        self,
+        *,
+        request: ProviderCallRequest,
+        video_id: str,
+        now: datetime,
+    ) -> str | None:
+        artifact_key = self._recovery_primary_artifact_key(request)
+        artifact = self._repository.get_artifact_by_key(artifact_key)
+        if artifact is None:
+            return None
+        if (
+            artifact.artifact_id
+            != "scoring-recovery-"
+            + _sha256_text(artifact_key + artifact.content_hash)
+            or artifact.artifact_key != artifact_key
+            or artifact.video_id != video_id
+            or artifact.job_id is None
+            or artifact.kind is not ArtifactKind.SCORING_RAW
+            or artifact.storage_root is not StorageRoot.DATA
+            or artifact.relative_path != self._recovery_primary_relative_path(request)
+            or artifact.provider != request.provider
+            or artifact.model != request.model
+            or artifact.producer_version != _RAW_ARTIFACT_PRODUCER_VERSION
+            or artifact.retention_class is not RetentionClass.RAW_RESPONSE_30D
+            or artifact.expires_at is None
+            or artifact.expires_at <= now
+        ):
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "local scoring recovery artifact provenance is invalid",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+        try:
+            path = self._artifact_path(artifact.relative_path)
+            with path.open("rb") as handle:
+                raw_content = handle.read(_MAX_PERSISTED_ARTIFACT_BYTES + 1)
+            if (
+                len(raw_content) > _MAX_PERSISTED_ARTIFACT_BYTES
+                or hashlib.sha256(raw_content).hexdigest() != artifact.content_hash
+            ):
+                raise ValueError("recovery artifact verification failed")
+            return raw_content.decode("utf-8")
+        except Exception:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "local scoring recovery artifact is unavailable or invalid",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            ) from None
+
+    @staticmethod
+    def _recovery_primary_artifact_key(request: ProviderCallRequest) -> str:
+        return f"scoring/{request.request_hash}/{_RECOVERY_PRIMARY_ARTIFACT_SUFFIX}"
+
+    @staticmethod
+    def _recovery_primary_relative_path(request: ProviderCallRequest) -> str:
+        return (
+            f"scoring/{request.request_hash}/"
+            f"{_RECOVERY_PRIMARY_ARTIFACT_SUFFIX}.json"
+        )
 
     def _write_artifacts(
         self,

@@ -12,7 +12,9 @@ import pytest
 import youtube_intel.scoring as scoring_module
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
+    AppError,
     Availability,
+    ErrorCode,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
@@ -132,6 +134,66 @@ class _PersistentCountingProvider(_CountingProvider):
         return response
 
 
+class _RecoveryProviderFailure(Exception):
+    def __init__(self, *, video_id: str) -> None:
+        super().__init__("safe failed repair")
+        self.error = AppError(
+            code=ErrorCode.INVALID_RESPONSE,
+            message="local scoring response remained invalid after one repair",
+            retryable=True,
+            video_id=video_id,
+            stage=ProcessingStage.SCORING,
+        )
+
+
+class _RecoveryProvider:
+    def __init__(self) -> None:
+        self.primary_calls = 0
+        self.initial_repair_calls = 0
+        self.recovery_repair_calls = 0
+        self.primary_raw = '{"response":"not json /private/recovery-primary"}'
+        self.repaired_raw = (
+            '{"response":"{\\"score\\":7.5,\\"reason\\":\\"Recovered\\",'
+            '\\"topics\\":[\\"product\\"],\\"should_summarize\\":true}"}'
+        )
+        self._raw_response: str | None = None
+
+    def score(self, scoring_input: object) -> ScoreResult:
+        self.primary_calls += 1
+        self.initial_repair_calls += 1
+        self._raw_response = self.primary_raw
+        raise _RecoveryProviderFailure(
+            video_id=getattr(scoring_input, "video").video_id
+        )
+
+    def consume_raw_response(self, *, request_hash: str) -> str:
+        assert self._raw_response is not None
+        response = self._raw_response
+        self._raw_response = None
+        return response
+
+    def _repair_saved_primary_response(
+        self,
+        *,
+        primary_raw_response: str,
+        scoring_input: object,
+    ) -> ScoreResult:
+        assert primary_raw_response == self.primary_raw
+        self.recovery_repair_calls += 1
+        self._raw_response = self.repaired_raw
+        return ScoreResult(
+            schema_version="score-result-v1",
+            score=7.5,
+            reason="Recovered from the saved primary response.",
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v1",
+            request_hash=getattr(scoring_input, "request_hash"),
+        )
+
+
 def _repository_with_claimed_scoring_job(
     tmp_path: Path,
     *,
@@ -215,6 +277,34 @@ def _reset_video_for_scoring_retry(
         job_id=claimed.job_id,
         owner="test-worker",
         pipeline_version="pipeline-v1",
+    )
+
+
+def _requeue_claimed_scoring_job(
+    repository: SQLiteStateRepository,
+    *,
+    context: ScoringJobContext,
+    now: datetime,
+) -> ScoringJobContext:
+    repository.fail_job(
+        context.job_id,
+        owner=context.owner,
+        error_code=ErrorCode.INVALID_RESPONSE,
+        error_message="safe retryable scoring failure",
+        retry_at=now,
+        now=now,
+    )
+    assert repository.activate_retry_jobs(now=now)
+    claimed = repository.claim_next_job(
+        owner=context.owner,
+        lease_until=now + timedelta(minutes=5),
+        now=now,
+    )
+    assert claimed is not None
+    return ScoringJobContext(
+        job_id=claimed.job_id,
+        owner=context.owner,
+        pipeline_version=context.pipeline_version,
     )
 
 
@@ -619,3 +709,288 @@ def test_repository_backed_scoring_redacts_raw_provider_response_after_artifact_
         )
 
     _assert_library_exception_graph_is_redacted(exc_info.value, sentinel)
+
+
+def test_failed_primary_and_repair_persist_a_recoverable_raw_response_and_repair_it_once(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 7, 19, tzinfo=UTC)
+    repository, context = _repository_with_claimed_scoring_job(tmp_path, now=now)
+    provider = _RecoveryProvider()
+    artifact_root = tmp_path / "artifacts"
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=context,
+        artifact_root=artifact_root,
+        clock=lambda: now,
+    )
+    request_hash = build_scoring_input(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        settings=_settings(),
+    ).request_hash
+    recovery_key = f"scoring/{request_hash}/recovery-primary"
+
+    with pytest.raises(ScoringPersistenceError) as exc_info:
+        service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+        )
+
+    _assert_library_exception_graph_is_redacted(
+        exc_info.value,
+        "/private/recovery-primary",
+    )
+    recovery = repository.get_artifact_by_key(recovery_key)
+    provider_call = repository.get_provider_call(request_hash)
+    video = repository.get_video("video-123")
+    job = repository.get_job(context.job_id)
+
+    assert provider.primary_calls == 1
+    assert provider.initial_repair_calls == 1
+    assert recovery is not None
+    assert recovery.kind is ArtifactKind.SCORING_RAW
+    assert recovery.retention_class is RetentionClass.RAW_RESPONSE_30D
+    assert recovery.provider == "ollama"
+    assert recovery.model == "qwen3:8b"
+    assert recovery.relative_path == f"scoring/{request_hash}/recovery-primary.json"
+    assert (artifact_root / recovery.relative_path).read_text(encoding="utf-8") == (
+        provider.primary_raw
+    )
+    assert repository.get_artifact_by_key(f"scoring/{request_hash}/structured") is None
+    assert provider_call is not None
+    assert provider_call.status is ProviderCallStatus.FAILED_RETRYABLE
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert video.score is None
+    assert job is not None
+    assert job.status is JobStatus.RUNNING
+
+    retry_now = now + timedelta(minutes=1)
+    retry_context = _requeue_claimed_scoring_job(
+        repository,
+        context=context,
+        now=retry_now,
+    )
+    retry_service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=retry_context,
+        artifact_root=artifact_root,
+        clock=lambda: retry_now,
+    )
+
+    recovered = retry_service.score(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+    )
+
+    raw = repository.get_artifact_by_key(f"scoring/{request_hash}/raw")
+    structured = repository.get_artifact_by_key(f"scoring/{request_hash}/structured")
+    provider_call = repository.get_provider_call(request_hash)
+    video = repository.get_video("video-123")
+    retry_job = repository.get_job(retry_context.job_id)
+
+    assert provider.primary_calls == 1
+    assert provider.recovery_repair_calls == 1
+    assert recovered.result.score == 7.5
+    assert recovered.decision.final_should_summarize is True
+    assert raw is not None
+    assert structured is not None
+    assert (artifact_root / raw.relative_path).read_text(encoding="utf-8") == (
+        provider.repaired_raw
+    )
+    assert provider_call is not None
+    assert provider_call.status is ProviderCallStatus.SUCCEEDED
+    assert provider_call.response_artifact_id == raw.artifact_id
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.SCORED
+    assert video.score == 7.5
+    assert video.should_summarize is True
+    assert retry_job is not None
+    assert retry_job.status is JobStatus.SUCCEEDED
+
+
+@pytest.mark.parametrize("failure_point", ["stage.after_provider_call"])
+def test_recovery_completion_rolls_back_new_success_writes_but_keeps_the_recovery_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_point: str,
+) -> None:
+    now = datetime(2026, 7, 19, tzinfo=UTC)
+    repository, context = _repository_with_claimed_scoring_job(tmp_path, now=now)
+    provider = _RecoveryProvider()
+    artifact_root = tmp_path / "artifacts"
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=context,
+        artifact_root=artifact_root,
+        clock=lambda: now,
+    )
+    request_hash = build_scoring_input(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        settings=_settings(),
+    ).request_hash
+
+    with pytest.raises(ScoringPersistenceError):
+        service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+        )
+
+    def fail_at_requested_boundary(point: str) -> None:
+        if point == failure_point:
+            raise RuntimeError("injected recovery completion failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_at_requested_boundary)
+    retry_now = now + timedelta(minutes=1)
+    retry_context = _requeue_claimed_scoring_job(
+        repository,
+        context=context,
+        now=retry_now,
+    )
+    retry_service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=retry_context,
+        artifact_root=artifact_root,
+        clock=lambda: retry_now,
+    )
+
+    with pytest.raises(ScoringPersistenceError):
+        retry_service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+        )
+
+    recovery = repository.get_artifact_by_key(
+        f"scoring/{request_hash}/recovery-primary"
+    )
+    provider_call = repository.get_provider_call(request_hash)
+    video = repository.get_video("video-123")
+    job = repository.get_job(retry_context.job_id)
+
+    assert provider.primary_calls == 1
+    assert provider.recovery_repair_calls == 1
+    assert recovery is not None
+    assert repository.get_artifact_by_key(f"scoring/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"scoring/{request_hash}/structured") is None
+    assert [path.name for path in artifact_root.rglob("*.json")] == [
+        "recovery-primary.json"
+    ]
+    assert provider_call is not None
+    assert provider_call.status is ProviderCallStatus.FAILED_RETRYABLE
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert video.score is None
+    assert video.should_summarize is None
+    assert job is not None
+    assert job.status is JobStatus.RUNNING
+
+
+@pytest.mark.parametrize("tamper", ["missing", "content", "model"])
+def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primary_call(
+    tmp_path: Path,
+    tamper: str,
+) -> None:
+    now = datetime(2026, 7, 19, tzinfo=UTC)
+    repository, context = _repository_with_claimed_scoring_job(tmp_path, now=now)
+    provider = _RecoveryProvider()
+    artifact_root = tmp_path / "artifacts"
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=context,
+        artifact_root=artifact_root,
+        clock=lambda: now,
+    )
+    request_hash = build_scoring_input(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        settings=_settings(),
+    ).request_hash
+
+    with pytest.raises(ScoringPersistenceError):
+        service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+        )
+
+    recovery = repository.get_artifact_by_key(
+        f"scoring/{request_hash}/recovery-primary"
+    )
+    assert recovery is not None
+    sentinel = "/private/tampered-recovery-primary"
+    if tamper == "missing":
+        (artifact_root / recovery.relative_path).unlink()
+    elif tamper == "content":
+        (artifact_root / recovery.relative_path).write_text(sentinel, encoding="utf-8")
+    else:
+        connection = repository._connect()
+        try:
+            connection.execute(
+                "UPDATE artifacts SET model = ? WHERE artifact_key = ?",
+                ("mismatched-model", recovery.artifact_key),
+            )
+        finally:
+            connection.close()
+
+    retry_now = now + timedelta(minutes=1)
+    retry_context = _requeue_claimed_scoring_job(
+        repository,
+        context=context,
+        now=retry_now,
+    )
+    retry_service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=retry_context,
+        artifact_root=artifact_root,
+        clock=lambda: retry_now,
+    )
+
+    with pytest.raises(ScoringPersistenceError) as exc_info:
+        retry_service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+        )
+
+    _assert_library_exception_graph_is_redacted(exc_info.value, sentinel)
+    provider_call = repository.get_provider_call(request_hash)
+    video = repository.get_video("video-123")
+    job = repository.get_job(retry_context.job_id)
+
+    assert provider.primary_calls == 1
+    assert provider.recovery_repair_calls == 0
+    assert repository.get_artifact_by_key(f"scoring/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"scoring/{request_hash}/structured") is None
+    assert provider_call is not None
+    assert provider_call.status is ProviderCallStatus.FAILED_RETRYABLE
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert job is not None
+    assert job.status is JobStatus.RUNNING

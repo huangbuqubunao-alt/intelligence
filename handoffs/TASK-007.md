@@ -516,3 +516,123 @@ implementation source was not amended.
 `REJECT` — all required offline gates pass, but approval requires no unresolved P0/P1.
 P1-1 must be corrected and independently reviewed again. No task status was changed, no
 merge was performed, and no product source or test was amended.
+
+---
+
+## Correction 2 — Codex Implementer — 2026-07-19
+
+### Authority, parent, and exact scope
+
+- Dynamic gate: main authorization commit
+  `1aa3dc22b96a0d0493c656a4ce4f5490bd6f770b` authorizes the original Codex
+  Implementer while TASK-007 is `IN_PROGRESS`.
+- Source branch/head at start: `codex/task-007-local-scoring` at reviewer evidence
+  `d8eaeabdd2454141eeb646d9254f4a0a24626605`, whose sole parent is Correction 1
+  `f46881bc4a8ca0fda4d5ef7006b372bc566cff97`. This correction is one child commit
+  of `d8eaeab...`; no history was amended.
+- Correction paths only: `src/youtube_intel/scoring.py`,
+  `src/youtube_intel/providers/ollama.py`, `tests/unit/test_scoring.py`,
+  `tests/integration/test_ollama_provider.py`, and this handoff. No fixture was needed.
+- No task status/main worktree/dependency/lockfile/schema/migration/domain/config/Prompt
+  file changed, and no real resource was accessed.
+
+### P1 closure — ADR-007 L-09 primary-response recovery
+
+- The existing private raw-response handoff now preserves a received primary Ollama
+  generate envelope when primary structural validation caused its sole repair to fail.
+  It remains bound to the existing primary request hash and can be consumed only once;
+  no new public free-form Provider contract was added.
+- `RepositoryBackedScoringService` writes that primary envelope as a deterministic,
+  request-hash-derived `SCORING_RAW` recovery Artifact with `RAW_RESPONSE_30D`, then
+  records the existing Provider Call as `FAILED_RETRYABLE`. It writes no structured
+  Artifact, scoring summary, `SCORED` Pipeline state, or successful Job on this path.
+- A later owned requeue first validates the recovery Artifact's deterministic key and
+  ID, DATA-root-contained relative path, bounded bytes, SHA-256, kind, video, nonempty
+  source Job, Provider/model, producer version, retention/expiry, and request-derived
+  provenance. Only then it invokes the Adapter's private saved-primary repair method.
+- Recovery sends one `POST /api/generate` repair request and no preflight or primary
+  score request. A valid repair follows the unchanged atomic `complete_stage` path,
+  writing the final raw/structured Artifacts, successful Provider Call, threshold-owned
+  summary, Pipeline CAS, and Job success together.
+- Missing file, modified bytes, or mismatched indexed model fail closed as safe,
+  retryable `INVALID_RESPONSE`; no cache hit, primary request, repair request, score,
+  Pipeline advance, or successful Job is fabricated. Public error boundaries continue
+  to rebuild a fresh safe exception after untrusted values leave library traceback
+  frames.
+
+### RED/GREEN proof and focused state evidence
+
+- RED: before implementation, the new focused suite collected 28 items and failed five
+  assertions: no `recovery-primary` Artifact existed, requeue could not reuse it, and
+  the Adapter had no saved-primary repair entry point. A focused security RED test then
+  demonstrated the saved primary text in the private repair traceback; clearing that
+  local before the fresh safe raise made the same test GREEN.
+- GREEN: `tests/unit/test_scoring.py` has 16 passing tests and uses real temporary
+  SQLite/data paths. First primary+repair failure leaves exactly the recovery raw
+  Artifact, `FAILED_RETRYABLE` Provider Call, `TRANSCRIPT_READY` video and no score or
+  structured Artifact. The test requeues with existing `fail_job`,
+  `activate_retry_jobs`, and `claim_next_job` semantics; it proves one initial primary,
+  one initial repair, exactly one saved-primary repair, no second primary, and atomic
+  final raw/structured/call/summary/Pipeline/Job success.
+- Recovery transaction injection at `stage.after_provider_call` retains only the
+  already-indexed recovery Artifact; the new final raw/structured files and rows roll
+  back, the Pipeline stays `TRANSCRIPT_READY`, the Job is still running, and the
+  Provider Call returns to `FAILED_RETRYABLE`.
+- Missing temporary recovery file, tampered temporary file bytes, and mismatched
+  indexed model each fail closed without a new primary or repair call. The only unlink
+  exercised was the exact temporary test Artifact used to prove the missing-file case;
+  no user, project-data, or external deletion path was touched.
+- `tests/integration/test_ollama_provider.py` has 14 Fake-only tests. The precise
+  transport sequence for the recovery probe is initial `GET /api/tags`, primary POST,
+  failed-repair POST, followed by exactly one recovery `POST /api/generate`; the
+  recovery step has no GET/preflight or repeated primary request. Sentinels in the saved
+  primary response are absent from message, args, causes, contexts, attributes and
+  `youtube_intel` traceback frames.
+
+### Reuse, licensing, and privacy boundary
+
+- `DIRECT`: existing SQLite `ProviderCallRequest`, reservation/failure,
+  `ArtifactWrite`/Artifact index and `complete_stage` contracts; Python standard-library
+  `urllib`/`json`/hashing/path APIs. No dependency or lockfile change.
+- `ADAPT`: the existing non-exported Ollama raw-response handoff is extended narrowly
+  for request-bound saved-primary repair; no SDK, `httpx`, model, service or cloud helper
+  is introduced.
+- `DIRECT-PENDING`: Ollama HTTP API (MIT) and `qwen3:8b` upstream Apache-2.0 remain
+  Fake/configuration-only boundaries, as recorded in `docs/REUSE_REGISTER.md` §7 and
+  ADR-007 L-08. No install/start/stop/pull/probe/call occurred.
+- Safe errors contain no primary/repair response, prompt, transcript, URL, absolute
+  path, credential or token. Raw content is persisted only under the existing controlled
+  Artifact root and is never logged.
+
+### Final offline verification
+
+| Command / check | Result | Evidence |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 34 packages. |
+| `uv sync --locked --offline` | PASS | Resolved 34; checked 30; no network fallback. |
+| `uv run python -m pytest tests/unit/test_scoring.py` | PASS | `16 passed in 0.41s`. |
+| `uv run python -m pytest tests/integration/test_ollama_provider.py` | PASS | `14 passed in 0.10s`, injected Fake transport only. |
+| `uv run python -m pytest` | PASS | `281 passed in 2.09s`. |
+| `uv run mypy src` | PASS | No issues in 11 source files. |
+| `uv run ruff check .` | PASS | All checks passed. |
+| `uv run python -m youtube_intel --help` | PASS | CLI help rendered. |
+| `uv build --offline` | PASS | Wheel and sdist built. |
+| Package migration listing | PASS | Both outputs contain `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check d8eaeab...HEAD` | PASS | Re-run after the correction commit; no whitespace errors. |
+
+### Diff review, unrun paths, and remaining risk
+
+- Diff contains only the five Correction 2 paths above; `pyproject.toml` and `uv.lock`
+  are byte-identical to `d8eaeab...`. Build output remains ignored and unstaged.
+- Five-axis self-review: correctness covers failure/requeue/rollback/tamper paths;
+  architecture uses only existing repository transactions and a private Adapter hook;
+  security redacts raw values and checks path/hash/provenance; bounded reads cap recovery
+  at 1,000,000 bytes; names and focused tests keep the two-attempt recovery flow explicit.
+- Not run/touched: default `urllib` transport, loopback or remote Ollama, service/model
+  installation/start/stop/pull, cloud tags, media/YouTube/Cookie/ffmpeg, Vault,
+  credentials, external deletion or task-status actions. No reviewer was started, merge,
+  push, rebase, reset or cleanup performed.
+- Remaining risk: real Ollama/model compatibility and model-quality calibration still
+  require separate resource authority. This correction proves only deterministic Fake
+  transport plus temporary SQLite/filesystem recovery behavior.
+- `DECISION NEEDED`: `None`.

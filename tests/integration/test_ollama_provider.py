@@ -231,6 +231,61 @@ def test_invalid_repair_response_fails_closed_as_invalid_response() -> None:
     assert len(transport.requests) == 3
 
 
+def test_saved_primary_response_is_repaired_without_a_second_preflight_or_primary_call() -> None:
+    primary = _generate(_fixture("invalid_json.txt"))
+    repaired = _generate(_fixture("repair_result.json"))
+    transport = _FakeTransport(
+        [
+            _tags(),
+            primary,
+            _generate(_fixture("missing_field_result.json")),
+            repaired,
+        ]
+    )
+    provider = _provider(transport)
+    scoring_input = _input()
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        provider.score(scoring_input)
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    saved_primary = provider.consume_raw_response(
+        request_hash=scoring_input.request_hash
+    )
+    result = provider._repair_saved_primary_response(
+        primary_raw_response=saved_primary,
+        scoring_input=scoring_input,
+    )
+
+    assert result.score == 7.5
+    assert json.loads(saved_primary) == primary
+    assert [method for method, _, _ in transport.requests] == [
+        "GET",
+        "POST",
+        "POST",
+        "POST",
+    ]
+    assert [url for _, url, _ in transport.requests[-1:]] == [
+        "http://127.0.0.1:11434/api/generate"
+    ]
+
+
+def test_saved_primary_repair_failure_redacts_the_primary_response_from_tracebacks() -> None:
+    sentinel = "/private/saved-primary-response"
+    transport = _FakeTransport([_generate(_fixture("missing_field_result.json"))])
+    provider = _provider(transport)
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        provider._repair_saved_primary_response(
+            primary_raw_response=json.dumps(_generate("not json " + sentinel)),
+            scoring_input=_input(),
+        )
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert [method for method, _, _ in transport.requests] == ["POST"]
+    _assert_exception_graph_is_redacted(exc_info.value, sentinel)
+
+
 def test_invalid_repair_response_is_redacted_through_the_complete_exception_graph() -> None:
     sentinel = "/private/secret-transcript-response"
     transport = _FakeTransport(

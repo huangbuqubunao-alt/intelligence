@@ -219,6 +219,9 @@ class OllamaScoringProvider:
                 stage=ProcessingStage.SCORING,
             )
 
+        if primary_response is not None:
+            self._last_raw_response = primary_response.raw_response
+            self._last_request_hash = request_hash
         primary_response = None
         repair_response = None
         result = None
@@ -237,7 +240,7 @@ class OllamaScoringProvider:
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
-        """Return the final raw model response once for artifact persistence."""
+        """Return the saved raw model response once for private artifact persistence."""
 
         if request_hash != self._last_request_hash or self._last_raw_response is None:
             msg = "raw Ollama response is unavailable for the scoring request"
@@ -245,6 +248,91 @@ class OllamaScoringProvider:
         response = self._last_raw_response
         self._last_raw_response = None
         self._last_request_hash = None
+        return response
+
+    def _repair_saved_primary_response(
+        self,
+        *,
+        primary_raw_response: str,
+        scoring_input: ScoringInput,
+    ) -> ScoreResult:
+        """Apply the one permitted repair to a request-bound persisted primary response."""
+
+        video_id = scoring_input.video.video_id
+        request_hash = scoring_input.request_hash
+        result: ScoreResult | None = None
+        failure: AppError | None = None
+        repair_response: _GeneratedResponse | None = None
+        primary_response_text: str | None = None
+        self._last_raw_response = None
+        self._last_request_hash = None
+        try:
+            primary_response_text = self._saved_primary_response_text(
+                primary_raw_response
+            )
+            repair_response = self._generate(
+                prompt=self._render_repair_prompt(primary_response_text, request_hash),
+                video_id=video_id,
+            )
+            result = self._parse_score_result(
+                repair_response.response_text,
+                request_hash,
+            )
+        except _InvalidModelResponse:
+            failure = AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="saved Ollama scoring response remained invalid after one repair",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+        except OllamaProviderError as error:
+            failure = error.error
+        except Exception:
+            failure = AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="saved Ollama scoring response could not be repaired",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+
+        if result is not None and repair_response is not None:
+            self._last_raw_response = repair_response.raw_response
+            self._last_request_hash = request_hash
+            return result
+
+        repair_response = None
+        result = None
+        primary_response_text = None
+        del primary_raw_response
+        del scoring_input
+        del self
+        _raise_sanitized(
+            failure
+            if failure is not None
+            else AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="saved Ollama scoring response could not be repaired",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+        )
+
+    @staticmethod
+    def _saved_primary_response_text(primary_raw_response: str) -> str:
+        invalid_response = False
+        try:
+            payload: object = json.loads(primary_raw_response)
+        except json.JSONDecodeError:
+            invalid_response = True
+            payload = None
+        if invalid_response or not isinstance(payload, Mapping):
+            raise _InvalidModelResponse
+        response = payload.get("response")
+        if not isinstance(response, str) or len(response) > _MAX_MODEL_RESPONSE_CHARS:
+            raise _InvalidModelResponse
         return response
 
     def _verify_expected_model(self, video_id: str) -> None:
