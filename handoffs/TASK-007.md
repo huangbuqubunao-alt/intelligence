@@ -760,3 +760,83 @@ merge was performed, and no product source or test was amended.
 `REJECT` — all prescribed offline gates pass, but `APPROVE` requires no unresolved
 P0/P1. P1-1 must be corrected and independently re-reviewed. No task status was
 changed, and no merge, push, or product-source amendment was performed.
+
+---
+
+## Correction 3 — Codex Implementer — 2026-07-19
+
+### Authority, scope, and reuse
+
+- Dynamic main authority resolved to `c945252bee6513db0704d7280e2b813f74698f37`;
+  TASK-007 is `IN_PROGRESS` and assigned to the original Codex Implementer. The source
+  gate passed clean at `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`, with sole parent
+  `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c` and common base
+  `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`.
+- `DIRECT`: existing retryable `ProviderCall` `last_error_*` fields, request hash,
+  Artifact index and existing SQLite transactions. `ADAPT`: only the private
+  saved-primary recovery branch. No SDK, `httpx`, model, service, dependency,
+  lockfile, schema/migration or public-contract change.
+- Exact correction scope is `src/youtube_intel/scoring.py`,
+  `tests/unit/test_scoring.py`, and this handoff. `providers/ollama.py` and integration
+  tests remain unchanged because the existing private repair hook already preserves the
+  required one-repair Fake-transport behavior.
+
+### RED/GREEN recovery-required regression
+
+- **RED:** The existing real temporary SQLite/Fake-provider recovery test was extended
+  with an `index` case that deletes only the temporary recovery Artifact index row.
+  Before the implementation, the focused command failed exactly at
+  `provider.primary_calls == 1`: observed `2 == 1`, proving that the retry emitted a
+  new primary request when `get_artifact_by_key()` returned `None`.
+- **GREEN:** After a failed primary plus repair has safely persisted the recovery raw
+  Artifact, failure records store the fixed safe marker
+  `SCORING_RECOVERY_REQUIRED:<request_hash>` in the existing retryable Provider Call.
+  The marker contains only its request hash, never raw response, prompt, transcript,
+  URL, path, credential or token. Before reservation, the service reads that same
+  request-bound Provider Call; a marked retry requires the deterministic recovery
+  Artifact and maps absent/index-missing, file-missing, content-tampered, or provenance
+  mismatch cases to retryable `INVALID_RESPONSE` before the primary/repair branch.
+- A valid recovered primary still invokes exactly one private repair and retains the
+  existing atomic success/rollback behavior. If a recovery attempt later fails while
+  persisting its success, the marker is retained so a subsequent retry cannot regress to
+  a primary call.
+
+### SQLite/Fake assertions and safety evidence
+
+- The focused parameterized regression now covers index deletion, missing file, altered
+  content and model/provenance mismatch. Each retry keeps `primary_calls == 1` and
+  `recovery_repair_calls == 0`, has no standard raw/structured Artifact, remains
+  `FAILED_RETRYABLE`, leaves the video at `TRANSCRIPT_READY` and the claimed Job
+  `RUNNING`; the failure graph remains redacted. It additionally asserts the initial
+  Provider Call has `INVALID_RESPONSE` plus the safe request-bound marker and that the
+  saved primary raw text is not present in it.
+- Existing present-Artifact tests continue to cover one recovery repair, atomic
+  raw/structured Artifact + Provider Call + scoring summary + Pipeline/Job success,
+  and injected rollback retaining the recovery input. The only deletion was SQL
+  `DELETE` against the temporary test SQLite row explicitly needed for the index-loss
+  regression; no project data, user data or external resource was deleted.
+
+### Final offline verification
+
+| Command / check | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 34 packages. |
+| `uv sync --locked --offline` | PASS — resolved 34 and checked 30; no network fallback. |
+| `uv run python -m pytest tests/unit/test_scoring.py` | PASS — 17 passed. |
+| `uv run python -m pytest tests/integration/test_ollama_provider.py` | PASS — 14 passed; in-process Fake transport only. |
+| `uv run python -m pytest` | PASS — 282 passed. |
+| `uv run mypy src` | PASS — no issues in 11 source files. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS — CLI help rendered. |
+| `uv build --offline` | PASS — sdist and wheel built. |
+| package listing | PASS — both artifacts include `youtube_intel/migrations/001_initial.sql`. |
+
+### Unrun paths and remaining risk
+
+- Not run or touched: real/default Ollama transport, loopback/external networking,
+  Ollama or model install/start/stop/pull, cloud tags, media/YouTube/Cookie/ffmpeg,
+  Vault, credentials, task status, reviewer, merge, push, rebase, reset or cleanup.
+- Remaining risk is limited to separately authorized real Ollama/model compatibility and
+  scoring quality calibration. This correction proves only temporary SQLite/filesystem
+  state and deterministic in-process Fake behavior.
+- `DECISION NEEDED`: `None`.

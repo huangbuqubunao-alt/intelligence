@@ -905,7 +905,7 @@ def test_recovery_completion_rolls_back_new_success_writes_but_keeps_the_recover
     assert job.status is JobStatus.RUNNING
 
 
-@pytest.mark.parametrize("tamper", ["missing", "content", "model"])
+@pytest.mark.parametrize("tamper", ["index", "missing", "content", "model"])
 def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primary_call(
     tmp_path: Path,
     tamper: str,
@@ -940,9 +940,25 @@ def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primar
     recovery = repository.get_artifact_by_key(
         f"scoring/{request_hash}/recovery-primary"
     )
+    initial_provider_call = repository.get_provider_call(request_hash)
     assert recovery is not None
+    assert initial_provider_call is not None
+    assert initial_provider_call.last_error_code == ErrorCode.INVALID_RESPONSE.value
+    assert initial_provider_call.last_error_message == (
+        scoring_module._RECOVERY_REQUIRED_MARKER_PREFIX + request_hash
+    )
+    assert provider.primary_raw not in initial_provider_call.last_error_message
     sentinel = "/private/tampered-recovery-primary"
-    if tamper == "missing":
+    if tamper == "index":
+        connection = repository._connect()
+        try:
+            connection.execute(
+                "DELETE FROM artifacts WHERE artifact_key = ?",
+                (recovery.artifact_key,),
+            )
+        finally:
+            connection.close()
+    elif tamper == "missing":
         (artifact_root / recovery.relative_path).unlink()
     elif tamper == "content":
         (artifact_root / recovery.relative_path).write_text(sentinel, encoding="utf-8")
@@ -980,11 +996,14 @@ def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primar
         )
 
     _assert_library_exception_graph_is_redacted(exc_info.value, sentinel)
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert exc_info.value.error.retryable is True
     provider_call = repository.get_provider_call(request_hash)
     video = repository.get_video("video-123")
     job = repository.get_job(retry_context.job_id)
 
     assert provider.primary_calls == 1
+    assert provider.initial_repair_calls == 1
     assert provider.recovery_repair_calls == 0
     assert repository.get_artifact_by_key(f"scoring/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"scoring/{request_hash}/structured") is None

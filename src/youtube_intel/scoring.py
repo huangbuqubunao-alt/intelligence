@@ -55,6 +55,7 @@ _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v1"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
 _MAX_PERSISTED_ARTIFACT_BYTES: Final = 1_000_000
 _RECOVERY_PRIMARY_ARTIFACT_SUFFIX: Final = "recovery-primary"
+_RECOVERY_REQUIRED_MARKER_PREFIX: Final = "SCORING_RECOVERY_REQUIRED:"
 _CLOCK = Callable[[], datetime]
 
 
@@ -131,6 +132,8 @@ class _ScoringRepository(Protocol):
     ) -> object: ...
 
     def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None: ...
+
+    def get_provider_call(self, request_hash: str) -> ProviderCallRecord | None: ...
 
     def upsert_artifact(
         self,
@@ -465,6 +468,11 @@ class RepositoryBackedScoringService:
         )
         now = self._clock()
         request = self._provider_request(scoring_input)
+        previous_call = self._get_provider_call(
+            request_hash=request.request_hash,
+            video_id=video.video_id,
+        )
+        recovery_required = self._is_recovery_required(previous_call, request)
         reservation = self._reserve(request, now=now, video_id=video.video_id)
         if not reservation.acquired:
             if reservation.record.status is ProviderCallStatus.SUCCEEDED:
@@ -501,14 +509,17 @@ class RepositoryBackedScoringService:
                 request=request,
                 video_id=video.video_id,
                 now=now,
+                recovery_required=recovery_required,
             )
         except ScoringPersistenceError as error:
             self._record_failure(
                 request_hash=request.request_hash,
                 error=error.error,
                 now=now,
+                recovery_required=recovery_required,
             )
             raise
+        recovery_input_used = recovery_raw_response is not None
         if recovery_raw_response is None:
             result, raw_response = self._call_provider(
                 scoring_input=scoring_input,
@@ -546,6 +557,7 @@ class RepositoryBackedScoringService:
                     video_id=video.video_id,
                 ),
                 now=now,
+                recovery_required=recovery_input_used,
             )
             raise
         try:
@@ -573,6 +585,7 @@ class RepositoryBackedScoringService:
                     video_id=video.video_id,
                 ),
                 now=now,
+                recovery_required=recovery_input_used,
             )
             raise
         return outcome
@@ -623,6 +636,36 @@ class RepositoryBackedScoringService:
                 )
             ) from None
 
+    def _get_provider_call(
+        self,
+        *,
+        request_hash: str,
+        video_id: str,
+    ) -> ProviderCallRecord | None:
+        try:
+            return self._repository.get_provider_call(request_hash)
+        except Exception:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "local scoring provider call lookup failed",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            ) from None
+
+    @staticmethod
+    def _is_recovery_required(
+        provider_call: ProviderCallRecord | None,
+        request: ProviderCallRequest,
+    ) -> bool:
+        return (
+            provider_call is not None
+            and provider_call.status is ProviderCallStatus.FAILED_RETRYABLE
+            and provider_call.last_error_message
+            == _RECOVERY_REQUIRED_MARKER_PREFIX + request.request_hash
+        )
+
     def _call_provider(
         self,
         *,
@@ -633,6 +676,7 @@ class RepositoryBackedScoringService:
         failure: AppError | None = None
         result: ScoreResult | None = None
         raw_response: str | None = None
+        recovery_required = False
         try:
             result = self._provider.score(scoring_input)
             if result.request_hash != request.request_hash:
@@ -663,12 +707,14 @@ class RepositoryBackedScoringService:
                         video_id=scoring_input.video.video_id,
                         now=now,
                     )
+                    recovery_required = True
                 except ScoringPersistenceError as persistence_error:
                     failure = persistence_error.error
             self._record_failure(
                 request_hash=request.request_hash,
                 error=failure,
                 now=now,
+                recovery_required=recovery_required,
             )
             raise ScoringPersistenceError(failure)
         if result is None or raw_response is None:
@@ -723,6 +769,7 @@ class RepositoryBackedScoringService:
                 request_hash=request.request_hash,
                 error=failure,
                 now=now,
+                recovery_required=True,
             )
             raise ScoringPersistenceError(failure)
         if result is None or raw_response is None:
@@ -736,6 +783,7 @@ class RepositoryBackedScoringService:
                 request_hash=request.request_hash,
                 error=fallback,
                 now=now,
+                recovery_required=True,
             )
             raise ScoringPersistenceError(fallback)
         return result, raw_response
@@ -811,10 +859,20 @@ class RepositoryBackedScoringService:
         request: ProviderCallRequest,
         video_id: str,
         now: datetime,
+        recovery_required: bool,
     ) -> str | None:
         artifact_key = self._recovery_primary_artifact_key(request)
         artifact = self._repository.get_artifact_by_key(artifact_key)
         if artifact is None:
+            if recovery_required:
+                raise ScoringPersistenceError(
+                    self._error(
+                        ErrorCode.INVALID_RESPONSE,
+                        "local scoring recovery artifact is unavailable or invalid",
+                        retryable=True,
+                        video_id=video_id,
+                    )
+                )
             return None
         if (
             artifact.artifact_id
@@ -1083,6 +1141,7 @@ class RepositoryBackedScoringService:
         request_hash: str,
         error: AppError,
         now: datetime,
+        recovery_required: bool = False,
     ) -> None:
         try:
             self._repository.fail_provider_call(
@@ -1091,7 +1150,11 @@ class RepositoryBackedScoringService:
                 retryable=error.retryable,
                 available_at=now,
                 error_code=error.code,
-                error_message=error.message,
+                error_message=(
+                    _RECOVERY_REQUIRED_MARKER_PREFIX + request_hash
+                    if recovery_required
+                    else error.message
+                ),
                 now=now,
             )
         except Exception:
