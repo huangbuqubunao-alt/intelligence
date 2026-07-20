@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Owner role: 原 Codex Implementer（Correction 3；缓存身份与统一错误枚举修复）
+- Owner role: 第四次独立 Codex Reviewer（等待审查 `548338978...`）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -158,6 +158,22 @@
   `language_hint: str | None`，强制每个调用方明确选择缓存语义；使用现有已验证值，不新增
   normalization，也不改变 `None`/空白校验。该修正不授权其他 Provider 改动、依赖/锁文件、Schema、
   `state.py`、真实模型、ffmpeg、媒体、网络、Vault 或凭据操作。
+
+### Correction 3 实现证据与第四次独立审查授权
+
+- Correction source：`548338978b8656db0c650be276f847850af940a1`，唯一父提交为第三次
+  review evidence `66f0b31023c290d76e2c14bea72d1cc103cc27c7`；source worktree 干净。
+- Correction 精确修改 `transcription.py`、`providers/whisper.py` 的既有缓存键调用点、两份
+  转写测试和 handoff 五个允许路径。相对 `66f0b310...`，`state.py`、Schema/migration、domain/
+  config、依赖和锁文件未变；完整产品范围仍为原批准的八类路径。
+- Implementer 自报 `language_hint` 已成为 required keyword-only 缓存维度，相同提示保持 cache
+  hit、不同提示隔离；错误 kind/root/retention Artifact 统一为 `INDEX_CONFLICT`，删除/CAS 顺序
+  不变。focused `11/12`、全量 `274`、mypy、Ruff、CLI、locked offline sync、offline build 和
+  migration package inclusion 均 PASS；这些不构成独立验收。
+- 第四次 Reviewer 必须为全新独立 Codex 会话，只能追加 source handoff 并创建以
+  `548338978...` 为唯一父提交的 evidence commit。必须独立验证缓存键 API 强制性、共享缓存
+  `None/en/zh` 隔离、Provider 单调用点、Fake/真实临时 SQLite cleanup 矩阵、AC/ADR 与五轴审查；
+  不得改产品代码、状态、main，或访问 TASK-007。
 
 ## 目标
 
