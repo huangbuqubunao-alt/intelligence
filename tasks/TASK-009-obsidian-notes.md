@@ -8,6 +8,18 @@
 - Depends on: TASK-003, TASK-007
 - Approval required: 写入真实 Vault 前需用户明确授权
 
+## 2026-07-20 只读预检授权
+
+- TASK-003/TASK-007 已为 `DONE`，代码依赖已满足；本任务仍为 `BLOCKED/UNASSIGNED`，
+  尚缺笔记/用户区精确格式、文件名与符号链接边界、原子写/SQLite 完成语义、Jinja2
+  版本/锁文件及临时文件验证范围的任务级批准。真实 Vault 仍未授权。
+- 已生成 `agent-prompts/PREFLIGHT-TASK-009-READONLY.md`，可与 TASK-008 Scout 并行。
+  Scout 只可静态读取 main 并在聊天返回报告，不得创建临时 Vault/文件、联网、安装依赖、
+  运行产品命令、读取真实 Vault、创建 worktree/commit 或改变状态。
+- 预检必须优先复用现有 `KnowledgeSink`、`NoteRef`、可选 `AnalysisResult`、Artifact/
+  `complete_stage` 契约并复核 Jinja2/现有参考项目；若需要共享类型、Schema/`state.py`
+  或额外前置切片，先向主控提出，不得由 Implementer 自行设计。
+
 ## 目标
 
 将视频、评分和可选深度分析幂等渲染为 Obsidian Markdown 笔记，安全处理路径与同名冲突，并在更新时保留用户的 `我的思考`。本任务使用可选 AnalysisResult 契约/Fake，真实云分析集成由 TASK-010 完成。

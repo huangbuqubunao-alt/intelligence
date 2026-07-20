@@ -45,8 +45,8 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 已整合并关闭；merge `fd9a074...` | DONE | 005A；模型/ffmpeg/媒体另批 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 已整合并关闭；merge `3d49ec...` | DONE | 005A；Ollama/模型另批 |
-| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |
-| [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Codex（未分配） | BLOCKED | 003, 007 |
+| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Read-only Scout 待执行；Implementer/Reviewer 未分配 | BLOCKED | 007；云依赖/隐私/预算另批 |
+| [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Read-only Scout 待执行；Implementer/Reviewer 未分配 | BLOCKED | 003, 007；模板/真实 Vault 另批 |
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | BLOCKED | 003-009 |
 | [TASK-011](TASK-011-weekly-report.md) | 周报 | Codex（未分配） | BLOCKED | 009, 010 |
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | Codex（未分配） | BLOCKED | 010 |

@@ -7,8 +7,8 @@
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：无产品代码写入目标；TASK-005/TASK-005A/TASK-006/TASK-007 worktree
   均只保留为审计证据
-- 活动任务：`TASK-006` 已以 merge `fd9a07462a0596e1c5d4c67c200c3a7f2561fea1`
-  整合并关闭为 `DONE`；`TASK-007` 已整合并关闭为 `DONE`。
+- 活动任务：`TASK-008` 云分析与 `TASK-009` Obsidian 笔记的两个独立只读 Scout 包已
+  准备并等待并行执行；两项仍为 `BLOCKED/UNASSIGNED`，不构成实现或资源授权。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -41,10 +41,10 @@
 
 ## 下一步
 
-1. TASK-008/TASK-009 继续保持 `BLOCKED/UNASSIGNED`；先由主控生成只读预检包，核对云端隐私、
-   Obsidian 写入、共享 Artifact/Provider 契约和资源授权缺口，不直接启动实现。
-2. 根据只读预检结果补齐必要 ADR/任务级授权，再决定是否并行分配 TASK-008/TASK-009；不得由
-   Worker 自行领取。
+1. 并行运行 TASK-008 与 TASK-009 两个只读 Scout，分别核对云端隐私/预算/缓存与
+   Obsidian 模板/路径/原子写/用户区契约；仓库必须无变化。
+2. 主控根据两份预检结果补齐必要 ADR、复用版本与任务级授权，再决定是否从同一最新 main
+   基线并行分配；不得由 Worker 自行领取。
 3. 真实 Whisper/Ollama 模型兼容性与质量仍需单独授权。模型下载、ffmpeg、媒体、网络、真实
    Vault 与凭据操作继续不批准。
 
@@ -65,6 +65,8 @@
 | 已完成可关闭 | TASK-006 Product Integrator/Reviewer/Implementer | merge `fd9a074...` 已关闭为 `DONE`；不得继续写 source |
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
+| 可并行启动 | TASK-008 Read-only Scout | 只查云端契约、隐私、预算、依赖与恢复；不得写仓库、联网或读取密钥 |
+| 可并行启动 | TASK-009 Read-only Scout | 只查笔记契约、模板、路径、用户区和事务；不得写仓库或访问真实 Vault |
 
 ## 授权边界
 

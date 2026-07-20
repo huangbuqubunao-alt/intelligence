@@ -8,6 +8,18 @@
 - Depends on: TASK-007
 - Approval required: 云 Provider/依赖、密钥来源、发送范围、预算策略
 
+## 2026-07-20 只读预检授权
+
+- TASK-007 已为 `DONE`，代码依赖已满足；本任务仍为 `BLOCKED/UNASSIGNED`，尚缺云端
+  共享契约确认、精确依赖/版本、锁文件/下载、密钥生命周期、发送范围、token/调用预算、
+  缓存/事务边界和验证命令的任务级批准。
+- 已生成 `agent-prompts/PREFLIGHT-TASK-008-READONLY.md`，可与 TASK-009 Scout 并行。
+  Scout 只可静态读取 main 并在聊天返回报告，不得联网、读取环境变量值、安装依赖、运行
+  产品命令、调用 Provider、创建 worktree/commit 或改变状态。
+- 预检必须优先复用现有 `AnalysisInput`/`AnalysisResult`、`SummaryProvider`、Artifact/
+  Provider-call/`complete_stage` 契约并复核 OpenAI SDK；若需要共享类型、Schema/`state.py`
+  或额外前置切片，先向主控提出，不得由 Implementer 自行设计。
+
 ## 目标
 
 仅对策略允许的高价值视频调用已启用的云端 Provider，返回通过 Schema 校验的深度分析，并通过稳定请求缓存避免重复成本。
