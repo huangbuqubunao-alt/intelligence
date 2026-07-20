@@ -1,8 +1,8 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `全新独立 Codex，等待实现 commit`
+- Reviewer: `全新独立 Codex，待启动`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
@@ -21,11 +21,25 @@
 - 并行边界：TASK-009A、TASK-008、TASK-009 均继续 `BLOCKED/UNASSIGNED`；不得
   并发修改 `domain.py`、`pyproject.toml` 或 `uv.lock`
 
+## 2026-07-20 实现证据与审查授权
+
+- Implementation source：
+  `382251298af7fcbfadba66c1902af6de0a425179`；唯一父提交为固定 base。
+- 完整产品 Diff 精确为本卡 7 个批准路径；无 Provider、Prompt、
+  Schema/migration、`state.py`、`complete_stage`、CLI 或任务状态改动。
+- Implementer 自报 contracts `66 passed`、全量 `318 passed`、mypy、Ruff、CLI、
+  lock/sync、offline build 和 migration package inclusion 全 PASS；这只构成待
+  Reviewer 独立复跑的实现证据。
+- 直接依赖锁定为 OpenAI `2.46.0`、tiktoken `0.13.0`；既有直接依赖未升级。
+- 状态进入 `IN_REVIEW`；Reviewer 包已准备，但 Reviewer 尚未启动，不得预写
+  `APPROVE`、`ACCEPTED`、merge 或 `DONE`。
+
 ## 2026-07-20 产品审批
 
 - 批准 `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包
   下载、`pyproject.toml`/`uv.lock` 修改和本卡列出的 uv 离线验证/构建。
-- 依赖 TASK-007 已为 `DONE`；本任务已正式分配并进入 `IN_PROGRESS`。
+- 依赖 TASK-007 已为 `DONE`；本任务已正式分配，并在实现阶段进入
+  `IN_PROGRESS`。
 - 真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count 请求、真实 Vault/
   用户内容继续未授权。
 

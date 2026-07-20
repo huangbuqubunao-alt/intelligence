@@ -1,16 +1,17 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-20
-- 当前阶段：Phase 2 — TASK-008A 云分析共享契约实施中
+- 当前阶段：Phase 2 — TASK-008A 云分析共享契约独立审查
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008a`，
-  `codex/task-008a-cloud-analysis-shared-contracts`，由 Codex Implementer 独占；
+  `codex/task-008a-cloud-analysis-shared-contracts`，由全新独立 Codex Reviewer
+  独占；
   历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
-- 活动任务：TASK-008A=`IN_PROGRESS/Codex`，固定 base 为
-  `82d1fd7c7f2f82e77df0518e63755bad0bf240f2`；全新独立 Codex Reviewer 等待实现
-  commit。TASK-009A=`BLOCKED/UNASSIGNED`，等待 TASK-008A `DONE`；正式
+- 活动任务：TASK-008A=`IN_REVIEW`，实现 source 固定为
+  `382251298af7fcbfadba66c1902af6de0a425179`；Implementer 已结束，等待全新独立
+  Codex Reviewer。TASK-009A=`BLOCKED/UNASSIGNED`，等待 TASK-008A `DONE`；正式
   TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
@@ -52,9 +53,10 @@
 
 ## 下一步
 
-1. Codex Implementer 在固定 TASK-008A worktree 完成 7 路径离线实现、依赖锁定、
-   交接与 commit；主控核验后再启动全新独立 Codex Reviewer。
-2. TASK-008A 审查、验收、整合并关闭为 `DONE` 后分配 TASK-009A；两项均 `DONE`
+1. 全新独立 Codex Reviewer 在固定 TASK-008A source 上复跑全部离线门禁、六组
+   独立探针和五轴审查，只可写 source handoff，不得修产品代码。
+2. Reviewer 回传 evidence 后由主控判定验收；TASK-008A 整合并关闭为 `DONE` 后
+   分配 TASK-009A。两项均 `DONE`
    后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
@@ -77,7 +79,7 @@
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
-| 立即启动 | TASK-008A Codex Implementer | 固定 worktree/分支/base/7 路径；Reviewer 等待实现 commit |
+| 立即启动 | TASK-008A 全新独立 Codex Reviewer | 固定 source `3822512...`；只可写 handoff，Implementer 已结束 |
 | 等待上游 | TASK-009A assignment | ADR/Jinja2 已批；等待 TASK-008A `DONE` |
 | 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
@@ -194,9 +196,15 @@
 - TASK-008A 已从
   `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2` 分配到
   `/Users/hua/Documents/yia-worktrees/task-008a` /
-  `codex/task-008a-cloud-analysis-shared-contracts`；Codex 为唯一 Implementer，
-  全新独立 Codex Reviewer 等待实现 commit。只允许任务卡 7 路径，不允许 Provider、
-  Schema/migration、`state.py`、`complete_stage` 或真实资源路径。
+  `codex/task-008a-cloud-analysis-shared-contracts`；Codex Implementer 已完成固定
+  source commit，现等待全新独立 Codex Reviewer。完整产品范围只允许任务卡 7 路径，
+  不允许 Provider、Schema/migration、`state.py`、`complete_stage` 或真实资源路径。
+- TASK-008A Implementer 已提交
+  `382251298af7fcbfadba66c1902af6de0a425179`，唯一父提交为固定 base，完整 Diff
+  精确为任务卡 7 路径。Implementer 自报 contracts `66`、全量 `318`、mypy、
+  Ruff、CLI、lock/sync、offline build 与 migration package inclusion 全 PASS；
+  直接依赖锁定为 OpenAI `2.46.0`、tiktoken `0.13.0`。这些仅是待独立复跑的实现
+  证据，不构成 `APPROVE`。
 - 真实 OpenAI API、密钥读取、付费调用、云端 token-count、真实 Vault/用户笔记和
   最终文件删除/移动/重命名继续未授权。
 
