@@ -21,3 +21,5 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-005](ADR-005-reuse-first-delivery-policy.md) | Accepted | 2026-07-14 | 成熟组件优先复用，项目自有领域、状态、策略与安全控制面 |
 | [ADR-006](ADR-006-subtitle-acquisition-contract.md) | Accepted | 2026-07-15 | 冻结字幕选择、规范化、缓存、错误与 Artifact 恢复契约；V1 不新增 Schema 或修改 Repository 完成语义 |
 | [ADR-007](ADR-007-local-model-pipeline-contracts.md) | Accepted | 2026-07-17 | 冻结本地 Whisper/Ollama、评分持久化、共享契约与分阶段授权边界 |
+| [ADR-008](ADR-008-cloud-analysis-contract.md) | Proposed | 2026-07-20 | 冻结云分析最小化输入、结构化跳过、token/调用预算、OpenAI 与依赖边界 |
+| [ADR-009](ADR-009-obsidian-note-contract.md) | Proposed | 2026-07-20 | 冻结 Obsidian 笔记身份、模板、用户区、路径、原子写和恢复边界 |

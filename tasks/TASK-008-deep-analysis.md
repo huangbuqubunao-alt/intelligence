@@ -5,60 +5,91 @@
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
 - Risk: High
-- Depends on: TASK-007
-- Approval required: 云 Provider/依赖、密钥来源、发送范围、预算策略
+- Depends on: TASK-008A, TASK-009A
+- Approval required: ADR-008、正式实施范围与离线命令；真实云调用/密钥另批
 
-## 2026-07-20 只读预检授权
+## 2026-07-20 只读预检结论
 
-- TASK-007 已为 `DONE`，代码依赖已满足；本任务仍为 `BLOCKED/UNASSIGNED`，尚缺云端
-  共享契约确认、精确依赖/版本、锁文件/下载、密钥生命周期、发送范围、token/调用预算、
-  缓存/事务边界和验证命令的任务级批准。
-- 已生成 `agent-prompts/PREFLIGHT-TASK-008-READONLY.md`，可与 TASK-009 Scout 并行。
-  Scout 只可静态读取 main 并在聊天返回报告，不得联网、读取环境变量值、安装依赖、运行
-  产品命令、调用 Provider、创建 worktree/commit 或改变状态。
-- 预检必须优先复用现有 `AnalysisInput`/`AnalysisResult`、`SummaryProvider`、Artifact/
-  Provider-call/`complete_stage` 契约并复核 OpenAI SDK；若需要共享类型、Schema/`state.py`
-  或额外前置切片，先向主控提出，不得由 Implementer 自行设计。
+- Read-only Scout 已在 `main@bb9c6b7bb66040b65b091d980f43281c4d9d6ba6`
+  完成，仓库无变化；结论为 `DECISION NEEDED`。
+- 已提出 `ADR-008` A-01 至 A-15 和 `TASK-008A`。TASK-008A 负责公共契约、配置与
+  `openai`/`tiktoken` 依赖基线；`TASK-009A` 随后冻结 KnowledgeSink 消费面。
+- 两个前置任务均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。预检不是依赖安装、
+  密钥读取、真实 API 调用或实施授权。
 
 ## 目标
 
-仅对策略允许的高价值视频调用已启用的云端 Provider，返回通过 Schema 校验的深度分析，并通过稳定请求缓存避免重复成本。
+仅对策略允许的高价值视频调用已启用的 OpenAI Adapter，返回经过严格结构与证据
+校验的深度分析，并通过稳定请求缓存、调用预算和延迟密钥读取避免重复成本与隐私
+泄漏。
 
 ## 范围
 
-- 实现与具体云厂商解耦的 SummaryProvider 和至少一个已批准 Adapter。
-- 执行开关、阈值、最大输入、调用/预算限制、超时和隐私策略。
-- 解析深度分析契约，区分事实、推断和建议，并记录 Provider 使用量和缓存索引。
+- 实现本地 `cloud-token-sampling-v1`、规范请求哈希、缓存和 run 预算策略。
+- 实现注入式 `CredentialResolver`，只在全部零调用门禁通过后解析环境变量。
+- 实现官方 OpenAI Responses Adapter：Structured Outputs、`store=False`、
+  `max_retries=0`、一次推理调用、无 tools/stream/custom endpoint。
+- 复用既有 Artifact/Provider-call/`complete_stage`，记录安全使用量并支持重排恢复。
 
 ## 范围外
 
 - 不在代码、YAML、测试或日志中保存真实密钥。
 - 不在开关关闭、低于阈值或预算用尽时发送任何字幕内容。
 - 不添加第二个云 Provider，除非另建任务并审批依赖。
+- 不修改公共领域/配置契约、Schema、`state.py`、依赖或锁文件。
+- 不调用 token-count endpoint，不运行真实 OpenAI 或其他网络路径。
 
 ## 验收标准
 
-- [ ] Fake Provider 验证关闭、低分、预算用尽、超长输入均为零云调用；高分允许路径只调用一次。
-- [ ] 合法、缺字段、非法 JSON、限流、5xx、超时和缓存命中均有测试，错误按统一分类映射。
-- [ ] 隐私 Reviewer 确认密钥只从批准来源读取，日志/异常不含密钥或字幕全文，发送范围与 DEC-06 一致。
+- [ ] 关闭、低分、缓存、预算耗尽、本地 token 超限和缺凭据均为零调用且按固定顺序
+  发生；高价值成功路径只调用一次。
+- [ ] 最小化 payload 精确等于 ADR-008 A-04 白名单；未知 tokenizer、28k/30k
+  边界、采样和请求哈希具有确定性测试。
+- [ ] Structured Outputs 成功、refusal、缺字段、语义/证据错误、限流、5xx、
+  timeout 和缓存恢复均映射到冻结结果/错误。
+- [ ] Fake transport + 真实临时 SQLite 证明 Artifact、Provider call、Pipeline/Job
+  原子完成、回滚与重排不重复付费调用。
+- [ ] 隐私 Reviewer 确认 SDK 配置、延迟密钥读取和完整异常图均不泄露密钥、字幕
+  全文、响应正文或本地路径。
 
 ## 验证
 
-- [ ] `python -m pytest tests/unit/test_analysis_policy.py`
-- [ ] `python -m pytest tests/integration/test_summary_provider.py`
-- [ ] `mypy src && ruff check .`
+- [ ] `uv lock --check`
+- [ ] `uv sync --locked`
+- [ ] `uv run python -m pytest tests/unit/test_analysis_policy.py`
+- [ ] `uv run python -m pytest tests/integration/test_summary_provider.py`
+- [ ] `uv run python -m pytest`
+- [ ] `uv run mypy src`
+- [ ] `uv run ruff check .`
+- [ ] `uv run python -m youtube_intel --help`
+- [ ] `uv build --offline`
+- [ ] `git diff --check <base>...HEAD`
 - [ ] 静态检查：仓库和测试产物不包含真实凭证格式；检查方法由 Reviewer 记录，不输出匹配值。
 
 ## 预计触达文件
 
 - `src/youtube_intel/analysis.py`
 - `src/youtube_intel/providers/cloud_llm.py`
-- `prompts/summary.md`
+- `src/youtube_intel/prompts/summary.md`
+- `tests/fixtures/analysis/**`
 - `tests/unit/test_analysis_policy.py`
 - `tests/integration/test_summary_provider.py`
+- `handoffs/TASK-008.md`
+
+不包含 `domain.py`、`config.py`、`state.py`、Schema/migration、`pyproject.toml`、
+`uv.lock`、CLI、任务状态或 Obsidian 文件。公共契约或依赖不足时必须报告
+`DECISION NEEDED`。
+
+## 复用决定
+
+- `DIRECT-PENDING`：TASK-008A 锁定后的官方 OpenAI SDK 和 tiktoken；本任务只在
+  获得正式实施授权后离线导入并使用 Fake transport。
+- `DIRECT`：既有 Analysis/Artifact/Provider-call/SQLite/Pydantic 契约。
+- `REJECT`：自写 OpenAI HTTP 客户端、第二 Provider、SDK 自动重试、格式修复调用、
+  token-count 云端预检和真实密钥/API。
 
 ## 交付证据
 
 - Provider/依赖/隐私审批记录。
-- 零调用策略测试和缓存测试结果。
+- ADR-008 A-01 至 A-15 追溯、零调用/缓存/预算/证据/事务测试结果。
 - 如未进行真实云端冒烟，必须明确标注；真实冒烟需另获用户授权。

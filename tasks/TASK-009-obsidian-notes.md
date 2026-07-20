@@ -5,60 +5,93 @@
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
-- Depends on: TASK-003, TASK-007
-- Approval required: 写入真实 Vault 前需用户明确授权
+- Depends on: TASK-009A
+- Approval required: ADR-009、临时 Vault 文件探针与正式实施范围；真实 Vault 另批
 
-## 2026-07-20 只读预检授权
+## 2026-07-20 只读预检结论
 
-- TASK-003/TASK-007 已为 `DONE`，代码依赖已满足；本任务仍为 `BLOCKED/UNASSIGNED`，
-  尚缺笔记/用户区精确格式、文件名与符号链接边界、原子写/SQLite 完成语义、Jinja2
-  版本/锁文件及临时文件验证范围的任务级批准。真实 Vault 仍未授权。
-- 已生成 `agent-prompts/PREFLIGHT-TASK-009-READONLY.md`，可与 TASK-008 Scout 并行。
-  Scout 只可静态读取 main 并在聊天返回报告，不得创建临时 Vault/文件、联网、安装依赖、
-  运行产品命令、读取真实 Vault、创建 worktree/commit 或改变状态。
-- 预检必须优先复用现有 `KnowledgeSink`、`NoteRef`、可选 `AnalysisResult`、Artifact/
-  `complete_stage` 契约并复核 Jinja2/现有参考项目；若需要共享类型、Schema/`state.py`
-  或额外前置切片，先向主控提出，不得由 Implementer 自行设计。
+- Read-only Scout 已在 `main@bb9c6b7bb66040b65b091d980f43281c4d9d6ba6`
+  完成，仓库无变化；结论为 `DECISION NEEDED`。
+- 已提出 `ADR-009` N-01 至 N-15 和 `TASK-009A`。TASK-009A 顺序消费 TASK-008A
+  的 `AnalysisOutcome`，冻结 KnowledgeSink/NoteRef 并提升 Jinja2 直接依赖。
+- TASK-008A/TASK-009A 均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。真实 Vault
+  和用户笔记继续未授权。
 
 ## 目标
 
-将视频、评分和可选深度分析幂等渲染为 Obsidian Markdown 笔记，安全处理路径与同名冲突，并在更新时保留用户的 `我的思考`。本任务使用可选 AnalysisResult 契约/Fake，真实云分析集成由 TASK-010 完成。
+将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，
+安全处理身份、路径、同名冲突和故障恢复，并逐字节保留用户的 `我的思考`。本任务
+只使用临时 Vault；真实云分析集成由 TASK-010 完成。
 
 ## 范围
 
 - 实现稳定 Frontmatter、文件命名、模板渲染、自动管理区和用户编辑区。
-- 使用临时文件 + 原子替换，确保目标始终是完整旧版或完整新版。
-- 校验所有路径位于配置的 Vault 子目录；同一 `video_id` 只对应一份笔记。
+- 使用固定打包 Jinja2 模板、安全 primitive 和严格资源上限。
+- 使用 anchored directory FD、同目录临时文件、fsync + 原子替换，确保目标始终是
+  完整旧版或完整新版。
+- 校验所有路径位于逻辑 Vault 子目录；同一 `video_id` 只对应一份稳定路径笔记。
+- 复用现有 `complete_stage` 完成 VIDEO_NOTE Artifact、Pipeline/Job，并验证
+  replace 后 SQLite 失败的补账恢复。
 
 ## 范围外
 
 - 默认测试不得写用户真实 Vault。
 - 不修改、移动或删除非本系统管理的笔记。
 - 不实现周报。
+- 不自动刷新已 `NOTE_WRITTEN`/`COMPLETE` 的成功笔记；不新增 Repository 方法。
+- 不修改领域契约、`state.py`、Schema/migration、依赖、锁文件或云 Provider。
 
 ## 验收标准
 
-- [ ] 临时 Vault 测试覆盖首次创建、重复 upsert、标题变化、同名标题、路径穿越和写入中断。
-- [ ] Frontmatter 可解析且字段类型稳定；低价值/高价值产物符合 DEC-08 和 PRD 内容契约。
-- [ ] 用户修改 `我的思考` 后重新生成，用户内容逐字保留，系统管理区按新数据更新。
+- [ ] 临时 Vault 测试覆盖首次创建、失败重排、无变化、标题变化、Unicode/保留名、
+  casefold 冲突、路径穿越、symlink、目录替换和短写/fsync/replace 失败。
+- [ ] Frontmatter 顺序/类型、固定正文、analysis completed/skipped、低价值零写和
+  Jinja StrictUndefined/资源上限符合 ADR-009。
+- [ ] 用户修改 `我的思考` 后在合法失败重排中逐字节保留；marker/legacy/非法 UTF-8
+  全部 fail-closed，原文件不变。
+- [ ] 真实临时 SQLite 证明 `ANALYSIS_READY -> NOTE_WRITTEN`、VIDEO_NOTE Artifact、
+  Job 完成、事务回滚和 replace 后补账；已完成普通调度零改写。
 
 ## 验证
 
-- [ ] `python -m pytest tests/unit/test_note_rendering.py`
-- [ ] `python -m pytest tests/integration/test_obsidian_sink.py`
-- [ ] `mypy src && ruff check .`
-- [ ] 人工检查：在临时 Vault 打开样例 Markdown，确认双链、Frontmatter、标题和用户区结构。
+- [ ] `uv lock --check`
+- [ ] `uv sync --locked`
+- [ ] `uv run python -m pytest tests/unit/test_note_rendering.py`
+- [ ] `uv run python -m pytest tests/integration/test_obsidian_sink.py`
+- [ ] `uv run python -m pytest`
+- [ ] `uv run mypy src`
+- [ ] `uv run ruff check .`
+- [ ] `uv run python -m youtube_intel --help`
+- [ ] `uv build --offline`
+- [ ] `git diff --check <base>...HEAD`
+- [ ] 人工检查：只在临时 Vault 解析样例 Markdown；确认 Frontmatter、标题、marker 和
+  用户区，不打开或扫描真实 Vault。
 
 ## 预计触达文件
 
 - `src/youtube_intel/notes.py`
 - `src/youtube_intel/providers/obsidian.py`
-- `templates/video.md`
+- `src/youtube_intel/templates/video.md`
+- `tests/fixtures/notes/**`
 - `tests/unit/test_note_rendering.py`
 - `tests/integration/test_obsidian_sink.py`
+- `handoffs/TASK-009.md`
+
+不包含 `domain.py`、`config.py`、`state.py`、Schema/migration、`pyproject.toml`、
+`uv.lock`、云 Provider、CLI、任务状态或真实 Vault 文件。公共契约、模板打包或现有
+Repository 不足时必须报告 `DECISION NEEDED`。
+
+## 复用决定
+
+- `DIRECT-PENDING`：TASK-009A 锁定后的 Jinja2；固定包内模板、不可变 sandbox 和
+  StrictUndefined。
+- `DIRECT`：现有 PyYAML、Artifact/SQLite/Pydantic 与 Python 标准库安全文件能力。
+- `REFERENCE`：已登记 yt2md 项目只参考输出结构，不复制代码、不读取 Obsidian 配置。
+- `REJECT`：任意模板 loader、用户模板、自动接管/修复笔记、成功笔记 refresh 和
+  真实 Vault。
 
 ## 交付证据
 
 - 临时 Vault 的脱敏样例路径/内容摘要。
-- 原子写、路径边界和用户区保留测试结果。
+- ADR-009 N-01 至 N-15 追溯，以及原子写、路径边界、用户区、SQLite 补账测试结果。
 - 真实 Vault 未触达声明；如触达则附用户授权和受控验证结果。

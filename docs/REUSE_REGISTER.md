@@ -27,8 +27,9 @@
 | Python `json` / `html` / `unicodedata` / `hashlib` / `pathlib` / `tempfile` / `os` / `re` | `DIRECT` | JSON3/VTT/SRT 解析、NFC 规范化、哈希与原子文件处理 | TASK-005 | 按 ADR-006 的格式、质量、路径和日志边界实现；不新增解析依赖 |
 | `mlx-whisper>=0.4.3,<0.5` | `DIRECT-PENDING` | Apple Silicon 本地转写 | TASK-006 | PyPI 0.4.3、MIT、Python >=3.8；含 MLX/torch 等传递依赖，安装与锁定仍须任务级批准 |
 | Ollama `>=0.32.1,<0.33` HTTP API | `DIRECT-PENDING` | 本地评分 | TASK-007 | MIT；只允许 loopback 标准库 HTTP、固定模型 digest、无自动拉取；安装/服务/模型另批 |
-| OpenAI SDK/API | `DIRECT-PENDING` | 可选云端分析 | TASK-008 | 默认关闭；依赖、密钥和真实调用分别审批 |
-| Jinja2 | `DIRECT-PENDING` | Markdown 模板 | TASK-009/011 | 首次安装仍需任务级版本和锁文件批准 |
+| `openai>=2.46.0,<2.47` | `DIRECT-PENDING` | Responses Structured Outputs | TASK-008A/008 | Apache-2.0；默认关闭，依赖、密钥和真实调用分别审批 |
+| `tiktoken>=0.13.0,<0.14` | `DIRECT-PENDING` | 本地 token 采样与保守预算 | TASK-008A/008 | MIT；只用显式 model/encoding 映射，不调用云端计数 |
+| `Jinja2>=3.1.6,<3.2` | `DIRECT-PENDING` | 固定 Markdown 模板 | TASK-009A/009/011 | BSD-3-Clause；不可变 sandbox/StrictUndefined，无用户模板或任意 loader |
 
 ## 3. 附件候选评估
 
@@ -113,3 +114,27 @@ TASK-005A 只直接复用现有 `pydantic`、SQLite Repository 和 Python 标准
 
 官方来源记录在 `docs/decisions/ADR-007-local-model-pipeline-contracts.md`。首次实施前
 Implementer 仍须重新核实版本、许可证和维护状态，Reviewer 独立复核。
+
+## 8. ADR-008/ADR-009 Proposed 复用边界
+
+以下结论来自 2026-07-20 的两份只读 Scout 和官方资料复核，当前仍是
+`DIRECT-PENDING`，不构成安装、锁文件、网络、密钥、付费调用或 Vault 写入授权。
+
+| 组件 | 推荐等级 | 已核实证据 | 冻结建议/剩余门禁 |
+|---|---|---|---|
+| `openai>=2.46.0,<2.47` | `DIRECT-PENDING` | PyPI 2.46.0（2026-07-17）、Apache-2.0、Python >=3.9；官方 SDK 以 Responses 为主 API，支持 Structured Outputs | TASK-008A 显式锁定；TASK-008 使用 `store=False`、`max_retries=0`、无 tools/stream/custom endpoint；真实密钥/API 另批 |
+| `tiktoken>=0.13.0,<0.14` | `DIRECT-PENDING` | PyPI 0.13.0（2026-05-15）、MIT、Python >=3.9，提供 CPython 3.12 macOS arm64 wheel；当前已由 mlx-whisper 传递锁定 | TASK-008A 提升为直接依赖；只做本地 28k 保守计数和显式 encoding 映射，未知模型失败关闭 |
+| `Jinja2>=3.1.6,<3.2` | `DIRECT-PENDING` | PyPI 3.1.6、BSD-3-Clause、Python >=3.7；当前已由 torch 传递锁定 | TASK-009A 提升为直接依赖；只加载固定包内模板，使用 `ImmutableSandboxedEnvironment` + `StrictUndefined`；sandbox 不用于执行用户模板 |
+| OpenAI `/v1/responses/input_tokens` | `REJECT` 默认路径 | 官方提供精确请求 token 计数 | 计数本身会发送最小化字幕 payload 并消耗调用/隐私预算；V1 默认改用本地保守计数 |
+| 手写 OpenAI HTTP / 手写 Markdown 模板 | `REJECT` | 官方 SDK/Jinja2 已覆盖通用协议和模板能力 | 项目只实现隐私、预算、领域、路径、原子写和恢复控制面 |
+| 已登记 yt2md 候选 | `REFERENCE` | 输出结构、文件名和原子临时文件思路可参考 | 不复制代码、不读取 Obsidian 配置、不直接访问真实 Vault |
+
+官方来源：
+
+- OpenAI Responses：<https://platform.openai.com/docs/api-reference/responses>
+- OpenAI Structured Outputs：
+  <https://platform.openai.com/docs/guides/structured-outputs>
+- OpenAI SDK：<https://pypi.org/project/openai/>
+- tiktoken：<https://pypi.org/project/tiktoken/>
+- Jinja sandbox：<https://jinja.palletsprojects.com/en/stable/sandbox/>
+- Jinja2：<https://pypi.org/project/Jinja2/>

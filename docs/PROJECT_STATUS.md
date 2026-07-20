@@ -1,14 +1,15 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-20
-- 当前阶段：Phase 2 — TASK-006/TASK-007 离线阶段已完成；下一阶段仍须独立预检和资源门禁
+- 当前阶段：Phase 2 — TASK-008/TASK-009 预检完成；共享契约 ADR 待批准
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：无产品代码写入目标；TASK-005/TASK-005A/TASK-006/TASK-007 worktree
   均只保留为审计证据
-- 活动任务：`TASK-008` 云分析与 `TASK-009` Obsidian 笔记的两个独立只读 Scout 包已
-  准备并等待并行执行；两项仍为 `BLOCKED/UNASSIGNED`，不构成实现或资源授权。
+- 活动任务：TASK-008/TASK-009 两个只读 Scout 已完成且仓库无变化；主控已提出
+  ADR-008/ADR-009 与 TASK-008A/TASK-009A。四项均为 `BLOCKED/UNASSIGNED`，等待
+  产品负责人决定，不构成实现或资源授权。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -19,7 +20,7 @@
 - DEC-01 至 DEC-10 已由产品负责人全部批准。
 - `docs/PRD.md`、`docs/SYSTEM_DESIGN.md` 和 `docs/IMPLEMENTATION_ROADMAP.md` 已批准。
 - 多 Agent 协作模式 ADR-001 已接受并生效。
-- C-01 至 C-08 已由产品负责人批准，配置与领域契约 ADR-002 已接受并同步到 System Design；ADR-006 字幕契约也已同步，当前系统设计版本为 V1.3。
+- C-01 至 C-08 已由产品负责人批准，配置与领域契约 ADR-002 已接受并同步到 System Design；ADR-006/ADR-007 也已同步，当前系统设计版本为 V1.4。
 - `TASK-000` 已整合到 `main` 并通过整合后检查，状态为 `DONE`。
 - `TASK-001` 已由 Codex 实现、Grok 独立审查、主控验收，并以 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 整合到 `main`；整合后全部门禁通过，状态为 `DONE`。
 - 产品负责人已批准 `TASK-002` 使用 `pydantic>=2.13.4,<2.14`、`PyYAML>=6.0.3,<7`；实现、修复、独立审查及整合后检查均通过，并以 merge commit `823d68a2dffc1745e04cbbe54c817bf0c117a6fa` 进入 `main`，状态为 `DONE`。
@@ -38,15 +39,19 @@
 - TASK-006 仅获 `mlx-whisper` 包/锁定与离线实现授权；Whisper 模型下载/加载、ffmpeg、
   媒体/YouTube 下载和真实转写冒烟仍未授权。TASK-007 仅获离线 Fake/标准库实现授权；
   Ollama 安装/启动、`qwen3:8b` 拉取和真实模型调用仍未授权。
+- ADR-008 A-01 至 A-15、ADR-009 N-01 至 N-15 尚未批准；TASK-008A/TASK-009A
+  尚未获得依赖、锁文件、网络包下载、固定 worktree/角色/文件范围授权。
+- TASK-008 真实密钥/付费云调用和 TASK-009 真实 Vault/用户笔记始终是后续独立
+  门禁，不由 ADR 或共享任务隐含授权。
 
 ## 下一步
 
-1. 并行运行 TASK-008 与 TASK-009 两个只读 Scout，分别核对云端隐私/预算/缓存与
-   Obsidian 模板/路径/原子写/用户区契约；仓库必须无变化。
-2. 主控根据两份预检结果补齐必要 ADR、复用版本与任务级授权，再决定是否从同一最新 main
-   基线并行分配；不得由 Worker 自行领取。
-3. 真实 Whisper/Ollama 模型兼容性与质量仍需单独授权。模型下载、ffmpeg、媒体、网络、真实
-   Vault 与凭据操作继续不批准。
+1. 产品负责人审阅并批准或调整 ADR-008 A-01 至 A-15、ADR-009 N-01 至 N-15 以及
+   `openai`、`tiktoken`、Jinja2 推荐范围。
+2. 获批后先顺序分配 TASK-008A、TASK-009A；两项均 `DONE` 后，再从同一最新 main
+   并行分配正式 TASK-008/TASK-009。
+3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
+   继续不批准，分别等待后续受控验收。
 
 ## 当前并行调度
 
@@ -65,8 +70,10 @@
 | 已完成可关闭 | TASK-006 Product Integrator/Reviewer/Implementer | merge `fd9a074...` 已关闭为 `DONE`；不得继续写 source |
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
-| 可并行启动 | TASK-008 Read-only Scout | 只查云端契约、隐私、预算、依赖与恢复；不得写仓库、联网或读取密钥 |
-| 可并行启动 | TASK-009 Read-only Scout | 只查笔记契约、模板、路径、用户区和事务；不得写仓库或访问真实 Vault |
+| 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
+| 等待产品决策 | ADR-008 / TASK-008A | A-01 至 A-15、OpenAI/tiktoken 版本与依赖授权待批准 |
+| 等待产品决策 | ADR-009 / TASK-009A | N-01 至 N-15、Jinja2 版本与临时文件探针授权待批准 |
+| 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
 ## 授权边界
 
@@ -173,6 +180,10 @@
   锁/依赖未变。整合后 focused `17/14`、全量 `282`、mypy、Ruff、CLI、locked offline sync/build
   和 migration package inclusion 全 PASS。真实 Ollama/模型兼容性与质量仍需单独授权，不阻断离线关闭。
 - 真实 Obsidian Vault 和 launchd 操作均未授权。
+- TASK-008/TASK-009 只读预检已完成；ADR-008/ADR-009 与
+  TASK-008A/TASK-009A 当前仅为 Proposed/BLOCKED。推荐依赖
+  `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`、
+  `Jinja2>=3.1.6,<3.2` 尚未获得安装、下载、锁文件或实施授权。
 
 ## 当前风险
 
