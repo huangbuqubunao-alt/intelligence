@@ -766,3 +766,23 @@
 - 未解决 P0/P1：无。
 - `DECISION NEEDED`：None。
 - Verdict：**APPROVE**。
+
+---
+
+## 主控关闭记录（2026-07-20）
+
+- Product Integrator execution base：
+  `7d18ecffc61fc0def974ce07ee9dc1ceeb4bf305`。
+- Accepted source/review evidence：
+  `f00209c8018a9e728d9f6509f0ae70067fa33676`。
+- Merge commit：`fd9a07462a0596e1c5d4c67c200c3a7f2561fea1`，双父依次为
+  `7d18ecffc61fc0def974ce07ee9dc1ceeb4bf305` 与
+  `f00209c8018a9e728d9f6509f0ae70067fa33676`。
+- 合并前、暂存态与 first-parent Diff 均精确为批准的八个路径；直接依赖仍仅新增
+  `mlx-whisper>=0.4.3,<0.5`，锁定 `0.4.3`。
+- 整合后 lock check、locked offline sync、focused `11/12`、全量 `305`、mypy（13
+  source files）、Ruff、CLI、offline build 与 sdist/wheel migration inclusion 全 PASS。
+- main 与 retained source worktree 均干净；source branch/head 原样保留。TASK-006 已由主控
+  关闭为 `DONE`。
+- 未运行模型下载/加载、真实转写、ffmpeg、网络、媒体、Vault 或凭据操作。保留
+  post-unlink/final-CAS 的 at-most-once 风险，不声称 exactly-once。

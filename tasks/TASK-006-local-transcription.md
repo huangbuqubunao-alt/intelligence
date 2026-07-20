@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
-- Owner role: Codex Product Integrator（已授权，尚未启动）
+- Owner role: 已整合并关闭；merge `fd9a07462a0596e1c5d4c67c200c3a7f2561fea1`
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -190,6 +190,20 @@
 - 接受并保留 preflight 成功后、unlink 与最终 CAS 之间的 at-most-once cleanup 风险；不声称
   exactly-once。真实 Whisper 模型下载/加载、ffmpeg、真实转写、媒体/YouTube、网络、Cookie/
   登录、Vault、凭据与真实文件删除继续未授权。
+
+### 最终整合与关闭
+
+- Codex Product Integrator 已从执行基线
+  `7d18ecffc61fc0def974ce07ee9dc1ceeb4bf305` 非快进整合 accepted source
+  `f00209c8018a9e728d9f6509f0ae70067fa33676`；merge commit 为
+  `fd9a07462a0596e1c5d4c67c200c3a7f2561fea1`，双父顺序正确。
+- merge 的 staged 和 first-parent 差异均精确为本任务批准的八个路径；唯一新增直接依赖仍为
+  `mlx-whisper>=0.4.3,<0.5`，锁定 `0.4.3`，其余新增锁记录属于必要传递依赖树。
+- 整合后 `uv lock --check`、`uv sync --locked --offline`、focused `11/12`、全量
+  `305`、mypy（13 source files）、Ruff、CLI、offline build 与 sdist/wheel migration
+  inclusion 全部 PASS。main 与 retained source worktree 均干净，source 分支/HEAD 保留。
+- TASK-006 正式关闭为 `DONE`。真实 Whisper 模型兼容性、资源表现和转换模型许可证继续等待
+  后续单独授权；既有 post-unlink/final-CAS at-most-once 风险继续保留。
 
 ## 目标
 
