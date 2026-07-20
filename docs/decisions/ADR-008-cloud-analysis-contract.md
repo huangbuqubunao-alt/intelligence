@@ -11,10 +11,17 @@ Accepted
 ## 批准记录
 
 - 批准日期：2026-07-20
+- 补充批准日期：2026-07-21
 - 决策人：用户（产品负责人）
-- 批准范围：ADR-008 A-01 至 A-15，以及 TASK-008A 使用
+- 批准范围：ADR-008 A-01 至 A-17，以及 TASK-008A 使用
   `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包下载、
   `pyproject.toml`/`uv.lock` 修改和任务卡离线 uv 验证/构建命令。
+- A-16 资源授权：TASK-008A Correction 1 可从 OpenAI 官方 Blob 单次下载
+  `o200k_base.tiktoken`，只在 SHA-256 精确为
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` 时提交到
+  `src/youtube_intel/resources/o200k_base.tiktoken`。该授权不扩展为一般网络权限。
+- A-17 隔离授权：TASK-008A 只冻结并离线验证 SDK 子进程导入/匿名管道密钥策略；
+  不实现 Provider，不读取任何真实环境变量值或密钥。
 - 执行边界：依赖动作只能在后续固定 base/worktree/角色/文件范围的 TASK-008A
   正式分配包内执行；本次接受不创建 worktree、不安装依赖。
 - 继续未授权：真实 OpenAI API、密钥读取、付费调用、云端 token-count 请求、真实
@@ -222,9 +229,46 @@ Jinja2 的依赖基线，从而使 TASK-008/TASK-009 正式实现写入范围完
 - 真实 OpenAI 请求、付费调用或字幕发送；
 - 真实 YouTube、Vault、媒体、模型或凭据操作。
 
-TASK-008A 已获本文批准的依赖/锁文件/包下载和离线命令范围，但必须另获固定
-base/worktree/角色/文件范围后才能执行。TASK-008 仍须单独实施授权；真实云端冒烟
-留给 TASK-013 的单独审批。
+TASK-008A 已获本文批准的依赖/锁文件/包下载和离线命令范围，并已获得固定
+base/worktree/角色/文件范围。第一轮 Reviewer 的 6 个 P1 由 Correction 1 在原 7 路径
+加 A-16 固定资源文件范围内修复。TASK-008 仍须单独实施授权；真实云端冒烟留给
+TASK-013 的单独审批。
+
+### A-16：`o200k_base` 必须是固定包内资源
+
+项目把 OpenAI 官方 Blob 的 `o200k_base.tiktoken` 作为固定本地资源，提交路径为
+`src/youtube_intel/resources/o200k_base.tiktoken`，SHA-256 固定为
+`446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。
+
+- TASK-008A Correction 1 只允许对
+  `https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken`
+  执行一次无认证 GET；下载后必须先核对哈希，再纳入 source、sdist 和 wheel。
+- 运行时必须通过包资源定位该文件并向 tiktoken loader 显式提供 expected hash。
+  资源缺失、哈希不符、无法解析或打包遗漏都返回本地 `CONFIG_INVALID`，且在任何
+  Provider、凭据或网络副作用前失败。
+- 禁止调用 `tiktoken.get_encoding("o200k_base")` 所隐含的 HTTP/cache fallback；
+  空 cache、无网络和 socket 拒绝条件下必须仍可读取已验证的包内资源。
+- 本决定不授权其他资源下载、API、模型、密钥或云端操作。该 BPE 资源的文件级分发
+  许可证、归属和 NOTICE 边界由 TASK-014 最终复核；未通过不得发布捆绑产物。
+
+### A-17：OpenAI SDK 必须隔离导入，密钥只走导入后的匿名管道
+
+OpenAI SDK 不得在主进程直接或间接导入。TASK-008 的正式 Adapter 必须：
+
+1. 使用绝对 Python executable 启动独立子进程，不通过 shell；
+2. 不复制父进程环境，子进程环境只能由固定字面量
+   `PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1` 构造；
+3. 明确禁止 `OPENAI_*`、`AZURE_*`、`HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、
+   `NO_PROXY`、`PYTHONPATH` 以及任何 `*_TOKEN`、`*_KEY`、`*_SECRET`、
+   `*_PASSWORD` 进入子进程环境；
+4. 先在无密钥状态导入 SDK 并通过非敏感握手确认导入完成，再由父进程通过专用匿名
+   管道传入临时密钥；
+5. 密钥不得进入环境变量、argv、文件、Pydantic 对象、异常、traceback、诊断、
+   Artifact 或日志；进程结束、失败或 timeout 均须关闭管道并丢弃临时值。
+
+TASK-008A 只冻结以上边界，并使用合成哨兵证明离线导入不读取父进程 OpenAI/Azure
+变量；它不得实现子进程 Provider、发送请求或读取真实凭据。正式的进程协议、timeout、
+子进程退出和错误映射由 TASK-008 在独立实施/审查包中完成。
 
 ## 官方证据
 
@@ -233,17 +277,30 @@ base/worktree/角色/文件范围后才能执行。TASK-008 仍须单独实施�
   <https://platform.openai.com/docs/guides/structured-outputs>
 - OpenAI Python SDK：<https://pypi.org/project/openai/>
 - tiktoken：<https://pypi.org/project/tiktoken/>
+- OpenAI 官方 `o200k_base` Blob：
+  <https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken>
+- tiktoken 0.13.0 `o200k_base` 映射与 expected hash：
+  <https://github.com/openai/tiktoken/blob/0.13.0/tiktoken_ext/openai_public.py>
+- tiktoken 0.13.0 HTTP/cache loader：
+  <https://github.com/openai/tiktoken/blob/0.13.0/tiktoken/load.py>
+- OpenAI Python 2.46.0 顶层环境读取：
+  <https://github.com/openai/openai-python/blob/v2.46.0/src/openai/__init__.py>
 
 ## 不采用的方案
 
 - 直接把整个领域对象/评分对象序列化到云端：无法证明最小化发送范围。
 - 使用 OpenAI token-count endpoint 作为默认预检：计数本身会发送字幕内容。
 - 开启 SDK 自动重试或格式修复调用：破坏 5 次 run 预算和恢复审计。
+- 在主进程导入 OpenAI SDK：2.46.0 顶层导入会读取 OpenAI/Azure 环境变量，破坏
+  “最后才读取密钥”的可证明边界。
+- 依赖 tiktoken 空 cache 时自动下载 encoding：离线行为和供应链身份不可控。
 - 把跳过原因映射为新 `ErrorCode`：违反 ADR-002 冻结枚举。
 - 让 TASK-008 与 TASK-009 各自修改公共契约和锁文件：并行会产生冲突。
 
 ## 后果
 
-- 产品负责人已批准 A-01 至 A-15；下一步先分配 TASK-008A，再分配 TASK-009A。
+- 产品负责人已批准 A-01 至 A-17；TASK-008A 第一轮审查拒绝后的 Correction 1
+  必须先关闭 6 个 P1，再进入新一轮独立审查。
 - 两个共享任务均 `DONE` 后，TASK-008/TASK-009 才能从同一 main 并行实施。
 - 默认路径继续完全本地；真实云调用、付费、密钥和内容发送保持独立门禁。
+- 发布物新增固定 tokenizer 资源，TASK-014 必须给出其文件级许可证与分发结论。

@@ -1,15 +1,16 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `全新独立 Codex，待启动`
+- Reviewer: `第一轮独立 Codex 已 REJECT；Correction 1 后重新分配`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
 - Depends on: TASK-007
-- Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准
+- Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准；A-16/A-17 已于
+  2026-07-21 补充批准
 - Resource gate: `openai`/`tiktoken`、必要传递依赖、网络包下载、锁文件和本卡
-  离线命令已批准；固定实施分配已建立
+  离线命令已批准；Correction 1 另获一次固定 OpenAI BPE Blob 下载授权
 
 ## 2026-07-20 正式分配
 
@@ -17,7 +18,8 @@
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
 - Branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Implementer：Codex；Reviewer：实现提交后启动全新独立 Codex 会话
-- 完整产品 Diff：只允许本卡“预计触达文件”的 7 个路径
+- 完整产品 Diff：原实现只允许本卡“预计触达文件”的 7 个路径；Correction 1 获准
+  新增固定 tokenizer 资源后，完整范围扩展为 8 个路径
 - 并行边界：TASK-009A、TASK-008、TASK-009 均继续 `BLOCKED/UNASSIGNED`；不得
   并发修改 `domain.py`、`pyproject.toml` 或 `uv.lock`
 
@@ -33,6 +35,32 @@
 - 直接依赖锁定为 OpenAI `2.46.0`、tiktoken `0.13.0`；既有直接依赖未升级。
 - 状态进入 `IN_REVIEW`；Reviewer 包已准备，但 Reviewer 尚未启动，不得预写
   `APPROVE`、`ACCEPTED`、merge 或 `DONE`。
+
+## 2026-07-21 第一轮独立审查与 Correction 1
+
+- Reviewer evidence：
+  `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`；唯一父提交为 implementation
+  `382251298af7fcbfadba66c1902af6de0a425179`，且只修改
+  `handoffs/TASK-008A.md`。
+- Reviewer 独立复跑 contracts `66 passed`、全量 `318 passed`、mypy、Ruff、CLI、
+  lock/offline sync/build、migration package inclusion 与固定 Diff 均 PASS；这些
+  不能抵消以下 6 个 P1。
+- Verdict=`REJECT`：三处审计哈希未限制为 64 位小写 SHA-256；多个出站/grounding
+  字段接受纯空白；`ConfigError` traceback frame locals 保留 secret sentinel；
+  `o200k_base` 空 cache 会网络下载；主进程 `import openai` 会读取
+  `AZURE_OPENAI_AD_TOKEN`；`AnalysisCompleted` 允许 result/call provider/model
+  矛盾。
+- 产品负责人批准 ADR-008 A-16/A-17 和 Correction 1：原 Codex Implementer 从
+  reviewer evidence 继续，只修复上述 6 个 P1。相对 reviewer evidence 的 Correction
+  与相对 original base 的完整产品范围都只能属于原 7 路径加
+  `src/youtube_intel/resources/o200k_base.tiktoken`。
+- A-16 只允许一次无认证 OpenAI 官方 Blob GET；资源 SHA-256 必须为
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`，并进入
+  sdist/wheel。运行时只读本地资源，缺失/篡改/解析失败均 fail-closed，禁止网络
+  fallback。文件级分发许可继续由 TASK-014 复核。
+- A-17 禁止主进程导入 OpenAI SDK。TASK-008A 只用合成哨兵离线验证清空/白名单化
+  子进程导入策略；TASK-008 后续才实现导入完成后的匿名管道密钥传输和 Provider。
+- 状态退回 `IN_PROGRESS`；第一轮 Reviewer 已结束，下一 Reviewer 尚未启动。
 
 ## 2026-07-20 产品审批
 
@@ -61,14 +89,18 @@ TASK-009 共同消费的分析输入、结构化完成/跳过结果、配置、�
   上限（输出默认 4,000、范围 `256..8,000`）、Prompt/Schema/采样/隐私版本及
   显式 tokenizer 支持边界；V1 不发送 temperature。
 - 把 `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14` 作为显式直接依赖解析和
-  锁定；验证版本、许可证、Python 3.12/arm64 导入和现有依赖不被意外升级。
+  锁定；验证版本、许可证、Python 3.12/arm64 的隔离子进程导入和现有依赖不被意外
+  升级。
+- 把 OpenAI 官方 `o200k_base.tiktoken` 作为固定包内资源，验证 SHA-256、打包、
+  本地读取和无网络回退；冻结 OpenAI SDK 的隔离子进程导入/匿名管道密钥策略。
 - 只补契约/配置测试，不实现采样函数、CredentialResolver、CloudCallBudget、
   OpenAI Adapter、Prompt、缓存或事务编排。
 
 ## 范围外
 
 - 不读取任何环境变量值、密钥、凭据或真实配置。
-- 不调用 OpenAI、token-count endpoint 或任何网络 API。
+- 除 A-16 固定 BPE 资源的一次无认证 GET 外，不调用 OpenAI、token-count endpoint
+  或任何网络 API。
 - 不实现 `analysis.py`、`providers/cloud_llm.py`、Prompt 或 TASK-010 编排。
 - 不新增 Schema/migration，不修改 `state.py`、`complete_stage` 或 CLI。
 - 不访问真实 YouTube、字幕、Vault、媒体、模型或用户数据。
@@ -81,14 +113,23 @@ TASK-009 共同消费的分析输入、结构化完成/跳过结果、配置、�
   均可验证，错误/`repr` 不泄露敏感值。
 - [ ] `AnalysisPayload` 的可序列化字段精确等于 ADR-008 A-04 白名单，不能携带
   路径、内部 ID、哈希、评分维度或自由 metadata。
-- [ ] 依赖精确落在批准范围；`openai`/`tiktoken` 可离线导入，现有直接依赖不被
-  升级，无 API 调用或凭据读取。
+- [ ] 依赖精确落在批准范围；OpenAI 只在白名单环境的独立子进程离线导入，tiktoken
+  只消费本地资源；现有直接依赖不被升级，无 API 调用或凭据读取。
+- [ ] 三处审计哈希只接受 64 位小写 SHA-256；所有语义非空的出站/grounding/provider/
+  model 字段拒绝纯空白；`AnalysisCompleted` 强制 result/call provider/model 一致。
+- [ ] secret-shaped YAML 在异常、cause/context、Pydantic errors、traceback 和所有
+  项目 frame locals 中不可见。
+- [ ] 固定 `o200k_base.tiktoken` 资源哈希正确且进入 sdist/wheel；空 cache、socket
+  拒绝、资源缺失/篡改探针证明无网络 fallback 并安全失败关闭。
+- [ ] 主进程不导入 OpenAI SDK；隔离导入测试使用新建白名单环境和合成哨兵，证明
+  OpenAI/Azure/代理/凭据变量未被继承或读取。TASK-008 的匿名管道 Provider 不在本卡
+  实现。
 - [ ] 无 Schema、Repository、Provider、Prompt 或产品编排行为。
 
 ## 验证
 
 - [ ] `uv lock --check`
-- [ ] `uv sync --locked`
+- [ ] `uv sync --locked --offline`
 - [ ] `uv run python -m pytest tests/unit/test_contracts.py`
 - [ ] `uv run python -m pytest`
 - [ ] `uv run mypy src`
@@ -107,6 +148,7 @@ TASK-009 共同消费的分析输入、结构化完成/跳过结果、配置、�
 - `pyproject.toml`
 - `uv.lock`
 - `handoffs/TASK-008A.md`
+- `src/youtube_intel/resources/o200k_base.tiktoken`
 
 若上述文件不足以冻结契约，必须报告 `DECISION NEEDED`，不得自行修改 `state.py`、
 Schema、Provider、编排或其他任务文件。
@@ -114,13 +156,16 @@ Schema、Provider、编排或其他任务文件。
 ## 复用决定
 
 - `DIRECT`：已批准官方 `openai>=2.46.0,<2.47`、
-  `tiktoken>=0.13.0,<0.14`；只可在本任务正式分配后执行安装、下载和锁定。
+  `tiktoken>=0.13.0,<0.14`；依赖已锁定，Correction 1 不新增或升级依赖。
+- `DIRECT`：OpenAI 官方 `o200k_base.tiktoken` Blob；只允许一次无认证 GET、固定
+  SHA-256 和包内只读使用，许可证由 TASK-014 复核。
 - `DIRECT`：现有 Pydantic 配置/领域模型、Python 标准库时间/哈希/枚举能力。
 - `REJECT/DEFER`：自写 OpenAI HTTP 客户端、第二个云 Provider、token-count 云端
   预检、SDK 自动重试、真实 API/密钥，留给后续明确授权。
 
 ## 交付证据
 
-- ADR-008 A-01 至 A-15 追溯表。
+- ADR-008 A-01 至 A-17 追溯表。
 - 新增对象/配置的完整正反契约测试和未验证更新探针。
-- 依赖解析、许可证、导入、完整 Diff 和未触达真实资源声明。
+- 依赖解析、tokenizer 资源哈希/打包/无网络回退、SDK 隔离导入、许可证、完整 Diff
+  和未触达真实资源声明。

@@ -27,8 +27,9 @@
 | Python `json` / `html` / `unicodedata` / `hashlib` / `pathlib` / `tempfile` / `os` / `re` | `DIRECT` | JSON3/VTT/SRT 解析、NFC 规范化、哈希与原子文件处理 | TASK-005 | 按 ADR-006 的格式、质量、路径和日志边界实现；不新增解析依赖 |
 | `mlx-whisper>=0.4.3,<0.5` | `DIRECT-PENDING` | Apple Silicon 本地转写 | TASK-006 | PyPI 0.4.3、MIT、Python >=3.8；含 MLX/torch 等传递依赖，安装与锁定仍须任务级批准 |
 | Ollama `>=0.32.1,<0.33` HTTP API | `DIRECT-PENDING` | 本地评分 | TASK-007 | MIT；只允许 loopback 标准库 HTTP、固定模型 digest、无自动拉取；安装/服务/模型另批 |
-| `openai>=2.46.0,<2.47` | `DIRECT` | Responses Structured Outputs | TASK-008A/008 | Apache-2.0；依赖动作已批但须固定任务包；默认关闭，密钥和真实调用另批 |
-| `tiktoken>=0.13.0,<0.14` | `DIRECT` | 本地 token 采样与保守预算 | TASK-008A/008 | MIT；依赖动作已批，只用显式 model/encoding 映射，不调用云端计数 |
+| `openai>=2.46.0,<2.47` | `DIRECT` | Responses Structured Outputs | TASK-008A/008 | Apache-2.0；依赖动作已批但须固定任务包；禁止主进程导入，密钥和真实调用另批 |
+| `tiktoken>=0.13.0,<0.14` | `DIRECT` | 本地 token 采样与保守预算 | TASK-008A/008 | MIT；显式 model/encoding 映射；`o200k_base` 只读固定包内资源，不调用云端计数或网络回退 |
+| OpenAI 官方 `o200k_base.tiktoken` Blob | `DIRECT` | `o200k_base` rank 表；固定 SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` | TASK-008A Correction 1 单次下载并提交；运行时包内只读 | 文件级分发许可边界留 TASK-014；哈希/缺失失败关闭，不使用 tiktoken HTTP cache fallback |
 | `Jinja2>=3.1.6,<3.2` | `DIRECT` | 固定 Markdown 模板 | TASK-009A/009/011 | BSD-3-Clause；依赖动作已批，使用不可变 sandbox/StrictUndefined，无用户模板或任意 loader |
 
 ## 3. 附件候选评估
@@ -124,8 +125,9 @@ Implementer 仍须重新核实版本、许可证和维护状态，Reviewer 独�
 
 | 组件 | 推荐等级 | 已核实证据 | 冻结建议/剩余门禁 |
 |---|---|---|---|
-| `openai>=2.46.0,<2.47` | `DIRECT` | PyPI 2.46.0（2026-07-17）、Apache-2.0、Python >=3.9；官方 SDK 以 Responses 为主 API，支持 Structured Outputs | TASK-008A 显式锁定；TASK-008 使用 `store=False`、`max_retries=0`、无 tools/stream/custom endpoint；真实密钥/API 另批 |
+| `openai>=2.46.0,<2.47` | `DIRECT` | PyPI 2.46.0（2026-07-17）、Apache-2.0、Python >=3.9；官方 SDK 以 Responses 为主 API，支持 Structured Outputs；2.46.0 顶层导入会读取 OpenAI/Azure 环境变量 | TASK-008A 显式锁定；TASK-008 禁止主进程导入，只可在清空/白名单化环境的隔离子进程导入，导入后由匿名管道接收密钥；真实密钥/API 另批 |
 | `tiktoken>=0.13.0,<0.14` | `DIRECT` | PyPI 0.13.0（2026-05-15）、MIT、Python >=3.9，提供 CPython 3.12 macOS arm64 wheel；当前已由 mlx-whisper 传递锁定 | TASK-008A 提升为直接依赖；只做本地 28k 保守计数和显式 encoding 映射，未知模型失败关闭 |
+| OpenAI 官方 `o200k_base.tiktoken` | `DIRECT` | 官方 Blob URL；tiktoken 0.13.0 映射的 expected hash 为 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` | Correction 1 只允许单次 GET 后按哈希提交到包内资源；运行时必须用本地路径和 expected hash，空 cache/断网也不得触发下载；文件级分发许可由 TASK-014 最终裁决 |
 | `Jinja2>=3.1.6,<3.2` | `DIRECT` | PyPI 3.1.6、BSD-3-Clause、Python >=3.7；当前已由 torch 传递锁定 | TASK-009A 提升为直接依赖；只加载固定包内模板，使用 `ImmutableSandboxedEnvironment` + `StrictUndefined`；sandbox 不用于执行用户模板 |
 | OpenAI `/v1/responses/input_tokens` | `REJECT` 默认路径 | 官方提供精确请求 token 计数 | 计数本身会发送最小化字幕 payload 并消耗调用/隐私预算；V1 默认改用本地保守计数 |
 | 手写 OpenAI HTTP / 手写 Markdown 模板 | `REJECT` | 官方 SDK/Jinja2 已覆盖通用协议和模板能力 | 项目只实现隐私、预算、领域、路径、原子写和恢复控制面 |
@@ -138,5 +140,11 @@ Implementer 仍须重新核实版本、许可证和维护状态，Reviewer 独�
   <https://platform.openai.com/docs/guides/structured-outputs>
 - OpenAI SDK：<https://pypi.org/project/openai/>
 - tiktoken：<https://pypi.org/project/tiktoken/>
+- OpenAI 官方 `o200k_base` Blob：
+  <https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken>
+- tiktoken 0.13.0 官方 encoding 映射：
+  <https://github.com/openai/tiktoken/blob/0.13.0/tiktoken_ext/openai_public.py>
+- OpenAI Python 2.46.0 顶层导入：
+  <https://github.com/openai/openai-python/blob/v2.46.0/src/openai/__init__.py>
 - Jinja sandbox：<https://jinja.palletsprojects.com/en/stable/sandbox/>
 - Jinja2：<https://pypi.org/project/Jinja2/>

@@ -20,8 +20,8 @@
 
 ### ADR-008/ADR-009：云分析与 Obsidian 笔记契约
 
-- 批准日期：2026-07-20
-- 批准范围：ADR-008 A-01 至 A-15、ADR-009 N-01 至 N-15；先顺序完成
+- 批准日期：2026-07-20；ADR-008 补充批准日期：2026-07-21
+- 批准范围：ADR-008 A-01 至 A-17、ADR-009 N-01 至 N-15；先顺序完成
   `TASK-008A -> TASK-009A`，再从同一最新 main 并行实现 TASK-008/TASK-009。
 - TASK-008A 依赖授权：`openai>=2.46.0,<2.47`、
   `tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包下载、
@@ -39,6 +39,19 @@
 - TASK-008A 可在该固定 worktree 内解析、下载、锁定并安装已批准的 OpenAI SDK、
   tiktoken 和必要传递依赖，执行任务卡离线门禁；不得实现 Provider、读取密钥、
   调用 API 或修改 Schema、migration、`state.py`、`complete_stage`。
+- 2026-07-21 补充批准 A-16/A-17：TASK-008A Correction 1 可从 OpenAI 官方 Blob
+  单次下载并提交固定 SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` 的
+  `src/youtube_intel/resources/o200k_base.tiktoken`。运行时只能读取该包内资源，
+  缺失或哈希不符必须失败关闭，禁止网络回退；其分发许可证由 TASK-014 最终复核。
+- OpenAI SDK 不得在主进程导入。TASK-008 必须在不继承父进程环境、只含固定非敏感
+  Python 启动变量的独立子进程完成 SDK 导入；导入完成后，密钥只能经匿名管道传入，
+  不进入环境变量、命令行、文件、异常或日志。TASK-008A 只冻结并离线验证该策略，
+  不实现 Provider 或真实调用。
+- TASK-008A 第一轮独立 Reviewer evidence
+  `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd` 为 `REJECT`，共 6 个 P1。
+  产品负责人批准原 Codex Implementer 在原 7 路径加上述固定资源文件的范围内执行
+  Correction 1；除固定 BPE 资源 GET 外不得新增网络、API、密钥或云端操作。
 - 继续未授权：真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count、
   真实 Vault/用户笔记、最终文件删除/移动/重命名及其他真实资源路径。
 - 原始决定见 `docs/decisions/ADR-008-cloud-analysis-contract.md` 和

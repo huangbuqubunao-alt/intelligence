@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.5
+- 版本：V1.6
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
@@ -401,7 +401,7 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 
 ### 11.2 云端分析
 
-云端分析按 ADR-008 A-01 至 A-15 执行。固定副作用顺序是：验证高价值与上游
+云端分析按 ADR-008 A-01 至 A-17 执行。固定副作用顺序是：验证高价值与上游
 provenance、处理关闭、本地采样/token 预算、缓存、run 预算，最后才解析密钥并预留
 Provider call。
 
@@ -415,10 +415,25 @@ Provider call。
 framing 预留 2,000；实际 Provider 硬上限 30,000。V1 不调用云端
 `/v1/responses/input_tokens`。
 
+`o200k_base` 的 rank 表只能读取包内
+`youtube_intel/resources/o200k_base.tiktoken`，固定 SHA-256 为
+`446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。资源缺失、
+内容哈希不匹配或无法解析均必须在任何云端副作用前失败关闭；禁止使用 tiktoken
+内置的 HTTP 下载或任意缓存/网络回退。该资源的分发许可证结论由 TASK-014 发布门禁
+最终确认。
+
 官方 OpenAI Responses Adapter 固定 `store=False`、`max_retries=0`、
 `truncation="disabled"`、无 tools/stream/custom base URL、120 秒 timeout，不发送
 temperature，输出默认 4,000 tokens（范围 `256..8,000`）。Structured Outputs
 失败不做格式修复调用；每视频最多一次推理请求，单 run 最多 5 次真实出站请求。
+
+OpenAI SDK 禁止在主进程导入。TASK-008 的 Adapter 必须通过绝对 Python executable
+启动独立子进程；子进程环境不得复制父环境，只允许以固定字面量构造
+`PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1`。禁止传入
+`OPENAI_*`、`AZURE_*`、代理变量、`PYTHONPATH` 或任何 `*_TOKEN`、`*_KEY`、
+`*_SECRET`、`*_PASSWORD`。子进程先完成 SDK 导入并通过非敏感握手确认，再由父进程
+通过专用匿名管道传入临时密钥；密钥不得进入环境变量、argv、文件、Pydantic 对象、
+异常、诊断或日志。子进程退出后必须关闭管道并丢弃临时值。
 
 原始响应使用 `ANALYSIS_RAW/RAW_RESPONSE_30D`，结构化结果使用
 `ANALYSIS_STRUCTURED/LONG_LIVED`。成功路径复用现有 `complete_stage` 原子完成
@@ -588,9 +603,11 @@ launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、�
 ## 18. 已批准基线与仍需任务级审批的事项
 
 产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和
-ADR-002 至 ADR-009，均已批准。ADR-008/ADR-009 已批准 TASK-008A/TASK-009A 的
+ADR-002 至 ADR-009，均已批准。ADR-008 A-01 至 A-17、ADR-009 N-01 至 N-15 已
+批准 TASK-008A/TASK-009A 的
 三项精确直接依赖、必要传递依赖、网络包下载、锁文件和离线命令；执行仍须固定
-worktree/角色/文件范围。以下继续单独授权：真实密钥或付费云调用、云端 token-count
-请求、真实 YouTube/字幕、Cookie/账号登录、remote components、ffmpeg、媒体下载、
-写入真实 Vault、最终 Vault 文件删除/移动、加载 launchd，以及任何超出 V1 白名单
-的改变。
+worktree/角色/文件范围。TASK-008A Correction 1 另获一次 OpenAI 官方
+`o200k_base.tiktoken` Blob 下载和固定资源提交授权，不构成一般网络授权。以下继续
+单独授权：真实密钥或付费云调用、云端 token-count 请求、真实 YouTube/字幕、
+Cookie/账号登录、remote components、ffmpeg、媒体下载、写入真实 Vault、最终 Vault
+文件删除/移动、加载 launchd，以及任何超出 V1 白名单的改变。

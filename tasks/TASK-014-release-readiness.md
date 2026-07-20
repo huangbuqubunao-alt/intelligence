@@ -38,6 +38,12 @@
   Apache-2.0、tiktoken MIT、Jinja2 BSD-3-Clause、MarkupSafe 及 OpenAI SDK 传递
   依赖；确认云端默认关闭、无真实密钥/响应进入发布物，固定 Jinja 模板不包含用户
   Vault 内容。
+- [ ] 单独复核包内 `o200k_base.tiktoken` 的文件级来源、固定 SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`、分发许可和
+  NOTICE/归属要求；未形成书面结论前，不得把该资源纳入二进制或捆绑分发物。
+- [ ] 复核正式 TASK-008 未在主进程导入 OpenAI SDK；隔离子进程环境为新建白名单且
+  不继承 OpenAI/Azure/代理/凭据变量，密钥只在 SDK 导入握手后经匿名管道传入，并在
+  异常、argv、文件、日志和进程退出路径中保持不可见。
 - [ ] 四类 Reviewer 完成清单并给出 Go；任一红线项不满足则明确 No-Go，不得标记 V1 完成。
 
 ## 验证
@@ -63,5 +69,6 @@
 - TASK-001 P2（未锚定 `data/`、`logs/`）的最终复核与处置记录。
 - `yt-dlp` 全部直接/传递依赖的许可证证据、`mutagen` 分发处置与最终 Go/No-Go 结论。
 - ADR-007 模型、ffmpeg、Ollama 与模型权重的来源/许可证/授权证据及最终处置。
-- ADR-008/ADR-009 的 OpenAI/tiktoken/Jinja2/MarkupSafe 依赖清单、云端隐私门禁和
-  模板/Vault 分发边界。
+- ADR-008/ADR-009 的 OpenAI/tiktoken/Jinja2/MarkupSafe 依赖清单、固定
+  `o200k_base.tiktoken` 资源许可与哈希证据、SDK 隔离导入/匿名管道密钥门禁、云端
+  隐私门禁和模板/Vault 分发边界。
