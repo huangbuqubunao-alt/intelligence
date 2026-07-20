@@ -625,3 +625,144 @@
 - 保留既有 at-most-once 限制：unlink 成功后最终 `mark_artifact_deleted()` CAS 可能竞争失败，
   因而仍返回 `INDEX_CONFLICT` 且文件已删除；本 correction 未引入 reservation 或严格
   exactly-once 声明。
+
+---
+
+## Correction 3 — 第四次独立 Codex Reviewer 审查证据（2026-07-20）
+
+### 审查身份、授权与范围
+
+- Reviewer：全新独立 Codex Reviewer；未实现 TASK-006，也未参与前三次审查。
+- 固定基线为 `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。审查 source 是
+  `codex/task-006-local-transcription@548338978b8656db0c650be276f847850af940a1`；唯一父提交精确为
+  `66f0b31023c290d76e2c14bea72d1cc103cc27c7`。审查开始及写入本节前，source worktree 均干净。
+- 主仓动态授权：`git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H --
+  agent-prompts/TASK-006-REVIEWER-4-CODEX.md` 解析为
+  `3a6d0c38b0869622581e4f763371147c6c30d2d9`。该提交中的 `docs/PROJECT_STATUS.md` 明确将此精确
+  source 列为第四次独立审查，TASK-006 状态为 `IN_REVIEW`。
+- 完整 `6b4d59c...5483389...` 范围精确为 8 个初始批准路径：本报告、`pyproject.toml`、`uv.lock`、
+  两个产品模块、两个既有测试和合成音频 README。Correction 3 相对其唯一父提交精确为 5 个授权
+  路径：本报告、`transcription.py`、两份既有测试以及 `providers/whisper.py`。
+- Provider correction-only Diff 只有一行：既有 `build_transcription_cache_key()` 调用点传入
+  `language_hint=self._decode_policy.language_hint`。没有新增公共 Adapter 方法参数、策略规范化、
+  executor 行为、Repository/Schema/state、依赖或锁文件改动。`pyproject.toml` 与 `uv.lock` 相对
+  Correction 3 父提交的 Diff 为零。
+
+### 必需离线复跑与包检查
+
+| 命令/检查 | 独立结果 |
+|---|---|
+| `uv lock --check` | PASS — `Resolved 80 packages`。 |
+| `uv sync --locked --offline` | PASS — `Resolved 80 packages`，`Checked 57 packages`；没有 cache miss 或下载。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS — 11 passed。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS — 12 passed。 |
+| `uv run python -m pytest` | PASS — 274 passed。 |
+| `uv run mypy src` | PASS — 11 source files 无问题。 |
+| `uv run ruff check .` | PASS — `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS — CLI 帮助正常输出。 |
+| `uv build --offline` | PASS — 生成 `youtube_intel-0.1.0.tar.gz` 与 `youtube_intel-0.1.0-py3-none-any.whl`。 |
+| 生成包人工检查 | PASS — `tar -tzf` 与 `unzip -l` 均列出 `youtube_intel/migrations/001_initial.sql`。 |
+| `git diff --check 6b4d59c...5483389...` | PASS — 无空白错误。 |
+
+所有 uv 命令严格离线；执行环境需要读取既有 uv cache，未触发网络下载或依赖解析写入。
+
+### 独立探针
+
+#### 1. 语言提示缓存身份与 hard-to-omit API
+
+- 在系统临时目录以合成字节和共享 `InMemoryTranscriptionCache` 构造三个 Fake-only Adapter：
+  `language_hint=None`、`"en"` 与 `"zh"`。三次首次请求均 miss，产生三个不同 key 和对应
+  `synthetic-none` / `synthetic-en` / `synthetic-zh` 结果；各自第二次请求均 hit。Fake executor 调用
+  精确为 `[None, "en", "zh"]`，没有跨 hint 复用结果。
+- 直接调用 `build_transcription_cache_key()` 再次证明 `None`、`"en"`、`"zh"` 三个 stable JSON
+  hash 全异；相同 `"en"` 输入重复计算得到相同 key。
+- `inspect.signature()` 证明 `language_hint` 是无 default 的 `KEYWORD_ONLY` 参数；源码确认其位于
+  `sort_keys=True`、紧凑 deterministic JSON body 中。`MlxWhisperAdapter.__init__` 与 `.transcribe`
+  的公开参数面未出现新的 `language_hint` 参数。
+- 复核原有策略语义：默认值仍为 `None`；空串与纯空白字符串仍抛出 `ValueError`；非空的
+  `" en "` 仍原样保留，未引入无授权的规范化。executor 接收既有、冻结的
+  `WhisperDecodePolicy` 对象。
+
+#### 2. Provider 离线与边界探针
+
+- AST/import 探针确认 `providers/whisper.py` 不导入 `mlx_whisper`、`subprocess`、`urllib`、`http`、
+  `requests`、`socket` 或 `huggingface_hub`，源码也不含 ffmpeg 路径。该 Adapter 只能使用注入的
+  Fake executor；没有模型加载/下载、媒体读取、网络、子进程或 ffmpeg 行为。
+- 复查 focused integration tests 与源码：资源/时长决策在 executor 前拒绝；Fake `TimeoutError`、
+  `MemoryError`/`OSError`、`ValueError` 和未知异常仍映射为既有安全错误；空或畸形响应仍为
+  `INVALID_RESPONSE`，错误消息不披露临时绝对路径或 Fake 文本。
+
+#### 3. 统一清理结果与回归矩阵
+
+- 临时真实 `SQLiteStateRepository` + 临时 DATA 根验证：wrong kind、non-DATA root、wrong retention
+  和 already-deleted input 都在物理删除前返回无路径的 `INDEX_CONFLICT`。已登记 DATA 音频、外部
+  合成目标和 index `deleted_at` 均保持不变。
+- 真实 SQLite 分别验证 unknown、missing、stale、hash mismatch、末端 symlink、合法删除和最终
+  post-unlink CAS race。unknown/stale 为 `INDEX_CONFLICT` 且保留音频；missing 为 `MISSING`；
+  hash mismatch 为 `HASH_MISMATCH`；symlink 保留链接和根外目标；合法路径为 `DELETED` 并写入
+  `deleted_at`；race 在已 unlink 且真实 inner CAS 已写入时返回 `INDEX_CONFLICT`，保留已批准的
+  at-most-once 语义。
+- Fake repository 补足 SQLite 拒绝持久化的恶意索引快照：绝对路径、`..` 逃逸和中间目录 symlink
+  DATA-root escape 都为 `INDEX_CONFLICT`，不调用 delete CAS，且外部合成文件保持存在。
+- 该矩阵同时复核顺序仍是：资格/read-register 验证 → 相对路径与 DATA 边界 → 流式 1 MiB SHA-256
+  验证 → unlink → 既有 index-only CAS；未引入 reservation、Schema、claim 或 exactly-once 主张。
+
+### AC / ADR-007 边界矩阵
+
+| 项目 | 结果 | 独立证据 |
+|---|---|---|
+| 阶段 A：离线短音频、资源与 timeout 可观察 | PASS | 合成字节/Fake executor、focused tests 和全量 suite；没有解码或推理。 |
+| 阶段 A：音频/模型/revision/参数/语言提示缓存身份 | PASS | 三 hint shared-cache probe、required keyword-only API probe、focused 11/12 tests。 |
+| 阶段 A：成功、失败、超长的音频保留/清理 | PASS | Fake + 临时真实 SQLite 矩阵、hash/path/root/CAS 反例及有效删除。 |
+| L-01 / L-02 | PASS | 共享契约基线已存在；本 correction 只在已批准 Phase A Adapter/策略范围内，未改共享契约、Schema 或迁移。 |
+| L-03 至 L-09 | N/A，未回归 | 评分/Ollama 契约不在 TASK-006 范围，完整与 correction Diff 均未触及。 |
+| L-10 | PASS | 已锁定依赖未在 correction 改动；冻结 `language_hint` 已加入唯一缓存身份且无自由 kwargs。 |
+| L-11 | PASS | 无模型 import、加载或下载；运行时无隐式联网路径。 |
+| L-12 | PASS | 无 yt-dlp 媒体、Cookie、remote components、ffmpeg 或网络访问。 |
+| L-13 | PASS | 时长/资源仍是纯策略，executor 前拒绝，未改变 Pipeline 状态。 |
+| L-14 | PASS | 只对 DATA 下已登记、hash 匹配的音频执行；所有不安全/不合格预检统一 fail closed。 |
+| L-15 | PASS（阶段 A） | 未运行真实模型或 multiprocessing；所有真实资源阶段继续独立门禁。 |
+
+### 五轴审查
+
+- Correctness：Correction 3 关闭了前轮两个 P1。独立 key/API/shared-cache probe 阻止跨语言误命中；
+  real/Fake cleanup matrix 证明错 kind/root/retention 与 stale/escape 均在删除前 fail closed。最终
+  CAS 窗口按冻结 at-most-once 语义仍被诚实报告。
+- Readability：缓存键通过具名 keyword-only 维度和稳定 JSON 显示其身份；清理分支顺序明确，测试名
+  覆盖每类安全边界。没有死代码、兼容 shim 或无关重构。
+- Architecture：仅在唯一 Provider cache-key call site 衔接既有 `WhisperDecodePolicy`；继续使用
+  `get_artifact_by_key` 和 post-delete `mark_artifact_deleted`，没有让 Adapter 拥有 Repository、
+  状态、模型或文件系统外部语义。
+- Security / privacy：语言参数、Artifact register、根边界和哈希均在边界验证；错误返回为枚举而不
+  披露路径或内容。完整 Diff 的 private-key、AWS、GitHub、OpenAI 与 Slack-token 模式扫描无命中。
+- Performance / resources：缓存键为常数大小 JSON/SHA-256；清理哈希为 1 MiB 流式读取；没有 N+1、
+  无界集合、模型热路径或新增同步网络操作。
+
+### 范围、红线、复用与许可证复核
+
+- Scope：完整 8 路径和 correction-only 5 路径均精确符合授权；`providers/whisper.py` 确认只有
+  一行授权调用点变更。没有改变 `state.py`、Schema/migration、task status、main、source history、
+  配置、生产依赖或 lockfile（Correction 3）。
+- Red lines：未删除/跳过/弱化测试；未触及 `.env`、credentials、真实 Vault、付费服务、真实媒体、
+  模型或系统工具；未 merge、push、reset 或 clean。审查仅写入本报告。
+- Reuse：Correction 3 为 `DIRECT` 复用已有 `WhisperDecodePolicy`、transcription cache、SQLite
+  Artifact API 和 Python 标准库；未复制外部代码或引入新依赖。初始 TASK-006 的
+  `mlx-whisper==0.4.3`/MIT、其传递依赖与模型许可证仍按既有登记维持：模型未下载，转换模型
+  license 风险继续 deferred 至后续获批资源/许可证工作。
+
+### 刻意跳过的未授权路径
+
+- 未下载、导入、加载或调用任何 Whisper 模型/权重；未调用 `mlx_whisper.transcribe`、ffmpeg、
+  multiprocessing 终止、媒体/YouTube、网络、Cookie/登录、remote components、Vault 或凭据。
+- 未运行真实转录、真实资源/性能冒烟或任何非 TASK-006 工作树命令。独立探针只使用系统临时目录的
+  合成字节、SQLite、DATA 根、symlink 和外部临时目标；没有读取或删除真实文件。
+
+### Findings（P0–P3）与结论
+
+- P0：无。
+- P1：无。
+- P2：无。
+- P3：无。
+- 未解决 P0/P1：无。
+- `DECISION NEEDED`：None。
+- Verdict：**APPROVE**。
