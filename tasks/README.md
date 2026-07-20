@@ -23,8 +23,9 @@ TASK-006/TASK-007 已分别以 merge commit `fd9a074...`、`3d49ec...` 整合并
 `DONE`。TASK-008/TASK-009 两个只读 Scout 已在 `main@bb9c6b7...` 完成且仓库无
 变化；两项均判定 `DECISION NEEDED`。产品负责人已于 2026-07-20 批准 ADR-008
 A-01 至 A-15、ADR-009 N-01 至 N-15 和三项精确依赖范围。TASK-008A 的依赖与资源
-门禁已满足，进入 `READY/UNASSIGNED`；TASK-009A 继续等待 TASK-008A `DONE`，正式
-TASK-008/TASK-009 继续等待两个共享任务。
+门禁已满足，现已从 `main@82d1fd7...` 分配到独立 Codex worktree，状态为
+`IN_PROGRESS`；TASK-009A 继续等待 TASK-008A `DONE`，正式 TASK-008/TASK-009
+继续等待两个共享任务。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
@@ -52,7 +53,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 已整合并关闭；merge `fd9a074...` | DONE | 005A；模型/ffmpeg/媒体另批 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 已整合并关闭；merge `3d49ec...` | DONE | 005A；Ollama/模型另批 |
-| [TASK-008A](TASK-008A-cloud-analysis-shared-contracts.md) | 云分析共享契约与依赖基线 | Codex Implementer/Reviewer 待分配 | READY | 007；ADR/依赖已批准 |
+| [TASK-008A](TASK-008A-cloud-analysis-shared-contracts.md) | 云分析共享契约与依赖基线 | Codex Implementer；独立 Codex Reviewer 等待实现 commit | IN_PROGRESS | 007；ADR/依赖已批准 |
 | [TASK-009A](TASK-009A-obsidian-note-shared-contracts.md) | Obsidian 共享契约与依赖基线 | Codex Implementer/Reviewer 待分配 | BLOCKED | 008A；ADR/依赖已批准 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Scout 已完成；Implementer/Reviewer 未分配 | BLOCKED | 008A, 009A；真实云另批 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Scout 已完成；Implementer/Reviewer 未分配 | BLOCKED | 009A；真实 Vault 另批 |

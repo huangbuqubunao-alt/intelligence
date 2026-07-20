@@ -30,6 +30,15 @@
   `pyproject.toml`/`uv.lock` 修改和任务卡离线 uv 验证/构建。
 - 依赖动作只可在后续固定 base/worktree/角色/文件范围的共享任务分配包内执行；
   TASK-008A 先进入 `READY/UNASSIGNED`，TASK-009A 等待其 `DONE`。
+- 2026-07-20 TASK-008A 正式分配：从
+  `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2` 创建
+  `/Users/hua/Documents/yia-worktrees/task-008a`，分支
+  `codex/task-008a-cloud-analysis-shared-contracts`；Codex 为唯一 Implementer，
+  完成后由全新独立 Codex Reviewer 审查。完整产品 Diff 只允许任务卡列出的 7 个
+  路径。
+- TASK-008A 可在该固定 worktree 内解析、下载、锁定并安装已批准的 OpenAI SDK、
+  tiktoken 和必要传递依赖，执行任务卡离线门禁；不得实现 Provider、读取密钥、
+  调用 API 或修改 Schema、migration、`state.py`、`complete_stage`。
 - 继续未授权：真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count、
   真实 Vault/用户笔记、最终文件删除/移动/重命名及其他真实资源路径。
 - 原始决定见 `docs/decisions/ADR-008-cloud-analysis-contract.md` 和

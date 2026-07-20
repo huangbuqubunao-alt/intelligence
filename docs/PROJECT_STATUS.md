@@ -1,15 +1,17 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-20
-- 当前阶段：Phase 2 — ADR-008/ADR-009 已接受；TASK-008A 等待正式分配
+- 当前阶段：Phase 2 — TASK-008A 云分析共享契约实施中
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：无产品代码写入目标；TASK-005/TASK-005A/TASK-006/TASK-007 worktree
-  均只保留为审计证据
-- 活动任务：TASK-008A=`READY/UNASSIGNED`，等待固定 worktree/角色/文件范围分配；
-  TASK-009A=`BLOCKED/UNASSIGNED`，等待 TASK-008A `DONE`。正式 TASK-008/TASK-009
-  继续等待两个共享任务，不得提前实现。
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008a`，
+  `codex/task-008a-cloud-analysis-shared-contracts`，由 Codex Implementer 独占；
+  历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
+- 活动任务：TASK-008A=`IN_PROGRESS/Codex`，固定 base 为
+  `82d1fd7c7f2f82e77df0518e63755bad0bf240f2`；全新独立 Codex Reviewer 等待实现
+  commit。TASK-009A=`BLOCKED/UNASSIGNED`，等待 TASK-008A `DONE`；正式
+  TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -42,17 +44,18 @@
 - TASK-006 仅获 `mlx-whisper` 包/锁定与离线实现授权；Whisper 模型下载/加载、ffmpeg、
   媒体/YouTube 下载和真实转写冒烟仍未授权。TASK-007 仅获离线 Fake/标准库实现授权；
   Ollama 安装/启动、`qwen3:8b` 拉取和真实模型调用仍未授权。
-- TASK-008A 尚未获得固定 base/worktree/角色/文件范围分配；TASK-009A 还依赖
-  TASK-008A `DONE`，两项依赖动作不得在 main 或未分配 worktree 提前执行。
+- TASK-008A 已获固定 base/worktree/角色/7 路径分配；其真实 OpenAI、密钥、付费
+  调用和云端 token-count 仍禁止。TASK-009A 还依赖 TASK-008A `DONE`，不得提前创建
+  写入 worktree 或修改共享契约/锁文件。
 - TASK-008 真实密钥/付费云调用和 TASK-009 真实 Vault/用户笔记始终是后续独立
   门禁，不由 ADR 或共享任务隐含授权。
 
 ## 下一步
 
-1. 从本次接受同步后的 main 创建 TASK-008A 独立 worktree/分支，分配 Codex
-   Implementer 与全新独立 Codex Reviewer。
-2. TASK-008A `DONE` 后分配 TASK-009A；两项均 `DONE` 后，再从同一最新 main 并行
-   分配正式 TASK-008/TASK-009。
+1. Codex Implementer 在固定 TASK-008A worktree 完成 7 路径离线实现、依赖锁定、
+   交接与 commit；主控核验后再启动全新独立 Codex Reviewer。
+2. TASK-008A 审查、验收、整合并关闭为 `DONE` 后分配 TASK-009A；两项均 `DONE`
+   后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -74,7 +77,7 @@
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
-| 立即下一步 | TASK-008A assignment | ADR/依赖已批；等待固定 worktree、Codex Implementer/Reviewer 与开工包 |
+| 立即启动 | TASK-008A Codex Implementer | 固定 worktree/分支/base/7 路径；Reviewer 等待实现 commit |
 | 等待上游 | TASK-009A assignment | ADR/Jinja2 已批；等待 TASK-008A `DONE` |
 | 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
@@ -188,6 +191,12 @@
   `tiktoken>=0.13.0,<0.14`；TASK-009A 在依赖满足且正式分配后可处理
   `Jinja2>=3.1.6,<3.2`。必要传递依赖、网络包下载、`pyproject.toml`/`uv.lock`
   和各卡离线命令已批准。
+- TASK-008A 已从
+  `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2` 分配到
+  `/Users/hua/Documents/yia-worktrees/task-008a` /
+  `codex/task-008a-cloud-analysis-shared-contracts`；Codex 为唯一 Implementer，
+  全新独立 Codex Reviewer 等待实现 commit。只允许任务卡 7 路径，不允许 Provider、
+  Schema/migration、`state.py`、`complete_stage` 或真实资源路径。
 - 真实 OpenAI API、密钥读取、付费调用、云端 token-count、真实 Vault/用户笔记和
   最终文件删除/移动/重命名继续未授权。
 

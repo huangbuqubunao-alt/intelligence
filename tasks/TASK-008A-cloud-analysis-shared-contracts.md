@@ -1,23 +1,33 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
-- Reviewer: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Reviewer: `全新独立 Codex，等待实现 commit`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
 - Depends on: TASK-007
 - Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准
 - Resource gate: `openai`/`tiktoken`、必要传递依赖、网络包下载、锁文件和本卡
-  离线命令已批准；仍待固定 base/worktree/角色/文件范围分配
+  离线命令已批准；固定实施分配已建立
+
+## 2026-07-20 正式分配
+
+- Base：`main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
+- Worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Branch：`codex/task-008a-cloud-analysis-shared-contracts`
+- Implementer：Codex；Reviewer：实现提交后启动全新独立 Codex 会话
+- 完整产品 Diff：只允许本卡“预计触达文件”的 7 个路径
+- 并行边界：TASK-009A、TASK-008、TASK-009 均继续 `BLOCKED/UNASSIGNED`；不得
+  并发修改 `domain.py`、`pyproject.toml` 或 `uv.lock`
 
 ## 2026-07-20 产品审批
 
 - 批准 `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包
   下载、`pyproject.toml`/`uv.lock` 修改和本卡列出的 uv 离线验证/构建。
-- 依赖 TASK-007 已为 `DONE`，因此本任务在控制面同步后为 `READY/UNASSIGNED`。
+- 依赖 TASK-007 已为 `DONE`；本任务已正式分配并进入 `IN_PROGRESS`。
 - 真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count 请求、真实 Vault/
-  用户内容继续未授权；正式实现仍须主控创建独立 worktree 并分配 Codex。
+  用户内容继续未授权。
 
 ## 目标
 
