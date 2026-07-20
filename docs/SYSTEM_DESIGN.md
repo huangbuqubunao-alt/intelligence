@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.4
+- 版本：V1.5
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
@@ -9,6 +9,8 @@
 - 复用策略：`docs/decisions/ADR-005-reuse-first-delivery-policy.md`
 - 字幕获取与缓存契约：`docs/decisions/ADR-006-subtitle-acquisition-contract.md`
 - 本地模型与共享契约：`docs/decisions/ADR-007-local-model-pipeline-contracts.md`
+- 云分析契约：`docs/decisions/ADR-008-cloud-analysis-contract.md`
+- Obsidian 笔记契约：`docs/decisions/ADR-009-obsidian-note-contract.md`
 
 ## 1. 设计目标
 
@@ -195,9 +197,24 @@ Provider 调用元数据属于 `TranscriptReady.call` / `TranscriptionRequired.c
 | `keywords` | `1..20` 个去重字符串，每项长度 `1..80` |
 | `evidence` | `EvidenceExcerpt`，`0..20` 项 |
 
-另有必需元数据：`schema_version`、`provider`、`model`、`prompt_version`、`request_hash`。
+Provider-neutral `AnalysisContent` 只包含上述业务字段；模型不能生成
+`provider`、`model`、`prompt_version`、`request_hash` 或调用元数据。Adapter 严格
+校验内容后，使用本地可信上下文封装带必需审计元数据的 `AnalysisResult`。
 
-`AnalysisPoint` 包含 `text`、`kind` 和 `evidence_ids`：`text` 长度为 `1..2000`，`kind` 只能为 `fact | inference | recommendation`，`evidence_ids` 最多 10 个且必须引用同一结果中存在的证据。`EvidenceExcerpt` 包含唯一稳定 `evidence_id`、`source`、长度 `1..2000` 的 `excerpt`，以及可选的 `start_seconds`、`end_seconds`。`source` 只能为 `metadata | transcript`，时间范围必须非负且结束时间不早于开始时间。没有可定位时间的输入允许省略时间，但不得捏造。
+`AnalysisPoint` 包含 `text`、`kind` 和 `evidence_ids`：`text` 长度为 `1..2000`，
+`kind` 只能为 `fact | inference | recommendation`，每个 Point 至少一个、
+最多 10 个证据引用。证据来源精确到标题、频道、描述或 transcript sample，excerpt
+必须是对应最小化输入的精确子串。V1 尚无规范文本到时间戳的稳定映射，
+`start_seconds`/`end_seconds` 必须为空。
+
+分析阶段返回不可变 `AnalysisOutcome`：
+
+- `AnalysisCompleted(result, call)`；
+- `AnalysisSkipped(reason, call | None, safe_message)`。
+
+跳过原因固定为 `CLOUD_DISABLED`、`CREDENTIAL_UNAVAILABLE`、
+`BUDGET_EXHAUSTED`、`INPUT_TOO_LARGE`、`PROVIDER_REFUSAL`；它们是业务结果，不
+扩展 ADR-002 的八个 ErrorCode。
 
 ## 7. 三层状态模型
 
@@ -243,7 +260,9 @@ METADATA_READY 且时长超过 180 分钟（无 --force）
 | `NOTE_WRITTEN` | `COMPLETE` |
 | `COMPLETE`、`SKIPPED_DURATION_LIMIT` | 无；新 Pipeline 版本或显式强制重跑创建新 Job，不篡改历史 |
 
-`ANALYSIS_READY` 表示分析阶段已经按策略完成：可以有有效 `AnalysisResult`，也可以因云端关闭、预算/隐私策略不允许而形成结构化跳过结果。后者必须记录跳过原因，并允许 `TASK-009` 在 `analysis=None` 时继续高价值笔记路径，不能把“未调用云端”伪装成云分析成功。
+`ANALYSIS_READY` 表示分析阶段已经按策略完成：可以是 `AnalysisCompleted`，也可以
+是 `AnalysisSkipped`。后者必须记录精确跳过原因，并允许 TASK-009 继续高价值笔记
+路径，不能把“未调用云端”伪装成云分析成功。
 
 ### 7.2 Job 转换与恢复
 
@@ -382,14 +401,28 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 
 ### 11.2 云端分析
 
-只有同时满足以下条件才调用：
+云端分析按 ADR-008 A-01 至 A-15 执行。固定副作用顺序是：验证高价值与上游
+provenance、处理关闭、本地采样/token 预算、缓存、run 预算，最后才解析密钥并预留
+Provider call。
 
-1. OpenAI Provider 显式启用；默认关闭。
-2. 分数达到配置阈值。
-3. 隐私/长度策略允许当前输入。
-4. 本次运行不超过 5 次云调用，单视频发送不超过 30,000 输入 token。
+实际出站只能序列化 `AnalysisPayload`：video_id、标题、频道名、发布时间、时长、
+默认语言、最多 4,000 字符公开描述、字幕/输出语言和
+`cloud-token-sampling-v1` 样本。禁止发送路径、Vault/用户内容、内部 ID/哈希、
+诊断、评分维度、密钥名或自由 metadata。
 
-输入只来自公开视频元数据和规范字幕，不包含 Obsidian 内容。短文本完整发送，超限文本按开头/正文/结尾采样。原始响应写入受控缓存，日志只记录路径、哈希和用量；模型名称不写死在核心代码中。
+本地 `tiktoken` 只支持显式 model-to-encoding 映射，使用同一个纯请求构造函数计算
+固定 instructions、Schema 和 payload。发送上限 28,000 tokens，为 Responses
+framing 预留 2,000；实际 Provider 硬上限 30,000。V1 不调用云端
+`/v1/responses/input_tokens`。
+
+官方 OpenAI Responses Adapter 固定 `store=False`、`max_retries=0`、
+`truncation="disabled"`、无 tools/stream/custom base URL、120 秒 timeout，不发送
+temperature，输出默认 4,000 tokens（范围 `256..8,000`）。Structured Outputs
+失败不做格式修复调用；每视频最多一次推理请求，单 run 最多 5 次真实出站请求。
+
+原始响应使用 `ANALYSIS_RAW/RAW_RESPONSE_30D`，结构化结果使用
+`ANALYSIS_STRUCTURED/LONG_LIVED`。成功路径复用现有 `complete_stage` 原子完成
+Artifact、Provider call、Pipeline 和 Job；关闭/缓存/超限/预算/缺凭据均零调用。
 
 ## 12. 错误分类与重试
 
@@ -398,7 +431,7 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `TRANSIENT_NETWORK` | 超时、临时连接失败 | 指数退避 + 抖动，最多 3 次 |
 | `RATE_LIMITED` | 429/服务限流 | 尊重 Retry-After 后重试 |
 | `PROVIDER_UNAVAILABLE` | Ollama 未启动、云服务 5xx | 重试；达到上限后终态 |
-| `INVALID_RESPONSE` | 模型 JSON 不合法 | 一次格式修复，再按可重试处理 |
+| `INVALID_RESPONSE` | 模型 JSON/Schema/语义不合法 | Ollama 评分最多一次格式修复；OpenAI Structured Outputs 不修复 |
 | `CONTENT_UNAVAILABLE` | 私有、删除、地区限制 | 直接终态，不重试 |
 | `CONFIG_INVALID` | 路径、阈值、Provider 配置错误 | 本次运行失败，处理前退出 |
 | `PERMISSION_DENIED` | Vault 不可写 | 不盲目重试，提示人工处理 |
@@ -427,9 +460,26 @@ logs/YYYY-MM-DD.jsonl
 - `data_dir`、`logs_dir`、`templates_dir` 必须是相对项目根目录的路径；项目根由应用启动时确定，不能取决于进程当前工作目录。
 - `vault_root` 必须是绝对路径；`vault_subdir` 必须是相对路径，且规范化后仍位于 `vault_root` 内。
 - 配置加载和每次写入前都重新解析最终目标并检查边界；`..`、绝对子路径和符号链接逃逸必须失败。
-- 笔记渲染使用外部模板。
-- 自动管理区可使用明确标记；`我的思考` 为用户区，upsert 时必须保留。
-- Dataview Frontmatter 值使用稳定类型和 ISO 时间。
+- 视频模板固定打包为 `src/youtube_intel/templates/video.md`，使用
+  `ImmutableSandboxedEnvironment`、`StrictUndefined`、无任意 loader/include/import/
+  globals，只传入预转义且设限的 primitive；不执行用户模板。
+- 视频路径固定为 `Videos/<safe-title>--<video_id>.md`；标题按 ADR-009 N-05 做
+  NFC、安全字符、Windows 保留名和 120 UTF-8 bytes 处理。首次路径建立后不因标题
+  变化自动 rename/delete。
+- Vault child 使用 anchored directory FD、`O_NOFOLLOW/O_DIRECTORY` 和前后
+  inode/device 复核；只允许创建受管 Videos，拒绝 symlink、路径逃逸、casefold
+  冲突、非受管占位和多个 video_id 候选。
+- 管理区/用户区使用 ADR-009 N-07 的四个 v1 marker。用户区 bytes 原样保留；
+  marker、Frontmatter、UTF-8 或 provenance 异常均失败关闭，不接管旧文件。
+- Frontmatter 顺序固定为 type、video_id、title、channel、published、source、
+  language、transcript_source、score、topics、processed_at、pipeline_version。
+- 同目录临时文件采用 0600、写入/fsync/回读哈希、竞态复核、`os.replace` 和目录
+  fsync；失败只清理本次临时文件，绝不删除最终笔记。
+- 文件成功后复用现有 `complete_stage` 完成 VIDEO_NOTE Artifact、
+  `ANALYSIS_READY -> NOTE_WRITTEN` 和 Job。replace 后数据库失败通过验证完整文件
+  补账，只承诺 at-most-once best effort。
+- 已 `NOTE_WRITTEN/COMPLETE` 的普通重跑只验证现有 NoteRef；成功笔记主动刷新延期
+  到 TASK-010，不为 TASK-009A 修改 `state.py` 或 Schema。
 
 ## 14. 配置与密钥
 
@@ -476,7 +526,10 @@ logs/YYYY-MM-DD.jsonl
 | `cloud.model` | 无 | `enabled=true` 时必填 |
 | `cloud.api_key_env` | `OPENAI_API_KEY` | 只保存合法环境变量名，不保存值 |
 | `cloud.max_calls_per_run` | `5` | 正整数且不得超过 `5` |
+| `cloud.max_local_input_tokens_per_video` | `28000` | 正整数，必须小于等于 Provider 硬上限；本地 tiktoken 保守门禁 |
 | `cloud.max_input_tokens_per_video` | `30000` | 正整数且不得超过 `30000` |
+| `cloud.max_description_chars` | `4000` | 整数 `0..20000`，按 Unicode code point 截断 |
+| `cloud.max_output_tokens` | `4000` | 整数 `256..8000`；V1 不发送 temperature |
 | `storage.data_dir` | `data` | 项目根相对路径 |
 | `storage.logs_dir` | `logs` | 项目根相对路径 |
 | `storage.templates_dir` | `templates` | 项目根相对路径 |
@@ -534,4 +587,10 @@ launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、�
 
 ## 18. 已批准基线与仍需任务级审批的事项
 
-产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和 ADR-002 至 ADR-006，均已批准。ADR-003 已批准 TASK-003 最终 SQLite Schema；ADR-004 已批准 TASK-004 的 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载和锁文件动作；ADR-006 已批准 TASK-005 的字幕选择、规范化、缓存、错误和“不改 Schema/Repository”契约。以下仍须在对应任务中单独授权：正式 worktree/写入范围、其他实际安装/升级依赖、真实密钥或付费云调用、真实 YouTube/字幕、Cookie/账号登录、remote components、ffmpeg、媒体下载、写入真实 Vault、加载 launchd，以及任何超出 V1 白名单的改变。
+产品与技术方向见 `docs/PRD.md` 的 `DEC-*`、`docs/PRODUCT_DECISIONS.md` 和
+ADR-002 至 ADR-009，均已批准。ADR-008/ADR-009 已批准 TASK-008A/TASK-009A 的
+三项精确直接依赖、必要传递依赖、网络包下载、锁文件和离线命令；执行仍须固定
+worktree/角色/文件范围。以下继续单独授权：真实密钥或付费云调用、云端 token-count
+请求、真实 YouTube/字幕、Cookie/账号登录、remote components、ffmpeg、媒体下载、
+写入真实 Vault、最终 Vault 文件删除/移动、加载 launchd，以及任何超出 V1 白名单
+的改变。

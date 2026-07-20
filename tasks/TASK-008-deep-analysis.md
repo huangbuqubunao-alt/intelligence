@@ -7,12 +7,14 @@
 - Risk: High
 - Depends on: TASK-008A, TASK-009A
 - Approval required: ADR-008、正式实施范围与离线命令；真实云调用/密钥另批
+- Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准；仍等待两个共享任务
+  `DONE` 与正式实施分配
 
 ## 2026-07-20 只读预检结论
 
 - Read-only Scout 已在 `main@bb9c6b7bb66040b65b091d980f43281c4d9d6ba6`
   完成，仓库无变化；结论为 `DECISION NEEDED`。
-- 已提出 `ADR-008` A-01 至 A-15 和 `TASK-008A`。TASK-008A 负责公共契约、配置与
+- 已批准 `ADR-008` A-01 至 A-15 并建立 `TASK-008A`。TASK-008A 负责公共契约、配置与
   `openai`/`tiktoken` 依赖基线；`TASK-009A` 随后冻结 KnowledgeSink 消费面。
 - 两个前置任务均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。预检不是依赖安装、
   密钥读取、真实 API 调用或实施授权。
@@ -82,7 +84,7 @@
 
 ## 复用决定
 
-- `DIRECT-PENDING`：TASK-008A 锁定后的官方 OpenAI SDK 和 tiktoken；本任务只在
+- `DIRECT`：TASK-008A 锁定后的官方 OpenAI SDK 和 tiktoken；本任务只在
   获得正式实施授权后离线导入并使用 Fake transport。
 - `DIRECT`：既有 Analysis/Artifact/Provider-call/SQLite/Pydantic 契约。
 - `REJECT`：自写 OpenAI HTTP 客户端、第二 Provider、SDK 自动重试、格式修复调用、

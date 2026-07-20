@@ -7,12 +7,14 @@
 - Risk: High
 - Depends on: TASK-009A
 - Approval required: ADR-009、临时 Vault 文件探针与正式实施范围；真实 Vault 另批
+- Decision gate: ADR-009 N-01 至 N-15 已于 2026-07-20 批准；仍等待 TASK-009A
+  `DONE` 与正式实施分配
 
 ## 2026-07-20 只读预检结论
 
 - Read-only Scout 已在 `main@bb9c6b7bb66040b65b091d980f43281c4d9d6ba6`
   完成，仓库无变化；结论为 `DECISION NEEDED`。
-- 已提出 `ADR-009` N-01 至 N-15 和 `TASK-009A`。TASK-009A 顺序消费 TASK-008A
+- 已批准 `ADR-009` N-01 至 N-15 并建立 `TASK-009A`。TASK-009A 顺序消费 TASK-008A
   的 `AnalysisOutcome`，冻结 KnowledgeSink/NoteRef 并提升 Jinja2 直接依赖。
 - TASK-008A/TASK-009A 均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。真实 Vault
   和用户笔记继续未授权。
@@ -83,7 +85,7 @@ Repository 不足时必须报告 `DECISION NEEDED`。
 
 ## 复用决定
 
-- `DIRECT-PENDING`：TASK-009A 锁定后的 Jinja2；固定包内模板、不可变 sandbox 和
+- `DIRECT`：TASK-009A 锁定后的 Jinja2；固定包内模板、不可变 sandbox 和
   StrictUndefined。
 - `DIRECT`：现有 PyYAML、Artifact/SQLite/Pydantic 与 Python 标准库安全文件能力。
 - `REFERENCE`：已登记 yt2md 项目只参考输出结构，不复制代码、不读取 Obsidian 配置。

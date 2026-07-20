@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 实施路线图
 
-- 版本：V1.3 + Phase 2 Proposed Addendum
+- 版本：V1.4
 - 状态：`APPROVED`
 - 任务入口：`tasks/README.md`
 - 协作协议：`docs/COLLABORATION.md`
@@ -101,8 +101,8 @@ TASK-006 本地转写  TASK-007 本地评分
 
 ### Phase 2：知识产出与恢复
 
-- `TASK-008A`（Proposed）：冻结云分析最小化输入、完成/跳过结果、配置和依赖基线。
-- `TASK-009A`（Proposed）：冻结 KnowledgeSink/NoteRef 和 Jinja2 依赖基线。
+- `TASK-008A`：冻结云分析最小化输入、完成/跳过结果、配置和依赖基线。
+- `TASK-009A`：冻结 KnowledgeSink/NoteRef 和 Jinja2 依赖基线。
 - `TASK-008`：完成可选深度分析。
 - `TASK-009`：完成 Obsidian 视频笔记 upsert。
 - `TASK-010`：完成端到端状态编排、重试和断点恢复。
@@ -138,10 +138,10 @@ TASK-006 本地转写  TASK-007 本地评分
   创建两个 worktree。TASK-005A 未完成或两项各自的任务级资源授权不完整时不得分配
   写入任务。
 - TASK-008/TASK-009 两个 2026-07-20 只读 Scout 确认：直接并行会同时争用
-  `domain.py`、`pyproject.toml` 和 `uv.lock`。若 ADR-008/ADR-009 获批，必须先顺序
-  完成 `TASK-008A -> TASK-009A`，把 OpenAI/tiktoken/Jinja2 和公共输入输出冻结到
-  main；两者均 `DONE` 后，正式 TASK-008/TASK-009 才可从同一最新 main 并行，且
-  不再修改公共契约或锁文件。
+  `domain.py`、`pyproject.toml` 和 `uv.lock`。ADR-008/ADR-009 已于同日接受，必须
+  先顺序完成 `TASK-008A -> TASK-009A`，把 OpenAI/tiktoken/Jinja2 和公共输入输出
+  冻结到 main；两者均 `DONE` 后，正式 TASK-008/TASK-009 才可从同一最新 main
+  并行，且不再修改公共契约或锁文件。
 - `TASK-011` 的纯周计算与模板可在 `TASK-010` 期间并行，但数据库查询集成依赖状态模型稳定。
 - `TASK-012` 的日志格式可提前，CLI 命令集成依赖 `TASK-010`。
 - `TASK-013` 只能在核心任务完成后执行，不得用 Fake 全通过替代真实本地冒烟。

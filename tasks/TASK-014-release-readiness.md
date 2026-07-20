@@ -34,6 +34,10 @@
   GPL 构建不被项目捆绑或重新分发。无明确处置不得把相关产物纳入发布物。
 - [ ] 若启用 Ollama，复核程序版本、`qwen3:8b` 固定 digest、上游 Apache-2.0 证据和
   模型拉取/本机服务实际授权记录；不得把“本机 loopback”误记为无需供应链审查。
+- [ ] 复核 TASK-008A/TASK-009A 的直接/传递依赖与分发边界：OpenAI SDK
+  Apache-2.0、tiktoken MIT、Jinja2 BSD-3-Clause、MarkupSafe 及 OpenAI SDK 传递
+  依赖；确认云端默认关闭、无真实密钥/响应进入发布物，固定 Jinja 模板不包含用户
+  Vault 内容。
 - [ ] 四类 Reviewer 完成清单并给出 Go；任一红线项不满足则明确 No-Go，不得标记 V1 完成。
 
 ## 验证
@@ -59,3 +63,5 @@
 - TASK-001 P2（未锚定 `data/`、`logs/`）的最终复核与处置记录。
 - `yt-dlp` 全部直接/传递依赖的许可证证据、`mutagen` 分发处置与最终 Go/No-Go 结论。
 - ADR-007 模型、ffmpeg、Ollama 与模型权重的来源/许可证/授权证据及最终处置。
+- ADR-008/ADR-009 的 OpenAI/tiktoken/Jinja2/MarkupSafe 依赖清单、云端隐私门禁和
+  模板/Vault 分发边界。

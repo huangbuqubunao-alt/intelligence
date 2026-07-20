@@ -18,6 +18,23 @@
 
 ## 后续架构与任务级批准
 
+### ADR-008/ADR-009：云分析与 Obsidian 笔记契约
+
+- 批准日期：2026-07-20
+- 批准范围：ADR-008 A-01 至 A-15、ADR-009 N-01 至 N-15；先顺序完成
+  `TASK-008A -> TASK-009A`，再从同一最新 main 并行实现 TASK-008/TASK-009。
+- TASK-008A 依赖授权：`openai>=2.46.0,<2.47`、
+  `tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改和任务卡离线 uv 验证/构建。
+- TASK-009A 依赖授权：`Jinja2>=3.1.6,<3.2`、必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改和任务卡离线 uv 验证/构建。
+- 依赖动作只可在后续固定 base/worktree/角色/文件范围的共享任务分配包内执行；
+  TASK-008A 先进入 `READY/UNASSIGNED`，TASK-009A 等待其 `DONE`。
+- 继续未授权：真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count、
+  真实 Vault/用户笔记、最终文件删除/移动/重命名及其他真实资源路径。
+- 原始决定见 `docs/decisions/ADR-008-cloud-analysis-contract.md` 和
+  `docs/decisions/ADR-009-obsidian-note-contract.md`。
+
 ### ADR-007：本地模型共享契约与分阶段门禁
 
 - 批准日期：2026-07-17
@@ -99,7 +116,8 @@
 - 使用 Python 3.12。
 - 使用 uv 管理环境、依赖与锁定。
 - `pyproject.toml` 为项目清单，`uv.lock` 提交版本库。
-- V1 允许的运行时依赖白名单：`pydantic`、`PyYAML`、`yt-dlp`、`mlx-whisper`、`httpx`、`openai`、`Jinja2`。
+- V1 允许的运行时依赖白名单：`pydantic`、`PyYAML`、`yt-dlp`、`mlx-whisper`、
+  `httpx`、`openai`、`tiktoken`、`Jinja2`。
 - V1 允许的开发依赖白名单：`pytest`、`pytest-cov`、`ruff`、`mypy` 及已使用依赖所需的最小类型包。
 - SQLite、CLI、日志、时间、文件和调度优先使用 Python 标准库。
 - 具体兼容版本由 `TASK-001` 验证并锁定；新增白名单外包必须返回产品/技术审批。
@@ -115,6 +133,11 @@
 - 产品负责人已于 2026-07-14 对 `TASK-001` 的具体版本范围、必要传递依赖、文件范围、uv 命令和网络下载单独授权，解锁其安装步骤。
 - 产品负责人已于 2026-07-14 对 `TASK-002` 单独授权 `pydantic>=2.13.4,<2.14`、`PyYAML>=6.0.3,<7`、必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 写入和任务卡中的 uv 验证命令。Pydantic 使用窄次版本范围，避免公共契约在未复核时自动跨入 2.14；PyYAML 只允许 6.x，并要求使用安全加载接口。
 - 产品负责人已于 2026-07-14 对 `TASK-004` 单独授权 `yt-dlp[default,deno]>=2026.7.4,<2026.8`、必要传递依赖、网络下载、`pyproject.toml`/`uv.lock` 写入以及 ADR-004 所列 uv 命令；真实 YouTube 冒烟、Cookie、账号登录、remote components 和 ffmpeg 仍未授权。
+- 产品负责人已于 2026-07-20 对 TASK-008A 单独授权
+  `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`，对 TASK-009A 单独授权
+  `Jinja2>=3.1.6,<3.2`；两项均允许必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改和各任务卡离线 uv 门禁。真实云调用/密钥与真实
+  Vault 不包含在依赖授权中。
 
 ## DEC-03：本地 Whisper 实现
 
@@ -154,6 +177,8 @@
 
 - 解锁 `TASK-008` 的 Provider 范围。
 - 批准此项不授权任何真实付费调用或写入 API Key。
+- ADR-008 进一步冻结官方 Responses/Structured Outputs、
+  `store=False`/`max_retries=0`、一次推理调用、结构化跳过和延迟凭据读取。
 
 ## DEC-05：视频最大时长
 
@@ -188,7 +213,9 @@
 
 - `max_cloud_calls_per_run: 5`
 - `max_cloud_input_tokens_per_video: 30000`
-- 短于限制时发送完整规范文本；超出时按开头/正文/结尾采样，不在 V1 做多轮 Map-Reduce。
+- 本地 `tiktoken` 发送上限为 28,000 tokens，为 Provider framing 保留 2,000；
+  使用固定 head/body/tail 采样，不在 V1 做多轮 Map-Reduce。
+- V1 不调用云端 token-count endpoint；它本身会发送内容并消耗调用/隐私预算。
 - 周报趋势默认使用已有分析和本地模型，不产生额外云调用。
 
 ### 取舍
@@ -198,7 +225,8 @@
 
 ### 影响
 
-- `TASK-007` 需要稳定采样工具，`TASK-008` 需要零调用策略测试。
+- TASK-008A 先冻结最小化 payload、采样/预算和结构化完成/跳过结果；TASK-008 需要
+  零调用、一次推理、证据 grounding 和事务恢复测试。
 
 ## DEC-07：缓存与保留期
 

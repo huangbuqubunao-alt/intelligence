@@ -1,14 +1,23 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `BLOCKED`
+- Status: `READY`
 - Assignee: `UNASSIGNED`
 - Reviewer: `UNASSIGNED`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
 - Depends on: TASK-007
-- Decision gate: ADR-008 A-01 至 A-15 尚待产品负责人批准
-- Resource gate: `openai`/`tiktoken` 依赖、锁文件和包下载尚未任务级授权
+- Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准
+- Resource gate: `openai`/`tiktoken`、必要传递依赖、网络包下载、锁文件和本卡
+  离线命令已批准；仍待固定 base/worktree/角色/文件范围分配
+
+## 2026-07-20 产品审批
+
+- 批准 `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`、必要传递依赖、网络包
+  下载、`pyproject.toml`/`uv.lock` 修改和本卡列出的 uv 离线验证/构建。
+- 依赖 TASK-007 已为 `DONE`，因此本任务在控制面同步后为 `READY/UNASSIGNED`。
+- 真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count 请求、真实 Vault/
+  用户内容继续未授权；正式实现仍须主控创建独立 worktree 并分配 Codex。
 
 ## 目标
 
@@ -61,7 +70,7 @@ TASK-009 共同消费的分析输入、结构化完成/跳过结果、配置、�
 - [ ] `uv run mypy src`
 - [ ] `uv run ruff check .`
 - [ ] `uv run python -m youtube_intel --help`
-- [ ] `uv build`
+- [ ] `uv build --offline`
 - [ ] `git diff --check <base>...HEAD`
 - [ ] 人工审计：无 API/密钥/Provider/Schema/state 写入；sdist/wheel 仍包含 migration。
 
@@ -80,8 +89,8 @@ Schema、Provider、编排或其他任务文件。
 
 ## 复用决定
 
-- `DIRECT-PENDING`：官方 `openai>=2.46.0,<2.47`、`tiktoken>=0.13.0,<0.14`；
-  首次实际安装、下载和锁定仍需产品负责人单独批准。
+- `DIRECT`：已批准官方 `openai>=2.46.0,<2.47`、
+  `tiktoken>=0.13.0,<0.14`；只可在本任务正式分配后执行安装、下载和锁定。
 - `DIRECT`：现有 Pydantic 配置/领域模型、Python 标准库时间/哈希/枚举能力。
 - `REJECT/DEFER`：自写 OpenAI HTTP 客户端、第二个云 Provider、token-count 云端
   预检、SDK 自动重试、真实 API/密钥，留给后续明确授权。

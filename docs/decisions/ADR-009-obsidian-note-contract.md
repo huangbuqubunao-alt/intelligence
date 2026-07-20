@@ -2,11 +2,23 @@
 
 ## 状态
 
-Proposed
+Accepted
 
 ## 日期
 
 2026-07-20
+
+## 批准记录
+
+- 批准日期：2026-07-20
+- 决策人：用户（产品负责人）
+- 批准范围：ADR-009 N-01 至 N-15，以及 TASK-009A 使用
+  `Jinja2>=3.1.6,<3.2`、必要传递依赖、网络包下载、`pyproject.toml`/`uv.lock`
+  修改和任务卡离线 uv 验证/构建命令。
+- 执行顺序：TASK-009A 继续等待 TASK-008A `DONE`，之后仍须获得固定
+  base/worktree/角色/文件范围才能执行。
+- 继续未授权：真实 Vault、真实用户笔记、最终文件删除/移动/重命名、真实 OpenAI/
+  密钥/付费调用和云端 token-count 请求。
 
 ## 背景
 
@@ -15,8 +27,8 @@ TASK-009 只读预检确认，现有 `KnowledgeSink`、`NoteRef`、`ArtifactWrit
 边界和故障恢复仍未冻结。当前 `analysis=None` 也无法区分云端关闭、预算耗尽、凭据
 缺失或 Provider refusal。
 
-本文在 ADR-008 的结构化 `AnalysisOutcome` 之上提出共享契约和文件垂直切片。它不
-授权访问真实 Vault，也不授权删除、移动或接管任何真实笔记。
+本文在 ADR-008 的结构化 `AnalysisOutcome` 之上冻结共享契约和文件垂直切片。接受
+本 ADR 不授权访问真实 Vault，也不授权删除、移动或接管任何真实笔记。
 
 ## 推荐决策
 
@@ -240,6 +252,7 @@ Vault 冒烟。
 
 ## 后果
 
-- ADR-008/TASK-008A 先完成，TASK-009A 再冻结最终 KnowledgeSink/NoteRef 和依赖。
+- ADR-008 已接受；TASK-008A 先完成，TASK-009A 再冻结最终 KnowledgeSink/NoteRef
+  和依赖。
 - TASK-008A/TASK-009A 均 `DONE` 后，正式 TASK-008/TASK-009 可安全并行。
 - 真实 Vault 与成功笔记主动刷新继续独立审批，TASK-009 默认只使用临时 Vault。

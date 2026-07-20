@@ -7,8 +7,18 @@
 - Size: S
 - Risk: High
 - Depends on: TASK-008A
-- Decision gate: ADR-009 N-01 至 N-15 尚待产品负责人批准
-- Resource gate: Jinja2 直接依赖、锁文件和包下载尚未任务级授权
+- Decision gate: ADR-009 N-01 至 N-15 已于 2026-07-20 批准
+- Resource gate: Jinja2、必要传递依赖、网络包下载、锁文件和本卡离线命令已批准；
+  仍等待 TASK-008A `DONE` 及固定 base/worktree/角色/文件范围分配
+
+## 2026-07-20 产品审批
+
+- 批准 `Jinja2>=3.1.6,<3.2`、必要传递依赖、网络包下载、
+  `pyproject.toml`/`uv.lock` 修改和本卡列出的 uv 离线验证/构建。
+- 本任务仍为 `BLOCKED/UNASSIGNED`，唯一代码依赖是 TASK-008A；不得提前创建写入
+  worktree 或与 TASK-008A 并发修改 `domain.py`/锁文件。
+- 真实 Vault、真实用户笔记、最终文件删除/移动/重命名、真实 OpenAI/密钥/付费调用
+  继续未授权。
 
 ## 目标
 
@@ -54,7 +64,7 @@
 - [ ] `uv run mypy src`
 - [ ] `uv run ruff check .`
 - [ ] `uv run python -m youtube_intel --help`
-- [ ] `uv build`
+- [ ] `uv build --offline`
 - [ ] `git diff --check <base>...HEAD`
 - [ ] 人工审计：无 Vault/文件/state/Schema 写入；sdist/wheel 仍包含 migration。
 
@@ -71,8 +81,8 @@
 
 ## 复用决定
 
-- `DIRECT-PENDING`：`Jinja2>=3.1.6,<3.2`，BSD-3-Clause；实际安装/锁定仍需任务级
-  批准。
+- `DIRECT`：已批准 `Jinja2>=3.1.6,<3.2`，BSD-3-Clause；只可在本任务正式分配后
+  执行安装、下载和锁定。
 - `DIRECT`：现有 Pydantic、PyYAML、领域对象和 Python 标准库路径类型。
 - `REFERENCE`：已登记 yt2md 项目只提供输出结构参考，不复制代码、不读取 Obsidian
   配置。
