@@ -25,10 +25,15 @@ Fix both findings without changing the established cleanup order, Artifact API, 
 resource boundary.
 
 1. **Cache identity.** The request's `language_hint` is semantic input. Include its existing
-   validated/canonical request value in the transcription cache identity so otherwise-identical
-   requests for different language hints cannot reuse an earlier transcript. Preserve existing
-   behavior for identical requests and existing `None`/empty validation behavior. Add a focused
-   regression proving different language hints do not hit the same cached result or Artifact.
+   validated `WhisperDecodePolicy.language_hint` value in the transcription cache identity so
+   otherwise-identical requests for different language hints cannot reuse an earlier transcript.
+   Make `language_hint: str | None` a required keyword-only input of
+   `build_transcription_cache_key()` and pass `self._decode_policy.language_hint` at the existing
+   `MlxWhisperAdapter` cache-key call site. Do not add a new public Adapter method parameter,
+   change executor invocation, or change the current decode-policy validation/normalization
+   behavior. Preserve existing behavior for identical requests and existing `None`/empty
+   validation behavior. Add focused regressions proving different language hints do not hit the
+   same cached result or Artifact and identical hints retain the existing cache hit.
 2. **Unified ineligible Artifact error.** Wrong kind, retention, or DATA root in cleanup
    preflight must return safe, retryable `INDEX_CONFLICT`, not `INELIGIBLE_ARTIFACT`. Preserve
    the file and any external target, redact paths, and retain existing semantics for unknown,
@@ -43,12 +48,15 @@ network operation is authorized.
 Only modify:
 
 - `src/youtube_intel/transcription.py`
+- `src/youtube_intel/providers/whisper.py` — only the cache-key wiring described above
 - `tests/unit/test_transcription_policy.py`
 - `tests/integration/test_whisper_provider.py`
 - `handoffs/TASK-006.md`
 
-Do not change Provider implementation, `state.py`, domain/config, Schema/migrations,
-dependencies/lockfiles, task status, main, source history, or any TASK-007 file.
+Outside that single Provider call-site change, do not change Provider execution, model/resource,
+error, download, or public Adapter behavior. Do not change `state.py`, domain/config,
+Schema/migrations, dependencies/lockfiles, task status, main, source history, or any TASK-007
+file.
 
 ## Required offline validation
 

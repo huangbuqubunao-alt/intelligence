@@ -135,8 +135,9 @@
 ### Correction 3 的冻结边界
 
 - 起点必须为 `66f0b310...`，Correction commit 以它为唯一父提交。只允许 `transcription.py`、
-  `tests/unit/test_transcription_policy.py`、`tests/integration/test_whisper_provider.py` 与 handoff；
-  不得改 Provider、`state.py`、Schema/migration、依赖/锁、任务状态或 main。
+  `providers/whisper.py`、`tests/unit/test_transcription_policy.py`、
+  `tests/integration/test_whisper_provider.py` 与 handoff；不得改 `state.py`、Schema/migration、
+  依赖/锁、任务状态或 main。
 - 缓存身份必须将已验证/规范化的 `language_hint` 作为请求语义的一部分；相同请求保持原行为，不同
   language hint 不得复用旧 Artifact 或缓存结果。错误 kind/root/retention Artifact 以及现有未知、
   缺失、陈旧、hash 不匹配和路径逃逸拒绝必须安全、可重试地返回 `INDEX_CONFLICT`，保留文件并不泄露
@@ -144,6 +145,19 @@
 - 以临时真实 SQLite/DATA 根和合成音频补充缓存身份与 cleanup RED/GREEN 回归；真实模型、ffmpeg、
   媒体、网络、Vault/凭据与文件删除仍不授权。完成后由全新独立 Codex Reviewer 重审；Implementer
   不得改状态、合并或启动 Reviewer，也不得访问 TASK-007。
+
+### Correction 3 缓存身份传递范围修正
+
+- Implementer 在写入前确认 `language_hint` 由 `WhisperDecodePolicy` 持有，而缓存键在
+  `transcription.py` 构造、唯一生产调用点位于 `providers/whisper.py`；原四文件范围无法形成
+  端到端缓存隔离，因此按主控决定停止是正确的。
+- 批准将原始 TASK-006 范围内的 `providers/whisper.py` 重新加入本轮最小范围。该文件只允许在
+  `MlxWhisperAdapter` 的既有缓存键调用点传入 `self._decode_policy.language_hint`；不得修改
+  executor 调用、模型/资源路径、错误映射、下载行为或公共 Adapter 方法签名。
+- `build_transcription_cache_key()` 新增无默认值的 keyword-only
+  `language_hint: str | None`，强制每个调用方明确选择缓存语义；使用现有已验证值，不新增
+  normalization，也不改变 `None`/空白校验。该修正不授权其他 Provider 改动、依赖/锁文件、Schema、
+  `state.py`、真实模型、ffmpeg、媒体、网络、Vault 或凭据操作。
 
 ## 目标
 
