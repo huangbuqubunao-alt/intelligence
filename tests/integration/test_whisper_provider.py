@@ -165,6 +165,49 @@ def test_fake_executor_is_cached_and_receives_frozen_decode_policy(tmp_path: Pat
     assert policy.initial_prompt is None
 
 
+def test_language_hint_uses_a_distinct_cache_identity_and_retains_identical_hit(
+    tmp_path: Path,
+) -> None:
+    audio, path = _synthetic_wav(tmp_path)
+    executor = _FakeWhisperExecutor(WhisperResponse(text="offline text", language="en"))
+    cache = InMemoryTranscriptionCache()
+    english = MlxWhisperAdapter(
+        executor=executor,
+        cache=cache,
+        decode_policy=WhisperDecodePolicy(language_hint="en"),
+        clock=lambda: FIXED_NOW,
+    )
+    chinese = MlxWhisperAdapter(
+        executor=executor,
+        cache=cache,
+        decode_policy=WhisperDecodePolicy(language_hint="zh"),
+        clock=lambda: FIXED_NOW,
+    )
+
+    first = english.transcribe(
+        audio,
+        audio_path=path,
+        resources=AudioResourceSnapshot(100, 100),
+    )
+    different_hint = chinese.transcribe(
+        audio,
+        audio_path=path,
+        resources=AudioResourceSnapshot(100, 100),
+    )
+    identical_hint = english.transcribe(
+        audio,
+        audio_path=path,
+        resources=AudioResourceSnapshot(100, 100),
+    )
+
+    assert first.cache_hit is False
+    assert different_hint.cache_hit is False
+    assert first.cache_key != different_hint.cache_key
+    assert identical_hint.cache_hit is True
+    assert identical_hint.cache_key == first.cache_key
+    assert len(executor.calls) == 2
+
+
 def test_duration_and_resource_rejection_happen_before_fake_execution(tmp_path: Path) -> None:
     audio, path = _synthetic_wav(tmp_path)
     executor = _FakeWhisperExecutor(WhisperResponse(text="never", language="en"))
@@ -276,6 +319,39 @@ def test_sqlite_cleanup_preflight_keeps_unknown_and_stale_audio_intact(
     assert stale is AudioCleanupResult.INDEX_CONFLICT
     assert audio_path.exists()
     assert str(audio_path) not in stale.value
+
+
+def test_sqlite_cleanup_ineligible_preflight_returns_conflict_without_deletion(
+    tmp_path: Path,
+) -> None:
+    repository, record, audio_path = _indexed_audio(tmp_path)
+    external_target = tmp_path / "external-synthetic.wav"
+    external_target.write_bytes(b"external synthetic audio")
+
+    for ineligible in (
+        replace(record, kind=ArtifactKind.SUBTITLE_SOURCE),
+        replace(
+            record,
+            storage_root=StorageRoot.VAULT,
+            relative_path=str(external_target),
+        ),
+        replace(record, retention_class=RetentionClass.LONG_LIVED),
+    ):
+        result = cleanup_successful_audio(
+            ineligible,
+            data_root=audio_path.parents[1],
+            repository=repository,
+            now=FIXED_NOW,
+        )
+
+        confirmed = repository.get_artifact_by_key(record.artifact_key)
+        assert result is AudioCleanupResult.INDEX_CONFLICT
+        assert audio_path.exists()
+        assert external_target.exists()
+        assert confirmed is not None
+        assert confirmed.deleted_at is None
+        assert str(audio_path) not in result.value
+        assert str(external_target) not in result.value
 
 
 def test_sqlite_cleanup_retains_symlinked_audio_and_target(tmp_path: Path) -> None:

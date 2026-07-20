@@ -106,6 +106,7 @@ class TranscriptionPolicy:
 def build_transcription_cache_key(
     *,
     audio_content_hash: str,
+    language_hint: str | None,
     model: str,
     model_revision: str,
     parameter_policy_version: str,
@@ -118,6 +119,7 @@ def build_transcription_cache_key(
     body = json.dumps(
         {
             "audio_content_hash": audio_content_hash,
+            "language_hint": language_hint,
             "model": model,
             "model_revision": model_revision,
             "operation": _CACHE_OPERATION,
@@ -217,7 +219,7 @@ def cleanup_successful_audio(
         or audio.retention_class is not RetentionClass.EPHEMERAL_AUDIO
         or audio.deleted_at is not None
     ):
-        return AudioCleanupResult.INELIGIBLE_ARTIFACT
+        return AudioCleanupResult.INDEX_CONFLICT
 
     if not _matches_registered_audio(
         audio,

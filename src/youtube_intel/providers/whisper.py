@@ -146,6 +146,7 @@ class MlxWhisperAdapter:
 
         cache_key = build_transcription_cache_key(
             audio_content_hash=audio.content_hash,
+            language_hint=self._decode_policy.language_hint,
             model=self._decode_policy.model,
             model_revision=self._decode_policy.model_revision,
             parameter_policy_version=self._decode_policy.parameter_policy_version,

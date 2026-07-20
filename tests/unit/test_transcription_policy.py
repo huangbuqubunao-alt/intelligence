@@ -146,10 +146,13 @@ def test_resource_policy_distinguishes_audio_disk_and_memory_limits(tmp_path: Pa
     ) is DurationDecision.PERMITTED
 
 
-def test_cache_key_binds_audio_model_revision_and_parameter_policy(tmp_path: Path) -> None:
+def test_cache_key_binds_audio_model_revision_policy_and_language_hint(
+    tmp_path: Path,
+) -> None:
     audio, _ = _audio(tmp_path)
     base = build_transcription_cache_key(
         audio_content_hash=audio.content_hash,
+        language_hint=None,
         model="mlx-community/whisper-large-v3-turbo",
         model_revision="a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
         parameter_policy_version="mlx-whisper-v1",
@@ -157,21 +160,31 @@ def test_cache_key_binds_audio_model_revision_and_parameter_policy(tmp_path: Pat
 
     assert base == build_transcription_cache_key(
         audio_content_hash=audio.content_hash,
+        language_hint=None,
         model="mlx-community/whisper-large-v3-turbo",
         model_revision="a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
         parameter_policy_version="mlx-whisper-v1",
     )
     assert base != build_transcription_cache_key(
         audio_content_hash=audio.content_hash,
+        language_hint=None,
         model="mlx-community/whisper-large-v3-turbo",
         model_revision="b" * 40,
         parameter_policy_version="mlx-whisper-v1",
     )
     assert base != build_transcription_cache_key(
         audio_content_hash=audio.content_hash,
+        language_hint=None,
         model="mlx-community/whisper-large-v3-turbo",
         model_revision="a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
         parameter_policy_version="mlx-whisper-v2",
+    )
+    assert base != build_transcription_cache_key(
+        audio_content_hash=audio.content_hash,
+        language_hint="en",
+        model="mlx-community/whisper-large-v3-turbo",
+        model_revision="a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+        parameter_policy_version="mlx-whisper-v1",
     )
 
 
@@ -221,20 +234,28 @@ def test_final_cleanup_cas_race_reports_conflict_after_deletion(tmp_path: Path) 
     assert not path.exists()
 
 
-def test_cleanup_rejects_a_non_audio_or_non_ephemeral_index_record(tmp_path: Path) -> None:
+def test_cleanup_rejects_ineligible_preflight_as_index_conflict(tmp_path: Path) -> None:
     audio, path = _audio(tmp_path)
-    repository = _FakeArtifactRepository(record=_record(audio))
+    expected = _record(audio)
 
-    result = cleanup_successful_audio(
-        replace(_record(audio), kind=ArtifactKind.SUBTITLE_SOURCE),
-        data_root=tmp_path / "data",
-        repository=repository,
-        now=FIXED_NOW,
-    )
+    for ineligible in (
+        replace(expected, kind=ArtifactKind.SUBTITLE_SOURCE),
+        replace(expected, storage_root=StorageRoot.VAULT),
+        replace(expected, retention_class=RetentionClass.LONG_LIVED),
+    ):
+        repository = _FakeArtifactRepository(record=expected)
 
-    assert result is AudioCleanupResult.INELIGIBLE_ARTIFACT
-    assert path.exists()
-    assert repository.calls == []
+        result = cleanup_successful_audio(
+            ineligible,
+            data_root=tmp_path / "data",
+            repository=repository,
+            now=FIXED_NOW,
+        )
+
+        assert result is AudioCleanupResult.INDEX_CONFLICT
+        assert path.exists()
+        assert repository.lookups == []
+        assert repository.calls == []
 
 
 def test_cleanup_preflight_rejects_mismatched_registered_artifact(tmp_path: Path) -> None:

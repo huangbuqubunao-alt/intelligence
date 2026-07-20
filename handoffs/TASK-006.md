@@ -566,3 +566,62 @@
 - 未解决 P0/P1：P1-1、P1-2。
 - `DECISION NEEDED`：None。P1-1 位于 `providers/whisper.py`；若后续 correction 保持本轮四文件
   范围，主控须先明确扩展范围。
+
+---
+
+## Correction 3 — P1 closure（2026-07-20）
+
+### 授权、范围与复用
+
+- 主仓库授权已核验为 `aee73330d864fa0806a999bce8168cd8ec403dc3`；开始时 source
+  worktree 干净，分支为 `codex/task-006-local-transcription`，起点
+  `66f0b31023c290d76e2c14bea72d1cc103cc27c7` 的唯一父提交为
+  `51b308828a6f2c433a9b4e92fb4a24e042f55d77`，主控 TASK-006 状态为 `IN_PROGRESS`。
+- 本 correction 仅修改批准的五个路径：`transcription.py`、唯一的
+  `providers/whisper.py` cache-key call site、两份指定测试和本报告；未改 `state.py`、
+  Artifact API、Schema/migration、依赖/锁文件、配置、任务状态、`main` 或凭据。
+- `DIRECT` 复用已有 `WhisperDecodePolicy`、`TranscriptionCache`、SQLite Artifact API 与
+  Python 标准库；没有新增依赖、外部代码、reservation、claim 或 exactly-once 机制。
+
+### P1 closure 与回归
+
+- `build_transcription_cache_key()` 现在要求关键字参数 `language_hint: str | None`，并把
+  已验证的 `WhisperDecodePolicy.language_hint` 纳入稳定 JSON 哈希。唯一 Adapter call site
+  直接传入该已有值；没有新增 Adapter 参数、改变 executor 调用或改变 language-hint 验证。
+- 先 RED：四项 focused regression 均按预期失败，分别暴露缺失的关键字参数、`en`/`zh`
+  cache collision，以及 wrong kind/root/retention 仍返回 `INELIGIBLE_ARTIFACT`。
+  GREEN 后，synthetic WAV + shared Fake cache 验证不同 hint 各执行一次、cache key 不同；
+  相同 `en` hint 仍命中既有缓存。unit cache-key 回归同时验证 `None` 保持确定性且不同于
+  非空 hint。
+- cleanup 的既有最前置资格检查顺序和后续 index/hash/path/unlink/CAS 顺序均未改变；wrong
+  kind、non-DATA root、wrong retention 和已删除传入 record 统一返回可重试、无路径的
+  `INDEX_CONFLICT`。`INELIGIBLE_ARTIFACT` enum 保留，避免无关 Artifact API 变更。
+- 临时真实 SQLite/DATA-root 回归使用合成音频和外部临时目标，验证三类 ineligible request
+  都保留 DATA 文件、外部目标和 index `deleted_at`，结果不泄露任一路径。既有 unknown、
+  missing、deleted/stale、hash mismatch、path/symlink escape、成功删除及 final CAS race
+  tests 仍全部通过。
+
+### 离线检查与包内容
+
+| 命令/检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS — Resolved 80 packages。 |
+| `uv sync --locked --offline` | PASS — Resolved 80，Checked 57 packages。 |
+| focused RED then GREEN | PASS — 4 项 P1 regressions 先失败后 4 passed。 |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS — 11 passed。 |
+| `uv run python -m pytest tests/integration/test_whisper_provider.py` | PASS — 12 passed。 |
+| `uv run python -m pytest` | PASS — 274 passed。 |
+| `uv run mypy src` | PASS — 11 source files 无问题。 |
+| `uv run ruff check .` | PASS。 |
+| `uv run python -m youtube_intel --help` | PASS。 |
+| `uv build --offline` | PASS — sdist 和 wheel 均构建成功。 |
+| migration 包内容 | PASS — sdist/wheel 均含 `youtube_intel/migrations/001_initial.sql`。 |
+
+### 刻意跳过与剩余风险
+
+- 未下载、导入或加载 Whisper 模型/权重，未调用 `mlx_whisper`、ffmpeg、媒体/YouTube、网络、
+  Cookie、remote components、Vault 或 credentials；未运行真实转录。所有新建音频、SQLite、
+  DATA 根和外部目标均在 pytest 临时目录中。
+- 保留既有 at-most-once 限制：unlink 成功后最终 `mark_artifact_deleted()` CAS 可能竞争失败，
+  因而仍返回 `INDEX_CONFLICT` 且文件已删除；本 correction 未引入 reservation 或严格
+  exactly-once 声明。
