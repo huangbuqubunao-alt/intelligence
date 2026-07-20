@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Owner role: 第三次全新独立 Codex Reviewer（Correction 2；安全拒绝枚举复审）
+- Owner role: 原 Codex Implementer（Correction 3；缓存身份与统一错误枚举修复）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -123,6 +123,27 @@
   唯一父提交的 evidence commit。必须复跑全部离线门禁，并以真实临时 SQLite/DATA 根证明所有路径
   逃逸统一为 `INDEX_CONFLICT`、零物理删除，同时不退化既有 Artifact/CAS/retention 语义；不得访问
   TASK-007、改业务代码、任务状态或 main。
+
+## 第三次独立审查拒绝与 Correction 3
+
+- Evidence：`66f0b31023c290d76e2c14bea72d1cc103cc27c7`，唯一父提交为 `51b308...`，且仅修改
+  handoff。Verdict=`REJECT`，P1=2；规定离线门禁均通过。
+- P1-1：`language_hint` 未纳入转写缓存身份；不同语言请求会错误复用旧转写。
+- P1-2：错误 kind/root/retention Artifact 的清理前置条件返回 `INELIGIBLE_ARTIFACT`，违反本任务
+  已冻结的统一、可重试 `INDEX_CONFLICT` 语义。
+
+### Correction 3 的冻结边界
+
+- 起点必须为 `66f0b310...`，Correction commit 以它为唯一父提交。只允许 `transcription.py`、
+  `tests/unit/test_transcription_policy.py`、`tests/integration/test_whisper_provider.py` 与 handoff；
+  不得改 Provider、`state.py`、Schema/migration、依赖/锁、任务状态或 main。
+- 缓存身份必须将已验证/规范化的 `language_hint` 作为请求语义的一部分；相同请求保持原行为，不同
+  language hint 不得复用旧 Artifact 或缓存结果。错误 kind/root/retention Artifact 以及现有未知、
+  缺失、陈旧、hash 不匹配和路径逃逸拒绝必须安全、可重试地返回 `INDEX_CONFLICT`，保留文件并不泄露
+  路径。有效删除和 final CAS 竞态不得退化；不得引入 reservation 或 exactly-once 声明。
+- 以临时真实 SQLite/DATA 根和合成音频补充缓存身份与 cleanup RED/GREEN 回归；真实模型、ffmpeg、
+  媒体、网络、Vault/凭据与文件删除仍不授权。完成后由全新独立 Codex Reviewer 重审；Implementer
+  不得改状态、合并或启动 Reviewer，也不得访问 TASK-007。
 
 ## 目标
 

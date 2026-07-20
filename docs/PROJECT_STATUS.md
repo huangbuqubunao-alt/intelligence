@@ -1,13 +1,13 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-18
+- 更新时间：2026-07-20
 - 当前阶段：Phase 2 — TASK-006 阶段 A 与 TASK-007 离线实现并行进行；真实本地模型资源保持分阶段门禁
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-006`（`codex/task-006-local-transcription`）与 `/Users/hua/Documents/yia-worktrees/task-007`（`codex/task-007-local-scoring`）；TASK-005/TASK-005A worktree 保留为审计证据，不是当前写入目标
-- 活动任务：`TASK-006` Correction 2 已由原 Codex Implementer 提交，等待全新独立 Codex
-  Reviewer 复跑离线门禁与路径逃逸安全探针；`TASK-007` 已整合并关闭为 `DONE`。
+- 活动任务：`TASK-006` 第三次独立审查发现缓存身份与统一错误枚举两个 P1，已退回原 Codex
+  Implementer Correction 3；`TASK-007` 已整合并关闭为 `DONE`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -40,10 +40,10 @@
 
 ## 下一步
 
-1. 全新独立 TASK-006 Reviewer 验证 Correction 2 是否将符号链接、绝对/相对逃逸与 DATA-root
-   escape 全部安全映射为 `INDEX_CONFLICT`，且不删除文件或根外目标；不得访问 TASK-007。
+1. 原 TASK-006 Implementer 仅将 `language_hint` 纳入转写缓存身份，并将错误 kind/root/retention
+   Artifact 统一映射为 `INDEX_CONFLICT`；补充离线回归，不得改 Schema/Repository 或访问 TASK-007。
 2. TASK-007 已完成；继续跟踪真实 Ollama/模型兼容性和质量的后续单独授权，不得访问 TASK-006。
-3. TASK-006 审查通过后再由主控验收、整合和关闭；在此之前继续不批准模型下载、Ollama、
+3. TASK-006 修复与其独立审查各自通过后再由主控验收、整合和关闭；在此之前继续不批准模型下载、Ollama、
    ffmpeg、媒体或凭据操作。
 
 ## 当前并行调度
@@ -59,7 +59,7 @@
 | 已完成可关闭 | TASK-005A 第一轮独立 Codex Reviewer | evidence `3cec2d6...` 已 `REJECT`；不得修代码 |
 | 已完成可关闭 | TASK-005A Codex Implementer Correction 1 与第二轮 Reviewer | evidence `e726656...` 已 `APPROVE`；不得继续写入 source |
 | 已完成可关闭 | TASK-005A Product Integrator | merge `865f4fed...` 已通过整合后门禁；不得继续写入 source |
-| 正在审查 | TASK-006 第三次全新独立 Codex Reviewer（Correction 2） | 验证路径逃逸统一 `INDEX_CONFLICT`、零物理删除与既有 CAS/Artifact 语义；仅 source handoff 可写 |
+| 正在修复 | TASK-006 原 Codex Implementer（Correction 3） | `language_hint` 缓存身份与 kind/root/retention 的统一 `INDEX_CONFLICT`；仅 4 个允许路径 |
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 
@@ -102,6 +102,12 @@
   自报绝对/相对路径逃逸、DATA-root escape 与符号链接均统一为安全可重试的 `INDEX_CONFLICT`，并保留
   所有文件/根外目标；focused `11/10`、全量 `272`、mypy、Ruff、CLI、locked offline sync、offline
   build 与 migration package inclusion 均 PASS。这些仍须由全新独立 Reviewer 复跑。
+- TASK-006 第三次独立 Reviewer evidence `66f0b31023c290d76e2c14bea72d1cc103cc27c7` 是
+  Correction 2 的唯一子提交且仅修改 handoff，Verdict=`REJECT`：规定离线门禁均通过，但
+  `language_hint` 未进入缓存身份，导致不同语言请求可复用旧转写；另有错误 kind/root/retention
+  Artifact 返回 `INELIGIBLE_ARTIFACT` 而非已冻结的统一、可重试 `INDEX_CONFLICT`。Correction 3
+  只能在既有四个允许文件内修复这两项、补充离线回归，并保持删除顺序、CAS、Schema/Repository、
+  依赖和真实资源边界不变。
 - TASK-007 第一轮独立 Reviewer evidence `266c488c17fc82cb648053b5e1066211a7bea9a9` 仅改
   handoff，Verdict=`REJECT`：`OllamaScoringProvider` 的修复响应、短读和部分畸形/超限响应
   可经异常链泄漏或逃逸；`ScoringService` 只使用内存缓存，未复用既有 `ProviderCall`、
