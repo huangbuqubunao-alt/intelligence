@@ -1,8 +1,8 @@
 # TASK-006：本地 Whisper 转写
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Owner role: 第四次独立 Codex Reviewer（等待审查 `548338978...`）
+- Owner role: Codex Product Integrator（已授权，尚未启动）
 - Size: M
 - Risk: High
 - Depends on: TASK-005A
@@ -174,6 +174,22 @@
   `548338978...` 为唯一父提交的 evidence commit。必须独立验证缓存键 API 强制性、共享缓存
   `None/en/zh` 隔离、Provider 单调用点、Fake/真实临时 SQLite cleanup 矩阵、AC/ADR 与五轴审查；
   不得改产品代码、状态、main，或访问 TASK-007。
+
+### 第四次独立审查通过与最终整合授权
+
+- Reviewer evidence：`f00209c8018a9e728d9f6509f0ae70067fa33676`，唯一父提交为
+  Correction 3 `548338978b8656db0c650be276f847850af940a1`，且只修改
+  `handoffs/TASK-006.md`；source worktree 已干净。
+- Verdict=`APPROVE`，P0/P1/P2/P3 均无。独立 Reviewer 复跑 focused `11/12`、全量
+  `274`、mypy、Ruff、CLI、locked offline sync、offline build、migration package
+  inclusion 与固定 Diff 均 PASS；缓存键必填 API、共享缓存 `None/en/zh` 隔离、Provider
+  唯一调用点及 Fake/真实临时 SQLite cleanup 矩阵也全部通过。
+- 主控验收通过，TASK-006 进入 `ACCEPTED`。Codex Product Integrator 只可按
+  `agent-prompts/TASK-006-INTEGRATOR.md` 把固定 source `f00209c...` 非快进整合到 main，
+  不得作整合期修复、改为 `DONE`、访问 TASK-007 source、推送或清理 worktree。
+- 接受并保留 preflight 成功后、unlink 与最终 CAS 之间的 at-most-once cleanup 风险；不声称
+  exactly-once。真实 Whisper 模型下载/加载、ffmpeg、真实转写、媒体/YouTube、网络、Cookie/
+  登录、Vault、凭据与真实文件删除继续未授权。
 
 ## 目标
 

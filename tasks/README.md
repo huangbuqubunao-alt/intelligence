@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_IN_REVIEW__TASK_007_DONE`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_ACCEPTED__TASK_007_DONE`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -10,7 +10,7 @@ DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001`
 
 `TASK-003` 已由 Codex Integrator 以 merge commit `072511f20b587f973b29437d79080f6cb7863f1a` 整合到 main，整合后门禁全通过，状态为 `DONE`。`TASK-004` 已由 Codex Product Integrator 以 merge commit `dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 整合：双父、固定 17 文件范围及 lock/sync、state 30、unit 36、integration 10、全量 132、mypy/wiring、Ruff、CLI、build/migration 门禁均通过；状态在本次收口后为 `DONE`。
 
-TASK-005 已由 Codex Product Integrator 以 merge commit `cfc302ddc41cd908777f49de292327640b6f8314` 整合到 main，双父和 first-parent 11 文件范围正确；整合后全部受影响离线门禁、offline build 与 package inclusion 通过，并已 closure 同步为 `DONE`。唯一 Service/私有 test hook 聚合 P2 继续登记。ADR-007 已接受，已建立 TASK-005A 共享契约任务；TASK-006/007 仍等待该任务 `DONE` 与各自资源授权。
+TASK-005 已由 Codex Product Integrator 以 merge commit `cfc302ddc41cd908777f49de292327640b6f8314` 整合到 main，双父和 first-parent 11 文件范围正确；整合后全部受影响离线门禁、offline build 与 package inclusion 通过，并已 closure 同步为 `DONE`。唯一 Service/私有 test hook 聚合 P2 继续登记。ADR-007 已接受并建立 TASK-005A 共享契约任务；TASK-005A、TASK-006/007 的后续结果见下文当前状态。
 
 TASK-005A 已由 Codex Product Integrator 以 merge commit
 `865f4fed90dcc22ea43688442c1c4f210b4d31b7` 整合并关闭为 `DONE`：双父与 first-parent
@@ -43,7 +43,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-004](TASK-004-discovery-metadata.md) | 频道发现与元数据 | Codex Integrator merge `dc3f097...` | DONE | 002 |
 | [TASK-005](TASK-005-subtitle-pipeline.md) | 字幕获取与规范化 | 已整合并关闭；merge `cfc302...` | DONE | 003, 004 |
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
-| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 第四次独立 Codex Reviewer | IN_REVIEW | 005A；模型/ffmpeg/媒体另批 |
+| [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | Codex Product Integrator（已授权，未启动） | ACCEPTED | 005A；模型/ffmpeg/媒体另批 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 已整合并关闭；merge `3d49ec...` | DONE | 005A；Ollama/模型另批 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Codex + 独立 Codex 隐私 Reviewer（未分配） | BLOCKED | 007 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Codex（未分配） | BLOCKED | 003, 007 |
