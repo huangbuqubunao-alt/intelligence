@@ -82,8 +82,18 @@ class PointKind(str, Enum):
 
 
 class EvidenceSource(str, Enum):
-    METADATA = "metadata"
-    TRANSCRIPT = "transcript"
+    TITLE = "title"
+    CHANNEL_NAME = "channel_name"
+    DESCRIPTION = "description"
+    TRANSCRIPT_SAMPLE = "transcript_sample"
+
+
+class AnalysisSkipReason(str, Enum):
+    CLOUD_DISABLED = "CLOUD_DISABLED"
+    CREDENTIAL_UNAVAILABLE = "CREDENTIAL_UNAVAILABLE"
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
+    INPUT_TOO_LARGE = "INPUT_TOO_LARGE"
+    PROVIDER_REFUSAL = "PROVIDER_REFUSAL"
 
 
 class NotAvailableReason(str, Enum):
@@ -372,26 +382,48 @@ class ScoreResult(_DomainModel):
         return value
 
 
-class EvidenceExcerpt(_DomainModel):
+class _UpdateProtectedAnalysisContract(_DomainModel):
+    """Preserve validation boundaries for shared cloud-analysis contracts."""
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for analysis contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
+
+
+class AnalysisPayload(_UpdateProtectedAnalysisContract):
+    """The complete and exclusive set of fields permitted to leave the machine."""
+
+    video_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    channel_name: str = Field(min_length=1)
+    published_at: datetime
+    duration_seconds: int = Field(ge=0)
+    default_language: str | None = None
+    description: str = Field(default="", max_length=4000)
+    transcript_language: str = Field(min_length=1)
+    output_language: str = Field(min_length=1)
+    transcript_sample: str = Field(min_length=1)
+
+
+class EvidenceExcerpt(_UpdateProtectedAnalysisContract):
     evidence_id: str = Field(min_length=1)
     source: EvidenceSource
     excerpt: str = Field(min_length=1, max_length=2000)
-    start_seconds: float | None = Field(default=None, ge=0)
-    end_seconds: float | None = Field(default=None, ge=0)
-
-    @model_validator(mode="after")
-    def _time_range(self) -> EvidenceExcerpt:
-        if self.start_seconds is not None and self.end_seconds is not None:
-            if self.end_seconds < self.start_seconds:
-                msg = "end_seconds must be >= start_seconds"
-                raise ValueError(msg)
-        return self
+    start_seconds: Literal[None] = None
+    end_seconds: Literal[None] = None
 
 
-class AnalysisPoint(_DomainModel):
+class AnalysisPoint(_UpdateProtectedAnalysisContract):
     text: str = Field(min_length=1, max_length=2000)
     kind: PointKind
-    evidence_ids: tuple[str, ...] = Field(default=(), max_length=10)
+    evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=10)
 
     @field_validator("evidence_ids")
     @classmethod
@@ -406,8 +438,7 @@ class AnalysisPoint(_DomainModel):
         return value
 
 
-class AnalysisResult(_DomainModel):
-    schema_version: str = Field(min_length=1)
+class AnalysisContent(_UpdateProtectedAnalysisContract):
     one_sentence_summary: str = Field(min_length=1, max_length=500)
     core_points: tuple[AnalysisPoint, ...] = Field(min_length=1, max_length=10)
     key_facts: tuple[AnalysisPoint, ...] = Field(default=(), max_length=20)
@@ -419,10 +450,6 @@ class AnalysisResult(_DomainModel):
     risks: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
     keywords: tuple[str, ...] = Field(min_length=1, max_length=20)
     evidence: tuple[EvidenceExcerpt, ...] = Field(default=(), max_length=20)
-    provider: str = Field(min_length=1)
-    model: str = Field(min_length=1)
-    prompt_version: str = Field(min_length=1)
-    request_hash: str = Field(min_length=1)
 
     @field_validator("keywords")
     @classmethod
@@ -445,16 +472,28 @@ class AnalysisResult(_DomainModel):
         return value
 
     @model_validator(mode="after")
-    def _cross_field_integrity(self) -> AnalysisResult:
+    def _cross_field_integrity(self) -> AnalysisContent:
         evidence_ids = {item.evidence_id for item in self.evidence}
         if len(evidence_ids) != len(self.evidence):
-            msg = "evidence_id values must be unique within AnalysisResult"
+            msg = "evidence_id values must be unique within AnalysisContent"
             raise ValueError(msg)
 
-        for point in self.key_facts:
-            if point.kind is not PointKind.FACT:
-                msg = "key_facts items must have kind=fact"
-                raise ValueError(msg)
+        kind_rules = (
+            ("core_points", self.core_points, {PointKind.FACT, PointKind.INFERENCE}),
+            ("key_facts", self.key_facts, {PointKind.FACT}),
+            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE}),
+            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE}),
+            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION}),
+            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE}),
+            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION}),
+            ("risks", self.risks, {PointKind.INFERENCE}),
+        )
+        for field_name, points, allowed_kinds in kind_rules:
+            for point in points:
+                if point.kind not in allowed_kinds:
+                    allowed = ", ".join(sorted(kind.value for kind in allowed_kinds))
+                    msg = f"{field_name} items must have kind in {{{allowed}}}"
+                    raise ValueError(msg)
 
         all_points: list[AnalysisPoint] = [
             *self.core_points,
@@ -472,6 +511,14 @@ class AnalysisResult(_DomainModel):
                 msg = f"evidence_ids reference unknown evidence: {missing}"
                 raise ValueError(msg)
         return self
+
+
+class AnalysisResult(AnalysisContent):
+    schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
+    request_hash: str = Field(min_length=1)
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +545,29 @@ class ProviderCallMetadata(_DomainModel):
             msg = "finished_at must be >= started_at"
             raise ValueError(msg)
         return self
+
+
+class AnalysisCompleted(_UpdateProtectedAnalysisContract):
+    result: AnalysisResult
+    call: ProviderCallMetadata
+
+
+class AnalysisSkipped(_UpdateProtectedAnalysisContract):
+    reason: AnalysisSkipReason
+    call: ProviderCallMetadata | None
+    safe_message: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("safe_message")
+    @classmethod
+    def _safe_message(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            msg = "safe_message must be non-empty after strip"
+            raise ValueError(msg)
+        return stripped
+
+
+AnalysisOutcome: TypeAlias = AnalysisCompleted | AnalysisSkipped
 
 
 class DiscoveryCursor(_DomainModel):
@@ -608,13 +678,14 @@ class ScoringOutcome(_UpdateProtectedScoringContract):
         return self
 
 
-class AnalysisInput(_DomainModel):
-    video: VideoMetadata
-    transcript_text: str
+class AnalysisInput(_UpdateProtectedAnalysisContract):
+    payload: AnalysisPayload
     transcript_content_hash: str = Field(min_length=1)
-    score: ScoreResult
-    language: str = Field(min_length=1)
     request_hash: str = Field(min_length=1)
+    prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
+    schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
+    sampling_version: Literal["cloud-token-sampling-v1"] = "cloud-token-sampling-v1"
+    privacy_version: Literal["cloud-privacy-v1"] = "cloud-privacy-v1"
 
 
 class NotAvailable(_DomainModel):
@@ -832,6 +903,7 @@ __all__ = [
     "TranscriptionReason",
     "PointKind",
     "EvidenceSource",
+    "AnalysisSkipReason",
     "NotAvailableReason",
     "NoteKind",
     "PipelineStatus",
@@ -843,11 +915,16 @@ __all__ = [
     "TranscriptArtifact",
     "ScoreDimensions",
     "ScoreResult",
+    "AnalysisPayload",
     "EvidenceExcerpt",
     "AnalysisPoint",
+    "AnalysisContent",
     "AnalysisResult",
     "DiagnosticEntry",
     "ProviderCallMetadata",
+    "AnalysisCompleted",
+    "AnalysisSkipped",
+    "AnalysisOutcome",
     "DiscoveryCursor",
     "DiscoveryBatch",
     "TranscriptSample",
