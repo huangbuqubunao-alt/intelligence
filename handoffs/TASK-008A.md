@@ -127,12 +127,144 @@
 
 ## Reviewer 结论
 
-- Reviewer agent/session：
-- 审查 commit：
+- Reviewer agent/session：`Independent Codex Reviewer /root`
+- 审查 commit：`382251298af7fcbfadba66c1902af6de0a425179`
 - 重新运行的检查：
+  - `uv lock --check`：PASS，`Resolved 84 packages`。
+  - `uv sync --locked --offline`：首次因沙箱无权读取
+    `/Users/hua/.cache/uv` 失败；按既有任务级包缓存授权原样重跑后 PASS，
+    `Resolved 84 packages`、`Checked 61 packages`，未访问 API。
+  - `uv run python -m pytest tests/unit/test_contracts.py`：PASS，`66 passed`。
+  - `uv run python -m pytest`：PASS，`318 passed`。
+  - `uv run mypy src`：PASS，13 个 source files 无问题。
+  - `uv run ruff check .`：PASS。
+  - `uv run python -m youtube_intel --help`：PASS。
+  - `uv build --offline`：首次同样仅因 uv 缓存沙箱权限失败；授权原样重跑
+    PASS。sdist/wheel 均包含 `youtube_intel/migrations/001_initial.sql`；
+    核验后只清理本轮忽略的 `dist/`。
+  - `git diff --check <base>...<reviewed-head>`：PASS；实际固定 SHA 为
+    `82d1fd7c7f2f82e77df0518e63755bad0bf240f2...382251298af7fcbfadba66c1902af6de0a425179`。
+- 独立探针：
+  - Probe A（最小出站/公共面）：10 个 payload 字段、4,000 code points 描述
+    上限、extra forbid、provider-neutral `AnalysisContent`、公共 exports 和八个
+    JSON Schema 的封闭性均 PASS；未发现自由 `dict`、`Any`、宽 `object` 或 SDK
+    类型。
+  - Probe B（Pydantic/hash）：八个新增分析对象对空/非法/未知/嵌套/类型混淆
+    `model_copy(update=...)` 全部拒绝；无 update shallow/deep copy 合法。但三个
+    审计哈希字段及多项空白语义值 FAIL，见 P1-1/P1-2。
+  - Probe C（证据/grounding）：四个来源与 payload 一一映射、时间只能为
+    `None`、字段 kind、引用存在性、去重和基数均 PASS。跨来源错误 excerpt 当前
+    可构造是 TASK-008 精确子串运行时 validator 的明确后续职责，本身不形成
+    finding；但空白 evidence 内容/身份 FAIL，见 P1-2。
+  - Probe D（配置/隐私）：默认、支持表、未知/空白模型、encoding、5/28k/30k、
+    description/output、120 秒、四版本、local<=provider 和未知 YAML 全 PASS。
+    受控 import/load/schema 探针未读取真实环境值、未开 socket；直接
+    `ValidationError` 脱敏 PASS，但 `ConfigError` traceback FAIL，见 P1-3。
+  - Probe E（依赖/离线副作用）：Python `3.12.11`/`arm64`；既有锁图版本零变化；
+    新增锁包仅 OpenAI 2.46.0、distro 1.9.0、jiter 0.16.0、sniffio 1.3.1，
+    tiktoken 0.13.0 由既有传递依赖提升为直接依赖；安装元数据许可证与 handoff
+    一致。包 import 不联网且未实例化 client，但 tokenizer 空缓存离线解析和 SDK
+    凭据环境读取 FAIL，见 P1-4/P1-5。
+  - Probe F（五轴/范围/性能）：固定父链、作者身份、7 路径范围、禁止路径、复用、
+    红线均 PASS；最大 90 个嵌套 points、20 evidence/keywords、每 point 10 refs
+    边界及所有 over-limit 反例 PASS。完成结果与调用审计关联 FAIL，见 P1-6。
+- 验收矩阵：
+  - AC-1：FAIL。union、kind/ref/cardinality/copy 大部通过，但空白 evidence/point/
+    keyword 可进入，不能称为完整 fail-closed 证据契约。
+  - AC-2：FAIL。配置数值/版本/未知字段通过；secret-shaped YAML 值仍可从
+    `ConfigError.__traceback__` 的项目帧访问。
+  - AC-3：PASS。`AnalysisPayload` 序列化集合精确为 A-04 的 10 个字段，禁止字段
+    与 4,001 字符描述均被拒绝。
+  - AC-4：FAIL。范围、锁定版本、许可证、arm64 package import 和既有依赖稳定
+    通过；全新空缓存无法离线解析 `o200k_base`，且 OpenAI SDK import 读取凭据型
+    环境变量。
+  - AC-5：PASS。无 Schema/Repository/Provider/Prompt/编排或真实资源行为。
+- ADR-008 追溯：
+  - A-01：PASS，共享契约/依赖切片，无 Provider 或业务编排。
+  - A-02：FAIL，union/固定 reason 已冻结，但 `AnalysisCompleted` 可持有互相矛盾
+    的 result/call provider/model。
+  - A-03：后续 TASK-008/TASK-010；本切片未实现副作用顺序。
+  - A-04：PASS，出站字段白名单和封闭 Schema 正确。
+  - A-05：FAIL，共享配置边界正确，但空 tokenizer 缓存会尝试网络下载 BPE；
+    采样/计数/纯请求构造仍是 TASK-008。
+  - A-06：FAIL，哈希构造算法是 TASK-008，但本切片冻结的三处哈希值表示并非
+    64 位小写 SHA-256。
+  - A-07：共享配置上限 PASS；真实请求计数/`CloudCallBudget` 是 TASK-010。
+  - A-08：FAIL，resolver/延迟读取是后续任务，但当前 ConfigError traceback 与
+    SDK import 已违反共享隐私前提。
+  - A-09：后续 TASK-008；当前 OpenAI 2.46.0 import 全局读取
+    `AZURE_OPENAI_AD_TOKEN` 的事实会阻断“只通过注入解析”的 Adapter 前提。
+  - A-10：provider-neutral `AnalysisContent` PASS；Structured Outputs/Adapter
+    语义验证是 TASK-008。
+  - A-11：FAIL，来源/kind/ref/time 公共形状通过且足以实现后续精确 grounding，
+    但空白 excerpt/evidence ID/point ref 可绕过有效证据语义；精确子串比较本身
+    仍正确留给 TASK-008。
+  - A-12：边界 PASS；Artifact/Provider-call/事务为 TASK-008/TASK-010，未改
+    `state.py`、Schema 或 `complete_stage`。
+  - A-13：PASS，直接范围/锁文件隔离/必要传递依赖正确。
+  - A-14：FAIL，共享切片的 hash/privacy/offline tokenizer 反例未通过；完整 Fake/
+    SQLite/SDK 参数矩阵仍是后续任务。
+  - A-15：PASS，未读取真实密钥、未调用真实 API/token-count、未访问真实
+    YouTube/Vault/媒体/模型/用户内容。
 - Findings：
-- Verdict：`APPROVE | REJECT`
-- 未解决 P0/P1：
+  - P1-1（correctness/architecture，`src/youtube_intel/domain.py:521,683-684`）：
+    `AnalysisInput.transcript_content_hash`、`AnalysisInput.request_hash` 和
+    `AnalysisResult.request_hash` 只有 `min_length=1`。独立矩阵实际接受纯空白、
+    非十六进制、63 位和 64 位大写值，仅空字符串失败；这与本任务“审计哈希”、
+    ADR-008 A-06 及既有 `TranscriptSample.source_content_hash` 的
+    `^[0-9a-f]{64}$` 表示不一致，后续无法可信消费公共请求身份。
+  - P1-2（correctness/security，`src/youtube_intel/domain.py:403-424`、
+    `src/youtube_intel/domain.py:434-471`）：多个新增“非空”出站/模型字段仅以
+    长度判断。独立反例实际
+    接受纯空白 title、transcript sample、evidence ID、excerpt、point text、
+    point evidence ID 和 keyword；空白 evidence ID 还能与空白引用自洽，令无有效
+    内容的模型输出通过 grounding 公共门禁。
+  - P1-3（security，`src/youtube_intel/config.py:636-645`）：secret-shaped
+    `api_key_env` 的公开错误、repr、`errors()`、cause/context 和格式化 traceback
+    均已脱敏，但遍历 `ConfigError.__traceback__` 可在 `load_settings` 的第
+    643/645 行项目帧局部变量 `raw` 取回完整 sentinel。Reviewer 包明确要求
+    traceback 也不得泄漏。
+  - P1-4（correctness/privacy，`pyproject.toml` 的 tiktoken 直接基线）：
+    在受控全新空 `TIKTOKEN_CACHE_DIR`、socket/API 均拦截的离线探针中，
+    `tiktoken.get_encoding("o200k_base")` 尝试 GET
+    `https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken`。
+    wheel/lock 本身不能保证 A-05 的本地解析，既会令干净离线运行失败，也会产生
+    未授权隐式网络路径。
+  - P1-5（security/architecture，`openai==2.46.0` 依赖基线）：受控 env 哨兵
+    证明单纯 `import openai` 即尝试读取 `AZURE_OPENAI_AD_TOKEN`；安装源码
+    `openai/__init__.py:158-164` 在 import 时读取并保存 Azure/OpenAI 全局环境
+    配置。这不实例化 client 或联网，但已破坏 A-08“最后才由注入 resolver 读取
+    凭据”的共享前提，后续 Adapter 不能仅靠传入 `api_key` 消除 import 时读取。
+  - P1-6（correctness/audit，`src/youtube_intel/domain.py:516-521,550-552`）：
+    `AnalysisCompleted` 不校验 `result.provider/model` 与 `call.provider/model`。
+    独立反例成功构造 result=`openai/gpt-4.1-mini`、
+    call=`different-provider/different-model` 的不可变完成结果，公共契约允许
+    互相矛盾的可信审计元数据。
+  - P0：无。P2：无。P3：无。
+- 五轴/范围/红线/复用结论：
+  - Correctness：上述 P1-1/P1-2/P1-4/P1-6 阻断；其余结构、基数和固定 enum
+    通过。
+  - Architecture：provider-neutral 边界和专用 payload 正确；SDK 全局环境读取、
+    tokenizer 隐式网络和完成审计不一致阻断安全后续消费。
+  - Security：无真实密钥/API/Vault 行为；P1-2/P1-3/P1-5 阻断。
+  - Performance：新增 point/evidence/keyword 序列均有有限上限，验证循环最坏
+    规模受控；无新增热路径或 Provider 调用。
+  - Readability：变更集中、命名清晰、职责基本单一；未见无关重构或死代码。
+  - 范围/红线：implementation head 是 base 的唯一非 merge 子提交，精确 7 个批准
+    路径；无禁止路径、真实数据、凭据、Provider、Prompt、Schema/state/cache 或构建
+    产物提交。
+  - 复用/许可证：`DIRECT` 官方 OpenAI/tiktoken 范围与锁定/许可证证据一致，
+    无复制第三方实现或手写 OpenAI HTTP；但 P1-4/P1-5 证明当前复用基线尚不满足
+    已冻结的离线/凭据副作用要求。
+- 跳过检查：未运行真实 OpenAI/API/token-count、真实环境变量值、付费调用、真实
+  YouTube/Vault/用户内容、媒体、模型或凭据路径；均未授权，且不作为拒绝理由。
+- 剩余风险：精确 evidence 子串运行时验证、采样/token 计数、完整请求哈希算法、
+  CredentialResolver、CloudCallBudget、SDK 参数、缓存与 SQLite 原子性仍属于
+  TASK-008/TASK-010；其尚未实现本身未被列为 finding。
+- `DECISION NEEDED`：`None`；由原 Implementer 在获批 correction 包内修复上述
+  findings 后重新提交并接受全新独立审查。
+- Verdict：`REJECT`
+- 未解决 P0/P1：P0 无；P1-1 至 P1-6 全部未解决。
 
 ## 主控验收
 
