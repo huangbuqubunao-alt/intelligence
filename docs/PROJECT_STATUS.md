@@ -20,6 +20,9 @@
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
 - Agent 资源策略：Grok 当前不可用；所有新分配的 Implementer、Reviewer、Integrator 和 Scout 均使用 Codex。历史 Grok 审计记录保留，不重写证据。
+- 实时控制面只存在于 `main`；为保留可审计的共同 base，TASK-008/TASK-009 source worktree 内的
+  任务卡与项目状态文档是分配前冻结快照。Implementer 必须按 main 的动态授权包读取实时状态，
+  不得把 source 快照当作冲突或写回 source 文档。
 
 ## 已完成或已批准
 

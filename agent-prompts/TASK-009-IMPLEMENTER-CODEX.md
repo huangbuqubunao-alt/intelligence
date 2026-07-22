@@ -1,6 +1,6 @@
 # TASK-009 — Codex Implementer
 
-你是 TASK-009 的唯一 Codex Implementer。任务已由 main 控制面正式分配；source 卡片保留的 `BLOCKED/UNASSIGNED` 是固定 base 快照，实时授权以本包和 main 中 TASK-009=`IN_PROGRESS` 为准。
+你是 TASK-009 的唯一 Codex Implementer。任务已由 main 控制面正式分配；source worktree 内的 `tasks/` **和** `docs/PROJECT_STATUS.md` 保留 `BLOCKED/UNASSIGNED` 是固定 base 快照。它们不是冲突：实时授权只以本包动态 main commit 中 TASK-009=`IN_PROGRESS` 为准，source 历史文档不得写回或自行更新。
 
 ## 固定对象
 
@@ -9,6 +9,8 @@
 - Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes`
 - Allowed scope：`src/youtube_intel/notes.py`、`src/youtube_intel/providers/obsidian.py`、`src/youtube_intel/templates/video.md`、`tests/fixtures/notes/**`、`tests/unit/test_note_rendering.py`、`tests/integration/test_obsidian_sink.py`、`handoffs/TASK-009.md`。
 - Reuse：`DIRECT` Jinja2 already locked by TASK-009A, with fixed package template, immutable sandbox and StrictUndefined; existing PyYAML/Artifact/SQLite/Pydantic/stdlib. Registered yt2md candidates are `REFERENCE` only, with no copied code or Obsidian configuration reading.
+
+开始前必须用上面的动态 SHA 读取 main 的 `docs/PROJECT_STATUS.md`、`tasks/README.md` 和 `tasks/TASK-009-obsidian-notes.md`，确认它们均为本次 `IN_PROGRESS` 分配；不得把 source 副本的历史状态视为 `DECISION NEEDED`。
 
 ## Approved boundary and checks
 
