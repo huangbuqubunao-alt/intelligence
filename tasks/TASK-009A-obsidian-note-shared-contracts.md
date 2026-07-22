@@ -1,8 +1,8 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `第二轮全新独立 Codex，待启动`
+- Reviewer: `第二轮全新独立 Codex APPROVE；等待 Product Integrator`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
@@ -67,6 +67,16 @@
   offline build 与 migration package inclusion 均 PASS；这仅构成待第二轮独立复跑的证据。
 - 状态为 `IN_REVIEW`；Reviewer 2 仅可写 source handoff，不得预写 `APPROVE`、`ACCEPTED`、
   merge 或 `DONE`。
+
+## 2026-07-22 第二轮独立审查、验收与整合授权
+
+- Reviewer evidence：`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`；唯一父为 Correction 1，
+  且只修改 source handoff。Verdict=`APPROVE`，P0/P1/P2/P3 均无。
+- 独立复跑 contracts `75`、全量 `327`、mypy、Ruff、CLI、locked sync、offline build、
+  migration inclusion、固定 Diff 与 KnowledgeSink/NoteRef 探针均 PASS；真实 Vault、
+  文件 I/O、云端、凭据和网络仍未授权。
+- 主控验收为 `ACCEPTED`。Product Integrator 仅可 non-fast-forward merge、复跑离线门禁、
+  验证五路径 first-parent Diff 与 Jinja2/MarkupSafe 依赖边界；不得提前写 merge 或 DONE。
 
 ## 目标
 
