@@ -1819,6 +1819,7 @@ name = "youtube-intel"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "jinja2" },
     { name = "mlx-whisper" },
     { name = "openai" },
     { name = "pydantic" },
@@ -1836,6 +1837,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jinja2", specifier = ">=3.1.6,<3.2" },
     { name = "mlx-whisper", specifier = ">=0.4.3,<0.5" },
     { name = "openai", specifier = ">=2.46.0,<2.47" },
     { name = "pydantic", specifier = ">=2.13.4,<2.14" },
