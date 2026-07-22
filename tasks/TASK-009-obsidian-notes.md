@@ -57,6 +57,17 @@
 - 真实 Vault、用户笔记、测试目录外 I/O、依赖/锁、Schema/migration、`state.py`、CLI、TASK-008、
   云端、网络、凭据、媒体与模型路径继续不授权。
 
+## 2026-07-22 Correction 1 实现证据与复审授权
+
+- Correction source：`60ed077452faf5fe41b105b21b4221f89cb6e02c`，唯一父为 reviewer-2 evidence
+  `f778163dca83807f1baec5e568c4dbd734829171`；Correction 仅修改 `notes.py`、Obsidian Adapter、
+  `test_obsidian_sink.py` 与 source handoff，完整 Diff 仍在原批准范围内。
+- Implementer 自报从既有 VIDEO_NOTE Artifact 恢复首次稳定路径，且在写入/验证/补账前对所有同
+  video_id 候选 fail-closed、拒绝 `C:`；focused=`4/12`、full pytest=`343` 与其余离线门禁通过。
+  这些均待独立 Reviewer 3 复跑。
+- Reviewer 3 只可追加 source handoff；不得触及真实 Vault、用户笔记、测试目录外 I/O、网络、云端、
+  凭据、媒体、模型、TASK-008 或任何范围外索引工件。
+
 ## 目标
 
 将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，
