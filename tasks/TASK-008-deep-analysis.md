@@ -59,6 +59,18 @@
 - Reviewer 3 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
   Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
 
+## 2026-07-22 第三轮审查拒绝与 Correction 3
+
+- Reviewer 3 evidence：`b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，唯一父为 Correction 2
+  `71e1c24936b0ed1be3a98c49efa7770f7456d85c`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。持久化路径未在 ProviderCall 预留前统一执行关闭、低价值与缺凭据门禁；
+  缺凭据还会将预留 call 标为可重试失败，违反 ADR-008 A-03/A-08 的零副作用与凭据最后读取。
+- 原 Codex Implementer 只获 Correction 3：`analysis.py`、两份既有分析测试与 handoff。必须以既有冻结
+  契约严格执行高价值/上游有效性、关闭、本地采样-token-缓存、预算、凭据、预留的顺序，并用临时 SQLite +
+  Fake 对所有零调用门禁逐项证明无状态副作用。
+- 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
+  Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
+
 ## 2026-07-22 Correction 1 实现证据与复审授权
 
 - Correction source：`8317cd9c2a13f6c38fa366ab9f40c326e59d8731`，唯一父为首轮 review evidence

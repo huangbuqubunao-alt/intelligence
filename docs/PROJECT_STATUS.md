@@ -18,8 +18,8 @@
   已从 `main@473119704c7638d7afd4e68d84d00e85064ceabd` 并行分配给 Codex。TASK-008 首轮独立审查
   evidence `b61f46f...` 为 `REJECT`：持久化路径绕过本地 token 上限并在超限时读取凭据/调用 Fake
   transport。Reviewer 2 evidence `02317f2...` 再次 `REJECT`：预算耗尽路径仍在 ProviderCall 预留和
-  凭据读取后才返回，留下 PENDING 状态。Correction 2 source `71e1c249...` 已提交，现等待全新独立
-  Reviewer 3 复核预算门禁的零副作用。TASK-009 首轮 Reviewer 只因未跟踪的
+  凭据读取后才返回，留下 PENDING 状态。Reviewer 3 evidence `b380a8c...` 再次 `REJECT`：持久化
+  路径仍在关闭、低价值和凭据门禁前预留 ProviderCall；现退回原 Implementer 对齐完整 A-03 顺序。TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
   子目录 P2。Reviewer 3 evidence `f4a231b...` 再次 `REJECT`：Vault 权限类 OSError 被错误归为
