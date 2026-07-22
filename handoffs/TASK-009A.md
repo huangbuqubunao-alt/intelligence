@@ -212,3 +212,17 @@
   证据限制已如上记录，已由 ADR/reuse register 覆盖，不阻断。
 - Verdict：`APPROVE`。
 - 未解决 P0/P1：`None`。
+
+## Product Integration and Closure
+
+- Product Integrator merged accepted source `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e` into `main` with
+  merge commit `9b0269eddbd29cee83a056d44951d7973c87492b`.
+- Ordered parents: `1fd031629fc6a7fda2a81e1944ef7a439b9b8259`, then
+  `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`. The first-parent diff is exactly this task's five approved paths.
+- Post-merge checks PASS: `uv lock --check`, `uv sync --locked`, contracts `75 passed`, full suite `327 passed`,
+  mypy, Ruff, CLI help, offline build, and migration SQL inclusion in both sdist and wheel.
+- Jinja2 `3.1.6` is the approved direct dependency; MarkupSafe `3.0.3` is its necessary transitive dependency.
+  Jinja2's BSD-3-Clause evidence remains the approved ADR-009/reuse-register record because installed metadata has no
+  license field; TASK-014 retains the distribution-license gate.
+- Final task state: `DONE`. The source branch/worktree remains retained and clean for audit. No real Vault, user-note,
+  file-I/O, cloud, credential, network, or model path was run or authorized by this task.

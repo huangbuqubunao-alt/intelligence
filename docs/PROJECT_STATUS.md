@@ -1,18 +1,19 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-22
-- 当前阶段：Phase 2 — TASK-009A 验收与最终整合
+- 当前阶段：Phase 2 — TASK-009A 收口
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-009a`，
-  `codex/task-009a-obsidian-note-shared-contracts`，等待 Codex Product Integrator；
-  历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
+- 活动 worktree：无。`/Users/hua/Documents/yia-worktrees/task-009a`，
+  `codex/task-009a-obsidian-note-shared-contracts@e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
+  保留为 TASK-009A 审计证据；历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 也只保留为审计证据
 - 活动任务：TASK-008A 已由 Codex Product Integrator 以 merge commit
   `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合并关闭为 `DONE`。accepted source
-  固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A=`ACCEPTED`，
-  accepted source 固定为 `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`，等待 Codex Product Integrator；正式
-  TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
+  固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A 已由 Codex Product Integrator
+  以 merge commit `9b0269eddbd29cee83a056d44951d7973c87492b` 整合，收口后为 `DONE`；accepted source
+  固定为 `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`。正式 TASK-008/TASK-009 的共享契约依赖已满足，
+  但两项各自的正式分配和真实资源授权尚未获批，继续保持 `BLOCKED/UNASSIGNED`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -56,8 +57,8 @@
 
 ## 下一步
 
-1. Codex Product Integrator 从 accepted source 无冲突 `--no-ff` 合并并复跑离线门禁与五路径范围。
-2. TASK-009A 验收、整合并关闭后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
+1. 完成 TASK-009A 收口控制面同步，记录 merge `9b0269eddbd29cee83a056d44951d7973c87492b`。
+2. 重新核对 TASK-008/TASK-009 的正式任务包与独立资源门禁，再由产品负责人批准固定 worktree、角色与范围后并行分配。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -80,9 +81,8 @@
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
-| 已完成可关闭 | TASK-009A Implementer 与两轮 Reviewer | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；不得继续写 source |
-| 立即启动 | TASK-009A Codex Product Integrator | accepted source `e30b40c...`；仅可 `--no-ff` merge 与离线验证 |
-| 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
+| 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
+| 等待正式分配 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 共享契约均已整合；仍需各自固定分配与真实资源授权 |
 
 ## 授权边界
 

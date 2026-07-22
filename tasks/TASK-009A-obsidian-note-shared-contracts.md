@@ -1,8 +1,8 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `ACCEPTED`
-- Assignee: `Codex`
-- Reviewer: `第二轮全新独立 Codex APPROVE；等待 Product Integrator`
+- Status: `DONE`
+- Assignee: `已整合并关闭`
+- Reviewer: `第二轮全新独立 Codex APPROVE；Product Integrator 已完成`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
@@ -77,6 +77,17 @@
   文件 I/O、云端、凭据和网络仍未授权。
 - 主控验收为 `ACCEPTED`。Product Integrator 仅可 non-fast-forward merge、复跑离线门禁、
   验证五路径 first-parent Diff 与 Jinja2/MarkupSafe 依赖边界；不得提前写 merge 或 DONE。
+
+## 2026-07-22 主线整合与收口
+
+- Codex Product Integrator 已以 merge commit `9b0269eddbd29cee83a056d44951d7973c87492b`
+  整合 accepted source `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`；双父顺序为
+  `1fd031629fc6a7fda2a81e1944ef7a439b9b8259`、`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`。
+- 整合后 locked sync、contracts `75 passed`、全量 `327 passed`、mypy、Ruff、CLI、offline build、
+  sdist/wheel migration inclusion 及五路径 first-parent Diff 均 PASS；Jinja2 `3.1.6` 为直接依赖，
+  MarkupSafe `3.0.3` 为必要传递依赖，既有直接依赖未升级。
+- 本任务收口为 `DONE`。source branch/worktree 保留作审计；真实 Vault、用户笔记、文件 I/O、云端、
+  凭据与网络路径仍未因本共享契约任务获得授权。
 
 ## 目标
 
