@@ -743,26 +743,50 @@ class TranscriptionRequired(_DomainModel):
 TranscriptFetchResult: TypeAlias = TranscriptReady | TranscriptionRequired
 
 
-class NoteRef(_DomainModel):
+class _UpdateProtectedNoteRef(_DomainModel):
+    """Prevent callers from bypassing NoteRef identity validation."""
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for NoteRef"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
+
+
+class NoteRef(_UpdateProtectedNoteRef):
     kind: NoteKind
     relative_path: str = Field(min_length=1)
-    content_hash: str = Field(min_length=1)
+    content_hash: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
 
     @field_validator("relative_path")
     @classmethod
     def _safe_relative_path(cls, value: str) -> str:
-        from pathlib import Path, PurePosixPath
-
-        path = PurePosixPath(value.replace("\\", "/"))
-        if path.is_absolute() or any(part == ".." for part in path.parts):
-            msg = "relative_path must be a safe relative path under the vault"
-            raise ValueError(msg)
         if not value or value.strip() != value:
             msg = "relative_path must be non-empty without surrounding whitespace"
             raise ValueError(msg)
-        # Reject empty path components that collapse oddly
-        if Path(value).is_absolute():
-            msg = "relative_path must not be absolute"
+        if "\x00" in value or "\\" in value:
+            msg = "relative_path must be a safe relative path under the vault"
+            raise ValueError(msg)
+        if len(value) >= 2 and value[0].isalpha() and value[1] == ":":
+            msg = "relative_path must not include a drive prefix"
+            raise ValueError(msg)
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(
+            not part or part in {".", ".."} for part in value.split("/")
+        ):
+            msg = "relative_path must be a canonical relative path"
+            raise ValueError(msg)
+        if not value.endswith(".md"):
+            msg = "relative_path must end in .md"
             raise ValueError(msg)
         return value
 
@@ -902,10 +926,13 @@ class SummaryProvider(Protocol):
 class KnowledgeSink(Protocol):
     def upsert_video_note(
         self,
+        *,
         video: VideoMetadata,
         transcript: TranscriptArtifact,
-        score: ScoreResult,
-        analysis: AnalysisResult | None,
+        scoring: ScoringOutcome,
+        analysis: AnalysisOutcome,
+        processed_at: datetime,
+        pipeline_version: str,
     ) -> NoteRef: ...
 
     def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef: ...

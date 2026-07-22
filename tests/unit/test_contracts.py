@@ -660,6 +660,20 @@ def test_cloud_dependencies_are_direct_offline_importable_and_licensed() -> None
     assert importlib.metadata.metadata("tiktoken")["License"].startswith("MIT License")
 
 
+def test_obsidian_template_dependency_is_direct_offline_importable_and_licensed() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = set(project["project"]["dependencies"])
+
+    assert "jinja2>=3.1.6,<3.2" in dependencies
+    assert importlib.metadata.version("jinja2") == "3.1.6"
+    assert importlib.import_module("jinja2").__version__ == "3.1.6"
+    assert any(
+        requirement.startswith("MarkupSafe")
+        for requirement in importlib.metadata.requires("jinja2") or ()
+    )
+    assert importlib.metadata.metadata("markupsafe")["License-Expression"] == "BSD-3-Clause"
+
+
 def test_correction_p1_4_tokenizer_resource_is_local_verified_and_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1815,7 +1829,11 @@ def test_cross_module_io_objects() -> None:
     )
     assert na.reason_code is NotAvailableReason.NO_CONTENT
 
-    note = NoteRef(kind=NoteKind.VIDEO, relative_path="Videos/x.md", content_hash="c")
+    note = NoteRef(
+        kind=NoteKind.VIDEO,
+        relative_path="Videos/x.md",
+        content_hash="c" * 64,
+    )
     with pytest.raises(ValidationError):
         NoteRef(kind=NoteKind.VIDEO, relative_path="../escape.md", content_hash="c")
 
@@ -1943,20 +1961,121 @@ def test_provider_protocols_are_structural() -> None:
 
     assert isinstance(FakeSummary(), SummaryProvider)
 
+    low_value_scoring: ScoringOutcome = ScoringOutcome(
+        result=_score(score=6.5, should_summarize=True),
+        decision=ScoringDecision(
+            threshold=7.0,
+            final_should_summarize=False,
+            model_disagrees=True,
+        ),
+        call=_call(),
+    )
+    skipped_analysis: AnalysisOutcome = AnalysisSkipped(
+        reason=AnalysisSkipReason.CLOUD_DISABLED,
+        call=None,
+        safe_message="Cloud analysis is disabled.",
+    )
+
     class FakeSink:
         def upsert_video_note(
             self,
+            *,
             video: VideoMetadata,
             transcript: TranscriptArtifact,
-            score: ScoreResult,
-            analysis: AnalysisResult | None,
+            scoring: ScoringOutcome,
+            analysis: AnalysisOutcome,
+            processed_at: datetime,
+            pipeline_version: str,
         ) -> NoteRef:
-            return NoteRef(kind=NoteKind.VIDEO, relative_path="a.md", content_hash="h")
+            assert scoring.decision.final_should_summarize is False
+            assert isinstance(analysis, AnalysisSkipped)
+            assert processed_at.tzinfo is not None
+            assert pipeline_version == "pipeline-v1"
+            return NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path="a.md",
+                content_hash="a" * 64,
+            )
 
         def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef:
-            return NoteRef(kind=NoteKind.WEEKLY, relative_path="w.md", content_hash="h")
+            return NoteRef(
+                kind=NoteKind.WEEKLY,
+                relative_path="w.md",
+                content_hash="a" * 64,
+            )
 
     assert isinstance(FakeSink(), KnowledgeSink)
+    signature = inspect.signature(KnowledgeSink.upsert_video_note)
+    assert [parameter.name for parameter in signature.parameters.values()] == [
+        "self",
+        "video",
+        "transcript",
+        "scoring",
+        "analysis",
+        "processed_at",
+        "pipeline_version",
+    ]
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY
+        for parameter in tuple(signature.parameters.values())[1:]
+    )
+    assert all(
+        parameter.default is inspect.Parameter.empty
+        for parameter in tuple(signature.parameters.values())[1:]
+    )
+    assert inspect.get_annotations(KnowledgeSink.upsert_video_note) == {
+        "video": "VideoMetadata",
+        "transcript": "TranscriptArtifact",
+        "scoring": "ScoringOutcome",
+        "analysis": "AnalysisOutcome",
+        "processed_at": "datetime",
+        "pipeline_version": "str",
+        "return": "NoteRef",
+    }
+    assert low_value_scoring.decision.final_should_summarize is False
+    assert isinstance(skipped_analysis, AnalysisSkipped)
+
+
+def test_note_ref_requires_a_verified_posix_markdown_identity() -> None:
+    note = NoteRef(
+        kind=NoteKind.VIDEO,
+        relative_path="Videos/insight--abc123.md",
+        content_hash="a" * 64,
+    )
+    assert note.relative_path == "Videos/insight--abc123.md"
+
+    for relative_path in (
+        "/absolute.md",
+        r"Videos\\windows.md",
+        "C:drive.md",
+        "C:/drive.md",
+        ".",
+        "..",
+        "Videos//empty.md",
+        "Videos/./current.md",
+        "Videos/../parent.md",
+        "Videos/not-markdown.txt",
+        " Videos/leading.md",
+        "Videos/trailing.md ",
+        "Videos/\x00nul.md",
+    ):
+        with pytest.raises(ValidationError):
+            NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path=relative_path,
+                content_hash="a" * 64,
+            )
+
+    for content_hash in ("", "a" * 63, "A" * 64, "g" * 64):
+        with pytest.raises(ValidationError):
+            NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path="Videos/insight--abc123.md",
+                content_hash=content_hash,
+            )
+
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        note.model_copy(update={"relative_path": "Videos/other.md"})
 
 
 def test_domain_module_has_no_concrete_sdk_imports() -> None:
