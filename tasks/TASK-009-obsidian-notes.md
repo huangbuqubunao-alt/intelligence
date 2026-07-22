@@ -1,6 +1,6 @@
 # TASK-009：Obsidian 视频笔记
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -26,6 +26,15 @@
   七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI、云 Provider 或任务状态。
 - 只授权测试创建的临时目录内的原子写、替换、清理与 symlink 安全探针。真实 Obsidian Vault、
   真实用户笔记、工作树/测试目录外写入、外部文件删除/移动/重命名、凭据、云端和网络路径继续禁止。
+
+## 2026-07-22 实现证据与审查授权
+
+- Implementation source：`956e37a15ab29106f16c45873fccb813cc5a959f`，唯一父为固定 base
+  `473119704c7638d7afd4e68d84d00e85064ceabd`；完整 Diff 落在本卡批准的七路径组内。
+- Implementer 自报 focused `4/6`、full pytest `337`、mypy、Ruff、CLI、lock/sync、offline build、
+  template/migration package inclusion、临时 Vault 原子写和 SQLite 补账均 PASS；这些只构成待独立复跑证据。
+- 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main
+  或任务状态。TASK-008 继续独立 `IN_REVIEW`，不得被本次审查触碰。
 
 ## 目标
 
