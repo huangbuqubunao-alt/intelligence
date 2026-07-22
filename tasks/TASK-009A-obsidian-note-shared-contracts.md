@@ -1,8 +1,8 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
-- Reviewer: `全新独立 Codex，待启动`
+- Reviewer: `首轮 REJECT；Correction 1 后启动全新独立 Codex`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
@@ -42,6 +42,18 @@
 - 状态进入 `IN_REVIEW`；全新独立 Codex Reviewer 只可在 source handoff 记录结论，不得
   改产品代码、依赖、锁文件、main 或任务状态。真实 Vault、用户笔记、文件 I/O、云端与凭据
   继续未授权。
+
+## 2026-07-22 首轮审查拒绝与 Correction 1
+
+- Reviewer evidence：`f73b28756c371d80fb7525bd7e4defb6b82b1a3c`；唯一父为 implementation
+  `75158be08d6442a7b18099f459654e9da86ebcee`，且仅修改 source handoff。
+- Verdict=`REJECT`，P1：纯 `KnowledgeSink` Protocol 虽冻结 keyword-only 签名，但没有
+  调用时 fail-closed 边界，naive `processed_at`、首尾空白 `pipeline_version` 和
+  `final_should_summarize=false` 的低价值写入可通过。
+- 产品负责人批准保持 ADR-009 N-02 的公开签名不变，改为带公共验证入口的抽象基类；
+  成功校验后才进入受保护 abstract 实现钩子。Correction 1 仅允许 `domain.py`、
+  `test_contracts.py` 与 `handoffs/TASK-009A.md`，禁止依赖、Vault、文件 I/O、Schema 或
+  其他产品范围变化。
 
 ## 目标
 
