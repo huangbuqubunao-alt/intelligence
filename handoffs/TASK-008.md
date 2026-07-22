@@ -59,3 +59,59 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：待创建
 - 复现/验证说明：仅 Fake transport 和临时 SQLite；无真实资源。
+
+## Reviewer 结论
+
+- Reviewer agent/session: `Codex`（独立新会话）
+- 授权记录：`main` 中本 Reviewer 工作包最新提交为
+  `83bd1f1fcfdef5d4949f59b513033803113c3d8a`；实时控制面将 TASK-008
+  列为等待独立审查，审查对象为
+  `codex/task-008-deep-analysis@10478a9083df4eedae061d99d941c88cb4954179`。
+- Base/历史快照：唯一父提交为
+  `473119704c7638d7afd4e68d84d00e85064ceabd`；source 的旧
+  `BLOCKED/UNASSIGNED` 文档快照未作为冲突处理。
+- 范围与完整 Diff：worktree 起始时 clean；`base...HEAD` 仅包含六个允许路径
+  （handoff、`analysis.py`、`providers/cloud_llm.py`、固定 prompt、两份指定测试），
+  无依赖、锁、公共契约、Schema/state、CLI 或 TASK-009 变更；固定
+  `git diff --check` 通过。
+
+### 独立检查
+
+| 命令/探针 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages in 14ms`。 |
+| `uv sync --locked` | PASS | 首次受沙箱外 uv cache 权限限制；获批准后以同一 locked 命令执行，`Checked 61 packages`。 |
+| `uv run python -m pytest tests/unit/test_analysis_policy.py` | PASS | `4 passed`。 |
+| `uv run python -m pytest tests/integration/test_summary_provider.py` | PASS | `9 passed`。 |
+| A：Repository 持久化路径 token 门禁 | **FAIL / P1** | 临时 SQLite + Fake Provider/Resolver，`CloudSettings(enabled=True, model="gpt-4.1-mini", max_local_input_tokens_per_video=1)` 与普通 transcript：输出 `provider 1 credential 1`。不应读取凭据或调用 transport。 |
+| 其余强制命令与 B–E 探针 | SKIPPED | 工作包规定发现任一 P0/P1 立即 `REJECT` 并停止；未继续运行全量 pytest、mypy、Ruff、CLI、offline build、包检查或其他探针。 |
+
+### Findings（P0–P3）
+
+- **P1 — 持久化分析路径绕过本地 token 零调用门禁。**
+  `RepositoryBackedAnalysisService.analyze` 在
+  [`src/youtube_intel/analysis.py:423`](../src/youtube_intel/analysis.py#L423)
+  直接构造输入并在
+  [`src/youtube_intel/analysis.py:453`](../src/youtube_intel/analysis.py#L453)
+  读取凭据、在
+  [`src/youtube_intel/analysis.py:459`](../src/youtube_intel/analysis.py#L459)
+  调用 provider；它没有复用 `AnalysisService` 在
+  [`src/youtube_intel/analysis.py:357`](../src/youtube_intel/analysis.py#L357)-[`src/youtube_intel/analysis.py:359`](../src/youtube_intel/analysis.py#L359)
+  执行的 `_input_tokens(...) > max_local_input_tokens_per_video` 检查。故实际任务路径在
+  local-token 超限时仍会把 payload 交给 transport，违反 TASK-008 AC 和工作包探针 A 的
+  “token 门禁零 transport、凭据最后读取”要求；真实环境会造成未经允许的云端内容发送与付费调用。
+
+- P0：无（审查在首个 P1 后按授权停止）。
+- P2/P3：未继续评估；不构成已审查通过的结论。
+
+### AC / ADR / 五轴矩阵
+
+| 项目 | 状态 | 说明 |
+|---|---|---|
+| AC：token 超限零调用 | **FAIL** | 上述 P1 已以临时 SQLite/Fake transport 复现。 |
+| 其余 AC、ADR-008 A-01 至 A-17、复用/许可证、五轴完整审查 | BLOCKED | 发现 P1 后强制停止，不能标记为通过。 |
+| 真实 OpenAI、凭据、付费、网络、Vault/用户内容 | NOT RUN | 未授权且未触发。 |
+
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1（持久化路径必须先完成和普通路径相同的零调用门禁；补充该真实 SQLite/Fake transport 回归后再重新独立审查）。
+- 复用/许可证：本次只复核声明的 DIRECT 边界；未新增依赖或许可证义务。未因 P1 对其余复用项作通过结论。
