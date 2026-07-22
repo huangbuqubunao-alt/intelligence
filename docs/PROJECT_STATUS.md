@@ -17,8 +17,8 @@
   固定为 `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`。正式 TASK-008/TASK-009 的共享契约依赖已满足，
   已从 `main@473119704c7638d7afd4e68d84d00e85064ceabd` 并行分配给 Codex。TASK-008 首轮独立审查
   evidence `b61f46f...` 为 `REJECT`：持久化路径绕过本地 token 上限并在超限时读取凭据/调用 Fake
-  transport。Correction 1 source `8317cd9...` 已提交，现等待全新独立 Reviewer 2 复核 token 超限
-  零调用与其余离线门禁。TASK-009 首轮 Reviewer 只因未跟踪的
+  transport。Reviewer 2 evidence `02317f2...` 再次 `REJECT`：预算耗尽路径仍在 ProviderCall 预留和
+  凭据读取后才返回，留下 PENDING 状态；现退回原 Implementer 执行预算门禁 Correction 2。TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
   子目录 P2。Correction 1 source `60ed077...` 已提交，现等待全新独立 Reviewer 3 完整复核稳定

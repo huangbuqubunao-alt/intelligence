@@ -58,6 +58,18 @@
 - Reviewer 2 只可追加 source handoff；不得运行真实 OpenAI、密钥、付费/API、网络、云端 token-count、
   Vault、用户内容、媒体、YouTube 或测试目录外文件操作。
 
+## 2026-07-22 第二轮审查拒绝与 Correction 2
+
+- Reviewer 2 evidence：`02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf`，唯一父为 Correction 1
+  `8317cd9c2a13f6c38fa366ab9f40c326e59d8731`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。预算已耗尽时，持久化路径仍创建 `PENDING` ProviderCall 并读取凭据，才返回
+  `BUDGET_EXHAUSTED`，违反 ADR-008 A-03/A-07/A-08 的门禁顺序与零副作用。
+- 原 Codex Implementer 只获 Correction 2：`analysis.py`、既有分析集成测试和 handoff。必须在 ProviderCall
+  预留、凭据解析、Provider/transport 或任何 Repository 写入前返回 `BUDGET_EXHAUSTED`，并用临时 SQLite +
+  Fake 回归证明 Resolver/transport/ProviderCall/Artifact 为零且 Pipeline/Job 不变。
+- 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
+  Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
+
 ## 目标
 
 仅对策略允许的高价值视频调用已启用的 OpenAI Adapter，返回经过严格结构与证据
