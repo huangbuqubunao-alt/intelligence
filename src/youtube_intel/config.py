@@ -27,6 +27,13 @@ _ENV_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED: Final = "[REDACTED]"
 _SENSITIVE_CONFIG_FIELDS: Final = frozenset({"api_key_env"})
 _LOOPBACK_HTTP_HOSTS: Final = frozenset({"127.0.0.1", "localhost", "::1"})
+_SUPPORTED_CLOUD_MODEL_TOKENIZERS: Final = frozenset(
+    {
+        ("gpt-4.1", "o200k_base"),
+        ("gpt-4.1-mini", "o200k_base"),
+        ("gpt-4.1-nano", "o200k_base"),
+    }
+)
 # extra=forbid at every boundary; not strict so YAML ints may coerce to floats.
 _FROZEN: Final = ConfigDict(extra="forbid", frozen=True)
 
@@ -434,8 +441,16 @@ class CloudSettings(_ConfigModel):
     provider: Literal["openai"] = "openai"
     model: str | None = None
     api_key_env: str = "OPENAI_API_KEY"
+    tokenizer_encoding: Literal["o200k_base"] = "o200k_base"
     max_calls_per_run: int = Field(default=5, gt=0, le=5)
+    max_local_input_tokens_per_video: int = Field(default=28_000, gt=0, le=28_000)
     max_input_tokens_per_video: int = Field(default=30000, gt=0, le=30000)
+    max_description_chars: int = Field(default=4000, ge=0, le=20_000)
+    max_output_tokens: int = Field(default=4000, ge=256, le=8000)
+    prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
+    schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
+    sampling_version: Literal["cloud-token-sampling-v1"] = "cloud-token-sampling-v1"
+    privacy_version: Literal["cloud-privacy-v1"] = "cloud-privacy-v1"
 
     @field_validator("api_key_env")
     @classmethod
@@ -443,11 +458,26 @@ class CloudSettings(_ConfigModel):
         return _validate_env_var_name(value)
 
     @model_validator(mode="after")
-    def _enabled_requires_model(self) -> Self:
+    def _model_and_tokenizer_contract(self) -> Self:
         if self.enabled:
             if self.model is None or not str(self.model).strip():
                 msg = "cloud.model is required when cloud.enabled is true"
                 raise ValueError(msg)
+        if self.model is not None:
+            if self.model != self.model.strip():
+                msg = "cloud.model must not contain surrounding whitespace"
+                raise ValueError(msg)
+            if (self.model, self.tokenizer_encoding) not in (
+                _SUPPORTED_CLOUD_MODEL_TOKENIZERS
+            ):
+                msg = "cloud.model has no explicitly supported tokenizer mapping"
+                raise ValueError(msg)
+        if (
+            self.max_local_input_tokens_per_video
+            > self.max_input_tokens_per_video
+        ):
+            msg = "cloud local input token limit must not exceed the provider limit"
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="wrap")
@@ -464,8 +494,17 @@ class CloudSettings(_ConfigModel):
             "CloudSettings("
             f"enabled={self.enabled!r}, provider={self.provider!r}, "
             f"model={self.model!r}, api_key_env={self.api_key_env!r}, "
+            f"tokenizer_encoding={self.tokenizer_encoding!r}, "
             f"max_calls_per_run={self.max_calls_per_run!r}, "
-            f"max_input_tokens_per_video={self.max_input_tokens_per_video!r})"
+            "max_local_input_tokens_per_video="
+            f"{self.max_local_input_tokens_per_video!r}, "
+            f"max_input_tokens_per_video={self.max_input_tokens_per_video!r}, "
+            f"max_description_chars={self.max_description_chars!r}, "
+            f"max_output_tokens={self.max_output_tokens!r}, "
+            f"prompt_version={self.prompt_version!r}, "
+            f"schema_version={self.schema_version!r}, "
+            f"sampling_version={self.sampling_version!r}, "
+            f"privacy_version={self.privacy_version!r})"
         )
 
 
@@ -594,16 +633,26 @@ def _apply_overrides(settings: AppSettings, overrides: SettingsOverrides) -> App
     return settings.model_copy(update=updates)
 
 
+def _validate_settings_mapping(raw: dict[str, Any], path: Path) -> AppSettings | str:
+    """Validate in an isolated frame and return only safe error text on failure."""
+    try:
+        return AppSettings.model_validate(raw)
+    except Exception as exc:
+        return _format_config_error("settings validation failed", path, exc)
+
+
 def load_settings(
     path: Path,
     *,
     overrides: SettingsOverrides | None = None,
 ) -> AppSettings:
     raw = _load_yaml_mapping(path)
-    try:
-        settings = AppSettings.model_validate(raw)
-    except Exception as exc:
-        raise ConfigError(_format_config_error("settings validation failed", path, exc)) from exc
+    validation_result = _validate_settings_mapping(raw, path)
+    if isinstance(validation_result, str):
+        raw.clear()
+        del raw
+        raise ConfigError(validation_result) from None
+    settings = validation_result
     if overrides is not None:
         settings = _apply_overrides(settings, overrides)
     return settings

@@ -61,8 +61,16 @@ cloud:
   provider: openai
   # model required only when enabled: true
   api_key_env: OPENAI_API_KEY
+  tokenizer_encoding: o200k_base
   max_calls_per_run: 5
+  max_local_input_tokens_per_video: 28000
   max_input_tokens_per_video: 30000
+  max_description_chars: 4000
+  max_output_tokens: 4000
+  prompt_version: analysis-prompt-v1
+  schema_version: analysis-result-v1
+  sampling_version: cloud-token-sampling-v1
+  privacy_version: cloud-privacy-v1
 
 storage:
   data_dir: data

@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+import importlib
+import importlib.metadata
 import inspect
+import json
 import re
+import socket
+import subprocess
+import sys
 import textwrap
+import tomllib
+import traceback
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 
 import pytest
@@ -37,9 +47,15 @@ from youtube_intel.domain import (
     JOB_TRANSITIONS,
     PIPELINE_TRANSITIONS,
     SCORE_DIMENSION_NAMES,
+    AnalysisCompleted,
+    AnalysisContent,
     AnalysisInput,
+    AnalysisOutcome,
+    AnalysisPayload,
     AnalysisPoint,
     AnalysisResult,
+    AnalysisSkipped,
+    AnalysisSkipReason,
     AppError,
     Availability,
     ChannelRef,
@@ -97,6 +113,8 @@ SETTINGS_EXAMPLE = REPO_ROOT / "config" / "settings.example.yaml"
 NOW = datetime(2026, 7, 14, 12, 0, 0, tzinfo=UTC)
 TRANSCRIPT_HASH = "a" * 64
 MODEL_DIGEST = "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
+O200K_BASE_RESOURCE = REPO_ROOT / "src/youtube_intel/resources/o200k_base.tiktoken"
+O200K_BASE_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +217,23 @@ def _sample(**kwargs: object) -> TranscriptSample:
     }
     data.update(kwargs)
     return TranscriptSample.model_validate(data)
+
+
+def _analysis_payload(**kwargs: object) -> AnalysisPayload:
+    data: dict[str, object] = {
+        "video_id": "vid1",
+        "title": "Public title",
+        "channel_name": "Public channel",
+        "published_at": NOW,
+        "duration_seconds": 600,
+        "default_language": "en",
+        "description": "Public description",
+        "transcript_language": "en",
+        "output_language": "zh-CN",
+        "transcript_sample": "head body tail",
+    }
+    data.update(kwargs)
+    return AnalysisPayload.model_validate(data)
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +546,288 @@ def test_cloud_enabled_requires_model_and_budget_caps() -> None:
         CloudSettings(api_key_env="bad-name!")
 
 
+def test_cloud_settings_freeze_safe_defaults_and_contract_versions() -> None:
+    cloud = CloudSettings()
+
+    assert cloud.enabled is False
+    assert cloud.provider == "openai"
+    assert cloud.model is None
+    assert cloud.api_key_env == "OPENAI_API_KEY"
+    assert cloud.tokenizer_encoding == "o200k_base"
+    assert cloud.max_calls_per_run == 5
+    assert cloud.max_local_input_tokens_per_video == 28_000
+    assert cloud.max_input_tokens_per_video == 30_000
+    assert cloud.max_description_chars == 4_000
+    assert cloud.max_output_tokens == 4_000
+    assert cloud.prompt_version == "analysis-prompt-v1"
+    assert cloud.schema_version == "analysis-result-v1"
+    assert cloud.sampling_version == "cloud-token-sampling-v1"
+    assert cloud.privacy_version == "cloud-privacy-v1"
+    assert TimeoutSettings().cloud_model_seconds == 120
+
+
+def test_cloud_model_requires_an_explicit_tokenizer_mapping() -> None:
+    for model in ("gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"):
+        cloud = CloudSettings(enabled=True, model=model)
+        assert cloud.tokenizer_encoding == "o200k_base"
+
+    with pytest.raises(ValidationError, match="tokenizer"):
+        CloudSettings(enabled=True, model="unknown-model")
+    with pytest.raises(ValidationError):
+        CloudSettings(
+            enabled=True,
+            model="gpt-4.1-mini",
+            tokenizer_encoding="cl100k_base",
+        )
+
+
+def test_cloud_local_input_budget_cannot_exceed_provider_budget() -> None:
+    CloudSettings(
+        max_local_input_tokens_per_video=27_999,
+        max_input_tokens_per_video=27_999,
+    )
+    with pytest.raises(ValidationError, match="local input"):
+        CloudSettings(
+            max_local_input_tokens_per_video=28_000,
+            max_input_tokens_per_video=27_999,
+        )
+
+
+def test_cloud_numeric_and_version_boundaries_are_strict() -> None:
+    CloudSettings(max_local_input_tokens_per_video=1)
+    CloudSettings(max_local_input_tokens_per_video=28_000)
+    CloudSettings(max_input_tokens_per_video=28_000)
+    CloudSettings(max_input_tokens_per_video=30_000)
+    CloudSettings(max_description_chars=0)
+    CloudSettings(max_description_chars=20_000)
+    CloudSettings(max_output_tokens=256)
+    CloudSettings(max_output_tokens=8_000)
+
+    invalid_values = (
+        {"max_calls_per_run": 0},
+        {"max_calls_per_run": 6},
+        {"max_local_input_tokens_per_video": 0},
+        {"max_local_input_tokens_per_video": 28_001},
+        {"max_input_tokens_per_video": 0},
+        {"max_input_tokens_per_video": 30_001},
+        {"max_description_chars": -1},
+        {"max_description_chars": 20_001},
+        {"max_output_tokens": 255},
+        {"max_output_tokens": 8_001},
+        {"prompt_version": "analysis-prompt-v2"},
+        {"schema_version": "analysis-result-v2"},
+        {"sampling_version": "cloud-token-sampling-v2"},
+        {"privacy_version": "cloud-privacy-v2"},
+        {"temperature": 0.0},
+    )
+    for values in invalid_values:
+        with pytest.raises(ValidationError):
+            CloudSettings.model_validate(values)
+
+
+def test_cloud_example_is_complete_and_contains_no_secret_value() -> None:
+    raw = yaml.safe_load(SETTINGS_EXAMPLE.read_text(encoding="utf-8"))
+    cloud = raw["cloud"]
+
+    assert cloud == {
+        "enabled": False,
+        "provider": "openai",
+        "api_key_env": "OPENAI_API_KEY",
+        "tokenizer_encoding": "o200k_base",
+        "max_calls_per_run": 5,
+        "max_local_input_tokens_per_video": 28_000,
+        "max_input_tokens_per_video": 30_000,
+        "max_description_chars": 4_000,
+        "max_output_tokens": 4_000,
+        "prompt_version": "analysis-prompt-v1",
+        "schema_version": "analysis-result-v1",
+        "sampling_version": "cloud-token-sampling-v1",
+        "privacy_version": "cloud-privacy-v1",
+    }
+    assert "sk-" not in repr(raw)
+    assert raw["storage"]["vault_root"] == "/absolute/path/to/obsidian/vault"
+
+
+def test_cloud_dependencies_are_direct_offline_importable_and_licensed() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = set(project["project"]["dependencies"])
+
+    assert "openai>=2.46.0,<2.47" in dependencies
+    assert "tiktoken>=0.13.0,<0.14" in dependencies
+    assert importlib.metadata.version("openai") == "2.46.0"
+    assert importlib.metadata.version("tiktoken") == "0.13.0"
+    assert importlib.metadata.metadata("openai")["License"] == "Apache-2.0"
+    assert importlib.metadata.metadata("tiktoken")["License"].startswith("MIT License")
+
+
+def test_correction_p1_4_tokenizer_resource_is_local_verified_and_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    assert O200K_BASE_RESOURCE.is_file()
+
+    package_resource = resources.files("youtube_intel").joinpath(
+        "resources",
+        "o200k_base.tiktoken",
+    )
+    source_bytes = O200K_BASE_RESOURCE.read_bytes()
+    package_bytes = package_resource.read_bytes()
+    assert package_bytes == source_bytes
+    assert hashlib.sha256(source_bytes).hexdigest() == O200K_BASE_SHA256
+
+    empty_cache = tmp_path / "empty-tiktoken-cache"
+    empty_cache.mkdir()
+    assert not tuple(empty_cache.iterdir())
+    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(empty_cache))
+    requests_module = importlib.import_module("requests")
+
+    def deny_http(*args: object, **kwargs: object) -> None:
+        raise AssertionError("network access is forbidden for packaged tokenizer resources")
+
+    monkeypatch.setattr(requests_module, "get", deny_http)
+    monkeypatch.setattr(socket, "create_connection", deny_http)
+    load_tiktoken_bpe = importlib.import_module("tiktoken.load").load_tiktoken_bpe
+    with resources.as_file(package_resource) as packaged_path:
+        ranks = load_tiktoken_bpe(
+            str(packaged_path),
+            expected_hash=O200K_BASE_SHA256,
+        )
+        assert len(ranks) > 0
+
+        with pytest.raises(ValueError, match="Hash mismatch"):
+            load_tiktoken_bpe(
+                str(packaged_path),
+                expected_hash="0" * 64,
+            )
+
+    with pytest.raises(FileNotFoundError):
+        load_tiktoken_bpe(
+            str(tmp_path / "missing.tiktoken"),
+            expected_hash=O200K_BASE_SHA256,
+        )
+
+    tampered_bytes = bytearray(source_bytes)
+    tampered_bytes[0] ^= 1
+    tampered = tmp_path / "tampered.tiktoken"
+    tampered.write_bytes(tampered_bytes)
+    with pytest.raises(ValueError, match="Hash mismatch"):
+        load_tiktoken_bpe(str(tampered), expected_hash=O200K_BASE_SHA256)
+
+    malformed_bytes = b"not-a-valid-rank-line"
+    malformed = tmp_path / "malformed.tiktoken"
+    malformed.write_bytes(malformed_bytes)
+    with pytest.raises(ValueError, match="Error parsing line"):
+        load_tiktoken_bpe(
+            str(malformed),
+            expected_hash=hashlib.sha256(malformed_bytes).hexdigest(),
+        )
+
+
+def test_correction_p1_5_openai_import_is_isolated_from_pytest_main(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert "openai" not in sys.modules
+    for source_path in (REPO_ROOT / "src").rglob("*.py"):
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        imported_roots = {
+            alias.name.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported_roots.update(
+            node.module.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        assert "openai" not in imported_roots
+
+    synthetic_parent_names = (
+        "OPENAI_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_AD_TOKEN",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "PYTHONPATH",
+        "SYNTHETIC_TOKEN",
+        "SYNTHETIC_KEY",
+        "SYNTHETIC_SECRET",
+        "SYNTHETIC_PASSWORD",
+    )
+    synthetic_value = "synthetic-parent-environment-sentinel"
+    for name in synthetic_parent_names:
+        monkeypatch.setenv(name, synthetic_value)
+
+    child_source = textwrap.dedent(
+        """
+        import importlib.metadata
+        import json
+        import os
+
+        def blocked_names():
+            exact = {
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "NO_PROXY",
+                "PYTHONPATH",
+            }
+            suffixes = ("_TOKEN", "_KEY", "_SECRET", "_PASSWORD")
+            return sorted(
+                name
+                for name in os.environ
+                if name.startswith(("OPENAI_", "AZURE_"))
+                or name in exact
+                or name.endswith(suffixes)
+            )
+
+        before = blocked_names()
+        import openai
+        after = blocked_names()
+        print(
+            json.dumps(
+                {
+                    "module": openai.__name__,
+                    "version": importlib.metadata.version("openai"),
+                    "blocked_before": before,
+                    "blocked_after": after,
+                },
+                sort_keys=True,
+            )
+        )
+        """
+    )
+    executable = Path(sys.executable)
+    assert executable.is_absolute()
+    isolated_env = {
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+    }
+    completed = subprocess.run(
+        [str(executable), "-I", "-c", child_source],
+        check=False,
+        capture_output=True,
+        env=isolated_env,
+        shell=False,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert synthetic_value not in completed.stdout
+    assert synthetic_value not in completed.stderr
+    child_result = json.loads(completed.stdout)
+    assert child_result == {
+        "blocked_after": [],
+        "blocked_before": [],
+        "module": "openai",
+        "version": "2.46.0",
+    }
+    assert "openai" not in sys.modules
+
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -596,7 +913,11 @@ def test_safe_load_rejects_python_tags(tmp_path: Path) -> None:
 
 
 def test_secrets_never_loaded_or_shown() -> None:
-    cloud = CloudSettings(enabled=True, model="gpt-test", api_key_env="OPENAI_API_KEY")
+    cloud = CloudSettings(
+        enabled=True,
+        model="gpt-4.1-mini",
+        api_key_env="OPENAI_API_KEY",
+    )
     text = repr(cloud)
     assert "OPENAI_API_KEY" in text
     assert "sk-" not in text
@@ -638,6 +959,53 @@ def test_api_key_env_secret_shaped_input_redacted_in_errors(tmp_path: Path) -> N
     assert "api_key_env" in ce_text or "settings validation failed" in ce_text
 
 
+def test_correction_p1_3_config_error_releases_secret_from_exception_graph(
+    tmp_path: Path,
+) -> None:
+    sentinel = "-".join(("sk", "correction", "config", "graph", "sentinel"))
+    data = _minimal_settings_dict()
+    data["cloud"] = {
+        "enabled": False,
+        "provider": "openai",
+        "api_key_env": sentinel,
+        "max_calls_per_run": 5,
+        "max_input_tokens_per_video": 30_000,
+    }
+    path = _write_settings(tmp_path, data)
+
+    with pytest.raises(ConfigError) as exc_info:
+        load_settings(path)
+
+    pending: list[BaseException] = [exc_info.value]
+    seen: set[int] = set()
+    while pending:
+        error = pending.pop()
+        if id(error) in seen:
+            continue
+        seen.add(id(error))
+        assert sentinel not in str(error)
+        assert sentinel not in repr(error)
+        assert sentinel not in "".join(traceback.format_exception(error))
+        if isinstance(error, ValidationError):
+            assert sentinel not in repr(error.errors())
+
+        current_tb = error.__traceback__
+        while current_tb is not None:
+            frame = current_tb.tb_frame
+            frame_path = Path(frame.f_code.co_filename).resolve()
+            source_root = (REPO_ROOT / "src/youtube_intel").resolve()
+            if frame_path.is_relative_to(source_root):
+                for value in frame.f_locals.values():
+                    assert sentinel not in repr(value)
+            current_tb = current_tb.tb_next
+
+        for linked in (error.__cause__, error.__context__):
+            if linked is not None:
+                pending.append(linked)
+
+    assert sentinel not in str(exc_info.getrepr())
+
+
 def test_app_settings_repr_has_no_secret_values(tmp_path: Path) -> None:
     settings = load_settings(SETTINGS_EXAMPLE)
     dumped = settings.model_dump()
@@ -649,6 +1017,566 @@ def test_app_settings_repr_has_no_secret_values(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Domain objects and provider contracts
 # ---------------------------------------------------------------------------
+
+
+def test_analysis_payload_serializes_only_the_approved_cloud_fields() -> None:
+    payload_type = AnalysisPayload
+    payload = _analysis_payload()
+
+    assert set(payload.model_dump(mode="json")) == {
+        "video_id",
+        "title",
+        "channel_name",
+        "published_at",
+        "duration_seconds",
+        "default_language",
+        "description",
+        "transcript_language",
+        "output_language",
+        "transcript_sample",
+    }
+    with pytest.raises(ValidationError):
+        payload_type.model_validate(
+            {
+                **payload.model_dump(),
+                "source_url": "/private/local/path",
+            }
+        )
+    with pytest.raises(ValidationError):
+        payload_type(
+            **{
+                **payload.model_dump(),
+                "description": "d" * 4001,
+            }
+        )
+
+
+def test_correction_p1_1_analysis_audit_hashes_are_lowercase_sha256() -> None:
+    evidence = EvidenceExcerpt(
+        evidence_id="e1",
+        source=EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt="sample",
+    )
+    point = AnalysisPoint(
+        text="Grounded point",
+        kind=PointKind.INFERENCE,
+        evidence_ids=("e1",),
+    )
+    valid_hash = "a" * 64
+
+    def analysis_input_transcript(value: str) -> AnalysisInput:
+        return AnalysisInput(
+            payload=_analysis_payload(),
+            transcript_content_hash=value,
+            request_hash="b" * 64,
+        )
+
+    def analysis_input_request(value: str) -> AnalysisInput:
+        return AnalysisInput(
+            payload=_analysis_payload(),
+            transcript_content_hash=valid_hash,
+            request_hash=value,
+        )
+
+    def analysis_result_request(value: str) -> AnalysisResult:
+        return AnalysisResult(
+            one_sentence_summary="Summary",
+            core_points=(point,),
+            keywords=("ai",),
+            evidence=(evidence,),
+            provider="openai",
+            model="gpt-4.1-mini",
+            request_hash=value,
+        )
+
+    builders = (
+        analysis_input_transcript,
+        analysis_input_request,
+        analysis_result_request,
+    )
+    invalid_hashes = (
+        "a" * 63,
+        "a" * 65,
+        "A" * 64,
+        "g" * 64,
+        f" {valid_hash}",
+        f"{valid_hash} ",
+    )
+    for build in builders:
+        assert build(valid_hash)
+        for invalid_hash in invalid_hashes:
+            with pytest.raises(ValidationError):
+                build(invalid_hash)
+
+
+def test_correction_p1_2_analysis_semantic_strings_reject_only_whitespace() -> None:
+    payload_fields = (
+        "video_id",
+        "title",
+        "channel_name",
+        "transcript_language",
+        "output_language",
+        "transcript_sample",
+        "default_language",
+    )
+    for field_name in payload_fields:
+        with pytest.raises(ValidationError):
+            _analysis_payload(**{field_name: " \t "})
+
+    payload = _analysis_payload(title=" Public title ", default_language=None, description="")
+    assert payload.title == " Public title "
+    assert payload.default_language is None
+    assert payload.description == ""
+
+    with pytest.raises(ValidationError):
+        EvidenceExcerpt(
+            evidence_id=" \t ",
+            source=EvidenceSource.TRANSCRIPT_SAMPLE,
+            excerpt="sample",
+        )
+    with pytest.raises(ValidationError):
+        EvidenceExcerpt(
+            evidence_id="e1",
+            source=EvidenceSource.TRANSCRIPT_SAMPLE,
+            excerpt=" \t ",
+        )
+    with pytest.raises(ValidationError):
+        AnalysisPoint(
+            text=" \t ",
+            kind=PointKind.INFERENCE,
+            evidence_ids=("e1",),
+        )
+    with pytest.raises(ValidationError):
+        AnalysisPoint(
+            text="Grounded",
+            kind=PointKind.INFERENCE,
+            evidence_ids=(" \t ",),
+        )
+
+    evidence = EvidenceExcerpt(
+        evidence_id="e1",
+        source=EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt=" sample ",
+    )
+    point = AnalysisPoint(
+        text=" Grounded ",
+        kind=PointKind.INFERENCE,
+        evidence_ids=("e1",),
+    )
+    for content_update in (
+        {"one_sentence_summary": " \t "},
+        {"keywords": (" \t ",)},
+    ):
+        with pytest.raises(ValidationError):
+            AnalysisContent.model_validate(
+                {
+                    "one_sentence_summary": "Summary",
+                    "core_points": (point,),
+                    "keywords": ("ai",),
+                    "evidence": (evidence,),
+                    **content_update,
+                }
+            )
+
+    result_data = {
+        "one_sentence_summary": " Summary ",
+        "core_points": (point,),
+        "keywords": (" ai ",),
+        "evidence": (evidence,),
+        "provider": " openai ",
+        "model": " gpt-4.1-mini ",
+        "request_hash": "a" * 64,
+    }
+    result = AnalysisResult.model_validate(result_data)
+    assert result.one_sentence_summary == " Summary "
+    assert result.keywords == (" ai ",)
+    assert result.provider == " openai "
+    assert result.model == " gpt-4.1-mini "
+
+    for field_name in ("provider", "model"):
+        with pytest.raises(ValidationError):
+            AnalysisResult.model_validate({**result_data, field_name: " \t "})
+
+    valid_result = AnalysisResult.model_validate(
+        {
+            **result_data,
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+        }
+    )
+    blank_provider_call = ProviderCallMetadata(
+        provider=" \t ",
+        model="gpt-4.1-mini",
+        started_at=NOW,
+        finished_at=NOW,
+    )
+    blank_model_call = ProviderCallMetadata(
+        provider="openai",
+        model=" \t ",
+        started_at=NOW,
+        finished_at=NOW,
+    )
+    with pytest.raises(ValidationError):
+        AnalysisCompleted(result=valid_result, call=blank_provider_call)
+    with pytest.raises(ValidationError):
+        AnalysisCompleted(result=valid_result, call=blank_model_call)
+
+
+def test_analysis_input_is_limited_to_payload_and_local_audit_fields() -> None:
+    analysis_input = AnalysisInput(
+        payload=_analysis_payload(),
+        transcript_content_hash="a" * 64,
+        request_hash="b" * 64,
+    )
+
+    assert set(AnalysisInput.model_fields) == {
+        "payload",
+        "transcript_content_hash",
+        "request_hash",
+        "prompt_version",
+        "schema_version",
+        "sampling_version",
+        "privacy_version",
+    }
+    assert analysis_input.prompt_version == "analysis-prompt-v1"
+    assert analysis_input.schema_version == "analysis-result-v1"
+    assert analysis_input.sampling_version == "cloud-token-sampling-v1"
+    assert analysis_input.privacy_version == "cloud-privacy-v1"
+    for forbidden in ("video", "transcript_text", "score", "language"):
+        assert not hasattr(analysis_input, forbidden)
+
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        analysis_input.model_copy(update={"request_hash": "unvalidated"})
+    copied = analysis_input.model_copy()
+    assert copied == analysis_input
+    assert copied is not analysis_input
+
+
+def test_analysis_content_is_provider_neutral_and_requires_evidence() -> None:
+    evidence = domain_mod.EvidenceExcerpt(
+        evidence_id="e1",
+        source=domain_mod.EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt="sample",
+    )
+    point = domain_mod.AnalysisPoint(
+        text="Grounded point",
+        kind=domain_mod.PointKind.FACT,
+        evidence_ids=("e1",),
+    )
+    content = domain_mod.AnalysisContent(
+        one_sentence_summary="Summary",
+        core_points=(point,),
+        keywords=("ai",),
+        evidence=(evidence,),
+    )
+
+    assert set(content.model_dump()) == {
+        "one_sentence_summary",
+        "core_points",
+        "key_facts",
+        "product_opportunities",
+        "business_opportunities",
+        "actionable_directions",
+        "hypotheses_to_validate",
+        "action_recommendations",
+        "risks",
+        "keywords",
+        "evidence",
+    }
+    for local_audit_field in (
+        "provider",
+        "model",
+        "prompt_version",
+        "request_hash",
+        "call",
+    ):
+        assert local_audit_field not in type(content).model_fields
+
+    with pytest.raises(ValidationError):
+        domain_mod.AnalysisPoint(
+            text="Ungrounded point",
+            kind=domain_mod.PointKind.INFERENCE,
+            evidence_ids=(),
+        )
+
+
+def test_analysis_evidence_sources_timestamps_and_point_kinds_are_fixed() -> None:
+    assert {source.value for source in domain_mod.EvidenceSource} == {
+        "title",
+        "channel_name",
+        "description",
+        "transcript_sample",
+    }
+    evidence = domain_mod.EvidenceExcerpt(
+        evidence_id="e1",
+        source=domain_mod.EvidenceSource.TITLE,
+        excerpt="Public title",
+    )
+
+    with pytest.raises(ValidationError):
+        domain_mod.EvidenceExcerpt(
+            evidence_id="e1",
+            source=domain_mod.EvidenceSource.TRANSCRIPT_SAMPLE,
+            excerpt="sample",
+            start_seconds=1.0,
+        )
+    with pytest.raises(ValidationError):
+        domain_mod.EvidenceExcerpt(
+            evidence_id="e1",
+            source=domain_mod.EvidenceSource.TRANSCRIPT_SAMPLE,
+            excerpt="sample",
+            end_seconds=2.0,
+        )
+
+    fact = domain_mod.AnalysisPoint(
+        text="Fact",
+        kind=domain_mod.PointKind.FACT,
+        evidence_ids=("e1",),
+    )
+    inference = domain_mod.AnalysisPoint(
+        text="Inference",
+        kind=domain_mod.PointKind.INFERENCE,
+        evidence_ids=("e1",),
+    )
+    recommendation = domain_mod.AnalysisPoint(
+        text="Recommendation",
+        kind=domain_mod.PointKind.RECOMMENDATION,
+        evidence_ids=("e1",),
+    )
+    content_data = {
+        "one_sentence_summary": "Summary",
+        "core_points": (fact, inference),
+        "key_facts": (fact,),
+        "product_opportunities": (inference,),
+        "business_opportunities": (inference,),
+        "actionable_directions": (recommendation,),
+        "hypotheses_to_validate": (inference,),
+        "action_recommendations": (recommendation,),
+        "risks": (inference,),
+        "keywords": ("ai",),
+        "evidence": (evidence,),
+    }
+    domain_mod.AnalysisContent.model_validate(content_data)
+
+    invalid_kinds = (
+        ("core_points", (recommendation,)),
+        ("key_facts", (inference,)),
+        ("product_opportunities", (recommendation,)),
+        ("business_opportunities", (fact,)),
+        ("actionable_directions", (inference,)),
+        ("hypotheses_to_validate", (fact,)),
+        ("action_recommendations", (inference,)),
+        ("risks", (recommendation,)),
+    )
+    for field_name, points in invalid_kinds:
+        with pytest.raises(ValidationError, match=field_name):
+            domain_mod.AnalysisContent.model_validate(
+                {
+                    **content_data,
+                    field_name: points,
+                }
+            )
+
+
+def test_analysis_outcome_distinguishes_completed_from_fixed_skip_reasons() -> None:
+    evidence = domain_mod.EvidenceExcerpt(
+        evidence_id="e1",
+        source=domain_mod.EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt="sample",
+    )
+    result = domain_mod.AnalysisResult(
+        one_sentence_summary="Summary",
+        core_points=(
+            domain_mod.AnalysisPoint(
+                text="Grounded inference",
+                kind=domain_mod.PointKind.INFERENCE,
+                evidence_ids=("e1",),
+            ),
+        ),
+        keywords=("ai",),
+        evidence=(evidence,),
+        provider="openai",
+        model="gpt-4.1-mini",
+        request_hash="a" * 64,
+    )
+    completed = domain_mod.AnalysisCompleted(
+        result=result,
+        call=ProviderCallMetadata(
+            provider="openai",
+            model="gpt-4.1-mini",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+    )
+    skipped = domain_mod.AnalysisSkipped(
+        reason=domain_mod.AnalysisSkipReason.CLOUD_DISABLED,
+        call=None,
+        safe_message="Cloud analysis is disabled.",
+    )
+
+    assert AnalysisOutcome == (AnalysisCompleted | AnalysisSkipped)
+    assert completed.result.schema_version == "analysis-result-v1"
+    assert completed.result.prompt_version == "analysis-prompt-v1"
+    assert skipped.reason is domain_mod.AnalysisSkipReason.CLOUD_DISABLED
+    assert {reason.value for reason in domain_mod.AnalysisSkipReason} == {
+        "CLOUD_DISABLED",
+        "CREDENTIAL_UNAVAILABLE",
+        "BUDGET_EXHAUSTED",
+        "INPUT_TOO_LARGE",
+        "PROVIDER_REFUSAL",
+    }
+    with pytest.raises(ValidationError):
+        domain_mod.AnalysisSkipped(
+            reason="LOW_VALUE",
+            call=None,
+            safe_message="Not an approved analysis skip reason.",
+        )
+    with pytest.raises(ValidationError):
+        domain_mod.AnalysisSkipped(
+            reason=domain_mod.AnalysisSkipReason.BUDGET_EXHAUSTED,
+            call=None,
+            safe_message="",
+        )
+    with pytest.raises(ValidationError):
+        domain_mod.AnalysisSkipped(
+            reason=domain_mod.AnalysisSkipReason.BUDGET_EXHAUSTED,
+            call=None,
+            safe_message="   ",
+        )
+
+
+def test_correction_p1_6_completed_metadata_is_consistent_and_copy_safe() -> None:
+    sensitive_content = "transcript-sentinel /private/sensitive/path sk-not-a-real-key"
+    evidence = EvidenceExcerpt(
+        evidence_id="e1",
+        source=EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt=sensitive_content,
+    )
+    result = AnalysisResult(
+        one_sentence_summary=sensitive_content,
+        core_points=(
+            AnalysisPoint(
+                text=sensitive_content,
+                kind=PointKind.INFERENCE,
+                evidence_ids=("e1",),
+            ),
+        ),
+        keywords=("ai",),
+        evidence=(evidence,),
+        provider="openai",
+        model="gpt-4.1-mini",
+        request_hash="a" * 64,
+    )
+    matching_call = ProviderCallMetadata(
+        provider="openai",
+        model="gpt-4.1-mini",
+        started_at=NOW,
+        finished_at=NOW,
+    )
+    completed = AnalysisCompleted(result=result, call=matching_call)
+    for copied in (completed.model_copy(), completed.model_copy(deep=True)):
+        assert copied == completed
+        assert copied.result.provider == copied.call.provider
+        assert copied.result.model == copied.call.model
+
+    invalid_calls = (
+        ProviderCallMetadata(
+            provider="different-provider",
+            model="gpt-4.1-mini",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+        ProviderCallMetadata(
+            provider="openai",
+            model="different-model",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+        ProviderCallMetadata(
+            provider="openai",
+            model=None,
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+        ProviderCallMetadata(
+            provider="openai",
+            model=" \t ",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+    )
+    for invalid_call in invalid_calls:
+        with pytest.raises(ValidationError) as exc_info:
+            AnalysisCompleted(result=result, call=invalid_call)
+        error_blob = str(exc_info.value) + repr(exc_info.value.errors())
+        assert sensitive_content not in error_blob
+
+
+def test_analysis_contract_model_copy_rejects_all_unvalidated_updates() -> None:
+    payload = _analysis_payload()
+    analysis_input = AnalysisInput(
+        payload=payload,
+        transcript_content_hash=TRANSCRIPT_HASH,
+        request_hash="b" * 64,
+    )
+    evidence = EvidenceExcerpt(
+        evidence_id="e1",
+        source=EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt="head",
+    )
+    point = AnalysisPoint(
+        text="Grounded inference",
+        kind=PointKind.INFERENCE,
+        evidence_ids=("e1",),
+    )
+    content = AnalysisContent(
+        one_sentence_summary="Summary",
+        core_points=(point,),
+        keywords=("ai",),
+        evidence=(evidence,),
+    )
+    result = AnalysisResult(
+        **content.model_dump(),
+        provider="openai",
+        model="gpt-4.1-mini",
+        request_hash="a" * 64,
+    )
+    completed = AnalysisCompleted(
+        result=result,
+        call=ProviderCallMetadata(
+            provider="openai",
+            model="gpt-4.1-mini",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+    )
+    skipped = AnalysisSkipped(
+        reason=AnalysisSkipReason.CLOUD_DISABLED,
+        call=None,
+        safe_message="Cloud analysis is disabled.",
+    )
+    objects_and_updates = (
+        (payload, {"title": ""}),
+        (analysis_input, {"request_hash": ""}),
+        (evidence, {"start_seconds": 1.0}),
+        (point, {"evidence_ids": ()}),
+        (content, {"core_points": ()}),
+        (result, {"provider": ""}),
+        (completed, {"result": "unvalidated"}),
+        (skipped, {"reason": "LOW_VALUE"}),
+    )
+
+    for contract, update in objects_and_updates:
+        with pytest.raises(
+            ValueError,
+            match=r"model_copy\(update=\.\.\.\) is disabled",
+        ):
+            contract.model_copy(update=update)
+        copied = contract.model_copy()
+        assert copied == contract
+        assert copied is not contract
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        payload.model_copy(update={})
 
 
 def test_score_result_dimensions_and_cardinalities() -> None:
@@ -777,10 +1705,8 @@ def test_analysis_result_structure_and_evidence_refs() -> None:
     evidence = (
         EvidenceExcerpt(
             evidence_id="e1",
-            source=EvidenceSource.TRANSCRIPT,
+            source=EvidenceSource.TRANSCRIPT_SAMPLE,
             excerpt="quoted text",
-            start_seconds=1.0,
-            end_seconds=2.0,
         ),
     )
     point = AnalysisPoint(
@@ -789,7 +1715,6 @@ def test_analysis_result_structure_and_evidence_refs() -> None:
         evidence_ids=("e1",),
     )
     result = AnalysisResult(
-        schema_version="1",
         one_sentence_summary="Summary",
         core_points=(
             AnalysisPoint(text="Core", kind=PointKind.INFERENCE, evidence_ids=("e1",)),
@@ -799,14 +1724,12 @@ def test_analysis_result_structure_and_evidence_refs() -> None:
         evidence=evidence,
         provider="openai",
         model="gpt",
-        prompt_version="v1",
-        request_hash="h1",
+        request_hash="a" * 64,
     )
     assert len(result.core_points) == 1
 
     with pytest.raises(ValidationError, match="unknown evidence"):
         AnalysisResult(
-            schema_version="1",
             one_sentence_summary="Summary",
             core_points=(
                 AnalysisPoint(text="Core", kind=PointKind.INFERENCE, evidence_ids=("missing",)),
@@ -815,28 +1738,37 @@ def test_analysis_result_structure_and_evidence_refs() -> None:
             evidence=evidence,
             provider="openai",
             model="gpt",
-            prompt_version="v1",
-            request_hash="h1",
+            request_hash="a" * 64,
         )
 
-    with pytest.raises(ValidationError, match="kind=fact"):
+    with pytest.raises(ValidationError, match="key_facts"):
         AnalysisResult(
-            schema_version="1",
             one_sentence_summary="Summary",
-            core_points=(AnalysisPoint(text="Core", kind=PointKind.INFERENCE),),
-            key_facts=(AnalysisPoint(text="Not fact", kind=PointKind.INFERENCE),),
+            core_points=(
+                AnalysisPoint(
+                    text="Core",
+                    kind=PointKind.INFERENCE,
+                    evidence_ids=("e1",),
+                ),
+            ),
+            key_facts=(
+                AnalysisPoint(
+                    text="Not fact",
+                    kind=PointKind.INFERENCE,
+                    evidence_ids=("e1",),
+                ),
+            ),
             keywords=("ai",),
-            evidence=(),
+            evidence=evidence,
             provider="openai",
             model="gpt",
-            prompt_version="v1",
-            request_hash="h1",
+            request_hash="a" * 64,
         )
 
     with pytest.raises(ValidationError):
         EvidenceExcerpt(
             evidence_id="e2",
-            source=EvidenceSource.METADATA,
+            source=EvidenceSource.DESCRIPTION,
             excerpt="x",
             start_seconds=5,
             end_seconds=1,
@@ -868,15 +1800,12 @@ def test_cross_module_io_objects() -> None:
         request_hash="rh",
     )
     analysis_in = AnalysisInput(
-        video=_video(),
-        transcript_text="text",
-        transcript_content_hash="h",
-        score=_score(),
-        language="zh",
-        request_hash="rh2",
+        payload=_analysis_payload(),
+        transcript_content_hash=TRANSCRIPT_HASH,
+        request_hash="b" * 64,
     )
     assert scoring_in.language == "zh"
-    assert analysis_in.score.score == 8.0
+    assert analysis_in.payload.output_language == "zh-CN"
 
     na = NotAvailable(
         reason_code=NotAvailableReason.NO_CONTENT,
@@ -991,15 +1920,24 @@ def test_provider_protocols_are_structural() -> None:
 
     class FakeSummary:
         def summarize(self, analysis_input: AnalysisInput) -> AnalysisResult:
+            evidence = EvidenceExcerpt(
+                evidence_id="e1",
+                source=EvidenceSource.TRANSCRIPT_SAMPLE,
+                excerpt="head",
+            )
             return AnalysisResult(
-                schema_version="1",
                 one_sentence_summary="s",
-                core_points=(AnalysisPoint(text="c", kind=PointKind.INFERENCE),),
+                core_points=(
+                    AnalysisPoint(
+                        text="c",
+                        kind=PointKind.INFERENCE,
+                        evidence_ids=("e1",),
+                    ),
+                ),
                 keywords=("k",),
-                evidence=(),
+                evidence=(evidence,),
                 provider="p",
                 model="m",
-                prompt_version="v",
                 request_hash=analysis_input.request_hash,
             )
 
@@ -1038,6 +1976,27 @@ def test_domain_module_has_no_concrete_sdk_imports() -> None:
                 assert alias.name.split(".")[0] not in banned
         if isinstance(node, ast.ImportFrom) and node.module:
             assert node.module.split(".")[0] not in banned
+
+
+def test_cloud_contract_files_do_not_read_environment_or_construct_clients() -> None:
+    for module in (config_mod, domain_mod):
+        source = Path(inspect.getfile(module))
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        imported_roots = {
+            alias.name.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported_roots.update(
+            node.module.split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        assert "openai" not in imported_roots
+        assert "tiktoken" not in imported_roots
+        if module is config_mod:
+            assert "os" not in imported_roots
 
 
 def _annotation_is_free_form_dict(annotation: object) -> bool:
