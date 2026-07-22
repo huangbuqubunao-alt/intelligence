@@ -36,6 +36,15 @@
 - 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main
   或任务状态。TASK-008 继续独立 `IN_REVIEW`，不得被本次审查触碰。
 
+## 2026-07-22 范围工件清理后复审
+
+- 首轮 Reviewer evidence：`d16498fe2a1939c6bec7babd03039e623782d027`，唯一父为 implementation
+  `956e37a15ab29106f16c45873fccb813cc5a959f`，只修改 source handoff。
+- 首轮 `REJECT` 唯一原因是未跟踪 `.codebase-memory/` 代码索引工件；实现 Diff 本身严格落在
+  本卡七个批准路径组内，fixed diff check 通过，未记录业务代码 finding。
+- 产品负责人已批准并执行只删除 `.codebase-memory/.gitattributes`、`artifact.json`、`graph.db.zst`；
+  这些是非 Git 跟踪的本地索引。source 已恢复干净，现授权全新独立 Reviewer 2 完整复审。
+
 ## 目标
 
 将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，
