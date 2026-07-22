@@ -136,3 +136,70 @@
   `complete_stage` 接口；无新依赖、HTTP client、Provider 或 token-count endpoint。
 - `DECISION NEEDED`：`None`。
 - Commit SHA：待创建（父提交将严格为 `b61f46f...`）。
+
+## Correction 1 — Reviewer 2 (Codex)
+
+- Reviewer agent/session: `Codex`（全新独立会话）
+- 授权记录：动态读取的 Reviewer-2 工作包最后提交为
+  `8c9c266da1eac00f39789f56062f5de6816065cf`；main 控制面将 Correction 1
+  列为等待独立审查。source 起始 `git status --short --untracked-files=all`
+  无输出。
+- 审查对象：`codex/task-008-deep-analysis@8317cd9c2a13f6c38fa366ab9f40c326e59d8731`；
+  固定 base `473119704c7638d7afd4e68d84d00e85064ceabd`。父链精确为
+  `base -> 10478a9083df4eedae061d99d941c88cb4954179 ->
+  b61f46f6bca3303d5590aac76d8c8c9b53ec4131 -> HEAD`。
+- 范围：完整 `base...HEAD` 只包含允许的六个路径组；Correction 相对 first-review
+  evidence 只修改 `analysis.py`、`test_summary_provider.py` 与本 handoff。无依赖、锁、
+  公共契约、配置、`state.py`、Schema/migration、CLI 或 TASK-009 改动；固定
+  `git diff --check` 通过。
+
+### 独立检查
+
+| 命令/人工检查 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages in 14ms`。 |
+| `uv sync --locked` | PASS | 首次仅受用户级 uv cache 沙箱权限限制；获准以同一 locked 命令重跑后 `Checked 61 packages`。 |
+| `uv run python -m pytest tests/unit/test_analysis_policy.py` | PASS | `4 passed`。 |
+| `uv run python -m pytest tests/integration/test_summary_provider.py` | PASS | `10 passed`。 |
+| `uv run python -m pytest` | PASS | `341 passed`。 |
+| `uv run mypy src` | PASS | `Success: no issues found in 15 source files`。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help 正常。 |
+| `uv build --offline` | PASS | 同样经 cache 权限重跑；sdist/wheel 均成功构建。 |
+| 包内容与固定资源 | PASS | sdist/wheel 均含 migration SQL、`prompts/summary.md`、`o200k_base.tiktoken`；资源 SHA-256 为冻结值 `446a9538...b1a2d`。 |
+
+### 独立探针与 AC / ADR 矩阵
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| A：`max_local_input_tokens_per_video=1` | PASS | 新真实临时 SQLite/Fake transport 回归：`INPUT_TOO_LARGE`，resolver=0、transport=0、ProviderCall/Artifact=None、Pipeline=`SCORED`、Job=`RUNNING`。 |
+| A：持久化预算耗尽零副作用/凭据最后读取 | **FAIL / P1** | 临时 SQLite、普通合成字幕、Fake provider、预先耗尽 `CloudCallBudget(1)`：`resolver_calls=1 provider_calls=0 provider_call_exists=True provider_status=PENDING pipeline=SCORED job=RUNNING`。 |
+| AC：关闭、低价值、缓存、缺凭据与其余持久化门禁 | SKIPPED | 按工作包，在首个 P1 后立即停止。 |
+| B：token 边界/哈希/SDK 隔离 | SKIPPED | 同上。 |
+| C：Structured Outputs/异常脱敏 | SKIPPED | 同上。 |
+| D：原子完成、回滚、重排、30-day 精度 | SKIPPED | 同上。 |
+| E：ADR-008 A-01..A-17、五轴、复用/许可证 | SKIPPED | 同上；已有静态范围与固定资源检查不构成完整通过。 |
+| 真实 OpenAI、凭据、付费、网络、Vault/用户内容 | NOT RUN | 未授权，且本审查未触发。 |
+
+### Findings（P0–P3）
+
+- **P1 — 持久化预算耗尽路径在门禁前读取凭据并创建 ProviderCall。**
+  [`src/youtube_intel/analysis.py:439`](../src/youtube_intel/analysis.py#L439) 在检查预算前调用
+  `reserve_provider_call`，随后 [`analysis.py:458`](../src/youtube_intel/analysis.py#L458) 读取凭据，
+  [`analysis.py:459`](../src/youtube_intel/analysis.py#L459) 才调用 `try_consume()`。因此已耗尽预算的
+  路径留下 `PENDING` ProviderCall 并调用 Resolver，而不是返回
+  `AnalysisSkipped(BUDGET_EXHAUSTED)`；这违反 ADR-008 A-03 的固定顺序、A-07 的预算语义、
+  A-08 的延迟密钥读取，以及本工作包探针 A 的零 Repository/credential 副作用要求。该残留预留
+  还会阻塞之后的可重试分析，直到租约恢复。
+
+- P0：无。
+- P2/P3：未评估；发现 P1 后强制停止，不构成通过。
+
+### Reviewer 结论
+
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1。持久化路径必须在任何 ProviderCall 预留或 credential 解析前，按冻结顺序
+  返回 `BUDGET_EXHAUSTED`；须补充临时 SQLite/Fake provider 回归，断言 ProviderCall/Artifact/
+  Pipeline/Job 均不变、Resolver/transport 均为零，随后由新的独立 Reviewer 重新审查。
+- 跳过与风险：B–E 和剩余 AC/ADR/五轴探针均按“首个 P1 立即停止”规则跳过，不能据已有绿灯
+  推断通过；真实云端资源仍未授权。
