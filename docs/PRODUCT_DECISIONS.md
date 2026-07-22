@@ -54,6 +54,12 @@
   Correction 1；除固定 BPE 资源 GET 外不得新增网络、API、密钥或云端操作。
 - 继续未授权：真实 OpenAI API、环境变量值/密钥、付费调用、云端 token-count、
   真实 Vault/用户笔记、最终文件删除/移动/重命名及其他真实资源路径。
+- 2026-07-22 正式并行分配：从 `main@473119704c7638d7afd4e68d84d00e85064ceabd`
+  创建 TASK-008 `codex/task-008-deep-analysis` 与 TASK-009
+  `codex/task-009-obsidian-notes`。两项均由 Codex Implementer 实施、完成后由全新独立
+  Codex Reviewer 审查。TASK-008 仅批准离线 Fake/隔离子进程 SDK 实现与测试；TASK-009
+  仅批准测试临时目录内的原子写、替换、清理与 symlink 安全测试。两项均不授权真实
+  OpenAI/密钥/付费调用，或真实 Obsidian Vault/用户笔记/外部文件删除。
 - 原始决定见 `docs/decisions/ADR-008-cloud-analysis-contract.md` 和
   `docs/decisions/ADR-009-obsidian-note-contract.md`。
 

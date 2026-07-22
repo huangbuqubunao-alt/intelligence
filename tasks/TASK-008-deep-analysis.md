@@ -1,14 +1,13 @@
 # TASK-008：可选云端深度分析
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
 - Risk: High
 - Depends on: TASK-008A, TASK-009A
-- Approval required: ADR-008、正式实施范围与离线命令；真实云调用/密钥另批
-- Decision gate: ADR-008 A-01 至 A-15 已于 2026-07-20 批准；仍等待两个共享任务
-  `DONE` 与正式实施分配
+- Approval: ADR-008、正式实施范围与离线命令已批准；真实云调用/密钥另批
+- Decision gate: ADR-008 A-01 至 A-17 已批准；TASK-008A/TASK-009A 已 `DONE`，本卡已正式分配
 
 ## 2026-07-20 只读预检结论
 
@@ -18,6 +17,15 @@
   `openai`/`tiktoken` 依赖基线；`TASK-009A` 随后冻结 KnowledgeSink 消费面。
 - 两个前置任务均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。预检不是依赖安装、
   密钥读取、真实 API 调用或实施授权。
+
+## 2026-07-22 正式分配
+
+- Base：`main@473119704c7638d7afd4e68d84d00e85064ceabd`；Worktree：
+  `/Users/hua/Documents/yia-worktrees/task-008`；Branch：`codex/task-008-deep-analysis`。
+- Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。允许范围严格为本卡
+  七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI 或任务状态。
+- 只授权离线 Fake/合成哨兵和白名单环境隔离子进程 SDK 实现/测试。真实 OpenAI、密钥、
+  付费/API 调用、云端 token-count、用户内容、媒体、YouTube 和任何网络路径继续禁止。
 
 ## 目标
 

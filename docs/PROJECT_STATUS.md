@@ -1,19 +1,21 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-22
-- 当前阶段：Phase 2 — TASK-009A 收口
+- 当前阶段：Phase 2 — TASK-008/TASK-009 并行离线实现
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：无。`/Users/hua/Documents/yia-worktrees/task-009a`，
-  `codex/task-009a-obsidian-note-shared-contracts@e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
-  保留为 TASK-009A 审计证据；历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 也只保留为审计证据
+- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008` /
+  `codex/task-008-deep-analysis@473119704c7638d7afd4e68d84d00e85064ceabd`，以及
+  `/Users/hua/Documents/yia-worktrees/task-009` /
+  `codex/task-009-obsidian-notes@473119704c7638d7afd4e68d84d00e85064ceabd`。
+  TASK-009A worktree 与历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据。
 - 活动任务：TASK-008A 已由 Codex Product Integrator 以 merge commit
   `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合并关闭为 `DONE`。accepted source
   固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A 已由 Codex Product Integrator
   以 merge commit `9b0269eddbd29cee83a056d44951d7973c87492b` 整合，收口后为 `DONE`；accepted source
   固定为 `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`。正式 TASK-008/TASK-009 的共享契约依赖已满足，
-  但两项各自的正式分配和真实资源授权尚未获批，继续保持 `BLOCKED/UNASSIGNED`。
+  已从 `main@473119704c7638d7afd4e68d84d00e85064ceabd` 并行分配给 Codex，状态为 `IN_PROGRESS`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -50,15 +52,16 @@
 - TASK-006 仅获 `mlx-whisper` 包/锁定与离线实现授权；Whisper 模型下载/加载、ffmpeg、
   媒体/YouTube 下载和真实转写冒烟仍未授权。TASK-007 仅获离线 Fake/标准库实现授权；
   Ollama 安装/启动、`qwen3:8b` 拉取和真实模型调用仍未授权。
-- TASK-009A 仅获 Jinja2 依赖、领域契约与离线验证授权；真实 Vault、用户笔记、任何
-  文件 I/O、移动/删除、云端、凭据和用户内容仍未授权。
+- TASK-008 只获离线 Fake/隔离子进程 SDK 实现与测试授权；真实 OpenAI、密钥、付费调用、
+  token-count、媒体、网络与用户内容仍未授权。TASK-009 只获测试临时目录内的原子写、替换、
+  清理与 symlink 安全测试授权；真实 Vault、用户笔记、测试目录外写入和外部文件删除仍未授权。
 - TASK-008 真实密钥/付费云调用和 TASK-009 真实 Vault/用户笔记始终是后续独立
   门禁，不由 ADR 或共享任务隐含授权。
 
 ## 下一步
 
-1. 完成 TASK-009A 收口控制面同步，记录 merge `9b0269eddbd29cee83a056d44951d7973c87492b`。
-2. 重新核对 TASK-008/TASK-009 的正式任务包与独立资源门禁，再由产品负责人批准固定 worktree、角色与范围后并行分配。
+1. Codex Implementer 在两个隔离 worktree 内并行实现 TASK-008/TASK-009 的离线切片；不得跨范围。
+2. 两项各自完成后，依次启动全新独立 Codex Reviewer；不得在同一 source worktree 与 Implementer 并发写入。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -82,7 +85,9 @@
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
-| 等待正式分配 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 共享契约均已整合；仍需各自固定分配与真实资源授权 |
+| 立即启动 | TASK-008 Codex Implementer | 离线 Fake/隔离 SDK；禁止真实 OpenAI、密钥和网络 |
+| 可并行启动 | TASK-009 Codex Implementer | 只可写测试临时目录；禁止真实 Vault/用户笔记/外部删除 |
+| 等待实现 | TASK-008/TASK-009 独立 Codex Reviewer | 仅在对应 Implementer 提交后启动 |
 
 ## 授权边界
 

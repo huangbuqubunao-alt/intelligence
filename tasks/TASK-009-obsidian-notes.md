@@ -1,14 +1,13 @@
 # TASK-009：Obsidian 视频笔记
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
 - Risk: High
 - Depends on: TASK-009A
-- Approval required: ADR-009、临时 Vault 文件探针与正式实施范围；真实 Vault 另批
-- Decision gate: ADR-009 N-01 至 N-15 已于 2026-07-20 批准；仍等待 TASK-009A
-  `DONE` 与正式实施分配
+- Approval: ADR-009、临时 Vault 文件探针与正式实施范围已批准；真实 Vault 另批
+- Decision gate: ADR-009 N-01 至 N-15 已批准；TASK-009A 已 `DONE`，本卡已正式分配
 
 ## 2026-07-20 只读预检结论
 
@@ -18,6 +17,15 @@
   的 `AnalysisOutcome`，冻结 KnowledgeSink/NoteRef 并提升 Jinja2 直接依赖。
 - TASK-008A/TASK-009A 均 `DONE` 前，本任务保持 `BLOCKED/UNASSIGNED`。真实 Vault
   和用户笔记继续未授权。
+
+## 2026-07-22 正式分配
+
+- Base：`main@473119704c7638d7afd4e68d84d00e85064ceabd`；Worktree：
+  `/Users/hua/Documents/yia-worktrees/task-009`；Branch：`codex/task-009-obsidian-notes`。
+- Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。允许范围严格为本卡
+  七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI、云 Provider 或任务状态。
+- 只授权测试创建的临时目录内的原子写、替换、清理与 symlink 安全探针。真实 Obsidian Vault、
+  真实用户笔记、工作树/测试目录外写入、外部文件删除/移动/重命名、凭据、云端和网络路径继续禁止。
 
 ## 目标
 
