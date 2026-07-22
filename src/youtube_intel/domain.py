@@ -16,6 +16,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -400,28 +401,28 @@ class _UpdateProtectedAnalysisContract(_DomainModel):
 class AnalysisPayload(_UpdateProtectedAnalysisContract):
     """The complete and exclusive set of fields permitted to leave the machine."""
 
-    video_id: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    channel_name: str = Field(min_length=1)
+    video_id: str = Field(min_length=1, pattern=r"\S")
+    title: str = Field(min_length=1, pattern=r"\S")
+    channel_name: str = Field(min_length=1, pattern=r"\S")
     published_at: datetime
     duration_seconds: int = Field(ge=0)
-    default_language: str | None = None
+    default_language: str | None = Field(default=None, pattern=r"\S")
     description: str = Field(default="", max_length=4000)
-    transcript_language: str = Field(min_length=1)
-    output_language: str = Field(min_length=1)
-    transcript_sample: str = Field(min_length=1)
+    transcript_language: str = Field(min_length=1, pattern=r"\S")
+    output_language: str = Field(min_length=1, pattern=r"\S")
+    transcript_sample: str = Field(min_length=1, pattern=r"\S")
 
 
 class EvidenceExcerpt(_UpdateProtectedAnalysisContract):
-    evidence_id: str = Field(min_length=1)
+    evidence_id: str = Field(min_length=1, pattern=r"\S")
     source: EvidenceSource
-    excerpt: str = Field(min_length=1, max_length=2000)
+    excerpt: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     start_seconds: Literal[None] = None
     end_seconds: Literal[None] = None
 
 
 class AnalysisPoint(_UpdateProtectedAnalysisContract):
-    text: str = Field(min_length=1, max_length=2000)
+    text: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     kind: PointKind
     evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=10)
 
@@ -432,14 +433,14 @@ class AnalysisPoint(_UpdateProtectedAnalysisContract):
             msg = "evidence_ids must be unique"
             raise ValueError(msg)
         for eid in value:
-            if not eid:
+            if not eid.strip():
                 msg = "evidence_ids items must be non-empty"
                 raise ValueError(msg)
         return value
 
 
 class AnalysisContent(_UpdateProtectedAnalysisContract):
-    one_sentence_summary: str = Field(min_length=1, max_length=500)
+    one_sentence_summary: str = Field(min_length=1, max_length=500, pattern=r"\S")
     core_points: tuple[AnalysisPoint, ...] = Field(min_length=1, max_length=10)
     key_facts: tuple[AnalysisPoint, ...] = Field(default=(), max_length=20)
     product_opportunities: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
@@ -462,7 +463,7 @@ class AnalysisContent(_UpdateProtectedAnalysisContract):
             raise ValueError(msg)
         seen: set[str] = set()
         for kw in value:
-            if not 1 <= len(kw) <= 80:
+            if not kw.strip() or not 1 <= len(kw) <= 80:
                 msg = "each keyword must have length 1..80"
                 raise ValueError(msg)
             if kw in seen:
@@ -515,10 +516,10 @@ class AnalysisContent(_UpdateProtectedAnalysisContract):
 
 class AnalysisResult(AnalysisContent):
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
-    provider: str = Field(min_length=1)
-    model: str = Field(min_length=1)
+    provider: str = Field(min_length=1, pattern=r"\S")
+    model: str = Field(min_length=1, pattern=r"\S")
     prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
-    request_hash: str = Field(min_length=1)
+    request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 # ---------------------------------------------------------------------------
@@ -550,6 +551,29 @@ class ProviderCallMetadata(_DomainModel):
 class AnalysisCompleted(_UpdateProtectedAnalysisContract):
     result: AnalysisResult
     call: ProviderCallMetadata
+
+    @field_validator("call")
+    @classmethod
+    def _call_matches_result(
+        cls,
+        value: ProviderCallMetadata,
+        info: ValidationInfo,
+    ) -> ProviderCallMetadata:
+        if not value.provider.strip():
+            msg = "analysis call provider must be non-empty"
+            raise ValueError(msg)
+        if value.model is None or not value.model.strip():
+            msg = "analysis call model must be non-empty"
+            raise ValueError(msg)
+        result = info.data.get("result")
+        if isinstance(result, AnalysisResult):
+            if result.provider != value.provider:
+                msg = "analysis result provider must match call provider"
+                raise ValueError(msg)
+            if result.model != value.model:
+                msg = "analysis result model must match call model"
+                raise ValueError(msg)
+        return value
 
 
 class AnalysisSkipped(_UpdateProtectedAnalysisContract):
@@ -680,8 +704,8 @@ class ScoringOutcome(_UpdateProtectedScoringContract):
 
 class AnalysisInput(_UpdateProtectedAnalysisContract):
     payload: AnalysisPayload
-    transcript_content_hash: str = Field(min_length=1)
-    request_hash: str = Field(min_length=1)
+    transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
     sampling_version: Literal["cloud-token-sampling-v1"] = "cloud-token-sampling-v1"

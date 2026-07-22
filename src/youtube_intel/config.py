@@ -633,16 +633,26 @@ def _apply_overrides(settings: AppSettings, overrides: SettingsOverrides) -> App
     return settings.model_copy(update=updates)
 
 
+def _validate_settings_mapping(raw: dict[str, Any], path: Path) -> AppSettings | str:
+    """Validate in an isolated frame and return only safe error text on failure."""
+    try:
+        return AppSettings.model_validate(raw)
+    except Exception as exc:
+        return _format_config_error("settings validation failed", path, exc)
+
+
 def load_settings(
     path: Path,
     *,
     overrides: SettingsOverrides | None = None,
 ) -> AppSettings:
     raw = _load_yaml_mapping(path)
-    try:
-        settings = AppSettings.model_validate(raw)
-    except Exception as exc:
-        raise ConfigError(_format_config_error("settings validation failed", path, exc)) from exc
+    validation_result = _validate_settings_mapping(raw, path)
+    if isinstance(validation_result, str):
+        raw.clear()
+        del raw
+        raise ConfigError(validation_result) from None
+    settings = validation_result
     if overrides is not None:
         settings = _apply_overrides(settings, overrides)
     return settings

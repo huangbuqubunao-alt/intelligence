@@ -279,3 +279,132 @@
 - 主线 commit：
 - 整合后检查：
 - 最终状态：`DONE | BLOCKED`
+
+## Correction 1 实现者追加（2026-07-21）
+
+### 元数据、目标与范围
+
+- Role：`Codex Implementer (Correction 1)`。
+- Starting review evidence：
+  `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`；其唯一父提交为 reviewed
+  implementation `382251298af7fcbfadba66c1902af6de0a425179`。
+- 目标：只关闭第一轮 Reviewer 的 P1-1 至 P1-6，并落实已批准的 ADR-008
+  A-16/A-17；不重做已通过的共享契约/依赖工作。
+- Correction 1 实际修改：`src/youtube_intel/domain.py`、
+  `src/youtube_intel/config.py`、`tests/unit/test_contracts.py`、
+  `src/youtube_intel/resources/o200k_base.tiktoken` 和本 handoff。
+- 保持不变：`config/settings.example.yaml`、`pyproject.toml`、`uv.lock`；没有修改
+  Provider、`analysis.py`、Prompt、Schema/migration、`state.py`、
+  `complete_stage`、Repository、CLI、其他测试、任务、ADR 或 main。
+- Correction commit：本追加与纠偏实现将位于同一个新的非 merge、非 amend
+  commit；精确 SHA 由提交后的完成报告记录。
+
+### A-16 固定 tokenizer 资源
+
+- 唯一 GET：
+  `https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken`；
+  无认证、无 Cookie/header/token/query、禁用代理且不跟随重定向。没有重试或访问
+  其他 URL。
+- 提交路径：`src/youtube_intel/resources/o200k_base.tiktoken`。
+- 本机下载后立即校验：`3,613,922` bytes；SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。
+- 包内读取：测试通过 `importlib.resources` 定位包资源，并向 tiktoken 0.13.0
+  低层 `load_tiktoken_bpe` 显式传入 expected hash；未调用
+  `tiktoken.get_encoding("o200k_base")`。
+- 离线失败关闭：在空 `TIKTOKEN_CACHE_DIR`、`requests.get` 和
+  `socket.create_connection` 均被拒绝的进程中，本地包资源解析成功；资源缺失、
+  单字节篡改、错误 expected hash 和内容可哈希但解析失败均本地报错，未回退网络或
+  既有 cache。
+- 打包证据：`uv build --offline` 生成的 sdist/wheel 均同时包含
+  `youtube_intel/migrations/001_initial.sql` 与
+  `youtube_intel/resources/o200k_base.tiktoken`；从两份归档解包流重新计算，资源
+  均为 `3,613,922` bytes 且 SHA-256 与上述固定值一致。`uv_build` 自动包含资源，
+  因此未修改 `pyproject.toml`。
+- 许可证：依赖 tiktoken 0.13.0 仍为 MIT；固定 OpenAI BPE Blob 的文件级分发许可、
+  归属和 NOTICE 结论明确待 `TASK-014` 发布门禁复核，未在本任务推定。
+
+### A-17 OpenAI SDK 隔离导入
+
+- 产品源码 AST 与 pytest 主进程均未直接或间接导入 `openai`；依赖和版本验证只用
+  `importlib.metadata`。
+- SDK 导入只在全新独立子进程完成：绝对 `sys.executable`、`-I`、参数列表启动、
+  `shell=False`，不构造 client、不读取密钥、不发请求。
+- 子进程 `env` 精确由三个固定字面量构成：
+  `PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1`；没有复制
+  `os.environ`。
+- 父进程只写入合成哨兵，覆盖 `OPENAI_*`、`AZURE_*`、`HTTP_PROXY`、
+  `HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY`、`PYTHONPATH` 及
+  `*_TOKEN`/`*_KEY`/`*_SECRET`/`*_PASSWORD`。子进程在导入 OpenAI 2.46.0 前后
+  回传的禁用变量名列表均为空，stdout/stderr 不含哨兵，pytest 主进程
+  `sys.modules` 前后均无 `openai`。
+- A-17 的“导入完成后经专用匿名管道传临时密钥”只作为后续 TASK-008 契约冻结；
+  本切片没有实现进程协议、Provider、密钥管道或真实凭据路径。
+
+### P1-1 至 P1-6 RED/GREEN 与关闭证据
+
+相同六个具名纠偏探针先在 review evidence 上运行得到 `6 failed`，再在最小修复后
+运行得到 `6 passed`：
+
+| Finding | RED 反例 | GREEN 关闭证据 |
+|---|---|---|
+| P1-1 审计哈希 | 三字段接受 63/65 位、大写、非 hex 和前后空白 | `AnalysisInput.transcript_content_hash`、`AnalysisInput.request_hash`、`AnalysisResult.request_hash` 均固定 `^[0-9a-f]{64}$`；合法 64 位边界通过 |
+| P1-2 语义非空 | 出站、grounding、provider/model 多字段接受纯空白 | 任务新增契约边界拒绝全部列明空白字段，`description=""` 和 `default_language=None` 仍合法；带首尾空格的非空原值原样保留 |
+| P1-3 异常图脱敏 | `load_settings.raw` 的 frame local 可观察完整哨兵 | 校验在返回安全文本的隔离 frame 内完成；raise 前清空并删除原 mapping，`ConfigError` 无 cause/context；文本、repr、Pydantic errors、递归异常图、traceback、所有 `src/youtube_intel` frame locals 与 pytest getrepr 均无哨兵 |
+| P1-4 tokenizer 本地只读 | 固定资源缺失，无法在空 cache/断网条件下解析 | source/package/sdist/wheel 哈希一致；包内低层 loader + expected hash 离线解析；缺失/篡改/错误 hash/解析失败全部本地失败关闭 |
+| P1-5 SDK 隔离 | 既有依赖测试在 pytest 主进程 `import openai` | 主进程只用 metadata；独立白名单环境子进程完成离线 import，合成敏感父环境未继承 |
+| P1-6 完成元数据 | provider/model mismatch、`None`、纯空白均可构造 | `AnalysisCompleted` 在 call 字段边界强制 provider/model 非空且与 result 精确一致；浅/深 copy 保持一致，全部 `model_copy(update=...)` 继续拒绝；错误不回显结构化内容哨兵 |
+
+额外回归：`AnalysisPayload.model_dump()` 仍精确为 A-04 的 10 字段白名单；全部新增
+分析契约继续拒绝 `model_copy(update=...)`；Cloud 默认关闭、28k/30k、model/
+encoding/version、配置脱敏和空描述行为均由最终 contracts/full suite 通过。
+
+### 离线检查结果
+
+| 命令/探针 | 结果 |
+|---|---|
+| P1-1 至 P1-6 相同六探针 RED | `6 failed`，逐项命中 Reviewer 六个 finding |
+| P1-1 至 P1-6 相同六探针 GREEN | `6 passed in 0.79s` |
+| `uv lock --check --offline` | PASS，`Resolved 84 packages` |
+| `uv sync --locked --offline` | PASS，`Resolved 84 packages`、`Checked 61 packages` |
+| `uv run --offline python -m pytest tests/unit/test_contracts.py` | PASS，`72 passed` |
+| `uv run --offline python -m pytest` | PASS，`324 passed` |
+| `uv run --offline mypy src` | PASS，13 个 source files 无问题 |
+| `uv run --offline ruff check .` | PASS，`All checks passed!` |
+| `uv run --offline python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS，sdist/wheel 成功且 migration/resource 内容与哈希均通过 |
+| 下载后网络边界 | 除唯一固定 Blob GET 外，全部命令显式离线；无 API、token-count、Provider 或真实资源访问 |
+| 提交前 `git diff --check` | PASS；提交后固定 base range 由完成报告记录 |
+
+### 依赖、Diff、安全与复用复核
+
+- 直接依赖仍精确为获批范围：
+  `mlx-whisper>=0.4.3,<0.5`、`openai>=2.46.0,<2.47`、
+  `pydantic>=2.13.4,<2.14`、`pyyaml>=6.0.3,<7`、
+  `tiktoken>=0.13.0,<0.14`、`yt-dlp[default,deno]>=2026.7.4,<2026.8`。
+- working `uv.lock` blob 与 reviewed implementation 完全相同，均为
+  `db78e4503c2ac9d4b9bbe1ce7001c6a1217553c9`；没有新增、删除或升级依赖。
+- `DIRECT`：既有 Pydantic/标准库验证能力、官方 OpenAI 2.46.0
+  （Apache-2.0）、tiktoken 0.13.0（MIT）及 A-16 固定 Blob；未复制或改写第三方
+  实现。固定 Blob 文件级许可证风险按 A-16 留给 TASK-014。
+- `REJECT/DEFER` 保持：手写 OpenAI HTTP、第二 Provider、云端 token-count、SDK
+  主进程导入/自动重试、正式 tokenizer runtime、采样/请求构造、真实 client/API/
+  密钥、匿名管道 Provider、缓存和事务编排。
+- 相对 review evidence 的 Correction Diff 只涉及 domain/config/contracts
+  test/resource/handoff；相对 original base 的完整产品 Diff 仍严格属于获准的 8
+  路径。`pyproject.toml`、settings example 与 lock 在 Correction 1 中字节不变。
+- 敏感模式与范围搜索未发现真实 key、token、私钥、用户数据、API 响应、cache、
+  模型、媒体或未批准文件；命中仅为隔离子进程源码字符串及显式合成测试哨兵/路径。
+- 五轴自审：correctness、architecture、security、performance、readability 均无
+  未解决 P0/P1/P2/P3；新增循环只遍历受限契约集合、有限异常图或 13 个产品源码
+  文件，无无界生产热路径。
+
+### 跳过项、风险与结论
+
+- 跳过：未运行真实 OpenAI/API/token-count、真实环境变量值/密钥、付费调用、真实
+  YouTube/Vault/用户内容、媒体、模型、Provider、Prompt、采样、缓存、事务或正式
+  匿名管道协议；均为范围外或未授权。
+- 剩余风险：固定 `o200k_base.tiktoken` 的文件级分发许可证/归属/NOTICE 必须由
+  TASK-014 给出发布结论；正式 tokenizer runtime 的 `CONFIG_INVALID` 映射、匿名
+  管道生命周期、Provider/凭据/timeout/错误映射仍须由 TASK-008 独立实现和审查。
+- `DECISION NEEDED`：`None`。
+- 建议状态：`IN_REVIEW`；不得由本会话启动 Reviewer、修改 main 状态、merge 或 push。
