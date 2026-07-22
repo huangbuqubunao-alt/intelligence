@@ -58,7 +58,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 已整合并关闭；merge `3d49ec...` | DONE | 005A；Ollama/模型另批 |
 | [TASK-008A](TASK-008A-cloud-analysis-shared-contracts.md) | 云分析共享契约与依赖基线 | 已整合并关闭；merge `64a9c416...` | DONE | 007；BPE NOTICE/license 留待 TASK-014 |
 | [TASK-009A](TASK-009A-obsidian-note-shared-contracts.md) | Obsidian 共享契约与依赖基线 | 已整合并关闭；merge `9b0269...` | DONE | 008A |
-| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Correction 3 已提交；独立 Reviewer 4 已授权 | IN_REVIEW | 008A, 009A；真实云另批 |
+| [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Reviewer 4 REJECT；原 Codex Implementer Correction 4 | IN_PROGRESS | 008A, 009A；真实云另批 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Reviewer 3 REJECT；原 Codex Implementer Correction 2 | IN_PROGRESS | 009A；真实 Vault 另批 |
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | BLOCKED | 003-009 |
 | [TASK-011](TASK-011-weekly-report.md) | 周报 | Codex（未分配） | BLOCKED | 009, 010 |

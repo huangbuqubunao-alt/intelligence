@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -57,6 +57,18 @@
   focused=`4/14`、full pytest=`345` 与其余离线门禁通过。这些均待独立 Reviewer 4 复跑。
 - Reviewer 4 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
   Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
+
+## 2026-07-22 第四轮审查拒绝与 Correction 4
+
+- Reviewer 4 evidence：`19323923057adb0b5a9f59cac5eb7c32cce5888a`，唯一父为 Correction 3
+  `7a543d0acfe25d1c3d9fd06c4647683ed1487a47`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。缓存恢复只检查成功 ProviderCall 状态，未验证 raw/structured Artifact 的存在、
+  元数据/内容 SHA-256，以及恢复结果的 request hash、provider、model 与当前请求一致；篡改 structured
+  request hash 仍会推进 Pipeline/Job。违反 ADR-008 A-06。
+- 原 Codex Implementer 只获 Correction 4：`analysis.py`、既有分析集成测试与 handoff。恢复只能接受完全
+  匹配的成功缓存；任一 Artifact 或 identity 缺失/篡改/不匹配均必须安全失败、零 credential/transport/new
+  ProviderCall/Artifact、Pipeline/Job 不变。不得重新发起云调用。完全匹配缓存仍可按 A-12 通过既有
+  `complete_stage` 原子恢复当前 Job。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
