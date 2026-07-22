@@ -76,9 +76,57 @@
 
 ## Reviewer 结论
 
-- Reviewer agent/session：`Pending new independent Codex reviewer`
-- 审查 commit：`Pending`
-- 重新运行的检查：`Pending`
-- Findings：`Pending`
-- Verdict：`Pending`
-- 未解决 P0/P1：`Pending`
+- Reviewer agent/session：`Codex / root (independent reviewer)`
+- 审查对象：`75158be08d6442a7b18099f459654e9da86ebcee`，唯一父为
+  `e4271e41910bba54b37b48df709dcf632fe3b0eb`；source 分支、SHA、干净状态、五路径范围
+  和 main `7331e23381d68b1e601ca30e367989c704fbc0d2` 的 `TASK-009A=IN_REVIEW` 授权均已核对。
+- 重新运行的检查：
+  - `uv lock --check` PASS（84 packages）。
+  - `uv sync --locked` PASS（61 packages；首次仅因沙箱拒绝既有 uv cache，按同一命令获准重跑）。
+  - `uv run python -m pytest tests/unit/test_contracts.py` PASS（74）。
+  - `uv run python -m pytest` PASS（326）。
+  - `uv run mypy src` PASS（13 source files）。
+  - `uv run ruff check .` PASS；`uv run python -m youtube_intel --help` PASS。
+  - `uv build --offline` PASS（首次同样只有 uv cache 权限阻断，原命令获准重跑）；sdist 和 wheel
+    均包含 `youtube_intel/migrations/001_initial.sql`。
+  - `git diff --check e4271e41910bba54b37b48df709dcf632fe3b0eb...75158be08d6442a7b18099f459654e9da86ebcee` PASS。
+- 独立探针：
+  - `NoteRef`：绝对/UNC/backslash/盘符/NUL/`.`/`..`/空组件/首尾空白/错误扩展名和
+    非小写 64 位 hash 均拒绝；合法多层 POSIX `.md` 和无 update 的浅/深 copy 可用；
+    `{}`、路径、hash、kind 四类 `model_copy(update=...)` 均拒绝。PASS。
+  - `KnowledgeSink`：精确 keyword-only 参数、具名对象与返回 `NoteRef` 的签名 PASS；位置参数由
+    签名拒绝。FAIL：该 Protocol 对 `datetime`/`str` 无运行时约束，独立
+    `inspect.Signature.bind` 仍接受 naive `datetime(2026, 1, 1)` 与 `pipeline_version=" "`。
+    新增 FakeSink 也断言低价值 `final_should_summarize=False` 后正常返回 NoteRef，而非失败关闭。
+  - 依赖：`pyproject.toml`/`uv.lock` 只将 `Jinja2>=3.1.6,<3.2` 提升为直接依赖；解析为
+    Jinja2 3.1.6，唯一运行时必要边界为 `MarkupSafe>=2.0`，解析为 3.0.3、
+    `License-Expression: BSD-3-Clause`。Jinja2 安装 metadata 未声明 License/Expression；
+    BSD-3-Clause 证据来自已批准 ADR-009 N-14 与 `docs/REUSE_REGISTER.md`。其余直接依赖锁定
+    条目未变。PASS。
+  - 红线/架构：完整 diff 精确为 handoff、`pyproject.toml`、`domain.py`、contracts tests、
+    `uv.lock`；无 Vault/文件/Provider/Repository/Schema/`state.py`/`complete_stage`/模板/CLI/
+    网络/凭据代码或导入副作用。PASS。
+- AC / ADR 矩阵：
+
+  | 项目 | 结论 | 证据 |
+  |---|---|---|
+  | AC：精确共享签名、缺失参数失败 | PASS | `domain.py:927-936` 与 contracts signature 检查。 |
+  | AC / N-02：UTC-aware 时间、去首尾空白版本 fail-closed | **FAIL (P1)** | `domain.py:934-935` 仅为 `datetime`/`str`；独立 probe 接受 naive/空白值。 |
+  | AC / N-03：低价值调用 fail-closed；跳过原因可消费 | **FAIL (P1)** | `test_contracts.py:1964-1998` 的 FakeSink 接受低价值后返回 `NoteRef`；`AnalysisSkipped` 具名类型消费本身通过。 |
+  | AC / N-04：安全 NoteRef 与 update 防绕过 | PASS | `domain.py:746-791`，独立反例穷举通过。 |
+  | AC / N-01：无 I/O 的共享契约切片 | PASS | 五路径完整 diff 和 AST/导入审计。 |
+  | N-14：Jinja2 直接依赖、锁定、许可证/传递边界 | PASS | lock diff、离线导入/metadata probe、构建包核验。 |
+- Findings：
+  - **P1 — `KnowledgeSink` 未冻结所要求的 fail-closed 输入资格边界。**
+    `src/youtube_intel/domain.py:927-936` 公开的只有裸 `datetime` 和 `str`，没有任何可由调用者或
+    接口边界执行的 UTC-aware/非空白验证；`tests/unit/test_contracts.py:1979-2036` 也不调用
+    FakeSink 来验证拒绝，而是把低价值 `ScoringOutcome` 作为正常接受的输入。这样未来 caller/sink
+    可静默把 naive 时间、空白 pipeline version 或低价值视频引入笔记写入路径，违反 TASK-009A AC、
+    ADR-009 N-02/N-03 和审查包的 fail-closed 探针要求。修复应在允许的共享契约范围内冻结可执行
+    边界并补直接的拒绝回归；不得通过文件 I/O、Repository 或 `state.py` 扩大范围。
+  - P0：无。P2/P3：无。
+- 跳过项和风险：未运行任何真实 Vault、用户内容、文件 I/O、云端、凭据、网络或模型路径（均未授权）。
+  分发构建只产生被忽略的 `dist/`；未纳入 commit。Jinja2 metadata 缺少本地 License 字段的
+  文档证据风险已如上记录，不阻断；未解决 P1 阻断审查。
+- Verdict：`REJECT`
+- 未解决 P0/P1：`P1 KnowledgeSink stable-context and low-value fail-closed boundary`。
