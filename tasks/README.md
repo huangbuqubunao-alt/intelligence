@@ -27,8 +27,8 @@ ADR-008 A-16/A-17。TASK-008A 的依赖与资源
 门禁已满足，现已从 `main@82d1fd7...` 分配到独立 Codex worktree。实现 source
 `3822512...` 的第一轮 Reviewer evidence `0f52c30...` 为 `REJECT`（P1=6）。
 Correction 1 source `d95745f...` 已提交，完整范围为原 7 路径加固定
-`o200k_base.tiktoken` 资源；Implementer 自报六个 P1 与离线门禁均通过，现等待
-全新独立 Codex Reviewer。TASK-009A
+`o200k_base.tiktoken` 资源；第二轮 Reviewer evidence `7a8239f...` 已 `APPROVE`，
+P0–P3 均无，TASK-008A 现等待 Product Integrator。TASK-009A
 继续等待 TASK-008A `DONE`，正式 TASK-008/TASK-009 继续等待两个共享任务。
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
@@ -57,7 +57,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-005A](TASK-005A-local-model-shared-contracts.md) | 本地模型共享契约 | 已整合并关闭；merge `865f4fed...` | DONE | 005 |
 | [TASK-006](TASK-006-local-transcription.md) | 本地 Whisper 转写 | 已整合并关闭；merge `fd9a074...` | DONE | 005A；模型/ffmpeg/媒体另批 |
 | [TASK-007](TASK-007-local-scoring.md) | Ollama 本地评分 | 已整合并关闭；merge `3d49ec...` | DONE | 005A；Ollama/模型另批 |
-| [TASK-008A](TASK-008A-cloud-analysis-shared-contracts.md) | 云分析共享契约与依赖基线 | 全新独立 Codex Reviewer 2 待启动 | IN_REVIEW | 007；Correction 1 source `d95745f...` |
+| [TASK-008A](TASK-008A-cloud-analysis-shared-contracts.md) | 云分析共享契约与依赖基线 | Codex Product Integrator 待启动 | ACCEPTED | 007；accepted source `7a8239f...` |
 | [TASK-009A](TASK-009A-obsidian-note-shared-contracts.md) | Obsidian 共享契约与依赖基线 | Codex Implementer/Reviewer 待分配 | BLOCKED | 008A；ADR/依赖已批准 |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | Scout 已完成；Implementer/Reviewer 未分配 | BLOCKED | 008A, 009A；真实云另批 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | Scout 已完成；Implementer/Reviewer 未分配 | BLOCKED | 009A；真实 Vault 另批 |

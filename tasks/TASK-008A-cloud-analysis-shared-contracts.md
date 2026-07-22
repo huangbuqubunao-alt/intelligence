@@ -1,8 +1,8 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
-- Reviewer: `第二轮全新独立 Codex，待启动`
+- Reviewer: `第二轮全新独立 Codex APPROVE；等待 Product Integrator`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
@@ -82,6 +82,21 @@
   的证据，不构成 `APPROVE`。
 - 状态进入 `IN_REVIEW`；第二轮全新独立 Codex Reviewer 包已准备但尚未启动，不得预写
   `APPROVE`、`ACCEPTED`、merge 或 `DONE`。
+
+## 2026-07-22 第二轮独立审查、验收与整合授权
+
+- Reviewer evidence：`7a8239f3da02fa204b63702677fae5f669fb99c0`；唯一父提交为
+  Correction 1 source `d95745fd04b115369a9fd70362cd735d1eb70917`，且只修改
+  `handoffs/TASK-008A.md`。
+- Reviewer 独立复跑 contracts `72 passed`、全量 `324 passed`、mypy、Ruff、CLI、
+  locked offline sync/build、migration/BPE source/sdist/wheel hash 和固定 Diff；六组
+  P1 探针 A-F 均 PASS。
+- Verdict=`APPROVE`，P0/P1/P2/P3 均无。六个先前 P1 已关闭：hash 表示、语义空白、
+  完整 ConfigError 脱敏图、BPE 本地只读/无网络回退、SDK 白名单子进程隔离导入和
+  `AnalysisCompleted` 元数据一致性。
+- 主控验收：`ACCEPTED`。Product Integrator 仅可按固定 source 执行 non-fast-forward
+  merge、全部离线门禁、migration/BPE archive hash、八路径 first-parent Diff 和敏感扫描；
+  本卡不得提前写入 merge SHA 或 `DONE`。
 
 ## 2026-07-20 产品审批
 
