@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -46,6 +46,17 @@
   Provider/transport 或 Repository 写入前执行同一 token 门禁，并用临时 SQLite + Fake 回归证明超限零调用。
 - 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
   Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
+
+## 2026-07-22 Correction 3 实现证据与复审授权
+
+- Correction source：`7a543d0acfe25d1c3d9fd06c4647683ed1487a47`，唯一父为 reviewer-3 evidence
+  `b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`；Correction 仅修改 `analysis.py`、
+  `test_summary_provider.py` 与 source handoff，完整 Diff 仍在原批准范围内。
+- Implementer 自报持久化路径按 A-03 处理上游资格、关闭、token/缓存、预算、凭据和预留；关闭、低价值、
+  缺凭据零副作用，缓存重排零 credential/transport/新 call/artifact 并可复用成功缓存完成当前 Job；
+  focused=`4/14`、full pytest=`345` 与其余离线门禁通过。这些均待独立 Reviewer 4 复跑。
+- Reviewer 4 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
+  Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
