@@ -1,24 +1,36 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
-- Reviewer: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
+- Reviewer: `全新独立 Codex，等待实现 commit`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
 - Depends on: TASK-008A
 - Decision gate: ADR-009 N-01 至 N-15 已于 2026-07-20 批准
 - Resource gate: Jinja2、必要传递依赖、网络包下载、锁文件和本卡离线命令已批准；
-  仍等待 TASK-008A `DONE` 及固定 base/worktree/角色/文件范围分配
+  已获固定 base/worktree/角色/文件范围分配
 
 ## 2026-07-20 产品审批
 
 - 批准 `Jinja2>=3.1.6,<3.2`、必要传递依赖、网络包下载、
   `pyproject.toml`/`uv.lock` 修改和本卡列出的 uv 离线验证/构建。
-- 本任务仍为 `BLOCKED/UNASSIGNED`，唯一代码依赖是 TASK-008A；不得提前创建写入
-  worktree 或与 TASK-008A 并发修改 `domain.py`/锁文件。
+- TASK-008A 已为 `DONE`；本任务已获固定 worktree/角色/文件范围。不得与任何其他
+  写入任务并发修改 `domain.py`/锁文件。
 - 真实 Vault、真实用户笔记、最终文件删除/移动/重命名、真实 OpenAI/密钥/付费调用
   继续未授权。
+
+## 2026-07-22 正式分配
+
+- Base：`main@e4271e41910bba54b37b48df709dcf632fe3b0eb`
+- Worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
+- Branch：`codex/task-009a-obsidian-note-shared-contracts`
+- Implementer：Codex；Reviewer：实现提交后启动全新独立 Codex 会话。
+- 允许产品范围严格为 `domain.py`、`test_contracts.py`、`pyproject.toml`、`uv.lock` 和
+  `handoffs/TASK-009A.md`。本任务 source 从固定 base 创建，保留的 `BLOCKED/UNASSIGNED`
+  卡片是预期快照；main 上本卡/分配包是实时授权。
+- 已批准 `Jinja2>=3.1.6,<3.2`、必要传递依赖、包下载、锁定与本卡离线验证。真实 Vault、
+  用户笔记、文件 I/O、移动/删除、云端和凭据仍未授权。
 
 ## 目标
 
