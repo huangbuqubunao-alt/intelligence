@@ -67,7 +67,8 @@
   缺凭据还会将预留 call 标为可重试失败，违反 ADR-008 A-03/A-08 的零副作用与凭据最后读取。
 - 原 Codex Implementer 只获 Correction 3：`analysis.py`、两份既有分析测试与 handoff。必须以既有冻结
   契约严格执行高价值/上游有效性、关闭、本地采样-token-缓存、预算、凭据、预留的顺序，并用临时 SQLite +
-  Fake 对所有零调用门禁逐项证明无状态副作用。
+  Fake 对所有零调用门禁逐项证明无外部或新持久化副作用；缓存重排可按 ADR-008 A-12 复用既有成功
+  Artifact/ProviderCall 并以 `complete_stage` 原子推进当前 Job。
 - 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
   Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
 

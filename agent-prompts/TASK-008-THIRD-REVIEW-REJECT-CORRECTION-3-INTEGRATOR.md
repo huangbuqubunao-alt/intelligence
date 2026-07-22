@@ -39,7 +39,7 @@
 
 - 只授权 source `analysis.py`、`tests/unit/test_analysis_policy.py`、`tests/integration/test_summary_provider.py` 和 `handoffs/TASK-008.md`。
 - 使用既有冻结输入/结果/Repository 契约，将持久化路径严格对齐 A-03；不得新增 public 参数、Schema、Repository 方法或改变无效上游硬错误语义。若既有契约无法表达上游高价值门禁，报告 `DECISION NEEDED`。
-- 必须用真实临时 SQLite + Fake Resolver/transport 逐项覆盖关闭、低价值、缓存命中、预算耗尽、本地 token 超限、缺凭据：每条均 Resolver=0、transport=0、ProviderCall/Artifact=None，Pipeline/Job 不变；缺凭据返回冻结的 `CREDENTIAL_UNAVAILABLE`，不得 fail ProviderCall。
+- 必须用真实临时 SQLite + Fake Resolver/transport 逐项覆盖关闭、低价值、缓存命中、预算耗尽、本地 token 超限、缺凭据。除缓存重排外，每条均 Resolver=0、transport=0、ProviderCall/Artifact=None，Pipeline/Job 不变；缺凭据返回冻结的 `CREDENTIAL_UNAVAILABLE`，不得 fail ProviderCall。缓存命中也必须 Resolver=0、transport=0、零新 ProviderCall/Artifact；但若当前 Job 尚未完成，可复用已成功的匹配 ProviderCall/Artifact，以既有 `complete_stage` 原子推进 `SCORED -> ANALYSIS_READY`，这是 ADR-008 A-12 允许的恢复状态变更。
 - 保留成功、回滚、重排、RAW_RESPONSE_30D、SDK 隔离和已修复 token/预算回归。
 - 不得新增依赖/锁、配置/共享契约、`state.py`、Schema/migration、CLI 或真实 OpenAI/密钥/付费/API/网络/云端 token-count/用户内容/媒体/YouTube/Vault/测试目录外 I/O。
 
