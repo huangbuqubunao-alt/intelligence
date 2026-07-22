@@ -15,7 +15,7 @@ import sys
 import textwrap
 import tomllib
 import traceback
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from importlib import resources
 from pathlib import Path
 
@@ -1961,12 +1961,12 @@ def test_provider_protocols_are_structural() -> None:
 
     assert isinstance(FakeSummary(), SummaryProvider)
 
-    low_value_scoring: ScoringOutcome = ScoringOutcome(
-        result=_score(score=6.5, should_summarize=True),
+    high_value_scoring: ScoringOutcome = ScoringOutcome(
+        result=_score(score=8.0, should_summarize=True),
         decision=ScoringDecision(
             threshold=7.0,
-            final_should_summarize=False,
-            model_disagrees=True,
+            final_should_summarize=True,
+            model_disagrees=False,
         ),
         call=_call(),
     )
@@ -1976,8 +1976,8 @@ def test_provider_protocols_are_structural() -> None:
         safe_message="Cloud analysis is disabled.",
     )
 
-    class FakeSink:
-        def upsert_video_note(
+    class FakeSink(KnowledgeSink):
+        def _upsert_video_note(
             self,
             *,
             video: VideoMetadata,
@@ -1987,7 +1987,7 @@ def test_provider_protocols_are_structural() -> None:
             processed_at: datetime,
             pipeline_version: str,
         ) -> NoteRef:
-            assert scoring.decision.final_should_summarize is False
+            assert scoring.decision.final_should_summarize is True
             assert isinstance(analysis, AnalysisSkipped)
             assert processed_at.tzinfo is not None
             assert pipeline_version == "pipeline-v1"
@@ -2004,7 +2004,8 @@ def test_provider_protocols_are_structural() -> None:
                 content_hash="a" * 64,
             )
 
-    assert isinstance(FakeSink(), KnowledgeSink)
+    sink = FakeSink()
+    assert isinstance(sink, KnowledgeSink)
     signature = inspect.signature(KnowledgeSink.upsert_video_note)
     assert [parameter.name for parameter in signature.parameters.values()] == [
         "self",
@@ -2032,8 +2033,190 @@ def test_provider_protocols_are_structural() -> None:
         "pipeline_version": "str",
         "return": "NoteRef",
     }
-    assert low_value_scoring.decision.final_should_summarize is False
+    assert high_value_scoring.decision.final_should_summarize is True
     assert isinstance(skipped_analysis, AnalysisSkipped)
+    assert (
+        sink.upsert_video_note(
+            video=_video(),
+            transcript=TranscriptArtifact(
+                video_id="vid1",
+                language="en",
+                source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+                requested_language="en",
+                source_format=SubtitleFormat.JSON3,
+                text_path="transcripts/vid1/canonical.txt",
+                timed_text_path="transcripts/vid1/source.json3",
+                source_content_hash="a" * 64,
+                source_byte_count=128,
+                content_hash="b" * 64,
+                char_count=10,
+                segment_count=1,
+                normalization_version="subtitle-normalization-v1",
+                provider="youtube",
+                created_at=NOW,
+            ),
+            scoring=high_value_scoring,
+            analysis=skipped_analysis,
+            processed_at=NOW,
+            pipeline_version="pipeline-v1",
+        ).relative_path
+        == "a.md"
+    )
+
+
+def test_knowledge_sink_fails_closed_before_calling_its_protected_hook() -> None:
+    transcript = TranscriptArtifact(
+        video_id="vid1",
+        language="en",
+        source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+        requested_language="en",
+        source_format=SubtitleFormat.JSON3,
+        text_path="transcripts/vid1/canonical.txt",
+        timed_text_path="transcripts/vid1/source.json3",
+        source_content_hash="a" * 64,
+        source_byte_count=128,
+        content_hash="b" * 64,
+        char_count=10,
+        segment_count=1,
+        normalization_version="subtitle-normalization-v1",
+        provider="youtube",
+        created_at=NOW,
+    )
+    high_value_scoring = ScoringOutcome(
+        result=_score(score=8.0, should_summarize=True),
+        decision=ScoringDecision(
+            threshold=7.0,
+            final_should_summarize=True,
+            model_disagrees=False,
+        ),
+        call=_call(),
+    )
+    low_value_scoring = ScoringOutcome(
+        result=_score(score=6.5, should_summarize=True),
+        decision=ScoringDecision(
+            threshold=7.0,
+            final_should_summarize=False,
+            model_disagrees=True,
+        ),
+        call=_call(),
+    )
+    completed_analysis = AnalysisCompleted(
+        result=AnalysisResult(
+            one_sentence_summary="Summary",
+            core_points=(
+                AnalysisPoint(
+                    text="Grounded point",
+                    kind=PointKind.INFERENCE,
+                    evidence_ids=("e1",),
+                ),
+            ),
+            keywords=("ai",),
+            evidence=(
+                EvidenceExcerpt(
+                    evidence_id="e1",
+                    source=EvidenceSource.TRANSCRIPT_SAMPLE,
+                    excerpt="excerpt",
+                ),
+            ),
+            provider="openai",
+            model="gpt-4.1-mini",
+            request_hash="a" * 64,
+        ),
+        call=ProviderCallMetadata(
+            provider="openai",
+            model="gpt-4.1-mini",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+    )
+    skipped_analysis = AnalysisSkipped(
+        reason=AnalysisSkipReason.CLOUD_DISABLED,
+        call=None,
+        safe_message="Cloud analysis is disabled.",
+    )
+
+    class FakeSink(KnowledgeSink):
+        def __init__(self) -> None:
+            self.hook_calls = 0
+
+        def _upsert_video_note(
+            self,
+            *,
+            video: VideoMetadata,
+            transcript: TranscriptArtifact,
+            scoring: ScoringOutcome,
+            analysis: AnalysisOutcome,
+            processed_at: datetime,
+            pipeline_version: str,
+        ) -> NoteRef:
+            self.hook_calls += 1
+            return NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path="Videos/vid1.md",
+                content_hash="c" * 64,
+            )
+
+        def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef:
+            return NoteRef(
+                kind=NoteKind.WEEKLY,
+                relative_path="Weekly/2026-W29.md",
+                content_hash="d" * 64,
+            )
+
+    sink = FakeSink()
+    valid_kwargs = {
+        "video": _video(),
+        "transcript": transcript,
+        "scoring": high_value_scoring,
+        "analysis": skipped_analysis,
+        "processed_at": NOW,
+        "pipeline_version": "pipeline-v1",
+    }
+
+    assert sink.upsert_video_note(**valid_kwargs).relative_path == "Videos/vid1.md"
+    assert sink.hook_calls == 1
+    assert (
+        sink.upsert_video_note(
+            **{**valid_kwargs, "analysis": completed_analysis}
+        ).relative_path
+        == "Videos/vid1.md"
+    )
+    assert sink.hook_calls == 2
+
+    invalid_kwargs = (
+        {**valid_kwargs, "processed_at": datetime(2026, 7, 14, 12, 0, 0)},
+        {
+            **valid_kwargs,
+            "processed_at": datetime(
+                2026,
+                7,
+                14,
+                20,
+                0,
+                0,
+                tzinfo=timezone(timedelta(hours=8)),
+            ),
+        },
+        {**valid_kwargs, "pipeline_version": ""},
+        {**valid_kwargs, "pipeline_version": " pipeline-v1"},
+        {**valid_kwargs, "pipeline_version": "pipeline-v1 "},
+        {**valid_kwargs, "scoring": low_value_scoring},
+    )
+    for invalid in invalid_kwargs:
+        with pytest.raises(ValueError):
+            sink.upsert_video_note(**invalid)
+        assert sink.hook_calls == 2
+
+    with pytest.raises(TypeError):
+        sink.upsert_video_note(
+            _video(),
+            transcript,
+            high_value_scoring,
+            skipped_analysis,
+            NOW,
+            "pipeline-v1",
+        )
+    assert sink.hook_calls == 2
 
 
 def test_note_ref_requires_a_verified_posix_markdown_identity() -> None:

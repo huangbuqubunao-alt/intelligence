@@ -130,3 +130,26 @@
   文档证据风险已如上记录，不阻断；未解决 P1 阻断审查。
 - Verdict：`REJECT`
 - 未解决 P0/P1：`P1 KnowledgeSink stable-context and low-value fail-closed boundary`。
+
+## Correction 1（Implementer）
+
+- Starting review evidence：`f73b28756c371d80fb7525bd7e4defb6b82b1a3c`。
+- 允许且实际修改：`src/youtube_intel/domain.py`、`tests/unit/test_contracts.py`、本报告；未修改
+  `pyproject.toml`、`uv.lock`、配置、Vault/文件/模板/Provider/Repository、Schema/migration、
+  `state.py`、`complete_stage` 或 CLI。
+- 修复：`KnowledgeSink` 从纯 `Protocol` 收紧为抽象基类。既有公共
+  `upsert_video_note(*, video, transcript, scoring, analysis, processed_at, pipeline_version) -> NoteRef`
+  签名保持不变；它在委派前拒绝非 UTC-aware 时间、空或带首尾空白的 pipeline version，及
+  `final_should_summarize=False` 的评分。成功时才调用受保护抽象
+  `_upsert_video_note` 钩子，因此未来 Vault sink 不能以其实现替代公共校验入口。
+- 测试：新增无 I/O FakeSink 回归，覆盖 naive/非 UTC 时间、空/首尾空白版本、低价值评分、
+  位置参数，以及合法 `AnalysisCompleted`/`AnalysisSkipped`；每个拒绝路径断言受保护钩子零调用。
+- 异常语义：仅使用已有的 `ValueError` 契约失败语义；未新增 `ErrorCode`、依赖或旁路 API。
+- 验证：`uv lock --check`（84 packages）、`uv sync --locked`（61 packages）、contracts
+  `75 passed`、全量 `327 passed`、`uv run mypy src`（13 source files）、Ruff、CLI 与
+  `uv build --offline` 均已 PASS。同步与构建首次只因沙箱无法读取既有 uv cache 失败；按相同
+  命令获缓存访问授权后完成，无依赖或锁文件差异。
+- Diff 复核：修复相对 review evidence 仅三条允许路径；相对 original base 的完整产品范围仍为
+  原五条批准路径。无 I/O/Vault/Provider/Repository/Schema/配置/依赖变更，未运行真实 Vault、
+  用户内容、云端或凭据路径。
+- Commit：本报告随 review evidence 的唯一非 merge correction 子提交；最终 SHA 见实施者回传。

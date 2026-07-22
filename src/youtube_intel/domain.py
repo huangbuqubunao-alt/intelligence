@@ -5,8 +5,9 @@ This module must not import concrete provider SDKs or free-form dict public APIs
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import PurePosixPath
 from types import MappingProxyType
@@ -922,8 +923,7 @@ class SummaryProvider(Protocol):
     def summarize(self, analysis_input: AnalysisInput) -> AnalysisResult: ...
 
 
-@runtime_checkable
-class KnowledgeSink(Protocol):
+class KnowledgeSink(ABC):
     def upsert_video_note(
         self,
         *,
@@ -933,8 +933,51 @@ class KnowledgeSink(Protocol):
         analysis: AnalysisOutcome,
         processed_at: datetime,
         pipeline_version: str,
-    ) -> NoteRef: ...
+    ) -> NoteRef:
+        """Validate the shared note boundary before delegating to a sink adapter."""
+        if (
+            not isinstance(processed_at, datetime)
+            or processed_at.tzinfo is None
+            or processed_at.utcoffset() != timedelta(0)
+        ):
+            msg = "processed_at must be a UTC-aware datetime"
+            raise ValueError(msg)
+        if (
+            not isinstance(pipeline_version, str)
+            or not pipeline_version
+            or pipeline_version.strip() != pipeline_version
+        ):
+            msg = "pipeline_version must be non-empty without surrounding whitespace"
+            raise ValueError(msg)
+        if (
+            not isinstance(scoring, ScoringOutcome)
+            or not scoring.decision.final_should_summarize
+        ):
+            msg = "KnowledgeSink requires a final high-value ScoringOutcome"
+            raise ValueError(msg)
+        return self._upsert_video_note(
+            video=video,
+            transcript=transcript,
+            scoring=scoring,
+            analysis=analysis,
+            processed_at=processed_at,
+            pipeline_version=pipeline_version,
+        )
 
+    @abstractmethod
+    def _upsert_video_note(
+        self,
+        *,
+        video: VideoMetadata,
+        transcript: TranscriptArtifact,
+        scoring: ScoringOutcome,
+        analysis: AnalysisOutcome,
+        processed_at: datetime,
+        pipeline_version: str,
+    ) -> NoteRef:
+        """Write a validated video note without bypassing ``upsert_video_note``."""
+
+    @abstractmethod
     def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef: ...
 
 
