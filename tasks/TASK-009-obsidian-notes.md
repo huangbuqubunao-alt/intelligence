@@ -45,6 +45,18 @@
 - 产品负责人已批准并执行只删除 `.codebase-memory/.gitattributes`、`artifact.json`、`graph.db.zst`；
   这些是非 Git 跟踪的本地索引。source 已恢复干净，现授权全新独立 Reviewer 2 完整复审。
 
+## 2026-07-22 第二轮审查拒绝与 Correction 1
+
+- Reviewer 2 evidence：`f778163dca83807f1baec5e568c4dbd734829171`，唯一父为 first-review evidence
+  `d16498fe2a1939c6bec7babd03039e623782d027`，只修改 source handoff。
+- Verdict：`REJECT`，P1=2、P2=1。标题变化使已完成笔记按新标题路径查找而失败；同 video_id 非受管候选
+  仍会允许创建第二份笔记，均违反 ADR-009 N-03/N-05。`vault_subdir="C:"` 未被拒绝，违反 N-06。
+- 原 Codex Implementer 只获 Correction 1：`notes.py`、Obsidian Adapter、两份既有测试和 handoff。必须
+  恢复/验证首次稳定 NoteRef、在写入或补账前按 video_id 对所有候选 fail-closed，并拒绝盘符子目录；不得
+  重命名、删除、移动或接管现有笔记，且不得新增 Schema/Repository 方法。
+- 真实 Vault、用户笔记、测试目录外 I/O、依赖/锁、Schema/migration、`state.py`、CLI、TASK-008、
+  云端、网络、凭据、媒体与模型路径继续不授权。
+
 ## 目标
 
 将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，

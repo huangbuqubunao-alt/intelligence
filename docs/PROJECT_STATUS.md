@@ -19,8 +19,9 @@
   evidence `b61f46f...` 为 `REJECT`：持久化路径绕过本地 token 上限并在超限时读取凭据/调用 Fake
   transport。Correction 1 source `8317cd9...` 已提交，现等待全新独立 Reviewer 2 复核 token 超限
   零调用与其余离线门禁。TASK-009 首轮 Reviewer 只因未跟踪的
-  `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 source 已恢复干净，
-  现等待全新独立 Reviewer 2 复审。
+  `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
+  `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
+  子目录 P2。现退回原 Implementer 执行稳定身份与路径边界 Correction 1。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
