@@ -1,8 +1,8 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `第一轮独立 Codex 已 REJECT；Correction 1 后重新分配`
+- Reviewer: `第二轮全新独立 Codex，待启动`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
@@ -61,6 +61,27 @@
 - A-17 禁止主进程导入 OpenAI SDK。TASK-008A 只用合成哨兵离线验证清空/白名单化
   子进程导入策略；TASK-008 后续才实现导入完成后的匿名管道密钥传输和 Provider。
 - 状态退回 `IN_PROGRESS`；第一轮 Reviewer 已结束，下一 Reviewer 尚未启动。
+
+## 2026-07-22 Correction 1 实现证据与第二轮审查授权
+
+- Correction 1 source：`d95745fd04b115369a9fd70362cd735d1eb70917`；唯一父提交为
+  first review evidence `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`，source 干净。
+- Correction Diff 精确为 `domain.py`、`config.py`、contracts 测试、固定 tokenizer
+  resource 和 handoff 五个路径；完整产品 Diff 相对 original base 精确为获准八路径。
+  `pyproject.toml` 与 `uv.lock` blob 均与 reviewed implementation 保持一致。
+- A-16 资源为 `3,613,922` bytes，SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`；Implementer
+  自报 source/sdist/wheel 一致，空 cache/socket/HTTP 拒绝下本地 loader 成功，缺失、
+  篡改、错误 hash 和解析失败均 fail-closed。
+- A-17 自报产品源码和 pytest 主进程均无 OpenAI 导入；SDK 只在绝对 Python executable
+  和三个固定环境变量的新建子进程中离线导入，合成 OpenAI/Azure/代理/凭据变量未继承。
+  未实现 Provider 或匿名密钥管道。
+- Implementer 自报六个 P1 的独立 RED `6 failed` -> GREEN `6 passed`；contracts
+  `72 passed`、全量 `324 passed`、mypy、Ruff、CLI、lock check、locked offline sync、
+  offline build、migration/BPE package checks 和固定 Diff 均 PASS。这些是待独立复跑
+  的证据，不构成 `APPROVE`。
+- 状态进入 `IN_REVIEW`；第二轮全新独立 Codex Reviewer 包已准备但尚未启动，不得预写
+  `APPROVE`、`ACCEPTED`、merge 或 `DONE`。
 
 ## 2026-07-20 产品审批
 

@@ -1,16 +1,16 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-21
-- 当前阶段：Phase 2 — TASK-008A Correction 1
+- 更新时间：2026-07-22
+- 当前阶段：Phase 2 — TASK-008A Correction 1 独立审查
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008a`，
-  `codex/task-008a-cloud-analysis-shared-contracts`，由原 Codex Implementer 独占；
+  `codex/task-008a-cloud-analysis-shared-contracts`，由全新独立 Codex Reviewer 独占；
   历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
-- 活动任务：TASK-008A=`IN_PROGRESS`，第一轮 review evidence 固定为
-  `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`，Verdict=`REJECT`、P1=6；原 Codex
-  Implementer 获准执行 Correction 1。TASK-009A=`BLOCKED/UNASSIGNED`，等待
+- 活动任务：TASK-008A=`IN_REVIEW`，Correction 1 source 固定为
+  `d95745fd04b115369a9fd70362cd735d1eb70917`；原 Codex Implementer 已结束，等待
+  全新独立 Codex Reviewer 2。TASK-009A=`BLOCKED/UNASSIGNED`，等待
   TASK-008A `DONE`；正式
   TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
@@ -58,11 +58,9 @@
 
 ## 下一步
 
-1. 原 TASK-008A Codex Implementer 从 evidence `0f52c305...` 执行 Correction 1，
-   关闭全部 6 个 P1，提交固定 tokenizer 资源并复跑离线门禁；不得实现 Provider。
-2. Correction source 回传后，由全新独立 Codex Reviewer 复跑六组 P1 探针、全部
-   离线门禁和五轴审查。Reviewer 回传 evidence 后由主控判定验收；TASK-008A 整合并
-   关闭为 `DONE` 后
+1. 全新独立 Codex Reviewer 2 在固定 Correction 1 source 上复跑六组 P1 探针、全部
+   离线门禁和五轴审查，只可写 source handoff。
+2. Reviewer 回传 evidence 后由主控判定验收；TASK-008A 整合并关闭为 `DONE` 后
    分配 TASK-009A。两项均 `DONE`
    后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
@@ -86,8 +84,8 @@
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
-| 已完成可关闭 | TASK-008A 第一轮独立 Codex Reviewer | evidence `0f52c30...` 已 `REJECT`；不得继续写 source |
-| 立即启动 | TASK-008A 原 Codex Implementer Correction 1 | 固定 source start `0f52c30...`；8 路径范围，只有 BPE 官方 Blob 一次 GET 可联网 |
+| 已完成可关闭 | TASK-008A 第一轮独立 Codex Reviewer 与 Correction 1 Implementer | evidence `0f52c30...` 已 `REJECT`；Correction source `d95745f...` 已回传；不得继续写 source |
+| 立即启动 | TASK-008A 第二轮独立 Codex Reviewer | 固定 source `d95745f...`；只可写 handoff，所有验证离线 |
 | 等待上游 | TASK-009A assignment | ADR/Jinja2 已批；等待 TASK-008A `DONE` |
 | 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
@@ -220,6 +218,12 @@
   traceback locals、tokenizer 网络回退、OpenAI SDK 导入时环境读取和完成结果元数据
   一致性未关闭。既有 contracts `66`、全量 `318` 和其他离线门禁通过不抵消这些
   P1。Correction 1 按 A-16/A-17 修复后必须由全新独立 Reviewer 再审。
+- TASK-008A Correction 1 `d95745fd04b115369a9fd70362cd735d1eb70917` 是 first review
+  evidence 的唯一非 merge 后继，精确修改 `domain.py`、`config.py`、contracts 测试、
+  固定 `o200k_base.tiktoken` 资源和 handoff 五个路径；相对 original base 的完整产品
+  Diff 为获准的八路径，`pyproject.toml`/`uv.lock` blob 未变。Implementer 自报
+  contracts `72`、全量 `324`、mypy、Ruff、CLI、locked offline sync/build、资源与
+  migration package hash 全 PASS；六个 P1 的 RED/GREEN 仅构成待第二轮独立复跑证据。
 - 真实 OpenAI API、密钥读取、付费调用、云端 token-count、真实 Vault/用户笔记和
   最终文件删除/移动/重命名继续未授权。
 
