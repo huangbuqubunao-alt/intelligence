@@ -145,3 +145,67 @@
 - 剩余风险：修复必须保存/检索首次稳定路径，并在写入或补账前按 video_id 检测所有候选、NFC/casefold 冲突和非受管占位；不得通过重命名、删除或接管既有笔记规避冲突。
 - Verdict：`REJECT`
 - 未解决 P0/P1：`P1` unresolved — title-derived path breaks completed replay and same-video candidate conflicts are silently accepted.
+
+## Correction 1 — Implementer evidence
+
+- Dynamic authorization: `main@2717609961e054001a0aef800f8c568c568b51ef` is the current
+  `TASK-009-CORRECTION-1-CODEX.md` control-plane commit and records TASK-009 as
+  `IN_PROGRESS`. Source started clean at
+  `f778163dca83807f1baec5e568c4dbd734829171` with sole parent
+  `d16498fe2a1939c6bec7babd03039e623782d027`; no `.codebase-memory/` index was run or created.
+- Scope: modified only `src/youtube_intel/notes.py`,
+  `src/youtube_intel/providers/obsidian.py`,
+  `tests/integration/test_obsidian_sink.py`, and this handoff. The permitted
+  unit-test path was reviewed but did not require a change. No template, fixture,
+  dependency/lockfile, shared contract, configuration, state, schema/migration,
+  CLI, TASK-008, or main file changed.
+- Stable identity: completed normal replay now retrieves the existing
+  `VIDEO_NOTE` Artifact via the already-approved `get_artifact_by_key` repository
+  method, validates its VAULT/video provenance, scans all same-video candidates,
+  and verifies that exact original path without rendering, replacing, or renaming.
+  No Schema or Repository method was introduced.
+- Fail-closed candidates: every verification, write, and replace/recovery path
+  enumerates directory entries whose NFC/casefold-normalized suffix claims the
+  video ID. Multiple candidates, an Artifact/path mismatch, an unmanaged
+  placeholder, or an unsafe existing entry fail before any final-file write,
+  rename, move, or deletion. A singleton valid managed candidate remains usable
+  only for the existing SQLite replace-before-commit recovery path.
+- Path hardening: `vault_subdir` now rejects every drive-style component such as
+  `C:` and `C:notes`, in addition to the pre-existing absolute, traversal,
+  backslash, NUL, and whitespace boundaries.
+- Regression evidence: temporary Vault/SQLite tests cover completed title change
+  (same NoteRef, bytes and inode unchanged), unmanaged `--<video_id>.md`,
+  multiple, casefold, and NFC candidates (original bytes unchanged and no new
+  file), and `C:` rejection with no Vault child created. All filesystem/database
+  I/O in these regressions used pytest temporary paths only.
+
+### Correction 1 checks
+
+| Command | Result |
+|---|---|
+| `uv lock --check` | PASS — Resolved 84 packages; lockfile unchanged. |
+| `uv sync --locked` | PASS — Checked 61 packages; used the existing local uv cache only. |
+| `uv run python -m pytest tests/unit/test_note_rendering.py` | PASS — 4 passed. |
+| `uv run python -m pytest tests/integration/test_obsidian_sink.py` | PASS — 12 passed. |
+| `uv run python -m pytest` | PASS — 343 passed. |
+| `uv run mypy src` | PASS — 15 source files, no issues. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS. |
+| `uv build --offline` | PASS — sdist and wheel built without network access. |
+| Archive inclusion check | PASS — both archives contain `youtube_intel/templates/video.md` and `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check` before commit | PASS. |
+
+### Correction 1 reuse, risks, and conclusion
+
+- Reuse: `DIRECT` existing SQLite `VIDEO_NOTE` Artifact lookup, Jinja2/PyYAML
+  boundaries, and Python standard-library `os`/`unicodedata`; no new component or
+  license obligation. The registered `yt2md` candidate remains `REFERENCE` only.
+- Unauthorised operations not run: no real Vault or user-note access, no
+  test-directory-external note operation, no network/cloud/credential/media/model
+  path, and no code-graph indexing action.
+- Diff review: restricted to the four paths above; no generated artifacts,
+  dependency, Schema, secret, real-resource, or unrelated changes.
+- Remaining risk: the existing ADR-009 at-most-once boundary remains unchanged;
+  recovery after a crash between atomic replace and SQLite commit still depends on
+  a later eligible job. It now fails closed if note identity is ambiguous.
+- `DECISION NEEDED`: `None`.

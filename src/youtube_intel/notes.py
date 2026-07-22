@@ -59,6 +59,15 @@ def build_video_note_filename(title: str, video_id: str) -> str:
     return f"{safe}--{video_id}.md"
 
 
+def is_video_note_candidate(filename: str, video_id: str) -> bool:
+    """Return whether one directory entry claims this video identity."""
+    if not _SAFE_VIDEO_ID.fullmatch(video_id):
+        raise NoteRenderingError("video identity is invalid")
+    normalized = unicodedata.normalize("NFC", filename)
+    suffix = f"--{video_id}.md"
+    return normalized.casefold().endswith(suffix.casefold())
+
+
 def render_video_note(
     *,
     video: VideoMetadata,

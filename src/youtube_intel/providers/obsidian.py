@@ -6,7 +6,7 @@ import hashlib
 import os
 import secrets
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -27,7 +27,12 @@ from youtube_intel.domain import (
     VideoMetadata,
     WeeklyReportInput,
 )
-from youtube_intel.notes import NoteRenderingError, RenderedVideoNote, render_video_note
+from youtube_intel.notes import (
+    NoteRenderingError,
+    RenderedVideoNote,
+    is_video_note_candidate,
+    render_video_note,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -45,6 +50,8 @@ _VIDEO_NOTE_PRODUCER_VERSION = "obsidian-note-v1"
 
 class _NoteRepository(Protocol):
     def get_video(self, video_id: str) -> object: ...
+
+    def get_artifact_by_key(self, artifact_key: str) -> object | None: ...
 
     def complete_stage(
         self,
@@ -116,6 +123,12 @@ class ObsidianNoteSink(KnowledgeSink):
         try:
             if pipeline_version != self._context.pipeline_version:
                 raise _failure(ErrorCode.CONFIG_INVALID, "note pipeline version does not match the job", video.video_id)
+            current = self._repository.get_video(video.video_id)
+            status = getattr(current, "pipeline_status", None)
+            if status in {PipelineStatus.NOTE_WRITTEN, PipelineStatus.COMPLETE}:
+                return self._verify_existing(self._artifact_relative_path(video.video_id), video.video_id)
+            if status is not PipelineStatus.ANALYSIS_READY:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "note write job is not eligible", video.video_id)
             rendered = render_video_note(
                 video=video,
                 transcript=transcript,
@@ -124,18 +137,7 @@ class ObsidianNoteSink(KnowledgeSink):
                 processed_at=processed_at,
                 pipeline_version=pipeline_version,
             )
-            current = self._repository.get_video(video.video_id)
-            status = getattr(current, "pipeline_status", None)
-            if status in {PipelineStatus.NOTE_WRITTEN, PipelineStatus.COMPLETE}:
-                return self._verify_existing(rendered, video.video_id)
-            if status is not PipelineStatus.ANALYSIS_READY:
-                raise _failure(ErrorCode.INVALID_RESPONSE, "note write job is not eligible", video.video_id)
-            content_hash = self._write_or_verify(rendered, video.video_id)
-            ref = NoteRef(
-                kind=NoteKind.VIDEO,
-                relative_path=rendered.relative_path,
-                content_hash=content_hash,
-            )
+            ref = self._write_or_verify(rendered, video.video_id)
             self._repository.complete_stage(
                 job_id=self._context.job_id,
                 owner=self._context.owner,
@@ -180,17 +182,53 @@ class ObsidianNoteSink(KnowledgeSink):
             expires_at=None,
         )
 
-    def _verify_existing(self, rendered: RenderedVideoNote, video_id: str) -> NoteRef:
-        content = self._read_existing(rendered.relative_path, video_id)
+    def _artifact_relative_path(self, video_id: str) -> str | None:
+        artifact = self._repository.get_artifact_by_key(
+            f"video-note/{self._context.pipeline_version}/{video_id}"
+        )
+        if artifact is None:
+            return None
+        relative_path = getattr(artifact, "relative_path", None)
+        if (
+            getattr(artifact, "video_id", None) != video_id
+            or getattr(artifact, "kind", None) is not ArtifactKind.VIDEO_NOTE
+            or getattr(artifact, "storage_root", None) is not StorageRoot.VAULT
+            or getattr(artifact, "deleted_at", None) is not None
+            or not isinstance(relative_path, str)
+            or len(relative_path.split("/")) != 2
+            or not relative_path.startswith("Videos/")
+            or not is_video_note_candidate(relative_path.removeprefix("Videos/"), video_id)
+        ):
+            raise _failure(ErrorCode.INVALID_RESPONSE, "video note artifact is invalid", video_id)
+        return relative_path
+
+    def _verify_existing(self, relative_path: str | None, video_id: str) -> NoteRef:
+        content = self._read_existing(relative_path, video_id)
+        if relative_path is None:
+            raise _failure(ErrorCode.INVALID_RESPONSE, "completed note artifact is missing", video_id)
         return NoteRef(
             kind=NoteKind.VIDEO,
-            relative_path=rendered.relative_path,
+            relative_path=relative_path,
             content_hash=hashlib.sha256(content).hexdigest(),
         )
 
-    def _write_or_verify(self, rendered: RenderedVideoNote, video_id: str) -> str:
+    def _write_or_verify(self, rendered: RenderedVideoNote, video_id: str) -> NoteRef:
         root_fd, subdir_fd, videos_fd = self._open_videos_dir()
         try:
+            artifact_path = self._artifact_relative_path(video_id)
+            filename = self._candidate_filename(
+                videos_fd,
+                video_id,
+                expected_filename=(
+                    None if artifact_path is None else artifact_path.removeprefix("Videos/")
+                ),
+            )
+            if artifact_path is not None and filename is None:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "managed note is missing", video_id)
+            rendered = replace(
+                rendered,
+                relative_path=rendered.relative_path if filename is None else "Videos/" + filename,
+            )
             filename = rendered.relative_path.removeprefix("Videos/")
             existing = _read_regular_file(videos_fd, filename)
             desired = rendered.content.encode("utf-8")
@@ -203,16 +241,28 @@ class ObsidianNoteSink(KnowledgeSink):
             if existing is None or existing.content != desired:
                 _atomic_replace(videos_fd, filename, desired, expected=existing)
             self._verify_directory_chain(root_fd, subdir_fd, videos_fd)
-            return hashlib.sha256(desired).hexdigest()
+            return NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path=rendered.relative_path,
+                content_hash=hashlib.sha256(desired).hexdigest(),
+            )
         finally:
             os.close(videos_fd)
             os.close(subdir_fd)
             os.close(root_fd)
 
-    def _read_existing(self, relative_path: str, video_id: str) -> bytes:
+    def _read_existing(self, relative_path: str | None, video_id: str) -> bytes:
         root_fd, subdir_fd, videos_fd = self._open_videos_dir(create_videos=False)
         try:
-            filename = relative_path.removeprefix("Videos/")
+            filename = self._candidate_filename(
+                videos_fd,
+                video_id,
+                expected_filename=(
+                    None if relative_path is None else relative_path.removeprefix("Videos/")
+                ),
+            )
+            if filename is None:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "completed note is missing", video_id)
             content = _read_regular_file(videos_fd, filename)
             if content is None:
                 raise _failure(ErrorCode.INVALID_RESPONSE, "completed note is missing", video_id)
@@ -222,6 +272,25 @@ class ObsidianNoteSink(KnowledgeSink):
             os.close(videos_fd)
             os.close(subdir_fd)
             os.close(root_fd)
+
+    @staticmethod
+    def _candidate_filename(
+        videos_fd: int,
+        video_id: str,
+        *,
+        expected_filename: str | None,
+    ) -> str | None:
+        candidates = sorted(
+            name for name in os.listdir(videos_fd) if is_video_note_candidate(name, video_id)
+        )
+        if len(candidates) > 1:
+            raise _failure(ErrorCode.INVALID_RESPONSE, "multiple notes claim this video", video_id)
+        if not candidates:
+            return None
+        candidate = candidates[0]
+        if expected_filename is not None and candidate != expected_filename:
+            raise _failure(ErrorCode.INVALID_RESPONSE, "managed note identity conflicts", video_id)
+        return candidate
 
     def _open_videos_dir(self, *, create_videos: bool = True) -> tuple[int, int, int]:
         if not self._vault_root.is_absolute():
@@ -262,7 +331,10 @@ def _safe_subdir(value: str) -> PurePosixPath:
     if not value or value.strip() != value or "\\" in value or "\x00" in value:
         raise ValueError("vault subdirectory is invalid")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    if path.is_absolute() or any(
+        part in {"", ".", ".."} or (len(part) >= 2 and part[0].isalpha() and part[1] == ":")
+        for part in path.parts
+    ):
         raise ValueError("vault subdirectory is invalid")
     return path
 

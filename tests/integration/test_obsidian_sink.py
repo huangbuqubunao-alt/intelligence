@@ -46,12 +46,12 @@ VIDEO_ID = "video-123"
 PIPELINE_VERSION = "pipeline-v1"
 
 
-def _video() -> VideoMetadata:
+def _video(*, title: str = "A safe product note") -> VideoMetadata:
     return VideoMetadata(
         video_id=VIDEO_ID,
         channel_id="channel-123",
         channel_name="Example Channel",
-        title="A safe product note",
+        title=title,
         description="A concise description.",
         source_url="https://example.invalid/watch?v=video-123",
         published_at=NOW,
@@ -253,6 +253,94 @@ def test_completed_note_keeps_user_bytes_and_is_not_replaced(tmp_path: Path) -> 
     assert returned.relative_path == first.relative_path
     assert path.stat().st_ino == before
     assert "用户保留的原始字节" in path.read_text(encoding="utf-8")
+
+
+def test_completed_note_keeps_its_first_path_when_the_title_changes(tmp_path: Path) -> None:
+    repository, context = _repository_with_claimed_note_job(tmp_path)
+    sink = _sink(repository=repository, context=context, vault_root=tmp_path / "vault")
+    first = sink.upsert_video_note(
+        video=_video(),
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis(),
+        processed_at=NOW,
+        pipeline_version=PIPELINE_VERSION,
+    )
+    path = tmp_path / "vault" / "Knowledge" / first.relative_path
+    before = path.read_bytes()
+    before_inode = path.stat().st_ino
+    renamed = _video(title="A renamed product note")
+    repository.upsert_video_metadata(renamed, pipeline_version=PIPELINE_VERSION, now=NOW)
+
+    returned = sink.upsert_video_note(
+        video=renamed,
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis(),
+        processed_at=NOW,
+        pipeline_version=PIPELINE_VERSION,
+    )
+
+    assert returned == first
+    assert path.read_bytes() == before
+    assert path.stat().st_ino == before_inode
+    assert not (
+        tmp_path / "vault" / "Knowledge" / "Videos" / "A renamed product note--video-123.md"
+    ).exists()
+
+
+@pytest.mark.parametrize(
+    "candidate_names",
+    (
+        ("Legacy--video-123.md",),
+        ("One--video-123.md", "Two--video-123.md"),
+        ("A safe product note--VIDEO-123.md",),
+        ("Cafe\u0301--video-123.md",),
+    ),
+    ids=("unmanaged", "multiple", "casefold", "nfc"),
+)
+def test_sink_rejects_all_conflicting_video_id_candidates_without_writing(
+    tmp_path: Path, candidate_names: tuple[str, ...]
+) -> None:
+    repository, context = _repository_with_claimed_note_job(tmp_path)
+    vault_root = tmp_path / "vault"
+    videos = vault_root / "Knowledge" / "Videos"
+    videos.mkdir(parents=True)
+    expected = {
+        name: f"unmanaged candidate: {name}".encode("utf-8") for name in candidate_names
+    }
+    for name, content in expected.items():
+        (videos / name).write_bytes(content)
+    sink = _sink(repository=repository, context=context, vault_root=vault_root)
+
+    with pytest.raises(NotePersistenceError):
+        sink.upsert_video_note(
+            video=_video(),
+            transcript=_transcript(),
+            scoring=_scoring(),
+            analysis=_analysis(),
+            processed_at=NOW,
+            pipeline_version=PIPELINE_VERSION,
+        )
+
+    assert {path.name: path.read_bytes() for path in videos.iterdir()} == expected
+    assert repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.ANALYSIS_READY
+
+
+def test_sink_rejects_drive_style_vault_subdirectories(tmp_path: Path) -> None:
+    repository, context = _repository_with_claimed_note_job(tmp_path)
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+
+    with pytest.raises(ValueError):
+        ObsidianNoteSink(
+            vault_root=vault_root,
+            vault_subdir="C:",
+            repository=repository,
+            context=context,
+        )
+
+    assert list(vault_root.iterdir()) == []
 
 
 def test_sqlite_failure_after_replace_is_recovered_by_a_retried_note_job(
