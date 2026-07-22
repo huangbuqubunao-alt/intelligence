@@ -15,6 +15,7 @@ from youtube_intel.analysis import (
 )
 from youtube_intel.config import CloudSettings
 from youtube_intel.domain import (
+    AnalysisSkipReason,
     Availability,
     ErrorCode,
     LiveStatus,
@@ -120,12 +121,13 @@ def test_evidence_must_be_an_exact_substring_of_the_outbound_payload() -> None:
 
 
 class _Resolver:
-    def __init__(self) -> None:
+    def __init__(self, value: str | None = "synthetic-key") -> None:
+        self.value = value
         self.calls = 0
 
-    def resolve(self, env_name: str) -> str:
+    def resolve(self, env_name: str) -> str | None:
         self.calls += 1
-        return "synthetic-key"
+        return self.value
 
 
 def _repository_service(tmp_path: Path) -> tuple[SQLiteStateRepository, RepositoryBackedAnalysisService, _Transport]:
@@ -136,6 +138,11 @@ def _repository_service(tmp_path: Path) -> tuple[SQLiteStateRepository, Reposito
     repository.upsert_video_metadata(metadata, pipeline_version="pipeline-v1", now=now)
     for before, after in ((PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY), (PipelineStatus.METADATA_READY, PipelineStatus.TRANSCRIPT_READY), (PipelineStatus.TRANSCRIPT_READY, PipelineStatus.SCORED)):
         assert repository.advance_pipeline(metadata.video_id, expected_status=before, target_status=after, pipeline_version="pipeline-v1", now=now)
+    connection = repository._connect()
+    try:
+        connection.execute("UPDATE videos SET should_summarize = 1 WHERE video_id = ?", (metadata.video_id,))
+    finally:
+        connection.close()
     repository.create_job(job_id="analysis-job", scope_key="video:video-123:ANALYSIS", video_id=metadata.video_id,
         job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
     assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
@@ -224,6 +231,90 @@ def test_persistent_exhausted_budget_has_no_credential_provider_or_sqlite_side_e
     assert repository.get_job("analysis-job").status.value == "RUNNING"
 
 
+def test_persistent_disabled_policy_has_no_side_effects(tmp_path: Path) -> None:
+    repository, _, transport = _repository_service(tmp_path)
+    resolver = _Resolver()
+    disabled = RepositoryBackedAnalysisService(
+        provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
+        settings=CloudSettings(enabled=False, model="gpt-4.1-mini"), repository=repository,
+        context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"),
+        artifact_root=tmp_path / "data", credential_resolver=resolver,
+        budget=CloudCallBudget(limit=5),
+    )
+
+    outcome = disabled.analyze(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en"
+    )
+
+    assert outcome.reason is AnalysisSkipReason.CLOUD_DISABLED
+    assert resolver.calls == 0
+    assert transport.requests == []
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
+        output_language="zh-CN", settings=disabled.settings,
+    ).request_hash
+    assert repository.get_provider_call(request_hash) is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
+
+
+def test_persistent_low_value_policy_has_no_side_effects(tmp_path: Path) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    connection = repository._connect()
+    try:
+        connection.execute("UPDATE videos SET should_summarize = 0 WHERE video_id = ?", ("video-123",))
+    finally:
+        connection.close()
+
+    outcome = service.analyze(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en"
+    )
+
+    assert outcome is None
+    assert service.credential_resolver.calls == 0
+    assert transport.requests == []
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
+        output_language="zh-CN", settings=service.settings,
+    ).request_hash
+    assert repository.get_provider_call(request_hash) is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
+
+
+def test_persistent_missing_credential_has_no_side_effects(tmp_path: Path) -> None:
+    repository, _, transport = _repository_service(tmp_path)
+    resolver = _Resolver(value=None)
+    unavailable = RepositoryBackedAnalysisService(
+        provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
+        settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository,
+        context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"),
+        artifact_root=tmp_path / "data", credential_resolver=resolver,
+        budget=CloudCallBudget(limit=5),
+    )
+
+    outcome = unavailable.analyze(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en"
+    )
+
+    assert outcome.reason is AnalysisSkipReason.CREDENTIAL_UNAVAILABLE
+    assert resolver.calls == 1
+    assert transport.requests == []
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
+        output_language="zh-CN", settings=unavailable.settings,
+    ).request_hash
+    assert repository.get_provider_call(request_hash) is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
+
+
 def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -252,6 +343,13 @@ def test_reordered_job_reuses_succeeded_provider_call_without_transport(
 ) -> None:
     repository, service, transport = _repository_service(tmp_path)
     service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="transcript evidence", language="en",
+        output_language="zh-CN", settings=service.settings,
+    ).request_hash
+    cached_call = repository.get_provider_call(request_hash)
+    cached_raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
+    cached_structured = repository.get_artifact_by_key(f"analysis/{request_hash}/structured")
     now = datetime.now(UTC)
     connection = repository._connect()
     try:
@@ -264,8 +362,13 @@ def test_reordered_job_reuses_succeeded_provider_call_without_transport(
     repository.create_job(job_id="analysis-reordered", scope_key="video:video-123:ANALYSIS", video_id="video-123", job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
     assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
     reordered_transport = _Transport(_valid_response())
-    reordered = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport), settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository, context=AnalysisJobContext("analysis-reordered", "worker", "pipeline-v1"), artifact_root=tmp_path / "data", credential_resolver=_Resolver(), budget=CloudCallBudget(limit=5))
+    reordered_resolver = _Resolver()
+    reordered = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport), settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository, context=AnalysisJobContext("analysis-reordered", "worker", "pipeline-v1"), artifact_root=tmp_path / "data", credential_resolver=reordered_resolver, budget=CloudCallBudget(limit=5))
     result = reordered.analyze(video=_video(), transcript_text="transcript evidence", language="en")
     assert result.result.provider == "openai"
     assert len(transport.requests) == 1
     assert reordered_transport.requests == []
+    assert reordered_resolver.calls == 0
+    assert repository.get_provider_call(request_hash) == cached_call
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") == cached_raw
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") == cached_structured

@@ -28,10 +28,12 @@ from youtube_intel.domain import (
     AnalysisOutcome,
     AnalysisPayload,
     AnalysisResult,
+    AnalysisSkipped,
     AnalysisSkipReason,
     AppError,
     DiagnosticEntry,
     ErrorCode,
+    JobStatus,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
@@ -420,20 +422,74 @@ class RepositoryBackedAnalysisService:
         self.context, self.artifact_root = context, artifact_root
         self.credential_resolver, self.budget = credential_resolver, budget
 
+    def _validate_upstream(self, *, video: VideoMetadata, transcript_text: str) -> bool:
+        video_record = self.repository.get_video(video.video_id)
+        job = self.repository.get_job(self.context.job_id)
+        if (
+            video_record is None
+            or job is None
+            or video_record.pipeline_status is not PipelineStatus.SCORED
+            or video_record.pipeline_version != self.context.pipeline_version
+            or job.video_id != video.video_id
+            or job.target_stage is not ProcessingStage.ANALYSIS
+            or job.pipeline_version != self.context.pipeline_version
+            or job.status is not JobStatus.RUNNING
+            or job.lease_owner != self.context.owner
+            or not transcript_text.strip()
+        ):
+            raise AnalysisPolicyError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="cloud analysis upstream state is invalid",
+                    retryable=True,
+                    video_id=video.video_id,
+                    stage=ProcessingStage.ANALYSIS,
+                )
+            )
+        if video_record.should_summarize is None:
+            raise AnalysisPolicyError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="cloud analysis value policy is unavailable",
+                    retryable=True,
+                    video_id=video.video_id,
+                    stage=ProcessingStage.ANALYSIS,
+                )
+            )
+        return video_record.should_summarize is True
+
+    def _reuse_persisted_result(
+        self, *, request: ProviderCallRequest, video_id: str, now: datetime
+    ) -> AnalysisCompleted:
+        structured = self.repository.get_artifact_by_key(
+            f"analysis/{request.request_hash}/structured"
+        )
+        if structured is None:
+            raise AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE,
+                message="persisted cloud analysis is unavailable", retryable=True,
+                video_id=video_id, stage=ProcessingStage.ANALYSIS))
+        result = AnalysisResult.model_validate_json(
+            (self.artifact_root / structured.relative_path).read_bytes()
+        )
+        self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
+            video_id=video_id, expected_status=PipelineStatus.SCORED,
+            target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
+            artifacts=(), provider_call=None, now=now)
+        return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
+            model=result.model, started_at=now, finished_at=_utcnow(), diagnostics=(DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted cloud analysis"),)))
+
     def analyze(self, *, video: VideoMetadata, transcript_text: str, language: str,
-                output_language: str = "zh-CN") -> AnalysisOutcome:
+                output_language: str = "zh-CN") -> AnalysisOutcome | None:
+        if not self._validate_upstream(video=video, transcript_text=transcript_text):
+            return None
+        if not self.settings.enabled:
+            return AnalysisSkipped(reason=AnalysisSkipReason.CLOUD_DISABLED, call=None,
+                safe_message="cloud analysis is disabled")
         analysis_input = build_analysis_input(video=video, transcript_text=transcript_text,
             language=language, output_language=output_language, settings=self.settings)
         if _input_tokens(_request_parts(analysis_input.payload)) > self.settings.max_local_input_tokens_per_video:
-            from youtube_intel.domain import AnalysisSkipped
-
             return AnalysisSkipped(reason=AnalysisSkipReason.INPUT_TOO_LARGE, call=None,
                 safe_message="local input token limit exceeded")
-        if self.budget.remaining == 0:
-            from youtube_intel.domain import AnalysisSkipped
-
-            return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
-                safe_message="cloud call budget is exhausted")
         request = ProviderCallRequest(operation=_OPERATION,
             normalized_input_hash=_normalized_input_hash(payload=analysis_input.payload,
                 transcript_text=transcript_text, settings=self.settings), provider=_PROVIDER,
@@ -441,6 +497,18 @@ class RepositoryBackedAnalysisService:
             schema_version=self.settings.schema_version,
             deterministic_artifact_key=f"analysis/{analysis_input.request_hash}/raw")
         now = _utcnow()
+        existing = self.repository.get_provider_call(request.request_hash)
+        if existing is not None and existing.status is ProviderCallStatus.SUCCEEDED:
+            return self._reuse_persisted_result(
+                request=request, video_id=video.video_id, now=now
+            )
+        if self.budget.remaining == 0:
+            return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
+                safe_message="cloud call budget is exhausted")
+        credential = self.credential_resolver.resolve(self.settings.api_key_env)
+        if not credential:
+            return AnalysisSkipped(reason=AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, call=None,
+                safe_message="cloud credential is unavailable")
         reservation = self.repository.reserve_provider_call(request, owner=self.context.owner,
             lease_until=now + timedelta(seconds=300), available_at=now, now=now)
         if not reservation.acquired:
@@ -448,20 +516,10 @@ class RepositoryBackedAnalysisService:
                 raise AnalysisPolicyError(AppError(code=ErrorCode.PROVIDER_UNAVAILABLE,
                     message="cloud analysis call is already reserved", retryable=True,
                     video_id=video.video_id, stage=ProcessingStage.ANALYSIS))
-            structured = self.repository.get_artifact_by_key(f"analysis/{request.request_hash}/structured")
-            if structured is None:
-                raise AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE,
-                    message="persisted cloud analysis is unavailable", retryable=True,
-                    video_id=video.video_id, stage=ProcessingStage.ANALYSIS))
-            result = AnalysisResult.model_validate_json((self.artifact_root / structured.relative_path).read_bytes())
-            self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
-                video_id=video.video_id, expected_status=PipelineStatus.SCORED,
-                target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
-                artifacts=(), provider_call=None, now=now)
-            return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
-                model=result.model, started_at=now, finished_at=_utcnow(), diagnostics=(DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted cloud analysis"),)))
-        credential = self.credential_resolver.resolve(self.settings.api_key_env)
-        if not credential or not self.budget.try_consume():
+            return self._reuse_persisted_result(
+                request=request, video_id=video.video_id, now=now
+            )
+        if not self.budget.try_consume():
             raise AnalysisPolicyError(AppError(code=ErrorCode.LOCAL_RESOURCE,
                 message="cloud analysis could not start", retryable=True, video_id=video.video_id,
                 stage=ProcessingStage.ANALYSIS))

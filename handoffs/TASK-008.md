@@ -280,3 +280,36 @@
   Resolver/transport 回归，逐项证明关闭、低价值、缓存、预算耗尽、token 超限和缺凭据路径的零副作用，
   再由新的独立 Reviewer 审查。
 - 剩余风险：其余强制检查和 B–E 未执行，不能根据历史证据或实现者结果标记通过；真实云端资源仍未授权。
+
+## Correction 3 — Implementer
+
+- 授权：`TASK-008-CORRECTION-3-CODEX.md`；main control-plane 提交
+  `b85c83cfe4fd6e24059dd9644aa1bed2ee90155b`，实时 TASK-008=`IN_PROGRESS`。
+  起始 source HEAD 为 `b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，唯一父为
+  Correction 2 Reviewer evidence `71e1c24936b0ed1be3a98c49efa7770f7456d85c`。
+  起始工作树洁净，未发现 `.codebase-memory/` 或其他范围外工件。
+- 修复：持久化编排现在先以既有 Repository 的只读 `VideoRecord`/`JobRecord` 验证高价值、
+  `SCORED` Pipeline、已领取 ANALYSIS Job、版本/owner 与非空 canonical transcript；随后处理
+  关闭、最小输入/token、已成功 ProviderCall 缓存、预算、凭据，最后才预留 ProviderCall。
+  低价值返回无 Outcome；关闭、token/预算耗尽和缺凭据返回既有 `AnalysisSkipped`，不会创建或
+  失败化 ProviderCall。缓存重排保持既有 `complete_stage` 恢复语义。
+- 新离线回归：真实临时 SQLite + Fake Resolver/transport 覆盖关闭、低价值、缺凭据；均验证
+  ProviderCall/两类 Artifact=None、Pipeline=`SCORED`、Job=`RUNNING`、transport=0，关闭/低价值
+  Resolver=0，缺凭据只解析一次并返回 `CREDENTIAL_UNAVAILABLE`。既有 token、预算、成功、回滚、
+  RAW_RESPONSE_30D 与重排缓存保留；重排新增验证 Resolver=0、transport=0、无新增 ProviderCall/
+  Artifact，并以 `complete_stage` 推进恢复 Job。
+- RED/Green：新增三个门禁回归先失败（关闭仍 Provider 调用、低价值仍调用、缺凭据预留后抛错），
+  最小修复后 integration `14 passed`。
+- 检查：`uv lock --check` PASS；`uv sync --locked` PASS（`Checked 61 packages`）；focused policy
+  `4 passed`、summary integration `14 passed`、全量 `345 passed`；mypy `Success: no issues found in
+  15 source files`；Ruff PASS；CLI help PASS；`uv build --offline` PASS。sdist/wheel 均含 migration
+  SQL、`prompts/summary.md` 与固定 `o200k_base.tiktoken`。静态凭据格式哨兵检查 `src`/`tests` 无匹配。
+- Diff/范围：仅修改 `analysis.py`、`test_summary_provider.py` 与本报告；不修改 Provider、prompt、
+  fixture、依赖/锁、共享契约、配置、`state.py`、Schema/migration、CLI、TASK-009 或 main。
+  `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...HEAD` PASS。
+- 复用：继续 `DIRECT` 复用已批准 tiktoken 固定资源、现有 SQLite `get_video`/`get_job`/
+  ProviderCall/Artifact/`complete_stage` 契约；无新依赖、HTTP client、Provider 或 token-count。
+- 未运行：真实 OpenAI、凭据、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault。
+  剩余风险限于这些未授权真实资源路径。
+- `DECISION NEEDED`：`None`。
+- Commit SHA：待创建；将严格以 `b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f` 为唯一父。
