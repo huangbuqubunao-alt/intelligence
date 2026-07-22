@@ -71,3 +71,20 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：`Pending implementation commit`
 - 复现/验证说明：运行本报告的固定 uv 命令；全部文件 I/O 测试只在 pytest 的临时目录中执行。
+
+## Reviewer 结论
+
+- Reviewer agent/session: `Codex / root` (independent reviewer)
+- 审查 commit: `956e37a15ab29106f16c45873fccb813cc5a959f` (sole parent `473119704c7638d7afd4e68d84d00e85064ceabd`)
+- Main authorization: `d44477bd0fa945383769b83f3672d1c606f3c365`; the dynamic authorization packet records TASK-009 as `IN_REVIEW`.
+- Branch/initial cleanliness: confirmed `codex/task-009-obsidian-notes@956e37a15ab29106f16c45873fccb813cc5a959f`, sole fixed parent, and clean source before review actions. The complete implementation diff has six changed files, all in the authorized source paths; `git diff --check base...HEAD` passed.
+- 重新运行的检查: `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...956e37a15ab29106f16c45873fccb813cc5a959f` passed. All required `uv` checks and independent probes were intentionally not run after the mandatory immediate-stop gate below.
+- Findings:
+  - **P1 / scope abnormality:** During review, an attempted required code-graph index created untracked `.codebase-memory/.gitattributes`, `.codebase-memory/artifact.json`, and `.codebase-memory/graph.db.zst` in the source worktree. These paths are outside the seven explicitly authorized path groups and make the source non-clean. The reviewer packet requires immediate `REJECT` and stop for any scope abnormality; no business-code, real-Vault, cloud, network, credential, or external-file operation followed. Per the packet, the reviewer did not clean or otherwise alter those paths.
+  - P0: none observed before the mandatory stop.
+  - P2/P3: not assessed because the required immediate-stop rule supersedes further review.
+- AC/ADR matrix: `BLOCKED` for task ACs and ADR-009 N-01–N-15; independent test and probe evidence is not validly complete after the P1 scope gate. Five-axis review is likewise incomplete by design.
+- Reuse/license review: `BLOCKED`; no conclusion beyond the implementer report is adopted without the mandated independent review.
+- Skipped/risks: all focused/full tests, mypy, Ruff, CLI help, offline build/package-inclusion checks, and probes A–E were skipped solely because the review packet mandates stopping immediately on P1. The untracked out-of-scope index artifacts remain a source-tree integrity risk requiring orchestrator direction.
+- Verdict：`REJECT`
+- 未解决 P0/P1: `P1` unresolved — untracked `.codebase-memory/` artifacts outside the fixed allowed scope.
