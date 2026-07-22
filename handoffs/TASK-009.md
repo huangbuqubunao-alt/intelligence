@@ -209,3 +209,66 @@
   recovery after a crash between atomic replace and SQLite commit still depends on
   a later eligible job. It now fails closed if note identity is ambiguous.
 - `DECISION NEEDED`: `None`.
+
+## Reviewer 3 — Correction 1 independent review
+
+- Reviewer agent/session: `Codex / root` (fresh independent reviewer)
+- Reviewed source: `codex/task-009-obsidian-notes@60ed077452faf5fe41b105b21b4221f89cb6e02c`; fixed base `473119704c7638d7afd4e68d84d00e85064ceabd`; sole parent `f778163dca83807f1baec5e568c4dbd734829171`, whose evidence chain is `f778163... -> d16498... -> 956e37...`.
+- Main authorization: dynamic packet commit `5874f4569ced297b6b827735a44959bebc306243`; its main task card records TASK-009 as `IN_REVIEW`.
+- Cleanliness/scope gate: PASS before review. `git status --short --untracked-files=all` had no output. No code-graph or codebase-memory indexing ran. Full base...HEAD diff contains only the six allowed path groups; Correction 1 itself changes only `notes.py`, `providers/obsidian.py`, the integration test, and this handoff. No dependency/lock, public contract, `state.py`, schema/migration, CLI, cloud-provider, TASK-008, credential, network, model, real-Vault, or user-note operation occurred.
+
+### Re-run checks
+
+| Command/check | Result | Independent evidence |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 84 packages; lock unchanged. |
+| `uv sync --locked` | PASS | Checked 61 packages, using only the existing local uv cache. |
+| `uv run python -m pytest tests/unit/test_note_rendering.py` | PASS | 4 passed. |
+| `uv run python -m pytest tests/integration/test_obsidian_sink.py` | PASS | 12 passed. |
+| `uv run python -m pytest` | PASS | 343 passed. |
+| `uv run mypy src` | PASS | Success, no issues in 15 source files. |
+| `uv run ruff check .` | PASS | All checks passed. |
+| `uv run python -m youtube_intel --help` | PASS | Help rendered normally. |
+| `uv build --offline` | PASS | sdist and wheel built offline. |
+| Archive inclusion | PASS | Both archives contain `youtube_intel/templates/video.md` and `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...60ed077452faf5fe41b105b21b4221f89cb6e02c` | PASS | No whitespace errors. |
+
+### Finding
+
+- **P1 — ADR-009 N-13 error-code contract is violated:**
+  `src/youtube_intel/providers/obsidian.py:157-158` catches every `OSError` from
+  Vault operations and unconditionally maps it to `ErrorCode.LOCAL_RESOURCE`.
+  ADR-009 N-13 instead requires `EACCES`, `EPERM`, and `EROFS` to map to
+  `ErrorCode.PERMISSION_DENIED`; only resource errors such as `ENOSPC`,
+  `EDQUOT`, `EIO`, fsync, and replace failures map to `LOCAL_RESOURCE`.
+  The only current injected OS-error regression (`test_obsidian_sink.py:463`)
+  raises an errno-less fsync failure, so it cannot detect this required
+  distinction. This gives a caller the wrong remediation and violates the
+  approved failure semantics. Per the review authorization, discovery of this
+  P1 requires immediate rejection and no business-code repair.
+- P0: none observed before the required stop.
+- P2/P3: not assessed; the mandatory immediate-stop rule takes precedence.
+
+### Independent probes and acceptance matrix
+
+| Item | Result | Evidence |
+|---|---|---|
+| A — completed title-change replay; `NOTE_WRITTEN`/`COMPLETE` zero rewrite | BLOCKED | Correction tests pass, but no new probe after the P1 stop. |
+| B — non-managed/multiple/NFC/casefold candidate fail-closed | BLOCKED | Correction tests pass, but no new probe after the P1 stop. |
+| C — drive-style, Unicode/reserved/traversal, symlink/directory replacement, legacy/marker/UTF-8 safety | BLOCKED | Correction tests pass, but no new probe after the P1 stop. |
+| D — low-value zero write; completed/skipped rendering; frontmatter/StrictUndefined/limits; user bytes/no-op replace | BLOCKED | Focused suite passes, but no new probe after the P1 stop. |
+| E — temporary Vault/SQLite short-write/fsync/replace, recovery/Artifact/Pipeline/Job atomicity | FAIL / P1 | The approved OS-error mapping used by these paths is incorrect for permission failures. |
+| Task AC: stable identity, conflict safety, rendering and recovery | BLOCKED | No P0/P1 found in those areas before the mandated stop; not independently accepted. |
+| ADR-009 N-01–N-12, N-14–N-15 | BLOCKED | Scope/reuse/build evidence is compatible, but a P1 prevents approval. |
+| ADR-009 N-13 | FAIL / P1 | All `OSError` values collapse to `LOCAL_RESOURCE`. |
+| Correctness | FAIL / P1 | Error contract is externally observable and wrong for permission failures. |
+| Readability / architecture / performance | BLOCKED | Not completed after mandatory stop. |
+| Security | FAIL / P1 | Permission failures are not classified according to the approved safe failure boundary. |
+| Reuse / license | BLOCKED | Jinja2/MarkupSafe and existing dependencies appear unchanged; no acceptance after P1. |
+
+### Reviewer 3 conclusion
+
+- Skipped: expanded independent probes A–D and any further code inspection after the P1; the authorization requires stopping at the first P0/P1. No real Vault, user note, network, cloud, credential, model, or test-directory-external file I/O was run.
+- Remaining risk: Correction 2 must add errno-aware, safe error mapping and focused temporary-directory regressions for `EACCES`, `EPERM`, and `EROFS`; it must not weaken the ADR, change unrelated contracts, or treat permission failures as storage-resource exhaustion.
+- Verdict: `REJECT`
+- Unresolved P0/P1: `P1` — `EACCES`/`EPERM`/`EROFS` are mapped to `LOCAL_RESOURCE` instead of `PERMISSION_DENIED`.
