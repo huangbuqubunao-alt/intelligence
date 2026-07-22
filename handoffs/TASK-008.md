@@ -313,3 +313,63 @@
   剩余风险限于这些未授权真实资源路径。
 - `DECISION NEEDED`：`None`。
 - Commit SHA：待创建；将严格以 `b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f` 为唯一父。
+
+## Correction 3 — Reviewer 4 (Codex)
+
+- Reviewer agent/session: `Codex`（全新独立会话）
+- 授权：主仓库 `agent-prompts/TASK-008-REVIEWER-4-CODEX.md` 的最新提交为
+  `3c2b6cf4fc11ea20ecdfc3ba9e9b8de58a22c83d`；主仓库控制面确认 TASK-008 为
+  `IN_REVIEW`。source 起始 `git status --short --untracked-files=all` 无输出。
+- 审查对象：`codex/task-008-deep-analysis@7a543d0acfe25d1c3d9fd06c4647683ed1487a47`；
+  固定 base `473119704c7638d7afd4e68d84d00e85064ceabd`。Correction 3 唯一父为
+  Reviewer-3 evidence `b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`。
+- 范围：完整 `base...HEAD` 仅含批准的 handoff、`analysis.py`、`cloud_llm.py`、
+  固定 prompt 和两份指定测试；Correction 3 相对其唯一父只改
+  `analysis.py`、指定集成测试与 handoff。无依赖/锁、公共契约、配置、`state.py`、
+  Schema/migration、CLI、TASK-009 或未授权索引工件；`git diff --check` 通过。
+
+### 独立检查与探针
+
+| 命令/探针 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages`。 |
+| `uv sync --locked` | PASS | 在已获准的现有 uv cache 下 `Checked 61 packages`。 |
+| `uv run python -m pytest tests/unit/test_analysis_policy.py` | PASS | `4 passed`。 |
+| `uv run python -m pytest tests/integration/test_summary_provider.py` | PASS | `14 passed`。 |
+| B：完全匹配的成功缓存才可恢复 | **FAIL / P1** | 临时 SQLite/Fake transport 先生成成功缓存，再仅篡改 structured Artifact 文件内的 `request_hash`。新 ANALYSIS Job 仍零 Resolver/transport 把错误请求身份结果写入 `ANALYSIS_READY` 并完成 Job：`result_request_hash=000…000`，预期 `140758e…1d56`，`resolver_calls=0`、`transport_calls=0`、`pipeline=ANALYSIS_READY`、`job=SUCCEEDED`。 |
+| 全量 pytest、mypy、Ruff、CLI help、offline build、sdist/wheel、tokenizer/migration 包含性 | SKIPPED | 工作包规定发现任一 P0/P1 后立即 `REJECT` 并停止。 |
+| A 其余门禁；C Structured Outputs/异常；D 原子/重排/30-day；E 五轴、复用/许可证 | SKIPPED | 同上；未审查项不得从历史 green 结论推断为通过。 |
+| 真实 OpenAI、密钥、付费、网络、Vault/用户内容 | NOT RUN | 未授权且未触发。 |
+
+### Findings（P0–P3）
+
+- **P1 — 持久化缓存恢复没有验证 Artifact 内容身份，接受篡改结果并原子推进 Pipeline/Job。**
+  [`src/youtube_intel/analysis.py:498`](../src/youtube_intel/analysis.py#L498)-[`analysis.py:502`](../src/youtube_intel/analysis.py#L502)
+  仅以 `ProviderCallStatus.SUCCEEDED` 进入缓存恢复；
+  [`analysis.py:457`](../src/youtube_intel/analysis.py#L457)-[`analysis.py:474`](../src/youtube_intel/analysis.py#L474)
+  直接读取 structured 文件并调用 `complete_stage`，但没有比对 Artifact 的
+  `content_hash`、原始/结构化 Artifact 是否完整，或解析出的 `result.request_hash`、
+  provider、model 与本次 `ProviderCallRequest`。故测试中可把有效 JSON 的
+  `request_hash` 改成另一 SHA-256 值，代码仍把该错误分析作为命中缓存持久化完成。
+  这违反 ADR-008 A-06 “哈希、Provider、模型、版本、Artifact 内容哈希和成功
+  Provider call 全部匹配”及工作包 B 的“仅完全匹配成功缓存”；错误摘要可进入后续
+  Obsidian/报告路径且阻止可重试分析。
+
+- P0：无。
+- P2/P3：未评估；按首个 P1 停止规则，不构成通过。
+
+### AC / ADR / 五轴矩阵
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| AC / ADR-008 A-06：缓存身份、Artifact 哈希与成功调用完整匹配 | **FAIL** | 上述临时 SQLite 复现。 |
+| A-03 / A-07 / A-08 门禁顺序及其余 AC | BLOCKED | 本轮未因历史测试判为通过。 |
+| A-01..A-17、正确性/可读性/架构/安全/性能、复用与许可证 | BLOCKED | P1 后强制停止；本轮只确认无新增依赖/范围外路径。 |
+
+### Reviewer 结论
+
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1。恢复前必须验证成功 ProviderCall 的完整请求身份、两类 Artifact
+  的存在与元数据/内容散列、结构化结果的请求哈希/provider/model；任一不匹配应 fail-closed
+  且不得推进 Pipeline/Job。须补充真实临时 SQLite/Fake transport 反例回归后，再进行新的独立审查。
+- 跳过与风险：其余强制门禁和 A/C/D/E 探针按工作包停止；真实云端资源保持未授权。
