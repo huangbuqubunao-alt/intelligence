@@ -1,8 +1,8 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `首轮 REJECT；Correction 1 后启动全新独立 Codex`
+- Reviewer: `第二轮全新独立 Codex，待启动`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
@@ -54,6 +54,19 @@
   成功校验后才进入受保护 abstract 实现钩子。Correction 1 仅允许 `domain.py`、
   `test_contracts.py` 与 `handoffs/TASK-009A.md`，禁止依赖、Vault、文件 I/O、Schema 或
   其他产品范围变化。
+
+## 2026-07-22 Correction 1 实现证据与第二轮审查授权
+
+- Correction source：`9ef4b2f63df65d09569ba119c6873805dcd9de17`；唯一父为首轮 review
+  evidence `f73b28756c371d80fb7525bd7e4defb6b82b1a3c`，Correction 精确为
+  `domain.py`、`test_contracts.py` 和 source handoff 三路径，完整产品 Diff 仍为五路径。
+- 公开 `KnowledgeSink.upsert_video_note` 的 ADR-009 N-02 keyword-only 参数与 `NoteRef`
+  返回类型保持不变；公共入口现在在委派前验证 UTC-aware 时间、clean version 和高价值评分，
+  仅成功后调用受保护抽象钩子。`AnalysisCompleted`/`AnalysisSkipped` 均保留合法输入语义。
+- Implementer 自报 contracts `75 passed`、全量 `327 passed`、mypy、Ruff、CLI、lock/sync、
+  offline build 与 migration package inclusion 均 PASS；这仅构成待第二轮独立复跑的证据。
+- 状态为 `IN_REVIEW`；Reviewer 2 仅可写 source handoff，不得预写 `APPROVE`、`ACCEPTED`、
+  merge 或 `DONE`。
 
 ## 目标
 
