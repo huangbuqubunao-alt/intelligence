@@ -1,0 +1,198 @@
+"""Offline integration tests for the isolated OpenAI Responses adapter."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+
+from youtube_intel.analysis import (
+    AnalysisJobContext,
+    CloudCallBudget,
+    RepositoryBackedAnalysisService,
+    build_analysis_input,
+)
+from youtube_intel.config import CloudSettings
+from youtube_intel.domain import (
+    Availability,
+    ErrorCode,
+    LiveStatus,
+    PipelineStatus,
+    ProcessingStage,
+    VideoMetadata,
+)
+from youtube_intel.providers.cloud_llm import (
+    CloudProviderError,
+    OpenAIResponsesProvider,
+)
+from youtube_intel.state import JobType, SQLiteStateRepository
+
+
+def _input() -> object:
+    video = VideoMetadata(
+        video_id="video-123", channel_id="channel-123", channel_name="Example Channel",
+        title="Useful title", description="public description",
+        source_url="https://example.invalid/watch?v=video-123",
+        published_at=datetime(2026, 7, 20, tzinfo=UTC), duration_seconds=120,
+        default_language="en", live_status=LiveStatus.NONE, availability=Availability.PUBLIC,
+    )
+    return build_analysis_input(
+        video=video, transcript_text="transcript evidence", language="en",
+        output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+    )
+
+
+def _video() -> VideoMetadata:
+    return VideoMetadata(video_id="video-123", channel_id="channel-123", channel_name="Example Channel",
+        title="Useful title", description="public description", source_url="https://example.invalid/v",
+        published_at=datetime(2026, 7, 20, tzinfo=UTC), duration_seconds=120, default_language="en",
+        live_status=LiveStatus.NONE, availability=Availability.PUBLIC)
+
+
+class _Transport:
+    def __init__(self, response: dict[str, object]) -> None:
+        self.response = response
+        self.requests: list[dict[str, object]] = []
+
+    def __call__(self, request: dict[str, object], credential: str) -> dict[str, object]:
+        assert credential == "synthetic-key"
+        self.requests.append(request)
+        return self.response
+
+
+def _valid_response() -> dict[str, object]:
+    return {
+        "output_text": {
+            "one_sentence_summary": "The transcript supplies evidence.",
+            "core_points": [{"text": "Useful title is named.", "kind": "fact", "evidence_ids": ["title-1"]}],
+            "keywords": ["useful"],
+            "evidence": [{"evidence_id": "title-1", "source": "title", "excerpt": "Useful title"}],
+        },
+        "input_tokens": 24,
+        "output_tokens": 18,
+    }
+
+
+def test_fake_transport_uses_one_strict_non_stored_responses_request() -> None:
+    transport = _Transport(_valid_response())
+    provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport)
+
+    result = provider.summarize_with_credential(_input(), "synthetic-key")
+
+    assert result.provider == "openai"
+    request = transport.requests[0]
+    assert request["store"] is False
+    assert request["max_retries"] == 0
+    assert request["truncation"] == "disabled"
+    assert request["text"]["format"]["strict"] is True
+    assert "base_url" not in request
+
+
+@pytest.mark.parametrize("response, code", [
+    ({"refusal": True}, ErrorCode.PERMISSION_DENIED),
+    ({"output_text": {}}, ErrorCode.INVALID_RESPONSE),
+    ({"error": {"status": 429}}, ErrorCode.RATE_LIMITED),
+    ({"error": {"status": 503}}, ErrorCode.PROVIDER_UNAVAILABLE),
+])
+def test_fake_transport_maps_failures_to_named_safe_errors(response: dict[str, object], code: ErrorCode) -> None:
+    provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=_Transport(response))
+
+    with pytest.raises(CloudProviderError) as exc_info:
+        provider.summarize_with_credential(_input(), "synthetic-key")
+
+    assert exc_info.value.error.code is code
+
+
+def test_evidence_must_be_an_exact_substring_of_the_outbound_payload() -> None:
+    response = _valid_response()
+    response["output_text"] = {**response["output_text"], "evidence": [
+        {"evidence_id": "bad", "source": "title", "excerpt": "private path /tmp/nope"},
+    ], "core_points": [
+        {"text": "Unsupported.", "kind": "fact", "evidence_ids": ["bad"]},
+    ]}
+    provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=_Transport(response))
+
+    with pytest.raises(CloudProviderError) as exc_info:
+        provider.summarize_with_credential(_input(), "synthetic-key")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+class _Resolver:
+    def resolve(self, env_name: str) -> str:
+        return "synthetic-key"
+
+
+def _repository_service(tmp_path: Path) -> tuple[SQLiteStateRepository, RepositoryBackedAnalysisService, _Transport]:
+    now = datetime.now(UTC)
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    repository.initialize(now=now)
+    metadata = _video()
+    repository.upsert_video_metadata(metadata, pipeline_version="pipeline-v1", now=now)
+    for before, after in ((PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY), (PipelineStatus.METADATA_READY, PipelineStatus.TRANSCRIPT_READY), (PipelineStatus.TRANSCRIPT_READY, PipelineStatus.SCORED)):
+        assert repository.advance_pipeline(metadata.video_id, expected_status=before, target_status=after, pipeline_version="pipeline-v1", now=now)
+    repository.create_job(job_id="analysis-job", scope_key="video:video-123:ANALYSIS", video_id=metadata.video_id,
+        job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
+    assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
+    transport = _Transport(_valid_response())
+    service = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
+        settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository,
+        context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"), artifact_root=tmp_path / "data",
+        credential_resolver=_Resolver(), budget=CloudCallBudget(limit=5))
+    return repository, service, transport
+
+
+def test_repository_completion_persists_both_artifacts_and_exact_raw_retention(tmp_path: Path) -> None:
+    repository, service, _ = _repository_service(tmp_path)
+    service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+    request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
+    raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
+    assert raw is not None and raw.expires_at == raw.created_at + timedelta(days=30)
+
+
+def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+
+    def fail_after_provider_call(point: str) -> None:
+        if point == "stage.after_provider_call":
+            raise RuntimeError("injected transaction failure")
+
+    monkeypatch.setattr(repository, "_inject_failure", fail_after_provider_call)
+    with pytest.raises(RuntimeError, match="injected transaction failure"):
+        service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+
+    request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
+    assert repository.get_provider_call(request_hash).status.value == "FAILED_RETRYABLE"
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
+    assert not (tmp_path / "data" / "analysis" / request_hash / "raw.json").exists()
+    assert len(transport.requests) == 1
+
+
+def test_reordered_job_reuses_succeeded_provider_call_without_transport(
+    tmp_path: Path,
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+    now = datetime.now(UTC)
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET pipeline_status = ? WHERE video_id = ?",
+            (PipelineStatus.SCORED.value, "video-123"),
+        )
+    finally:
+        connection.close()
+    repository.create_job(job_id="analysis-reordered", scope_key="video:video-123:ANALYSIS", video_id="video-123", job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
+    assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
+    reordered_transport = _Transport(_valid_response())
+    reordered = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport), settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository, context=AnalysisJobContext("analysis-reordered", "worker", "pipeline-v1"), artifact_root=tmp_path / "data", credential_resolver=_Resolver(), budget=CloudCallBudget(limit=5))
+    result = reordered.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+    assert result.result.provider == "openai"
+    assert len(transport.requests) == 1
+    assert reordered_transport.requests == []
