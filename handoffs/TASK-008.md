@@ -229,3 +229,54 @@
   `complete_stage` 契约；无新依赖、HTTP client、Provider 或 token-count endpoint。
 - `DECISION NEEDED`：`None`。
 - Commit SHA：待创建；将严格以 `02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf` 为唯一父。
+
+## Correction 2 — Reviewer 3 (Codex)
+
+- Reviewer agent/session: `Codex`（全新独立会话）
+- 授权：动态读取 main 的本 Reviewer 工作包，最新授权提交为
+  `07aa784629d353492f0546a4dfb114d72010b26f`；main 的 TASK-008 状态为
+  `IN_REVIEW`。
+- 审查对象：`codex/task-008-deep-analysis@71e1c24936b0ed1be3a98c49efa7770f7456d85c`；
+  固定 base 为 `473119704c7638d7afd4e68d84d00e85064ceabd`。source 起始
+  `git status --short --untracked-files=all` 无输出。父链已核验为
+  `base -> 10478a9... -> b61f46f... -> 8317cd9... -> 02317f2... -> HEAD`，且
+  Correction 2 的唯一父为 `02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf`。
+- 范围：`base...HEAD` 仅含允许的 handoff、`analysis.py`、`cloud_llm.py`、prompt 与两份指定
+  测试；无依赖/锁、公共契约、配置、`state.py`、Schema/migration、CLI 或 TASK-009 修改。
+  `git diff --check base...HEAD` 通过。
+
+### Findings（P0–P3）
+
+- **P1 — 持久化路径在凭据门禁前创建并失败化 ProviderCall，且跳过了关闭/低价值资格门禁。**
+  [`analysis.py:423`](../src/youtube_intel/analysis.py#L423) 的
+  `RepositoryBackedAnalysisService.analyze` 不接受 `should_summarize`，也从未检查
+  `self.settings.enabled`；相反，它在 [`analysis.py:444`](../src/youtube_intel/analysis.py#L444)
+  调用 `reserve_provider_call`。随后才在 [`analysis.py:463`](../src/youtube_intel/analysis.py#L463)
+  解析凭据。若凭据不存在，[`analysis.py:464`](../src/youtube_intel/analysis.py#L464) 抛出错误，
+  而异常处理器在 [`analysis.py:484`](../src/youtube_intel/analysis.py#L484) 将刚创建的 call
+  标记为可重试失败。故关闭、低价值或缺凭据的持久化执行均不能满足 ADR-008 A-03/A-08、TASK-008
+  AC 和本审查包探针 A 所要求的零 ProviderCall/Repository/credential/transport 副作用与凭据最后读取。
+  这会污染恢复审计并可能占用同一请求的租约；在关闭或低价值配置下还可能继续进入真实出站路径。
+
+- P0：无。
+- P2/P3：未评估；任务包规定发现首个 P0/P1 后立即停止，不能推断为通过。
+
+### 检查、探针与矩阵
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| 洁净度、main 授权/状态、HEAD/父链、完整范围、`git diff --check` | PASS | 如上；source 起始洁净，任务状态 `IN_REVIEW`，范围精确。 |
+| A：持久化关闭、低价值、缓存、预算、token、缺凭据零副作用 | **FAIL / P1** | 静态路径已证明关闭/低价值门禁缺失且 `reserve_provider_call` 在凭据解析前发生；缺凭据随后会走 `fail_provider_call`。 |
+| 独立命令（lock/sync、focused/full pytest、mypy、Ruff、CLI、offline build、包内容） | SKIPPED | 发现 P1 后按工作包“立即 REJECT 并停止”未继续执行。 |
+| B：token/哈希/SDK 隔离；C：Structured Outputs/异常；D：原子/恢复；E：ADR A-01..A-17、五轴、复用/许可证 | SKIPPED | 同上；不构成通过。 |
+| 真实 OpenAI、密钥、付费、网络、Vault/用户内容 | NOT RUN | 未授权且未触发。 |
+
+### Reviewer 结论
+
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1。持久化编排必须在输入构造后、任何 Repository/provider-call
+  预留与 credential 读取前，统一执行高价值、关闭、token、缓存与预算门禁；缺凭据必须返回
+  `CREDENTIAL_UNAVAILABLE` 且不创建/失败化 ProviderCall。需补真实临时 SQLite + Fake
+  Resolver/transport 回归，逐项证明关闭、低价值、缓存、预算耗尽、token 超限和缺凭据路径的零副作用，
+  再由新的独立 Reviewer 审查。
+- 剩余风险：其余强制检查和 B–E 未执行，不能根据历史证据或实现者结果标记通过；真实云端资源仍未授权。
