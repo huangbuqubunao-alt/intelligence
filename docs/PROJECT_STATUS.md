@@ -1,16 +1,16 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-22
-- 当前阶段：Phase 2 — TASK-008A 验收与最终整合
+- 当前阶段：Phase 2 — TASK-008A 整合后收口
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008a`，
-  `codex/task-008a-cloud-analysis-shared-contracts`，等待 Codex Product Integrator；
+  `codex/task-008a-cloud-analysis-shared-contracts`，保留为已整合审计证据；
   历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
-- 活动任务：TASK-008A=`ACCEPTED`，accepted source 固定为
-  `7a8239f3da02fa204b63702677fae5f669fb99c0`；第二轮独立 Reviewer 已 `APPROVE`，
-  等待 Codex Product Integrator。TASK-009A=`BLOCKED/UNASSIGNED`，等待
+- 活动任务：TASK-008A 已由 Codex Product Integrator 以 merge commit
+  `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合并关闭为 `DONE`。accepted source
+  固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A=`BLOCKED/UNASSIGNED`，等待
   TASK-008A `DONE`；正式
   TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
@@ -58,10 +58,8 @@
 
 ## 下一步
 
-1. Codex Product Integrator 从 accepted source 执行无冲突 `--no-ff` merge，并复跑全部
-   离线门禁、migration/BPE resource package checks、八路径范围和敏感扫描。
-2. 整合后由 Status Integrator 关闭 TASK-008A 为 `DONE`；随后
-   分配 TASK-009A。两项均 `DONE`
+1. 为 TASK-009A 生成基于最新 main 的独立 worktree、角色与范围分配包；TASK-009A
+   完成并关闭后，再从同一最新 main 并行分配 TASK-008/TASK-009。
    后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
@@ -84,8 +82,8 @@
 | 已完成可关闭 | TASK-007 Integrator/Reviewer/Implementer | merge `3d49ec...` 已关闭为 `DONE`；不得继续写 source |
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
-| 已完成可关闭 | TASK-008A 两轮 Reviewer 与 Correction 1 Implementer | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；不得继续写 source |
-| 立即启动 | TASK-008A Codex Product Integrator | accepted source `7a8239f...`；只可 `--no-ff` merge 与离线验证 |
+| 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
+| 立即分配 | TASK-009A Codex Implementer/Reviewer | ADR/Jinja2 已批；从最新 main 固定基线 |
 | 等待上游 | TASK-009A assignment | ADR/Jinja2 已批；等待 TASK-008A `DONE` |
 | 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
@@ -230,6 +228,13 @@
   Ruff、CLI、locked offline sync/build、migration/BPE source/sdist/wheel hash、固定
   Diff 和 A-F 独立探针均 PASS。真实 API/密钥/云调用/Vault/媒体/模型仍未授权，不作为
   离线共享契约拒绝理由。
+- TASK-008A 已由 Codex Product Integrator 以 merge commit
+  `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合到 main：双父精确为
+  `d00841802ef375170542e7458ecba0504b6fd182` 与
+  `7a8239f3da02fa204b63702677fae5f669fb99c0`，first-parent Diff 精确为八个批准路径。
+  locked offline sync、contracts `72`、全量 `324`、mypy、Ruff、CLI、offline build、
+  migration/BPE source/sdist/wheel 包含性、BPE `3,613,922` bytes/SHA-256 与敏感扫描均
+  PASS；未 push。BPE 文件级 NOTICE/license 仍由 TASK-014 release gate 复核。
 - 真实 OpenAI API、密钥读取、付费调用、云端 token-count、真实 Vault/用户笔记和
   最终文件删除/移动/重命名继续未授权。
 

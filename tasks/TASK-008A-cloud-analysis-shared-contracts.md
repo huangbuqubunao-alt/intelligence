@@ -1,8 +1,8 @@
 # TASK-008A：云分析共享契约与依赖基线
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
-- Reviewer: `第二轮全新独立 Codex APPROVE；等待 Product Integrator`
+- Reviewer: `第二轮全新独立 Codex APPROVE；已整合并关闭`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: M
 - Risk: High
@@ -97,6 +97,13 @@
 - 主控验收：`ACCEPTED`。Product Integrator 仅可按固定 source 执行 non-fast-forward
   merge、全部离线门禁、migration/BPE archive hash、八路径 first-parent Diff 和敏感扫描；
   本卡不得提前写入 merge SHA 或 `DONE`。
+
+## 2026-07-22 整合与收口
+
+- Product Integrator 以 merge commit `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合，父提交顺序为执行基线 `d00841802ef375170542e7458ecba0504b6fd182` 与 accepted source `7a8239f3da02fa204b63702677fae5f669fb99c0`。
+- first-parent Diff 精确为八个批准路径；locked offline sync、contracts `72`、全量 `324`、mypy、Ruff、CLI、offline build、sdist/wheel migration 与 BPE 资源核验均 PASS。
+- BPE 资源保持 `3,613,922` bytes，SHA-256 为 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`；文件级 NOTICE/license 复核仍归 TASK-014。
+- 最终状态：`DONE`。未推送，source branch/worktree 保留为审计证据；真实 API、密钥、云调用、YouTube/Vault/媒体/模型路径仍未授权。
 
 ## 2026-07-20 产品审批
 

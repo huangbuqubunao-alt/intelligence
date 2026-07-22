@@ -490,3 +490,16 @@ encoding/version、配置脱敏和空描述行为均由最终 contracts/full sui
 - `DECISION NEEDED`：`None`。
 - Verdict：`APPROVE`。
 - 未解决 P0/P1：无。
+
+## Product Integrator 与收口
+
+- Merge commit：`64a9c41683bb559b27bebb784fcff4fbff644a18`；父提交顺序为执行基线
+  `d00841802ef375170542e7458ecba0504b6fd182` 与 accepted reviewer evidence
+  `7a8239f3da02fa204b63702677fae5f669fb99c0`。
+- first-parent Diff 精确为任务批准的八路径；locked offline sync、contracts `72 passed`、
+  全量 `324 passed`、mypy、Ruff、CLI、offline build 和 sdist/wheel migration/BPE
+  resource 核验均 PASS。BPE 在 source 和归档中均为 `3,613,922` bytes、SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。
+- main 与 source worktree 均干净；未 push，source branch/worktree 保留。TASK-008A
+  已关闭为 `DONE`。BPE 文件级 NOTICE/license 留给 TASK-014；真实 API、密钥、云调用、
+  Vault、媒体和模型路径仍未授权。
