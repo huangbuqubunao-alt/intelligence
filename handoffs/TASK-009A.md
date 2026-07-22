@@ -153,3 +153,62 @@
   原五条批准路径。无 I/O/Vault/Provider/Repository/Schema/配置/依赖变更，未运行真实 Vault、
   用户内容、云端或凭据路径。
 - Commit：本报告随 review evidence 的唯一非 merge correction 子提交；最终 SHA 见实施者回传。
+
+## Reviewer 2 结论（Correction 1）
+
+- Reviewer agent/session：`Codex / root (second independent reviewer)`。
+- 审查对象：`9ef4b2f63df65d09569ba119c6873805dcd9de17`；唯一父为
+  `f73b28756c371d80fb7525bd7e4defb6b82b1a3c`，original base 为
+  `e4271e41910bba54b37b48df709dcf632fe3b0eb`。
+- 授权与范围：source worktree/branch、HEAD、父链与审查前清洁度均匹配。main 为
+  `43489b61de78ae8b11f1aebcbdf4bd7a6f8a7a2c`；该提交既是本 Reviewer 包的最后变更，
+  也将 TASK-009A 固定为 `IN_REVIEW`、Correction source 固定为上述 SHA。Correction
+  相对 review evidence 仅改 `domain.py`、`test_contracts.py`、本报告三路径；相对 original
+  base 完整范围精确为本报告、`pyproject.toml`、`domain.py`、contracts tests、`uv.lock` 五路径。
+- 重新运行的检查：
+  - `uv lock --check` PASS（84 packages）。
+  - `uv sync --locked` PASS（61 packages）。首次仅因审查沙箱无法读取既有 uv cache 而失败；
+    在同一 locked 命令获 cache 读取授权后通过，未下载或变更依赖。
+  - `uv run python -m pytest tests/unit/test_contracts.py` PASS（75）。
+  - `uv run python -m pytest` PASS（327）。
+  - `uv run mypy src` PASS（13 source files）；`uv run ruff check .` PASS；
+    `uv run python -m youtube_intel --help` PASS。
+  - `uv build --offline` PASS。首次同样只受 uv cache 沙箱权限阻断；获 cache 读取授权后离线
+    构建成功。sdist 和 wheel 都包含 `youtube_intel/migrations/001_initial.sql`。
+  - `git diff --check f73b28756c371d80fb7525bd7e4defb6b82b1a3c...9ef4b2f63df65d09569ba119c6873805dcd9de17`
+    PASS。
+- 独立探针：
+  - 使用独立最小 `KnowledgeSink` concrete subclass：位置参数、naive 时间、UTC+08:00 时间、
+    空/首尾空白 pipeline version 与低价值 `ScoringOutcome` 均抛出 `TypeError`/`ValueError`，
+    受保护 hook 调用数保持零；合法 UTC 时间、clean version、高价值评分分别配合
+    `AnalysisSkipped` 与 `AnalysisCompleted` 时各调用 hook 一次并返回 `NoteRef`。PASS。
+  - `inspect.signature` 确认 public `upsert_video_note` 仍为 ADR-009 N-02 的七参数
+    keyword-only 形状和 `NoteRef` 返回注解；`_upsert_video_note` 未导出，CodeGraph 仅发现它
+    由 public 方法调用，其他关联均为 contracts 测试，未发现生产绕过路径。PASS。
+  - `NoteRef` 独立回归：绝对/反斜杠/盘符/`.`/`..`/空组件/非 `.md`/NUL/首尾空白路径，以及
+    空、短、大小写或非十六进制 hash 均拒绝；`model_copy(update={})`、路径、hash、kind 四类
+    update 均拒绝。PASS。
+  - 依赖：`pyproject.toml`/`uv.lock` 相对 original base 只有批准的 Jinja2 直接依赖提升；
+    离线导入为 Jinja2 3.1.6，必要传递边界为 MarkupSafe 3.0.3，后者 metadata 的
+    `License-Expression` 为 BSD-3-Clause。Jinja2 已安装 metadata 的 License/Expression 字段
+    均为空；其 BSD-3-Clause 证据仍来自已批准 ADR-009 N-14 与 `docs/REUSE_REGISTER.md`，不构成
+    本卡阻断。PASS。
+  - 红线/无 I/O：完整五路径 Diff、导入和调用图未含 Vault/笔记文件 I/O、Provider、Repository、
+    `state.py`、Schema/migration、模板、配置、CLI、凭据、云端、网络或模型行为。真实 Vault、
+    用户内容、文件 I/O、云端、凭据、网络和模型路径均未运行。
+- AC / ADR-009 矩阵：
+
+  | 项目 | 结论 | 证据 |
+  |---|---|---|
+  | AC / N-01：仅共享契约、无 I/O | PASS | 固定五路径 Diff、AST/import/call-path 审计。 |
+  | AC / N-02：精确签名、UTC 时间和稳定版本 | PASS | 签名复核与独立 hook 零调用/成功调用矩阵。 |
+  | AC / N-03：低价值失败关闭；两类分析可消费 | PASS | 低价值零 hook，`AnalysisCompleted`/`AnalysisSkipped` 各恰好一次 hook。 |
+  | AC / N-04：NoteRef 安全身份与 update 防绕过 | PASS | 独立路径/hash/update 反例矩阵。 |
+  | N-14：Jinja2 直接依赖、锁定、许可证/传递边界 | PASS | `pyproject.toml`/lock diff、离线导入/metadata、offline build。 |
+- 五轴结论：correctness、readability、architecture、security、performance 均无阻断问题；
+  P0/P1/P2/P3 均无。
+- 跳过项和风险：未运行任何真实 Vault、用户内容、文件 I/O、云端、凭据、网络或模型路径（均未授权）；
+  `dist/` 仅为 ignored build 产物，未纳入提交。Jinja2 本地 metadata 缺少许可证字段的已知文档
+  证据限制已如上记录，已由 ADR/reuse register 覆盖，不阻断。
+- Verdict：`APPROVE`。
+- 未解决 P0/P1：`None`。
