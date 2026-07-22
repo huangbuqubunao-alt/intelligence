@@ -115,3 +115,24 @@
 - Verdict：`REJECT`
 - 未解决 P0/P1：P1（持久化路径必须先完成和普通路径相同的零调用门禁；补充该真实 SQLite/Fake transport 回归后再重新独立审查）。
 - 复用/许可证：本次只复核声明的 DIRECT 边界；未新增依赖或许可证义务。未因 P1 对其余复用项作通过结论。
+
+## Correction 1 — Implementer
+
+- 授权：`TASK-008-CORRECTION-1-CODEX.md`，main control-plane
+  `03a5f6ea83ca3c452808d255fffd438cb33c0c78`；起始 source HEAD
+  `b61f46f6bca3303d5590aac76d8c8c9b53ec4131`，唯一父为 reviewed implementation
+  `10478a9083df4eedae061d99d941c88cb4954179`。
+- 修复：`RepositoryBackedAnalysisService.analyze` 在任何 Repository 预留、凭据解析或
+  Provider 调用前，复用普通路径的固定本地 request 构造与 token 计数；超限返回
+  `INPUT_TOO_LARGE`，不创建 Provider call 或 Artifact。
+- 新离线回归：临时 SQLite、`max_local_input_tokens_per_video=1`、合成 transcript 验证
+  Resolver=0、Fake transport=0、ProviderCall/Artifact=None、Pipeline=`SCORED`、已领取
+  Job=`RUNNING`。既有成功、rollback、重排及 RAW_RESPONSE_30D tests 保留并通过。
+- 检查：focused `4 + 10`，full `341 passed`，mypy、Ruff、CLI help、locked sync、offline
+  build 全 PASS；sdist/wheel 均含 migration、summary prompt 和固定 tokenizer resource。
+- 范围：仅 `analysis.py`、两份指定测试和本 handoff；未修改 `cloud_llm.py`、prompt、fixture、
+  state/Schema/依赖/配置/CLI/main/TASK-009；未运行真实资源。
+- 复用：继续 `DIRECT` 使用既有 tiktoken 本地资源与 SQLite Provider-call/Artifact/
+  `complete_stage` 接口；无新依赖、HTTP client、Provider 或 token-count endpoint。
+- `DECISION NEEDED`：`None`。
+- Commit SHA：待创建（父提交将严格为 `b61f46f...`）。

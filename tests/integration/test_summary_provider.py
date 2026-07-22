@@ -120,7 +120,11 @@ def test_evidence_must_be_an_exact_substring_of_the_outbound_payload() -> None:
 
 
 class _Resolver:
+    def __init__(self) -> None:
+        self.calls = 0
+
     def resolve(self, env_name: str) -> str:
+        self.calls += 1
         return "synthetic-key"
 
 
@@ -149,6 +153,39 @@ def test_repository_completion_persists_both_artifacts_and_exact_raw_retention(t
     request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
     raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
     assert raw is not None and raw.expires_at == raw.created_at + timedelta(days=30)
+
+
+def test_persistent_token_limit_has_no_credential_provider_or_sqlite_side_effect(
+    tmp_path: Path,
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    resolver = _Resolver()
+    limited = RepositoryBackedAnalysisService(
+        provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
+        settings=CloudSettings(
+            enabled=True, model="gpt-4.1-mini", max_local_input_tokens_per_video=1
+        ),
+        repository=repository,
+        context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"),
+        artifact_root=tmp_path / "data",
+        credential_resolver=resolver,
+        budget=CloudCallBudget(limit=5),
+    )
+
+    outcome = limited.analyze(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en"
+    )
+
+    assert outcome.reason.value == "INPUT_TOO_LARGE"
+    assert resolver.calls == 0
+    assert transport.requests == []
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
+        output_language="zh-CN", settings=limited.settings,
+    ).request_hash
+    assert repository.get_provider_call(request_hash) is None
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
 
 
 def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(

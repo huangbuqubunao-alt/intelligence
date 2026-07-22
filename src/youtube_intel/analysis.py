@@ -421,9 +421,14 @@ class RepositoryBackedAnalysisService:
         self.credential_resolver, self.budget = credential_resolver, budget
 
     def analyze(self, *, video: VideoMetadata, transcript_text: str, language: str,
-                output_language: str = "zh-CN") -> AnalysisCompleted:
+                output_language: str = "zh-CN") -> AnalysisOutcome:
         analysis_input = build_analysis_input(video=video, transcript_text=transcript_text,
             language=language, output_language=output_language, settings=self.settings)
+        if _input_tokens(_request_parts(analysis_input.payload)) > self.settings.max_local_input_tokens_per_video:
+            from youtube_intel.domain import AnalysisSkipped
+
+            return AnalysisSkipped(reason=AnalysisSkipReason.INPUT_TOO_LARGE, call=None,
+                safe_message="local input token limit exceeded")
         request = ProviderCallRequest(operation=_OPERATION,
             normalized_input_hash=_normalized_input_hash(payload=analysis_input.payload,
                 transcript_text=transcript_text, settings=self.settings), provider=_PROVIDER,
