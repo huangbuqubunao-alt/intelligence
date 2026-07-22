@@ -21,8 +21,8 @@
   凭据读取后才返回，留下 PENDING 状态；现退回原 Implementer 执行预算门禁 Correction 2。TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
-  子目录 P2。Correction 1 source `60ed077...` 已提交，现等待全新独立 Reviewer 3 完整复核稳定
-  NoteRef、候选冲突与盘符边界。
+  子目录 P2。Reviewer 3 evidence `f4a231b...` 再次 `REJECT`：Vault 权限类 OSError 被错误归为
+  `LOCAL_RESOURCE` 而非 `PERMISSION_DENIED`；现退回原 Implementer 执行 errno 映射 Correction 2。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。

@@ -68,6 +68,17 @@
 - Reviewer 3 只可追加 source handoff；不得触及真实 Vault、用户笔记、测试目录外 I/O、网络、云端、
   凭据、媒体、模型、TASK-008 或任何范围外索引工件。
 
+## 2026-07-22 第三轮审查拒绝与 Correction 2
+
+- Reviewer 3 evidence：`f4a231b503ea6c1a25bf73c7d8aa584147cbdc03`，唯一父为 Correction 1
+  `60ed077452faf5fe41b105b21b4221f89cb6e02c`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。Vault 权限类 `OSError` 被一律映射为 `LOCAL_RESOURCE`；ADR-009 N-13 要求
+  `EACCES`、`EPERM`、`EROFS` 映射为 `PERMISSION_DENIED`，资源失败才保留 `LOCAL_RESOURCE`。
+- 原 Codex Implementer 只获 Correction 2：Obsidian Adapter、既有 note 集成测试与 handoff。必须补齐
+  errno-aware 的安全映射和临时 Vault 回归，不得改变稳定身份、候选冲突、盘符、原子写、补账或既有公共契约。
+- 真实 Vault、用户笔记、测试目录外 I/O、依赖/锁、Schema/migration、`state.py`、CLI、TASK-008、
+  云端、网络、凭据、媒体与模型路径继续不授权。
+
 ## 目标
 
 将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，
