@@ -203,3 +203,29 @@
   Pipeline/Job 均不变、Resolver/transport 均为零，随后由新的独立 Reviewer 重新审查。
 - 跳过与风险：B–E 和剩余 AC/ADR/五轴探针均按“首个 P1 立即停止”规则跳过，不能据已有绿灯
   推断通过；真实云端资源仍未授权。
+
+## Correction 2 — Implementer
+
+- 授权：`TASK-008-CORRECTION-2-CODEX.md`；main control-plane 提交
+  `bafe9636002af92d92583c1c423808a89db7386b`，实时 TASK-008=`IN_PROGRESS`。
+  起始 source HEAD 为 `02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf`，唯一父为
+  Correction 1 review evidence `8317cd9c2a13f6c38fa366ab9f40c326e59d8731`。
+- 修复：`RepositoryBackedAnalysisService.analyze` 现在在 local-token 门禁之后、构造
+  `ProviderCallRequest` 和任何 Repository 写入、CredentialResolver、Provider/transport
+  之前检查预先耗尽的 `CloudCallBudget`，并返回
+  `AnalysisSkipped(BUDGET_EXHAUSTED)`。该路径不消费、回滚或重置预算。
+- 新离线回归：临时 SQLite + Fake Resolver/transport，以普通合成字幕和一个已预先消费的
+  `CloudCallBudget(limit=1)` 验证 `BUDGET_EXHAUSTED`、Resolver=0、transport=0、
+  ProviderCall/两类 Artifact=None、Pipeline=`SCORED`、已领取 Job=`RUNNING`。既有 token
+  超限、成功、回滚、重排和 RAW_RESPONSE_30D 测试仍保留。
+- 检查：`uv lock --check` PASS；`uv sync --locked` PASS（`Checked 61 packages`）；
+  focused policy `4 passed`、summary integration `11 passed`、全量 `342 passed`；mypy、Ruff、
+  CLI help、offline build 均 PASS。构建的 sdist/wheel 均包含 migration SQL、`summary.md`
+  与固定 `o200k_base.tiktoken`（wheel 3,613,922 bytes）。
+- Diff/范围：仅修改 `analysis.py`、`test_summary_provider.py` 和本报告；无 Provider、prompt、
+  fixture、依赖/锁、共享契约、配置、`state.py`、Schema/migration、CLI、TASK-009 或 main
+  修改。未运行真实 OpenAI、真实凭据、网络、token-count、媒体、YouTube、Vault 或用户内容。
+- 复用：继续 `DIRECT` 使用已批准的本地 tiktoken 资源与现有 SQLite Provider-call/Artifact/
+  `complete_stage` 契约；无新依赖、HTTP client、Provider 或 token-count endpoint。
+- `DECISION NEEDED`：`None`。
+- Commit SHA：待创建；将严格以 `02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf` 为唯一父。

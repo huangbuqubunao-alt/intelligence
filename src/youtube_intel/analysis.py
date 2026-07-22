@@ -429,6 +429,11 @@ class RepositoryBackedAnalysisService:
 
             return AnalysisSkipped(reason=AnalysisSkipReason.INPUT_TOO_LARGE, call=None,
                 safe_message="local input token limit exceeded")
+        if self.budget.remaining == 0:
+            from youtube_intel.domain import AnalysisSkipped
+
+            return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
+                safe_message="cloud call budget is exhausted")
         request = ProviderCallRequest(operation=_OPERATION,
             normalized_input_hash=_normalized_input_hash(payload=analysis_input.payload,
                 transcript_text=transcript_text, settings=self.settings), provider=_PROVIDER,

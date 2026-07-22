@@ -188,6 +188,42 @@ def test_persistent_token_limit_has_no_credential_provider_or_sqlite_side_effect
     assert repository.get_job("analysis-job").status.value == "RUNNING"
 
 
+def test_persistent_exhausted_budget_has_no_credential_provider_or_sqlite_side_effect(
+    tmp_path: Path,
+) -> None:
+    repository, _, transport = _repository_service(tmp_path)
+    resolver = _Resolver()
+    budget = CloudCallBudget(limit=1)
+    assert budget.try_consume()
+    exhausted = RepositoryBackedAnalysisService(
+        provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
+        settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+        repository=repository,
+        context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"),
+        artifact_root=tmp_path / "data",
+        credential_resolver=resolver,
+        budget=budget,
+    )
+
+    outcome = exhausted.analyze(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en"
+    )
+
+    assert outcome.reason.value == "BUDGET_EXHAUSTED"
+    assert outcome.call is None
+    assert resolver.calls == 0
+    assert transport.requests == []
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
+        output_language="zh-CN", settings=exhausted.settings,
+    ).request_hash
+    assert repository.get_provider_call(request_hash) is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
+    assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-job").status.value == "RUNNING"
+
+
 def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
