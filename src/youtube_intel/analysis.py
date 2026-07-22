@@ -458,19 +458,87 @@ class RepositoryBackedAnalysisService:
             )
         return video_record.should_summarize is True
 
+    @staticmethod
+    def _cache_error(video_id: str) -> AnalysisPolicyError:
+        return AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE,
+            message="persisted cloud analysis cache is invalid", retryable=True,
+            video_id=video_id, stage=ProcessingStage.ANALYSIS))
+
+    def _read_verified_artifact(
+        self, *, artifact: Any, request: ProviderCallRequest, video_id: str,
+        name: str, kind: ArtifactKind, retention: RetentionClass,
+        expires_at: datetime | None, job_id: str | None = None,
+    ) -> bytes:
+        key = request.deterministic_artifact_key if name == "raw" else (
+            f"analysis/{request.request_hash}/structured"
+        )
+        relative_path = artifact.relative_path if artifact is not None else None
+        if (
+            artifact is None
+            or artifact.artifact_key != key
+            or artifact.video_id != video_id
+            or artifact.job_id is None
+            or (job_id is not None and artifact.job_id != job_id)
+            or artifact.kind is not kind
+            or artifact.storage_root is not StorageRoot.DATA
+            or not isinstance(relative_path, str)
+            or relative_path != f"analysis/{request.request_hash}/{name}.json"
+            or artifact.provider != request.provider
+            or artifact.model != request.model
+            or artifact.producer_version != f"analysis-{name}-v1"
+            or artifact.retention_class is not retention
+            or artifact.expires_at != expires_at
+            or artifact.deleted_at is not None
+        ):
+            raise self._cache_error(video_id)
+        try:
+            contents = (self.artifact_root / relative_path).read_bytes()
+        except OSError:
+            raise self._cache_error(video_id) from None
+        if hashlib.sha256(contents).hexdigest() != artifact.content_hash:
+            raise self._cache_error(video_id)
+        return contents
+
     def _reuse_persisted_result(
-        self, *, request: ProviderCallRequest, video_id: str, now: datetime
+        self, *, request: ProviderCallRequest, provider_call: Any, video_id: str,
+        now: datetime,
     ) -> AnalysisCompleted:
+        raw = self.repository.get_artifact_by_key(request.deterministic_artifact_key)
         structured = self.repository.get_artifact_by_key(
             f"analysis/{request.request_hash}/structured"
         )
-        if structured is None:
-            raise AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE,
-                message="persisted cloud analysis is unavailable", retryable=True,
-                video_id=video_id, stage=ProcessingStage.ANALYSIS))
-        result = AnalysisResult.model_validate_json(
-            (self.artifact_root / structured.relative_path).read_bytes()
+        if (
+            provider_call.request_hash != request.request_hash
+            or provider_call.operation != request.operation
+            or provider_call.provider != request.provider
+            or provider_call.model != request.model
+            or provider_call.prompt_version != request.prompt_version
+            or provider_call.schema_version != request.schema_version
+            or provider_call.status is not ProviderCallStatus.SUCCEEDED
+        ):
+            raise self._cache_error(video_id)
+        self._read_verified_artifact(
+            artifact=raw, request=request, video_id=video_id, name="raw",
+            kind=ArtifactKind.ANALYSIS_RAW, retention=RetentionClass.RAW_RESPONSE_30D,
+            expires_at=None if raw is None else raw.created_at + timedelta(days=30),
         )
+        if provider_call.response_artifact_id != raw.artifact_id:
+            raise self._cache_error(video_id)
+        structured_contents = self._read_verified_artifact(
+            artifact=structured, request=request, video_id=video_id, name="structured",
+            kind=ArtifactKind.ANALYSIS_STRUCTURED, retention=RetentionClass.LONG_LIVED,
+            expires_at=None, job_id=raw.job_id,
+        )
+        try:
+            result = AnalysisResult.model_validate_json(structured_contents)
+        except (TypeError, ValueError):
+            raise self._cache_error(video_id) from None
+        if (
+            result.request_hash != request.request_hash
+            or result.provider != request.provider
+            or result.model != request.model
+        ):
+            raise self._cache_error(video_id)
         self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
             video_id=video_id, expected_status=PipelineStatus.SCORED,
             target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
@@ -500,7 +568,7 @@ class RepositoryBackedAnalysisService:
         existing = self.repository.get_provider_call(request.request_hash)
         if existing is not None and existing.status is ProviderCallStatus.SUCCEEDED:
             return self._reuse_persisted_result(
-                request=request, video_id=video.video_id, now=now
+                request=request, provider_call=existing, video_id=video.video_id, now=now
             )
         if self.budget.remaining == 0:
             return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
@@ -517,7 +585,7 @@ class RepositoryBackedAnalysisService:
                     message="cloud analysis call is already reserved", retryable=True,
                     video_id=video.video_id, stage=ProcessingStage.ANALYSIS))
             return self._reuse_persisted_result(
-                request=request, video_id=video.video_id, now=now
+                request=request, provider_call=reservation.record, video_id=video.video_id, now=now
             )
         if not self.budget.try_consume():
             raise AnalysisPolicyError(AppError(code=ErrorCode.LOCAL_RESOURCE,

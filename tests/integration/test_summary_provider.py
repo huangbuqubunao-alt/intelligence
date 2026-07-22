@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -9,6 +11,7 @@ import pytest
 
 from youtube_intel.analysis import (
     AnalysisJobContext,
+    AnalysisPolicyError,
     CloudCallBudget,
     RepositoryBackedAnalysisService,
     build_analysis_input,
@@ -372,3 +375,122 @@ def test_reordered_job_reuses_succeeded_provider_call_without_transport(
     assert repository.get_provider_call(request_hash) == cached_call
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") == cached_raw
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") == cached_structured
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    (
+        "structured_result_identity",
+        "raw_file_contents",
+        "structured_file_contents",
+        "raw_index_hash",
+        "structured_index_hash",
+        "provider_call_model",
+        "structured_artifact_provider",
+        "raw_artifact_model",
+        "missing_raw_artifact",
+        "missing_structured_artifact",
+    ),
+)
+def test_reordered_job_fails_closed_when_persisted_cache_is_not_complete_and_matching(
+    tmp_path: Path, tamper: str
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="transcript evidence", language="en",
+        output_language="zh-CN", settings=service.settings,
+    ).request_hash
+    raw_key = f"analysis/{request_hash}/raw"
+    structured_key = f"analysis/{request_hash}/structured"
+    raw = repository.get_artifact_by_key(raw_key)
+    structured = repository.get_artifact_by_key(structured_key)
+    assert raw is not None and structured is not None
+
+    connection = repository._connect()
+    try:
+        if tamper == "structured_result_identity":
+            path = tmp_path / "data" / structured.relative_path
+            payload = json.loads(path.read_text())
+            payload["request_hash"] = "0" * 64
+            contents = json.dumps(payload).encode()
+            path.write_bytes(contents)
+            connection.execute(
+                "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+                (hashlib.sha256(contents).hexdigest(), structured_key),
+            )
+        elif tamper == "raw_file_contents":
+            (tmp_path / "data" / raw.relative_path).write_bytes(b"tampered raw")
+        elif tamper == "structured_file_contents":
+            (tmp_path / "data" / structured.relative_path).write_bytes(b"tampered structured")
+        elif tamper == "raw_index_hash":
+            connection.execute(
+                "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+                ("0" * 64, raw_key),
+            )
+        elif tamper == "structured_index_hash":
+            connection.execute(
+                "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+                ("0" * 64, structured_key),
+            )
+        elif tamper == "provider_call_model":
+            connection.execute(
+                "UPDATE provider_calls SET model = ? WHERE request_hash = ?",
+                ("tampered-model", request_hash),
+            )
+        elif tamper == "structured_artifact_provider":
+            connection.execute(
+                "UPDATE artifacts SET provider = ? WHERE artifact_key = ?",
+                ("tampered-provider", structured_key),
+            )
+        elif tamper == "raw_artifact_model":
+            connection.execute(
+                "UPDATE artifacts SET model = ? WHERE artifact_key = ?",
+                ("tampered-model", raw_key),
+            )
+        elif tamper == "missing_raw_artifact":
+            connection.execute(
+                "UPDATE artifacts SET artifact_key = ? WHERE artifact_key = ?",
+                (f"{raw_key}-missing", raw_key),
+            )
+        else:
+            assert tamper == "missing_structured_artifact"
+            connection.execute(
+                "UPDATE artifacts SET artifact_key = ? WHERE artifact_key = ?",
+                (f"{structured_key}-missing", structured_key),
+            )
+    finally:
+        connection.close()
+
+    now = datetime.now(UTC)
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET pipeline_status = ? WHERE video_id = ?",
+            (PipelineStatus.SCORED.value, "video-123"),
+        )
+    finally:
+        connection.close()
+    repository.create_job(job_id="analysis-cache-invalid", scope_key="video:video-123:ANALYSIS",
+        video_id="video-123", job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS,
+        pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
+    assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
+    resolver = _Resolver()
+    reordered_transport = _Transport(_valid_response())
+    reordered = RepositoryBackedAnalysisService(
+        provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport),
+        settings=service.settings, repository=repository,
+        context=AnalysisJobContext("analysis-cache-invalid", "worker", "pipeline-v1"),
+        artifact_root=tmp_path / "data", credential_resolver=resolver,
+        budget=CloudCallBudget(limit=5),
+    )
+
+    with pytest.raises(AnalysisPolicyError) as exc_info:
+        reordered.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert resolver.calls == 0
+    assert reordered_transport.requests == []
+    assert len(transport.requests) == 1
+    assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
+    assert repository.get_job("analysis-cache-invalid").status.value == "RUNNING"

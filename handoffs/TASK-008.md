@@ -373,3 +373,53 @@
   的存在与元数据/内容散列、结构化结果的请求哈希/provider/model；任一不匹配应 fail-closed
   且不得推进 Pipeline/Job。须补充真实临时 SQLite/Fake transport 反例回归后，再进行新的独立审查。
 - 跳过与风险：其余强制门禁和 A/C/D/E 探针按工作包停止；真实云端资源保持未授权。
+
+## Correction 4 — Implementer
+
+- 授权：`TASK-008-CORRECTION-4-CODEX.md`；main control-plane 提交
+  `27c9ded10f1d3b930b6f70f2da185232916a98dc`，TASK-008 已退回原 Implementer。
+  起始 source HEAD 为 Reviewer-4 evidence
+  `19323923057adb0b5a9f59cac5eb7c32cce5888a`，唯一父为 Correction 3
+  `7a543d0acfe25d1c3d9fd06c4647683ed1487a47`；起始工作树洁净。
+- 修复：`RepositoryBackedAnalysisService` 在任何缓存恢复 `complete_stage` 前，验证成功
+  ProviderCall 与当前 request 的 hash/operation/provider/model/prompt/schema identity；验证
+  raw 与 structured Artifact 的 key、video/job 关联、kind、DATA root、相对路径、provider/model、
+  producer/retention、删除/过期元数据及实际文件 SHA-256；再安全解析 structured 结果并核对
+  request_hash/provider/model。任一不匹配统一抛出脱敏、可重试的 `INVALID_RESPONSE`，不读取
+  Credential、不调用 transport、也不创建/失败化 ProviderCall 或写入 Artifact/Pipeline/Job。
+- 新离线 RED/GREEN：先增加真实临时 SQLite + Fake Resolver/transport 的 9 个参数化反例；原实现
+  `8 failed, 1 passed`（唯一原有缺失 structured 防线已通过）。最小实现后 `9 passed`，覆盖：
+  structured result identity、raw/structured 文件内容、raw/structured index hash、ProviderCall
+  model、structured Artifact provider、缺失 raw 与缺失 structured Artifact。随后补充 raw Artifact
+  model 篡改为第 10 个反例，最终缓存完整性组 `10 passed`、完整 integration `24 passed`。每个反例断言安全
+  `INVALID_RESPONSE`、Resolver/transport=0、无新 ProviderCall/Artifact、Pipeline=`SCORED`、
+  Job=`RUNNING`。既有完全匹配成功缓存重排回归保留并通过。
+
+### Correction 4 检查
+
+| 命令/人工检查 | 结果 | 关键输出或说明 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages`。 |
+| `uv sync --locked` | PASS | `Checked 61 packages`。 |
+| `uv run python -m pytest tests/unit/test_analysis_policy.py` | PASS | `4 passed`。 |
+| `uv run python -m pytest tests/integration/test_summary_provider.py` | PASS | `24 passed`。 |
+| `uv run python -m pytest` | PASS | `355 passed`。 |
+| `uv run mypy src` | PASS | `Success: no issues found in 15 source files`。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help 正常。 |
+| `uv build --offline` | PASS | 成功生成 sdist/wheel。 |
+| sdist/wheel 包内容与 tokenizer | PASS | 两种产物均含 `migrations/001_initial.sql`、`prompts/summary.md`、`resources/o200k_base.tiktoken`；资源 3,613,922 bytes、SHA-256=`446a9538…b1a2d`。 |
+| `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...HEAD` | PASS | 无输出。 |
+
+### Correction 4 范围、复用与风险
+
+- 实际修改：仅 `analysis.py`、`test_summary_provider.py`、本 handoff；相对 Reviewer-4 evidence
+  仅修改这三个允许路径。未改 Provider、prompt、fixture、unit test、依赖/锁、共享契约、配置、
+  `state.py`、Schema/migration、CLI、TASK-009 或 main。
+- 复用：`DIRECT` 使用现有 SQLite ProviderCall/Artifact/`complete_stage` 契约、标准库
+  `hashlib` 与既有固定 tiktoken 资源；无新依赖、HTTP client、Provider、token-count endpoint 或
+  Repository API。
+- 未运行：真实 OpenAI、真实密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、
+  Vault；仅使用合成文本、Fake transport 与临时 SQLite。
+- `DECISION NEEDED`：`None`。现有接口足以完成 required identity 验证。
+- Commit SHA：待创建；父提交将严格为 `19323923057adb0b5a9f59cac5eb7c32cce5888a`。
