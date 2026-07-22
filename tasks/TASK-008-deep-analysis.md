@@ -47,6 +47,18 @@
 - 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
   Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
 
+## 2026-07-22 Correction 2 实现证据与复审授权
+
+- Correction source：`71e1c24936b0ed1be3a98c49efa7770f7456d85c`，唯一父为 reviewer-2 evidence
+  `02317f2bc53f4a7e3dcc5ed7210da74f4129c7bf`；Correction 仅修改 `analysis.py`、
+  `test_summary_provider.py` 与 source handoff，完整 Diff 仍在原批准范围内。
+- Implementer 自报预算耗尽在 ProviderCall 预留、凭据、Provider/transport 和所有 Repository 写入前返回
+  `BUDGET_EXHAUSTED`；临时 SQLite + Fake 回归中 Resolver/transport=0、ProviderCall/Artifact=None、
+  Pipeline=`SCORED`、Job=`RUNNING`；focused=`4/11`、full pytest=`342` 与其余离线门禁通过。这些均待
+  独立 Reviewer 3 复跑。
+- Reviewer 3 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
+  Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
+
 ## 2026-07-22 Correction 1 实现证据与复审授权
 
 - Correction source：`8317cd9c2a13f6c38fa366ab9f40c326e59d8731`，唯一父为首轮 review evidence
