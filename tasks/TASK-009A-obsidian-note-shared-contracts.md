@@ -1,8 +1,8 @@
 # TASK-009A：Obsidian 笔记共享契约与依赖基线
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
-- Reviewer: `全新独立 Codex，等待实现 commit`
+- Reviewer: `全新独立 Codex，待启动`
 - Owner role: Codex Implementer + 全新独立 Codex Reviewer
 - Size: S
 - Risk: High
@@ -31,6 +31,17 @@
   卡片是预期快照；main 上本卡/分配包是实时授权。
 - 已批准 `Jinja2>=3.1.6,<3.2`、必要传递依赖、包下载、锁定与本卡离线验证。真实 Vault、
   用户笔记、文件 I/O、移动/删除、云端和凭据仍未授权。
+
+## 2026-07-22 实现证据与审查授权
+
+- Implementation source：`75158be08d6442a7b18099f459654e9da86ebcee`；唯一父提交为
+  固定 base `e4271e41910bba54b37b48df709dcf632fe3b0eb`，完整 Diff 精确为任务批准的五路径。
+- Implementer 自报 Jinja2 `3.1.6` 已设为直接依赖，contracts `74 passed`、全量 `326 passed`、
+  mypy、Ruff、CLI、lock/sync、offline build 与 migration package inclusion 均 PASS；这些是
+  待独立复跑证据，不构成验收。
+- 状态进入 `IN_REVIEW`；全新独立 Codex Reviewer 只可在 source handoff 记录结论，不得
+  改产品代码、依赖、锁文件、main 或任务状态。真实 Vault、用户笔记、文件 I/O、云端与凭据
+  继续未授权。
 
 ## 目标
 

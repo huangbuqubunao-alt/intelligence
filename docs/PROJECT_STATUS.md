@@ -1,17 +1,17 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-22
-- 当前阶段：Phase 2 — TASK-009A 共享笔记契约实施
+- 当前阶段：Phase 2 — TASK-009A 独立审查
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-009a`，
-  `codex/task-009a-obsidian-note-shared-contracts`，由 Codex Implementer 独占；
+  `codex/task-009a-obsidian-note-shared-contracts`，等待全新独立 Codex Reviewer；
   历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据
 - 活动任务：TASK-008A 已由 Codex Product Integrator 以 merge commit
   `64a9c41683bb559b27bebb784fcff4fbff644a18` 整合并关闭为 `DONE`。accepted source
-  固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A=`IN_PROGRESS/Codex`，
-  固定 base 为 `e4271e41910bba54b37b48df709dcf632fe3b0eb`，等待实现 commit 与全新独立 Reviewer；正式
+  固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A=`IN_REVIEW`，
+  source 固定为 `75158be08d6442a7b18099f459654e9da86ebcee`，等待全新独立 Reviewer；正式
   TASK-008/TASK-009 继续等待两个共享任务，不得提前实现。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
@@ -56,8 +56,8 @@
 
 ## 下一步
 
-1. Codex Implementer 在固定 TASK-009A worktree 内完成共享契约和 Jinja2 依赖基线；随后由全新独立 Codex Reviewer 复跑离线门禁。
-2. TASK-009A 整合并关闭后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
+1. 全新独立 Codex Reviewer 在固定 TASK-009A source 上复跑离线门禁、签名/路径/依赖/零 I/O 探针和五轴审查。
+2. TASK-009A 验收、整合并关闭后，再从同一最新 main 并行分配正式 TASK-008/TASK-009。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -80,8 +80,8 @@
 | 等待资源授权 | TASK-006/TASK-007 后续真实资源阶段 | 模型、服务、ffmpeg、媒体和凭据继续单独审批 |
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
-| 进行中 | TASK-009A Codex Implementer | 固定 base/worktree；只允许 5 路径、Jinja2 与离线验证 |
-| 等待实现 | TASK-009A 全新独立 Codex Reviewer | 实现 commit 后独立复跑；仅可写 source handoff |
+| 已完成可关闭 | TASK-009A Codex Implementer | source `75158be...` 已提交；不得继续写 source |
+| 立即启动 | TASK-009A 全新独立 Codex Reviewer | 固定 source；仅可写 source handoff |
 | 等待共享契约 | TASK-008 / TASK-009 Implementer | TASK-008A -> TASK-009A 均 DONE 后才可并行分配 |
 
 ## 授权边界
