@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -34,7 +34,18 @@
 - Implementer 自报 full pytest `340`、mypy、Ruff、CLI、lock/sync、offline build、SQLite
   原子成功/回滚、重排零调用与 RAW_RESPONSE_30D 30 天 retention 均 PASS；这些只构成待独立复跑证据。
 - 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main
-  或任务状态。TASK-009 继续独立 `IN_PROGRESS`，不得被本次审查触碰。
+  或任务状态。TASK-009 继续独立 `IN_REVIEW`，不得被本次审查触碰。
+
+## 2026-07-22 首轮审查拒绝与 Correction 1
+
+- Independent Reviewer evidence：`b61f46f6bca3303d5590aac76d8c8c9b53ec4131`，唯一父为
+  implementation `10478a9083df4eedae061d99d941c88cb4954179`，且只修改 source handoff。
+- Verdict：`REJECT`，P1=1。`RepositoryBackedAnalysisService` 在持久化分析路径跳过本地 token
+  上限门禁；最大输入 token 为 `1` 时，临时 SQLite + Fake Provider/Resolver 仍读取凭据并调用 transport。
+- 原 Codex Implementer 只获 Correction 1：`analysis.py`、两份既有分析测试和 handoff。必须在任何凭据、
+  Provider/transport 或 Repository 写入前执行同一 token 门禁，并用临时 SQLite + Fake 回归证明超限零调用。
+- 真实 OpenAI、密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube、Vault、依赖/锁、
+  Schema/migration、`state.py`、CLI 与 TASK-009 继续不授权。
 
 ## 目标
 

@@ -15,7 +15,9 @@
   固定为 `7a8239f3da02fa204b63702677fae5f669fb99c0`。TASK-009A 已由 Codex Product Integrator
   以 merge commit `9b0269eddbd29cee83a056d44951d7973c87492b` 整合，收口后为 `DONE`；accepted source
   固定为 `e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`。正式 TASK-008/TASK-009 的共享契约依赖已满足，
-  已从 `main@473119704c7638d7afd4e68d84d00e85064ceabd` 并行分配给 Codex，状态为 `IN_PROGRESS`。
+  已从 `main@473119704c7638d7afd4e68d84d00e85064ceabd` 并行分配给 Codex。TASK-008 首轮独立审查
+  evidence `b61f46f...` 为 `REJECT`：持久化路径绕过本地 token 上限并在超限时读取凭据/调用 Fake
+  transport；现退回原 Implementer 执行 Correction 1。TASK-009 保持 `IN_REVIEW`，等待其独立审查。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
