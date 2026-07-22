@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -26,6 +26,15 @@
   七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI 或任务状态。
 - 只授权离线 Fake/合成哨兵和白名单环境隔离子进程 SDK 实现/测试。真实 OpenAI、密钥、
   付费/API 调用、云端 token-count、用户内容、媒体、YouTube 和任何网络路径继续禁止。
+
+## 2026-07-22 实现证据与审查授权
+
+- Implementation source：`10478a9083df4eedae061d99d941c88cb4954179`，唯一父为固定 base
+  `473119704c7638d7afd4e68d84d00e85064ceabd`；完整 Diff 落在本卡批准的七路径组内。
+- Implementer 自报 full pytest `340`、mypy、Ruff、CLI、lock/sync、offline build、SQLite
+  原子成功/回滚、重排零调用与 RAW_RESPONSE_30D 30 天 retention 均 PASS；这些只构成待独立复跑证据。
+- 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main
+  或任务状态。TASK-009 继续独立 `IN_PROGRESS`，不得被本次审查触碰。
 
 ## 目标
 

@@ -88,9 +88,9 @@
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
-| 立即启动 | TASK-008 Codex Implementer | 离线 Fake/隔离 SDK；禁止真实 OpenAI、密钥和网络 |
+| 等待独立审查 | TASK-008 Codex Reviewer | implementation `10478a9...`；离线 Fake/隔离 SDK；禁止真实 OpenAI、密钥和网络 |
 | 可并行启动 | TASK-009 Codex Implementer | 只可写测试临时目录；禁止真实 Vault/用户笔记/外部删除 |
-| 等待实现 | TASK-008/TASK-009 独立 Codex Reviewer | 仅在对应 Implementer 提交后启动 |
+| 等待实现 | TASK-009 独立 Codex Reviewer | 仅在 TASK-009 Implementer 提交后启动 |
 
 ## 授权边界
 
