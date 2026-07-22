@@ -408,3 +408,85 @@ encoding/version、配置脱敏和空描述行为均由最终 contracts/full sui
   管道生命周期、Provider/凭据/timeout/错误映射仍须由 TASK-008 独立实现和审查。
 - `DECISION NEEDED`：`None`。
 - 建议状态：`IN_REVIEW`；不得由本会话启动 Reviewer、修改 main 状态、merge 或 push。
+
+## Correction 1 第二轮独立 Codex Reviewer（2026-07-22）
+
+### 审查对象与门禁
+
+- Reviewer：`Codex /root`（第二轮全新独立审查）。
+- Reviewed Correction 1 head：`d95745fd04b115369a9fd70362cd735d1eb70917`。
+- 动态授权：main 位于 `aa134f43af57e6f6bdc7455b56c59ac97ee342e7`；该文件的授权提交为
+  `4eec2e186fce6dedbb105234f624fcb93274c938`，其唯一父为所要求的
+  `3eac5f9897bdfb59e764afde411e632822dcfb66`。main 干净且控制面
+  `TASK-008A=IN_REVIEW`。
+- source 分支、HEAD、父链、身份与洁净度均通过：分支为
+  `codex/task-008a-cloud-analysis-shared-contracts`，HEAD 精确为 reviewed head，
+  其唯一父为 `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`；Git 身份为
+  `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- Correction range 精确为 handoff、`domain.py`、`config.py`、contracts test 和固定
+  tokenizer resource 五个路径；完整 base range 精确为获准的八个路径，
+  `pyproject.toml` 与 `uv.lock` 相对 reviewed implementation 均未变化。无 Provider、
+  `analysis.py`、Prompt、Schema/migration、`state.py`、`complete_stage`、CLI、任务/ADR、
+  凭据、缓存或构建产物变更。
+
+### 独立复跑检查
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS，`Resolved 84 packages` |
+| `uv sync --locked --offline` | PASS，`Resolved 84 packages`、`Checked 61 packages` |
+| `uv run python -m pytest tests/unit/test_contracts.py` | PASS，`72 passed` |
+| `uv run python -m pytest` | PASS，`324 passed` |
+| `uv run mypy src` | PASS，13 个 source files 无问题 |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS；sdist/wheel 成功生成 |
+| `git diff --check 82d1fd7...d95745f` | PASS |
+| package contents | PASS；sdist/wheel 都包含 `migrations/001_initial.sql` 与 BPE resource |
+| BPE archive hash | PASS；source、sdist、wheel 均为 `3,613,922` bytes、SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` |
+
+### 六组独立探针与追溯
+
+- A（hash/语义非空/完成审计/copy）：PASS。三处 hash 拒绝 63/65 位、uppercase、
+  non-hex、空白；出站、grounding、provider/model 的纯空白被拒绝且原值不被 strip；
+  空 description 仍合法。`AnalysisCompleted` 拒绝 provider/model mismatch、None/空白
+  call model；浅/深 copy 合法，所有 analysis contract 的 `model_copy(update=...)` 被拒绝。
+- B（完整 ConfigError 脱敏图）：PASS。使用新的 secret-shaped YAML 哨兵，递归检查异常、
+  cause/context、Pydantic errors、普通 traceback 表示和全部项目 frame locals；哨兵未出现，
+  安全字段路径与分类仍保留。
+- C（A-16 本地资源/无网络）：PASS。socket 被拒绝时，包内 resource 经 expected hash 的
+  低层 loader 离线解析；缺失、篡改、错误 hash 与可哈希但畸形内容均 fail-closed，未调用
+  `get_encoding`、HTTP 或 cache fallback。source/sdist/wheel 哈希一致。
+- D（A-17 SDK 隔离）：PASS。产品源码静态 AST 和 pytest/main probe 均无 OpenAI 导入；
+  使用绝对 Python、`-I`、`shell=False` 与仅三项固定 env 的新子进程导入 OpenAI 2.46.0。
+  合成 `OPENAI_*`、`AZURE_*`、代理及 `*_TOKEN/_KEY/_SECRET/_PASSWORD` 哨兵均未进入子进程，
+  未构造 client 或请求 API。
+- E（回归/范围）：PASS。A-04 十字段 payload 白名单、evidence kind/cardinality/空时间、
+  Cloud 默认关闭、model/encoding、5/28k/30k/4k/120 秒/版本及未知字段 fail-closed 均由
+  contracts/full suite 和独立范围审计覆盖；无 public free-form dict/Any/object、SDK 类型、
+  Provider、Prompt、Schema/state 或配置兼容性回归。
+- F（五轴/复用/ADR）：PASS。A-01 至 A-17 中属于共享契约/依赖基线的 A-02、A-04、A-05 前提、
+  A-06 表示、A-08 前提、A-13、A-14 前提、A-16、A-17 全部满足；Provider、匿名管道、
+  sampling/token 计数、CredentialResolver、CloudCallBudget、缓存和 SQLite 事务均明确留给
+  TASK-008/TASK-010，未因其未实现而拒绝。
+
+### Findings 与结论
+
+- Findings：P0 无；P1 无；P2 无；P3 无。
+- Correctness：六个第一轮 P1 均由独立反例关闭；契约、包资源和构建归档一致。
+- Architecture：领域层无 SDK 导入；官方 SDK 仅以隔离子进程验证，后续 Adapter/匿名管道仍在
+  既定任务边界内。
+- Security：未触及真实密钥、API、内容、Vault 或网络；异常图、本地 BPE 和 SDK 环境隔离均
+  fail-closed。固定 BPE Blob 的文件级许可/NOTICE 仍由 TASK-014 发布门禁复核。
+- Performance：新增验证均有明确有限上限；无新增生产热路径、网络调用或无界循环。
+- Readability/范围/红线/复用：变更集中、命名清晰；范围和禁止路径均通过。复用保持
+  `DIRECT`（OpenAI 2.46.0 Apache-2.0、tiktoken 0.13.0 MIT、固定 BPE Blob）和既有
+  `REJECT/DEFER` 边界，无未批准依赖或来源不明代码。
+- Skipped checks：真实 OpenAI/API、密钥/真实环境值、付费调用、云端 token-count、真实
+  YouTube/Vault/用户内容、媒体/模型及正式 Provider/匿名管道均未运行；它们未获授权且不构成
+  本次拒绝理由。
+- Remaining risks：BPE 文件级分发许可/NOTICE 待 TASK-014；正式 tokenizer runtime 错误映射、
+  凭据生命周期、Provider/timeout/缓存/事务原子性待 TASK-008/TASK-010。
+- `DECISION NEEDED`：`None`。
+- Verdict：`APPROVE`。
+- 未解决 P0/P1：无。
