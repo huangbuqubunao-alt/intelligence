@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `BLOCKED`
+- Status: `READY`
 - Assignee: `UNASSIGNED`
 - Owner role: 实现 Agent
 - Size: M
@@ -57,3 +57,11 @@
   Vault I/O、安全文件边界、复用和精确实施范围。
 - 不创建 worktree、不运行产品命令、不修改代码/状态，不授权真实 Vault、用户笔记、外部发送、云调用、
   凭据、网络、媒体或删除/移动操作。预检结论须先形成 ADR 提案并由产品负责人批准。
+
+## 2026-07-23 ADR-010 已接受
+
+- 产品负责人已批准 completed_at 配置时区 ISO 周、确定性高价值候选/排序、空周稳定报告、已验证
+  Analysis 聚合、包内固定 Jinja2 模板和仅 pytest 临时 Vault 原子写。TASK-011 可在正式分配后实施。
+- 范围扩展为 `reporting.py`、`state.py` 的只读候选查询、`providers/obsidian.py` 周报 upsert、
+  `src/youtube_intel/templates/weekly.md`、既定 tests/fixtures 与 handoff；仍禁止 Schema/migration、
+  `complete_stage`、新增依赖、真实 Vault/用户笔记、云调用、网络和外部删除。

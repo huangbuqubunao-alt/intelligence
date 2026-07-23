@@ -18,6 +18,18 @@
 
 ## 后续架构与任务级批准
 
+### ADR-010/ADR-011：周报与运行操作契约
+
+- 批准日期：2026-07-23；产品负责人明确同意预检推荐方案。
+- ADR-010：周报按 `completed_at` 的配置时区 ISO 周归类，使用确定性聚合、空周稳定报告、
+  既有 reports 唯一 upsert、包内固定 Jinja2 模板和仅 pytest 临时 Vault 原子写；不新增 Schema、
+  云调用或 video-less Pipeline Job。
+- ADR-011：CLI 冻结 `check/process/retry/doctor` 的退出码和零副作用 doctor，冻结 UUID4 run_id/
+  JSONL 脱敏与不自动删除日志；launchd 仅提供可选 daily/weekly 静态样例与 `plutil -lint`，不执行
+  `launchctl`。`weekly` CLI 仅在 TASK-011 整合后接入。
+- TASK-011 获得后续正式实施的范围与临时 pytest Vault 测试边界；TASK-012 继续等待 TASK-011 完成和
+  独立正式分配。真实 Vault、用户笔记、服务注册、网络、云端和凭据仍未授权。
+
 ### ADR-008/ADR-009：云分析与 Obsidian 笔记契约
 
 - 批准日期：2026-07-20；ADR-008 补充批准日期：2026-07-21

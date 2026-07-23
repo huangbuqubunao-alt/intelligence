@@ -31,6 +31,7 @@
 | `tiktoken>=0.13.0,<0.14` | `DIRECT` | 本地 token 采样与保守预算 | TASK-008A/008 | MIT；显式 model/encoding 映射；`o200k_base` 只读固定包内资源，不调用云端计数或网络回退 |
 | OpenAI 官方 `o200k_base.tiktoken` Blob | `DIRECT` | `o200k_base` rank 表；固定 SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` | TASK-008A Correction 1 单次下载并提交；运行时包内只读 | 文件级分发许可边界留 TASK-014；哈希/缺失失败关闭，不使用 tiktoken HTTP cache fallback |
 | `Jinja2>=3.1.6,<3.2` | `DIRECT` | 固定 Markdown 模板 | TASK-009A/009/011 | BSD-3-Clause；依赖动作已批，使用不可变 sandbox/StrictUndefined，无用户模板或任意 loader |
+| Python `argparse` / `json` / `logging` / `uuid` / `zoneinfo` | `DIRECT` | CLI、JSONL、run_id、ISO 周与日志边界 | TASK-011/012 | 标准库；不引入 CLI/调度框架，不记录敏感内容 |
 
 ## 3. 附件候选评估
 

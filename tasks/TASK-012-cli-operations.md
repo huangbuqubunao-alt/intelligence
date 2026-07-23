@@ -58,3 +58,11 @@
   样例静态校验和精确实施范围。
 - 不创建 worktree、不运行产品命令、不修改代码/状态，不授权 `launchctl`、真实服务注册、网络、云端、
   凭据、Vault、用户内容、媒体或模型路径。预检结论须先形成 ADR 提案并由产品负责人批准。
+
+## 2026-07-23 ADR-011 已接受
+
+- 产品负责人已批准确定退出码、零副作用 doctor、UUID4 run_id/JSONL 脱敏、不自动日志删除，以及
+  可选 daily/weekly 静态 launchd 示例；不得执行 `launchctl`。
+- `weekly` CLI 依赖 TASK-011 已整合的周报服务，因此本任务保持 `BLOCKED`。后续正式范围可包括
+  `__main__.py`、`cli.py`、`logging.py`、两个 static plist examples、安装说明、operations tests 与 handoff；
+  仍禁止依赖/Schema/真实服务、网络、Vault、用户内容或凭据操作。

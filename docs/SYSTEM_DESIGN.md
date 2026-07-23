@@ -72,6 +72,8 @@ Adapters: SQLite, filesystem, RSS/yt-dlp, MLX Whisper, Ollama, OpenAI, Obsidian
 | Knowledge Sink | 安全、原子、幂等写入笔记 | 修改 Vault 其他内容 |
 | Weekly Reporter | 读取已完成记录并渲染周报 | 重新分析视频 |
 
+Weekly Reporter 按 ADR-010 直接使用 reports upsert 与 Knowledge Sink，不创建 `video_id=None` 的 Pipeline Job；CLI 按 ADR-011 只编排已冻结服务，`weekly` 在周报服务整合后接入。
+
 ## 5. Provider 契约
 
 以下为语义契约，不限定具体 Python 语法。

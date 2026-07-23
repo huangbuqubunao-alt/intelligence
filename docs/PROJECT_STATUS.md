@@ -96,10 +96,10 @@
 
 ## 下一步
 
-1. TASK-010 已由独立收口提交关闭为 `DONE`；TASK-011/TASK-012 只获只读 Scout 预检授权，保持
-   `BLOCKED/UNASSIGNED`，不得创建 source worktree 或开始实现。
-2. 预检后由产品负责人决定周报趋势/临时 Vault 与 CLI/日志/launchd 边界，再提出对应 ADR 和实施分配。
-3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作继续不批准。
+1. TASK-010 已由独立收口提交关闭为 `DONE`；ADR-010/ADR-011 已接受。TASK-011 可等待正式
+   worktree/角色分配；TASK-012 继续等待 TASK-011 整合后的 `weekly` 服务接口。
+2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
+   操作继续不批准。
 
 ## 当前并行调度
 
