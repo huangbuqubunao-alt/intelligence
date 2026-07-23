@@ -9,9 +9,12 @@ with a pure Fake transport.
 from __future__ import annotations
 
 import json
+import os
+import select
 import subprocess
 import sys
-from typing import Final, Protocol, cast
+import time
+from typing import BinaryIO, Final, Protocol, cast
 
 from pydantic import ValidationError
 
@@ -27,6 +30,8 @@ from youtube_intel.domain import (
 
 _PROVIDER: Final = "openai"
 _TIMEOUT_SECONDS: Final = 120
+_CLEANUP_TIMEOUT_SECONDS: Final = 1
+_MAX_CHILD_LINE_BYTES: Final = 1_000_000
 _CHILD_ENV: Final = {
     "PYTHONNOUSERSITE": "1",
     "PYTHONDONTWRITEBYTECODE": "1",
@@ -80,6 +85,88 @@ def _safe_error(
     )
 
 
+def _remaining_seconds(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("isolated OpenAI child timed out")
+    return remaining
+
+
+class _DeadlineLineReader:
+    """Read one child protocol line without letting a partial line block forever."""
+
+    def __init__(self, stream: BinaryIO) -> None:
+        self._stream = stream
+        self._buffer = bytearray()
+        self._descriptor = stream.fileno()
+        os.set_blocking(self._descriptor, False)
+
+    def readline(self, deadline: float) -> bytes:
+        while True:
+            newline = self._buffer.find(b"\n")
+            if newline >= 0:
+                line = bytes(self._buffer[:newline])
+                del self._buffer[: newline + 1]
+                return line
+            if len(self._buffer) > _MAX_CHILD_LINE_BYTES:
+                raise RuntimeError("isolated OpenAI child returned an oversized response")
+            readable, _, _ = select.select([self._descriptor], [], [], _remaining_seconds(deadline))
+            if not readable:
+                raise TimeoutError("isolated OpenAI child timed out")
+            chunk = os.read(self._descriptor, 65_536)
+            if not chunk:
+                raise RuntimeError("isolated OpenAI child closed its response pipe")
+            self._buffer.extend(chunk)
+
+
+def _write_until(stream: BinaryIO, payload: bytes, deadline: float) -> None:
+    """Write the credential-bearing request without an unbounded pipe write."""
+
+    descriptor = stream.fileno()
+    os.set_blocking(descriptor, False)
+    offset = 0
+    while offset < len(payload):
+        _, writable, _ = select.select([], [descriptor], [], _remaining_seconds(deadline))
+        if not writable:
+            raise TimeoutError("isolated OpenAI child timed out")
+        try:
+            offset += os.write(descriptor, payload[offset:])
+        except BlockingIOError:
+            continue
+
+
+def _close_pipes(process: subprocess.Popen[bytes]) -> None:
+    for pipe in (process.stdin, process.stdout):
+        if pipe is not None:
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+
+def _reap_failed_child(process: subprocess.Popen[bytes]) -> None:
+    """Bound child cleanup after an exchange failure; never wait indefinitely."""
+
+    if process.poll() is None:
+        try:
+            process.terminate()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=_CLEANUP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=_CLEANUP_TIMEOUT_SECONDS)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    except OSError:
+        pass
+
+
 def _isolated_transport(request: dict[str, object], credential: str) -> dict[str, object]:
     """Run the SDK in a no-inherited-environment child and exchange JSON over pipes."""
 
@@ -88,33 +175,35 @@ def _isolated_transport(request: dict[str, object], credential: str) -> dict[str
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        text=True,
         env=dict(_CHILD_ENV),
     )
+    deadline = time.monotonic() + _TIMEOUT_SECONDS
     try:
         if process.stdout is None or process.stdin is None:
             raise RuntimeError("isolated OpenAI child has no pipes")
-        ready = json.loads(process.stdout.readline())
+        stdin = cast(BinaryIO, process.stdin)
+        stdout = cast(BinaryIO, process.stdout)
+        reader = _DeadlineLineReader(stdout)
+        ready = json.loads(reader.readline(deadline))
         if ready != {"kind": "ready"}:
             raise RuntimeError("isolated OpenAI child failed to import SDK")
-        process.stdin.write(_canonical_json({**request, "credential": credential}) + "\n")
-        process.stdin.flush()
-        response_line = process.stdout.readline()
-        if process.wait(timeout=_TIMEOUT_SECONDS) != 0:
-            raise RuntimeError("isolated OpenAI child failed")
-        response = json.loads(response_line)
+        _write_until(
+            stdin,
+            (_canonical_json({**request, "credential": credential}) + "\n").encode("utf-8"),
+            deadline,
+        )
+        response = json.loads(reader.readline(deadline))
         if not isinstance(response, dict):
             raise RuntimeError("isolated OpenAI child returned invalid response")
+        if process.wait(timeout=_remaining_seconds(deadline)) != 0:
+            raise RuntimeError("isolated OpenAI child failed")
         return cast(dict[str, object], response)
-    except subprocess.TimeoutExpired as exc:
-        process.kill()
-        process.wait()
-        raise TimeoutError from exc
+    except Exception:
+        _close_pipes(process)
+        _reap_failed_child(process)
+        raise
     finally:
-        if process.stdin is not None:
-            process.stdin.close()
-        if process.stdout is not None:
-            process.stdout.close()
+        _close_pipes(process)
 
 
 def _request(analysis_input: AnalysisInput, *, model: str, max_output_tokens: int) -> dict[str, object]:

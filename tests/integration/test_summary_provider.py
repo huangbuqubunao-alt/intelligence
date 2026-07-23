@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+import youtube_intel.providers.cloud_llm as cloud_llm
 from youtube_intel.analysis import (
     AnalysisJobContext,
     AnalysisPolicyError,
@@ -494,3 +497,112 @@ def test_reordered_job_fails_closed_when_persisted_cache_is_not_complete_and_mat
     assert len(transport.requests) == 1
     assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
     assert repository.get_job("analysis-cache-invalid").status.value == "RUNNING"
+
+
+class _FakeChild:
+    def __init__(
+        self,
+        output: bytes,
+        *,
+        returncode: int | None = None,
+        keep_stdout_open: bool = False,
+    ) -> None:
+        stdin_read, stdin_write = os.pipe()
+        stdout_read, stdout_write = os.pipe()
+        self.stdin = os.fdopen(stdin_write, "wb", buffering=0)
+        self.stdout = os.fdopen(stdout_read, "rb", buffering=0)
+        self._stdin_read = stdin_read
+        self._stdout_write: int | None = stdout_write
+        self.returncode = returncode
+        self.terminate_calls = 0
+        self.kill_calls = 0
+        self.wait_timeouts: list[float | None] = []
+        if output:
+            os.write(stdout_write, output)
+        if not keep_stdout_open:
+            os.close(stdout_write)
+            self._stdout_write = None
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def terminate(self) -> None:
+        self.terminate_calls += 1
+        self.returncode = -15
+        self._close_child_fds()
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+        self.returncode = -9
+        self._close_child_fds()
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.wait_timeouts.append(timeout)
+        if self.returncode is None:
+            raise subprocess.TimeoutExpired(["fake-child"], timeout)
+        return self.returncode
+
+    def _close_child_fds(self) -> None:
+        if self._stdout_write is not None:
+            os.close(self._stdout_write)
+            self._stdout_write = None
+        os.close(self._stdin_read)
+
+
+def _isolated_provider() -> OpenAIResponsesProvider:
+    return OpenAIResponsesProvider(model="gpt-4.1-mini")
+
+
+@pytest.mark.parametrize(
+    ("child", "must_terminate"),
+    (
+        (_FakeChild(b"", keep_stdout_open=True), True),
+        (_FakeChild(b'{"kind":"ready"}\n', keep_stdout_open=True), True),
+        (_FakeChild(b'{"kind":"ready"}\n', keep_stdout_open=False), True),
+        (_FakeChild(b'{"kind":"ready"}\n{not-json}\n', keep_stdout_open=True), True),
+        (_FakeChild(b'{"kind":"ready"}\n{}\n', returncode=1), False),
+    ),
+    ids=("never-handshake", "never-response", "eof", "malformed-json", "nonzero-exit"),
+)
+def test_isolated_transport_failures_are_bounded_reaped_and_safely_mapped(
+    child: _FakeChild,
+    must_terminate: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cloud_llm, "_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(cloud_llm.subprocess, "Popen", lambda *args, **kwargs: child)
+
+    with pytest.raises(CloudProviderError) as exc_info:
+        _isolated_provider().summarize_with_credential(_input(), "synthetic-key")
+
+    assert exc_info.value.error.code is ErrorCode.TRANSIENT_NETWORK
+    assert "synthetic-key" not in str(exc_info.value)
+    assert child.stdin.closed and child.stdout.closed
+    assert child.wait_timeouts and all(timeout is not None for timeout in child.wait_timeouts)
+    if must_terminate:
+        assert child.terminate_calls + child.kill_calls >= 1
+    else:
+        assert child.wait_timeouts[0] <= 0.01
+
+
+def test_isolated_transport_returns_normal_response_and_reaps_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    child = _FakeChild(
+        b'{"kind":"ready"}\n'
+        b'{"output_text":{"one_sentence_summary":"The transcript supplies evidence.",'
+        b'"core_points":[{"text":"Useful title is named.","kind":"fact",'
+        b'"evidence_ids":["title-1"]}],"keywords":["useful"],'
+        b'"evidence":[{"evidence_id":"title-1","source":"title",'
+        b'"excerpt":"Useful title"}]},"input_tokens":24,"output_tokens":18}\n',
+        returncode=0,
+    )
+    monkeypatch.setattr(cloud_llm, "_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(cloud_llm.subprocess, "Popen", lambda *args, **kwargs: child)
+
+    result = _isolated_provider().summarize_with_credential(_input(), "synthetic-key")
+
+    assert result.provider == "openai"
+    assert child.wait_timeouts == [pytest.approx(0.01, abs=0.01)]
+    assert child.terminate_calls == 0 and child.kill_calls == 0
+    assert child.stdin.closed and child.stdout.closed

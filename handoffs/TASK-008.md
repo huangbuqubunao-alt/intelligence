@@ -475,3 +475,50 @@
   约束；timeout/任意失败均应关闭管道、终止并 reap child、丢弃临时 credential，统一映射为脱敏的
   `TRANSIENT_NETWORK`，并加入完全离线的合成阻塞 child 回归。完成后须由新的独立 Reviewer 复审。
 - 跳过与风险：发现 P1 后停止其余强制检查和探针；真实云端资源始终未授权、未使用。
+
+## Correction 5 — Codex Implementer
+
+- 授权与起点：main control-plane 的 Correction 5 指令提交为
+  `8614735ea8a9c0e347cf9fceaa6f5a25549e7813`，main 中 TASK-008 为 `IN_PROGRESS`。
+  source 起点为 `78ae101786ada5f04d2b7c734c84a216f8820803`，唯一父为 Correction 4
+  `bb195a59ddee25cb804b0078676c504e94c44441`；起始 worktree 干净，且无
+  `.codebase-memory/` 工件。
+- 修复：隔离 SDK 进程的 ready handshake、非阻塞请求写入、响应读取和正常 exit 共享单个
+  `_TIMEOUT_SECONDS` monotonic deadline。父进程不再执行无期限 `readline()`；标准库
+  `select`/`os.read`/`os.write` 处理部分 I/O，1 MiB 行上限拒绝畸形输出。任一异常先关闭
+  stdin/stdout，再 terminate 并以有限 wait reap；terminate 超时才 kill 后再次有限 wait。
+  异常仍由既有 Adapter 映射为脱敏的 `TRANSIENT_NETWORK`，不记录 response、credential 或路径。
+  SDK 仍只在空白名单环境 child 中导入，credential 仍只走匿名 stdin。
+- 离线回归：新增 Fake Popen/child seam 覆盖永不 handshake、ready 后永不 response、EOF、
+  畸形 JSON、nonzero exit 和正常 response。失败场景验证有限 wait、关闭两条管道、对仍运行
+  child 的 terminate/kill cleanup 与原有安全错误映射；已退出的 nonzero child 只 wait/reap。
+  正常场景验证结果与 wait/reap，未启动任何真实 SDK 请求或后台线程。
+
+### Correction 5 检查
+
+| 命令/检查 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages`。 |
+| `uv sync --locked` | PASS | `Checked 61 packages`；未改锁或依赖。 |
+| `uv run python -m pytest tests/unit/test_analysis_policy.py` | PASS | `4 passed`。 |
+| `uv run python -m pytest tests/integration/test_summary_provider.py` | PASS | `30 passed`。 |
+| `uv run python -m pytest` | PASS | `361 passed`。 |
+| `uv run mypy src` | PASS | `Success: no issues found in 15 source files`。 |
+| `uv run ruff check .` | PASS | `All checks passed!`。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help 正常。 |
+| `uv build --offline` | PASS | sdist 和 wheel 均成功构建。 |
+| 包内容与固定 tokenizer | PASS | 两种产物均含 `migrations/001_initial.sql`、`prompts/summary.md`、`resources/o200k_base.tiktoken`；SHA-256=`446a9538…b1a2d`。 |
+| `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...HEAD` | PASS | 无输出。 |
+
+### Correction 5 范围、复用与风险
+
+- 实际修改仅为 `src/youtube_intel/providers/cloud_llm.py`、
+  `tests/integration/test_summary_provider.py` 与本 handoff；未修改 `analysis.py`、prompt、
+  fixture、unit test、依赖/锁、共享契约、配置、`state.py`、Schema/migration、CLI、TASK-009、
+  main 或任务状态。完整 Diff 已人工复核，无凭据、响应正文或本机路径。
+- 复用决定：`DIRECT` 复用既有隔离 OpenAI Adapter 与 Python 标准库 `os`、`select`、`time`、
+  `subprocess`；未增加任何依赖、公共参数、线程池、HTTP client 或 Provider。
+- 未运行：真实 OpenAI、真实密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube
+  与 Vault；仅使用合成文本、Fake child/Popen 与既有临时 SQLite tests。
+- 剩余风险：真实 SDK/API 路径仍需单独授权后验证；本修复只证明冻结的离线子进程协议和清理语义。
+- Commit SHA：待创建；父提交将严格为 `78ae101786ada5f04d2b7c734c84a216f8820803`。
