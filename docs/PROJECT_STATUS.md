@@ -96,8 +96,8 @@
 
 ## 下一步
 
-1. TASK-012 source `7c83283...` 已提交，现等待独立 Reviewer 复跑 ADR-011 离线门禁；
-   TASK-013/014 继续阻塞。
+1. TASK-012 Reviewer 1 evidence `9b5dec5...` 为 `REJECT`：doctor 创建 JSONL/logs 目录，
+   原 Codex Implementer 执行 Correction 1；TASK-013/014 继续阻塞。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

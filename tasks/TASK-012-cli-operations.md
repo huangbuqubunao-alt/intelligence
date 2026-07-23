@@ -1,6 +1,6 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -102,3 +102,11 @@
 - Implementer 自报 focused=`6`、full pytest=`420`、mypy、Ruff、CLI、两份 `plutil -lint`、locked sync、offline build
   与 root/package-resource archive hashes 通过。这些仅为待独立复跑证据；Reviewer 只可追加 source handoff，
   不得预写 verdict、ACCEPTED、merge 或 DONE。
+
+## 2026-07-23 第一轮审查拒绝与 Correction 1
+
+- Reviewer evidence：`9b5dec5d24e87ab942dff4268f7a95c35947d411`，唯一父为 implementation
+  `7c83283eac83b01c88a7625b4a216790d14514b2`，只修改 source handoff；Verdict=`REJECT`，P1=1。
+- `doctor` 在诊断前初始化 JSONL logger 并创建 `logs/`，违反 ADR-011 O-02。Correction 1 仅获
+  `cli.py`、`logging.py`、operations test 和 handoff，须在不存在 logs/Vault 的临时项目中保持零写入；
+  禁止扩大 package、依赖、Provider、真实资源或任务边界。
