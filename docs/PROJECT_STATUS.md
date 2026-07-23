@@ -96,8 +96,8 @@
 
 ## 下一步
 
-1. TASK-011 已从 `main@44fc64b...` 正式分配给 Codex Implementer，使用独立 worktree 和 ADR-010
-   范围；TASK-012 继续等待 TASK-011 整合后的 `weekly` 服务接口。
+1. TASK-011 source `0ae7f936...` 已提交，现等待独立 Reviewer 复跑 ADR-010 离线门禁；
+   TASK-012 继续等待 TASK-011 整合后的 `weekly` 服务接口。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -73,3 +73,10 @@
 - Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。仅允许 ADR-010 的八个路径组和
   任务卡离线门禁；未授权路径、真实 Vault、用户内容、网络、云调用、凭据、依赖/锁、Schema/migration 与
   `complete_stage` 继续禁止。
+
+## 2026-07-23 实现证据与独立审查授权
+
+- Source：`0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，唯一父为固定 base；实际修改七个允许路径，
+  未触及 fixtures、依赖、锁、Schema/migration、CLI 或真实资源。
+- Implementer 自报 focused=`2/3`、full pytest=`404`、mypy、Ruff、CLI、locked sync、offline build 与
+  package inclusion 通过。这些仅为待独立复跑证据；Reviewer 只可追加 source handoff。
