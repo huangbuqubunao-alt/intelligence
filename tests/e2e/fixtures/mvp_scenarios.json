@@ -1,0 +1,7 @@
+[
+  {"id": "manual", "title": "Manual subtitle product lesson", "transcript_source": "manual_subtitle", "score": 8.6},
+  {"id": "automatic", "title": "Automatic subtitle product lesson", "transcript_source": "auto_subtitle", "score": 8.1},
+  {"id": "whisper", "title": "Whisper fallback product lesson", "transcript_source": "whisper", "score": 7.8},
+  {"id": "low001", "title": "Low value product lesson", "transcript_source": "manual_subtitle", "score": 3.2},
+  {"id": "high001", "title": "High value product lesson", "transcript_source": "manual_subtitle", "score": 9.4}
+]
