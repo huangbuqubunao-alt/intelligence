@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import secrets
@@ -154,7 +155,9 @@ class ObsidianNoteSink(KnowledgeSink):
             raise
         except NoteRenderingError:
             raise _failure(ErrorCode.CONFIG_INVALID, "note template or identity is invalid", video.video_id) from None
-        except (OSError, UnicodeError, yaml.YAMLError):
+        except OSError as error:
+            raise _failure(_filesystem_error_code(error), "note persistence failed", video.video_id) from None
+        except (UnicodeError, yaml.YAMLError):
             raise _failure(ErrorCode.LOCAL_RESOURCE, "note persistence failed", video.video_id) from None
         except Exception:
             raise _failure(ErrorCode.LOCAL_RESOURCE, "note stage could not be committed", video.video_id) from None
@@ -475,6 +478,12 @@ def _write_all(fd: int, content: bytes) -> None:
         if written <= 0:
             raise _failure(ErrorCode.LOCAL_RESOURCE, "temporary note write failed", None)
         offset += written
+
+
+def _filesystem_error_code(error: OSError) -> ErrorCode:
+    if error.errno in {errno.EACCES, errno.EPERM, errno.EROFS}:
+        return ErrorCode.PERMISSION_DENIED
+    return ErrorCode.LOCAL_RESOURCE
 
 
 def _failure(code: ErrorCode, message: str, video_id: str | None) -> NotePersistenceError:

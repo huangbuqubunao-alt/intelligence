@@ -272,3 +272,66 @@
 - Remaining risk: Correction 2 must add errno-aware, safe error mapping and focused temporary-directory regressions for `EACCES`, `EPERM`, and `EROFS`; it must not weaken the ADR, change unrelated contracts, or treat permission failures as storage-resource exhaustion.
 - Verdict: `REJECT`
 - Unresolved P0/P1: `P1` — `EACCES`/`EPERM`/`EROFS` are mapped to `LOCAL_RESOURCE` instead of `PERMISSION_DENIED`.
+
+## Correction 2 — Implementer evidence
+
+- Dynamic authorization: `main@14585b834b342b8db3b6d70730a1639fc2fb1eff` is the
+  current `TASK-009-CORRECTION-2-CODEX.md` control-plane commit; main records
+  TASK-009 as `IN_PROGRESS` for this correction.
+- Starting source: `codex/task-009-obsidian-notes@f4a231b503ea6c1a25bf73c7d8aa584147cbdc03`,
+  sole parent `60ed077452faf5fe41b105b21b4221f89cb6e02c`; the worktree was clean,
+  with no `.codebase-memory/` artifact.
+- Scope: modified only `src/youtube_intel/providers/obsidian.py`,
+  `tests/integration/test_obsidian_sink.py`, and this handoff. No notes,
+  templates, fixtures, dependencies/lockfiles, shared contracts, configuration,
+  `state.py`, schema/migrations, CLI, TASK-008, or main files changed.
+
+### N-13 fix and regression evidence
+
+- The sink now maps only `EACCES`, `EPERM`, and `EROFS` from Vault I/O to
+  `ErrorCode.PERMISSION_DENIED`; every other `OSError`, including `ENOSPC` and
+  errno-less fsync/replace failures, remains `ErrorCode.LOCAL_RESOURCE`.
+  The public message remains the fixed safe text `note persistence failed` and
+  chains no filesystem exception.
+- A temporary Vault/SQLite parametrized integration regression injects all three
+  permission errno values, `ENOSPC`, errno-less `fsync`, and errno-less
+  `replace`. It asserts the exact error code, unchanged pre-existing managed
+  note bytes, cleanup of the owned temporary file, `ANALYSIS_READY` Pipeline,
+  `RUNNING` Job, and no `VIDEO_NOTE` Artifact. All I/O stays under pytest's
+  temporary directory.
+- TDD evidence: before the implementation change, the new permission cases
+  failed `3` times because they returned `LOCAL_RESOURCE`; after the minimal
+  errno mapping they pass together with all resource cases.
+
+### Correction 2 checks
+
+| Command | Result |
+|---|---|
+| `uv lock --check` | PASS — resolved 84 packages; lockfile unchanged. |
+| `uv sync --locked` | PASS — checked 61 packages from the existing local cache. |
+| `uv run python -m pytest tests/unit/test_note_rendering.py` | PASS — 4 passed. |
+| `uv run python -m pytest tests/integration/test_obsidian_sink.py` | PASS — 17 passed. |
+| `uv run python -m pytest` | PASS — 348 passed. |
+| `uv run mypy src` | PASS — 15 source files, no issues. |
+| `uv run ruff check .` | PASS. |
+| `uv run python -m youtube_intel --help` | PASS. |
+| `uv build --offline` | PASS — sdist and wheel built locally. |
+| sdist/wheel template and migration inclusion | PASS — both contain `youtube_intel/templates/video.md` and `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check` before commit | PASS. |
+
+### Correction 2 reuse, risks, and conclusion
+
+- Reuse: `DIRECT` Python standard-library `errno` and existing `OSError`/atomic
+  write boundary; no dependency, version, license, or adapter boundary changed.
+  Jinja2/PyYAML and the registered yt2md candidates remain untouched.
+- Unauthorized operations not run: no real Vault or user note, test-directory-
+  external note operation, network/cloud/credential/media/model path, or
+  codebase-memory index action.
+- Diff review: restricted to the three authorized paths; no generated artifact,
+  dependency, Schema, secret, real-resource, or unrelated change is included.
+- Remaining risk: the established at-most-once boundary after successful replace
+  and before SQLite completion remains unchanged; real-Vault behavior is still
+  untested and unapproved.
+- `DECISION NEEDED`: `None`.
+- Suggested state: `IN_REVIEW`; this implementer does not change task status or
+  start a Reviewer.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from youtube_intel.domain import (
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.notes import render_video_note
 from youtube_intel.providers.obsidian import (
     NotePersistenceError,
     NoteWriteContext,
@@ -451,19 +453,50 @@ def test_sink_rejects_a_legacy_note_without_changing_it(tmp_path: Path) -> None:
     assert repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.ANALYSIS_READY
 
 
-def test_sink_cleans_its_temporary_file_when_fsync_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("operation", "error_number", "expected_code"),
+    (
+        ("fsync", errno.EACCES, ErrorCode.PERMISSION_DENIED),
+        ("fsync", errno.EPERM, ErrorCode.PERMISSION_DENIED),
+        ("fsync", errno.EROFS, ErrorCode.PERMISSION_DENIED),
+        ("fsync", errno.ENOSPC, ErrorCode.LOCAL_RESOURCE),
+        ("fsync", None, ErrorCode.LOCAL_RESOURCE),
+        ("replace", None, ErrorCode.LOCAL_RESOURCE),
+    ),
+)
+def test_sink_maps_atomic_write_errors_safely_without_advancing_note_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    error_number: int | None,
+    expected_code: ErrorCode,
 ) -> None:
     repository, context = _repository_with_claimed_note_job(tmp_path)
     vault_root = tmp_path / "vault"
     sink = _sink(repository=repository, context=context, vault_root=vault_root)
+    rendered = render_video_note(
+        video=_video(),
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis(),
+        processed_at=NOW,
+        pipeline_version=PIPELINE_VERSION,
+    )
+    original = rendered.content.encode("utf-8").replace(
+        b"A compact summary.", b"An earlier compact summary."
+    )
+    note_path = vault_root / "Knowledge" / rendered.relative_path
+    note_path.parent.mkdir(parents=True)
+    note_path.write_bytes(original)
 
-    def fail_fsync(file_descriptor: int) -> None:
-        del file_descriptor
-        raise OSError("injected fsync failure")
+    def fail_operation(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        if error_number is None:
+            raise OSError("injected atomic write failure")
+        raise OSError(error_number, "injected fsync failure")
 
-    monkeypatch.setattr(obsidian_module.os, "fsync", fail_fsync)
-    with pytest.raises(NotePersistenceError):
+    monkeypatch.setattr(obsidian_module.os, operation, fail_operation)
+    with pytest.raises(NotePersistenceError) as exc_info:
         sink.upsert_video_note(
             video=_video(),
             transcript=_transcript(),
@@ -474,5 +507,11 @@ def test_sink_cleans_its_temporary_file_when_fsync_fails(
         )
 
     videos = vault_root / "Knowledge" / "Videos"
-    assert list(videos.iterdir()) == []
+    assert {path.name: path.read_bytes() for path in videos.iterdir()} == {
+        note_path.name: original
+    }
+    assert exc_info.value.error.code is expected_code
+    assert exc_info.value.error.message == "note persistence failed"
     assert repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.ANALYSIS_READY
+    assert repository.get_job(context.job_id).status is JobStatus.RUNNING
+    assert repository.get_artifact_by_key(f"video-note/{PIPELINE_VERSION}/{VIDEO_ID}") is None
