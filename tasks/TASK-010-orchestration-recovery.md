@@ -1,6 +1,6 @@
 # TASK-010：流程编排与恢复
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
@@ -23,6 +23,16 @@
 - Implementer 自报 focused `15`、全量 `397`、mypy、Ruff、CLI、lock/sync、offline build 与
   sdist/wheel migration/template inclusion 均 PASS；这些仅构成待独立复跑证据。
 - 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main 或任务状态。
+
+## 2026-07-23 第一轮独立审查拒绝与 Correction 1
+
+- Reviewer evidence：`f929a2f114626f7f714134d0894b188548537e4e`，唯一父为 implementation
+  `e17d732db4cfb344ddd75ac8bc25990c216afc3f`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。真实 `RepositoryBackedAnalysisService` 成功返回 `AnalysisCompleted` 后，
+  编排器未将结果映射为继续排程，导致没有 `NOTE_WRITE` Job，高价值视频停在 `ANALYSIS_READY`。
+- 原 Implementer 只获 Correction 1：Pipeline 适配、两份既有集成测试和 handoff。必须以临时 SQLite 与真实
+  repository-backed 服务返回路径证明成功分析创建唯一 NOTE_WRITE Job，且缓存恢复使用既有 Provider-call/Artifact
+  身份与哈希验证；不得修改 `complete_stage`、Provider、Schema、依赖或真实资源边界。
 
 ## 目标
 
