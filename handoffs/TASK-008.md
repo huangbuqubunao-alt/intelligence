@@ -522,3 +522,56 @@
   与 Vault；仅使用合成文本、Fake child/Popen 与既有临时 SQLite tests。
 - 剩余风险：真实 SDK/API 路径仍需单独授权后验证；本修复只证明冻结的离线子进程协议和清理语义。
 - Commit SHA：待创建；父提交将严格为 `78ae101786ada5f04d2b7c734c84a216f8820803`。
+
+## Correction 5 — Reviewer 6 (Codex)
+
+- Reviewer agent/session：Codex（全新独立会话）。主控授权包
+  `agent-prompts/TASK-008-REVIEWER-6-CODEX.md` 最新提交为
+  `da535fb9cf337e37d8179862e2086015166d0c3f`；main 的 TASK-008 状态为
+  `IN_REVIEW`。
+- 审查对象：`codex/task-008-deep-analysis@dcbbd38fe8bab79fd6db1679f43a8ca48fb472ea`，
+  固定 base `473119704c7638d7afd4e68d84d00e85064ceabd`。HEAD 的唯一父为 Reviewer-5
+  evidence `78ae101786ada5f04d2b7c734c84a216f8820803`，完整链可回溯至原始实现；开始和
+  提交前 `git status --short --untracked-files=all` 均无输出。
+- 范围：`base...HEAD` 仅为本卡允许的六个路径；Correction 5 相对其父仅修改
+  `src/youtube_intel/providers/cloud_llm.py`、`tests/integration/test_summary_provider.py`
+  与本 handoff。无依赖/锁、公共契约、配置、`analysis.py`、`state.py`、Schema/migration、CLI、
+  TASK-009 或索引工件；`git diff --check base...HEAD` 无输出。
+
+### 独立检查与探针
+
+| 命令/探针 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check`；`uv sync --locked` | PASS | 分别解析 84 个包、检查 61 个既有锁定包；无下载、无锁文件变更。 |
+| focused tests | PASS | `test_analysis_policy.py` 为 4 passed；`test_summary_provider.py` 为 30 passed。 |
+| `uv run python -m pytest` | PASS | 361 passed。 |
+| `uv run mypy src`；`uv run ruff check .` | PASS | 15 个 source files 无类型问题；Ruff 全通过。 |
+| CLI；`uv build --offline` | PASS | `python -m youtube_intel --help` 正常；sdist 与 wheel 构建成功。 |
+| 发行物/固定资源 | PASS | 两种产物均含 `migrations/001_initial.sql`、`prompts/summary.md`、`resources/o200k_base.tiktoken`；资源 SHA-256 精确为 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。 |
+| A：child failure matrix | PASS | 既有 Fake child 覆盖永不 ready、ready 后无 response、EOF、畸形 JSON、nonzero exit 与成功 response；均使用有限 `wait`，失败路径关闭 stdin/stdout 并 terminate/kill/reap，公共 Adapter 映射为脱敏 `TRANSIENT_NETWORK`。独立匿名管道 seam 另验证写入失败和“response 已到达但 child 不 exit”均关闭两端并 terminate/reap。 |
+| B：ADR-008 A-17 隔离 | PASS | 主进程 source 在 `_CHILD_PROGRAM` 前无 OpenAI SDK import；`Popen` 使用绝对 `sys.executable`、无 shell，环境精确为三项固定字面量；credential 仅写入 child stdin，不在 env 或 argv。 |
+| C：政策、缓存与事务 | PASS | focused/integration 覆盖关闭、低价值、token/预算/缺凭据零副作用，完全缓存命中、篡改/缺失 Artifact fail-closed、成功 `complete_stage`、回滚、重排与 RAW_RESPONSE_30D 30 天。 |
+| D：payload、Structured Outputs 与异常 | PASS | 集成回归覆盖白名单、`store=False`、无 tools/stream/base URL、`max_retries=0`、success/refusal/结构或证据错误、429/5xx/timeout 的安全错误映射。 |
+| 静态凭据哨兵 | PASS | 对 `src`/`tests` 运行 OpenAI key-pattern 静态扫描无匹配（只记录退出状态，不输出潜在匹配值）。 |
+
+### AC / ADR / 五轴矩阵
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| AC、ADR-008 A-03/A-04/A-05/A-06/A-07/A-08/A-10/A-11/A-12/A-14 | PASS | 离线 focused/integration 与完整套件共同证明固定门禁顺序、最小化 payload、token/缓存/预算、证据校验和原子恢复。 |
+| ADR-008 A-09/A-17 | PASS | 严格 Responses request 与 SDK child 进程边界均由 Fake transport/child 和静态审查验证；所有协议 I/O 与正常退出使用 monotonic deadline，失败收口有有限 cleanup deadline。 |
+| ADR-008 A-01/A-02/A-13/A-15/A-16 | PASS | 共享契约/依赖由已完成 TASK-008A 提供；本次未改依赖，离线资源哈希及两类发行物包含性通过。真实路径仍未执行。 |
+| Correctness / readability / architecture / security / performance | PASS | 修复局限在 SDK adapter I/O 边界；无新依赖、线程、网络 client 或公共接口。select + bounded buffer 避免无限 pipe read/write，异常不保留响应、credential 或路径。 |
+| Reuse / license | PASS | `DIRECT` 复用已批准 OpenAI SDK 隔离边界、tiktoken 固定资源和 Python 标准库 `os`/`select`/`time`/`subprocess`；无新增第三方代码或依赖。 |
+
+### Findings（P0–P3）
+
+- P0：无。
+- P1：无。
+- P2：无。
+- P3：无。
+
+### Reviewer 结论
+
+- Verdict：`APPROVE`
+- 跳过与剩余风险：未运行真实 OpenAI、真实密钥、付费/API、网络、云端 token-count、用户内容、媒体、YouTube 或 Vault；这些均未授权。真实 SDK/API 互操作仍须在未来单独获批的受控验收中验证。本轮只使用合成 credential 文本、Fake transport/Fake child 与临时 SQLite，未创建测试目录外文件。
