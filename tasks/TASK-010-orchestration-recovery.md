@@ -52,6 +52,16 @@
 - TASK-010 进入 `ACCEPTED`，仅授权 Product Integrator 对固定 source 做 `--no-ff` 合并和整合后离线验证；
   不得自行设为 `DONE`。真实网络、模型、凭据和 Vault 路径仍未授权。
 
+## 2026-07-23 整合结果
+
+- Codex Product Integrator 已以 merge commit `3d2122c8720e9bfcb7c61088beb2955ffe6f1658` 整合 source；
+  双父为授权 main `8e8b775e7c294f44f410c6b53d0a089e86756aef` 与 accepted source
+  `e12af35b903705d782538617469da0c8a71671e9`。
+- first-parent Diff 严格为六个批准路径；lock/sync、TASK-010 集成 `17`、全量 `399`、mypy、Ruff、CLI、
+  离线构建、sdist/wheel migration/template inclusion、Diff 空白和凭据模式扫描均通过。source 已成为 main
+  祖先，两个 worktree 均干净，未 push 或清理 source。
+- 本卡保持 `ACCEPTED`，不自行改为 `DONE`。构建产物保留在 `/private/tmp/task-010-integration-build`，未触碰工作区。
+
 ## 目标
 
 把已有切片接入统一 Pipeline 状态机，使单个视频能够从发现走到完成，并在阶段失败、进程中断和重复运行时保持幂等和可恢复。

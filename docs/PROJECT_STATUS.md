@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-23
-- 当前阶段：Phase 3 — TASK-010 验收整合
+- 当前阶段：Phase 3 — TASK-010 已整合，等待主控关闭
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. Codex Product Integrator 按固定 source 整合 TASK-010，并复跑受影响的离线门禁；TASK-010 保持 `ACCEPTED`，不得自行关闭为 `DONE`。
+1. 保持 TASK-010 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -122,7 +122,7 @@
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
-| 已验收待整合 | TASK-010 Product Integrator | Reviewer 2 `e12af3...` APPROVE；仅整合固定 source、重跑离线门禁；禁止 Provider、依赖、Schema、真实资源 |
+| 已整合待关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
 
 ## 授权边界
 
