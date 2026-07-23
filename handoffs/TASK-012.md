@@ -123,3 +123,68 @@
   `41e0a3a7…` 在 root、package resource 和 wheel 中一致。
 - 风险与未授权路径：真实 composition/Provider、网络、凭据、Vault 和 launchd 仍未执行且未授权；
   `DECISION NEEDED=None`。建议状态：`IN_REVIEW`。
+
+## Reviewer 2 结论（Second Independent Codex）
+
+- Reviewer agent/session: `Codex / TASK-012-REVIEWER-2-CODEX`
+- 审查 commit: `d046c394e3c6bcf47c05231f71dbf50db4c1f5f8`
+- Authorization / lineage：main 授权包 commit `b77e8656bb7dd42084e833993fe2ab5b6ba5c545`；
+  main TASK-012=`IN_REVIEW`。source 初始
+  `git status --short --untracked-files=all` 无输出；HEAD 的唯一父为 Reviewer 1
+  evidence `9b5dec5...`，其唯一父为 original implementation `7c83283...`，再上游为
+  fixed base `8e322f3...`。
+- Diff / red-line review：Correction 1 仅改 `cli.py`、operations integration test 与 handoff；
+  完整 Diff 精确为 12 个批准路径，`git diff --check` 通过，末次 status 仍干净。
+  `pyproject.toml` 仅有批准的 `source-include`；依赖、`uv.lock`、build backend、
+  Schema/migration、state/domain/config、Provider、网络、真实 Vault/用户内容、凭据、
+  `launchctl`、任务状态均未改动。静态扫描也确认无运行时 `launchctl`、自动删除或
+  JSONL 的额外 producer。
+
+### 独立检查
+
+| 检查 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check` / `uv sync --locked` | PASS | 84 packages resolved；61 packages checked。 |
+| `uv run python -m pytest tests/integration/test_operations.py` | PASS | 7 passed。 |
+| `uv run python -m pytest` | PASS | 421 passed。 |
+| `uv run mypy src` / `uv run ruff check .` | PASS | 23 source files 无类型问题；Ruff 全通过。 |
+| CLI help | PASS | 顶层与 `check/process/retry/weekly/doctor --help` 都成功。 |
+| `plutil -lint` daily / weekly | PASS | 两份 static plist 均为 `OK`。 |
+| `uv build --offline` | PASS | sdist 与 wheel 都成功构建。 |
+| archive / resource check | PASS | sdist 含 root daily/weekly、operations 与 migration；wheel 含 migration 与三份 package resources。root/package/wheel 三份 SHA-256 一致：daily `39b06ca705da8a0fa1847cd239bc1dd4705543e4f3483b7be9f1f99e6fa13c68`、weekly `e36343164ca089155e00cbfa8c8149e5f42987a29628ca1112d3f2c0a34a3dec`、operations `41e0a3a7209528a7bd50c02ecba733fe623cbf5f0df45df0f8cdbe2f36d29933`。 |
+
+### 独立探针与 ADR-011 / AC 矩阵
+
+- **O-01 / AC CLI：PASS。** 临时 Fake 验证 `check` 的 `0`、部分失败 `1`、
+  precondition/usage `2` 与 local-resource `3`；其余四个命令帮助可用，既有 focused
+  tests 覆盖 `process/retry/weekly` 参数转发。
+- **O-02 / AC doctor：PASS。** 在临时项目中使 `logs/`、Vault 与 database parent 均不存在；
+  patch `JsonlLogger` 为失败哨兵并监视 `uuid4` 后执行 `doctor`。结果为 `3`，UUID4 仅在
+  内存生成一次，logger 构造/写入为零，Fake operations 调用为零，且 logs/Vault/database
+  parent 均未创建。此路径不触发 Repository/Job 写入、Provider、loopback、网络、credential
+  resolver 或 Vault 内容读取；另有已初始化临时 SQLite / 缺 Vault 的测试回归。
+- **O-03 / AC logging：PASS。** 非 doctor 命令仍产出两条 JSONL，逐条包含
+  `timestamp/level/event/run_id/stage/safe_message`，run_id 均为 UUID4；局部日志 probe
+  将 `token=/private/tmp/secret` 脱敏为 `[REDACTED]`。静态调用图只把 CLI 的固定安全消息
+  传给 logger，因此不传递字幕、模型文本、绝对路径或异常链。
+- **O-04 / O-05 / AC scheduling：PASS。** 文档仅声明 30 天保留策略、无自动删除；daily/
+  weekly 为互斥静态 placeholder 样例，WorkingDirectory、stdout/stderr redirect 和手工
+  `launchctl` 责任说明完整，代码/测试不执行 `launchctl`。
+- **O-06 / 复用和许可证：PASS。** 仅直接复用批准的 Python 标准库与已有项目模块；无新增
+  第三方代码、依赖或许可证义务，且 weekly 只经既有冻结 Operations 边界接入。
+
+### 五轴审查与结论
+
+| 轴 | 结果 | 结论 |
+|---|---|---|
+| Correctness | PASS | CLI 出口、部分失败和 doctor 的安全失败语义符合冻结退出码。 |
+| Safety / privacy | PASS | doctor 零写入；日志仅存固定安全消息并脱敏 secret/path 形状。 |
+| Scope / red lines | PASS | 路径、依赖、Schema、真实资源和 launchd 门禁均未越界。 |
+| Regression evidence | PASS | focused、full suite、类型、lint、build、plist 与归档检查均独立通过。 |
+| Maintainability / reuse | PASS | 最小改动将 doctor 与 logger 生命周期明确分离；继续只用标准库。 |
+
+- P0–P3 矩阵：P0=0，P1=0，P2=0，P3=0。
+- Skipped / remaining risks：未执行真实 application composition、Provider、网络、凭据、Vault
+  或 launchd 加载；这些继续未授权，且不属于本离线审查的阻断项。
+- `DECISION NEEDED`：`None`。
+- Verdict：`APPROVE`。
