@@ -96,8 +96,8 @@
 
 ## 下一步
 
-1. TASK-011 Reviewer 3 evidence `1ecd4bc...` 为 `APPROVE`，现已 `ACCEPTED` 并等待 Product Integrator；
-   TASK-012 继续等待 TASK-011 整合后的 `weekly` 服务接口。
+1. TASK-011 已由 merge `2ba42c2...` 整合并收口为 `DONE`；TASK-012 的上游服务依赖已满足，
+   但仍须独立正式分配才可开始。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

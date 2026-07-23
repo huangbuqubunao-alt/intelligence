@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -124,3 +124,11 @@
 - W-01..W-08、TASK-011 AC、锁定离线门禁、临时 SQLite/Vault 的 NoteRef 锚定/哈希、重复 upsert 与原子失败
   补偿均获独立验证。TASK-011 现为 `ACCEPTED`，仅授权 Product Integrator 以固定 source 创建双父 merge；
   不得预写 merge SHA 或 DONE，TASK-012 继续阻塞至整合完成。
+
+## 2026-07-23 整合与收口
+
+- Product Integrator 已以 merge `2ba42c2f55082f5ce74ddc04d8aa18a7ef85fae1` 整合 accepted source
+  `1ecd4bc8c6138bab6683a011cbbecddf281263c3`；双父顺序为 execution base
+  `3cdc9fc94568a4a836dc187995f98ec5148b6e97`、accepted source，first-parent Diff 严格为七个批准路径，锁文件未变。
+- 整合后 locked sync、focused=`15`、full pytest=`414`、mypy、Ruff、CLI、offline build 与
+  migration/video/weekly template package inclusion 均通过。TASK-011 现为 `DONE`；source worktree 保留且未清理。

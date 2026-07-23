@@ -325,3 +325,12 @@
 - sdist/wheel 已核验包含 migration SQL、`templates/video.md` 和 `templates/weekly.md`。
 - 复用：现有 Python 标准库 `os`/`stat`/`hashlib` 与既有 Jinja2（BSD-3-Clause）；未新增依赖。
 - `DECISION NEEDED`：`None`。
+
+## Product Integration and Closure — 2026-07-23
+
+- Accepted source `1ecd4bc8c6138bab6683a011cbbecddf281263c3` was merged by
+  `2ba42c2f55082f5ce74ddc04d8aa18a7ef85fae1`; merge parents are execution base
+  `3cdc9fc94568a4a836dc187995f98ec5148b6e97` followed by the accepted source.
+- The first-parent product diff is limited to the seven approved TASK-011 paths; dependencies and lockfiles are unchanged.
+- Product Integrator reran locked sync, focused tests (`15`), full pytest (`414`), mypy, Ruff, CLI help and offline build; both archives include migration SQL and video/weekly templates.
+- TASK-011 is `DONE`. The retained source worktree remains clean; no push or worktree cleanup occurred. Real Vault, Provider/cloud calls, network and credentials remain unauthorized.
