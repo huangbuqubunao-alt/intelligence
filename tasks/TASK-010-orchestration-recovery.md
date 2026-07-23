@@ -1,6 +1,6 @@
 # TASK-010：流程编排与恢复
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
@@ -61,6 +61,12 @@
   离线构建、sdist/wheel migration/template inclusion、Diff 空白和凭据模式扫描均通过。source 已成为 main
   祖先，两个 worktree 均干净，未 push 或清理 source。
 - 本卡保持 `ACCEPTED`，不自行改为 `DONE`。构建产物保留在 `/private/tmp/task-010-integration-build`，未触碰工作区。
+
+## 2026-07-23 收口完成
+
+- 已整合证据已固定在 merge `3d2122c8720e9bfcb7c61088beb2955ffe6f1658`；双父、six-path first-parent
+  Diff、source ancestor 与整合后离线门禁均已记录。
+- 独立 closure commit 已将 TASK-010 card、index、project status 与 handoff 一致更新为 `DONE`；未修改 source 或重跑产品检查。
 
 ## 目标
 
