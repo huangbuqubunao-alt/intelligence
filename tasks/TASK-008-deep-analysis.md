@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -101,6 +101,16 @@
   full pytest=`361` 和其余离线门禁通过。这些均待独立 Reviewer 6 复跑。
 - Reviewer 6 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
   Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
+
+## 2026-07-23 第六轮独立审查通过与最终整合授权
+
+- Reviewer 6 evidence：`6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`，唯一父为 Correction 5
+  `dcbbd38fe8bab79fd6db1679f43a8ca48fb472ea`，只修改 source handoff；Verdict=`APPROVE`，P0–P3=0。
+- 独立复跑 locked sync、focused=`4/30`、full pytest=`361`、mypy、Ruff、CLI、offline build、sdist/wheel
+  prompt/fixed tokenizer/migration inclusion 和完整 Diff 全部通过；A-03、A-06、A-17、成功/回滚/重排/retention
+  离线矩阵均通过。真实 OpenAI、凭据、网络、付费、Vault/用户内容继续未运行且未授权。
+- TASK-008 现为 `ACCEPTED`；Product Integrator 只获固定 source 的 `--no-ff` 整合和整合后离线门禁，
+  不得修代码、改 TASK-009 或写为 `DONE`。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
