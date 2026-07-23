@@ -163,3 +163,70 @@
 - sdist/wheel 均核验包含 migration SQL、`templates/video.md` 和 `templates/weekly.md`。
 - 临时 I/O 仍仅发生在 pytest `tmp_path` 的 Artifact 根目录、SQLite stub 与最小 Vault；没有 Provider、云调用、网络、凭据、真实 Vault 或外部删除。
 - `DECISION NEEDED`：`None`。
+
+## Correction 1 — Second Independent Codex Reviewer — 2026-07-23
+
+### 审查对象、授权与洁净度
+
+- Reviewer: `Codex / independent TASK-011 reviewer 2`。
+- Authorization: `main` 中本 Reviewer prompt 的最新提交为
+  `0bc9950d9818c739f5932d884d4803634d60eea7`；`tasks/README.md` 记录 TASK-011 为
+  `IN_REVIEW`。
+- Source/base/head: `codex/task-011-weekly-report@f4e30a56ddcf7d654bda4e0579f6080af59698f5` /
+  `44fc64be2cb4602cb93c1d03f84d6dd2a1677750` /
+  `f4e30a56ddcf7d654bda4e0579f6080af59698f5`。其唯一父为 Correction 1 review
+  evidence `3759d54a74abaa8e6627b8107298d0938fbe3441`，后者唯一父为原实现
+  `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`。
+- 审查开始时 `git status --short --untracked-files=all` 无输出；未运行会写入
+  `.codebase-memory/` 的索引。完整 base...HEAD Diff 为允许的 7 个路径；Correction 1
+  Diff 仅为 `reporting.py`、既定 integration test 和本 handoff。依赖/锁、Schema/
+  migration、`complete_stage`、CLI、TASK-012 均无 Diff，`git diff --check` 通过。
+
+### 独立检查
+
+| 命令 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check`、`uv sync --locked` | PASS | Resolved 84 packages；Checked 61 packages。 |
+| `uv run python -m pytest tests/unit/test_week_period.py tests/integration/test_weekly_report.py` | PASS | 10 passed。 |
+| `uv run python -m pytest` | PASS | 409 passed。 |
+| `uv run mypy src` | PASS | 21 source files，无问题。 |
+| `uv run ruff check .` | PASS | All checks passed。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help 正常退出。 |
+| `uv build --offline` | PASS | sdist 与 wheel 均成功构建。 |
+
+### Findings
+
+- **P1-1 — 受管视频 NoteRef 的文件存在性和内容哈希从未验证，缺失或篡改笔记仍会生成周报。**
+  `src/youtube_intel/reporting.py:107-125` 对 `note_artifact` 只检查索引行的 kind/root/
+  video_id/path，然后直接用该行的 `content_hash` 构造 `NoteRef`；它既没有 Vault 根目录，
+  也没有读取 `Videos/...` 文件并复核哈希。`tests/integration/test_weekly_report.py` 的
+  `_candidate()` 只将 score/analysis 写到 Artifact 根目录，完全不创建
+  `vault/Knowledge/Videos/<video_id>.md`，但稳定周报测试仍通过。这是可复现的 missing-
+  NoteRef 反例；同一索引行对应的笔记被删除、替换或篡改时，`generate()` 仍会调用
+  Knowledge Sink 并写入链接到不存在或不受管内容的周报。它违反本任务包强制条件：候选必须
+  具有 verified managed NoteRef，且 verified Score/Analysis/NoteRef 任一缺失或篡改必须在
+  Knowledge Sink 或 `reports` 写入前 fail-closed；也不满足 ADR-010 W-02/W-03。
+
+### ADR-010 / AC / 五轴矩阵与结论
+
+| 项目 | 结论 | 证据 |
+|---|---|---|
+| W-01（配置时区、跨年、DST） | PASS | focused unit tests 2 passed。 |
+| W-02（候选、稳定排序、Top N、受管 NoteRef） | **FAIL — P1-1** | NoteRef 未验证文件存在性/哈希。 |
+| W-03（verified Analysis/Score/NoteRef 聚合） | **FAIL — P1-1** | Score/Analysis fail-closed 已有回归；NoteRef 不具同等保证。 |
+| W-04（空周唯一稳定报告） | PASS | focused integration tests 通过。 |
+| W-05（固定 Jinja sandbox/StrictUndefined） | PASS | `reporting.py` 使用 `ImmutableSandboxedEnvironment`、`StrictUndefined`、`loader=None` 与包资源。 |
+| W-06（无 Schema/Job/CLI 越界） | PASS | 固定 Diff 通过。 |
+| W-07（仅临时 Vault 原子写） | PARTIAL | 已有临时 Vault 集成测试通过；因 P1 停止后续 symlink/fsync/replace 故障探针。 |
+| 五轴：正确性 / 可读性 / 架构 / 安全 / 性能 | FAIL / PASS / PARTIAL / FAIL / PARTIAL | P1-1 同时破坏输入完整性与输出链接正确性；其余未形成完整无问题结论。 |
+| 复用/许可证 | PASS | 仅复用登记的 Jinja2（BSD-3-Clause）与标准库；无新增依赖或锁变更。 |
+
+- P0：0。P1：1（P1-1）。P2/P3：按任务包在 P1 后停止，不构成无问题结论。
+- skipped due to P1-1：sdist/wheel 内容清单、剩余临时 SQLite/Vault 反例（含 NoteRef
+  修复后的 symlink、fsync/replace 和 DB 补偿矩阵）、ISO repeated-run/并列稳定性扩展
+  探针以及最终无 P1/P2 的完整审查。以上不是 PASS。
+- 未触及真实 Vault、用户笔记、Provider/云调用、网络、凭据、外部删除、TASK-012 或业务代码。
+- Reviewer verdict: **REJECT**。
+- Required correction: 在不扩大 ADR-010 范围的前提下，把受管视频 NoteRef 的存在性、受锚定路径/
+  symlink 安全性和内容哈希验证纳入候选验证，并在任何 Knowledge Sink 或 reports 写入前拒绝缺失、
+  篡改或身份不匹配的 NoteRef；为该反例增加临时 Vault 回归后，交由全新独立 Reviewer 从新 head 重审。
