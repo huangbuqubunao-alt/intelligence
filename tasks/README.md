@@ -61,7 +61,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | 已整合并关闭；merge `4f9ca390...` | DONE | 008A, 009A；真实云另批 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | 已整合并关闭；merge `1cb718b...` | DONE | 009A；真实 Vault 另批 |
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | 已整合并收口；merge `3d2122c...` | DONE | 003-009 |
-| [TASK-011](TASK-011-weekly-report.md) | 周报 | ADR-010 已接受；等待正式分配 | READY | 009, 010 |
+| [TASK-011](TASK-011-weekly-report.md) | 周报 | Codex Implementer；独立 Reviewer 等待 source commit | IN_PROGRESS | 009, 010 |
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | ADR-011 已接受；等待 TASK-011 整合与正式分配 | BLOCKED | 010, 011 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | Codex QA（未分配） | BLOCKED | 011, 012 |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配） | BLOCKED | 013 |
