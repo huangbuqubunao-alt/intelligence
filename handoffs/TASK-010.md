@@ -127,3 +127,62 @@
 
 - Verdict：`REJECT`
 - 未解决 P0/P1：`P1-1`。
+
+## Correction 1 — Codex Implementer
+
+### 目标与范围
+
+- 修复 P1：真实 `RepositoryBackedAnalysisService.analyze()` 成功返回
+  `AnalysisCompleted` 后，编排器将它映射为 `StageDisposition.CONTINUE`，从而安排
+  `NOTE_WRITE`。
+- 补足 P2：新增临时 SQLite 的真实 repository-backed 分析恢复回归，验证既有
+  Provider-call 响应 Artifact ID、raw/structured Artifact 身份及两份文件的 SHA-256；
+  不以 `_FakeStages._cached_calls` 计数代替这些持久化边界。
+- 实际修改：`src/youtube_intel/pipeline.py`、
+  `tests/integration/test_pipeline.py`、`tests/integration/test_recovery.py`，及本报告。
+- 未修改：`complete_stage`、`state.py`、Provider、Schema/migration、配置、CLI、依赖、
+  锁文件、TASK-008/TASK-009 或 main。
+
+### Reuse decision
+
+- `DIRECT`：既有 `AnalysisCompleted`/`AnalysisSkipped` 领域结果、
+  `RepositoryBackedAnalysisService`、`OpenAIResponsesProvider` 的离线 transport seam、
+  `SQLiteStateRepository`、Job planner 与 `complete_stage` 原子契约。
+- `REJECT`：新 Provider、ORM、队列、依赖、Schema/migration、真实网络、凭据、Vault、
+  媒体和模型资源。
+- 来源/许可证：仅项目自有代码与 Python 标准库；未复制第三方代码，也未引入许可证义务。
+
+### 验收证据
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 新鲜真实分析成功继续到笔记和完成 | PASS | `test_repository_backed_analysis_completion_schedules_one_note_write`：临时 SQLite + 真实 repository-backed 分析服务适配，`SCORED → ANALYSIS_READY → NOTE_WRITTEN → COMPLETE`，笔记 handler 仅执行一次。 |
+| 缓存恢复不重调有效 Provider，且保持持久化身份/哈希 | PASS | `test_cached_analysis_recovery_preserves_verified_artifacts_and_schedules_note`：重排 `SCORED` 输入后，Fake transport 请求仍为 1；Provider-call 的 `response_artifact_id`、raw/structured Artifact record 和两个 Artifact 文件 SHA-256 均被验证，并继续到 `COMPLETE`。 |
+| `AnalysisSkipped` 既有行为 | PASS | 两份 TASK-010 集成测试与全量 pytest 通过；原有 `AnalysisSkipped → ANALYSIS_READY → CONTINUE` 分支未改。 |
+| 重复/恢复不产生重复笔记或有效调用 | PASS | 新鲜路径断言单次 note handler；缓存恢复断言单次 Fake transport、同一 Artifact/Provider-call 记录与单次 note handler。 |
+
+### Correction 1 检查结果
+
+| 命令/检查 | 结果 | 关键输出 |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 84 packages。 |
+| `uv sync --locked` | PASS | Checked 61 packages。 |
+| `uv run python -m pytest tests/integration/test_pipeline.py tests/integration/test_recovery.py` | PASS | 17 passed。 |
+| `uv run python -m pytest` | PASS | 399 passed。 |
+| `uv run mypy src` | PASS | 20 source files，no issues。 |
+| `uv run ruff check .` | PASS | all checks passed。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help rendered。 |
+| `uv build --offline --out-dir /private/tmp/task-010-correction-1.BpUOmb` | PASS | sdist + wheel built。 |
+| sdist/wheel 内容 | PASS | 两个归档均包含 `migrations/001_initial.sql` 与 `templates/video.md`。 |
+| `git diff --check 227bdeba3a4d9ddd57231b123bfdc4a2038af3d3...HEAD` | PASS | 无输出。 |
+
+### Diff 与风险复核
+
+- 修改路径严格限于 Correction 1 的四个授权路径；无生成文件、依赖、Schema、密钥、真实 Vault、
+  云调用或 main 改动。
+- 所有 SQLite 与 Artifact I/O 均发生于 pytest `tmp_path`；离线构建产物位于
+  `/private/tmp/task-010-correction-1.BpUOmb`，未纳入 Git。
+- 真实网络、模型、媒体、凭据和 Vault 未运行，亦未获授权。
+- 剩余边界：调用成功但数据库提交前进程中断时，仍是既有 request-bound Provider-call/Artifact
+  缓存提供的 at-most-once best effort，不宣称 exactly-once。
+- `DECISION NEEDED`：`None`。

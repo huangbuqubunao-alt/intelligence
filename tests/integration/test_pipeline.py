@@ -9,7 +9,15 @@ from pathlib import Path
 
 import pytest
 
+from youtube_intel.analysis import (
+    AnalysisJobContext,
+    CloudCallBudget,
+    RepositoryBackedAnalysisService,
+)
+from youtube_intel.config import CloudSettings
 from youtube_intel.domain import (
+    AnalysisCompleted,
+    AnalysisSkipped,
     AppError,
     Availability,
     ErrorCode,
@@ -24,8 +32,14 @@ from youtube_intel.pipeline import (
     PipelineOrchestrator,
     StageDisposition,
 )
+from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.state import ScoringSummaryWrite, SQLiteStateRepository
+from youtube_intel.state import (
+    JobRecord,
+    ScoringSummaryWrite,
+    SQLiteStateRepository,
+    VideoRecord,
+)
 
 NOW = datetime(2026, 7, 23, 8, 0, tzinfo=UTC)
 PIPELINE_VERSION = "pipeline-v1"
@@ -159,6 +173,45 @@ class _StageFailure(Exception):
         super().__init__(error.message)
 
 
+class _AnalysisTransport:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, object]] = []
+
+    def __call__(
+        self, request: dict[str, object], credential: str
+    ) -> dict[str, object]:
+        assert credential == "synthetic-key"
+        self.requests.append(request)
+        return {
+            "output_text": {
+                "one_sentence_summary": "The transcript supplies evidence.",
+                "core_points": [
+                    {
+                        "text": "Video high is named.",
+                        "kind": "fact",
+                        "evidence_ids": ["title-1"],
+                    }
+                ],
+                "keywords": ["high"],
+                "evidence": [
+                    {
+                        "evidence_id": "title-1",
+                        "source": "title",
+                        "excerpt": "Video high",
+                    }
+                ],
+            },
+            "input_tokens": 24,
+            "output_tokens": 18,
+        }
+
+
+class _Resolver:
+    def resolve(self, env_name: str) -> str:
+        assert env_name == "OPENAI_API_KEY"
+        return "synthetic-key"
+
+
 def _orchestrator(repository: SQLiteStateRepository, stages: _FakeStages) -> PipelineOrchestrator:
     next_job = 0
 
@@ -207,6 +260,105 @@ def _job_status(path: Path, video_id: str) -> tuple[str, int]:
         connection.close()
 
 
+def _prepare_high_value_analysis(
+    repository: SQLiteStateRepository, video_id: str
+) -> None:
+    for current, target in (
+        (PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY),
+        (PipelineStatus.METADATA_READY, PipelineStatus.TRANSCRIPT_READY),
+        (PipelineStatus.TRANSCRIPT_READY, PipelineStatus.SCORED),
+    ):
+        assert repository.advance_pipeline(
+            video_id,
+            expected_status=current,
+            target_status=target,
+            pipeline_version=PIPELINE_VERSION,
+            now=NOW,
+        )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET should_summarize = 1 WHERE video_id = ?", (video_id,)
+        )
+    finally:
+        connection.close()
+
+
+def _analysis_pipeline(
+    repository: SQLiteStateRepository,
+    transport: _AnalysisTransport,
+    artifact_root: Path,
+) -> tuple[PipelineOrchestrator, Counter[str]]:
+    note_writes: Counter[str] = Counter()
+    next_job = 0
+
+    def job_id() -> str:
+        nonlocal next_job
+        next_job += 1
+        return f"analysis-job-{next_job}"
+
+    def analyze(
+        job: JobRecord, video: VideoRecord
+    ) -> AnalysisCompleted | AnalysisSkipped | None:
+        assert job.lease_owner is not None
+        service = RepositoryBackedAnalysisService(
+            provider=OpenAIResponsesProvider(
+                model="gpt-4.1-mini", transport=transport
+            ),
+            settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+            repository=repository,
+            context=AnalysisJobContext(
+                job.job_id, job.lease_owner, PIPELINE_VERSION
+            ),
+            artifact_root=artifact_root,
+            credential_resolver=_Resolver(),
+            budget=CloudCallBudget(limit=5),
+        )
+        return service.analyze(
+            video=_metadata(video.video_id),
+            transcript_text="transcript evidence",
+            language="en",
+        )
+
+    def write_note(job: JobRecord, video: VideoRecord) -> StageDisposition:
+        note_writes[video.video_id] += 1
+        repository.complete_stage(
+            job_id=job.job_id,
+            owner=job.lease_owner or "",
+            video_id=video.video_id,
+            expected_status=PipelineStatus.ANALYSIS_READY,
+            target_status=PipelineStatus.NOTE_WRITTEN,
+            pipeline_version=PIPELINE_VERSION,
+            artifacts=(),
+            provider_call=None,
+            now=NOW,
+        )
+        return StageDisposition.CONTINUE
+
+    return (
+        PipelineOrchestrator(
+            repository=repository,
+            planner=PipelineJobPlanner(
+                repository=repository,
+                pipeline_version=PIPELINE_VERSION,
+                max_attempts=3,
+                job_id_factory=job_id,
+            ),
+            owner="worker-1",
+            lease_seconds=5,
+            retry_policy=RetryPolicy(
+                base_delay_seconds=1, max_delay_seconds=8, jitter_ratio=0
+            ),
+            handlers={
+                ProcessingStage.ANALYSIS: analyze,
+                ProcessingStage.NOTE_WRITE: write_note,
+            },
+            clock=lambda: NOW,
+        ),
+        note_writes,
+    )
+
+
 def test_pipeline_completes_high_low_no_subtitle_deferred_and_unavailable_idempotently(
     tmp_path: Path,
 ) -> None:
@@ -230,6 +382,22 @@ def test_pipeline_completes_high_low_no_subtitle_deferred_and_unavailable_idempo
     pipeline.run_batch(("high", "low", "no-subtitle", "deferred", "unavailable"))
     assert _counts(tmp_path / "state.sqlite3") == before[0]
     assert stages.calls == before[1]
+
+
+def test_repository_backed_analysis_completion_schedules_one_note_write(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path, "high")
+    _prepare_high_value_analysis(repository, "high")
+    pipeline, note_writes = _analysis_pipeline(
+        repository, _AnalysisTransport(), tmp_path / "analysis-data"
+    )
+
+    pipeline.resume_video("high", now=datetime.now(UTC))
+
+    video = repository.get_video("high")
+    assert video is not None and video.pipeline_status is PipelineStatus.COMPLETE
+    assert note_writes == Counter({"high": 1})
 
 
 @pytest.mark.parametrize("stage", (ProcessingStage.TRANSCRIPT, ProcessingStage.SCORING, ProcessingStage.ANALYSIS, ProcessingStage.NOTE_WRITE))

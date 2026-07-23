@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Protocol
 
 from youtube_intel.domain import (
+    AnalysisCompleted,
     AnalysisSkipped,
     AppError,
     ErrorCode,
@@ -33,7 +34,7 @@ class PipelineInterrupted(Exception):
     """Testable process interruption: deliberately leave the claimed Job untouched."""
 
 
-StageResult = StageDisposition | AnalysisSkipped | None
+StageResult = AnalysisCompleted | StageDisposition | AnalysisSkipped | None
 StageHandler = Callable[[JobRecord, VideoRecord], StageResult]
 
 
@@ -186,6 +187,10 @@ class PipelineOrchestrator:
         if handler is None:
             raise ValueError("no handler is configured for the claimed processing stage")
         result = handler(job, video)
+        if isinstance(result, AnalysisCompleted):
+            if job.target_stage is not ProcessingStage.ANALYSIS:
+                raise ValueError("only the analysis stage may return AnalysisCompleted")
+            return StageDisposition.CONTINUE
         if isinstance(result, AnalysisSkipped):
             if job.target_stage is not ProcessingStage.ANALYSIS:
                 raise ValueError("only the analysis stage may return AnalysisSkipped")
