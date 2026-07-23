@@ -22,7 +22,8 @@
   路径仍在关闭、低价值和凭据门禁前预留 ProviderCall。Reviewer 4 evidence `193239230...` 为 `REJECT`：
   Correction 3 缓存恢复未验证 raw/structured Artifact 的内容 hash 及 request/provider/model identity，篡改结果仍可
   原子推进 Pipeline/Job。Reviewer 5 evidence `78ae101...` 为 `REJECT`：隔离 SDK child 的 handshake/response
-  使用无期限 `readline()`，可能无限阻塞 Job。TASK-008 已退回原 Codex Implementer 执行 Correction 5；TASK-009 首轮 Reviewer 只因未跟踪的
+  使用无期限 `readline()`，可能无限阻塞 Job。Correction 5 source `dcbbd38...` 已提交，现等待全新独立 Reviewer 6
+  复核 A-17 timeout/child 收口和既有离线安全门禁；TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
   子目录 P2。Reviewer 3 evidence `f4a231b...` 再次 `REJECT`：Vault 权限类 OSError 被错误归为
