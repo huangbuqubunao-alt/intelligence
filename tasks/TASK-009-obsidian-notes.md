@@ -79,6 +79,16 @@
 - 真实 Vault、用户笔记、测试目录外 I/O、依赖/锁、Schema/migration、`state.py`、CLI、TASK-008、
   云端、网络、凭据、媒体与模型路径继续不授权。
 
+## 2026-07-23 Correction 2 第四轮独立审查与整合授权
+
+- Reviewer 4 evidence：`e675feef7f12d19561f1ca439e181a47f4a521b8`，唯一父为 Correction 2
+  `22147b087157a6bbb0adc7e78f2f5d3eae700f8e`，只修改 source handoff。
+- Verdict：`APPROVE`，P0–P3 均无。独立临时 Vault/SQLite N-13 矩阵证明权限 errno 映射为
+  `PERMISSION_DENIED`，资源失败保持 `LOCAL_RESOURCE`；原笔记、Pipeline/Job/Artifact、临时文件清理
+  与脱敏边界均通过。锁/sync、focused `4/17`、全量 `348`、mypy、Ruff、CLI、离线构建和包内容检查通过。
+- TASK-009 进入 `ACCEPTED`，仅授权 Product Integrator 对固定 source 做 `--no-ff` 合并和整合后离线验证；
+  不得自行设为 `DONE`。真实 Vault、用户笔记、网络、云端、凭据、媒体与模型路径仍未授权。
+
 ## 目标
 
 将视频、最终评分和结构化分析完成/跳过结果幂等渲染为 Obsidian Markdown 笔记，
