@@ -1,15 +1,8 @@
 """Command-line entry point for YouTube Intelligence Agent."""
 
-import argparse
+from __future__ import annotations
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="youtube-intel",
-        description="Local-first YouTube intelligence agent",
-    )
-    parser.parse_args()
-
+from youtube_intel.cli import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
