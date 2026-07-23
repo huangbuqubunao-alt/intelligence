@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-23
-- 当前阶段：Phase 2 — TASK-008 已整合，TASK-009 离线修复中
+- 当前阶段：Phase 2 — TASK-008/TASK-009 已整合，等待主控关闭
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
@@ -42,7 +42,13 @@
   Implementer 自报临时 Vault/SQLite 的原文件、临时文件、Pipeline/Job/Artifact 回归以及全部离线
   门禁通过。Reviewer 4 evidence `e675feef7f12d19561f1ca439e181a47f4a521b8` 是 Correction 2 的唯一
   子提交且仅改 handoff，Verdict=`APPROVE`、P0–P3=0；独立 N-13 故障矩阵与全部离线门禁通过。
-  source 已干净，TASK-009 已 `ACCEPTED` 并等待 Product Integrator。
+  source 已干净。TASK-009 已由 Codex Product Integrator 以 merge commit
+  `1cb718b7e7e53705ae12792a3c2ba2d0f26b2476` 整合到 main：双父精确为
+  `777e5a65b74e719050d2d6d4979cccea9d4ccfba` 与
+  `e675feef7f12d19561f1ca439e181a47f4a521b8`，first-parent Diff 严格为六个实际使用的
+  授权路径（fixtures 未改动）。lock/sync、focused `4/17`、全量 `382`、mypy、Ruff、CLI、离线构建和
+  sdist/wheel 模板、migration inclusion 均通过；source 已成为 main 祖先，两个 worktree 均干净，未 push
+  或清理 source。TASK-009 保持 `ACCEPTED`，尚未标记为 `DONE`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -91,7 +97,7 @@
 ## 下一步
 
 1. 保持 TASK-008 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
-2. Codex Product Integrator 按固定 source 整合 TASK-009，并复跑受影响的离线门禁；TASK-009 保持 `ACCEPTED`，不得自行关闭为 `DONE`。
+2. 保持 TASK-009 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -116,7 +122,7 @@
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
 | 已整合待关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
-| 已验收待整合 | TASK-009 Product Integrator | Reviewer 4 `e675fe...` APPROVE；仅整合固定 source、重跑离线门禁；禁止真实 Vault/用户笔记/外部删除 |
+| 已整合待关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
 
 ## 授权边界
 

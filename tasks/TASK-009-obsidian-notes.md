@@ -1,6 +1,6 @@
 # TASK-009：Obsidian 视频笔记
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -88,6 +88,17 @@
   与脱敏边界均通过。锁/sync、focused `4/17`、全量 `348`、mypy、Ruff、CLI、离线构建和包内容检查通过。
 - TASK-009 进入 `ACCEPTED`，仅授权 Product Integrator 对固定 source 做 `--no-ff` 合并和整合后离线验证；
   不得自行设为 `DONE`。真实 Vault、用户笔记、网络、云端、凭据、媒体与模型路径仍未授权。
+
+## 2026-07-23 整合结果
+
+- Codex Product Integrator 已以 merge commit `1cb718b7e7e53705ae12792a3c2ba2d0f26b2476` 整合 source；
+  双父为授权 main `777e5a65b74e719050d2d6d4979cccea9d4ccfba` 与 accepted source
+  `e675feef7f12d19561f1ca439e181a47f4a521b8`。
+- first-parent Diff 严格为六个实际使用的批准路径，fixtures 未改；lock/sync、focused `4/17`、全量 `382`、
+  mypy、Ruff、CLI、离线构建和 sdist/wheel 模板、migration inclusion 全通过。source 已成为 main 祖先，
+  两个 worktree 均干净，未 push 或清理 source。
+- 本卡保持 `ACCEPTED`，不自行改为 `DONE`。剩余风险仍为 `os.replace` 成功至 SQLite 完成间的
+  at-most-once best effort，以及未授权、未运行的真实 Vault 路径。
 
 ## 目标
 
