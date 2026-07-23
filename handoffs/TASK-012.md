@@ -188,3 +188,15 @@
   或 launchd 加载；这些继续未授权，且不属于本离线审查的阻断项。
 - `DECISION NEEDED`：`None`。
 - Verdict：`APPROVE`。
+
+## Product Integration and Closure — 2026-07-23
+
+- Accepted source `4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3` was merged by
+  `4841cf87c7cfdaf1cca8606bd1c1bbc2d9b01510`; merge parents are execution base
+  `a6b311378adbfea9e4fe4680628547a63e1709d8` followed by the accepted source.
+- The first-parent product diff is limited to the 12 approved TASK-012 paths. `pyproject.toml` only adds the accepted
+  source-include configuration; dependencies, `uv.lock` and build backend are unchanged.
+- Product Integrator reran locked sync, operations tests (`7`), full pytest (`421`), mypy, Ruff, CLI help, two static
+  plist lints, offline build and sdist/wheel resource SHA-256 checks.
+- TASK-012 is `DONE`. The retained source worktree remains clean; no push, `launchctl`, real Vault, Provider, network or
+  credential operation occurred.

@@ -1,6 +1,6 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -127,3 +127,12 @@
 - O-01..O-06、TASK-012 AC、locked sync、focused=`7`、full pytest=`421`、mypy、Ruff、CLI、两个 plist lint、
   offline build、doctor 零副作用与 archive resource hashes 均获独立验证。TASK-012 现为 `ACCEPTED`，仅授权
   Product Integrator 以固定 source 创建双父 merge；不得预写 merge SHA 或 DONE，TASK-013/014 继续阻塞。
+
+## 2026-07-23 整合与收口
+
+- Product Integrator 已以 merge `4841cf87c7cfdaf1cca8606bd1c1bbc2d9b01510` 整合 accepted source
+  `4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`；双父顺序为 execution base
+  `a6b311378adbfea9e4fe4680628547a63e1709d8`、accepted source，first-parent Diff 严格为 12 个批准路径。
+- 整合后 locked sync、operations=`7`、full pytest=`421`、mypy、Ruff、顶层/子命令 help、两份 plist lint、
+  offline build 与 sdist/wheel resource hashes 均通过。依赖、`uv.lock`、build backend 不变；TASK-012 现为 `DONE`，
+  source worktree 保留且未清理。
