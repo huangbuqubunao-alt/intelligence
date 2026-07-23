@@ -231,6 +231,71 @@
   symlink 安全性和内容哈希验证纳入候选验证，并在任何 Knowledge Sink 或 reports 写入前拒绝缺失、
   篡改或身份不匹配的 NoteRef；为该反例增加临时 Vault 回归后，交由全新独立 Reviewer 从新 head 重审。
 
+## Correction 2 — Third Independent Codex Reviewer — 2026-07-23
+
+### 审查对象、授权与洁净度
+
+- Reviewer: `Codex / independent TASK-011 reviewer 3`。
+- Authorization: `main` 中本 Reviewer prompt 的最新提交为
+  `6bc019d4d7ad0e1d04a05bdcece376ea02e7cd7f`；`main:tasks/README.md` 记录 TASK-011 为
+  `IN_REVIEW`。
+- Source/base/head: `codex/task-011-weekly-report@0f589aca501ea4559aeb7f4dd7aeab2a41f52b79` /
+  `44fc64be2cb4602cb93c1d03f84d6dd2a1677750` /
+  `0f589aca501ea4559aeb7f4dd7aeab2a41f52b79`。唯一父为 Reviewer 2 evidence
+  `6f9c75df90e10b964b36dbcefc52618422d83216`，再上游为 Correction 1
+  `f4e30a56ddcf7d654bda4e0579f6080af59698f5`。
+- 审查开始时 `git status --short --untracked-files=all` 无输出；未运行会写入
+  `.codebase-memory/` 的索引。完整 base...HEAD Diff 严格为既定 7 个路径，Correction 2
+  Diff 严格为 `reporting.py`、既定 integration test 与本 handoff；依赖/锁、Schema/
+  migration、`complete_stage`、CLI、TASK-012 和真实资源均无 Diff。固定 Diff check 通过。
+
+### 独立检查
+
+| 命令 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check`、`uv sync --locked` | PASS | Resolved 84 packages；Checked 61 packages。 |
+| `uv run python -m pytest tests/unit/test_week_period.py tests/integration/test_weekly_report.py` | PASS | 15 passed。 |
+| `uv run python -m pytest` | PASS | 414 passed。 |
+| `uv run mypy src` | PASS | 21 source files，无问题。 |
+| `uv run ruff check .` | PASS | All checks passed。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help 正常退出。 |
+| `uv build --offline` | PASS | sdist 与 wheel 成功构建。 |
+| sdist/wheel 内容 | PASS | 两者均含 `migrations/001_initial.sql`、`templates/video.md`、`templates/weekly.md`。 |
+| `git diff --check <base> HEAD` | PASS | 无输出。 |
+
+### 独立临时资源探针
+
+- 在 `/private/tmp` 的 pytest probe 中使用新建 SQLite、真实 `SQLiteStateRepository`、最小
+  Vault 和 `ObsidianNoteSink`：验证候选查询、`COMPLETE`/高价值筛选、受管 NoteRef 的
+  pipeline/video/provenance identity、内容 SHA-256、同一 reports key 的重复运行及同一
+  `NoteRef` 均通过；删除已验证视频笔记后，在周报/`reports` 更新前 fail-closed。
+- 已独立验证 `os.replace` 注入失败时不创建周报文件或 reports 行；既定 focused 回归还覆盖
+  NoteRef 缺失、篡改、路径逃逸、文件和目录 symlink，及 verified Analysis-only 的趋势、
+  关键词、持续方向、NFC/空白/casefold/频率/并列排序。无 Score topics fallback。
+- 所有 I/O 仅在 pytest 临时 SQLite、Artifact 根目录与最小 Vault；零 Provider/云调用、网络、
+  凭据或真实用户内容。
+
+### ADR-010 / AC / 五轴矩阵
+
+| 项目 | 结论 | 证据 |
+|---|---|---|
+| W-01（ISO 周、跨年、DST） | PASS | focused unit tests 覆盖。 |
+| W-02（候选、稳定排序、Top N、受管 NoteRef） | PASS | SQLite 查询的稳定排序与受管 NoteRef identity/文件哈希验证；focused 与独立 probe 通过。 |
+| W-03（verified Analysis/Score/NoteRef 聚合） | PASS | 分析产物、Score 与 NoteRef 缺失/篡改/identity mismatch 均在写入前拒绝；趋势无 score-topic fallback。 |
+| W-04（空周稳定报告、重复 upsert） | PASS | focused integration tests 与 real SQLite repeated-run probe 通过。 |
+| W-05（固定 Jinja sandbox/StrictUndefined） | PASS | 固定包内模板、`ImmutableSandboxedEnvironment`、`StrictUndefined`、`loader=None`。 |
+| W-06（无 Schema/Job/CLI 越界） | PASS | 固定 Diff 审查通过。 |
+| W-07（仅临时 Vault 原子写） | PASS | anchored path、symlink/普通文件拒绝、同目录原子替换与 DB-failure/recovery 覆盖通过。 |
+| W-08（范围/复用） | PASS | Jinja2（BSD-3-Clause）与标准库直接复用；无新增依赖或锁变更。 |
+| 五轴：正确性 / 可读性 / 架构 / 安全 / 性能 | PASS / PASS / PASS / PASS / PASS | 所有必要路径、故障边界与离线门禁通过。 |
+
+### Findings、风险与结论
+
+- P0：0；P1：0；P2：0；P3：0。
+- skipped：无。构建产物仅位于忽略的 `dist/`，未被清理或提交。
+- 未触及真实 Vault、用户笔记、Provider/云调用、网络、凭据、外部删除、TASK-012 或业务范围外文件。
+- Reviewer verdict: **APPROVE**。
+
 ## Correction 2 — Codex Implementer — 2026-07-23
 
 ### 修复范围与验证策略
