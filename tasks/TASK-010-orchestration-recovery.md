@@ -1,11 +1,20 @@
 # TASK-010：流程编排与恢复
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
 - Risk: High
 - Depends on: TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009
+
+## 2026-07-23 正式分配
+
+- Base：`main@227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`；Worktree：
+  `/Users/hua/Documents/yia-worktrees/task-010`；Branch：`codex/task-010-orchestration-recovery`。
+- Codex 为唯一 Implementer；完成后才分配全新独立 Reviewer。允许范围严格为本卡列出的
+  Pipeline/Job/retry、两份集成测试与 handoff；不得修改领域/配置、`state.py`、Schema/migration、Provider、
+  CLI、依赖/锁文件或任务状态。
+- 只授权既有 Fake 与 pytest 临时 SQLite/文件探针。真实 Vault、用户笔记、网络、云端、凭据、媒体和模型继续禁止。
 
 ## 目标
 

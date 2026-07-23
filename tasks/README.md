@@ -60,7 +60,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-009A](TASK-009A-obsidian-note-shared-contracts.md) | Obsidian 共享契约与依赖基线 | 已整合并关闭；merge `9b0269...` | DONE | 008A |
 | [TASK-008](TASK-008-deep-analysis.md) | 可选云端深度分析 | 已整合并关闭；merge `4f9ca390...` | DONE | 008A, 009A；真实云另批 |
 | [TASK-009](TASK-009-obsidian-notes.md) | Obsidian 视频笔记 | 已整合并关闭；merge `1cb718b...` | DONE | 009A；真实 Vault 另批 |
-| [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex + 独立 Codex Reviewer（未分配） | READY | 003-009 |
+| [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | Codex Implementer；独立 Reviewer 待实现提交后分配 | IN_PROGRESS | 003-009 |
 | [TASK-011](TASK-011-weekly-report.md) | 周报 | Codex（未分配） | BLOCKED | 009, 010 |
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | Codex（未分配） | BLOCKED | 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | Codex QA（未分配） | BLOCKED | 011, 012 |
