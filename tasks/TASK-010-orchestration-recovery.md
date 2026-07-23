@@ -1,6 +1,6 @@
 # TASK-010：流程编排与恢复
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
@@ -15,6 +15,14 @@
   Pipeline/Job/retry、两份集成测试与 handoff；不得修改领域/配置、`state.py`、Schema/migration、Provider、
   CLI、依赖/锁文件或任务状态。
 - 只授权既有 Fake 与 pytest 临时 SQLite/文件探针。真实 Vault、用户笔记、网络、云端、凭据、媒体和模型继续禁止。
+
+## 2026-07-23 实现证据与审查授权
+
+- Implementation source：`e17d732db4cfb344ddd75ac8bc25990c216afc3f`，唯一父为固定 base
+  `227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`；完整 Diff 严格为本卡六个授权路径。
+- Implementer 自报 focused `15`、全量 `397`、mypy、Ruff、CLI、lock/sync、offline build 与
+  sdist/wheel migration/template inclusion 均 PASS；这些仅构成待独立复跑证据。
+- 全新独立 Codex Reviewer 仅可向 source handoff 写审查证据，不得改业务代码、依赖、锁文件、main 或任务状态。
 
 ## 目标
 
