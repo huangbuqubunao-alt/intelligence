@@ -1,6 +1,6 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -94,3 +94,11 @@
 - 产品负责人进一步批准三份仅分发用途的 package resource 副本：daily/weekly plist 与 operations 说明均须和
   根目录静态样例逐字节一致。sdist 保留根目录可见样例；wheel 以 package resources 交付相同内容。
 - 该修正不批准 build backend、依赖、锁、其他打包清单或任何资源操作；仅为完成既有 wheel 包含性门禁。
+
+## 2026-07-23 实现证据与独立审查授权
+
+- Source：`7c83283eac83b01c88a7625b4a216790d14514b2`，唯一父为固定 base；完整 Diff 严格为 12 个批准路径。
+  `pyproject.toml` 仅新增 `source-include`，依赖、`uv.lock`、build backend 和工具链未变。
+- Implementer 自报 focused=`6`、full pytest=`420`、mypy、Ruff、CLI、两份 `plutil -lint`、locked sync、offline build
+  与 root/package-resource archive hashes 通过。这些仅为待独立复跑证据；Reviewer 只可追加 source handoff，
+  不得预写 verdict、ACCEPTED、merge 或 DONE。
