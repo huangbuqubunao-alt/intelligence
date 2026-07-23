@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-23
-- 当前阶段：Phase 2 — TASK-008/TASK-009 已整合，等待主控关闭
+- 当前阶段：Phase 3 — TASK-010 可进入分配准备
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
@@ -30,7 +30,7 @@
   `git diff --check`、lock/sync、重点测试（4/30）、全量测试（361）、mypy、Ruff、CLI help、
   离线构建和 sdist/wheel 的 migration、prompt、固定 tokenizer 大小及 SHA-256 验证均通过；
   凭据格式扫描通过。source 已成为 main 祖先且两个 worktree 均干净；未 push、未触及 TASK-009。
-  TASK-008 保持 `ACCEPTED`，尚未标记为 `DONE`。
+  TASK-008 已在主控收口后为 `DONE`。
   TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
@@ -48,7 +48,7 @@
   `e675feef7f12d19561f1ca439e181a47f4a521b8`，first-parent Diff 严格为六个实际使用的
   授权路径（fixtures 未改动）。lock/sync、focused `4/17`、全量 `382`、mypy、Ruff、CLI、离线构建和
   sdist/wheel 模板、migration inclusion 均通过；source 已成为 main 祖先，两个 worktree 均干净，未 push
-  或清理 source。TASK-009 保持 `ACCEPTED`，尚未标记为 `DONE`。
+  或清理 source。TASK-009 已在主控收口后为 `DONE`。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -96,9 +96,8 @@
 
 ## 下一步
 
-1. 保持 TASK-008 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
-2. 保持 TASK-009 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
-3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
+1. 为 TASK-010 创建基于当前 main 的正式分配包，并在独立 worktree 内实施；不得扩大 Provider、输出格式或真实资源权限。
+2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
 ## 当前并行调度
@@ -121,8 +120,8 @@
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
-| 已整合待关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
-| 已整合待关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
+| 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
+| 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 
 ## 授权边界
 

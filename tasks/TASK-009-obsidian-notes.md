@@ -1,6 +1,6 @@
 # TASK-009：Obsidian 视频笔记
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -97,7 +97,7 @@
 - first-parent Diff 严格为六个实际使用的批准路径，fixtures 未改；lock/sync、focused `4/17`、全量 `382`、
   mypy、Ruff、CLI、离线构建和 sdist/wheel 模板、migration inclusion 全通过。source 已成为 main 祖先，
   两个 worktree 均干净，未 push 或清理 source。
-- 本卡保持 `ACCEPTED`，不自行改为 `DONE`。剩余风险仍为 `os.replace` 成功至 SQLite 完成间的
+- 本卡已收口为 `DONE`。剩余风险仍为 `os.replace` 成功至 SQLite 完成间的
   at-most-once best effort，以及未授权、未运行的真实 Vault 路径。
 
 ## 目标

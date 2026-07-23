@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -111,6 +111,14 @@
   离线矩阵均通过。真实 OpenAI、凭据、网络、付费、Vault/用户内容继续未运行且未授权。
 - TASK-008 现为 `ACCEPTED`；Product Integrator 只获固定 source 的 `--no-ff` 整合和整合后离线门禁，
   不得修代码、改 TASK-009 或写为 `DONE`。
+
+## 2026-07-23 整合与关闭结果
+
+- Codex Product Integrator 已以 merge commit `4f9ca390cdbfb57e6c1e14bf6b900402bd6945f7` 整合 accepted source
+  `6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`；双父为 `7659943803d0e02799cb835418e4469fb08d52df` 与该 source。
+- first-parent Diff 严格为六个授权路径；lock/sync、focused `4/30`、全量 `361`、mypy、Ruff、CLI、离线构建和
+  sdist/wheel migration、prompt、固定 tokenizer 大小与 SHA-256 验证全部通过。source 已成为 main 祖先，未 push 或清理。
+- 本卡已收口为 `DONE`。真实 OpenAI、凭据、网络、付费调用、Vault/用户内容、媒体与模型路径仍未授权。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
