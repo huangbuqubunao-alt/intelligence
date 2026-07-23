@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -80,6 +80,16 @@
   反例，focused=`4/24`、full pytest=`355` 与其余离线门禁通过。这些均待独立 Reviewer 5 复跑。
 - Reviewer 5 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
   Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
+
+## 2026-07-23 第五轮审查拒绝与 Correction 5
+
+- Reviewer 5 evidence：`78ae101786ada5f04d2b7c734c84a216f8820803`，唯一父为 Correction 4
+  `bb195a59ddee25cb804b0078676c504e94c44441`，只修改 source handoff。
+- Verdict：`REJECT`，P1=1。隔离 SDK child 在 handshake 与读取 response 时使用无期限 `readline()`；既有
+  `wait(timeout=120)` 在读取之后，卡住的 child 会无限阻塞 Job，违反 ADR-008 A-17。
+- 原 Codex Implementer 只获 Correction 5：`providers/cloud_llm.py`、既有分析集成测试与 handoff。
+  所有 pipe I/O 与 child 退出必须有限时，任一 timeout/EOF/格式或退出错误均要安全映射并 terminate/kill/reap；
+  保持 A-17 白名单环境和匿名 credential pipe，不得扩大到真实云端或其他范围。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
