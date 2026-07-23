@@ -1,6 +1,6 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -119,3 +119,11 @@
 - Implementer 自报 doctor 的 in-memory UUID4 run_id、零 JSONL/logs/Vault/Fake 操作副作用；focused=`7`、
   full pytest=`421`、mypy、Ruff、CLI、plist lint、locked sync、offline build 与 archive hash 通过。这些均为
   待 Reviewer 2 独立复跑的证据；不得预写 verdict、ACCEPTED、merge 或 DONE。
+
+## 2026-07-23 第二轮审查通过与整合授权
+
+- Reviewer 2 evidence：`4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`，唯一父为 Correction 1
+  `d046c394e3c6bcf47c05231f71dbf50db4c1f5f8`，只修改 source handoff；Verdict=`APPROVE`，P0–P3=0。
+- O-01..O-06、TASK-012 AC、locked sync、focused=`7`、full pytest=`421`、mypy、Ruff、CLI、两个 plist lint、
+  offline build、doctor 零副作用与 archive resource hashes 均获独立验证。TASK-012 现为 `ACCEPTED`，仅授权
+  Product Integrator 以固定 source 创建双父 merge；不得预写 merge SHA 或 DONE，TASK-013/014 继续阻塞。

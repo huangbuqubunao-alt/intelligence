@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-012 Correction 1 source `d046c39...` 已提交，现等待独立 Reviewer 2 复跑 ADR-011 离线门禁；
+1. TASK-012 Reviewer 2 evidence `4333b1d...` 为 `APPROVE`，现已 `ACCEPTED` 并等待 Product Integrator；
    TASK-013/014 继续阻塞。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
