@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -88,3 +88,13 @@
 - 周报趋势、关键词和持续关注方向只读 `ScoreResult.topics`，没有将 verified `AnalysisResult` 作为必要
   输入，违反 ADR-010 W-03 和验收项。原 Implementer 只获 `reporting.py`、两份周报测试和 handoff 的
   Correction 1；须以确定性 Analysis 聚合关闭 P1，禁止扩大契约、状态、模板或真实资源边界。
+
+## 2026-07-23 Correction 1 实现证据与第二轮独立审查授权
+
+- Correction source：`f4e30a56ddcf7d654bda4e0579f6080af59698f5`，唯一父为 Reviewer 1 evidence
+  `3759d54a74abaa8e6627b8107298d0938fbe3441`；仅修改 `reporting.py`、周报 integration test 与 source
+  handoff，完整产品范围仍为七个允许路径，依赖/锁未变。
+- Implementer 自报 verified Analysis-only 趋势/关键词/方向、NFC/空白/casefold 标准化、稳定频率/并列排序及
+  Analysis 缺失/篡改/identity mismatch 的零写入 fail-closed；focused=`2/8`、full pytest=`409`、mypy、Ruff、CLI、
+  locked sync、offline build 与 package inclusion 通过。这些均为待 Reviewer 2 独立复跑的证据；不得预写 verdict、
+  ACCEPTED、merge 或 DONE。
