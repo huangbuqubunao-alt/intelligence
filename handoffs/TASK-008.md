@@ -423,3 +423,55 @@
   Vault；仅使用合成文本、Fake transport 与临时 SQLite。
 - `DECISION NEEDED`：`None`。现有接口足以完成 required identity 验证。
 - Commit SHA：待创建；父提交将严格为 `19323923057adb0b5a9f59cac5eb7c32cce5888a`。
+
+## Correction 4 — Reviewer 5 (Codex)
+
+- Reviewer agent/session：`Codex`（全新独立会话）。
+- 授权：main control-plane 对 `agent-prompts/TASK-008-REVIEWER-5-CODEX.md` 的最新提交为
+  `8b2bdc57076769b6d0efe246430ebfda37aa0b6b`；从 main 读取 TASK-008 状态为
+  `IN_REVIEW`。source 起始 `git status --short --untracked-files=all` 无输出。
+- 审查对象：`codex/task-008-deep-analysis@bb195a59ddee25cb804b0078676c504e94c44441`，
+  固定 base `473119704c7638d7afd4e68d84d00e85064ceabd`；Correction 4 唯一父
+  `19323923057adb0b5a9f59cac5eb7c32cce5888a` 是 Reviewer-4 evidence，完整父链可回溯到
+  original implementation。完整 `base...HEAD` 只含允许的六个路径；Correction 4 相对父提交
+  只改 `analysis.py`、指定集成测试和本 handoff；`git diff --check base...HEAD` 无输出。
+
+### 独立检查与探针
+
+| 命令/探针 | 结果 | 证据 |
+|---|---|---|
+| 隔离 SDK 子进程 timeout / 异常收口静态审查 | **FAIL / P1** | `providers/cloud_llm.py:97` 和 `:102` 在 SDK 导入握手与云响应阶段调用无 deadline 的 `stdout.readline()`；`:103` 的 `wait(timeout=120)` 只会在第二个 `readline()` 返回后运行。因此子进程卡在导入或 `client.responses.create` 时会无限阻塞，既不会触发 timeout 也不会 kill 子进程。 |
+| `uv lock --check`、`uv sync --locked`、focused/full pytest、mypy、Ruff、CLI、offline build、sdist/wheel、tokenizer/migration inclusion | SKIPPED | 任务包规定发现任一 P0/P1 后立即 `REJECT` 并停止；未将历史或 Implementer 结果当作独立通过证据。 |
+| A/B/C/D/E 其余 SQLite、缓存篡改、状态回滚、Structured Outputs、复用/许可证探针 | SKIPPED | 同上；仅完成了导致拒绝的静态安全/正确性审查。 |
+| 真实 OpenAI、密钥、付费/API、网络、Vault/用户内容 | NOT RUN | 未授权且未触发。 |
+
+### Findings（P0–P3）
+
+- **P1 — SDK 子进程的超时实际不可达，卡住的导入或请求会无限阻塞分析 Job。**
+  [`src/youtube_intel/providers/cloud_llm.py:97`](../src/youtube_intel/providers/cloud_llm.py#L97)-[`cloud_llm.py:103`](../src/youtube_intel/providers/cloud_llm.py#L103)
+  先以无期限 `readline()` 等待 ready，再以无期限 `readline()` 等待响应；唯一的
+  `wait(timeout=_TIMEOUT_SECONDS)` 位于响应读取之后。故当隔离子进程没有写 ready，或已经
+  收到凭据但在 SDK 请求中没有写响应时，父进程无法到达 timeout/kill 分支。ADR-008 A-17
+  要求 TASK-008 实现并收口“timeout、子进程退出和错误映射”，且在进程 timeout 时关闭管道并
+  丢弃临时密钥；本实现无法满足该契约。这会使单 worker 永久占用、保留含临时 credential 的子
+  进程，并绕过冻结的 120 秒网络失败语义。修复需以覆盖握手和响应的整体 deadline 驱动读取、终止
+  并 reap 子进程，且补离线合成卡死 child 的回归，不读取真实凭据或网络。
+
+- P0：无。
+- P2/P3：未评估；首个 P1 后停止，不构成通过。
+
+### AC / ADR / 五轴矩阵
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| ADR-008 A-17：子进程 timeout、退出与错误映射 | **FAIL** | 两个 pipe `readline()` 位于唯一 timeout 之前，见 P1。 |
+| AC / A-03、A-06、A-12 的缓存与原子恢复 | BLOCKED | P1 后未执行本轮独立探针；不从 Correction 4 的自报结果推断通过。 |
+| A-01..A-16、正确性、可读性、架构、安全、性能、复用/许可证 | BLOCKED | P1 后按授权停止；仅确认未新增依赖或范围外路径。 |
+
+### Reviewer 结论
+
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1。必须让隔离 child 的 SDK 导入握手和响应读取都受冻结 120 秒的整体 deadline
+  约束；timeout/任意失败均应关闭管道、终止并 reap child、丢弃临时 credential，统一映射为脱敏的
+  `TRANSIENT_NETWORK`，并加入完全离线的合成阻塞 child 回归。完成后须由新的独立 Reviewer 复审。
+- 跳过与风险：发现 P1 后停止其余强制检查和探针；真实云端资源始终未授权、未使用。
