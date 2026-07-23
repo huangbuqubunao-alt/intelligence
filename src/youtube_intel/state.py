@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 from youtube_intel.domain import (
     Availability,
@@ -353,6 +354,16 @@ class ReportRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class WeeklyCandidateRecord:
+    """Repository-selected inputs that a weekly report must verify locally."""
+
+    video: VideoRecord
+    score_artifact: ArtifactRecord
+    analysis_artifact: ArtifactRecord
+    note_artifact: ArtifactRecord
+
+
+@dataclass(frozen=True, slots=True)
 class StageCompletionResult:
     job: JobRecord
     video: VideoRecord
@@ -371,6 +382,24 @@ def format_utc_datetime(value: datetime) -> str:
 
 def _parse_utc_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+
+
+def _latest_weekly_artifact(
+    connection: sqlite3.Connection, video_id: str, kind: ArtifactKind
+) -> sqlite3.Row | None:
+    return cast(
+        sqlite3.Row | None,
+        connection.execute(
+            "SELECT * FROM artifacts WHERE video_id = :video_id AND kind = :kind "
+            "AND storage_root = :root AND deleted_at IS NULL "
+            "ORDER BY created_at DESC, artifact_id ASC LIMIT 1",
+            {
+                "video_id": video_id,
+                "kind": kind.value,
+                "root": StorageRoot.DATA.value,
+            },
+        ).fetchone(),
+    )
 
 
 def _safe_error_message(value: str) -> str:
@@ -2443,5 +2472,63 @@ class SQLiteStateRepository:
                 },
             ).fetchone()
             return None if row is None else self._report_from_row(row)
+        finally:
+            connection.close()
+
+    def list_weekly_candidates(
+        self, *, start_utc: datetime, end_utc: datetime
+    ) -> tuple[WeeklyCandidateRecord, ...]:
+        """Return deterministically ordered potential weekly-report inputs.
+
+        Artifact bytes and their domain payloads remain untrusted until the
+        reporting service verifies them against these indexed records.
+        """
+        if start_utc >= end_utc:
+            msg = "weekly candidate window must be non-empty"
+            raise ValueError(msg)
+        start_text = format_utc_datetime(start_utc)
+        end_text = format_utc_datetime(end_utc)
+        connection = self._connect()
+        try:
+            videos = connection.execute(
+                "SELECT * FROM videos WHERE pipeline_status = :complete "
+                "AND should_summarize = 1 AND score IS NOT NULL "
+                "AND completed_at >= :start AND completed_at < :end "
+                "ORDER BY score DESC, video_id ASC",
+                {
+                    "complete": PipelineStatus.COMPLETE.value,
+                    "start": start_text,
+                    "end": end_text,
+                },
+            ).fetchall()
+            candidates: list[WeeklyCandidateRecord] = []
+            for row in videos:
+                video = self._video_from_row(row)
+                note = connection.execute(
+                    "SELECT * FROM artifacts WHERE artifact_key = :key "
+                    "AND kind = :kind AND storage_root = :root "
+                    "AND deleted_at IS NULL",
+                    {
+                        "key": f"video-note/{video.pipeline_version}/{video.video_id}",
+                        "kind": ArtifactKind.VIDEO_NOTE.value,
+                        "root": StorageRoot.VAULT.value,
+                    },
+                ).fetchone()
+                score = _latest_weekly_artifact(
+                    connection, video.video_id, ArtifactKind.SCORING_STRUCTURED
+                )
+                analysis = _latest_weekly_artifact(
+                    connection, video.video_id, ArtifactKind.ANALYSIS_STRUCTURED
+                )
+                if note is not None and score is not None and analysis is not None:
+                    candidates.append(
+                        WeeklyCandidateRecord(
+                            video=video,
+                            score_artifact=self._artifact_from_row(score),
+                            analysis_artifact=self._artifact_from_row(analysis),
+                            note_artifact=self._artifact_from_row(note),
+                        )
+                    )
+            return tuple(candidates)
         finally:
             connection.close()
