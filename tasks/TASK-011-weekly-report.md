@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -116,3 +116,11 @@
   provenance mismatch 在任何写入前 fail-closed；focused=`2/13`、full pytest=`414`、mypy、Ruff、CLI、locked sync、
   offline build 与 package inclusion 通过。这些均为待 Reviewer 3 独立复跑的证据；不得预写 verdict、ACCEPTED、
   merge 或 DONE。
+
+## 2026-07-23 第三轮审查通过与整合授权
+
+- Reviewer 3 evidence：`1ecd4bc8c6138bab6683a011cbbecddf281263c3`，唯一父为 Correction 2
+  `0f589aca501ea4559aeb7f4dd7aeab2a41f52b79`，只修改 source handoff；Verdict=`APPROVE`，P0–P3=0。
+- W-01..W-08、TASK-011 AC、锁定离线门禁、临时 SQLite/Vault 的 NoteRef 锚定/哈希、重复 upsert 与原子失败
+  补偿均获独立验证。TASK-011 现为 `ACCEPTED`，仅授权 Product Integrator 以固定 source 创建双父 merge；
+  不得预写 merge SHA 或 DONE，TASK-012 继续阻塞至整合完成。
