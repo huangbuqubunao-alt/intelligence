@@ -34,9 +34,12 @@ from youtube_intel.notes import (
     is_video_note_candidate,
     render_video_note,
 )
+from youtube_intel.reporting import render_weekly_report
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
+    ReportStatus,
+    ReportWrite,
     RetentionClass,
     StorageRoot,
 )
@@ -67,6 +70,8 @@ class _NoteRepository(Protocol):
         provider_call: None,
         now: datetime,
     ) -> object: ...
+
+    def upsert_report(self, report: ReportWrite, *, now: datetime) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,9 +168,51 @@ class ObsidianNoteSink(KnowledgeSink):
             raise _failure(ErrorCode.LOCAL_RESOURCE, "note stage could not be committed", video.video_id) from None
 
     def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef:
-        """TASK-011 owns weekly-report persistence and its state semantics."""
-        del report
-        raise NotImplementedError("weekly report persistence is not implemented by TASK-009")
+        """Atomically replace one deterministic report and upsert its period row."""
+        try:
+            rendered = render_weekly_report(report).encode("utf-8")
+            filename = f"{report.iso_year}-W{report.iso_week:02d}.md"
+            root_fd, subdir_fd, weekly_fd = self._open_weekly_dir()
+            try:
+                existing = _read_regular_file(weekly_fd, filename)
+                if existing is not None and not existing.content.startswith(
+                    b"<!-- youtube-intel:weekly:v1 -->\n"
+                ):
+                    raise _failure(ErrorCode.INVALID_RESPONSE, "weekly report identity conflicts", None)
+                if existing is None or existing.content != rendered:
+                    _atomic_replace(weekly_fd, filename, rendered, expected=existing)
+                self._verify_weekly_directory_chain(root_fd, subdir_fd, weekly_fd)
+            finally:
+                os.close(weekly_fd)
+                os.close(subdir_fd)
+                os.close(root_fd)
+            relative_path = f"Weekly/{filename}"
+            content_hash = hashlib.sha256(rendered).hexdigest()
+            self._repository.upsert_report(
+                ReportWrite(
+                    report_id=f"weekly:{report.timezone}:{report.iso_year}-W{report.iso_week:02d}",
+                    timezone=report.timezone,
+                    iso_year=report.iso_year,
+                    iso_week=report.iso_week,
+                    relative_path=relative_path,
+                    content_hash=content_hash,
+                    status=ReportStatus.WRITTEN,
+                ),
+                now=report.generated_at,
+            )
+            return NoteRef(
+                kind=NoteKind.WEEKLY,
+                relative_path=relative_path,
+                content_hash=content_hash,
+            )
+        except NotePersistenceError:
+            raise
+        except OSError as error:
+            raise _failure(_filesystem_error_code(error), "weekly report persistence failed", None) from None
+        except (UnicodeError, ValueError):
+            raise _failure(ErrorCode.CONFIG_INVALID, "weekly report is invalid", None) from None
+        except Exception:
+            raise _failure(ErrorCode.LOCAL_RESOURCE, "weekly report could not be committed", None) from None
 
     def _artifact(self, ref: NoteRef, video_id: str) -> ArtifactWrite:
         artifact_key = f"video-note/{self._context.pipeline_version}/{video_id}"
@@ -318,6 +365,27 @@ class ObsidianNoteSink(KnowledgeSink):
             os.close(root_fd)
             raise
 
+    def _open_weekly_dir(self) -> tuple[int, int, int]:
+        if not self._vault_root.is_absolute():
+            raise _failure(ErrorCode.CONFIG_INVALID, "vault root must be absolute", None)
+        root_fd = _open_directory(self._vault_root)
+        try:
+            subdir_fd = root_fd
+            for part in self._vault_subdir.parts:
+                next_fd = _open_directory_at(subdir_fd, part)
+                if subdir_fd != root_fd:
+                    os.close(subdir_fd)
+                subdir_fd = next_fd
+            try:
+                weekly_fd = _open_directory_at(subdir_fd, "Weekly")
+            except FileNotFoundError:
+                os.mkdir("Weekly", mode=0o700, dir_fd=subdir_fd)
+                weekly_fd = _open_directory_at(subdir_fd, "Weekly")
+            return root_fd, subdir_fd, weekly_fd
+        except Exception:
+            os.close(root_fd)
+            raise
+
     def _verify_directory_chain(self, root_fd: int, subdir_fd: int, videos_fd: int) -> None:
         reopened = self._open_videos_dir(create_videos=False)
         try:
@@ -325,6 +393,17 @@ class ObsidianNoteSink(KnowledgeSink):
             actual = tuple((os.fstat(fd).st_dev, os.fstat(fd).st_ino) for fd in reopened)
             if actual != expected:
                 raise _failure(ErrorCode.INVALID_RESPONSE, "vault directory changed during note write", None)
+        finally:
+            for fd in reversed(reopened):
+                os.close(fd)
+
+    def _verify_weekly_directory_chain(self, root_fd: int, subdir_fd: int, weekly_fd: int) -> None:
+        reopened = self._open_weekly_dir()
+        try:
+            expected = tuple((os.fstat(fd).st_dev, os.fstat(fd).st_ino) for fd in (root_fd, subdir_fd, weekly_fd))
+            actual = tuple((os.fstat(fd).st_dev, os.fstat(fd).st_ino) for fd in reopened)
+            if actual != expected:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "vault directory changed during weekly write", None)
         finally:
             for fd in reversed(reopened):
                 os.close(fd)
