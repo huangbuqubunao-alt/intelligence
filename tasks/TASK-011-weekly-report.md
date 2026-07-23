@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -98,3 +98,11 @@
   Analysis 缺失/篡改/identity mismatch 的零写入 fail-closed；focused=`2/8`、full pytest=`409`、mypy、Ruff、CLI、
   locked sync、offline build 与 package inclusion 通过。这些均为待 Reviewer 2 独立复跑的证据；不得预写 verdict、
   ACCEPTED、merge 或 DONE。
+
+## 2026-07-23 第二轮审查拒绝与 Correction 2
+
+- Reviewer 2 evidence：`6f9c75df90e10b964b36dbcefc52618422d83216`，唯一父为 Correction 1
+  `f4e30a56ddcf7d654bda4e0579f6080af59698f5`，只修改 source handoff；Verdict=`REJECT`，P1=1。
+- 周报仅从索引行构造视频 NoteRef，未复核受管视频笔记的路径安全、文件存在性与内容 SHA-256；缺失或篡改笔记
+  仍可写入无效链接，违反 ADR-010 W-02/W-03。Correction 2 仅获 `reporting.py`、两份周报测试和 handoff，须在
+  所有 Vault/reports 写入前 fail-closed；禁止扩大状态、Adapter、模板、依赖或真实资源边界。
