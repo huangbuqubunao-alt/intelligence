@@ -1,6 +1,6 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -110,3 +110,12 @@
 - `doctor` 在诊断前初始化 JSONL logger 并创建 `logs/`，违反 ADR-011 O-02。Correction 1 仅获
   `cli.py`、`logging.py`、operations test 和 handoff，须在不存在 logs/Vault 的临时项目中保持零写入；
   禁止扩大 package、依赖、Provider、真实资源或任务边界。
+
+## 2026-07-23 Correction 1 实现证据与第二轮独立审查授权
+
+- Correction source：`d046c394e3c6bcf47c05231f71dbf50db4c1f5f8`，唯一父为 Reviewer 1 evidence
+  `9b5dec5d24e87ab942dff4268f7a95c35947d411`；仅修改 `cli.py`、`logging.py`、operations integration test 与
+  source handoff，完整产品范围仍为 12 个批准路径，依赖/锁与 build backend 未变。
+- Implementer 自报 doctor 的 in-memory UUID4 run_id、零 JSONL/logs/Vault/Fake 操作副作用；focused=`7`、
+  full pytest=`421`、mypy、Ruff、CLI、plist lint、locked sync、offline build 与 archive hash 通过。这些均为
+  待 Reviewer 2 独立复跑的证据；不得预写 verdict、ACCEPTED、merge 或 DONE。
