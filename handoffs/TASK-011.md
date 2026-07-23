@@ -72,3 +72,63 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：pending
 - 复现/验证说明：使用临时 Artifact 根目录和临时 Vault；未调用任何 Provider 或网络。
+
+## Independent Codex Reviewer — 2026-07-23
+
+### 审查对象与洁净度
+
+- Reviewer: `Codex / independent TASK-011 reviewer`
+- Authorization: `main` 中 reviewer prompt 的最新提交为
+  `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`（与指定授权一致）。
+- Source/base/head: `codex/task-011-weekly-report@0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e` /
+  `44fc64be2cb4602cb93c1d03f84d6dd2a1677750` /
+  `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`；唯一父提交为固定 base。
+- `git status --short --untracked-files=all` 在审查开始和本报告写入前均无输出；未运行会写入
+  `.codebase-memory/` 的索引操作。
+- 完整产品 Diff 为允许范围内的 7 个代码/测试路径及本 handoff；`pyproject.toml`、`uv.lock`、
+  Schema/migration、`complete_stage`、CLI 和 TASK-012 均无 Diff。`git diff --check` 通过。
+
+### 独立检查
+
+| 命令 | 结果 | 证据 |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 84 packages；锁文件无差异。 |
+| `uv sync --locked` | PASS | 初次受 sandbox 共享 uv cache 权限限制；经明确授权重跑后 `Checked 61 packages`。 |
+| `uv run python -m pytest tests/unit/test_week_period.py tests/integration/test_weekly_report.py` | PASS | 5 passed。 |
+| `uv run python -m pytest` | PASS | 404 passed。 |
+| `git diff --check <base> HEAD` | PASS | 无输出。 |
+
+### ADR-010 / AC / 五轴矩阵
+
+| 项目 | 结论 | 证据 |
+|---|---|---|
+| W-01（ISO 周、跨年、DST） | PASS | focused 单元测试覆盖 Asia/Shanghai 跨年与 America/New_York DST 边界。 |
+| W-02（候选、稳定排序、Top N、唯一 upsert） | PARTIAL | SQLite 查询为 `score DESC, video_id ASC`，现有测试覆盖 Top N 和重复 upsert；并列排序未独立复跑。 |
+| W-03 / AC（趋势、关键词、持续方向均由已验证本地事实确定性聚合） | **FAIL — P1-1** | 见下方 finding。 |
+| W-04（空周稳定报告） | PASS | focused 集成测试通过。 |
+| W-05（固定包内 Jinja sandbox/StrictUndefined） | PASS | `reporting.py:202-210` 使用 `ImmutableSandboxedEnvironment`、`StrictUndefined`、`loader=None` 和包资源。 |
+| W-06（无全局 Job/Schema/`complete_stage` 改动） | PASS | 固定 Diff 审查通过。 |
+| W-07（临时 Vault 原子边界） | PARTIAL | 现有临时 Vault 与 DB-upsert 失败重试测试通过；symlink、fsync/replace 失败矩阵尚未执行，因 P1 停止。 |
+| 五轴：正确性 / 回归 / 安全 / 范围 / 复用许可证 | FAIL / PASS / PARTIAL / PASS / PASS | 正确性被 P1 阻断；其余结论如上，Jinja2 直接复用与 BSD-3-Clause 证据符合登记表。 |
+
+### Findings
+
+- **P1-1 — 周报没有实现要求的趋势聚合，且关键词/持续方向忽略已验证 Analysis。**
+  `src/youtube_intel/reporting.py:179-198` 仅将 title、score reason 和 one-sentence summary 提供给模板，
+  `_keyword_counts()`（第 213 行起）只遍历 `item.score.topics`，`directions` 只是前三个相同 keyword。
+  `src/youtube_intel/templates/weekly.md:1-26` 也没有“趋势”部分或趋势输入。因而两个具有不同
+  `AnalysisResult.keywords` / opportunities / recommendations、但评分 topics 相同的候选会得到相同
+  周报趋势与持续方向；这违反 TASK-011 AC 的“趋势、重复关键词和持续关注方向”以及 ADR-010 W-03 的
+  已验证 `ANALYSIS_STRUCTURED` 确定性聚合要求。现有测试未构造或断言该反例，故 404 个通过测试不能
+  覆盖该缺口。
+
+### 停止项、风险与结论
+
+- 任务包要求发现任一 P0/P1 后立即 `REJECT` 并停止。因此未继续运行 mypy、Ruff、CLI help、offline
+  build、sdist/wheel 包含性、并列/repeated-run NoteRef、Artifact tamper、symlink 与 fsync/replace
+  故障矩阵；这些均为 **skipped due to P1-1**，不是 PASS。
+- P0：0。P1：1（P1-1）。P2/P3：在按 P1 停止前未新增发现，且并非完整无问题结论。
+- 未触及真实 Vault、用户笔记、Provider/云调用、网络、凭据、外部删除或 TASK-012。
+- Reviewer verdict: **REJECT**。
+- Required correction: 在不扩大 ADR-010 范围的前提下，基于已验证 Analysis/Score/NoteRef 实现并测试
+  明确、稳定的趋势、关键词和持续方向算法；补齐该 P1 的反例回归后，由全新独立 Reviewer 从新 head 重审。
