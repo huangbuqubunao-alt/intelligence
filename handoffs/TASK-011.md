@@ -230,3 +230,33 @@
 - Required correction: 在不扩大 ADR-010 范围的前提下，把受管视频 NoteRef 的存在性、受锚定路径/
   symlink 安全性和内容哈希验证纳入候选验证，并在任何 Knowledge Sink 或 reports 写入前拒绝缺失、
   篡改或身份不匹配的 NoteRef；为该反例增加临时 Vault 回归后，交由全新独立 Reviewer 从新 head 重审。
+
+## Correction 2 — Codex Implementer — 2026-07-23
+
+### 修复范围与验证策略
+
+- 仅修改 `reporting.py`、周报 integration test 与本 handoff；没有修改 `state.py`、Obsidian Adapter、模板、
+  domain/config 公共契约、依赖/锁、Schema/migration、`complete_stage` 或 CLI。
+- 在候选的 Score/Analysis 校验之后、任何周报渲染或 Knowledge Sink/reports 写入之前，服务从既有
+  `ObsidianNoteSink` 的受锚定 Vault root/subdir 只读配置取得根目录；未扩展公开接口或状态模型。
+- 使用目录 file descriptor、`O_NOFOLLOW`、相对两段 `Videos/<name>--<video_id>.md`、普通文件 `fstat`、
+  有界读取和 SHA-256 对比验证受管 NoteRef。root/subdir/Videos/file 任一 symlink、路径逃逸、缺失、非普通
+  文件、过大内容、hash 不匹配或 Artifact key 与 pipeline/video identity 不匹配都 fail-closed。
+- 通过后才构造 `WeeklyReportItem`；故任一候选 NoteRef 失败不会调用 Knowledge Sink、写 weekly Vault 文件或 upsert reports。
+
+### Correction 2 验收证据
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 缺失/篡改 NoteRef | PASS | pytest 临时 `Videos/` 文件删除或替换后，`generate()` 在写入前抛出，`Weekly/` 不存在且 reports 为空。 |
+| symlink/逃逸防护 | PASS | 文件 symlink、`Videos` 目录 symlink 和 `Videos/../...` 路径均被拒绝，未跟随 pytest 临时 Vault 外目标。 |
+| identity/provenance 不匹配 | PASS | 错误 `video-note/<pipeline>/<video>` key 在写入前被拒绝。 |
+| Analysis-only 聚合与既有周报行为 | PASS | existing Analysis regression、ISO 周、空周、Top N、DB 失败补偿继续通过。 |
+| 完整门禁 | PASS | focused unit=2、integration=13、full pytest=414；mypy、Ruff、CLI、locked sync、offline build 通过。 |
+
+### Correction 2 边界与风险
+
+- 实际 Vault/Artifact I/O 只存在于 pytest `tmp_path`；没有真实 Vault、网络、Provider/云调用、模型、凭据或测试目录外文件操作。
+- sdist/wheel 已核验包含 migration SQL、`templates/video.md` 和 `templates/weekly.md`。
+- 复用：现有 Python 标准库 `os`/`stat`/`hashlib` 与既有 Jinja2（BSD-3-Clause）；未新增依赖。
+- `DECISION NEEDED`：`None`。

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import stat
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
@@ -29,6 +31,7 @@ from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
 
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
 _MAX_ARTIFACT_BYTES = 5 << 20
+_MAX_NOTE_BYTES = 5 << 20
 
 
 class _WeeklyRepository(Protocol):
@@ -129,6 +132,9 @@ class WeeklyReportService:
             analysis = _verified_analysis(
                 self._artifact_root, candidate.analysis_artifact, video.video_id
             )
+        except (OSError, TypeError, ValueError):
+            raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
+        try:
             note = candidate.note_artifact
             if (
                 note.kind is not ArtifactKind.VIDEO_NOTE
@@ -136,6 +142,8 @@ class WeeklyReportService:
                 or note.video_id != video.video_id
                 or note.deleted_at is not None
                 or not note.relative_path.startswith("Videos/")
+                or note.artifact_key
+                != f"video-note/{candidate.video.pipeline_version}/{video.video_id}"
             ):
                 raise WeeklyReportValidationError("weekly note reference is invalid")
             note_ref = NoteRef(
@@ -143,6 +151,7 @@ class WeeklyReportService:
                 relative_path=note.relative_path,
                 content_hash=note.content_hash,
             )
+            _verify_managed_note_file(self._sink, note_ref, video.video_id)
             if not score.should_summarize or candidate.video.score != score.score:
                 raise WeeklyReportValidationError("weekly score result is invalid")
             return (
@@ -154,8 +163,10 @@ class WeeklyReportService:
                 ),
                 analysis,
             )
+        except WeeklyReportValidationError:
+            raise
         except (OSError, TypeError, ValueError):
-            raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
+            raise WeeklyReportValidationError("weekly note reference is invalid") from None
 
 
 def week_period_for(now: datetime, *, timezone: str) -> WeekPeriod:
@@ -340,6 +351,73 @@ def _verified_data_artifact(root: Path, artifact: Any, video_id: str, kind: Arti
     if len(content) > _MAX_ARTIFACT_BYTES or hashlib.sha256(content).hexdigest() != artifact.content_hash:
         raise ValueError("artifact contents are invalid")
     return content
+
+
+def _verify_managed_note_file(sink: _WeeklySink, ref: NoteRef, video_id: str) -> None:
+    vault_root = getattr(sink, "_vault_root", None)
+    vault_subdir = getattr(sink, "_vault_subdir", None)
+    relative_path = PurePosixPath(ref.relative_path)
+    if (
+        not isinstance(vault_root, Path)
+        or not vault_root.is_absolute()
+        or not isinstance(vault_subdir, PurePosixPath)
+        or relative_path.parts[:1] != ("Videos",)
+        or len(relative_path.parts) != 2
+        or any(part in {"", ".", ".."} for part in relative_path.parts)
+        or not relative_path.name.endswith(f"--{video_id}.md")
+    ):
+        raise WeeklyReportValidationError("weekly note reference is invalid")
+    root_fd = _open_directory(vault_root)
+    subdir_fd: int | None = None
+    videos_fd: int | None = None
+    note_fd: int | None = None
+    try:
+        current_fd = root_fd
+        for part in vault_subdir.parts:
+            if not part or part in {".", ".."}:
+                raise WeeklyReportValidationError("weekly note vault path is invalid")
+            next_fd = _open_directory(part, dir_fd=current_fd)
+            if current_fd != root_fd:
+                os.close(current_fd)
+            current_fd = next_fd
+        subdir_fd = current_fd
+        videos_fd = _open_directory("Videos", dir_fd=subdir_fd)
+        note_fd = os.open(
+            relative_path.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=videos_fd
+        )
+        if not stat.S_ISREG(os.fstat(note_fd).st_mode):
+            raise WeeklyReportValidationError("weekly note is not a regular file")
+        content = _read_limited(note_fd, _MAX_NOTE_BYTES)
+        if hashlib.sha256(content).hexdigest() != ref.content_hash:
+            raise WeeklyReportValidationError("weekly note content hash is invalid")
+    finally:
+        if note_fd is not None:
+            os.close(note_fd)
+        if videos_fd is not None:
+            os.close(videos_fd)
+        if subdir_fd is not None and subdir_fd != root_fd:
+            os.close(subdir_fd)
+        os.close(root_fd)
+
+
+def _open_directory(path: Path | str, *, dir_fd: int | None = None) -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    if dir_fd is None:
+        return os.open(path, flags)
+    return os.open(path, flags, dir_fd=dir_fd)
+
+
+def _read_limited(fd: int, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = os.read(fd, min(65536, limit + 1 - size))
+        if not chunk:
+            return b"".join(chunks)
+        size += len(chunk)
+        if size > limit:
+            raise WeeklyReportValidationError("weekly note is too large")
+        chunks.append(chunk)
 
 
 def _video_metadata(record: Any) -> VideoMetadata:
