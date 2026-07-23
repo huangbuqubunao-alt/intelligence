@@ -1,6 +1,6 @@
 # TASK-008：可选云端深度分析
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent + 隐私 Reviewer
 - Size: M
@@ -69,6 +69,17 @@
   匹配的成功缓存；任一 Artifact 或 identity 缺失/篡改/不匹配均必须安全失败、零 credential/transport/new
   ProviderCall/Artifact、Pipeline/Job 不变。不得重新发起云调用。完全匹配缓存仍可按 A-12 通过既有
   `complete_stage` 原子恢复当前 Job。
+
+## 2026-07-23 Correction 4 实现证据与复审授权
+
+- Correction source：`bb195a59ddee25cb804b0078676c504e94c44441`，唯一父为 Reviewer 4 evidence
+  `19323923057adb0b5a9f59cac5eb7c32cce5888a`；Correction 仅修改 `analysis.py`、
+  `test_summary_provider.py` 与 source handoff，完整 Diff 仍在原批准范围内。
+- Implementer 自报恢复在 `complete_stage` 前严格验证 ProviderCall identity、两类 Artifact 元数据/文件
+  SHA-256 和解析结果 request hash/provider/model；新增十个临时 SQLite/Fake transport 篡改或缺失缓存
+  反例，focused=`4/24`、full pytest=`355` 与其余离线门禁通过。这些均待独立 Reviewer 5 复跑。
+- Reviewer 5 只可追加 source handoff；不得触及真实 OpenAI、密钥、付费/API、网络、云端 token-count、
+  Vault、用户内容、媒体、YouTube、TASK-009 或任何范围外索引工件。
 
 ## 2026-07-22 Correction 2 实现证据与复审授权
 
