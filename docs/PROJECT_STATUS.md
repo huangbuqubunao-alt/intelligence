@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-012 已由 merge `4841cf8...` 整合并收口为 `DONE`；TASK-013/014 仍需各自的正式资源/实施授权。
+1. TASK-012 已由 merge `4841cf8...` 整合并收口为 `DONE`；TASK-013 只读验收预检已获授权但尚未启动，仍为 `BLOCKED/UNASSIGNED`；TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
