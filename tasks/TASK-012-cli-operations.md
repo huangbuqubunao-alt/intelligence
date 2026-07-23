@@ -1,7 +1,7 @@
 # TASK-012：CLI、调度与日志
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
 - Risk: Medium
@@ -42,8 +42,11 @@
 - `src/youtube_intel/__main__.py`
 - `src/youtube_intel/cli.py`
 - `src/youtube_intel/logging.py`
-- `config/launchd/com.yia.agent.plist.example`
+- `config/launchd/com.yia.agent.daily.plist.example`
+- `config/launchd/com.yia.agent.weekly.plist.example`
+- `docs/operations.md`
 - `tests/integration/test_operations.py`
+- `handoffs/TASK-012.md`
 
 ## 交付证据
 
@@ -63,6 +66,15 @@
 
 - 产品负责人已批准确定退出码、零副作用 doctor、UUID4 run_id/JSONL 脱敏、不自动日志删除，以及
   可选 daily/weekly 静态 launchd 示例；不得执行 `launchctl`。
-- `weekly` CLI 依赖 TASK-011 已整合的周报服务，因此本任务保持 `BLOCKED`。后续正式范围可包括
+- `weekly` CLI 依赖 TASK-011 已整合的周报服务；该上游此前阻塞本任务，现已满足。正式范围包括
   `__main__.py`、`cli.py`、`logging.py`、两个 static plist examples、安装说明、operations tests 与 handoff；
   仍禁止依赖/Schema/真实服务、网络、Vault、用户内容或凭据操作。
+
+## 2026-07-23 正式实施分配
+
+- TASK-011 已整合并 `DONE`，ADR-011 O-06 上游依赖满足。Base：
+  `main@8e322f362d2ff0972ee987b7c06c8453a9dce73d`；worktree：
+  `/Users/hua/Documents/yia-worktrees/task-012`；branch：`codex/task-012-cli-operations`。
+- Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。只允许本卡列出的八个路径、标准库和
+  离线门禁；`plutil -lint` 仅检查静态样例。禁止新增依赖/锁、Schema/migration、Provider、网络、模型、凭据、
+  真实 Vault/用户内容、`launchctl`、服务注册/加载及测试目录外文件操作。

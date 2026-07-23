@@ -96,8 +96,8 @@
 
 ## 下一步
 
-1. TASK-011 已由 merge `2ba42c2...` 整合并收口为 `DONE`；TASK-012 的上游服务依赖已满足，
-   但仍须独立正式分配才可开始。
+1. TASK-012 已获正式 Codex 分配：实现仅限离线 CLI、JSONL、静态 launchd 样例和临时测试目录；
+   source commit 后才启动独立 Reviewer。TASK-013/014 继续阻塞。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
