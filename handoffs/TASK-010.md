@@ -186,3 +186,62 @@
 - 剩余边界：调用成功但数据库提交前进程中断时，仍是既有 request-bound Provider-call/Artifact
   缓存提供的 at-most-once best effort，不宣称 exactly-once。
 - `DECISION NEEDED`：`None`。
+
+## Correction 1 — 第二位独立 Codex Reviewer
+
+### 审查范围与授权
+
+- Reviewer：`Codex / TASK-010 independent reviewer 2`。
+- 动态主控授权：`main` 上 `agent-prompts/TASK-010-REVIEWER-2-CODEX.md` 的最新提交为
+  `903257f5a05c3a5071db1ebcdbb3283e24306289`；`TASK-010` 状态为 `IN_REVIEW`。
+- Source/base/head：`codex/task-010-orchestration-recovery@b4c97bed2d3f44a24eb2550f9fb43cc381661264` /
+  `227bdeba3a4d9ddd57231b123bfdc4a2038af3d3` / `b4c97bed2d3f44a24eb2550f9fb43cc381661264`。
+  Correction 1 的唯一父提交为 reviewer-1 evidence
+  `f929a2f114626f7f714134d0894b188548537e4e`。
+- 开始前 source `git status --short --untracked-files=all` 无输出；结束前业务源码仍未被
+  Reviewer 修改。完整 `base...HEAD` 为六条原 TASK-010 授权路径；Correction 1 相对其父
+  仅为 `pipeline.py`、两份集成测试和本报告。两次固定 `git diff --check` 均无输出。
+- 复用核验：`DIRECT` 复用既有 Repository、`complete_stage`、Provider-call/Artifact
+  缓存和项目 Domain 对象；未新增第三方代码、依赖或许可证义务。无 Schema、migration、
+  `state.py`、Provider、CLI、锁文件、真实 Vault、凭据、网络、媒体或模型资源改动。
+
+### 独立离线检查
+
+| 命令/检查 | 结果 | 独立证据 |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 84 packages。 |
+| `uv sync --locked` | PASS | Checked 61 packages。 |
+| `uv run python -m pytest tests/integration/test_pipeline.py` | PASS | 15 passed。 |
+| `uv run python -m pytest tests/integration/test_recovery.py` | PASS | 2 passed。 |
+| `uv run python -m pytest` | PASS | 399 passed。 |
+| `uv run mypy src` | PASS | 20 source files, no issues found。 |
+| `uv run ruff check .` | PASS | All checks passed。 |
+| `uv run python -m youtube_intel --help` | PASS | CLI help rendered。 |
+| `uv build --offline --out-dir /private/tmp/task-010-review-build-2` | PASS | sdist 与 wheel 均构建成功。 |
+| sdist/wheel 内容 | PASS | 两个归档均含 `migrations/001_initial.sql` 与 `templates/video.md`。 |
+
+### 独立 SQLite/Fake 验收矩阵
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| 真实 `RepositoryBackedAnalysisService` 成功 | PASS | 临时 SQLite、离线 transport 与真实服务从 `SCORED` 原子进入 `ANALYSIS_READY`；`AnalysisCompleted` 被编排器映射为继续，唯一 `NOTE_WRITE` 继续至 `NOTE_WRITTEN -> COMPLETE`。 |
+| `AnalysisSkipped` | PASS | 临时 SQLite probe 的 `CLOUD_DISABLED` 跳过仍进入笔记/完成路径；再次 `resume_video` 后 analysis/note 调用均保持 1。 |
+| 匹配缓存恢复 | PASS | Provider request/provider/model identity、raw/structured Artifact record、文件 SHA-256 均匹配时，离线 transport 有效调用保持 1，且唯一笔记 Job 完成。 |
+| 缓存 fail-closed | PASS | 临时 SQLite 分别移除 structured Artifact 索引、篡改 raw 文件、篡改 Provider model identity；每种均保留 `SCORED`、当前 Job 为 `RETRY_PENDING`，零新有效 Provider 调用、零笔记/Job 成功完成。raw Artifact 不能直接删除是既有外键约束，故缺失项使用无外键引用的 structured Artifact 覆盖。 |
+| 原 TASK-010 回归 | PASS | 高/低价值、无字幕、延后直播、不可用、调用前/后/落库后中断、租约回收、重试/终态、失败隔离与重复批次均由两份集成测试和全量测试复跑。 |
+
+### Findings 与结论
+
+- P0：无。
+- P1：无。Correction 1 已关闭 reviewer-1 的 P1：真实持久化分析成功返回
+  `AnalysisCompleted` 后会创建唯一 `NOTE_WRITE` Job，而非依赖 `_FakeStages` 的
+  `StageDisposition.CONTINUE`。
+- P2：无。
+- P3：无。
+- Skipped：未运行真实网络、OpenAI/本地模型、媒体、凭据或真实 Vault；它们未获授权，且
+  本审查的临时 SQLite/Fake 均不需要这些资源。
+- Remaining risk：外部调用成功但数据库提交前进程中断仍是既有 request-bound
+  Provider-call/Artifact 缓存的 at-most-once best effort，不宣称 exactly-once。
+
+- Verdict：`APPROVE`
+- 未解决 P0/P1：`None`
