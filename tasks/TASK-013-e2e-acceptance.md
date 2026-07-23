@@ -1,6 +1,6 @@
 # TASK-013：端到端验收
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: QA Agent
 - Size: M
@@ -73,3 +73,8 @@
 
 - 实现提交 `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708` 仅包含两份端到端测试、固定 fixtures、验收报告和 handoff；主控已授权全新独立 Codex Reviewer 复跑离线门禁和产品覆盖探针。
 - 审查前不得把实现者自报的 6 个离线 E2E、427 个全量测试或 `PASS` 表述为最终验收；Reviewer 只可写 source handoff，不能修正业务或测试代码。
+
+## 首轮审查退回与 Correction 1（2026-07-24）
+
+- 独立 Reviewer evidence `2afd95a8dde9ae2d907480fd190bcb2c54efccb4` 的 Verdict 为 `REJECT`：现有 E2E 通过通用 handler 直接推进 SQLite 状态，不能证明五种用户路径、分阶段恢复或昂贵步骤缓存；PRD 10.7 也缺可复现的秘密扫描证据。
+- Correction 1 仍严格限于既有两份 E2E 测试、fixtures、验收报告和 handoff。必须以现有服务边界与固定 Fake Adapter 形成测试内 composition，不得为测试修改生产 CLI 或接触真实资源。
