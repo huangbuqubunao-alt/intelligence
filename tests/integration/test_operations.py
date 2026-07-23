@@ -35,10 +35,11 @@ class FakeOperations:
         return self.outcome
 
 
-def _project(tmp_path: Path) -> Path:
+def _project(tmp_path: Path, *, create_vault: bool = True) -> Path:
     (tmp_path / "config").mkdir()
     (tmp_path / "data").mkdir()
-    (tmp_path / "vault").mkdir()
+    if create_vault:
+        (tmp_path / "vault").mkdir()
     (tmp_path / "config" / "channels.yaml").write_text(
         "channels:\n  - channel_id: channel-a\n",
         encoding="utf-8",
@@ -121,24 +122,33 @@ def test_doctor_only_reads_initialized_temporary_resources(tmp_path: Path) -> No
     database = project / "data" / "state.sqlite"
     SQLiteStateRepository(database).initialize(now=datetime(2026, 7, 23, tzinfo=UTC))
     before = database.read_bytes()
+    operations = FakeOperations()
 
-    exit_code = main(_args(project, "doctor"))
+    exit_code = main(_args(project, "doctor"), operations=operations)
 
     assert exit_code is ExitCode.OK
     assert database.read_bytes() == before
+    assert operations.calls == []
+    assert not (project / "logs").exists()
     assert not (project / "vault" / "YouTube Intel").exists()
-    records = [
-        json.loads(line)
-        for line in (project / "logs" / "operations.jsonl").read_text().splitlines()
-    ]
-    assert records[-1]["event"] == "doctor.finished"
-    assert records[-1]["safe_message"] == "local configuration checks passed"
 
 
 def test_doctor_reports_missing_database_as_local_resource(tmp_path: Path) -> None:
     project = _project(tmp_path)
 
     assert main(_args(project, "doctor")) is ExitCode.LOCAL_RESOURCE
+
+
+def test_doctor_with_missing_vault_does_not_create_local_paths(tmp_path: Path) -> None:
+    project = _project(tmp_path, create_vault=False)
+    database = project / "data" / "state.sqlite"
+    SQLiteStateRepository(database).initialize(now=datetime(2026, 7, 23, tzinfo=UTC))
+    operations = FakeOperations()
+
+    assert main(_args(project, "doctor"), operations=operations) is ExitCode.LOCAL_RESOURCE
+    assert operations.calls == []
+    assert not (project / "logs").exists()
+    assert not (project / "vault").exists()
 
 
 def test_jsonl_logger_redacts_paths_and_secret_shaped_values(tmp_path: Path) -> None:

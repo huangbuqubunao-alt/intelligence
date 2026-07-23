@@ -100,3 +100,26 @@
   Reviewer 独立复跑。未执行真实 Provider、网络、Vault、凭据或 `launchctl`。
 - Verdict：`REJECT`
 - 未解决 P0/P1：P1-1。
+
+## Correction 1（Codex Implementer）
+
+- Source / parent: `9b5dec5d24e87ab942dff4268f7a95c35947d411`，唯一父为原 implementation
+  `7c83283eac83b01c88a7625b4a216790d14514b2`；Correction 1 实际仅改
+  `cli.py`、operations integration test 与本 handoff（`logging.py` 保持不变）。
+- 根因：`main()` 在判定 `doctor` 前构造并调用 `JsonlLogger`，其 `emit()` 会创建
+  `logs/`。这违反 ADR-011 O-02 的零副作用边界。
+- 修复：每次调用仍在内存生成 UUID4 `run_id`；`doctor` 在配置加载后直接执行只读检查并
+  返回退出码，绝不构造或调用 JSONL logger。其他命令的 JSONL、退出码和 dispatch 行为保持不变。
+- RED/GREEN：新增断言后 `tests/integration/test_operations.py` 先以两项失败复现
+  `logs/` 被创建；最小修复后 focused `7 passed in 0.15s`。回归覆盖已初始化临时 SQLite
+  的成功 doctor 与缺失 Vault 的本地资源失败：二者均不创建 `logs/` 或 Vault，Fake operations
+  调用数为零，SQLite bytes 保持不变。
+- 零副作用边界：未调用 Provider、credential resolver、Job/Repository 写入、loopback、网络、
+  真实 Vault、凭据或 `launchctl`；doctor 只读取临时项目的配置、SQLite migration 和路径边界。
+- 复用：继续仅使用 Python 标准库与既有项目模块；无新增依赖、许可证或外部代码。
+- 验证：`uv lock --check`、`uv sync --locked`、focused operations `7`、full pytest `421`、
+  `mypy src`、Ruff、CLI help、两个 `plutil -lint`、`uv build --offline`、sdist/wheel migration
+  与根目录/package resource SHA-256 均 PASS。daily `39b06ca7…`、weekly `e3634316…`、operations
+  `41e0a3a7…` 在 root、package resource 和 wheel 中一致。
+- 风险与未授权路径：真实 composition/Provider、网络、凭据、Vault 和 launchd 仍未执行且未授权；
+  `DECISION NEEDED=None`。建议状态：`IN_REVIEW`。

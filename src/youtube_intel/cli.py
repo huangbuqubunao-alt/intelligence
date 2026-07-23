@@ -124,17 +124,29 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None, *, operations: Operations | None = None) -> ExitCode:
     """Run one command and return the ADR-011 exit code without raising failures."""
 
+    # Every invocation receives an in-memory UUID4, including the strictly
+    # read-only doctor path.  Doctor deliberately never persists it as JSONL.
+    run_id = str(uuid4())
     parser = _build_parser()
     try:
         args = parser.parse_args(argv)
         _validate_arguments(args)
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
-        logger = JsonlLogger(_project_path(project_root, config.settings.storage.logs_dir) / "operations.jsonl")
     except (ConfigError, OSError, ValueError):
         return ExitCode.USAGE_OR_CONFIGURATION
 
-    run_id = str(uuid4())
+    if args.command == "doctor":
+        try:
+            return _doctor(config, project_root).exit_code
+        except _LocalResourceFailure:
+            return ExitCode.LOCAL_RESOURCE
+        except (OSError, sqlite3.Error):
+            return ExitCode.LOCAL_RESOURCE
+        except Exception:
+            return ExitCode.EXECUTION_FAILED
+
+    logger = JsonlLogger(_project_path(project_root, config.settings.storage.logs_dir) / "operations.jsonl")
     stage = str(args.command)
     started = time.monotonic()
     logger.emit(
@@ -145,11 +157,7 @@ def main(argv: Sequence[str] | None = None, *, operations: Operations | None = N
         safe_message="command started",
     )
     try:
-        outcome = (
-            _doctor(config, project_root)
-            if args.command == "doctor"
-            else _dispatch(args, operations or _UnavailableOperations())
-        )
+        outcome = _dispatch(args, operations or _UnavailableOperations())
     except _LocalResourceFailure:
         outcome = CommandOutcome(local_resource_failed=True)
     except (OSError, sqlite3.Error):
@@ -158,9 +166,7 @@ def main(argv: Sequence[str] | None = None, *, operations: Operations | None = N
         outcome = CommandOutcome(failed=1, attempted=1)
 
     duration_ms = int((time.monotonic() - started) * 1000)
-    if args.command == "doctor" and outcome.exit_code is ExitCode.OK:
-        event, message = "doctor.finished", "local configuration checks passed"
-    elif outcome.exit_code is ExitCode.OK:
+    if outcome.exit_code is ExitCode.OK:
         event, message = "command.finished", "command completed"
     elif outcome.exit_code is ExitCode.LOCAL_RESOURCE:
         event, message = "command.failed", "local resource is unavailable"
