@@ -1,6 +1,6 @@
 # TASK-010：流程编排与恢复
 
-- Status: `IN_REVIEW`
+- Status: `ACCEPTED`
 - Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
@@ -42,6 +42,15 @@
   Provider-call/raw/structured Artifact 身份和 SHA-256；focused `17`、全量 `399` 与全部离线门禁通过。
   这些仅构成待独立复跑证据。
 - Reviewer 2 只可追加 source handoff；不得修改业务代码、依赖、锁文件、main 或任务状态。
+
+## 2026-07-23 Correction 1 第二轮独立审查与整合授权
+
+- Reviewer 2 evidence：`e12af35b903705d782538617469da0c8a71671e9`，唯一父为 Correction 1
+  `b4c97bed2d3f44a24eb2550f9fb43cc381661264`，只修改 source handoff。
+- Verdict：`APPROVE`，P0–P3 均无。真实 repository-backed 分析完成、`AnalysisSkipped`、匹配缓存恢复与
+  缺失/篡改/身份不匹配缓存的 fail-closed 矩阵均通过；focused `15/2`、全量 `399` 与全部离线门禁通过。
+- TASK-010 进入 `ACCEPTED`，仅授权 Product Integrator 对固定 source 做 `--no-ff` 合并和整合后离线验证；
+  不得自行设为 `DONE`。真实网络、模型、凭据和 Vault 路径仍未授权。
 
 ## 目标
 
