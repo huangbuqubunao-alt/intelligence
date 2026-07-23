@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-012 已由 merge `4841cf8...` 整合并收口为 `DONE`；TASK-013 只读验收预检已获授权但尚未启动，仍为 `BLOCKED/UNASSIGNED`；TASK-014 仍需正式资源/实施授权。
+1. TASK-012 已由 merge `4841cf8...` 整合并收口为 `DONE`；TASK-013 已获 Codex 离线验收实施授权：仅测试内组合、固定夹具与临时目录，不改变生产 CLI 或访问真实资源；TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

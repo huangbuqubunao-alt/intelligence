@@ -1,7 +1,7 @@
 # TASK-013：端到端验收
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: QA Agent
 - Size: M
 - Risk: High
@@ -60,4 +60,11 @@
 
 - 产品负责人只授权 Codex Scout 在 main 上梳理离线验收覆盖、用户可见结果、资源边界与后续决策；不授权代码、夹具、验收报告、worktree 或测试命令写入。
 - 预检必须将 PRD 第 10 节的离线可证实结果、待端到端连接验证结果和需单独批准的真实冒烟明确分开。
-- 任务仍为 `BLOCKED/UNASSIGNED`；预检结论不能替代实现、真实频道/模型/Vault、密钥或付费调用授权。
+- 预检执行时任务仍为 `BLOCKED/UNASSIGNED`；预检结论本身不能替代实现、真实频道/模型/Vault、密钥或付费调用授权。
+
+## 离线实施授权（2026-07-23）
+
+- 产品负责人批准只用测试内组合现有服务、固定夹具和 pytest 临时 SQLite/data/Vault 目录，补齐五个用户情形、失败恢复、重跑幂等和验收报告。
+- 允许范围严格为两份 `tests/e2e` 测试、其 fixtures、`docs/ACCEPTANCE_REPORT.md` 和 `handoffs/TASK-013.md`；不改生产 CLI/编排、配置、Schema/migration、依赖、锁文件、测试配置或既有测试。
+- 真实频道/YouTube、Whisper/ffmpeg、Ollama/模型、OpenAI/API/密钥/付费调用、真实 Vault/用户笔记、网络、媒体和 launchd 继续不授权。
+- 真实冒烟在验收报告中只能写为 `NOT AUTHORIZED`；离线服务组合证据不能表述为真实 Provider 或真实 CLI 冒烟已经完成。
