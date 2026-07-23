@@ -335,3 +335,81 @@
 - `DECISION NEEDED`: `None`.
 - Suggested state: `IN_REVIEW`; this implementer does not change task status or
   start a Reviewer.
+
+## Reviewer 4 — Correction 2 independent review
+
+- Reviewer agent/session: `Codex / root` (fourth independent reviewer).
+- Authorization and object: dynamic main authorization
+  `3b7ab34e27ba996fdbf7a95f47f40d24634b020e` records TASK-009 as `IN_REVIEW`.
+  Reviewed `codex/task-009-obsidian-notes@22147b087157a6bbb0adc7e78f2f5d3eae700f8e`,
+  whose sole parent is reviewer-3 evidence
+  `f4a231b503ea6c1a25bf73c7d8aa584147cbdc03`; the chain continues through
+  Correction 1 `60ed077452faf5fe41b105b21b4221f89cb6e02c` to implementation
+  `956e37a15ab29106f16c45873fccb813cc5a959f` and fixed base
+  `473119704c7638d7afd4e68d84d00e85064ceabd`.
+- Cleanliness and scope: PASS. `git status --short --untracked-files=all` was
+  empty before review and again after checks. No codebase-memory or CodeGraph
+  index action ran. Correction 2 changes only the authorized Obsidian Adapter,
+  existing integration test, and this handoff; the complete base...HEAD diff is
+  exactly the six authorized TASK-009 path groups. No dependency/lock, public
+  contract, `state.py`, Schema/migration, CLI, cloud Provider, TASK-008,
+  credential, network, model, real-Vault, or user-note path changed or ran.
+
+### Re-run checks
+
+| Command/check | Result | Independent evidence |
+|---|---|---|
+| `uv lock --check` | PASS | Resolved 84 packages; lock unchanged. |
+| `uv sync --locked` | PASS | Checked 61 packages from the existing cache. |
+| `uv run python -m pytest tests/unit/test_note_rendering.py` | PASS | 4 passed. |
+| `uv run python -m pytest tests/integration/test_obsidian_sink.py` | PASS | 17 passed. |
+| `uv run python -m pytest` | PASS | 348 passed. |
+| `uv run mypy src` | PASS | Success, no issues in 15 source files. |
+| `uv run ruff check .` | PASS | All checks passed. |
+| `uv run python -m youtube_intel --help` | PASS | Help rendered normally. |
+| `uv build --offline` | PASS | sdist and wheel built offline. |
+| Archive inclusion | PASS | sdist and wheel both contain `youtube_intel/templates/video.md` and `youtube_intel/migrations/001_initial.sql`. |
+| `git diff --check 473119704c7638d7afd4e68d84d00e85064ceabd...22147b087157a6bbb0adc7e78f2f5d3eae700f8e` | PASS | No whitespace errors. |
+
+### Independent probes and review matrix
+
+- ADR-009 N-13: PASS. A separate reviewer-run temporary Vault/SQLite matrix
+  injected `EACCES`, `EPERM`, `EROFS`, `ENOSPC`, errno-less `fsync`, and
+  errno-less `replace`. The first three returned `PERMISSION_DENIED`; the last
+  three returned `LOCAL_RESOURCE`. Every case retained the original managed-note
+  bytes, removed only the owned temporary file, left Pipeline at
+  `ANALYSIS_READY`, Job at `RUNNING`, and wrote no `VIDEO_NOTE` Artifact. The
+  public error was the fixed `note persistence failed` text and contained no
+  temporary absolute path, user bytes, injected exception text, or errno.
+- ADR-009 N-03/N-05/N-06: PASS. Code and regression review confirm completed
+  title-change replay returns the stored NoteRef without replacement; unmanaged,
+  multiple, NFC, and casefold candidates fail closed; and drive-style subdirs are
+  rejected. No rename, deletion, or unmanaged-note takeover occurs.
+- ADR-009 N-07–N-12 and N-15: PASS. Focused rendering/integration and full-suite
+  evidence cover fixed Frontmatter/markers, skipped analysis, low-value zero
+  write, bounded fixed template, user-byte/no-op preservation, symlink/legacy
+  rejection, atomic temporary-file cleanup, stage completion, and replace-before-
+  SQLite recovery. The implementation keeps the specified at-most-once boundary.
+- ADR-009 N-01/N-02/N-04/N-14: PASS. Shared `KnowledgeSink`/`NoteRef` behavior
+  and the locked Jinja2/PyYAML/standard-library boundaries were unchanged;
+  Correction 2 adds only standard-library `errno` classification and no license
+  or dependency obligation.
+- Five-axis review: correctness PASS (errno-aware mapping is safe and exact);
+  readability PASS (small named helper and focused regression); architecture PASS
+  (existing Adapter error boundary retained); security PASS (safe error text and
+  fail-closed permission classification); performance PASS (constant-time errno
+  membership check and no new I/O or scans).
+
+### Findings, skipped work, and conclusion
+
+- P0: none. P1: none. P2: none. P3: none.
+- Skipped only as unauthorized: real Vault/user notes, external deletion/move,
+  real cloud/network/credentials/media/models, and TASK-008 source access. All
+  review filesystem and SQLite I/O was confined to pytest or reviewer-created OS
+  temporary directories.
+- Remaining risk: ADR-009 intentionally remains at-most-once best effort after a
+  successful `os.replace` and before SQLite completion; a later eligible retry
+  performs the approved verification-and-backfill path. Real-Vault behavior is
+  still untested and unapproved.
+- Verdict: `APPROVE`.
+- `DECISION NEEDED`: `None`.
