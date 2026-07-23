@@ -1,6 +1,6 @@
 # TASK-010：流程编排与恢复
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: TL / 实现 Agent
 - Size: M
@@ -33,6 +33,15 @@
 - 原 Implementer 只获 Correction 1：Pipeline 适配、两份既有集成测试和 handoff。必须以临时 SQLite 与真实
   repository-backed 服务返回路径证明成功分析创建唯一 NOTE_WRITE Job，且缓存恢复使用既有 Provider-call/Artifact
   身份与哈希验证；不得修改 `complete_stage`、Provider、Schema、依赖或真实资源边界。
+
+## 2026-07-23 Correction 1 实现证据与复审授权
+
+- Correction source：`b4c97bed2d3f44a24eb2550f9fb43cc381661264`，唯一父为 reviewer-1 evidence
+  `f929a2f114626f7f714134d0894b188548537e4e`；Correction 仅修改 Pipeline、两份集成测试与 handoff。
+- Implementer 自报真实 repository-backed `AnalysisCompleted` 成功路径创建唯一 NOTE_WRITE Job，且缓存恢复验证
+  Provider-call/raw/structured Artifact 身份和 SHA-256；focused `17`、全量 `399` 与全部离线门禁通过。
+  这些仅构成待独立复跑证据。
+- Reviewer 2 只可追加 source handoff；不得修改业务代码、依赖、锁文件、main 或任务状态。
 
 ## 目标
 
