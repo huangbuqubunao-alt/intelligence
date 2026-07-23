@@ -96,9 +96,10 @@
 
 ## 下一步
 
-1. TASK-010 已由独立收口提交关闭为 `DONE`；不得在 source 分支继续写入。
-2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
-   继续不批准，分别等待后续受控验收。
+1. TASK-010 已由独立收口提交关闭为 `DONE`；TASK-011/TASK-012 只获只读 Scout 预检授权，保持
+   `BLOCKED/UNASSIGNED`，不得创建 source worktree 或开始实现。
+2. 预检后由产品负责人决定周报趋势/临时 Vault 与 CLI/日志/launchd 边界，再提出对应 ADR 和实施分配。
+3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作继续不批准。
 
 ## 当前并行调度
 
