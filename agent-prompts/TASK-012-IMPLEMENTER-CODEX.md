@@ -15,13 +15,16 @@
 - `src/youtube_intel/cli.py`
 - `src/youtube_intel/logging.py`
 - `pyproject.toml`（仅 package-data / sdist/wheel 包含配置）
+- `src/youtube_intel/resources/launchd/com.yia.agent.daily.plist.example`
+- `src/youtube_intel/resources/launchd/com.yia.agent.weekly.plist.example`
+- `src/youtube_intel/resources/operations.md`
 - `config/launchd/com.yia.agent.daily.plist.example`
 - `config/launchd/com.yia.agent.weekly.plist.example`
 - `docs/operations.md`
 - `tests/integration/test_operations.py`
 - `handoffs/TASK-012.md`
 
-`pyproject.toml` 只允许最小 package-data / sdist/wheel 包含配置，让两个 plist examples 与 `docs/operations.md` 进入两个归档；不得改 `[project].dependencies`、任何依赖版本、build backend、工具链或 `uv.lock`。仍禁止 Schema/migration、state、domain/config、Provider、模板、任务状态、真实 Vault/用户内容、网络、模型、凭据、`launchctl` 或任何测试目录外文件写入。不得运行会创建 `.codebase-memory/` 的索引动作。
+`pyproject.toml` 只允许最小 package-data / sdist/wheel 包含配置。根目录的两个 plist examples 与 `docs/operations.md` 保持为静态用户样例；三份 `src/youtube_intel/resources/` 副本只为 wheel 分发，必须逐字节相同。不得改 `[project].dependencies`、任何依赖版本、build backend、工具链或 `uv.lock`。仍禁止 Schema/migration、state、domain/config、Provider、模板、任务状态、真实 Vault/用户内容、网络、模型、凭据、`launchctl` 或任何测试目录外文件写入。不得运行会创建 `.codebase-memory/` 的索引动作。
 
 ## 目标与完成标准
 
@@ -47,7 +50,7 @@
 - `uv run python -m youtube_intel --help`
 - `plutil -lint config/launchd/com.yia.agent.daily.plist.example`
 - `plutil -lint config/launchd/com.yia.agent.weekly.plist.example`
-- `uv build --offline`，核验 sdist/wheel 含 migration SQL、两个 plist examples 与 `docs/operations.md`
+- `uv build --offline`，核验 sdist 含 migration SQL、根目录两个 plist examples 与 `docs/operations.md`；wheel 含 migration SQL 和三份相同内容的 package resources，记录每对文件 SHA-256 相同
 - `git diff --check 8e322f362d2ff0972ee987b7c06c8453a9dce73d...HEAD`
 
-先保留现有未提交实现，仅补最小 `pyproject.toml` 配置并验证归档内容；不得重置、清理或拆分当前实现。完成后追加 handoff，创建单父提交（父必须为 `8e322f362d2ff0972ee987b7c06c8453a9dce73d`），记录命令/退出码、JSONL 脱敏、doctor 零副作用、plist 静态证据、归档包含性、复用、测试与未授权路径；不得启动 Reviewer 或改状态。
+先保留现有未提交实现，仅补最小 `pyproject.toml` 配置与三份 byte-identical package resource 副本并验证归档内容；不得重置、清理或拆分当前实现。完成后追加 handoff，创建单父提交（父必须为 `8e322f362d2ff0972ee987b7c06c8453a9dce73d`），记录命令/退出码、JSONL 脱敏、doctor 零副作用、plist 静态证据、归档包含性、复用、测试与未授权路径；不得启动 Reviewer 或改状态。
