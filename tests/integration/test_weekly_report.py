@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -53,7 +53,16 @@ class _Repository:
         return report
 
 
-def _candidate(root: Path, *, video_id: str, score: float, topic: str) -> WeeklyCandidateRecord:
+def _candidate(
+    root: Path,
+    *,
+    video_id: str,
+    score: float,
+    topic: str,
+    analysis_keyword: str | None = None,
+    analysis_keywords: tuple[str, ...] | None = None,
+    direction: str = "Use the verified direction.",
+) -> WeeklyCandidateRecord:
     score_result = ScoreResult(
         schema_version="score-result-v1",
         score=score,
@@ -63,7 +72,7 @@ def _candidate(root: Path, *, video_id: str, score: float, topic: str) -> Weekly
         provider="fixture-score",
         model="fixture-model",
         prompt_version="scoring-prompt-v1",
-        request_hash=("a" if video_id == "video-a" else "b") * 64,
+        request_hash=hashlib.sha256(f"score:{video_id}".encode()).hexdigest(),
     )
     analysis_result = AnalysisResult(
         one_sentence_summary=f"Summary for {video_id}.",
@@ -74,7 +83,14 @@ def _candidate(root: Path, *, video_id: str, score: float, topic: str) -> Weekly
                 evidence_ids=("evidence-1",),
             ),
         ),
-        keywords=(topic,),
+        actionable_directions=(
+            AnalysisPoint(
+                text=direction,
+                kind=PointKind.RECOMMENDATION,
+                evidence_ids=("evidence-1",),
+            ),
+        ),
+        keywords=analysis_keywords or (analysis_keyword or topic,),
         evidence=(
             EvidenceExcerpt(
                 evidence_id="evidence-1",
@@ -84,7 +100,7 @@ def _candidate(root: Path, *, video_id: str, score: float, topic: str) -> Weekly
         ),
         provider="fixture-analysis",
         model="fixture-model",
-        request_hash=("c" if video_id == "video-a" else "d") * 64,
+        request_hash=hashlib.sha256(f"analysis:{video_id}".encode()).hexdigest(),
     )
     score_bytes = score_result.model_dump_json().encode()
     analysis_bytes = analysis_result.model_dump_json().encode()
@@ -151,7 +167,9 @@ def _artifact(
     )
 
 
-def _service(tmp_path: Path, candidates: tuple[WeeklyCandidateRecord, ...]) -> tuple[WeeklyReportService, _Repository, Path]:
+def _service(
+    tmp_path: Path, candidates: tuple[WeeklyCandidateRecord, ...], *, top_n: int = 1
+) -> tuple[WeeklyReportService, _Repository, Path]:
     repository = _Repository(candidates)
     vault_root = tmp_path / "vault"
     (vault_root / "Knowledge").mkdir(parents=True)
@@ -160,7 +178,7 @@ def _service(tmp_path: Path, candidates: tuple[WeeklyCandidateRecord, ...]) -> t
         context=NoteWriteContext(job_id="unused-job", owner="test", pipeline_version="pipeline-v1"),
     )
     return (
-        WeeklyReportService(repository=repository, sink=sink, artifact_root=tmp_path / "artifacts", timezone="Asia/Shanghai", top_n=1),
+        WeeklyReportService(repository=repository, sink=sink, artifact_root=tmp_path / "artifacts", timezone="Asia/Shanghai", top_n=top_n),
         repository,
         vault_root,
     )
@@ -210,3 +228,114 @@ def test_weekly_report_retries_after_database_failure_without_duplicate_files(tm
     assert report_path.is_file()
     assert list(report_path.parent.glob(".youtube-intel-*.tmp")) == []
     assert len(repository.reports) == 1
+
+
+def test_weekly_trends_keywords_and_directions_only_use_verified_analysis(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    first = _candidate(
+        artifact_root,
+        video_id="video-a",
+        score=9,
+        topic="shared-score-topic",
+        analysis_keyword="Alpha",
+        direction="Explore Alpha demand.",
+    )
+    second = _candidate(
+        artifact_root,
+        video_id="video-b",
+        score=8,
+        topic="shared-score-topic",
+        analysis_keyword="Beta",
+        direction="Validate Beta demand.",
+    )
+    service, _, vault_root = _service(tmp_path, (first, second), top_n=2)
+
+    generated = service.generate(now=NOW)
+
+    content = (vault_root / "Knowledge" / generated.note_ref.relative_path).read_text()
+    assert "Alpha（1）" in content
+    assert "Beta（1）" in content
+    assert "趋势：Alpha（1）" in content
+    assert "趋势：Beta（1）" in content
+    assert "持续关注：Explore Alpha demand." in content
+    assert "持续关注：Validate Beta demand." in content
+    assert "shared-score-topic" not in content
+
+
+def test_tampered_analysis_fails_closed_before_writing_weekly_report(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate = _candidate(artifact_root, video_id="video-a", score=9, topic="Product")
+    service, repository, vault_root = _service(tmp_path, (candidate,))
+    (artifact_root / candidate.analysis_artifact.relative_path).write_text("tampered")
+
+    with pytest.raises(ValueError, match="analysis"):
+        service.generate(now=NOW)
+
+    assert not (vault_root / "Knowledge" / "Weekly").exists()
+    assert repository.reports == []
+
+
+def test_missing_or_identity_mismatched_analysis_fails_closed(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate = _candidate(artifact_root, video_id="video-a", score=9, topic="Product")
+    analysis_path = artifact_root / candidate.analysis_artifact.relative_path
+    analysis_bytes = analysis_path.read_bytes()
+    analysis_path.unlink()
+    service, repository, vault_root = _service(tmp_path, (candidate,))
+
+    with pytest.raises(ValueError, match="analysis"):
+        service.generate(now=NOW)
+
+    mismatched = replace(
+        candidate,
+        analysis_artifact=replace(candidate.analysis_artifact, artifact_key="analysis/not-the-result/structured"),
+    )
+    service, repository, _ = _service(tmp_path / "mismatched", (mismatched,))
+    analysis_path.parent.mkdir(parents=True, exist_ok=True)
+    analysis_path.write_bytes(analysis_bytes)
+
+    with pytest.raises(ValueError, match="analysis"):
+        service.generate(now=NOW)
+
+    assert not (vault_root / "Knowledge" / "Weekly").exists()
+    assert repository.reports == []
+
+
+def test_analysis_aggregation_normalizes_frequency_and_tie_order(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    first = _candidate(
+        artifact_root, video_id="video-a", score=9, topic="shared", analysis_keyword=" Alpha\n", direction="Follow Alpha."
+    )
+    second = _candidate(
+        artifact_root, video_id="video-b", score=8, topic="shared", analysis_keyword="Beta", direction="Follow Beta."
+    )
+    third = _candidate(
+        artifact_root, video_id="video-c", score=7, topic="shared", analysis_keyword="alpha", direction=" Follow Alpha. "
+    )
+    service, _, vault_root = _service(tmp_path, (first, second, third), top_n=3)
+
+    generated = service.generate(now=NOW)
+
+    content = (vault_root / "Knowledge" / generated.note_ref.relative_path).read_text()
+    assert "Alpha（2）" in content
+    assert "Beta（1）" in content
+    assert content.index("趋势：Alpha（2）") < content.index("趋势：Beta（1）")
+    assert content.count("持续关注：Follow Alpha.") == 1
+
+
+def test_analysis_keyword_normalization_deduplicates_one_video_before_counting(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate = _candidate(
+        artifact_root,
+        video_id="video-a",
+        score=9,
+        topic="shared",
+        analysis_keywords=("Alpha", " alpha "),
+    )
+    service, _, vault_root = _service(tmp_path, (candidate,))
+
+    generated = service.generate(now=NOW)
+
+    content = (vault_root / "Knowledge" / generated.note_ref.relative_path).read_text()
+    assert "Alpha（1）" in content
+    assert "Alpha（2）" not in content

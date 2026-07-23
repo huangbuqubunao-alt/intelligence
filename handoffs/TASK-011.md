@@ -132,3 +132,34 @@
 - Reviewer verdict: **REJECT**。
 - Required correction: 在不扩大 ADR-010 范围的前提下，基于已验证 Analysis/Score/NoteRef 实现并测试
   明确、稳定的趋势、关键词和持续方向算法；补齐该 P1 的反例回归后，由全新独立 Reviewer 从新 head 重审。
+
+## Correction 1 — Codex Implementer — 2026-07-23
+
+### 修复范围与算法
+
+- 仅修改 `reporting.py`、周报测试与本 handoff；未修改 `state.py`、Obsidian Adapter、模板、公共领域契约、依赖或 Schema。
+- `WeeklyReportService` 现在为每个入选候选保留已验证的 `AnalysisResult` 于内部、非公共的
+  `WeeklyReportInput` 子类；不会改变任何共享 domain/state 契约。
+- 关键词只从 `AnalysisResult.keywords` 聚合：Unicode NFC、空白折叠、casefold 作为身份；每项 Analysis
+  内去重后按频率降序、规范化键升序排列。显示文本使用确定性的最小规范表示。
+- 趋势由同一 Analysis 关键词计数渲染为 `趋势：关键词（次数）`；持续关注方向仅聚合已验证 Analysis 的
+  actionable directions、action recommendations、product/business opportunities，以相同文本规范化和排序规则输出。
+- `ScoreResult` 和受管 `NoteRef` 仍是候选的必需验证输入，但不再作为关键词、趋势或持续方向的 fallback。
+- 任何候选的 Analysis 文件缺失、内容 hash 篡改、JSON/领域验证失败或 Artifact identity/provenance 不匹配都会在
+  调用 Knowledge Sink 前抛出 `WeeklyReportValidationError`；因此不写 Vault 或 reports 表。
+
+### Correction 1 验收证据
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| Analysis-only 关键词/趋势/方向 | PASS | 两个相同 Score topic、不同 Analysis keyword/direction 的候选渲染出各自 Analysis 结果，且没有 score topic fallback。 |
+| 规范化、频率、并列排序 | PASS | NFC/空白/casefold 的 `Alpha`/`alpha` 聚合为 `Alpha（2）`，频率较低的 `Beta（1）` 稳定排后。 |
+| 缺失、篡改、identity mismatch fail-closed | PASS | 临时 Analysis 文件删除/篡改和错误 artifact key 均在写入前失败；无 `Weekly/` 文件、无 reports upsert。 |
+| 既有 W-01/W-02/W-04/W-05/W-07 回归 | PASS | focused unit=2、integration=8、full pytest=409。 |
+
+### Correction 1 检查与边界
+
+- `uv lock --check`、`uv sync --locked`、focused pytest、全量 pytest、mypy、Ruff、CLI help 与 offline build 全部通过。
+- sdist/wheel 均核验包含 migration SQL、`templates/video.md` 和 `templates/weekly.md`。
+- 临时 I/O 仍仅发生在 pytest `tmp_path` 的 Artifact 根目录、SQLite stub 与最小 Vault；没有 Provider、云调用、网络、凭据、真实 Vault 或外部删除。
+- `DECISION NEEDED`：`None`。

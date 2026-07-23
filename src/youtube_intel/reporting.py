@@ -41,6 +41,16 @@ class _WeeklySink(Protocol):
     def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef: ...
 
 
+class WeeklyReportValidationError(ValueError):
+    """Raised before writing when a report input lacks verified local facts."""
+
+
+class _VerifiedWeeklyReport(WeeklyReportInput):
+    """Internal render input that keeps Analysis facts aligned with report items."""
+
+    analysis_results: tuple[AnalysisResult, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class WeekPeriod:
     """One configured-timezone ISO week represented by UTC instants."""
@@ -90,19 +100,19 @@ class WeeklyReportService:
 
     def generate(self, *, now: datetime) -> GeneratedWeeklyReport:
         period = week_period_for(now, timezone=self._timezone)
-        items = tuple(
-            item
+        verified = tuple(
+            self._verified_item(candidate)
             for candidate in self._repository.list_weekly_candidates(
                 start_utc=period.start_utc, end_utc=period.end_utc
             )
-            if (item := self._verified_item(candidate)) is not None
         )[: self._top_n]
-        report = WeeklyReportInput(
+        report = _VerifiedWeeklyReport(
             iso_year=period.iso_year,
             iso_week=period.iso_week,
             timezone=period.timezone,
-            items=items,
+            items=tuple(item for item, _ in verified),
             generated_at=now,
+            analysis_results=tuple(analysis for _, analysis in verified),
         )
         return GeneratedWeeklyReport(
             period=period,
@@ -110,7 +120,9 @@ class WeeklyReportService:
             note_ref=self._sink.upsert_weekly_report(report),
         )
 
-    def _verified_item(self, candidate: WeeklyCandidateRecord) -> WeeklyReportItem | None:
+    def _verified_item(
+        self, candidate: WeeklyCandidateRecord
+    ) -> tuple[WeeklyReportItem, AnalysisResult]:
         try:
             video = _video_metadata(candidate.video)
             score = _verified_score(self._artifact_root, candidate.score_artifact, video.video_id)
@@ -125,22 +137,25 @@ class WeeklyReportService:
                 or note.deleted_at is not None
                 or not note.relative_path.startswith("Videos/")
             ):
-                return None
+                raise WeeklyReportValidationError("weekly note reference is invalid")
             note_ref = NoteRef(
                 kind=NoteKind.VIDEO,
                 relative_path=note.relative_path,
                 content_hash=note.content_hash,
             )
             if not score.should_summarize or candidate.video.score != score.score:
-                return None
-            return WeeklyReportItem(
-                video=video,
-                score=score,
-                note_ref=note_ref,
-                one_sentence_summary=analysis.one_sentence_summary,
+                raise WeeklyReportValidationError("weekly score result is invalid")
+            return (
+                WeeklyReportItem(
+                    video=video,
+                    score=score,
+                    note_ref=note_ref,
+                    one_sentence_summary=analysis.one_sentence_summary,
+                ),
+                analysis,
             )
         except (OSError, TypeError, ValueError):
-            return None
+            raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
 
 
 def week_period_for(now: datetime, *, timezone: str) -> WeekPeriod:
@@ -186,7 +201,9 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
         }
         for item in report.items
     )
-    keywords = _keyword_counts(report)
+    analyses = _analyses_for_report(report)
+    keywords = _keyword_counts(analyses)
+    directions = _trend_and_direction_lines(keywords, analyses)
     content = _template().render(
         iso_year=report.iso_year,
         iso_week=report.iso_week,
@@ -194,7 +211,7 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
         item_count=len(items),
         items=items,
         keywords=keywords,
-        directions=tuple(value["keyword"] for value in keywords[:3]),
+        directions=directions,
     )
     return cast(str, content).replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
 
@@ -210,20 +227,75 @@ def _template() -> Any:
     return environment.from_string(source)
 
 
-def _keyword_counts(report: WeeklyReportInput) -> tuple[dict[str, object], ...]:
+def _analyses_for_report(report: WeeklyReportInput) -> tuple[AnalysisResult, ...]:
+    analyses = getattr(report, "analysis_results", None)
+    if not isinstance(analyses, tuple) or len(analyses) != len(report.items):
+        raise WeeklyReportValidationError("weekly analysis inputs are missing")
+    if not all(isinstance(analysis, AnalysisResult) for analysis in analyses):
+        raise WeeklyReportValidationError("weekly analysis inputs are invalid")
+    return analyses
+
+
+def _keyword_counts(analyses: tuple[AnalysisResult, ...]) -> tuple[dict[str, object], ...]:
+    return _normalized_counts(
+        keyword
+        for analysis in analyses
+        for keyword in _deduplicated_keywords(analysis.keywords)
+    )
+
+
+def _trend_and_direction_lines(
+    keywords: tuple[dict[str, object], ...], analyses: tuple[AnalysisResult, ...]
+) -> tuple[str, ...]:
+    trends = tuple(
+        f"趋势：{entry['keyword']}（{entry['count']}）" for entry in keywords
+    )
+    directions = _normalized_counts(
+        _normalized_text(point.text)
+        for analysis in analyses
+        for group in (
+            analysis.actionable_directions,
+            analysis.action_recommendations,
+            analysis.product_opportunities,
+            analysis.business_opportunities,
+        )
+        for point in group
+    )
+    return trends + tuple(f"持续关注：{entry['keyword']}" for entry in directions)
+
+
+def _normalized_counts(values: Any) -> tuple[dict[str, object], ...]:
     counts: dict[str, tuple[str, int]] = {}
-    for item in report.items:
-        for raw in item.score.topics:
-            display = unicodedata.normalize("NFC", raw).strip()
-            normalized = display.casefold()
-            prior = counts.get(normalized)
-            counts[normalized] = (display if prior is None else prior[0], 1 if prior is None else prior[1] + 1)
+    for value in values:
+        display = _normalized_text(value)
+        normalized = display.casefold()
+        previous = counts.get(normalized)
+        if previous is None:
+            counts[normalized] = (display, 1)
+        else:
+            counts[normalized] = (min(previous[0], display), previous[1] + 1)
     return tuple(
         {"keyword": display, "count": count}
         for _, (display, count) in sorted(
-            counts.items(), key=lambda value: (-value[1][1], value[0])
+            counts.items(), key=lambda entry: (-entry[1][1], entry[0])
         )
     )
+
+
+def _deduplicated_keywords(values: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: dict[str, str] = {}
+    for value in values:
+        display = _normalized_text(value)
+        key = display.casefold()
+        normalized[key] = min(normalized.get(key, display), display)
+    return tuple(normalized[key] for key in sorted(normalized))
+
+
+def _normalized_text(value: str) -> str:
+    normalized = " ".join(unicodedata.normalize("NFC", value).split())
+    if not normalized:
+        raise WeeklyReportValidationError("weekly analysis text is invalid")
+    return normalized
 
 
 def _verified_score(root: Path, artifact: Any, video_id: str) -> ScoreResult:
