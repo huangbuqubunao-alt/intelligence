@@ -42,6 +42,7 @@
 - `src/youtube_intel/__main__.py`
 - `src/youtube_intel/cli.py`
 - `src/youtube_intel/logging.py`
+- `pyproject.toml`（仅归档 package-data 配置）
 - `config/launchd/com.yia.agent.daily.plist.example`
 - `config/launchd/com.yia.agent.weekly.plist.example`
 - `docs/operations.md`
@@ -75,6 +76,12 @@
 - TASK-011 已整合并 `DONE`，ADR-011 O-06 上游依赖满足。Base：
   `main@8e322f362d2ff0972ee987b7c06c8453a9dce73d`；worktree：
   `/Users/hua/Documents/yia-worktrees/task-012`；branch：`codex/task-012-cli-operations`。
-- Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。只允许本卡列出的八个路径、标准库和
+- Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。只允许本卡列出的九个路径、标准库和
   离线门禁；`plutil -lint` 仅检查静态样例。禁止新增依赖/锁、Schema/migration、Provider、网络、模型、凭据、
   真实 Vault/用户内容、`launchctl`、服务注册/加载及测试目录外文件操作。
+
+## 2026-07-23 打包范围修正
+
+- 产品负责人已明确批准仅修改 `pyproject.toml` 的 package-data / sdist/wheel 包含配置，使两个静态 plist
+  examples 与 `docs/operations.md` 进入归档；这是完成既有打包验收门禁所需的最小范围扩展。
+- 不得修改任何依赖版本、`[project].dependencies`、build backend、工具链或 `uv.lock`；不增加其他打包清单。
