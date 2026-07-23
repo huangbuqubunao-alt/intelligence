@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -106,3 +106,13 @@
 - 周报仅从索引行构造视频 NoteRef，未复核受管视频笔记的路径安全、文件存在性与内容 SHA-256；缺失或篡改笔记
   仍可写入无效链接，违反 ADR-010 W-02/W-03。Correction 2 仅获 `reporting.py`、两份周报测试和 handoff，须在
   所有 Vault/reports 写入前 fail-closed；禁止扩大状态、Adapter、模板、依赖或真实资源边界。
+
+## 2026-07-23 Correction 2 实现证据与第三轮独立审查授权
+
+- Correction source：`0f589aca501ea4559aeb7f4dd7aeab2a41f52b79`，唯一父为 Reviewer 2 evidence
+  `6f9c75df90e10b964b36dbcefc52618422d83216`；仅修改 `reporting.py`、周报 integration test 与 source
+  handoff，完整产品范围仍为七个允许路径，依赖/锁未变。
+- Implementer 自报受锚定目录 FD、`O_NOFOLLOW`、普通文件与 SHA-256 验证已让缺失、篡改、symlink、逃逸和
+  provenance mismatch 在任何写入前 fail-closed；focused=`2/13`、full pytest=`414`、mypy、Ruff、CLI、locked sync、
+  offline build 与 package inclusion 通过。这些均为待 Reviewer 3 独立复跑的证据；不得预写 verdict、ACCEPTED、
+  merge 或 DONE。
