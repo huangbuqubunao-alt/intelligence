@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-22
-- 当前阶段：Phase 2 — TASK-008/TASK-009 并行离线实现
+- 更新时间：2026-07-23
+- 当前阶段：Phase 2 — TASK-008 已整合，TASK-009 离线修复中
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
@@ -23,12 +23,24 @@
   Correction 3 缓存恢复未验证 raw/structured Artifact 的内容 hash 及 request/provider/model identity，篡改结果仍可
   原子推进 Pipeline/Job。Reviewer 5 evidence `78ae101...` 为 `REJECT`：隔离 SDK child 的 handshake/response
   使用无期限 `readline()`，可能无限阻塞 Job。Correction 5 source `dcbbd38...` 已经 Reviewer 6 evidence
-  `6914312...` 独立复跑后 `APPROVE`（P0–P3=0）；TASK-008 已 `ACCEPTED` 并等待 Product Integrator。
+  `6914312...` 独立复跑后 `APPROVE`（P0–P3=0）。TASK-008 已由 Codex Product Integrator
+  以 merge commit `4f9ca390cdbfb57e6c1e14bf6b900402bd6945f7` 整合到 main：双父精确为
+  `7659943803d0e02799cb835418e4469fb08d52df` 与
+  `6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`，first-parent Diff 严格为六个授权路径，
+  `git diff --check`、lock/sync、重点测试（4/30）、全量测试（361）、mypy、Ruff、CLI help、
+  离线构建和 sdist/wheel 的 migration、prompt、固定 tokenizer 大小及 SHA-256 验证均通过；
+  凭据格式扫描通过。source 已成为 main 祖先且两个 worktree 均干净；未 push、未触及 TASK-009。
+  TASK-008 保持 `ACCEPTED`，尚未标记为 `DONE`。
   TASK-009 首轮 Reviewer 只因未跟踪的
   `.codebase-memory/` 本地索引工件而 `REJECT`；经产品负责人批准精确清理后 Reviewer 2 复审仍为
   `REJECT`：标题变化无法恢复首次 NoteRef，且同 video_id 非受管候选不会 fail-closed，另有 `C:`
   子目录 P2。Reviewer 3 evidence `f4a231b...` 再次 `REJECT`：Vault 权限类 OSError 被错误归为
-  `LOCAL_RESOURCE` 而非 `PERMISSION_DENIED`；现退回原 Implementer 执行 errno 映射 Correction 2。
+  `LOCAL_RESOURCE` 而非 `PERMISSION_DENIED`。Correction 2 source
+  `22147b087157a6bbb0adc7e78f2f5d3eae700f8e` 是 reviewer-3 evidence 的唯一子提交，只修改
+  Obsidian Adapter、既有集成测试和 handoff：`EACCES`、`EPERM`、`EROFS` 映射为
+  `PERMISSION_DENIED`；`ENOSPC` 与 errno-less fsync/replace 仍为 `LOCAL_RESOURCE`。
+  Implementer 自报临时 Vault/SQLite 的原文件、临时文件、Pipeline/Job/Artifact 回归以及全部离线
+  门禁通过；source 已干净，现等待全新独立 Reviewer 4 复核。
 - TASK-007 Correction 2 已证明存在 recovery Artifact 时可只修复一次；新 P1 仅在“已标记为恢复
   重试但 Artifact 索引记录缺失”时触发。Correction 3 仅补齐既有 Provider Call 安全标记下的
   fail-closed 分支，真实 Ollama 或模型资源仍未授权。
@@ -76,8 +88,8 @@
 
 ## 下一步
 
-1. Codex Implementer 在两个隔离 worktree 内并行实现 TASK-008/TASK-009 的离线切片；不得跨范围。
-2. 两项各自完成后，依次启动全新独立 Codex Reviewer；不得在同一 source worktree 与 Implementer 并发写入。
+1. 保持 TASK-008 为 `ACCEPTED`，等待主控最终关闭；不得在 source 分支继续写入。
+2. 全新独立 Reviewer 4 复核 TASK-009 Correction 2；不得在同一 source worktree 与 Implementer 并发写入。
 3. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault 与凭据操作
    继续不批准，分别等待后续受控验收。
 
@@ -101,8 +113,8 @@
 | 已完成可关闭 | TASK-008/TASK-009 Read-only Scout | 两份预检已回传，仓库无变化；终端可关闭 |
 | 已完成可关闭 | TASK-008A 两轮 Reviewer、Correction 1 Implementer 与 Product Integrator | evidence `0f52c30...` 已 `REJECT`；evidence `7a8239f...` 已 `APPROVE`；merge `64a9c416...` 已关闭为 `DONE` |
 | 已完成可关闭 | TASK-009A Implementer、两轮 Reviewer 与 Product Integrator | evidence `f73b287...` REJECT 已修复；evidence `e30b40c...` APPROVE；merge `9b0269...` 已通过整合门禁；不得继续写 source |
-| 等待独立审查 | TASK-008 Codex Reviewer | implementation `10478a9...`；离线 Fake/隔离 SDK；禁止真实 OpenAI、密钥和网络 |
-| 等待独立审查 | TASK-009 Codex Reviewer | implementation `956e37a...`；仅可写 source handoff；禁止真实 Vault/用户笔记/外部删除 |
+| 已整合待关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；保持 `ACCEPTED`，不得继续写 source |
+| 等待独立审查 | TASK-009 Codex Reviewer 4 | Correction 2 `22147b...`；仅可写 source handoff；禁止真实 Vault/用户笔记/外部删除 |
 
 ## 授权边界
 
