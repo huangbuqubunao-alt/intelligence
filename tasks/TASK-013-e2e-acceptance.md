@@ -1,6 +1,6 @@
 # TASK-013：端到端验收
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Owner role: QA Agent
 - Size: M
@@ -68,3 +68,8 @@
 - 允许范围严格为两份 `tests/e2e` 测试、其 fixtures、`docs/ACCEPTANCE_REPORT.md` 和 `handoffs/TASK-013.md`；不改生产 CLI/编排、配置、Schema/migration、依赖、锁文件、测试配置或既有测试。
 - 真实频道/YouTube、Whisper/ffmpeg、Ollama/模型、OpenAI/API/密钥/付费调用、真实 Vault/用户笔记、网络、媒体和 launchd 继续不授权。
 - 真实冒烟在验收报告中只能写为 `NOT AUTHORIZED`；离线服务组合证据不能表述为真实 Provider 或真实 CLI 冒烟已经完成。
+
+## 审查授权（2026-07-23）
+
+- 实现提交 `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708` 仅包含两份端到端测试、固定 fixtures、验收报告和 handoff；主控已授权全新独立 Codex Reviewer 复跑离线门禁和产品覆盖探针。
+- 审查前不得把实现者自报的 6 个离线 E2E、427 个全量测试或 `PASS` 表述为最终验收；Reviewer 只可写 source handoff，不能修正业务或测试代码。

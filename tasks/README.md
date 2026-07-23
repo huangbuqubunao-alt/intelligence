@@ -63,7 +63,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | 已整合并收口；merge `3d2122c...` | DONE | 003-009 |
 | [TASK-011](TASK-011-weekly-report.md) | 周报 | 已整合并关闭；merge `2ba42c2...` | DONE | 009, 010 |
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
-| [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | Codex；离线固定夹具与测试内组合 | IN_PROGRESS | 011, 012 |
+| [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | Codex；离线固定夹具与测试内组合，独立审查中 | IN_REVIEW | 011, 012 |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配） | BLOCKED | 013 |
 
 ## 主控分配模板
