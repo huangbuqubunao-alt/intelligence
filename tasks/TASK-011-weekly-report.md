@@ -1,6 +1,6 @@
 # TASK-011：周报
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Owner role: 实现 Agent
 - Size: M
@@ -80,3 +80,11 @@
   未触及 fixtures、依赖、锁、Schema/migration、CLI 或真实资源。
 - Implementer 自报 focused=`2/3`、full pytest=`404`、mypy、Ruff、CLI、locked sync、offline build 与
   package inclusion 通过。这些仅为待独立复跑证据；Reviewer 只可追加 source handoff。
+
+## 2026-07-23 第一轮审查拒绝与 Correction 1
+
+- Reviewer evidence：`3759d54a74abaa8e6627b8107298d0938fbe3441`，唯一父为 implementation
+  `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，只修改 source handoff；Verdict=`REJECT`，P1=1。
+- 周报趋势、关键词和持续关注方向只读 `ScoreResult.topics`，没有将 verified `AnalysisResult` 作为必要
+  输入，违反 ADR-010 W-03 和验收项。原 Implementer 只获 `reporting.py`、两份周报测试和 handoff 的
+  Correction 1；须以确定性 Analysis 聚合关闭 P1，禁止扩大契约、状态、模板或真实资源边界。
