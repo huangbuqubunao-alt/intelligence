@@ -62,10 +62,11 @@
   `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a` 的
   `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59` 是
   `main@d0d136a4754a97954f64f1ca39b87837e639decc` 的唯一非 merge 后继，严格改动 README、SBOM、
-  第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore` 七路径，source 工作树干净。TASK-014
-  现为 `IN_REVIEW`；Reviewer 授权包为
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-REVIEWER-CODEX.md`，独立 Reviewer 只可追加该 source
-  的 `handoffs/TASK-014.md`，不得启动真实验证或改写实现资料。
+  第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore` 七路径。独立 Reviewer evidence
+  `88f1b36fdef75146315e91f93b71c36463132ffb` 是该 source 的唯一后继，仅追加 `handoffs/TASK-014.md`，
+  唯一父提交为 `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`，并给出无 P0–P3 的资料审查
+  `APPROVE`；source 工作树在两次核验时均干净。此结论不改变 TASK-014 整体 `IN_PROGRESS` / `No-Go`：
+  未授权真实验证，也未形成发布批准、法律结论、风险接受或最终 Go。
 
 ## 已完成或已批准
 
@@ -106,10 +107,9 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 已提交，正在等待独立文档/Git 审查：Reviewer 必须核对发行级 SBOM、第三方许可证/NOTICE、
-   README、发布检查表、at-most-once best-effort 用户披露、四阶段 smoke 授权矩阵和 `.gitignore` 根路径锚定，
-   并确保 No-Go、mutagen GPL、BPE 文件级归属、真实 smoke/Vault 和可靠性边界未被弱化。审查只可追加 source
-   handoff，不执行 smoke、测试、构建或外部调用，也不产生 Go。
+1. TASK-014 Phase A 的七路径发行资料已获独立 Git/文档审查 `APPROVE`，但只完成资料审查。TASK-014 整体
+   继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault
+   边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；在这些决定完成前，不产生发布或真实资源授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 3. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
@@ -138,7 +138,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 等待独立审查 | TASK-014 Phase A：发行资料与风险披露 | 唯一 source `8c35cd0...` 已提交并清洁；独立 Codex Reviewer 仅可在 source `handoffs/TASK-014.md` 追加证据，核验 Git/文档，不运行 uv、测试、构建、网络或真实资源 |
+| 发布门禁继续 | TASK-014 Phase A：发行资料与风险披露 | 七路径 source `8c35cd0...` 与仅追加 handoff 的 Reviewer evidence `88f1b36...` 均已核验；资料审查 `APPROVE`，但 TASK-014 整体仍 `IN_PROGRESS` / `No-Go`，不发布、不合并、不运行真实资源 |
 
 ## 授权边界
 

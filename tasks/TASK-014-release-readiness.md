@@ -1,7 +1,7 @@
 # TASK-014：发布准备
 
-- Status: `IN_REVIEW`
-- Assignee: `Codex Reviewer (independent)`
+- Status: `IN_PROGRESS`
+- Assignee: `PO + TL + QA (release gate)`
 - Owner role: PO + TL + QA
 - Size: S
 - Risk: Medium
@@ -11,7 +11,7 @@
 
 在不新增功能的前提下完成 V1 文档、安装运行、备份恢复、安全检查和发布门禁，形成明确的 Go/No-Go 决策。
 
-## Phase A：发行资料与风险披露（已提交，等待独立审查）
+## Phase A：发行资料与风险披露（资料审查已通过；整体仍 No-Go）
 
 - 控制面基线：`main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21`。
 - 正式实施包：`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`。
@@ -20,6 +20,11 @@
   `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`；其唯一父提交为本控制面基线。
 - 正式 Reviewer 授权包：`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-REVIEWER-CODEX.md`；Reviewer
   只可在上述 source 的 `handoffs/TASK-014.md` 追加审查证据，不能修改任何其他 source 路径或主线控制面。
+- Reviewer evidence：`88f1b36fdef75146315e91f93b71c36463132ffb`，其唯一父提交为
+  `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`，仅追加 `handoffs/TASK-014.md`；独立资料审查 Verdict 为
+  `APPROVE`，无 P0–P3。
+- 此 APPROVE 只确认 Phase A 七路径发行资料与风险披露的 Git/文档一致性；TASK-014 整体保持
+  `IN_PROGRESS` / `No-Go`，不构成发布批准、法律结论、真实 smoke 授权、风险接受或最终 Go。
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
