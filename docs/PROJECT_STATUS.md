@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013A 的缓存 provenance P1 已由原 Codex Implementer 修复，现等待第二位独立 Codex Reviewer 验证；TASK-013 继续等待 TASK-013A 整合后重新建立离线验收证据；TASK-014 仍需正式资源/实施授权。
+1. TASK-013A 已获第二位独立 Codex Reviewer `APPROVE`，现为 `ACCEPTED` 并等待 Product Integrator 合并；TASK-013 继续等待其整合后重新建立离线验收证据；TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
