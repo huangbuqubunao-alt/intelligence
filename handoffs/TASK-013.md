@@ -173,3 +173,16 @@
 - Findings: P0=0; P1=1 (P1-1); P2=0; P3=0.
 - Verdict: `REJECT`.
 - Required correction: within the already authorized E2E/fixture/report/handoff scope, reconstruct a brand-new composition after each applicable injected failure and make its retry stages load and verify the required persisted Artifact/Provider-call/Job/Pipeline data rather than prior in-memory dictionaries. Prove zero fresh expensive Fake calls whenever the verified persistent cache should satisfy the stage. Do not modify production code, state/Schema, dependencies, or real-resource boundaries.
+
+## Correction 2（2026-07-26，Implementer；待独立审查）
+
+- Authorization/lineage: main 的 Correction 2 授权提示词最新提交为 `9b5c4b53537ba0dfd2319f849d5269a1a033c568`；唯一 source 是 `codex/task-013-e2e-acceptance-rebuild@4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`，其唯一父级为 Correction 1 实现 `ae724990f6f3628a054bfca000e9e28d83f3def7`。未访问历史 `task-013` worktree/branch。
+- Reuse decision: `DIRECT` — 现有服务、锁定依赖与 Python 标准库；外部边界继续仅为测试内 Fake Adapter。未复制第三方代码，未新增依赖或许可证义务。
+- RED: 评分失败后删除首次 `_OfflineMvpFlow` 并 `gc.collect()`，从同一临时 SQLite/DATA/Vault 创建 `restore=True` 组合。重启后的评分 Job 留在 `TRANSCRIPT_READY`/`RETRY_PENDING`，因为旧 shim 从 `self.transcripts[video_id]` 读取。该复现没有使用旧 Repository、Fake、缓存或 SQL 更新。
+- GREEN / persistent recovery: 新组合的恢复 shim 只读 SQLite 中目标视频的 Artifact 索引，验证其 DATA 根边界、SHA-256 与 UTF-8 后构造恢复所需输入；评分、分析和笔记阶段同样从已验证的结构化 Artifact 读取必要的已完成结果。没有直接 `complete_stage`、SQL 更新、通用 handler 或伪造 Job/Pipeline；状态推进仍由 `PipelineOrchestrator` 和现有应用服务完成。
+- Fresh composition boundary: 每个字幕、转写、评分、分析、笔记和周报注入失败后都删除第一次 Flow；周报失败额外删除仍持有旧 Repository 的 `WeeklyReportService`。第二次 `_OfflineMvpFlow(..., restore=True)` 使用新 Repository、服务、Fake Provider、缓存和无冲突 Job ID 前缀，并先断言所有新缓存与昂贵 Fake 计数均为空/零。
+- Scoring restart proof: `scoring` 场景中，新组合保留并验证已持久的 canonical Transcript Artifact；新字幕/Whisper Fake 调用为 `0`，只作失败的评分 1 次和后续必要分析 1 次，凭据 resolver 1 次，最终完成笔记与周报。之后稳定重跑不改变 Artifact、Provider-call、Report、Job 计数、视频笔记数或周报数。
+- Other failure boundaries: 字幕、转写、分析、笔记和周报同样在新组合而非同进程 retry 中恢复至 `COMPLETE`；所有完成后的稳定重跑无重复输出。
+- Verification before final gate: scoring RED → FAIL；focused scoring recovery → `1 passed`; failure-recovery file → `6 passed`; MVP flow file → `3 passed`; `uv lock --check` → 84 packages; `uv sync --locked --offline` → 61 packages; E2E offline marker → `9 passed`; full pytest → `445 passed`; `uv run mypy src` → 23 source files clean; `uv run ruff check .` → pass (test import order mechanically fixed, then rechecked); CLI help → pass; `uv build --offline` → sdist + wheel. Secret scan, final Diff/path and staged checks follow immediately before commit.
+- Real-resource status: `NOT AUTHORIZED`。未使用真实 YouTube/网络、媒体、ffmpeg、Whisper/Ollama/OpenAI 模型或 API、凭据、真实 Vault、付费服务或 launchd；所有写入仅在 pytest `tmp_path`。
+- This is implementer evidence only; it does not start a Reviewer, change task status, merge, push, or claim approval.

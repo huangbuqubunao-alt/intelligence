@@ -18,6 +18,7 @@ from youtube_intel.analysis import (
 )
 from youtube_intel.config import CloudSettings, LocalScoringSettings
 from youtube_intel.domain import (
+    AnalysisCompleted,
     AnalysisPoint,
     AnalysisResult,
     Availability,
@@ -28,7 +29,10 @@ from youtube_intel.domain import (
     ProcessingStage,
     ProviderCallMetadata,
     ScoreResult,
+    ScoringDecision,
+    ScoringOutcome,
     SubtitleFormat,
+    TranscriptArtifact,
     TranscriptionRequired,
     TranscriptReady,
     TranscriptSourceType,
@@ -292,6 +296,7 @@ class _OfflineMvpFlow:
         restore: bool = False,
     ) -> None:
         self.root = tmp_path
+        self._job_prefix = "recovered" if restore else "initial"
         self.data_root = tmp_path / "data"
         self.vault_root = tmp_path / "vault"
         (self.vault_root / "Knowledge").mkdir(parents=True, exist_ok=True)
@@ -344,7 +349,7 @@ class _OfflineMvpFlow:
     def _job_id(self) -> str:
         count = getattr(self, "_job_count", 0) + 1
         self._job_count = count
-        return f"e2e-job-{count}"
+        return f"e2e-job-{self._job_prefix}-{count}"
 
     @staticmethod
     def _video(scenario: _Scenario) -> VideoMetadata:
@@ -435,9 +440,114 @@ class _OfflineMvpFlow:
             clock=lambda: NOW,
         ).transcribe(audio)
 
+    def _persisted_artifact(
+        self, video_id: str, kind: ArtifactKind
+    ) -> tuple[bytes, str, str, str | None, str | None]:
+        with sqlite3.connect(self.root / "state.sqlite3") as connection:
+            row = connection.execute(
+                """
+                SELECT relative_path, content_hash, storage_root, provider, model
+                FROM artifacts
+                WHERE video_id = ? AND kind = ? AND deleted_at IS NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (video_id, kind.value),
+            ).fetchone()
+        assert row is not None
+        relative_path, content_hash, storage_root, provider, model = row
+        assert storage_root == StorageRoot.DATA.value
+        path = (self.data_root / relative_path).resolve()
+        assert path.is_relative_to(self.data_root.resolve())
+        body = path.read_bytes()
+        assert hashlib.sha256(body).hexdigest() == content_hash
+        return body, relative_path, content_hash, provider, model
+
+    def _transcript_for(self, video_id: str) -> TranscriptReady:
+        cached = self.transcripts.get(video_id)
+        if cached is not None:
+            return cached
+        body, relative_path, content_hash, provider, model = self._persisted_artifact(
+            video_id, ArtifactKind.TRANSCRIPT_CANONICAL
+        )
+        text = body.decode("utf-8")
+        scenario = self.scenarios[video_id]
+        source_type = scenario.subtitle_source or TranscriptSourceType.WHISPER
+        source_format = (
+            SubtitleFormat.JSON3
+            if source_type is TranscriptSourceType.MANUAL_SUBTITLE
+            else SubtitleFormat.VTT
+            if source_type is TranscriptSourceType.AUTO_SUBTITLE
+            else None
+        )
+        return TranscriptReady(
+            artifact=TranscriptArtifact(
+                video_id=video_id,
+                language="en",
+                source_type=source_type,
+                requested_language="en" if source_format is not None else None,
+                source_format=source_format,
+                text_path=relative_path,
+                timed_text_path=None if source_format is None else relative_path,
+                source_content_hash=content_hash,
+                source_byte_count=len(body),
+                content_hash=content_hash,
+                char_count=len(text),
+                segment_count=len(text.splitlines()),
+                normalization_version="offline-persisted-recovery-v1",
+                provider=provider or "offline-persisted-recovery",
+                model=model,
+                created_at=NOW,
+            ),
+            call=ProviderCallMetadata(
+                provider=provider or "offline-persisted-recovery",
+                model=model,
+                started_at=NOW,
+                finished_at=NOW,
+            ),
+        )
+
+    def _score_for(self, video_id: str) -> ScoringOutcome:
+        cached = self.scores.get(video_id)
+        if isinstance(cached, ScoringOutcome):
+            return cached
+        body, _, _, _, _ = self._persisted_artifact(video_id, ArtifactKind.SCORING_STRUCTURED)
+        result = ScoreResult.model_validate_json(body)
+        final_should_summarize = result.score >= 7.0
+        return ScoringOutcome(
+            result=result,
+            decision=ScoringDecision(
+                threshold=7.0,
+                final_should_summarize=final_should_summarize,
+                model_disagrees=result.should_summarize is not final_should_summarize,
+            ),
+            call=ProviderCallMetadata(
+                provider=result.provider,
+                model=result.model,
+                started_at=NOW,
+                finished_at=NOW,
+            ),
+        )
+
+    def _analysis_for(self, video_id: str) -> object:
+        cached = self.analyses.get(video_id)
+        if cached is not None:
+            return cached
+        body, _, _, _, _ = self._persisted_artifact(video_id, ArtifactKind.ANALYSIS_STRUCTURED)
+        result = AnalysisResult.model_validate_json(body)
+        return AnalysisCompleted(
+            result=result,
+            call=ProviderCallMetadata(
+                provider=result.provider,
+                model=result.model,
+                started_at=NOW,
+                finished_at=NOW,
+            ),
+        )
+
     def _scoring_stage(self, job: object, video: object) -> None:
         video_id = getattr(video, "video_id")
-        transcript = self.transcripts[video_id].artifact
+        transcript = self._transcript_for(video_id).artifact
         text = (self.data_root / transcript.text_path).read_text(encoding="utf-8")
         self.scores[video_id] = RepositoryBackedScoringService(
             provider=self.scoring,
@@ -458,7 +568,7 @@ class _OfflineMvpFlow:
 
     def _analysis_stage(self, job: object, video: object) -> object | None:
         video_id = getattr(video, "video_id")
-        transcript = self.transcripts[video_id].artifact
+        transcript = self._transcript_for(video_id).artifact
         text = (self.data_root / transcript.text_path).read_text(encoding="utf-8")
         outcome = RepositoryBackedAnalysisService(
             provider=self.analysis,
@@ -492,9 +602,9 @@ class _OfflineMvpFlow:
         self._note_failure = False
         sink.upsert_video_note(
             video=self.videos[video_id],
-            transcript=self.transcripts[video_id].artifact,
-            scoring=self.scores[video_id],  # type: ignore[arg-type]
-            analysis=self.analyses[video_id],  # type: ignore[arg-type]
+            transcript=self._transcript_for(video_id).artifact,
+            scoring=self._score_for(video_id),
+            analysis=self._analysis_for(video_id),
             processed_at=NOW,
             pipeline_version=PIPELINE_VERSION,
         )
