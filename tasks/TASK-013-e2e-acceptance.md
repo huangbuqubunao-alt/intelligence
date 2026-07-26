@@ -1,6 +1,6 @@
 # TASK-013：端到端验收
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex Implementer`
 - Owner role: QA Agent
 - Size: M
@@ -24,6 +24,13 @@
 - 必须以同一临时 SQLite/DATA/Vault 进行首次运行，随后销毁第一次运行的全部服务、Repository、Fake Provider 与内存缓存，并新建完整组合实例；恢复只能依赖持久 Artifact、Provider-call、Job/Pipeline 与用户可见文件。新 Fake Provider 的昂贵调用计数必须为 `0`；不得复用 `_OfflineMvpFlow` 或其他进程内内存状态，不得直接推进 SQLite 状态或伪造阶段完成。
 - 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
 - Correction 1 已提交，等待独立 Reviewer 复核同一临时 SQLite/DATA/Vault 上销毁旧组合后新建完整组合、持久恢复、失败恢复与稳定重跑；新的昂贵 Fake 调用必须为 `0`。
+
+## Rebuild Correction 2（2026-07-26）
+
+- P1-1：第二轮独立审查发现评分失败后，重建的组合仍需旧 `_OfflineMvpFlow` 内存 `transcripts`、`scores`、`analyses`，无法仅从持久 SQLite/Artifact 恢复，留下 `TRANSCRIPT_READY` 与 `RETRY_PENDING`。
+- 原 Codex Implementer 仅可修改既有五路径组：两份 E2E、`tests/e2e/fixtures/**`、验收报告与 handoff；不得修改生产代码、CLI/编排、配置、Schema/migration、依赖/锁、测试配置或 TASK-013A。
+- 必须证明评分失败后销毁整个组合，在同一临时 SQLite/DATA/Vault 上重建新组合，仅用持久记录保留转写、执行必要评分并完成后续笔记/周报；稳定重跑不得重复昂贵调用或用户可见产物。禁止直接状态推进或伪造阶段完成。
+- 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
 
 ## 目标
 

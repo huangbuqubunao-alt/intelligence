@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013 Correction 1 source `ae724990...` 已提交，现等待全新独立 Codex Reviewer 验证同一临时 SQLite/DATA/Vault 上的组合销毁、重建、持久恢复、失败恢复与稳定重跑；新 Fake 的昂贵调用必须为 `0`。TASK-014 仍需正式资源/实施授权。
+1. TASK-013 Correction 1 的第二轮独立审查 evidence `4aecab7...` 为 `REJECT`（P1-1）：评分失败后的新组合仍依赖旧进程内字典，不能从持久 SQLite/Artifact 恢复。现退回原 Codex Implementer 在冻结五路径范围内修复“评分失败 → 重启 → 保留转写 → 必要评分 → 笔记/周报完成”与稳定重跑。TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
