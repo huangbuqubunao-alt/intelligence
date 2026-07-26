@@ -120,3 +120,15 @@
 - Findings：P0=0；P1=1（P1-1）；P2=0；P3=0。
 - Verdict：`REJECT`
 - 未解决 P0/P1：P1-1。修复必须仅在已授权的两份 E2E 测试/fixtures/验收报告/handoff 范围内，加入从同一持久化 SQLite/DATA/Vault 重新构建服务组合并验证后续阶段恢复、昂贵 Fake 调用不重复的回归证据；不得修改生产编排、状态、Schema、依赖或真实资源边界。
+
+## Correction 1（2026-07-26，Implementer；待独立审查）
+
+- Authorization/lineage: main 的替代授权提示词最新提交为 `9ce5bf68bf4c0608fc0a198def9c582f3e2a5389`；实现仅从 `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1` 开始，唯一父提交为被拒绝的审查证据 `0a9e16887e7dc0b287be941a34e2908766e3992e`。未访问历史拒绝 worktree。
+- Reuse decision: `DIRECT` — 既有项目服务、锁定依赖和 Python 标准库；字幕、Whisper、评分、分析与凭据边界仅用测试内 Fake Adapter；无第三方代码复制、无新增依赖或许可证义务。
+- RED: 新增 `restore=True` 重建断言后，`uv run python -m pytest tests/e2e/test_mvp_flow.py::test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent -q` 先失败，证明原组合无法在既有 Vault 目录上重新构建（`FileExistsError`）。初始运行还暴露固定测试时钟已落后于分析服务的真实 UTC 时钟，导致 `LeaseConflict`；仅将测试内固定 `NOW` 前移到 `2100-01-01`，不修改生产时钟或编排。
+- GREEN / destruction boundary: 第一次完整服务流和周报完成后，测试只保留持久路径、DB 计数、周报 bytes/hash 等标量证据，删除 `report` 与整个 `flow`，再执行 `gc.collect()`。不把旧的 Repository、Provider、`transcripts`、`scores`、`analyses`、计数器或其他内存对象传给后续断言。
+- Second composition / persistent recovery: 同一 pytest `tmp_path` 的 SQLite、DATA 与 Vault 上新建 `_OfflineMvpFlow(..., restore=True)`，它创建新的 Repository、服务与 Fake Provider、跳过初始 fixture 写入，且断言四个内存缓存为空。重跑 orchestration 和 `WeeklyReportService` 后，Artifact、Provider-call、Report、Job 计数与周报 bytes/hash 完全不变；Pipeline 仍为 `COMPLETE`，用户可见笔记与周报未重复。新的字幕枚举/读取、Whisper、评分、分析与凭据 Fake 计数均为 `0`。
+- P1-1 scope result: 已用服务组合和持久 SQLite/DATA/Vault 证明重启后恢复及昂贵处理缓存；未使用通用 handler、直接 `complete_stage`、直接 SQL 更新或伪造 Job/Pipeline。最小 initial fixture 只在第一次组合准备 `DISCOVERED -> METADATA_READY`，重建组合不写入 fixture。
+- Verification completed before commit: `uv lock --check` → `Resolved 84 packages`; `uv sync --locked --offline` → `Checked 61 packages`; `uv run python -m pytest tests/e2e -m 'not network and not cloud'` → `9 passed`; focused MVP/failed-recovery files → `3 passed` / `6 passed`; `uv run python -m pytest` → `445 passed`; `uv run mypy src` → 23 source files clean; `uv run ruff check .` → pass; `uv run python -m youtube_intel --help` → pass; `uv build --offline` → sdist + wheel. `rg --pcre2 -n '(?i)(sk-[a-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,})' tests/e2e docs/ACCEPTANCE_REPORT.md handoffs/TASK-013.md` produced no match (expected exit 1). `git diff --check` passed; final Diff/path and staged-secret checks are recorded immediately before commit.
+- Real-resource status: `NOT AUTHORIZED`。未使用真实 YouTube/网络、媒体、ffmpeg、Whisper/Ollama/OpenAI 模型或 API、凭据、真实 Vault、付费服务或 launchd；所有写入仅为 pytest `tmp_path`。
+- This section is implementer evidence only. It does not start a Reviewer, change TASK status, merge, push, or claim an approval verdict.

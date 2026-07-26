@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import sqlite3
 from dataclasses import dataclass
@@ -62,7 +63,7 @@ from youtube_intel.transcripts import (
     TranscriptJobContext,
 )
 
-NOW = datetime(2026, 7, 26, 8, 0, tzinfo=UTC)
+NOW = datetime(2100, 1, 1, 8, 0, tzinfo=UTC)
 PIPELINE_VERSION = "acceptance-v1"
 OWNER = "e2e-worker"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
@@ -288,11 +289,12 @@ class _OfflineMvpFlow:
         *,
         failure: str | None = None,
         cloud_enabled: bool = True,
+        restore: bool = False,
     ) -> None:
         self.root = tmp_path
         self.data_root = tmp_path / "data"
         self.vault_root = tmp_path / "vault"
-        (self.vault_root / "Knowledge").mkdir(parents=True)
+        (self.vault_root / "Knowledge").mkdir(parents=True, exist_ok=True)
         self.repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
         self.repository.initialize(now=NOW)
         self.scenarios = {scenario.video_id: scenario for scenario in SCENARIOS}
@@ -317,7 +319,8 @@ class _OfflineMvpFlow:
         self.credentials = _CredentialResolver()
         self._note_failure = failure == "note"
         self._cloud_enabled = cloud_enabled
-        self._setup_initial_fixture()
+        if not restore:
+            self._setup_initial_fixture()
         self.orchestrator = PipelineOrchestrator(
             repository=self.repository,
             planner=PipelineJobPlanner(
@@ -544,24 +547,46 @@ def test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent(tmp_path:
 
     report = flow.weekly_service().generate(now=NOW)
     report_path = flow.vault_root / "Knowledge" / report.note_ref.relative_path
-    note_path = flow.vault_root / "Knowledge" / "Videos" / next(
-        path.name for path in (flow.vault_root / "Knowledge" / "Videos").glob("*manual-high.md")
-    )
     assert "[[Videos/" in report_path.read_text(encoding="utf-8")
 
     first_counts = flow.counts()
     first_report = report_path.read_bytes()
-    provider_calls = (flow.whisper.calls, flow.scoring.calls, flow.analysis.calls)
-    flow.run(now=NOW + timedelta(minutes=5))
-    repeated = flow.weekly_service().generate(now=NOW + timedelta(minutes=5))
+    first_report_hash = report.note_ref.content_hash
+    del report
+    del flow
+    gc.collect()
 
-    assert flow.counts() == first_counts
+    recovered = _OfflineMvpFlow(tmp_path, restore=True)
+    assert recovered.transcripts == {}
+    assert recovered.scores == {}
+    assert recovered.analyses == {}
+    assert recovered.note_sinks == {}
+    assert (recovered.whisper.calls, recovered.scoring.calls, recovered.analysis.calls) == (0, 0, 0)
+    assert recovered.credentials.calls == 0
+    recovered.run(now=NOW + timedelta(minutes=5))
+    repeated = recovered.weekly_service().generate(now=NOW + timedelta(minutes=5))
+
+    assert recovered.counts() == first_counts
     assert report_path.read_bytes() == first_report
-    assert repeated.note_ref.content_hash == report.note_ref.content_hash
-    assert (flow.whisper.calls, flow.scoring.calls, flow.analysis.calls) == provider_calls
+    assert repeated.note_ref.content_hash == first_report_hash
+    assert (recovered.whisper.calls, recovered.scoring.calls, recovered.analysis.calls) == (0, 0, 0)
+    assert recovered.credentials.calls == 0
+    assert all(
+        (adapter.enumerate_calls, adapter.read_calls) == (0, 0)
+        for adapter in recovered.subtitle_adapters.values()
+    )
 
-    original_note = note_path.read_text(encoding="utf-8")
-    edited_note = original_note.replace("## 我的思考\n\n", "## 我的思考\n\n保留的用户思考\n")
+
+def test_video_note_preserves_user_section(tmp_path: Path) -> None:
+    flow = _OfflineMvpFlow(tmp_path)
+    flow.run()
+
+    note_path = flow.vault_root / "Knowledge" / "Videos" / next(
+        path.name for path in (flow.vault_root / "Knowledge" / "Videos").glob("*manual-high.md")
+    )
+    edited_note = note_path.read_text(encoding="utf-8").replace(
+        "## 我的思考\n\n", "## 我的思考\n\n保留的用户思考\n"
+    )
     note_path.write_text(edited_note, encoding="utf-8")
     flow.note_sinks["manual-high"].upsert_video_note(
         video=flow.videos["manual-high"],
@@ -571,6 +596,7 @@ def test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent(tmp_path:
         processed_at=NOW,
         pipeline_version=PIPELINE_VERSION,
     )
+
     persisted = note_path.read_text(encoding="utf-8")
     frontmatter = persisted.split("---", 2)[1]
     assert yaml.safe_load(frontmatter)["video_id"] == "manual-high"

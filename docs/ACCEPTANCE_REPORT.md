@@ -20,11 +20,11 @@ uv run python -m pytest tests/e2e/test_failure_recovery.py
 | PRD 项 | 结果 | 离线证据 |
 |---|---|---|
 | 10.1 五类样例 | PASS | `test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent` 经 `SubtitleAcquisitionService` 覆盖人工/自动字幕，经 `LocalTranscriptionService` 覆盖无字幕转写；另有低价值与高价值视频。 |
-| 10.2 重复运行无重复 | PASS | 同一 Flow 和周报第二次运行后 Provider-call、Artifact、Report、Job 总数、外部 Fake 调用次数、周报字节均不变。 |
+| 10.2 重复运行无重复 | PASS | 首次完整服务流后销毁全部组合对象；同一 SQLite/DATA/Vault 上新建组合重跑和重建周报，Provider-call、Artifact、Report、Job 总数和周报字节均不变。 |
 | 10.3 分阶段失败恢复 | PASS | `test_service_boundary_failures_recover_without_duplicate_outputs` 分别在字幕、转写、评分、分析、笔记、周报边界注入一次失败；重跑恢复，随后再次运行不新增输出。 |
 | 10.4 云关闭仍可完成本地流程 | PASS | `test_cloud_disabled_keeps_the_offline_flow_complete_without_cloud_side_effects` 断言高价值流程完成、Fake 云 Provider 与凭据解析器均为零调用。 |
-| 10.5 重入恢复不重复昂贵步骤 | PASS | 每次 retry 重新构造对应生产服务并使用持久化 Job/Provider-call/Artifact；成功后后续运行的 Whisper、评分、分析 Fake 调用计数不增加。 |
-| 10.6 质量门禁 | PASS | e2e 8 passed；全量 pytest、mypy、Ruff、CLI help、锁检查与离线构建见交接报告。 |
+| 10.5 重启恢复不重复昂贵步骤 | PASS | `test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent` 在首次完整服务流后删除 `_OfflineMvpFlow`、Repository、Fake Provider 和内存缓存并执行 `gc.collect()`；它仅用相同 pytest SQLite/DATA/Vault 重建第二套完整组合。第二套组合的缓存初始为空，重跑由持久 Artifact、Provider-call、Job/Pipeline 和 Vault 文件驱动，所有新 Fake 的字幕、Whisper、评分、分析与凭据调用均为 `0`，且不会新增 Artifact、Provider-call、笔记或周报。 |
+| 10.6 质量门禁 | PASS | e2e 9 passed；全量 pytest、mypy、Ruff、CLI help、锁检查与离线构建见交接报告。 |
 | 10.7 无真实密钥/敏感内容 | PASS | 见本报告的凭据扫描；所有凭据值为固定 `offline-test-credential`，只在 Fake Adapter 内存中使用。 |
 | 10.8 笔记可见性和用户区 | PASS | 临时 Vault 验证 Frontmatter 的 `video_id`、周报双链与 `我的思考` 原始用户内容保留。 |
 
@@ -33,6 +33,7 @@ uv run python -m pytest tests/e2e/test_failure_recovery.py
 - 低价值视频完成到 `COMPLETE`，不调用云分析或凭据解析。
 - 高价值视频经离线 Fake 分析生成 Videos 笔记；周报稳定写入 `Weekly/YYYY-Www.md`。
 - 人工、自动与 Whisper 规范文本都由生产字幕/转写服务保存并供评分服务消费。
+- 重建的第二套组合从同一持久 SQLite、DATA 和临时 Vault 恢复；其新建内存缓存为空，依然保留既有 Artifact、Provider-call、Job/Pipeline 与用户可见笔记/周报，且不调用昂贵 Fake。
 - 已登记 NoteRef 的内容哈希遭用户编辑后，周报服务会 fail-closed；本验收先完成周报幂等验证，再验证笔记服务保留 `我的思考`。这是用户编辑完整性保护，不表述为周报可忽略内容变更。
 
 ## 真实环境状态
