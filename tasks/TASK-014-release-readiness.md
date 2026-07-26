@@ -1,7 +1,7 @@
 # TASK-014：发布准备
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Owner role: PO + TL + QA
 - Size: S
 - Risk: Medium
@@ -10,6 +10,13 @@
 ## 目标
 
 在不新增功能的前提下完成 V1 文档、安装运行、备份恢复、安全检查和发布门禁，形成明确的 Go/No-Go 决策。
+
+## Phase A：发行资料与风险披露（已正式分配）
+
+- 控制面基线：`main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21`。
+- 正式实施包：`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`。
+- 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
+- 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
 ## 已授权的只读 Scout 预检（不等于任务开工）
 
@@ -69,9 +76,12 @@
 ## 预计触达文件
 
 - `README.md`
-- `docs/OPERATIONS.md`
-- `docs/ACCEPTANCE_REPORT.md`
+- `docs/SBOM.md`
+- `docs/THIRD_PARTY_NOTICES.md`
 - `docs/RELEASE_CHECKLIST.md`
+- `docs/SMOKE_AUTHORIZATION_MATRIX.md`
+- `.gitignore`
+- `handoffs/TASK-014.md`
 
 ## 交付证据
 

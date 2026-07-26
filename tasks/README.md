@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_DONE__TASK_007_DONE__TASK_008_DONE__TASK_009_DONE`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_DONE__TASK_007_DONE__TASK_008_DONE__TASK_009_DONE__TASK_014_PHASE_A_IN_PROGRESS`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -32,11 +32,12 @@ P0–P3 均无，Product Integrator 已以 merge `64a9c416...` 整合并关闭�
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
-TASK-014 保持 `BLOCKED/UNASSIGNED`。已从
-`main@5c5f60abef53d257dd6205456463b03600f0c47c` 创建仅限已跟踪资料的
-`PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md` 授权包；它只盘点许可证/NOTICE、包内容、
-固定 `o200k_base.tiktoken` 资源、at-most-once 风险、未运行真实资源验证和 PO/TL/QA 发布决策。
-Scout 尚未启动，且该包不授权 uv、测试、构建、网络、真实 API/模型、凭据/Vault 读取、推送、合并或清理。
+TASK-014 Phase A 已从 `main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21` 正式分配给 Codex，
+状态为 `IN_PROGRESS`。实施包为
+`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`；仅允许建立 SBOM、
+第三方许可证/NOTICE 清单、README、发布检查表、at-most-once 风险披露和四阶段 smoke 授权矩阵，并将
+`.gitignore` 的 `data/`/`logs/` 规则锚定到仓库根。该阶段不授权发布、真实 smoke、uv、测试、构建、网络、
+真实 API/模型、凭据/Vault、依赖变更、项目自身 LICENSE、push、合并或清理。
 
 ## 状态定义
 
@@ -71,7 +72,7 @@ Scout 尚未启动，且该包不授权 uv、测试、构建、网络、真实 A
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配；仅 Scout 预检获授权） | BLOCKED | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A：发行资料与风险披露） | Codex Implementer；PO + TL + QA 负责后续签署 | IN_PROGRESS | 013 |
 
 ## 主控分配模板
 
