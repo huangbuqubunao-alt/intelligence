@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013A 已由 merge `8f70fe34...` 整合并收口为 `DONE`；TASK-013 仍需主控创建新的正式分配包，才能基于真实本地转写服务重新建立离线验收证据；TASK-014 仍需正式资源/实施授权。
+1. TASK-013A 已由 merge `8f70fe34...` 整合并收口为 `DONE`；TASK-013 已在全新 Codex worktree 正式重启，用真实服务流重新建立离线验收证据；TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

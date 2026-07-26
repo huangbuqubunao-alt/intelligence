@@ -1,12 +1,20 @@
 # TASK-013：端到端验收
 
-- Status: `BLOCKED`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer`
 - Owner role: QA Agent
 - Size: M
 - Risk: High
-- Depends on: TASK-011, TASK-012
+- Depends on: TASK-011, TASK-012, TASK-013A
 - Approval required: 真实网络、真实频道、本地模型、云端模型或真实 Vault 冒烟均需按范围授权
+
+## 重新分配（2026-07-26）
+
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-013-rebuild`
+- Branch: `codex/task-013-e2e-acceptance-rebuild`
+- Base: `main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`
+- TASK-013A 已整合为 `DONE`。本轮必须通过现有 `SubtitleAcquisitionService`、`LocalTranscriptionService`、评分、分析、笔记和周报服务建立真实离线服务流证据；不得重用已拒绝的历史 `codex/task-013-e2e-acceptance` source 或以通用 handler/直接状态推进替代。
+- 完成后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
 
 ## 目标
 
