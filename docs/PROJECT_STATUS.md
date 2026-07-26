@@ -58,9 +58,14 @@
   不得把 source 快照当作冲突或写回 source 文档。
 - TASK-014 Read-only Scout 已在聊天中完成回传：离线验收和包内容证据存在，但发行级许可证/NOTICE、
   固定 BPE 文件归属、真实资源验证、at-most-once 风险披露、README/发行检查表和 `.gitignore` 锚定仍是
-  No-Go 输入。产品负责人批准先执行 Phase A：发行资料与风险披露。TASK-014 已从
-  `main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21` 正式分配给 Codex，状态为 `IN_PROGRESS`；实施包为
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`，独立 worktree/branch 由该包固定。
+  No-Go 输入。产品负责人批准先执行 Phase A：发行资料与风险披露。唯一 Implementer source
+  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a` 的
+  `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59` 是
+  `main@d0d136a4754a97954f64f1ca39b87837e639decc` 的唯一非 merge 后继，严格改动 README、SBOM、
+  第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore` 七路径，source 工作树干净。TASK-014
+  现为 `IN_REVIEW`；Reviewer 授权包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-REVIEWER-CODEX.md`，独立 Reviewer 只可追加该 source
+  的 `handoffs/TASK-014.md`，不得启动真实验证或改写实现资料。
 
 ## 已完成或已批准
 
@@ -101,9 +106,10 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 正在建立发行级 SBOM、第三方许可证/NOTICE 清单、README、发布检查表、
-   at-most-once best-effort 用户披露和四阶段 smoke 授权矩阵，并将 `.gitignore` 的运行时目录规则锚定。
-   该阶段只写入实施包列出的文档和 `.gitignore`，不执行 smoke、测试、构建或外部调用，也不产生 Go。
+1. TASK-014 Phase A 已提交，正在等待独立文档/Git 审查：Reviewer 必须核对发行级 SBOM、第三方许可证/NOTICE、
+   README、发布检查表、at-most-once best-effort 用户披露、四阶段 smoke 授权矩阵和 `.gitignore` 根路径锚定，
+   并确保 No-Go、mutagen GPL、BPE 文件级归属、真实 smoke/Vault 和可靠性边界未被弱化。审查只可追加 source
+   handoff，不执行 smoke、测试、构建或外部调用，也不产生 Go。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 3. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
@@ -132,7 +138,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 立即启动 | TASK-014 Phase A：发行资料与风险披露 | Codex Implementer 仅在固定独立 worktree 写 README、SBOM、第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore`；不运行 uv、测试、构建、网络或真实资源 |
+| 等待独立审查 | TASK-014 Phase A：发行资料与风险披露 | 唯一 source `8c35cd0...` 已提交并清洁；独立 Codex Reviewer 仅可在 source `handoffs/TASK-014.md` 追加证据，核验 Git/文档，不运行 uv、测试、构建、网络或真实资源 |
 
 ## 授权边界
 

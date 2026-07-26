@@ -2,7 +2,7 @@
 
 ## 当前门禁
 
-项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_DONE__TASK_007_DONE__TASK_008_DONE__TASK_009_DONE__TASK_014_PHASE_A_IN_PROGRESS`
+项目状态：`TASK_003_DONE__TASK_004_DONE__TASK_005_DONE__TASK_005A_DONE__TASK_006_DONE__TASK_007_DONE__TASK_008_DONE__TASK_009_DONE__TASK_014_PHASE_A_IN_REVIEW`
 
 DEC-01 至 DEC-10 已批准，`TASK-000`、`TASK-001` 均为 `DONE`。`TASK-001` 的实现与审查证据已通过 merge commit `5273e069aa34392db957e82b8803a709bdd1ab1f` 进入 `main`，整合后门禁全部通过。
 
@@ -32,12 +32,14 @@ P0–P3 均无，Product Integrator 已以 merge `64a9c416...` 整合并关闭�
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
-TASK-014 Phase A 已从 `main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21` 正式分配给 Codex，
-状态为 `IN_PROGRESS`。实施包为
-`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`；仅允许建立 SBOM、
-第三方许可证/NOTICE 清单、README、发布检查表、at-most-once 风险披露和四阶段 smoke 授权矩阵，并将
-`.gitignore` 的 `data/`/`logs/` 规则锚定到仓库根。该阶段不授权发布、真实 smoke、uv、测试、构建、网络、
-真实 API/模型、凭据/Vault、依赖变更、项目自身 LICENSE、push、合并或清理。
+TASK-014 Phase A 的唯一 Implementer source 已提交为
+`8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`：它是
+`main@d0d136a4754a97954f64f1ca39b87837e639decc` 的唯一非 merge 后继，范围精确为 README、SBOM、
+第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore` 七路径，source 工作树干净。
+任务现为 `IN_REVIEW`；授权包为
+`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-REVIEWER-CODEX.md`。独立 Codex Reviewer 只能向
+该 source 的 `handoffs/TASK-014.md` 追加审查证据，不能修改实现资料或控制面。审查仍不授权发布、真实 smoke、uv、
+测试、构建、网络、真实 API/模型、凭据/Vault、依赖变更、项目自身 LICENSE、push、合并或清理。
 
 ## 状态定义
 
@@ -72,7 +74,7 @@ TASK-014 Phase A 已从 `main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21` 正式�
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A：发行资料与风险披露） | Codex Implementer；PO + TL + QA 负责后续签署 | IN_PROGRESS | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A：发行资料与风险披露） | 独立 Codex Reviewer；PO + TL + QA 负责后续签署 | IN_REVIEW | 013 |
 
 ## 主控分配模板
 
