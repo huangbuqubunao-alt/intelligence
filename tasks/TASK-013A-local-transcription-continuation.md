@@ -1,6 +1,6 @@
 # TASK-013A：本地转写持续处理
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex Implementer`
 - Owner role: Codex Implementer
 - Size: M
@@ -15,6 +15,12 @@
 - Base: `main@d96862f287d523dd524addf79f86c9b0642a4d31`
 - Review: 实现提交后，必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
 - Source: `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`（implementation `4c3706a969fb85ff4ec344034444d8607894b36f`）。
+
+## Correction 1
+
+- Reviewer evidence: `08542b84d550ca225dece520cf748a2fc654ab58`，Verdict=`REJECT`。
+- P1：缓存恢复未证明 canonical Artifact 来自同一视频、同一 pipeline version 且已成功的历史 TRANSCRIPT Job；篡改 `artifacts.job_id` 可推进错误的运行 Job。
+- 修复范围仅为 `transcripts.py`、本地转写集成测试和 handoff；必须在 executor 或当前 Job/Pipeline 副作用前 fail-closed。
 
 ## 目标
 
