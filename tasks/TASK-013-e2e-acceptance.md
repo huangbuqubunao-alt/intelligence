@@ -1,6 +1,6 @@
 # TASK-013：端到端验收
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex Implementer`
 - Owner role: QA Agent
 - Size: M
@@ -15,7 +15,7 @@
 - Base: `main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`
 - TASK-013A 已整合为 `DONE`。本轮必须通过现有 `SubtitleAcquisitionService`、`LocalTranscriptionService`、评分、分析、笔记和周报服务建立真实离线服务流证据；不得重用已拒绝的历史 `codex/task-013-e2e-acceptance` source 或以通用 handler/直接状态推进替代。
 - 完成后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
-- Source: `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`（首轮 Reviewer `REJECT` evidence；parent `0a9e16887e7dc0b287be941a34e2908766e3992e`）。
+- Source: `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`（Correction 1；parent `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`）。
 
 ## Rebuild Correction 1（2026-07-26）
 
@@ -23,6 +23,7 @@
 - 原 Codex Implementer 仅可修改既有五路径组：两份 E2E、`tests/e2e/fixtures/**`、验收报告与 handoff；不得修改生产代码、CLI/编排、配置、Schema/migration、依赖/锁、测试配置或 TASK-013A。
 - 必须以同一临时 SQLite/DATA/Vault 进行首次运行，随后销毁第一次运行的全部服务、Repository、Fake Provider 与内存缓存，并新建完整组合实例；恢复只能依赖持久 Artifact、Provider-call、Job/Pipeline 与用户可见文件。新 Fake Provider 的昂贵调用计数必须为 `0`；不得复用 `_OfflineMvpFlow` 或其他进程内内存状态，不得直接推进 SQLite 状态或伪造阶段完成。
 - 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
+- Correction 1 已提交，等待独立 Reviewer 复核同一临时 SQLite/DATA/Vault 上销毁旧组合后新建完整组合、持久恢复、失败恢复与稳定重跑；新的昂贵 Fake 调用必须为 `0`。
 
 ## 目标
 
