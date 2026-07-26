@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013 Correction 1 的第二轮独立审查 evidence `4aecab7...` 为 `REJECT`（P1-1）：评分失败后的新组合仍依赖旧进程内字典，不能从持久 SQLite/Artifact 恢复。现退回原 Codex Implementer 在冻结五路径范围内修复“评分失败 → 重启 → 保留转写 → 必要评分 → 笔记/周报完成”与稳定重跑。TASK-014 仍需正式资源/实施授权。
+1. TASK-013 rebuild Correction 2 source `f6697fa...` 已提交，现由全新独立 Codex Reviewer 审查：评分失败后必须销毁初次组合，并在同一临时 SQLite/DATA/Vault 重建新组合；字幕/Whisper 调用为 `0`，评分与必要分析各恰好一次，笔记/周报完成且稳定重跑无重复输出。TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
