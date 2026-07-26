@@ -22,6 +22,7 @@ from youtube_intel.domain import (
     AppError,
     DiagnosticEntry,
     ErrorCode,
+    JobStatus,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
@@ -35,10 +36,16 @@ from youtube_intel.domain import (
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.providers.whisper import (
+    WhisperAdapterError,
+    WhisperDecodePolicy,
+    WhisperTranscription,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
     ArtifactWrite,
+    JobRecord,
     ProviderCallCompletion,
     ProviderCallRecord,
     ProviderCallRequest,
@@ -48,6 +55,14 @@ from youtube_intel.state import (
     StageCompletionResult,
     StorageRoot,
     VerifiedArtifact,
+    VideoRecord,
+)
+from youtube_intel.transcription import (
+    AudioArtifact,
+    AudioResourceSnapshot,
+    TranscriptionPolicy,
+    build_transcription_cache_key,
+    cleanup_successful_audio,
 )
 
 _SOURCE_RANK = {
@@ -273,6 +288,17 @@ class TranscriptJobContext:
 @runtime_checkable
 class TranscriptRepository(Protocol):
     def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None: ...
+
+    def get_job(self, job_id: str) -> JobRecord | None: ...
+
+    def get_video(self, video_id: str) -> VideoRecord | None: ...
+
+    def mark_artifact_deleted(
+        self,
+        artifact_id: str,
+        expected_content_hash: str,
+        now: datetime,
+    ) -> bool: ...
 
     def get_provider_call(self, request_hash: str) -> ProviderCallRecord | None: ...
 
@@ -2517,10 +2543,476 @@ class SubtitleAcquisitionService:
         return owner_result
 
 
+_WHISPER_OPERATION: Final = "local-whisper-transcription-v1"
+_WHISPER_CANONICAL_VERSION: Final = "whisper-canonical-v1"
+_MAX_WHISPER_TRANSCRIPT_BYTES: Final = 4_000_000
+
+
+@runtime_checkable
+class LocalWhisperAdapter(Protocol):
+    """Minimum persistent-service boundary implemented by ``MlxWhisperAdapter``."""
+
+    def transcribe(
+        self,
+        audio: AudioArtifact,
+        *,
+        audio_path: Path,
+        resources: AudioResourceSnapshot,
+        policy: TranscriptionPolicy | None = None,
+    ) -> WhisperTranscription: ...
+
+
+class LocalTranscriptionService:
+    """Persist a verified MLX Whisper result as a TRANSCRIPT stage completion.
+
+    The adapter deliberately owns only model execution and its in-memory cache.
+    This service owns the durable cache, file boundary, and SQLite stage boundary.
+    """
+
+    def __init__(
+        self,
+        *,
+        adapter: LocalWhisperAdapter,
+        repository: TranscriptRepository,
+        context: TranscriptJobContext,
+        data_root: Path,
+        resources: AudioResourceSnapshot,
+        decode_policy: WhisperDecodePolicy,
+        transcription_policy: TranscriptionPolicy | None = None,
+        clock: Callable[[], datetime],
+        provider_lease_seconds: float = 300.0,
+    ) -> None:
+        if not data_root.is_absolute():
+            msg = "data_root must be an absolute resolved DATA path"
+            raise ValueError(msg)
+        if provider_lease_seconds <= 0:
+            msg = "provider_lease_seconds must be positive"
+            raise ValueError(msg)
+        self._adapter = adapter
+        self._repository = repository
+        self._context = context
+        self._data_root = data_root
+        self._resources = resources
+        self._decode_policy = decode_policy
+        self._transcription_policy = transcription_policy
+        self._clock = clock
+        self._provider_lease_seconds = provider_lease_seconds
+
+    def _error(
+        self, code: ErrorCode, message: str, *, retryable: bool, video_id: str
+    ) -> TranscriptError:
+        return TranscriptError(
+            AppError(
+                code=code,
+                message=message,
+                retryable=retryable,
+                video_id=video_id,
+                stage=ProcessingStage.TRANSCRIPT,
+            )
+        )
+
+    @property
+    def _model_identity(self) -> str:
+        return f"{self._decode_policy.model}@{self._decode_policy.model_revision}"
+
+    def _request(self, audio: ArtifactRecord) -> ProviderCallRequest:
+        cache_key = build_transcription_cache_key(
+            audio_content_hash=audio.content_hash,
+            language_hint=self._decode_policy.language_hint,
+            model=self._decode_policy.model,
+            model_revision=self._decode_policy.model_revision,
+            parameter_policy_version=self._decode_policy.parameter_policy_version,
+        )
+        return ProviderCallRequest(
+            operation=_WHISPER_OPERATION,
+            normalized_input_hash=cache_key,
+            provider="mlx-whisper",
+            model=self._model_identity,
+            prompt_version=self._decode_policy.parameter_policy_version,
+            schema_version=_WHISPER_CANONICAL_VERSION,
+            deterministic_artifact_key=f"transcript-canonical:whisper:{cache_key}",
+        )
+
+    def _validate_audio(self, audio: ArtifactRecord) -> tuple[AudioArtifact, Path]:
+        video_id = audio.video_id or ""
+        registered = self._repository.get_artifact_by_key(audio.artifact_key)
+        if (
+            not video_id
+            or audio.kind is not ArtifactKind.AUDIO
+            or audio.storage_root is not StorageRoot.DATA
+            or audio.retention_class is not RetentionClass.EPHEMERAL_AUDIO
+            or audio.deleted_at is not None
+            or registered is None
+            or registered != audio
+        ):
+            raise self._error(
+                ErrorCode.LOCAL_RESOURCE,
+                "local transcription audio artifact is not eligible",
+                retryable=False,
+                video_id=video_id,
+            )
+        relative = PurePosixPath(audio.relative_path)
+        if (
+            not audio.relative_path
+            or "\\" in audio.relative_path
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or not relative.parts
+        ):
+            raise self._error(
+                ErrorCode.PERMISSION_DENIED,
+                "local transcription audio path is outside the DATA boundary",
+                retryable=False,
+                video_id=video_id,
+            )
+        try:
+            root = self._data_root.resolve(strict=True)
+            candidate = root.joinpath(*relative.parts)
+            current = candidate
+            while current != root:
+                if current.is_symlink():
+                    raise ValueError
+                current = current.parent
+            if candidate.is_dir():
+                raise ValueError
+            path = candidate.resolve(strict=True)
+            if not path.is_relative_to(root):
+                raise ValueError
+            body, digest = _read_verified_file(
+                path,
+                expected_hash=audio.content_hash,
+                max_bytes=(
+                    self._transcription_policy.max_audio_bytes
+                    if self._transcription_policy is not None
+                    else 2_000_000_000
+                ),
+                video_id=video_id,
+            )
+        except ValueError:
+            raise self._error(
+                ErrorCode.PERMISSION_DENIED,
+                "local transcription audio path is outside the DATA boundary",
+                retryable=False,
+                video_id=video_id,
+            ) from None
+        except TranscriptError as error:
+            raise self._error(
+                error.error.code,
+                "local transcription audio file is not verified",
+                retryable=False,
+                video_id=video_id,
+            ) from None
+        if digest != audio.content_hash or len(body) == 0:
+            raise self._error(
+                ErrorCode.LOCAL_RESOURCE,
+                "local transcription audio file is not verified",
+                retryable=False,
+                video_id=video_id,
+            )
+        return (
+            AudioArtifact(
+                artifact_id=audio.artifact_id,
+                video_id=video_id,
+                relative_path=audio.relative_path,
+                content_hash=audio.content_hash,
+                byte_count=len(body),
+                duration_seconds=0,
+            ),
+            path,
+        )
+
+    def _validate_stage_context(self, video_id: str) -> None:
+        job = self._repository.get_job(self._context.job_id)
+        video = self._repository.get_video(video_id)
+        if (
+            job is None
+            or video is None
+            or job.video_id != video_id
+            or job.target_stage is not ProcessingStage.TRANSCRIPT
+            or job.pipeline_version != self._context.pipeline_version
+            or job.status is not JobStatus.RUNNING
+            or job.lease_owner != self._context.owner
+            or video.pipeline_status is not PipelineStatus.METADATA_READY
+            or video.pipeline_version != self._context.pipeline_version
+        ):
+            raise self._error(
+                ErrorCode.LOCAL_RESOURCE,
+                "local transcription stage context is invalid",
+                retryable=True,
+                video_id=video_id,
+            )
+
+    def _relative_path(self, video_id: str, request: ProviderCallRequest) -> str:
+        return f"transcripts/{video_id}/{request.request_hash}/canonical.whisper.txt"
+
+    def _managed_transcript_path(self, relative_path: str, *, video_id: str) -> Path:
+        """Reject every existing symlink before reading or writing a transcript."""
+        _resolve_data_path(self._data_root, relative_path, video_id=video_id)
+        try:
+            root = self._data_root.resolve(strict=True)
+            candidate = root.joinpath(*PurePosixPath(relative_path).parts)
+            current = candidate
+            while current != root:
+                if current.is_symlink():
+                    raise ValueError
+                current = current.parent
+            if candidate.exists() and candidate.is_dir():
+                raise ValueError
+        except (OSError, ValueError):
+            raise self._error(
+                ErrorCode.PERMISSION_DENIED,
+                "local transcription artifact path is outside the DATA boundary",
+                retryable=False,
+                video_id=video_id,
+            ) from None
+        return candidate
+
+    @staticmethod
+    def _producer_version(language: str) -> str:
+        token = base64.urlsafe_b64encode(language.encode("utf-8")).rstrip(b"=").decode("ascii")
+        return f"{_WHISPER_CANONICAL_VERSION}.{token}"
+
+    @staticmethod
+    def _language_from_producer_version(value: str, *, video_id: str) -> str:
+        prefix = f"{_WHISPER_CANONICAL_VERSION}."
+        try:
+            token = value.removeprefix(prefix)
+            language = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("utf-8")
+        except UnicodeError:
+            language = ""
+        if not value.startswith(prefix) or not language or language.strip() != language:
+            raise TranscriptError(AppError(code=ErrorCode.LOCAL_RESOURCE, message="persisted local transcription cache is invalid", retryable=False, video_id=video_id, stage=ProcessingStage.TRANSCRIPT))
+        return language
+
+    def _artifact(
+        self, *, video_id: str, request: ProviderCallRequest, body: bytes, language: str
+    ) -> ArtifactWrite:
+        producer_version = self._producer_version(language)
+        return ArtifactWrite(
+            artifact_id=f"whisper-canonical-{_stable_hash({'request_hash': request.request_hash, 'content_hash': hashlib.sha256(body).hexdigest(), 'producer_version': producer_version})}",
+            artifact_key=request.deterministic_artifact_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path=self._relative_path(video_id, request),
+            content_hash=hashlib.sha256(body).hexdigest(),
+            provider=request.provider,
+            model=request.model,
+            producer_version=producer_version,
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        )
+
+    def _cached_artifact(self, *, video_id: str, request: ProviderCallRequest) -> tuple[ArtifactRecord, bytes, str]:
+        provider_call = self._repository.get_provider_call(request.request_hash)
+        artifact = self._repository.get_artifact_by_key(request.deterministic_artifact_key)
+        artifact_job = (
+            None
+            if artifact is None or artifact.job_id is None
+            else self._repository.get_job(artifact.job_id)
+        )
+        if (
+            provider_call is None
+            or provider_call.request_hash != request.request_hash
+            or provider_call.operation != request.operation
+            or provider_call.provider != request.provider
+            or provider_call.model != request.model
+            or provider_call.prompt_version != request.prompt_version
+            or provider_call.schema_version != request.schema_version
+            or provider_call.status is not ProviderCallStatus.SUCCEEDED
+            or artifact is None
+            or provider_call.response_artifact_id != artifact.artifact_id
+            or artifact.video_id != video_id
+            or artifact.kind is not ArtifactKind.TRANSCRIPT_CANONICAL
+            or artifact.storage_root is not StorageRoot.DATA
+            or artifact.relative_path != self._relative_path(video_id, request)
+            or artifact.provider != request.provider
+            or artifact.model != request.model
+            or artifact.retention_class is not RetentionClass.LONG_LIVED
+            or artifact.expires_at is not None
+            or artifact.deleted_at is not None
+            or artifact_job is None
+            or artifact_job.video_id != video_id
+            or artifact_job.target_stage is not ProcessingStage.TRANSCRIPT
+            or artifact_job.status is not JobStatus.SUCCEEDED
+            or artifact_job.finished_at is None
+            or artifact_job.pipeline_version != self._context.pipeline_version
+        ):
+            raise self._error(
+                ErrorCode.LOCAL_RESOURCE,
+                "persisted local transcription cache is invalid",
+                retryable=False,
+                video_id=video_id,
+            )
+        language = self._language_from_producer_version(artifact.producer_version, video_id=video_id)
+        path = self._managed_transcript_path(
+            artifact.relative_path, video_id=video_id
+        )
+        body, _ = _read_verified_file(
+            path,
+            expected_hash=artifact.content_hash,
+            max_bytes=_MAX_WHISPER_TRANSCRIPT_BYTES,
+            video_id=video_id,
+        )
+        return artifact, body, language
+
+    def _ready(
+        self,
+        artifact: ArtifactRecord | ArtifactWrite,
+        *,
+        source_audio: AudioArtifact,
+        body: bytes,
+        language: str,
+        now: datetime,
+        cache_hit: bool,
+    ) -> TranscriptReady:
+        try:
+            text = body.decode("utf-8")
+        except UnicodeDecodeError:
+            raise self._error(ErrorCode.LOCAL_RESOURCE, "persisted local transcription cache is invalid", retryable=False, video_id=source_audio.video_id) from None
+        return TranscriptReady(
+            artifact=TranscriptArtifact(
+                video_id=artifact.video_id or "",
+                language=language,
+                source_type=TranscriptSourceType.WHISPER,
+                requested_language=None,
+                source_format=None,
+                text_path=artifact.relative_path,
+                timed_text_path=None,
+                source_content_hash=source_audio.content_hash,
+                source_byte_count=source_audio.byte_count,
+                content_hash=artifact.content_hash,
+                char_count=len(text.rstrip("\n")),
+                segment_count=len(text.rstrip("\n").splitlines()),
+                normalization_version=_WHISPER_CANONICAL_VERSION,
+                provider=artifact.provider or "mlx-whisper",
+                model=artifact.model,
+                created_at=now,
+            ),
+            call=ProviderCallMetadata(
+                provider="mlx-whisper",
+                model=self._model_identity,
+                started_at=now,
+                finished_at=now,
+                diagnostics=(
+                    (DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted local transcription"),)
+                    if cache_hit
+                    else ()
+                ),
+            ),
+        )
+
+    def _complete_cached(self, *, video_id: str, now: datetime) -> None:
+        try:
+            self._repository.complete_stage(
+                job_id=self._context.job_id,
+                owner=self._context.owner,
+                video_id=video_id,
+                expected_status=PipelineStatus.METADATA_READY,
+                target_status=PipelineStatus.TRANSCRIPT_READY,
+                pipeline_version=self._context.pipeline_version,
+                artifacts=(),
+                provider_call=None,
+                now=now,
+            )
+        except Exception as error:
+            raise self._error(ErrorCode.LOCAL_RESOURCE, "cached local transcription stage could not be committed", retryable=True, video_id=video_id) from error
+
+    def transcribe(self, audio: ArtifactRecord) -> TranscriptReady:
+        now = _aware_utc(self._clock(), video_id=audio.video_id or "")
+        verified_audio, audio_path = self._validate_audio(audio)
+        self._validate_stage_context(verified_audio.video_id)
+        request = self._request(audio)
+        existing = self._repository.get_provider_call(request.request_hash)
+        if existing is not None and existing.status is ProviderCallStatus.SUCCEEDED:
+            cached_artifact, body, language = self._cached_artifact(video_id=verified_audio.video_id, request=request)
+            self._complete_cached(video_id=verified_audio.video_id, now=now)
+            return self._ready(cached_artifact, source_audio=verified_audio, body=body, language=language, now=now, cache_hit=True)
+        reservation = self._repository.reserve_provider_call(
+            request,
+            owner=self._context.owner,
+            lease_until=now + timedelta(seconds=self._provider_lease_seconds),
+            available_at=now,
+            now=now,
+        )
+        if not reservation.acquired:
+            if reservation.record.status is ProviderCallStatus.SUCCEEDED:
+                cached_artifact, body, language = self._cached_artifact(video_id=verified_audio.video_id, request=request)
+                self._complete_cached(video_id=verified_audio.video_id, now=now)
+                return self._ready(cached_artifact, source_audio=verified_audio, body=body, language=language, now=now, cache_hit=True)
+            raise self._error(ErrorCode.PROVIDER_UNAVAILABLE, "local transcription provider call is already reserved", retryable=True, video_id=verified_audio.video_id)
+        written_path: Path | None = None
+        try:
+            result = self._adapter.transcribe(
+                verified_audio,
+                audio_path=audio_path,
+                resources=self._resources,
+                policy=self._transcription_policy,
+            )
+            text = unicodedata.normalize("NFC", result.text).replace("\r\n", "\n").replace("\r", "\n").strip()
+            if not text:
+                raise self._error(ErrorCode.INVALID_RESPONSE, "local Whisper response is invalid", retryable=False, video_id=verified_audio.video_id)
+            body = (text + "\n").encode("utf-8")
+            language = normalize_language_tag(result.language)
+            artifact = self._artifact(video_id=verified_audio.video_id, request=request, body=body, language=language)
+            target = self._managed_transcript_path(
+                artifact.relative_path, video_id=verified_audio.video_id
+            )
+            if not target.exists():
+                written_path = target
+            _atomic_write(target, body, data_root=self._data_root, expected_hash=artifact.content_hash, max_bytes=_MAX_WHISPER_TRANSCRIPT_BYTES, video_id=verified_audio.video_id)
+            self._repository.complete_stage(
+                job_id=self._context.job_id,
+                owner=self._context.owner,
+                video_id=verified_audio.video_id,
+                expected_status=PipelineStatus.METADATA_READY,
+                target_status=PipelineStatus.TRANSCRIPT_READY,
+                pipeline_version=self._context.pipeline_version,
+                artifacts=(artifact,),
+                provider_call=ProviderCallCompletion(
+                    request_hash=request.request_hash,
+                    response_artifact_id=artifact.artifact_id,
+                    input_tokens=None,
+                    output_tokens=None,
+                    cost_microusd=None,
+                ),
+                now=now,
+            )
+        except WhisperAdapterError as error:
+            failure = error.error
+        except TranscriptError as error:
+            failure = error.error
+        except Exception:
+            failure = AppError(code=ErrorCode.LOCAL_RESOURCE, message="local transcription stage persistence failed", retryable=True, video_id=verified_audio.video_id, stage=ProcessingStage.TRANSCRIPT)
+        else:
+            cleanup_successful_audio(audio, data_root=self._data_root, repository=self._repository, now=now)
+            return self._ready(artifact, source_audio=verified_audio, body=body, language=language, now=now, cache_hit=False)
+        if written_path is not None:
+            try:
+                written_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            self._repository.fail_provider_call(
+                request.request_hash,
+                owner=self._context.owner,
+                retryable=failure.retryable,
+                available_at=now,
+                error_code=failure.code,
+                error_message="local transcription stage failed",
+                now=now,
+            )
+        except Exception:
+            pass
+        raise TranscriptError(failure)
+
+
 __all__ = [
     "FORMAT_POLICY_VERSION",
     "InvalidSubtitleCandidate",
     "InvalidSubtitleReason",
+    "LocalWhisperAdapter",
     "NORMALIZATION_VERSION",
     "NormalizedSubtitle",
     "QUALITY_POLICY_VERSION",
@@ -2532,6 +3024,7 @@ __all__ = [
     "SubtitleReadResult",
     "SubtitleAdapter",
     "SubtitleAcquisitionService",
+    "LocalTranscriptionService",
     "SubtitleTrack",
     "SubtitleTrackListing",
     "TranscriptJobContext",
