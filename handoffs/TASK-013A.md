@@ -155,3 +155,68 @@ P1-1 已经独立最小复现；根据 reviewer prompt“发现 P0/P1 后立即�
 - 实际修改仅为 `transcripts.py` 的缓存历史 Job provenance 谓词、对应集成测试和本 handoff；未改 `state.py`、Schema/migration、Provider、Pipeline/CLI、依赖或锁文件。
 - 继续只使用临时 SQLite/DATA 和 Fake executor；真实模型、ffmpeg、媒体/网络、云端、凭据和真实 Vault 未运行且未授权。
 - 保留原有数据库失败补偿、受控 cleanup 与 at-most-once best-effort 风险；本修复不声称 exactly-once。
+
+## Second Independent Codex Reviewer — 2026-07-26
+
+### 审查对象、授权与范围
+
+- 审查 source：`codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`；审查开始时和证据写入前 `git status --short` 均为空。
+- main 审查授权：`a8a46afdc393a346ad90016bc9b40301f3c4fd66`（`docs: authorize TASK-013A cache provenance review`）；main 为干净的 `main`，TASK-013A=`IN_REVIEW`。
+- 父链：`d50c78e... -> 08542b8...`，唯一父提交符合工作包。Correction 1 相对其父提交只修改 `src/youtube_intel/transcripts.py` 和 `tests/integration/test_local_transcription_service.py`；完整产品范围相对 `d96862f...` 仅为这两项和本 handoff，未超过获批四路径。
+- 静态复核：缓存命中前，`_cached_artifact()` 现在要求 canonical Artifact 的历史 Job 存在、同 video、`TRANSCRIPT`、`SUCCEEDED`、有 `finished_at`，且同当前 pipeline version；不满足即在 executor、当前 Job/Pipeline 完成、Artifact/Provider-call 写入或 cleanup 前 fail-closed。当前 Job/Pipeline 仍由既有 `_validate_stage_context()` 验证。
+
+### 独立探针与原始服务承诺
+
+| 探针 | 结果 | 证据 |
+|---|---|---|
+| P1 provenance：历史 Job 缺失、空白、未知、RUNNING、FAILED、非 TRANSCRIPT、其他 video、其他 pipeline version | PASS | `test_cache_rejects_untrusted_canonical_artifact_job_provenance` 的 8 个参数化真实临时 SQLite/DATA + Fake executor 用例全部通过；每例 executor 为零调用、当前 Job 仍为 `RUNNING`、Pipeline 仍为 `METADATA_READY`、音频存在。SQLite CHECK 无法持久化空白/伪造读记录的情况由只读 Repository 包装器在服务读取边界模拟，仍验证同一 fail-closed 谓词。 |
+| 可信缓存恢复 | PASS | `test_persisted_cache_reuses_verified_result_without_executor_or_duplicate_records` 通过：同 video/version 的成功历史 TRANSCRIPT Job 可完成重排 `cache-job`，Fake executor 为零调用，canonical Artifact/Provider-call 均保持单条。 |
+| 成功原子完成与成功后 cleanup | PASS | `test_real_service_persists_verified_transcript_completes_stage_and_cleans_audio` 通过：生产 `LocalTranscriptionService` 写入 canonical Artifact/Provider-call，并完成 `METADATA_READY -> TRANSCRIPT_READY`、Job=`SUCCEEDED`；随后受控音频标为删除。 |
+| DATA 输入边界 | PASS | hash 篡改、symlink、DATA 外路径三例均在 executor 前拒绝且保留外部/音频文件。 |
+| DB 失败补偿与 Provider-call 重试 | PASS | 注入 `complete_stage` 失败后没有可见 canonical 文本，Pipeline 未推进，Provider-call=`FAILED_RETRYABLE`。 |
+
+cleanup 仅在数据库成功完成后调用；其删除与最终 CAS 之间仍是既有的 at-most-once best-effort 边界，未声称 exactly-once。
+
+### 必跑离线门禁
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked --offline` | PASS（检查 61 packages） |
+| `uv run python -m pytest tests/integration/test_local_transcription_service.py` | PASS（15 passed） |
+| provenance、可信缓存、原始服务/补偿/DATA 边界定向复跑 | PASS（14 passed；8 项 provenance 分别显示 PASS） |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS（11 passed） |
+| `uv run python -m pytest` | PASS（436 passed） |
+| `uv run mypy src` | PASS（23 source files） |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS（sdist + wheel） |
+| `git diff --check d96862f287d523dd524addf79f86c9b0642a4d31...HEAD` | PASS |
+
+### 验收与 ADR-012 矩阵
+
+| 项目 | 结论 | 独立证据 |
+|---|---|---|
+| AC-1：真实服务原子完成 | PASS | 生产服务、真实临时 SQLite/DATA、Fake executor 完成 Artifact/Provider-call/Job/Pipeline。 |
+| AC-2：可信缓存零调用且无重复 | PASS | 已成功同 video/version 历史 Job 的重排缓存测试为零 executor 调用、无新增 Artifact/Provider-call。 |
+| AC-3：identity/hash/path/Job/Pipeline 不一致 fail-closed | PASS | 8 项历史 Job provenance 反例及 hash/path/symlink 三项输入边界均通过。 |
+| AC-4：DB 失败补偿与 cleanup | PASS | `complete_stage` 失败清理新文本、Provider-call 可重试；成功后 cleanup 受控且 at-most-once。 |
+| AC-5：离线门禁、类型/Lint/构建、完整 Diff | PASS | 上述全部指定命令通过，范围和空白检查通过。 |
+| ADR-012 C-01：独立服务与既有事务 | PASS | `LocalTranscriptionService` 调用既有 `complete_stage`，测试不手写阶段推进。 |
+| ADR-012 C-02：受控已登记音频 | PASS | 已登记/hash/DATA-root/symlink 验证均在 executor 前失败关闭。 |
+| ADR-012 C-03：身份与恢复 | PASS | Provider-call/Artifact/文件外，新增历史 Job/video/stage/status/completion/pipeline provenance 绑定。 |
+| ADR-012 C-04：失败、原子性与清理 | PASS | 临时文件/DB 失败补偿、Provider-call retry 和成功后受控 cleanup 回归通过。 |
+| ADR-012 C-05：资源与 CLI 边界 | PASS | Diff 未改 state/Schema/Provider/Pipeline/CLI/依赖/锁；未运行模型、ffmpeg、媒体/YouTube、网络、Ollama/OpenAI、真实 Vault、凭据或付费服务。 |
+
+### P0–P3、复用与结论
+
+- P0：无。
+- P1：无。
+- P2：无。
+- P3：无。
+- 复用/许可证：`DIRECT` 仅为既有 `mlx-whisper` Adapter 边界和 Python 标准库；未新增依赖或许可证义务。`mlx-whisper` MIT 记录不授权模型下载/加载，模型许可证和资源风险仍由 TASK-014 处理。
+- 未授权路径：未执行模型下载/加载、ffmpeg、媒体/YouTube、网络、Ollama/OpenAI、真实 Vault/用户笔记、凭据、付费服务或测试目录外写入。
+
+### Verdict
+
+`APPROVE` — Correction 1 消除了 P1 的缓存历史 Job provenance 缺陷，且独立复跑确认没有破坏本地转写、可信缓存恢复、数据库补偿、受控 cleanup 或 DATA 安全边界。可交主控验收；本 Reviewer 未修改业务代码、测试、依赖、锁文件、任务状态或 main。
