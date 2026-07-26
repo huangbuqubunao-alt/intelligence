@@ -90,3 +90,75 @@
 - 主线 commit:
 - 整合后检查:
 - 最终状态：`DONE | BLOCKED`
+
+## Independent Reviewer Evidence — 2026-07-26
+
+### Fixed review object and cleanliness
+
+- Review role: independent Codex Reviewer; source worktree:
+  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a`.
+- Fixed control-plane base: `main@d0d136a4754a97954f64f1ca39b87837e639decc`.
+- Reviewed source HEAD: `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`; sole parent confirmed as
+  `d0d136a4754a97954f64f1ca39b87837e639decc`.
+- `git diff --name-status d0d136a...8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`
+  contained exactly the seven authorized paths: `.gitignore`, `README.md`,
+  `docs/RELEASE_CHECKLIST.md`, `docs/SBOM.md`,
+  `docs/SMOKE_AUTHORIZATION_MATRIX.md`, `docs/THIRD_PARTY_NOTICES.md`, and
+  this handoff. `git diff --check` was clean. Before this reviewer append,
+  `git status --short` was empty and the handoff had no uncommitted change.
+
+### Independent document and metadata review
+
+- **SBOM / NOTICE / lock consistency:** `pyproject.toml` direct dependencies and
+  `uv.lock` agree with the SBOM: Jinja2 `3.1.6`, mlx-whisper `0.4.3`, OpenAI
+  `2.46.0`, Pydantic `2.13.4`, PyYAML `6.0.3`, tiktoken `0.13.0`, and
+  `yt-dlp[default,deno]` `2026.7.4`; development tools are separately identified.
+  The lock has 84 package entries, and SBOM's non-root, non-direct list accounts
+  for the remaining resolved packages. `uv.lock` records `mutagen==1.48.1` in
+  yt-dlp's `default` extra and Jinja2's MarkupSafe dependency. SBOM and NOTICE
+  correctly distinguish existing ADR/Reuse Register license facts from
+  `EVIDENCE GAP`; neither treats a lock, offline package evidence, or historical
+  checks as a distribution approval or legal conclusion.
+- **GPL, BPE, and project-license gates:** the documents preserve
+  `mutagen` GPL-2.0-or-later as a blocker for source/binary/bundle/container
+  distribution pending TL/release-owner disposition. They preserve the official
+  `o200k_base.tiktoken` source, fixed SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`, and
+  no-runtime-network-fallback contract while leaving its file-level license,
+  attribution, NOTICE, and distribution decision blocked. They do not create or
+  imply a project LICENSE; final PO/TL/QA/privacy-reviewer signatures remain
+  required.
+- **No-Go and real-resource accuracy:** README, release checklist, and the
+  TASK-013 acceptance report consistently limit existing evidence to fixtures,
+  temporary SQLite/DATA/Vault, and Fakes. They state that real YouTube/subtitles,
+  media/ffmpeg/Whisper, Ollama/fixed model, OpenAI/credentials/paid calls,
+  launchd, real Vault/user notes, and backup/recovery rehearsal are not
+  authorized or not run. No document represents those as verified.
+- **At-most-once disclosure:** README and the checklist explicitly retain all
+  three residual crash windows—external Provider to SQLite, atomic file replace
+  to SQLite, and audio-cleanup final CAS—and label the guarantee
+  `at-most-once best effort`, not strict/exactly-once or an accepted release
+  risk. This matches ADR-008, ADR-009, ADR-012, System Design, and the existing
+  acceptance evidence.
+- **Future smoke authorization only:** the matrix is explicitly
+  `NOT AUTHORIZED / NOT EXECUTED` and fully specifies the four future phases:
+  public YouTube/subtitles; controlled media plus ffmpeg/Whisper; loopback
+  Ollama plus fixed model; and OpenAI plus a new temporary Vault. Each phase has
+  controlled data scope, required PO approval, success evidence, and stop
+  conditions. It explicitly excludes real Vault/user notes from Phase A and
+  from the authorization implied by the matrix.
+- **Root ignore anchoring:** the only runtime-ignore edit is `data/` -> `/data/`
+  and `logs/` -> `/logs/`; no additional ignore semantics were introduced.
+
+### Verification limits and conclusion
+
+- Permitted checks run: Git identity/parent/range/status/diff/diff-check and
+  Markdown, `pyproject.toml`, `uv.lock`, ADR, Reuse Register, operations, task,
+  and acceptance-report text inspection only.
+- Not run or accessed: tests, type checking, lint, build/package/install, uv,
+  Python/imports, CLI/doctor, any smoke, network, YouTube, ffmpeg, Whisper,
+  Ollama, OpenAI, launchd, credentials, SQLite, logs/cache/media, or any Vault.
+- Findings: **no P0–P3 findings**.
+- Verdict: **APPROVE** for the Phase A documentation review only. This is not a
+  release approval, legal opinion, real-smoke authorization, risk acceptance,
+  or final Go decision; the documented No-Go gates remain open.
