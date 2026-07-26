@@ -186,3 +186,59 @@
 - Verification before final gate: scoring RED → FAIL；focused scoring recovery → `1 passed`; failure-recovery file → `6 passed`; MVP flow file → `3 passed`; `uv lock --check` → 84 packages; `uv sync --locked --offline` → 61 packages; E2E offline marker → `9 passed`; full pytest → `445 passed`; `uv run mypy src` → 23 source files clean; `uv run ruff check .` → pass (test import order mechanically fixed, then rechecked); CLI help → pass; `uv build --offline` → sdist + wheel. Secret scan, final Diff/path and staged checks follow immediately before commit.
 - Real-resource status: `NOT AUTHORIZED`。未使用真实 YouTube/网络、媒体、ffmpeg、Whisper/Ollama/OpenAI 模型或 API、凭据、真实 Vault、付费服务或 launchd；所有写入仅在 pytest `tmp_path`。
 - This is implementer evidence only; it does not start a Reviewer, change task status, merge, push, or claim approval.
+
+## Correction 2 — Independent Reviewer (2026-07-26)
+
+- Reviewer agent/session: Codex（全新独立 Reviewer）
+- Dynamic authorization: `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-REVIEWER-CODEX.md` resolved to `d7e1fe8793b8d446257a8a6a0ad5ce88a39bde87`; main 的 `tasks/TASK-013-e2e-acceptance.md` is `IN_REVIEW` and names source `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28` with parent `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`.
+- Reviewed source: `codex/task-013-e2e-acceptance-rebuild@f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`; branch and sole parent matched exactly. Source was clean before review. No `.codegraph/` index existed, and none was created.
+- Range/lineage: relative to rebuild base `2a59dfe3860161a5989f2c08161f03c73aa4ca86`, only `tests/e2e/test_mvp_flow.py`, `tests/e2e/test_failure_recovery.py`, `docs/ACCEPTANCE_REPORT.md`, and this handoff differ. `git diff --check` passed. No production code, production composition, test configuration, dependency/lockfile, Schema/migration, secret/configuration, or task-status file changed.
+
+### Re-run quality gates
+
+| Command / check | Result | Evidence |
+|---|---|---|
+| `uv run python -m py_compile tests/e2e/test_mvp_flow.py tests/e2e/test_failure_recovery.py` | PASS | No syntax/type-loading error. |
+| `uv lock --check` | PASS | `Resolved 84 packages in 4ms`. |
+| `uv sync --locked --offline` | PASS | `Resolved 84 packages`; `Checked 61 packages`; no network or lockfile change. |
+| `uv run python -m pytest tests/e2e/test_failure_recovery.py -q` | PASS | `6 passed in 5.82s`. |
+| `uv run python -m pytest tests/e2e/test_mvp_flow.py -q` | PASS | `3 passed in 2.19s`. |
+| `uv run python -m pytest tests/e2e/test_failure_recovery.py -k scoring -vv` | PASS | `1 passed, 5 deselected`; target scoring restart case selected. |
+| `uv run python -m pytest tests/e2e -m 'not network and not cloud'` | PASS | `9 passed in 7.68s`. |
+| `uv run python -m pytest` | PASS | `445 passed in 17.59s`. |
+| `uv run mypy src` | PASS | `Success: no issues found in 23 source files`. |
+| `uv run ruff check .` | PASS | `All checks passed!` |
+| `uv run python -m youtube_intel --help` | PASS | CLI help rendered successfully. |
+| `uv build --offline` | PASS | sdist and wheel built offline. |
+| `rg --pcre2 -n '(?i)(sk-[a-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,})' tests/e2e docs/ACCEPTANCE_REPORT.md handoffs/TASK-013.md` | PASS | Exit `1` with no output: no matching common real-key format. |
+
+- The initial sandboxed uv invocation could not open the pre-existing user uv cache and started no gate; each affected command above was then rerun with the authorized cache-read permission, still locked and offline. This was an environment permission issue, not a test failure.
+
+### Independent scoring-failure restart probe
+
+- Read review found the new failure test deletes the first `_OfflineMvpFlow` after injection (`del flow; gc.collect()`), then constructs `_OfflineMvpFlow(tmp_path, restore=True)`. The restored composition creates a new SQLite Repository, orchestrator, application services, Fake Providers, counters, and `recovered-*` job-ID source; it asserts `transcripts`, `scores`, `analyses`, and `note_sinks` are all empty before recovery. No old Flow/Repository/Fake/cache object is passed into it.
+- The recovery shims only read persistent state: `_persisted_artifact` locates the indexed Artifact in the same temporary SQLite, requires `StorageRoot.DATA`, enforces its resolved path stays below the same DATA root, reads its bytes, verifies SHA-256, and decodes UTF-8 where required. `_transcript_for`, `_score_for`, and `_analysis_for` reconstruct inputs from those verified persistent Artifacts. They do not directly update SQLite state, call a generic completion handler, or fabricate Pipeline/Job outcomes; normal `PipelineOrchestrator` and existing production application services drive the transitions.
+- An independent `uv run python -c` probe used a new `TemporaryDirectory`, injected only scoring failure, ran the first composition, deleted it, collected garbage, constructed `restore=True` against the identical temporary SQLite/DATA/Vault paths, and then ran normal orchestration plus `WeeklyReportService`. It printed: `restart-scoring: complete; calls whisper/scoring/analysis/credential=0/1/1/1; subtitle=0/0; stable-counts=(15, 32, 1, 24)`.
+- The probe separately captured counts, ran orchestration and weekly reporting again, and asserted unchanged `(provider_calls, artifacts, reports, jobs)`. It also asserted every recovered subtitle Fake stayed `(enumerate_calls, read_calls) == (0, 0)`, all five Pipeline records were `COMPLETE`, and the recovered caches had begun empty. This independently proves the requested scoring path: no recovered subtitle or Whisper work; precisely one retry scoring call and one necessary analysis call; one credential resolution; note and weekly outputs complete; no duplicate persistent/user-visible output on a stable rerun.
+- The parameterized test applies the same destruction/new-composition protocol to subtitle, transcription, scoring, analysis, note, and weekly injected failures. Its six passing cases establish the other applicable boundaries recover through the fresh composition rather than retaining a same-process Flow. The successful-terminal restart test separately verifies fresh composition with all expensive Fake calls at zero and unchanged report bytes/hash.
+
+### PRD 10 review matrix
+
+| PRD item | Reviewer result | Evidence |
+|---|---|---|
+| 10.1 | PASS | Nine offline E2E cases cover manual subtitle, automatic subtitle, Whisper fallback, low-value, and high-value scenarios through production services and Fake boundaries. |
+| 10.2 | PASS | Fresh-composition and failure-recovery reruns preserve provider-call/Artifact/Report/Job counts, note count, weekly count, and report bytes/hash. |
+| 10.3 | PASS | Six injected service-boundary failures recover using a new composition; scoring received an additional independent probe. |
+| 10.4 | PASS | Existing cloud-disabled E2E asserts complete flow with cloud Fake and credential resolver at zero calls. |
+| 10.5 | PASS | Scoring restart probe proves recovery from verified persistent Artifact with subtitle/Whisper zero calls and no old in-memory cache. |
+| 10.6 | PASS | E2E, full pytest, mypy, Ruff, CLI help, locked offline sync, and offline build all passed. |
+| 10.7 | PASS | Reproducible credential-format scan returned no matches; test credentials are in-memory Fake values only. |
+| 10.8 | PASS | E2E verifies parseable Frontmatter, weekly links, and preservation of the `我的思考` user section in a temporary Vault. |
+
+### Reuse, resources, and conclusion
+
+- Reuse decision verified: `DIRECT` — existing project services, locked dependencies, and Python standard library; external interactions are only test Fake Adapters. No third-party code was copied, no dependency was added/updated, and no additional license obligation was introduced; `docs/REUSE_REGISTER.md` remains applicable.
+- Unauthorised paths were not run: real YouTube/network/media, ffmpeg, Whisper/Ollama/OpenAI models or APIs, credentials, paid services, real Vault/user notes, and launchd. All probe writes used pytest `tmp_path`/`TemporaryDirectory` SQLite, DATA, and Vault paths.
+- Findings: P0=0; P1=0; P2=0; P3=0.
+- Remaining risk: offline Fake evidence does not establish real Provider/network/model quality or local-resource behaviour; those paths remain intentionally `NOT AUTHORIZED`.
+- Verdict: `APPROVE`.
