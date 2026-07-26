@@ -1,12 +1,19 @@
 # TASK-013A：本地转写持续处理
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer`
 - Owner role: Codex Implementer
 - Size: M
 - Risk: High
 - Depends on: TASK-006, TASK-010
 - Approval required: 仅离线 Fake executor、pytest 临时 SQLite/DATA 与既有锁定依赖；模型下载/加载、ffmpeg、媒体/YouTube、网络、真实 Vault、凭据和云端调用继续逐项禁止
+
+## 分配
+
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-013a`
+- Branch: `codex/task-013a-local-transcription-continuation`
+- Base: `main@d96862f287d523dd524addf79f86c9b0642a4d31`
+- Review: 实现提交后，必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
 
 ## 目标
 
