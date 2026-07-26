@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from youtube_intel.config import AppConfig, ConfigError, load_app_config
 from youtube_intel.logging import JsonlLogger
+from youtube_intel.public_subtitle_smoke import PublicSubtitleSmoke
 
 
 class ExitCode(IntEnum):
@@ -118,10 +119,21 @@ def _build_parser() -> argparse.ArgumentParser:
     weekly = commands.add_parser("weekly", help="generate one weekly report")
     weekly.add_argument("--week")
     commands.add_parser("doctor", help="read-only configuration and local-resource checks")
+    smoke = commands.add_parser(
+        "smoke-public-subtitles",
+        help="run the restricted public subtitle release-QA smoke",
+    )
+    smoke.add_argument("--temporary-root", type=Path, required=True)
+    smoke.add_argument("--video-id", action="append", required=True)
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, operations: Operations | None = None) -> ExitCode:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    operations: Operations | None = None,
+    smoke_runner: PublicSubtitleSmoke | None = None,
+) -> ExitCode:
     """Run one command and return the ADR-011 exit code without raising failures."""
 
     # Every invocation receives an in-memory UUID4, including the strictly
@@ -131,6 +143,12 @@ def main(argv: Sequence[str] | None = None, *, operations: Operations | None = N
     try:
         args = parser.parse_args(argv)
         _validate_arguments(args)
+        if args.command == "smoke-public-subtitles":
+            return (smoke_runner or PublicSubtitleSmoke()).run(
+                temporary_root=args.temporary_root,
+                video_ids=tuple(args.video_id),
+                run_id=run_id,
+            ).exit_code
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
     except (ConfigError, OSError, ValueError):

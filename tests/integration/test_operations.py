@@ -117,6 +117,12 @@ def test_usage_and_configuration_fail_with_exit_code_two(tmp_path: Path) -> None
     assert main(_args(project, "doctor")) is ExitCode.USAGE_OR_CONFIGURATION
 
 
+def test_default_operations_remain_fail_closed(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+
+    assert main(_args(project, "check")) is ExitCode.USAGE_OR_CONFIGURATION
+
+
 def test_doctor_only_reads_initialized_temporary_resources(tmp_path: Path) -> None:
     project = _project(tmp_path)
     database = project / "data" / "state.sqlite"

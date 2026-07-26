@@ -11,7 +11,19 @@ youtube-intel process [--video ID] [--resume]
 youtube-intel retry [--video ID] [--failed-only]
 youtube-intel weekly [--week YYYY-Www]
 youtube-intel doctor
+youtube-intel smoke-public-subtitles --temporary-root ABSOLUTE_NEW_EMPTY_DIR --video-id ID [--video-id ID] [--video-id ID]
 ```
+
+`smoke-public-subtitles` is a release-QA-only entry point. It accepts only one
+new absolute temporary root and one to three distinct video IDs; it does not
+load YAML, environment values, credentials, or the default application
+composition. Inside that root it initializes SQLite, empty `data/` and
+`test-vault/` directories, and a redacted JSONL log. Per ID it makes one
+metadata call, one subtitle-directory call, ranks existing candidates and reads
+only the first selected subtitle body once in memory. It uses a fixed 30-second
+timeout, never retries or downloads media, and never writes subtitle text,
+temporary URLs, absolute paths, business records, or Vault notes. The existing
+commands remain fail-closed when no `Operations` composition is injected.
 
 `doctor` validates YAML structure, project-relative storage paths, the existing
 `data/state.sqlite` migration record, Vault path containment, and enabled Provider
