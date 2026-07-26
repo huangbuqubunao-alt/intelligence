@@ -2807,6 +2807,11 @@ class LocalTranscriptionService:
     def _cached_artifact(self, *, video_id: str, request: ProviderCallRequest) -> tuple[ArtifactRecord, bytes, str]:
         provider_call = self._repository.get_provider_call(request.request_hash)
         artifact = self._repository.get_artifact_by_key(request.deterministic_artifact_key)
+        artifact_job = (
+            None
+            if artifact is None or artifact.job_id is None
+            else self._repository.get_job(artifact.job_id)
+        )
         if (
             provider_call is None
             or provider_call.request_hash != request.request_hash
@@ -2827,6 +2832,12 @@ class LocalTranscriptionService:
             or artifact.retention_class is not RetentionClass.LONG_LIVED
             or artifact.expires_at is not None
             or artifact.deleted_at is not None
+            or artifact_job is None
+            or artifact_job.video_id != video_id
+            or artifact_job.target_stage is not ProcessingStage.TRANSCRIPT
+            or artifact_job.status is not JobStatus.SUCCEEDED
+            or artifact_job.finished_at is None
+            or artifact_job.pipeline_version != self._context.pipeline_version
         ):
             raise self._error(
                 ErrorCode.LOCAL_RESOURCE,

@@ -124,3 +124,34 @@ P1-1 已经独立最小复现；根据 reviewer prompt“发现 P0/P1 后立即�
 ### Verdict
 
 `REJECT` — 原 Implementer 必须修复 P1-1，加入回归测试证明 canonical Artifact 与已成功、同视频、同 Pipeline 的历史 TRANSCRIPT Job provenance 不匹配时，服务在 executor 前 fail-closed、不会推进当前 Job/Pipeline 或清理外部文件；随后重新提交并接受全新独立审查。
+
+## Correction 1 — Implementer
+
+### 修复与 RED/GREEN 证据
+
+- 基线/唯一父提交：`08542b84d550ca225dece520cf748a2fc654ab58`（Reviewer `REJECT` evidence）。
+- RED：先完成真实服务转写，再将 canonical Artifact 的 `job_id` 篡改为仍在运行的 `cache-job`；修复前 `LocalTranscriptionService` 接受缓存、executor 为零调用且错误完成 `cache-job`。测试 `test_cache_rejects_untrusted_canonical_artifact_job_provenance[running_job]` 在修复前确认未抛出 `TranscriptError`。
+- GREEN：持久缓存读取现在要求 Artifact 的 `job_id` 能读取到历史 Job，且历史 Job 必须属于同一 video、目标为 `TRANSCRIPT`、状态为 `SUCCEEDED`、存在 `finished_at`，并与当前 context 使用同一 pipeline version。
+- GREEN provenance 矩阵：集成测试覆盖 Artifact job 缺失、空白、未知、运行中，以及历史 Job 为失败、错误 stage、错误 video、错误 pipeline version；每项均安全拒绝、executor 为零调用、当前 Job 保持 `RUNNING`、Pipeline 保持 `METADATA_READY`、音频仍存在。SQLite CHECK 不允许将真实行写为部分非法值时，测试 Repository 在读取边界返回等价篡改记录，直接验证服务的 fail-closed 谓词。
+- 正常重排缓存回归：原持久缓存测试仍验证同一已完成历史 TRANSCRIPT Job 能使当前已领取 `cache-job` 完成 `METADATA_READY -> TRANSCRIPT_READY`，executor 零调用且无重复 Artifact/Provider-call。
+
+### Correction 1 检查
+
+| 命令 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked --offline` | PASS（61 packages） |
+| `uv run python -m pytest tests/integration/test_local_transcription_service.py` | PASS（15 passed） |
+| `uv run python -m pytest tests/unit/test_transcription_policy.py` | PASS（11 passed） |
+| `uv run python -m pytest` | PASS（436 passed） |
+| `uv run mypy src` | PASS（23 source files） |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS |
+| `uv build --offline` | PASS（sdist + wheel） |
+| `git diff --check d96862f287d523dd524addf79f86c9b0642a4d31...HEAD` | PASS |
+
+### Correction 1 范围与风险
+
+- 实际修改仅为 `transcripts.py` 的缓存历史 Job provenance 谓词、对应集成测试和本 handoff；未改 `state.py`、Schema/migration、Provider、Pipeline/CLI、依赖或锁文件。
+- 继续只使用临时 SQLite/DATA 和 Fake executor；真实模型、ffmpeg、媒体/网络、云端、凭据和真实 Vault 未运行且未授权。
+- 保留原有数据库失败补偿、受控 cleanup 与 at-most-once best-effort 风险；本修复不声称 exactly-once。

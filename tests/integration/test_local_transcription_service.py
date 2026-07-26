@@ -71,6 +71,31 @@ class _FailingStageRepository:
         raise RuntimeError("injected stage failure")
 
 
+class _TamperedCacheReadRepository:
+    def __init__(self, repository: SQLiteStateRepository, mutation: str) -> None:
+        self._repository = repository
+        self._mutation = mutation
+
+    def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
+        return getattr(self._repository, name)
+
+    def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None:
+        record = self._repository.get_artifact_by_key(artifact_key)
+        if (
+            self._mutation == "empty_artifact_job"
+            and record is not None
+            and record.kind is ArtifactKind.TRANSCRIPT_CANONICAL
+        ):
+            return replace(record, job_id="")
+        return record
+
+    def get_job(self, job_id: str):  # type: ignore[no-untyped-def]
+        record = self._repository.get_job(job_id)
+        if self._mutation == "wrong_video" and job_id == "whisper-job" and record is not None:
+            return replace(record, video_id="other-video")
+        return record
+
+
 def _metadata(video_id: str = VIDEO_ID) -> VideoMetadata:
     return VideoMetadata(
         video_id=video_id,
@@ -229,6 +254,75 @@ def test_persisted_cache_reuses_verified_result_without_executor_or_duplicate_re
     with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
         assert connection.execute("SELECT count(*) FROM artifacts WHERE kind = 'transcript_canonical'").fetchone() == (1,)
         assert connection.execute("SELECT count(*) FROM provider_calls").fetchone() == (1,)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_artifact_job",
+        "empty_artifact_job",
+        "unknown_artifact_job",
+        "running_job",
+        "failed_job",
+        "wrong_stage",
+        "wrong_video",
+        "wrong_pipeline_version",
+    ),
+)
+def test_cache_rejects_untrusted_canonical_artifact_job_provenance(
+    tmp_path: Path, mutation: str
+) -> None:
+    repository = _prepare_repository(tmp_path)
+    data_root = tmp_path / "data"
+    audio = _registered_audio(repository, data_root)
+    _service(repository, data_root, _FakeWhisperExecutor()).transcribe(audio)
+
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        connection.execute("UPDATE videos SET pipeline_status = 'METADATA_READY' WHERE video_id = ?", (VIDEO_ID,))
+        connection.execute("UPDATE artifacts SET deleted_at = NULL WHERE artifact_key = ?", (audio.artifact_key,))
+        connection.commit()
+    (data_root / audio.relative_path).write_bytes(b"synthetic registered audio")
+    repository.create_job(
+        job_id="cache-job",
+        scope_key=f"video:{VIDEO_ID}:TRANSCRIPT",
+        video_id=VIDEO_ID,
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.TRANSCRIPT,
+        pipeline_version=PIPELINE_VERSION,
+        max_attempts=3,
+        available_at=NOW,
+        now=NOW,
+    )
+    assert repository.claim_next_job(owner="worker-1", lease_until=NOW + timedelta(minutes=10), now=NOW) is not None
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        if mutation == "missing_artifact_job":
+            connection.execute("UPDATE artifacts SET job_id = NULL WHERE kind = 'transcript_canonical'")
+        elif mutation == "unknown_artifact_job":
+            connection.execute("UPDATE artifacts SET job_id = 'unknown-job' WHERE kind = 'transcript_canonical'")
+        elif mutation == "running_job":
+            connection.execute("UPDATE artifacts SET job_id = 'cache-job' WHERE kind = 'transcript_canonical'")
+        elif mutation == "failed_job":
+            connection.execute("UPDATE jobs SET status = 'FAILED_FINAL' WHERE job_id = 'whisper-job'")
+        elif mutation == "wrong_stage":
+            connection.execute("UPDATE jobs SET target_stage = 'SCORING' WHERE job_id = 'whisper-job'")
+        elif mutation == "wrong_pipeline_version":
+            connection.execute("UPDATE jobs SET pipeline_version = 'other-v1' WHERE job_id = 'whisper-job'")
+        connection.commit()
+    executor = _FakeWhisperExecutor()
+    service_repository = (
+        _TamperedCacheReadRepository(repository, mutation)
+        if mutation in {"empty_artifact_job", "wrong_video"}
+        else repository
+    )
+
+    with pytest.raises(TranscriptError) as raised:
+        _service(service_repository, data_root, executor, job_id="cache-job").transcribe(repository.get_artifact_by_key(audio.artifact_key))  # type: ignore[arg-type]
+
+    assert raised.value.error.retryable is False
+    assert executor.calls == []
+    assert repository.get_job("cache-job").status is JobStatus.RUNNING  # type: ignore[union-attr]
+    assert repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.METADATA_READY  # type: ignore[union-attr]
+    assert (data_root / audio.relative_path).exists()
 
 
 @pytest.mark.parametrize("tamper", ("hash", "symlink", "outside"))
