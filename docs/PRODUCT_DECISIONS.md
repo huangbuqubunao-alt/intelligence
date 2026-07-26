@@ -18,6 +18,13 @@
 
 ## 后续架构与任务级批准
 
+### ADR-012：本地转写持续处理
+
+- 批准日期：2026-07-24；产品负责人批准将无字幕后的本地 Whisper 转写作为真实、可恢复的知识流程入口，而非仅保留 Adapter 级文本结果。
+- 新增独立 TASK-013A：复用既有 MLX Whisper Adapter、SQLite Artifact/Provider-call 与 `complete_stage`，使已验证音频的成功转写可以原子进入 `TRANSCRIPT_READY` 并供后续评分使用；不新增依赖、Schema、migration、CLI production composition 或真实资源动作。
+- 明确不授权模型下载/加载、ffmpeg、媒体/YouTube、网络、Ollama/OpenAI、真实 Vault/用户笔记、凭据或付费调用。外部转写成功与数据库提交之间仅承诺 at-most-once best effort，不能宣传严格 exactly-once。
+- TASK-013 在 TASK-013A 整合前保持阻塞；之后必须用真实服务路径重新建立离线验收证据。
+
 ### ADR-010/ADR-011：周报与运行操作契约
 
 - 批准日期：2026-07-23；产品负责人明确同意预检推荐方案。

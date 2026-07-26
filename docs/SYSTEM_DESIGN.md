@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.6
+- 版本：V1.7
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
@@ -11,6 +11,7 @@
 - 本地模型与共享契约：`docs/decisions/ADR-007-local-model-pipeline-contracts.md`
 - 云分析契约：`docs/decisions/ADR-008-cloud-analysis-contract.md`
 - Obsidian 笔记契约：`docs/decisions/ADR-009-obsidian-note-contract.md`
+- 本地转写持续处理契约：`docs/decisions/ADR-012-local-transcription-continuation-contract.md`
 
 ## 1. 设计目标
 
@@ -64,7 +65,7 @@ Adapters: SQLite, filesystem, RSS/yt-dlp, MLX Whisper, Ollama, OpenAI, Obsidian
 |---|---|---|
 | Source Provider | 按频道发现候选视频和游标 | 下载字幕、评分 |
 | Metadata Provider | 标准化单个视频元数据 | 决定是否值得总结 |
-| Transcript Service | 选择字幕或本地转写并产出规范文本 | 云端总结 |
+| Transcript Service | 选择字幕或本地转写、验证并持久化规范文本 | 云端总结 |
 | Scoring Service | 组装有限输入、解析并验证本地评分 | 写 Obsidian |
 | Analysis Service | 对满足策略的视频生成深度分析 | 发现视频 |
 | Pipeline Orchestrator | 驱动状态机、任务租约、重试和缓存 | 包含具体 Provider 逻辑 |
@@ -379,6 +380,11 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 - V1 使用 `mlx-whisper`，默认模型为 `mlx-community/whisper-large-v3-turbo`；model
   revision、权重 hash、解码参数与资源门禁以 ADR-007 L-10、L-11、L-15 为准，运行时
   不得隐式联网。
+- 按 ADR-012，成功的本地转写由独立应用服务在既有阶段事务中写入规范 Transcript Artifact、
+  Provider-call 与 `METADATA_READY -> TRANSCRIPT_READY`；只接受已登记且哈希验证的 DATA 音频，
+  缓存恢复必须验证 Provider-call/Artifact/文件/Job/Pipeline identity。该服务不实现模型下载、
+  媒体获取、CLI production composition 或真实资源调用；外部转写与数据库提交之间仅为 at-most-once
+  best effort。
 - 成功转写后立即删除音频；失败/中断音频最多保留 7 天。删除确认与过期枚举使用
   `mark_artifact_deleted` / `list_expired_artifacts`，只处理 DATA 根下已登记且哈希匹配
   的文件；清理失败只告警，不让已完成转写失败。

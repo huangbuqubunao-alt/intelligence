@@ -1,7 +1,7 @@
 # TASK-013：端到端验收
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex`
+- Status: `BLOCKED`
+- Assignee: `UNASSIGNED`
 - Owner role: QA Agent
 - Size: M
 - Risk: High
@@ -78,3 +78,8 @@
 
 - 独立 Reviewer evidence `2afd95a8dde9ae2d907480fd190bcb2c54efccb4` 的 Verdict 为 `REJECT`：现有 E2E 通过通用 handler 直接推进 SQLite 状态，不能证明五种用户路径、分阶段恢复或昂贵步骤缓存；PRD 10.7 也缺可复现的秘密扫描证据。
 - Correction 1 仍严格限于既有两份 E2E 测试、fixtures、验收报告和 handoff。必须以现有服务边界与固定 Fake Adapter 形成测试内 composition，不得为测试修改生产 CLI 或接触真实资源。
+
+## TASK-013A 依赖（2026-07-24）
+
+- 产品负责人批准 ADR-012 的生产级方案：无字幕后的本地 Whisper 转写必须作为正式、可恢复的 TRANSCRIPT 阶段能力持久化，才能继续进入评分、分析、笔记与周报。
+- 该能力不应藏在验收测试内；TASK-013 因此保持 `BLOCKED/UNASSIGNED`，等待 TASK-013A 整合后以真实服务路径重新实施离线验收。

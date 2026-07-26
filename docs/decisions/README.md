@@ -25,3 +25,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-009](ADR-009-obsidian-note-contract.md) | Accepted | 2026-07-20 | 冻结 Obsidian 笔记身份、模板、用户区、路径、原子写和恢复边界 |
 | [ADR-010](ADR-010-weekly-report-contract.md) | Accepted | 2026-07-23 | 冻结 completed_at ISO 周、确定性聚合、受控周报写入与包内模板边界 |
 | [ADR-011](ADR-011-cli-operations-contract.md) | Accepted | 2026-07-23 | 冻结 CLI 退出码、JSONL 脱敏、零副作用 doctor 与静态 daily/weekly launchd 边界 |
+| [ADR-012](ADR-012-local-transcription-continuation-contract.md) | Accepted | 2026-07-24 | 冻结本地 Whisper 成功转写的 Artifact/Provider-call 原子持久化与后续 Pipeline 衔接 |
