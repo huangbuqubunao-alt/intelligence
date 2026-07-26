@@ -28,6 +28,22 @@
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
+## Phase B-1：公开 YouTube 字幕 smoke（已授权，尚未启动）
+
+- 控制面基线：`main@c4c3c2be9f6893ed1e4d620b1ca4583744ec6566`；任务整体继续为
+  `IN_PROGRESS` / `No-Go`。
+- 正式 Smoke Executor 授权包：
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。
+- 固定独立 worktree：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1`；分支：
+  `codex/task-014-release-readiness-phase-b1`。本包只创建授权和 worktree，不启动 Executor。
+- 仅授权一次、低频地对 2–3 个稳定官方频道的公开视频验证元数据、字幕发现和选中字幕读取；必须使用全新临时
+  SQLite、DATA 与测试 Vault，并只记录目标选择理由、smoke 证据和发布检查表更新。
+- 严禁登录、Cookie、API key、真实 Vault/用户笔记/用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、
+  付费调用、高频重试、产品代码/依赖/锁/Schema/任务状态改动。成功不构成发布批准；mutagen GPL、BPE
+  文件归属/NOTICE 和 at-most-once 风险继续为 No-Go 门禁。
+- Phase A 发行资料尚未整合到此 main 基线；因此该阶段的精确写入范围以授权包为准，只允许独立 smoke 证据、
+  目标选择理由、发布检查表 B-1 记录与 handoff，不能借此重建或改写其他 Phase A 资料。
+
 ## 已授权的只读 Scout 预检（不等于任务开工）
 
 - 授权包：`agent-prompts/PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md`；授权基线为

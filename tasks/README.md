@@ -41,6 +41,15 @@ P0–P3；两次核验的 source 工作树均干净。此结论只通过 Phase A
 at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发布、真实 smoke、uv、测试、构建、网络、
 真实 API/模型、凭据/Vault、依赖变更、项目自身 LICENSE、push、合并或清理。
 
+产品负责人现已为 TASK-014 Phase B-1 授权一次公开 YouTube 字幕 smoke：仅 2–3 个稳定官方频道的公开视频、
+只验证元数据与字幕发现/读取，使用全新临时 SQLite、DATA 与测试 Vault。固定 Executor worktree 为
+`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1`，分支为
+`codex/task-014-release-readiness-phase-b1`，授权包为
+`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。Executor 尚未启动；
+本阶段不授权登录/Cookie/API key、真实 Vault、用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或
+高频重试。TASK-014 继续 `IN_PROGRESS` / `No-Go`，真实 smoke 成功不关闭 mutagen GPL、BPE 文件归属/NOTICE、
+at-most-once 风险或最终 PO/TL/QA Go-No-Go。
+
 ## 状态定义
 
 - `BLOCKED`：存在明确依赖或审批阻塞。
@@ -74,7 +83,7 @@ at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A：发行资料与风险披露） | PO + TL + QA 发布门禁；Phase A Reviewer `APPROVE` | IN_PROGRESS / No-Go | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料审查；Phase B-1 公开字幕 smoke 已授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
 
 ## 主控分配模板
 

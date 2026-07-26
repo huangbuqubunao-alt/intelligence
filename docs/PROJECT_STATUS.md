@@ -67,6 +67,14 @@
   唯一父提交为 `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`，并给出无 P0–P3 的资料审查
   `APPROVE`；source 工作树在两次核验时均干净。此结论不改变 TASK-014 整体 `IN_PROGRESS` / `No-Go`：
   未授权真实验证，也未形成发布批准、法律结论、风险接受或最终 Go。
+- 产品负责人现授权 TASK-014 Phase B-1 的一次公开 YouTube 字幕 smoke。固定控制面基线为
+  `main@c4c3c2be9f6893ed1e4d620b1ca4583744ec6566`，独立 worktree/branch 为
+  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` /
+  `codex/task-014-release-readiness-phase-b1`。未来 Codex Smoke Executor 只可对 2–3 个稳定官方频道的
+  公开视频进行元数据、字幕发现与选中字幕读取，并以全新临时 SQLite、DATA 与测试 Vault 单次运行；授权包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。本控制面提交不启动
+  Executor 或任何网络/产品命令；不授权登录、Cookie、API key、真实 Vault/用户数据、媒体下载、ffmpeg、模型、
+  Ollama、OpenAI、付费调用或高频重试。
 
 ## 已完成或已批准
 
@@ -107,11 +115,12 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 的七路径发行资料已获独立 Git/文档审查 `APPROVE`，但只完成资料审查。TASK-014 整体
-   继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault
-   边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；在这些决定完成前，不产生发布或真实资源授权。
-2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
-   操作继续不批准。
+1. TASK-014 Phase A 的七路径发行资料已获独立 Git/文档审查 `APPROVE`；Phase B-1 的公开 YouTube 字幕 smoke
+   已获精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
+   结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
+   任一 smoke 结果都不产生发布批准。
+2. 除 Phase B-1 已精确授权的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
+   媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 3. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
    可选能力、真实 smoke 授权和 at-most-once 风险接受，才能进入后续发布门禁。
 
@@ -138,7 +147,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 发布门禁继续 | TASK-014 Phase A：发行资料与风险披露 | 七路径 source `8c35cd0...` 与仅追加 handoff 的 Reviewer evidence `88f1b36...` 均已核验；资料审查 `APPROVE`，但 TASK-014 整体仍 `IN_PROGRESS` / `No-Go`，不发布、不合并、不运行真实资源 |
+| 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke | Codex Executor 仅可在固定独立 worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
 
 ## 授权边界
 
@@ -300,8 +309,9 @@
   二进制、捆绑依赖或该 BPE 资源作为发布物。
 - 已接受的可靠性契约只承诺 at-most-once best effort：外部 Provider 成功与 SQLite 提交、文件 replace
   与 SQLite 提交、以及音频清理最终 CAS 之间仍有崩溃窗口；离线恢复证据不等于严格 exactly-once。
-  真实 YouTube/字幕、媒体/ffmpeg、Whisper 模型、Ollama/模型、OpenAI/真实密钥/付费调用、真实 Vault
-  和 launchd 仍未运行且需独立授权；TASK-014 必须把其验证和产品签署决定分别记录。
+  Phase B-1 仅获一次公开 YouTube 元数据/字幕读取授权，尚未运行；媒体/ffmpeg、Whisper 模型、Ollama/模型、
+  OpenAI/真实密钥/付费调用、真实 Vault 和 launchd 仍未运行且需独立授权；TASK-014 必须把其验证和产品签署决定
+  分别记录。
 - TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；实现者、主控和 Reviewer 均实测为 `uv-build==0.11.28`。
 - TASK-002 已冻结配置与跨模块领域接口；后续任务不得为了减少文件量退回自由形状 `dict`，如需改变公共契约必须先回到主控决策。
 - TASK-002 修复提交已关闭原预审发现的密钥错误回显、公共自由 `dict`、可变公共状态表和额外 `ErrorCode`；Reviewer 已独立重跑哨兵、公开 API、运行时不可变性及完整 AC-1 至 AC-8。
