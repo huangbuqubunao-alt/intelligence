@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-07-23
-- 当前阶段：Phase 3 — TASK-010 已整合并收口为 `DONE`
+- 当前阶段：Phase 3 — TASK-013 已整合并收口为 `DONE`
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013 rebuild 的独立 Reviewer evidence `d76307f...` 已 `APPROVE`（P0–P3=0）；accepted source 固定为 `d76307f...`，现等待独立 Codex Product Integrator 以 `--no-ff` 整合并复跑离线 E2E、全量、类型、Lint、CLI、build 与凭据扫描门禁。TASK-014 仍需正式资源/实施授权。
+1. TASK-013 rebuild 已由 Codex Product Integrator 以 merge commit `efb3034f22fc970ffb5c8a6292aaebe4e65025e0` 整合并收口为 `DONE`：双父顺序精确为 `665631016adf7d791665f2d66b6385880afe8795` 与 `d76307fcde73631931f61493c30c75dbda02f028`；accepted source 是 main 祖先，first-parent Diff 严格为四个实际使用的 TASK-013 授权路径（fixtures 未改），锁文件未变，source worktree 干净。整合后 locked offline sync、离线 E2E（9）、全量测试（445）、mypy、Ruff、CLI help、离线 build 与凭据扫描均通过；未 push 或清理 source。TASK-014 保持 `BLOCKED/UNASSIGNED`，仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

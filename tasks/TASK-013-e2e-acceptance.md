@@ -1,6 +1,6 @@
 # TASK-013：端到端验收
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `独立 Codex Product Integrator`
 - Owner role: QA Agent
 - Size: M
@@ -31,7 +31,7 @@
 - 原 Codex Implementer 仅可修改既有五路径组：两份 E2E、`tests/e2e/fixtures/**`、验收报告与 handoff；不得修改生产代码、CLI/编排、配置、Schema/migration、依赖/锁、测试配置或 TASK-013A。
 - 必须证明评分失败后销毁整个组合，在同一临时 SQLite/DATA/Vault 上重建新组合，仅用持久记录保留转写、执行必要评分并完成后续笔记/周报；稳定重跑不得重复昂贵调用或用户可见产物。禁止直接状态推进或伪造阶段完成。
 - 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
-- Correction 2 独立 Reviewer evidence `d76307f...` 为 `APPROVE`（P0–P3=0）；评分失败后的销毁初次组合、同路径新组合恢复、字幕/Whisper 零调用、评分/必要分析各一次、笔记/周报完成和稳定重跑无重复输出均已独立验证。现等待 Product Integrator 以 `--no-ff` 整合；不得写 `DONE` 或预写 merge SHA。
+- Correction 2 独立 Reviewer evidence `d76307f...` 为 `APPROVE`（P0–P3=0）；评分失败后的销毁初次组合、同路径新组合恢复、字幕/Whisper 零调用、评分/必要分析各一次、笔记/周报完成和稳定重跑无重复输出均已独立验证。已由 Product Integrator 以 `--no-ff` merge `efb3034f22fc970ffb5c8a6292aaebe4e65025e0` 整合；整合后离线 E2E、全量测试、mypy、Ruff、CLI help、离线 build 和凭据扫描均通过，现收口为 `DONE`。
 
 ## 目标
 

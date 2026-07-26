@@ -242,3 +242,11 @@
 - Findings: P0=0; P1=0; P2=0; P3=0.
 - Remaining risk: offline Fake evidence does not establish real Provider/network/model quality or local-resource behaviour; those paths remain intentionally `NOT AUTHORIZED`.
 - Verdict: `APPROVE`.
+
+## Product Integrator closure（2026-07-26）
+
+- Task status: `DONE`.
+- Integration base and merge: `main@665631016adf7d791665f2d66b6385880afe8795` merged accepted source `d76307fcde73631931f61493c30c75dbda02f028` with `--no-ff` as `efb3034f22fc970ffb5c8a6292aaebe4e65025e0`.
+- Lineage and scope: the merge parents are exactly base then accepted source; the accepted source is a main ancestor. The first-parent Diff contains only `tests/e2e/test_mvp_flow.py`, `tests/e2e/test_failure_recovery.py`, `docs/ACCEPTANCE_REPORT.md`, and this handoff (the approved fixtures group was unchanged). `uv.lock` and `pyproject.toml` are unchanged; `git diff --check` passed.
+- Existing integration-gate evidence: `uv lock --check` and `uv sync --locked --offline` passed; offline E2E passed (`9 passed`); full pytest passed (`445 passed`); `mypy src`, `ruff check .`, and CLI help passed; `uv build --offline` produced sdist and wheel; the authorized credential-format scan had no match (expected `rg` exit `1`).
+- Boundaries: source worktree remained clean and was neither modified nor cleaned; no push occurred. This status closure reran no tests or builds. Real YouTube/network/media/ffmpeg/models/APIs/credentials/paid services/real Vault/launchd remain `NOT AUTHORIZED`.
