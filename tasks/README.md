@@ -63,7 +63,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-010](TASK-010-orchestration-recovery.md) | 流程编排与恢复 | 已整合并收口；merge `3d2122c...` | DONE | 003-009 |
 | [TASK-011](TASK-011-weekly-report.md) | 周报 | 已整合并关闭；merge `2ba42c2...` | DONE | 009, 010 |
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
-| [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | Codex Implementer（Correction 1） | IN_PROGRESS | 006, 010 |
+| [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | Codex Implementer；第二位独立 Codex Reviewer | IN_REVIEW | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 等待 TASK-013A 后重新建立真实服务流证据 | BLOCKED | 011, 012, 013A |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配） | BLOCKED | 013 |
 
