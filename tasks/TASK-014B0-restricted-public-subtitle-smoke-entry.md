@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `READY`
-- Assignee: `Codex Implementer (not started)`
+- Status: `IN_REVIEW`
+- Assignee: `Independent Codex Reviewer (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -21,6 +21,17 @@
 - Reviewer：全新独立 Codex Reviewer（本包不启动）。
 - Reuse decision：`DIRECT` — 已锁定的 yt-dlp Metadata/Subtitle Adapter、SQLite migration、JSONL logger 和 Python 标准库；
   不新增或复制第三方代码。
+
+## 独立审查授权
+
+- 主线控制面基线：`main@c62310ab79f01f5f311c9f54bb28365905f5a81a`。
+- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
+  `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，待审 HEAD
+  `4e506847854f20a43011b0a15db3a1c8e320656d`，唯一父提交
+  `c62310ab79f01f5f311c9f54bb28365905f5a81a`。
+- 正式 Reviewer 包：`agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-REVIEWER-CODEX.md`。
+- Reviewer 只能向 source 的既有 `handoffs/TASK-014B0.md` 追加审查证据；不得改变 source 的其他路径、main
+  控制面、依赖或 Schema。此授权本身不启动 Reviewer。
 
 ## 验收标准
 

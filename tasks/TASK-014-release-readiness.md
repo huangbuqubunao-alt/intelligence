@@ -44,16 +44,21 @@
 - Phase A 发行资料尚未整合到此 main 基线；因此该阶段的精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能借此重建或改写其他 Phase A 资料。
 
-## Phase B-0：受限公开字幕 smoke 组合入口（正式分配，Implementer 尚未启动）
+## Phase B-0：受限公开字幕 smoke 组合入口（`IN_REVIEW`，Reviewer 尚未启动）
 
 - B-1 blocker evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 证明默认 CLI 的非 doctor 命令在没有
   外部组合根时 fail-closed，且没有可限制为“元数据 + 字幕目录 + 一条选中正文”并使用临时根的入口；该 evidence
   留在 B-1 source，绝不合并到 main。
 - ADR-013 已接受，正式任务卡为 `tasks/TASK-014B0-restricted-public-subtitle-smoke-entry.md`；Implementer 包为
   `agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-IMPLEMENTER-CODEX.md`。
-- 固定 worktree：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`；分支：
-  `codex/task-014-phase-b0-restricted-public-subtitle-smoke`。B-0 只实现和离线 Fake 验证这个受限入口，不运行
-  真实 smoke；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`。
+- 唯一待审 source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
+  `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，HEAD
+  `4e506847854f20a43011b0a15db3a1c8e320656d` 的唯一父提交为
+  `c62310ab79f01f5f311c9f54bb28365905f5a81a`；相对父提交严格为六个 B0 允许路径，worktree 已清洁，未改依赖或
+  Schema。
+- 正式 Reviewer 授权包：`agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-REVIEWER-CODEX.md`；未来 Reviewer
+  仅可追加 source 的 `handoffs/TASK-014B0.md`。B-0 不运行真实 smoke；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，
+  不构成验收、整合或发布批准。
 
 ## 已授权的只读 Scout 预检（不等于任务开工）
 

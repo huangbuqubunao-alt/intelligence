@@ -52,11 +52,12 @@ at-most-once 风险或最终 PO/TL/QA Go-No-Go。
 
 Phase B-1 的 blocker evidence `be230490...`（仅存在于其 source，绝不合并）确认默认 CLI 缺少受控组合入口。
 产品负责人因此批准 ADR-013 和 TASK-014B0：新增仅服务发布 QA 的 `smoke-public-subtitles`，严格限定 1–3 个
-显式视频 ID、一次 metadata/字幕目录/一条字幕正文读取、30 秒 timeout、无自动重试与全新临时根。正式任务卡为
-`tasks/TASK-014B0-restricted-public-subtitle-smoke-entry.md`，固定 worktree/branch 为
-`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
-`codex/task-014-phase-b0-restricted-public-subtitle-smoke`。B0 为 `READY`，Implementer 尚未启动；默认 CLI 继续
-fail-closed，TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
+显式视频 ID、一次 metadata/字幕目录/一条字幕正文读取、30 秒 timeout、无自动重试与全新临时根。唯一 source
+`4e506847854f20a43011b0a15db3a1c8e320656d` 是控制面 `c62310ab79f01f5f311c9f54bb28365905f5a81a` 的唯一后继，严格
+为 CLI、专用组合模块、两份离线 Fake 测试、operations 文档与 handoff 六路径，worktree 清洁且无依赖/Schema 改动。
+正式 Reviewer 包为 `agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-REVIEWER-CODEX.md`；B0 现为
+`IN_REVIEW`，Reviewer 尚未启动且只可追加 source handoff。默认 CLI 继续 fail-closed，TASK-014 仍为
+`IN_PROGRESS` / `No-Go`。
 
 ## 状态定义
 
@@ -92,7 +93,7 @@ fail-closed，TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料审查；Phase B-1 公开字幕 smoke 已授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
-| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | Codex Implementer 已分配但尚未启动 | READY | 014；ADR-013 |
+| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 独立 Codex Reviewer 已授权，尚未启动 | IN_REVIEW | 014；ADR-013 |
 
 ## 主控分配模板
 
