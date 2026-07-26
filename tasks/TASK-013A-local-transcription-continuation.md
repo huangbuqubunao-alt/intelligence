@@ -1,6 +1,6 @@
 # TASK-013A：本地转写持续处理
 
-- Status: `ACCEPTED`
+- Status: `DONE`
 - Assignee: `Codex Implementer`
 - Owner role: Codex Implementer
 - Size: M
@@ -14,20 +14,20 @@
 - Branch: `codex/task-013a-local-transcription-continuation`
 - Base: `main@d96862f287d523dd524addf79f86c9b0642a4d31`
 - Review: 实现提交后，必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
-- Source: `codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`（Correction 1；parent `08542b84d550ca225dece520cf748a2fc654ab58`）。
+- Source: `codex/task-013a-local-transcription-continuation@62d87067af84171a2ee7195f3e7d4c4fddcb9980`（Reviewer 2 APPROVE evidence；parent `d50c78e9502e3f65018b6af323823c98b3a882ba`）。
 
 ## Correction 1
 
 - Reviewer evidence: `08542b84d550ca225dece520cf748a2fc654ab58`，Verdict=`REJECT`。
 - P1：缓存恢复未证明 canonical Artifact 来自同一视频、同一 pipeline version 且已成功的历史 TRANSCRIPT Job；篡改 `artifacts.job_id` 可推进错误的运行 Job。
 - 修复范围仅为 `transcripts.py`、本地转写集成测试和 handoff；必须在 executor 或当前 Job/Pipeline 副作用前 fail-closed。
-- Correction 1 已提交，等待第二位独立 Codex Reviewer 复跑 provenance 矩阵和全部离线门禁；不得预写 verdict、ACCEPTED、merge 或 DONE。
+- Correction 1 已由第二位独立 Codex Reviewer 复跑 provenance 矩阵和全部离线门禁后 APPROVE。
 
 ## 验收
 
 - Reviewer 2 evidence: `62d87067af84171a2ee7195f3e7d4c4fddcb9980`，Verdict=`APPROVE`，P0–P3=0。
 - AC-1 至 AC-5 与 ADR-012 C-01 至 C-05 的离线矩阵均通过；未运行真实模型、媒体、网络、Vault 或凭据路径。
-- 已验收，等待独立 Product Integrator 用 `--no-ff` 合并；不得预写 merge SHA 或 DONE。
+- 已由 merge `8f70fe34fdaf0788296cdb5aba22f70358462aac` 用 `--no-ff` 整合并关闭；不运行真实资源路径。
 
 ## 目标
 

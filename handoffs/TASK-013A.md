@@ -220,3 +220,10 @@ cleanup 仅在数据库成功完成后调用；其删除与最终 CAS 之间仍�
 ### Verdict
 
 `APPROVE` — Correction 1 消除了 P1 的缓存历史 Job provenance 缺陷，且独立复跑确认没有破坏本地转写、可信缓存恢复、数据库补偿、受控 cleanup 或 DATA 安全边界。可交主控验收；本 Reviewer 未修改业务代码、测试、依赖、锁文件、任务状态或 main。
+
+## Product Integration and Closure — 2026-07-26
+
+- Accepted source `62d87067af84171a2ee7195f3e7d4c4fddcb9980` 已由 Product Integrator 用 merge `8f70fe34fdaf0788296cdb5aba22f70358462aac` 整合；父顺序为 execution base `ef64d2c...`、accepted source `62d8706...`。
+- first-parent Diff 精确为本 handoff、`src/youtube_intel/transcripts.py` 和 `tests/integration/test_local_transcription_service.py`；锁文件未变，main 与 retained source worktree 均干净。
+- 既有整合门禁全部通过：离线 lock/sync、focused 15 + 11、全量 436、mypy、Ruff、CLI help、离线 build、migration package inclusion、范围/lock/Diff/cleanliness。
+- TASK-013A 已关闭为 `DONE`。仍未运行模型、ffmpeg、媒体/YouTube、网络、云端、真实 Vault、凭据或付费服务；外部 executor 成功至 SQLite 提交之间的 at-most-once best-effort 风险保持记录。
