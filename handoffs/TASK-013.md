@@ -132,3 +132,44 @@
 - Verification completed before commit: `uv lock --check` → `Resolved 84 packages`; `uv sync --locked --offline` → `Checked 61 packages`; `uv run python -m pytest tests/e2e -m 'not network and not cloud'` → `9 passed`; focused MVP/failed-recovery files → `3 passed` / `6 passed`; `uv run python -m pytest` → `445 passed`; `uv run mypy src` → 23 source files clean; `uv run ruff check .` → pass; `uv run python -m youtube_intel --help` → pass; `uv build --offline` → sdist + wheel. `rg --pcre2 -n '(?i)(sk-[a-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,})' tests/e2e docs/ACCEPTANCE_REPORT.md handoffs/TASK-013.md` produced no match (expected exit 1). `git diff --check` passed; final Diff/path and staged-secret checks are recorded immediately before commit.
 - Real-resource status: `NOT AUTHORIZED`。未使用真实 YouTube/网络、媒体、ffmpeg、Whisper/Ollama/OpenAI 模型或 API、凭据、真实 Vault、付费服务或 launchd；所有写入仅为 pytest `tmp_path`。
 - This section is implementer evidence only. It does not start a Reviewer, change TASK status, merge, push, or claim an approval verdict.
+
+## Correction 1 — Independent Reviewer 2 (2026-07-26)
+
+- Reviewer agent/session: Codex（全新独立 Reviewer 2）
+- Dynamic authorization: `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-REVIEWER-CODEX.md` resolved to `001eaa96dfc1737169323a3e4503a9415b0b39c9`; main states TASK-013 Correction 1 is awaiting independent review / `IN_REVIEW`.
+- Reviewed source: `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`; worktree was clean; its sole parent is `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`.
+
+### Re-run checks completed before the blocking finding
+
+| Command / check | Result | Evidence |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages in 9ms`. |
+| `uv sync --locked --offline` | PASS | `Resolved 84 packages`; `Checked 61 packages`; existing local uv cache was read only after sandbox permission blocked normal cache access. No network or lockfile change. |
+| `uv run python -m pytest tests/e2e -m 'not network and not cloud'` | PASS | `9 passed in 7.66s`. |
+| Correction-1 scope/lineage/Diff check | PASS | sole parent exact; relative to original base only `tests/e2e/test_mvp_flow.py`, `tests/e2e/test_failure_recovery.py`, `docs/ACCEPTANCE_REPORT.md`, and this handoff; `git diff --check 2a59dfe...HEAD` exited 0. No production code, CLI/orchestration, config, Schema/migration, dependencies, lockfile, or test configuration changed. |
+| Success-path fresh-composition review | PASS, non-blocking | `test_mvp_flow.py` deletes the first Flow/report, calls `gc.collect()`, creates `restore=True` against the same temporary SQLite/DATA/Vault, asserts new caches empty and all new expensive Fake call counts zero. This closes only the successful `COMPLETE` rerun case. |
+
+### Blocking independent recovery probe
+
+- **P1-1 — failed-stage recovery still depends on old in-memory objects.** `tests/e2e/test_failure_recovery.py:30-49` keeps the original `_OfflineMvpFlow` alive for each injected failure and calls `flow.run()` again. However, later production-stage shims read `self.transcripts` in scoring/analysis (`test_mvp_flow.py:438-462`) and `self.transcripts`, `self.scores`, and `self.analyses` in note writing (`:481-501`). Those dictionaries are empty in a fresh `restore=True` composition.
+- Independent offline probe used a new temporary SQLite/DATA/Vault, injected the existing `scoring` failure, destroyed the first Flow, called `gc.collect()`, built `_OfflineMvpFlow(root, restore=True)`, and reran one minute later. It produced `high-value` at `TRANSCRIPT_READY` and its scoring Job at `RETRY_PENDING` with `last_error_code=LOCAL_RESOURCE`; all fresh Fake counters were `0`. The retry cannot recover the persisted Transcript Artifact because the handler attempts `self.transcripts[video_id]` instead of loading verified persistent state. The same unproven in-memory dependency applies to analysis and note recovery.
+- Therefore the 9 passing E2E tests demonstrate same-process failure retries only; they do not establish the required failure recovery after destroying all composition objects, nor the requirement that recovery never depend on an old Repository/Fake/cache object. This violates the Correction 1 review package item 3 and leaves the original persistence/restart acceptance incomplete.
+
+### Stopped / not run after P1
+
+- Per the review authorization, after P1-1 I did not start the remaining unrelated mandatory gates: the two focused E2E file commands, full pytest, mypy, Ruff, CLI help, offline build, or additional resource/privacy probes. They are not represented as passing.
+- No real YouTube/network/media/ffmpeg/Whisper model/Ollama/OpenAI/API/credential/paid service/real Vault/launchd path was used. The sole independent probe used Python `tempfile` with Fake providers and temporary SQLite/DATA/Vault only.
+
+### Reviewer matrix and conclusion
+
+| Review requirement | Result | Evidence |
+|---|---|---|
+| First complete run destruction + fresh complete-composition rerun | PASS | New `restore=True` flow, empty caches, zero new expensive Fake calls, unchanged persistent counts/report bytes on the successful terminal path. |
+| Persistent artifacts/provider calls/jobs/pipeline/user-visible files avoid duplicate work after terminal restart | PASS | Same successful terminal-path assertions; no old Flow object is retained. |
+| All injected boundary failures recover after a fresh composition without old memory | FAIL / P1-1 | Scoring recovery probe leaves `RETRY_PENDING` / `TRANSCRIPT_READY`; failure test retains old Flow dictionaries. |
+| Stable same-process rerun | PASS but insufficient | Existing failure test verifies unchanged counts/calls only while retaining the first Flow. |
+| Scope, reuse/license, and real-resource boundary | PASS | DIRECT existing services/locked dependencies/stdlib; no third-party code or dependency change; only temporary Fake paths. |
+
+- Findings: P0=0; P1=1 (P1-1); P2=0; P3=0.
+- Verdict: `REJECT`.
+- Required correction: within the already authorized E2E/fixture/report/handoff scope, reconstruct a brand-new composition after each applicable injected failure and make its retry stages load and verify the required persisted Artifact/Provider-call/Job/Pipeline data rather than prior in-memory dictionaries. Prove zero fresh expensive Fake calls whenever the verified persistent cache should satisfy the stage. Do not modify production code, state/Schema, dependencies, or real-resource boundaries.
