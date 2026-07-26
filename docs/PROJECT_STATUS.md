@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013 已提交真实服务流离线验收证据，现等待全新独立 Codex Reviewer 验证；TASK-014 仍需正式资源/实施授权。
+1. TASK-013 首轮独立审查 evidence `3cf8b5f...` 为 `REJECT`（P1-1）：E2E 复用进程内 `_OfflineMvpFlow` 状态，未证明重启后基于持久 SQLite/DATA/Vault 的恢复与昂贵调用缓存；现退回原 Codex Implementer 在冻结五路径范围内修复。TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 
