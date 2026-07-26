@@ -11,6 +11,18 @@
 
 在不新增功能的前提下完成 V1 文档、安装运行、备份恢复、安全检查和发布门禁，形成明确的 Go/No-Go 决策。
 
+## 已授权的只读 Scout 预检（不等于任务开工）
+
+- 授权包：`agent-prompts/PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md`；授权基线为
+  `main@5c5f60abef53d257dd6205456463b03600f0c47c`。
+- 该包仅允许独立 Scout 对 main 中已跟踪的文档、包/锁定元数据、打包引用和既有 handoff 证据做只读盘点；
+  Scout 尚未启动。
+- 必须报告：直接/传递依赖的许可证和 NOTICE 义务（尤其 `mutagen`、Jinja2、OpenAI SDK、tiktoken 与
+  固定 `o200k_base.tiktoken` 资源）、包内容、已接受的 at-most-once best-effort 风险、未运行真实资源
+  验证，以及 PO/TL/QA 发布前需要签署的产品决策。
+- 禁止 uv、测试、构建、网络、真实 API/模型、凭据/Vault 读取、推送、合并和清理；不得创建 worktree/branch、
+  修改任务状态或把盘点结论视为 Go/No-Go。
+
 ## 范围
 
 - 核对 README、配置示例、初始化、手动运行、doctor、launchd、备份/恢复和故障处理说明。
@@ -72,3 +84,5 @@
 - ADR-008/ADR-009 的 OpenAI/tiktoken/Jinja2/MarkupSafe 依赖清单、固定
   `o200k_base.tiktoken` 资源许可与哈希证据、SDK 隔离导入/匿名管道密钥门禁、云端
   隐私门禁和模板/Vault 分发边界。
+- 发布 Scout 报告（如后续启动）：仅作为 PO/TL/QA 的许可证、分发形态、真实资源验证和残余
+  at-most-once 风险决策输入；不替代实施、真实验证或正式 Go/No-Go 签署。

@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-23
+- 更新时间：2026-07-26
 - 当前阶段：Phase 3 — TASK-013 已整合并收口为 `DONE`
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
@@ -56,6 +56,10 @@
 - 实时控制面只存在于 `main`；为保留可审计的共同 base，TASK-008/TASK-009 source worktree 内的
   任务卡与项目状态文档是分配前冻结快照。Implementer 必须按 main 的动态授权包读取实时状态，
   不得把 source 快照当作冲突或写回 source 文档。
+- TASK-014 的只读 Release Readiness Scout 授权包已从
+  `main@5c5f60abef53d257dd6205456463b03600f0c47c` 建立；Scout 尚未启动，TASK-014 仍为
+  `BLOCKED/UNASSIGNED`，且该包不授权 uv、测试、构建、网络、真实 API/模型、凭据/Vault 读取、
+  推送、合并或清理。
 
 ## 已完成或已批准
 
@@ -99,6 +103,10 @@
 1. TASK-013 rebuild 已由 Codex Product Integrator 以 merge commit `efb3034f22fc970ffb5c8a6292aaebe4e65025e0` 整合并收口为 `DONE`：双父顺序精确为 `665631016adf7d791665f2d66b6385880afe8795` 与 `d76307fcde73631931f61493c30c75dbda02f028`；accepted source 是 main 祖先，first-parent Diff 严格为四个实际使用的 TASK-013 授权路径（fixtures 未改），锁文件未变，source worktree 干净。整合后 locked offline sync、离线 E2E（9）、全量测试（445）、mypy、Ruff、CLI help、离线 build 与凭据扫描均通过；未 push 或清理 source。TASK-014 保持 `BLOCKED/UNASSIGNED`，仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
+3. 在 TASK-014 获得实施授权前，可由独立 Codex Read-only Scout 使用
+   `agent-prompts/PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md` 盘点发行许可证/NOTICE、包内容、
+   固定 BPE 资源、at-most-once 残余风险、未运行真实资源验证和 PO/TL/QA 决策；其结论不是 Go，
+   不改变任务状态。
 
 ## 当前并行调度
 
@@ -123,6 +131,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
+| 已授权但未启动 | TASK-014 Release Readiness Read-only Scout | 仅可按 `PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md` 检查已跟踪资料并在聊天回传；TASK-014 仍 `BLOCKED/UNASSIGNED`，不得创建 worktree 或运行任何验证命令 |
 
 ## 授权边界
 
@@ -278,6 +287,14 @@
 ## 当前风险
 
 - TASK-001 的 `.gitignore` 使用未锚定 `data/`、`logs/`，会忽略任意同名嵌套目录；不违反当前 AC-3，已登记为 `TASK-014` 发布门禁检查项。
+- TASK-014 发布前必须形成书面 Go/No-Go 输入：`mutagen`（GPL-2.0-or-later）和所有直接/传递依赖的
+  分发许可证/NOTICE 处置；OpenAI SDK、tiktoken、Jinja2、MarkupSafe 复核；固定
+  `o200k_base.tiktoken` 的文件级许可、归属和 NOTICE；包内容；以及发布形态决策。没有这些结论不得把
+  二进制、捆绑依赖或该 BPE 资源作为发布物。
+- 已接受的可靠性契约只承诺 at-most-once best effort：外部 Provider 成功与 SQLite 提交、文件 replace
+  与 SQLite 提交、以及音频清理最终 CAS 之间仍有崩溃窗口；离线恢复证据不等于严格 exactly-once。
+  真实 YouTube/字幕、媒体/ffmpeg、Whisper 模型、Ollama/模型、OpenAI/真实密钥/付费调用、真实 Vault
+  和 launchd 仍未运行且需独立授权；TASK-014 必须把其验证和产品签署决定分别记录。
 - TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；实现者、主控和 Reviewer 均实测为 `uv-build==0.11.28`。
 - TASK-002 已冻结配置与跨模块领域接口；后续任务不得为了减少文件量退回自由形状 `dict`，如需改变公共契约必须先回到主控决策。
 - TASK-002 修复提交已关闭原预审发现的密钥错误回显、公共自由 `dict`、可变公共状态表和额外 `ErrorCode`；Reviewer 已独立重跑哨兵、公开 API、运行时不可变性及完整 AC-1 至 AC-8。

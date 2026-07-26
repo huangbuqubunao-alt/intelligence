@@ -32,6 +32,12 @@ P0–P3 均无，Product Integrator 已以 merge `64a9c416...` 整合并关闭�
 
 ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `docs/REUSE_REGISTER.md` 并给出 `Reuse decision`，不得未经评估从零实现或整套嵌入第三方应用。
 
+TASK-014 保持 `BLOCKED/UNASSIGNED`。已从
+`main@5c5f60abef53d257dd6205456463b03600f0c47c` 创建仅限已跟踪资料的
+`PREFLIGHT-TASK-014-RELEASE-READINESS-SCOUT.md` 授权包；它只盘点许可证/NOTICE、包内容、
+固定 `o200k_base.tiktoken` 资源、at-most-once 风险、未运行真实资源验证和 PO/TL/QA 发布决策。
+Scout 尚未启动，且该包不授权 uv、测试、构建、网络、真实 API/模型、凭据/Vault 读取、推送、合并或清理。
+
 ## 状态定义
 
 - `BLOCKED`：存在明确依赖或审批阻塞。
@@ -65,7 +71,7 @@ ADR-005 已接受“复用优先”策略；所有后续任务包必须引用 `d
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配） | BLOCKED | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备 | PO + Codex TL/QA（未分配；仅 Scout 预检获授权） | BLOCKED | 013 |
 
 ## 主控分配模板
 
