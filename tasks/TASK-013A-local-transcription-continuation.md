@@ -1,6 +1,6 @@
 # TASK-013A：本地转写持续处理
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex Implementer`
 - Owner role: Codex Implementer
 - Size: M
@@ -14,6 +14,7 @@
 - Branch: `codex/task-013a-local-transcription-continuation`
 - Base: `main@d96862f287d523dd524addf79f86c9b0642a4d31`
 - Review: 实现提交后，必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
+- Source: `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`（implementation `4c3706a969fb85ff4ec344034444d8607894b36f`）。
 
 ## 目标
 
