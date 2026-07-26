@@ -21,7 +21,7 @@
 
 - P1-1：首轮审查确认 E2E 在失败、恢复与重跑期间复用同一 `_OfflineMvpFlow` 的进程内字典，不能证明进程重启后持久 SQLite/DATA/Vault 的恢复、幂等及昂贵调用缓存。
 - 原 Codex Implementer 仅可修改既有五路径组：两份 E2E、`tests/e2e/fixtures/**`、验收报告与 handoff；不得修改生产代码、CLI/编排、配置、Schema/migration、依赖/锁、测试配置或 TASK-013A。
-- 必须以同一临时 SQLite/DATA/Vault 进行首次运行，随后销毁旧服务/组合实例并重建全新实例；不得复用 `_OfflineMvpFlow` 或其他进程内内存状态，不得直接推进 SQLite 状态或伪造阶段完成。
+- 必须以同一临时 SQLite/DATA/Vault 进行首次运行，随后销毁第一次运行的全部服务、Repository、Fake Provider 与内存缓存，并新建完整组合实例；恢复只能依赖持久 Artifact、Provider-call、Job/Pipeline 与用户可见文件。新 Fake Provider 的昂贵调用计数必须为 `0`；不得复用 `_OfflineMvpFlow` 或其他进程内内存状态，不得直接推进 SQLite 状态或伪造阶段完成。
 - 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
 
 ## 目标
