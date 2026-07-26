@@ -76,3 +76,47 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：use `git rev-parse HEAD` after this handoff commit.
 - 复现/验证说明：按验收报告的三条 e2e 命令运行；真实路径保持未授权。
+
+## Reviewer 结论（2026-07-26，rebuild 独立审查）
+
+- Reviewer agent/session：Codex（全新独立 Reviewer）
+- 审查授权：main 中 `agent-prompts/TASK-013-REBUILD-REVIEWER-CODEX.md` 的最后修改提交为 `a7c670c232e3129972138dd45a1a0c21877e35e0`；main 的 TASK-013 状态为 `IN_REVIEW`。
+- 审查对象：`codex/task-013-e2e-acceptance-rebuild@0a9e16887e7dc0b287be941a34e2908766e3992e`，唯一父提交为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`；审查开始时 worktree 干净。
+
+### 已重新运行的检查
+
+| 命令/检查 | 结果 | 关键证据 |
+|---|---|---|
+| `uv lock --check` | PASS | `Resolved 84 packages`。 |
+| `uv sync --locked --offline` | PASS | `Checked 61 packages`，未联网。 |
+| `uv run python -m pytest tests/e2e -m 'not network and not cloud'` | PASS | `8 passed in 7.35s`。 |
+| 全受审 Diff 的 `git diff --check 2a59dfe...HEAD` | PASS | 退出码 0。 |
+| 允许路径核验 | PASS | 仅 `tests/e2e/test_mvp_flow.py`、`tests/e2e/test_failure_recovery.py`、`docs/ACCEPTANCE_REPORT.md`、本 handoff；未触及生产 CLI/编排、配置、Schema/migration、依赖、锁文件、测试配置或既有测试。 |
+| 凭据格式扫描 | PASS | 对工作树执行报告中同一 `sk-...` / `AIza...` PCRE 扫描（排除锁文件与 tokenizer 资源），退出码 1、无匹配；未见真实密钥格式。 |
+
+### 独立探针与发现
+
+- 五路径/无状态捷径：人工、自动字幕通过 `SubtitleAcquisitionService` 的不同 Fake 轨道；无字幕由 `TranscriptionRequired` 进入 `LocalTranscriptionService`；没有测试手写 `complete_stage` 或 SQL 更新。`advance_pipeline` 仅用于最小 `DISCOVERED -> METADATA_READY` 初始夹具准备。低价值的云 Fake/credential resolver 为零调用；高价值经过评分、分析、笔记和周报生产服务。
+- 隐私与范围：临时 Vault、SQLite、DATA 和 Fake Adapter 均在 pytest `tmp_path` 下；真实 YouTube、Whisper 模型/ffmpeg、Ollama/模型、OpenAI/API/密钥/付费调用、网络、真实 Vault、媒体及 launchd 均未执行且仍为 `NOT AUTHORIZED`。未复制第三方代码或引入依赖；复用结论仍为既有 `DIRECT` 组件与 Python 标准库，无新增许可证义务。
+- **P1-1（阻断）— 未证明进程重启后的恢复，PRD 10.5 不能标记 PASS。** `tests/e2e/test_failure_recovery.py:30-40` 在失败、恢复与重跑期间始终复用同一个 `_OfflineMvpFlow` 实例；`tests/e2e/test_mvp_flow.py:300-303` 将 `TranscriptReady`、评分和分析结果保留在进程内 `transcripts`、`scores`、`analyses` 字典，且下游服务直接读取这些字典（例如 `:450-451`、`:474`、`:503-504`）。测试没有销毁并从同一 SQLite/DATA/Vault 重建服务组合，因此无法证明成功产物会在进程内存丢失后由持久化 Artifact/Provider-call/Job 恢复，也无法证明昂贵步骤不被重新调用。现有 8 项 E2E 通过不能覆盖这一 PRD 10.5 和任务级恢复验收缺口。
+
+### 跳过的门禁
+
+依据审查 prompt 的“发现 P0/P1 后停止未开始的无关门禁”规则，未执行：两个单文件 pytest 命令、全量 pytest、mypy、Ruff、CLI help 和离线 build。它们没有被表述为通过。
+
+### PRD 10 验收复核
+
+| PRD 项 | Reviewer 状态 | 说明 |
+|---|---|---|
+| 10.1 | PASS | 五个固定用户情形使用所列生产服务边界。 |
+| 10.2 | PASS | 同实例重跑的 Provider-call/Artifact/Report/Job 计数及外部 Fake 调用不变。 |
+| 10.3 | PASS | 六个阶段的单次失败后恢复在离线 E2E 中通过。 |
+| 10.4 | PASS | 云关闭时云 Fake 与 resolver 零调用且流程完成。 |
+| 10.5 | FAIL | P1-1：未重建进程/服务组合，不能证明重启恢复和缓存复用。 |
+| 10.6 | BLOCKED | P1 后停止未开始的全量质量门禁。 |
+| 10.7 | PASS | 可复现扫描无匹配；Fake credential 仅为内存固定测试值。 |
+| 10.8 | PASS | 临时 Vault 验证可解析 Frontmatter、双链与 `我的思考` 保留。 |
+
+- Findings：P0=0；P1=1（P1-1）；P2=0；P3=0。
+- Verdict：`REJECT`
+- 未解决 P0/P1：P1-1。修复必须仅在已授权的两份 E2E 测试/fixtures/验收报告/handoff 范围内，加入从同一持久化 SQLite/DATA/Vault 重新构建服务组合并验证后续阶段恢复、昂贵 Fake 调用不重复的回归证据；不得修改生产编排、状态、Schema、依赖或真实资源边界。
