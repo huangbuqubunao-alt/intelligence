@@ -96,7 +96,7 @@
 
 ## 下一步
 
-1. TASK-013 rebuild Correction 2 source `f6697fa...` 已提交，现由全新独立 Codex Reviewer 审查：评分失败后必须销毁初次组合，并在同一临时 SQLite/DATA/Vault 重建新组合；字幕/Whisper 调用为 `0`，评分与必要分析各恰好一次，笔记/周报完成且稳定重跑无重复输出。TASK-014 仍需正式资源/实施授权。
+1. TASK-013 rebuild 的独立 Reviewer evidence `d76307f...` 已 `APPROVE`（P0–P3=0）；accepted source 固定为 `d76307f...`，现等待独立 Codex Product Integrator 以 `--no-ff` 整合并复跑离线 E2E、全量、类型、Lint、CLI、build 与凭据扫描门禁。TASK-014 仍需正式资源/实施授权。
 2. 真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、网络、真实 Vault、用户笔记、launchd 注册与凭据
    操作继续不批准。
 

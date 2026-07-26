@@ -1,7 +1,7 @@
 # TASK-013：端到端验收
 
-- Status: `IN_REVIEW`
-- Assignee: `独立 Codex Reviewer`
+- Status: `ACCEPTED`
+- Assignee: `独立 Codex Product Integrator`
 - Owner role: QA Agent
 - Size: M
 - Risk: High
@@ -15,7 +15,7 @@
 - Base: `main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`
 - TASK-013A 已整合为 `DONE`。本轮必须通过现有 `SubtitleAcquisitionService`、`LocalTranscriptionService`、评分、分析、笔记和周报服务建立真实离线服务流证据；不得重用已拒绝的历史 `codex/task-013-e2e-acceptance` source 或以通用 handler/直接状态推进替代。
 - 完成后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。
-- Source: `codex/task-013-e2e-acceptance-rebuild@f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`（Correction 2；parent `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`）。
+- Accepted source: `codex/task-013-e2e-acceptance-rebuild@d76307fcde73631931f61493c30c75dbda02f028`（Correction 2 Reviewer evidence；parent `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`）。
 
 ## Rebuild Correction 1（2026-07-26）
 
@@ -31,7 +31,7 @@
 - 原 Codex Implementer 仅可修改既有五路径组：两份 E2E、`tests/e2e/fixtures/**`、验收报告与 handoff；不得修改生产代码、CLI/编排、配置、Schema/migration、依赖/锁、测试配置或 TASK-013A。
 - 必须证明评分失败后销毁整个组合，在同一临时 SQLite/DATA/Vault 上重建新组合，仅用持久记录保留转写、执行必要评分并完成后续笔记/周报；稳定重跑不得重复昂贵调用或用户可见产物。禁止直接状态推进或伪造阶段完成。
 - 修复提交后必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。真实 YouTube、模型、云 API、凭据、网络与真实 Vault 继续未授权。
-- Correction 2 已提交，等待独立 Reviewer 复核评分失败后销毁初次组合、同一路径重建新组合、字幕/Whisper 为零调用、评分与必要分析恰好一次、笔记/周报完成以及稳定重跑无重复输出。
+- Correction 2 独立 Reviewer evidence `d76307f...` 为 `APPROVE`（P0–P3=0）；评分失败后的销毁初次组合、同路径新组合恢复、字幕/Whisper 零调用、评分/必要分析各一次、笔记/周报完成和稳定重跑无重复输出均已独立验证。现等待 Product Integrator 以 `--no-ff` 整合；不得写 `DONE` 或预写 merge SHA。
 
 ## 目标
 
