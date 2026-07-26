@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 系统设计
 
-- 版本：V1.7
+- 版本：V1.8
 - 状态：`APPROVED`
 - 对应产品规格：`docs/PRD.md`
 - 配置与领域契约：`docs/decisions/ADR-002-config-domain-contracts.md`
@@ -12,6 +12,7 @@
 - 云分析契约：`docs/decisions/ADR-008-cloud-analysis-contract.md`
 - Obsidian 笔记契约：`docs/decisions/ADR-009-obsidian-note-contract.md`
 - 本地转写持续处理契约：`docs/decisions/ADR-012-local-transcription-continuation-contract.md`
+- 受限公开字幕 smoke 入口契约：`docs/decisions/ADR-013-restricted-public-subtitle-smoke-entry.md`
 
 ## 1. 设计目标
 
@@ -583,9 +584,17 @@ process [--video ID] [--resume]
 retry [--video ID] [--failed-only]
 weekly [--week YYYY-Www]
 doctor
+smoke-public-subtitles --temporary-root ABSOLUTE_NEW_EMPTY_DIR --video-id ID [--video-id ID] [--video-id ID]
 ```
 
 launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、卸载或加载 launchd 配置属于用户明确执行的操作；初始化脚本不得静默注册服务。
+
+`smoke-public-subtitles` 是 ADR-013 专用的发布 QA 组合入口，不是通用下载或处理命令。它不读取 YAML、
+密钥、Cookie 或默认运行目录；只接受 1–3 个显式公开视频 ID 和一个不存在的绝对临时根，创建其中的临时
+SQLite、DATA、测试 Vault 与脱敏 JSONL 审计目录。每个 ID 最多一次元数据读取、一次字幕目录读取和一次选中
+字幕正文读取，固定 HTTP timeout 为 30 秒，不自动重试，不下载媒体，不推进 Pipeline/Job，不写真实 Vault，
+不调用 ffmpeg、模型、Ollama 或 OpenAI。正常 `check/process/retry/weekly/doctor` 的参数和 fail-closed
+组合语义保持不变。
 
 ## 16. 测试与验证架构
 

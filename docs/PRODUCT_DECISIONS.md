@@ -18,6 +18,18 @@
 
 ## 后续架构与任务级批准
 
+### ADR-013：受限公开字幕 smoke 组合入口
+
+- 批准日期：2026-07-26；产品负责人批准一个仅服务于发布 QA 的受限公开字幕 smoke 入口，以关闭
+  TASK-014 Phase B-1 已记录的“默认 CLI 无法提供临时根下元数据/字幕只读组合”的阻塞。
+- 入口只接受最多 3 个预先列出的公开视频 ID；每个目标至多一次元数据读取、一次字幕目录读取和一次选中
+  字幕正文读取，固定 30 秒 timeout、无自动重试，并生成不含字幕正文、凭据或绝对路径的审计证据。
+- 强制无登录、Cookie、API key、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用、真实 Vault 或用户数据；
+  仅可创建调用方给出的全新临时 SQLite、DATA、测试 Vault 与日志根。
+- 该入口不改变默认 CLI 的 fail-closed 组合、依赖、锁文件、SQLite Schema、Pipeline/Job 或发布结论。真实 smoke
+  仍须在 B-0 审查/整合后按独立 B-1 运行授权执行；任何成功不关闭 mutagen GPL、BPE NOTICE、at-most-once 或
+  PO/TL/QA Go-No-Go 门禁。
+
 ### ADR-012：本地转写持续处理
 
 - 批准日期：2026-07-24；产品负责人批准将无字幕后的本地 Whisper 转写作为真实、可恢复的知识流程入口，而非仅保留 Adapter 级文本结果。
