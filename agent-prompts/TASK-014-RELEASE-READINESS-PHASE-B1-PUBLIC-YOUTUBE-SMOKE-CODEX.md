@@ -9,18 +9,20 @@
 ## 固定分配
 
 ```text
-Task: TASK-014 Phase B-1 — Public YouTube subtitle smoke execution
+Task: TASK-014 Phase B-1 — Final public YouTube subtitle smoke execution
 Role: Smoke Executor
 Agent: Codex
-Control-plane baseline: main@ca58ee6d7e1dfa5fd3c9d008b7a4fa85f77aabd0
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution
-Branch: codex/task-014-release-readiness-phase-b1-execution
+Control-plane baseline: main@3165009df00c54f62c9b92a8f154bfd7ed664bea
+Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final
+Branch: codex/task-014-release-readiness-phase-b1-final
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — 已锁定的 yt-dlp Adapter、项目 CLI 与 Python/Git 文本资料；不新增或复制第三方代码
 ```
 
 旧 `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
-合并、cherry-pick 或复用其中的 blocker evidence。只可使用本 worktree 中已整合的 `smoke-public-subtitles` 入口。
+合并、cherry-pick 或复用其中的 blocker evidence。旧
+`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
+同样不得访问、修改、合并、清理或复用。只可使用本 worktree 中已整合的 `smoke-public-subtitles` 入口。
 
 ## 产品目标与完成标准
 

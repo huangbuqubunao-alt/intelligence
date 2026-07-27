@@ -25,23 +25,25 @@
   `APPROVE`，无 P0–P3。
 - 此 APPROVE 只确认 Phase A 七路径发行资料与风险披露的 Git/文档一致性；TASK-014 整体保持
   `IN_PROGRESS` / `No-Go`，不构成发布批准、法律结论、真实 smoke 授权、风险接受或最终 Go。
-- 已创建补充 Product Integrator 授权包：
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-PRODUCT-INTEGRATOR-CODEX.md`。它固定 accepted source
-  `88f1b36fdef75146315e91f93b71c36463132ffb`，只允许 `--no-ff` 合并已审查的七条路径，并要求整合后复核双父顺序、
-  first-parent 范围、根目录 `/data/` 与 `/logs/` 锚定，以及所有 No-Go 披露；Integrator 尚未启动。
+- Phase A accepted source 已由 Product Integrator 以 `--no-ff` merge
+  `main@3165009df00c54f62c9b92a8f154bfd7ed664bea` 整合；双父顺序为 `225895a...`、`88f1b36...`，
+  first-parent 严格为七条已审查路径，资料与 `/data/`、`/logs/` 根锚定均已核验。该资料整合不改变
+  TASK-014 `IN_PROGRESS` / `No-Go`，也不构成发布批准。
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
-## Phase B-1：公开 YouTube 字幕 smoke 执行（刷新授权，尚未启动）
+## Phase B-1：公开 YouTube 字幕 smoke 最终执行（刷新授权，尚未启动）
 
-- 刷新控制面基线：`main@ca58ee6d7e1dfa5fd3c9d008b7a4fa85f77aabd0`；任务整体继续为
+- 最终刷新控制面基线：`main@3165009df00c54f62c9b92a8f154bfd7ed664bea`；任务整体继续为
   `IN_PROGRESS` / `No-Go`。
 - 正式 Smoke Executor 授权包：
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。
-- 新的唯一执行 worktree：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution`；分支：
-  `codex/task-014-release-readiness-phase-b1-execution`。本包只创建授权和 worktree，不启动 Executor。
+- 新的唯一执行 worktree：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final`；分支：
+  `codex/task-014-release-readiness-phase-b1-final`。本包只创建授权和 worktree，不启动 Executor。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
   合并、cherry-pick 或复用其 blocker evidence `be230490...`。
+- 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
+  不得访问、修改、合并、清理或复用。
 - 仅授权一次、低频地对 2–3 个稳定官方频道的公开视频验证元数据、字幕发现和选中字幕读取；必须使用全新临时
   SQLite、DATA 与测试 Vault，并只记录目标选择理由、smoke 证据和发布检查表更新。
 - 严禁登录、Cookie、API key、真实 Vault/用户笔记/用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、
