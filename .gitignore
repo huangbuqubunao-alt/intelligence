@@ -14,8 +14,8 @@ __pycache__/
 htmlcov/
 
 # Runtime state
-data/
-logs/
+/data/
+/logs/
 
 # Local secrets
 .env
