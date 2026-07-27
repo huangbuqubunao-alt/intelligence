@@ -1,7 +1,7 @@
 # TASK-014B2：正式 console entry
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer (not started)`
+- Status: `IN_REVIEW`
+- Assignee: `Codex Reviewer (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: S
 - Risk: Medium
@@ -26,6 +26,17 @@
 
 B-1 source 的 `4a349055…` 是“正式 console entry 缺失”的阻断证据。它不得合并、不得当作 smoke 成功 evidence，
 也不得据此自行重试真实 smoke；B-2 只解决安装入口前置条件，TASK-014 仍为 `IN_PROGRESS / No-Go`。
+
+## 独立 Reviewer 授权
+
+- 主线控制面基线：`main@b4d6981e56da8366f0c512a8f0544396d47cd209`。
+- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`，分支
+  `codex/task-014-phase-b2-console-entry`，审查 HEAD `f6e71e027c86f16cc34e062fef0a753c73b42d05`，唯一父提交
+  `b4d6981e56da8366f0c512a8f0544396d47cd209`。
+- 正式 Reviewer 包：`agent-prompts/TASK-014B2-CONSOLE-ENTRY-REVIEWER-CODEX.md`。Reviewer 只可向 source
+  `handoffs/TASK-014B2.md` 追加证据；不得修改 source 其他路径、main 或任务状态。
+- 审查必须独立确认正式 console entry、离线 wheel 安装、原有 CLI 行为、依赖图与 README/operations 一致；禁止
+  真实 YouTube/B-1、网络、真实资源和发布。
 
 ## 唯一允许修改范围
 
