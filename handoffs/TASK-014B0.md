@@ -109,3 +109,22 @@
 | `git diff --check` | PASS |
 
 - No network, B-1 smoke, credentials/Cookie/environment-value access, real Vault/user data, media/ffmpeg/model/OpenAI/Ollama/launchd operation, dependency, lockfile, Schema, migration, or default CLI semantic change was performed.
+
+## Correction 1 independent reviewer evidence — 2026-07-27
+
+- Reviewer: `Codex Reviewer` (independent review only).
+- Fixed correction base/source HEAD/sole parent: `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa` / `cafcde82eaa032bfae3bcee8049ef60ebda6d650` / `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa`. Correction 1 SHA is `cafcde82eaa032bfae3bcee8049ef60ebda6d650`; it is the sole child of the required review evidence.
+- Pre-append Git evidence: source `HEAD` and sole parent matched the fixed values; `git status --short` was clean; `git diff --name-status base...HEAD` contained exactly `src/youtube_intel/cli.py`, `tests/integration/test_public_subtitle_smoke.py`, and `handoffs/TASK-014B0.md`; `git diff --check base...HEAD` passed. The full correction diff is 70 insertions/6 deletions in those three paths only.
+- Dependency/Schema/control-plane evidence: no diff exists for `pyproject.toml`, `uv.lock`, migrations, `state.py`, domain/config, Provider Adapters, task/status files, or B-1 evidence. Reuse remains `DIRECT`: existing argparse surface, locked smoke runner, Python standard library, and Fake tests; no dependency or third-party code was added.
+- Static restricted-path evidence: for an actual smoke invocation, each of `--project-root`, `--settings`, and `--channels`, in separated or `--flag=value` form and before or after the smoke command, is recognized by `_smoke_uses_global_configuration` before parser dispatch, `PublicSubtitleSmoke` construction/run, Adapter factories/calls, and temporary-root initialization. The Fake matrix covers all 12 combinations and confirms usage exit `2`, zero Fake metadata/enumerate Adapter calls, and no target root. The existing smoke implementation still enforces 1--3 unique IDs, one sequential metadata/directory/read sequence per ID, 30-second factory timeout, no retry loop, in-memory body discard, JSONL redaction, and zero Pipeline/Job/ProviderCall/Artifact records. Its call graph is only `cli.main -> PublicSubtitleSmoke`; the reviewed paths contain no media download, ffmpeg, Whisper, Ollama, OpenAI, paid-provider, launchd, real-Vault, or configuration-loading call from the smoke branch.
+- Independent offline Fake verification: `uv run --offline python -m pytest tests/integration/test_public_subtitle_smoke.py -q` — PASS, 4 passed in 0.39s. This test file injects only Fake metadata/subtitle implementations and temporary paths; no real network or B-1 smoke was invoked.
+
+### Findings
+
+- **P1 — global-input rejection is not limited to the actual smoke subcommand.** `src/youtube_intel/cli.py:211-217` treats any occurrence of the literal `smoke-public-subtitles` anywhere in `argv` as proof that the smoke command is active. Thus a valid normal-command value such as `--settings config/settings.yaml process --video smoke-public-subtitles` is rejected before normal parsing/configuration/dispatch solely because it contains that string and one global configuration option. This changes the frozen `process` surface (and the same issue applies to `check`, `retry`, `weekly`, or `doctor` values), violating ADR-013 S-03 and the correction requirement that only `smoke-public-subtitles` change while existing commands retain their semantics. The added test only exercises actual smoke invocations, so it cannot catch this regression. Minimum fix: identify the parsed/lexically valid subcommand without constructing the smoke runner or reading configuration, then apply the configuration-token rejection only when that subcommand is actually `smoke-public-subtitles`; add offline regressions proving normal commands with `smoke-public-subtitles` as an option value retain their prior behavior.
+- P0: none. P2: none. P3: none.
+
+### Reviewer conclusion
+
+- Deliberately not run: network/YouTube, B-1 or any real smoke, credentials/Cookie/API-key or environment-value access, real Vault/user data, media/ffmpeg, Whisper/model/Ollama/OpenAI/paid services/launchd, build/install/package, or any test outside `tests/integration/test_public_subtitle_smoke.py`.
+- Verdict: `REJECT` because of unresolved P1. This is offline Correction 1 review evidence only; it is not B-1 smoke evidence, release approval, a legal conclusion, an exactly-once proof, risk acceptance, or TASK-014 Go.
