@@ -146,3 +146,21 @@
 | `uv run mypy src` | PASS — 24 source files |
 
 - No network, B-1 smoke, credentials/Cookie/environment-value access, real Vault/user data, media/ffmpeg/model/OpenAI/Ollama/launchd operation, dependency, lockfile, Schema, migration, or default CLI semantic change was performed.
+
+## Correction 2 independent reviewer evidence — 2026-07-27
+
+- Reviewer: `Codex Reviewer` (independent review only).
+- Fixed correction base/source HEAD/sole parent: `48df2e2a0afb54d5f6252f197dddf32ff685f0db` / `b7cb846e650eb02b64321ef566991123d319f310` / `48df2e2a0afb54d5f6252f197dddf32ff685f0db`. Before this append, `git status --short` was clean; `git diff --name-status base...HEAD` contained exactly `src/youtube_intel/cli.py`, `tests/integration/test_public_subtitle_smoke.py`, and this handoff; `git diff --check base...HEAD` passed.
+- Scope/reuse evidence: the range contains no `pyproject.toml`, `uv.lock`, migration, Schema, `state.py`, domain/config, Provider Adapter, task/status, ADR, B-1 evidence, or control-plane change. Reuse remains `DIRECT`: existing argparse surface, locked smoke runner, Python standard library, and offline Fakes; no dependency or copied third-party code.
+- Static parser evidence: `main` first performs the existing argparse parse, then calls `_uses_global_configuration` only when parsed `args.command == "smoke-public-subtitles"`, before runner construction, Adapter factories/calls, or temporary-root initialization. `_uses_global_configuration` matches only the three exact option tokens or `--flag=value`; it does not infer a command from an argv value. Thus the 12 smoke combinations (three flags, before/after command, separate/equals values) fail closed, while `check`, `process`, `retry`, `weekly`, and `doctor` stay on their existing parse/configuration/default-fail-closed paths even if a legal argument value equals `smoke-public-subtitles`. The offline Fake regression proves one normal `check --channel smoke-public-subtitles` dispatch; static review of `_build_parser`, `_validate_arguments`, and `_dispatch` confirms the other command surfaces do not enter the smoke interceptor.
+- Restricted-runner boundary evidence: the existing `PublicSubtitleSmoke` still validates a nonexistent absolute temporary root and 1--3 unique explicit IDs before initialization; initializes only SQLite, DATA, empty test Vault, and JSONL logs; uses fixed 30-second factories; invokes metadata, directory enumeration, and the selected body read at most once per ID sequentially with no retry; and deletes the in-memory body. It makes no Pipeline/Job/ProviderCall/Artifact records. The audited JSONL fields exclude body, temporary URL, absolute root, credentials, user data, and exception text. No reviewed route calls YAML/config loading from the smoke branch, media download, ffmpeg, Whisper, Ollama, OpenAI, paid services, launchd, or a real Vault.
+- Independent offline Fake verification: `uv run --offline python -m pytest tests/integration/test_public_subtitle_smoke.py -q` — PASS, `5 passed in 0.41s`. The test injects only Fake metadata/subtitle adapters and uses pytest temporary paths; no real network, B-1 smoke, credentials/Cookie/API key/environment-value access, real Vault/user data, media/ffmpeg, Whisper/model/Ollama/OpenAI/paid-service/launchd operation, build, install, package, or other product command was run.
+
+### Findings
+
+- No P0–P3 findings.
+
+### Reviewer conclusion
+
+- Verdict: `APPROVE` for the Correction 2 offline review.
+- This approval is limited to the stated offline correction. It is not real B-1 smoke evidence, release approval, a legal conclusion, a strict exactly-once proof, risk acceptance, or a TASK-014 Go/No-Go or task-status change.
