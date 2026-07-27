@@ -1,9 +1,11 @@
 # Operations
 
-Run commands from the project root after creating local `config/settings.yaml` and
-`config/channels.yaml`. Configuration errors and unavailable prerequisites exit
-with `2`; local SQLite or filesystem failures exit with `3`; a completed command
-with one or more failed items exits with `1`; complete success exits with `0`.
+After installing the distribution, run the formal `youtube-intel` command from the
+project root after creating local `config/settings.yaml` and `config/channels.yaml`.
+It uses the same CLI entry point as `python -m youtube_intel`. Configuration errors
+and unavailable prerequisites exit with `2`; local SQLite or filesystem failures exit
+with `3`; a completed command with one or more failed items exits with `1`; complete
+success exits with `0`.
 
 ```text
 youtube-intel check [--channel ID] [--limit N]
