@@ -57,9 +57,10 @@ Phase B-1 的 blocker evidence `be230490...`（仅存在于其 source，绝不�
 为 CLI、专用组合模块、两份离线 Fake 测试、operations 文档与 handoff 六路径，worktree 清洁且无依赖/Schema 改动。
 第一轮 Reviewer evidence `f8e336…` 仅追加 source handoff，Verdict=`REJECT`：P1 为 smoke 仍接受三项全局配置路径
 参数；P2 为 handoff 元数据过期。Correction 1 source `cafcde…` 是 `f8e336…` 的唯一后继，严格为 `cli.py`、对应离线
-Fake 测试与 handoff 三路径，无依赖/Schema 改动。独立 Reviewer 已获
-`agent-prompts/TASK-014B0-CORRECTION-1-REVIEWER-CODEX.md` 授权；B0 现为 `IN_REVIEW`，不启动 Reviewer；默认 CLI
-继续 fail-closed，TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
+Fake 测试与 handoff 三路径，无依赖/Schema 改动。Correction 1 Reviewer evidence `48df2e…` 为 `REJECT`：argv 包含
+判断误伤普通命令的合法参数值。原 Codex Implementer 的 Correction 2 已获
+`agent-prompts/TASK-014B0-CORRECTION-2-IMPLEMENTER-CODEX.md` 授权，仅可按已解析的实际 smoke 子命令拒绝全局配置
+输入并补离线 Fake 回归；B0 现为 `IN_PROGRESS`，不启动 Implementer；TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
 
 ## 状态定义
 
@@ -95,7 +96,7 @@ Fake 测试与 handoff 三路径，无依赖/Schema 改动。独立 Reviewer 已
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料审查；Phase B-1 公开字幕 smoke 已授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
-| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 独立 Codex Reviewer，Correction 1 已授权但尚未启动 | IN_REVIEW | 014；ADR-013 |
+| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 原 Codex Implementer，Correction 2 已授权但尚未启动 | IN_PROGRESS | 014；ADR-013 |
 
 ## 主控分配模板
 

@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `IN_REVIEW`
-- Assignee: `Independent Codex Reviewer — Correction 1 (authorized; not started)`
+- Status: `IN_PROGRESS`
+- Assignee: `Original Codex Implementer — Correction 2 (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -72,6 +72,37 @@
   `test_public_subtitle_smoke.py` 和 `handoffs/TASK-014B0.md` 三路径，worktree 已清洁，未改依赖或 Schema。
 - 正式 Reviewer 包：`agent-prompts/TASK-014B0-CORRECTION-1-REVIEWER-CODEX.md`。Reviewer 只可追加 source
   `handoffs/TASK-014B0.md`；本授权本身不启动 Reviewer。
+
+## Correction 2（Correction 1 审查 `REJECT`）
+
+- 主线控制面基线：`main@931b872a933709fb696b6495b61e2f37a4a9f9eb`。
+- 唯一 source 的最新 Reviewer evidence：`48df2e2a0afb54d5f6252f197dddf32ff685f0db`，唯一父提交为
+  `cafcde82eaa032bfae3bcee8049ef60ebda6d650`，且仅追加 `handoffs/TASK-014B0.md`。Correction 2 必须从该 evidence
+  开始，实施提交必须是其唯一非 merge 后继。
+- Reviewer Verdict：`REJECT`，P1：Correction 1 以 argv 字符串包含关系识别 smoke，误伤普通命令中恰好为
+  `smoke-public-subtitles` 的参数值，改变 `check/process/retry/weekly/doctor` 的冻结表面。
+- 正式 Correction 2 包：`agent-prompts/TASK-014B0-CORRECTION-2-IMPLEMENTER-CODEX.md`。本包只登记授权，不启动
+  Implementer。
+
+### Correction 2 唯一允许修改范围
+
+1. `src/youtube_intel/cli.py`
+2. `tests/integration/test_public_subtitle_smoke.py`
+3. `handoffs/TASK-014B0.md`
+
+不得修改任何其他 source 路径，包括 `public_subtitle_smoke.py`、`test_operations.py`、`docs/operations.md`、Provider
+Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、任务/状态控制面、LICENSE 或 B-1 evidence。
+范围不足时停止并报告 `DECISION NEEDED`。
+
+### Correction 2 验收
+
+- [ ] 只在已解析的实际子命令为 `smoke-public-subtitles` 时，才拒绝 `--project-root`、`--settings`、`--channels`；不得
+  依赖 argv 中任意字符串包含。三项在 smoke 之前/之后、分离值和 `--flag=value` 形式仍须在临时根/runner/Adapter 前
+  fail-closed。
+- [ ] `check/process/retry/weekly/doctor` 的有效参数值即使等于 `smoke-public-subtitles`，仍保持原有解析、配置与默认
+  fail-closed 语义；新增对应离线 Fake 回归。
+- [ ] 保留 ID 上限、单次调用、无重试、正文不落盘、脱敏、零业务记录和全部禁止资源边界；handoff 记录 Correction 2
+  的实际提交与 `REJECT` 修复证据，不作真实 B-1 smoke 或发布结论。
 
 ## 验收标准
 
