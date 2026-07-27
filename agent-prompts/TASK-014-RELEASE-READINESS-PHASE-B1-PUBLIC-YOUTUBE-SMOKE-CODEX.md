@@ -9,15 +9,18 @@
 ## 固定分配
 
 ```text
-Task: TASK-014 Phase B-1 — Public YouTube subtitle smoke
+Task: TASK-014 Phase B-1 — Public YouTube subtitle smoke execution
 Role: Smoke Executor
 Agent: Codex
-Control-plane baseline: main@c4c3c2be9f6893ed1e4d620b1ca4583744ec6566
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1
-Branch: codex/task-014-release-readiness-phase-b1
+Control-plane baseline: main@ca58ee6d7e1dfa5fd3c9d008b7a4fa85f77aabd0
+Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution
+Branch: codex/task-014-release-readiness-phase-b1-execution
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — 已锁定的 yt-dlp Adapter、项目 CLI 与 Python/Git 文本资料；不新增或复制第三方代码
 ```
+
+旧 `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
+合并、cherry-pick 或复用其中的 blocker evidence。只可使用本 worktree 中已整合的 `smoke-public-subtitles` 入口。
 
 ## 产品目标与完成标准
 
@@ -53,8 +56,8 @@ at-most-once best-effort 风险签署与 PO/TL/QA 最终 Go-No-Go 继续未关�
 2. `docs/RELEASE_CHECKLIST.md`（仅追加/建立 Phase B-1 记录；不得改写其他发布门禁）
 3. `handoffs/TASK-014.md`（本次命令、临时目录边界、结果、停止条件与红线核验）
 
-当前 main 基线尚未包含 Phase A 的发行资料；如目标路径不存在，只能建立与本次 B-1 证据直接相关的最小内容，
-不得借此重建 README、SBOM、NOTICE、smoke 矩阵或任何其他 Phase A 文档。不得修改产品代码、测试、配置、
+当前 main 基线已包含 Phase A 的发行资料；只可对既有发布检查表追加与本次 B-1 直接相关的最小记录，
+不得改写 README、SBOM、NOTICE、smoke 矩阵或其他发行资料。不得修改产品代码、测试、配置、
 依赖、锁文件、Schema/migration、任务状态、控制面或项目自身 `LICENSE`。
 
 ## 执行与证据要求

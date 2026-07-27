@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-26
+- 更新时间：2026-07-27
 - 当前阶段：Phase 3 — TASK-013 已整合并收口为 `DONE`
 - 主控状态：ACTIVE
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
@@ -67,15 +67,17 @@
   唯一父提交为 `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`，并给出无 P0–P3 的资料审查
   `APPROVE`；source 工作树在两次核验时均干净。此结论不改变 TASK-014 整体 `IN_PROGRESS` / `No-Go`：
   未授权真实验证，也未形成发布批准、法律结论、风险接受或最终 Go。
-- 产品负责人现授权 TASK-014 Phase B-1 的一次公开 YouTube 字幕 smoke。固定控制面基线为
-  `main@c4c3c2be9f6893ed1e4d620b1ca4583744ec6566`，独立 worktree/branch 为
-  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` /
-  `codex/task-014-release-readiness-phase-b1`。未来 Codex Smoke Executor 只可对 2–3 个稳定官方频道的
+- 产品负责人现刷新授权 TASK-014 Phase B-1 的一次公开 YouTube 字幕 smoke 执行。固定控制面基线为
+  `main@ca58ee6d7e1dfa5fd3c9d008b7a4fa85f77aabd0`，新的独立 worktree/branch 为
+  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` /
+  `codex/task-014-release-readiness-phase-b1-execution`。未来 Codex Smoke Executor 只可对 2–3 个稳定官方频道的
   公开视频进行元数据、字幕发现与选中字幕读取，并以全新临时 SQLite、DATA 与测试 Vault 单次运行；授权包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。本控制面提交不启动
   Executor 或任何网络/产品命令；不授权登录、Cookie、API key、真实 Vault/用户数据、媒体下载、ffmpeg、模型、
   Ollama、OpenAI、付费调用或高频重试。
-- B-1 source evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 仅记录 blocker，未进入 main：默认 CLI 没有
+- 旧 B-1 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线，
+  禁止访问、修改、合并或复用其 blocker evidence。B-1 source evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c`
+  仅记录 blocker，未进入 main：默认 CLI 没有
   能同时限制单视频 metadata/字幕目录/一条正文读取及临时根的生产组合。产品负责人据此批准 ADR-013 和
   TASK-014B0 的 `smoke-public-subtitles` 受限 QA 入口：最多 3 个显式视频 ID、固定 30 秒 timeout、每步骤一次、
   无自动重试，仅使用新的临时 SQLite/DATA/测试 Vault/日志根。唯一 source
@@ -139,8 +141,8 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 的七路径发行资料已获独立 Git/文档审查 `APPROVE`；Phase B-1 的公开 YouTube 字幕 smoke
-   已获精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
+1. TASK-014 Phase A 的七路径发行资料已获独立 Git/文档审查 `APPROVE`；Phase B-1 的公开 YouTube 字幕 smoke 执行
+   已从 B0 整合后的 `main@ca58ee6...` 刷新获得精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
 2. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
@@ -173,7 +175,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke | Codex Executor 仅可在固定独立 worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
+| 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke 执行 | Codex Executor 仅可在新的 `task-014-release-readiness-phase-b1-execution` worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界
