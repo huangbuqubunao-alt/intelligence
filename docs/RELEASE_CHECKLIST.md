@@ -40,6 +40,7 @@
 | 离线测试、类型、lint、构建 | 已有历史离线证据；本阶段未复跑 | QA 在正式授权后运行任务卡指定命令，并记录确切版本与结果。 |
 | `doctor` | NOT RUN | 只使用批准的临时/示例配置；结果不得替代真实 Provider/Vault 验证。 |
 | 四阶段真实 smoke | NOT AUTHORIZED | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。 |
+| Phase B-1 公开 YouTube/字幕 smoke（2026-07-27） | BLOCKED / NOT EXECUTED | 已获本次受控执行授权，但离线运行环境在入口前缺少锁定的 `fsspec==2026.6.0`，未触达两个固定公开视频 ID；未安装、联网解析、重试或替换目标。见 [B-1 证据](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md)。这不是通过、更不是发布批准。 |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
 ## 最终签署记录（发布前填写）

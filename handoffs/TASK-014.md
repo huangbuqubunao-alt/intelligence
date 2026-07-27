@@ -162,3 +162,60 @@
 - Verdict: **APPROVE** for the Phase A documentation review only. This is not a
   release approval, legal opinion, real-smoke authorization, risk acceptance,
   or final Go decision; the documented No-Go gates remain open.
+
+## Phase B-1 Executor Evidence — 2026-07-27
+
+### Assignment, scope, and reuse
+
+- Role: the fixed `TASK-014 Phase B-1` Codex Smoke Executor on
+  `codex/task-014-release-readiness-phase-b1-final`, from control-plane baseline
+  `main@3165009df00c54f62c9b92a8f154bfd7ed664bea`.
+- Reuse decision: `DIRECT` — only the already integrated `smoke-public-subtitles`
+  CLI entry, locked yt-dlp Adapter, project Python sources, and Git/Markdown
+  evidence. No dependency, package-manager, lockfile, product-code, test,
+  configuration, Schema, migration, task-state, or third-party-code change.
+- Actual repository changes: `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md`,
+  this handoff, and one Phase B-1 row appended to `docs/RELEASE_CHECKLIST.md`.
+
+### Bounded execution record
+
+- Fixed candidates before the run: `--khbXchTeE` and `JTxsNm9IdYU`, intended as
+  long-lived public OpenAI-channel product-announcement videos. The selection,
+  intended public URLs, declared affiliation, stability rationale, and the fact
+  that no runtime public-status/ownership confirmation occurred are recorded in
+  the B-1 evidence file. No candidate was added, replaced, or called.
+- First isolated offline/no-sync launcher invocation stopped before CLI dispatch
+  because this worktree had no installed `youtube-intel` script (exit `2`).
+- One subsequent isolated, cleared-environment, offline/no-dev module-entry
+  invocation stopped before `youtube_intel` dispatch because the cached locked
+  runtime lacked `fsspec==2026.6.0` (`mlx-whisper -> torch -> fsspec`); its
+  disabled-network resolver refused a download (exit `1`). This was an
+  environment prerequisite failure, not a target attempt.
+- Therefore no temporary application root, SQLite, DATA, test Vault, smoke JSONL,
+  metadata read, subtitle-directory read, selected-body read, media download,
+  or target error record exists. Counts are `2 selected / 0 target attempts / 0
+  metadata / 0 enumeration / 0 body reads / 0 successes / 0 target failures`.
+- The failed launcher’s generated interpreter/cache state was isolated outside
+  the repository and not committed; the worktree was restored before documentation
+  edits. No real Vault, user data, existing DATA/logs, `.env`, credentials,
+  Cookie, browser profile, API key, Keychain, model, ffmpeg, Ollama, OpenAI,
+  paid service, launchd, retry command, or concurrent fan-out was used.
+
+### Checks, result, and decision request
+
+| Command or inspection | Result | Evidence |
+|---|---|---|
+| Integrated entry/source and ADR-013 text review | PASS | Confirms the only permitted call graph, fixed 30-second timeout, new temporary-root requirement, and no YAML/credential/default-root reads. |
+| Isolated offline `youtube-intel` launcher | PRE-DISPATCH BLOCKED | Missing project script; exit `2`; no ID call. |
+| Isolated offline `python -m youtube_intel` entry | PRE-DISPATCH BLOCKED | Missing cached `fsspec==2026.6.0`; disabled-network download refused; exit `1`; no ID call. |
+| Tests, lint, typecheck, build, install, online dependency resolution, further smoke invocation | NOT RUN | B-1 package prohibits unrelated checks and prohibited fallback/install/retry actions. |
+| Git/text scope and evidence review | PASS | `git diff --check` is clean; final staged review is restricted to the three authorized documentation paths. |
+
+- Executor conclusion: `BLOCKED`; **B-1 did not pass** and cannot be represented
+  as a release approval or any other closed gate.
+- `DECISION NEEDED`: authorize a new B-1 window with a pre-provisioned,
+  offline-complete runtime, or expressly authorize dependency installation/
+  resolution. Do not infer either authority from this failed pre-dispatch run.
+- Continuing No-Go gates: mutagen GPL distribution disposition, `o200k_base`
+  file-level attribution/NOTICE, real-Vault boundary, at-most-once best-effort
+  risk signature, and final PO/TL/QA Go-No-Go.
