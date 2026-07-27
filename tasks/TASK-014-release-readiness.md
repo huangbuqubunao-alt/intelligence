@@ -44,7 +44,7 @@
 - Phase A 发行资料尚未整合到此 main 基线；因此该阶段的精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能借此重建或改写其他 Phase A 资料。
 
-## Phase B-0：受限公开字幕 smoke 组合入口（Correction 1 `IN_PROGRESS`，Implementer 尚未启动）
+## Phase B-0：受限公开字幕 smoke 组合入口（Correction 1 `IN_REVIEW`，Reviewer 尚未启动）
 
 - B-1 blocker evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 证明默认 CLI 的非 doctor 命令在没有
   外部组合根时 fail-closed，且没有可限制为“元数据 + 字幕目录 + 一条选中正文”并使用临时根的入口；该 evidence
@@ -55,9 +55,10 @@
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke` 的 HEAD，唯一父提交为实现 `4e506847854f20a43011b0a15db3a1c8e320656d`，
   且仅追加 handoff。Verdict=`REJECT`：P1 为 smoke 仍接受全局配置路径参数；P2 为 handoff 基线、提交 SHA 和状态过期。
-- Correction 1 已授权原 Codex Implementer，从 `f8e336…` 处理 P1/P2；正式包为
-  `agent-prompts/TASK-014B0-CORRECTION-1-IMPLEMENTER-CODEX.md`，精确范围仅 `cli.py`、对应离线测试与 source handoff。
-  B-0 不运行真实 smoke；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，不构成验收、整合或发布批准。
+- Correction 1 source `cafcde82eaa032bfae3bcee8049ef60ebda6d650` 是 `f8e336…` 的唯一后继，严格为 `cli.py`、对应离线
+  Fake 测试与 source handoff 三路径；无依赖/Schema 改动且 worktree 清洁。Correction 1 已进入 `IN_REVIEW`，正式
+  Reviewer 包为 `agent-prompts/TASK-014B0-CORRECTION-1-REVIEWER-CODEX.md`，只可追加 source handoff。B-0 不运行
+  真实 smoke；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，不构成验收、整合或发布批准。
 
 ## 已授权的只读 Scout 预检（不等于任务开工）
 
