@@ -54,6 +54,9 @@ TASK-014 仍不得标为 `DONE` 或发布批准。
 at-most-once 风险或最终 PO/TL/QA Go-No-Go。
 旧 execution worktree（`task-014-release-readiness-phase-b1-execution`）建立在 Phase A 合并前主线，禁止访问、
 修改、合并、清理或复用。
+final source evidence `5698802...` 仅为缺失锁定 `fsspec==2026.6.0` 的环境阻断，两个固定 ID 均未调用，绝不是通过结果，
+也不得合并。已创建一次性 Retry 包：仅允许 pre/post `uv lock --check`、一次 `uv sync --locked`（缓存缺失时只下载
+既有锁定包）和固定两 ID 的单次 smoke；Executor 尚未启动。
 
 旧 Phase B-1 blocker evidence `be230490...`（仅存在于 B0 合并前的旧 source，绝不访问或合并）确认默认 CLI 曾缺少受控组合入口。
 产品负责人因此批准 ADR-013 和 TASK-014B0：新增仅服务发布 QA 的 `smoke-public-subtitles`，严格限定 1–3 个

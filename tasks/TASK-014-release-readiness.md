@@ -51,6 +51,10 @@
   文件归属/NOTICE 和 at-most-once 风险继续为 No-Go 门禁。
 - 仅允许以已整合的 `smoke-public-subtitles` 入口执行；精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能改写其他发行资料。
+- final source 的 blocked evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录锁定运行时缺少
+  `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。补充 Retry 授权包
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 只允许 pre/post `uv lock --check`、
+  一次 `uv sync --locked`（缓存缺失时仅下载 lock 已锁定包）及随后固定两 ID 的一次 smoke；尚未启动。
 
 ## Phase B-0：受限公开字幕 smoke 组合入口（已整合并关闭为 `DONE`）
 

@@ -79,6 +79,10 @@
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。本控制面提交不启动
   Executor 或任何网络/产品命令；不授权登录、Cookie、API key、真实 Vault/用户数据、媒体下载、ffmpeg、模型、
   Ollama、OpenAI、付费调用或高频重试。
+- final B-1 source evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录环境阻断，未调用任何公开视频，
+  不得合并或标为 smoke 通过。补充 Retry 授权包已从 `main@75d1dc3...` 创建：唯一环境动作是 pre/post
+  `uv lock --check` 与一次 `uv sync --locked`；缓存缺失时只能下载 `uv.lock` 已锁定包。仅在预配成功后可对
+  `--khbXchTeE`、`JTxsNm9IdYU` 各作一次受限 smoke；尚未启动，TASK-014 继续 `IN_PROGRESS` / `No-Go`。
 - 旧 B-1 execution worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution`
   建立在 Phase A 合并前主线，禁止访问、修改、合并、清理或复用。
 - 旧 B-1 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线，
@@ -147,8 +151,9 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 的公开 YouTube 字幕 smoke 最终执行
-   已从该主线刷新获得精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
+1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 首次执行因锁定运行时缓存缺失而在
+   入口前阻断，未调用目标且未通过。现已授权一次受控预配与固定两 ID 的单次 Retry，尚未启动。TASK-014 整体继续为
+   `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
 2. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
@@ -181,7 +186,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke 最终执行 | Codex Executor 仅可在新的 `task-014-release-readiness-phase-b1-final` worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
+| 已授权未启动 | TASK-014 Phase B-1：受控预配与单次 Retry | Codex Executor 仅可在 final source 先作 pre/post `uv lock --check` 与一次 locked sync（缓存缺失只下载既有锁定包），随后对固定两 ID 各一次元数据/字幕发现与读取验证；使用新临时 SQLite/DATA/测试 Vault，不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界
