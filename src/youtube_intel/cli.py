@@ -141,11 +141,11 @@ def main(
     # read-only doctor path.  Doctor deliberately never persists it as JSONL.
     run_id = str(uuid4())
     effective_argv = tuple(sys.argv[1:] if argv is None else argv)
-    if _smoke_uses_global_configuration(effective_argv):
-        return ExitCode.USAGE_OR_CONFIGURATION
     parser = _build_parser()
     try:
         args = parser.parse_args(effective_argv)
+        if args.command == "smoke-public-subtitles" and _uses_global_configuration(effective_argv):
+            return ExitCode.USAGE_OR_CONFIGURATION
         _validate_arguments(args)
         if args.command == "smoke-public-subtitles":
             return (smoke_runner or PublicSubtitleSmoke()).run(
@@ -207,9 +207,7 @@ def main(
     return outcome.exit_code
 
 
-def _smoke_uses_global_configuration(argv: Sequence[str]) -> bool:
-    if "smoke-public-subtitles" not in argv:
-        return False
+def _uses_global_configuration(argv: Sequence[str]) -> bool:
     return any(
         argument == option or argument.startswith(f"{option}=")
         for argument in argv

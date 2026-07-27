@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from youtube_intel.cli import ExitCode, main
+from youtube_intel.cli import CommandOutcome, ExitCode, main
 from youtube_intel.domain import (
     Availability,
     LiveStatus,
@@ -98,6 +98,27 @@ class _FakeSubtitleAdapter:
         return SubtitleReadResult(body=SUBTITLE_BODY, call=_call())
 
 
+@dataclass
+class _FakeOperations:
+    calls: list[tuple[str, object]] = field(default_factory=list)
+
+    def check(self, *, channel: str | None, limit: int | None) -> CommandOutcome:
+        self.calls.append(("check", (channel, limit)))
+        return CommandOutcome()
+
+    def process(self, *, video: str | None, resume: bool) -> CommandOutcome:
+        self.calls.append(("process", (video, resume)))
+        return CommandOutcome()
+
+    def retry(self, *, video: str | None, failed_only: bool) -> CommandOutcome:
+        self.calls.append(("retry", (video, failed_only)))
+        return CommandOutcome()
+
+    def weekly(self, *, week: str | None) -> CommandOutcome:
+        self.calls.append(("weekly", week))
+        return CommandOutcome()
+
+
 def _smoke(
     metadata: _FakeMetadataProvider,
     subtitles: _FakeSubtitleAdapter,
@@ -129,6 +150,34 @@ def _args(root: Path, *video_ids: str) -> list[str]:
         str(root),
         *[part for video_id in video_ids for part in ("--video-id", video_id)],
     ]
+
+
+def _project(root: Path) -> Path:
+    (root / "config").mkdir(parents=True)
+    (root / "data").mkdir()
+    (root / "vault").mkdir()
+    (root / "config" / "channels.yaml").write_text(
+        "channels:\n  - channel_id: channel-a\n",
+        encoding="utf-8",
+    )
+    (root / "config" / "settings.yaml").write_text(
+        """\
+general:
+  transcript_languages: [en]
+local_scoring:
+  model: local-model
+  base_url: http://127.0.0.1:11434
+  expected_model_digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: PLACEHOLDER
+  vault_subdir: YouTube Intel
+""".replace("PLACEHOLDER", str(root / "vault")),
+        encoding="utf-8",
+    )
+    return root
 
 
 def test_smoke_isolated_to_new_root_and_reads_each_selected_track_once(tmp_path: Path) -> None:
@@ -221,6 +270,25 @@ def test_smoke_rejects_global_configuration_inputs_before_initialization(tmp_pat
 
     assert metadata.calls == []
     assert subtitles.enumerate_calls == []
+
+
+def test_check_treats_smoke_name_as_an_option_value(tmp_path: Path) -> None:
+    project = _project(tmp_path / "project")
+    operations = _FakeOperations()
+
+    exit_code = main(
+        [
+            "--project-root",
+            str(project),
+            "check",
+            "--channel",
+            "smoke-public-subtitles",
+        ],
+        operations=operations,
+    )
+
+    assert exit_code is ExitCode.OK
+    assert operations.calls == [("check", ("smoke-public-subtitles", None))]
 
 
 def test_smoke_records_failure_without_retrying_or_persisting_body(tmp_path: Path) -> None:

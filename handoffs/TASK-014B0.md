@@ -128,3 +128,21 @@
 
 - Deliberately not run: network/YouTube, B-1 or any real smoke, credentials/Cookie/API-key or environment-value access, real Vault/user data, media/ffmpeg, Whisper/model/Ollama/OpenAI/paid services/launchd, build/install/package, or any test outside `tests/integration/test_public_subtitle_smoke.py`.
 - Verdict: `REJECT` because of unresolved P1. This is offline Correction 1 review evidence only; it is not B-1 smoke evidence, release approval, a legal conclusion, an exactly-once proof, risk acceptance, or TASK-014 Go.
+
+## Correction 2 implementation evidence — 2026-07-27
+
+- Correction base/review evidence: `48df2e2a0afb54d5f6252f197dddf32ff685f0db` (sole parent required for the Correction 2 commit; Correction 1 review `REJECT`, P1 only).
+- Correction 2 commit: `HEAD` — the commit containing this handoff; it descends directly from the required review evidence.
+- Correction status: implemented and awaiting an independently started re-review; this is not B-1 smoke evidence, release approval, or a TASK-014/TASK-014B0 status change.
+- Scope: only `src/youtube_intel/cli.py`, `tests/integration/test_public_subtitle_smoke.py`, and this handoff changed for Correction 2.
+- Reuse decision: `DIRECT` — the existing argparse surface, locked smoke runner, Python standard library, and offline Fakes; no dependency or third-party code was added.
+- Fix: argparse now first establishes `args.command`; only an actual `smoke-public-subtitles` command applies the existing global configuration-token rejection before smoke runner construction, Adapter construction, or temporary-root initialization. `check`, `process`, `retry`, `weekly`, and `doctor` retain their original parsing/configuration/fail-closed paths even when a legal option value is `smoke-public-subtitles`.
+
+| Offline verification | Result |
+|---|---|
+| RED: `uv run python -m pytest tests/integration/test_public_subtitle_smoke.py -q` after adding the regression | FAIL as expected — `check --channel smoke-public-subtitles` returned usage exit `2` before normal configuration and Fake Operations dispatch. |
+| GREEN: `uv run python -m pytest tests/integration/test_public_subtitle_smoke.py -q` | PASS — 5 passed. New Fake regression creates only a temporary local configuration and proves `check --channel smoke-public-subtitles` returns `0` and dispatches once; the existing 12-case smoke matrix still rejects all disabled global inputs before Adapter calls or root creation. |
+| `uv run ruff check src/youtube_intel/cli.py tests/integration/test_public_subtitle_smoke.py` | PASS |
+| `uv run mypy src` | PASS — 24 source files |
+
+- No network, B-1 smoke, credentials/Cookie/environment-value access, real Vault/user data, media/ffmpeg/model/OpenAI/Ollama/launchd operation, dependency, lockfile, Schema, migration, or default CLI semantic change was performed.
