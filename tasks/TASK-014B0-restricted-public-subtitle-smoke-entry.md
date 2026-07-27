@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `IN_REVIEW`
-- Assignee: `Independent Codex Reviewer — Correction 2 (authorized; not started)`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -112,6 +112,18 @@ Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、�
   `test_public_subtitle_smoke.py` 与 `handoffs/TASK-014B0.md` 三路径，worktree 已清洁，未改依赖或 Schema。
 - 正式 Reviewer 包：`agent-prompts/TASK-014B0-CORRECTION-2-REVIEWER-CODEX.md`。Reviewer 只可追加 source
   `handoffs/TASK-014B0.md`；本授权本身不启动 Reviewer。
+
+## 主控验收与 Product Integrator 授权
+
+- 主线控制面基线：`main@79dabb5ab0595d2146bed186388997c0907da5e1`。
+- 唯一 accepted source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
+  `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，Reviewer evidence
+  `010fb7faf6280cd83350315ba66f70b5e785b41f`，唯一父提交为
+  `b7cb846e650eb02b64321ef566991123d319f310`，且仅追加 source handoff；Verdict=`APPROVE`，P0–P3 均无。
+- 主控验收仅接受 B0 的离线实现与审查证据，不是真实 B-1 smoke、发布批准、法律结论、严格 exactly-once 证明、
+  风险接受或 TASK-014 Go。TASK-014 继续 `IN_PROGRESS` / `No-Go`。
+- 正式 Product Integrator 包：`agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md`。Integrator 必须固定 accepted
+  source 以 `--no-ff` 合并；本包本身不启动 Integrator，且不得把 B0 标为 `DONE`。
 
 ## 验收标准
 

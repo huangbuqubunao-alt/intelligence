@@ -92,9 +92,10 @@
   以 argv 字符串包含关系判断 smoke 会误伤普通命令合法参数值。TASK-014B0 已退回 `IN_PROGRESS`，授权原 Codex
   Implementer 仅在 `cli.py`、`test_public_subtitle_smoke.py` 与 source handoff 完成 Correction 2。Correction 2 source
   `b7cb846e650eb02b64321ef566991123d319f310` 是 `48df2e…` 的唯一后继，范围精确为这三路径、无依赖/Schema 改动且
-  source 清洁。TASK-014B0 已设为 `IN_REVIEW`；Reviewer 只可追加 source handoff，必须验证只有 argparse 实际解析的
-  smoke 子命令拒绝三项全局配置输入、普通命令合法值不受影响及所有既有安全边界；只允许离线 Fake，不启动 Reviewer/
-  真实网络，不改变 TASK-014 的 `IN_PROGRESS` / `No-Go`。
+  source 清洁。Correction 2 Reviewer evidence `010fb7faf6280cd83350315ba66f70b5e785b41f` 是 `b7cb846…` 的唯一后继且
+  仅追加 handoff，独立离线 Fake 审查 Verdict=`APPROVE`、P0–P3 均无。TASK-014B0 已设为 `ACCEPTED`；Product Integrator
+  只可固定 accepted source 做 `--no-ff` 合并、核验 B0 完整六路径与无依赖/Schema 改动，并运行授权离线门禁。该结论
+  不等于真实 B-1 smoke、发布批准或 TASK-014 Go；不得在本阶段标为 `DONE`，TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
 
 ## 已完成或已批准
 
@@ -139,8 +140,9 @@
    已获精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
-2. TASK-014B0 Correction 2 已进入独立审查；Reviewer 只允许离线 Fake 验证实际 smoke 的全局配置拒绝、普通命令
-   合法参数值不受误伤，以及 ID 上限、无重试、正文不落盘、脱敏、零业务记录和禁止资源边界。后续主控验收和整合前不得重启 B-1。
+2. TASK-014B0 已接受，等待 Product Integrator 以固定 accepted source `--no-ff` 合并、核验完整授权范围并运行离线
+   Fake、完整测试、mypy、Ruff、CLI help、build 与 Git 范围门禁；不得真实网络/B-1、push 或清理 source。整合后仍须
+   单独控制面同步，TASK-014 的 No-Go 不会自动解除。
 3. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
    媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 4. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
@@ -170,7 +172,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke | Codex Executor 仅可在固定独立 worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
-| IN_REVIEW，Correction 2 Reviewer 未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | Correction source `b7cb846…` 待独立 Codex Reviewer 复核；只允许离线 Fake，不得真实 B-1 网络 smoke，且不改变 TASK-014 的 No-Go |
+| ACCEPTED，Product Integrator 未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | accepted source `010fb7…` 可仅以 `--no-ff` 整合；运行授权离线门禁，不得真实 B-1 网络 smoke、push 或清理 source，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界
 

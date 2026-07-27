@@ -44,7 +44,7 @@
 - Phase A 发行资料尚未整合到此 main 基线；因此该阶段的精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能借此重建或改写其他 Phase A 资料。
 
-## Phase B-0：受限公开字幕 smoke 组合入口（Correction 2 `IN_REVIEW`，Reviewer 尚未启动）
+## Phase B-0：受限公开字幕 smoke 组合入口（`ACCEPTED`，Product Integrator 尚未启动）
 
 - B-1 blocker evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 证明默认 CLI 的非 doctor 命令在没有
   外部组合根时 fail-closed，且没有可限制为“元数据 + 字幕目录 + 一条选中正文”并使用临时根的入口；该 evidence
@@ -56,11 +56,11 @@
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke` 的 HEAD，唯一父提交为实现 `4e506847854f20a43011b0a15db3a1c8e320656d`，
   且仅追加 handoff。Verdict=`REJECT`：P1 为 smoke 仍接受全局配置路径参数；P2 为 handoff 基线、提交 SHA 和状态过期。
 - Correction 1 Reviewer evidence `48df2e2a0afb54d5f6252f197dddf32ff685f0db` 是 `cafcde…` 的唯一后继，且仅追加
-  source handoff，Verdict=`REJECT`：P1 为 argv 字符串包含判断会误伤普通命令的合法值。Correction 2 source
-  `b7cb846e650eb02b64321ef566991123d319f310` 是 `48df2e…` 的唯一后继，严格为 `cli.py`、对应离线 Fake 测试与
-  source handoff 三路径，无依赖/Schema 改动且 worktree 清洁。Correction 2 已进入 `IN_REVIEW`，正式 Reviewer 包为
-  `agent-prompts/TASK-014B0-CORRECTION-2-REVIEWER-CODEX.md`，只可追加 source handoff。B-0 不运行真实 smoke；
-  TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，不构成验收、整合或发布批准。
+  source handoff，Verdict=`REJECT`：P1 为 argv 字符串包含判断会误伤普通命令的合法值。Correction 2 Reviewer evidence
+  `010fb7faf6280cd83350315ba66f70b5e785b41f` 是 `b7cb846…` 的唯一后继且仅追加 source handoff，Verdict=`APPROVE`，
+  P0–P3 均无。B0 已 `ACCEPTED`；Product Integrator 仅可固定该 accepted source 作 `--no-ff` 合并并执行授权的离线
+  门禁，正式包为 `agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md`。B0 不运行真实 smoke，且不得在本阶段标为
+  `DONE`；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，不构成发布批准。
 
 ## 已授权的只读 Scout 预检（不等于任务开工）
 
