@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `IN_PROGRESS`
-- Assignee: `Original Codex Implementer — Correction 2 (authorized; not started)`
+- Status: `IN_REVIEW`
+- Assignee: `Independent Codex Reviewer — Correction 2 (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -103,6 +103,15 @@ Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、�
   fail-closed 语义；新增对应离线 Fake 回归。
 - [ ] 保留 ID 上限、单次调用、无重试、正文不落盘、脱敏、零业务记录和全部禁止资源边界；handoff 记录 Correction 2
   的实际提交与 `REJECT` 修复证据，不作真实 B-1 smoke 或发布结论。
+
+### Correction 2 独立审查授权
+
+- 主线控制面基线：`main@3d2c4c2dc481525a07b81b47c09298e839604898`。
+- 唯一 source 的 Correction 2 HEAD：`b7cb846e650eb02b64321ef566991123d319f310`，唯一父提交为
+  `48df2e2a0afb54d5f6252f197dddf32ff685f0db`；相对父提交严格为 `cli.py`、
+  `test_public_subtitle_smoke.py` 与 `handoffs/TASK-014B0.md` 三路径，worktree 已清洁，未改依赖或 Schema。
+- 正式 Reviewer 包：`agent-prompts/TASK-014B0-CORRECTION-2-REVIEWER-CODEX.md`。Reviewer 只可追加 source
+  `handoffs/TASK-014B0.md`；本授权本身不启动 Reviewer。
 
 ## 验收标准
 

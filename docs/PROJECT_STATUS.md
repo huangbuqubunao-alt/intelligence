@@ -90,8 +90,11 @@
   `test_public_subtitle_smoke.py` 与 handoff，无依赖/Schema 改动且 source 清洁。Correction 1 Reviewer evidence
   `48df2e2a0afb54d5f6252f197dddf32ff685f0db` 是 `cafcde…` 的唯一后继且仅追加 handoff，Verdict=`REJECT`：P1 为
   以 argv 字符串包含关系判断 smoke 会误伤普通命令合法参数值。TASK-014B0 已退回 `IN_PROGRESS`，授权原 Codex
-  Implementer 仅在 `cli.py`、`test_public_subtitle_smoke.py` 与 source handoff 完成 Correction 2；只能在已解析的
-  实际 smoke 子命令时拒绝全局配置输入，且不改变默认 CLI fail-closed、依赖、Schema 或 TASK-014 的 `IN_PROGRESS` / `No-Go`。
+  Implementer 仅在 `cli.py`、`test_public_subtitle_smoke.py` 与 source handoff 完成 Correction 2。Correction 2 source
+  `b7cb846e650eb02b64321ef566991123d319f310` 是 `48df2e…` 的唯一后继，范围精确为这三路径、无依赖/Schema 改动且
+  source 清洁。TASK-014B0 已设为 `IN_REVIEW`；Reviewer 只可追加 source handoff，必须验证只有 argparse 实际解析的
+  smoke 子命令拒绝三项全局配置输入、普通命令合法值不受影响及所有既有安全边界；只允许离线 Fake，不启动 Reviewer/
+  真实网络，不改变 TASK-014 的 `IN_PROGRESS` / `No-Go`。
 
 ## 已完成或已批准
 
@@ -136,8 +139,8 @@
    已获精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
-2. TASK-014B0 Correction 2 必须消除对普通命令的 argv 字符串误伤，同时保留仅实际 smoke 子命令的三项全局配置路径
-   拒绝和所有既有受限边界。Correction、后续独立审查、主控验收和整合前不得重启 B-1。
+2. TASK-014B0 Correction 2 已进入独立审查；Reviewer 只允许离线 Fake 验证实际 smoke 的全局配置拒绝、普通命令
+   合法参数值不受误伤，以及 ID 上限、无重试、正文不落盘、脱敏、零业务记录和禁止资源边界。后续主控验收和整合前不得重启 B-1。
 3. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
    媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 4. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
@@ -167,7 +170,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke | Codex Executor 仅可在固定独立 worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
-| IN_PROGRESS，Correction 2 未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | Correction 1 Reviewer evidence `48df2e…` 为 `REJECT`；原 Codex Implementer 仅可修复普通命令字符串误伤与 handoff，禁止真实 B-1 网络 smoke，且不改变 TASK-014 的 No-Go |
+| IN_REVIEW，Correction 2 Reviewer 未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | Correction source `b7cb846…` 待独立 Codex Reviewer 复核；只允许离线 Fake，不得真实 B-1 网络 smoke，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界
 
