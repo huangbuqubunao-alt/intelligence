@@ -13,6 +13,7 @@
 - Obsidian 笔记契约：`docs/decisions/ADR-009-obsidian-note-contract.md`
 - 本地转写持续处理契约：`docs/decisions/ADR-012-local-transcription-continuation-contract.md`
 - 受限公开字幕 smoke 入口契约：`docs/decisions/ADR-013-restricted-public-subtitle-smoke-entry.md`
+- 正式 console entry 打包契约：`docs/decisions/ADR-014-console-entrypoint-contract.md`
 
 ## 1. 设计目标
 

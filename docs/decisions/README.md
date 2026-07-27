@@ -26,3 +26,5 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-010](ADR-010-weekly-report-contract.md) | Accepted | 2026-07-23 | 冻结 completed_at ISO 周、确定性聚合、受控周报写入与包内模板边界 |
 | [ADR-011](ADR-011-cli-operations-contract.md) | Accepted | 2026-07-23 | 冻结 CLI 退出码、JSONL 脱敏、零副作用 doctor 与静态 daily/weekly launchd 边界 |
 | [ADR-012](ADR-012-local-transcription-continuation-contract.md) | Accepted | 2026-07-24 | 冻结本地 Whisper 成功转写的 Artifact/Provider-call 原子持久化与后续 Pipeline 衔接 |
+| [ADR-013](ADR-013-restricted-public-subtitle-smoke-entry.md) | Accepted | 2026-07-26 | 冻结仅供发布 QA 的受限公开字幕 smoke 入口、临时根、脱敏审计与禁止资源边界 |
+| [ADR-014](ADR-014-console-entrypoint-contract.md) | Accepted | 2026-07-27 | 仅将既有 CLI 主入口暴露为正式 `youtube-intel` console command，不扩展行为或资源权限 |

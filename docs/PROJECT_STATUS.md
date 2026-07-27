@@ -83,6 +83,12 @@
   不得合并或标为 smoke 通过。补充 Retry 授权包已从 `main@75d1dc3...` 创建：唯一环境动作是 pre/post
   `uv lock --check` 与一次 `uv sync --locked`；缓存缺失时只能下载 `uv.lock` 已锁定包。仅在预配成功后可对
   `--khbXchTeE`、`JTxsNm9IdYU` 各作一次受限 smoke；尚未启动，TASK-014 继续 `IN_PROGRESS` / `No-Go`。
+- 产品负责人已接受 ADR-014 并分配 TASK-014B2：正式 `youtube-intel` console entry 只映射既有
+  `youtube_intel.cli:main`。固定基线为 `main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`，worktree/branch 为
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry` /
+  `codex/task-014-phase-b2-console-entry`。允许最小 `pyproject.toml`、条件性 lock、离线入口测试、README、operations
+  与 handoff；不允许依赖、Schema、业务能力、真实资源或发布改动。B-1 source `4a349055…` 是入口缺失阻断 evidence，
+  不得合并、当作成功 evidence 或触发真实 smoke；TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 旧 B-1 execution worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution`
   建立在 Phase A 合并前主线，禁止访问、修改、合并、清理或复用。
 - 旧 B-1 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线，
@@ -156,11 +162,12 @@
    `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
-2. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
+2. TASK-014B2 已分配但尚未启动；它只补齐正式 console entry 这一 B-1 前置条件，不能替代或自行重试真实 smoke。
+3. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
    不关闭 mutagen GPL、BPE 归属/NOTICE、真实 Vault、at-most-once 风险签署或最终 PO/TL/QA Go-No-Go。
-3. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
+4. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
    媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
-4. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
+5. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
    可选能力、真实 smoke 授权和 at-most-once 风险接受，才能进入后续发布门禁。
 
 ## 当前并行调度
@@ -187,6 +194,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已授权未启动 | TASK-014 Phase B-1：受控预配与单次 Retry | Codex Executor 仅可在 final source 先作 pre/post `uv lock --check` 与一次 locked sync（缓存缺失只下载既有锁定包），随后对固定两 ID 各一次元数据/字幕发现与读取验证；使用新临时 SQLite/DATA/测试 Vault，不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
+| 已分配未启动 | TASK-014B2：正式 console entry | Codex Implementer 只可将既有 `youtube_intel.cli:main` 暴露为 `youtube-intel`，以最小打包元数据和离线测试闭合入口前置条件；不得执行真实 smoke 或改变 TASK-014 的 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界

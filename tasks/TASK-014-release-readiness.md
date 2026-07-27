@@ -56,6 +56,20 @@
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 只允许 pre/post `uv lock --check`、
   一次 `uv sync --locked`（缓存缺失时仅下载 lock 已锁定包）及随后固定两 ID 的一次 smoke；尚未启动。
 
+## Phase B-2：正式 console entry（已分配，尚未启动）
+
+- 产品负责人已接受 ADR-014：只将既有 `youtube_intel.cli:main` 暴露为已安装项目的 `youtube-intel` 命令，
+  不新增包装模块、业务命令、配置读取或真实资源权限。
+- 控制面基线：`main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`；worktree：
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`；分支：
+  `codex/task-014-phase-b2-console-entry`；正式包：
+  `agent-prompts/TASK-014B2-CONSOLE-ENTRY-IMPLEMENTER-CODEX.md`。
+- 唯一实现范围为 `pyproject.toml`、条件性 `uv.lock`、一个离线 console-entry 测试、README、operations 与
+  `TASK-014B2` handoff。B-1 source 的 `4a349055…` 只为入口缺失阻断 evidence，绝不合并、绝不作为成功 evidence，
+  也不授权真实 smoke。
+- B-2 的离线入口/安装包检查通过不等于 B-1 通过、发布批准或 TASK-014 Go；TASK-014 继续
+  `IN_PROGRESS / No-Go`。
+
 ## Phase B-0：受限公开字幕 smoke 组合入口（已整合并关闭为 `DONE`）
 
 - B-1 blocker evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 证明默认 CLI 的非 doctor 命令在没有
