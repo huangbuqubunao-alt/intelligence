@@ -36,7 +36,8 @@ Whisper 模型、Ollama/模型、OpenAI API/密钥/付费调用、真实 Obsidia
 
 1. 从 `config/settings.example.yaml` 和 `config/channels.example.yaml` 创建本地配置副本；
    不提交配置副本、密钥或 Vault 路径。
-2. 使用锁定依赖完成安装；发布前必须重新核对锁文件、SBOM、许可证和分发形态。
+2. 使用锁定依赖完成安装；安装后的正式命令为 `youtube-intel`（与
+   `python -m youtube_intel` 使用同一 CLI 主入口）。发布前必须重新核对锁文件、SBOM、许可证和分发形态。
 3. 在受控的、非真实 Vault 环境初始化 `data/` 与 `logs/`；这两个路径现在只会在仓库根
    匹配，嵌套的源码、测试夹具和文档目录不会被此规则静默忽略。
 4. 先运行 `youtube-intel doctor`。它检查 YAML、项目相对存储路径、已有 SQLite migration
