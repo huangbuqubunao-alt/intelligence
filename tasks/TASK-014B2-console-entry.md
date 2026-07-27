@@ -1,7 +1,7 @@
 # TASK-014B2：正式 console entry
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator (authorized; not started)`
+- Status: `DONE`
+- Assignee: `Codex Product Integrator (integrated; closure recorded)`
 - Owner role: PO + TL + QA
 - Size: S
 - Risk: Medium
@@ -46,7 +46,16 @@ B-1 source 的 `4a349055…` 是“正式 console entry 缺失”的阻断证据
   accepted source、`--no-ff`、五路径范围、`uv.lock`/依赖图不变，并只授权整合后的离线 lock、focused test、CLI、
   mypy、Ruff、build 和 wheel-entry 核验。
 - 本验收只接受离线正式入口资料；不代表 B-1 smoke、发布批准、许可证/NOTICE 结论、风险接受或 TASK-014 Go。
-  TASK-014 继续 `IN_PROGRESS / No-Go`，B2 不得标为 `DONE` 直至整合后主控收口。
+  TASK-014 继续 `IN_PROGRESS / No-Go`；B2 的 `DONE` 只在整合后由本 closure 记录。
+
+## 整合与 closure
+
+- Product Integrator 已以 `--no-ff` merge `main@99a22d29922e16c26b86ebe2ecfba9d91e8ac5a2` 整合 accepted source。
+  双父顺序为 `8aa5be6...`、`835f5ff...`；accepted source 是 merge 祖先，first-parent Diff 严格为 B2 五路径，
+  `uv.lock` 与依赖图无差异，source 保持干净。
+- 既有整合后离线证据：locked lock/sync、focused console-entry test（`1 passed`）、console/module CLI help、mypy、
+  Ruff、offline build 与临时离线 wheel-entry 安装核验均通过。
+- B2 因此关闭为 `DONE`；这只关闭正式 console entry 前置条件，不等于真实 B-1 通过、发布批准或 TASK-014 Go。
 
 ## 唯一允许修改范围
 
