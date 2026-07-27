@@ -219,3 +219,60 @@
 - Continuing No-Go gates: mutagen GPL distribution disposition, `o200k_base`
   file-level attribution/NOTICE, real-Vault boundary, at-most-once best-effort
   risk signature, and final PO/TL/QA Go-No-Go.
+
+## Phase B-1 Retry Executor Evidence — 2026-07-27
+
+### Authorized scope, reuse, and provisioning
+
+- Role: the fixed `TASK-014 Phase B-1` Codex Smoke Retry Executor on
+  `codex/task-014-release-readiness-phase-b1-final`, starting from
+  `5698802ba13b9c953eb6ae41d7f827d38654c7c8` with a clean worktree.
+- Reuse decision: `DIRECT` — only the integrated smoke entry, locked dependencies,
+  yt-dlp Adapter, and existing project/Git text evidence. No third-party code,
+  dependency, lockfile, source, test, configuration, Schema, migration, task-state,
+  credential, or project-license change.
+- Ordered environmental actions: pre-`uv lock --check` passed (84 locked packages);
+  the one authorized `uv sync --locked` passed and installed only existing locked
+  packages, including `fsspec==2026.6.0`; post-`uv lock --check` passed (84 locked
+  packages). No alternate install, resolver update, dependency substitution, or
+  lockfile write was performed.
+
+### Single smoke-entry result and stop condition
+
+- Fixed candidates remained `--khbXchTeE` and `JTxsNm9IdYU`, with the existing
+  OpenAI-channel/public-video selection record preserved. No candidate was added,
+  substituted, reordered, or called.
+- After successful provisioning, exactly one authorized integrated
+  `youtube-intel smoke-public-subtitles` command was attempted with both IDs, a
+  fresh nonexistent absolute temporary root, and a cleared non-secret environment.
+  It stopped before project CLI dispatch with `env: youtube-intel: No such file or
+  directory`; the provisioned virtual environment contains no such console script.
+- Counts: `2 selected / 1 integrated-entry invocation / 0 project-CLI dispatches /
+  0 target attempts / 0 metadata reads / 0 subtitle-directory reads / 0 subtitle-body
+  reads / 0 successes / 0 target failures`. The temporary root, SQLite, DATA, test
+  Vault, and smoke JSONL were never created. No subtitle or metadata payload,
+  temporary absolute path, credential, or user content is recorded here.
+- No login, Cookie, browser profile, API key, `.env`, Keychain, media download,
+  ffmpeg, model, Whisper, Ollama, OpenAI, paid call, real Vault, user data, retry,
+  concurrent fan-out, additional product command, push, merge, or cleanup occurred.
+  The executor did not use a module-entry fallback or make a second smoke attempt.
+
+### Checks, conclusion, and decision request
+
+| Command or inspection | Result | Evidence |
+|---|---|---|
+| `uv lock --check` before and after provisioning | PASS | Both checks resolved the unchanged 84-package lock. |
+| Single `uv sync --locked` | PASS | Only existing locked packages installed; no dependency or source mutation. |
+| One integrated smoke entry | PRE-DISPATCH BLOCKED | Required `youtube-intel` console script absent; no video call occurred. |
+| Alternative entry, retry, tests, lint, typecheck, build, dependency change | NOT RUN | Outside the one-entry and narrow B-1 Retry authorization. |
+| Git/text scope review | PASS | Only the B-1 evidence, release-checklist row, and this handoff are changed. |
+
+- Executor conclusion: `BLOCKED`; B-1 Retry did not pass and does not close any
+  release gate.
+- `DECISION NEEDED`: PO/TL must authorize a new controlled execution window that
+  makes the required integrated console entry available. It must not be inferred
+  from this retry authorization that an alternate module entry, source change, or
+  another target attempt is allowed.
+- Remaining No-Go gates: mutagen GPL distribution disposition, `o200k_base`
+  file-level attribution/NOTICE, real-Vault boundary, at-most-once best-effort risk
+  signature, and final PO/TL/QA Go-No-Go.
