@@ -67,3 +67,52 @@
 - Suggested status: `IN_REVIEW`
 - Commit SHA: `pending implementation commit`
 - Reviewer: not started by implementer, per task authorization.
+
+## Independent Reviewer evidence — 2026-07-27
+
+### Fixed review object and scope
+
+- Reviewer role: `Codex Reviewer`.
+- Fixed control-plane base/source HEAD/sole parent: `b4d6981e56da8366f0c512a8f0544396d47cd209` /
+  `f6e71e027c86f16cc34e062fef0a753c73b42d05` /
+  `b4d6981e56da8366f0c512a8f0544396d47cd209`.
+- Before this append, the source worktree was clean. `git diff --check base...HEAD` passed and
+  `git diff --name-status base...HEAD` contained exactly `README.md`, `docs/operations.md`,
+  `handoffs/TASK-014B2.md`, `pyproject.toml`, and `tests/integration/test_console_entry.py`.
+- `uv.lock` and `src/` have no range diff. The only `pyproject.toml` change is the three-line
+  `[project.scripts]` declaration; package names, versions, sources, relationships, build backend,
+  and dependency declarations are unchanged.
+
+### Static and documentation review
+
+- `[project.scripts]` contains exactly `youtube-intel = "youtube_intel.cli:main"`. The unchanged
+  module entry (`youtube_intel.__main__`) imports that same `main` and exits with its result; no
+  wrapper module, parser, composition root, CLI dispatch, Adapter edge, or command semantics is
+  added by the reviewed range.
+- The unchanged CLI builds its parser before configuration/dispatch. `--help` exits through argparse
+  before configuration loading, Provider/Vault access, media/model activity, or log/data writes.
+- README and operations accurately describe the installed command as using the same CLI entry as
+  `python -m youtube_intel`; both retain the existing No-Go and restricted-smoke language and make
+  no B-1, release, or TASK-014 Go claim.
+
+### Independent offline verification
+
+| Command/check | Result | Evidence |
+|---|---|---|
+| `uv lock --check --offline` | PASS | Resolved the existing 84-package lock offline. |
+| `uv sync --locked --offline` | PASS | Checked the existing 61 installed packages; no lock rewrite. |
+| `uv run --offline python -m pytest tests/integration/test_console_entry.py` | PASS | `1 passed`; test checks installed metadata target, generated script presence, and byte-for-byte equal console/module help. |
+| Console and module help from an empty temporary CWD | PASS | Both commands showed the same existing parser; the temporary CWD remained empty, confirming no local configuration/log/data write. |
+| `uv run --offline mypy src` | PASS | `Success: no issues found in 24 source files`. |
+| `uv run --offline ruff check .` | PASS | `All checks passed!` |
+| `uv build --offline` | PASS | Built `youtube_intel-0.1.0` sdist and wheel offline. |
+| Built-wheel entry and isolated installation | PASS | Wheel `entry_points.txt` contains only `[console_scripts]` / `youtube-intel = youtube_intel.cli:main`. Installed it into a new temporary target with `uv pip install --offline --no-deps`; the generated target script ran, and `youtube_intel.__file__` resolved under that temporary wheel-install target rather than the source tree. |
+| Range Diff and boundary scan | PASS | `git diff --check` passed; no `uv.lock`, `src/`, task/status, credential, or real-resource diff exists. Sensitive-term matches are only explicit negative boundary statements in the handoff. |
+
+### Findings and verdict
+
+- Findings: no P0, P1, P2, or P3 findings.
+- Verdict: **APPROVE** for `f6e71e027c86f16cc34e062fef0a753c73b42d05`.
+- This approval covers only the offline formal-entry change. It is not B-1 real-smoke evidence,
+  release approval, legal/NOTICE disposition, risk acceptance, or a TASK-014 status/Go decision;
+  TASK-014 remains `IN_PROGRESS / No-Go` pending control-plane review and integration.
