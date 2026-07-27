@@ -1,7 +1,7 @@
 # TASK-014B2：正式 console entry
 
-- Status: `IN_REVIEW`
-- Assignee: `Codex Reviewer (authorized; not started)`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: S
 - Risk: Medium
@@ -37,6 +37,16 @@ B-1 source 的 `4a349055…` 是“正式 console entry 缺失”的阻断证据
   `handoffs/TASK-014B2.md` 追加证据；不得修改 source 其他路径、main 或任务状态。
 - 审查必须独立确认正式 console entry、离线 wheel 安装、原有 CLI 行为、依赖图与 README/operations 一致；禁止
   真实 YouTube/B-1、网络、真实资源和发布。
+
+## 主控验收与 Product Integrator 授权
+
+- accepted reviewer evidence：`835f5ff507308f08b7b88c794a6d7d11b3a9dd74`，唯一父提交
+  `f6e71e027c86f16cc34e062fef0a753c73b42d05`；Verdict=`APPROVE`，P0–P3 均无。
+- Product Integrator 包：`agent-prompts/TASK-014B2-CONSOLE-ENTRY-PRODUCT-INTEGRATOR-CODEX.md`。它固定
+  accepted source、`--no-ff`、五路径范围、`uv.lock`/依赖图不变，并只授权整合后的离线 lock、focused test、CLI、
+  mypy、Ruff、build 和 wheel-entry 核验。
+- 本验收只接受离线正式入口资料；不代表 B-1 smoke、发布批准、许可证/NOTICE 结论、风险接受或 TASK-014 Go。
+  TASK-014 继续 `IN_PROGRESS / No-Go`，B2 不得标为 `DONE` 直至整合后主控收口。
 
 ## 唯一允许修改范围
 

@@ -108,7 +108,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 公开字幕 smoke 最终执行已刷新授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
-| [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | Source `f6e71e0…` 待独立 Codex Reviewer；仅既有 CLI 入口的离线打包暴露 | IN_REVIEW | 014；ADR-014 |
+| [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | Source `835f5ff…` 已接受，待 Codex Product Integrator；仅既有 CLI 入口的离线打包暴露 | ACCEPTED | 014；ADR-014 |
 
 ## 主控分配模板
 

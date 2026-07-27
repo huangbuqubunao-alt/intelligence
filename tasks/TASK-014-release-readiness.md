@@ -56,7 +56,7 @@
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 只允许 pre/post `uv lock --check`、
   一次 `uv sync --locked`（缓存缺失时仅下载 lock 已锁定包）及随后固定两 ID 的一次 smoke；尚未启动。
 
-## Phase B-2：正式 console entry（已分配，尚未启动）
+## Phase B-2：正式 console entry（已接受，待整合）
 
 - 产品负责人已接受 ADR-014：只将既有 `youtube_intel.cli:main` 暴露为已安装项目的 `youtube-intel` 命令，
   不新增包装模块、业务命令、配置读取或真实资源权限。
@@ -69,6 +69,9 @@
   也不授权真实 smoke。
 - B-2 的离线入口/安装包检查通过不等于 B-1 通过、发布批准或 TASK-014 Go；TASK-014 继续
   `IN_PROGRESS / No-Go`。
+- source `835f5ff…` 已获独立 Reviewer `APPROVE`，无 P0–P3；Product Integrator 只可按
+  `agent-prompts/TASK-014B2-CONSOLE-ENTRY-PRODUCT-INTEGRATOR-CODEX.md` 以 `--no-ff` 整合五路径并执行
+  离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁。B2 接受不等于 B-1 或发布批准，尚未整合或关闭。
 
 ## Phase B-0：受限公开字幕 smoke 组合入口（已整合并关闭为 `DONE`）
 
