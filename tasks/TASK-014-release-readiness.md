@@ -25,6 +25,10 @@
   `APPROVE`，无 P0–P3。
 - 此 APPROVE 只确认 Phase A 七路径发行资料与风险披露的 Git/文档一致性；TASK-014 整体保持
   `IN_PROGRESS` / `No-Go`，不构成发布批准、法律结论、真实 smoke 授权、风险接受或最终 Go。
+- 已创建补充 Product Integrator 授权包：
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-PRODUCT-INTEGRATOR-CODEX.md`。它固定 accepted source
+  `88f1b36fdef75146315e91f93b71c36463132ffb`，只允许 `--no-ff` 合并已审查的七条路径，并要求整合后复核双父顺序、
+  first-parent 范围、根目录 `/data/` 与 `/logs/` 锚定，以及所有 No-Go 披露；Integrator 尚未启动。
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 

@@ -40,6 +40,8 @@ P0–P3；两次核验的 source 工作树均干净。此结论只通过 Phase A
 `IN_PROGRESS` / `No-Go`：mutagen GPL 分发结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、
 at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发布、真实 smoke、uv、测试、构建、网络、
 真实 API/模型、凭据/Vault、依赖变更、项目自身 LICENSE、push、合并或清理。
+已补充 Phase A Product Integrator 包，固定 source `88f1b36...` 与 `--no-ff`；仅可整合七条 Phase A 路径，
+Integrator 尚未启动，TASK-014 仍不得标为 `DONE` 或发布批准。
 
 产品负责人现已为 TASK-014 Phase B-1 刷新一次公开 YouTube 字幕 smoke 执行授权：仅 2–3 个稳定官方频道的公开视频、
 只验证元数据与字幕发现/读取，使用全新临时 SQLite、DATA 与测试 Vault。固定 Executor worktree 为
