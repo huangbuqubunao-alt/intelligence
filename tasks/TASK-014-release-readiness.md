@@ -44,7 +44,7 @@
 - Phase A 发行资料尚未整合到此 main 基线；因此该阶段的精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能借此重建或改写其他 Phase A 资料。
 
-## Phase B-0：受限公开字幕 smoke 组合入口（`ACCEPTED`，Product Integrator 尚未启动）
+## Phase B-0：受限公开字幕 smoke 组合入口（已整合并关闭为 `DONE`）
 
 - B-1 blocker evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c` 证明默认 CLI 的非 doctor 命令在没有
   外部组合根时 fail-closed，且没有可限制为“元数据 + 字幕目录 + 一条选中正文”并使用临时根的入口；该 evidence
@@ -58,9 +58,11 @@
 - Correction 1 Reviewer evidence `48df2e2a0afb54d5f6252f197dddf32ff685f0db` 是 `cafcde…` 的唯一后继，且仅追加
   source handoff，Verdict=`REJECT`：P1 为 argv 字符串包含判断会误伤普通命令的合法值。Correction 2 Reviewer evidence
   `010fb7faf6280cd83350315ba66f70b5e785b41f` 是 `b7cb846…` 的唯一后继且仅追加 source handoff，Verdict=`APPROVE`，
-  P0–P3 均无。B0 已 `ACCEPTED`；Product Integrator 仅可固定该 accepted source 作 `--no-ff` 合并并执行授权的离线
-  门禁，正式包为 `agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md`。B0 不运行真实 smoke，且不得在本阶段标为
-  `DONE`；TASK-014 整体继续 `IN_PROGRESS` / `No-Go`，不构成发布批准。
+  P0–P3 均无。Product Integrator 已以 `--no-ff` merge `main@e50b211c9214ef3e170c28d4f7bb6229c9f1c55b` 整合：双父顺序
+  精确为 `175739c…`、`010fb7…`，accepted source 是 merge 祖先，first-parent Diff 严格为完整 B0 六路径，且无依赖、
+  锁文件、Schema/migration 或 `state.py` 改动。既有整合后证据为离线 Fake `13`、全量 `451`、mypy、Ruff、CLI help 与
+  离线 build 均通过；未 push、未真实网络/B-1 或清理 source。B0 因此为 `DONE`，但 TASK-014 整体继续
+  `IN_PROGRESS` / `No-Go`，不构成发布批准。
 
 ## 已授权的只读 Scout 预检（不等于任务开工）
 

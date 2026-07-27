@@ -60,9 +60,10 @@ Phase B-1 的 blocker evidence `be230490...`（仅存在于其 source，绝不�
 Fake 测试与 handoff 三路径，无依赖/Schema 改动。Correction 1 Reviewer evidence `48df2e…` 为 `REJECT`：argv 包含
 判断误伤普通命令的合法参数值。Correction 2 source `b7cb846…` 是 `48df2e…` 的唯一后继，严格为 `cli.py`、对应离线
 Fake 测试与 handoff 三路径，无依赖/Schema 改动。Correction 2 Reviewer evidence `010fb7…` 仅追加 handoff，
-Verdict=`APPROVE`、P0–P3 均无。B0 现为 `ACCEPTED`，Product Integrator 已获
-`agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md` 授权；不启动 Integrator，且不把离线审查写成真实 smoke 或
-发布批准。TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
+Verdict=`APPROVE`、P0–P3 均无。Product Integrator 已以 `--no-ff` merge
+`e50b211c9214ef3e170c28d4f7bb6229c9f1c55b` 整合 B0：双父/accepted-source 祖先/六路径范围及无依赖、锁文件、
+Schema/migration、`state.py` 改动均已核验；既有离线 Fake `13`、全量 `451`、mypy、Ruff、CLI help 与离线 build 均通过。
+B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `IN_PROGRESS` / `No-Go`。
 
 ## 状态定义
 
@@ -98,7 +99,7 @@ Verdict=`APPROVE`、P0–P3 均无。B0 现为 `ACCEPTED`，Product Integrator �
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
 | [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料审查；Phase B-1 公开字幕 smoke 已授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
-| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | Codex Product Integrator 已授权，尚未启动 | ACCEPTED | 014；ADR-013 |
+| [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 
 ## 主控分配模板
 

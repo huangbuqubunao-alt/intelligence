@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator (authorized; not started)`
+- Status: `DONE`
+- Assignee: `Codex Product Integrator (integrated; closure recorded)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -122,8 +122,12 @@ Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、�
   `b7cb846e650eb02b64321ef566991123d319f310`，且仅追加 source handoff；Verdict=`APPROVE`，P0–P3 均无。
 - 主控验收仅接受 B0 的离线实现与审查证据，不是真实 B-1 smoke、发布批准、法律结论、严格 exactly-once 证明、
   风险接受或 TASK-014 Go。TASK-014 继续 `IN_PROGRESS` / `No-Go`。
-- 正式 Product Integrator 包：`agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md`。Integrator 必须固定 accepted
-  source 以 `--no-ff` 合并；本包本身不启动 Integrator，且不得把 B0 标为 `DONE`。
+- Product Integrator 已按 `agent-prompts/TASK-014B0-PRODUCT-INTEGRATOR-CODEX.md` 将固定 accepted source 以 `--no-ff`
+  整合为 `main@e50b211c9214ef3e170c28d4f7bb6229c9f1c55b`。双父顺序为
+  `175739ca52ac65747ec7e56962d9420f50fc0e4e`、`010fb7faf6280cd83350315ba66f70b5e785b41f`；accepted source 是 merge
+  祖先，first-parent Diff 严格为 B0 六路径，未改依赖、锁文件、Schema/migration 或 `state.py`。
+- 既有整合后证据：离线 Fake `13`、全量 `451`、mypy、Ruff、CLI help 与离线 build 均通过；无 push、真实网络/B-1、
+  source 清理或真实资源。TASK-014B0 因此为 `DONE`，但这不是真实 smoke、发布批准或 TASK-014 Go。
 
 ## 验收标准
 
