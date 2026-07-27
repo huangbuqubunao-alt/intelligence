@@ -195,6 +195,34 @@ def test_smoke_rejects_nonnew_root_invalid_or_duplicate_ids_without_calls(tmp_pa
     assert not (tmp_path / "too-many").exists()
 
 
+def test_smoke_rejects_global_configuration_inputs_before_initialization(tmp_path: Path) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _FakeSubtitleAdapter()
+    smoke = _smoke(metadata, subtitles)
+    configuration_options = ("--project-root", "--settings", "--channels")
+
+    for option in configuration_options:
+        for option_form in (option, f"{option}={tmp_path / 'configuration'}"):
+            for position in ("before", "after"):
+                root = tmp_path / f"{option.removeprefix('--')}-{position}-{option_form.startswith(option + '=')}"
+                arguments = _args(root, "video001")
+                configuration_input = (
+                    [option_form, str(tmp_path / "configuration")]
+                    if option_form == option
+                    else [option_form]
+                )
+                if position == "before":
+                    arguments = [*configuration_input, *arguments]
+                else:
+                    arguments.extend(configuration_input)
+
+                assert main(arguments, smoke_runner=smoke) is ExitCode.USAGE_OR_CONFIGURATION
+                assert not root.exists()
+
+    assert metadata.calls == []
+    assert subtitles.enumerate_calls == []
+
+
 def test_smoke_records_failure_without_retrying_or_persisting_body(tmp_path: Path) -> None:
     metadata = _FakeMetadataProvider(fail_for="video002")
     subtitles = _FakeSubtitleAdapter()

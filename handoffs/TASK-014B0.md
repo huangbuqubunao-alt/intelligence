@@ -5,12 +5,12 @@
 - Task: `TASK-014B0 — Restricted public subtitle smoke entry`
 - Role: `Implementer`
 - Agent/session: `Codex`
-- Base branch/commit: `main@28223cc98f9da18fc877289231a92e240cc711d0`
+- Base branch/commit: `main@c62310ab79f01f5f311c9f54bb28365905f5a81a`
 - Worktree: `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`
 - Branch: `codex/task-014-phase-b0-restricted-public-subtitle-smoke`
-- Head commit: pending implementation commit
+- Initial implementation commit: `4e506847854f20a43011b0a15db3a1c8e320656d`
 - Started: `2026-07-26T14:46:38Z`
-- Reported: pending final checks and commit
+- Reported: `2026-07-27` (Correction 1 evidence below)
 
 ## Goal and scope
 
@@ -62,8 +62,8 @@
 
 ## Implementer conclusion
 
-- Suggested status: `IN_REVIEW`
-- Commit SHA: pending implementation commit
+- Suggested status: `REJECTED — Correction 1 implemented; pending independent re-review`
+- Commit SHA: `4e506847854f20a43011b0a15db3a1c8e320656d` (initial implementation)
 - Reviewer: not started, per task authorization.
 
 ## Independent Reviewer evidence — 2026-07-26
@@ -87,3 +87,25 @@
 - Re-run checks: none by authorization. Deliberately not run: tests, build, installation/uv, Python/import, CLI, network/B-1 smoke, credentials/Cookie/API-key access, media/ffmpeg/model/OpenAI/Ollama/launchd access, real Vault/user data, SQLite/log/cache reads.
 - Verdict: `REJECT`.
 - Unresolved P0/P1: P1 above. This is a B0 offline static review only; it is not B-1 smoke evidence, release approval, a legal conclusion, an exactly-once proof, or TASK-014 Go.
+
+## Correction 1 implementation evidence — 2026-07-27
+
+- Correction base/review evidence: `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa` (sole parent required for the correction commit; first review `REJECT`, P1/P2).
+- Correction commit: `HEAD` — the commit containing this handoff; it is verified before handoff as descending directly from the required review evidence.
+- Correction status: implemented and awaiting an independently started re-review; this is not B-1 smoke evidence, release approval, or a TASK-014/TASK-014B0 status change.
+- Scope: only `src/youtube_intel/cli.py`, `tests/integration/test_public_subtitle_smoke.py`, and this handoff changed for Correction 1.
+- Reuse decision: `DIRECT` — the existing argparse surface, locked smoke runner, Python standard library, and offline Fake tests; no new dependency or copied third-party code.
+- Fix: when `smoke-public-subtitles` appears in argv, any `--project-root`, `--settings`, or `--channels` token, including `--name=value` and either command position, returns the existing usage/configuration exit before parser dispatch, smoke runner construction, Adapter construction, or temporary-root initialization. Other command parsing remains unchanged.
+
+| Offline verification | Result |
+|---|---|
+| RED: `uv run python -m pytest tests/integration/test_public_subtitle_smoke.py -q` after adding the regression | FAIL as expected — global `--project-root` before the subcommand returned `ExitCode.OK` and initialized the smoke path. |
+| GREEN: `uv run python -m pytest tests/integration/test_public_subtitle_smoke.py -q` | PASS — 4 passed. The added Fake matrix covers all three disabled options, before/after positions, separate-value and `=` forms, zero Fake Adapter calls, and no temporary-root creation. |
+| `uv run python -m pytest tests/integration/test_operations.py tests/integration/test_public_subtitle_smoke.py` | PASS — 12 passed |
+| `uv run python -m pytest tests/integration/test_subtitle_provider.py -k 'ytdlp_adapter_enumerates_tracks_with_safe_no_download_options'` | PASS — 1 passed, 76 deselected |
+| `uv run mypy src` | PASS — 24 source files |
+| `uv run ruff check .` | PASS |
+| `uv run python -m youtube_intel --help` | PASS — restricted command remains listed; no command execution or network access |
+| `git diff --check` | PASS |
+
+- No network, B-1 smoke, credentials/Cookie/environment-value access, real Vault/user data, media/ffmpeg/model/OpenAI/Ollama/launchd operation, dependency, lockfile, Schema, migration, or default CLI semantic change was performed.

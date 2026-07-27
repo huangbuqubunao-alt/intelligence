@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import sqlite3
+import sys
 import time
 from dataclasses import dataclass
 from enum import IntEnum
@@ -139,9 +140,12 @@ def main(
     # Every invocation receives an in-memory UUID4, including the strictly
     # read-only doctor path.  Doctor deliberately never persists it as JSONL.
     run_id = str(uuid4())
+    effective_argv = tuple(sys.argv[1:] if argv is None else argv)
+    if _smoke_uses_global_configuration(effective_argv):
+        return ExitCode.USAGE_OR_CONFIGURATION
     parser = _build_parser()
     try:
-        args = parser.parse_args(argv)
+        args = parser.parse_args(effective_argv)
         _validate_arguments(args)
         if args.command == "smoke-public-subtitles":
             return (smoke_runner or PublicSubtitleSmoke()).run(
@@ -201,6 +205,16 @@ def main(
         duration_ms=duration_ms,
     )
     return outcome.exit_code
+
+
+def _smoke_uses_global_configuration(argv: Sequence[str]) -> bool:
+    if "smoke-public-subtitles" not in argv:
+        return False
+    return any(
+        argument == option or argument.startswith(f"{option}=")
+        for argument in argv
+        for option in ("--project-root", "--settings", "--channels")
+    )
 
 
 def _validate_arguments(args: argparse.Namespace) -> None:
