@@ -1,7 +1,7 @@
 # TASK-014B0：受限公开字幕 smoke 组合入口
 
-- Status: `IN_REVIEW`
-- Assignee: `Independent Codex Reviewer (authorized; not started)`
+- Status: `IN_PROGRESS`
+- Assignee: `Original Codex Implementer — Correction 1 (authorized; not started)`
 - Owner role: PO + TL + QA
 - Size: M
 - Risk: High
@@ -32,6 +32,37 @@
 - 正式 Reviewer 包：`agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-REVIEWER-CODEX.md`。
 - Reviewer 只能向 source 的既有 `handoffs/TASK-014B0.md` 追加审查证据；不得改变 source 的其他路径、main
   控制面、依赖或 Schema。此授权本身不启动 Reviewer。
+
+## Correction 1（第一轮审查 `REJECT`）
+
+- 主线控制面基线：`main@40df8093fe67a8a0fe3bfe4175acbb42ede2286e`。
+- 唯一 source 的最新 Reviewer evidence：`f8e336a8c3b09a8c0c0e5857148495f2cb2281aa`，其唯一父提交为
+  `4e506847854f20a43011b0a15db3a1c8e320656d`，且仅追加 `handoffs/TASK-014B0.md`。Correction 1 必须从该 evidence
+  开始，实施提交必须是其唯一非 merge 后继。
+- 第一轮 Reviewer Verdict：`REJECT`。P1：顶层 `--project-root`、`--settings`、`--channels` 仍可被
+  `smoke-public-subtitles` 接受，违背该入口只接受临时根与显式视频 ID 的契约。P2：Implementer handoff 的基线、
+  提交 SHA 与状态仍是过期占位信息。
+- 正式 Correction 1 包：`agent-prompts/TASK-014B0-CORRECTION-1-IMPLEMENTER-CODEX.md`。本包只登记授权，不启动
+  Implementer。
+
+### Correction 1 唯一允许修改范围
+
+1. `src/youtube_intel/cli.py`
+2. `tests/integration/test_public_subtitle_smoke.py`
+3. `handoffs/TASK-014B0.md`
+
+禁止修改原 B0 其余三条路径、任何 Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、任务状态、
+控制面、项目 LICENSE 或 B-1 source evidence。范围不足时停止并报告 `DECISION NEEDED`。
+
+### Correction 1 验收
+
+- [ ] `smoke-public-subtitles` 无论三项全局选项在命令行中的位置或 `--name=value` 形式，均拒绝
+  `--project-root`、`--settings`、`--channels`，且在 runner/Adapter/临时根初始化前以既有参数错误退出；其他命令原有
+  解析与默认 fail-closed 语义不变。
+- [ ] 仅保留新临时根与 1–3 个显式公开视频 ID 的输入表面，以及单次调用、无重试、正文不落盘、脱敏审计、零业务记录
+  与所有禁止资源边界。
+- [ ] handoff 明确记录实际初始基线 `c62310…`、实现 `4e506…`、第一轮 evidence `f8e336…`、Correction 1 提交和
+  当前状态；不得保留 `pending` 或把离线 Fake 写成真实 B-1 smoke。
 
 ## 验收标准
 

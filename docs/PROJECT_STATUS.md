@@ -83,8 +83,11 @@
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，唯一父提交为控制面
   `c62310ab79f01f5f311c9f54bb28365905f5a81a`；范围精确为六条授权路径，worktree 清洁，且无依赖/Schema 改动。
-  B0 已设为 `IN_REVIEW`；Reviewer 包只授权向 source `handoffs/TASK-014B0.md` 追加证据，不启动 Reviewer 或真实网络，
-  不改变默认 CLI fail-closed、TASK-014 的 `IN_PROGRESS` / `No-Go`。
+  第一轮 Reviewer evidence `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa` 是 `4e506…` 的唯一后继且仅追加 handoff，
+  Verdict=`REJECT`：P1 为 `smoke-public-subtitles` 仍接受顶层 `--project-root`、`--settings`、`--channels`；P2 为
+  Implementer handoff 的基线、提交 SHA 与状态过期。TASK-014B0 已退回 `IN_PROGRESS`，授权原 Codex Implementer
+  仅在 `cli.py`、`test_public_subtitle_smoke.py` 与 source handoff 完成 Correction 1；不启动 Implementer 或真实网络，
+  不改变默认 CLI fail-closed、依赖、Schema 或 TASK-014 的 `IN_PROGRESS` / `No-Go`。
 
 ## 已完成或已批准
 
@@ -129,9 +132,8 @@
    已获精确、一次性资源授权但尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
-2. TASK-014B0 的 source 已提交并进入独立审查；Reviewer 必须只以 Git/文档门禁核验六路径、父链、清洁度、
-   无依赖/Schema 改动，以及默认 CLI fail-closed、ID 上限、单次调用、无重试、临时根隔离、正文不落盘、脱敏审计和
-   无业务记录。B0 审查、主控验收和整合前不得重启 B-1。
+2. TASK-014B0 第一轮审查为 `REJECT`；Correction 1 必须拒绝 smoke 的三项全局配置路径输入并纠正 handoff 元数据，
+   不改变其余受限边界。Correction、后续独立审查、主控验收和整合前不得重启 B-1。
 3. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
    媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 4. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
@@ -161,7 +163,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已授权未启动 | TASK-014 Phase B-1：公开 YouTube 字幕 smoke | Codex Executor 仅可在固定独立 worktree 对 2–3 个公开官方视频作一次元数据/字幕发现与读取验证，使用新临时 SQLite/DATA/测试 Vault；不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
-| IN_REVIEW，Reviewer 尚未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | 唯一 source `4e506…` 待独立 Codex Reviewer 核验；Reviewer 只能追加 `handoffs/TASK-014B0.md`，不运行真实 B-1 网络 smoke，且不改变 TASK-014 的 No-Go |
+| IN_PROGRESS，Correction 1 未启动 | TASK-014B0：受限公开字幕 smoke 组合入口 | 第一轮 Reviewer evidence `f8e336…` 为 `REJECT`；原 Codex Implementer 仅可修正 smoke 配置输入拒绝与 handoff，禁止真实 B-1 网络 smoke，且不改变 TASK-014 的 No-Go |
 
 ## 授权边界
 
