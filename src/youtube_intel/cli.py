@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import sqlite3
+import sys
 import time
 from dataclasses import dataclass
 from enum import IntEnum
@@ -15,6 +16,7 @@ from uuid import uuid4
 
 from youtube_intel.config import AppConfig, ConfigError, load_app_config
 from youtube_intel.logging import JsonlLogger
+from youtube_intel.public_subtitle_smoke import PublicSubtitleSmoke
 
 
 class ExitCode(IntEnum):
@@ -118,19 +120,39 @@ def _build_parser() -> argparse.ArgumentParser:
     weekly = commands.add_parser("weekly", help="generate one weekly report")
     weekly.add_argument("--week")
     commands.add_parser("doctor", help="read-only configuration and local-resource checks")
+    smoke = commands.add_parser(
+        "smoke-public-subtitles",
+        help="run the restricted public subtitle release-QA smoke",
+    )
+    smoke.add_argument("--temporary-root", type=Path, required=True)
+    smoke.add_argument("--video-id", action="append", required=True)
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, operations: Operations | None = None) -> ExitCode:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    operations: Operations | None = None,
+    smoke_runner: PublicSubtitleSmoke | None = None,
+) -> ExitCode:
     """Run one command and return the ADR-011 exit code without raising failures."""
 
     # Every invocation receives an in-memory UUID4, including the strictly
     # read-only doctor path.  Doctor deliberately never persists it as JSONL.
     run_id = str(uuid4())
+    effective_argv = tuple(sys.argv[1:] if argv is None else argv)
     parser = _build_parser()
     try:
-        args = parser.parse_args(argv)
+        args = parser.parse_args(effective_argv)
+        if args.command == "smoke-public-subtitles" and _uses_global_configuration(effective_argv):
+            return ExitCode.USAGE_OR_CONFIGURATION
         _validate_arguments(args)
+        if args.command == "smoke-public-subtitles":
+            return (smoke_runner or PublicSubtitleSmoke()).run(
+                temporary_root=args.temporary_root,
+                video_ids=tuple(args.video_id),
+                run_id=run_id,
+            ).exit_code
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
     except (ConfigError, OSError, ValueError):
@@ -183,6 +205,14 @@ def main(argv: Sequence[str] | None = None, *, operations: Operations | None = N
         duration_ms=duration_ms,
     )
     return outcome.exit_code
+
+
+def _uses_global_configuration(argv: Sequence[str]) -> bool:
+    return any(
+        argument == option or argument.startswith(f"{option}=")
+        for argument in argv
+        for option in ("--project-root", "--settings", "--channels")
+    )
 
 
 def _validate_arguments(args: argparse.Namespace) -> None:
