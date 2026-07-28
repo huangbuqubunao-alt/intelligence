@@ -32,24 +32,26 @@
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
-## Phase B-1：venv console-path 最后一次公开 YouTube 字幕 smoke Retry（刷新授权，尚未启动）
+## Phase B-1：non-existing temporary-root 参数纠正最终公开 YouTube 字幕 smoke Retry（刷新授权，尚未启动）
 
-- 唯一 Retry 控制面基线：`main@0b45d8e9fcf49e6c450279c00b787069fa665520`；唯一 source HEAD / blocker evidence：
-  `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`，其唯一父提交为 `49869c6ff2bbc53673c6a35071c5f1407c269cba`；任务整体继续为
+- 唯一 Retry 控制面基线：`main@f5bcac5e9fa7dac7bdac1e859873d369adbb7880`；唯一 source HEAD / blocker evidence：
+  `365c8fca966a3fb7608f41b2d3ac530504193c7b`，其唯一父提交为 `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`；任务整体继续为
   `IN_PROGRESS` / `No-Go`。
-- 唯一 venv Console-path Smoke Retry Executor 授权包：
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-VENV-CONSOLE-PATH-RETRY-CODEX.md`。
+- 唯一 non-existing Temporary-root Smoke Retry Executor 授权包：
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-TEMPORARY-ROOT-RETRY-CODEX.md`。
 - 唯一执行 worktree：`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry`；分支：
   `codex/task-014-phase-b1-console-entry-retry`。source 必须从上述干净 HEAD 开始。本控制面提交不启动 Executor。
-- 先前受控预配 Retry 已完成并废止；其 blocker 是 shell `PATH` 未包含项目 `.venv/bin`，不是 B2 console entry 缺失，
-  且两个固定 ID 均未触达 YouTube。旧 final worktree 与旧 Public YouTube Smoke 包均已废止，不能作为执行 source 或启动依据。
+- 先前 venv console-path Retry 已完成并废止；其 blocker 是把已存在空目录传给 `--temporary-root`，但入口 fail-closed 地
+  要求已存在临时父目录内尚不存在的 `smoke-root` 子路径；runner 未初始化，两个固定 ID 均未触达公开视频。旧 final worktree、
+  Public YouTube Smoke 包与旧 Retry 包均已废止，不能作为执行 source 或启动依据。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
   合并、cherry-pick 或复用其 blocker evidence `be230490...`。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
   不得访问、修改、合并、清理或复用。
-- 先只读核验项目 `.venv/bin/youtube-intel` 可执行且静态映射既有项目入口；不得运行 uv、安装、下载、改 PATH、激活 venv
-  或使用替代入口。仅在核验通过后，才可低频地用该**绝对路径**对固定 `--khbXchTeE`、`JTxsNm9IdYU` 各一次验证元数据、
-  字幕发现和选中字幕读取；必须使用全新临时 SQLite、DATA 与测试 Vault，并只记录 smoke 证据和发布检查表更新。
+- 不得运行 uv、安装、下载、改 PATH、激活 venv 或使用替代入口。仅可创建新的临时父目录，并在其中使用尚不存在的
+  `smoke-root` 子路径；执行前静态确认父目录存在、子路径不存在。仅在核验通过后，才可低频地用已核验**绝对路径**对固定
+  `--khbXchTeE`、`JTxsNm9IdYU` 各一次验证元数据、字幕发现和选中字幕读取，并保留退出码；必须使用全新临时 SQLite、
+  DATA 与测试 Vault，并只记录 smoke 证据和发布检查表更新。
 - 严禁登录、Cookie、API key、真实 Vault/用户笔记/用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、
   付费调用、高频重试、产品代码/依赖/锁/Schema/任务状态改动。成功不构成发布批准；mutagen GPL、BPE
   文件归属/NOTICE 和 at-most-once 风险继续为 No-Go 门禁。
@@ -57,8 +59,8 @@
   目标选择理由、发布检查表 B-1 记录与 handoff，不能改写其他发行资料。
 - 旧 final source 的历史 blocked evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录锁定运行时缺少
   `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。当前 blocker evidence
-  `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa` 只记录 PATH 未包含项目 `.venv/bin` 的入口前阻断，两个 ID 同样未触达
-  YouTube；新包禁止再次运行 uv 或 PATH 入口，只允许绝对 venv console-path 的最后一次 smoke。
+  `365c8fca966a3fb7608f41b2d3ac530504193c7b` 只记录已存在 temporary-root 违反 smoke 根目录 fail-closed 契约，两个 ID
+  同样未触达 YouTube；新包禁止 uv、替代入口与第二次尝试，只允许传入新父目录内不存在的 `smoke-root` 子路径。
 
 ## Phase B-2：正式 console entry（已整合并关闭为 `DONE`）
 

@@ -1,5 +1,11 @@
 # TASK-014 Phase B-1 — venv console-path 最后一次 smoke Retry
 
+> **已完成并废止，不得执行。** 本包授权的绝对 venv console-path 调用已产生
+> `365c8fca966a3fb7608f41b2d3ac530504193c7b` blocker evidence：上次把已存在的空目录传给
+> `--temporary-root`，而 smoke 入口 fail-closed 地要求“已存在临时父目录内、尚不存在的 smoke-root 子路径”。runner
+> 未初始化，YouTube 未触达。后续唯一可能的 B-1 尝试仅由
+> `TASK-014-RELEASE-READINESS-PHASE-B1-TEMPORARY-ROOT-RETRY-CODEX.md` 授权；不得再次运行本包。
+
 你是 TASK-014 Phase B-1 的唯一 Codex venv Console-path Smoke Retry Executor。此包只授权一次以项目虚拟环境绝对 console 路径执行的受限 smoke；它本身不执行任何命令。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、`tasks/TASK-014-release-readiness.md`、`tasks/README.md`、`docs/operations.md`、`3c3dd4ac45cb6ea66bc927a1542c4612554a56fa` blocker evidence 与本包。若任一边界冲突，停止并报告。
 
 ## 固定对象与状态
