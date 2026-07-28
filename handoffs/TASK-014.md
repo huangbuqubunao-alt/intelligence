@@ -401,3 +401,67 @@
   Vault, model, or paid resource was used.
 - TASK-014 and TASK-014B6 remain `IN_PROGRESS / No-Go`; this offline correction
   is not real-service validation, release approval, or a status transition.
+
+## TASK-014B6 Correction 1 Range-Corrected Independent Reviewer Evidence — 2026-07-28
+
+### Fixed review object and scope
+
+- Role: new independent Reviewer. Reviewed source branch/HEAD:
+  `codex/task-014b6-safe-directory-shape-diagnostics` at
+  `b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78`.
+- The correction's sole parent is
+  `9403e37eedbd2513aea631c7272c6d650d41ef40`; the original implementation's
+  sole parent is `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`.
+- Dynamic reviewer authorization was verified at
+  `main@44e7c0c45f59914d58a184ad1d3f0975c67c3c2d`, a clean single-parent
+  descendant of the stated control-plane base. The source worktree and index
+  were clean before this evidence append.
+- Correction range contains exactly `public_subtitle_smoke.py`,
+  `test_public_subtitle_smoke.py`, and this handoff. Complete B6 range contains
+  exactly the six range-corrected paths: subtitle Provider, smoke adapter,
+  sanitized directory-shape fixture, the two integration tests, and this
+  handoff. Both range checks are whitespace-clean.
+
+### Independent behavior and security review
+
+- Unknown directory `INVALID_RESPONSE` is emitted to the existing safe stdout
+  and JSONL outlets only as `directory_shape_unknown`; the former
+  `directory_unknown_invalid_response` value is absent from the source output
+  path and is explicitly rejected by the offline regression.
+- The frozen set is exact and complete: `directory_shape_missing`,
+  `directory_shape_not_object`, `directory_shape_not_list`,
+  `directory_shape_empty_list`, `directory_shape_unsupported_entry`,
+  `directory_extractor_directory_error`, and `directory_shape_unknown`.
+  The adapter maps structural failures only to this set and keeps unknown
+  failures fail-closed.
+- The regression injects URL, title, field value, Cookie, token, body, payload,
+  temporary path, and the former fallback through a Fake directory error, then
+  proves each is absent from stdout and JSONL. Static outlet review found one
+  stdout emission and only fixed codes/counts in the diagnostic path; the
+  fixture contains structural synthetic values only.
+- Default one-body-read behavior; directory-only `1/1/0`; nonzero failure exit;
+  CLI/global-option rejection; new-empty temporary-root requirement; 1--3
+  unique-ID bounds; no retry; zero business records; URL, format, size, count,
+  language, entry, and unsupported-directory fail-closed behavior remain
+  covered by the focused suites and unchanged control flow.
+
+### Independent checks and verdict
+
+| Check | Result |
+|---|---|
+| `git` identity, parent-chain, authorization, status, both ranges, and `git diff --check` | PASS |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py` | PASS — 93 passed |
+| `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py` | PASS — 11 passed |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS — no issues in 2 source files |
+| `.venv/bin/ruff check` on B6 Provider/smoke source and integration tests | PASS |
+| `.venv/bin/youtube-intel --help` | PASS — help only; no smoke subcommand run |
+| Static category/output/fixture leak scan | PASS |
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Not run: `uv`, build/package checks, full suite, Python/import probes, any
+  smoke invocation, network/YouTube, media/ffmpeg, authentication/Cookie/API
+  key handling, Vault/user data, SQLite diagnostics, models/Ollama/OpenAI,
+  launchd, push, or merge.
+- Verdict: `APPROVE` for the fixed offline correction range only. TASK-014
+  remains `IN_PROGRESS / No-Go`; this is neither real-service verification nor
+  release approval or final Go.
