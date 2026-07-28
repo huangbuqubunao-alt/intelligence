@@ -1,7 +1,7 @@
 # TASK-014B4：受限 directory-only 公开字幕目录 smoke
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Status: `DONE`
+- Assignee: `Codex Product Integrator（merge 133819f… 已整合；source 保留）`
 - Reviewer: `独立 Codex Reviewer（APPROVE evidence d211d62…）`
 - 依赖：TASK-014B0 `DONE`、TASK-014B2 `DONE`、TASK-014B3 `DONE`、ADR-016
 - 架构谱系基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`
@@ -31,8 +31,10 @@
   `2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`。该 Reviewer evidence 仅修改 source 的
   `handoffs/TASK-014B4.md`，Verdict=`APPROVE`、P0--P3 均为零；固定离线审查范围为
   `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`。
-  完整 accepted source Diff `bbd3fddd…...d211d62…` 严格为本卡的五条允许路径。后续只有
-  Product Integrator 可按独立授权包一次性 `git merge --no-ff d211d62…`；不得修改 source。
+  完整 accepted source Diff `bbd3fddd…...d211d62…` 严格为本卡的五条允许路径。Product Integrator 已以
+  `--no-ff` merge `133819fe53cd3ade5e5d93635835c8a03649f12a` 整合，双父顺序为 `8637438…`、`d211d62…`；
+  accepted source 是 merge 祖先，first-parent Diff 仍严格为五条允许路径。既有整合后离线 `uv sync --locked --offline`、
+  Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描均通过。source 保留且不得再修改或清理。
 - `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 仅为未执行的历史诊断
   worktree；禁止访问、修改、合并、清理或复用。
 - 本任务的 ADR、任务卡、实施包和状态记录由本控制面提交创建；Implementer 不得再改写这些控制面资料。
@@ -79,5 +81,5 @@ git diff --check
 
 - 禁止真实 YouTube/网络、媒体下载、ffmpeg、模型、Ollama、OpenAI、Cookie/登录/API key、真实 Vault/用户数据、
   付费调用、launchd、`.codebase-memory` 工件、重试和任何额外产品命令。
-- accepted source 不得再写入或清理；后续仅由已授权 Product Integrator 固定 `--no-ff` 整合，不得自行 `DONE`、push
-  或启动真实验证。
+- source 已整合后仍须保留、不得再写入或清理；不得 push 或启动真实验证。TASK-014B4 `DONE` 不构成真实 B-1 smoke
+  通过、真实服务验证或发行批准。
