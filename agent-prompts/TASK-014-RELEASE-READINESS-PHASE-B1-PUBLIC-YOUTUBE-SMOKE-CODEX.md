@@ -1,5 +1,11 @@
 # TASK-014 Phase B-1 — Codex Smoke Executor（公开 YouTube 字幕 smoke）
 
+> **已废止，不得执行。** 此历史包绑定的 final worktree 与分配已由
+> `TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 取代。唯一可执行 source 为
+> `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
+> `codex/task-014-phase-b1-console-entry-retry@49869c6ff2bbc53673c6a35071c5f1407c269cba`。
+> 下文只保留历史授权记录；不得据此启动 Executor、访问旧 final worktree 或把任何历史 evidence 写为成功。
+
 你是 TASK-014 Phase B-1 的唯一 Codex Smoke Executor。本授权包登记未来单次真实资源 smoke 的严格边界；
 它本身不启动 Executor。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、
 `docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、

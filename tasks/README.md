@@ -43,20 +43,20 @@ at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发
 Phase A accepted source `88f1b36...` 已以 `--no-ff` merge `3165009...` 整合，七路径资料及根目录 ignore 锚定已核验；
 TASK-014 仍不得标为 `DONE` 或发布批准。
 
-产品负责人现已为 TASK-014 Phase B-1 最终刷新一次公开 YouTube 字幕 smoke 执行授权：仅 2–3 个稳定官方频道的公开视频、
-只验证元数据与字幕发现/读取，使用全新临时 SQLite、DATA 与测试 Vault。固定 Executor worktree 为
-`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final`，分支为
-`codex/task-014-release-readiness-phase-b1-final`，基线为
-`main@3165009df00c54f62c9b92a8f154bfd7ed664bea`，授权包为
-`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。Executor 尚未启动；
+产品负责人现已为 TASK-014 Phase B-1 刷新一次受控环境预配与公开 YouTube 字幕 smoke Retry 授权：仅固定
+`--khbXchTeE`、`JTxsNm9IdYU` 各一次，只验证元数据与字幕发现/读取，使用全新临时 SQLite、DATA 与测试 Vault。
+唯一 Executor worktree 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry`，分支为
+`codex/task-014-phase-b1-console-entry-retry`，基线及 source HEAD 均为
+`main@49869c6ff2bbc53673c6a35071c5f1407c269cba`，授权包为
+`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md`。Executor 尚未启动；
 本阶段不授权登录/Cookie/API key、真实 Vault、用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或
 高频重试。TASK-014 继续 `IN_PROGRESS` / `No-Go`，真实 smoke 成功不关闭 mutagen GPL、BPE 文件归属/NOTICE、
 at-most-once 风险或最终 PO/TL/QA Go-No-Go。
 旧 execution worktree（`task-014-release-readiness-phase-b1-execution`）建立在 Phase A 合并前主线，禁止访问、
 修改、合并、清理或复用。
-final source evidence `5698802...` 仅为缺失锁定 `fsspec==2026.6.0` 的环境阻断，两个固定 ID 均未调用，绝不是通过结果，
-也不得合并。已创建一次性 Retry 包：仅允许 pre/post `uv lock --check`、一次 `uv sync --locked`（缓存缺失时只下载
-既有锁定包）和固定两 ID 的单次 smoke；Executor 尚未启动。
+旧 final source evidence `5698802...` 仅为缺失锁定 `fsspec==2026.6.0` 的历史环境阻断，两个固定 ID 均未调用，
+绝不是通过结果，也不得合并。旧 final worktree 与其 Public Smoke 包已废止；唯一 Retry 包仅允许 pre/post
+`uv lock --check`、一次 `uv sync --locked`（缓存缺失时只下载既有锁定包）和固定两 ID 的单次 smoke；Executor 尚未启动。
 
 旧 Phase B-1 blocker evidence `be230490...`（仅存在于 B0 合并前的旧 source，绝不访问或合并）确认默认 CLI 曾缺少受控组合入口。
 产品负责人因此批准 ADR-013 和 TASK-014B0：新增仅服务发布 QA 的 `smoke-public-subtitles`，严格限定 1–3 个

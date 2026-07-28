@@ -1,6 +1,6 @@
 # TASK-014 Phase B-1 — 受控环境预配与单次 smoke Retry
 
-你是 TASK-014 Phase B-1 的唯一 Codex Smoke Retry Executor。此包只授权一次受控环境预配和一次受限 smoke 重试；它本身不执行任何命令。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、`tasks/TASK-014-release-readiness.md`、`tasks/README.md`、`docs/operations.md`、Phase B-1 最终执行包、阻断 evidence 与本包。若任一边界冲突，停止并报告。
+你是 TASK-014 Phase B-1 的唯一 Codex Smoke Retry Executor。此包只授权一次受控环境预配和一次受限 smoke 重试；它本身不执行任何命令。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、`tasks/TASK-014-release-readiness.md`、`tasks/README.md`、`docs/operations.md`、历史阻断 evidence 与本包。若任一边界冲突，停止并报告。
 
 ## 固定对象与状态
 
@@ -8,16 +8,17 @@
 Task: TASK-014 Phase B-1 — controlled environment pre-provisioning and one smoke retry
 Role: Smoke Retry Executor
 Agent: Codex
-Control-plane baseline: main@75d1dc300c7a9c80d7e30b93d2c4e019c482e0de
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final
-Branch: codex/task-014-release-readiness-phase-b1-final
-Starting evidence: 5698802ba13b9c953eb6ae41d7f827d38654c7c8
+Control-plane baseline: main@49869c6ff2bbc53673c6a35071c5f1407c269cba
+Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
+Branch: codex/task-014-phase-b1-console-entry-retry
+Source HEAD: 49869c6ff2bbc53673c6a35071c5f1407c269cba
 Reuse decision: DIRECT — 已整合的 smoke-public-subtitles、锁定依赖与 yt-dlp Adapter；不新增或复制第三方代码
 ```
 
-- source HEAD 必须先精确为 `5698802ba13b9c953eb6ae41d7f827d38654c7c8`，且工作树干净。该 evidence 只记录
-  `fsspec==2026.6.0` 缓存缺失导致的环境阻断：两个公开视频均未调用，**不是 smoke 通过结果**，不得合并到 main、
-  不得改写为通过或发布批准。
+- source HEAD 必须先精确为 `49869c6ff2bbc53673c6a35071c5f1407c269cba`，且工作树干净；这是唯一可执行
+  source。旧 final worktree 及其 `5698802ba13b9c953eb6ae41d7f827d38654c7c8` evidence 不得访问、修改、
+  合并、清理或复用为执行 source。该旧 evidence 仅记录 `fsspec==2026.6.0` 缓存缺失导致的环境阻断：两个公开
+  YouTube 目标均未调用，**不是 smoke 通过结果**，不得改写为通过或发布批准。
 - TASK-014 始终为 `IN_PROGRESS / No-Go`。本包不授权发布、法律结论、风险接受或最终 Go/No-Go。
 
 ## 唯一允许的环境动作

@@ -32,29 +32,30 @@
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
-## Phase B-1：公开 YouTube 字幕 smoke 最终执行（刷新授权，尚未启动）
+## Phase B-1：受控环境预配与公开 YouTube 字幕 smoke Retry（刷新授权，尚未启动）
 
-- 最终刷新控制面基线：`main@3165009df00c54f62c9b92a8f154bfd7ed664bea`；任务整体继续为
+- 唯一 Retry 控制面基线与 source HEAD：`main@49869c6ff2bbc53673c6a35071c5f1407c269cba`；任务整体继续为
   `IN_PROGRESS` / `No-Go`。
-- 正式 Smoke Executor 授权包：
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-PUBLIC-YOUTUBE-SMOKE-CODEX.md`。
-- 新的唯一执行 worktree：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final`；分支：
-  `codex/task-014-release-readiness-phase-b1-final`。本包只创建授权和 worktree，不启动 Executor。
+- 唯一 Smoke Retry Executor 授权包：
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md`。
+- 唯一执行 worktree：`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry`；分支：
+  `codex/task-014-phase-b1-console-entry-retry`。source 必须从上述干净 HEAD 开始。本控制面修正不启动 Executor。
+- 旧 final worktree 与旧 Public YouTube Smoke 包均已废止，不能作为执行 source 或启动依据。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
   合并、cherry-pick 或复用其 blocker evidence `be230490...`。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
   不得访问、修改、合并、清理或复用。
-- 仅授权一次、低频地对 2–3 个稳定官方频道的公开视频验证元数据、字幕发现和选中字幕读取；必须使用全新临时
-  SQLite、DATA 与测试 Vault，并只记录目标选择理由、smoke 证据和发布检查表更新。
+- 仅授权一次、低频地对固定 `--khbXchTeE`、`JTxsNm9IdYU` 各一次验证元数据、字幕发现和选中字幕读取；必须使用全新
+  临时 SQLite、DATA 与测试 Vault，并只记录 smoke 证据和发布检查表更新。
 - 严禁登录、Cookie、API key、真实 Vault/用户笔记/用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、
   付费调用、高频重试、产品代码/依赖/锁/Schema/任务状态改动。成功不构成发布批准；mutagen GPL、BPE
   文件归属/NOTICE 和 at-most-once 风险继续为 No-Go 门禁。
 - 仅允许以已整合的 `smoke-public-subtitles` 入口执行；精确写入范围以授权包为准，只允许独立 smoke 证据、
   目标选择理由、发布检查表 B-1 记录与 handoff，不能改写其他发行资料。
-- final source 的 blocked evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录锁定运行时缺少
-  `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。补充 Retry 授权包
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 只允许 pre/post `uv lock --check`、
-  一次 `uv sync --locked`（缓存缺失时仅下载 lock 已锁定包）及随后固定两 ID 的一次 smoke；尚未启动。
+- 旧 final source 的历史 blocked evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录锁定运行时缺少
+  `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。唯一 Retry 包只允许
+  pre/post `uv lock --check`、一次 `uv sync --locked`（缓存缺失时仅下载 `uv.lock` 已锁定包）及随后固定两 ID 的一次
+  smoke；尚未启动。
 
 ## Phase B-2：正式 console entry（已整合并关闭为 `DONE`）
 
