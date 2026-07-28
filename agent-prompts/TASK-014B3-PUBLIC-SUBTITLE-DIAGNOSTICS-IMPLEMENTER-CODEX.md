@@ -8,14 +8,16 @@
 Task: TASK-014B3 — public subtitle directory compatibility diagnostics
 Role: Implementer
 Agent: Codex
-Base: main@371788d2a6c9c42f20ebaed93da7a021f0febeb0
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics
-Branch: codex/task-014b3-public-subtitle-diagnostics
+Base: main@9c5f08ec829629591b095bd68841ca3ce0b22532
+Worktree: /Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
+Branch: codex/task-014b3-public-subtitle-diagnostics-implementation
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — existing yt-dlp Adapter, ProviderCallMetadata, JsonlLogger, public smoke, and offline fixtures/tests; no new dependency or copied third-party code
 ```
 
-- 开始前 source HEAD 必须精确为 `371788d2a6c9c42f20ebaed93da7a021f0febeb0` 且工作树干净。
+- 开始前 source HEAD 必须精确为 `9c5f08ec829629591b095bd68841ca3ce0b22532` 且工作树干净。
+- 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics` 及其旧分支禁止访问、修改、
+  合并、清理或复用；本包只绑定上述 implementation worktree/branch。
 - B-1 evidence `9acab5d…` 是真实 smoke `FAIL`，只证明目录映射前失败；不得合并、改写为成功、重新执行网络或从中复制原始数据。
 - TASK-014 始终为 `IN_PROGRESS / No-Go`。B3 离线通过不构成真实兼容性、发布批准或最终 Go。
 
