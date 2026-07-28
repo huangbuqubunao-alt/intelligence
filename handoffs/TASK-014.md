@@ -91,6 +91,42 @@
 - 整合后检查:
 - 最终状态：`DONE | BLOCKED`
 
+## Phase B-1 Directory-only Smoke Executor Evidence — 2026-07-28
+
+### Fixed assignment and scope
+
+- Role: `Smoke Executor`.
+- Base and source HEAD: `main@9bffb29d84868c94fc8544395183c5472856e7c8`.
+- Worktree/branch: assigned B-1 directory-only execution worktree /
+  `codex/task-014-phase-b1-directory-only-execution`.
+- Reuse decision: `DIRECT` — existing integrated launcher and restricted smoke mode; no
+  code, dependency, lockfile, schema, configuration, or test change.
+- Actual modified paths: this handoff, `docs/RELEASE_CHECKLIST.md`, and the dedicated
+  B-1 smoke-evidence document only.
+
+### Execution evidence
+
+| Check | Result | Evidence |
+|---|---|---|
+| Initial branch/HEAD/cleanliness | PASS | Matched the assigned branch and required commit; worktree was initially clean. |
+| `uv lock --check` → `uv sync --locked --offline` → `uv lock --check` | PASS | All three commands exited `0`; no download or lockfile change was reported. |
+| Absolute launcher mapping | PASS | Static inspection confirmed existence, executable mode, and `youtube_intel.cli:main`. |
+| New temporary parent and absent `smoke-root` | PASS | Verified before the one invocation; the absolute path was not retained. |
+| One fixed directory-only smoke invocation | FAIL | Exit code `1`; no retry, loop, concurrency, or alternative product command. |
+
+| Fixed ID | metadata | enumerate | read | Result |
+|---|---:|---:|---:|---|
+| `--khbXchTeE` | not attestable | not attestable | not attestable | The sanitized output supplied no per-ID counter; no count was inferred. |
+| `JTxsNm9IdYU` | not attestable | not attestable | not attestable | The sanitized output supplied no per-ID counter; no count was inferred. |
+
+- Stop point: the unique smoke command returned exit code `1`; execution stopped immediately.
+- Fixed diagnostic code: not emitted in permitted sanitized output.
+- Not performed: a second smoke, retry, alternate launcher/module entry, subtitle-body read,
+  media or ffmpeg operation, Cookie/authentication/credential access, Vault or user-data
+  access, model/Ollama/OpenAI/paid call, push, merge, rebase, reset, or source cleanup.
+- Result: `BLOCKED / NO-GO`. The evidence cannot establish the required per-ID `1/1/0`
+  budgets, so it is not a successful smoke result or release approval.
+
 ## Independent Reviewer Evidence — 2026-07-26
 
 ### Fixed review object and cleanliness

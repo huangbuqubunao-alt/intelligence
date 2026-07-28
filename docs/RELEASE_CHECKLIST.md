@@ -42,6 +42,18 @@
 | 四阶段真实 smoke | NOT AUTHORIZED | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。 |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
+### Phase B-1 directory-only public-subtitle execution — 2026-07-28
+
+- Status: `FAIL / NO-GO`.
+- The single authorized directory-only invocation for `--khbXchTeE` and `JTxsNm9IdYU`
+  exited `1` after all three offline provisioning checks and absolute-launcher verification
+  passed. No retry or alternative invocation was performed.
+- The permitted sanitized output did not emit a fixed diagnostic code or per-ID counters;
+  therefore this record does not infer the required `metadata=1 / enumerate=1 / read=0`
+  budgets. See
+  `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-PUBLIC-YOUTUBE.md`.
+- TASK-014 remains `IN_PROGRESS / No-Go`; no release, risk acceptance, or final Go is implied.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |
