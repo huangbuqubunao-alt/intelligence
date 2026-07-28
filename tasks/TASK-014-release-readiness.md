@@ -93,6 +93,14 @@
   metadata=`1`/enumerate=`1`/read=`0`，仅记录 B5 安全摘要及适用的 ADR-017/ADR-018 固定无值分类。离线预配、绝对 launcher、
   新临时 parent/non-existent `smoke-root`、证据与停止规则以正式包为准。任一结果都保持 TASK-014 `IN_PROGRESS / No-Go`，
   不构成发行批准或最终 Go。
+- 产品负责人接受 ADR-019 并分配 TASK-014B8「受限键名级字幕目录诊断」：唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
+  `codex/task-014b8-restricted-directory-keyname-diagnostic@43f2c748c43215facb231f76a0c93ac45d350657`，必须保持干净。
+  该单次字段名例外仅限 directory-only、目录 `INVALID_RESPONSE`、`directory_origin_mapping`、`directory_fingerprint_unknown` 且
+  read=`0`，可输出最多 16 个稳定排序、去重、规范 ASCII 的直接键名；任一不合格、超限或不可靠候选集一律省略字段。不得输出值、URL、
+  正文、标题、语言、轨道、路径、异常、Cookie、token、payload、用户数据或凭据，不放宽解析或任何运行边界。未合并 B-1 B7 evidence
+  `8f5dfce33ac77a45800f4ff53ff6e7054d8f68b0` 只作只读失败引用，不得合并、重写或称为通过。TASK-014B8 为 `IN_PROGRESS / Codex`；
+  TASK-014 继续 `IN_PROGRESS / No-Go`。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
