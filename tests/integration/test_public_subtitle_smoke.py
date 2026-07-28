@@ -10,7 +10,10 @@ from pathlib import Path
 
 from youtube_intel.cli import CommandOutcome, ExitCode, main
 from youtube_intel.domain import (
+    AppError,
     Availability,
+    DiagnosticEntry,
+    ErrorCode,
     LiveStatus,
     ProviderCallMetadata,
     SubtitleFormat,
@@ -22,6 +25,7 @@ from youtube_intel.transcripts import (
     SubtitleReadResult,
     SubtitleTrack,
     SubtitleTrackListing,
+    TranscriptError,
 )
 
 NOW = datetime(2026, 7, 26, tzinfo=UTC)
@@ -96,6 +100,37 @@ class _FakeSubtitleAdapter:
         if track.url.endswith("another-temporary-url") and track.name == "fail":
             raise RuntimeError("read failure")
         return SubtitleReadResult(body=SUBTITLE_BODY, call=_call())
+
+
+@dataclass
+class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
+    last_call: ProviderCallMetadata | None = None
+
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        self.enumerate_calls.append(video_id)
+        self.last_call = ProviderCallMetadata(
+            provider="fake",
+            started_at=NOW,
+            finished_at=NOW,
+            diagnostics=(
+                DiagnosticEntry(
+                    code="directory_track_url",
+                    message="directory track URL",
+                ),
+            ),
+        )
+        raise TranscriptError(
+            AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message=(
+                    "private URL https://private.invalid/?token=secret "
+                    "title=private-title field=private-value Cookie=private-cookie "
+                    "body=private-body payload=private-payload"
+                ),
+                retryable=False,
+                video_id=video_id,
+            )
+        )
 
 
 @dataclass
@@ -314,3 +349,52 @@ def test_smoke_records_failure_without_retrying_or_persisting_body(tmp_path: Pat
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=0 read_track_calls=0"
     )
+
+
+def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
+    tmp_path: Path,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(_args(root, "video001"), smoke_runner=_smoke(metadata, subtitles))
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert metadata.calls == ["video001"]
+    assert subtitles.enumerate_calls == ["video001"]
+    assert subtitles.read_calls == []
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    failed_record = next(
+        json.loads(line)
+        for line in log_text.splitlines()
+        if json.loads(line)["event"] == "smoke.target.failed"
+    )
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
+        "directory_diagnostic=directory_track_url"
+    )
+    assert set(failed_record) == {
+        "timestamp",
+        "level",
+        "event",
+        "run_id",
+        "stage",
+        "safe_message",
+        "video_id",
+        "error_code",
+        "duration_ms",
+    }
+    for forbidden in (
+        "https://private.invalid/?token=secret",
+        "private URL",
+        "token",
+        "private-title",
+        "private-value",
+        "private-cookie",
+        "private-body",
+        "private-payload",
+        SUBTITLE_BODY.decode(),
+        "Title",
+    ):
+        assert forbidden not in log_text

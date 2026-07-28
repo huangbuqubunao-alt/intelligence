@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Protocol
 
 from youtube_intel.domain import AppError, ErrorCode, VideoMetadata
 from youtube_intel.logging import JsonlLogger
-from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
+from youtube_intel.providers.subtitles import (
+    DIRECTORY_DIAGNOSTIC_CODES,
+    YtDlpSubtitleAdapter,
+)
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.state import SQLiteStateRepository
 from youtube_intel.transcripts import (
@@ -149,6 +152,19 @@ class PublicSubtitleSmoke:
             result = subtitle_adapter.read_track(ranked[0].track)
             del result
         except Exception as error:  # noqa: BLE001 - emit only a fixed safe category
+            diagnostic = _directory_diagnostic(
+                error,
+                subtitle_adapter=subtitle_adapter,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
+            safe_message = (
+                "metadata_calls="
+                f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
+                f"read_track_calls={read_calls}"
+            )
+            if diagnostic is not None:
+                safe_message = f"{safe_message} directory_diagnostic={diagnostic}"
             logger.emit(
                 level="ERROR",
                 event="smoke.target.failed",
@@ -157,11 +173,7 @@ class PublicSubtitleSmoke:
                 video_id=video_id,
                 error_code=_error_code(error),
                 duration_ms=int((time.monotonic() - started) * 1000),
-                safe_message=(
-                    "metadata_calls="
-                    f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
-                    f"read_track_calls={read_calls}"
-                ),
+                safe_message=safe_message,
             )
             return False
 
@@ -213,6 +225,28 @@ def _error_code(error: Exception) -> str:
     if isinstance(app_error, AppError):
         return app_error.code.value
     return ErrorCode.PROVIDER_UNAVAILABLE.value
+
+
+def _directory_diagnostic(
+    error: Exception,
+    *,
+    subtitle_adapter: _SubtitleAdapter,
+    enumerate_calls: int,
+    read_calls: int,
+) -> str | None:
+    if (
+        enumerate_calls != 1
+        or read_calls != 0
+        or _error_code(error) != ErrorCode.INVALID_RESPONSE.value
+    ):
+        return None
+    call = getattr(subtitle_adapter, "last_call", None)
+    diagnostics = getattr(call, "diagnostics", ())
+    for diagnostic in diagnostics:
+        code = getattr(diagnostic, "code", None)
+        if isinstance(code, str) and code in DIRECTORY_DIAGNOSTIC_CODES:
+            return code
+    return "directory_unknown_invalid_response"
 
 
 __all__ = ["PublicSubtitleSmoke"]

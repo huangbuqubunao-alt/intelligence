@@ -40,7 +40,10 @@ from youtube_intel.domain import (
     VideoMetadata,
 )
 from youtube_intel.providers import subtitles as subtitles_mod
-from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
+from youtube_intel.providers.subtitles import (
+    DIRECTORY_DIAGNOSTIC_CODES,
+    YtDlpSubtitleAdapter,
+)
 from youtube_intel.state import (
     JobType,
     ProviderCallRecord,
@@ -291,6 +294,75 @@ def _url_with_length(length: int) -> str:
     prefix = "https://www.youtube.com/api/timedtext?"
     assert length >= len(prefix)
     return prefix + ("q" * (length - len(prefix)))
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "diagnostic"),
+    [
+        ("directory_identity", "directory_identity"),
+        ("directory_bucket_shape", "directory_bucket_shape"),
+        ("directory_track_shape", "directory_track_shape"),
+        ("directory_track_format", "directory_track_format"),
+        ("directory_track_url", "directory_track_url"),
+        ("directory_track_name", "directory_track_name"),
+        ("directory_no_supported_format", "directory_no_supported_format"),
+    ],
+)
+def test_directory_invalid_response_has_only_a_fixed_diagnostic_code(
+    fixture_name: str,
+    diagnostic: str,
+) -> None:
+    payload = _load_json("directory_diagnostics.json")[fixture_name]
+    adapter, _ = _adapter_for_info(payload)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert adapter.last_call is not None
+    assert adapter.last_call.diagnostics[0].code == diagnostic
+    assert adapter.last_call.diagnostics[0].code in DIRECTORY_DIAGNOSTIC_CODES
+    assert "127.0.0.1" not in adapter.last_call.diagnostics[0].message
+
+
+def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_codes() -> None:
+    extractor, _ = _adapter_for_info(DownloadError("extract failed with token=private"))
+    unknown, _ = _adapter_for_info(
+        TranscriptError(
+            AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message="private directory payload",
+                retryable=False,
+                video_id="video123",
+                stage=ProcessingStage.TRANSCRIPT,
+            )
+        )
+    )
+
+    for adapter, diagnostic in (
+        (extractor, "directory_extractor_parse"),
+        (unknown, "directory_unknown_invalid_response"),
+    ):
+        with pytest.raises(TranscriptError) as exc_info:
+            adapter.enumerate_tracks("video123")
+
+        assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+        assert adapter.last_call is not None
+        assert adapter.last_call.diagnostics[0].code == diagnostic
+        assert adapter.last_call.diagnostics[0].message not in {
+            "extract failed with token=private",
+            "private directory payload",
+        }
+
+
+def test_directory_compatible_empty_buckets_remain_valid() -> None:
+    payload = _load_json("directory_diagnostics.json")["directory_compatible_empty_buckets"]
+    adapter, _ = _adapter_for_info(payload)
+
+    listing = adapter.enumerate_tracks("video123")
+
+    assert listing.tracks == ()
+    assert listing.call.diagnostics == ()
 
 
 def test_directory_rejects_unsupported_only_but_keeps_supported_mixed_tracks() -> None:

@@ -1,0 +1,42 @@
+{
+  "directory_identity": {
+    "id": "different-video",
+    "subtitles": {},
+    "automatic_captions": {}
+  },
+  "directory_bucket_shape": {
+    "id": "video123",
+    "subtitles": {"en": "not-a-list"},
+    "automatic_captions": {}
+  },
+  "directory_track_shape": {
+    "id": "video123",
+    "subtitles": {"en": ["not-a-track"]},
+    "automatic_captions": {}
+  },
+  "directory_track_format": {
+    "id": "video123",
+    "subtitles": {"en": [{"ext": "", "name": "English", "url": "https://www.youtube.com/api/timedtext"}]},
+    "automatic_captions": {}
+  },
+  "directory_track_url": {
+    "id": "video123",
+    "subtitles": {"en": [{"ext": "json3", "name": "English", "url": "http://127.0.0.1/private"}]},
+    "automatic_captions": {}
+  },
+  "directory_track_name": {
+    "id": "video123",
+    "subtitles": {"en": [{"ext": "json3", "name": {"runs": "not-a-run-list"}, "url": "https://www.youtube.com/api/timedtext"}]},
+    "automatic_captions": {}
+  },
+  "directory_no_supported_format": {
+    "id": "video123",
+    "subtitles": {"en": [{"ext": "ttml", "name": "English", "url": "https://www.youtube.com/api/timedtext"}]},
+    "automatic_captions": {}
+  },
+  "directory_compatible_empty_buckets": {
+    "id": "video123",
+    "subtitles": {"en": []},
+    "automatic_captions": {"zh": []}
+  }
+}

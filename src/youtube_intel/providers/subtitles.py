@@ -49,6 +49,20 @@ _MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
 _MAX_LANGUAGE_CODE_POINTS: Final = 128
 _MAX_EXTENSION_CODE_POINTS: Final = 32
 _MAX_TRACK_URL_CODE_POINTS: Final = 8_192
+DIRECTORY_DIAGNOSTIC_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "directory_extractor_parse",
+        "directory_identity",
+        "directory_bucket_shape",
+        "directory_track_shape",
+        "directory_track_format",
+        "directory_track_url",
+        "directory_track_name",
+        "directory_no_supported_format",
+        "directory_unknown_invalid_response",
+    }
+)
+_DIRECTORY_UNKNOWN_DIAGNOSTIC: Final = "directory_unknown_invalid_response"
 
 _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
@@ -115,6 +129,29 @@ def _error(
             video_id=video_id,
             stage=ProcessingStage.TRANSCRIPT,
         )
+    )
+
+
+class _DirectoryInvalidResponse(TranscriptError):
+    def __init__(self, error: AppError, *, diagnostic: str) -> None:
+        self.diagnostic = diagnostic
+        super().__init__(error)
+
+
+def _directory_error(
+    diagnostic: str,
+    message: str,
+    *,
+    video_id: str,
+) -> _DirectoryInvalidResponse:
+    return _DirectoryInvalidResponse(
+        _error(
+            ErrorCode.INVALID_RESPONSE,
+            message,
+            retryable=False,
+            video_id=video_id,
+        ).error,
+        diagnostic=diagnostic,
     )
 
 
@@ -386,10 +423,9 @@ def _map_directory(
     if payload is None:
         return _MappedDirectory((), start_position, start_bucket_count)
     if not isinstance(payload, Mapping):
-        raise _error(
-            ErrorCode.INVALID_RESPONSE,
+        raise _directory_error(
+            "directory_bucket_shape",
             "subtitle track directory payload is malformed",
-            retryable=False,
             video_id=video_id,
         )
     tracks: list[SubtitleTrack] = []
@@ -400,10 +436,9 @@ def _map_directory(
         for raw_language, raw_entries in payload.items():
             bucket_count += 1
             if bucket_count > _MAX_TRACK_COUNT:
-                raise _error(
-                    ErrorCode.INVALID_RESPONSE,
+                raise _directory_error(
+                    "directory_bucket_shape",
                     "subtitle track directory exceeds its language bucket limit",
-                    retryable=False,
                     video_id=video_id,
                 )
             if (
@@ -415,27 +450,24 @@ def _map_directory(
                 is None
                 or not isinstance(raw_entries, list)
             ):
-                raise _error(
-                    ErrorCode.INVALID_RESPONSE,
+                raise _directory_error(
+                    "directory_bucket_shape",
                     "subtitle track directory payload is malformed",
-                    retryable=False,
                     video_id=video_id,
                 )
             for raw_entry in raw_entries:
                 if position >= _MAX_TRACK_COUNT:
-                    raise _error(
-                        ErrorCode.INVALID_RESPONSE,
+                    raise _directory_error(
+                        _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                         "subtitle track directory exceeds its track limit",
-                        retryable=False,
                         video_id=video_id,
                     )
                 current_position = position
                 position += 1
                 if not isinstance(raw_entry, Mapping):
-                    raise _error(
-                        ErrorCode.INVALID_RESPONSE,
+                    raise _directory_error(
+                        "directory_track_shape",
                         "subtitle track payload is malformed",
-                        retryable=False,
                         video_id=video_id,
                     )
                 raw_extension = raw_entry.get("ext")
@@ -445,10 +477,9 @@ def _map_directory(
                     or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
                     or raw_extension.strip() != raw_extension
                 ):
-                    raise _error(
-                        ErrorCode.INVALID_RESPONSE,
+                    raise _directory_error(
+                        "directory_track_format",
                         "subtitle track format is invalid",
-                        retryable=False,
                         video_id=video_id,
                     )
                 raw_url = raw_entry.get("url")
@@ -457,14 +488,27 @@ def _map_directory(
                     or not raw_url
                     or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
                 ):
-                    raise _error(
-                        ErrorCode.INVALID_RESPONSE,
+                    raise _directory_error(
+                        "directory_track_url",
                         "subtitle track URL is invalid",
-                        retryable=False,
                         video_id=video_id,
                     )
-                _validate_track_url(raw_url, video_id=video_id)
-                name = _track_name(raw_entry.get("name"), video_id=video_id)
+                try:
+                    _validate_track_url(raw_url, video_id=video_id)
+                except TranscriptError as exc:
+                    raise _directory_error(
+                        "directory_track_url",
+                        "subtitle track URL is invalid",
+                        video_id=video_id,
+                    ) from exc
+                try:
+                    name = _track_name(raw_entry.get("name"), video_id=video_id)
+                except TranscriptError as exc:
+                    raise _directory_error(
+                        "directory_track_name",
+                        "subtitle track name is invalid",
+                        video_id=video_id,
+                    ) from exc
                 source_format = _format_from_extension(raw_extension)
                 if source_format is None:
                     continue
@@ -478,15 +522,16 @@ def _map_directory(
                         provider_position=current_position,
                     )
                 )
+    except _DirectoryInvalidResponse:
+        raise
     except TranscriptError:
         raise
     except Exception:
         iteration_failed = True
     if iteration_failed:
-        raise _error(
-            ErrorCode.INVALID_RESPONSE,
+        raise _directory_error(
+            "directory_bucket_shape",
             "subtitle track directory payload is malformed",
-            retryable=False,
             video_id=video_id,
         )
     return _MappedDirectory(tuple(tracks), position, bucket_count)
@@ -647,10 +692,26 @@ class YtDlpSubtitleAdapter:
                 subject="subtitle track directory",
                 video_id=video_id,
             )
-            self.last_call = _call(started, self._clock(), diagnostic="directory_error")
+            self.last_call = _call(
+                started,
+                self._clock(),
+                diagnostic=(
+                    _DIRECTORY_UNKNOWN_DIAGNOSTIC
+                    if failure.error.code is ErrorCode.INVALID_RESPONSE
+                    else "directory_error"
+                ),
+            )
         except (DownloadError, ExtractorError) as exc:
-            self.last_call = _call(started, self._clock(), diagnostic="directory_error")
             failure = _map_directory_error(exc, video_id=video_id)
+            self.last_call = _call(
+                started,
+                self._clock(),
+                diagnostic=(
+                    "directory_extractor_parse"
+                    if failure.error.code is ErrorCode.INVALID_RESPONSE
+                    else "directory_error"
+                ),
+            )
         except (TimeoutError, socket.timeout):
             self.last_call = _call(started, self._clock(), diagnostic="directory_timeout")
             failure = _error(
@@ -676,34 +737,46 @@ class YtDlpSubtitleAdapter:
         finished = self._clock()
         self.last_call = _call(started, finished)
         if not isinstance(payload, Mapping) or payload.get("id") != video_id:
-            raise _error(
-                ErrorCode.INVALID_RESPONSE,
+            failure = _directory_error(
+                "directory_identity",
                 "subtitle track directory identity is invalid",
-                retryable=False,
                 video_id=video_id,
             )
-        manual = _map_directory(
-            payload.get("subtitles"),
-            source_type=TranscriptSourceType.MANUAL_SUBTITLE,
-            start_position=0,
-            start_bucket_count=0,
-            video_id=video_id,
-        )
-        automatic = _map_directory(
-            payload.get("automatic_captions"),
-            source_type=TranscriptSourceType.AUTO_SUBTITLE,
-            start_position=manual.next_position,
-            start_bucket_count=manual.bucket_count,
-            video_id=video_id,
-        )
-        tracks = (*manual.tracks, *automatic.tracks)
-        if automatic.next_position > 0 and not tracks:
-            raise _error(
-                ErrorCode.INVALID_RESPONSE,
-                "subtitle track directory has no supported formats",
-                retryable=False,
+            self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
+            raise failure
+        try:
+            manual = _map_directory(
+                payload.get("subtitles"),
+                source_type=TranscriptSourceType.MANUAL_SUBTITLE,
+                start_position=0,
+                start_bucket_count=0,
                 video_id=video_id,
             )
+            automatic = _map_directory(
+                payload.get("automatic_captions"),
+                source_type=TranscriptSourceType.AUTO_SUBTITLE,
+                start_position=manual.next_position,
+                start_bucket_count=manual.bucket_count,
+                video_id=video_id,
+            )
+            tracks = (*manual.tracks, *automatic.tracks)
+            if automatic.next_position > 0 and not tracks:
+                raise _directory_error(
+                    "directory_no_supported_format",
+                    "subtitle track directory has no supported formats",
+                    video_id=video_id,
+                )
+        except _DirectoryInvalidResponse as exc:
+            self.last_call = _call(started, self._clock(), diagnostic=exc.diagnostic)
+            raise
+        except TranscriptError as exc:
+            if exc.error.code is ErrorCode.INVALID_RESPONSE:
+                self.last_call = _call(
+                    started,
+                    self._clock(),
+                    diagnostic=_DIRECTORY_UNKNOWN_DIAGNOSTIC,
+                )
+            raise
         return SubtitleTrackListing(
             tracks=tracks,
             call=self.last_call,
@@ -921,4 +994,4 @@ def _bind_test_hooks(
         adapter._opts_sink = opts_sink
 
 
-__all__ = ["YtDlpSubtitleAdapter"]
+__all__ = ["DIRECTORY_DIAGNOSTIC_CODES", "YtDlpSubtitleAdapter"]
