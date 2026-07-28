@@ -1,7 +1,7 @@
 # TASK-014B5：安全 smoke 摘要输出
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Status: `DONE`
+- Assignee: `已由 Codex Product Integrator 整合并关闭；source 保留`
 - Reviewer: `独立 Codex Reviewer（APPROVE；P0--P3=0）`
 - 依赖：TASK-014B0 `DONE`、TASK-014B3 `DONE`、TASK-014B4 `DONE`
 - 实施基线：`main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`
@@ -10,6 +10,9 @@
 - 已接受 source / Reviewer evidence：`72322e213c0aae604b53ec4addae98031885ed0f`（唯一父
   `ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1`；后者唯一父为
   `b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`）
+- 整合：`41e9793ba28fe88bbdc96e33172fd4236d312570`（双父顺序：
+  `ca2ad4a74aadbc02fb87430dee50a8956f266125`、
+  `72322e213c0aae604b53ec4addae98031885ed0f`）
 - Reuse decision：`DIRECT` — 既有受限 CLI、`PublicSubtitleSmoke`、固定安全错误码、ADR-015
   `directory_diagnostic`、JsonlLogger 和离线 Fake/integration 基础设施；不新增依赖或复制第三方代码。
 
@@ -47,11 +50,12 @@
   完整产品 Diff `b1ea7a66…...ce4b472…` 严格为
   `src/youtube_intel/public_subtitle_smoke.py`、`tests/integration/test_public_subtitle_smoke.py` 与
   `handoffs/TASK-014.md`，属于上述五条允许路径。
-- 后续唯一授权的 Product Integrator 只能在干净 main 对 accepted source 执行
-  `git merge --no-ff 72322e213c0aae604b53ec4addae98031885ed0f`；不得修复、修改 source、重写历史或执行任何其他
-  产品命令。整合后才可运行授权的离线 Fake 测试、mypy、Ruff、CLI help、离线 build、范围与 stdout/stderr/JSONL
-  泄漏扫描。
-- 不得预写 `DONE`、真实 smoke 成功、真实服务验证或发行批准。TASK-014 始终为 `IN_PROGRESS / No-Go`。
+- accepted source 已由 `git merge --no-ff 72322e…` 整合为 `41e9793…`；accepted source 是 merge 祖先，first-parent
+  Diff 严格为 `handoffs/TASK-014.md`、`src/youtube_intel/public_subtitle_smoke.py` 与
+  `tests/integration/test_public_subtitle_smoke.py`。source 保持干净并保留。
+- 既有整合后证据：离线 `uv lock --check` / `uv sync --locked --offline` / `uv lock --check`、Fake/integration
+  `19 passed`、mypy、Ruff、CLI help、离线 build、范围及 stdout/stderr/JSONL 泄漏扫描均通过。
+- B5 `DONE` 不表示真实 B-1 成功、真实服务验证、发行批准或最终 Go；TASK-014 始终为 `IN_PROGRESS / No-Go`。
 
 ## 验收与离线检查
 
