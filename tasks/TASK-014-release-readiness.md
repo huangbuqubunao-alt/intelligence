@@ -43,7 +43,7 @@
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution` /
   `codex/task-014-phase-b1-directory-only-execution@1f5a1109fc306af9f3743da64c7268ca3b8111e0` 仅保留旧的可观测性不足
   evidence；不重跑、不修改、不合并或复用。
-- 唯一新的、一次性 auditable execution source 为
+- 历史一次性 auditable execution source 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution`；分支
   `codex/task-014-phase-b1-directory-only-auditable-execution`，固定 HEAD
   `58f0215aa329b99d74429e8616bb5f8f673ef102`，必须保持干净。唯一正式执行包为
@@ -51,7 +51,7 @@
   不启动 Executor。
 - 最终真实 smoke 已完成并 `FAIL`：固定 `--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，但均在正文读取前
   `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。该 evidence 不合并、不写成通过。所有历史 Retry
-  Executor 包均已废止，不能作为执行 source 或启动依据；只有上述 directory-only source 获得一次性授权。
+  Executor 包均已废止，不能作为执行 source 或启动依据；上述 source 的一次性调用已结束，不能重跑或复用。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
   合并、cherry-pick 或复用其 blocker evidence `be230490...`。
 - 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
@@ -73,7 +73,15 @@
   `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。最终 evidence
   `9acab5d876b38d64a9aeab7aca3474be2676ce38` 记录真实 smoke `FAIL`：两个 ID 各一次元数据/字幕目录读取后均
   `INVALID_RESPONSE`，正文均未读；该 evidence 只证明目录响应映射前的失败。离线 Scout、B3 脱敏目录诊断与 B4
-  离线实现已完成；唯一后续真实资源动作仅为上述 directory-only 一次性授权，不放宽任何安全边界。
+  离线实现已完成；该历史授权已结束，后续真实资源动作仅以本任务卡下方的 B6-classified 一次性正式包为准，不放宽任何安全边界。
+- B4/B5/B6 全部整合后，唯一新的 B-1 真实资源动作是 B6-classified directory-only 一次性执行：固定控制面基线为
+  `main@756e7e4f5313b7d077bdca8e1154a13cc4db2e57`；唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution`，分支
+  `codex/task-014-phase-b1-directory-only-b6-execution`，固定 HEAD `756e7e4…`，必须保持干净。正式包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B6-EXECUTION-CODEX.md`；本控制面仅授权，不启动 Executor。
+  它只允许已整合的 `smoke-public-subtitles --directory-only` 对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次，并只将 B5 安全摘要与
+  ADR-017 七类固定无值结构诊断写入 B6 evidence、release checklist 和 TASK-014 handoff。成功条件为两目标均 `1/1/0`、退出码 `0`、
+  无泄漏；任一结果都保持 TASK-014 `IN_PROGRESS / No-Go`，不等于真实服务普遍兼容、发行批准或最终 Go。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
