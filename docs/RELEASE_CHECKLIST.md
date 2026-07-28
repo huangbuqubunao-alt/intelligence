@@ -48,6 +48,12 @@
 - The one permitted `youtube-intel smoke-public-subtitles` invocation for `--khbXchTeE` and `JTxsNm9IdYU` stopped with shell exit `127` because `youtube-intel` was unavailable on PATH. Neither ID reached the product entry; each has zero metadata, subtitle-directory, and subtitle-body reads. No alternate path or retry was attempted.
 - Evidence: [TASK-014 Phase B-1 retry evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md). This is a `BLOCKED` execution record, not B-1 success, release approval, or a change to the standing `NO-GO` gates.
 
+### TASK-014 Phase B-1 final venv console-path retry — 2026-07-28
+
+- The specified source `3c3dd4a…` was clean and had required sole parent `49869c6…`. The only permitted absolute venv launcher existed, was executable, and statically mapped to `youtube_intel.cli.main`; no UV action, PATH change, venv activation, module entry, bare command, or alternate entry was used.
+- The one permitted absolute launcher invocation used the fixed two IDs and a new empty temporary root. That root remained uninitialized afterwards (no SQLite, DATA, test-Vault, log, or JSONL files), so neither ID reached an Adapter and each has zero metadata, subtitle-directory, and subtitle-body reads. No stdout/stderr was emitted, and the numeric exit status was not retained in the command transcript; this must not be read as success.
+- The one-attempt allowance is exhausted. This is `BLOCKED` evidence only; it does not change B-1, the standing `NO-GO`, release approval, or any remaining legal/privacy/reliability gate. Details: [final B-1 evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md).
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

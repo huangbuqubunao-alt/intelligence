@@ -198,3 +198,27 @@
 - Suggested status: `IN_REVIEW — BLOCKED execution evidence`; this is not B-1 success and does not alter TASK-014 `IN_PROGRESS / NO-GO`.
 - Commit SHA: pending evidence-only commit.
 - Remaining risk / decision: the PATH-unavailable console entry prevented any real-resource verification. A future attempt requires an explicit new authorization; this executor must not rerun under a different executable path. Existing release gates for `mutagen`, BPE NOTICE/attribution, real Vault, at-most-once risk, and PO/TL/QA sign-off remain blocked.
+
+## Phase B-1 final venv console-path retry evidence — 2026-07-28
+
+### Fixed source and launcher verification
+
+- Role: `Codex venv Console-path Smoke Retry Executor`.
+- Source: `codex/task-014-phase-b1-console-entry-retry@3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`; required sole parent `49869c6ff2bbc53673c6a35071c5f1407c269cba`; source worktree was clean before execution.
+- Reuse decision: `DIRECT` — the locked project venv, existing console entry, integrated smoke composition, and yt-dlp Adapter. No dependency, lockfile, source/test/configuration, Schema/migration, task-status, LICENSE, or third-party-code change was made.
+- Read-only launcher check passed: `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel` exists and is executable. Its static launcher imports `main` from `youtube_intel.cli` and calls `sys.exit(main())`; this maps the existing `youtube_intel.cli:main` entry without calling help or any alternate entry.
+- Explicitly not run: `uv`, install/download/lock action, PATH modification, venv activation, bare console command, module entry, help, or any other product command.
+
+### One authorized invocation and observed result
+
+- A new empty temporary root was created; its absolute path and contents are not committed.
+- Exactly once, in the required order: `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles --temporary-root <new-empty-temporary-root> --video-id=--khbXchTeE --video-id=JTxsNm9IdYU`.
+- Observed outcome: no stdout/stderr, and the same temporary root was empty at evidence capture—no SQLite, DATA, test-Vault, log, or JSONL artifact. Therefore the smoke runner did not initialize and neither ID reached metadata, subtitle-directory, or subtitle-body Adapter calls (all counts zero). The numerical exit status was not retained in the command transcript, so this evidence makes no success inference.
+- Stopping condition: this was the final, sole authorized console-path attempt. No retry, loop, target substitution, alternative executable, PATH change, secondary product command, or new temporary root was used.
+
+### Red lines, conclusion, and remaining risk
+
+- No login/Cookie/browser profile/API key/`.env`/Keychain/credential, real Vault or user data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid call, launchd, payload, subtitle body, URL, or other prohibited resource was accessed or used.
+- Actual modified scope remains the three permitted evidence paths only: the smoke evidence, release checklist append, and this handoff.
+- Suggested status: `IN_REVIEW — BLOCKED final B-1 execution evidence`. This is not B-1 success, release approval, legal/NOTICE conclusion, real-Vault closure, at-most-once risk acceptance, or a TASK-014 status change.
+- Commit SHA: pending evidence-only commit. A future execution would require a new explicit authorization; this executor must not rerun.

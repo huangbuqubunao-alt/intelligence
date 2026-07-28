@@ -39,3 +39,24 @@ The shell returned `command not found: youtube-intel` with exit status `127`. Th
 ## Follow-up boundary
 
 Any future smoke requires a new explicit authorization package and a new one-attempt allocation. This executor must not rerun the smoke under a different command path.
+
+## Final venv console-path retry — 2026-07-28
+
+- Authorization source: `codex/task-014-phase-b1-console-entry-retry@3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`, whose sole parent is `49869c6ff2bbc53673c6a35071c5f1407c269cba`; the worktree was clean before this attempt.
+- Launcher verification: PASS. The only permitted absolute launcher existed, was executable, and its static contents import `main` from `youtube_intel.cli`, then call `sys.exit(main())`. No `--help`, module entry, bare command, PATH change, venv activation, `uv`, installation, download, or alternate entry was used.
+- At `2026-07-28T06:11:20Z` evidence capture, the one new temporary root from the one permitted invocation existed but was empty: no SQLite, DATA, test-Vault, log, or JSONL artifact was initialized. The invocation emitted no stdout/stderr. Its numeric exit status was not retained in the command transcript; this record therefore does not infer success from the lack of output.
+
+The absolute launcher was invoked exactly once with the fixed order and IDs:
+
+```text
+/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles --temporary-root <new-empty-temporary-root> --video-id=--khbXchTeE --video-id=JTxsNm9IdYU
+```
+
+| Fixed video ID | Actually reached smoke Adapter | Metadata reads | Subtitle-directory reads | Subtitle-body reads | Result / stop condition |
+|---|---:|---:|---:|---:|---|
+| `--khbXchTeE` | No | 0 | 0 | 0 | The new root remained uninitialized after the sole console-path invocation. |
+| `JTxsNm9IdYU` | No | 0 | 0 | 0 | The new root remained uninitialized after the sole console-path invocation. |
+
+- Result: `BLOCKED — the sole permitted absolute console-path invocation did not initialize the smoke runner; no public-resource call is evidenced.` No retry, substitution, secondary command, PATH change, or temporary-root replacement occurred.
+- Not accessed or used: login, Cookie, browser profile, API key, `.env`, Keychain, credential, real Vault, user data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid call, launchd, metadata payload, subtitle-directory payload, subtitle body, or temporary URL.
+- This final retry is not B-1 success, release approval, a `mutagen` GPL decision, BPE attribution/NOTICE conclusion, real-Vault-boundary closure, at-most-once risk acceptance, or a PO/TL/QA Go/No-Go.
