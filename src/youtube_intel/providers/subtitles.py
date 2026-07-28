@@ -9,6 +9,7 @@ import urllib.request
 from collections.abc import Callable, Mapping, MutableSequence, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum, auto
 from http.client import HTTPMessage
 from io import StringIO
 from typing import IO, Any, Final, Protocol
@@ -79,6 +80,44 @@ DIRECTORY_FINGERPRINT_CODES: Final[frozenset[str]] = frozenset(
     }
 )
 _DIRECTORY_UNKNOWN_DIAGNOSTIC: Final = "directory_shape_unknown"
+
+
+class _DirectoryStructureState(Enum):
+    TOP_LEVEL_NOT_MAPPING = auto()
+    SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING = auto()
+    LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE = auto()
+    TRACK_ENTRY_NOT_MAPPING = auto()
+    REQUIRED_FIELD_MISSING = auto()
+    UNKNOWN = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectoryOriginFingerprint:
+    origin: str
+    fingerprint: str
+
+
+def _classify_directory_structure(
+    state: _DirectoryStructureState,
+) -> _DirectoryOriginFingerprint:
+    if not isinstance(state, _DirectoryStructureState):
+        raise TypeError("directory structure state is invalid")
+    if state is _DirectoryStructureState.TOP_LEVEL_NOT_MAPPING:
+        fingerprint = "directory_fingerprint_top_level_not_mapping"
+    elif state is _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING:
+        fingerprint = "directory_fingerprint_subtitle_bucket_missing_or_not_mapping"
+    elif state is _DirectoryStructureState.LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE:
+        fingerprint = "directory_fingerprint_language_bucket_missing_or_not_sequence"
+    elif state is _DirectoryStructureState.TRACK_ENTRY_NOT_MAPPING:
+        fingerprint = "directory_fingerprint_track_entry_not_mapping"
+    elif state is _DirectoryStructureState.REQUIRED_FIELD_MISSING:
+        fingerprint = "directory_fingerprint_required_field_missing"
+    else:
+        fingerprint = "directory_fingerprint_unknown"
+    return _DirectoryOriginFingerprint(
+        origin="directory_origin_mapping",
+        fingerprint=fingerprint,
+    )
 
 _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
@@ -181,6 +220,23 @@ def _directory_error(
         diagnostic=diagnostic,
         origin=origin,
         fingerprint=fingerprint,
+    )
+
+
+def _directory_structure_error(
+    state: _DirectoryStructureState,
+    diagnostic: str,
+    message: str,
+    *,
+    video_id: str,
+) -> _DirectoryInvalidResponse:
+    classification = _classify_directory_structure(state)
+    return _directory_error(
+        diagnostic,
+        message,
+        video_id=video_id,
+        origin=classification.origin,
+        fingerprint=classification.fingerprint,
     )
 
 
@@ -450,25 +506,25 @@ def _map_directory(
     video_id: str,
 ) -> _MappedDirectory:
     if payload is None:
-        raise _directory_error(
+        raise _directory_structure_error(
+            _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
             "directory_shape_missing",
             "subtitle track directory payload is missing",
             video_id=video_id,
-            fingerprint="directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
         )
     if isinstance(payload, list) and not payload:
-        raise _directory_error(
+        raise _directory_structure_error(
+            _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
             "directory_shape_empty_list",
             "subtitle track directory payload is an empty list",
             video_id=video_id,
-            fingerprint="directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
         )
     if not isinstance(payload, Mapping):
-        raise _directory_error(
+        raise _directory_structure_error(
+            _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
             "directory_shape_not_object",
             "subtitle track directory payload is malformed",
             video_id=video_id,
-            fingerprint="directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
         )
     tracks: list[SubtitleTrack] = []
     position = start_position
@@ -478,7 +534,8 @@ def _map_directory(
         for raw_language, raw_entries in payload.items():
             bucket_count += 1
             if bucket_count > _MAX_TRACK_COUNT:
-                raise _directory_error(
+                raise _directory_structure_error(
+                    _DirectoryStructureState.UNKNOWN,
                     _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                     "subtitle track directory exceeds its language bucket limit",
                     video_id=video_id,
@@ -491,21 +548,23 @@ def _map_directory(
                 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", raw_language)
                 is None
             ):
-                raise _directory_error(
+                raise _directory_structure_error(
+                    _DirectoryStructureState.UNKNOWN,
                     _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                     "subtitle track directory payload is malformed",
                     video_id=video_id,
                 )
             if not isinstance(raw_entries, list):
-                raise _directory_error(
+                raise _directory_structure_error(
+                    _DirectoryStructureState.LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE,
                     "directory_shape_not_list",
                     "subtitle track directory entries are malformed",
                     video_id=video_id,
-                    fingerprint="directory_fingerprint_language_bucket_missing_or_not_sequence",
                 )
             for raw_entry in raw_entries:
                 if position >= _MAX_TRACK_COUNT:
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
                         _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                         "subtitle track directory exceeds its track limit",
                         video_id=video_id,
@@ -513,18 +572,18 @@ def _map_directory(
                 current_position = position
                 position += 1
                 if not isinstance(raw_entry, Mapping):
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.TRACK_ENTRY_NOT_MAPPING,
                         "directory_shape_unsupported_entry",
                         "subtitle track payload is malformed",
                         video_id=video_id,
-                        fingerprint="directory_fingerprint_track_entry_not_mapping",
                     )
                 if "ext" not in raw_entry or "url" not in raw_entry:
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.REQUIRED_FIELD_MISSING,
                         "directory_shape_unsupported_entry",
                         "subtitle track payload is malformed",
                         video_id=video_id,
-                        fingerprint="directory_fingerprint_required_field_missing",
                     )
                 raw_extension = raw_entry.get("ext")
                 if (
@@ -533,7 +592,8 @@ def _map_directory(
                     or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
                     or raw_extension.strip() != raw_extension
                 ):
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track format is invalid",
                         video_id=video_id,
@@ -544,7 +604,8 @@ def _map_directory(
                     or not raw_url
                     or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
                 ):
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track URL is invalid",
                         video_id=video_id,
@@ -552,7 +613,8 @@ def _map_directory(
                 try:
                     _validate_track_url(raw_url, video_id=video_id)
                 except TranscriptError as exc:
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track URL is invalid",
                         video_id=video_id,
@@ -560,7 +622,8 @@ def _map_directory(
                 try:
                     name = _track_name(raw_entry.get("name"), video_id=video_id)
                 except TranscriptError as exc:
-                    raise _directory_error(
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track name is invalid",
                         video_id=video_id,
@@ -585,7 +648,8 @@ def _map_directory(
     except Exception:
         iteration_failed = True
     if iteration_failed:
-        raise _directory_error(
+        raise _directory_structure_error(
+            _DirectoryStructureState.UNKNOWN,
             _DIRECTORY_UNKNOWN_DIAGNOSTIC,
             "subtitle track directory payload is malformed",
             video_id=video_id,
@@ -806,16 +870,17 @@ class YtDlpSubtitleAdapter:
         finished = self._clock()
         self.last_call = _call(started, finished)
         if not isinstance(payload, Mapping):
-            failure = _directory_error(
+            failure = _directory_structure_error(
+                _DirectoryStructureState.TOP_LEVEL_NOT_MAPPING,
                 "directory_shape_not_object",
                 "subtitle track directory payload is malformed",
                 video_id=video_id,
-                fingerprint="directory_fingerprint_top_level_not_mapping",
             )
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
         if payload.get("id") != video_id:
-            failure = _directory_error(
+            failure = _directory_structure_error(
+                _DirectoryStructureState.UNKNOWN,
                 _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                 "subtitle track directory identity is invalid",
                 video_id=video_id,
@@ -823,11 +888,11 @@ class YtDlpSubtitleAdapter:
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
         if "subtitles" not in payload or "automatic_captions" not in payload:
-            failure = _directory_error(
+            failure = _directory_structure_error(
+                _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
                 "directory_shape_missing",
                 "subtitle track directory payload is missing",
                 video_id=video_id,
-                fingerprint="directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
             )
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
@@ -848,7 +913,8 @@ class YtDlpSubtitleAdapter:
             )
             tracks = (*manual.tracks, *automatic.tracks)
             if automatic.next_position > 0 and not tracks:
-                raise _directory_error(
+                raise _directory_structure_error(
+                    _DirectoryStructureState.UNKNOWN,
                     "directory_shape_unsupported_entry",
                     "subtitle track directory has no supported formats",
                     video_id=video_id,

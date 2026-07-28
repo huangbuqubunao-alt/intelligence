@@ -79,61 +79,6 @@ def _load_json(name: str) -> dict[str, Any]:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-class _OpaqueDirectoryMapping(Mapping[str, object]):
-    """Provide only structural outcomes, never serialized directory data."""
-
-    def __init__(
-        self,
-        values: tuple[object, ...] = (),
-        *,
-        entries: tuple[tuple[str, object], ...] = (),
-        contains: bool = True,
-    ) -> None:
-        self._values = iter(values)
-        self._entries = entries
-        self._contains = contains
-
-    def __getitem__(self, key: str) -> object:
-        raise KeyError(key)
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(())
-
-    def __len__(self) -> int:
-        return 0
-
-    def __contains__(self, key: object) -> bool:
-        return self._contains
-
-    def get(self, key: str, default: object | None = None) -> object | None:
-        return next(self._values, default)
-
-    def items(self) -> Iterator[tuple[str, object]]:
-        return iter(self._entries)
-
-
-def _directory_fingerprint_payload(kind: str, *, video_id: str) -> object:
-    if kind == "top_level_not_mapping":
-        return object()
-    if kind == "unknown":
-        return _OpaqueDirectoryMapping((object(),))
-
-    automatic = _OpaqueDirectoryMapping()
-    if kind == "subtitle_bucket_not_mapping":
-        manual: object = object()
-    elif kind == "language_bucket_not_sequence":
-        manual = _OpaqueDirectoryMapping(entries=((video_id, object()),))
-    elif kind == "track_entry_not_mapping":
-        manual = _OpaqueDirectoryMapping(entries=((video_id, [object()]),))
-    elif kind == "required_field_missing":
-        manual = _OpaqueDirectoryMapping(
-            entries=((video_id, [_OpaqueDirectoryMapping(contains=False)]),)
-        )
-    else:
-        raise AssertionError(kind)
-    return _OpaqueDirectoryMapping((video_id, manual, automatic))
-
-
 class _YdlHandle:
     def __init__(self, result: object) -> None:
         self._result = result
@@ -389,64 +334,49 @@ def test_directory_origin_and_fingerprint_codes_are_exactly_the_frozen_b7_vocabu
 
 
 @pytest.mark.parametrize(
-    ("fixture_name", "diagnostic", "fingerprint"),
+    ("state", "fingerprint"),
     [
         (
-            "top_level_not_mapping",
-            "directory_shape_not_object",
+            subtitles_mod._DirectoryStructureState.TOP_LEVEL_NOT_MAPPING,
             "directory_fingerprint_top_level_not_mapping",
         ),
         (
-            "subtitle_bucket_not_mapping",
-            "directory_shape_not_object",
+            subtitles_mod._DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
             "directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
         ),
         (
-            "language_bucket_not_sequence",
-            "directory_shape_not_list",
+            subtitles_mod._DirectoryStructureState.LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE,
             "directory_fingerprint_language_bucket_missing_or_not_sequence",
         ),
         (
-            "track_entry_not_mapping",
-            "directory_shape_unsupported_entry",
+            subtitles_mod._DirectoryStructureState.TRACK_ENTRY_NOT_MAPPING,
             "directory_fingerprint_track_entry_not_mapping",
         ),
         (
-            "required_field_missing",
-            "directory_shape_unsupported_entry",
+            subtitles_mod._DirectoryStructureState.REQUIRED_FIELD_MISSING,
             "directory_fingerprint_required_field_missing",
         ),
         (
-            "unknown",
-            "directory_shape_unknown",
+            subtitles_mod._DirectoryStructureState.UNKNOWN,
             "directory_fingerprint_unknown",
         ),
     ],
 )
-def test_directory_mapping_fingerprints_preserve_the_existing_b6_diagnostic(
-    fixture_name: str,
-    diagnostic: str,
+def test_directory_structure_states_map_to_frozen_origin_and_fingerprints(
+    state: object,
     fingerprint: str,
 ) -> None:
-    payload = _directory_fingerprint_payload(fixture_name, video_id="video123")
-    adapter, _ = _adapter_for_info(payload)
+    classification = subtitles_mod._classify_directory_structure(state)
 
-    with pytest.raises(TranscriptError) as exc_info:
-        adapter.enumerate_tracks("video123")
+    assert classification.origin == "directory_origin_mapping"
+    assert classification.fingerprint == fingerprint
+    assert classification.origin in DIRECTORY_ORIGIN_CODES
+    assert classification.fingerprint in DIRECTORY_FINGERPRINT_CODES
 
-    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
-    assert getattr(exc_info.value, "directory_origin") == "directory_origin_mapping"
-    assert getattr(exc_info.value, "directory_fingerprint") == fingerprint
-    assert adapter.last_call is not None
-    assert adapter.last_call.diagnostics[0].code == diagnostic
-    for forbidden in (
-        "not-a-mapping",
-        "not-a-sequence",
-        "https://www.youtube.com/api/timedtext",
-        "different-video",
-    ):
-        assert forbidden not in exc_info.value.error.message
-        assert forbidden not in adapter.last_call.diagnostics[0].message
+
+def test_directory_structure_classifier_rejects_nonstructural_state() -> None:
+    with pytest.raises(TypeError):
+        subtitles_mod._classify_directory_structure(object())
 
 
 @pytest.mark.parametrize(

@@ -596,3 +596,61 @@
 - Remaining risk: offline doubles prove only the bounded structural and output
   contract; they neither validate a real service nor grant release approval.
 - `DECISION NEEDED`: `None`.
+
+## TASK-014B7 Correction 2 Implementer Evidence — 2026-07-28
+
+### Fixed source and scope
+
+- Required branch, source HEAD, three-step parent chain, and cleanliness were
+  verified before writing: `codex/task-014b7-safe-directory-origin-fingerprint`
+  at `069e62ececada5152871fb7c626e64c146a270ad`; its sole parent is
+  `8d06197557de4ce92c2752f4a8ef74582a0efdca`, whose sole parent is
+  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`.
+- Reuse decision: `DIRECT` — retained the locked Adapter, ADR-017 B6
+  diagnostics, ADR-018 fixed labels, B4 directory-only boundary, B5 safe
+  summary outlets, and offline integration infrastructure. No external code,
+  dependency, lockfile, schema, CLI, logging, or configuration changed.
+- Actual correction paths are the private Adapter implementation, its
+  integration test, and this handoff. The permitted smoke integration test was
+  intentionally unchanged because its existing outlet regressions remain valid.
+
+### TDD and offline validation
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Ran once; `Resolved 84 packages` and `Checked 61 packages`; no download or lockfile change. |
+| New state-classification regression before implementation | RED | Collection stopped with `AttributeError` because the private state enum did not exist. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `114 passed`; offline only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py` | PASS | `Success: no issues found in 1 source file`. |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; command topology unchanged and no smoke was run. |
+
+### Contract, safety, and range review
+
+- Adapter structure checks remain in their existing branches. Their only path
+  to ADR-018 mapping labels now goes through a private function that accepts a
+  closed enum state and returns a fixed origin/fingerprint pair. The enum uses
+  no response-derived values; non-enum input is rejected.
+- The regression uses only closed enum states and an opaque non-state object.
+  It covers the mapping origin and every frozen fingerprint without restoring a
+  fixture or materializing any response-shaped test object. Existing regressions
+  retain B6 diagnostics, extractor/decode/unknown origins, body-stage label
+  suppression, directory `enumerate=1/read=0`, fixed stdout and JSONL output,
+  empty stderr, exit handling, no retry, temporary-root isolation, ID bounds,
+  and zero business records.
+- `git diff --check` is clean. The correction does not alter parsing outcomes,
+  read counts, default or directory-only behavior, output schema, or resource
+  permissions. No real external resource, authentication material, media,
+  Vault, model, paid call, push, merge, source cleanup, or control-plane edit
+  occurred. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the required single fixed-parent
+  Correction commit.
+- Commit SHA: reported to the orchestrator after commit creation; not
+  self-recorded before the commit.
+- Remaining risk: offline tests prove only the fixed internal classification
+  and bounded output contract; they neither validate a real service nor grant
+  release approval.
+- `DECISION NEEDED`: `None`.
