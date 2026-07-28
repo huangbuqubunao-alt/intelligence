@@ -82,11 +82,17 @@
   它只允许已整合的 `smoke-public-subtitles --directory-only` 对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次，并只将 B5 安全摘要与
   ADR-017 七类固定无值结构诊断写入 B6 evidence、release checklist 和 TASK-014 handoff。成功条件为两目标均 `1/1/0`、退出码 `0`、
   无泄漏；任一结果都保持 TASK-014 `IN_PROGRESS / No-Go`，不等于真实服务普遍兼容、发行批准或最终 Go。
-- TASK-014B7「字幕目录安全来源与结构指纹」现由 Codex 在独立 source
-  `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
-  `codex/task-014b7-safe-directory-origin-fingerprint@5b7dcca…` 离线实施。ADR-018 仅允许在目录 `INVALID_RESPONSE`
-  的既有安全出口附加有限、无值 `directory_origin`/`directory_fingerprint`，保持 B6 `directory_diagnostic` 与所有 fail-closed
-  边界不变；不授权真实验证、兼容修复或 B-1 重跑。`17bfe906…` 仅为未合并的只读失败 evidence，不得合并、重写或称为通过。
+- TASK-014B7「字幕目录安全来源与结构指纹」已由 `--no-ff` merge `81ee343…` 整合并关闭为 `DONE`；ADR-018 仅在目录
+  `INVALID_RESPONSE` 的既有安全出口附加有限、无值 `directory_origin`/`directory_fingerprint`，保持 B6
+  `directory_diagnostic` 与所有 fail-closed 边界不变。`17bfe906…` 仍仅为未合并的只读失败 evidence，不得合并、重写或称为通过。
+- 产品负责人现授权一次新的 B-1 B7-classified directory-only 真实公开字幕验证。唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` /
+  `codex/task-014-phase-b1-directory-only-b7-execution@e50597010fcf785bd3cebe5f07f9f366b7eb9736`，必须保持干净；正式包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B7-EXECUTION-CODEX.md`，本控制面不启动 Executor。
+  只可对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次执行整合后的 `smoke-public-subtitles --directory-only`，每个 ID 为
+  metadata=`1`/enumerate=`1`/read=`0`，仅记录 B5 安全摘要及适用的 ADR-017/ADR-018 固定无值分类。离线预配、绝对 launcher、
+  新临时 parent/non-existent `smoke-root`、证据与停止规则以正式包为准。任一结果都保持 TASK-014 `IN_PROGRESS / No-Go`，
+  不构成发行批准或最终 Go。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
