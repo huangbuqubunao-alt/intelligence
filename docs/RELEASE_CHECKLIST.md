@@ -53,3 +53,10 @@
 
 只有四项均为 `GO`、所有 `BLOCKED` 项有可审计的关闭证据、且发布形态与 SBOM/NOTICE
 一致时，才可由主控另行决定发布。否则维持 `NO-GO` 并开立范围明确的后续任务。
+
+## TASK-014 Phase B-1 — auditable directory-only public subtitle smoke
+
+| 项目 | 状态 | 证据与限制 |
+|---|---|---|
+| 单次 directory-only 真实 smoke | EXECUTED (diagnostic) | 固定 invocation 退出码为 `0`；`--khbXchTeE` 与 `JTxsNm9IdYU` 各有唯一安全摘要，均为 `metadata=1`、`enumerate=1`、`read=0`、`INVALID_RESPONSE`、`directory_unknown_invalid_response`。完整证据仅见 `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-PUBLIC-YOUTUBE.md`；未保留原始 stdout/stderr/JSONL 或临时路径。 |
+| 发布结论 | NO-GO | 本次受控诊断不构成普遍兼容性结论、风险接受、发布批准或最终 Go；既有 BLOCKED 项和签署要求不变。 |

@@ -297,3 +297,32 @@
 - TASK-014 remains `IN_PROGRESS / No-Go`. This offline review neither validates
   a real service nor grants release approval, final Go, or any real-resource
   authorization.
+
+## TASK-014 Phase B-1 Auditable Directory-only Smoke Executor — 2026-07-28
+
+### Assignment and boundary
+
+- Role: `Smoke Executor`.
+- Execution baseline and source HEAD: `58f0215aa329b99d74429e8616bb5f8f673ef102`.
+- Control-plane authorization: `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`.
+- Reuse decision: `DIRECT` — used the integrated restricted directory-only smoke, its fixed safe stdout summary, the existing `youtube_intel.cli:main` launcher mapping, and release-evidence documents. No dependency or third-party code changed.
+- Allowed evidence paths changed: this handoff, the dedicated B-1 evidence document, and the appended release-checklist entry only.
+
+### Required execution record
+
+- The required three-step offline preprovision sequence completed once and in order; every step exited `0`. No lockfile change, installation retry, or download was attempted.
+- The required absolute launcher was statically verified as present, executable, and mapped to `youtube_intel.cli:main`; no PATH change, venv activation, help command, module entry, or alternative launcher was used.
+- The sole authorized directory-only invocation exited `0`.
+
+| Public stable target identifier | metadata | enumerate | read | final safe code | directory diagnostic |
+|---|---:|---:|---:|---|---|
+| `--khbXchTeE` | 1 | 1 | 0 | `INVALID_RESPONSE` | `directory_unknown_invalid_response` |
+| `JTxsNm9IdYU` | 1 | 1 | 0 | `INVALID_RESPONSE` | `directory_unknown_invalid_response` |
+
+### Stop point, checks, and remaining status
+
+- Stop point: the single authorized invocation completed. No second smoke, retry, or other product command was run.
+- The table is the complete safe stdout summary. No raw stdout/stderr/JSONL, command text, temporary path, URL, subtitle body, title, language, field value, exception, credential, payload, Cookie, user data, or media data was retained in evidence.
+- No authentication, login, Cookie, Vault, user data, media, ffmpeg, model, Ollama, OpenAI, paid service, launchd, push, merge, rebase, reset, or source cleanup was performed.
+- Diff scope and evidence commit: pending final diff review and the single authorized evidence commit.
+- TASK-014 remains `IN_PROGRESS / No-Go`. This execution is bounded auditable diagnostic evidence, not a release approval, risk acceptance, final Go, or general service-compatibility conclusion.
