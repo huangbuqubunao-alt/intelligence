@@ -108,6 +108,8 @@ class _FakeSubtitleAdapter:
 class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
     last_call: ProviderCallMetadata | None = None
     diagnostic_code: str | None = "directory_shape_unsupported_entry"
+    directory_origin: object | None = "directory_origin_mapping"
+    directory_fingerprint: object | None = "directory_fingerprint_track_entry_not_mapping"
 
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
         self.enumerate_calls.append(video_id)
@@ -126,18 +128,35 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
                 )
             ),
         )
-        raise TranscriptError(
+        error = TranscriptError(
             AppError(
                 code=ErrorCode.INVALID_RESPONSE,
-                message=(
-                    "private URL https://private.invalid/?token=secret "
-                    "title=private-title field=private-value Cookie=private-cookie "
-                    "body=private-body payload=private-payload"
-                ),
+                message=ErrorCode.INVALID_RESPONSE.value,
                 retryable=False,
                 video_id=video_id,
             )
         )
+        if self.directory_origin is not None:
+            error.directory_origin = self.directory_origin
+        error.directory_fingerprint = self.directory_fingerprint
+        raise error
+
+
+@dataclass
+class _InvalidBodySubtitleAdapter(_FakeSubtitleAdapter):
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        self.read_calls.append(track)
+        error = TranscriptError(
+            AppError(
+                code=ErrorCode.INVALID_RESPONSE,
+                message=ErrorCode.INVALID_RESPONSE.value,
+                retryable=False,
+                video_id="video001",
+            )
+        )
+        error.directory_origin = "directory_origin_mapping"
+        error.directory_fingerprint = "directory_fingerprint_track_entry_not_mapping"
+        raise error
 
 
 @dataclass
@@ -474,7 +493,9 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
     )
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
-        "directory_diagnostic=directory_shape_unsupported_entry"
+        "directory_diagnostic=directory_shape_unsupported_entry "
+        "directory_origin=directory_origin_mapping "
+        "directory_fingerprint=directory_fingerprint_track_entry_not_mapping"
     )
     assert set(failed_record) == {
         "timestamp",
@@ -487,18 +508,7 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
         "error_code",
         "duration_ms",
     }
-    for forbidden in (
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "token",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
-        "Title",
-    ):
+    for forbidden in ("message=", "error="):
         assert forbidden not in log_text
 
 
@@ -528,20 +538,12 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
             "read": 0,
             "error_code": "INVALID_RESPONSE",
             "directory_diagnostic": "directory_shape_unsupported_entry",
+            "directory_origin": "directory_origin_mapping",
+            "directory_fingerprint": "directory_fingerprint_track_entry_not_mapping",
         }
     ]
     assert output.err == ""
-    for forbidden in (
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
-        str(root),
-    ):
+    for forbidden in ("message=", "error=", str(root)):
         assert forbidden not in output.out
     records = [
         json.loads(line)
@@ -552,7 +554,9 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
     failed_record = next(record for record in records if record["event"] == "smoke.target.failed")
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
-        "directory_diagnostic=directory_shape_unsupported_entry"
+        "directory_diagnostic=directory_shape_unsupported_entry "
+        "directory_origin=directory_origin_mapping "
+        "directory_fingerprint=directory_fingerprint_track_entry_not_mapping"
     )
 
 
@@ -561,7 +565,11 @@ def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     metadata = _FakeMetadataProvider()
-    subtitles = _InvalidDirectorySubtitleAdapter(diagnostic_code=None)
+    subtitles = _InvalidDirectorySubtitleAdapter(
+        diagnostic_code=None,
+        directory_origin=object(),
+        directory_fingerprint=object(),
+    )
     root = tmp_path / "smoke-root"
 
     exit_code = main(
@@ -582,6 +590,8 @@ def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
             "read": 0,
             "error_code": "INVALID_RESPONSE",
             "directory_diagnostic": "directory_shape_unknown",
+            "directory_origin": "directory_origin_unknown",
+            "directory_fingerprint": "directory_fingerprint_unknown",
         }
     ]
     records = [
@@ -593,21 +603,95 @@ def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
     failed_record = next(record for record in records if record["event"] == "smoke.target.failed")
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
-        "directory_diagnostic=directory_shape_unknown"
+        "directory_diagnostic=directory_shape_unknown "
+        "directory_origin=directory_origin_unknown "
+        "directory_fingerprint=directory_fingerprint_unknown"
     )
     for forbidden in (
         "directory_unknown_invalid_response",
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
+        "message=",
+        "error=",
         str(root),
     ):
         assert forbidden not in output.out
         assert forbidden not in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
             encoding="utf-8"
         )
+
+
+def test_directory_only_can_omit_a_fingerprint_when_only_the_origin_is_safe(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter(
+        directory_origin="directory_origin_extractor",
+        directory_fingerprint=None,
+    )
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "INVALID_RESPONSE",
+            "directory_diagnostic": "directory_shape_unsupported_entry",
+            "directory_origin": "directory_origin_extractor",
+        }
+    ]
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    failed_record = next(
+        json.loads(line)
+        for line in log_text.splitlines()
+        if json.loads(line)["event"] == "smoke.target.failed"
+    )
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
+        "directory_diagnostic=directory_shape_unsupported_entry "
+        "directory_origin=directory_origin_extractor"
+    )
+    assert "directory_fingerprint" not in failed_record["safe_message"]
+
+
+def test_body_invalid_response_never_emits_directory_origin_or_fingerprint(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidBodySubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(_args(root, "video001"), smoke_runner=_smoke(metadata, subtitles))
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert metadata.calls == ["video001"]
+    assert subtitles.enumerate_calls == ["video001"]
+    assert len(subtitles.read_calls) == 1
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 1,
+            "error_code": "INVALID_RESPONSE",
+        }
+    ]
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    failed_record = next(
+        json.loads(line)
+        for line in log_text.splitlines()
+        if json.loads(line)["event"] == "smoke.target.failed"
+    )
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=1"
+    )
+    for forbidden in ("directory_origin", "directory_fingerprint", "message=", "error="):
+        assert forbidden not in log_text

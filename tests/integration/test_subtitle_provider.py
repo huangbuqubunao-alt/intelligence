@@ -42,6 +42,8 @@ from youtube_intel.domain import (
 from youtube_intel.providers import subtitles as subtitles_mod
 from youtube_intel.providers.subtitles import (
     DIRECTORY_DIAGNOSTIC_CODES,
+    DIRECTORY_FINGERPRINT_CODES,
+    DIRECTORY_ORIGIN_CODES,
     YtDlpSubtitleAdapter,
 )
 from youtube_intel.state import (
@@ -310,6 +312,73 @@ def test_directory_diagnostic_codes_are_exactly_the_fixed_b6_classifications() -
     )
 
 
+def test_directory_origin_and_fingerprint_codes_are_exactly_the_frozen_b7_vocabularies() -> None:
+    assert DIRECTORY_ORIGIN_CODES == frozenset(
+        {
+            "directory_origin_extractor",
+            "directory_origin_decode",
+            "directory_origin_mapping",
+            "directory_origin_unknown",
+        }
+    )
+    assert DIRECTORY_FINGERPRINT_CODES == frozenset(
+        {
+            "directory_fingerprint_top_level_not_mapping",
+            "directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
+            "directory_fingerprint_language_bucket_missing_or_not_sequence",
+            "directory_fingerprint_track_entry_not_mapping",
+            "directory_fingerprint_required_field_missing",
+            "directory_fingerprint_unknown",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("state", "fingerprint"),
+    [
+        (
+            subtitles_mod._DirectoryStructureState.TOP_LEVEL_NOT_MAPPING,
+            "directory_fingerprint_top_level_not_mapping",
+        ),
+        (
+            subtitles_mod._DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
+            "directory_fingerprint_subtitle_bucket_missing_or_not_mapping",
+        ),
+        (
+            subtitles_mod._DirectoryStructureState.LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE,
+            "directory_fingerprint_language_bucket_missing_or_not_sequence",
+        ),
+        (
+            subtitles_mod._DirectoryStructureState.TRACK_ENTRY_NOT_MAPPING,
+            "directory_fingerprint_track_entry_not_mapping",
+        ),
+        (
+            subtitles_mod._DirectoryStructureState.REQUIRED_FIELD_MISSING,
+            "directory_fingerprint_required_field_missing",
+        ),
+        (
+            subtitles_mod._DirectoryStructureState.UNKNOWN,
+            "directory_fingerprint_unknown",
+        ),
+    ],
+)
+def test_directory_structure_states_map_to_frozen_origin_and_fingerprints(
+    state: object,
+    fingerprint: str,
+) -> None:
+    classification = subtitles_mod._classify_directory_structure(state)
+
+    assert classification.origin == "directory_origin_mapping"
+    assert classification.fingerprint == fingerprint
+    assert classification.origin in DIRECTORY_ORIGIN_CODES
+    assert classification.fingerprint in DIRECTORY_FINGERPRINT_CODES
+
+
+def test_directory_structure_classifier_rejects_nonstructural_state() -> None:
+    with pytest.raises(TypeError):
+        subtitles_mod._classify_directory_structure(object())
+
+
 @pytest.mark.parametrize(
     ("fixture_name", "diagnostic"),
     [
@@ -367,7 +436,7 @@ def test_directory_shape_invalid_response_has_only_a_fixed_b6_code(
     assert adapter.last_call.diagnostics[0].message == diagnostic.replace("_", " ")
 
 
-def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_b6_codes() -> None:
+def test_directory_extractor_and_decode_invalid_responses_preserve_b6_codes_and_b7_origins() -> None:
     extractor, _ = _adapter_for_info(DownloadError("extract failed with token=private"))
     unknown, _ = _adapter_for_info(
         TranscriptError(
@@ -381,9 +450,19 @@ def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_b6_cod
         )
     )
 
-    for adapter, diagnostic in (
-        (extractor, "directory_extractor_directory_error"),
-        (unknown, "directory_shape_unknown"),
+    for adapter, diagnostic, origin, fingerprint in (
+        (
+            extractor,
+            "directory_extractor_directory_error",
+            "directory_origin_extractor",
+            None,
+        ),
+        (
+            unknown,
+            "directory_shape_unknown",
+            "directory_origin_decode",
+            "directory_fingerprint_unknown",
+        ),
     ):
         with pytest.raises(TranscriptError) as exc_info:
             adapter.enumerate_tracks("video123")
@@ -391,6 +470,8 @@ def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_b6_cod
         assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
         assert adapter.last_call is not None
         assert adapter.last_call.diagnostics[0].code == diagnostic
+        assert getattr(exc_info.value, "directory_origin") == origin
+        assert getattr(exc_info.value, "directory_fingerprint") == fingerprint
         assert adapter.last_call.diagnostics[0].message not in {
             "extract failed with token=private",
             "private directory payload",
