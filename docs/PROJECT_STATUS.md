@@ -71,18 +71,22 @@
   `3165009df00c54f62c9b92a8f154bfd7ed664bea` 整合：双父顺序为 `225895a...`、`88f1b36...`，first-parent
   严格为七条已审查路径，README/SBOM/NOTICE/检查表/矩阵、`/data/` 与 `/logs/` 根锚定及 No-Go 披露均已核验；
   TASK-014 继续 `IN_PROGRESS` / `No-Go`。
-- 产品负责人现刷新 TASK-014 Phase B-1 的唯一 Smoke Retry Executor 授权对象。固定控制面基线和 source HEAD 均为
-  `main@49869c6ff2bbc53673c6a35071c5f1407c269cba`；唯一独立 worktree/branch 为
+- 先前 TASK-014 Phase B-1 受控预配 Retry 的 source evidence `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa` 是
+  `49869c6ff2bbc53673c6a35071c5f1407c269cba` 的唯一子提交且仅写 B-1 evidence、发布检查表与 handoff；source 已核验干净。
+  该 evidence 只记录 shell PATH 未包含项目 `.venv/bin`，因此 PATH 上的 `youtube-intel` 以 exit `127` 在产品入口前停止；
+  两个固定 ID 均未触达 YouTube。这不是 B2 console entry 缺失、B-1 smoke 成功或发布批准，且先前 Retry 已废止。
+- 产品负责人现授权 TASK-014 Phase B-1 的唯一 venv console-path 最后一次 Smoke Retry Executor。固定控制面基线为
+  `main@0b45d8e9fcf49e6c450279c00b787069fa665520`；唯一 source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
-  `codex/task-014-phase-b1-console-entry-retry`，且 source 已核验干净。唯一授权包为
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md`：只允许 pre/post `uv lock --check`、一次
-  `uv sync --locked`（缓存缺失时只能下载 `uv.lock` 已锁定包），且仅在预配全部通过后才可对
-  `--khbXchTeE`、`JTxsNm9IdYU` 各作一次受限 smoke；使用全新临时 SQLite、DATA 与测试 Vault。本控制面提交不启动
-  Executor 或任何 uv、网络或产品命令；不授权登录、Cookie、API key、真实 Vault/用户数据、媒体下载、ffmpeg、模型、
-  Ollama、OpenAI、付费调用或高频重试。
+  `codex/task-014-phase-b1-console-entry-retry@3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`。唯一授权包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-VENV-CONSOLE-PATH-RETRY-CODEX.md`：只能先只读核验
+  `.venv/bin/youtube-intel` 存在、可执行且静态映射项目入口；不得运行 uv、安装、下载、改 PATH、激活 venv 或使用替代入口。
+  仅在核验通过后才可用该绝对路径对 `--khbXchTeE`、`JTxsNm9IdYU` 各作一次受限 smoke，并使用全新临时 SQLite、DATA 与
+  测试 Vault。本控制面提交不启动 Executor 或任何 uv、网络或产品命令；不授权登录、Cookie、API key、真实 Vault/用户数据、
+  媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或高频重试。TASK-014 继续 `IN_PROGRESS` / `No-Go`。
 - 旧 final B-1 source evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 只保留为未触达 YouTube 的历史环境阻断：
-  两个公开视频均未调用，不得合并、标为 smoke 通过或发布批准。旧 final worktree 与 Public YouTube Smoke 包均已废止，
-  不能作为执行 source 或启动依据；Retry 尚未启动，TASK-014 继续 `IN_PROGRESS` / `No-Go`。
+  两个公开视频均未调用，不得合并、标为 smoke 通过或发布批准。旧 final worktree、Public YouTube Smoke 包与先前 Retry 包均已
+  废止，不能作为执行 source 或启动依据。
 - 产品负责人已接受 ADR-014 并分配 TASK-014B2：正式 `youtube-intel` console entry 只映射既有
   `youtube_intel.cli:main`。固定基线为 `main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`，worktree/branch 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry` /
@@ -163,16 +167,16 @@
 
 ## 下一步
 
-1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 首次执行因锁定运行时缓存缺失而在
-   入口前阻断，未调用目标且未通过。现已授权一次受控预配与固定两 ID 的单次 Retry，尚未启动。TASK-014 整体继续为
-   `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
+1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 的受控预配已通过，但 PATH 上的首次
+   smoke 因未包含项目 `.venv/bin` 而在产品入口前以 exit `127` 阻断，两个固定 ID 均未调用。现仅授权一次绝对 venv
+   console-path 的固定两 ID 最后 Retry，尚未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
 2. TASK-014B2 已整合并关闭为 `DONE`；它只补齐正式 console entry 这一 B-1 前置条件，不能替代或自行重试真实 smoke。
 3. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
    不关闭 mutagen GPL、BPE 归属/NOTICE、真实 Vault、at-most-once 风险签署或最终 PO/TL/QA Go-No-Go。
-4. 除 Phase B-1 已精确授权但尚未执行的公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、
-   媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
+4. 除 Phase B-1 已精确授权但尚未执行的绝对 venv console-path 公开 YouTube 元数据/字幕读取外，真实 Whisper/Ollama/
+   OpenAI、模型、ffmpeg、媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 5. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
    可选能力、真实 smoke 授权和 at-most-once 风险接受，才能进入后续发布门禁。
 
@@ -199,7 +203,7 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 已授权未启动 | TASK-014 Phase B-1：受控预配与单次 Retry | 唯一 source：`codex/task-014-phase-b1-console-entry-retry@49869c6…`（worktree 已核验干净）。Codex Executor 仅可先作 pre/post `uv lock --check` 与一次 locked sync（缓存缺失只下载既有锁定包），随后对固定两 ID 各一次元数据/字幕发现与读取验证；使用新临时 SQLite/DATA/测试 Vault，不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
+| 已授权未启动 | TASK-014 Phase B-1：venv console-path 最后一次 Retry | 唯一 source：`codex/task-014-phase-b1-console-entry-retry@3c3dd4a…`（唯一父 `49869c6…`，worktree 已核验干净）。先静态核验绝对 `.venv/bin/youtube-intel` 映射项目入口；不得运行 uv、安装、下载、改 PATH、激活 venv 或用替代入口。仅以该绝对路径对固定两 ID 各一次元数据/字幕发现与读取验证；使用新临时 SQLite/DATA/测试 Vault，不登录、不下媒体、不触及 ffmpeg/模型/Ollama/OpenAI/真实 Vault，且不改变整体 `IN_PROGRESS` / `No-Go` |
 | 已完成可关闭 | TASK-014B2：正式 console entry | merge `99a22d…` 已整合；五路径与离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁通过，source 干净；不是真实 smoke 或发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
@@ -363,9 +367,9 @@
   二进制、捆绑依赖或该 BPE 资源作为发布物。
 - 已接受的可靠性契约只承诺 at-most-once best effort：外部 Provider 成功与 SQLite 提交、文件 replace
   与 SQLite 提交、以及音频清理最终 CAS 之间仍有崩溃窗口；离线恢复证据不等于严格 exactly-once。
-  Phase B-1 仅获一次公开 YouTube 元数据/字幕读取授权，尚未运行；媒体/ffmpeg、Whisper 模型、Ollama/模型、
-  OpenAI/真实密钥/付费调用、真实 Vault 和 launchd 仍未运行且需独立授权；TASK-014 必须把其验证和产品签署决定
-  分别记录。
+  Phase B-1 的 PATH 入口尝试未触达 YouTube；现仅获一次绝对 venv console-path 的公开元数据/字幕读取授权，尚未运行。
+  媒体/ffmpeg、Whisper 模型、Ollama/模型、OpenAI/真实密钥/付费调用、真实 Vault 和 launchd 仍未运行且需独立授权；
+  TASK-014 必须把其验证和产品签署决定分别记录。
 - TASK-001 的 build backend 由隔离构建环境按批准范围解析，不作为运行依赖写入 `uv.lock`；实现者、主控和 Reviewer 均实测为 `uv-build==0.11.28`。
 - TASK-002 已冻结配置与跨模块领域接口；后续任务不得为了减少文件量退回自由形状 `dict`，如需改变公共契约必须先回到主控决策。
 - TASK-002 修复提交已关闭原预审发现的密钥错误回显、公共自由 `dict`、可变公共状态表和额外 `ErrorCode`；Reviewer 已独立重跑哨兵、公开 API、运行时不可变性及完整 AC-1 至 AC-8。

@@ -1,5 +1,11 @@
 # TASK-014 Phase B-1 — 受控环境预配与单次 smoke Retry
 
+> **已完成并废止，不得执行。** 本包授权的预配与 PATH 上的首次 smoke 已产生
+> `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa` blocker evidence：shell `PATH` 未包含项目 `.venv/bin`，产品入口和
+> YouTube 均未触达。这不是 B2 console entry 缺失。后续唯一可能的 B-1 尝试仅由
+> `TASK-014-RELEASE-READINESS-PHASE-B1-VENV-CONSOLE-PATH-RETRY-CODEX.md` 授权；不得再次运行本包的 `uv`、
+> PATH 上的入口或任何其他替代路径。
+
 你是 TASK-014 Phase B-1 的唯一 Codex Smoke Retry Executor。此包只授权一次受控环境预配和一次受限 smoke 重试；它本身不执行任何命令。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、`tasks/TASK-014-release-readiness.md`、`tasks/README.md`、`docs/operations.md`、历史阻断 evidence 与本包。若任一边界冲突，停止并报告。
 
 ## 固定对象与状态
