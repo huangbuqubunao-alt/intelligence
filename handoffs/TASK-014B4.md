@@ -58,3 +58,18 @@ The initial RED run had the two new directory-only tests fail with exit code 2 b
 
 - Suggested state: `IN_REVIEW`.
 - One Implementer commit will have `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d` as its only parent.
+
+## Reviewer 结论
+
+- Reviewer agent/session: `Codex Independent Reviewer`
+- Reviewer authorization: `main@2dfa4dcec89f7abaa0c32d74334f3d766050da94`
+- 审查 commit: `2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`; branch=`codex/task-014b4-directory-only-smoke`; sole parent=`bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`; product range=`bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`.
+- 范围与拓扑: `git status --short` was clean before this handoff-only append; the implementation Diff contains only the five task-authorized paths. No dependencies, lockfiles, schema, Adapter, logging schema, credentials, Vault, network, media, retry, model, push, or merge changes.
+- 静态行为证据: CLI accepts `--directory-only` only on `smoke-public-subtitles`, passes the boolean into `PublicSubtitleSmoke`, and rejects smoke global configuration before runner/root initialization. The directory-only branch returns after exactly one metadata fetch and one directory enumerate per successful valid target, never ranks or calls `read_track`; the unchanged default branch retains one selected-body read. Existing shared validation and initialization retain the 1--3 unique-ID, nonexistent absolute temporary-root, 30-second, no-retry, zero-business-record, and fail-closed boundaries.
+- 离线 Fake 审查: added success and `INVALID_RESPONSE` cases assert metadata=1/enumerate=1/read=0; the latter asserts only the ADR-015 fixed `directory_diagnostic` code and the existing JSONL field set. Existing default-mode, global-configuration, invalid/duplicate/over-limit input, no-retry, body-redaction, and zero-record assertions continue to cover the shared paths.
+- 重新运行的检查: `git diff --check bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14` — PASS.
+- 未运行的检查: pytest, Ruff, mypy, build, product CLI, and real smoke were not run because the Reviewer task package explicitly forbids them; no network or real resource was accessed.
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Verdict: `APPROVE`.
+- 未解决 P0/P1: `None`.
+- 限制: this is static/offline-Fake review only. TASK-014 remains `IN_PROGRESS / No-Go`; it is not B-1 success, release approval, or final Go.
