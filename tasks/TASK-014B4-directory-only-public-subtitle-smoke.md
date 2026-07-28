@@ -1,8 +1,8 @@
 # TASK-014B4：受限 directory-only 公开字幕目录 smoke
 
-- Status: `IN_REVIEW`
-- Assignee: `Codex Implementer（source 2959275… 已提交）`
-- Reviewer: `全新独立 Codex Reviewer（已授权，尚未启动）`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Reviewer: `独立 Codex Reviewer（APPROVE evidence d211d62…）`
 - 依赖：TASK-014B0 `DONE`、TASK-014B2 `DONE`、TASK-014B3 `DONE`、ADR-016
 - 架构谱系基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`
 - B4 分配控制提交：`ccc747800b59e2bacc918f1e7b81e065b1520d9a`
@@ -27,9 +27,12 @@
 - `bdf2bf2adeb337b61747d869fa91619e3163a298` 只保留为 ADR-016/B4 架构谱系基线，绝不能再作为
   当前实施 HEAD 或产品 Diff 基线。
 - B4 source 不得对控制面文档进行暂存、提交或改动；本次基线修正只存在于独立控制面分支，不能写回 source。
-- 当前受审 source HEAD 为 `2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`，唯一父提交为
-  `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`；产品审查范围为 `bbd3fddd…...2959275…`。
-  Reviewer 只可在 source 的 `handoffs/TASK-014B4.md` 追加审查 evidence，不能修改任何其他 source 路径。
+- 已接受 source 为 `d211d62b89754683f00ec841c1774574003323a1`，其唯一父提交为
+  `2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`。该 Reviewer evidence 仅修改 source 的
+  `handoffs/TASK-014B4.md`，Verdict=`APPROVE`、P0--P3 均为零；固定离线审查范围为
+  `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14`。
+  完整 accepted source Diff `bbd3fddd…...d211d62…` 严格为本卡的五条允许路径。后续只有
+  Product Integrator 可按独立授权包一次性 `git merge --no-ff d211d62…`；不得修改 source。
 - `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 仅为未执行的历史诊断
   worktree；禁止访问、修改、合并、清理或复用。
 - 本任务的 ADR、任务卡、实施包和状态记录由本控制面提交创建；Implementer 不得再改写这些控制面资料。
@@ -76,5 +79,5 @@ git diff --check
 
 - 禁止真实 YouTube/网络、媒体下载、ffmpeg、模型、Ollama、OpenAI、Cookie/登录/API key、真实 Vault/用户数据、
   付费调用、launchd、`.codebase-memory` 工件、重试和任何额外产品命令。
-- Implementer 仅可创建一个包含允许路径的 commit，并交由新独立 Reviewer；不得自行 `ACCEPTED`、`DONE`、合并、push、
-  启动 Reviewer 或真实验证。
+- accepted source 不得再写入或清理；后续仅由已授权 Product Integrator 固定 `--no-ff` 整合，不得自行 `DONE`、push
+  或启动真实验证。

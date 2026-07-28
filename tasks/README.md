@@ -108,9 +108,9 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 最终真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3 离线诊断已整合，B4 directory-only 离线实现已授权未启动 | IN_PROGRESS / No-Go | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 最终真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3 离线诊断已整合，B4 directory-only 已接受、待受控整合 | IN_PROGRESS / No-Go | 013 |
 | [TASK-014B3](TASK-014B3-public-subtitle-directory-diagnostics.md) | 公开字幕目录兼容性诊断 | ADR-015 已接受并已整合；merge `f5ebc87…` | DONE | 014；ADR-015 |
-| [TASK-014B4](TASK-014B4-directory-only-public-subtitle-smoke.md) | 受限 directory-only 公开字幕 smoke | source `2959275…` 已提交；独立 Reviewer 已授权未启动 | IN_REVIEW | 014；ADR-016；B0/B2/B3 DONE |
+| [TASK-014B4](TASK-014B4-directory-only-public-subtitle-smoke.md) | 受限 directory-only 公开字幕 smoke | accepted source `d211d62…`；Reviewer `APPROVE`，Product Integrator 已授权未启动 | ACCEPTED | 014；ADR-016；B0/B2/B3 DONE |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 
