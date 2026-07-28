@@ -1,5 +1,11 @@
 # TASK-014 Phase B-1 — non-existing temporary-root 参数纠正最终 Retry
 
+> **已完成并废止，不得执行。** 本包授权的最终真实 smoke 已产生
+> `9acab5d876b38d64a9aeab7aca3474be2676ce38` evidence：两个固定公开视频各完成一次元数据与字幕目录读取，
+> 但均在正文读取前以 `INVALID_RESPONSE` 失败；没有认证、媒体、用户数据或重试。此 evidence 是 `FAIL`，不合并、
+> 不得写成通过，也不改变 TASK-014 `IN_PROGRESS / No-Go`。后续仅授权只读
+> `PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`；不得再次执行 smoke。
+
 你是 TASK-014 Phase B-1 的唯一 Codex non-existing Temporary-root Smoke Retry Executor。此包只授权一次以正确的、不存在的 smoke-root 子路径执行的受限 smoke；它本身不执行任何命令。开始前完整阅读 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/PRD.md`、`docs/SYSTEM_DESIGN.md`、`docs/REUSE_REGISTER.md`、`docs/PRODUCT_DECISIONS.md`、全部 Accepted ADR、`tasks/TASK-014-release-readiness.md`、`tasks/README.md`、`docs/operations.md`、`365c8fca966a3fb7608f41b2d3ac530504193c7b` blocker evidence 与本包。若任一边界冲突，停止并报告。
 
 ## 固定对象与状态

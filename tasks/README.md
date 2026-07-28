@@ -43,12 +43,13 @@ at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发
 Phase A accepted source `88f1b36...` 已以 `--no-ff` merge `3165009...` 整合，七路径资料及根目录 ignore 锚定已核验；
 TASK-014 仍不得标为 `DONE` 或发布批准。
 
-产品负责人现已为 TASK-014 Phase B-1 刷新 non-existing temporary-root 参数纠正最终公开 YouTube 字幕 smoke Retry 授权：仅固定
-`--khbXchTeE`、`JTxsNm9IdYU` 各一次，只验证元数据与字幕发现/读取，使用全新临时 SQLite、DATA 与测试 Vault。
-唯一 Executor worktree 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry`，分支为
-`codex/task-014-phase-b1-console-entry-retry`，控制面基线为 `main@f5bcac5e9fa7dac7bdac1e859873d369adbb7880`，source HEAD 为
-`365c8fca966a3fb7608f41b2d3ac530504193c7b`（唯一父提交 `3c3dd4a...`），授权包为
-`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-TEMPORARY-ROOT-RETRY-CODEX.md`。Executor 尚未启动；
+TASK-014 Phase B-1 最终真实公开字幕 smoke 已 `FAIL`：`--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，
+但均在正文读取前 `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。唯一 B-1 evidence source 为
+`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` / `codex/task-014-phase-b1-console-entry-retry@
+9acab5d876b38d64a9aeab7aca3474be2676ce38`（唯一父提交 `365c8fc...`）。该 evidence 不合并、不写成通过；TASK-014 仍为
+`IN_PROGRESS` / `No-Go`。已授权但尚未启动的唯一后续工作是
+`agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`：只读比较 Adapter 假设、
+错误映射、离线 Fake/fixture 与真实脱敏 evidence，聊天回传最小修复建议及一次后续验证所需的精确授权。
 本阶段不授权登录/Cookie/API key、真实 Vault、用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或
 高频重试。TASK-014 继续 `IN_PROGRESS` / `No-Go`，真实 smoke 成功不关闭 mutagen GPL、BPE 文件归属/NOTICE、
 at-most-once 风险或最终 PO/TL/QA Go-No-Go。
@@ -56,8 +57,8 @@ at-most-once 风险或最终 PO/TL/QA Go-No-Go。
 修改、合并、清理或复用。
 旧 final source evidence `5698802...` 仅为缺失锁定 `fsspec==2026.6.0` 的历史环境阻断，两个固定 ID 均未调用，
 绝不是通过结果，也不得合并。先前 venv Retry 的 `365c8f...` blocker 是把已存在空目录传给 `--temporary-root`，违反入口
-要求的“不存在 smoke-root 子路径”契约且未触达 YouTube；该 Retry 已废止。唯一新包禁止 uv、下载、PATH 修改和替代入口，
-只可在新临时父目录内确认不存在的 `smoke-root` 子路径后，以绝对 launcher 执行固定两 ID 的最后一次 smoke；Executor 尚未启动。
+要求的“不存在 smoke-root 子路径”契约且未触达 YouTube；参数纠正后的最终 Retry 已产生 `9acab5d...` 失败 evidence。所有
+Executor 包均废止；Scout 禁止网络、YouTube、测试、构建、依赖变更、代码/文档写入、worktree 创建和 `.codebase-memory` 工件。
 
 旧 Phase B-1 blocker evidence `be230490...`（仅存在于 B0 合并前的旧 source，绝不访问或合并）确认默认 CLI 曾缺少受控组合入口。
 产品负责人因此批准 ADR-013 和 TASK-014B0：新增仅服务发布 QA 的 `smoke-public-subtitles`，严格限定 1–3 个
@@ -107,7 +108,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 temporary-root 参数纠正最终 smoke 已刷新授权） | PO + TL + QA 发布门禁；Phase B-1 Codex Executor 尚未启动 | IN_PROGRESS / No-Go | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 最终真实 smoke `FAIL`） | PO + TL + QA 发布门禁；只读 Adapter 兼容性 Scout 已授权但尚未启动 | IN_PROGRESS / No-Go | 013 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 
