@@ -79,6 +79,7 @@ class PublicSubtitleSmoke:
         temporary_root: Path,
         video_ids: Sequence[str],
         run_id: str,
+        directory_only: bool = False,
     ) -> CommandOutcome:
         from youtube_intel.cli import CommandOutcome
         if not _valid_inputs(temporary_root, video_ids):
@@ -108,6 +109,7 @@ class PublicSubtitleSmoke:
                     subtitle_adapter=subtitle_adapter,
                     logger=logger,
                     run_id=run_id,
+                    directory_only=directory_only,
                 ):
                     failed += 1
 
@@ -132,6 +134,7 @@ class PublicSubtitleSmoke:
         subtitle_adapter: _SubtitleAdapter,
         logger: JsonlLogger,
         run_id: str,
+        directory_only: bool,
     ) -> bool:
         started = time.monotonic()
         metadata_calls = 0
@@ -142,15 +145,16 @@ class PublicSubtitleSmoke:
             metadata_provider.fetch(video_id)
             enumerate_calls = 1
             listing = subtitle_adapter.enumerate_tracks(video_id)
-            ranked = rank_subtitle_candidates(
-                listing.tracks,
-                _language_preferences(listing.tracks),
-            )
-            if not ranked:
-                raise _SmokeTargetError(ErrorCode.CONTENT_UNAVAILABLE)
-            read_calls = 1
-            result = subtitle_adapter.read_track(ranked[0].track)
-            del result
+            if not directory_only:
+                ranked = rank_subtitle_candidates(
+                    listing.tracks,
+                    _language_preferences(listing.tracks),
+                )
+                if not ranked:
+                    raise _SmokeTargetError(ErrorCode.CONTENT_UNAVAILABLE)
+                read_calls = 1
+                result = subtitle_adapter.read_track(ranked[0].track)
+                del result
         except Exception as error:  # noqa: BLE001 - emit only a fixed safe category
             diagnostic = _directory_diagnostic(
                 error,
@@ -185,7 +189,8 @@ class PublicSubtitleSmoke:
             video_id=video_id,
             duration_ms=int((time.monotonic() - started) * 1000),
             safe_message=(
-                "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=1"
+                "metadata_calls=1 enumerate_tracks_calls=1 "
+                f"read_track_calls={read_calls}"
             ),
         )
         return True

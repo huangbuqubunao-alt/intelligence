@@ -8,6 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+import pytest
+
+from youtube_intel import cli
 from youtube_intel.cli import CommandOutcome, ExitCode, main
 from youtube_intel.logging import JsonlLogger
 from youtube_intel.state import SQLiteStateRepository
@@ -121,6 +124,18 @@ def test_default_operations_remain_fail_closed(tmp_path: Path) -> None:
     project = _project(tmp_path)
 
     assert main(_args(project, "check")) is ExitCode.USAGE_OR_CONFIGURATION
+
+
+def test_non_smoke_commands_reject_directory_only_before_constructing_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_runner() -> None:
+        raise AssertionError("smoke runner must not be constructed")
+
+    monkeypatch.setattr(cli, "PublicSubtitleSmoke", forbidden_runner)
+
+    for command in ("check", "process", "retry", "weekly", "doctor"):
+        assert main([command, "--directory-only"]) is ExitCode.USAGE_OR_CONFIGURATION
 
 
 def test_doctor_only_reads_initialized_temporary_resources(tmp_path: Path) -> None:
