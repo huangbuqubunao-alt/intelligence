@@ -69,3 +69,35 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：`the single Implementer commit containing this report`
 - 复现/验证说明：使用预配的离线 `.venv` 运行上列两份集成测试与静态检查；没有执行网络、YouTube、认证、媒体、真实 Vault、模型或云资源。
+
+## Reviewer 证据
+
+- Reviewer agent/session: `Codex independent reviewer`
+- 审查范围：仅审查 `9c5f08ec829629591b095bd68841ca3ce0b22532..77f2690c28ab80eb9886e8ca8eadb0e47481cd51`；未修改 source、测试、fixture、配置、依赖、锁文件、Schema、CLI、B-1 evidence 或任务状态。
+- 固定对象门禁：source branch `codex/task-014b3-public-subtitle-diagnostics-implementation`；HEAD `77f2690c28ab80eb9886e8ca8eadb0e47481cd51`；唯一父提交 `9c5f08ec829629591b095bd68841ca3ce0b22532`；审查开始时工作树干净。
+- 范围复核：source diff 仅含任务授权的 `subtitles.py`、`public_subtitle_smoke.py`、两份离线 integration test、一个脱敏字幕 fixture 和本报告；无依赖/锁文件、Schema/migration、默认 CLI、安全边界或真实资源改动。
+
+### 验收与安全审查
+
+| 审查项 | 结果 | 独立证据 |
+|---|---|---|
+| ADR-015 九类固定目录 code 与 unknown fallback | PASS | `DIRECTORY_DIAGNOSTIC_CODES` 精确包含九项 ADR-015 固定值；目录解析、identity、bucket、track、format、URL、name、无支持格式和未分类 `INVALID_RESPONSE` 均由离线 fixture/Fake 覆盖。无动态 code、异常文本或响应片段进入目录 diagnostic。 |
+| safe_message 唯一出口与 JSONL 结构 | PASS | `_directory_diagnostic` 只在一次目录枚举、零正文读取且最终错误码为 `INVALID_RESPONSE` 时返回白名单 code/固定 unknown；`_run_target` 仅追加 `directory_diagnostic=<fixed-code>` 到既有 `safe_message`。测试断言 JSONL 字段集合未变。 |
+| 泄漏边界 | PASS | Adapter diagnostic message 由固定 code 生成；smoke 只读取白名单 code。Fake 注入 URL、标题、字段值、Cookie、token、正文和 payload 标记，日志断言均不包含这些内容。 |
+| fail-closed 与执行边界 | PASS | URL 验证、身份/shape/长度/512 上限、格式要求的拒绝路径仍为 non-retryable `INVALID_RESPONSE`；metadata → enumerate → rank → 至多一次 read 的既有流程、退出行为、临时根与正文不持久化边界未改。目录失败 Fake 断言 `metadata=1 / enumerate=1 / read=0`，无自动重试。 |
+
+### 重新运行的离线检查
+
+| 命令/人工检查 | 结果 | 关键输出或说明 |
+|---|---|---|
+| `git diff --check 9c5f08ec829629591b095bd68841ca3ce0b22532 77f2690c28ab80eb9886e8ca8eadb0e47481cd51` | PASS | 无空白错误。 |
+| `uv run --offline python -m pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `92 passed in 1.52s`；仅使用预置本地 uv cache，未安装、下载或访问网络。 |
+
+### Findings 与结论
+
+- P0: None.
+- P1: None.
+- P2: None.
+- P3: None.
+- Verdict: `APPROVE`。
+- 限制：离线 fixture/Fake 通过不等于 B-1 真实 smoke 成功、真实兼容性验证、发布批准或 TASK-014 Go；TASK-014 保持 `IN_PROGRESS / No-Go`。
