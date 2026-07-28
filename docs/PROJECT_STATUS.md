@@ -147,10 +147,11 @@
   原六路径允许范围的五路径子集，fixture 不得重现。独立 Reviewer evidence `6a7f4ce444b3f93aa1388f45e7a5619eb802a317`（唯一父
   `4d4366f…`）仅追加 handoff，Verdict=`APPROVE`、P0--P3=`0`，accepted source 干净。Reviewer 因 source 无 `.venv` 未运行
   pytest/mypy/Ruff/CLI；这不是通过证据。Product Integrator 已在同一不变基线上完成 lock check、locked offline sync、Provider/Smoke
-  `114 passed`、mypy、Ruff 与 CLI help；唯一失败的是不受项目依赖支持的 `.venv/bin/python -m build --no-isolation`，无 merge/source
-  修改。一次性继续执行仅允许在基线再次核验后运行 `uv build --offline`、fixture 删除无重现/范围/diff/泄漏扫描，全部通过才可对 accepted
-  source 执行 `--no-ff` merge；任一失败仍停止不合并。禁止新增 `build` 依赖、锁文件改动、旧命令或已通过门禁重跑。TASK-014 继续
-  `IN_PROGRESS / No-Go`，TASK-014B7 为 `ACCEPTED`；不构成真实 B-1 成功、真实服务验证或发行批准。
+  `114 passed`、mypy、Ruff 与 CLI help；不受项目依赖支持的 `.venv/bin/python -m build --no-isolation` 曾失败且未产生 merge/source 修改。
+  更正后 `uv build --offline`、fixture 删除无重现、范围/diff 与 stdout/stderr/JSONL/fixture 泄漏扫描均通过，accepted source 已由
+  `--no-ff` merge `81ee3438da3363d090957110feeceb82e6f9c0b4` 整合，双亲顺序为 `741163f…`、`6a7f4ce…`。first-parent Diff 是 B7
+  完整允许六路径的五路径子集，锁未变，source 干净并保留。TASK-014B7 现为 `DONE`；TASK-014 继续 `IN_PROGRESS / No-Go`，不构成
+  真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -326,7 +327,7 @@
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
-| ACCEPTED | TASK-014B7：字幕目录安全来源与结构指纹 | accepted source `codex/task-014b7-safe-directory-origin-fingerprint@6a7f4ce…` / `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` 干净；lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 已在不变基线上通过。唯一 build 失败为未支持的 `.venv/bin/python -m build`；新窗口仅一次 `uv build --offline`、删除/范围/diff/泄漏扫描通过后才可 `--no-ff` merge，fixture 禁止重现 |
+| DONE | TASK-014B7：字幕目录安全来源与结构指纹 | merge `81ee343…` 已进入 main，双父 `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 为允许六路径的五路径子集，fixture 未重现。既有 lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 与补充离线 build、范围/泄漏扫描通过；锁未变，source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | DONE | TASK-014B6：安全字幕目录结构诊断 | `--no-ff` merge `f402400…` 已进入 main，双父 `dac394b…`、`f16f94a…`；accepted source 是 merge 祖先，first-parent Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。既有离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 干净并保留。B6 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |

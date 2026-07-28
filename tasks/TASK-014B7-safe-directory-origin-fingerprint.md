@@ -1,7 +1,7 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Status: `DONE`
+- Assignee: `Closure Status Integrator（已整合并收口）`
 - Reviewer: `Correction 2 独立 Codex Reviewer（APPROVE，P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
@@ -130,6 +130,17 @@
   first-parent 五路径子集、锁文件未变和 main/source 洁净度。
 - 任一允许门禁失败均立即停止且不得合并；禁止重跑无变化的已通过门禁、任何 `.venv/bin/python -m build`、依赖/锁文件改动、真实资源、
   push 或 source 清理。TASK-014B7 保持 `ACCEPTED`，TASK-014 保持 `IN_PROGRESS / No-Go`。
+
+## Closure
+
+- accepted source `6a7f4ce…` 已由 `--no-ff` merge `81ee3438da3363d090957110feeceb82e6f9c0b4` 整合，双亲顺序精确为
+  `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 严格为 B7 完整允许六路径的五路径子集，已删除 fixture
+  未重现。source worktree 干净并保留。
+- 既有不变基线离线证据为 lock/sync、Provider/Smoke pytest `114 passed`、mypy、Ruff、CLI help；整合前补充 `uv build --offline`、
+  范围、`diff --check` 与 stdout/stderr/JSONL/fixture 泄漏扫描均通过，锁文件未变。未运行真实 YouTube、网络、smoke、认证、媒体、
+  Vault、模型或 OpenAI，未 push 或清理 source。
+- TASK-014B7 现为 `DONE`，但不构成真实 B-1 成功、真实服务验证通过、发行批准或 TASK-014 Go；TASK-014 始终为
+  `IN_PROGRESS / No-Go`。
 
 ## 验收与离线检查
 
