@@ -1,13 +1,14 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer`
-- Reviewer: `待独立 Reviewer 授权`
+- Status: `IN_REVIEW`
+- Assignee: `独立 Codex Reviewer（已授权，尚未启动）`
+- Reviewer: `独立 Codex Reviewer`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
 - Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
-- Required source HEAD：`5b7dcca2ba9bd9e52e254a8944e584542838e24b`
+- 受审 source：`8d06197557de4ce92c2752f4a8ef74582a0efdca`（唯一父
+  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、
   ADR-017 B6 结构诊断、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
@@ -38,6 +39,16 @@
 6. `handoffs/TASK-014.md`
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence 或任何其他路径。
+
+## 独立 Reviewer 控制面
+
+- 完整产品 Diff `5b7dcca2ba9bd9e52e254a8944e584542838e24b...8d06197557de4ce92c2752f4a8ef74582a0efdca` 必须严格且仅为上述六路径；
+  脱敏 fixture 固定为 `tests/fixtures/subtitles/directory_origin_fingerprint.json`。
+- Reviewer 只能追加 source `handoffs/TASK-014.md` 的审查 evidence，且 evidence 必须以 `8d061975…` 为唯一父提交；不得修改业务代码、
+  测试、ADR、任务/状态控制面或任何其他 source 路径。
+- 审查 ADR-018 的四个 `directory_origin`、六个 `directory_fingerprint` 固定无值标签、B6 `directory_diagnostic` 不变、仅目录
+  `INVALID_RESPONSE` 且 enumerate=`1`/read=`0` 时的出口，以及正文 `INVALID_RESPONSE` 不输出 origin/fingerprint。独立验证
+  stdout/stderr/JSONL/fixture 无泄漏、解析接受面与 default/directory-only/CLI/fail-closed 边界不退化。
 
 ## 验收与离线检查
 
