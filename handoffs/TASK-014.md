@@ -654,3 +654,60 @@
   and bounded output contract; they neither validate a real service nor grant
   release approval.
 - `DECISION NEEDED`: `None`.
+
+## TASK-014B7 Correction 2 Independent Reviewer Evidence — 2026-07-28
+
+### Fixed review object
+
+- Role: `Independent Reviewer`.
+- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
+  `codex/task-014b7-safe-directory-origin-fingerprint`.
+- Reviewed correction: `4d4366f6a6403403a0d9bed65fbbf862a362eede`.
+- Parent chain: Correction 2 has sole parent `069e62ececada5152871fb7c626e64c146a270ad`,
+  then `8d06197557de4ce92c2752f4a8ef74582a0efdca`, then
+  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`.
+- Dynamic authorization: clean `main@a14bf1b2405bb90eea175c8da2ec4763eec64a69`
+  descends from the control-plane baseline. Both source and main were clean at
+  the pre-write verification.
+
+### Independent review and evidence
+
+- Correction range is exactly `src/youtube_intel/providers/subtitles.py`,
+  `tests/integration/test_subtitle_provider.py`, and this handoff. The complete
+  B7 range is the permitted five-path subset; the unsafe fixture is absent and
+  no matching/replacement fixture path exists.
+- The private `_DirectoryStructureState` has exactly six closed, no-value
+  structural states. `_classify_directory_structure` rejects non-state input
+  and maps every state to fixed mapping origin plus exactly one ADR-018
+  fingerprint. Existing adapter branches retain ADR-017 B6 diagnostics and
+  delegate only fixed local state to that classifier; no parsed response value
+  becomes a label.
+- Static review confirms the four ADR-018 origins, six fingerprints, B6
+  diagnostics, directory-only `enumerate=1/read=0`, body-stage label
+  suppression, fixed stdout/JSONL outlets, and the existing default/no-retry,
+  temporary-root, ID-bound, zero-business-record and fail-closed paths are
+  unchanged outside the intentional internal classification delegation.
+- Static scans of Correction 2 added source/test lines found no URL, field
+  name/value, language, track name, identity value, raw response, Cookie,
+  token, payload, or user-data material. The deleted fixture was not restored,
+  renamed, embedded, or moved.
+
+| Check | Result |
+|---|---|
+| source/main branch, HEAD, three-parent chain, authorization, and cleanliness | PASS |
+| Correction three-path range; complete B7 five-path subset; smoke test intentionally unchanged | PASS |
+| fixture deletion/non-reappearance and added-line leakage scan | PASS |
+| static private-state/classifier call-path and unaffected-boundary review | PASS |
+| `git diff --check` for Correction and complete B7 ranges | PASS |
+| focused pytest, mypy, Ruff, and console `--help` | NOT RUN — no existing source `.venv` executable was available |
+
+### Reviewer conclusion
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Verdict: `APPROVE` for the fixed offline Correction 2 range.
+- Not run: `uv`, build/package checks, full suite, Python/import probes, any
+  smoke invocation, network/YouTube, media/ffmpeg, authentication/Cookie/API
+  key handling, Vault/user data, SQLite diagnostics, models/Ollama/OpenAI,
+  launchd, push, or merge.
+- TASK-014 remains `IN_PROGRESS / No-Go`; this review is neither real-service
+  verification nor release approval or final Go.
