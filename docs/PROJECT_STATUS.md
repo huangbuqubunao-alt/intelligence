@@ -212,6 +212,7 @@
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
 | 已分配未启动 | TASK-014B3：公开字幕目录兼容性诊断 | 唯一 source 为 `codex/task-014b3-public-subtitle-diagnostics-implementation@9c5f08e…`，已创建且干净；旧 B3 worktree/branch 禁止访问、修改、合并、清理或复用。只实现 ADR-015 的有限脱敏诊断与最小 smoke 审计出口，离线 fixtures/tests 与 handoff。禁止网络、真实资源、依赖/锁文件、Schema、默认 CLI、B-1 evidence 和安全边界放宽；Implementer/Reviewer 尚未启动 |
+| 已授权未启动 | TASK-014B3 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B3-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，控制面基线 `main@99651ec…`；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包立即停止；禁止网络、下载、任何文件/依赖/锁变更、真实资源和提交。成功仅报告环境就绪，不启动 Implementer/Reviewer，TASK-014/TASK-014B3 状态不变 |
 | 已完成可关闭 | TASK-014B2：正式 console entry | merge `99a22d…` 已整合；五路径与离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁通过，source 干净；不是真实 smoke 或发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
