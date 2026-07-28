@@ -1,14 +1,14 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer（P1 Correction 1 已授权，尚未启动）`
-- Reviewer: `待 Correction 1 全新独立 Reviewer 授权`
+- Status: `IN_REVIEW`
+- Assignee: `Correction 1 独立 Codex Reviewer（已授权，尚未启动）`
+- Reviewer: `Correction 1 独立 Codex Reviewer`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
 - Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
-- 受审 source：`8d06197557de4ce92c2752f4a8ef74582a0efdca`（唯一父
-  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`）
+- 受审 Correction 1 source：`069e62ececada5152871fb7c626e64c146a270ad`（唯一父
+  `8d06197557de4ce92c2752f4a8ef74582a0efdca`；后者唯一父 `5b7dcca…`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、
   ADR-017 B6 结构诊断、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
@@ -66,6 +66,15 @@
   B6 code 不变、输出限制及 stdout/stderr/JSONL 无泄漏断言。不得修改任何生产代码、依赖、锁文件、Schema、CLI、`logging.py`、
   解析接受面或真实资源权限。
 - Correction Implementer source commit 必须以 `8d061975…` 为唯一父提交；完成后必须由全新独立 Reviewer 审查。
+
+## Correction 1 独立 Reviewer 控制面
+
+- Correction 1 source `069e62e…` 的唯一父为 `8d061975…`，且 Diff 严格为 fixture 删除、两份 integration test 与 handoff。
+  完整 B7 Diff `5b7dcca…...069e62e…` 是原六路径允许范围的五路径子集；不合规 fixture 必须在 source HEAD 中不存在，且不得在其他路径重现。
+- 新 Reviewer 只能追加 source `handoffs/TASK-014.md` 的审查 evidence，且 evidence 必须以 `069e62e…` 为唯一父提交。
+- 复审无值内存 Mapping 替身覆盖 ADR-018 四个 origin、六个 fingerprint、B6 diagnostic、目录/正文出口和 stdout/stderr/JSONL
+  泄漏断言；确认没有字段名、字段值、URL、语言、轨道名、原始响应、Cookie、token、payload 或用户数据进入 fixture、测试或输出，
+  且生产代码、依赖、CLI、`logging.py`、解析接受面和所有 fail-closed 边界未被改动。
 
 ## 验收与离线检查
 
