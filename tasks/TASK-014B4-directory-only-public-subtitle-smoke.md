@@ -4,7 +4,9 @@
 - Assignee: `Codex Implementer（本控制面不启动）`
 - Reviewer: `全新独立 Codex Reviewer（Implementer 提交后再分配）`
 - 依赖：TASK-014B0 `DONE`、TASK-014B2 `DONE`、TASK-014B3 `DONE`、ADR-016
-- 基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`
+- 架构谱系基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`
+- B4 分配控制提交：`ccc747800b59e2bacc918f1e7b81e065b1520d9a`
+- 当前唯一实施基线：`bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke`
 - Branch：`codex/task-014b4-directory-only-smoke`
 - Reuse decision：`DIRECT` — 既有锁定 yt-dlp Adapter、`PublicSubtitleSmoke`、CLI、
@@ -18,8 +20,13 @@
 
 ## 控制面与隔离
 
-- 本任务唯一 source 为上述 worktree/branch。开始实施前必须核验该分支上的控制面 HEAD 干净，且其唯一父提交为
-  `bdf2bf2adeb337b61747d869fa91619e3163a298`。
+- 本任务唯一 source 固定为上述 worktree/branch 的
+  `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`，开始实施前必须精确核验该 HEAD 且工作树干净。
+  Implementer 的首个产品提交必须以该提交为唯一父提交；实现与审查的产品 Diff 一律以
+  `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...HEAD` 评估。
+- `bdf2bf2adeb337b61747d869fa91619e3163a298` 只保留为 ADR-016/B4 架构谱系基线，绝不能再作为
+  当前实施 HEAD 或产品 Diff 基线。
+- B4 source 不得对控制面文档进行暂存、提交或改动；本次基线修正只存在于独立控制面分支，不能写回 source。
 - `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 仅为未执行的历史诊断
   worktree；禁止访问、修改、合并、清理或复用。
 - 本任务的 ADR、任务卡、实施包和状态记录由本控制面提交创建；Implementer 不得再改写这些控制面资料。

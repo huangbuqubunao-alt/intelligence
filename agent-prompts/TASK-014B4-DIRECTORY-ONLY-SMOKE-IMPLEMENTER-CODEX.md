@@ -8,14 +8,20 @@
 Task: TASK-014B4 — restricted directory-only public subtitle smoke
 Role: Implementer
 Agent: Codex
-Base: main@bdf2bf2adeb337b61747d869fa91619e3163a298
+Architecture lineage base: main@bdf2bf2adeb337b61747d869fa91619e3163a298
+B4 allocation control commit: ccc747800b59e2bacc918f1e7b81e065b1520d9a
+Implementation base: bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d
 Worktree: /Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke
 Branch: codex/task-014b4-directory-only-smoke
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — existing CLI, PublicSubtitleSmoke, locked yt-dlp Adapter, ProviderCallMetadata, JsonlLogger, and offline Fake/integration tests; no dependency or copied third-party code
 ```
 
-- 开始前 source HEAD 必须为本控制面提交、唯一父提交必须为 `bdf2bf2adeb337b61747d869fa91619e3163a298`，且工作树干净。
+- 开始前 source HEAD 必须精确为 `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d` 且工作树干净。
+  Implementer 的首个产品提交必须以该提交为唯一父提交；实现与审查的产品 Diff 固定为
+  `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d...HEAD`。`bdf2bf2adeb337b61747d869fa91619e3163a298`
+  仅是 B4 架构谱系基线，不是当前实施 HEAD 或产品 Diff 基线。
+- source 不得对控制面文档进行暂存、提交或改动；本基线修正由独立控制面分支持有，不能写回 source。
 - 禁止访问、修改、合并、清理或复用 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic`；它是未执行的
   历史诊断 worktree。
 - B-1 evidence `9acab5d…` 是真实 smoke `FAIL`，不得合并、重写为成功或重新执行网络。TASK-014 始终为
