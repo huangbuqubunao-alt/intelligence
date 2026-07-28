@@ -82,6 +82,11 @@
   它只允许已整合的 `smoke-public-subtitles --directory-only` 对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次，并只将 B5 安全摘要与
   ADR-017 七类固定无值结构诊断写入 B6 evidence、release checklist 和 TASK-014 handoff。成功条件为两目标均 `1/1/0`、退出码 `0`、
   无泄漏；任一结果都保持 TASK-014 `IN_PROGRESS / No-Go`，不等于真实服务普遍兼容、发行批准或最终 Go。
+- TASK-014B7「字幕目录安全来源与结构指纹」现由 Codex 在独立 source
+  `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
+  `codex/task-014b7-safe-directory-origin-fingerprint@5b7dcca…` 离线实施。ADR-018 仅允许在目录 `INVALID_RESPONSE`
+  的既有安全出口附加有限、无值 `directory_origin`/`directory_fingerprint`，保持 B6 `directory_diagnostic` 与所有 fail-closed
+  边界不变；不授权真实验证、兼容修复或 B-1 重跑。`17bfe906…` 仅为未合并的只读失败 evidence，不得合并、重写或称为通过。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

@@ -131,6 +131,14 @@
   它只允许固定两目标各一次的 `smoke-public-subtitles --directory-only`，仅记录 B5 安全 stdout 摘要和 ADR-017 七类固定无值
   `directory_diagnostic`；预配、绝对 launcher、临时根、证据与停止规则以该包为准。任一结果均不改变 TASK-014
   `IN_PROGRESS / No-Go`，不构成真实服务通过、发行批准或最终 Go。
+- 产品负责人现接受 ADR-018 并分配 TASK-014B7「字幕目录安全来源与结构指纹」给 Codex Implementer。唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
+  `codex/task-014b7-safe-directory-origin-fingerprint@5b7dcca2ba9bd9e52e254a8944e584542838e24b`，必须保持干净。B7 仅在目录
+  `INVALID_RESPONSE` 的既有安全 stdout/JSONL 出口追加 ADR-018 固定、无值 `directory_origin` 与 `directory_fingerprint`，保留
+  ADR-017 `directory_diagnostic` 原语义和固定值，不放宽解析或增加兼容规则。未合并 B-1 B6 evidence
+  `17bfe9062677f3b3117df4dd192848d27690541c` 仅作只读失败引用，不得合并、重写或写成通过。B7 不改依赖、锁、Schema、
+  `logging.py`、CLI、发布状态或真实资源；本控制面不启动 Implementer。TASK-014 继续 `IN_PROGRESS / No-Go`，TASK-014B7 为
+  `IN_PROGRESS / Codex`，离线实现不构成真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -306,6 +314,7 @@
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
+| IN_PROGRESS | TASK-014B7：字幕目录安全来源与结构指纹 | source `codex/task-014b7-safe-directory-origin-fingerprint@5b7dcca…` / `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` 干净；ADR-018 仅允许在目录 `INVALID_RESPONSE` 的既有安全出口增加固定无值 origin/fingerprint，保留 B6 code 与 fail-closed 边界。`17bfe906…` 是未合并只读失败 evidence；禁止真实资源、依赖/锁/Schema/logging/CLI/发布改动 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | DONE | TASK-014B6：安全字幕目录结构诊断 | `--no-ff` merge `f402400…` 已进入 main，双父 `dac394b…`、`f16f94a…`；accepted source 是 merge 祖先，first-parent Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。既有离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 干净并保留。B6 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |

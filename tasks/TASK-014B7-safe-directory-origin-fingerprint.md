@@ -1,0 +1,68 @@
+# TASK-014B7：字幕目录安全来源与结构指纹
+
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer`
+- Reviewer: `待独立 Reviewer 授权`
+- 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
+- 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
+- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
+- Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
+- Required source HEAD：`5b7dcca2ba9bd9e52e254a8944e584542838e24b`
+- Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、
+  ADR-017 B6 结构诊断、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
+
+## 背景与目标
+
+未合并的 B-1 B6 evidence `17bfe9062677f3b3117df4dd192848d27690541c` 仅作只读失败 evidence；不得合并、重写、重跑或写成通过。
+实现 ADR-018 的有限、无值来源与结构指纹，使目录 `INVALID_RESPONSE` 的既有安全摘要可在不保存响应内容且不放宽解析的前提下增加
+可审计边界信息。
+
+## 冻结契约
+
+- 保留 ADR-017 `directory_diagnostic` 的原语义和七个固定值。
+- 仅在目录阶段最终为 `INVALID_RESPONSE` 时，安全摘要/既有 JSONL `safe_message` 可附加 ADR-018 词表中的可选
+  `directory_origin` 与 `directory_fingerprint`；不得在成功、非目录阶段、非 `INVALID_RESPONSE` 或正文读取中输出。
+- 只允许 ADR-018 的固定无值标签；禁止字段名、字段值、URL、字幕正文、标题、语言、轨道名、路径、原始异常、Cookie、token、payload、
+  用户数据或凭据形状。
+- 默认与 directory-only 的读取计数、退出码、CLI 边界、临时根、ID 上限、无重试、零业务记录和 fail-closed 行为保持不变；不得扩大
+  目录解析接受面、增加兼容规则或真实资源权限。
+- TASK-014 始终为 `IN_PROGRESS / No-Go`；B7 离线实现不构成真实 B-1 成功、真实服务验证或发行批准。真实验证必须等待独立审查后另行授权。
+
+## 最大允许实现范围
+
+1. `src/youtube_intel/providers/subtitles.py`
+2. `src/youtube_intel/public_subtitle_smoke.py`
+3. `tests/fixtures/subtitles/` 下一个新增的脱敏指纹 fixture
+4. `tests/integration/test_subtitle_provider.py`
+5. `tests/integration/test_public_subtitle_smoke.py`
+6. `handoffs/TASK-014.md`
+
+不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence 或任何其他路径。
+
+## 验收与离线检查
+
+- 离线 Fake 覆盖 ADR-018 的完整 `directory_origin` 与 `directory_fingerprint` 固定词表、unknown/省略边界、B6 code 不变、
+  stdout/JSONL 安全出口及无泄漏。
+- 回归默认一次正文读取、directory-only `1/1/0`、退出码、临时根、ID 上限、无重试、零业务记录、CLI 拒绝与 fail-closed 解析边界。
+- Implementer 仅可先运行一次：
+
+```text
+uv sync --locked --offline
+```
+
+缓存缺失、锁文件变化、任何下载/网络迹象或失败立即停止。仅在已有离线 `.venv` 可用时，才可按序运行：
+
+```text
+.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py
+.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py
+.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py
+.venv/bin/youtube-intel --help
+git diff --check
+```
+
+## 红线与交付
+
+- 禁止真实 YouTube、网络、真实 smoke、媒体下载、ffmpeg、认证、Cookie、API key、真实 Vault、用户数据、模型、Ollama、OpenAI、
+  付费调用、push、合并、source 清理、测试/检查外的产品命令和 `.codebase-memory` 工件。
+- 完成时只创建一个包含允许路径的 Implementer commit，追加 handoff，报告 SHA 与实际检查；不得修改任务/状态/ADR/prompt，不得自行
+  `ACCEPTED`、`DONE`、合并、push 或启动 Reviewer。
