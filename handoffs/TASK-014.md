@@ -162,3 +162,70 @@
 - Verdict: **APPROVE** for the Phase A documentation review only. This is not a
   release approval, legal opinion, real-smoke authorization, risk acceptance,
   or final Go decision; the documented No-Go gates remain open.
+
+## TASK-014B5 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and scope
+
+- Task: `TASK-014B5 — safe smoke summary output`; role: `Implementer`.
+- Base and sole required parent for the implementation commit:
+  `main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`.
+- Worktree/branch: `task-014b5-safe-smoke-summary` /
+  `codex/task-014b5-safe-smoke-summary`.
+- Reuse decision: `DIRECT` — reused the existing restricted CLI,
+  `PublicSubtitleSmoke`, fixed `ErrorCode` values, ADR-015
+  `directory_diagnostic`, `JsonlLogger`, and offline Fake integration setup;
+  no third-party code or dependency was added.
+- Actual implementation paths: `src/youtube_intel/public_subtitle_smoke.py`,
+  `tests/integration/test_public_subtitle_smoke.py`, and this handoff. No
+  change was needed to `cli.py` or `test_operations.py`; both remain in the
+  allowed scope but are intentionally untouched.
+
+### Implemented contract
+
+- Each processed `smoke-public-subtitles` target emits exactly one compact JSON
+  line to stdout in fixed insertion order: `video_id`, `metadata`,
+  `enumerate`, `read`, `error_code`, then (only for directory
+  `INVALID_RESPONSE`) `directory_diagnostic`.
+- `OK` is the explicit fixed safe success code. Failure summaries reuse only
+  the existing fixed safe error code and ADR-015 fixed diagnostic; no JSONL
+  schema or `logging.py` change was made.
+- Default smoke retains one selected-body read; directory-only success and
+  directory `INVALID_RESPONSE` retain per-target `1/1/0` counts and existing
+  exit-code semantics.
+
+### RED/GREEN and offline checks
+
+| Command/check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Completed once from the locked local cache; no download or lockfile change. |
+| Focused pytest before implementation | RED | Three new Fake summary regressions failed because stdout was empty; existing 16 tests passed. |
+| `.venv/bin/pytest tests/integration/test_operations.py tests/integration/test_public_subtitle_smoke.py` | PASS | `19 passed`; covers directory-only success, directory `INVALID_RESPONSE`, default one-body read, global-config early rejection, non-smoke flag rejection, input limits, no retry, and zero business records. |
+| `.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py` | PASS | `Success: no issues found in 2 source files`. |
+| `.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py tests/integration/test_public_subtitle_smoke.py tests/integration/test_operations.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Existing command structure, including `smoke-public-subtitles`, is unchanged. |
+
+### Security and diff review
+
+- The new Fake assertions decode stdout and require only the frozen keys and
+  fixed values. They reject URL, subtitle body, title, language, field value,
+  raw exception, temporary path, Cookie, token, payload, and user-data probes;
+  stderr remains empty. Existing JSONL assertions continue to reject the same
+  sensitive fixture values and prove the schema is unchanged.
+- Before commit, the diff contains only the three paths above; it contains no
+  dependency, lockfile, Schema/migration, configuration, credential, Vault,
+  network, media, authentication, model, push, or merge change. `git diff
+  --check` is clean.
+- No real smoke, YouTube/network request, media, authentication, Cookie,
+  credential, Vault, model, OpenAI/Ollama, paid call, launchd action, push, or
+  merge was performed. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the single implementation commit below.
+- Commit SHA: reported externally after this single fixed-parent implementation
+  commit (not self-recorded to preserve the one-commit history).
+- Remaining risk: offline Fakes validate the bounded output contract only; they
+  do not authorize or demonstrate real-service behavior, release approval, or
+  final Go.
+- `DECISION NEEDED`: `None`.
