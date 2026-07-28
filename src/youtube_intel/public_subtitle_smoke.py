@@ -290,7 +290,7 @@ def _directory_diagnostic(
         code = getattr(diagnostic, "code", None)
         if isinstance(code, str) and code in DIRECTORY_DIAGNOSTIC_CODES:
             return code
-    return "directory_unknown_invalid_response"
+    return "directory_shape_unknown"
 
 
 __all__ = ["PublicSubtitleSmoke"]

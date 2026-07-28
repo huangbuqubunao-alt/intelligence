@@ -297,3 +297,171 @@
 - TASK-014 remains `IN_PROGRESS / No-Go`. This offline review neither validates
   a real service nor grants release approval, final Go, or any real-resource
   authorization.
+
+## TASK-014B6 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and implementation
+
+- Task: `TASK-014B6 — safe subtitle directory shape diagnostics`; role:
+  `Implementer`.
+- Base and required sole parent for the implementation commit:
+  `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`.
+- Worktree/branch: `task-014b6-safe-directory-shape-diagnostics` /
+  `codex/task-014b6-safe-directory-shape-diagnostics`.
+- Reuse decision: `DIRECT` — reused the locked subtitle Adapter, existing
+  `directory_diagnostic` route, directory-only boundary, safe stdout/JSONL
+  output, and offline Fake/fixture integration infrastructure. No external
+  code, dependency, license, lockfile, schema, logging, or CLI change was made.
+- The Adapter now exposes exactly these fixed B6 categories only when directory
+  enumeration ends as `INVALID_RESPONSE`: `directory_shape_missing`,
+  `directory_shape_not_object`, `directory_shape_not_list`,
+  `directory_shape_empty_list`, `directory_shape_unsupported_entry`,
+  `directory_extractor_directory_error`, and `directory_shape_unknown`.
+  Existing safe summary outlets consume the same `directory_diagnostic`; no
+  output schema or additional output surface was added.
+
+### TDD and acceptance evidence
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Completed once solely from the locked local cache; no lockfile change or download failure. |
+| Focused integration suite before Adapter implementation | RED | `16 failed, 86 passed`; new B6 expectations demonstrated the former B3 diagnostics and the accepted missing-field case. |
+| Focused integration suite after implementation | PASS | `103 passed`; covers every fixed B6 category, exact allowed-category set, safe stdout/JSONL outlet, default body-read count, directory-only `1/1/0`, exit handling, ID limits, no retry, and zero business records. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py` | PASS | `Success: no issues found in 1 source file`. |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Command topology is unchanged. |
+
+### Safety and scope review
+
+- Added one sanitized structural fixture and no runtime data. The regression
+  suite asserts that each diagnostic is a fixed category, is emitted only via
+  the established safe outlets, and carries no response-derived value.
+- The Adapter retains strict identity, URL, field, length, count, and format
+  checks. An unsupported-only directory remains rejected; a directory with a
+  supported track retains the existing selection behavior and does not expand
+  the accepted input surface.
+- Default and directory-only body-read behavior, exit semantics, temporary
+  root, ID bound, retry prohibition, and zero-business-record boundary are
+  unchanged by focused regressions. No real service, network, media,
+  authentication, Vault, model, or paid resource was accessed.
+- Product diff is limited to the authorized Adapter, one fixture, two
+  integration tests, and this handoff. No generated artifacts or control-plane
+  files are included.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the single fixed-parent implementation
+  commit.
+- Commit SHA: pending the required final diff, leak, and scope checks.
+- Remaining risk: offline fixtures prove only the bounded diagnostic and output
+  contract; they do not demonstrate real-service compatibility or alter
+  TASK-014 `IN_PROGRESS / No-Go`.
+- `DECISION NEEDED`: `None`.
+
+## TASK-014B6 Correction 1 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and minimal correction
+
+- Required source branch/HEAD/sole parent were verified before writing:
+  `codex/task-014b6-safe-directory-shape-diagnostics` at
+  `9403e37eedbd2513aea631c7272c6d650d41ef40`, whose sole parent is
+  `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`; the worktree and index were
+  clean.
+- Reuse decision: `DIRECT` — reused the existing locked subtitle Adapter
+  vocabulary, smoke safe-summary route, directory-only boundary, JSONL outlet,
+  and offline Fake test infrastructure. No external code, dependency, license,
+  lockfile, schema, Provider, CLI, or logging change was made.
+- The sole behavioral change makes an unknown directory `INVALID_RESPONSE`
+  fallback exactly `directory_shape_unknown`; it does not alter the seven
+  existing ADR-017 codes or the directory parser's accepted input surface.
+
+### TDD and offline validation
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Run once from the locked local cache: `Resolved 84 packages` and `Checked 61 packages`; no download or lockfile change. |
+| New unknown-directory regression before implementation | RED | Focused suite: `1 failed, 10 passed`; the new stdout assertion observed old `directory_unknown_invalid_response` instead of exact `directory_shape_unknown`. |
+| `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py` | PASS | `11 passed`; the new offline Fake verifies directory-only `metadata=1 / enumerate=1 / read=0`, `INVALID_RESPONSE`, exact safe stdout and exact JSONL `safe_message`. |
+| `.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py` | PASS | `Success: no issues found in 1 source file`. |
+| `.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; command topology unchanged and no smoke was run. |
+
+### Safety, scope, and remaining risk
+
+- The new regression injects a private URL, token, title, field value, Cookie,
+  body, payload, and temporary path through the Fake exception, then proves
+  each is absent from both stdout and JSONL. It also proves the former fallback
+  is absent from both surfaces.
+- Focused regression preserves the nonzero execution-failed exit, zero body
+  reads, no retry, temporary-root isolation, ID boundary, and zero business
+  records. Default-mode behavior remains covered by the unchanged focused
+  suite.
+- Final diff is restricted to `public_subtitle_smoke.py`, its integration test,
+  and this handoff; no real YouTube, network, smoke, authentication, media,
+  Vault, model, or paid resource was used.
+- TASK-014 and TASK-014B6 remain `IN_PROGRESS / No-Go`; this offline correction
+  is not real-service validation, release approval, or a status transition.
+
+## TASK-014B6 Correction 1 Range-Corrected Independent Reviewer Evidence — 2026-07-28
+
+### Fixed review object and scope
+
+- Role: new independent Reviewer. Reviewed source branch/HEAD:
+  `codex/task-014b6-safe-directory-shape-diagnostics` at
+  `b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78`.
+- The correction's sole parent is
+  `9403e37eedbd2513aea631c7272c6d650d41ef40`; the original implementation's
+  sole parent is `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`.
+- Dynamic reviewer authorization was verified at
+  `main@44e7c0c45f59914d58a184ad1d3f0975c67c3c2d`, a clean single-parent
+  descendant of the stated control-plane base. The source worktree and index
+  were clean before this evidence append.
+- Correction range contains exactly `public_subtitle_smoke.py`,
+  `test_public_subtitle_smoke.py`, and this handoff. Complete B6 range contains
+  exactly the six range-corrected paths: subtitle Provider, smoke adapter,
+  sanitized directory-shape fixture, the two integration tests, and this
+  handoff. Both range checks are whitespace-clean.
+
+### Independent behavior and security review
+
+- Unknown directory `INVALID_RESPONSE` is emitted to the existing safe stdout
+  and JSONL outlets only as `directory_shape_unknown`; the former
+  `directory_unknown_invalid_response` value is absent from the source output
+  path and is explicitly rejected by the offline regression.
+- The frozen set is exact and complete: `directory_shape_missing`,
+  `directory_shape_not_object`, `directory_shape_not_list`,
+  `directory_shape_empty_list`, `directory_shape_unsupported_entry`,
+  `directory_extractor_directory_error`, and `directory_shape_unknown`.
+  The adapter maps structural failures only to this set and keeps unknown
+  failures fail-closed.
+- The regression injects URL, title, field value, Cookie, token, body, payload,
+  temporary path, and the former fallback through a Fake directory error, then
+  proves each is absent from stdout and JSONL. Static outlet review found one
+  stdout emission and only fixed codes/counts in the diagnostic path; the
+  fixture contains structural synthetic values only.
+- Default one-body-read behavior; directory-only `1/1/0`; nonzero failure exit;
+  CLI/global-option rejection; new-empty temporary-root requirement; 1--3
+  unique-ID bounds; no retry; zero business records; URL, format, size, count,
+  language, entry, and unsupported-directory fail-closed behavior remain
+  covered by the focused suites and unchanged control flow.
+
+### Independent checks and verdict
+
+| Check | Result |
+|---|---|
+| `git` identity, parent-chain, authorization, status, both ranges, and `git diff --check` | PASS |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py` | PASS — 93 passed |
+| `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py` | PASS — 11 passed |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS — no issues in 2 source files |
+| `.venv/bin/ruff check` on B6 Provider/smoke source and integration tests | PASS |
+| `.venv/bin/youtube-intel --help` | PASS — help only; no smoke subcommand run |
+| Static category/output/fixture leak scan | PASS |
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Not run: `uv`, build/package checks, full suite, Python/import probes, any
+  smoke invocation, network/YouTube, media/ffmpeg, authentication/Cookie/API
+  key handling, Vault/user data, SQLite diagnostics, models/Ollama/OpenAI,
+  launchd, push, or merge.
+- Verdict: `APPROVE` for the fixed offline correction range only. TASK-014
+  remains `IN_PROGRESS / No-Go`; this is neither real-service verification nor
+  release approval or final Go.

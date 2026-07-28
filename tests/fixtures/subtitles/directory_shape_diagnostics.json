@@ -1,0 +1,31 @@
+{
+  "directory_shape_missing": {
+    "id": "video123",
+    "automatic_captions": {}
+  },
+  "directory_shape_not_object": {
+    "id": "video123",
+    "subtitles": "not-an-object",
+    "automatic_captions": {}
+  },
+  "directory_shape_not_list": {
+    "id": "video123",
+    "subtitles": {"en": {"not": "a-list"}},
+    "automatic_captions": {}
+  },
+  "directory_shape_empty_list": {
+    "id": "video123",
+    "subtitles": [],
+    "automatic_captions": {}
+  },
+  "directory_shape_unsupported_entry": {
+    "id": "video123",
+    "subtitles": {"en": ["not-an-entry"]},
+    "automatic_captions": {}
+  },
+  "directory_shape_unknown": {
+    "id": "different-video",
+    "subtitles": {},
+    "automatic_captions": {}
+  }
+}

@@ -296,16 +296,30 @@ def _url_with_length(length: int) -> str:
     return prefix + ("q" * (length - len(prefix)))
 
 
+def test_directory_diagnostic_codes_are_exactly_the_fixed_b6_classifications() -> None:
+    assert DIRECTORY_DIAGNOSTIC_CODES == frozenset(
+        {
+            "directory_shape_missing",
+            "directory_shape_not_object",
+            "directory_shape_not_list",
+            "directory_shape_empty_list",
+            "directory_shape_unsupported_entry",
+            "directory_extractor_directory_error",
+            "directory_shape_unknown",
+        }
+    )
+
+
 @pytest.mark.parametrize(
     ("fixture_name", "diagnostic"),
     [
-        ("directory_identity", "directory_identity"),
-        ("directory_bucket_shape", "directory_bucket_shape"),
-        ("directory_track_shape", "directory_track_shape"),
-        ("directory_track_format", "directory_track_format"),
-        ("directory_track_url", "directory_track_url"),
-        ("directory_track_name", "directory_track_name"),
-        ("directory_no_supported_format", "directory_no_supported_format"),
+        ("directory_identity", "directory_shape_unknown"),
+        ("directory_bucket_shape", "directory_shape_not_list"),
+        ("directory_track_shape", "directory_shape_unsupported_entry"),
+        ("directory_track_format", "directory_shape_unsupported_entry"),
+        ("directory_track_url", "directory_shape_unsupported_entry"),
+        ("directory_track_name", "directory_shape_unsupported_entry"),
+        ("directory_no_supported_format", "directory_shape_unsupported_entry"),
     ],
 )
 def test_directory_invalid_response_has_only_a_fixed_diagnostic_code(
@@ -325,7 +339,35 @@ def test_directory_invalid_response_has_only_a_fixed_diagnostic_code(
     assert "127.0.0.1" not in adapter.last_call.diagnostics[0].message
 
 
-def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_codes() -> None:
+@pytest.mark.parametrize(
+    ("fixture_name", "diagnostic"),
+    [
+        ("directory_shape_missing", "directory_shape_missing"),
+        ("directory_shape_not_object", "directory_shape_not_object"),
+        ("directory_shape_not_list", "directory_shape_not_list"),
+        ("directory_shape_empty_list", "directory_shape_empty_list"),
+        ("directory_shape_unsupported_entry", "directory_shape_unsupported_entry"),
+        ("directory_shape_unknown", "directory_shape_unknown"),
+    ],
+)
+def test_directory_shape_invalid_response_has_only_a_fixed_b6_code(
+    fixture_name: str,
+    diagnostic: str,
+) -> None:
+    payload = _load_json("directory_shape_diagnostics.json")[fixture_name]
+    adapter, _ = _adapter_for_info(payload)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert adapter.last_call is not None
+    assert adapter.last_call.diagnostics[0].code == diagnostic
+    assert adapter.last_call.diagnostics[0].code in DIRECTORY_DIAGNOSTIC_CODES
+    assert adapter.last_call.diagnostics[0].message == diagnostic.replace("_", " ")
+
+
+def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_b6_codes() -> None:
     extractor, _ = _adapter_for_info(DownloadError("extract failed with token=private"))
     unknown, _ = _adapter_for_info(
         TranscriptError(
@@ -340,8 +382,8 @@ def test_directory_extractor_and_unclassified_invalid_responses_are_fixed_codes(
     )
 
     for adapter, diagnostic in (
-        (extractor, "directory_extractor_parse"),
-        (unknown, "directory_unknown_invalid_response"),
+        (extractor, "directory_extractor_directory_error"),
+        (unknown, "directory_shape_unknown"),
     ):
         with pytest.raises(TranscriptError) as exc_info:
             adapter.enumerate_tracks("video123")
