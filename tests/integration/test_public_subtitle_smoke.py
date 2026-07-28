@@ -178,13 +178,16 @@ def _smoke(
     )
 
 
-def _args(root: Path, *video_ids: str) -> list[str]:
-    return [
+def _args(root: Path, *video_ids: str, directory_only: bool = False) -> list[str]:
+    arguments = [
         "smoke-public-subtitles",
         "--temporary-root",
         str(root),
         *[part for video_id in video_ids for part in ("--video-id", video_id)],
     ]
+    if directory_only:
+        arguments.append("--directory-only")
+    return arguments
 
 
 def _project(root: Path) -> Path:
@@ -261,6 +264,27 @@ def test_smoke_isolated_to_new_root_and_reads_each_selected_track_once(tmp_path:
     assert all(record["stage"] == "smoke-public-subtitles" for record in records)
 
 
+def test_directory_only_isolated_to_new_root_without_reading_track_bodies(
+    tmp_path: Path,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _FakeSubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, *VIDEO_IDS, directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.OK
+    assert metadata.calls == list(VIDEO_IDS)
+    assert subtitles.enumerate_calls == list(VIDEO_IDS)
+    assert subtitles.read_calls == []
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    assert "read_track_calls=0" in log_text
+    assert SUBTITLE_BODY.decode() not in log_text
+
+
 def test_smoke_rejects_nonnew_root_invalid_or_duplicate_ids_without_calls(tmp_path: Path) -> None:
     metadata = _FakeMetadataProvider()
     subtitles = _FakeSubtitleAdapter()
@@ -305,6 +329,28 @@ def test_smoke_rejects_global_configuration_inputs_before_initialization(tmp_pat
 
     assert metadata.calls == []
     assert subtitles.enumerate_calls == []
+
+
+def test_directory_only_rejects_global_configuration_before_initialization(
+    tmp_path: Path,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _FakeSubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        [
+            "--project-root",
+            str(tmp_path / "configuration"),
+            *_args(root, "video001", directory_only=True),
+        ],
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.USAGE_OR_CONFIGURATION
+    assert metadata.calls == []
+    assert subtitles.enumerate_calls == []
+    assert not root.exists()
 
 
 def test_check_treats_smoke_name_as_an_option_value(tmp_path: Path) -> None:
@@ -398,3 +444,32 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
         "Title",
     ):
         assert forbidden not in log_text
+
+
+def test_directory_only_appends_only_fixed_directory_diagnostic(
+    tmp_path: Path,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert metadata.calls == ["video001"]
+    assert subtitles.enumerate_calls == ["video001"]
+    assert subtitles.read_calls == []
+    records = [
+        json.loads(line)
+        for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    failed_record = next(record for record in records if record["event"] == "smoke.target.failed")
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
+        "directory_diagnostic=directory_track_url"
+    )

@@ -126,6 +126,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     smoke.add_argument("--temporary-root", type=Path, required=True)
     smoke.add_argument("--video-id", action="append", required=True)
+    smoke.add_argument("--directory-only", action="store_true")
     return parser
 
 
@@ -152,6 +153,7 @@ def main(
                 temporary_root=args.temporary_root,
                 video_ids=tuple(args.video_id),
                 run_id=run_id,
+                directory_only=args.directory_only,
             ).exit_code
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
