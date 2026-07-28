@@ -711,3 +711,42 @@
   launchd, push, or merge.
 - TASK-014 remains `IN_PROGRESS / No-Go`; this review is neither real-service
   verification nor release approval or final Go.
+
+## Phase B-1 B7-classified Directory-only Smoke Executor Evidence — 2026-07-29
+
+### Fixed execution boundary
+
+- Role: `Smoke Executor` for the single authorized B7-classified directory-only
+  call.
+- Source HEAD verified before execution:
+  `e50597010fcf785bd3cebe5f07f9f366b7eb9736`.
+- Control-plane authorization:
+  `43f2c748c43215facb231f76a0c93ac45d350657`.
+- Reuse decision: `DIRECT` — used the integrated B4 restricted directory-only
+  smoke, B5 fixed safe stdout summary, B6 ADR-017 diagnostic, B7 ADR-018
+  origin/fingerprint, and locked `youtube_intel.cli:main`; no dependency or
+  third-party code was changed.
+
+### Checks and single execution
+
+| Check | Result | Safe evidence |
+|---|---|---|
+| Three-step offline preprovision | PASS | All three required steps completed; no lockfile change was observed. |
+| Absolute launcher static verification | PASS | The launcher was executable and mapped to `youtube_intel.cli:main`. |
+| Single fixed directory-only execution | Completed | Numeric exit code `0`; the two permitted target summaries are recorded below. |
+
+| 公开稳定目标标识 | metadata | enumerate | read | 最终安全码 | directory_diagnostic | directory_origin | directory_fingerprint |
+|---|---:|---:|---:|---|---|---|---|
+| `--khbXchTeE` | 1 | 1 | 0 | `INVALID_RESPONSE` | `directory_shape_unknown` | `directory_origin_mapping` | `directory_fingerprint_unknown` |
+| `JTxsNm9IdYU` | 1 | 1 | 0 | `INVALID_RESPONSE` | `directory_shape_unknown` | `directory_origin_mapping` | `directory_fingerprint_unknown` |
+
+### Stop point, scope, and conclusion
+
+- Stop point: the fixed call ended after the two authorized safe summaries; no
+  retry or second smoke was performed.
+- Actual modified paths are limited to the B7 smoke evidence, this release
+  checklist append, and this handoff. No product code, tests, dependency,
+  lockfile, schema, credential, Vault, model, media, authentication, push,
+  merge, or source cleanup action was performed.
+- Suggested status: `IN_REVIEW`. TASK-014 remains `IN_PROGRESS / No-Go`; this
+  record is not a release approval, risk acceptance, or final Go.

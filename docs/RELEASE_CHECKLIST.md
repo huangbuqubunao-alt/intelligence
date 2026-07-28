@@ -53,3 +53,11 @@
 
 只有四项均为 `GO`、所有 `BLOCKED` 项有可审计的关闭证据、且发布形态与 SBOM/NOTICE
 一致时，才可由主控另行决定发布。否则维持 `NO-GO` 并开立范围明确的后续任务。
+
+## TASK-014 Phase B-1 — B7-classified directory-only 受控记录
+
+| 项目 | 状态 | 审计边界 |
+|---|---|---|
+| 唯一一次 B7-classified directory-only 调用 | 已执行；退出码 `0` | 每个固定目标的安全摘要均为 `metadata=1`、`enumerate=1`、`read=0`；最终安全码均为 `INVALID_RESPONSE`。 |
+| ADR-017 / ADR-018 安全分类 | 已记录 | 两个目标均记录 `directory_shape_unknown`、`directory_origin_mapping` 与 `directory_fingerprint_unknown`；完整受限记录见 [B7 smoke evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-B7-CLASSIFIED-PUBLIC-YOUTUBE.md)。 |
+| 发布结论 | 仍为 NO-GO | 本次受控 smoke 不构成真实服务普遍兼容、风险接受、发布批准或最终 Go。 |
