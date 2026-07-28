@@ -119,6 +119,18 @@
   pytest、mypy、Ruff、CLI help、build、范围或泄漏扫描任一失败均立即停止、不合并；禁止修复代码、改变任务状态、push 或清理 source。
 - TASK-014B7 的 `ACCEPTED` 不等于 `DONE`、真实 B-1 成功、真实服务验证或发行批准；TASK-014 始终为 `IN_PROGRESS / No-Go`。
 
+## Product Integrator 构建命令更正与一次性继续执行
+
+- 先前 Product Integrator 在不变的 `main@9e292dd…` 与 accepted source `6a7f4ce…` 上完成了 lock check、locked offline sync、
+  Provider/Smoke pytest `114 passed`、mypy、Ruff 与 CLI help；它们是可复用的已通过证据，不得重跑。
+- 唯一失败的是未获项目依赖支持的 `.venv/bin/python -m build --no-isolation`，报 `No module named build.__main__`；未产生 merge 或
+  source 修改。不得新增 `build` 依赖、修改锁文件或重试该命令。
+- 新 Product Integrator 执行窗口仅在再次确认 main/source 未变且干净后，依次允许：`uv build --offline`；fixture 删除无重现、范围、
+  `diff --check` 与 stdout/stderr/JSONL/fixture 泄漏扫描；全通过后唯一的 `git merge --no-ff 6a7f4ce…`；再核验 merge 双亲顺序、
+  first-parent 五路径子集、锁文件未变和 main/source 洁净度。
+- 任一允许门禁失败均立即停止且不得合并；禁止重跑无变化的已通过门禁、任何 `.venv/bin/python -m build`、依赖/锁文件改动、真实资源、
+  push 或 source 清理。TASK-014B7 保持 `ACCEPTED`，TASK-014 保持 `IN_PROGRESS / No-Go`。
+
 ## 验收与离线检查
 
 - 离线 Fake 覆盖 ADR-018 的完整 `directory_origin` 与 `directory_fingerprint` 固定词表、unknown/省略边界、B6 code 不变、
