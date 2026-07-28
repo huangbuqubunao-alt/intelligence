@@ -90,7 +90,9 @@
   禁止访问、修改、合并、清理或复用。正式包为
   `agent-prompts/TASK-014B3-PUBLIC-SUBTITLE-DIAGNOSTICS-IMPLEMENTER-CODEX.md`。唯一 Implementer source
   `77f2690c28ab80eb9886e8ca8eadb0e47481cd51` 的唯一父提交为 `9c5f08ec829629591b095bd68841ca3ce0b22532`，
-  source 已核验干净；B3 现为 `IN_REVIEW`，独立 Reviewer 仅获追加 `handoffs/TASK-014B3.md` 的授权，尚未启动。
+  source 已核验干净；review evidence `b0ddf9d7749840fbf507426f67ba38a28b7030f8` 是 `77f2690c...` 的唯一子提交，
+  仅追加 source handoff，独立 Reviewer `APPROVE`、P0–P3 均无。B3 现为 `ACCEPTED`，等待固定 `--no-ff`
+  Product Integrator 整合；TASK-014 继续 `IN_PROGRESS / No-Go`。
   B3 只允许 provider、必要 smoke 审计出口、离线 fixtures/tests 和 handoff；不放宽安全边界，不改依赖/锁文件/Schema/
   默认 CLI，不运行网络或真实资源。TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 旧 final B-1 source evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 只保留为未触达 YouTube 的历史环境阻断：
@@ -213,7 +215,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
-| 审查已授权未启动 | TASK-014B3：公开字幕目录兼容性诊断 | 唯一 source 为 `codex/task-014b3-public-subtitle-diagnostics-implementation@77f2690…`，唯一父为 `9c5f08e…` 且已核验干净；正式 Reviewer 包为 `agent-prompts/TASK-014B3-PUBLIC-SUBTITLE-DIAGNOSTICS-REVIEWER-CODEX.md`。Reviewer 只可追加 source `handoffs/TASK-014B3.md`，独立复核固定九类加 unknown 脱敏分类、目录失败时正文零读取的 safe_message 出口、无结构化字段/敏感泄漏及 fail-closed 回归；仅允许离线 fixture/Fake 测试，禁止真实 YouTube/网络。TASK-014 保持 `IN_PROGRESS / No-Go` |
+| 已接受待整合 | TASK-014B3：公开字幕目录兼容性诊断 | 唯一 accepted source 为 `codex/task-014b3-public-subtitle-diagnostics-implementation@b0ddf9d…`，唯一父为 `77f2690…`、仅追加 handoff，Reviewer `APPROVE` 且 P0–P3 无；正式 Integrator 包为 `agent-prompts/TASK-014B3-PRODUCT-INTEGRATOR-CODEX.md`。只允许固定 `--no-ff`，整合后须通过离线 fixture/Fake、mypy、Ruff、范围与泄漏扫描；禁止真实 YouTube/网络、B-1 重试、真实资源、依赖/锁变更、push 与 source 清理。TASK-014 保持 `IN_PROGRESS / No-Go` |
 | 已授权未启动 | TASK-014B3 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B3-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，控制面基线 `main@99651ec…`；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包立即停止；禁止网络、下载、任何文件/依赖/锁变更、真实资源和提交。成功仅报告环境就绪，不启动 Implementer/Reviewer，TASK-014/TASK-014B3 状态不变 |
 | 已完成可关闭 | TASK-014B2：正式 console entry | merge `99a22d…` 已整合；五路径与离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁通过，source 干净；不是真实 smoke 或发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
