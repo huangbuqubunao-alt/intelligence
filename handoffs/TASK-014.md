@@ -91,6 +91,79 @@
 - 整合后检查:
 - 最终状态：`DONE | BLOCKED`
 
+## TASK-014B7 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and scope
+
+- Task: `TASK-014B7 — safe subtitle directory origin and fingerprint`; role:
+  `Implementer`.
+- Required base and sole parent for the first product commit:
+  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`.
+- Worktree/branch: `task-014b7-safe-directory-origin-fingerprint` /
+  `codex/task-014b7-safe-directory-origin-fingerprint`.
+- Reuse decision: `DIRECT` — reused the locked subtitle Adapter, ADR-017 B6
+  `directory_diagnostic`, B4 directory-only boundary, B5 safe stdout/JSONL
+  outlets, JsonlLogger, and existing offline Fake/fixture integration setup.
+  No third-party code, dependency, lockfile, schema, logging, CLI, or
+  configuration change was made.
+- Actual paths are exactly the six authorized paths: subtitle Adapter, public
+  smoke composition, one new sanitized fingerprint fixture, the two specified
+  integration tests, and this handoff.
+
+### Implemented contract and TDD evidence
+
+- B6 `directory_diagnostic` remains unchanged and independent. Only a
+  directory-stage `INVALID_RESPONSE` with one enumeration and zero body reads
+  can append frozen `directory_origin` and `directory_fingerprint` labels to
+  the existing stdout summary and JSONL `safe_message`.
+- The two B7 vocabularies are exact ADR-018 finite sets. Mapping failures carry
+  fixed origin/fingerprint pairs; extractor and decode boundaries carry their
+  fixed origins; untrusted or unclassified labels reduce to fixed `*_unknown`.
+  A reliably non-structural fingerprint can be omitted. No response acceptance
+  rule was changed.
+- RED: the first frozen-vocabulary regression failed during test collection
+  because `DIRECTORY_FINGERPRINT_CODES` did not exist. After adding only the
+  frozen vocabularies, the required integration command passed (`105 passed`).
+  The next stdout/JSONL propagation slice failed with three missing-label
+  assertions, then passed after the bounded safe-output implementation.
+- Offline Fakes cover every frozen origin/fingerprint code, B6 preservation,
+  unknown and omission boundaries, default one-body read, directory-only
+  `1/1/0`, non-directory body `INVALID_RESPONSE` suppression, exit-code and
+  no-retry boundaries, and zero business records.
+
+### Validation and safety review
+
+| Command/check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Completed once from local cache; no lockfile change, download, or network use. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `113 passed`; offline only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS | `Success: no issues found in 2 source files`. |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Existing CLI topology is unchanged; no smoke was executed. |
+| `git diff --check` | PASS | No whitespace errors. |
+
+- Leakage evidence: stdout and JSONL regressions assert that raw URLs, subtitle
+  body, titles, language/track data, field values, paths, original exceptions,
+  Cookie, token, payload, and user-data probes are absent; stderr is empty on
+  the directory failure path. The new sanitized fixture's values are also
+  absent from Adapter error and diagnostic messages. Only prevalidated IDs,
+  integer counts, fixed error codes, B6 diagnostics, and ADR-018 labels can
+  reach the summaries.
+- No real YouTube/network request, smoke, authentication, Cookie, credential,
+  media, ffmpeg, Vault, model, Ollama, OpenAI, paid call, push, merge, source
+  cleanup, or control-plane edit was performed. TASK-014 remains
+  `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the single fixed-parent commit.
+- Commit SHA: recorded in the Implementer report after commit creation; not
+  self-recorded here before the commit to preserve the single-commit history.
+- Remaining risk: offline Fakes prove only the constrained diagnostic and
+  leakage boundary; they do not authorize real-service validation, release
+  approval, or final Go.
+- `DECISION NEEDED`: `None`.
+
 ## Independent Reviewer Evidence — 2026-07-26
 
 ### Fixed review object and cleanliness

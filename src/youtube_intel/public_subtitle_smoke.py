@@ -15,6 +15,8 @@ from youtube_intel.domain import AppError, ErrorCode, VideoMetadata
 from youtube_intel.logging import JsonlLogger
 from youtube_intel.providers.subtitles import (
     DIRECTORY_DIAGNOSTIC_CODES,
+    DIRECTORY_FINGERPRINT_CODES,
+    DIRECTORY_ORIGIN_CODES,
     YtDlpSubtitleAdapter,
 )
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
@@ -165,6 +167,16 @@ class PublicSubtitleSmoke:
                 enumerate_calls=enumerate_calls,
                 read_calls=read_calls,
             )
+            origin = _directory_origin(
+                error,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
+            fingerprint = _directory_fingerprint(
+                error,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
             safe_message = (
                 "metadata_calls="
                 f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
@@ -172,6 +184,10 @@ class PublicSubtitleSmoke:
             )
             if diagnostic is not None:
                 safe_message = f"{safe_message} directory_diagnostic={diagnostic}"
+            if origin is not None:
+                safe_message = f"{safe_message} directory_origin={origin}"
+            if fingerprint is not None:
+                safe_message = f"{safe_message} directory_fingerprint={fingerprint}"
             logger.emit(
                 level="ERROR",
                 event="smoke.target.failed",
@@ -189,6 +205,8 @@ class PublicSubtitleSmoke:
                 read_calls=read_calls,
                 error_code=error_code,
                 directory_diagnostic=diagnostic,
+                directory_origin=origin,
+                directory_fingerprint=fingerprint,
             )
             return False
 
@@ -258,6 +276,8 @@ def _emit_summary(
     read_calls: int,
     error_code: str,
     directory_diagnostic: str | None = None,
+    directory_origin: str | None = None,
+    directory_fingerprint: str | None = None,
 ) -> None:
     summary: dict[str, str | int] = {
         "video_id": video_id,
@@ -268,6 +288,10 @@ def _emit_summary(
     }
     if directory_diagnostic is not None:
         summary["directory_diagnostic"] = directory_diagnostic
+    if directory_origin is not None:
+        summary["directory_origin"] = directory_origin
+    if directory_fingerprint is not None:
+        summary["directory_fingerprint"] = directory_fingerprint
     print(json.dumps(summary, separators=(",", ":")))
 
 
@@ -291,6 +315,58 @@ def _directory_diagnostic(
         if isinstance(code, str) and code in DIRECTORY_DIAGNOSTIC_CODES:
             return code
     return "directory_shape_unknown"
+
+
+def _directory_origin(
+    error: Exception,
+    *,
+    enumerate_calls: int,
+    read_calls: int,
+) -> str | None:
+    if not _is_directory_invalid_response(
+        error,
+        enumerate_calls=enumerate_calls,
+        read_calls=read_calls,
+    ):
+        return None
+    origin = getattr(error, "directory_origin", None)
+    if isinstance(origin, str) and origin in DIRECTORY_ORIGIN_CODES:
+        return origin
+    return "directory_origin_unknown"
+
+
+def _directory_fingerprint(
+    error: Exception,
+    *,
+    enumerate_calls: int,
+    read_calls: int,
+) -> str | None:
+    if not _is_directory_invalid_response(
+        error,
+        enumerate_calls=enumerate_calls,
+        read_calls=read_calls,
+    ):
+        return None
+    if hasattr(error, "directory_fingerprint"):
+        fingerprint = getattr(error, "directory_fingerprint")
+        if fingerprint is None:
+            return None
+        if isinstance(fingerprint, str) and fingerprint in DIRECTORY_FINGERPRINT_CODES:
+            return fingerprint
+    return "directory_fingerprint_unknown"
+
+
+def _is_directory_invalid_response(
+    error: Exception,
+    *,
+    enumerate_calls: int,
+    read_calls: int,
+) -> bool:
+    return (
+        enumerate_calls == 1
+        and read_calls == 0
+        and _error_code(error) == ErrorCode.INVALID_RESPONSE.value
+    )
 
 
 __all__ = ["PublicSubtitleSmoke"]
