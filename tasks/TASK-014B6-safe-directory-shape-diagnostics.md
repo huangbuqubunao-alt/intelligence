@@ -1,8 +1,8 @@
 # TASK-014B6：安全字幕目录结构诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `独立 Codex Reviewer（已授权，尚未启动）`
-- Reviewer: `独立 Codex Reviewer`
+- Status: `IN_PROGRESS`
+- Assignee: `原 Codex Implementer（P1 Correction 1 已授权，尚未启动）`
+- Reviewer: `独立 Reviewer 在发现 P1 后停止；未写 evidence commit`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、ADR-017 `Accepted`
 - 实施基线：`main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`
@@ -33,27 +33,33 @@
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence 或任何其他路径。
 
-## 审查控制面
+## P1 Correction 1 控制面
 
-- 完整产品 Diff `7983bf5…...9403e37…` 严格为 `src/youtube_intel/providers/subtitles.py`、
-  `tests/fixtures/subtitles/directory_shape_diagnostics.json`、两份 integration test 与 `handoffs/TASK-014.md`。Reviewer
-  只能在该 source 追加 `handoffs/TASK-014.md` 的审查 evidence；不得修改产品、fixture、任务/状态文档或 prompt。
-- Reviewer 必须审查 ADR-017 七种固定、无值目录结构分类、未知 fallback、既有安全 stdout/JSONL 出口与不扩大解析
-  接受面的负向回归；独立验证 stdout/stderr/JSONL 与 fixture 不泄露 URL、正文、标题、语言、轨道名、字段值、路径、原始异常、
-  Cookie、token、payload 或用户数据。
-- 默认/directory-only 计数、退出码、CLI 边界、临时根、ID 上限、无重试、零业务记录和 fail-closed 边界必须保持不变。
+- 原 Implementer source `9403e37eedbd2513aea631c7272c6d650d41ef40`（唯一父 `7983bf5…`）保持干净。Reviewer 发现 P1 后停止，
+  没有 Reviewer evidence commit；不得伪造或引用不存在的 Reviewer SHA。
+- P1：未知目录 `INVALID_RESPONSE` 的 fallback 输出为旧 B3 code `directory_unknown_invalid_response`，但 ADR-017
+  的精确固定词表要求 `directory_shape_unknown`。
+- Correction 1 的唯一允许路径：
+
+  1. `src/youtube_intel/public_subtitle_smoke.py`
+  2. `tests/integration/test_public_subtitle_smoke.py`
+  3. `handoffs/TASK-014.md`
+
+- 首个 Correction 1 产品提交必须以 `9403e37…` 为唯一父提交。修复所有未知目录 `INVALID_RESPONSE` 仅输出精确固定码
+  `directory_shape_unknown` 并新增回归；不得修改既有七类 vocabulary、Provider、CLI、`logging.py`、依赖、锁、Schema、
+  解析接受面或真实资源权限。后续必须由新的独立 Reviewer 审查。
 
 ## 验收与离线检查
 
-- 离线 fixture/test 覆盖 ADR-017 的每个固定、无值 code，以及未知回退；断言 stdout/JSONL 只使用既有安全出口，不含禁止内容。
-- 回归默认一次正文读取、directory-only 1/1/0、退出码、临时根、ID 上限、无重试、零业务记录、CLI 拒绝和 fail-closed 边界。
-- Implementer 仅可先运行一次 `uv sync --locked --offline`；缓存缺失、下载/网络迹象、锁文件变化或失败立即停止。
+- Correction 1 回归未知目录 `INVALID_RESPONSE` 的 stdout/JSONL 只输出 `directory_shape_unknown`，不含旧 B3 fallback 或任何
+  动态值；默认一次正文读取、directory-only 1/1/0、退出码、临时根、ID 上限、无重试、零业务记录、CLI 拒绝和 fail-closed 边界不变。
+- Correction 1 Implementer 仅可先运行一次 `uv sync --locked --offline`；缓存缺失、下载/网络迹象、锁文件变化或失败立即停止。
 - 仅在已有离线 `.venv` 可用时，允许按任务实际范围运行：
 
 ```text
-.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py
-.venv/bin/mypy src/youtube_intel/providers/subtitles.py
-.venv/bin/ruff check src/youtube_intel/providers/subtitles.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py
+.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py
+.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py
+.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py tests/integration/test_public_subtitle_smoke.py
 .venv/bin/youtube-intel --help
 git diff --check
 ```
@@ -62,5 +68,5 @@ git diff --check
 
 - 禁止真实 YouTube、网络、真实 smoke、媒体下载、ffmpeg、认证、Cookie、API key、真实 Vault、用户数据、模型、Ollama、OpenAI、
   付费调用、push、合并、source 清理和任何额外产品命令。
-- 完成时只提交上述允许路径的一个 Implementer commit，追加 `handoffs/TASK-014.md` 并报告 SHA；不得自行 `ACCEPTED`、`DONE`、
+- 完成时只提交 Correction 1 三条允许路径的一个 Implementer commit，追加 `handoffs/TASK-014.md` 并报告 SHA；不得自行 `ACCEPTED`、`DONE`、
   合并、push 或启动真实验证。
