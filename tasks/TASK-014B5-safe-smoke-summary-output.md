@@ -1,12 +1,14 @@
 # TASK-014B5：安全 smoke 摘要输出
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer`
-- Reviewer: `待主控在 Implementer 提交后分配`
+- Status: `IN_REVIEW`
+- Assignee: `独立 Codex Reviewer（已授权，尚未启动）`
+- Reviewer: `独立 Codex Reviewer`
 - 依赖：TASK-014B0 `DONE`、TASK-014B3 `DONE`、TASK-014B4 `DONE`
 - 实施基线：`main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary`
 - Branch：`codex/task-014b5-safe-smoke-summary`
+- 当前受审 source：`ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1`（唯一父
+  `b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`）
 - Reuse decision：`DIRECT` — 既有受限 CLI、`PublicSubtitleSmoke`、固定安全错误码、ADR-015
   `directory_diagnostic`、JsonlLogger 和离线 Fake/integration 基础设施；不新增依赖或复制第三方代码。
 
@@ -36,7 +38,17 @@
 5. `handoffs/TASK-014.md`
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、domain/config、Provider Adapter、默认 CLI 结构、发布状态、
-README、B-1 evidence 或任何其他路径。
+ README、B-1 evidence 或任何其他路径。
+
+## 审查控制面
+
+- 完整产品 Diff `b1ea7a66…...ce4b472…` 当前严格为
+  `src/youtube_intel/public_subtitle_smoke.py`、`tests/integration/test_public_subtitle_smoke.py` 与
+  `handoffs/TASK-014.md`，属于上述五条允许路径。Reviewer 只能在该 source 追加 `handoffs/TASK-014.md` 的审查 evidence；
+  不得修改任何产品路径、任务/状态文档或 prompt。
+- Reviewer 必须核验 stdout 的固定、有序安全 JSON 摘要：成功 `OK`、目录 `INVALID_RESPONSE` 的固定
+  `directory_diagnostic`、directory-only 1/1/0、默认模式一份正文读取、退出码语义和既有 CLI 拒绝/fail-closed 边界。
+  必须独立负向验证 stdout/stderr/JSONL 不泄露 URL、正文、标题、字段值、路径、异常原文、Cookie、token、payload、用户数据或凭据。
 
 ## 验收与离线检查
 
