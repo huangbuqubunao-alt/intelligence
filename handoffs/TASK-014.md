@@ -91,6 +91,40 @@
 - 整合后检查:
 - 最终状态：`DONE | BLOCKED`
 
+## TASK-014 Phase B-1 B6-classified Directory-only Smoke Executor Evidence — 2026-07-28
+
+### Assignment, reuse, and exact scope
+
+- Role: `Smoke Executor`; source branch/HEAD:
+  `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4f5313b7d077bdca8e1154a13cc4db2e57`.
+- Control-plane authorization: `5b7dcca2ba9bd9e52e254a8944e584542838e24b`.
+- Reuse decision: `DIRECT` — integrated B4 restricted directory-only smoke, B5 safe stdout summary, B6 ADR-017 fixed no-value diagnostic codes, existing locked console entry, and release-evidence documents. No dependency or third-party code change.
+- Actual source changes are limited to the new B6 execution evidence, this handoff, and the append-only release-checklist entry. No product code, test, dependency, lockfile, schema, configuration, task status, credential, Vault, model, or release configuration was changed.
+
+### Required preconditions
+
+| Check | Result |
+|---|---|
+| Branch, required HEAD, authorization ancestry, and cleanliness | PASS |
+| `uv lock --check` before and after provisioning | PASS |
+| `uv sync --locked --offline` | PASS — no lockfile change or download indication |
+| Absolute installed launcher static mapping to `youtube_intel.cli:main` | PASS |
+| New temporary parent with an absent `smoke-root` before the call | PASS |
+
+### Single authorized execution and safe result
+
+- One directory-only call was executed for the two fixed IDs, with numeric exit code `0`.
+- Safe result: `--khbXchTeE` — `metadata=1`, `enumerate=1`, `read=0`, `INVALID_RESPONSE`, `directory_shape_unknown`.
+- Safe result: `JTxsNm9IdYU` — `metadata=1`, `enumerate=1`, `read=0`, `INVALID_RESPONSE`, `directory_shape_unknown`.
+- The retained evidence contains only the permitted stable identifiers, integer counts, fixed safe code, and ADR-017 code. It contains no raw stdout/stderr/JSONL, command text, temporary path, URL, subtitle body, title, language, field value, raw exception, payload, Cookie, token, credential, user data, or other unapproved value.
+- No second attempt, retry, PATH change, module entry, authentication, Cookie, media, Vault, model, OpenAI, Ollama, user data, push, merge, rebase, reset, or source cleanup occurred.
+
+### Checks, handoff, and residual state
+
+- Required execution checks above passed; no additional test, build, lint, typecheck, CLI help, or product command was run because this execution package did not authorize them.
+- This one-time B6-classified execution is technically complete, but both safe target summaries classify the directory result as `INVALID_RESPONSE`; it is not a successful subtitle-directory compatibility result and does not constitute release approval, risk acceptance, or final Go.
+- Suggested status: `IN_REVIEW`. `TASK-014` remains `IN_PROGRESS / No-Go` pending independent review and all existing release gates.
+
 ## Independent Reviewer Evidence — 2026-07-26
 
 ### Fixed review object and cleanliness

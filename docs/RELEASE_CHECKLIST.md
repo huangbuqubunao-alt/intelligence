@@ -42,6 +42,13 @@
 | 四阶段真实 smoke | NOT AUTHORIZED | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。 |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
+### TASK-014 Phase B-1 — B6-classified directory-only execution record (2026-07-28)
+
+- Authorized source and control-plane authorization were verified before execution; the source was clean.
+- Offline lock/sync/lock provisioning passed, and the absolute installed launcher was statically verified as `youtube_intel.cli:main`.
+- The unique authorized directory-only call exited `0`. Safe per-target summaries are recorded only in [B6-classified smoke evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-B6-CLASSIFIED-PUBLIC-YOUTUBE.md): both fixed targets have `metadata=1`, `enumerate=1`, `read=0`, final safe code `INVALID_RESPONSE`, and ADR-017 code `directory_shape_unknown`.
+- No retry or unauthorized resource category was used. This record does not close any `BLOCKED` item, establish general real-service compatibility, accept risk, or change the overall `NO-GO` conclusion.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |
