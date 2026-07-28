@@ -1,7 +1,7 @@
 # TASK-014B6：安全字幕目录结构诊断
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Status: `DONE`
+- Assignee: `Closure Status Integrator（已收口）`
 - Reviewer: `范围修正独立 Codex Reviewer — APPROVE（P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、ADR-017 `Accepted`
 - 实施基线：`main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`
@@ -64,6 +64,14 @@
 - 整合后必须运行离线 Provider/Smoke 测试、mypy、Ruff、CLI help、离线 build、六路径 first-parent 范围和
   stdout/stderr/JSONL/fixture 泄漏扫描；任何失败、网络/下载迹象、锁变化、冲突或范围外路径均立即停止，如实保留证据，
   不在整合中修复代码。
+
+## Closure
+
+- Product Integrator 已以 merge commit `f402400aea0e943ce5e46bf1bba59fcef1e1d376` 整合；父提交顺序为
+  `dac394bd7f6a43d484ad713814db7f614a755e36`、`f16f94a9304e005390c6958025b0688dba96385c`。accepted source 是 merge 祖先，
+  source worktree 保持干净并保留；first-parent Diff 严格为本任务六条批准路径。
+- 既有离线整合证据均通过：lock/sync、Provider/Smoke `104 passed`、mypy、Ruff、CLI help、离线 build、范围检查及
+  stdout/stderr/JSONL/fixture 泄漏扫描。TASK-014B6 现为 `DONE`；这不代表 B-1 真实成功、真实服务验证通过、发行批准或 TASK-014 Go。
 
 ## 验收与离线检查
 

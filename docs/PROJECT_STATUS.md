@@ -118,10 +118,11 @@
   完整 B6 Diff 严格为上述六路径，source 干净。上一 Reviewer 因完整范围少列 `public_subtitle_smoke.py` 而停止，未写
   evidence commit；不得伪造 Reviewer SHA。范围修正 Reviewer 已在唯一 handoff evidence
   `f16f94a9304e005390c6958025b0688dba96385c`（唯一父 `b58ba26…`）记录 `APPROVE`，P0--P3 均为 `0`；该 evidence 只修改
-  `handoffs/TASK-014.md`。TASK-014B6 现为 `ACCEPTED`，固定 accepted source 为 `f16f94a…`，仅授权 Product Integrator
-  在动态干净 acceptance main 上执行一次固定 `git merge --no-ff f16f94a…`，再进行离线 Provider/Smoke 测试、mypy、Ruff、CLI help、
-  build、六路径范围与 stdout/stderr/JSONL/fixture 泄漏扫描。本控制面不启动 Integrator，不预写 `DONE`、真实 B-1 通过或发行批准；
-  TASK-014 继续 `IN_PROGRESS / No-Go`。
+  `handoffs/TASK-014.md`。Product Integrator 已以 merge `f402400aea0e943ce5e46bf1bba59fcef1e1d376` 整合，父顺序为
+  `dac394bd7f6a43d484ad713814db7f614a755e36`、`f16f94a9304e005390c6958025b0688dba96385c`；accepted source 是 merge 祖先，
+  first-parent Diff 严格为上述六路径，source 干净并保留。既有离线 lock/sync、Provider/Smoke `104 passed`、mypy、Ruff、CLI help、
+  离线 build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描均通过。TASK-014B6 现为 `DONE`，不构成真实 B-1 成功、真实服务验证、
+  发行批准或 TASK-014 Go；TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -297,7 +298,7 @@
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
-| ACCEPTED | TASK-014B6：安全字幕目录结构诊断 | accepted source `codex/task-014b6-safe-directory-shape-diagnostics@f16f94a…` / `/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics` 干净；Reviewer evidence 的唯一父为 `b58ba26…`、仅改 handoff，Verdict=APPROVE、P0--P3=0。Correction 严格为 smoke source/test/handoff，完整 B6 Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。Product Integrator 已获授权，仅可受控 `--no-ff` 整合并运行离线 Provider/Smoke、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL/fixture 泄漏扫描；不构成 `DONE`、真实 B-1 通过或发行批准 |
+| DONE | TASK-014B6：安全字幕目录结构诊断 | `--no-ff` merge `f402400…` 已进入 main，双父 `dac394b…`、`f16f94a…`；accepted source 是 merge 祖先，first-parent Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。既有离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 干净并保留。B6 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4：受限 directory-only 公开字幕 smoke | `--no-ff` merge `133819f…` 已进入 main，双父 `8637438…`、`d211d62…`，accepted source 是 merge 祖先；first-parent Diff 严格为五条 B4 路径。既有离线 `uv sync --locked --offline`、Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描通过；main/source 干净且 source 保留。未 push、未运行真实 YouTube/B-1、网络、真实服务、认证、媒体、凭据、Vault 或模型；B4 为 `DONE`，不构成真实 B-1 通过、真实服务验证或发行批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B4-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，授权控制提交暨唯一实施起点 `bbd3fdd…`（父 `ccc7478…`）；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包、网络/下载迹象、锁变化或任何失败立即停止；禁止任何文件修改/暂存/提交、测试、构建、真实资源和 Implementer/Reviewer 启动。成功仅报告环境就绪；后续整合已独立完成，TASK-014 仍为 `IN_PROGRESS / No-Go`，B4 已为 `DONE` |
