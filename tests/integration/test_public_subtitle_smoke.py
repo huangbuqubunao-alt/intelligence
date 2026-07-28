@@ -116,8 +116,8 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
             finished_at=NOW,
             diagnostics=(
                 DiagnosticEntry(
-                    code="directory_track_url",
-                    message="directory track URL",
+                    code="directory_shape_unsupported_entry",
+                    message="directory shape unsupported entry",
                 ),
             ),
         )
@@ -469,7 +469,7 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
     )
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
-        "directory_diagnostic=directory_track_url"
+        "directory_diagnostic=directory_shape_unsupported_entry"
     )
     assert set(failed_record) == {
         "timestamp",
@@ -522,7 +522,7 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
             "enumerate": 1,
             "read": 0,
             "error_code": "INVALID_RESPONSE",
-            "directory_diagnostic": "directory_track_url",
+            "directory_diagnostic": "directory_shape_unsupported_entry",
         }
     ]
     assert output.err == ""
@@ -547,5 +547,5 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
     failed_record = next(record for record in records if record["event"] == "smoke.target.failed")
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
-        "directory_diagnostic=directory_track_url"
+        "directory_diagnostic=directory_shape_unsupported_entry"
     )
