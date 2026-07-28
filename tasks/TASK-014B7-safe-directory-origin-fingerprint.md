@@ -1,14 +1,14 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer（P1 Correction 2 已授权，尚未启动）`
-- Reviewer: `待 Correction 2 全新独立 Reviewer 授权`
+- Status: `IN_REVIEW`
+- Assignee: `Correction 2 独立 Codex Reviewer（已授权，尚未启动）`
+- Reviewer: `Correction 2 全新独立 Codex Reviewer`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
 - Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
-- 受审 Correction 1 source：`069e62ececada5152871fb7c626e64c146a270ad`（唯一父
-  `8d06197557de4ce92c2752f4a8ef74582a0efdca`；后者唯一父 `5b7dcca…`）
+- 受审 Correction 2 source：`4d4366f6a6403403a0d9bed65fbbf862a362eede`（唯一父
+  `069e62ececada5152871fb7c626e64c146a270ad`；后者唯一父 `8d061975…`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、
   ADR-017 B6 结构诊断、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
@@ -92,6 +92,22 @@
 - 不得改变解析接受面、CLI、`logging.py`、依赖、锁文件、Schema、读取计数、退出码、默认/directory-only 行为、临时根、ID 上限、
   无重试、零业务记录、fail-closed 边界或真实资源权限。已删除 fixture 不得恢复、替代或在任何路径重现。
 - Correction 2 Implementer commit 必须以 `069e62e…` 为唯一父提交；完成后必须由全新独立 Reviewer 审查。
+
+## Correction 2 Reviewer 范围对齐与独立审查
+
+- 上次 Reviewer 授权未创建提交；两位更早的 Reviewer 也均在发现 P1 后停止，未创建 evidence commit。不得伪造或引用任何
+  Reviewer evidence SHA。
+- Correction 2 source `4d4366f…` 的唯一父为 `069e62e…`。精确实际 Diff 严格且仅为：
+
+  1. `src/youtube_intel/providers/subtitles.py`
+  2. `tests/integration/test_subtitle_provider.py`
+  3. `handoffs/TASK-014.md`
+
+- `tests/integration/test_public_subtitle_smoke.py` 是初始授权上限内但无需改动的文件；未修改是最小范围的正确结果，不得为了迎合文档
+  制造无关改动。完整 B7 Diff `5b7dcca…...4d4366f…` 仍必须是原六路径允许范围的五路径子集，已删除 fixture 不得恢复或在任何路径重现。
+- 新 Reviewer 只能追加 source `handoffs/TASK-014.md` 的审查 evidence，且该 evidence 必须以 `4d4366f…` 为唯一父提交。必须审查
+  私有无值状态接口、固定 origin/fingerprint、B6 diagnostic、无敏感材料、以及解析/CLI/计数/退出码/default/directory-only、无重试、
+  零业务记录和 fail-closed 边界未退化。
 
 ## 验收与离线检查
 
