@@ -137,11 +137,12 @@
   `INVALID_RESPONSE` 的既有安全 stdout/JSONL 出口追加 ADR-018 固定、无值 `directory_origin` 与 `directory_fingerprint`，保留
   ADR-017 `directory_diagnostic` 原语义和固定值，不放宽解析或增加兼容规则。未合并 B-1 B6 evidence
   `17bfe9062677f3b3117df4dd192848d27690541c` 仅作只读失败引用，不得合并、重写或写成通过。B7 不改依赖、锁、Schema、
-  `logging.py`、CLI、发布状态或真实资源；Implementer 已提交，完整 Diff 严格为 Adapter、safe-summary route、一个脱敏 fixture、
-  两份 integration test 与 handoff。新的独立 Reviewer 已获授权，只能追加 source handoff，必须验证 ADR-018 词表、B6 code 保持、
-  目录 `INVALID_RESPONSE` enumerate=`1`/read=`0` 出口、正文 `INVALID_RESPONSE` 无新标签、无泄漏和全部 fail-closed 边界；
-  本控制面不启动 Reviewer。TASK-014 继续 `IN_PROGRESS / No-Go`，TASK-014B7 为 `IN_REVIEW`，离线审查不构成真实 B-1 成功、
-  真实服务验证或发行批准。
+  `logging.py`、CLI、发布状态或真实资源。Reviewer 发现 P1 后停止且未写 evidence commit；不得伪造 Reviewer SHA。P1 是
+  `tests/fixtures/subtitles/directory_origin_fingerprint.json` 含目录响应字段名、字段值、语言值及 URL，违反 ADR-018。用户已明确批准
+  Correction 1 仅删除该 fixture，并修改两份 integration test 与 source handoff，以无字段名/字段值/URL 的内存替身保持或增强四个
+  origin、六个 fingerprint、B6 code、输出限制与泄漏断言；不得改生产代码或其他冻结边界。Correction commit 必须以 `8d061975…` 为唯一父，
+  后续必须由全新独立 Reviewer 审查。本控制面不启动 Implementer。TASK-014 继续 `IN_PROGRESS / No-Go`，TASK-014B7 为
+  `IN_PROGRESS / Codex`，离线修复不构成真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -317,7 +318,7 @@
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
-| IN_REVIEW | TASK-014B7：字幕目录安全来源与结构指纹 | source `codex/task-014b7-safe-directory-origin-fingerprint@8d061975…` / `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`（唯一父 `5b7dcca…`）干净；完整 Diff 严格为 Adapter、safe-summary route、脱敏 origin/fingerprint fixture、两份 integration test 与 handoff。独立 Reviewer 已授权，只能追加 handoff，复审 ADR-018 四个 origin、六个 fingerprint、B6 code 保持、目录/正文 `INVALID_RESPONSE` 出口、无泄漏与 fail-closed 边界；禁止真实资源、依赖/锁/Schema/logging/CLI/发布改动 |
+| IN_PROGRESS | TASK-014B7：字幕目录安全来源与结构指纹 | source `codex/task-014b7-safe-directory-origin-fingerprint@8d061975…` / `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`（唯一父 `5b7dcca…`）干净；Reviewer 因 P1 停止且无 evidence：fixture 含目录响应字段名、字段值、语言值及 URL。用户已批准 Correction 1 仅删除 fixture、修改两份 integration test 与 handoff，以无值内存替身保持/增强 ADR-018/B6/泄漏断言；禁止生产代码、依赖/锁/Schema/logging/CLI/发布/真实资源改动，完成后由新 Reviewer 复审 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | DONE | TASK-014B6：安全字幕目录结构诊断 | `--no-ff` merge `f402400…` 已进入 main，双父 `dac394b…`、`f16f94a…`；accepted source 是 merge 祖先，first-parent Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。既有离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 干净并保留。B6 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |

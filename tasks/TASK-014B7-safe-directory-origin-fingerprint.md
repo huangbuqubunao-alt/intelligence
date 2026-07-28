@@ -1,8 +1,8 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `IN_REVIEW`
-- Assignee: `独立 Codex Reviewer（已授权，尚未启动）`
-- Reviewer: `独立 Codex Reviewer`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer（P1 Correction 1 已授权，尚未启动）`
+- Reviewer: `待 Correction 1 全新独立 Reviewer 授权`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
@@ -49,6 +49,23 @@
 - 审查 ADR-018 的四个 `directory_origin`、六个 `directory_fingerprint` 固定无值标签、B6 `directory_diagnostic` 不变、仅目录
   `INVALID_RESPONSE` 且 enumerate=`1`/read=`0` 时的出口，以及正文 `INVALID_RESPONSE` 不输出 origin/fingerprint。独立验证
   stdout/stderr/JSONL/fixture 无泄漏、解析接受面与 default/directory-only/CLI/fail-closed 边界不退化。
+
+## P1 Correction 1 控制面
+
+- 原 Reviewer 发现 P1 后停止，未创建 Reviewer evidence commit；不得伪造或引用不存在的 Reviewer SHA。
+- P1：`tests/fixtures/subtitles/directory_origin_fingerprint.json` 明文含目录响应字段名、字段值、语言值及 URL，违反 ADR-018 的
+  无值/无泄漏边界。用户已明确批准删除该唯一不合规 fixture。
+- Correction 1 的唯一允许范围：
+
+  1. 删除 `tests/fixtures/subtitles/directory_origin_fingerprint.json`
+  2. `tests/integration/test_subtitle_provider.py`
+  3. `tests/integration/test_public_subtitle_smoke.py`
+  4. `handoffs/TASK-014.md`
+
+- Correction 必须以无字段名、字段值或 URL 的内存测试替身替代 fixture，并保持或增强 ADR-018 四个 origin、六个 fingerprint、
+  B6 code 不变、输出限制及 stdout/stderr/JSONL 无泄漏断言。不得修改任何生产代码、依赖、锁文件、Schema、CLI、`logging.py`、
+  解析接受面或真实资源权限。
+- Correction Implementer source commit 必须以 `8d061975…` 为唯一父提交；完成后必须由全新独立 Reviewer 审查。
 
 ## 验收与离线检查
 
