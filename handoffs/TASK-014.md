@@ -357,3 +357,47 @@
   contract; they do not demonstrate real-service compatibility or alter
   TASK-014 `IN_PROGRESS / No-Go`.
 - `DECISION NEEDED`: `None`.
+
+## TASK-014B6 Correction 1 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and minimal correction
+
+- Required source branch/HEAD/sole parent were verified before writing:
+  `codex/task-014b6-safe-directory-shape-diagnostics` at
+  `9403e37eedbd2513aea631c7272c6d650d41ef40`, whose sole parent is
+  `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`; the worktree and index were
+  clean.
+- Reuse decision: `DIRECT` — reused the existing locked subtitle Adapter
+  vocabulary, smoke safe-summary route, directory-only boundary, JSONL outlet,
+  and offline Fake test infrastructure. No external code, dependency, license,
+  lockfile, schema, Provider, CLI, or logging change was made.
+- The sole behavioral change makes an unknown directory `INVALID_RESPONSE`
+  fallback exactly `directory_shape_unknown`; it does not alter the seven
+  existing ADR-017 codes or the directory parser's accepted input surface.
+
+### TDD and offline validation
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Run once from the locked local cache: `Resolved 84 packages` and `Checked 61 packages`; no download or lockfile change. |
+| New unknown-directory regression before implementation | RED | Focused suite: `1 failed, 10 passed`; the new stdout assertion observed old `directory_unknown_invalid_response` instead of exact `directory_shape_unknown`. |
+| `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py` | PASS | `11 passed`; the new offline Fake verifies directory-only `metadata=1 / enumerate=1 / read=0`, `INVALID_RESPONSE`, exact safe stdout and exact JSONL `safe_message`. |
+| `.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py` | PASS | `Success: no issues found in 1 source file`. |
+| `.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; command topology unchanged and no smoke was run. |
+
+### Safety, scope, and remaining risk
+
+- The new regression injects a private URL, token, title, field value, Cookie,
+  body, payload, and temporary path through the Fake exception, then proves
+  each is absent from both stdout and JSONL. It also proves the former fallback
+  is absent from both surfaces.
+- Focused regression preserves the nonzero execution-failed exit, zero body
+  reads, no retry, temporary-root isolation, ID boundary, and zero business
+  records. Default-mode behavior remains covered by the unchanged focused
+  suite.
+- Final diff is restricted to `public_subtitle_smoke.py`, its integration test,
+  and this handoff; no real YouTube, network, smoke, authentication, media,
+  Vault, model, or paid resource was used.
+- TASK-014 and TASK-014B6 remain `IN_PROGRESS / No-Go`; this offline correction
+  is not real-service validation, release approval, or a status transition.

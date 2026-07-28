@@ -107,6 +107,7 @@ class _FakeSubtitleAdapter:
 @dataclass
 class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
     last_call: ProviderCallMetadata | None = None
+    diagnostic_code: str | None = "directory_shape_unsupported_entry"
 
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
         self.enumerate_calls.append(video_id)
@@ -115,10 +116,14 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
             started_at=NOW,
             finished_at=NOW,
             diagnostics=(
-                DiagnosticEntry(
-                    code="directory_shape_unsupported_entry",
-                    message="directory shape unsupported entry",
-                ),
+                ()
+                if self.diagnostic_code is None
+                else (
+                    DiagnosticEntry(
+                        code=self.diagnostic_code,
+                        message=self.diagnostic_code.replace("_", " "),
+                    ),
+                )
             ),
         )
         raise TranscriptError(
@@ -549,3 +554,60 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
         "directory_diagnostic=directory_shape_unsupported_entry"
     )
+
+
+def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter(diagnostic_code=None)
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert metadata.calls == ["video001"]
+    assert subtitles.enumerate_calls == ["video001"]
+    assert subtitles.read_calls == []
+    output = capsys.readouterr()
+    assert [json.loads(line) for line in output.out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "INVALID_RESPONSE",
+            "directory_diagnostic": "directory_shape_unknown",
+        }
+    ]
+    records = [
+        json.loads(line)
+        for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    failed_record = next(record for record in records if record["event"] == "smoke.target.failed")
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
+        "directory_diagnostic=directory_shape_unknown"
+    )
+    for forbidden in (
+        "directory_unknown_invalid_response",
+        "https://private.invalid/?token=secret",
+        "private URL",
+        "private-title",
+        "private-value",
+        "private-cookie",
+        "private-body",
+        "private-payload",
+        SUBTITLE_BODY.decode(),
+        str(root),
+    ):
+        assert forbidden not in output.out
+        assert forbidden not in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
+            encoding="utf-8"
+        )
