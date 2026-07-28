@@ -18,6 +18,17 @@
 
 ## 后续架构与任务级批准
 
+### ADR-016：受限 directory-only 公开字幕 smoke
+
+- 批准日期：2026-07-28；产品负责人批准 TASK-014B4 仅为既有 `smoke-public-subtitles` 增加受限
+  `--directory-only` 模式。它只读取元数据与字幕目录，成功与失败均为零正文读取；默认 smoke 保持原有一份正文读取行为。
+- 目录 `INVALID_RESPONSE` 只可复用 ADR-015 的固定、脱敏 `directory_diagnostic` 类别；不新增 JSONL 字段，
+  不记录 URL、标题、字段值、正文、Cookie、token、payload、异常文本或用户数据。
+- 模式只能用于 smoke 子命令；非 smoke 子命令、全局配置参数、超限 ID 和任何媒体/认证路径都必须失败关闭。
+  不新增依赖、Schema、默认配置、真实资源或通用下载能力。
+- B4 只授权离线实现与 Fake/integration 验证，不授权 YouTube、网络、真实 smoke、媒体、认证、真实 Vault、
+  用户数据、模型、OpenAI、Ollama 或付费调用。TASK-014 继续 `IN_PROGRESS / No-Go`。
+
 ### ADR-015：公开字幕目录兼容性诊断
 
 - 批准日期：2026-07-28；产品负责人批准 TASK-014B3 仅离线实现公开字幕目录映射失败的有限、脱敏结构分类。

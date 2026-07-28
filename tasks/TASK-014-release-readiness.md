@@ -62,6 +62,24 @@
   `INVALID_RESPONSE`，正文均未读；该 evidence 只证明目录响应映射前的失败，不授权真实资源。离线 Scout 已完成；后续
   B3 仅按 ADR-015/TASK-014B3 进行脱敏目录兼容性诊断，不启动真实验证或放宽安全边界。
 
+## Phase B-4：受限 directory-only 字幕目录 smoke（已授权实现，未启动）
+
+- 产品负责人已接受 ADR-016 并创建 TASK-014B4：既有 `smoke-public-subtitles` 只新增受限
+  `--directory-only` 模式。该模式只完成元数据与字幕目录映射，目录成功或失败均为零正文读取；默认
+  smoke 行为保持不变，仍按原规则读取一份正文。
+- 固定控制面基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`；唯一 source worktree/branch：
+  `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
+  `codex/task-014b4-directory-only-smoke`。正式 Implementer 包为
+  `agent-prompts/TASK-014B4-DIRECTORY-ONLY-SMOKE-IMPLEMENTER-CODEX.md`；本控制面不启动 Implementer。
+- 只允许 CLI 解析、受限 smoke 组合、必要离线 Fake/integration 测试与 TASK-014B4 handoff；不修改
+  Provider Adapter、安全校验、依赖/锁、Schema、默认配置、真实资源或通用下载能力。目录失败只能输出 B3
+  固定、脱敏 `directory_diagnostic` 分类。
+- 必须拒绝 directory-only 与非 smoke 子命令、smoke 路径全局配置参数、超限/重复 ID 和媒体/认证路径。禁止网络、
+  真实 smoke、Cookie/登录/API key、媒体、ffmpeg、模型、OpenAI、Ollama、真实 Vault/用户数据、重试和额外产品命令。
+- `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 是未执行的历史诊断
+  worktree；禁止访问、修改、合并、清理或复用。B4 离线实现不等于真实 B-1、发布批准或最终 Go；TASK-014
+  继续 `IN_PROGRESS / No-Go`。
+
 ## Phase B-2：正式 console entry（已整合并关闭为 `DONE`）
 
 - 产品负责人已接受 ADR-014：只将既有 `youtube_intel.cli:main` 暴露为已安装项目的 `youtube-intel` 命令，

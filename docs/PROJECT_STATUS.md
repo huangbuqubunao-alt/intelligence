@@ -98,6 +98,17 @@
   不构成 B-1 通过、真实验证、发布批准或最终 Go。
   B3 只允许 provider、必要 smoke 审计出口、离线 fixtures/tests 和 handoff；不放宽安全边界，不改依赖/锁文件/Schema/
   默认 CLI，不运行网络或真实资源。TASK-014 继续 `IN_PROGRESS / No-Go`。
+- 产品负责人现接受 ADR-016 并创建 TASK-014B4：为既有 `smoke-public-subtitles` 增加仅限受限诊断的
+  `--directory-only` 模式。固定 base/worktree/branch 为
+  `main@bdf2bf2adeb337b61747d869fa91619e3163a298` /
+  `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
+  `codex/task-014b4-directory-only-smoke`。模式只执行元数据和目录映射，目录成功或失败均零正文读取；默认
+  smoke 保持一次正文读取。目录 `INVALID_RESPONSE` 只复用 B3 固定、脱敏 `directory_diagnostic`；非 smoke
+  子命令、全局配置参数、超限 ID 与媒体/认证路径必须失败关闭。正式包为
+  `agent-prompts/TASK-014B4-DIRECTORY-ONLY-SMOKE-IMPLEMENTER-CODEX.md`；Implementer、离线检查与真实
+  smoke 均未启动。旧 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 严禁访问、
+  修改、合并、清理或复用。B4 不新增依赖、Schema、默认配置或通用下载能力，且不构成真实 B-1、发布批准或最终 Go；
+  TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 旧 final B-1 source evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 只保留为未触达 YouTube 的历史环境阻断：
   两个公开视频均未调用，不得合并、标为 smoke 通过或发布批准。旧 final worktree、Public YouTube Smoke 包与先前 Retry 包均已
   废止，不能作为执行 source 或启动依据。
@@ -182,15 +193,16 @@
 ## 下一步
 
 1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 最终真实 smoke 已 `FAIL`：参数纠正后，
-   两个固定 ID 各完成一次元数据与字幕目录读取，但均在正文读取前 `INVALID_RESPONSE` 失败。现仅授权离线只读 Adapter
-   兼容性 Scout，尚未启动；它不修复或验证。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
+   两个固定 ID 各完成一次元数据与字幕目录读取，但均在正文读取前 `INVALID_RESPONSE` 失败。B3 已完成离线固定分类；
+   TASK-014B4 已获离线实现授权，用于新增受限 `--directory-only` 并强制零正文读取，但 Implementer、检查与真实 smoke
+   均未启动。TASK-014 整体继续为 `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
 2. TASK-014B2 已整合并关闭为 `DONE`；它只补齐正式 console entry 这一 B-1 前置条件，不能替代或自行重试真实 smoke。
 3. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
    不关闭 mutagen GPL、BPE 归属/NOTICE、真实 Vault、at-most-once 风险签署或最终 PO/TL/QA Go-No-Go。
-4. Phase B-1 不再授权真实 YouTube/字幕执行；除只读离线 Scout 外，真实 Whisper/Ollama/OpenAI、模型、ffmpeg、媒体、
-   其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
+4. Phase B-1/B4 不授权真实 YouTube/字幕执行；B4 只允许离线实现与 Fake/integration 验证。真实 Whisper/Ollama/OpenAI、
+   模型、ffmpeg、媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 5. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
    可选能力、真实 smoke 授权和 at-most-once 风险接受，才能进入后续发布门禁。
 
@@ -219,6 +231,7 @@
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
+| 已授权未启动 | TASK-014B4：受限 directory-only 公开字幕 smoke | 控制面基线 `main@bdf2bf2…`；source 为 `codex/task-014b4-directory-only-smoke` / `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke`。仅离线实现 `smoke-public-subtitles --directory-only`，强制 metadata=1、enumerate=1、read=0，复用 B3 固定脱敏目录分类，默认 smoke 不变。Implementer、测试、网络与真实 smoke 均未启动；旧 B-1 diagnostic worktree 禁止访问 |
 | 已授权未启动 | TASK-014B3 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B3-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，控制面基线 `main@99651ec…`；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包立即停止；禁止网络、下载、任何文件/依赖/锁变更、真实资源和提交。成功仅报告环境就绪，不启动 Implementer/Reviewer，TASK-014/TASK-014B3 状态不变 |
 | 已完成可关闭 | TASK-014B2：正式 console entry | merge `99a22d…` 已整合；五路径与离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁通过，source 干净；不是真实 smoke 或发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
