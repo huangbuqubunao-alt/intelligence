@@ -43,16 +43,20 @@ at-most-once 风险签署与最终 PO/TL/QA Go-No-Go 均未完成。未授权发
 Phase A accepted source `88f1b36...` 已以 `--no-ff` merge `3165009...` 整合，七路径资料及根目录 ignore 锚定已核验；
 TASK-014 仍不得标为 `DONE` 或发布批准。
 
-TASK-014 Phase B-1 最终真实公开字幕 smoke 已 `FAIL`：`--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，
+TASK-014 Phase B-1 旧的最终真实公开字幕 smoke 已 `FAIL`：`--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，
 但均在正文读取前 `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。唯一 B-1 evidence source 为
 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` / `codex/task-014-phase-b1-console-entry-retry@
 9acab5d876b38d64a9aeab7aca3474be2676ce38`（唯一父提交 `365c8fc...`）。该 evidence 不合并、不写成通过；TASK-014 仍为
-`IN_PROGRESS` / `No-Go`。已授权但尚未启动的唯一后续工作是
+`IN_PROGRESS` / `No-Go`。旧 evidence 不重跑、不合并或复用。已授权但尚未启动的只读后续工作是
 `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`：只读比较 Adapter 假设、
 错误映射、离线 Fake/fixture 与真实脱敏 evidence，聊天回传最小修复建议及一次后续验证所需的精确授权。
 本阶段不授权登录/Cookie/API key、真实 Vault、用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或
-高频重试。TASK-014 继续 `IN_PROGRESS` / `No-Go`，真实 smoke 成功不关闭 mutagen GPL、BPE 文件归属/NOTICE、
-at-most-once 风险或最终 PO/TL/QA Go-No-Go。
+高频重试。唯一新的 auditable directory-only 一次性 execution source 为
+`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
+`codex/task-014-phase-b1-directory-only-auditable-execution@58f0215aa329b99d74429e8616bb5f8f673ef102`；正式包为
+`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-EXECUTION-CODEX.md`，只授权 B4
+`--directory-only` 与 B5 安全摘要，对两个固定 ID 各一次 1/1/0。TASK-014 继续 `IN_PROGRESS` / `No-Go`；即使成功，
+也不关闭 mutagen GPL、BPE 文件归属/NOTICE、at-most-once 风险或最终 PO/TL/QA Go-No-Go。
 旧 execution worktree（`task-014-release-readiness-phase-b1-execution`）建立在 Phase A 合并前主线，禁止访问、
 修改、合并、清理或复用。
 旧 final source evidence `5698802...` 仅为缺失锁定 `fsspec==2026.6.0` 的历史环境阻断，两个固定 ID 均未调用，
@@ -108,7 +112,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；Phase B-1 最终真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3/B4/B5 已关闭，仍待真实验证与最终 Go/No-Go | IN_PROGRESS / No-Go | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；旧 B-1 真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3/B4/B5 已关闭，新的 auditable B-1 directory-only 一次性验证已授权未启动 | IN_PROGRESS / No-Go | 013 |
 | [TASK-014B3](TASK-014B3-public-subtitle-directory-diagnostics.md) | 公开字幕目录兼容性诊断 | ADR-015 已接受并已整合；merge `f5ebc87…` | DONE | 014；ADR-015 |
 | [TASK-014B4](TASK-014B4-directory-only-public-subtitle-smoke.md) | 受限 directory-only 公开字幕 smoke | merge `133819f…`；离线 sync、Fake `18`、mypy、Ruff、CLI help、build、范围与泄漏扫描通过；source 保留 | DONE | 014；ADR-016；B0/B2/B3 DONE |
 | [TASK-014B5](TASK-014B5-safe-smoke-summary-output.md) | 安全 smoke 摘要输出 | merge `41e9793…`；离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 保留 | DONE | 014；B3/B4 DONE |

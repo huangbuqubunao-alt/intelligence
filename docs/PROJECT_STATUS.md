@@ -76,18 +76,20 @@
   参数纠正后，两个固定公开视频各完成一次元数据与字幕目录读取，但均在正文读取前 `INVALID_RESPONSE` 失败，正文读取均为零；
   没有认证、媒体、用户数据或重试。该 evidence 是最终真实 smoke `FAIL`，不合并、不写成通过、不构成发布批准；TASK-014 继续
   `IN_PROGRESS / No-Go`，所有历史 Retry Executor 包均已废止。
-- 产品负责人现授权一次新的、受 B4 `--directory-only` 边界约束的 B-1 真实公开字幕 smoke。唯一 execution source 是
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution` /
-  `codex/task-014-phase-b1-directory-only-execution@9bffb29d84868c94fc8544395183c5472856e7c8`，并必须保持干净；
-  唯一执行包为 `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-EXECUTION-CODEX.md`。只可在离线
-  lock/sync/lock 预配、绝对 `.venv/bin/youtube-intel` 静态映射核验和新建 parent/non-existent `smoke-root` 均通过后，
-  对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次运行 `smoke-public-subtitles --directory-only`，每 ID 必须为
-  metadata=1 / enumerate=1 / read=0。缓存缺失、任一失败、网络/下载迹象、launcher/临时根不符或非零退出码立即停止；
-  只可写 B-1 smoke evidence、发布检查表和 TASK-014 handoff。禁止 PATH/替代入口、重试、认证、媒体、模型、真实 Vault、
-  用户数据、推送和 source 清理；本控制面不启动 Executor。该执行 evidence 已在 source
-  `1f5a1109fc306af9f3743da64c7268ca3b8111e0` 记录，唯一父为 `9bffb29…`，仅改三份允许 evidence 文档且 source 干净；
-  其可观测性不足现仅授权由 `PREFLIGHT-TASK-014-PHASE-B1-DIRECTORY-ONLY-OBSERVABILITY-SCOUT.md` 做静态只读定位。
-  Scout 不得运行产品命令或写 source。TASK-014 继续 `IN_PROGRESS / No-Go`，不构成发行批准。
+- 历史 B-1 directory-only execution evidence `1f5a1109…`（source
+  `codex/task-014-phase-b1-directory-only-execution@1f5a110…`）仍只记录可观测性不足与非零退出；不重跑、不修改、
+  不合并或复用。其静态定位仅由既有 Observability Scout 包处理。
+- 产品负责人现授权一次新的、可审计且受 B4 `--directory-only` 和 B5 安全 stdout 摘要边界约束的 B-1 最终真实公开字幕验证。
+  唯一 execution source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
+  `codex/task-014-phase-b1-directory-only-auditable-execution@58f0215aa329b99d74429e8616bb5f8f673ef102`，必须保持干净；
+  唯一执行包为 `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-EXECUTION-CODEX.md`。
+  只可在离线 lock/sync/lock 预配、绝对 `.venv/bin/youtube-intel` 静态映射核验和新建 parent/non-existent `smoke-root`
+  均通过后，对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次运行 `smoke-public-subtitles --directory-only`；每 ID 必须为
+  metadata=1 / enumerate=1 / read=0。缓存缺失、网络/下载迹象、launcher/临时根不符、非零退出或任何泄漏立即停止。
+  只可写新的 B-1 smoke evidence、发布检查表和 TASK-014 handoff，且只能记录稳定目标标识、1/1/0 计数、固定安全码和适用时
+  `directory_diagnostic`；禁止 URL、正文、标题、字段值、原始异常、路径、Cookie、token、payload、用户数据或凭据。
+  禁止 PATH/模块入口/替代命令、重试、认证、媒体、模型、真实 Vault、推送和 source 清理；本控制面不启动 Executor。
+  TASK-014 继续 `IN_PROGRESS / No-Go`，即使成功也不构成最终发行批准。
 - 产品负责人现分配 TASK-014B5「安全 smoke 摘要输出」给 Codex Implementer。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary` /
   `codex/task-014b5-safe-smoke-summary@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`，必须保持干净。
