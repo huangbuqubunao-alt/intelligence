@@ -1,14 +1,14 @@
 # TASK-014B6：安全字幕目录结构诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `新的独立 Codex Reviewer（Correction 1 已授权，尚未启动）`
-- Reviewer: `新的独立 Codex Reviewer`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Reviewer: `范围修正独立 Codex Reviewer — APPROVE（P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、ADR-017 `Accepted`
 - 实施基线：`main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`
 - Branch：`codex/task-014b6-safe-directory-shape-diagnostics`
-- 当前受审 Correction 1 source：`b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78`（唯一父
-  `9403e37eedbd2513aea631c7272c6d650d41ef40`；后者唯一父 `7983bf5…`）
+- accepted source / Reviewer evidence：`f16f94a9304e005390c6958025b0688dba96385c`（唯一父
+  `b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78`；后者唯一父 `9403e37…`，再后者唯一父 `7983bf5…`）
 - Reuse decision：`DIRECT` — 既有锁定的 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
 ## 背景与目标
@@ -49,10 +49,21 @@
 - Correction 1 `b58ba26…` 的唯一父为 `9403e37…`，且严格为上述三条路径；完整 B6 Diff `7983bf5…...b58ba26…` 严格为上述六路径。
   `public_subtitle_smoke.py` 仅将有限、无值 Adapter 分类传递到既有安全摘要；不得据此增加输出面、其他路径或放宽解析。
   上一 Reviewer 因完整范围少列此路径而停止，未写 evidence commit；其 prompt 已被全新范围修正 Reviewer prompt 取代。
-  新 Reviewer 只能追加 source `handoffs/TASK-014.md` 的 evidence，且 evidence 必须以 `b58ba26…` 为唯一父提交。
+  范围修正独立 Reviewer 仅追加了 source `handoffs/TASK-014.md` 的 evidence `f16f94a…`，其唯一父为 `b58ba26…`；
+  Verdict=`APPROVE`，P0--P3 均为 `0`。
 - 复审必须精确验证未知目录 `INVALID_RESPONSE` 仅输出 `directory_shape_unknown`，旧
   `directory_unknown_invalid_response` 不再从 stdout/JSONL 输出；其余 ADR-017 固定分类、unknown fallback、无泄漏、
   解析接受面与 default/directory-only/CLI/fail-closed 边界不得退化。
+
+## Correction 1 验收与受控整合
+
+- TASK-014B6 现为 `ACCEPTED`，只表示上述固定离线 source 可由 Product Integrator 受控整合；不是 `DONE`，也不代表
+  B-1 真实验证、真实服务通过、发行批准或 TASK-014 Go。
+- Integrator 只能在动态、干净、单父 acceptance authorization main 上，对固定 accepted source 执行一次
+  `git merge --no-ff f16f94a9304e005390c6958025b0688dba96385c`。不得修改、暂存、提交、rebase、cherry-pick、清理或删除 source。
+- 整合后必须运行离线 Provider/Smoke 测试、mypy、Ruff、CLI help、离线 build、六路径 first-parent 范围和
+  stdout/stderr/JSONL/fixture 泄漏扫描；任何失败、网络/下载迹象、锁变化、冲突或范围外路径均立即停止，如实保留证据，
+  不在整合中修复代码。
 
 ## 验收与离线检查
 
