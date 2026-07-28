@@ -1,14 +1,14 @@
 # TASK-014B7：字幕目录安全来源与结构指纹
 
-- Status: `IN_REVIEW`
-- Assignee: `Correction 2 独立 Codex Reviewer（已授权，尚未启动）`
-- Reviewer: `Correction 2 全新独立 Codex Reviewer`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Reviewer: `Correction 2 独立 Codex Reviewer（APPROVE，P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
 - Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
-- 受审 Correction 2 source：`4d4366f6a6403403a0d9bed65fbbf862a362eede`（唯一父
-  `069e62ececada5152871fb7c626e64c146a270ad`；后者唯一父 `8d061975…`）
+- accepted source：`6a7f4ce444b3f93aa1388f45e7a5619eb802a317`（Reviewer evidence，唯一父
+  `4d4366f6a6403403a0d9bed65fbbf862a362eede`；后者唯一父 `069e62e…`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、
   ADR-017 B6 结构诊断、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
@@ -108,6 +108,16 @@
 - 新 Reviewer 只能追加 source `handoffs/TASK-014.md` 的审查 evidence，且该 evidence 必须以 `4d4366f…` 为唯一父提交。必须审查
   私有无值状态接口、固定 origin/fingerprint、B6 diagnostic、无敏感材料、以及解析/CLI/计数/退出码/default/directory-only、无重试、
   零业务记录和 fail-closed 边界未退化。
+
+## Correction 2 验收与 Product Integrator 控制面
+
+- Reviewer evidence/accepted source `6a7f4ce…` 的唯一父为 `4d4366f…`，且只修改 `handoffs/TASK-014.md`；Verdict=`APPROVE`，
+  P0--P3 均为 `0`。source 已核验干净。完整 B7 Diff `5b7dcca…...6a7f4ce…` 是原六路径允许范围的五路径子集，已删除 fixture 不得重现。
+- Reviewer 因 source 中不存在 `.venv`，未运行 pytest、mypy、Ruff 或 CLI help；这不是已通过证据，必须由 Product Integrator 在合并前
+  成功完成授权的离线环境同步和完整验证后才能合并。
+- Product Integrator 只可对固定 accepted source 执行 `git merge --no-ff 6a7f4ce…`。缓存缺失、`uv sync --locked --offline`、Provider/Smoke
+  pytest、mypy、Ruff、CLI help、build、范围或泄漏扫描任一失败均立即停止、不合并；禁止修复代码、改变任务状态、push 或清理 source。
+- TASK-014B7 的 `ACCEPTED` 不等于 `DONE`、真实 B-1 成功、真实服务验证或发行批准；TASK-014 始终为 `IN_PROGRESS / No-Go`。
 
 ## 验收与离线检查
 
