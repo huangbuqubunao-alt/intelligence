@@ -1,7 +1,7 @@
 # TASK-014B3：公开字幕目录兼容性诊断
 
-- Status: `ACCEPTED`
-- Assignee: `Codex Implementer（source 已接受，待 Product Integrator）`
+- Status: `DONE`
+- Assignee: `Codex Product Integrator（已以 --no-ff 整合）`
 - Reviewer: `全新独立 Codex Reviewer（APPROVE；P0–P3 均无）`
 - 依赖：ADR-013、ADR-015、TASK-014B0 `DONE`、TASK-014B2 `DONE`
 - 基线：`main@9c5f08ec829629591b095bd68841ca3ce0b22532`
@@ -56,3 +56,12 @@
 - 完成时仅创建一个只含允许路径的 Implementer commit，交由新独立 Reviewer；不得自行 `ACCEPTED`、`DONE`、合并、push
   或启动真实验证。
 - Reviewer 必须独立复核固定诊断集合、脱敏、fail-closed 回归、范围和离线检查；真实验证另行授权。
+
+## Closure evidence
+
+- 已接受 source `b0ddf9d7749840fbf507426f67ba38a28b7030f8` 是整合 merge
+  `f5ebc87cafbddddb5929166d57f25e701ef917e4` 的第二父提交；第一父为
+  `19b72c46a64638142d2acc95f8f2839201816d2a`。source 是 merge 祖先且保留工作树干净。
+- first-parent Diff 严格为本任务六条授权路径；无依赖/`uv.lock`、Schema/migration、默认 CLI、`logging.py` 或 README 变更，且 `git diff --check` 通过。
+- 已有整合后离线证据：fixture/Fake 集成测试 `92 passed`、`mypy src`（24 个 source files）通过、`ruff check .` 通过；同时复核固定诊断集合、既有 JSONL `safe_message` 出口、无新增结构化字段/敏感泄漏及 fail-closed 回归。
+- 本 closure 不重跑上述命令；未执行真实 YouTube/B-1 重试、网络或其他真实资源。TASK-014B3 `DONE` 不等于 B-1 通过、真实兼容性、发布批准或 TASK-014 Go；TASK-014 继续 `IN_PROGRESS / No-Go`。
