@@ -54,6 +54,12 @@
 - The one permitted absolute launcher invocation used the fixed two IDs and a new empty temporary root. That root remained uninitialized afterwards (no SQLite, DATA, test-Vault, log, or JSONL files), so neither ID reached an Adapter and each has zero metadata, subtitle-directory, and subtitle-body reads. No stdout/stderr was emitted, and the numeric exit status was not retained in the command transcript; this must not be read as success.
 - The one-attempt allowance is exhausted. This is `BLOCKED` evidence only; it does not change B-1, the standing `NO-GO`, release approval, or any remaining legal/privacy/reliability gate. Details: [final B-1 evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md).
 
+### TASK-014 Phase B-1 final non-existing temporary-root retry — 2026-07-28
+
+- The authorized `365c8fc…` source was clean with required sole parent `3c3dd4a…`. A new temporary parent was created and its `smoke-root` child was confirmed nonexistent before the only absolute venv-launcher invocation; the runner then initialized isolated SQLite, DATA, test-Vault, and log roots.
+- The command exited `1`. `--khbXchTeE` and `JTxsNm9IdYU` were each called once: one metadata read and one subtitle-directory read each, zero subtitle-body reads each. Both failed `INVALID_RESPONSE` before body selection/read; no retry or replacement occurred.
+- This is a B-1 smoke failure record. It neither grants release approval nor changes any standing `NO-GO`, license/NOTICE, real-Vault, at-most-once, or PO/TL/QA signature gate. Details: [final B-1 evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md).
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

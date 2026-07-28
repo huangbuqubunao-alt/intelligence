@@ -60,3 +60,26 @@ The absolute launcher was invoked exactly once with the fixed order and IDs:
 - Result: `BLOCKED — the sole permitted absolute console-path invocation did not initialize the smoke runner; no public-resource call is evidenced.` No retry, substitution, secondary command, PATH change, or temporary-root replacement occurred.
 - Not accessed or used: login, Cookie, browser profile, API key, `.env`, Keychain, credential, real Vault, user data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid call, launchd, metadata payload, subtitle-directory payload, subtitle body, or temporary URL.
 - This final retry is not B-1 success, release approval, a `mutagen` GPL decision, BPE attribution/NOTICE conclusion, real-Vault-boundary closure, at-most-once risk acceptance, or a PO/TL/QA Go/No-Go.
+
+## Final non-existing temporary-root retry — 2026-07-28
+
+- Authorization source: `codex/task-014-phase-b1-console-entry-retry@365c8fca966a3fb7608f41b2d3ac530504193c7b`, with required sole parent `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`; the source worktree was clean before execution.
+- Reuse decision: `DIRECT` — the previously verified project venv launcher, integrated smoke entry, and locked yt-dlp Adapter. No dependency, lockfile, source, test, configuration, Schema/migration, task-status, LICENSE, or third-party-code change was made.
+- Preparation: PASS. A new temporary parent directory was created; immediately before execution, the parent existed and its `smoke-root` child path did not exist as a file, directory, or symlink. The absolute parent/root paths are intentionally not committed.
+
+The only permitted launcher was invoked exactly once with the fixed order and IDs:
+
+```text
+/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles --temporary-root <new-parent>/smoke-root --video-id=--khbXchTeE --video-id=JTxsNm9IdYU
+```
+
+| Fixed video ID | Actually called | Metadata reads | Subtitle-directory reads | Subtitle-body reads | Result / stop condition |
+|---|---:|---:|---:|---:|---|
+| `--khbXchTeE` | Yes | 1 | 1 | 0 | `INVALID_RESPONSE`; runner stopped this target before body selection/read. |
+| `JTxsNm9IdYU` | Yes | 1 | 1 | 0 | `INVALID_RESPONSE`; runner stopped this target before body selection/read. |
+
+- Runner initialization: PASS. The new root was initialized with isolated SQLite, DATA, empty test-Vault, and log directories.
+- Numerical exit code: `1`. The redacted smoke ledger records `targets=2 failed=2`; the two target failures occurred at `2026-07-28T06:23:48Z` and `2026-07-28T06:23:52Z` respectively.
+- Stop condition: each fixed ID received its single permitted attempt. No retry, loop, concurrency, target substitution, alternative launcher, PATH/venv change, module entry, `uv`, download, or additional product command was used.
+- Not accessed or used: login, Cookie, browser profile, API key, `.env`, Keychain, credential, real Vault, user data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid call, launchd, subtitle body, temporary URL, or payload content.
+- Result: `FAIL — B-1 public subtitle smoke did not complete because both permitted targets returned INVALID_RESPONSE before a subtitle body read.` This failure is not release approval, a `mutagen` GPL decision, BPE attribution/NOTICE conclusion, real-Vault-boundary closure, at-most-once risk acceptance, or PO/TL/QA Go/No-Go.

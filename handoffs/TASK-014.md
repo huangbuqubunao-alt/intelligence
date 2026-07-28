@@ -222,3 +222,31 @@
 - Actual modified scope remains the three permitted evidence paths only: the smoke evidence, release checklist append, and this handoff.
 - Suggested status: `IN_REVIEW — BLOCKED final B-1 execution evidence`. This is not B-1 success, release approval, legal/NOTICE conclusion, real-Vault closure, at-most-once risk acceptance, or a TASK-014 status change.
 - Commit SHA: pending evidence-only commit. A future execution would require a new explicit authorization; this executor must not rerun.
+
+## Phase B-1 final non-existing temporary-root retry evidence — 2026-07-28
+
+### Fixed source, scope, and preparation
+
+- Role: `Codex non-existing Temporary-root Smoke Retry Executor`.
+- Source: `codex/task-014-phase-b1-console-entry-retry@365c8fca966a3fb7608f41b2d3ac530504193c7b`; required sole parent `3c3dd4ac45cb6ea66bc927a1542c4612554a56fa`; source worktree was clean before execution.
+- Reuse decision: `DIRECT` — existing verified venv console entry, integrated smoke composition, and locked yt-dlp Adapter; no dependency, lockfile, code, test, configuration, Schema/migration, task-status, LICENSE, or third-party-code change.
+- Preparation passed: a new temporary parent was created; immediately before the call its `smoke-root` child was verified nonexistent (not file, directory, or symlink). The parent existed. Absolute temporary paths and contents are not committed.
+- Explicitly not run: `uv`, package install/download/resolution/lock action, PATH modification, venv activation, module entry, bare console entry, help, retry, or any additional product command.
+
+### One authorized smoke execution
+
+- Exactly once: `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles --temporary-root <new-parent>/smoke-root --video-id=--khbXchTeE --video-id=JTxsNm9IdYU`.
+- Numeric exit code: `1`. The runner initialized only the new root's isolated SQLite/DATA/test-Vault/log directories, then emitted a redacted ledger with `targets=2 failed=2`.
+
+| Video ID | Called | Metadata | Subtitle directory | Subtitle body | Final result |
+|---|---:|---:|---:|---:|---|
+| `--khbXchTeE` | Yes | 1 | 1 | 0 | `INVALID_RESPONSE` at `2026-07-28T06:23:48Z`; stopped before body read. |
+| `JTxsNm9IdYU` | Yes | 1 | 1 | 0 | `INVALID_RESPONSE` at `2026-07-28T06:23:52Z`; stopped before body read. |
+
+### Boundary evidence and conclusion
+
+- No login, Cookie, browser profile, API key, `.env`, Keychain, credential, real Vault, user note/data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid call, launchd, subtitle body, temporary URL, or payload content was accessed, used, or committed.
+- Each ID consumed its sole permitted attempt. No retry, loop, concurrency, alternative launcher, temporary-root replacement, PATH/venv change, target substitution, or additional product command occurred.
+- Actual modified scope remains the three authorized evidence paths only: smoke evidence, release checklist append, and this handoff.
+- Suggested status: `IN_REVIEW — FAIL / B-1 evidence complete`. The smoke failure is not a release approval or a TASK-014 status change; all existing `NO-GO` gates remain.
+- Commit SHA: pending evidence-only commit. No future execution is authorized by this package.
