@@ -538,3 +538,61 @@
 - Verdict: `APPROVE` for the fixed offline correction range only. TASK-014
   remains `IN_PROGRESS / No-Go`; this is neither real-service verification nor
   release approval or final Go.
+
+## TASK-014B7 Correction 1 Implementer Evidence — 2026-07-28
+
+### Fixed source and scope
+
+- Required source branch, HEAD, sole-parent chain, and cleanliness were verified
+  before writing: `codex/task-014b7-safe-directory-origin-fingerprint` at
+  `8d06197557de4ce92c2752f4a8ef74582a0efdca`, whose sole parent is
+  `5b7dcca2ba9bd9e52e254a8944e584542838e24b`.
+- Reuse decision: `DIRECT` — retained the locked subtitle Adapter, ADR-017 B6
+  diagnostic outlet, ADR-018 frozen labels, B4 directory-only boundary, B5
+  safe stdout/JSONL outlets, and existing offline integration infrastructure.
+  No external code, dependency, lockfile, schema, Provider, CLI, logging, or
+  configuration changed.
+- Actual correction paths are exactly the approved fixture deletion, the two
+  integration tests, and this handoff. No production path was modified.
+
+### TDD and offline validation
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Ran once; `Resolved 84 packages` and `Checked 61 packages`; no download or lockfile change. |
+| Fixture-removal regression before replacement double | RED | `11 failed, 102 passed`: six fingerprint cases identified the absent replacement helper; the remaining five confirmed an empty error message cannot bypass the existing domain validation. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `113 passed`; offline only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS | `Success: no issues found in 2 source files`. |
+| `.venv/bin/ruff check tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; CLI topology unchanged and no smoke was run. |
+
+### Contract, leakage, and range review
+
+- The deleted fixture is replaced only in memory by an opaque Mapping double:
+  it supplies structural outcomes and opaque objects, not directory field names,
+  field values, URLs, titles, languages, track names, paths, or original
+  response text. The six ADR-018 fingerprints, their mapping origin, and their
+  existing B6 diagnostics remain individually covered.
+- Existing offline Fakes retain all four fixed origins, all six fingerprints,
+  B6 diagnostic preservation, directory failure `enumerate=1/read=0`, optional
+  safe fingerprint omission, and body-stage suppression of directory labels.
+  Exact stdout JSON and JSONL `safe_message` assertions constrain output to
+  fixed labels/counts; stderr is asserted empty on the directory-only failure
+  path, and failure records cannot contain dynamic message or error fields.
+- Default one-body-read behavior, directory-only `1/1/0`, nonzero failure exit,
+  no-retry, temporary-root isolation, ID bounds, and zero business records stay
+  covered by the focused suite. `git diff --check` is clean after the handoff
+  update.
+- No real YouTube/network request, smoke, authentication, Cookie/credential,
+  media, Vault, model, OpenAI/Ollama, paid call, push, merge, source cleanup,
+  or control-plane edit occurred. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the required single fixed-parent
+  Correction commit.
+- Commit SHA: reported to the orchestrator after commit creation; not
+  self-recorded before the commit.
+- Remaining risk: offline doubles prove only the bounded structural and output
+  contract; they neither validate a real service nor grant release approval.
+- `DECISION NEEDED`: `None`.

@@ -79,6 +79,61 @@ def _load_json(name: str) -> dict[str, Any]:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
+class _OpaqueDirectoryMapping(Mapping[str, object]):
+    """Provide only structural outcomes, never serialized directory data."""
+
+    def __init__(
+        self,
+        values: tuple[object, ...] = (),
+        *,
+        entries: tuple[tuple[str, object], ...] = (),
+        contains: bool = True,
+    ) -> None:
+        self._values = iter(values)
+        self._entries = entries
+        self._contains = contains
+
+    def __getitem__(self, key: str) -> object:
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+    def __contains__(self, key: object) -> bool:
+        return self._contains
+
+    def get(self, key: str, default: object | None = None) -> object | None:
+        return next(self._values, default)
+
+    def items(self) -> Iterator[tuple[str, object]]:
+        return iter(self._entries)
+
+
+def _directory_fingerprint_payload(kind: str, *, video_id: str) -> object:
+    if kind == "top_level_not_mapping":
+        return object()
+    if kind == "unknown":
+        return _OpaqueDirectoryMapping((object(),))
+
+    automatic = _OpaqueDirectoryMapping()
+    if kind == "subtitle_bucket_not_mapping":
+        manual: object = object()
+    elif kind == "language_bucket_not_sequence":
+        manual = _OpaqueDirectoryMapping(entries=((video_id, object()),))
+    elif kind == "track_entry_not_mapping":
+        manual = _OpaqueDirectoryMapping(entries=((video_id, [object()]),))
+    elif kind == "required_field_missing":
+        manual = _OpaqueDirectoryMapping(
+            entries=((video_id, [_OpaqueDirectoryMapping(contains=False)]),)
+        )
+    else:
+        raise AssertionError(kind)
+    return _OpaqueDirectoryMapping((video_id, manual, automatic))
+
+
 class _YdlHandle:
     def __init__(self, result: object) -> None:
         self._result = result
@@ -373,7 +428,7 @@ def test_directory_mapping_fingerprints_preserve_the_existing_b6_diagnostic(
     diagnostic: str,
     fingerprint: str,
 ) -> None:
-    payload = _load_json("directory_origin_fingerprint.json")[fixture_name]
+    payload = _directory_fingerprint_payload(fixture_name, video_id="video123")
     adapter, _ = _adapter_for_info(payload)
 
     with pytest.raises(TranscriptError) as exc_info:

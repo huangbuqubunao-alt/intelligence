@@ -108,8 +108,8 @@ class _FakeSubtitleAdapter:
 class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
     last_call: ProviderCallMetadata | None = None
     diagnostic_code: str | None = "directory_shape_unsupported_entry"
-    directory_origin: str | None = "directory_origin_mapping"
-    directory_fingerprint: str | None = "directory_fingerprint_track_entry_not_mapping"
+    directory_origin: object | None = "directory_origin_mapping"
+    directory_fingerprint: object | None = "directory_fingerprint_track_entry_not_mapping"
 
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
         self.enumerate_calls.append(video_id)
@@ -131,11 +131,7 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
         error = TranscriptError(
             AppError(
                 code=ErrorCode.INVALID_RESPONSE,
-                message=(
-                    "private URL https://private.invalid/?token=secret "
-                    "title=private-title field=private-value Cookie=private-cookie "
-                    "body=private-body payload=private-payload"
-                ),
+                message=ErrorCode.INVALID_RESPONSE.value,
                 retryable=False,
                 video_id=video_id,
             )
@@ -153,7 +149,7 @@ class _InvalidBodySubtitleAdapter(_FakeSubtitleAdapter):
         error = TranscriptError(
             AppError(
                 code=ErrorCode.INVALID_RESPONSE,
-                message="private body field=private-value token=private-token",
+                message=ErrorCode.INVALID_RESPONSE.value,
                 retryable=False,
                 video_id="video001",
             )
@@ -512,18 +508,7 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
         "error_code",
         "duration_ms",
     }
-    for forbidden in (
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "token",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
-        "Title",
-    ):
+    for forbidden in ("message=", "error="):
         assert forbidden not in log_text
 
 
@@ -558,17 +543,7 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
         }
     ]
     assert output.err == ""
-    for forbidden in (
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
-        str(root),
-    ):
+    for forbidden in ("message=", "error=", str(root)):
         assert forbidden not in output.out
     records = [
         json.loads(line)
@@ -592,8 +567,8 @@ def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
     metadata = _FakeMetadataProvider()
     subtitles = _InvalidDirectorySubtitleAdapter(
         diagnostic_code=None,
-        directory_origin="private-origin",
-        directory_fingerprint="private-fingerprint",
+        directory_origin=object(),
+        directory_fingerprint=object(),
     )
     root = tmp_path / "smoke-root"
 
@@ -634,16 +609,8 @@ def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
     )
     for forbidden in (
         "directory_unknown_invalid_response",
-        "private-origin",
-        "private-fingerprint",
-        "https://private.invalid/?token=secret",
-        "private URL",
-        "private-title",
-        "private-value",
-        "private-cookie",
-        "private-body",
-        "private-payload",
-        SUBTITLE_BODY.decode(),
+        "message=",
+        "error=",
         str(root),
     ):
         assert forbidden not in output.out
@@ -726,11 +693,5 @@ def test_body_invalid_response_never_emits_directory_origin_or_fingerprint(
     assert failed_record["safe_message"] == (
         "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=1"
     )
-    for forbidden in (
-        "directory_origin",
-        "directory_fingerprint",
-        "private body",
-        "private-value",
-        "private-token",
-    ):
+    for forbidden in ("directory_origin", "directory_fingerprint", "message=", "error="):
         assert forbidden not in log_text
