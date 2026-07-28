@@ -32,7 +32,7 @@
 - 本阶段只建立发行资料和风险披露，不构成正式发布、真实 smoke 或最终 Go/No-Go。
 - 因原预计文件不能容纳发行级 SBOM、第三方 NOTICE、风险披露和 smoke 授权矩阵，控制面将本阶段允许范围精确扩展为该实施包所列路径；扩展理由是关闭 Scout 已发现的资料和门禁缺口，不改变产品功能、依赖或运行边界。
 
-## Phase B-1：历史真实 smoke `FAIL`；一次性 directory-only 真实 smoke 已授权（未启动）
+## Phase B-1：directory-only 真实 smoke evidence 已记录；Observability Scout 已授权（未启动）
 
 - Scout 控制面基线：`main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source HEAD：
   `9acab5d876b38d64a9aeab7aca3474be2676ce38`，其唯一父提交为 `365c8fca966a3fb7608f41b2d3ac530504193c7b`；任务整体继续为
@@ -42,7 +42,9 @@
 - 唯一一次性执行 source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution`；分支
   `codex/task-014-phase-b1-directory-only-execution`，基线 HEAD
   `9bffb29d84868c94fc8544395183c5472856e7c8`。唯一正式执行包为
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-EXECUTION-CODEX.md`；本控制面提交不启动 Executor。
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-EXECUTION-CODEX.md`；执行 evidence 为
+  `1f5a1109fc306af9f3743da64c7268ca3b8111e0`（唯一父 `9bffb29…`），仅修改 B-1 evidence、release checklist 与
+  TASK-014 handoff。该 source 保持干净；本控制面不重跑或启动 Executor。
 - 最终真实 smoke 已完成并 `FAIL`：固定 `--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，但均在正文读取前
   `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。该 evidence 不合并、不写成通过。所有历史 Retry
   Executor 包均已废止，不能作为执行 source 或启动依据；只有上述 directory-only source 获得一次性授权。
@@ -54,6 +56,10 @@
   `--khbXchTeE`、`JTxsNm9IdYU` 各一次执行 metadata=1 / enumerate=1 / read=0；完整预配、绝对 launcher、
   临时根、证据脱敏与停止规则以正式执行包为准。除该固定一次调用外，禁止网络、YouTube、测试、构建、依赖变更、代码/文档写入、
   worktree 创建和 `.codebase-memory` 工件。
+- 唯一 Observability Scout 包为
+  `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-DIRECTORY-ONLY-OBSERVABILITY-SCOUT.md`。它只读对照 B3/B4 静态实现、
+  `1f5a110…` evidence、JSONL `safe_message` 与 CLI 输出路径，区分“信息已产生但未提取”与“未产生安全可审计信息”，
+  并提出最小离线后续任务建议；不得联网、运行产品命令、写入 source 或泄露真实响应内容。
 - 严禁登录、Cookie、API key、真实 Vault/用户笔记/用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、
   付费调用、高频重试、产品代码/依赖/锁/Schema/任务状态改动。成功不构成发布批准；mutagen GPL、BPE
   文件归属/NOTICE 和 at-most-once 风险继续为 No-Go 门禁。

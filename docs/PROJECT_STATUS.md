@@ -84,8 +84,10 @@
   对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次运行 `smoke-public-subtitles --directory-only`，每 ID 必须为
   metadata=1 / enumerate=1 / read=0。缓存缺失、任一失败、网络/下载迹象、launcher/临时根不符或非零退出码立即停止；
   只可写 B-1 smoke evidence、发布检查表和 TASK-014 handoff。禁止 PATH/替代入口、重试、认证、媒体、模型、真实 Vault、
-  用户数据、推送和 source 清理；本控制面不启动 Executor。成功仍只代表受控 smoke 证据，TASK-014 继续 `IN_PROGRESS / No-Go`，
-  不构成发行批准。
+  用户数据、推送和 source 清理；本控制面不启动 Executor。该执行 evidence 已在 source
+  `1f5a1109fc306af9f3743da64c7268ca3b8111e0` 记录，唯一父为 `9bffb29…`，仅改三份允许 evidence 文档且 source 干净；
+  其可观测性不足现仅授权由 `PREFLIGHT-TASK-014-PHASE-B1-DIRECTORY-ONLY-OBSERVABILITY-SCOUT.md` 做静态只读定位。
+  Scout 不得运行产品命令或写 source。TASK-014 继续 `IN_PROGRESS / No-Go`，不构成发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -258,7 +260,8 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
-| 已授权未启动 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | 唯一 source `codex/task-014-phase-b1-directory-only-execution@9bffb29…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution`；仅可在离线 lock/sync/lock、绝对 launcher 映射和 non-existent `smoke-root` 门禁后，对两个固定 ID 各一次运行 directory-only 1/1/0。只写 B-1 evidence、release checklist 与 TASK-014 handoff；失败如实停止，成功仍不构成发行批准或 TASK-014 Go |
+| 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
+| 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4：受限 directory-only 公开字幕 smoke | `--no-ff` merge `133819f…` 已进入 main，双父 `8637438…`、`d211d62…`，accepted source 是 merge 祖先；first-parent Diff 严格为五条 B4 路径。既有离线 `uv sync --locked --offline`、Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描通过；main/source 干净且 source 保留。未 push、未运行真实 YouTube/B-1、网络、真实服务、认证、媒体、凭据、Vault 或模型；B4 为 `DONE`，不构成真实 B-1 通过、真实服务验证或发行批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B4-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，授权控制提交暨唯一实施起点 `bbd3fdd…`（父 `ccc7478…`）；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包、网络/下载迹象、锁变化或任何失败立即停止；禁止任何文件修改/暂存/提交、测试、构建、真实资源和 Implementer/Reviewer 启动。成功仅报告环境就绪；后续整合已独立完成，TASK-014 仍为 `IN_PROGRESS / No-Go`，B4 已为 `DONE` |
