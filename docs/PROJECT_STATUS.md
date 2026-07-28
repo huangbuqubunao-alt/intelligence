@@ -75,7 +75,17 @@
   `365c8fca966a3fb7608f41b2d3ac530504193c7b` 的唯一子提交且仅写 B-1 evidence、发布检查表与 handoff；source 已核验干净。
   参数纠正后，两个固定公开视频各完成一次元数据与字幕目录读取，但均在正文读取前 `INVALID_RESPONSE` 失败，正文读取均为零；
   没有认证、媒体、用户数据或重试。该 evidence 是最终真实 smoke `FAIL`，不合并、不写成通过、不构成发布批准；TASK-014 继续
-  `IN_PROGRESS / No-Go`，所有 Retry Executor 包均已废止。
+  `IN_PROGRESS / No-Go`，所有历史 Retry Executor 包均已废止。
+- 产品负责人现授权一次新的、受 B4 `--directory-only` 边界约束的 B-1 真实公开字幕 smoke。唯一 execution source 是
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution` /
+  `codex/task-014-phase-b1-directory-only-execution@9bffb29d84868c94fc8544395183c5472856e7c8`，并必须保持干净；
+  唯一执行包为 `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-EXECUTION-CODEX.md`。只可在离线
+  lock/sync/lock 预配、绝对 `.venv/bin/youtube-intel` 静态映射核验和新建 parent/non-existent `smoke-root` 均通过后，
+  对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次运行 `smoke-public-subtitles --directory-only`，每 ID 必须为
+  metadata=1 / enumerate=1 / read=0。缓存缺失、任一失败、网络/下载迹象、launcher/临时根不符或非零退出码立即停止；
+  只可写 B-1 smoke evidence、发布检查表和 TASK-014 handoff。禁止 PATH/替代入口、重试、认证、媒体、模型、真实 Vault、
+  用户数据、推送和 source 清理；本控制面不启动 Executor。成功仍只代表受控 smoke 证据，TASK-014 继续 `IN_PROGRESS / No-Go`，
+  不构成发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -212,14 +222,14 @@
 
 1. TASK-014 Phase A 的七路径发行资料已整合到 `main@3165009...`；Phase B-1 最终真实 smoke 已 `FAIL`：参数纠正后，
    两个固定 ID 各完成一次元数据与字幕目录读取，但均在正文读取前 `INVALID_RESPONSE` 失败。B3 已完成离线固定分类；
-   TASK-014B4 已以受控 `--no-ff` 整合并完成离线门禁；真实 smoke 未启动。TASK-014 整体继续为
+   TASK-014B4 已以受控 `--no-ff` 整合并完成离线门禁；一次受限 B-1 directory-only 真实 smoke 已授权但未启动。TASK-014 整体继续为
    `IN_PROGRESS` / `No-Go`，等待 mutagen GPL 分发
    结论、BPE 文件归属/NOTICE、真实 smoke、真实 Vault 边界、at-most-once 风险签署与最终 PO/TL/QA Go-No-Go；
    任一 smoke 结果都不产生发布批准。
 2. TASK-014B2 已整合并关闭为 `DONE`；它只补齐正式 console entry 这一 B-1 前置条件，不能替代或自行重试真实 smoke。
 3. TASK-014B0 已整合并关闭为 `DONE`；其离线组合入口解除了 B-1 的生产入口 blocker，但不授权或执行真实 B-1，
    不关闭 mutagen GPL、BPE 归属/NOTICE、真实 Vault、at-most-once 风险签署或最终 PO/TL/QA Go-No-Go。
-4. Phase B-1/B4 不授权真实 YouTube/字幕执行；B4 只允许离线实现与 Fake/integration 验证。真实 Whisper/Ollama/OpenAI、
+4. 仅 B-1 directory-only Executor 获一次固定真实公开字幕调用；B4 只提供已整合的离线实现边界。真实 Whisper/Ollama/OpenAI、
    模型、ffmpeg、媒体、其他网络、真实 Vault、用户笔记、launchd 注册与凭据操作继续不批准。
 5. Phase A 经独立审查并整合后，PO/TL/QA 仍须分别决定分发形态、GPL/NOTICE、BPE 文件级归属、
    可选能力、真实 smoke 授权和 at-most-once 风险接受，才能进入后续发布门禁。
@@ -248,6 +258,7 @@
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
+| 已授权未启动 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | 唯一 source `codex/task-014-phase-b1-directory-only-execution@9bffb29…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution`；仅可在离线 lock/sync/lock、绝对 launcher 映射和 non-existent `smoke-root` 门禁后，对两个固定 ID 各一次运行 directory-only 1/1/0。只写 B-1 evidence、release checklist 与 TASK-014 handoff；失败如实停止，成功仍不构成发行批准或 TASK-014 Go |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4：受限 directory-only 公开字幕 smoke | `--no-ff` merge `133819f…` 已进入 main，双父 `8637438…`、`d211d62…`，accepted source 是 merge 祖先；first-parent Diff 严格为五条 B4 路径。既有离线 `uv sync --locked --offline`、Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描通过；main/source 干净且 source 保留。未 push、未运行真实 YouTube/B-1、网络、真实服务、认证、媒体、凭据、Vault 或模型；B4 为 `DONE`，不构成真实 B-1 通过、真实服务验证或发行批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B4-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，授权控制提交暨唯一实施起点 `bbd3fdd…`（父 `ccc7478…`）；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包、网络/下载迹象、锁变化或任何失败立即停止；禁止任何文件修改/暂存/提交、测试、构建、真实资源和 Implementer/Reviewer 启动。成功仅报告环境就绪；后续整合已独立完成，TASK-014 仍为 `IN_PROGRESS / No-Go`，B4 已为 `DONE` |
