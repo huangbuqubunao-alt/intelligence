@@ -42,6 +42,12 @@
 | 四阶段真实 smoke | NOT AUTHORIZED | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。 |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
+### TASK-014 Phase B-1 retry record — 2026-07-28
+
+- `uv lock --check` passed before and after the single permitted `uv sync --locked`; the sync used only existing locked packages and did not modify dependencies or `uv.lock`.
+- The one permitted `youtube-intel smoke-public-subtitles` invocation for `--khbXchTeE` and `JTxsNm9IdYU` stopped with shell exit `127` because `youtube-intel` was unavailable on PATH. Neither ID reached the product entry; each has zero metadata, subtitle-directory, and subtitle-body reads. No alternate path or retry was attempted.
+- Evidence: [TASK-014 Phase B-1 retry evidence](SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md). This is a `BLOCKED` execution record, not B-1 success, release approval, or a change to the standing `NO-GO` gates.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

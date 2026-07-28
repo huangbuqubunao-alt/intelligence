@@ -162,3 +162,39 @@
 - Verdict: **APPROVE** for the Phase A documentation review only. This is not a
   release approval, legal opinion, real-smoke authorization, risk acceptance,
   or final Go decision; the documented No-Go gates remain open.
+
+## Phase B-1 smoke retry execution evidence — 2026-07-28
+
+### Fixed object, scope, and reuse
+
+- Role: `Codex Smoke Retry Executor`.
+- Source: `codex/task-014-phase-b1-console-entry-retry@49869c6ff2bbc53673c6a35071c5f1407c269cba`; source was verified before execution and initially clean.
+- Reuse decision: `DIRECT` — existing locked dependencies, integrated yt-dlp Adapter, and existing `youtube-intel` console entry. No dependency, lockfile, source, test, configuration, Schema/migration, task-status, LICENSE, or external-code change was made.
+- Allowed evidence paths modified: `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md`, `docs/RELEASE_CHECKLIST.md`, and this handoff only.
+
+### Authorized environment sequence
+
+| Command | Result | Key evidence |
+|---|---|---|
+| `uv lock --check` (pre) | PASS | CPython 3.12.11; 84 packages resolved. |
+| `uv sync --locked` (once) | PASS | Installed only locked packages; `fsspec==2026.6.0` became available; no lock/dependency modification. |
+| `uv lock --check` (post) | PASS | Same 84 packages resolved. |
+
+### One smoke attempt and result
+
+- A new empty temporary root was created. Its absolute path and contents are not recorded.
+- Exactly one permitted command was invoked with the fixed order and IDs: `youtube-intel smoke-public-subtitles --temporary-root <new-empty-temporary-root> --video-id=--khbXchTeE --video-id=JTxsNm9IdYU`.
+- Result: shell exit `127`, `command not found: youtube-intel`. The product entry never started, so both IDs have zero metadata, subtitle-directory, and subtitle-body calls. No YouTube request occurred.
+- Stopping condition: the package permits only one smoke invocation. No alternate executable path, activation, retry, loop, parallel call, target substitution, or other product command was used.
+
+### Red-line and evidence checks
+
+- Not accessed or used: login, Cookie, browser profile, API key, `.env`, Keychain, credentials, real Vault, user notes/data, media, ffmpeg, Whisper/model, Ollama, OpenAI, paid service, launchd, subtitle body, payload, or URL.
+- No media download, high-frequency retry, `retry` command, source/test/configuration change, dependency/lockfile change, Schema/migration, or task-status change occurred.
+- Detailed sanitized evidence: `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-PUBLIC-YOUTUBE.md`.
+
+### Executor conclusion
+
+- Suggested status: `IN_REVIEW — BLOCKED execution evidence`; this is not B-1 success and does not alter TASK-014 `IN_PROGRESS / NO-GO`.
+- Commit SHA: pending evidence-only commit.
+- Remaining risk / decision: the PATH-unavailable console entry prevented any real-resource verification. A future attempt requires an explicit new authorization; this executor must not rerun under a different executable path. Existing release gates for `mutagen`, BPE NOTICE/attribution, real Vault, at-most-once risk, and PO/TL/QA sign-off remain blocked.
