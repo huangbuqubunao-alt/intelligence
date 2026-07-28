@@ -1,8 +1,8 @@
 # TASK-014B3：公开字幕目录兼容性诊断
 
-- Status: `READY`
-- Assignee: `Codex Implementer（尚未启动）`
-- Reviewer: `全新独立 Codex Reviewer（尚未启动）`
+- Status: `IN_REVIEW`
+- Assignee: `Codex Implementer（source 已提交，待独立审查）`
+- Reviewer: `全新独立 Codex Reviewer（已授权，尚未启动）`
 - 依赖：ADR-013、ADR-015、TASK-014B0 `DONE`、TASK-014B2 `DONE`
 - 基线：`main@9c5f08ec829629591b095bd68841ca3ce0b22532`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation`
