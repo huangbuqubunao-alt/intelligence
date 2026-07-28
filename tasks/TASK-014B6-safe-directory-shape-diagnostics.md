@@ -26,10 +26,11 @@
 ## 最大允许实现范围
 
 1. `src/youtube_intel/providers/subtitles.py`
-2. `tests/fixtures/subtitles/` 下一个新增的脱敏结构 fixture
-3. `tests/integration/test_subtitle_provider.py`
-4. `tests/integration/test_public_subtitle_smoke.py`
-5. `handoffs/TASK-014.md`
+2. `src/youtube_intel/public_subtitle_smoke.py`
+3. `tests/fixtures/subtitles/` 下一个新增的脱敏结构 fixture
+4. `tests/integration/test_subtitle_provider.py`
+5. `tests/integration/test_public_subtitle_smoke.py`
+6. `handoffs/TASK-014.md`
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence 或任何其他路径。
 
@@ -45,7 +46,9 @@
   2. `tests/integration/test_public_subtitle_smoke.py`
   3. `handoffs/TASK-014.md`
 
-- Correction 1 `b58ba26…` 的唯一父为 `9403e37…`，且严格为上述三条路径；完整 B6 Diff `7983bf5…...b58ba26…` 仍严格为原五路径。
+- Correction 1 `b58ba26…` 的唯一父为 `9403e37…`，且严格为上述三条路径；完整 B6 Diff `7983bf5…...b58ba26…` 严格为上述六路径。
+  `public_subtitle_smoke.py` 仅将有限、无值 Adapter 分类传递到既有安全摘要；不得据此增加输出面、其他路径或放宽解析。
+  上一 Reviewer 因完整范围少列此路径而停止，未写 evidence commit；其 prompt 已被全新范围修正 Reviewer prompt 取代。
   新 Reviewer 只能追加 source `handoffs/TASK-014.md` 的 evidence，且 evidence 必须以 `b58ba26…` 为唯一父提交。
 - 复审必须精确验证未知目录 `INVALID_RESPONSE` 仅输出 `directory_shape_unknown`，旧
   `directory_unknown_invalid_response` 不再从 stdout/JSONL 输出；其余 ADR-017 固定分类、unknown fallback、无泄漏、

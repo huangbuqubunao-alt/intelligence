@@ -68,6 +68,7 @@ OpenAI。`c7a3f403…` 不进入 main，也不被改写为通过；B6 离线完�
 
 ## 后果
 
-- TASK-014B6 只可修改字幕 Adapter、一个脱敏结构 fixture、两份离线 integration 测试和 TASK-014 handoff。
+- TASK-014B6 完整产品范围只可包含字幕 Adapter、`public_subtitle_smoke.py`（将有限无值 Adapter 分类传递至既有安全摘要）、
+  一个脱敏结构 fixture、两份离线 integration 测试和 TASK-014 handoff；该传递不新增输出面或放宽解析。
 - 不新增依赖、锁文件、Schema、`logging.py`、CLI 结构、发布状态或真实资源动作。
 - 任何真实验证、兼容修复、重试、合并 `c7a3f403…` 或发布决定都需要单独授权。
