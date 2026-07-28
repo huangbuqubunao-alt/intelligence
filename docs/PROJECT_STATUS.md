@@ -104,13 +104,15 @@
   `IN_PROGRESS / No-Go`。
 - 产品负责人现接受 ADR-017 并分配 TASK-014B6「安全字幕目录结构诊断」给 Codex Implementer。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics` /
-  `codex/task-014b6-safe-directory-shape-diagnostics@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`，必须保持干净。
+  `codex/task-014b6-safe-directory-shape-diagnostics@9403e37eedbd2513aea631c7272c6d650d41ef40`（唯一父 `7983bf5…`），必须保持干净。
   B6 只为目录 `INVALID_RESPONSE` 生成 ADR-017 的固定、无值结构 code（缺失、非对象、非列表、空列表、不支持条目、
   提取器目录错误或未知），仅复用既有安全摘要/JSONL `directory_diagnostic` 出口；不记录字段值、URL、正文、标题、语言、
   轨道名称、路径、原始异常、Cookie、token、payload、用户数据或凭据，不放宽解析接受面。未合并 B-1 evidence
   `c7a3f403c910ab8e50e74f08b1c5ead057a5e4fa` 仅作只读失败引用，不得合并、重写或写成通过。B6 只允许 Adapter、一个
   脱敏 fixture、两份离线 integration 测试与 handoff；不改依赖、锁、Schema、`logging.py`、CLI、发布状态或真实资源。
-  本控制面不启动 Implementer；TASK-014 继续 `IN_PROGRESS / No-Go`，TASK-014B6 为 `IN_PROGRESS / Codex`。
+  source 已提交且干净，完整 Diff 严格为上述五路径。独立 Reviewer 已获授权，只能追加 source handoff，必须审查七种
+  固定无值 code、未知 fallback、安全 stdout/JSONL、全输出面/fixture 无泄漏与不扩大解析接受面的负向回归；本控制面不启动
+  Reviewer。TASK-014 继续 `IN_PROGRESS / No-Go`，TASK-014B6 为 `IN_REVIEW`。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -286,7 +288,7 @@
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
-| IN_PROGRESS | TASK-014B6：安全字幕目录结构诊断 | Codex source `codex/task-014b6-safe-directory-shape-diagnostics@7983bf5…` / `/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics` 已创建且干净。仅实现 ADR-017 固定无值 directory shape code、一个脱敏 fixture、两份离线 integration test 与 handoff；不扩大解析接受面、不改依赖/锁/Schema/`logging.py`/CLI/发布状态或真实资源。未合并 `c7a3f403…` 仅为只读失败 evidence，不得合并或写成通过 |
+| IN_REVIEW | TASK-014B6：安全字幕目录结构诊断 | source `codex/task-014b6-safe-directory-shape-diagnostics@9403e37…` / `/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`（唯一父 `7983bf5…`）已提交且干净；完整 Diff 严格为 Adapter、一个脱敏 fixture、两份 integration test 与 handoff。独立 Reviewer 已授权，只能追加 handoff，必须审查 ADR-017 七种固定无值 code、未知 fallback、安全 stdout/JSONL、全输出面/fixture 无泄漏、不扩大解析接受面与既有计数/CLI/fail-closed 边界。未合并 `c7a3f403…` 仅为只读失败 evidence，不得合并或写成通过 |
 | 已完成可关闭 | TASK-014B3：公开字幕目录兼容性诊断 | `--no-ff` merge `f5ebc87…` 已进入 main，双父 `19b72c4…`、`b0ddf9d…`，accepted source 是 merge 祖先；first-parent Diff 严格为六条 B3 路径，既有离线 fixture/Fake `92`、mypy（24 source files）、Ruff、范围与泄漏扫描通过，source 干净。未 push、未触及真实 YouTube/B-1 重试或其他真实资源；B3 为 `DONE`，不构成发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4：受限 directory-only 公开字幕 smoke | `--no-ff` merge `133819f…` 已进入 main，双父 `8637438…`、`d211d62…`，accepted source 是 merge 祖先；first-parent Diff 严格为五条 B4 路径。既有离线 `uv sync --locked --offline`、Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描通过；main/source 干净且 source 保留。未 push、未运行真实 YouTube/B-1、网络、真实服务、认证、媒体、凭据、Vault 或模型；B4 为 `DONE`，不构成真实 B-1 通过、真实服务验证或发行批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B4 离线验证环境预配 | 唯一预检包为 `agent-prompts/PREFLIGHT-TASK-014B4-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`，授权控制提交暨唯一实施起点 `bbd3fdd…`（父 `ccc7478…`）；只允许指定 source 中按序运行 `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`。缓存缺包、网络/下载迹象、锁变化或任何失败立即停止；禁止任何文件修改/暂存/提交、测试、构建、真实资源和 Implementer/Reviewer 启动。成功仅报告环境就绪；后续整合已独立完成，TASK-014 仍为 `IN_PROGRESS / No-Go`，B4 已为 `DONE` |

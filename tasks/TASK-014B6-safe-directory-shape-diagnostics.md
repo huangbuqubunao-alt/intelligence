@@ -1,12 +1,14 @@
 # TASK-014B6：安全字幕目录结构诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer`
-- Reviewer: `待 Implementer 提交后由主控独立分配`
+- Status: `IN_REVIEW`
+- Assignee: `独立 Codex Reviewer（已授权，尚未启动）`
+- Reviewer: `独立 Codex Reviewer`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、ADR-017 `Accepted`
 - 实施基线：`main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`
 - Branch：`codex/task-014b6-safe-directory-shape-diagnostics`
+- 当前受审 source：`9403e37eedbd2513aea631c7272c6d650d41ef40`（唯一父
+  `7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`）
 - Reuse decision：`DIRECT` — 既有锁定的 subtitle Adapter、ADR-015 `directory_diagnostic`、B4 directory-only、B5 安全摘要、JsonlLogger 与离线 fixture/integration 基础设施；不新增第三方代码或依赖。
 
 ## 背景与目标
@@ -30,6 +32,16 @@
 5. `handoffs/TASK-014.md`
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence 或任何其他路径。
+
+## 审查控制面
+
+- 完整产品 Diff `7983bf5…...9403e37…` 严格为 `src/youtube_intel/providers/subtitles.py`、
+  `tests/fixtures/subtitles/directory_shape_diagnostics.json`、两份 integration test 与 `handoffs/TASK-014.md`。Reviewer
+  只能在该 source 追加 `handoffs/TASK-014.md` 的审查 evidence；不得修改产品、fixture、任务/状态文档或 prompt。
+- Reviewer 必须审查 ADR-017 七种固定、无值目录结构分类、未知 fallback、既有安全 stdout/JSONL 出口与不扩大解析
+  接受面的负向回归；独立验证 stdout/stderr/JSONL 与 fixture 不泄露 URL、正文、标题、语言、轨道名、字段值、路径、原始异常、
+  Cookie、token、payload 或用户数据。
+- 默认/directory-only 计数、退出码、CLI 边界、临时根、ID 上限、无重试、零业务记录和 fail-closed 边界必须保持不变。
 
 ## 验收与离线检查
 
