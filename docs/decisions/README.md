@@ -28,3 +28,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-012](ADR-012-local-transcription-continuation-contract.md) | Accepted | 2026-07-24 | 冻结本地 Whisper 成功转写的 Artifact/Provider-call 原子持久化与后续 Pipeline 衔接 |
 | [ADR-013](ADR-013-restricted-public-subtitle-smoke-entry.md) | Accepted | 2026-07-26 | 冻结仅供发布 QA 的受限公开字幕 smoke 入口、临时根、脱敏审计与禁止资源边界 |
 | [ADR-014](ADR-014-console-entrypoint-contract.md) | Accepted | 2026-07-27 | 仅将既有 CLI 主入口暴露为正式 `youtube-intel` console command，不扩展行为或资源权限 |
+| [ADR-015](ADR-015-public-subtitle-directory-diagnostics.md) | Accepted | 2026-07-28 | 冻结公开字幕目录失败的有限脱敏分类、最小 smoke 审计出口及离线验证边界 |

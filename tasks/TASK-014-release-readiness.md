@@ -59,7 +59,8 @@
 - 旧 final source 的历史 blocked evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 仅记录锁定运行时缺少
   `fsspec==2026.6.0` 的预派发环境阻断：两个固定公开视频均未调用，绝不合并或写成 smoke 通过。最终 evidence
   `9acab5d876b38d64a9aeab7aca3474be2676ce38` 记录真实 smoke `FAIL`：两个 ID 各一次元数据/字幕目录读取后均
-  `INVALID_RESPONSE`，正文均未读；后续仅可作离线只读 Scout，不授权真实资源或修复实现。
+  `INVALID_RESPONSE`，正文均未读；该 evidence 只证明目录响应映射前的失败，不授权真实资源。离线 Scout 已完成；后续
+  B3 仅按 ADR-015/TASK-014B3 进行脱敏目录兼容性诊断，不启动真实验证或放宽安全边界。
 
 ## Phase B-2：正式 console entry（已整合并关闭为 `DONE`）
 

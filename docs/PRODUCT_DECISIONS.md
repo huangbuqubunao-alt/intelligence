@@ -18,6 +18,16 @@
 
 ## 后续架构与任务级批准
 
+### ADR-015：公开字幕目录兼容性诊断
+
+- 批准日期：2026-07-28；产品负责人批准 TASK-014B3 仅离线实现公开字幕目录映射失败的有限、脱敏结构分类。
+- B3 不保存 URL、字幕正文、标题、字段值、Cookie、token、完整 payload 或用户数据；不放宽 URL、结构、长度、格式或
+  其他 fail-closed 边界。
+- 当现有 smoke 账本不能安全输出分类时，允许对既有 `ProviderCallMetadata.diagnostics` 和 smoke JSONL 固定
+  `safe_message` 键做最小审计出口修改；不新增 JSONL 任意字段、不改默认 CLI、调用顺序、退出码、依赖、锁文件或 Schema。
+- B3 只允许离线 Fake/fixture、静态审计和任务级检查；不授权 YouTube、网络、真实 smoke、媒体、认证、真实 Vault、
+  用户数据、模型、OpenAI、Ollama 或付费调用。未来真实诊断必须另行精确授权。
+
 ### ADR-013：受限公开字幕 smoke 组合入口
 
 - 批准日期：2026-07-26；产品负责人批准一个仅服务于发布 QA 的受限公开字幕 smoke 入口，以关闭

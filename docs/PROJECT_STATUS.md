@@ -83,6 +83,13 @@
   `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`：只离线比较 Adapter 字段/
   响应假设、错误映射、现有 Fake/fixture 与脱敏真实 evidence，聊天回传最小修复建议和后续一次验证所需的精确授权。禁止网络、
   YouTube、测试、构建、依赖变更、代码/文档写入、worktree 创建和 `.codebase-memory` 工件。本控制面提交不启动 Scout。
+- 产品负责人现接受 ADR-015 并创建 TASK-014B3：仅离线实现公开字幕目录 `INVALID_RESPONSE` 的有限脱敏结构分类和最小
+  smoke 审计出口。固定 base/worktree/branch 为 `main@371788d2a6c9c42f20ebaed93da7a021f0febeb0` /
+  `/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics` /
+  `codex/task-014b3-public-subtitle-diagnostics`；worktree 已创建且干净。正式包为
+  `agent-prompts/TASK-014B3-PUBLIC-SUBTITLE-DIAGNOSTICS-IMPLEMENTER-CODEX.md`，Implementer/Reviewer 均尚未启动。
+  B3 只允许 provider、必要 smoke 审计出口、离线 fixtures/tests 和 handoff；不放宽安全边界，不改依赖/锁文件/Schema/
+  默认 CLI，不运行网络或真实资源。TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 旧 final B-1 source evidence `5698802ba13b9c953eb6ae41d7f827d38654c7c8` 只保留为未触达 YouTube 的历史环境阻断：
   两个公开视频均未调用，不得合并、标为 smoke 通过或发布批准。旧 final worktree、Public YouTube Smoke 包与先前 Retry 包均已
   废止，不能作为执行 source 或启动依据。
@@ -202,7 +209,8 @@
 | 已完成可关闭 | TASK-008 Product Integrator/Reviewer | merge `4f9ca390...` 已进入 main；Reviewer 6 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-009 Product Integrator/Reviewer | merge `1cb718b...` 已进入 main；Reviewer 4 `APPROVE`，全部离线门禁通过；已为 `DONE`，不得继续写 source |
 | 已完成可关闭 | TASK-010 Product Integrator/Reviewer | merge `3d2122c...` 已进入 main；Reviewer 2 `APPROVE`，全部离线门禁通过；收口控制面已同步为 `DONE`，不得继续写 source |
-| 已授权未启动 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence；禁止网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建与 `.codebase-memory` 工件，只在聊天回传最小修复建议和一次后续验证的精确授权 |
+| 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
+| 已分配未启动 | TASK-014B3：公开字幕目录兼容性诊断 | `codex/task-014b3-public-subtitle-diagnostics@371788d…` 已创建且干净；只实现 ADR-015 的有限脱敏诊断与最小 smoke 审计出口，离线 fixtures/tests 与 handoff。禁止网络、真实资源、依赖/锁文件、Schema、默认 CLI、B-1 evidence 和安全边界放宽；Implementer/Reviewer 尚未启动 |
 | 已完成可关闭 | TASK-014B2：正式 console entry | merge `99a22d…` 已整合；五路径与离线 lock/test/CLI/mypy/Ruff/build/wheel-entry 门禁通过，source 干净；不是真实 smoke 或发布批准，TASK-014 仍为 `IN_PROGRESS / No-Go` |
 | 已完成可关闭 | TASK-014B0：受限公开字幕 smoke 组合入口 | merge `e50b211…` 已进入 main；B0 六路径及离线门禁通过，source 干净；不得继续写 source，且不改变 TASK-014 的 No-Go |
 
