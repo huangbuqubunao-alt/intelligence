@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 import time
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 _HTTP_TIMEOUT_SECONDS = 30.0
 _VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+_SUCCESS_ERROR_CODE = "OK"
 
 
 class _MetadataProvider(Protocol):
@@ -156,6 +158,7 @@ class PublicSubtitleSmoke:
                 result = subtitle_adapter.read_track(ranked[0].track)
                 del result
         except Exception as error:  # noqa: BLE001 - emit only a fixed safe category
+            error_code = _error_code(error)
             diagnostic = _directory_diagnostic(
                 error,
                 subtitle_adapter=subtitle_adapter,
@@ -175,9 +178,17 @@ class PublicSubtitleSmoke:
                 run_id=run_id,
                 stage="smoke-public-subtitles",
                 video_id=video_id,
-                error_code=_error_code(error),
+                error_code=error_code,
                 duration_ms=int((time.monotonic() - started) * 1000),
                 safe_message=safe_message,
+            )
+            _emit_summary(
+                video_id=video_id,
+                metadata_calls=metadata_calls,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+                error_code=error_code,
+                directory_diagnostic=diagnostic,
             )
             return False
 
@@ -192,6 +203,13 @@ class PublicSubtitleSmoke:
                 "metadata_calls=1 enumerate_tracks_calls=1 "
                 f"read_track_calls={read_calls}"
             ),
+        )
+        _emit_summary(
+            video_id=video_id,
+            metadata_calls=metadata_calls,
+            enumerate_calls=enumerate_calls,
+            read_calls=read_calls,
+            error_code=_SUCCESS_ERROR_CODE,
         )
         return True
 
@@ -230,6 +248,27 @@ def _error_code(error: Exception) -> str:
     if isinstance(app_error, AppError):
         return app_error.code.value
     return ErrorCode.PROVIDER_UNAVAILABLE.value
+
+
+def _emit_summary(
+    *,
+    video_id: str,
+    metadata_calls: int,
+    enumerate_calls: int,
+    read_calls: int,
+    error_code: str,
+    directory_diagnostic: str | None = None,
+) -> None:
+    summary: dict[str, str | int] = {
+        "video_id": video_id,
+        "metadata": metadata_calls,
+        "enumerate": enumerate_calls,
+        "read": read_calls,
+        "error_code": error_code,
+    }
+    if directory_diagnostic is not None:
+        summary["directory_diagnostic"] = directory_diagnostic
+    print(json.dumps(summary, separators=(",", ":")))
 
 
 def _directory_diagnostic(

@@ -162,3 +162,138 @@
 - Verdict: **APPROVE** for the Phase A documentation review only. This is not a
   release approval, legal opinion, real-smoke authorization, risk acceptance,
   or final Go decision; the documented No-Go gates remain open.
+
+## TASK-014B5 Implementer Evidence — 2026-07-28
+
+### Fixed assignment and scope
+
+- Task: `TASK-014B5 — safe smoke summary output`; role: `Implementer`.
+- Base and sole required parent for the implementation commit:
+  `main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`.
+- Worktree/branch: `task-014b5-safe-smoke-summary` /
+  `codex/task-014b5-safe-smoke-summary`.
+- Reuse decision: `DIRECT` — reused the existing restricted CLI,
+  `PublicSubtitleSmoke`, fixed `ErrorCode` values, ADR-015
+  `directory_diagnostic`, `JsonlLogger`, and offline Fake integration setup;
+  no third-party code or dependency was added.
+- Actual implementation paths: `src/youtube_intel/public_subtitle_smoke.py`,
+  `tests/integration/test_public_subtitle_smoke.py`, and this handoff. No
+  change was needed to `cli.py` or `test_operations.py`; both remain in the
+  allowed scope but are intentionally untouched.
+
+### Implemented contract
+
+- Each processed `smoke-public-subtitles` target emits exactly one compact JSON
+  line to stdout in fixed insertion order: `video_id`, `metadata`,
+  `enumerate`, `read`, `error_code`, then (only for directory
+  `INVALID_RESPONSE`) `directory_diagnostic`.
+- `OK` is the explicit fixed safe success code. Failure summaries reuse only
+  the existing fixed safe error code and ADR-015 fixed diagnostic; no JSONL
+  schema or `logging.py` change was made.
+- Default smoke retains one selected-body read; directory-only success and
+  directory `INVALID_RESPONSE` retain per-target `1/1/0` counts and existing
+  exit-code semantics.
+
+### RED/GREEN and offline checks
+
+| Command/check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Completed once from the locked local cache; no download or lockfile change. |
+| Focused pytest before implementation | RED | Three new Fake summary regressions failed because stdout was empty; existing 16 tests passed. |
+| `.venv/bin/pytest tests/integration/test_operations.py tests/integration/test_public_subtitle_smoke.py` | PASS | `19 passed`; covers directory-only success, directory `INVALID_RESPONSE`, default one-body read, global-config early rejection, non-smoke flag rejection, input limits, no retry, and zero business records. |
+| `.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py` | PASS | `Success: no issues found in 2 source files`. |
+| `.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py tests/integration/test_public_subtitle_smoke.py tests/integration/test_operations.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Existing command structure, including `smoke-public-subtitles`, is unchanged. |
+
+### Security and diff review
+
+- The new Fake assertions decode stdout and require only the frozen keys and
+  fixed values. They reject URL, subtitle body, title, language, field value,
+  raw exception, temporary path, Cookie, token, payload, and user-data probes;
+  stderr remains empty. Existing JSONL assertions continue to reject the same
+  sensitive fixture values and prove the schema is unchanged.
+- Before commit, the diff contains only the three paths above; it contains no
+  dependency, lockfile, Schema/migration, configuration, credential, Vault,
+  network, media, authentication, model, push, or merge change. `git diff
+  --check` is clean.
+- No real smoke, YouTube/network request, media, authentication, Cookie,
+  credential, Vault, model, OpenAI/Ollama, paid call, launchd action, push, or
+  merge was performed. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the single implementation commit below.
+- Commit SHA: reported externally after this single fixed-parent implementation
+  commit (not self-recorded to preserve the one-commit history).
+- Remaining risk: offline Fakes validate the bounded output contract only; they
+  do not authorize or demonstrate real-service behavior, release approval, or
+  final Go.
+- `DECISION NEEDED`: `None`.
+
+## TASK-014B5 Independent Reviewer Evidence — 2026-07-28
+
+### Fixed review identity and scope
+
+- Role: `Independent Reviewer`; reviewed branch:
+  `codex/task-014b5-safe-smoke-summary`.
+- Reviewed implementation: `ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1`; sole
+  parent verified as `b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`.
+- Reviewer authorization verified: `main@6ceaca1431205880f6acd0aed466b9a5d28f0e17`
+  is a descendant of the package's control-plane authorization commit.
+- Product review range:
+  `b1ea7a66aaf513aa0fa8262780f9c59072cc18b4...ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1`.
+  Cleanliness and complete diff were independently verified before review.
+- Exact product paths are limited to
+  `src/youtube_intel/public_subtitle_smoke.py`,
+  `tests/integration/test_public_subtitle_smoke.py`, and this handoff; no
+  dependency, lockfile, Schema, configuration, credential, Vault, network,
+  authentication, media, model, push, or merge change is present.
+
+### Independent review findings
+
+- Fixed stdout contract: PASS. `_emit_summary` builds compact JSON in the
+  stable order `video_id`, `metadata`, `enumerate`, `read`, `error_code`, then
+  optional `directory_diagnostic`. The only dynamic identifier is the
+  prevalidated 6--32-character video ID; counts are integers. Success uses
+  fixed `OK`; failures use only the frozen `ErrorCode` set. The optional
+  diagnostic is emitted only for the existing enumerate-stage
+  `INVALID_RESPONSE` / zero-read condition and is restricted to ADR-015's
+  frozen diagnostic-code set.
+- Behavior and boundary preservation: PASS. Default mode still ranks and reads
+  exactly one body per successful target. Directory-only success and
+  enumerate-stage `INVALID_RESPONSE` are respectively verified as `1/1/0`.
+  The unchanged CLI continues to reject smoke global configuration input before
+  initialization; non-smoke command parsing, 1--3 unique-ID checks, temporary
+  root, 30-second timeout, no-retry, and fail-closed exit-code boundaries are
+  unchanged.
+- Leakage review: PASS. Static inspection confirms no raw exception, response
+  body, URL, title, language/field value, path, Cookie, token, payload, user
+  data, or credential flows to the new stdout call. The Fake failure probes
+  independently assert these values are absent from stdout and existing JSONL;
+  stderr is empty for the exercised successful and directory-failure paths.
+  Existing JSONL remains limited to its established safe-message schema.
+
+### Re-run evidence
+
+| Command/check | Result | Evidence |
+|---|---|---|
+| Git branch/HEAD/sole-parent/status/range/path scope | PASS | Branch, `ce4b472...`, sole parent `b1ea7a...`, clean worktree, and exact three-path range verified. |
+| `git diff --check b1ea7a...ce4b472...` | PASS | No whitespace errors. |
+| `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py` | PASS | `10 passed`; offline Fakes cover default read, directory-only `1/1/0`, fixed JSON summaries, safe directory failure, global configuration rejection, ID limits, and no retry. |
+| `.venv/bin/pytest tests/integration/test_operations.py` | PASS | `9 passed`; non-smoke command boundary remains intact. |
+| `.venv/bin/mypy src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py` | PASS | `Success: no issues found in 2 source files`. |
+| `.venv/bin/ruff check src/youtube_intel/public_subtitle_smoke.py src/youtube_intel/cli.py tests/integration/test_public_subtitle_smoke.py tests/integration/test_operations.py` | PASS | `All checks passed!` |
+| `.venv/bin/youtube-intel --help` | PASS | Existing command topology remains available; no smoke execution occurred. |
+| Static output/leak scan and code-path review | PASS | New stdout is the single `_emit_summary` call; all emitted value sources are safe/fixed as above. |
+
+### Reviewer conclusion
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Not run: build/package installation, full suite, real CLI subcommands, real
+  smoke, YouTube/network, media/ffmpeg, authentication/Cookie/credentials,
+  Vault, model/Ollama/OpenAI, SQLite diagnostics, launchd, push, or merge. The
+  task package forbids them; all executed validation used offline Fakes.
+- Verdict: `APPROVE`.
+- TASK-014 remains `IN_PROGRESS / No-Go`. This offline review neither validates
+  a real service nor grants release approval, final Go, or any real-resource
+  authorization.

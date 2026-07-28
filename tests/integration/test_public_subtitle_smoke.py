@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from youtube_intel.cli import CommandOutcome, ExitCode, main
 from youtube_intel.domain import (
     AppError,
@@ -266,6 +268,7 @@ def test_smoke_isolated_to_new_root_and_reads_each_selected_track_once(tmp_path:
 
 def test_directory_only_isolated_to_new_root_without_reading_track_bodies(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     metadata = _FakeMetadataProvider()
     subtitles = _FakeSubtitleAdapter()
@@ -280,9 +283,57 @@ def test_directory_only_isolated_to_new_root_without_reading_track_bodies(
     assert metadata.calls == list(VIDEO_IDS)
     assert subtitles.enumerate_calls == list(VIDEO_IDS)
     assert subtitles.read_calls == []
+    summaries = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert summaries == [
+        {
+            "video_id": video_id,
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "OK",
+        }
+        for video_id in VIDEO_IDS
+    ]
     log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
     assert "read_track_calls=0" in log_text
     assert SUBTITLE_BODY.decode() not in log_text
+
+
+def test_default_smoke_emits_only_safe_summary_after_one_body_read(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _FakeSubtitleAdapter()
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(_args(root, "video001"), smoke_runner=_smoke(metadata, subtitles))
+
+    assert exit_code is ExitCode.OK
+    assert len(subtitles.read_calls) == 1
+    output = capsys.readouterr()
+    assert [json.loads(line) for line in output.out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 1,
+            "error_code": "OK",
+        }
+    ]
+    assert output.err == ""
+    for forbidden in (
+        "https://example.invalid",
+        "temporary-url",
+        SUBTITLE_BODY.decode(),
+        "Title",
+        "English",
+        str(root),
+        "Cookie",
+        "token",
+        "payload",
+    ):
+        assert forbidden not in output.out
 
 
 def test_smoke_rejects_nonnew_root_invalid_or_duplicate_ids_without_calls(tmp_path: Path) -> None:
@@ -448,6 +499,7 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
 
 def test_directory_only_appends_only_fixed_directory_diagnostic(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     metadata = _FakeMetadataProvider()
     subtitles = _InvalidDirectorySubtitleAdapter()
@@ -462,6 +514,30 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
     assert metadata.calls == ["video001"]
     assert subtitles.enumerate_calls == ["video001"]
     assert subtitles.read_calls == []
+    output = capsys.readouterr()
+    assert [json.loads(line) for line in output.out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "INVALID_RESPONSE",
+            "directory_diagnostic": "directory_track_url",
+        }
+    ]
+    assert output.err == ""
+    for forbidden in (
+        "https://private.invalid/?token=secret",
+        "private URL",
+        "private-title",
+        "private-value",
+        "private-cookie",
+        "private-body",
+        "private-payload",
+        SUBTITLE_BODY.decode(),
+        str(root),
+    ):
+        assert forbidden not in output.out
     records = [
         json.loads(line)
         for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
