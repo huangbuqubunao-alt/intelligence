@@ -842,3 +842,25 @@
 - TASK-014B8 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
   This offline review is neither real-service verification nor release approval
   or final Go.
+
+## TASK-014 Phase B-1 B8 Directory-only Smoke Executor Evidence — 2026-07-29
+
+### Recorded result
+
+- Process exit code: `1`.
+- Complete safe stdout summary: public target identifier `--khbXchTeE`;
+  `metadata=1`; `enumerate=1`; `read=0`; final safe code
+  `CONTENT_UNAVAILABLE`.
+
+### Stop point and scope
+
+- The single permitted directory-only call completed with a nonzero exit and
+  did not satisfy the output-safety gate. Execution stopped immediately; no
+  retry or additional product command was run, and no non-safe output was
+  persisted.
+- Reuse decision: `DIRECT` — the already integrated restricted directory-only
+  smoke path and its fixed safe-summary boundary were used without any code,
+  dependency, lockfile, schema, or configuration change.
+- This evidence is limited to the three authorized documentation paths.
+  TASK-014 remains `IN_PROGRESS / No-Go`; the result is not release approval or
+  final Go.

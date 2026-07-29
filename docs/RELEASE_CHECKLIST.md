@@ -53,3 +53,13 @@
 
 只有四项均为 `GO`、所有 `BLOCKED` 项有可审计的关闭证据、且发布形态与 SBOM/NOTICE
 一致时，才可由主控另行决定发布。否则维持 `NO-GO` 并开立范围明确的后续任务。
+
+## Phase B-1 B8 keyname-audited directory-only validation — 2026-07-29
+
+| 项目 | 状态 | 证据与限制 |
+|---|---|---|
+| 单次 directory-only 公开验证 | STOPPED | 退出码 `1`；安全摘要为目标 `--khbXchTeE`、`metadata=1`、`enumerate=1`、`read=0`、最终安全码 `CONTENT_UNAVAILABLE`。输出安全门禁未满足，已立即停止且未重试。 |
+
+- 仅允许的安全摘要已记录在
+  `docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-B8-KEYNAME-AUDITED-PUBLIC-YOUTUBE.md`。
+- TASK-014 继续为 `IN_PROGRESS / No-Go`；此停止结果不构成发布批准或最终 Go。
