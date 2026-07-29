@@ -112,7 +112,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-012](TASK-012-cli-operations.md) | CLI、调度与日志 | 已整合并关闭；merge `4841cf8...` | DONE | 010, 011 |
 | [TASK-013A](TASK-013A-local-transcription-continuation.md) | 本地转写持续处理 | 已整合并关闭；merge `8f70fe3...` | DONE | 006, 010 |
 | [TASK-013](TASK-013-e2e-acceptance.md) | 端到端验收 | 已整合并关闭；merge `efb3034...` | DONE | 011, 012, 013A |
-| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；B10-classified 真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3/B4/B5/B6/B7/B8/B10 已关闭，B9 与 B10-classified 失败 evidence 均未合并；B11 coverage-only Correction 等待 Reviewer 2 | IN_PROGRESS / No-Go | 013 |
+| [TASK-014](TASK-014-release-readiness.md) | 发布准备（Phase A 资料已整合；B10-classified 真实 smoke `FAIL`） | PO + TL + QA 发布门禁；B3/B4/B5/B6/B7/B8/B10 已关闭，B9 与 B10-classified 失败 evidence 均未合并；B11 已验收待离线整合 | IN_PROGRESS / No-Go | 013 |
 | [TASK-014B3](TASK-014B3-public-subtitle-directory-diagnostics.md) | 公开字幕目录兼容性诊断 | ADR-015 已接受并已整合；merge `f5ebc87…` | DONE | 014；ADR-015 |
 | [TASK-014B4](TASK-014B4-directory-only-public-subtitle-smoke.md) | 受限 directory-only 公开字幕 smoke | merge `133819f…`；离线 sync、Fake `18`、mypy、Ruff、CLI help、build、范围与泄漏扫描通过；source 保留 | DONE | 014；ADR-016；B0/B2/B3 DONE |
 | [TASK-014B5](TASK-014B5-safe-smoke-summary-output.md) | 安全 smoke 摘要输出 | merge `41e9793…`；离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 保留 | DONE | 014；B3/B4 DONE |
@@ -120,7 +120,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B7](TASK-014B7-safe-directory-origin-fingerprint.md) | 字幕目录安全来源与结构指纹 | merge `81ee343…`；lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help、离线 build、范围与泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6 DONE；ADR-018 |
 | [TASK-014B8](TASK-014B8-restricted-directory-keyname-diagnostic.md) | 受限键名级字幕目录诊断 | merge `8bedbf1…`；lock/sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与全输出面泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6/B7 DONE；ADR-019 |
 | [TASK-014B10](TASK-014B10-safe-content-availability-diagnostic.md) | 安全内容可用性诊断 | merge `5b485fa…`；lock/sync、focused `137`、full pytest `508`、mypy、Ruff、CLI help、offline build、五/三/handoff-only 范围、Diff 与全输出面泄漏扫描通过；失败补充探针未计 PASS，source 保留 | DONE | 014；B4/B5/B6/B7/B8 DONE；ADR-020 |
-| [TASK-014B11](TASK-014B11-safe-directory-contract-diagnostics.md) | 安全字幕目录契约状态诊断 | coverage-only Correction `ed250ba…` 精确三路径，产品源码未变；新增生产链节点首次自报 `3 passed`，无有效产品 RED。全新独立 Reviewer 2 已授权但未启动，Implementer `3/149` 不作独立证据 | IN_REVIEW | 014；B4/B5/B6/B7/B8/B10 DONE；ADR-021 |
+| [TASK-014B11](TASK-014B11-safe-directory-contract-diagnostics.md) | 安全字幕目录契约状态诊断 | accepted source `f57b21c…`；Reviewer 2 `APPROVE`、P0--P3=`0`，独立生产链 `3`/focused `149` 等门禁通过，full pytest/build 待 Product Integrator；coverage-only Correction 未改产品源码，不是产品 bug 修复 | ACCEPTED | 014；B4/B5/B6/B7/B8/B10 DONE；ADR-021 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 

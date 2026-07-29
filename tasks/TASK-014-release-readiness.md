@@ -133,16 +133,18 @@
   新 B10-classified evidence、release checklist 与本 handoff。它记录 metadata=`1`/enumerate=`1`/read=`0`、exit=`1`、
   `INVALID_RESPONSE`、`directory_shape_unknown`、`directory_origin_mapping` 和 `directory_fingerprint_unknown`；未产生 B8 keyname
   或 B10 availability。该 evidence 保持未合并、只读，不得修改、清理、重跑或改写为成功。
-- TASK-014B11 coverage-only Correction `ed250baf752182adbc4d98f5271d34995865d192` 是首轮 REJECT evidence
-  `4aebc01360fa9684fe6b052f266a00ecc2de57dc` 的唯一子提交，精确修改两份 integration tests 与 handoff；完整 B11 仍为原五路径，
-  Adapter 与 safe smoke 产品源码相对首轮 implementation 未改变。新增测试只在外层 transport 使用替身，调用真实
-  `YtDlpSubtitleAdapter.enumerate_tracks()` 完成校验/状态/`TranscriptError` 映射，再由真实 `PublicSubtitleSmoke` 生成 stdout/JSONL
-  六字段矩阵。三个新节点在产品源码未改时首次自报 `3 passed`，因此没有有效产品 RED，也没有产品修复；这只补齐首轮证据缺口，不得写成
-  修复已证实 bug。Implementer 自报 focused `149 passed` 等不得作独立证据。全新 Reviewer 2 已由
-  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-REVIEWER-2-CODEX.md` 授权但未启动，只可向
-  source handoff 追加证据并创建 handoff-only 子提交；必须独立复跑生产链节点、focused tests、mypy、Ruff、CLI、范围/Diff 与泄漏扫描。
-  `51d974…` 与 `bd770e…` 继续未合并。TASK-014B11 为 `IN_REVIEW`；TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写 Reviewer 2
-  结论、真实 smoke、兼容性证明或发行批准。
+- TASK-014B11 accepted source / Reviewer 2 evidence `f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d`
+  是 coverage-only Correction `ed250baf752182adbc4d98f5271d34995865d192` 的 handoff-only 唯一子提交，
+  Verdict=`APPROVE`、P0--P3=`0`。Reviewer 2 独立通过 locked offline sync、三个生产链节点
+  `3 passed`、Provider/Smoke focused `149 passed`、mypy、Ruff、CLI help、Correction/完整/evidence
+  Diff、范围及全输出面泄漏扫描；未运行 full pytest 或 build，必须由 Product Integrator 补齐。
+  Correction 精确为两份 integration tests 与 handoff 三路径，完整 B11 精确为原五路径，产品
+  Adapter/safe smoke 源码相对首轮 implementation 未改变；这是 coverage-only 补证，没有有效产品 RED，
+  不得写成修复已证实 bug。Product Integrator 已由
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-PRODUCT-INTEGRATOR-CODEX.md`
+  授权但未启动，只可在全部离线门禁通过后 `git merge --no-ff f57b21c…`。`51d974…` 与
+  `bd770e…` 继续未合并。TASK-014B11 为 `ACCEPTED`；TASK-014 始终 `IN_PROGRESS / No-Go`，
+  不得预写 `DONE`、merge SHA、真实兼容性、真实 smoke 或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
