@@ -1,12 +1,15 @@
 # TASK-014B8：受限键名级字幕目录诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `独立 Codex Reviewer`
+- Status: `ACCEPTED`
+- Assignee: `Codex Product Integrator（已授权，尚未启动）`
+- Reviewer: `独立 Codex Reviewer（APPROVE，P0--P3=0）`
 - 依赖：TASK-014B3/B4/B5/B6/B7 `DONE`、ADR-019 `Accepted`
 - 实施基线：`main@43f2c748c43215facb231f76a0c93ac45d350657`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic`
 - Branch：`codex/task-014b8-restricted-directory-keyname-diagnostic`
-- Implementer source: `2334374f66497546108d12be541ab137b4a8981a`（唯一父提交 `43f2c748c43215facb231f76a0c93ac45d350657`）
+- accepted source / Reviewer evidence: `96dee64ec7ab172d036e8472ffc3f65efa0cb6c4`（唯一父提交
+  `2334374f66497546108d12be541ab137b4a8981a`；后者唯一父为
+  `43f2c748c43215facb231f76a0c93ac45d350657`）
 - Reuse decision：`DIRECT` — 既有 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-017/ADR-018 固定分类及离线 integration 基础设施；不新增第三方代码或依赖。
 
 ## 背景与目标
@@ -60,3 +63,13 @@ git diff --check
 
 - 禁止真实 YouTube、网络、真实 smoke、媒体/ffmpeg、登录、认证、Cookie/API key/凭据、真实 Vault、用户数据、模型、OpenAI、付费调用、push、合并、source 清理、测试/检查外产品命令与 `.codebase-memory` 工件。
 - 只创建一个仅含允许路径的 Implementer commit，并追加 `handoffs/TASK-014.md`。不得改任务/状态/ADR/prompt，不得自行 `ACCEPTED`、`DONE`、合并、push 或启动 Reviewer。
+
+## 验收与 Product Integrator 控制面
+
+- Reviewer evidence/accepted source `96dee64…` 的唯一父为 `2334374…`，且只修改 `handoffs/TASK-014.md`；Verdict=`APPROVE`，
+  P0--P3 均为 `0`。source 已核验干净。完整 B8 Diff `43f2c748…...96dee64…` 严格且仅为本卡授权的五条路径。
+- Reviewer 已独立通过 focused `119`、mypy、Ruff、CLI help、范围及 stdout/stderr/JSONL/test/handoff 泄漏检查；未运行 build 或全量 pytest。
+  后两项不是通过证据，必须由 Product Integrator 在合并前完成。
+- Product Integrator 只可对固定 accepted source 执行 `git merge --no-ff 96dee64…`。缓存缺失、locked offline sync、focused `119`、
+  全量 pytest、mypy、Ruff、CLI help、offline build、五路径范围或泄漏扫描任一失败，均立即停止、不合并、不修复且不得重试。
+- TASK-014B8 的 `ACCEPTED` 不等于 `DONE`、真实 B-1 成功、真实服务验证或发行批准；TASK-014 始终为 `IN_PROGRESS / No-Go`。
