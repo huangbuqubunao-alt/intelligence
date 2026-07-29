@@ -199,18 +199,18 @@
   用户数据或凭据。缓存缺失、下载/网络迹象、launcher/临时根不符、非零退出、计数不符或任何泄漏均立即停止，不重试、不修复、不扩大范围；
   任一结果保持 TASK-014 `IN_PROGRESS / No-Go`，不构成真实服务验证通过或发行批准。
 - TASK-014B9 的未合并 failure evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` 只记录替代公开样本在 metadata/enumerate
-  后、正文读取前以 `CONTENT_UNAVAILABLE` 停止（`1/1/0`）；不得合并、修改、清理或改写为成功。TASK-014B10「安全内容可用性诊断」
-  implementation `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20` 已提交，唯一父为 `6fd7b5cc3fae6466fb6181151513f4854d196683`。唯一 source 为
+  后、正文读取前以 `CONTENT_UNAVAILABLE` 停止（`1/1/0`）；不得合并、修改、清理或改写为成功。TASK-014B10 第一轮 Reviewer
+  evidence `2ea3455246a596f8304d2b0c00435862f8f3ea9e` 是 implementation `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`
+  的唯一子提交，且只追加 source handoff；Verdict=`REJECT`、P1=`1`。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
-  `codex/task-014b10-safe-content-availability-diagnostic@3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`，已核验干净。完整产品 Diff
-  严格为 Adapter、safe smoke、两份 integration tests 与 `handoffs/TASK-014.md` 五路径；Implementer 自报 focused `127`、mypy、
-  Ruff、CLI help、离线同步、范围与泄漏扫描通过，但这些仍需全新独立 Reviewer 复跑。B10 仅在
-  directory-only `CONTENT_UNAVAILABLE` 且 read=`0` 的既有安全 stdout/JSONL safe_message 出口增加 ADR-020 的固定无值
-  `content_availability` 分类：视频不可用、访问环境受限、提取器兼容性或 unknown；不新增 JSONL schema、依赖、锁、Schema、CLI、
-  logging、配置、认证或真实资源权限，不输出敏感材料，不放宽解析或 B4--B8 边界。正式独立 Reviewer 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-REVIEWER-CODEX.md`；Reviewer 只能追加 source handoff 并创建
-  handoff-only evidence commit，本控制面不启动 Reviewer。TASK-014B10 为 `IN_REVIEW`，TASK-014 继续 `IN_PROGRESS / No-Go`；
-  B10 离线实现或审查不构成真实验证通过或发行批准。
+  `codex/task-014b10-safe-content-availability-diagnostic@2ea3455246a596f8304d2b0c00435862f8f3ea9e`，已核验干净。P1 是生产
+  yt-dlp 以 `DownloadError` 包装 `ExtractorError`，但现有 compatibility 分支要求直接 `ExtractorError`，导致生产 Adapter 映射不可达；
+  测试只直接构造私有状态。普通或不可靠提取异常必须 fixed unknown。Correction 1 已授权原 Codex Implementer 以 Reviewer evidence
+  为唯一父提交，先经生产 Adapter 映射入口 RED 复现，再只以可靠类型化异常链修复；正式包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-IMPLEMENTER-CODEX.md`，本控制面不启动。
+  允许范围仍为 B10 五路径上限的最小子集；不新增 fixture、JSONL/schema 字段、依赖、锁、Schema、CLI、logging、配置、认证或真实资源
+  权限，不输出敏感材料，不放宽解析或 B4--B8 边界。TASK-014B10 退回 `IN_PROGRESS / Codex`，TASK-014 继续
+  `IN_PROGRESS / No-Go`；Correction 不构成真实验证、兼容性结论或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -389,7 +389,7 @@
 | 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014 Phase B-1：B8 keyname-audited 单视频 directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` 干净；仅按正式包对 `--khbXchTeE` 一次调用 B4 directory-only，记录 B5 安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名。缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014B9：替代公开样本 directory-only 资格验证 | source `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` 干净；候选 `eIho2S0ZahI` 的外部只读目录线索不构成项目通过证据。仅按正式包一次调用 B4 directory-only，记录安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名；缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止，任一结果不构成 TASK-014 Go 或发行批准 |
-| IN_REVIEW | TASK-014B10：安全内容可用性诊断 | implementation `3cdb4c8…` 唯一父为 `6fd7b5c…`，source 干净，五路径 Git-only 范围通过；Implementer 自报 focused `127`/mypy/Ruff/CLI/泄漏门禁，现授权全新独立 Reviewer 仅追加 handoff evidence。ADR-020 只允许 directory-only `CONTENT_UNAVAILABLE`/enumerate=`1`/read=`0` 的固定无值分类与 unknown；B9 `bd770ef9…` 仍未合并；禁止兼容修复、敏感材料、schema/依赖/锁/CLI/logging/认证改动或真实资源 |
+| IN_PROGRESS | TASK-014B10：安全内容可用性诊断 | first review evidence `2ea3455…` 是 `3cdb4c8…` 的 handoff-only 子提交，Verdict=REJECT/P1=1；生产 wrapped `DownloadError` 无法可靠到达 extractor-compatibility，私有状态测试未覆盖 Adapter 映射。Correction 1 已授权原 Codex Implementer，只允许可靠类型链与 unknown fail-closed 的最小五路径子集修复；B9 `bd770ef9…` 仍未合并，禁止真实资源、字符串猜测、解析/schema/依赖/锁/CLI/logging 扩张 |
 | DONE | TASK-014B8：受限键名级字幕目录诊断 | merge `8bedbf1…` 已进入 main，双父 `7f68384…`、`96dee64…`；accepted source 是 merge 祖先，first-parent Diff 严格为五路径，fixture/锁/依赖未变。lock check、locked offline sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与 stdout/stderr/JSONL/test/handoff 泄漏扫描通过；source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | DONE | TASK-014B7：字幕目录安全来源与结构指纹 | merge `81ee343…` 已进入 main，双父 `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 为允许六路径的五路径子集，fixture 未重现。既有 lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 与补充离线 build、范围/泄漏扫描通过；锁未变，source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |

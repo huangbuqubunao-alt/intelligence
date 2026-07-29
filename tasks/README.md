@@ -119,7 +119,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B6](TASK-014B6-safe-directory-shape-diagnostics.md) | 安全字幕目录结构诊断 | merge `f402400…`；离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、六路径范围与 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5 DONE；ADR-017 |
 | [TASK-014B7](TASK-014B7-safe-directory-origin-fingerprint.md) | 字幕目录安全来源与结构指纹 | merge `81ee343…`；lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help、离线 build、范围与泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6 DONE；ADR-018 |
 | [TASK-014B8](TASK-014B8-restricted-directory-keyname-diagnostic.md) | 受限键名级字幕目录诊断 | merge `8bedbf1…`；lock/sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与全输出面泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6/B7 DONE；ADR-019 |
-| [TASK-014B10](TASK-014B10-safe-content-availability-diagnostic.md) | 安全内容可用性诊断 | implementation `3cdb4c8…`（唯一父 `6fd7b5c…`）五路径 Git-only 范围通过；Implementer 自报 focused `127`/mypy/Ruff/CLI/泄漏门禁，现待全新独立 Reviewer | IN_REVIEW | 014；B4/B5/B6/B7/B8 DONE；ADR-020 |
+| [TASK-014B10](TASK-014B10-safe-content-availability-diagnostic.md) | 安全内容可用性诊断 | Reviewer evidence `2ea3455…` handoff-only，Verdict=REJECT/P1=1；生产 wrapped `DownloadError` 无法可靠到达 compatibility，Correction 1 已授权原 Codex Implementer | IN_PROGRESS | 014；B4/B5/B6/B7/B8 DONE；ADR-020 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 

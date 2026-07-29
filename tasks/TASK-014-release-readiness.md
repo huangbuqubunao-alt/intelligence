@@ -117,12 +117,13 @@
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
   视频不可用、访问环境受限、提取器兼容性不足或 unknown。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
-  `codex/task-014b10-safe-content-availability-diagnostic@3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`，唯一父为冻结基线
-  `6fd7b5cc3fae6466fb6181151513f4854d196683`，且 source 干净。完整产品 Diff 严格为 Adapter、safe smoke、两份 integration tests 与
-  `handoffs/TASK-014.md` 五路径；Implementer 离线 evidence 已提交但必须由全新独立 Reviewer 复核。正式 Reviewer 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-REVIEWER-CODEX.md`，只授权 handoff-only evidence commit，本控制面
-  不启动 Reviewer。B10 现为 `IN_REVIEW`；禁止真实资源、解析兼容修复、输出敏感材料或改变 B4--B8 边界。无论审查结果，TASK-014
-  均为 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
+  `codex/task-014b10-safe-content-availability-diagnostic@2ea3455246a596f8304d2b0c00435862f8f3ea9e`，其唯一父为 implementation
+  `3cdb4c8…`，且仅追加 `handoffs/TASK-014.md`。第一轮独立 Reviewer Verdict=`REJECT`、P1=`1`：生产 yt-dlp 会以
+  `DownloadError` 包装 `ExtractorError`，现有直接类型分支在生产 Adapter 映射不可达，测试又绕过该边界直接构造私有状态；不可靠来源
+  必须 unknown。B10 已退回 `IN_PROGRESS / Codex`，正式 Correction 1 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-IMPLEMENTER-CODEX.md`，仅授权原 Implementer
+  在同一 source 谱系做最小离线修复，本控制面不启动。禁止真实资源、字符串猜测、解析扩张、敏感材料或改变 B4--B8 边界；TASK-014
+  始终 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

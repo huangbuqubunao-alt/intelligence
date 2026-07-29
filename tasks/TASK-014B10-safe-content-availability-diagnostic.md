@@ -1,14 +1,16 @@
 # TASK-014B10：安全内容可用性诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `Codex Implementer（implementation 已提交）`
-- Reviewer: `全新独立 Codex Reviewer（已授权，尚未启动）`
+- Status: `IN_PROGRESS`
+- Assignee: `原 Codex Implementer（Correction 1 已授权，尚未启动）`
+- Reviewer: `第一轮独立 Codex Reviewer（REJECT，P1=1）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
 - Branch：`codex/task-014b10-safe-content-availability-diagnostic`
 - Implementation HEAD：`3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`（唯一父提交
   `6fd7b5cc3fae6466fb6181151513f4854d196683`）
+- First Reviewer evidence：`2ea3455246a596f8304d2b0c00435862f8f3ea9e`（唯一父提交为 implementation；仅追加
+  `handoffs/TASK-014.md`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-015--ADR-019 固定诊断、JsonlLogger
   safe_message 与离线 integration 基础设施；不新增第三方代码或依赖。
 
@@ -58,6 +60,24 @@
 - Reviewer 唯一可写路径是 source `handoffs/TASK-014.md`，只能追加 evidence 并创建以 implementation HEAD 为唯一父的 handoff-only
   commit；不得修改业务代码、测试、控制面或任务状态。发现 P0/P1 时按 Reviewer 包立即停止后续产品命令并记录 `REJECT`。
 - B9 evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` 仍未合并，只作只读失败证据；不得合并、修改、清理或写成成功。
+
+## First review REJECT 与 Correction 1
+
+- 第一轮独立 Reviewer evidence `2ea3455246a596f8304d2b0c00435862f8f3ea9e` 仅追加 source handoff，Verdict=`REJECT`，
+  `P0=0`、`P1=1`。Reviewer 在确认 P1 后按包立即停止；未运行 uv、focused tests、mypy、Ruff、CLI help、最终 Diff check 或正式
+  全输出面泄漏扫描，任何未运行项都不是通过证据。
+- P1：生产 yt-dlp 会以 `DownloadError` 包装 `ExtractorError`，而 implementation 的 extractor-compatibility 分支只接受直接
+  `ExtractorError`，导致生产 Adapter 映射无法到达该分类；现有测试直接构造私有状态，未验证生产映射边界。普通或来源不可靠的
+  提取异常不得标为兼容性问题，必须回退固定 unknown。
+- Correction 1 必须以 Reviewer evidence 为唯一父提交，先由生产 Adapter 异常映射入口 RED 复现；只有有限、可靠、类型化异常链能证明
+  底层 `ExtractorError` 时才允许既定 compatibility code。普通 `DownloadError`、缺失可靠 cause/info、畸形/循环/超限链或任何不确定
+  情况必须 unknown；禁止依据异常字符串、URL、状态文本或外部字段值猜测。
+- 正式 Correction 1 Implementer 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-IMPLEMENTER-CODEX.md`；本控制面不启动
+  Implementer。允许范围仍为本卡五路径上限的最小子集，smoke source/test 只有确有必要时才可修改；不新增 fixture、依赖、锁、Schema、
+  配置、CLI、日志 schema 或真实资源权限。
+- TASK-014B10 退回 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`。Correction 1 完成后必须重新授权全新独立 Reviewer，
+  不得沿用本轮 REJECT 作为通过证据。
 
 ## 离线验收与交付
 
