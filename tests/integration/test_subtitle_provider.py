@@ -2769,6 +2769,18 @@ def _streaming_directory_payload(
     }
 
 
+def test_directory_key_names_are_bounded_sorted_and_never_read_values() -> None:
+    names = dict.fromkeys(("Bravo_2", "Alpha", "Bravo_2"))
+
+    assert subtitles_mod._directory_key_names(names) == ("Alpha", "Bravo_2")
+
+    too_many = dict.fromkeys(tuple(f"Key{index:02d}" for index in range(17)))
+    assert subtitles_mod._directory_key_names(too_many) is None
+
+    invalid = dict.fromkeys(("Alpha", object()))
+    assert subtitles_mod._directory_key_names(invalid) is None
+
+
 def test_track_name_runs_stop_at_the_first_frozen_boundary_overflow() -> None:
     boundary_runs = _CountingRuns(1_000)
     boundary_payload = _directory_payload(

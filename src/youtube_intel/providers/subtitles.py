@@ -50,6 +50,8 @@ _MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
 _MAX_LANGUAGE_CODE_POINTS: Final = 128
 _MAX_EXTENSION_CODE_POINTS: Final = 32
 _MAX_TRACK_URL_CODE_POINTS: Final = 8_192
+_MAX_DIRECTORY_KEY_NAMES: Final = 16
+_DIRECTORY_KEY_NAME_RE: Final = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
 DIRECTORY_DIAGNOSTIC_CODES: Final[frozenset[str]] = frozenset(
     {
         "directory_shape_missing",
@@ -195,10 +197,12 @@ class _DirectoryInvalidResponse(TranscriptError):
         diagnostic: str,
         origin: str | None = None,
         fingerprint: str | None = None,
+        key_names: tuple[str, ...] | None = None,
     ) -> None:
         self.diagnostic = diagnostic
         self.directory_origin = origin
         self.directory_fingerprint = fingerprint
+        self.directory_key_names = key_names
         super().__init__(error)
 
 
@@ -238,6 +242,25 @@ def _directory_structure_error(
         origin=classification.origin,
         fingerprint=classification.fingerprint,
     )
+
+
+def _directory_key_names(payload: Mapping[object, object]) -> tuple[str, ...] | None:
+    if type(payload) is not dict:
+        return None
+    names: set[str] = set()
+    try:
+        for candidate in payload.keys():
+            if (
+                type(candidate) is not str
+                or _DIRECTORY_KEY_NAME_RE.fullmatch(candidate) is None
+            ):
+                return None
+            names.add(candidate)
+            if len(names) > _MAX_DIRECTORY_KEY_NAMES:
+                return None
+    except Exception:  # noqa: BLE001 - untrusted mapping keys fail closed
+        return None
+    return tuple(sorted(names))
 
 
 def _safe_boundary_error(
@@ -526,6 +549,7 @@ def _map_directory(
             "subtitle track directory payload is malformed",
             video_id=video_id,
         )
+    key_names = _directory_key_names(payload)
     tracks: list[SubtitleTrack] = []
     position = start_position
     bucket_count = start_bucket_count
@@ -641,19 +665,26 @@ def _map_directory(
                         provider_position=current_position,
                     )
                 )
-    except _DirectoryInvalidResponse:
+    except _DirectoryInvalidResponse as exc:
+        if (
+            exc.directory_origin == "directory_origin_mapping"
+            and exc.directory_fingerprint == "directory_fingerprint_unknown"
+        ):
+            exc.directory_key_names = key_names
         raise
     except TranscriptError:
         raise
     except Exception:
         iteration_failed = True
     if iteration_failed:
-        raise _directory_structure_error(
+        failure = _directory_structure_error(
             _DirectoryStructureState.UNKNOWN,
             _DIRECTORY_UNKNOWN_DIAGNOSTIC,
             "subtitle track directory payload is malformed",
             video_id=video_id,
         )
+        failure.directory_key_names = key_names
+        raise failure
     return _MappedDirectory(tuple(tracks), position, bucket_count)
 
 

@@ -711,3 +711,72 @@
   launchd, push, or merge.
 - TASK-014 remains `IN_PROGRESS / No-Go`; this review is neither real-service
   verification nor release approval or final Go.
+
+## TASK-014B8 Implementer Evidence — 2026-07-29
+
+### Fixed assignment, reuse, and scope
+
+- Task: `TASK-014B8 — restricted directory keyname diagnostic`; role:
+  `Implementer`.
+- Required base, verified branch, and pre-write HEAD:
+  `43f2c748c43215facb231f76a0c93ac45d350657` on
+  `codex/task-014b8-restricted-directory-keyname-diagnostic`.
+- Reuse decision: `DIRECT` — reused the existing subtitle Adapter, B4
+  directory-only boundary, B5 safe summary outlets, B6 diagnostics, B7
+  origin/fingerprint labels, and offline integration infrastructure. No
+  third-party code, dependency, lockfile, schema, CLI, logging, configuration,
+  fixture, or control-plane change was made.
+- Actual implementation range is the Adapter, smoke composition, the two
+  approved integration tests, and this handoff only.
+
+### Contract and TDD evidence
+
+- RED: the new offline regressions first failed with two missing Adapter
+  attributes and one missing safe-summary field. After the bounded
+  implementation, the required suite passed. A first GREEN iteration exposed
+  a pre-existing exact iterator-consumption regression for a non-`dict`
+  Mapping; the implementation now treats every non-`dict` Mapping as an
+  unreliable candidate set and omits the optional field, preserving that
+  fail-closed boundary.
+- The Adapter examines only direct keys of a plain directory `dict`; it neither
+  recurses nor reads mapping values for this diagnostic. Any non-string or
+  non-canonical key, more than 16 unique keys, or unreliable mapping omits the
+  complete set. Accepted sets are deduplicated and ASCII-sorted before they can
+  be attached to a mapping/unknown directory error.
+- The smoke outlet independently requires directory-only, `INVALID_RESPONSE`,
+  mapping origin, unknown fingerprint, `enumerate=1`, and `read=0`. It
+  revalidates tuple type, canonical ordering, uniqueness, the 16-item cap, and
+  the approved ASCII pattern before emitting the optional
+  `directory_key_names` array in stdout and the existing JSONL safe message.
+  Default mode, known fingerprints, non-mapping origins, body reads, malformed
+  sets, and over-limit sets omit it.
+
+### Offline checks and safety review
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Ran once from cache; lockfile unchanged and no download occurred. |
+| RED focused pytest | PASS (expected failure) | Three new assertions failed before implementation; no pre-existing test was changed or skipped. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `119 passed`; offline only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS | No issues in 2 source files. |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | All checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; no smoke was invoked and CLI topology is unchanged. |
+| `git diff --check` | PASS | No whitespace errors. |
+
+- Added regressions use only synthetic, canonical key identifiers and opaque
+  invalid candidates. They assert stdout, stderr, JSONL, default/directory-only
+  read counts, exit behavior, and no-retry behavior. The allowed key-name array
+  is the sole new response-derived output; no other response material is added
+  to tests, summaries, logs, or this handoff.
+- No real service, network request, smoke, authentication material, media,
+  Vault, model, paid call, push, merge, source cleanup, or control-plane edit
+  occurred. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the required single fixed-parent commit.
+- Commit SHA: reported to the orchestrator after commit creation.
+- Remaining risk: offline Fakes prove only the restricted diagnostic and its
+  fail-closed output boundary; they do not validate a real service or grant
+  release approval.
+- `DECISION NEEDED`: `None`.
