@@ -133,15 +133,16 @@
   新 B10-classified evidence、release checklist 与本 handoff。它记录 metadata=`1`/enumerate=`1`/read=`0`、exit=`1`、
   `INVALID_RESPONSE`、`directory_shape_unknown`、`directory_origin_mapping` 和 `directory_fingerprint_unknown`；未产生 B8 keyname
   或 B10 availability。该 evidence 保持未合并、只读，不得修改、清理、重跑或改写为成功。
-- TASK-014B11 implementation `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50` 已在固定 source 提交，唯一父提交为
-  `80aff83fc033a8bd2950108cad2e34feea5d396f`。Git-only 核验确认完整产品 Diff 精确为 Adapter、safe smoke、两份 integration test 与
-  handoff 五路径，source/main 干净、`git diff --check` 通过，fixture、依赖、锁、Schema/config/auth、默认 CLI 与日志 schema 均未变；
-  `51d974…` 与 `bd770e…` 仍未合并。Implementer 自报 focused `147 passed` 等只作 implementation evidence，不作独立通过证据。
-  全新独立 Reviewer 已由
-  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-REVIEWER-CODEX.md` 授权但未启动，必须独立复核固定六字段、严格
-  `directory-only + INVALID_RESPONSE + 1/1/0 + B7 mapping` 门禁、既有 schema 的固定有限安全事件、B4--B10/默认行为、解析接受面与
-  全输出面隐私；唯一可写 source handoff 并创建 handoff-only 子提交。TASK-014B11 为 `IN_REVIEW`；TASK-014 始终
-  `IN_PROGRESS / No-Go`，不得预写 verdict、真实 smoke、兼容性证明或发行批准。
+- TASK-014B11 first Reviewer evidence `4aebc01360fa9684fe6b052f266a00ecc2de57dc` 是 implementation
+  `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50` 的 handoff-only 唯一子提交。Verdict=`REJECT`、P1=`1`：现有私有枚举/tuple helper
+  断言与直接构造私有错误/最终矩阵的 Fake 绕过生产 `YtDlpSubtitleAdapter.enumerate_tracks()` 到真实 `PublicSubtitleSmoke`
+  的校验和错误传递链，无法证明字段错配及 `unknown`/`not_evaluated` 的生产映射。Reviewer 发现 P1 后按包立即停止，未运行 uv、focused
+  tests、mypy、Ruff、CLI help 或运行时输出扫描；这些不得写为独立 PASS。原 Codex Implementer 已获
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-IMPLEMENTER-CODEX.md` 动态 Correction 1 授权但
+  未启动：首个 Correction commit 必须以 Reviewer evidence 为唯一父，通过最外层离线 transport Fake 驱动真实 Adapter→Smoke 链；若
+  生产代码正确只补测试与 handoff，只有 RED 证明传递缺陷才允许最小修复。最大范围仍为原五路径最小子集，`51d974…` 与 `bd770e…`
+  继续未合并。TASK-014B11 退回 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写新的审查结论、真实 smoke、
+  兼容性证明或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

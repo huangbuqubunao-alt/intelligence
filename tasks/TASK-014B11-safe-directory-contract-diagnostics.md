@@ -1,15 +1,17 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `Codex Implementer（implementation 已提交）`
-- Reviewer: `全新独立 Codex Reviewer（已授权，本控制面不启动）`
+- Status: `IN_PROGRESS`
+- Assignee: `原 Codex Implementer（Correction 1 已授权，本控制面不启动）`
+- Reviewer: `首轮 REJECT；Correction 后待全新独立 Reviewer`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
 - Branch：`codex/task-014b11-safe-directory-contract-diagnostics`
-- Required source HEAD：`80aff83fc033a8bd2950108cad2e34feea5d396f`
+- Required source HEAD：`4aebc01360fa9684fe6b052f266a00ecc2de57dc`
 - Implementation evidence：`f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`（唯一父提交
   `80aff83fc033a8bd2950108cad2e34feea5d396f`）
+- First Reviewer evidence：`4aebc01360fa9684fe6b052f266a00ecc2de57dc`（唯一父提交为
+  implementation，handoff-only；`REJECT`，P1=`1`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、
   ADR-017--ADR-020 固定诊断、既有 JSONL `safe_message` 与离线 integration 基础设施；不新增
   第三方代码或依赖。
@@ -41,8 +43,26 @@ B10-classified 真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是
   `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-REVIEWER-CODEX.md`。Reviewer
   唯一允许写入是向 source `handoffs/TASK-014.md` 追加审查 evidence，并创建以 implementation HEAD 为
   唯一父提交的 handoff-only commit；不得修改业务代码、测试、控制面或任务状态。
-- TASK-014B11 现为 `IN_REVIEW`；未预写 Reviewer verdict、`ACCEPTED`、merge 或 `DONE`。TASK-014
-  始终保持 `IN_PROGRESS / No-Go`。
+- 首轮 Reviewer evidence `4aebc01360fa9684fe6b052f266a00ecc2de57dc` 已完成该轮审查；其 Verdict
+  为 `REJECT`、P1=`1`。不得把原授权或 Implementer 自报写成独立通过。
+
+## First review reject 与 Correction 1
+
+- 唯一 P1：现有 Provider tests 直接检查私有枚举/tuple helper，safe smoke test 又由 Fake 直接
+  构造私有错误和最终矩阵；它们绕过生产 `YtDlpSubtitleAdapter.enumerate_tracks()` 的目录校验、
+  诊断状态构造与 `TranscriptError` 传递边界，因而不能证明真实字段错配会生成正确六字段矩阵，
+  也不能捕获 `unknown`/`not_evaluated` 的生产映射错误。
+- Reviewer 按 P1 立即停止规则未运行 `uv sync --locked --offline`、focused pytest、mypy、Ruff、
+  CLI help 或运行时 stdout/stderr/JSONL 扫描；这些项目不得登记为 Reviewer PASS。静态父链、五路径、
+  禁止范围、Diff、固定契约与泄漏检查只按 evidence 中的实际结果记录。
+- Correction 1 正式包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-IMPLEMENTER-CODEX.md`。
+  原 Implementer 只能从 Reviewer evidence 继续同一 source 谱系，先以真实 Adapter→真实 smoke
+  生产传递链补齐测试；若生产代码正确，只补测试与 handoff，只有 RED 确证传递缺陷时才可最小修复。
+- 首个 Correction commit 的唯一父提交必须为 Reviewer evidence；最大范围仍为原五路径，实际 Diff
+  必须是最小子集。不得启动 Implementer/Reviewer、预写 Correction 结果、Reviewer verdict、
+  `ACCEPTED`、merge 或 `DONE`。
+- TASK-014B11 退回 `IN_PROGRESS / Codex`；TASK-014 始终保持 `IN_PROGRESS / No-Go`。
 
 ## 冻结契约
 
