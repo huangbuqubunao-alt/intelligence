@@ -1,7 +1,7 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
 - Status: `ACCEPTED`
-- Assignee: `已验收，待全新 Codex Product Integrator`
+- Assignee: `已验收；预合并 Leak Triage Scout 已授权`
 - Reviewer: `Reviewer 2 APPROVE；P0--P3=0`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
@@ -90,8 +90,29 @@ B10-classified 真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是
   `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-PRODUCT-INTEGRATOR-CODEX.md`。
   仅在完整离线门禁通过后允许一次 `git merge --no-ff`，accepted source 必须精确为
   `f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d`；任一失败立即停止，不得修复、换命令或重试。
-- TASK-014B11 现为 `ACCEPTED`；Integrator 未启动，未预写 `DONE`、merge SHA、真实兼容性、
-  真实 smoke 或发行批准。TASK-014 始终保持 `IN_PROGRESS / No-Go`。
+- TASK-014B11 现为 `ACCEPTED`；首次 Product Integrator 已按下述 fail-closed 门禁停止，未产生
+  merge SHA，未预写 `DONE`、真实兼容性、真实 smoke 或发行批准。TASK-014 始终保持
+  `IN_PROGRESS / No-Go`。
+
+## Product Integrator 预合并停止与 Leak Triage Scout 授权
+
+- Product Integrator 从固定 main `a92e321216f418e0add6f01f7d1f300dcce11ea6` 和 accepted source
+  `f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d` 启动。Git-only 父链、Reviewer 2 handoff-only、
+  Correction coverage-only 三路径、完整五路径、禁止范围、三组 `git diff --check` 与双方洁净度
+  前置核验通过。
+- 预合并离线门禁实际通过：`uv lock --check`、locked offline sync、三个生产链节点 `3 passed`、
+  Provider/Smoke focused `149 passed`、full pytest `520 passed`、mypy、Ruff、CLI help、offline build
+  与三组固定 `git diff --check`。这些通过项不能覆盖后续泄漏门禁失败，也不构成合并授权。
+- 综合静态泄漏扫描以 `exit 32` 停止，表示完整五路径新增材料命中
+  `credential-name-followed-by-assignment` 规则类别。扫描未回显命中内容；按正式包要求没有定位、
+  修复、换规则、重试或执行 merge。main/source 保持固定 SHA 和干净状态，accepted source 尚未合并。
+- 唯一新的只读分诊包为
+  `agent-prompts/TASK-014B11-PRE-MERGE-CREDENTIAL-SHAPE-LEAK-TRIAGE-SCOUT-CODEX.md`。Scout 只可对
+  `80aff83…...f57b21c…` 五路径 Diff 执行一次专用最小 locator，并且只回传路径、行号、固定规则
+  类别、匹配行 SHA-256、是否新增行及固定五类分类；不得回显值、整行或上下文。
+- Scout 不修复、不放宽扫描器、不重跑 Integrator、不写 source，也不得自行批准合并。只有主控根据
+  脱敏分类另行决定继续使用 accepted source 或创建 Correction 2；在此之前 B11 保持 `ACCEPTED` 且
+  merge 阻断，TASK-014 保持 `IN_PROGRESS / No-Go`。
 
 ## 冻结契约
 

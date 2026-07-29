@@ -120,7 +120,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B7](TASK-014B7-safe-directory-origin-fingerprint.md) | 字幕目录安全来源与结构指纹 | merge `81ee343…`；lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help、离线 build、范围与泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6 DONE；ADR-018 |
 | [TASK-014B8](TASK-014B8-restricted-directory-keyname-diagnostic.md) | 受限键名级字幕目录诊断 | merge `8bedbf1…`；lock/sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与全输出面泄漏扫描通过；source 保留 | DONE | 014；B3/B4/B5/B6/B7 DONE；ADR-019 |
 | [TASK-014B10](TASK-014B10-safe-content-availability-diagnostic.md) | 安全内容可用性诊断 | merge `5b485fa…`；lock/sync、focused `137`、full pytest `508`、mypy、Ruff、CLI help、offline build、五/三/handoff-only 范围、Diff 与全输出面泄漏扫描通过；失败补充探针未计 PASS，source 保留 | DONE | 014；B4/B5/B6/B7/B8 DONE；ADR-020 |
-| [TASK-014B11](TASK-014B11-safe-directory-contract-diagnostics.md) | 安全字幕目录契约状态诊断 | accepted source `f57b21c…`；Reviewer 2 `APPROVE`、P0--P3=`0`，独立生产链 `3`/focused `149` 等门禁通过，full pytest/build 待 Product Integrator；coverage-only Correction 未改产品源码，不是产品 bug 修复 | ACCEPTED | 014；B4/B5/B6/B7/B8/B10 DONE；ADR-021 |
+| [TASK-014B11](TASK-014B11-safe-directory-contract-diagnostics.md) | 安全字幕目录契约状态诊断 | accepted source `f57b21c…`；Integrator 已通过 lock/sync、生产链 `3`、focused `149`、full `520`、mypy/Ruff/CLI/build/Diff，但综合静态泄漏扫描 `exit 32` 后停止且未 merge；只读 credential-shape Leak Triage Scout 已授权，Correction 仍是 coverage-only | ACCEPTED | 014；B4/B5/B6/B7/B8/B10 DONE；ADR-021 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 

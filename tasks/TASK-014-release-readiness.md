@@ -145,6 +145,17 @@
   授权但未启动，只可在全部离线门禁通过后 `git merge --no-ff f57b21c…`。`51d974…` 与
   `bd770e…` 继续未合并。TASK-014B11 为 `ACCEPTED`；TASK-014 始终 `IN_PROGRESS / No-Go`，
   不得预写 `DONE`、merge SHA、真实兼容性、真实 smoke 或发行批准。
+- TASK-014B11 Product Integrator 已从固定 main `a92e321…` 与 accepted source `f57b21c…` 运行
+  正式预合并离线序列。lock/sync、生产链 `3`、focused `149`、full pytest `520`、mypy、Ruff、
+  CLI help、offline build 和三组 Diff check 均通过，但综合静态泄漏扫描以 `exit 32` 命中
+  `credential-name-followed-by-assignment` 类别并立即停止；没有回显命中内容、重试、修复或 merge，
+  main/source 继续位于固定 SHA 且干净。
+- 唯一新的只读分诊包为
+  `agent-prompts/TASK-014B11-PRE-MERGE-CREDENTIAL-SHAPE-LEAK-TRIAGE-SCOUT-CODEX.md`。它只允许在
+  完整 B11 五路径 Diff 上执行一次最小 locator，并以路径、行号、规则类别、匹配行 SHA-256、
+  新增行标记和五类固定结论脱敏回传。Scout 不得修复、放宽门禁、重跑 Integrator、写 source 或
+  批准合并；主控收到报告前 merge 保持阻断。TASK-014B11 仍为 `ACCEPTED`，TASK-014 仍为
+  `IN_PROGRESS / No-Go`。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
