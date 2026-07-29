@@ -42,6 +42,13 @@
 | 四阶段真实 smoke | NOT AUTHORIZED | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。 |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
+### TASK-014B9 single replacement-candidate directory-only record — 2026-07-29
+
+- Result: `FAIL`; the single authorized target `eIho2S0ZahI` exited with `1`.
+- Safe summary: `metadata=1`, `enumerate=1`, `read=0`, `error_code=CONTENT_UNAVAILABLE`.
+- No ADR-017/ADR-018 diagnostic or ADR-019 key-name evidence applied. No retry or prohibited resource action occurred.
+- This preserves `IN_PROGRESS / No-Go` and is not release approval.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

@@ -842,3 +842,12 @@
 - TASK-014B8 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
   This offline review is neither real-service verification nor release approval
   or final Go.
+
+## TASK-014B9 Smoke Executor Evidence — 2026-07-29
+
+- Assignment: one replacement-candidate `smoke-public-subtitles --directory-only` invocation for `eIho2S0ZahI` from the fixed B9 baseline.
+- Preflight: the required offline lock/sync/lock sequence and absolute launcher static mapping verification passed.
+- Result: `FAIL`; fixed invocation exit code `1`. Safe summary: `metadata=1`, `enumerate=1`, `read=0`, `error_code=CONTENT_UNAVAILABLE`.
+- No ADR-017/ADR-018 directory diagnostic and no ADR-019 key-name evidence applied.
+- Retry count: `0`; no prohibited resource action was performed. No further invocation was made.
+- TASK-014 remains `IN_PROGRESS / No-Go`; this is evidence only and not publication approval.
