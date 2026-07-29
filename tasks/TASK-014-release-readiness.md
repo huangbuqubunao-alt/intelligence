@@ -154,8 +154,18 @@
   `agent-prompts/TASK-014B11-PRE-MERGE-CREDENTIAL-SHAPE-LEAK-TRIAGE-SCOUT-CODEX.md`。它只允许在
   完整 B11 五路径 Diff 上执行一次最小 locator，并以路径、行号、规则类别、匹配行 SHA-256、
   新增行标记和五类固定结论脱敏回传。Scout 不得修复、放宽门禁、重跑 Integrator、写 source 或
-  批准合并；主控收到报告前 merge 保持阻断。TASK-014B11 仍为 `ACCEPTED`，TASK-014 仍为
-  `IN_PROGRESS / No-Go`。
+  批准合并。Scout 已完成只读聊天回传且没有 evidence commit；结果由下述 Correction 2 控制面接续。
+- Scout 脱敏报告总命中 `11`：`9` 个非新增命中为 `scanner-self-match`，不属于 Correction；两个
+  新增 `unknown` 位于 `tests/integration/test_public_subtitle_smoke.py:210` 与
+  `tests/integration/test_subtitle_provider.py:105`，匹配行 SHA-256 均为
+  `f950e2195fb88b36b457dc65bd53c632676bbd127a2378788d6fea3ade392e0d`。没有确认真实凭据，但风险
+  不能排除，因此 merge 继续阻断。
+- TASK-014B11 已退回 `IN_PROGRESS / Codex`。Correction 2 正式包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-2-IMPLEMENTER-CODEX.md`，
+  只允许原 Implementer 从 `f57b21c…` 在两份 integration tests 与 handoff 三路径上限内继续。
+  必须先本地只读分类；真实或无法排除的凭据风险立即零提交停止，只有确认安全合成材料后才可最小
+  修正，并保持测试/泄漏断言强度、关闭两个新增 locator 命中且通过综合扫描。TASK-014 继续
+  `IN_PROGRESS / No-Go`；本控制面不启动 Implementer/Reviewer，也不构成 merge 或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

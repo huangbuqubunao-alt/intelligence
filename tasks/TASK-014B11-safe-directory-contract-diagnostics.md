@@ -1,13 +1,13 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
-- Status: `ACCEPTED`
-- Assignee: `已验收；预合并 Leak Triage Scout 已授权`
-- Reviewer: `Reviewer 2 APPROVE；P0--P3=0`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex Implementer（Correction 2）`
+- Reviewer: `Reviewer 2 历史 APPROVE；Correction 2 待后续独立审查`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
 - Branch：`codex/task-014b11-safe-directory-contract-diagnostics`
-- Required accepted source HEAD：`f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d`
+- Correction 2 base / prior accepted source：`f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d`
 - Implementation evidence：`f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`（唯一父提交
   `80aff83fc033a8bd2950108cad2e34feea5d396f`）
 - First Reviewer evidence：`4aebc01360fa9684fe6b052f266a00ecc2de57dc`（唯一父提交为
@@ -110,9 +110,30 @@ B10-classified 真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是
   `agent-prompts/TASK-014B11-PRE-MERGE-CREDENTIAL-SHAPE-LEAK-TRIAGE-SCOUT-CODEX.md`。Scout 只可对
   `80aff83…...f57b21c…` 五路径 Diff 执行一次专用最小 locator，并且只回传路径、行号、固定规则
   类别、匹配行 SHA-256、是否新增行及固定五类分类；不得回显值、整行或上下文。
-- Scout 不修复、不放宽扫描器、不重跑 Integrator、不写 source，也不得自行批准合并。只有主控根据
-  脱敏分类另行决定继续使用 accepted source 或创建 Correction 2；在此之前 B11 保持 `ACCEPTED` 且
-  merge 阻断，TASK-014 保持 `IN_PROGRESS / No-Go`。
+- Scout 不修复、不放宽扫描器、不重跑 Integrator、不写 source，也不得自行批准合并。该只读阶段
+  已由下述脱敏报告关闭；其结论要求 Correction 2，原 accepted source 的 merge 继续阻断。
+
+## Leak Triage Scout 报告与 Correction 2 授权
+
+- Scout 没有 evidence commit，只向主控回传只读脱敏报告。总命中 `11`：其中 `9` 个非新增命中为
+  `scanner-self-match`，不属于 Correction；另有 `2` 个新增 `unknown`，分别位于
+  `tests/integration/test_public_subtitle_smoke.py:210` 与
+  `tests/integration/test_subtitle_provider.py:105`。
+- 两个新增命中的匹配行 SHA-256 相同，均为
+  `f950e2195fb88b36b457dc65bd53c632676bbd127a2378788d6fea3ade392e0d`。没有确认真实凭据，但风险
+  不能排除；不得显示、推断或记录匹配内容，merge 继续阻断。
+- TASK-014B11 已从 `ACCEPTED` 退回 `IN_PROGRESS / Codex`。Correction 2 正式包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-2-IMPLEMENTER-CODEX.md`；
+  原 Implementer 只能在同一 source 谱系从 `f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d` 继续，首个
+  Correction 2 commit 必须以该提交为唯一父提交。
+- Implementer 必须先本地只读分类两行；任一真实或无法排除的凭据风险都立即零提交停止，并只做
+  脱敏报告与轮换建议。只有两行均确认是纯合成测试材料或安全局部标识后，才可在两份 integration
+  tests 与 `handoffs/TASK-014.md` 三路径上限内做最小修正。
+- 修正不得删除/skip/弱化测试或泄漏断言，不得修改/放宽扫描规则、增加通用忽略/allowlist、隐蔽
+  拼接、产品源码、fixture、依赖、锁、Schema、配置、CLI、`logging.py` 或控制面。专用 locator
+  必须关闭两个新增命中，综合泄漏扫描及正式离线生产链/focused/mypy/Ruff/CLI/范围/Diff 门禁必须通过。
+- 本控制面不启动 Implementer/Reviewer，不构成新的 accepted source 或 merge 授权。TASK-014 始终
+  保持 `IN_PROGRESS / No-Go`。
 
 ## 冻结契约
 
