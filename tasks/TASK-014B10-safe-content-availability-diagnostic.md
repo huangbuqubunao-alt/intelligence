@@ -1,8 +1,8 @@
 # TASK-014B10：安全内容可用性诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `原 Codex Implementer（Correction 1 已授权，尚未启动）`
-- Reviewer: `第一轮独立 Codex Reviewer（REJECT，P1=1）`
+- Status: `IN_REVIEW`
+- Assignee: `原 Codex Implementer（Correction 1 已提交）`
+- Reviewer: `全新独立 Codex Reviewer 2（已授权，尚未启动）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
@@ -11,6 +11,7 @@
   `6fd7b5cc3fae6466fb6181151513f4854d196683`）
 - First Reviewer evidence：`2ea3455246a596f8304d2b0c00435862f8f3ea9e`（唯一父提交为 implementation；仅追加
   `handoffs/TASK-014.md`）
+- Correction 1 HEAD：`c65502e3680d14a88ae52a1c27eea47d42b5e8b0`（唯一父提交为 First Reviewer evidence）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-015--ADR-019 固定诊断、JsonlLogger
   safe_message 与离线 integration 基础设施；不新增第三方代码或依赖。
 
@@ -76,8 +77,17 @@
   `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-IMPLEMENTER-CODEX.md`；本控制面不启动
   Implementer。允许范围仍为本卡五路径上限的最小子集，smoke source/test 只有确有必要时才可修改；不新增 fixture、依赖、锁、Schema、
   配置、CLI、日志 schema 或真实资源权限。
-- TASK-014B10 退回 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`。Correction 1 完成后必须重新授权全新独立 Reviewer，
-  不得沿用本轮 REJECT 作为通过证据。
+- Correction 1 已提交为 `c65502e3680d14a88ae52a1c27eea47d42b5e8b0`，唯一父提交为 first review evidence。Git-only
+  核验确认 Correction Diff 严格为 Adapter、Provider integration test 与 `handoffs/TASK-014.md` 三路径，完整 B10 Diff 仍严格位于
+  原五路径；两组 `git diff --check` 通过，source 干净，B9 evidence 仍未合并。Correction handoff 记录的 focused `137 passed`、mypy、
+  Ruff、CLI help、锁定离线同步、范围与泄漏扫描均只是 Implementer evidence，不是独立 Reviewer 2 通过证据。
+- 正式 Reviewer 2 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-REVIEWER-2-CODEX.md`；本控制面不启动
+  Reviewer。Reviewer 2 必须从生产 Adapter 捕获/转换入口独立覆盖精确 wrapped `DownloadError` 类型链、全部 fixed mapping 与
+  unknown fail-closed 矩阵，并重新运行包内离线门禁；不得依赖 Implementer 自报结果。
+- Reviewer 2 唯一可写路径是 source `handoffs/TASK-014.md`，只能追加独立审查 evidence 并创建以 Correction HEAD 为唯一父提交的
+  handoff-only commit；不得修改业务代码、测试、控制面或任务状态。TASK-014B10 现为 `IN_REVIEW`；TASK-014 始终
+  `IN_PROGRESS / No-Go`，第一轮 REJECT 和 Correction 均不构成真实验证、发行批准或最终 Go。
 
 ## 离线验收与交付
 
