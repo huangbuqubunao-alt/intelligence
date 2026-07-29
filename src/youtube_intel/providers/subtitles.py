@@ -12,11 +12,17 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from http.client import HTTPMessage
 from io import StringIO
+from types import TracebackType
 from typing import IO, Any, Final, Protocol
 from urllib.parse import urlsplit
 
 import yt_dlp  # type: ignore[import-untyped]
-from yt_dlp.utils import DownloadError, ExtractorError  # type: ignore[import-untyped]
+from yt_dlp.utils import (  # type: ignore[import-untyped]
+    DownloadError,
+    ExtractorError,
+    GeoRestrictedError,
+    UnavailableVideoError,
+)
 
 from youtube_intel.domain import (
     AppError,
@@ -51,6 +57,7 @@ _MAX_LANGUAGE_CODE_POINTS: Final = 128
 _MAX_EXTENSION_CODE_POINTS: Final = 32
 _MAX_TRACK_URL_CODE_POINTS: Final = 8_192
 _MAX_DIRECTORY_KEY_NAMES: Final = 16
+_MAX_EXCEPTION_CHAIN_DEPTH: Final = 8
 _DIRECTORY_KEY_NAME_RE: Final = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
 DIRECTORY_DIAGNOSTIC_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -369,7 +376,93 @@ def _extract_status(message: str) -> int | None:
     return None if match is None else int(match.group(1))
 
 
+def _exception_from_info(value: object) -> tuple[bool, BaseException | None]:
+    if value is None:
+        return True, None
+    if type(value) is not tuple or len(value) != 3:
+        return False, None
+    exception_type, exception, traceback = value
+    if exception_type is None and exception is None and traceback is None:
+        return True, None
+    if (
+        not isinstance(exception_type, type)
+        or not issubclass(exception_type, BaseException)
+        or not isinstance(exception, BaseException)
+        or type(exception) is not exception_type
+        or (traceback is not None and not isinstance(traceback, TracebackType))
+    ):
+        return False, None
+    return True, exception
+
+
+def _typed_exception_chain_availability(
+    error: BaseException,
+) -> _ContentAvailabilityState:
+    if not isinstance(error, DownloadError) or type(error) is not DownloadError:
+        return _ContentAvailabilityState.UNKNOWN
+    current = error
+    seen: set[int] = set()
+    found_extractor = False
+    found_environment_restriction = False
+    found_video_unavailable = False
+    for _ in range(_MAX_EXCEPTION_CHAIN_DEPTH):
+        identity = id(current)
+        if identity in seen:
+            return _ContentAvailabilityState.UNKNOWN
+        seen.add(identity)
+
+        if type(current) is GeoRestrictedError:
+            found_environment_restriction = True
+        elif type(current) is UnavailableVideoError:
+            found_video_unavailable = True
+        elif isinstance(current, ExtractorError):
+            found_extractor = True
+
+        if isinstance(current, ExtractorError):
+            try:
+                cause = current.cause
+                exception_info = current.exc_info
+            except Exception:  # noqa: BLE001 - malformed chains fail closed
+                return _ContentAvailabilityState.UNKNOWN
+            if cause is not None and not isinstance(cause, BaseException):
+                return _ContentAvailabilityState.UNKNOWN
+            valid, exception = _exception_from_info(exception_info)
+            if not valid or (
+                cause is not None
+                and exception is not None
+                and cause is not exception
+            ):
+                return _ContentAvailabilityState.UNKNOWN
+            next_error = cause if cause is not None else exception
+        elif isinstance(current, DownloadError) and type(current) is DownloadError:
+            try:
+                exception_info = current.exc_info
+            except Exception:  # noqa: BLE001 - malformed chains fail closed
+                return _ContentAvailabilityState.UNKNOWN
+            valid, next_error = _exception_from_info(exception_info)
+            if not valid:
+                return _ContentAvailabilityState.UNKNOWN
+        else:
+            next_error = None
+
+        if next_error is None:
+            if found_environment_restriction and found_video_unavailable:
+                return _ContentAvailabilityState.UNKNOWN
+            if found_environment_restriction:
+                return _ContentAvailabilityState.ENVIRONMENT_RESTRICTED
+            if found_video_unavailable:
+                return _ContentAvailabilityState.VIDEO_UNAVAILABLE
+            if found_extractor:
+                return _ContentAvailabilityState.EXTRACTOR_COMPATIBILITY
+            return _ContentAvailabilityState.UNKNOWN
+        current = next_error
+    return _ContentAvailabilityState.UNKNOWN
+
+
 def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptError:
+    availability = _typed_exception_chain_availability(error)
+    if availability is not _ContentAvailabilityState.UNKNOWN:
+        return _content_unavailable_error(availability, video_id=video_id)
     message = str(error)
     lowered = message.casefold()
     status = _extract_status(message)
@@ -389,7 +482,7 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
         )
     if status == 404:
         return _content_unavailable_error(
-            _ContentAvailabilityState.VIDEO_UNAVAILABLE,
+            _ContentAvailabilityState.UNKNOWN,
             video_id=video_id,
         )
     if status is not None and 500 <= status <= 599:
@@ -416,24 +509,27 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
         )
     ):
         return _content_unavailable_error(
-            _ContentAvailabilityState.ENVIRONMENT_RESTRICTED,
+            _ContentAvailabilityState.UNKNOWN,
             video_id=video_id,
         )
     if any(
         marker in lowered
         for marker in ("private video", "removed", "deleted", "video unavailable")
     ):
-        state = (
-            _ContentAvailabilityState.EXTRACTOR_COMPATIBILITY
-            if type(error) is ExtractorError
-            else _ContentAvailabilityState.VIDEO_UNAVAILABLE
+        return _content_unavailable_error(
+            _ContentAvailabilityState.UNKNOWN,
+            video_id=video_id,
         )
-        return _content_unavailable_error(state, video_id=video_id)
     if "extract" in lowered or "parse" in lowered or "json" in lowered:
         return _error(
             ErrorCode.INVALID_RESPONSE,
             "subtitle track directory payload is invalid",
             retryable=False,
+            video_id=video_id,
+        )
+    if isinstance(error, (DownloadError, ExtractorError)):
+        return _content_unavailable_error(
+            _ContentAvailabilityState.UNKNOWN,
             video_id=video_id,
         )
     return _error(

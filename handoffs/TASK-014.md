@@ -967,3 +967,96 @@
 - TASK-014B10 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
   This review is not real-service verification, compatibility-fix authorization,
   release approval, or final Go.
+
+## TASK-014B10 Correction 1 Implementer Evidence — 2026-07-29
+
+### Fixed assignment, preflight, and reuse
+
+- Role: original `Codex Implementer`; task state remains `IN_PROGRESS / Codex`.
+- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+  `codex/task-014b10-safe-content-availability-diagnostic`.
+- Required source HEAD and sole parent of this Correction commit:
+  `2ea3455246a596f8304d2b0c00435862f8f3ea9e`; its sole parent is implementation
+  `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`.
+- Dynamic authorization was clean `main@78bb8b402ee47403ed37f38a27f0ffd5a359b719`,
+  the single-parent Correction authorization descendant of control-plane baseline
+  `16f168b032d060fc9f2e46ced5744d81b7db6d2b`. Source was clean at fixed HEAD.
+- B9 evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` was not an ancestor of source or
+  main and remains unmerged and untouched. First Reviewer evidence was verified as a
+  handoff-only child, and the complete pre-Correction B10 range was exactly the five
+  authorized paths.
+- Reuse remains `DIRECT`: locked yt-dlp exception types and their typed `exc_info` /
+  `cause` information, the existing subtitle Adapter mapping boundary, ADR-020
+  vocabulary, and existing offline integration infrastructure. No dependency,
+  lockfile, third-party source, or license evidence changed; the existing yt-dlp
+  source and license record remains in `docs/REUSE_REGISTER.md`.
+
+### RED, GREEN, and actual boundary behavior
+
+- RED was created before production changes and invoked
+  `YtDlpSubtitleAdapter.enumerate_tracks` through the existing no-network Fake factory.
+  Command:
+  `.venv/bin/pytest tests/integration/test_subtitle_provider.py::test_wrapped_extractor_error_reaches_compatibility_through_adapter tests/integration/test_subtitle_provider.py::test_unreliable_exception_chains_fail_closed_to_unknown_through_adapter`.
+  Result: exit `1`, `7 failed`; every actual result was `PROVIDER_UNAVAILABLE` while the
+  new production-boundary assertions required the closed `CONTENT_UNAVAILABLE`
+  availability outcome.
+- GREEN for the same command: `7 passed`. The final expanded matrix also covers a
+  direct generic `ExtractorError` and the two other locked typed availability states,
+  producing `10` passing boundary cases inside the final focused suite.
+- A compatibility result now requires an exact outer locked `DownloadError`, a finite
+  typed chain, a well-formed three-item exception-info tuple whose declared type
+  exactly matches its exception object, a traceback that is absent or typed, and a
+  reachable locked exception type. Exact `GeoRestrictedError` selects environment,
+  exact `UnavailableVideoError` selects video-unavailable, and another reliable
+  `ExtractorError` selects compatibility. `ExtractorError.cause` and its exception
+  information must be typed and mutually consistent. The walk is capped at eight
+  nodes and rejects cycles.
+- An ordinary `DownloadError`, direct generic `ExtractorError`, empty/missing chain,
+  malformed tuple, uncertain non-extractor terminal, cycle, or overdeep chain maps to
+  fixed `content_availability_unknown`. Compatibility selection does not read or use
+  exception text, URLs, response material, names, or outside field values.
+- The tests use only the fixed generic placeholder `synthetic provider failure` and
+  no classification marker or response-shaped material. They do not directly
+  construct a private availability state or private content-error helper as proof.
+- Reliable typed availability evidence is evaluated before the pre-existing mapping
+  branches. Their existing error-code behavior and order remain, but message-only
+  `CONTENT_UNAVAILABLE` branches now attach fixed unknown instead of inferring an
+  availability source. The smoke source/test were not changed, so the directory-only +
+  `CONTENT_UNAVAILABLE` + enumerate=`1` + read=`0` output gate, default body read,
+  counts, exit behavior, no-retry behavior, and B4--B8 output boundaries remain intact.
+
+### Authorized offline checks
+
+| Check | Result |
+|---|---|
+| `uv sync --locked --offline` | PASS — run exactly once; `Resolved 84` / `Checked 61`, no download, network action, or lock change. |
+| RED production-boundary tests | Expected FAIL — exit `1`, `7 failed`; actual `PROVIDER_UNAVAILABLE` evidence recorded above. |
+| GREEN production-boundary tests | PASS — `7 passed` before final direct-extractor regression was added. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS — final `137 passed`; offline only. |
+| Initial mypy run | FAIL — `subtitles.py:417`: exact-type branch did not statically narrow `BaseException` to the locked `DownloadError`. |
+| Mypy after one-line narrowing correction | PASS — no issues in the two authorized source files. |
+| Ruff on the two source and two integration-test files | PASS — all checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS — help only; no smoke or other product operation ran. |
+| `git diff --check` | PASS. |
+| Correction/full-B10 allowlist review | PASS — Correction uses only Adapter, provider integration test, and this handoff; full B10 remains exactly the authorized five paths. |
+| Added-line and output-surface leak scans | PASS — Correction source/test adds no stdout, stderr, JSONL, URL, response, credential, user, or dynamic material; full B10 product/test added-line scan also passed and ADR-019 was not expanded. |
+
+### Scope, skips, and remaining risk
+
+- Actual Correction paths: `src/youtube_intel/providers/subtitles.py`,
+  `tests/integration/test_subtitle_provider.py`, and this appended handoff section.
+  `src/youtube_intel/public_subtitle_smoke.py` and its integration test were authorized
+  upper bounds but demonstrably unnecessary and were not changed by Correction 1.
+- No fixture, JSONL schema, dependency, `uv.lock`, Schema/migration, configuration,
+  default CLI, `logging.py`, authentication boundary, task state, or control-plane file
+  changed. Diff review found no formatting churn or unrelated refactor.
+- Not run by formal prohibition: full pytest, build/package checks, real smoke,
+  network/YouTube, authentication/Cookie/API key handling, media/ffmpeg, Vault/user
+  data, models/Ollama/OpenAI, cloud calls, launchd, push, merge, Reviewer startup, or
+  source cleanup.
+- Remaining risk: offline typed synthetic exceptions prove the locked Adapter mapping
+  boundary only. They do not establish a real-service cause, broad yt-dlp
+  compatibility, release approval, or final Go. TASK-014 remains
+  `IN_PROGRESS / No-Go`.
+- Commit SHA: reported to the orchestrator after creation of the required single
+  Correction commit. `DECISION NEEDED`: `None`.

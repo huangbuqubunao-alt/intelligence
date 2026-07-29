@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import traceback
 import urllib.error
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from datetime import timedelta as td
@@ -17,7 +17,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from yt_dlp.utils import DownloadError
+from yt_dlp.utils import (
+    DownloadError,
+    ExtractorError,
+    GeoRestrictedError,
+    UnavailableVideoError,
+)
 
 from youtube_intel import transcripts as transcripts_mod
 from youtube_intel.domain import (
@@ -73,6 +78,7 @@ from youtube_intel.transcripts import (
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
 NOW = datetime(2026, 7, 16, 10, 0, 0, tzinfo=UTC)
+_SAFE_EXCEPTION_PLACEHOLDER = "synthetic provider failure"
 
 
 def _load_json(name: str) -> dict[str, Any]:
@@ -257,6 +263,137 @@ def test_track_directory_errors_map_to_existing_error_codes(
     assert exc_info.value.error.retryable is retryable
     assert exc_info.value.error.video_id == "video123"
     assert "http" not in exc_info.value.error.message.lower()
+
+
+def test_wrapped_extractor_error_reaches_compatibility_through_adapter() -> None:
+    extractor_error = ExtractorError(_SAFE_EXCEPTION_PLACEHOLDER)
+    failure = DownloadError(
+        _SAFE_EXCEPTION_PLACEHOLDER,
+        exc_info=(ExtractorError, extractor_error, None),
+    )
+    adapter, _ = _adapter_for_info(failure)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.CONTENT_UNAVAILABLE
+    assert getattr(exc_info.value, "content_availability", None) == (
+        "content_availability_extractor_compatibility"
+    )
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "expected"),
+    [
+        (
+            GeoRestrictedError,
+            "content_availability_environment_restricted",
+        ),
+        (
+            UnavailableVideoError,
+            "content_availability_video_unavailable",
+        ),
+    ],
+)
+def test_other_typed_availability_states_remain_reachable_through_adapter(
+    exception_type: Callable[[str], BaseException],
+    expected: str,
+) -> None:
+    typed_error = exception_type(_SAFE_EXCEPTION_PLACEHOLDER)
+    failure = DownloadError(
+        _SAFE_EXCEPTION_PLACEHOLDER,
+        exc_info=(type(typed_error), typed_error, None),
+    )
+    adapter, _ = _adapter_for_info(failure)
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.CONTENT_UNAVAILABLE
+    assert getattr(exc_info.value, "content_availability", None) == expected
+
+
+def _ordinary_download_error() -> BaseException:
+    return DownloadError(_SAFE_EXCEPTION_PLACEHOLDER)
+
+
+def _direct_extractor_error() -> BaseException:
+    return ExtractorError(_SAFE_EXCEPTION_PLACEHOLDER)
+
+
+def _empty_exception_info() -> BaseException:
+    return DownloadError(
+        _SAFE_EXCEPTION_PLACEHOLDER,
+        exc_info=(None, None, None),
+    )
+
+
+def _malformed_exception_info() -> BaseException:
+    return DownloadError(
+        _SAFE_EXCEPTION_PLACEHOLDER,
+        exc_info=(ExtractorError, object(), None),
+    )
+
+
+def _uncertain_exception_info() -> BaseException:
+    error = ValueError(_SAFE_EXCEPTION_PLACEHOLDER)
+    return DownloadError(
+        _SAFE_EXCEPTION_PLACEHOLDER,
+        exc_info=(ValueError, error, None),
+    )
+
+
+def _cyclic_exception_info() -> BaseException:
+    outer = DownloadError(_SAFE_EXCEPTION_PLACEHOLDER)
+    inner = DownloadError(_SAFE_EXCEPTION_PLACEHOLDER)
+    outer.exc_info = (DownloadError, inner, None)
+    inner.exc_info = (DownloadError, outer, None)
+    return outer
+
+
+def _overdeep_exception_info() -> BaseException:
+    error: BaseException = ExtractorError(_SAFE_EXCEPTION_PLACEHOLDER)
+    for _ in range(32):
+        error = DownloadError(
+            _SAFE_EXCEPTION_PLACEHOLDER,
+            exc_info=(type(error), error, None),
+        )
+    return error
+
+
+@pytest.mark.parametrize(
+    "failure_factory",
+    [
+        _ordinary_download_error,
+        _direct_extractor_error,
+        _empty_exception_info,
+        _malformed_exception_info,
+        _uncertain_exception_info,
+        _cyclic_exception_info,
+        _overdeep_exception_info,
+    ],
+    ids=[
+        "ordinary",
+        "direct-extractor",
+        "empty",
+        "malformed",
+        "uncertain",
+        "cycle",
+        "overdeep",
+    ],
+)
+def test_unreliable_exception_chains_fail_closed_to_unknown_through_adapter(
+    failure_factory: Callable[[], BaseException],
+) -> None:
+    adapter, _ = _adapter_for_info(failure_factory())
+
+    with pytest.raises(TranscriptError) as exc_info:
+        adapter.enumerate_tracks("video123")
+
+    assert exc_info.value.error.code is ErrorCode.CONTENT_UNAVAILABLE
+    assert getattr(exc_info.value, "content_availability", None) == (
+        "content_availability_unknown"
+    )
 
 
 @pytest.mark.parametrize(
