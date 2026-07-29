@@ -133,13 +133,15 @@
   新 B10-classified evidence、release checklist 与本 handoff。它记录 metadata=`1`/enumerate=`1`/read=`0`、exit=`1`、
   `INVALID_RESPONSE`、`directory_shape_unknown`、`directory_origin_mapping` 和 `directory_fingerprint_unknown`；未产生 B8 keyname
   或 B10 availability。该 evidence 保持未合并、只读，不得修改、清理、重跑或改写为成功。
-- 产品负责人因此接受 ADR-021 并创建 TASK-014B11「安全字幕目录契约状态诊断」。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics` /
-  `codex/task-014b11-safe-directory-contract-diagnostics@80aff83fc033a8bd2950108cad2e34feea5d396f`；正式 Implementer 包为
-  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-IMPLEMENTER-CODEX.md`，本控制面不启动 Implementer。B11 只在
-  directory-only、`INVALID_RESPONSE`、`1/1/0`、B7 origin=mapping 且零正文的既有安全出口附加固定六字段无值契约状态矩阵；不枚举
-  任意外部 key，不输出值/URL/标题/语言/轨道/响应/异常/路径/凭据或用户数据，不改变 B6--B10、解析接受面、默认 smoke、计数、退出码、
-  无重试或日志 schema。TASK-014B11 为 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`，B11 不构成真实成功或发行批准。
+- TASK-014B11 implementation `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50` 已在固定 source 提交，唯一父提交为
+  `80aff83fc033a8bd2950108cad2e34feea5d396f`。Git-only 核验确认完整产品 Diff 精确为 Adapter、safe smoke、两份 integration test 与
+  handoff 五路径，source/main 干净、`git diff --check` 通过，fixture、依赖、锁、Schema/config/auth、默认 CLI 与日志 schema 均未变；
+  `51d974…` 与 `bd770e…` 仍未合并。Implementer 自报 focused `147 passed` 等只作 implementation evidence，不作独立通过证据。
+  全新独立 Reviewer 已由
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-REVIEWER-CODEX.md` 授权但未启动，必须独立复核固定六字段、严格
+  `directory-only + INVALID_RESPONSE + 1/1/0 + B7 mapping` 门禁、既有 schema 的固定有限安全事件、B4--B10/默认行为、解析接受面与
+  全输出面隐私；唯一可写 source handoff 并创建 handoff-only 子提交。TASK-014B11 为 `IN_REVIEW`；TASK-014 始终
+  `IN_PROGRESS / No-Go`，不得预写 verdict、真实 smoke、兼容性证明或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

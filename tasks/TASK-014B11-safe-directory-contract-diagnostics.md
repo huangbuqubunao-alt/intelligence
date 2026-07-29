@@ -1,13 +1,15 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer`
-- Reviewer: `待全新独立 Reviewer（本控制面不启动）`
+- Status: `IN_REVIEW`
+- Assignee: `Codex Implementer（implementation 已提交）`
+- Reviewer: `全新独立 Codex Reviewer（已授权，本控制面不启动）`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
 - Branch：`codex/task-014b11-safe-directory-contract-diagnostics`
 - Required source HEAD：`80aff83fc033a8bd2950108cad2e34feea5d396f`
+- Implementation evidence：`f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`（唯一父提交
+  `80aff83fc033a8bd2950108cad2e34feea5d396f`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、
   ADR-017--ADR-020 固定诊断、既有 JSONL `safe_message` 与离线 integration 基础设施；不新增
   第三方代码或依赖。
@@ -22,6 +24,25 @@ B10-classified 真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是
 实现 ADR-021 的固定、无值六字段状态矩阵，帮助后续独立兼容任务区分顶层视频标识、人工/
 自动字幕目录、字幕桶、轨道条目和必需成员边界。B11 不修复真实兼容性、不扩大解析接受面，
 也不构成真实 smoke、正文读取或发行批准。
+
+## Implementation evidence 与独立审查授权
+
+- Status Integrator 已以 Git-only 方式核验固定 implementation HEAD、唯一父链、main/source 身份与
+  洁净度。implementation Diff 精确为 Adapter、safe smoke、两份 integration test 与
+  `handoffs/TASK-014.md` 五路径，`git diff --check` 通过；无 fixture、依赖、`uv.lock`、
+  Schema/migration、配置、认证、默认 CLI、`logging.py` 或日志 schema 变化。
+- 只读真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 与 B9 evidence
+  `bd770ef9d212ebe75689b8f33145bf2556fe93c2` 均未进入 main。它们不得修改、合并、清理或改写为成功。
+- Implementer handoff 自报 focused `147 passed`、mypy、Ruff、CLI help、范围、Diff 与泄漏扫描；这些只登记为
+  implementation evidence，不得替代 Reviewer 独立复跑或独立结论。实现为规避既有 300 字符 `safe_message`
+  上限而使用一个独立、既有 schema 的固定安全事件；其完整性、固定顺序、每目标固定有限事件数和无日志放大
+  必须由 Reviewer 独立核验。
+- 全新独立审查包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-REVIEWER-CODEX.md`。Reviewer
+  唯一允许写入是向 source `handoffs/TASK-014.md` 追加审查 evidence，并创建以 implementation HEAD 为
+  唯一父提交的 handoff-only commit；不得修改业务代码、测试、控制面或任务状态。
+- TASK-014B11 现为 `IN_REVIEW`；未预写 Reviewer verdict、`ACCEPTED`、merge 或 `DONE`。TASK-014
+  始终保持 `IN_PROGRESS / No-Go`。
 
 ## 冻结契约
 
