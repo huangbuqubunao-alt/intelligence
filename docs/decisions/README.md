@@ -29,3 +29,8 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-013](ADR-013-restricted-public-subtitle-smoke-entry.md) | Accepted | 2026-07-26 | 冻结仅供发布 QA 的受限公开字幕 smoke 入口、临时根、脱敏审计与禁止资源边界 |
 | [ADR-014](ADR-014-console-entrypoint-contract.md) | Accepted | 2026-07-27 | 仅将既有 CLI 主入口暴露为正式 `youtube-intel` console command，不扩展行为或资源权限 |
 | [ADR-015](ADR-015-public-subtitle-directory-diagnostics.md) | Accepted | 2026-07-28 | 冻结公开字幕目录失败的有限脱敏分类、最小 smoke 审计出口及离线验证边界 |
+| [ADR-016](ADR-016-directory-only-public-subtitle-smoke.md) | Accepted | 2026-07-28 | 冻结受限 directory-only 公开字幕 smoke、零正文读取和临时根边界 |
+| [ADR-017](ADR-017-safe-subtitle-directory-shape-diagnostics.md) | Accepted | 2026-07-28 | 冻结目录 `INVALID_RESPONSE` 的固定无值结构诊断 |
+| [ADR-018](ADR-018-safe-subtitle-directory-origin-fingerprint.md) | Accepted | 2026-07-28 | 冻结目录失败的固定无值来源与结构指纹 |
+| [ADR-019](ADR-019-restricted-directory-keyname-diagnostic.md) | Accepted | 2026-07-29 | 冻结 mapping/unknown 边界的受限规范键名例外 |
+| [ADR-020](ADR-020-safe-content-availability-diagnostics.md) | Accepted | 2026-07-29 | 冻结 `CONTENT_UNAVAILABLE` 的固定无值内容可用性来源分类 |

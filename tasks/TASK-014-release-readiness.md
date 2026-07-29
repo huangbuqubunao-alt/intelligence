@@ -112,6 +112,14 @@
   一次执行已整合的 `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`；离线 lock/sync/lock、绝对
   launcher、临时 parent/non-existent `smoke-root`、安全证据和停止规则以正式包为准。任一结果都保持 TASK-014
   `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
+- TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
+  `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
+  可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
+  视频不可用、访问环境受限、提取器兼容性不足或 unknown。唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+  `codex/task-014b10-safe-content-availability-diagnostic@6fd7b5cc3fae6466fb6181151513f4854d196683`，必须保持干净；正式包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-IMPLEMENTER-CODEX.md`。B10 仅离线实现/审查，禁止真实资源、
+  解析兼容修复、输出敏感材料或改变 B4--B8 边界；无论结果 TASK-014 均为 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
