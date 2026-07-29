@@ -1,8 +1,8 @@
 # TASK-014B10：安全内容可用性诊断
 
-- Status: `IN_REVIEW`
-- Assignee: `原 Codex Implementer（Correction 1 已提交）`
-- Reviewer: `全新独立 Codex Reviewer 2（已授权，尚未启动）`
+- Status: `ACCEPTED`
+- Assignee: `原 Codex Implementer（Correction 1 已完成）`
+- Reviewer: `全新独立 Codex Reviewer 2（APPROVE，P0–P3=0）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
@@ -12,6 +12,8 @@
 - First Reviewer evidence：`2ea3455246a596f8304d2b0c00435862f8f3ea9e`（唯一父提交为 implementation；仅追加
   `handoffs/TASK-014.md`）
 - Correction 1 HEAD：`c65502e3680d14a88ae52a1c27eea47d42b5e8b0`（唯一父提交为 First Reviewer evidence）
+- Accepted source / Reviewer 2 evidence：`880e796622e393842a8cfe1a365af25868a3e98f`（唯一父提交为 Correction 1；仅追加
+  `handoffs/TASK-014.md`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-015--ADR-019 固定诊断、JsonlLogger
   safe_message 与离线 integration 基础设施；不新增第三方代码或依赖。
 
@@ -86,8 +88,26 @@
   Reviewer。Reviewer 2 必须从生产 Adapter 捕获/转换入口独立覆盖精确 wrapped `DownloadError` 类型链、全部 fixed mapping 与
   unknown fail-closed 矩阵，并重新运行包内离线门禁；不得依赖 Implementer 自报结果。
 - Reviewer 2 唯一可写路径是 source `handoffs/TASK-014.md`，只能追加独立审查 evidence 并创建以 Correction HEAD 为唯一父提交的
-  handoff-only commit；不得修改业务代码、测试、控制面或任务状态。TASK-014B10 现为 `IN_REVIEW`；TASK-014 始终
+  handoff-only commit；不得修改业务代码、测试、控制面或任务状态。该阶段 TASK-014B10 进入 `IN_REVIEW`；TASK-014 始终
   `IN_PROGRESS / No-Go`，第一轮 REJECT 和 Correction 均不构成真实验证、发行批准或最终 Go。
+
+## Second review APPROVE 与 Product Integrator 授权
+
+- Reviewer 2 evidence `880e796622e393842a8cfe1a365af25868a3e98f` 是 Correction 1 的 handoff-only 唯一子提交，Verdict=`APPROVE`，
+  `P0=0`、`P1=0`、`P2=0`、`P3=0`。独立门禁包括锁定离线同步、Provider/Smoke focused `137 passed`、mypy、Ruff、CLI help、
+  Correction/完整 B10 `git diff --check`、三/五路径范围、fixture/禁止路径与 stdout/stderr/JSONL/test/handoff 泄漏扫描。
+- Reviewer 的补充内联生产 Adapter 探针有两次在自定义替身构造阶段退出 `1`，未进入目标 Adapter case；Reviewer 已明确将其排除，
+  不得记录或复用为通过证据。正式 focused `137` 和其他独立门禁才是本次验收证据。Reviewer 未运行 full pytest 或 build；这些未运行项
+  必须由 Product Integrator 在合并前独立完成。
+- Git-only 验收确认 source/Reviewer evidence、完整逐提交唯一父链和双方洁净度匹配；Correction Diff 严格为 Adapter、Provider
+  integration test 与 handoff 三路径，完整 B10 Diff 严格为本卡五路径，evidence 严格 handoff-only。无 fixture、依赖、`uv.lock`、
+  Schema/migration、配置、默认 CLI、`logging.py`/日志 schema 或范围外变更；B9 evidence 仍未合并。
+- 正式 Product Integrator 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-PRODUCT-INTEGRATOR-CODEX.md`；本控制面不启动
+  Integrator。只有包内 lock check、locked offline sync、focused/full pytest、mypy、Ruff、CLI help、offline build、范围/锁/泄漏及
+  最终洁净度门禁全部通过，才可执行唯一 `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`。
+- TASK-014B10 现为 `ACCEPTED`，尚未整合且不得预写 `DONE` 或 merge SHA。TASK-014 始终 `IN_PROGRESS / No-Go`；离线实现、审查、
+  acceptance 或后续整合均不构成真实 smoke 通过、真实服务验证、事实性根因确认、发行批准或最终 Go。
 
 ## 离线验收与交付
 

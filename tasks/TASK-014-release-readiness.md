@@ -117,14 +117,15 @@
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
   视频不可用、访问环境受限、提取器兼容性不足或 unknown。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
-  `codex/task-014b10-safe-content-availability-diagnostic@c65502e3680d14a88ae52a1c27eea47d42b5e8b0`，其唯一父为 first review
-  evidence `2ea3455…`。第一轮独立 Reviewer Verdict=`REJECT`、P1=`1`：生产 yt-dlp 会以
+  `codex/task-014b10-safe-content-availability-diagnostic@880e796622e393842a8cfe1a365af25868a3e98f`。第一轮独立 Reviewer
+  Verdict=`REJECT`、P1=`1`：生产 yt-dlp 会以
   `DownloadError` 包装 `ExtractorError`，现有直接类型分支在生产 Adapter 映射不可达，测试又绕过该边界直接构造私有状态；不可靠来源
-  必须 unknown。Correction 1 Diff 已提交且经 Git-only 核验严格为 Adapter、Provider integration test 与 handoff 三路径；完整 B10
-  Diff 仍为原五路径，B9 evidence 仍未合并。B10 现为 `IN_REVIEW`，正式 Reviewer 2 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-CORRECTION-1-REVIEWER-2-CODEX.md`；只授权全新独立 Reviewer
-  在生产 Adapter 入口验证可靠类型链与 unknown fail-closed，不依赖 Implementer 自报，本控制面不启动。禁止真实资源、字符串猜测、
-  解析扩张、敏感材料或改变 B4--B8 边界；TASK-014 始终 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
+  必须 unknown。Correction 1 `c65502e…` 已关闭该 P1；Reviewer 2 evidence `880e796…` 是其 handoff-only 唯一子提交，
+  Verdict=`APPROVE`、P0–P3=`0`。正式 focused `137`、mypy、Ruff、CLI help、范围与全输出面泄漏门禁独立通过；补充内联探针在替身
+  构造阶段的两次失败明确不计 PASS，full pytest 与 build 仍须由 Integrator 完成。B10 现为 `ACCEPTED`，正式 Product Integrator 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-PRODUCT-INTEGRATOR-CODEX.md`；仅在完整离线门禁通过后允许
+  `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`，本控制面不启动。B9 仍未合并；禁止真实资源、字符串猜测、解析扩张、
+  敏感材料或改变 B4--B8 边界。TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写 B10 `DONE`、真实验证通过或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
