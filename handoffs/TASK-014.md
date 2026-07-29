@@ -1060,3 +1060,110 @@
   `IN_PROGRESS / No-Go`.
 - Commit SHA: reported to the orchestrator after creation of the required single
   Correction commit. `DECISION NEEDED`: `None`.
+
+## TASK-014B10 Correction 1 Independent Reviewer 2 Evidence — 2026-07-29
+
+### Fixed object, authorization, and scope preflight
+
+- Role: fresh independent `Codex Reviewer 2`.
+- Reviewed source: `codex/task-014b10-safe-content-availability-diagnostic@c65502e3680d14a88ae52a1c27eea47d42b5e8b0`.
+  Its sole parent is first Reviewer evidence
+  `2ea3455246a596f8304d2b0c00435862f8f3ea9e`; that commit is the handoff-only
+  child of implementation `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`, whose sole parent is fixed base
+  `6fd7b5cc3fae6466fb6181151513f4854d196683`.
+- Dynamic authorization was clean `main@62c9beed8d5b6430733872eb35d13705a87402d1`,
+  a single-parent child of control-plane baseline
+  `78bb8b402ee47403ed37f38a27f0ffd5a359b719`. Its five changed paths are only
+  the Reviewer prompt and task/status control documents; it contains no product
+  change. Source and main were clean before review.
+- B9 failure evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` is not an
+  ancestor of source or dynamic main and remains unmerged and untouched.
+- Correction range is exactly Adapter, provider integration test, and this
+  handoff. Complete B10 range is exactly those three paths plus smoke source and
+  smoke integration test. Both `git diff --check` ranges passed. No fixture,
+  dependency/lock, Schema/migration, configuration, default CLI, `logging.py`,
+  authentication, or control-plane product path changed.
+- Reuse remains `DIRECT`: locked yt-dlp typed exceptions and the existing
+  Adapter catch/convert boundary, ADR-020 vocabulary, B4 directory-only, B5 safe
+  summary, B6--B8 diagnostics, and existing offline integration infrastructure.
+  No dependency, third-party source, or license evidence changed.
+
+### Tests-first and production-boundary review
+
+- Tests were reviewed before implementation. Correction tests invoke production
+  `YtDlpSubtitleAdapter.enumerate_tracks` through the existing no-network Fake
+  factory with an exact outer `DownloadError`; they do not use the private
+  classifier or private availability-error helper as their production mapping
+  proof. They cover wrapped `GeoRestrictedError`, `UnavailableVideoError`, and a
+  generic reliable `ExtractorError`, plus ordinary/direct, empty, malformed,
+  uncertain, cyclic, and overdeep unknown cases.
+- Locked local yt-dlp `2026.7.4` source was independently inspected. It confirms
+  `DownloadError` preserves a supplied three-item `exc_info`, `ExtractorError`
+  preserves typed `cause`/`exc_info`, `GeoRestrictedError` derives from
+  `ExtractorError`, and `UnavailableVideoError` is a distinct locked exception.
+- Production mapping requires the caught outer object to have exact type
+  `DownloadError`. The walk is capped at eight nodes, records object identities
+  to reject cycles, validates tuple length, declared/actual exact exception type,
+  optional traceback type, `cause` type, and `cause`/`exc_info` consistency, and
+  fails closed on malformed attribute access. Conflicting geo/video evidence and
+  any nonterminal chain beyond the cap return unknown.
+- Known availability selection reads only locked exception types and typed chain
+  structure. Exception strings and legacy error-code mapping may not select any
+  known availability state; message-only content-unavailable outcomes carry the
+  fixed unknown state. No URL, response, status, external field, or other value
+  is used to choose the three known codes.
+- The smoke outlet independently requires directory-only,
+  `CONTENT_UNAVAILABLE`, enumerate=`1`, and read=`0`; missing or invalid private
+  state becomes fixed unknown. Default smoke still performs one body read, and
+  existing tests preserve counts, exit behavior, no retry, temporary-root and ID
+  bounds, zero business records, B4--B8 diagnostics, other B10 outcomes, and
+  fail-closed output omission.
+
+### Findings and independent gates
+
+- Findings: `P0=0`, `P1=0`, `P2=0`, `P3=0`.
+- Five-axis result: correctness, readability/simplicity, architecture, privacy/
+  security, and bounded performance all pass for the fixed Correction and full
+  B10 ranges.
+
+| Check | Result |
+|---|---|
+| `uv sync --locked --offline` | PASS — run exactly once; `Resolved 84` / `Checked 61`, no download/network indication or lock change. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS — independently collected and ran `137`; all passed. |
+| Production Adapter wrapped mapping/unknown matrix inside the focused suite | PASS — all three fixed typed mappings and ordinary/direct/missing/malformed/uncertain/cycle/overdeep fail-closed cases passed through `enumerate_tracks`. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS — no issues in two source files. |
+| `.venv/bin/ruff check` on the two source and two integration-test files | PASS — all checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS — help only; no smoke or other product subcommand ran. |
+| Correction and complete-B10 `git diff --check` | PASS — both fixed ranges. |
+| Three-path/five-path, forbidden-path, parser/CLI/logging/schema/auth, and fixture review | PASS — exact allowlists; no acceptance-surface expansion or forbidden change. |
+| stdout, stderr, JSONL `safe_message`, test-added-line, and handoff leak review | PASS — output remains fixed/allowlisted; no sensitive runtime material or credential-shaped value found. |
+
+- A supplemental inline production-Adapter probe is explicitly not counted as
+  pass evidence: two attempts exited `1` while constructing its custom
+  `FaultyExtractor` test double, before that case entered the Adapter. The key
+  line was `RuntimeError: synthetic provider failure` from the test double's
+  attribute hook; the second attempt delayed enabling the hook but yt-dlp's own
+  constructor still accessed it. The same harness failure was not retried again.
+  The prior nine cases in the second probe reached the production Adapter without
+  an assertion before this harness error, including real `sys.exc_info()` shape
+  and exact eight/nine-node boundaries, but the whole supplemental probe remains
+  excluded rather than reported as passing. The required focused production-
+  boundary tests above passed independently and are the dynamic evidence used.
+
+### Reviewer conclusion, skips, and residual risk
+
+- Verdict: `APPROVE` for Correction
+  `2ea3455246a596f8304d2b0c00435862f8f3ea9e...c65502e3680d14a88ae52a1c27eea47d42b5e8b0`
+  and complete B10
+  `6fd7b5cc3fae6466fb6181151513f4854d196683...c65502e3680d14a88ae52a1c27eea47d42b5e8b0`.
+- Unresolved P0/P1: none.
+- Not run by formal prohibition: full pytest, build/package checks, real smoke,
+  network/YouTube, authentication/Cookie/API key handling, media/ffmpeg,
+  Vault/user data, models/Ollama/OpenAI, cloud calls, launchd, push, merge, task
+  status change, source cleanup, or index creation/refresh.
+- Residual risk: synthetic offline typed chains validate the locked production
+  Adapter boundary but do not establish a real-service cause, broad future
+  yt-dlp compatibility, release approval, or final Go. TASK-014B10 remains
+  `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
+- Evidence commit SHA: reported after creation of the required handoff-only child
+  of `c65502e3680d14a88ae52a1c27eea47d42b5e8b0`. `DECISION NEEDED`: `None`.
