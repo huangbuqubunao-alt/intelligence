@@ -117,9 +117,12 @@
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
   视频不可用、访问环境受限、提取器兼容性不足或 unknown。唯一 source 为
   `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
-  `codex/task-014b10-safe-content-availability-diagnostic@6fd7b5cc3fae6466fb6181151513f4854d196683`，必须保持干净；正式包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-IMPLEMENTER-CODEX.md`。B10 仅离线实现/审查，禁止真实资源、
-  解析兼容修复、输出敏感材料或改变 B4--B8 边界；无论结果 TASK-014 均为 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
+  `codex/task-014b10-safe-content-availability-diagnostic@3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`，唯一父为冻结基线
+  `6fd7b5cc3fae6466fb6181151513f4854d196683`，且 source 干净。完整产品 Diff 严格为 Adapter、safe smoke、两份 integration tests 与
+  `handoffs/TASK-014.md` 五路径；Implementer 离线 evidence 已提交但必须由全新独立 Reviewer 复核。正式 Reviewer 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-REVIEWER-CODEX.md`，只授权 handoff-only evidence commit，本控制面
+  不启动 Reviewer。B10 现为 `IN_REVIEW`；禁止真实资源、解析兼容修复、输出敏感材料或改变 B4--B8 边界。无论审查结果，TASK-014
+  均为 `IN_PROGRESS / No-Go`，不构成真实验证通过或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

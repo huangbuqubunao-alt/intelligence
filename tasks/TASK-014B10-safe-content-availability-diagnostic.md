@@ -1,12 +1,14 @@
 # TASK-014B10：安全内容可用性诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer（已分配，尚未启动）`
-- Reviewer: `待独立 Codex Reviewer 授权`
+- Status: `IN_REVIEW`
+- Assignee: `Codex Implementer（implementation 已提交）`
+- Reviewer: `全新独立 Codex Reviewer（已授权，尚未启动）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
 - Branch：`codex/task-014b10-safe-content-availability-diagnostic`
+- Implementation HEAD：`3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`（唯一父提交
+  `6fd7b5cc3fae6466fb6181151513f4854d196683`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-015--ADR-019 固定诊断、JsonlLogger
   safe_message 与离线 integration 基础设施；不新增第三方代码或依赖。
 
@@ -42,6 +44,20 @@
 
 最终 Diff 可以是上述允许范围的最小子集；不得为满足文档制造无关改动。不得修改 fixture 路径、依赖、`uv.lock`、Schema/migration、
 `logging.py`、默认 CLI、配置、认证边界、发布状态、B-1/B9 evidence 或任何其他路径。
+
+## Implementation evidence 与独立 Reviewer 控制面
+
+- Git-only 核验确认 source `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20` 是冻结实施基线的唯一子提交，source 干净；完整
+  Diff 严格且仅为上述五路径，`git diff --check` 通过，且无 fixture、依赖、锁、Schema/migration、配置、默认 CLI 或日志 schema 改动。
+- Implementer 在 source `handoffs/TASK-014.md` 记录了 focused `127 passed`、mypy、Ruff、CLI help、锁定离线同步、范围及
+  全输出面泄漏扫描均通过；这些是 implementation evidence，尚不是独立 Reviewer 通过证据。
+- 正式 Reviewer 包为
+  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-REVIEWER-CODEX.md`；本控制面不启动 Reviewer。
+- Reviewer 必须独立验证固定词表/unknown、严格触发条件、后续行动语义而非事实断言、默认 smoke 与 B4--B8 回归、全输出面隐私、
+  无 parser/schema/依赖/CLI/logging 扩张，并独立运行任务包规定的离线 focused tests、mypy、Ruff、CLI help、范围和泄漏扫描。
+- Reviewer 唯一可写路径是 source `handoffs/TASK-014.md`，只能追加 evidence 并创建以 implementation HEAD 为唯一父的 handoff-only
+  commit；不得修改业务代码、测试、控制面或任务状态。发现 P0/P1 时按 Reviewer 包立即停止后续产品命令并记录 `REJECT`。
+- B9 evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` 仍未合并，只作只读失败证据；不得合并、修改、清理或写成成功。
 
 ## 离线验收与交付
 
