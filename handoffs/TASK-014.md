@@ -1167,3 +1167,89 @@
   `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
 - Evidence commit SHA: reported after creation of the required handoff-only child
   of `c65502e3680d14a88ae52a1c27eea47d42b5e8b0`. `DECISION NEEDED`: `None`.
+
+## TASK-014B11 Implementer Evidence — 2026-07-29
+
+### Fixed assignment, scope, and reuse
+
+- Role: `Codex Implementer`; fixed branch
+  `codex/task-014b11-safe-directory-contract-diagnostics` at implementation base
+  `80aff83fc033a8bd2950108cad2e34feea5d396f`.
+- Dynamic main authorization `6f5336098406f95ad1773d2ea36da24aaa97530f`
+  was clean and had the implementation base as its sole parent. The source branch,
+  HEAD, tracked/untracked worktree, and index were clean before implementation.
+- Read-only failure evidence `51d9749943270cb75c2b166e77bce0a5f663d92c`
+  had sole parent `f00aa9cffa25dcb9b7165edf21a4d476263c1dc5`, changed only the
+  three authorized evidence documents, and was not an ancestor of source or main.
+  It remained unmerged and untouched.
+- Reuse is `DIRECT`: the locked subtitle Adapter, B4 directory-only execution,
+  B5 safe stdout/JSONL `safe_message`, B6--B10 fixed diagnostics, Python standard
+  library, and existing offline integration infrastructure. No dependency,
+  third-party source, lockfile, or license evidence changed.
+- Actual paths are the Adapter, safe smoke composition, the two authorized
+  integration tests, and this handoff. No fixture or control-plane document changed.
+
+### RED, GREEN, and frozen behavior
+
+- RED was written before production code. Command:
+  `.venv/bin/pytest tests/integration/test_public_subtitle_smoke.py::test_directory_only_emits_frozen_directory_contract_state_matrix`.
+  Result: exit `1`, `1 failed`; the assertion expected the six ADR-021 fields at
+  the end of stdout, while the actual summary ended at the existing directory
+  fingerprint. This proves the previous safe summary could not express the matrix.
+- The first GREEN attempt reached complete stdout but exposed the existing
+  300-character JSONL safe-message limit: direct concatenation after B6/B7 was
+  truncated during `automatic_directory_shape`. That attempt remained a failure
+  and was not counted as passing evidence.
+- Final GREEN for the same node passed. Existing `smoke.target.failed`
+  safe-message content remains unchanged; a fixed
+  `smoke.target.directory_contract_state` event uses the same existing JSONL schema
+  and its existing `safe_message` field for the complete six-field fragment. The
+  stdout summary appends the same six fields in the same order. No `logging.py` or
+  JSONL schema field changed.
+- Field order is exactly `video_identity_shape`, `manual_directory_shape`,
+  `automatic_directory_shape`, `caption_bucket_shape`, `track_entry_shape`, and
+  `required_members_shape`. Each field is backed by its exact frozen private enum;
+  all values, including every `unknown` and `not_evaluated`, are asserted.
+- The matrix gate requires directory-only, `INVALID_RESPONSE`, metadata/enumerate/read
+  exactly `1/1/0`, mapping origin, and zero body reads. Any missing gate, untrusted
+  state object, invalid tuple length/type/value, default smoke, other error code,
+  non-mapping origin, or body read omits the entire matrix.
+- Adapter states are produced only at existing validation branches. They describe
+  top-level identity shape, manual/automatic directory shape, caption bucket,
+  track entry, and required-member completeness/type. Generic iteration failures
+  fail closed to `caption=unknown` with later layers `not_evaluated`. No arbitrary
+  external key is enumerated or emitted, and no parser acceptance rule changed.
+
+### Authorized offline checks
+
+| Check | Result |
+|---|---|
+| `uv sync --locked --offline` | PASS — run once before tests; local cache only, `Resolved 84`, installed the locked environment, and `uv.lock` SHA-256 remained `6773017a8426873d62d6c33588c2661809436bb733e531961c3b593e04a0dd43`. |
+| RED matrix node | Expected FAIL — exit `1`, `1 failed`, missing six-field stdout assertion recorded above. |
+| Final GREEN matrix node | PASS — `1 passed`; stdout and JSONL safe-message matrix complete and ordered. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS — final run `147 passed`; offline Provider/Smoke regression only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS — no issues in two source files. |
+| Ruff on the two source and two integration-test files | PASS after one resolved `I001`; two manual order attempts reproduced the same import-only failure, Ruff's read-only diff supplied the exact order, and the final run reported all checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS — help only; no smoke or other product operation ran. |
+| `git diff --check`, five-path allowlist, forbidden-path, LF/EOF, SHA-256, added-line/output/handoff/fixture leak scans | PASS — final checks completed before commit; no unexpected or generated path. |
+
+### Review, skips, and remaining risk
+
+- Five-axis self-review found no correctness, readability, architecture, security,
+  or performance blocker. The state tuple is fixed at six validated strings; output
+  work is constant-sized and existing bounded directory iteration is unchanged.
+- No B6/B7/B8/B10 vocabulary, gate, or meaning changed. Default smoke still reads
+  one selected body, directory-only remains `1/1/0`, and focused regression confirms
+  exit codes, no retry, temporary-root/ID bounds, zero business records, and all
+  fail-closed behavior remain intact.
+- Not run by formal prohibition: full pytest, build/package checks, real smoke,
+  network/YouTube, authentication/Cookie/API key handling, media/ffmpeg, real Vault
+  or user data, models/Ollama/OpenAI, cloud calls, launchd, push, merge, Reviewer
+  startup, task-state change, or source cleanup.
+- Remaining risk: this is offline synthetic contract-state evidence only. It does
+  not establish a real-service cause, compatibility fix, body readability, broad
+  yt-dlp compatibility, release approval, or final Go. TASK-014 remains
+  `IN_PROGRESS / No-Go`; TASK-014B11 remains `IN_PROGRESS / Codex` pending an
+  independently authorized Reviewer.
+- Implementer commit SHA: reported after creation of the required single commit.
+  `DECISION NEEDED`: `None`.

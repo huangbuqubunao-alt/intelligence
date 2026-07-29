@@ -97,6 +97,14 @@ CONTENT_AVAILABILITY_CODES: Final[frozenset[str]] = frozenset(
     }
 )
 _DIRECTORY_UNKNOWN_DIAGNOSTIC: Final = "directory_shape_unknown"
+_DIRECTORY_CONTRACT_FIELDS: Final = (
+    "video_identity_shape",
+    "manual_directory_shape",
+    "automatic_directory_shape",
+    "caption_bucket_shape",
+    "track_entry_shape",
+    "required_members_shape",
+)
 
 
 class _DirectoryStructureState(Enum):
@@ -106,6 +114,107 @@ class _DirectoryStructureState(Enum):
     TRACK_ENTRY_NOT_MAPPING = auto()
     REQUIRED_FIELD_MISSING = auto()
     UNKNOWN = auto()
+
+
+class _VideoIdentityShape(str, Enum):
+    MISSING = "missing"
+    STRING = "string"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class _DirectoryShape(str, Enum):
+    MISSING = "missing"
+    MAPPING = "mapping"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class _CaptionBucketShape(str, Enum):
+    NOT_EVALUATED = "not_evaluated"
+    ABSENT = "absent"
+    SEQUENCE = "sequence"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class _TrackEntryShape(str, Enum):
+    NOT_EVALUATED = "not_evaluated"
+    ABSENT = "absent"
+    MAPPING = "mapping"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class _RequiredMembersShape(str, Enum):
+    NOT_EVALUATED = "not_evaluated"
+    COMPLETE = "complete"
+    MISSING = "missing"
+    WRONG_TYPE = "wrong_type"
+    UNKNOWN = "unknown"
+
+
+_DIRECTORY_CONTRACT_ALLOWED_VALUES: Final = (
+    frozenset(member.value for member in _VideoIdentityShape),
+    frozenset(member.value for member in _DirectoryShape),
+    frozenset(member.value for member in _DirectoryShape),
+    frozenset(member.value for member in _CaptionBucketShape),
+    frozenset(member.value for member in _TrackEntryShape),
+    frozenset(member.value for member in _RequiredMembersShape),
+)
+
+
+def _directory_contract_state(
+    video_identity: _VideoIdentityShape,
+    manual_directory: _DirectoryShape,
+    automatic_directory: _DirectoryShape,
+    caption_bucket: _CaptionBucketShape,
+    track_entry: _TrackEntryShape,
+    required_members: _RequiredMembersShape,
+) -> tuple[str, str, str, str, str, str]:
+    shapes = (
+        video_identity,
+        manual_directory,
+        automatic_directory,
+        caption_bucket,
+        track_entry,
+        required_members,
+    )
+    expected_types = (
+        _VideoIdentityShape,
+        _DirectoryShape,
+        _DirectoryShape,
+        _CaptionBucketShape,
+        _TrackEntryShape,
+        _RequiredMembersShape,
+    )
+    if any(not isinstance(shape, expected) for shape, expected in zip(shapes, expected_types)):
+        raise TypeError("directory contract state is invalid")
+    return (
+        video_identity.value,
+        manual_directory.value,
+        automatic_directory.value,
+        caption_bucket.value,
+        track_entry.value,
+        required_members.value,
+    )
+
+
+def _directory_contract_state_from_error(
+    error: object,
+) -> tuple[str, str, str, str, str, str] | None:
+    try:
+        state = getattr(error, "directory_contract_state", None)
+    except Exception:  # noqa: BLE001 - untrusted Adapter errors fail closed
+        return None
+    if not isinstance(state, tuple) or type(state) is not tuple or len(state) != 6:
+        return None
+    if any(
+        type(value) is not str or value not in allowed
+        for value, allowed in zip(state, _DIRECTORY_CONTRACT_ALLOWED_VALUES)
+    ):
+        return None
+    return (state[0], state[1], state[2], state[3], state[4], state[5])
 
 
 class _ContentAvailabilityState(Enum):
@@ -230,11 +339,13 @@ class _DirectoryInvalidResponse(TranscriptError):
         origin: str | None = None,
         fingerprint: str | None = None,
         key_names: tuple[str, ...] | None = None,
+        contract_state: tuple[str, str, str, str, str, str] | None = None,
     ) -> None:
         self.diagnostic = diagnostic
         self.directory_origin = origin
         self.directory_fingerprint = fingerprint
         self.directory_key_names = key_names
+        self.directory_contract_state = contract_state
         super().__init__(error)
 
 
@@ -273,6 +384,7 @@ def _directory_error(
     video_id: str,
     origin: str = "directory_origin_mapping",
     fingerprint: str = "directory_fingerprint_unknown",
+    contract_state: tuple[str, str, str, str, str, str] | None = None,
 ) -> _DirectoryInvalidResponse:
     return _DirectoryInvalidResponse(
         _error(
@@ -284,6 +396,7 @@ def _directory_error(
         diagnostic=diagnostic,
         origin=origin,
         fingerprint=fingerprint,
+        contract_state=contract_state,
     )
 
 
@@ -293,6 +406,7 @@ def _directory_structure_error(
     message: str,
     *,
     video_id: str,
+    contract_state: tuple[str, str, str, str, str, str],
 ) -> _DirectoryInvalidResponse:
     classification = _classify_directory_structure(state)
     return _directory_error(
@@ -301,6 +415,7 @@ def _directory_structure_error(
         video_id=video_id,
         origin=classification.origin,
         fingerprint=classification.fingerprint,
+        contract_state=contract_state,
     )
 
 
@@ -671,6 +786,23 @@ class _MappedDirectory:
     bucket_count: int
 
 
+def _nested_directory_contract_state(
+    manual_directory: _DirectoryShape,
+    automatic_directory: _DirectoryShape,
+    caption_bucket: _CaptionBucketShape,
+    track_entry: _TrackEntryShape,
+    required_members: _RequiredMembersShape,
+) -> tuple[str, str, str, str, str, str]:
+    return _directory_contract_state(
+        _VideoIdentityShape.STRING,
+        manual_directory,
+        automatic_directory,
+        caption_bucket,
+        track_entry,
+        required_members,
+    )
+
+
 def _map_directory(
     payload: Any,
     *,
@@ -678,13 +810,23 @@ def _map_directory(
     start_position: int,
     start_bucket_count: int,
     video_id: str,
+    manual_directory: _DirectoryShape,
+    automatic_directory: _DirectoryShape,
 ) -> _MappedDirectory:
+    contract_state = _nested_directory_contract_state(
+        manual_directory,
+        automatic_directory,
+        _CaptionBucketShape.NOT_EVALUATED,
+        _TrackEntryShape.NOT_EVALUATED,
+        _RequiredMembersShape.NOT_EVALUATED,
+    )
     if payload is None:
         raise _directory_structure_error(
             _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
             "directory_shape_missing",
             "subtitle track directory payload is missing",
             video_id=video_id,
+            contract_state=contract_state,
         )
     if isinstance(payload, list) and not payload:
         raise _directory_structure_error(
@@ -692,6 +834,7 @@ def _map_directory(
             "directory_shape_empty_list",
             "subtitle track directory payload is an empty list",
             video_id=video_id,
+            contract_state=contract_state,
         )
     if not isinstance(payload, Mapping):
         raise _directory_structure_error(
@@ -699,21 +842,37 @@ def _map_directory(
             "directory_shape_not_object",
             "subtitle track directory payload is malformed",
             video_id=video_id,
+            contract_state=contract_state,
         )
     key_names = _directory_key_names(payload)
     tracks: list[SubtitleTrack] = []
     position = start_position
     bucket_count = start_bucket_count
     iteration_failed = False
+    contract_state = _nested_directory_contract_state(
+        manual_directory,
+        automatic_directory,
+        _CaptionBucketShape.ABSENT,
+        _TrackEntryShape.NOT_EVALUATED,
+        _RequiredMembersShape.NOT_EVALUATED,
+    )
     try:
         for raw_language, raw_entries in payload.items():
             bucket_count += 1
+            contract_state = _nested_directory_contract_state(
+                manual_directory,
+                automatic_directory,
+                _CaptionBucketShape.UNKNOWN,
+                _TrackEntryShape.NOT_EVALUATED,
+                _RequiredMembersShape.NOT_EVALUATED,
+            )
             if bucket_count > _MAX_TRACK_COUNT:
                 raise _directory_structure_error(
                     _DirectoryStructureState.UNKNOWN,
                     _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                     "subtitle track directory exceeds its language bucket limit",
                     video_id=video_id,
+                    contract_state=contract_state,
                 )
             if (
                 not isinstance(raw_language, str)
@@ -728,37 +887,83 @@ def _map_directory(
                     _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                     "subtitle track directory payload is malformed",
                     video_id=video_id,
+                    contract_state=contract_state,
                 )
             if not isinstance(raw_entries, list):
+                contract_state = _nested_directory_contract_state(
+                    manual_directory,
+                    automatic_directory,
+                    _CaptionBucketShape.OTHER,
+                    _TrackEntryShape.NOT_EVALUATED,
+                    _RequiredMembersShape.NOT_EVALUATED,
+                )
                 raise _directory_structure_error(
                     _DirectoryStructureState.LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE,
                     "directory_shape_not_list",
                     "subtitle track directory entries are malformed",
                     video_id=video_id,
+                    contract_state=contract_state,
                 )
+            contract_state = _nested_directory_contract_state(
+                manual_directory,
+                automatic_directory,
+                _CaptionBucketShape.SEQUENCE,
+                _TrackEntryShape.ABSENT,
+                _RequiredMembersShape.NOT_EVALUATED,
+            )
             for raw_entry in raw_entries:
+                contract_state = _nested_directory_contract_state(
+                    manual_directory,
+                    automatic_directory,
+                    _CaptionBucketShape.SEQUENCE,
+                    _TrackEntryShape.UNKNOWN,
+                    _RequiredMembersShape.NOT_EVALUATED,
+                )
                 if position >= _MAX_TRACK_COUNT:
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
                         _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                         "subtitle track directory exceeds its track limit",
                         video_id=video_id,
+                        contract_state=contract_state,
                     )
                 current_position = position
                 position += 1
                 if not isinstance(raw_entry, Mapping):
+                    contract_state = _nested_directory_contract_state(
+                        manual_directory,
+                        automatic_directory,
+                        _CaptionBucketShape.SEQUENCE,
+                        _TrackEntryShape.OTHER,
+                        _RequiredMembersShape.NOT_EVALUATED,
+                    )
                     raise _directory_structure_error(
                         _DirectoryStructureState.TRACK_ENTRY_NOT_MAPPING,
                         "directory_shape_unsupported_entry",
                         "subtitle track payload is malformed",
                         video_id=video_id,
+                        contract_state=contract_state,
                     )
+                contract_state = _nested_directory_contract_state(
+                    manual_directory,
+                    automatic_directory,
+                    _CaptionBucketShape.SEQUENCE,
+                    _TrackEntryShape.MAPPING,
+                    _RequiredMembersShape.UNKNOWN,
+                )
                 if "ext" not in raw_entry or "url" not in raw_entry:
                     raise _directory_structure_error(
                         _DirectoryStructureState.REQUIRED_FIELD_MISSING,
                         "directory_shape_unsupported_entry",
                         "subtitle track payload is malformed",
                         video_id=video_id,
+                        contract_state=_nested_directory_contract_state(
+                            manual_directory,
+                            automatic_directory,
+                            _CaptionBucketShape.SEQUENCE,
+                            _TrackEntryShape.MAPPING,
+                            _RequiredMembersShape.MISSING,
+                        ),
                     )
                 raw_extension = raw_entry.get("ext")
                 if (
@@ -767,11 +972,23 @@ def _map_directory(
                     or len(raw_extension) > _MAX_EXTENSION_CODE_POINTS
                     or raw_extension.strip() != raw_extension
                 ):
+                    required_shape = (
+                        _RequiredMembersShape.WRONG_TYPE
+                        if not isinstance(raw_extension, str)
+                        else _RequiredMembersShape.COMPLETE
+                    )
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track format is invalid",
                         video_id=video_id,
+                        contract_state=_nested_directory_contract_state(
+                            manual_directory,
+                            automatic_directory,
+                            _CaptionBucketShape.SEQUENCE,
+                            _TrackEntryShape.MAPPING,
+                            required_shape,
+                        ),
                     )
                 raw_url = raw_entry.get("url")
                 if (
@@ -779,12 +996,31 @@ def _map_directory(
                     or not raw_url
                     or len(raw_url) > _MAX_TRACK_URL_CODE_POINTS
                 ):
+                    required_shape = (
+                        _RequiredMembersShape.WRONG_TYPE
+                        if not isinstance(raw_url, str)
+                        else _RequiredMembersShape.COMPLETE
+                    )
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
                         "directory_shape_unsupported_entry",
                         "subtitle track URL is invalid",
                         video_id=video_id,
+                        contract_state=_nested_directory_contract_state(
+                            manual_directory,
+                            automatic_directory,
+                            _CaptionBucketShape.SEQUENCE,
+                            _TrackEntryShape.MAPPING,
+                            required_shape,
+                        ),
                     )
+                contract_state = _nested_directory_contract_state(
+                    manual_directory,
+                    automatic_directory,
+                    _CaptionBucketShape.SEQUENCE,
+                    _TrackEntryShape.MAPPING,
+                    _RequiredMembersShape.COMPLETE,
+                )
                 try:
                     _validate_track_url(raw_url, video_id=video_id)
                 except TranscriptError as exc:
@@ -793,6 +1029,7 @@ def _map_directory(
                         "directory_shape_unsupported_entry",
                         "subtitle track URL is invalid",
                         video_id=video_id,
+                        contract_state=contract_state,
                     ) from exc
                 try:
                     name = _track_name(raw_entry.get("name"), video_id=video_id)
@@ -802,6 +1039,7 @@ def _map_directory(
                         "directory_shape_unsupported_entry",
                         "subtitle track name is invalid",
                         video_id=video_id,
+                        contract_state=contract_state,
                     ) from exc
                 source_format = _format_from_extension(raw_extension)
                 if source_format is None:
@@ -828,11 +1066,19 @@ def _map_directory(
     except Exception:
         iteration_failed = True
     if iteration_failed:
+        contract_state = _nested_directory_contract_state(
+            manual_directory,
+            automatic_directory,
+            _CaptionBucketShape.UNKNOWN,
+            _TrackEntryShape.NOT_EVALUATED,
+            _RequiredMembersShape.NOT_EVALUATED,
+        )
         failure = _directory_structure_error(
             _DirectoryStructureState.UNKNOWN,
             _DIRECTORY_UNKNOWN_DIAGNOSTIC,
             "subtitle track directory payload is malformed",
             video_id=video_id,
+            contract_state=contract_state,
         )
         failure.directory_key_names = key_names
         raise failure
@@ -1057,41 +1303,101 @@ class YtDlpSubtitleAdapter:
                 "directory_shape_not_object",
                 "subtitle track directory payload is malformed",
                 video_id=video_id,
+                contract_state=_directory_contract_state(
+                    _VideoIdentityShape.UNKNOWN,
+                    _DirectoryShape.UNKNOWN,
+                    _DirectoryShape.UNKNOWN,
+                    _CaptionBucketShape.NOT_EVALUATED,
+                    _TrackEntryShape.NOT_EVALUATED,
+                    _RequiredMembersShape.NOT_EVALUATED,
+                ),
             )
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
-        if payload.get("id") != video_id:
+        identity_present = "id" in payload
+        identity = payload.get("id")
+        if identity != video_id:
+            identity_shape = (
+                _VideoIdentityShape.MISSING
+                if not identity_present
+                else (
+                    _VideoIdentityShape.STRING
+                    if isinstance(identity, str)
+                    else _VideoIdentityShape.OTHER
+                )
+            )
             failure = _directory_structure_error(
                 _DirectoryStructureState.UNKNOWN,
                 _DIRECTORY_UNKNOWN_DIAGNOSTIC,
                 "subtitle track directory identity is invalid",
                 video_id=video_id,
+                contract_state=_directory_contract_state(
+                    identity_shape,
+                    _DirectoryShape.UNKNOWN,
+                    _DirectoryShape.UNKNOWN,
+                    _CaptionBucketShape.NOT_EVALUATED,
+                    _TrackEntryShape.NOT_EVALUATED,
+                    _RequiredMembersShape.NOT_EVALUATED,
+                ),
             )
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
-        if "subtitles" not in payload or "automatic_captions" not in payload:
+        manual_present = "subtitles" in payload
+        automatic_present = "automatic_captions" in payload
+        manual_payload = payload.get("subtitles") if manual_present else None
+        automatic_payload = payload.get("automatic_captions") if automatic_present else None
+        manual_shape = (
+            _DirectoryShape.MISSING
+            if not manual_present
+            else (
+                _DirectoryShape.MAPPING
+                if isinstance(manual_payload, Mapping)
+                else _DirectoryShape.OTHER
+            )
+        )
+        automatic_shape = (
+            _DirectoryShape.MISSING
+            if not automatic_present
+            else (
+                _DirectoryShape.MAPPING
+                if isinstance(automatic_payload, Mapping)
+                else _DirectoryShape.OTHER
+            )
+        )
+        if not manual_present or not automatic_present:
             failure = _directory_structure_error(
                 _DirectoryStructureState.SUBTITLE_BUCKET_MISSING_OR_NOT_MAPPING,
                 "directory_shape_missing",
                 "subtitle track directory payload is missing",
                 video_id=video_id,
+                contract_state=_nested_directory_contract_state(
+                    manual_shape,
+                    automatic_shape,
+                    _CaptionBucketShape.NOT_EVALUATED,
+                    _TrackEntryShape.NOT_EVALUATED,
+                    _RequiredMembersShape.NOT_EVALUATED,
+                ),
             )
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
         try:
             manual = _map_directory(
-                payload.get("subtitles"),
+                manual_payload,
                 source_type=TranscriptSourceType.MANUAL_SUBTITLE,
                 start_position=0,
                 start_bucket_count=0,
                 video_id=video_id,
+                manual_directory=manual_shape,
+                automatic_directory=automatic_shape,
             )
             automatic = _map_directory(
-                payload.get("automatic_captions"),
+                automatic_payload,
                 source_type=TranscriptSourceType.AUTO_SUBTITLE,
                 start_position=manual.next_position,
                 start_bucket_count=manual.bucket_count,
                 video_id=video_id,
+                manual_directory=manual_shape,
+                automatic_directory=automatic_shape,
             )
             tracks = (*manual.tracks, *automatic.tracks)
             if automatic.next_position > 0 and not tracks:
@@ -1100,6 +1406,13 @@ class YtDlpSubtitleAdapter:
                     "directory_shape_unsupported_entry",
                     "subtitle track directory has no supported formats",
                     video_id=video_id,
+                    contract_state=_nested_directory_contract_state(
+                        manual_shape,
+                        automatic_shape,
+                        _CaptionBucketShape.SEQUENCE,
+                        _TrackEntryShape.MAPPING,
+                        _RequiredMembersShape.COMPLETE,
+                    ),
                 )
         except _DirectoryInvalidResponse as exc:
             self.last_call = _call(started, self._clock(), diagnostic=exc.diagnostic)
