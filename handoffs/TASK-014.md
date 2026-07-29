@@ -1438,3 +1438,123 @@
   `IN_PROGRESS / No-Go`; TASK-014B11 remains `IN_PROGRESS / Codex`.
 - Correction commit SHA: reported after creation of the required single commit.
   `DECISION NEEDED`: `None`.
+
+## TASK-014B11 Correction 1 Independent Reviewer 2 Evidence — 2026-07-29
+
+### Metadata, fixed object, scope, and reuse
+
+- Role: fresh independent Codex Reviewer 2; Verdict: `APPROVE`.
+- Reviewed Correction: `ed250baf752182adbc4d98f5271d34995865d192`, with sole
+  parent `4aebc01360fa9684fe6b052f266a00ecc2de57dc`; the parent is the
+  handoff-only first Reviewer evidence, whose sole parent is implementation
+  `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`.
+- The implementation has sole parent/base
+  `80aff83fc033a8bd2950108cad2e34feea5d396f`. Dynamic main authorization was
+  exactly `95fa9e41d34086434ef10a425bc418a782f43196`, with sole parent
+  `f902aec309927751d173145e46a617a467745e85`; main and source were clean at
+  the initial gate.
+- Correction scope is exactly the two integration tests plus this handoff;
+  complete B11 scope is exactly the Adapter, safe smoke, those two tests, and
+  this handoff. The two production blobs are unchanged from the first
+  implementation through Correction 1.
+- Read-only evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` has the
+  required sole parent and three-document evidence scope. It and
+  `bd770ef9d212ebe75689b8f33145bf2556fe93c2` are not ancestors of main or
+  source and remained unmerged and untouched.
+- Reuse remains `DIRECT`: the locked yt-dlp Adapter, B4 directory-only, B5
+  safe stdout/JSONL schema, B6--B10 fixed diagnostics, and existing offline
+  integration infrastructure. No dependency, third-party source, lockfile,
+  fixture, Schema, migration, configuration, authentication, default CLI,
+  `logging.py`, or log-schema change is present.
+
+### Coverage-only production-boundary proof
+
+- Correction 1 is coverage-only. Its three new nodes passed against unchanged
+  production source; this is not product RED and is not evidence that a
+  product bug was fixed.
+- The direct Provider node instantiates and calls real
+  `YtDlpSubtitleAdapter.enumerate_tracks()`. The only substitute is the outer
+  downloader transport installed through the existing test hook, together
+  with a deterministic clock. Its non-user synthetic `Mapping` exposes no
+  arbitrary external key set or recorded value and does not model a captured
+  response.
+- The real Adapter performs the project-known identity access and mismatch
+  validation, constructs all six states as
+  `other/unknown/unknown/not_evaluated/not_evaluated/not_evaluated`, and maps
+  them to `TranscriptError(INVALID_RESPONSE)` with mapping origin. The tests do
+  not call a private classification/matrix/error helper, set a final private
+  tuple, or construct a final private diagnostic error on this production
+  path; `_bind_test_hooks` is used only for the authorized outer factory/clock.
+- The real `PublicSubtitleSmoke` receives that Adapter error through its
+  existing factory and failure path. It produces complete ordered stdout and
+  one existing-schema `smoke.target.directory_contract_state` JSONL event.
+  The paired real-chain default-smoke node proves the matrix/event are omitted
+  when the directory-only gate is absent.
+- The production-chain assertions are causally sensitive: changing the
+  Adapter's identity/unknown/not-evaluated mapping changes both Provider and
+  smoke assertions; changing smoke field order, directory-only gating, or
+  event emission changes the ordered summary, zero/one event, or ungated
+  assertions. Existing focused gate tests additionally break each of the
+  metadata/enumerate/read/error/origin conditions and require whole-matrix
+  omission; helper-level tests are supplemental rather than substitutes for
+  the new production chain.
+
+### Five-axis findings and P0--P3
+
+- Correctness: no finding. The real boundary covers a field-shape mismatch,
+  production `unknown` versus `not_evaluated`, strict output omission, fixed
+  six-field order/closed values, and zero/one event bound. The complete focused
+  suite independently preserves B4--B10, default single body read,
+  directory-only zero body read, exit codes, counts, no retry, temporary-root
+  and ID bounds, zero business records, and fail-closed behavior.
+- Readability: no finding. The synthetic payload and transport helpers are
+  small, named for the boundary they exercise, and replace the prior Fake that
+  directly built the final private error/matrix.
+- Architecture: no finding. External I/O alone is replaced; Adapter validation,
+  internal state/error mapping, smoke gating, stdout composition, and JSONL
+  emission remain production code. No parser acceptance branch or public
+  interface changed in Correction.
+- Security/privacy: no finding. Runtime assertions require empty stderr, exact
+  safe stdout values, unchanged JSONL top-level fields, one bounded fixed
+  message, and no event when ungated. Added-line scans found no real response
+  structure, arbitrary external key, URL, title, language, track, external
+  field value, exception text, user data, real target, or credential material;
+  fixtures are unchanged. The Provider test's existing synthetic identifier
+  is not external response material and is not emitted.
+- Performance: no finding. State/output work is a fixed six-value operation and
+  the production failure path has one event callsite. The passing production
+  test observes exactly one event when gated and zero when ungated; no input,
+  key, language, track, field, or exception loop can amplify B11 events.
+- Severity totals: `P0=0`, `P1=0`, `P2=0`, `P3=0`.
+
+### Independent gates and results
+
+| Command or review gate | Result |
+|---|---|
+| Branch/HEAD/sole-parent chain, dynamic-main authorization, source/main initial cleanliness, two read-only evidence non-ancestor checks | PASS |
+| Correction three-path, complete B11 five-path, first-reviewer handoff-only, production-blob equality, and forbidden-path review | PASS |
+| `uv sync --locked --offline` | PASS once: 84 packages resolved and 61 checked; no download/network indication and no lock change. |
+| Three specified production-chain pytest nodes | PASS: `3 passed`; counted only as coverage proof, not a product fix. |
+| Provider/Smoke focused pytest | PASS: `149 passed`. |
+| Mypy on the two production files | PASS: no issues in two source files. |
+| Ruff on the two production and two integration-test files | PASS: all checks passed. |
+| `youtube-intel --help` | PASS; help only, no other product command. |
+| Correction and complete B11 `git diff --check` | PASS for both fixed ranges. |
+| stdout/stderr/JSONL/test/handoff/fixture, real-target/secret, CR, LF/EOF, SHA-256, lock and final scope scans | PASS; every reviewed file ends LF, no CR, fixtures/forbidden files are unchanged, and the single B11 event callsite remains fixed. |
+
+### Diff review, skips, remaining risk, and conclusion
+
+- The Reviewer will append only this evidence. No business code, test, task
+  state, ADR, prompt, control-plane file, fixture, dependency, lockfile, Schema,
+  configuration, CLI, authentication, or logging schema is modified.
+- Formally skipped/prohibited: full pytest, build/package checks, other CLI
+  subcommands, network/YouTube/real smoke, authentication/Cookie/netrc, media or
+  ffmpeg, real Vault/user data, models/Ollama/OpenAI/cloud calls, merge, push,
+  task-state changes, source cleanup, and index generation. These are not pass
+  evidence.
+- Remaining risk: this is synthetic offline coverage proof. It does not establish
+  a real-service cause, a compatibility repair, body readability, broad yt-dlp
+  compatibility, release approval, or final Go. TASK-014B11 remains
+  `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
+- Verdict: `APPROVE`; unresolved P0/P1: none. Reviewer evidence commit is
+  reported after creation. `DECISION NEEDED`: `None`.
