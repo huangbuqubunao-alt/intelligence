@@ -170,11 +170,11 @@
   省略整个字段。B6/B7 诊断、解析接受面和所有运行边界不变；不得输出值、URL、正文、标题、语言、轨道、路径、异常、凭据或用户数据。
   未合并 B-1 B7 evidence `8f5dfce33ac77a45800f4ff53ff6e7054d8f68b0` 只作失败只读引用，不得合并、重写或写成通过。独立 Reviewer evidence
   `96dee64ec7ab172d036e8472ffc3f65efa0cb6c4`（唯一父 `2334374…`）仅追加 handoff，Verdict=`APPROVE`、P0--P3=`0`，accepted source
-  干净；完整 B8 Diff 严格为五路径。Reviewer 已通过 focused `119`、mypy、Ruff、CLI help、范围及 stdout/stderr/JSONL/test/handoff
-  泄漏扫描，但未运行 build 或全量 pytest；这不是通过证据。Product Integrator 仅获固定 source 的 `--no-ff` merge 授权，且必须先
-  locked offline sync、focused `119`、全量 pytest、mypy、Ruff、CLI help、offline build、五路径范围与泄漏扫描全通过；缓存缺失或任一
-  失败均停止、不合并、不修复且不得重试。TASK-014B8 为 `ACCEPTED`；TASK-014 继续 `IN_PROGRESS / No-Go`，B8 不构成真实 B-1
-  成功、真实服务验证或发行批准。
+  干净；完整 B8 Diff 严格为五路径。Product Integrator 已以 `--no-ff` merge
+  `8bedbf1211c31fed07c30cf47aa33371aa374476` 整合，双父顺序为 `7f68384…`、`96dee64…`，accepted source 是 merge 祖先。lock check、
+  locked offline sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、五路径范围与
+  stdout/stderr/JSONL/test/handoff 泄漏扫描均通过；first-parent Diff 严格为五路径，fixture、锁与依赖未变，source 干净并保留。
+  TASK-014B8 现为 `DONE`；TASK-014 继续 `IN_PROGRESS / No-Go`，B8 不构成真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -351,7 +351,7 @@
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
 | 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
-| ACCEPTED | TASK-014B8：受限键名级字幕目录诊断 | accepted source `codex/task-014b8-restricted-directory-keyname-diagnostic@96dee64…` / `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic`（唯一父 `2334374…`）干净；Reviewer APPROVE/P0--P3=0，仅改 handoff。focused `119`、mypy、Ruff、CLI help、范围和 stdout/stderr/JSONL/test/handoff 泄漏扫描已通过；build 与全量 pytest 未运行不算通过，Integrator 必须先完成 locked offline sync、全套门禁与五路径范围/泄漏扫描才可 `--no-ff` 合并 |
+| DONE | TASK-014B8：受限键名级字幕目录诊断 | merge `8bedbf1…` 已进入 main，双父 `7f68384…`、`96dee64…`；accepted source 是 merge 祖先，first-parent Diff 严格为五路径，fixture/锁/依赖未变。lock check、locked offline sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与 stdout/stderr/JSONL/test/handoff 泄漏扫描通过；source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | DONE | TASK-014B7：字幕目录安全来源与结构指纹 | merge `81ee343…` 已进入 main，双父 `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 为允许六路径的五路径子集，fixture 未重现。既有 lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 与补充离线 build、范围/泄漏扫描通过；锁未变，source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
 | DONE | TASK-014B6：安全字幕目录结构诊断 | `--no-ff` merge `f402400…` 已进入 main，双父 `dac394b…`、`f16f94a…`；accepted source 是 merge 祖先，first-parent Diff 严格为 Adapter、`public_subtitle_smoke.py`、一个脱敏 fixture、两份 integration test 与 handoff。既有离线 lock/sync、Provider/Smoke `104`、mypy、Ruff、CLI help、build、范围和 stdout/stderr/JSONL/fixture 泄漏扫描通过；source 干净并保留。B6 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
