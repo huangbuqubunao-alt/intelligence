@@ -895,3 +895,75 @@
 - Remaining risk: the closed classifications are intentionally limited to existing local mapping states. They do
   not establish a real-service cause or authorize compatibility remediation.
 - `DECISION NEEDED`: `None`.
+
+## TASK-014B10 Independent Reviewer Evidence — 2026-07-29
+
+### Fixed review object and preflight
+
+- Role: `Independent Reviewer`.
+- Reviewed branch: `codex/task-014b10-safe-content-availability-diagnostic`.
+- Reviewed implementation: `3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`; its sole
+  parent is `6fd7b5cc3fae6466fb6181151513f4854d196683`.
+- Dynamic authorization `main@16f168b032d060fc9f2e46ced5744d81b7db6d2b` is a
+  clean single-parent descendant of the fixed control-plane baseline and changes
+  only control-plane documents. Source was clean before this evidence append.
+- B9 failure evidence `bd770ef9d212ebe75689b8f33145bf2556fe93c2` is not an
+  ancestor of the implementation or authorization commit and remains unmerged.
+- The complete implementation range is exactly the five authorized paths. No
+  fixture, dependency, lockfile, Schema/migration, configuration, default CLI,
+  logging schema, authentication, or control-plane product path changed.
+  `git diff --check` passed. Reuse remains `DIRECT`.
+
+### Tests-first and five-axis review
+
+- Tests were reviewed before implementation. They directly exercise the four
+  private availability states and a missing-state fallback, but construct the
+  private state/error helper instead of exercising the Adapter error-mapping
+  boundary that production uses.
+- Correctness and product semantics have one blocking finding below. Static
+  review otherwise confirmed the closed four-code vocabulary and the smoke-side
+  directory-only / `CONTENT_UNAVAILABLE` / enumerate=`1` / read=`0` outlet gate.
+- Readability, architecture, privacy, and performance review found no additional
+  issue before the mandatory P1 stop. They were not exhaustively completed after
+  the stop, and no unrun gate is reported as passing.
+
+### Findings
+
+- `P0=0`.
+- `P1=1` — `src/youtube_intel/providers/subtitles.py:422`: the
+  extractor-compatibility classification is selected only when the caught
+  exception has the exact type `ExtractorError`. The locked yt-dlp production
+  boundary catches extractor errors and raises `DownloadError` when errors are
+  not ignored, so the default Adapter cannot reach this branch. The new tests
+  bypass that boundary by directly constructing the private state, allowing all
+  four code assertions to pass without proving a production mapping. In
+  addition, a generic extractor exception type alone does not safely establish
+  compatibility as the next-action category. This violates ADR-020's requirement
+  to classify only from trustworthy local facts and to use unknown for partial
+  or unreliable judgments. The Adapter boundary needs a safe reachable mapping
+  and a regression that exercises it; this Reviewer is not authorized to fix it.
+- `P2=0 recorded before stop`; no exhaustive P2 review after the P1.
+- `P3=0 recorded before stop`; no exhaustive P3 review after the P1.
+
+### Checks and mandatory stop
+
+| Check | Result |
+|---|---|
+| branch, HEAD, sole parent, authorization ancestry, source/main cleanliness, B9 unmerged | PASS |
+| exact five-path range, forbidden-path exclusion, initial `git diff --check` | PASS |
+| tests-first static review and implementation Diff review | FAIL — blocking P1 above |
+| locked yt-dlp exception-boundary static inspection | FAIL — production converts extractor errors to `DownloadError` |
+| `uv sync --locked --offline` | NOT RUN — mandatory P1 immediate stop |
+| focused pytest, mypy, Ruff, CLI help, final Diff check, formal full-output leak scan | NOT RUN — mandatory P1 immediate stop |
+
+### Reviewer conclusion
+
+- Verdict: `REJECT` for
+  `6fd7b5cc3fae6466fb6181151513f4854d196683...3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`.
+- Unresolved P0/P1: the P1 above remains open.
+- Not run: full pytest, build/package checks, any smoke or other product command,
+  network/YouTube, media/ffmpeg, authentication/Cookie/API key handling,
+  Vault/user data, models/Ollama/OpenAI, launchd, push, merge, or source cleanup.
+- TASK-014B10 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
+  This review is not real-service verification, compatibility-fix authorization,
+  release approval, or final Go.
