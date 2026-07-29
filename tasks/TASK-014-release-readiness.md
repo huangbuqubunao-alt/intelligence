@@ -127,6 +127,15 @@
   `5b485fa5856654d2a8d9f588b5ef1ab807b52bc3` 整合 accepted source；有序双父为 `0f05104…`、`880e796…`，first-parent
   Diff 精确为 B10 五路径，锁与禁止范围未变，main/source 干净。B10 已关闭为 `DONE`，B9 仍未合并；该离线整合不构成真实
   YouTube/smoke 成功、普遍 yt-dlp 兼容性证明、事实性根因确认或发行批准。TASK-014 始终 `IN_PROGRESS / No-Go`。
+- 产品负责人现授权一次新的 B10-classified directory-only 执行窗口，只对 B9 的同一固定 ID `eIho2S0ZahI` 调用一次已整合的
+  `smoke-public-subtitles --directory-only`。固定 execution source 为
+  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution` /
+  `codex/task-014-phase-b1-directory-only-b10-execution@f00aa9cffa25dcb9b7165edf21a4d476263c1dc5`；正式包为
+  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B10-EXECUTION-CODEX.md`，本控制面不启动 Executor。
+  只有离线 lock/sync/lock、绝对 launcher 静态映射和新 parent/non-existent `smoke-root` 全通过后，才可执行唯一一次 `1/1/0` 调用。
+  证据只可写新的 B10-classified evidence、release checklist 与 handoff，并仅记录安全摘要及实际输出的 B6--B10 固定证据；不得推断
+  未输出分类。video-unavailable 停用候选，environment-restricted 转环境处理，extractor-compatibility 另建最小任务，unknown 停止重试；
+  目录成功也不证明正文可读。B9 evidence 继续只读且未合并；任一结果保持 TASK-014 `IN_PROGRESS / No-Go`，不构成发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
