@@ -104,6 +104,14 @@
   离线 lock/sync/lock、绝对 launcher、临时 parent/non-existent `smoke-root`、安全证据和停止规则以正式包为准。证据只可记录安全
   stdout 摘要、B6/B7 固定分类，以及仅在 ADR-019 全部条件同时成立时的受限键名数组；任一结果都保持 TASK-014
   `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
+- 产品负责人现授权 TASK-014B9「替代公开样本 directory-only 资格验证」的一次单视频执行。候选 `eIho2S0ZahI` 的公开 TED
+  官方频道线索仅来自 agent-reach/yt-dlp 的只读字幕目录枚举，未下载正文；其工具版本可能不同于项目锁定的 yt-dlp，绝不构成项目通过
+  证据。唯一 source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
+  `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4f343442e69bb88e09e36bffc7996341cf`，必须保持干净；正式包为
+  `agent-prompts/TASK-014B9-REPLACEMENT-CANDIDATE-DIRECTORY-ONLY-EXECUTION-CODEX.md`，本控制面不启动 Executor。只可对该 ID
+  一次执行已整合的 `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`；离线 lock/sync/lock、绝对
+  launcher、临时 parent/non-existent `smoke-root`、安全证据和停止规则以正式包为准。任一结果都保持 TASK-014
+  `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

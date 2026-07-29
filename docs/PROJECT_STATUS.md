@@ -186,6 +186,18 @@
   全部触发条件同时成立时最多 16 个规范 ASCII `directory_key_names`；禁止其他字段名/值、URL、正文、标题、语言、轨道名、路径、异常、
   Cookie、token、payload、用户数据或凭据。缓存缺失、下载/网络迹象、launcher/临时根不符、非零退出、计数不符或任何泄漏均立即停止，
   不重试、不修复、不扩大范围；任一结果保持 TASK-014 `IN_PROGRESS / No-Go`，不构成真实服务验证通过或发行批准。
+- 产品负责人现授权 TASK-014B9「替代公开样本 directory-only 资格验证」的一次单视频执行。候选 `eIho2S0ZahI` 的公开 TED
+  官方频道线索仅来自 agent-reach/yt-dlp 的只读字幕目录枚举，未下载正文；agent-reach 的工具版本可能不同于项目锁定 yt-dlp，
+  因而不构成项目通过证据。控制面基线为 `main@e975ff4f343442e69bb88e09e36bffc7996341cf`；唯一 execution source
+  worktree/branch/HEAD 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
+  `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4f343442e69bb88e09e36bffc7996341cf`，必须保持干净。唯一正式包为
+  `agent-prompts/TASK-014B9-REPLACEMENT-CANDIDATE-DIRECTORY-ONLY-EXECUTION-CODEX.md`；本控制面不启动 Executor。它只允许在
+  离线 lock/sync/lock、绝对 launcher 映射和新 parent/non-existent `smoke-root` 均通过后，对唯一固定公开视频 `eIho2S0ZahI` 一次运行
+  `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`。证据只可记录安全 stdout 摘要、ADR-017
+  `directory_diagnostic`、ADR-018 `directory_origin`/`directory_fingerprint`，以及仅在 ADR-019 全部触发条件同时成立时最多 16 个
+  规范 ASCII `directory_key_names`；禁止正文、字段值、URL、标题、语言、轨道名、路径、异常、认证、Cookie、媒体、模型、OpenAI、Vault、
+  用户数据或凭据。缓存缺失、下载/网络迹象、launcher/临时根不符、非零退出、计数不符或任何泄漏均立即停止，不重试、不修复、不扩大范围；
+  任一结果保持 TASK-014 `IN_PROGRESS / No-Go`，不构成真实服务验证通过或发行批准。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -363,6 +375,7 @@
 | 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014 Phase B-1：B8 keyname-audited 单视频 directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` 干净；仅按正式包对 `--khbXchTeE` 一次调用 B4 directory-only，记录 B5 安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名。缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
+| 已授权未启动 | TASK-014B9：替代公开样本 directory-only 资格验证 | source `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` 干净；候选 `eIho2S0ZahI` 的外部只读目录线索不构成项目通过证据。仅按正式包一次调用 B4 directory-only，记录安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名；缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止，任一结果不构成 TASK-014 Go 或发行批准 |
 | DONE | TASK-014B8：受限键名级字幕目录诊断 | merge `8bedbf1…` 已进入 main，双父 `7f68384…`、`96dee64…`；accepted source 是 merge 祖先，first-parent Diff 严格为五路径，fixture/锁/依赖未变。lock check、locked offline sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与 stdout/stderr/JSONL/test/handoff 泄漏扫描通过；source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | DONE | TASK-014B7：字幕目录安全来源与结构指纹 | merge `81ee343…` 已进入 main，双父 `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 为允许六路径的五路径子集，fixture 未重现。既有 lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 与补充离线 build、范围/泄漏扫描通过；锁未变，source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |
