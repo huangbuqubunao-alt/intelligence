@@ -780,3 +780,65 @@
   fail-closed output boundary; they do not validate a real service or grant
   release approval.
 - `DECISION NEEDED`: `None`.
+
+## TASK-014B8 Independent Reviewer Evidence — 2026-07-29
+
+### Fixed review object and preflight
+
+- Role: `Independent Reviewer`.
+- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
+  `codex/task-014b8-restricted-directory-keyname-diagnostic`.
+- Reviewed implementation: `2334374f66497546108d12be541ab137b4a8981a`; its sole
+  parent is `43f2c748c43215facb231f76a0c93ac45d350657`.
+- Dynamic authorization: clean `main@a3a905db8bfef0326a2625eac76e199b8b01f2f3`
+  descends from `main@a8ea95775f452203958ec2abb56b8eeb317917f3`; its only
+  intervening changes are the B8 control-plane documents. Source and main were
+  clean before this evidence append.
+- The complete product range is exactly the five authorized paths: Adapter,
+  smoke composition, two integration tests, and this handoff. No dependency,
+  lockfile, Schema, logging, CLI, fixture, configuration, or control-plane
+  product change is present. Reuse decision remains `DIRECT`.
+
+### Independent ADR-019 review
+
+- The Adapter examines only direct keys of an exact directory `dict`, never
+  traverses or reads values, and fails closed for non-dict mappings, iteration
+  faults, malformed keys, and more than 16 unique keys. Accepted keys are
+  deduplicated, ASCII-sorted, and fully constrained by the ADR-019 pattern.
+- The smoke outlet independently requires directory-only, directory
+  `INVALID_RESPONSE`, mapping origin, unknown fingerprint, and exactly one
+  enumeration with zero reads. It revalidates tuple type, canonical order,
+  uniqueness, cap, and pattern before adding the permitted key-name array to
+  stdout or the existing JSONL safe message.
+- Default mode, successful directories, known/non-mapping directory failures,
+  body failures, malformed sets, and over-limit sets omit the optional field.
+  B6/B7 labels and the existing read counts, exit behavior, CLI, temporary-root,
+  ID-bound, no-retry, zero-business-record, parsing, and fail-closed boundaries
+  are unchanged outside the narrow diagnostic path.
+- Diff and added-line leakage review found no response-derived value, URL,
+  subtitle text, title, language or track value, path, raw exception,
+  credential, payload, or user-data material. The only newly emitted
+  response-derived material is the ADR-019-authorized synthetic safe key-name
+  array.
+
+| Check | Result |
+|---|---|
+| source/main authorization, branch, HEAD, sole parent, cleanliness, and dynamic-main product-surface check | PASS |
+| fixed range, five-path allowlist, `git diff --check`, dependency/logging/CLI exclusion | PASS |
+| static ADR-019 trigger, negative-boundary, B6/B7 preservation, and output-leak review | PASS |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS — 119 passed |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS |
+| `.venv/bin/youtube-intel --help` | PASS — help only |
+
+### Reviewer conclusion
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Verdict: `APPROVE` for `43f2c748c43215facb231f76a0c93ac45d350657...2334374f66497546108d12be541ab137b4a8981a`.
+- Not run: `uv`, build/package checks, full suite, Python/import probes, any
+  smoke invocation, network/YouTube, media/ffmpeg, authentication/Cookie/API
+  key handling, Vault/user data, database diagnostics, models/Ollama/OpenAI,
+  launchd, push, or merge.
+- TASK-014B8 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
+  This offline review is neither real-service verification nor release approval
+  or final Go.
