@@ -53,3 +53,20 @@
 
 只有四项均为 `GO`、所有 `BLOCKED` 项有可审计的关闭证据、且发布形态与 SBOM/NOTICE
 一致时，才可由主控另行决定发布。否则维持 `NO-GO` 并开立范围明确的后续任务。
+
+## Phase B-1 B10-classified directory-only evidence — 2026-07-29
+
+| 项目 | 实际结果 | 发布含义 |
+|---|---|---|
+| 固定目标 | `eIho2S0ZahI`；正式产品调用恰好一次 | 未换 ID、未增加目标、未重试 |
+| 安全摘要 | exit=`1`; metadata=`1`; enumerate=`1`; read=`0`; `INVALID_RESPONSE` | `FAIL`; 正文读取上限保持为零 |
+| B6/B7 固定诊断 | `directory_shape_unknown`; `directory_origin_mapping`; `directory_fingerprint_unknown` | 仅记录实际安全输出，不反推根因 |
+| B8 keyname | 未产生 | 不保存或推断键名 |
+| B10 availability | 未产生；`CONTENT_UNAVAILABLE` 出口未满足 | 不得改写为四类中的任何一种 |
+| 产品与发布决定 | 停止且不重试 | TASK-014 保持 `IN_PROGRESS / No-Go`; TASK-014B10 保持 `DONE` |
+
+前置离线 lock/sync/lock 与绝对 launcher 静态映射均通过；`uv.lock` 未变，未见下载或
+额外网络迹象。唯一真实资源动作是获准的 directory-only YouTube 调用；未使用认证、
+媒体、字幕正文、ffmpeg、模型、云服务、真实 Vault、用户数据或其他真实资源。本结果
+不证明字幕正文可读、公开视频普遍兼容、发布可行或最终 Go。完整安全证据见
+`docs/SMOKE_EVIDENCE/TASK-014-PHASE-B1-DIRECTORY-ONLY-B10-CLASSIFIED-PUBLIC-YOUTUBE.md`。

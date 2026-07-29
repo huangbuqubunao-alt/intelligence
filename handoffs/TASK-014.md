@@ -1167,3 +1167,70 @@
   `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
 - Evidence commit SHA: reported after creation of the required handoff-only child
   of `c65502e3680d14a88ae52a1c27eea47d42b5e8b0`. `DECISION NEEDED`: `None`.
+
+## TASK-014 Phase B-1 B10-classified Smoke Executor Evidence — 2026-07-29
+
+### Fixed object, authorization, and reuse
+
+- Role: `Codex Smoke Executor` for the single-video B10-classified
+  directory-only window.
+- Branch and pre-execution HEAD matched
+  `codex/task-014-phase-b1-directory-only-b10-execution@f00aa9cffa25dcb9b7165edf21a4d476263c1dc5`;
+  source worktree and index were clean.
+- Dynamic main authorization matched
+  `80aff83fc033a8bd2950108cad2e34feea5d396f`, and the formal execution package
+  matched the authorized blob.
+- Reuse decision: `DIRECT` — integrated B4 directory-only composition, B5 safe
+  summary, B6/B7/B8 fixed diagnostics, B10 ADR-020 outlet, the locked
+  `youtube_intel.cli:main` console entry, and existing evidence documents. No
+  dependency, third-party source, or license record changed; existing locked
+  `yt-dlp==2026.7.4` evidence remains in the reuse and release records.
+
+### Preflight and sole execution
+
+| Check | Actual result |
+|---|---|
+| First `uv lock --check` | PASS — exit `0`; run once |
+| `uv sync --locked --offline` | PASS — exit `0`; run once from local cache; no download/network indication |
+| Second `uv lock --check` | PASS — exit `0`; run once |
+| Launcher static check | PASS — regular executable; launcher, project script, and installed metadata map to `youtube_intel.cli:main` |
+| Tracked source and `uv.lock` after preflight | PASS — unchanged and clean |
+| Fresh temporary root gate | PASS — new parent; child absent as file, directory, and symbolic link before execution |
+| Fixed target | `eIho2S0ZahI` only |
+| Product calls | `1` total; no retry |
+| Exact product exit code | `1` |
+| Safe counts | metadata=`1`; enumerate=`1`; read=`0` |
+| Safe error code | `INVALID_RESPONSE` |
+| B6 diagnostic | `directory_shape_unknown` |
+| B7 origin/fingerprint | `directory_origin_mapping` / `directory_fingerprint_unknown` |
+| B8 `directory_key_names` | 未产生；无值被保存或推断 |
+| B10 `content_availability` | 未产生；ADR-020 gate 未满足，不推断四类结果 |
+
+The command stopped after the single authorized invocation. The result is a
+safe `FAIL`, with the body-read ceiling preserved at zero. Because no B10
+classification was produced, B6/B7 diagnostics are not used to infer
+video-unavailable, environment-restricted, extractor-compatibility, or unknown.
+The fixed action is to stop without retry and keep `No-Go`.
+
+### Safety, scope, and handoff conclusion
+
+- No second invocation, alternate ID, extra ID, loop, concurrency, PATH change,
+  venv activation, module/alternate entry, help call, or extra product
+  diagnostic occurred.
+- No authentication material, media or subtitle body, ffmpeg, model, Ollama,
+  OpenAI, paid/cloud service, real Vault, user note/data, launchd action, or
+  other real resource was accessed. The one authorized directory-only YouTube
+  call was the sole real-resource action.
+- No raw output/response, URL, title, language, track, field value, exception
+  text, payload, credential material, or temporary absolute path is retained in
+  the evidence surface.
+- Actual evidence paths are exactly the new B10 smoke evidence,
+  `docs/RELEASE_CHECKLIST.md`, and this handoff. Product code, tests,
+  dependencies, `uv.lock`, Schema/migration, configuration, CLI, logging
+  schema, ADRs, task status, and control-plane files remain untouched.
+- Not run: tests, type checking, lint, build, other CLI/product commands,
+  Reviewer, merge, push, release, rebase, reset, squash, or source cleanup.
+- TASK-014 remains `IN_PROGRESS / No-Go`; TASK-014B10 remains `DONE`. This
+  evidence is not subtitle-body readability, broad compatibility, release
+  approval, or final Go. Evidence commit SHA is reported after creation of the
+  required single-parent evidence-only commit. `DECISION NEEDED`: `None`.
