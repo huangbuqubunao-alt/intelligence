@@ -97,6 +97,22 @@ class _YdlHandle:
         return self._result
 
 
+class _IdentityShapeMismatchPayload(Mapping[object, object]):
+    """Expose only a non-user sentinel at the outer downloader boundary."""
+
+    _sentinel = object()
+
+    def __getitem__(self, key: object) -> object:
+        del key
+        return self._sentinel
+
+    def __iter__(self) -> Iterator[object]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 1
+
+
 class _Response:
     def __init__(
         self,
@@ -568,6 +584,24 @@ def test_directory_contract_state_uses_only_frozen_no_value_enums() -> None:
             subtitles_mod._TrackEntryShape.NOT_EVALUATED,
             subtitles_mod._RequiredMembersShape.NOT_EVALUATED,
         )
+
+
+def test_ytdlp_adapter_maps_contract_mismatch_to_frozen_no_value_state() -> None:
+    adapter, _ = _adapter_for_info(_IdentityShapeMismatchPayload())
+
+    with pytest.raises(TranscriptError) as captured:
+        adapter.enumerate_tracks("video123")
+
+    assert captured.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert captured.value.directory_origin == "directory_origin_mapping"
+    assert captured.value.directory_contract_state == (
+        "other",
+        "unknown",
+        "unknown",
+        "not_evaluated",
+        "not_evaluated",
+        "not_evaluated",
+    )
 
 
 @pytest.mark.parametrize(

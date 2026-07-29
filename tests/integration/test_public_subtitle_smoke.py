@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -167,38 +168,6 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
 
 
 @dataclass
-class _ContractStateDirectorySubtitleAdapter(_InvalidDirectorySubtitleAdapter):
-    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
-        self.enumerate_calls.append(video_id)
-        self.last_call = ProviderCallMetadata(
-            provider="fake",
-            started_at=NOW,
-            finished_at=NOW,
-            diagnostics=(
-                DiagnosticEntry(
-                    code="directory_shape_unsupported_entry",
-                    message="directory shape unsupported entry",
-                ),
-            ),
-        )
-        contract_state = subtitles_mod._directory_contract_state(
-            subtitles_mod._VideoIdentityShape.STRING,
-            subtitles_mod._DirectoryShape.MAPPING,
-            subtitles_mod._DirectoryShape.MAPPING,
-            subtitles_mod._CaptionBucketShape.SEQUENCE,
-            subtitles_mod._TrackEntryShape.MAPPING,
-            subtitles_mod._RequiredMembersShape.MISSING,
-        )
-        raise subtitles_mod._directory_structure_error(
-            subtitles_mod._DirectoryStructureState.REQUIRED_FIELD_MISSING,
-            "directory_shape_unsupported_entry",
-            ErrorCode.INVALID_RESPONSE.value,
-            video_id=video_id,
-            contract_state=contract_state,
-        )
-
-
-@dataclass
 class _InvalidBodySubtitleAdapter(_FakeSubtitleAdapter):
     def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
         self.read_calls.append(track)
@@ -231,6 +200,33 @@ class _ContentUnavailableSubtitleAdapter(_FakeSubtitleAdapter):
             )
         )
         raise self.content_error if self.content_error is not None else error
+
+
+class _IdentityShapeMismatchPayload(Mapping[object, object]):
+    """Expose only a non-user sentinel at the outer downloader boundary."""
+
+    _sentinel = object()
+
+    def __getitem__(self, key: object) -> object:
+        del key
+        return self._sentinel
+
+    def __iter__(self) -> Iterator[object]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 1
+
+
+@dataclass
+class _DirectoryTransport:
+    payload: object
+    calls: int = 0
+
+    def extract_info(self, target: str, download: bool = True) -> object:
+        del target, download
+        self.calls += 1
+        return self.payload
 
 
 @dataclass
@@ -270,6 +266,30 @@ def _smoke(
         if subtitle_timeouts is not None:
             subtitle_timeouts.append(timeout_seconds)
         return subtitles
+
+    return PublicSubtitleSmoke(
+        metadata_provider_factory=metadata_factory,
+        subtitle_adapter_factory=subtitle_factory,
+        now=lambda: NOW,
+    )
+
+
+def _smoke_with_production_subtitle_adapter(
+    metadata: _FakeMetadataProvider,
+    transport: _DirectoryTransport,
+) -> PublicSubtitleSmoke:
+    def metadata_factory(timeout_seconds: float) -> _FakeMetadataProvider:
+        del timeout_seconds
+        return metadata
+
+    def subtitle_factory(timeout_seconds: float) -> subtitles_mod.YtDlpSubtitleAdapter:
+        adapter = subtitles_mod.YtDlpSubtitleAdapter(timeout_seconds=timeout_seconds)
+        subtitles_mod._bind_test_hooks(
+            adapter,
+            ydl_factory=lambda opts: transport,
+            clock=lambda: NOW,
+        )
+        return adapter
 
     return PublicSubtitleSmoke(
         metadata_provider_factory=metadata_factory,
@@ -649,31 +669,40 @@ def test_directory_only_emits_frozen_directory_contract_state_matrix(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     metadata = _FakeMetadataProvider()
-    subtitles = _ContractStateDirectorySubtitleAdapter()
+    transport = _DirectoryTransport(_IdentityShapeMismatchPayload())
     root = tmp_path / "smoke-root"
 
     exit_code = main(
         _args(root, VIDEO_IDS[0], directory_only=True),
-        smoke_runner=_smoke(metadata, subtitles),
+        smoke_runner=_smoke_with_production_subtitle_adapter(metadata, transport),
     )
 
     assert exit_code is ExitCode.EXECUTION_FAILED
-    summary = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr()
+    assert output.err == ""
+    summary = json.loads(output.out)
     assert tuple(summary)[-6:] == _DIRECTORY_CONTRACT_FIELDS
     assert tuple(summary[field] for field in _DIRECTORY_CONTRACT_FIELDS) == (
-        _DIRECTORY_CONTRACT_STATE
+        "other",
+        "unknown",
+        "unknown",
+        "not_evaluated",
+        "not_evaluated",
+        "not_evaluated",
     )
-    contract_record = next(
+    contract_records = [
         json.loads(line)
         for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
             encoding="utf-8"
         ).splitlines()
         if json.loads(line)["event"] == "smoke.target.directory_contract_state"
-    )
+    ]
+    assert len(contract_records) == 1
+    contract_record = contract_records[0]
     assert contract_record["safe_message"] == (
-        "video_identity_shape=string manual_directory_shape=mapping "
-        "automatic_directory_shape=mapping caption_bucket_shape=sequence "
-        "track_entry_shape=mapping required_members_shape=missing"
+        "video_identity_shape=other manual_directory_shape=unknown "
+        "automatic_directory_shape=unknown caption_bucket_shape=not_evaluated "
+        "track_entry_shape=not_evaluated required_members_shape=not_evaluated"
     )
     assert set(contract_record) == {
         "timestamp",
@@ -686,6 +715,35 @@ def test_directory_only_emits_frozen_directory_contract_state_matrix(
         "error_code",
         "duration_ms",
     }
+    assert transport.calls == 1
+
+
+def test_production_contract_state_is_omitted_without_directory_only_gate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    transport = _DirectoryTransport(_IdentityShapeMismatchPayload())
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, VIDEO_IDS[0]),
+        smoke_runner=_smoke_with_production_subtitle_adapter(metadata, transport),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    output = capsys.readouterr()
+    assert output.err == ""
+    summary = json.loads(output.out)
+    assert all(field not in summary for field in _DIRECTORY_CONTRACT_FIELDS)
+    records = [
+        json.loads(line)
+        for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert all(record["event"] != "smoke.target.directory_contract_state" for record in records)
+    assert transport.calls == 1
 
 
 @pytest.mark.parametrize(

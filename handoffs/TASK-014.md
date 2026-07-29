@@ -1359,3 +1359,82 @@
 - TASK-014 remains `IN_PROGRESS / No-Go`; TASK-014B11 remains under review.
 - Reviewer evidence commit: reported after creation of the required single
   handoff-only commit. `DECISION NEEDED`: `None`.
+
+## TASK-014B11 Correction 1 Implementer Evidence — 2026-07-29
+
+### Metadata, goal, scope, and reuse
+
+- Role: original Codex Implementer for Correction 1; fixed source branch
+  `codex/task-014b11-safe-directory-contract-diagnostics` started clean at
+  Reviewer evidence `4aebc01360fa9684fe6b052f266a00ecc2de57dc`, whose sole
+  parent is implementation `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`.
+- Dynamic main authorization `f902aec309927751d173145e46a617a467745e85`
+  had sole parent `63911ff6c478bf89cb724474c3ab34e518652440`; its formal
+  Correction prompt matched the external prompt byte-for-byte by SHA-256.
+- Git-only gates confirmed the implementation/review parent chain, the original
+  five-path B11 range, handoff-only Reviewer evidence, clean source, and both
+  read-only evidence commits remaining outside main/source.
+- Goal: close the sole P1 with offline production-boundary proof through real
+  `YtDlpSubtitleAdapter.enumerate_tracks()` and real `PublicSubtitleSmoke`.
+  Actual Correction paths are the two authorized integration tests and this
+  handoff; both production files remain unchanged.
+- Reuse remains `DIRECT`: the locked yt-dlp Adapter, B4 directory-only, B5 safe
+  stdout/JSONL schema, ADR-017--ADR-021 diagnostics, and existing offline test
+  wiring. No dependency, third-party code, fixture, lockfile, Schema, migration,
+  configuration, authentication, default CLI, or log-schema change was made.
+
+### Tests-first production chain and coverage-only result
+
+- Before any production edit, tests were added/replaced so the only Fake is the
+  outer downloader transport. It returns a non-user synthetic sentinel through
+  a `Mapping`; it does not call a classification helper, construct a private
+  final diagnostic error, set a private state tuple, or return a matrix.
+- The direct Provider node calls real `YtDlpSubtitleAdapter.enumerate_tracks()`.
+  The Adapter itself validates the directory concept mismatch, constructs the
+  exact state `other/unknown/unknown/not_evaluated/not_evaluated/not_evaluated`,
+  maps it to `TranscriptError(INVALID_RESPONSE)`, and preserves mapping origin.
+- The real smoke node injects that Adapter through the existing factory, then
+  verifies complete ordered stdout fields and exactly one bounded
+  `smoke.target.directory_contract_state` event with the unchanged top-level
+  JSONL schema. A second real-chain node removes the directory-only gate and
+  verifies all six fields and the event are absent.
+- Initial new-node command, run after the single authorized offline sync:
+  `.venv/bin/pytest tests/integration/test_subtitle_provider.py::test_ytdlp_adapter_maps_contract_mismatch_to_frozen_no_value_state tests/integration/test_public_subtitle_smoke.py::test_directory_only_emits_frozen_directory_contract_state_matrix tests/integration/test_public_subtitle_smoke.py::test_production_contract_state_is_omitted_without_directory_only_gate`.
+  Result: `3 passed` on unchanged production source. Therefore there was no
+  valid product RED; Correction 1 is coverage-only, and no production repair or
+  GREEN rerun was permitted or needed.
+
+### Authorized checks and regression evidence
+
+| Check | Result |
+|---|---|
+| `uv sync --locked --offline` | PASS once: `Resolved 84`, `Checked 61`; no download/network indication. |
+| Initial production-chain nodes | PASS: `3 passed`; coverage-only, no valid product RED. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS: `149 passed`; default smoke, B4--B10, counts, exit codes, no retry, and body-read behavior remain covered. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS: no issues in two source files. |
+| Authorized Ruff command on two source and two integration-test files | PASS: all checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS; help only, with no other product command. |
+| Pre-commit Correction/full B11 scope, lock/forbidden paths, LF/EOF, SHA-256, and output-surface scans | PASS: Correction is three paths, full B11 remains five; forbidden files/fixtures unchanged; EOF byte `10`, no CR, and all material scans clear. |
+
+### Diff review, skips, and remaining risk
+
+- The Correction is the minimum permitted subset: Provider integration test,
+  smoke integration test, and this appended handoff. Adapter and smoke
+  production sources are unchanged because the production chain passed first
+  run. No fixture was added, restored, read, modified, moved, or embedded.
+- The new material contains only ADR-021 project contract concepts and non-user
+  synthetic sentinels. Tests assert empty stderr, ordered/complete stdout,
+  unchanged JSONL fields, one event when gated, and zero when ungated; no real
+  URL, title, language, track, response content, exception text, external key,
+  credential, payload, path, or user data was added.
+- Formally skipped/prohibited: full pytest, build/package checks, other CLI
+  subcommands, network/YouTube/real smoke, authentication/Cookie/netrc, media or
+  ffmpeg, real Vault/user data, models/Ollama/OpenAI/cloud calls, task-state
+  changes, Reviewer startup, merge, push, and source cleanup.
+- Remaining risk: evidence is offline and synthetic. It proves the current
+  production Adapter-to-smoke transfer for a safe contract mismatch, not a real
+  service cause, compatibility repair, body readability, broad yt-dlp
+  compatibility, release approval, or final Go. TASK-014 remains
+  `IN_PROGRESS / No-Go`; TASK-014B11 remains `IN_PROGRESS / Codex`.
+- Correction commit SHA: reported after creation of the required single commit.
+  `DECISION NEEDED`: `None`.
