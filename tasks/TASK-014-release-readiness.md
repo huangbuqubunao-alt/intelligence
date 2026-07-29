@@ -133,16 +133,16 @@
   新 B10-classified evidence、release checklist 与本 handoff。它记录 metadata=`1`/enumerate=`1`/read=`0`、exit=`1`、
   `INVALID_RESPONSE`、`directory_shape_unknown`、`directory_origin_mapping` 和 `directory_fingerprint_unknown`；未产生 B8 keyname
   或 B10 availability。该 evidence 保持未合并、只读，不得修改、清理、重跑或改写为成功。
-- TASK-014B11 first Reviewer evidence `4aebc01360fa9684fe6b052f266a00ecc2de57dc` 是 implementation
-  `f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50` 的 handoff-only 唯一子提交。Verdict=`REJECT`、P1=`1`：现有私有枚举/tuple helper
-  断言与直接构造私有错误/最终矩阵的 Fake 绕过生产 `YtDlpSubtitleAdapter.enumerate_tracks()` 到真实 `PublicSubtitleSmoke`
-  的校验和错误传递链，无法证明字段错配及 `unknown`/`not_evaluated` 的生产映射。Reviewer 发现 P1 后按包立即停止，未运行 uv、focused
-  tests、mypy、Ruff、CLI help 或运行时输出扫描；这些不得写为独立 PASS。原 Codex Implementer 已获
-  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-IMPLEMENTER-CODEX.md` 动态 Correction 1 授权但
-  未启动：首个 Correction commit 必须以 Reviewer evidence 为唯一父，通过最外层离线 transport Fake 驱动真实 Adapter→Smoke 链；若
-  生产代码正确只补测试与 handoff，只有 RED 证明传递缺陷才允许最小修复。最大范围仍为原五路径最小子集，`51d974…` 与 `bd770e…`
-  继续未合并。TASK-014B11 退回 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写新的审查结论、真实 smoke、
-  兼容性证明或发行批准。
+- TASK-014B11 coverage-only Correction `ed250baf752182adbc4d98f5271d34995865d192` 是首轮 REJECT evidence
+  `4aebc01360fa9684fe6b052f266a00ecc2de57dc` 的唯一子提交，精确修改两份 integration tests 与 handoff；完整 B11 仍为原五路径，
+  Adapter 与 safe smoke 产品源码相对首轮 implementation 未改变。新增测试只在外层 transport 使用替身，调用真实
+  `YtDlpSubtitleAdapter.enumerate_tracks()` 完成校验/状态/`TranscriptError` 映射，再由真实 `PublicSubtitleSmoke` 生成 stdout/JSONL
+  六字段矩阵。三个新节点在产品源码未改时首次自报 `3 passed`，因此没有有效产品 RED，也没有产品修复；这只补齐首轮证据缺口，不得写成
+  修复已证实 bug。Implementer 自报 focused `149 passed` 等不得作独立证据。全新 Reviewer 2 已由
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-REVIEWER-2-CODEX.md` 授权但未启动，只可向
+  source handoff 追加证据并创建 handoff-only 子提交；必须独立复跑生产链节点、focused tests、mypy、Ruff、CLI、范围/Diff 与泄漏扫描。
+  `51d974…` 与 `bd770e…` 继续未合并。TASK-014B11 为 `IN_REVIEW`；TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写 Reviewer 2
+  结论、真实 smoke、兼容性证明或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

@@ -1,17 +1,19 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `原 Codex Implementer（Correction 1 已授权，本控制面不启动）`
-- Reviewer: `首轮 REJECT；Correction 后待全新独立 Reviewer`
+- Status: `IN_REVIEW`
+- Assignee: `原 Codex Implementer（Correction 1 已提交）`
+- Reviewer: `全新独立 Codex Reviewer 2（已授权，本控制面不启动）`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
 - Branch：`codex/task-014b11-safe-directory-contract-diagnostics`
-- Required source HEAD：`4aebc01360fa9684fe6b052f266a00ecc2de57dc`
+- Required source HEAD：`ed250baf752182adbc4d98f5271d34995865d192`
 - Implementation evidence：`f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`（唯一父提交
   `80aff83fc033a8bd2950108cad2e34feea5d396f`）
 - First Reviewer evidence：`4aebc01360fa9684fe6b052f266a00ecc2de57dc`（唯一父提交为
   implementation，handoff-only；`REJECT`，P1=`1`）
+- Correction 1 evidence：`ed250baf752182adbc4d98f5271d34995865d192`（唯一父提交为
+  First Reviewer evidence；coverage-only 三路径）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、
   ADR-017--ADR-020 固定诊断、既有 JSONL `safe_message` 与离线 integration 基础设施；不新增
   第三方代码或依赖。
@@ -62,7 +64,27 @@ B10-classified 真实 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是
 - 首个 Correction commit 的唯一父提交必须为 Reviewer evidence；最大范围仍为原五路径，实际 Diff
   必须是最小子集。不得启动 Implementer/Reviewer、预写 Correction 结果、Reviewer verdict、
   `ACCEPTED`、merge 或 `DONE`。
-- TASK-014B11 退回 `IN_PROGRESS / Codex`；TASK-014 始终保持 `IN_PROGRESS / No-Go`。
+- First review reject 控制面据此曾将 TASK-014B11 退回 `IN_PROGRESS / Codex`；该历史状态随后由
+  下述 Correction 1 review authorization 更新。TASK-014 始终保持 `IN_PROGRESS / No-Go`。
+
+## Correction 1 evidence 与 Reviewer 2 授权
+
+- Correction 1 唯一父提交为 First Reviewer evidence；Diff 精确为两份 integration tests 与
+  `handoffs/TASK-014.md` 三路径。完整 B11 Diff 仍精确位于 Adapter、safe smoke、两份 tests 与
+  handoff 原五路径，Correction/完整范围 `git diff --check` 均通过。
+- Correction 是 coverage-only：新增生产链测试先调用真实
+  `YtDlpSubtitleAdapter.enumerate_tracks()`，再由真实 `PublicSubtitleSmoke` 观察 stdout/JSONL；
+  新增三个节点在未修改产品源码时首次即自报 `3 passed`，因此没有有效产品 RED，也没有产品修复。
+  Adapter 与 safe smoke 产品源码相对首轮 implementation 未改变。这只补齐首轮缺少的生产传递链
+  证据，不得写成修复了已证实的产品代码 bug。
+- Implementer 自报完整 focused `149 passed`、mypy、Ruff、CLI help、范围、Diff 与泄漏扫描；`3/149`
+  及其他结果均不得替代 Reviewer 2 独立复跑或独立结论。
+- 全新独立 Reviewer 2 正式包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-CORRECTION-1-REVIEWER-2-CODEX.md`。
+  Reviewer 唯一可写路径为 source `handoffs/TASK-014.md`，且只能创建以 Correction HEAD 为唯一父
+  提交的 handoff-only commit；不得修改业务代码、测试、控制面或任务状态。
+- TASK-014B11 现为 `IN_REVIEW`；Reviewer 2 未启动，未预写 Verdict、`ACCEPTED`、merge 或
+  `DONE`。TASK-014 始终保持 `IN_PROGRESS / No-Go`。
 
 ## 冻结契约
 
