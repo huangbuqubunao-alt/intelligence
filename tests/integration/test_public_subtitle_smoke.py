@@ -22,6 +22,7 @@ from youtube_intel.domain import (
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.providers import subtitles as subtitles_mod
 from youtube_intel.public_subtitle_smoke import PublicSubtitleSmoke
 from youtube_intel.transcripts import (
     SubtitleReadResult,
@@ -160,6 +161,23 @@ class _InvalidBodySubtitleAdapter(_FakeSubtitleAdapter):
         error.directory_origin = "directory_origin_mapping"
         error.directory_fingerprint = "directory_fingerprint_track_entry_not_mapping"
         raise error
+
+
+@dataclass
+class _ContentUnavailableSubtitleAdapter(_FakeSubtitleAdapter):
+    content_error: Exception | None = None
+
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        self.enumerate_calls.append(video_id)
+        error: Exception = TranscriptError(
+            AppError(
+                code=ErrorCode.CONTENT_UNAVAILABLE,
+                message=ErrorCode.CONTENT_UNAVAILABLE.value,
+                retryable=False,
+                video_id=video_id,
+            )
+        )
+        raise self.content_error if self.content_error is not None else error
 
 
 @dataclass
@@ -565,6 +583,84 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
         "directory_fingerprint=directory_fingerprint_track_entry_not_mapping"
     )
     assert "directory_key_names" not in failed_record["safe_message"]
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        (
+            "VIDEO_UNAVAILABLE",
+            "content_availability_video_unavailable",
+        ),
+        (
+            "ENVIRONMENT_RESTRICTED",
+            "content_availability_environment_restricted",
+        ),
+        (
+            "EXTRACTOR_COMPATIBILITY",
+            "content_availability_extractor_compatibility",
+        ),
+        (None, "content_availability_unknown"),
+    ],
+)
+def test_directory_only_emits_only_closed_content_availability_codes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    state: str | None,
+    expected: str,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    content_error = (
+        None
+        if state is None
+        else subtitles_mod._content_unavailable_error(
+            getattr(subtitles_mod._ContentAvailabilityState, state),
+            video_id="video001",
+        )
+    )
+    subtitles = _ContentUnavailableSubtitleAdapter(content_error=content_error)
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    assert subtitles.enumerate_calls == ["video001"]
+    assert subtitles.read_calls == []
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "CONTENT_UNAVAILABLE",
+            "content_availability": expected,
+        }
+    ]
+    failed_record = next(
+        json.loads(line)
+        for line in (root / "logs" / "smoke-public-subtitles.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if json.loads(line)["event"] == "smoke.target.failed"
+    )
+    assert failed_record["safe_message"] == (
+        "metadata_calls=1 enumerate_tracks_calls=1 read_track_calls=0 "
+        f"content_availability={expected}"
+    )
+    assert set(failed_record) == {
+        "timestamp",
+        "level",
+        "event",
+        "run_id",
+        "stage",
+        "safe_message",
+        "video_id",
+        "error_code",
+        "duration_ms",
+    }
 
 
 def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
