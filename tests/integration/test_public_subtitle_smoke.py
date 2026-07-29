@@ -207,8 +207,8 @@ class _IdentityShapeMismatchPayload(Mapping[object, object]):
 
     _sentinel = object()
 
-    def __getitem__(self, key: object) -> object:
-        del key
+    def __getitem__(self, item_ref: object) -> object:
+        del item_ref
         return self._sentinel
 
     def __iter__(self) -> Iterator[object]:

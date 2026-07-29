@@ -1558,3 +1558,43 @@
   `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
 - Verdict: `APPROVE`; unresolved P0/P1: none. Reviewer evidence commit is
   reported after creation. `DECISION NEEDED`: `None`.
+
+## TASK-014B11 Correction 2 Implementer evidence
+
+- Fixed diagnostic evidence:
+  - path: tests/integration/test_public_subtitle_smoke.py; original line: 210;
+    original line SHA-256:
+    f950e2195fb88b36b457dc65bd53c632676bbd127a2378788d6fea3ade392e0d;
+    classification: safe-local-identifier.
+  - path: tests/integration/test_subtitle_provider.py; original line: 105;
+    original line SHA-256:
+    f950e2195fb88b36b457dc65bd53c632676bbd127a2378788d6fea3ade392e0d;
+    classification: safe-local-identifier.
+- Safe disposition: both local test identifiers were changed to neutral test
+  expressions with all local references changed consistently. Runtime inputs,
+  assertions, safety cleanup, test count, and test behavior remain equivalent;
+  normalized AST comparison passed for both files. No real credential risk was
+  found and credential rotation is not indicated.
+- Verification commands and results:
+  - python3 - read-only AST classification: PASS for both fixed paths and
+    hashes.
+  - python3 - normalized AST comparison: PASS for both test files.
+  - python3 - specialized locator: PASS; both original-hash new-hit counts
+    were 0, and target-rule new-hit count was 0.
+  - uv sync --locked --offline: PASS; no network indicator and no lock or
+    dependency change.
+  - .venv/bin/pytest with the three authorized production-chain nodes:
+    PASS, 3 passed.
+  - .venv/bin/pytest tests/integration/test_subtitle_provider.py
+    tests/integration/test_public_subtitle_smoke.py: PASS, 149 passed.
+  - .venv/bin/mypy for the two authorized production modules: PASS.
+  - .venv/bin/ruff check for the authorized production and test modules: PASS.
+  - .venv/bin/youtube-intel --help: PASS.
+  - Correction three-path and complete B11 five-path scope, forbidden-surface,
+    LF/EOF, and git diff --check checks: PASS.
+  - Combined static leak scan across stdout/stderr/JSONL safe-message surfaces,
+    B11 added test and handoff lines, and fixture surface: PASS.
+  - Not run because prohibited or outside Correction 2 authorization: full
+    pytest, build/package checks, other CLI subcommands, network, real smoke,
+    authentication, media, Vault, models or cloud services, merge, push,
+    Reviewer startup, task-state changes, source cleanup, and index generation.
