@@ -1,12 +1,12 @@
 # TASK-014B8：受限键名级字幕目录诊断
 
-- Status: `IN_PROGRESS / Codex`
-- Assignee: `Codex Implementer`
+- Status: `IN_REVIEW`
+- Assignee: `独立 Codex Reviewer`
 - 依赖：TASK-014B3/B4/B5/B6/B7 `DONE`、ADR-019 `Accepted`
 - 实施基线：`main@43f2c748c43215facb231f76a0c93ac45d350657`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic`
 - Branch：`codex/task-014b8-restricted-directory-keyname-diagnostic`
-- Required source HEAD: `43f2c748c43215facb231f76a0c93ac45d350657`
+- Implementer source: `2334374f66497546108d12be541ab137b4a8981a`（唯一父提交 `43f2c748c43215facb231f76a0c93ac45d350657`）
 - Reuse decision：`DIRECT` — 既有 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-017/ADR-018 固定分类及离线 integration 基础设施；不新增第三方代码或依赖。
 
 ## 背景与目标
@@ -30,6 +30,13 @@
 5. `handoffs/TASK-014.md`
 
 不得修改依赖、`uv.lock`、Schema/migration、`logging.py`、CLI 结构、默认配置、发布状态、B-1 evidence、fixture 路径或任何其他路径。
+
+## 独立 Reviewer 控制面
+
+- 审查范围严格为 `43f2c748c43215facb231f76a0c93ac45d350657...2334374f66497546108d12be541ab137b4a8981a`，且只能是上述五条路径。
+- Reviewer 唯一可写路径是 source `handoffs/TASK-014.md`，仅追加审查 evidence；该 evidence 必须以 `2334374…` 为唯一父提交。不得修改业务代码、测试、ADR、任务/状态控制面或其他 source 路径。
+- 必须验证 `directory_key_names` 仅在 directory-only、目录 `INVALID_RESPONSE`、mapping、unknown、enumerate=`1`/read=`0` 同时满足时出现；最多 16、稳定排序/去重且仅为 ADR-019 规范 ASCII 合成安全键名。不合格、超限、疑似 URL/凭据/路径/控制字符必须 fail-closed 省略。
+- 必须验证 B6/B7 诊断与 default/directory-only、退出码、CLI、临时根、ID 上限、无重试、零业务记录、解析接受面和 fail-closed 边界未退化；stdout/stderr/JSONL、测试与 handoff 除该授权例外外不得泄露字段名/值、URL、正文、标题、语言、轨道、路径、异常、Cookie、token、payload 或用户数据。
 
 ## 唯一离线检查
 
