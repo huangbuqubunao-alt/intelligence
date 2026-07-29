@@ -122,10 +122,11 @@
   `DownloadError` 包装 `ExtractorError`，现有直接类型分支在生产 Adapter 映射不可达，测试又绕过该边界直接构造私有状态；不可靠来源
   必须 unknown。Correction 1 `c65502e…` 已关闭该 P1；Reviewer 2 evidence `880e796…` 是其 handoff-only 唯一子提交，
   Verdict=`APPROVE`、P0–P3=`0`。正式 focused `137`、mypy、Ruff、CLI help、范围与全输出面泄漏门禁独立通过；补充内联探针在替身
-  构造阶段的两次失败明确不计 PASS，full pytest 与 build 仍须由 Integrator 完成。B10 现为 `ACCEPTED`，正式 Product Integrator 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-PRODUCT-INTEGRATOR-CODEX.md`；仅在完整离线门禁通过后允许
-  `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`，本控制面不启动。B9 仍未合并；禁止真实资源、字符串猜测、解析扩张、
-  敏感材料或改变 B4--B8 边界。TASK-014 始终 `IN_PROGRESS / No-Go`，不得预写 B10 `DONE`、真实验证通过或发行批准。
+  构造阶段的两次失败明确不计 PASS。Product Integrator 随后完成 lock check、locked offline sync、focused `137`、full pytest
+  `508`、mypy、Ruff、CLI help、offline build、五/三/handoff-only 路径、Diff 与泄漏门禁，并以 merge
+  `5b485fa5856654d2a8d9f588b5ef1ab807b52bc3` 整合 accepted source；有序双父为 `0f05104…`、`880e796…`，first-parent
+  Diff 精确为 B10 五路径，锁与禁止范围未变，main/source 干净。B10 已关闭为 `DONE`，B9 仍未合并；该离线整合不构成真实
+  YouTube/smoke 成功、普遍 yt-dlp 兼容性证明、事实性根因确认或发行批准。TASK-014 始终 `IN_PROGRESS / No-Go`。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 

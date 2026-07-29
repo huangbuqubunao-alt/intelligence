@@ -210,12 +210,13 @@
   严格为 Adapter、Provider integration test 与 handoff 三路径，完整 B10 Diff 仍严格为原五路径，Correction/完整/evidence 三组
   `git diff --check` 通过；B9
   evidence 仍未合并。Reviewer 2 独立完成 locked offline sync、focused `137 passed`、mypy、Ruff、CLI help、Correction/完整范围和
-  stdout/stderr/JSONL/test/handoff/fixture 泄漏扫描；补充内联探针在替身构造阶段的两次失败被明确排除，不得写成通过，且 Reviewer 未运行
-  full pytest 或 build。正式 Product Integrator 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-PRODUCT-INTEGRATOR-CODEX.md`，只允许全部离线门禁通过后
-  `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`，本控制面不启动。B10 不新增 fixture、依赖、锁、Schema、CLI、
-  logging/schema、配置、认证或真实资源权限，不使用异常文本/外部值推断，不放宽解析或 B4--B8 边界。TASK-014B10 现为
-  `ACCEPTED`、尚未整合；TASK-014 继续 `IN_PROGRESS / No-Go`，不得预写 `DONE`、merge SHA、真实验证或发行批准。
+  stdout/stderr/JSONL/test/handoff/fixture 泄漏扫描；补充内联探针在替身构造阶段的两次失败被明确排除，未计入通过证据。Product
+  Integrator 随后完成 lock check、locked offline sync、focused `137 passed`、full pytest `508 passed`、mypy、Ruff、CLI help、
+  offline build、五路径/Correction 三路径/Reviewer handoff-only、Diff 与全输出面泄漏门禁，并以 `--no-ff` merge
+  `5b485fa5856654d2a8d9f588b5ef1ab807b52bc3` 整合；双父顺序为 `0f05104…`、`880e796…`，accepted source 是 merge 祖先，
+  first-parent Diff 精确为五路径，锁、依赖、fixture、Schema、配置、默认 CLI 与日志 schema 未变，main/source 干净且 source 保留。
+  TASK-014B10 现为 `DONE`；TASK-014 继续 `IN_PROGRESS / No-Go`。B10 不构成真实 YouTube/smoke 成功、普遍 yt-dlp 兼容性证明、
+  事实性根因确认、发行批准或最终 Go。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
@@ -394,7 +395,7 @@
 | 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014 Phase B-1：B8 keyname-audited 单视频 directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` 干净；仅按正式包对 `--khbXchTeE` 一次调用 B4 directory-only，记录 B5 安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名。缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | 已授权未启动 | TASK-014B9：替代公开样本 directory-only 资格验证 | source `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` 干净；候选 `eIho2S0ZahI` 的外部只读目录线索不构成项目通过证据。仅按正式包一次调用 B4 directory-only，记录安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名；缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止，任一结果不构成 TASK-014 Go 或发行批准 |
-| ACCEPTED | TASK-014B10：安全内容可用性诊断 | accepted source / Reviewer 2 evidence `880e796…` 是 Correction `c65502e…` 的 handoff-only 唯一子提交，Verdict=APPROVE/P0–P3=0；独立 focused `137`、mypy、Ruff、CLI help、范围与泄漏扫描通过，补充内联探针失败明确排除，full pytest/build 留 Product Integrator。三路径 Correction、五路径完整 B10、锁/依赖/fixture 禁止范围与 source 洁净度经 Git-only 核验；B9 仍未合并。只授权固定 `--no-ff` 离线整合，尚无 merge/DONE/发布批准 |
+| DONE | TASK-014B10：安全内容可用性诊断 | merge `5b485fa…` 已进入 main，双父 `0f05104…`、`880e796…`；accepted source 是 merge 祖先，first-parent Diff 精确为五路径。lock check、locked offline sync、focused `137`、full pytest `508`、mypy、Ruff、CLI help、offline build、五/三/handoff-only 范围、Diff 与全输出面泄漏扫描通过；失败补充探针未计 PASS，锁/依赖/fixture 等禁止范围未变，source 干净并保留。B9 仍未合并，不构成真实验证、普遍兼容性证明或发行批准 |
 | DONE | TASK-014B8：受限键名级字幕目录诊断 | merge `8bedbf1…` 已进入 main，双父 `7f68384…`、`96dee64…`；accepted source 是 merge 祖先，first-parent Diff 严格为五路径，fixture/锁/依赖未变。lock check、locked offline sync、focused `119`、full pytest `490`、mypy、Ruff、CLI help、offline build、范围与 stdout/stderr/JSONL/test/handoff 泄漏扫描通过；source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | DONE | TASK-014B7：字幕目录安全来源与结构指纹 | merge `81ee343…` 已进入 main，双父 `741163f…`、`6a7f4ce…`；accepted source 是 merge 祖先，first-parent Diff 为允许六路径的五路径子集，fixture 未重现。既有 lock/sync、Provider/Smoke `114`、mypy、Ruff、CLI help 与补充离线 build、范围/泄漏扫描通过；锁未变，source 干净并保留，不构成真实 B-1 成功、真实服务验证或发行批准 |
 | 已完成可关闭 | TASK-014B5：安全 smoke 摘要输出 | `--no-ff` merge `41e9793…` 已进入 main，双父 `ca2ad4a…`、`72322e…`；accepted source 是 merge 祖先，first-parent Diff 严格为 handoff、`public_subtitle_smoke.py` 与对应 integration test。既有离线 lock/sync、Fake `19`、mypy、Ruff、CLI help、build、范围与 stdout/stderr/JSONL 泄漏扫描通过；source 干净且保留。B5 为 `DONE`，不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go |

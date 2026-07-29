@@ -1,7 +1,7 @@
 # TASK-014B10：安全内容可用性诊断
 
-- Status: `ACCEPTED`
-- Assignee: `原 Codex Implementer（Correction 1 已完成）`
+- Status: `DONE`
+- Assignee: `Codex Product Integrator（已完成离线整合）`
 - Reviewer: `全新独立 Codex Reviewer 2（APPROVE，P0–P3=0）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
@@ -14,6 +14,8 @@
 - Correction 1 HEAD：`c65502e3680d14a88ae52a1c27eea47d42b5e8b0`（唯一父提交为 First Reviewer evidence）
 - Accepted source / Reviewer 2 evidence：`880e796622e393842a8cfe1a365af25868a3e98f`（唯一父提交为 Correction 1；仅追加
   `handoffs/TASK-014.md`）
+- Merge commit：`5b485fa5856654d2a8d9f588b5ef1ab807b52bc3`（有序双父为
+  `0f051049385e9fc1b7a15cd6cfa6e6fdf3fa8352`、`880e796622e393842a8cfe1a365af25868a3e98f`）
 - Reuse decision：`DIRECT` — 既有锁定 subtitle Adapter、B4 directory-only、B5 安全摘要、ADR-015--ADR-019 固定诊断、JsonlLogger
   safe_message 与离线 integration 基础设施；不新增第三方代码或依赖。
 
@@ -102,12 +104,14 @@
 - Git-only 验收确认 source/Reviewer evidence、完整逐提交唯一父链和双方洁净度匹配；Correction Diff 严格为 Adapter、Provider
   integration test 与 handoff 三路径，完整 B10 Diff 严格为本卡五路径，evidence 严格 handoff-only。无 fixture、依赖、`uv.lock`、
   Schema/migration、配置、默认 CLI、`logging.py`/日志 schema 或范围外变更；B9 evidence 仍未合并。
-- 正式 Product Integrator 包为
-  `agent-prompts/TASK-014B10-SAFE-CONTENT-AVAILABILITY-DIAGNOSTIC-PRODUCT-INTEGRATOR-CODEX.md`；本控制面不启动
-  Integrator。只有包内 lock check、locked offline sync、focused/full pytest、mypy、Ruff、CLI help、offline build、范围/锁/泄漏及
-  最终洁净度门禁全部通过，才可执行唯一 `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`。
-- TASK-014B10 现为 `ACCEPTED`，尚未整合且不得预写 `DONE` 或 merge SHA。TASK-014 始终 `IN_PROGRESS / No-Go`；离线实现、审查、
-  acceptance 或后续整合均不构成真实 smoke 通过、真实服务验证、事实性根因确认、发行批准或最终 Go。
+- Product Integrator 已按正式包完成 lock check、locked offline sync、Provider/Smoke focused `137 passed`、full pytest
+  `508 passed`、mypy、Ruff、CLI help、offline build、完整五路径、Correction 三路径、Reviewer handoff-only、`git diff --check`
+  与 stdout/stderr/JSONL/test/handoff/fixture 泄漏扫描，并执行唯一获准的
+  `git merge --no-ff 880e796622e393842a8cfe1a365af25868a3e98f`。Reviewer 的失败补充内联探针仍明确排除，未计入通过证据。
+- 合并后双父顺序、accepted source 祖先关系、first-parent 五路径、锁/依赖及 fixture/Schema/config/默认 CLI/日志 schema 不变、
+  main/source 洁净度均通过 Git-only 核验；source 保留且干净，B9 evidence 仍未合并。
+- TASK-014B10 现为 `DONE`；TASK-014 始终 `IN_PROGRESS / No-Go`。B10 离线实现与整合不构成真实 YouTube/smoke 成功、普遍
+  yt-dlp 兼容性证明、事实性根因确认、发行批准或最终 Go。
 
 ## 离线验收与交付
 
