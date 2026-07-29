@@ -259,6 +259,33 @@ def test_track_directory_errors_map_to_existing_error_codes(
     assert "http" not in exc_info.value.error.message.lower()
 
 
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        (
+            "VIDEO_UNAVAILABLE",
+            "content_availability_video_unavailable",
+        ),
+        (
+            "ENVIRONMENT_RESTRICTED",
+            "content_availability_environment_restricted",
+        ),
+        (
+            "EXTRACTOR_COMPATIBILITY",
+            "content_availability_extractor_compatibility",
+        ),
+        ("UNKNOWN", "content_availability_unknown"),
+    ],
+)
+def test_content_availability_states_map_to_closed_safe_codes(
+    state: str,
+    expected: str,
+) -> None:
+    availability_state = getattr(subtitles_mod._ContentAvailabilityState, state)
+
+    assert subtitles_mod._content_availability_code(availability_state) == expected
+
+
 def test_dangerous_selected_track_url_fails_closed() -> None:
     payload = _load_json("info_tracks.json")
     payload["subtitles"]["en"][0]["url"] = "http://127.0.0.1/private"

@@ -842,3 +842,56 @@
 - TASK-014B8 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
   This offline review is neither real-service verification nor release approval
   or final Go.
+
+## TASK-014B10 Implementer Evidence — 2026-07-29
+
+### Fixed assignment and scope
+
+- Role: `Codex Implementer`.
+- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+  `codex/task-014b10-safe-content-availability-diagnostic@6fd7b5cc3fae6466fb6181151513f4854d196683`.
+- Required sole parent of the Implementer commit: `6fd7b5cc3fae6466fb6181151513f4854d196683`;
+  its source parent is `e975ff4f343442e69bb88e09e36bffc7996341cf`. Source and dynamic control-plane main
+  were clean before writing.
+- Reuse decision: `DIRECT` — existing locked subtitle Adapter, B4 directory-only composition, B5 safe summary outlet,
+  ADR-015--ADR-019 safety boundaries, `JsonlLogger.safe_message`, and offline integration tests. No third-party code,
+  dependency, lockfile, or license change was introduced; existing `yt-dlp` reuse and license evidence remain in
+  `docs/REUSE_REGISTER.md`.
+- Actual product and test paths: `src/youtube_intel/providers/subtitles.py`,
+  `src/youtube_intel/public_subtitle_smoke.py`, `tests/integration/test_subtitle_provider.py`, and
+  `tests/integration/test_public_subtitle_smoke.py`. No other product path changed.
+
+### Product behavior and TDD evidence
+
+- Adapter error mapping now attaches only a closed, value-free availability code from its private internal state.
+  The existing `CONTENT_UNAVAILABLE` error code, retry behavior, and parsing branches remain unchanged.
+- Only directory-only failures with `CONTENT_UNAVAILABLE`, one enumeration, and zero body reads append the code to
+  the existing stdout summary and JSONL `safe_message`; a missing or invalid internal state emits the fixed
+  `content_availability_unknown` fallback. Default smoke, all body reads, successes, other error codes, and B4--B8
+  directory diagnostics omit it.
+- RED command: `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py`
+  exited `1` with the new eight assertions failing: the internal state classifier did not exist and the safe
+  directory-only `CONTENT_UNAVAILABLE` summary lacked `content_availability`.
+- GREEN and REFACTOR: the same focused offline command passed with `127 passed`. Tests use only fixed codes and
+  no-value internal states or stand-ins; no response-shaped fixture was added.
+
+### Offline checks and safety review
+
+| Check | Result |
+|---|---|
+| `uv sync --locked --offline` | PASS — run once; lockfile unchanged, no download or network action. |
+| Focused provider/smoke pytest | PASS — `127 passed`. |
+| mypy on the two allowed source files | PASS — no issues. |
+| Ruff on the two source and two integration-test files | PASS. |
+| `youtube-intel --help` | PASS — help only; no smoke invoked. |
+| `git diff --check` | PASS. |
+| Allowed-path range check | PASS — only the four actual product/test paths plus this handoff. |
+| stdout/stderr/JSONL/test/handoff added-line leak scan | PASS — only fixed availability codes and authorized safety material. |
+
+- No real YouTube, network, smoke, authentication material, media, Vault, model, cloud call, push, merge, source
+  cleanup, fixture, configuration, Schema, logging schema, CLI, or control-plane modification occurred.
+- Suggested status: `IN_REVIEW` after the required single fixed-parent Implementer commit. TASK-014 remains
+  `IN_PROGRESS / No-Go`; this offline result is not real-service validation or release approval.
+- Remaining risk: the closed classifications are intentionally limited to existing local mapping states. They do
+  not establish a real-service cause or authorize compatibility remediation.
+- `DECISION NEEDED`: `None`.

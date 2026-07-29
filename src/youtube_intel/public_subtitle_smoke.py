@@ -14,10 +14,12 @@ from typing import TYPE_CHECKING, Protocol
 from youtube_intel.domain import AppError, ErrorCode, VideoMetadata
 from youtube_intel.logging import JsonlLogger
 from youtube_intel.providers.subtitles import (
+    CONTENT_AVAILABILITY_CODES,
     DIRECTORY_DIAGNOSTIC_CODES,
     DIRECTORY_FINGERPRINT_CODES,
     DIRECTORY_ORIGIN_CODES,
     YtDlpSubtitleAdapter,
+    _content_availability_from_error,
 )
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.state import SQLiteStateRepository
@@ -185,6 +187,12 @@ class PublicSubtitleSmoke:
                 enumerate_calls=enumerate_calls,
                 read_calls=read_calls,
             )
+            availability = _content_availability(
+                error,
+                directory_only=directory_only,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
             safe_message = (
                 "metadata_calls="
                 f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
@@ -199,6 +207,8 @@ class PublicSubtitleSmoke:
             if key_names is not None:
                 serialized_key_names = json.dumps(list(key_names), separators=(",", ":"))
                 safe_message = f"{safe_message} directory_key_names={serialized_key_names}"
+            if availability is not None:
+                safe_message = f"{safe_message} content_availability={availability}"
             logger.emit(
                 level="ERROR",
                 event="smoke.target.failed",
@@ -219,6 +229,7 @@ class PublicSubtitleSmoke:
                 directory_origin=origin,
                 directory_fingerprint=fingerprint,
                 directory_key_names=key_names,
+                content_availability=availability,
             )
             return False
 
@@ -291,6 +302,7 @@ def _emit_summary(
     directory_origin: str | None = None,
     directory_fingerprint: str | None = None,
     directory_key_names: tuple[str, ...] | None = None,
+    content_availability: str | None = None,
 ) -> None:
     summary: dict[str, str | int | list[str]] = {
         "video_id": video_id,
@@ -307,6 +319,8 @@ def _emit_summary(
         summary["directory_fingerprint"] = directory_fingerprint
     if directory_key_names is not None:
         summary["directory_key_names"] = list(directory_key_names)
+    if content_availability is not None:
+        summary["content_availability"] = content_availability
     print(json.dumps(summary, separators=(",", ":")))
 
 
@@ -401,6 +415,26 @@ def _directory_key_names(
     if key_names != tuple(sorted(set(key_names))):
         return None
     return key_names
+
+
+def _content_availability(
+    error: Exception,
+    *,
+    directory_only: bool,
+    enumerate_calls: int,
+    read_calls: int,
+) -> str | None:
+    if (
+        not directory_only
+        or enumerate_calls != 1
+        or read_calls != 0
+        or _error_code(error) != ErrorCode.CONTENT_UNAVAILABLE.value
+    ):
+        return None
+    availability = _content_availability_from_error(error)
+    if isinstance(availability, str) and availability in CONTENT_AVAILABILITY_CODES:
+        return availability
+    return "content_availability_unknown"
 
 
 def _is_directory_invalid_response(

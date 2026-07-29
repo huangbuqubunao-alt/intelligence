@@ -81,6 +81,14 @@ DIRECTORY_FINGERPRINT_CODES: Final[frozenset[str]] = frozenset(
         "directory_fingerprint_unknown",
     }
 )
+CONTENT_AVAILABILITY_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "content_availability_video_unavailable",
+        "content_availability_environment_restricted",
+        "content_availability_extractor_compatibility",
+        "content_availability_unknown",
+    }
+)
 _DIRECTORY_UNKNOWN_DIAGNOSTIC: Final = "directory_shape_unknown"
 
 
@@ -90,6 +98,13 @@ class _DirectoryStructureState(Enum):
     LANGUAGE_BUCKET_MISSING_OR_NOT_SEQUENCE = auto()
     TRACK_ENTRY_NOT_MAPPING = auto()
     REQUIRED_FIELD_MISSING = auto()
+    UNKNOWN = auto()
+
+
+class _ContentAvailabilityState(Enum):
+    VIDEO_UNAVAILABLE = auto()
+    ENVIRONMENT_RESTRICTED = auto()
+    EXTRACTOR_COMPATIBILITY = auto()
     UNKNOWN = auto()
 
 
@@ -169,6 +184,16 @@ def _safe_message(value: str) -> str:
     return " ".join(value.split())[:300] or "subtitle provider error"
 
 
+def _content_availability_code(state: object) -> str:
+    if state is _ContentAvailabilityState.VIDEO_UNAVAILABLE:
+        return "content_availability_video_unavailable"
+    if state is _ContentAvailabilityState.ENVIRONMENT_RESTRICTED:
+        return "content_availability_environment_restricted"
+    if state is _ContentAvailabilityState.EXTRACTOR_COMPATIBILITY:
+        return "content_availability_extractor_compatibility"
+    return "content_availability_unknown"
+
+
 def _error(
     code: ErrorCode,
     message: str,
@@ -204,6 +229,34 @@ class _DirectoryInvalidResponse(TranscriptError):
         self.directory_fingerprint = fingerprint
         self.directory_key_names = key_names
         super().__init__(error)
+
+
+class _ContentUnavailable(TranscriptError):
+    def __init__(self, error: AppError, *, state: object) -> None:
+        self.content_availability = _content_availability_code(state)
+        super().__init__(error)
+
+
+def _content_availability_from_error(error: object) -> str | None:
+    if isinstance(error, _ContentUnavailable):
+        return error.content_availability
+    return None
+
+
+def _content_unavailable_error(
+    state: _ContentAvailabilityState,
+    *,
+    video_id: str,
+) -> _ContentUnavailable:
+    return _ContentUnavailable(
+        _error(
+            ErrorCode.CONTENT_UNAVAILABLE,
+            "video content unavailable for subtitles",
+            retryable=False,
+            video_id=video_id,
+        ).error,
+        state=state,
+    )
 
 
 def _directory_error(
@@ -335,10 +388,8 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
             video_id=video_id,
         )
     if status == 404:
-        return _error(
-            ErrorCode.CONTENT_UNAVAILABLE,
-            "video content unavailable for subtitles",
-            retryable=False,
+        return _content_unavailable_error(
+            _ContentAvailabilityState.VIDEO_UNAVAILABLE,
             video_id=video_id,
         )
     if status is not None and 500 <= status <= 599:
@@ -358,22 +409,26 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
     if any(
         marker in lowered
         for marker in (
-            "private video",
-            "removed",
-            "deleted",
-            "video unavailable",
             "not available in your country",
             "geo",
             "region",
             "sign in to confirm",
         )
     ):
-        return _error(
-            ErrorCode.CONTENT_UNAVAILABLE,
-            "video content unavailable for subtitles",
-            retryable=False,
+        return _content_unavailable_error(
+            _ContentAvailabilityState.ENVIRONMENT_RESTRICTED,
             video_id=video_id,
         )
+    if any(
+        marker in lowered
+        for marker in ("private video", "removed", "deleted", "video unavailable")
+    ):
+        state = (
+            _ContentAvailabilityState.EXTRACTOR_COMPATIBILITY
+            if type(error) is ExtractorError
+            else _ContentAvailabilityState.VIDEO_UNAVAILABLE
+        )
+        return _content_unavailable_error(state, video_id=video_id)
     if "extract" in lowered or "parse" in lowered or "json" in lowered:
         return _error(
             ErrorCode.INVALID_RESPONSE,
