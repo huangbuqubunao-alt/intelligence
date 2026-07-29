@@ -34,3 +34,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-018](ADR-018-safe-subtitle-directory-origin-fingerprint.md) | Accepted | 2026-07-28 | 冻结目录失败的固定无值来源与结构指纹 |
 | [ADR-019](ADR-019-restricted-directory-keyname-diagnostic.md) | Accepted | 2026-07-29 | 冻结 mapping/unknown 边界的受限规范键名例外 |
 | [ADR-020](ADR-020-safe-content-availability-diagnostics.md) | Accepted | 2026-07-29 | 冻结 `CONTENT_UNAVAILABLE` 的固定无值内容可用性来源分类 |
+| [ADR-021](ADR-021-safe-subtitle-directory-contract-state-diagnostics.md) | Accepted | 2026-07-29 | 冻结 mapping `INVALID_RESPONSE` 的六字段无值目录契约状态矩阵 |

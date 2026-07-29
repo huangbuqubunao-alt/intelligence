@@ -127,15 +127,19 @@
   `5b485fa5856654d2a8d9f588b5ef1ab807b52bc3` 整合 accepted source；有序双父为 `0f05104…`、`880e796…`，first-parent
   Diff 精确为 B10 五路径，锁与禁止范围未变，main/source 干净。B10 已关闭为 `DONE`，B9 仍未合并；该离线整合不构成真实
   YouTube/smoke 成功、普遍 yt-dlp 兼容性证明、事实性根因确认或发行批准。TASK-014 始终 `IN_PROGRESS / No-Go`。
-- 产品负责人现授权一次新的 B10-classified directory-only 执行窗口，只对 B9 的同一固定 ID `eIho2S0ZahI` 调用一次已整合的
-  `smoke-public-subtitles --directory-only`。固定 execution source 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution` /
-  `codex/task-014-phase-b1-directory-only-b10-execution@f00aa9cffa25dcb9b7165edf21a4d476263c1dc5`；正式包为
-  `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B10-EXECUTION-CODEX.md`，本控制面不启动 Executor。
-  只有离线 lock/sync/lock、绝对 launcher 静态映射和新 parent/non-existent `smoke-root` 全通过后，才可执行唯一一次 `1/1/0` 调用。
-  证据只可写新的 B10-classified evidence、release checklist 与 handoff，并仅记录安全摘要及实际输出的 B6--B10 固定证据；不得推断
-  未输出分类。video-unavailable 停用候选，environment-restricted 转环境处理，extractor-compatibility 另建最小任务，unknown 停止重试；
-  目录成功也不证明正文可读。B9 evidence 继续只读且未合并；任一结果保持 TASK-014 `IN_PROGRESS / No-Go`，不构成发行批准。
+- B10-classified directory-only 执行已在固定 source
+  `codex/task-014-phase-b1-directory-only-b10-execution@f00aa9cffa25dcb9b7165edf21a4d476263c1dc5`
+  完成唯一一次调用。只读 evidence `51d9749943270cb75c2b166e77bce0a5f663d92c` 是该 source base 的唯一子提交，且只修改
+  新 B10-classified evidence、release checklist 与本 handoff。它记录 metadata=`1`/enumerate=`1`/read=`0`、exit=`1`、
+  `INVALID_RESPONSE`、`directory_shape_unknown`、`directory_origin_mapping` 和 `directory_fingerprint_unknown`；未产生 B8 keyname
+  或 B10 availability。该 evidence 保持未合并、只读，不得修改、清理、重跑或改写为成功。
+- 产品负责人因此接受 ADR-021 并创建 TASK-014B11「安全字幕目录契约状态诊断」。唯一 source 为
+  `/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics` /
+  `codex/task-014b11-safe-directory-contract-diagnostics@80aff83fc033a8bd2950108cad2e34feea5d396f`；正式 Implementer 包为
+  `agent-prompts/TASK-014B11-SAFE-DIRECTORY-CONTRACT-DIAGNOSTICS-IMPLEMENTER-CODEX.md`，本控制面不启动 Implementer。B11 只在
+  directory-only、`INVALID_RESPONSE`、`1/1/0`、B7 origin=mapping 且零正文的既有安全出口附加固定六字段无值契约状态矩阵；不枚举
+  任意外部 key，不输出值/URL/标题/语言/轨道/响应/异常/路径/凭据或用户数据，不改变 B6--B10、解析接受面、默认 smoke、计数、退出码、
+  无重试或日志 schema。TASK-014B11 为 `IN_PROGRESS / Codex`；TASK-014 始终 `IN_PROGRESS / No-Go`，B11 不构成真实成功或发行批准。
 
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
