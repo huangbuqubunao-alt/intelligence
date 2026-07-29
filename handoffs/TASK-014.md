@@ -711,3 +711,134 @@
   launchd, push, or merge.
 - TASK-014 remains `IN_PROGRESS / No-Go`; this review is neither real-service
   verification nor release approval or final Go.
+
+## TASK-014B8 Implementer Evidence — 2026-07-29
+
+### Fixed assignment, reuse, and scope
+
+- Task: `TASK-014B8 — restricted directory keyname diagnostic`; role:
+  `Implementer`.
+- Required base, verified branch, and pre-write HEAD:
+  `43f2c748c43215facb231f76a0c93ac45d350657` on
+  `codex/task-014b8-restricted-directory-keyname-diagnostic`.
+- Reuse decision: `DIRECT` — reused the existing subtitle Adapter, B4
+  directory-only boundary, B5 safe summary outlets, B6 diagnostics, B7
+  origin/fingerprint labels, and offline integration infrastructure. No
+  third-party code, dependency, lockfile, schema, CLI, logging, configuration,
+  fixture, or control-plane change was made.
+- Actual implementation range is the Adapter, smoke composition, the two
+  approved integration tests, and this handoff only.
+
+### Contract and TDD evidence
+
+- RED: the new offline regressions first failed with two missing Adapter
+  attributes and one missing safe-summary field. After the bounded
+  implementation, the required suite passed. A first GREEN iteration exposed
+  a pre-existing exact iterator-consumption regression for a non-`dict`
+  Mapping; the implementation now treats every non-`dict` Mapping as an
+  unreliable candidate set and omits the optional field, preserving that
+  fail-closed boundary.
+- The Adapter examines only direct keys of a plain directory `dict`; it neither
+  recurses nor reads mapping values for this diagnostic. Any non-string or
+  non-canonical key, more than 16 unique keys, or unreliable mapping omits the
+  complete set. Accepted sets are deduplicated and ASCII-sorted before they can
+  be attached to a mapping/unknown directory error.
+- The smoke outlet independently requires directory-only, `INVALID_RESPONSE`,
+  mapping origin, unknown fingerprint, `enumerate=1`, and `read=0`. It
+  revalidates tuple type, canonical ordering, uniqueness, the 16-item cap, and
+  the approved ASCII pattern before emitting the optional
+  `directory_key_names` array in stdout and the existing JSONL safe message.
+  Default mode, known fingerprints, non-mapping origins, body reads, malformed
+  sets, and over-limit sets omit it.
+
+### Offline checks and safety review
+
+| Check | Result | Evidence |
+|---|---|---|
+| `uv sync --locked --offline` | PASS | Ran once from cache; lockfile unchanged and no download occurred. |
+| RED focused pytest | PASS (expected failure) | Three new assertions failed before implementation; no pre-existing test was changed or skipped. |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | `119 passed`; offline only. |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS | No issues in 2 source files. |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS | All checks passed. |
+| `.venv/bin/youtube-intel --help` | PASS | Help only; no smoke was invoked and CLI topology is unchanged. |
+| `git diff --check` | PASS | No whitespace errors. |
+
+- Added regressions use only synthetic, canonical key identifiers and opaque
+  invalid candidates. They assert stdout, stderr, JSONL, default/directory-only
+  read counts, exit behavior, and no-retry behavior. The allowed key-name array
+  is the sole new response-derived output; no other response material is added
+  to tests, summaries, logs, or this handoff.
+- No real service, network request, smoke, authentication material, media,
+  Vault, model, paid call, push, merge, source cleanup, or control-plane edit
+  occurred. TASK-014 remains `IN_PROGRESS / No-Go`.
+
+### Implementer conclusion
+
+- Suggested status: `IN_REVIEW` after the required single fixed-parent commit.
+- Commit SHA: reported to the orchestrator after commit creation.
+- Remaining risk: offline Fakes prove only the restricted diagnostic and its
+  fail-closed output boundary; they do not validate a real service or grant
+  release approval.
+- `DECISION NEEDED`: `None`.
+
+## TASK-014B8 Independent Reviewer Evidence — 2026-07-29
+
+### Fixed review object and preflight
+
+- Role: `Independent Reviewer`.
+- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
+  `codex/task-014b8-restricted-directory-keyname-diagnostic`.
+- Reviewed implementation: `2334374f66497546108d12be541ab137b4a8981a`; its sole
+  parent is `43f2c748c43215facb231f76a0c93ac45d350657`.
+- Dynamic authorization: clean `main@a3a905db8bfef0326a2625eac76e199b8b01f2f3`
+  descends from `main@a8ea95775f452203958ec2abb56b8eeb317917f3`; its only
+  intervening changes are the B8 control-plane documents. Source and main were
+  clean before this evidence append.
+- The complete product range is exactly the five authorized paths: Adapter,
+  smoke composition, two integration tests, and this handoff. No dependency,
+  lockfile, Schema, logging, CLI, fixture, configuration, or control-plane
+  product change is present. Reuse decision remains `DIRECT`.
+
+### Independent ADR-019 review
+
+- The Adapter examines only direct keys of an exact directory `dict`, never
+  traverses or reads values, and fails closed for non-dict mappings, iteration
+  faults, malformed keys, and more than 16 unique keys. Accepted keys are
+  deduplicated, ASCII-sorted, and fully constrained by the ADR-019 pattern.
+- The smoke outlet independently requires directory-only, directory
+  `INVALID_RESPONSE`, mapping origin, unknown fingerprint, and exactly one
+  enumeration with zero reads. It revalidates tuple type, canonical order,
+  uniqueness, cap, and pattern before adding the permitted key-name array to
+  stdout or the existing JSONL safe message.
+- Default mode, successful directories, known/non-mapping directory failures,
+  body failures, malformed sets, and over-limit sets omit the optional field.
+  B6/B7 labels and the existing read counts, exit behavior, CLI, temporary-root,
+  ID-bound, no-retry, zero-business-record, parsing, and fail-closed boundaries
+  are unchanged outside the narrow diagnostic path.
+- Diff and added-line leakage review found no response-derived value, URL,
+  subtitle text, title, language or track value, path, raw exception,
+  credential, payload, or user-data material. The only newly emitted
+  response-derived material is the ADR-019-authorized synthetic safe key-name
+  array.
+
+| Check | Result |
+|---|---|
+| source/main authorization, branch, HEAD, sole parent, cleanliness, and dynamic-main product-surface check | PASS |
+| fixed range, five-path allowlist, `git diff --check`, dependency/logging/CLI exclusion | PASS |
+| static ADR-019 trigger, negative-boundary, B6/B7 preservation, and output-leak review | PASS |
+| `.venv/bin/pytest tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS — 119 passed |
+| `.venv/bin/mypy src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py` | PASS |
+| `.venv/bin/ruff check src/youtube_intel/providers/subtitles.py src/youtube_intel/public_subtitle_smoke.py tests/integration/test_subtitle_provider.py tests/integration/test_public_subtitle_smoke.py` | PASS |
+| `.venv/bin/youtube-intel --help` | PASS — help only |
+
+### Reviewer conclusion
+
+- Findings: `P0=0, P1=0, P2=0, P3=0`.
+- Verdict: `APPROVE` for `43f2c748c43215facb231f76a0c93ac45d350657...2334374f66497546108d12be541ab137b4a8981a`.
+- Not run: `uv`, build/package checks, full suite, Python/import probes, any
+  smoke invocation, network/YouTube, media/ffmpeg, authentication/Cookie/API
+  key handling, Vault/user data, database diagnostics, models/Ollama/OpenAI,
+  launchd, push, or merge.
+- TASK-014B8 remains `IN_REVIEW`; TASK-014 remains `IN_PROGRESS / No-Go`.
+  This offline review is neither real-service verification nor release approval
+  or final Go.

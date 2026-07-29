@@ -110,6 +110,7 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
     diagnostic_code: str | None = "directory_shape_unsupported_entry"
     directory_origin: object | None = "directory_origin_mapping"
     directory_fingerprint: object | None = "directory_fingerprint_track_entry_not_mapping"
+    directory_key_names: object | None = None
 
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
         self.enumerate_calls.append(video_id)
@@ -139,6 +140,8 @@ class _InvalidDirectorySubtitleAdapter(_FakeSubtitleAdapter):
         if self.directory_origin is not None:
             error.directory_origin = self.directory_origin
         error.directory_fingerprint = self.directory_fingerprint
+        if self.directory_key_names is not None:
+            error.directory_key_names = self.directory_key_names
         raise error
 
 
@@ -476,7 +479,9 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
     tmp_path: Path,
 ) -> None:
     metadata = _FakeMetadataProvider()
-    subtitles = _InvalidDirectorySubtitleAdapter()
+    subtitles = _InvalidDirectorySubtitleAdapter(
+        directory_key_names=("Alpha", "Bravo_2"),
+    )
     root = tmp_path / "smoke-root"
 
     exit_code = main(_args(root, "video001"), smoke_runner=_smoke(metadata, subtitles))
@@ -510,6 +515,7 @@ def test_smoke_appends_only_fixed_directory_diagnostic_before_body_read(
     }
     for forbidden in ("message=", "error="):
         assert forbidden not in log_text
+    assert "directory_key_names" not in failed_record["safe_message"]
 
 
 def test_directory_only_appends_only_fixed_directory_diagnostic(
@@ -517,7 +523,7 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     metadata = _FakeMetadataProvider()
-    subtitles = _InvalidDirectorySubtitleAdapter()
+    subtitles = _InvalidDirectorySubtitleAdapter(directory_key_names=("Alpha", "Bravo_2"))
     root = tmp_path / "smoke-root"
 
     exit_code = main(
@@ -558,6 +564,7 @@ def test_directory_only_appends_only_fixed_directory_diagnostic(
         "directory_origin=directory_origin_mapping "
         "directory_fingerprint=directory_fingerprint_track_entry_not_mapping"
     )
+    assert "directory_key_names" not in failed_record["safe_message"]
 
 
 def test_directory_only_uses_exact_unknown_shape_fallback_without_leaking(
@@ -627,6 +634,7 @@ def test_directory_only_can_omit_a_fingerprint_when_only_the_origin_is_safe(
     subtitles = _InvalidDirectorySubtitleAdapter(
         directory_origin="directory_origin_extractor",
         directory_fingerprint=None,
+        directory_key_names=("Alpha", "Bravo_2"),
     )
     root = tmp_path / "smoke-root"
 
@@ -659,6 +667,84 @@ def test_directory_only_can_omit_a_fingerprint_when_only_the_origin_is_safe(
         "directory_origin=directory_origin_extractor"
     )
     assert "directory_fingerprint" not in failed_record["safe_message"]
+    assert "directory_key_names" not in failed_record["safe_message"]
+
+
+def test_directory_only_emits_restricted_safe_directory_key_names(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter(
+        directory_fingerprint="directory_fingerprint_unknown",
+        directory_key_names=("Alpha", "Bravo_2"),
+    )
+    root = tmp_path / "smoke-root"
+
+    exit_code = main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    )
+
+    assert exit_code is ExitCode.EXECUTION_FAILED
+    output = capsys.readouterr()
+    assert [json.loads(line) for line in output.out.splitlines()] == [
+        {
+            "video_id": "video001",
+            "metadata": 1,
+            "enumerate": 1,
+            "read": 0,
+            "error_code": "INVALID_RESPONSE",
+            "directory_diagnostic": "directory_shape_unsupported_entry",
+            "directory_origin": "directory_origin_mapping",
+            "directory_fingerprint": "directory_fingerprint_unknown",
+            "directory_key_names": ["Alpha", "Bravo_2"],
+        }
+    ]
+    assert output.err == ""
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    failed_record = next(
+        json.loads(line)
+        for line in log_text.splitlines()
+        if json.loads(line)["event"] == "smoke.target.failed"
+    )
+    assert failed_record["safe_message"].endswith(
+        'directory_key_names=["Alpha","Bravo_2"]'
+    )
+    for forbidden in ("message=", "error=", str(root)):
+        assert forbidden not in output.out
+        assert forbidden not in output.err
+        assert forbidden not in log_text
+
+
+@pytest.mark.parametrize(
+    "directory_key_names",
+    [
+        object(),
+        tuple(f"Key{index:02d}" for index in range(17)),
+        ("Bravo_2", "Alpha"),
+    ],
+)
+def test_directory_only_omits_untrusted_or_noncanonical_key_name_sets(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    directory_key_names: object,
+) -> None:
+    metadata = _FakeMetadataProvider()
+    subtitles = _InvalidDirectorySubtitleAdapter(
+        directory_fingerprint="directory_fingerprint_unknown",
+        directory_key_names=directory_key_names,
+    )
+    root = tmp_path / "smoke-root"
+
+    assert main(
+        _args(root, "video001", directory_only=True),
+        smoke_runner=_smoke(metadata, subtitles),
+    ) is ExitCode.EXECUTION_FAILED
+    summary = json.loads(capsys.readouterr().out)
+    assert "directory_key_names" not in summary
+    log_text = (root / "logs" / "smoke-public-subtitles.jsonl").read_text(encoding="utf-8")
+    assert "directory_key_names=" not in log_text
 
 
 def test_body_invalid_response_never_emits_directory_origin_or_fingerprint(

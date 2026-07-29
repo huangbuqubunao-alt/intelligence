@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 
 _HTTP_TIMEOUT_SECONDS = 30.0
 _VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+_DIRECTORY_KEY_NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
+_MAX_DIRECTORY_KEY_NAMES = 16
 _SUCCESS_ERROR_CODE = "OK"
 
 
@@ -177,6 +179,12 @@ class PublicSubtitleSmoke:
                 enumerate_calls=enumerate_calls,
                 read_calls=read_calls,
             )
+            key_names = _directory_key_names(
+                error,
+                directory_only=directory_only,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
             safe_message = (
                 "metadata_calls="
                 f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
@@ -188,6 +196,9 @@ class PublicSubtitleSmoke:
                 safe_message = f"{safe_message} directory_origin={origin}"
             if fingerprint is not None:
                 safe_message = f"{safe_message} directory_fingerprint={fingerprint}"
+            if key_names is not None:
+                serialized_key_names = json.dumps(list(key_names), separators=(",", ":"))
+                safe_message = f"{safe_message} directory_key_names={serialized_key_names}"
             logger.emit(
                 level="ERROR",
                 event="smoke.target.failed",
@@ -207,6 +218,7 @@ class PublicSubtitleSmoke:
                 directory_diagnostic=diagnostic,
                 directory_origin=origin,
                 directory_fingerprint=fingerprint,
+                directory_key_names=key_names,
             )
             return False
 
@@ -278,8 +290,9 @@ def _emit_summary(
     directory_diagnostic: str | None = None,
     directory_origin: str | None = None,
     directory_fingerprint: str | None = None,
+    directory_key_names: tuple[str, ...] | None = None,
 ) -> None:
-    summary: dict[str, str | int] = {
+    summary: dict[str, str | int | list[str]] = {
         "video_id": video_id,
         "metadata": metadata_calls,
         "enumerate": enumerate_calls,
@@ -292,6 +305,8 @@ def _emit_summary(
         summary["directory_origin"] = directory_origin
     if directory_fingerprint is not None:
         summary["directory_fingerprint"] = directory_fingerprint
+    if directory_key_names is not None:
+        summary["directory_key_names"] = list(directory_key_names)
     print(json.dumps(summary, separators=(",", ":")))
 
 
@@ -354,6 +369,38 @@ def _directory_fingerprint(
         if isinstance(fingerprint, str) and fingerprint in DIRECTORY_FINGERPRINT_CODES:
             return fingerprint
     return "directory_fingerprint_unknown"
+
+
+def _directory_key_names(
+    error: Exception,
+    *,
+    directory_only: bool,
+    enumerate_calls: int,
+    read_calls: int,
+) -> tuple[str, ...] | None:
+    if (
+        not directory_only
+        or not _is_directory_invalid_response(
+            error,
+            enumerate_calls=enumerate_calls,
+            read_calls=read_calls,
+        )
+        or getattr(error, "directory_origin", None) != "directory_origin_mapping"
+        or getattr(error, "directory_fingerprint", None)
+        != "directory_fingerprint_unknown"
+    ):
+        return None
+    key_names = getattr(error, "directory_key_names", None)
+    if type(key_names) is not tuple or len(key_names) > _MAX_DIRECTORY_KEY_NAMES:
+        return None
+    if any(
+        type(name) is not str or _DIRECTORY_KEY_NAME_RE.fullmatch(name) is None
+        for name in key_names
+    ):
+        return None
+    if key_names != tuple(sorted(set(key_names))):
+        return None
+    return key_names
 
 
 def _is_directory_invalid_response(
