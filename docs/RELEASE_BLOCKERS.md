@@ -1,10 +1,30 @@
 # Release Blockers — Items Requiring Human Decision
 
 - Status: `BLOCKED`
-- Last updated: 2026-07-31
+- Last updated: 2026-07-31 (updated after Reviewer RC1 feedback)
 - These items cannot be resolved by code changes alone. Each requires
   explicit authorization, legal review, or production credential access
   from the designated decision maker.
+
+## 0. Project License (NEW — Added after RC Reviewer feedback)
+
+### 0.1 Project Own License Is Unresolved
+
+- **Decision maker**: PO + TL (codebase owner)
+- **Current state**: No LICENSE file in repo root; no `license` field in pyproject.toml;
+  docs/SBOM.md explicitly defers: "本任务不选择、创建或暗示项目自身 LICENSE";
+  no ADR, commit, or product decision specifies which license governs project code.
+- **Risk**: Recipients of any distributed artifact (wheel, sdist, container, source
+  tarball) have no explicit grant of rights. PyPI and standard distribution
+  platforms require a declared license. Any third-party contributor has no
+  legal clarity. The chosen license must also be compatible with GPL transitive
+  dependencies (see §1.1 below).
+- **Required input**: PO or TL declares the project license (e.g. MIT,
+  Apache-2.0, proprietary/all-rights-reserved). Decision must be consistent
+  with §1.1 mutagen GPL constraints.
+- **Pass criteria**: Written decision; LICENSE file added; pyproject.toml updated;
+  SBOM and THIRD_PARTY_NOTICES updated; build artifact includes LICENSE.
+- **Blocker level**: DISTRIBUTION BLOCKER — no public release until resolved.
 
 ## 1. Supply Chain & License Decisions
 

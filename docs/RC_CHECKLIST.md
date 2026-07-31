@@ -1,24 +1,91 @@
-# Release Candidate Checklist
+# Release Candidate Checklist — v2
 
 - Candidate version: `0.1.0`
-- Candidate commit: (fill after merge)
-- Status: `RC READY — code and automation complete`
-- Last automated validation: 2026-07-31
+- Branch: `qoder/continue-dev`
+- Status: **APPROVAL READY FOR LOCAL SMOKE / BLOCKED FOR PUBLIC DISTRIBUTION**
+- Last automated validation: 2026-07-31 (re-validated after Reviewer RC1 feedback)
+
+---
+
+## Dependency Package Counts (Accurate Statistics)
+
+> **WARNING**: The previous version of this file stated "61 packages" without specifying
+> the counting method. That figure was the current-platform installed count and was
+> misleading. Accurate counts are:
+
+| Statistic | Value | Command to reproduce |
+|---|---|---|
+| `uv.lock` total packages (cross-platform, all conditions) | **84** | `grep -c '^name = ' uv.lock` |
+| Current platform installed (macOS arm64, runtime+dev) | **61** | `uv pip list \| tail -n +3 \| wc -l` |
+| Direct runtime dependencies (`pyproject.toml`) | **7** | see `[project] dependencies` |
+| Direct dev dependencies (`[dependency-groups].dev`) | **3** | see `[dependency-groups]` |
+
+> Note: The 84-vs-61 gap is explained by cross-platform conditional packages
+> (CUDA, NVIDIA, torch/triton Linux-only, etc.) that are resolved in the lock file
+> but not installed on macOS arm64. Package counts WILL vary by platform, Python
+> version, and which extras/groups are synced.
+
+---
 
 ## Automated Gate Results
 
-| Gate | Command | Result |
+All commands run on `qoder/continue-dev` at commit `d668c6d` and subsequent fixes.
+Platform: macOS arm64.
+
+| Gate | Command | Result | Notes |
+|---|---|---|---|
+| Lock consistency | `uv lock --check` | PASS | — |
+| Offline sync | `uv sync --locked --offline` | PASS | 61 pkgs (macOS arm64) |
+| Unit + integration tests | `pytest -x -q` | **PASS — 520 collected, 520 passed, 0 skipped, 0 xfailed** | 22–23s |
+| Type checking | `mypy src` | PASS (24 files, 0 errors) | — |
+| Lint | `ruff check .` | PASS | — |
+| CLI help | `youtube-intel --help` | PASS | — |
+| Offline build | `uv build --offline` | PASS (sdist + wheel) | see artifacts below |
+| Git diff check | `git diff --check` | PASS | — |
+| Security scan | `bash scripts/security_scan.sh` | PASS (17 checks, 3 WARN) | see WARN notes |
+| Backup/recovery drill | `bash scripts/backup_recovery_drill.sh` | PASS (14 steps) | see WARN notes |
+
+### Security Scan WARN Items (not blocking automated gate)
+
+| WARN | Explanation | Action |
 |---|---|---|
-| Lock consistency | `uv lock --check` | PASS |
-| Offline sync | `uv sync --locked --offline` | PASS (61 packages) |
-| Unit + integration tests | `pytest -x -q` | PASS (520 tests) |
-| Type checking | `mypy src` | PASS (24 files) |
-| Lint | `ruff check .` | PASS |
-| CLI help | `youtube-intel --help` | PASS |
-| Offline build | `uv build --offline` | PASS (sdist + wheel) |
-| Git diff check | `git diff --check` | PASS |
-| Security scan | `bash scripts/security_scan.sh` | PASS (13 checks) |
-| Backup/recovery drill | `bash scripts/backup_recovery_drill.sh` | PASS (10 checks) |
+| High-entropy string (check 13) | `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` — MLX Whisper model git revision, locked in ADR-007 | False positive; no remediation needed |
+| No LICENSE in wheel (check 15) | Project license is UNRESOLVED — see `RELEASE_BLOCKERS.md §1.0` | Human decision required before any distribution |
+| `.gitignore` `*.env` added | Pattern was missing; fixed in this RC cycle | Fixed |
+| `print()` in `public_subtitle_smoke.py` (check 17) | Intentional JSONL output line for smoke command result | False positive; design-approved per ADR-013 |
+
+### Backup/Recovery Drill WARN Items (not blocking automated gate)
+
+| Item | Explanation |
+|---|---|
+| Corruption test 11 (4-byte overwrite) | Small DB may pass `integrity_check` for targeted byte corruption; not a coverage gap for real use |
+| CLI doctor exit=3 | Expected in drill env (no Vault, no Ollama, no MLX model); does NOT indicate panic |
+
+---
+
+## Build Artifacts
+
+| Artifact | Path | Approx. size |
+|---|---|---|
+| Source distribution | `dist/youtube_intel-0.1.0.tar.gz` | ~1.8 MB |
+| Wheel | `dist/youtube_intel-0.1.0-py3-none-any.whl` | ~1.9 MB |
+| LICENSE in wheel? | **ABSENT** | Blocked — see §1.0 below |
+
+---
+
+## Project License Status
+
+- **No LICENSE file exists** in the repository root.
+- `pyproject.toml` has **no `license` field**.
+- `docs/SBOM.md` explicitly states: *"本任务不选择、创建或暗示项目自身 LICENSE"*.
+- `docs/THIRD_PARTY_NOTICES.md` is `DRAFT — RELEASE BLOCKED`.
+- **No evidence** in any document, commit message, or ADR establishes what license
+  governs the project's own code.
+- **Consequence**: Until a project license is chosen and a LICENSE file is added,
+  the build artifact does not satisfy standard distribution requirements.
+  Recipients have no explicit grant of rights.
+
+---
 
 ## Code Quality
 
@@ -33,116 +100,68 @@
 - [x] Cloud SDK isolation implemented (ADR-008)
 - [x] Atomic file writes with fsync
 - [x] Obsidian note sanitization (Jinja2 sandbox + title filter)
-- [x] Credential redaction in logs and error messages
+- [x] Security scan passes 17 checks (3 documented WARNs — all false positives)
+
+---
 
 ## Feature Completeness
 
-- [x] TASK-000: Product decisions closed
-- [x] TASK-001: Project scaffold and quality gates
-- [x] TASK-002: Configuration and domain contracts
-- [x] TASK-003: SQLite state store
-- [x] TASK-004: Channel discovery and metadata
-- [x] TASK-005: Subtitle pipeline
-- [x] TASK-005A: Local model shared contracts
-- [x] TASK-006: Local Whisper transcription
-- [x] TASK-007: Local Ollama scoring
-- [x] TASK-008A: Cloud analysis shared contracts
-- [x] TASK-009A: Obsidian shared contracts
-- [x] TASK-008: Optional cloud deep analysis
-- [x] TASK-009: Obsidian video notes
-- [x] TASK-010: Pipeline orchestration and recovery
-- [x] TASK-011: Weekly reports
-- [x] TASK-012: CLI, scheduling, and logging
-- [x] TASK-013A: Local transcription continuation
-- [x] TASK-013: End-to-end acceptance
-- [x] TASK-014: Release readiness (Phase A + B0-B11)
+- [x] TASK-000 through TASK-013 (all DONE per docs/PROJECT_STATUS.md)
+- [x] TASK-014 Phase A + B0–B11 (directory contract diagnostics)
+
+---
 
 ## Installation Verification
 
 - [x] `pyproject.toml` declares Python >=3.12
 - [x] `uv.lock` is consistent with `pyproject.toml`
 - [x] CLI entry `youtube-intel` is registered
-- [x] sdist and wheel build successfully
-- [x] Config examples exist (`config/settings.example.yaml`, `config/channels.example.yaml`)
-- [x] `.gitignore` prevents commit of `.env`, `/data/`, `/logs/`, `*.key`, `*.pem`
+- [x] sdist and wheel build successfully (offline)
+- [x] Config examples exist
+- [x] `.gitignore` prevents commit of `.env`, `*.env`, `/data/`, `/logs/`, `*.key`, `*.pem`
+- [ ] **LICENSE file: ABSENT** — human decision required
 
-## Installation Steps (for operator)
+---
 
-```bash
-# 1. Clone or extract the release candidate
-# 2. Copy configuration templates
-cp config/settings.example.yaml config/settings.yaml
-cp config/channels.example.yaml config/channels.yaml
+## Differentiated Release Conclusions
 
-# 3. Edit configuration (replace placeholders, set real paths)
-# IMPORTANT: Never put real API keys in settings.yaml
-# Use environment variables or .env for credentials
+| Readiness Level | Status | Blocking Reasons |
+|---|---|---|
+| ① Code is testable (unit + integration) | **YES** | — |
+| ② Personal local smoke (no distribution) | **YES** | Smoke authorization matrix gates remain (SMOKE_AUTHORIZATION_MATRIX.md) |
+| ③ Merge to main | **CONDITIONAL** | Requires Integrator + Orchestrator approval per COLLABORATION.md |
+| ④ Public distribution (pip install / upload to PyPI) | **NO** | License unresolved; mutagen GPL; o200k_base.tiktoken; SBOM gaps; NOTICE not complete |
+| ⑤ Production deployment | **NO** | All ④ items plus: at-most-once risk acceptance, real backup drill, four-phase smoke, final signatures |
 
-# 4. Install with locked dependencies
-uv sync --locked
-
-# 5. Verify installation
-.venv/bin/youtube-intel --help
-
-# 6. Initialize the state database
-# (requires running the migration — see operations.md)
-
-# 7. Run doctor to validate configuration
-.venv/bin/youtube-intel doctor
-```
-
-## Rollback Steps
-
-```bash
-# 1. Stop any running processes
-# 2. Back up current data/
-cp -r data/ data-backup-$(date +%Y%m%d)/
-
-# 3. Revert to previous version
-# (pip install previous version or checkout previous commit)
-
-# 4. Restore data if schema is compatible
-# (schema_migrations table must match)
-```
-
-## Uninstall Steps
-
-```bash
-# 1. Stop any running processes
-# 2. Remove the virtual environment
-rm -rf .venv/
-
-# 3. Remove data and logs (CAUTION: this deletes all state)
-# rm -rf data/ logs/
-
-# 4. Remove the project directory
-# cd .. && rm -rf youtube-intel/
-```
-
-## Post-Launch Verification
-
-After deploying to a real environment:
-
-1. `youtube-intel doctor` returns exit code 0
-2. `youtube-intel check` discovers at least one channel
-3. `youtube-intel process --video <id>` completes for one video
-4. JSONL logs appear in `logs/operations.jsonl`
-5. SQLite state reflects the processed video
-6. (If enabled) Obsidian notes appear in the configured Vault
+---
 
 ## Remaining Human-Decision Blockers
 
-All items below are documented in `docs/RELEASE_BLOCKERS.md` and
-require explicit human authorization before production deployment:
+All items documented in `docs/RELEASE_BLOCKERS.md`.
+Summary of **distribution-blocking** items:
 
-1. mutagen GPL distribution decision
-2. o200k_base.tiktoken file-level license
-3. OpenAI SDK / tiktoken / Jinja2 NOTICE evidence
-4. MLX Whisper / ffmpeg / Ollama licensing
-5. Cloud SDK isolation security review
-6. Vault and template distribution boundary
-7. At-most-once risk acceptance
-8. Real backup/recovery drill
+1. **[DIST BLOCKER]** Project license: not selected, no LICENSE file, no `license` field in pyproject.toml
+2. **[DIST BLOCKER]** mutagen GPL-2.0-or-later distribution form decision
+3. **[DIST BLOCKER]** `o200k_base.tiktoken` file-level license and NOTICE
+4. **[DIST BLOCKER]** OpenAI SDK / tiktoken / Jinja2 NOTICE evidence gap
+5. **[DIST BLOCKER]** MLX Whisper / ffmpeg / Ollama licensing decision
+6. Cloud SDK isolation security review sign-off
+7. Vault and template distribution boundary sign-off
+8. At-most-once risk acceptance (PO)
 9. Four-phase real smoke authorization
 10. Real Vault and launchd authorization
 11. PO / TL / QA / Privacy Reviewer final signatures
+
+---
+
+## Scanner and Drill Capability Statement
+
+### Security Scanner (v2)
+- **CAN detect**: common API key formats (OpenAI, GitHub, AWS, Slack, SendGrid), Bearer/Auth headers, PEM keys, AWS credential assignments, .env mispackaging, home-dir leaks, subprocess injection, URLs with credentials, build artifact leaks
+- **CANNOT detect**: obfuscated/encoded secrets, runtime-injected values, binary assets, new credential formats, secrets passed via environment variables
+- High-entropy heuristic (check 13) produces false positives for legitimate hash constants
+- **Does NOT replace** a formal penetration test or security audit
+
+### Backup/Recovery Drill (v2)
+- **Validates**: WAL migration, business-data row-level round-trip, checksum consistency, post-restore integrity_check, corruption/truncation detection, idempotent re-run, CLI doctor
+- **Does NOT prove**: real power-fail safety, filesystem crash recovery, concurrent writer isolation, real Vault restore, exactly-once job semantics
