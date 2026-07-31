@@ -4,6 +4,11 @@
 #         credentials, .env mispackaging, home-dir paths, build artifact scanning,
 #         high-entropy string detection (best-effort), and subprocess injection.
 #
+# PLATFORM COMPATIBILITY:
+#   Tested on macOS (BSD grep) and Linux (GNU grep).
+#   Check 3 (PEM headers) uses multiple -e patterns to avoid macOS BSD grep
+#   treating '-----BEGIN' as an option prefix in a single -E argument.
+#
 # SCANNER CAPABILITY AND LIMITATIONS (HONEST STATEMENT):
 #   - This scanner uses pattern matching (regex). It CAN detect common credential
 #     formats and known anti-patterns. It CANNOT guarantee zero leaks via:
@@ -14,6 +19,10 @@
 #   - High-entropy detection is heuristic and has false positives/negatives.
 #     Known safe patterns (test fixtures, hash constants, SHA-256 digests) are
 #     whitelisted by filename/context, not by value.
+#   - Check 17 uses a word-boundary pattern to avoid false positives from
+#     function names like _directory_fingerprint( or DirectoryFingerprint(.
+#   - Placeholder whitelist (dummy / YOUR_KEY / <key> / REPLACE_ME / example)
+#     is consistent across all credential checks (1, 2, 4, 5).
 #   - This scanner supplements, but does NOT replace, a formal security audit.
 #
 # Exit codes: 0 = clean, 1 = findings detected.
@@ -75,12 +84,21 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. PEM private key headers
+#    Use multiple -e patterns to avoid macOS BSD grep treating '-----BEGIN'
+#    as an option prefix when passed as a single -E argument.
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- 3. PEM private key headers ---"
-HITS=$(grep -rniE '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY' \
-    --include='*.py' --include='*.pem' --include='*.key' \
-    "$ROOT/src/" "$ROOT/tests/" "$ROOT/scripts/" 2>/dev/null || true)
+HITS=$(
+    grep -rni \
+        -e '-----BEGIN RSA PRIVATE KEY' \
+        -e '-----BEGIN EC PRIVATE KEY' \
+        -e '-----BEGIN DSA PRIVATE KEY' \
+        -e '-----BEGIN OPENSSH PRIVATE KEY' \
+        -e '-----BEGIN PRIVATE KEY' \
+        --include='*.py' --include='*.pem' --include='*.key' \
+        "$ROOT/src/" "$ROOT/tests/" "$ROOT/scripts/" 2>/dev/null || true
+)
 if [ -n "$HITS" ]; then
     fail "Found PEM private key header"
     echo "$HITS"
@@ -110,7 +128,7 @@ echo ""
 echo "--- 5. Generic credential assignments (src/ only) ---"
 HITS=$(grep -rniE '(api[_-]?key|secret[_-]?key|password|access[_-]?token|private[_-]?key|client[_-]?secret)\s*[:=]\s*["\x27][^"\x27\$\{]{6,}["\x27]' \
     --include='*.py' "$ROOT/src/" 2>/dev/null \
-    | grep -viE '(test|fake|placeholder|example|REPLACE|os\.environ|getenv|CheckConstraint|NOT NULL|schema_migrations)' || true)
+    | grep -viE '(test|fake|placeholder|example|REPLACE|dummy|YOUR_KEY|<key>|REPLACE_ME|os\.environ|getenv|CheckConstraint|NOT NULL|schema_migrations)' || true)
 if [ -n "$HITS" ]; then
     fail "Found credential-shape assignments in src/"
     echo "$HITS" | head -20
@@ -323,18 +341,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 17. print() in non-child-process src (potential data leak)
+# 17. print() calls in non-child-process src (potential data leak)
+#    Only match actual print( call sites; exclude:
+#      - cloud_llm.py  (child process; intentional stdout)
+#      - lines that are part of function/variable names containing 'print'
+#        but are NOT a print() call (e.g. _directory_fingerprint(, DirectoryFingerprint()
+#    Pattern: literal 'print(' at word boundary, not preceded by alphanumeric/_
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- 17. print() in non-child-process src/ ---"
-HITS=$(grep -rn 'print(' --include='*.py' "$ROOT/src/" 2>/dev/null \
+echo "--- 17. print() calls in non-child-process src/ ---"
+HITS=$(grep -rnE '(^|[^a-zA-Z0-9_])print\s*\(' --include='*.py' "$ROOT/src/" 2>/dev/null \
     | grep -v 'cloud_llm.py' \
     | grep -v '__main__' || true)
 if [ -n "$HITS" ]; then
     warn "Found print() outside child process (review for sensitive data leakage)"
     echo "$HITS" | head -10
 else
-    pass "No unexpected print() statements"
+    pass "No unexpected print() calls"
 fi
 
 # ---------------------------------------------------------------------------
@@ -349,6 +372,9 @@ echo "  - Pattern matching only; obfuscated/encoded secrets not detected"
 echo "  - High-entropy check (test 13) is heuristic with false positives"
 echo "  - Runtime-injected secrets (env vars, external configs) not covered"
 echo "  - Binary files and compiled assets not scanned"
+echo "  - print() check uses word-boundary pattern; function names like _fingerprint( excluded"
+echo "  - Placeholder whitelist is consistent: dummy/YOUR_KEY/<key>/REPLACE_ME across checks"
+echo "  - Platform: tested macOS BSD grep + Linux GNU grep; check 3 uses -e for compatibility"
 echo "  - Does NOT replace a formal penetration test or security audit"
 echo ""
 if [ "$EXIT" -eq 0 ]; then

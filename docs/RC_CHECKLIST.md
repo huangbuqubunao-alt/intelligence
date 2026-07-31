@@ -156,10 +156,15 @@ Summary of **distribution-blocking** items:
 
 ## Scanner and Drill Capability Statement
 
-### Security Scanner (v2)
+### Security Scanner (v3)
+- **Platform**: macOS BSD grep and Linux GNU grep compatible
+  - Check 3 (PEM headers) uses multiple `-e` patterns to avoid macOS BSD grep
+    treating `-----BEGIN` as an option flag in a single `-E` argument
 - **CAN detect**: common API key formats (OpenAI, GitHub, AWS, Slack, SendGrid), Bearer/Auth headers, PEM keys, AWS credential assignments, .env mispackaging, home-dir leaks, subprocess injection, URLs with credentials, build artifact leaks
 - **CANNOT detect**: obfuscated/encoded secrets, runtime-injected values, binary assets, new credential formats, secrets passed via environment variables
-- High-entropy heuristic (check 13) produces false positives for legitimate hash constants
+- **Whitelist consistency**: `dummy / YOUR_KEY / <key> / REPLACE_ME / example / placeholder / fake` applied uniformly across checks 1, 2, 4, 5
+- **Check 17 (print)**: uses word-boundary pattern `[^a-zA-Z0-9_]print\s*(` to exclude false positives like `_directory_fingerprint(` or `DirectoryFingerprint(`
+- High-entropy heuristic (check 13) produces false positives for legitimate hash constants (known: model revision SHA)
 - **Does NOT replace** a formal penetration test or security audit
 
 ### Backup/Recovery Drill (v2)
