@@ -14,12 +14,14 @@ from typing import TYPE_CHECKING, Protocol
 from youtube_intel.domain import AppError, ErrorCode, VideoMetadata
 from youtube_intel.logging import JsonlLogger
 from youtube_intel.providers.subtitles import (
+    _DIRECTORY_CONTRACT_FIELDS,
     CONTENT_AVAILABILITY_CODES,
     DIRECTORY_DIAGNOSTIC_CODES,
     DIRECTORY_FINGERPRINT_CODES,
     DIRECTORY_ORIGIN_CODES,
     YtDlpSubtitleAdapter,
     _content_availability_from_error,
+    _directory_contract_state_from_error,
 )
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.state import SQLiteStateRepository
@@ -193,6 +195,13 @@ class PublicSubtitleSmoke:
                 enumerate_calls=enumerate_calls,
                 read_calls=read_calls,
             )
+            contract_state = _directory_contract_state(
+                error,
+                directory_only=directory_only,
+                metadata_calls=metadata_calls,
+                enumerate_calls=enumerate_calls,
+                read_calls=read_calls,
+            )
             safe_message = (
                 "metadata_calls="
                 f"{metadata_calls} enumerate_tracks_calls={enumerate_calls} "
@@ -219,6 +228,25 @@ class PublicSubtitleSmoke:
                 duration_ms=int((time.monotonic() - started) * 1000),
                 safe_message=safe_message,
             )
+            if contract_state is not None:
+                contract_message = " ".join(
+                    f"{field}={value}"
+                    for field, value in zip(
+                        _DIRECTORY_CONTRACT_FIELDS,
+                        contract_state,
+                        strict=True,
+                    )
+                )
+                logger.emit(
+                    level="ERROR",
+                    event="smoke.target.directory_contract_state",
+                    run_id=run_id,
+                    stage="smoke-public-subtitles",
+                    video_id=video_id,
+                    error_code=error_code,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    safe_message=contract_message,
+                )
             _emit_summary(
                 video_id=video_id,
                 metadata_calls=metadata_calls,
@@ -230,6 +258,7 @@ class PublicSubtitleSmoke:
                 directory_fingerprint=fingerprint,
                 directory_key_names=key_names,
                 content_availability=availability,
+                directory_contract_state=contract_state,
             )
             return False
 
@@ -303,6 +332,7 @@ def _emit_summary(
     directory_fingerprint: str | None = None,
     directory_key_names: tuple[str, ...] | None = None,
     content_availability: str | None = None,
+    directory_contract_state: tuple[str, str, str, str, str, str] | None = None,
 ) -> None:
     summary: dict[str, str | int | list[str]] = {
         "video_id": video_id,
@@ -321,6 +351,13 @@ def _emit_summary(
         summary["directory_key_names"] = list(directory_key_names)
     if content_availability is not None:
         summary["content_availability"] = content_availability
+    if directory_contract_state is not None:
+        for field, value in zip(
+            _DIRECTORY_CONTRACT_FIELDS,
+            directory_contract_state,
+            strict=True,
+        ):
+            summary[field] = value
     print(json.dumps(summary, separators=(",", ":")))
 
 
@@ -435,6 +472,26 @@ def _content_availability(
     if isinstance(availability, str) and availability in CONTENT_AVAILABILITY_CODES:
         return availability
     return "content_availability_unknown"
+
+
+def _directory_contract_state(
+    error: Exception,
+    *,
+    directory_only: bool,
+    metadata_calls: int,
+    enumerate_calls: int,
+    read_calls: int,
+) -> tuple[str, str, str, str, str, str] | None:
+    if (
+        not directory_only
+        or metadata_calls != 1
+        or enumerate_calls != 1
+        or read_calls != 0
+        or _error_code(error) != ErrorCode.INVALID_RESPONSE.value
+        or getattr(error, "directory_origin", None) != "directory_origin_mapping"
+    ):
+        return None
+    return _directory_contract_state_from_error(error)
 
 
 def _is_directory_invalid_response(

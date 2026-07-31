@@ -97,6 +97,22 @@ class _YdlHandle:
         return self._result
 
 
+class _IdentityShapeMismatchPayload(Mapping[object, object]):
+    """Expose only a non-user sentinel at the outer downloader boundary."""
+
+    _sentinel = object()
+
+    def __getitem__(self, item_ref: object) -> object:
+        del item_ref
+        return self._sentinel
+
+    def __iter__(self) -> Iterator[object]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 1
+
+
 class _Response:
     def __init__(
         self,
@@ -494,6 +510,97 @@ def test_directory_origin_and_fingerprint_codes_are_exactly_the_frozen_b7_vocabu
             "directory_fingerprint_required_field_missing",
             "directory_fingerprint_unknown",
         }
+    )
+
+
+def test_directory_contract_state_vocabularies_are_exactly_frozen() -> None:
+    assert subtitles_mod._DIRECTORY_CONTRACT_FIELDS == (
+        "video_identity_shape",
+        "manual_directory_shape",
+        "automatic_directory_shape",
+        "caption_bucket_shape",
+        "track_entry_shape",
+        "required_members_shape",
+    )
+    assert tuple(member.value for member in subtitles_mod._VideoIdentityShape) == (
+        "missing",
+        "string",
+        "other",
+        "unknown",
+    )
+    assert tuple(member.value for member in subtitles_mod._DirectoryShape) == (
+        "missing",
+        "mapping",
+        "other",
+        "unknown",
+    )
+    assert tuple(member.value for member in subtitles_mod._CaptionBucketShape) == (
+        "not_evaluated",
+        "absent",
+        "sequence",
+        "other",
+        "unknown",
+    )
+    assert tuple(member.value for member in subtitles_mod._TrackEntryShape) == (
+        "not_evaluated",
+        "absent",
+        "mapping",
+        "other",
+        "unknown",
+    )
+    assert tuple(member.value for member in subtitles_mod._RequiredMembersShape) == (
+        "not_evaluated",
+        "complete",
+        "missing",
+        "wrong_type",
+        "unknown",
+    )
+
+
+def test_directory_contract_state_uses_only_frozen_no_value_enums() -> None:
+    state = subtitles_mod._directory_contract_state(
+        subtitles_mod._VideoIdentityShape.UNKNOWN,
+        subtitles_mod._DirectoryShape.UNKNOWN,
+        subtitles_mod._DirectoryShape.UNKNOWN,
+        subtitles_mod._CaptionBucketShape.NOT_EVALUATED,
+        subtitles_mod._TrackEntryShape.NOT_EVALUATED,
+        subtitles_mod._RequiredMembersShape.NOT_EVALUATED,
+    )
+
+    assert state == (
+        "unknown",
+        "unknown",
+        "unknown",
+        "not_evaluated",
+        "not_evaluated",
+        "not_evaluated",
+    )
+    with pytest.raises(TypeError):
+        subtitles_mod._directory_contract_state(
+            object(),
+            subtitles_mod._DirectoryShape.UNKNOWN,
+            subtitles_mod._DirectoryShape.UNKNOWN,
+            subtitles_mod._CaptionBucketShape.NOT_EVALUATED,
+            subtitles_mod._TrackEntryShape.NOT_EVALUATED,
+            subtitles_mod._RequiredMembersShape.NOT_EVALUATED,
+        )
+
+
+def test_ytdlp_adapter_maps_contract_mismatch_to_frozen_no_value_state() -> None:
+    adapter, _ = _adapter_for_info(_IdentityShapeMismatchPayload())
+
+    with pytest.raises(TranscriptError) as captured:
+        adapter.enumerate_tracks("video123")
+
+    assert captured.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert captured.value.directory_origin == "directory_origin_mapping"
+    assert captured.value.directory_contract_state == (
+        "other",
+        "unknown",
+        "unknown",
+        "not_evaluated",
+        "not_evaluated",
+        "not_evaluated",
     )
 
 
