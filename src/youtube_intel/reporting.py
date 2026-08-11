@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol, cast
+from typing import Any, Final, Protocol, cast
 from zoneinfo import ZoneInfo
 
 from jinja2 import StrictUndefined
@@ -229,10 +229,44 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
     return cast(str, content).replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
 
 
+_VIDEO_ID_RE: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+_SAFE_NOTE_BASE_RE: Final = re.compile(r"^[\w _.()-]+$", re.UNICODE)
+
+
 def _safe_note_path(value: str) -> str:
-    """Validate a verified note path before embedding it in a wiki link."""
-    if not re.match(r"^Videos/[A-Za-z0-9_.()\- ]+--[A-Za-z0-9_-]{6,32}\.md$", value):
+    """Validate a verified note path before embedding it in a wiki link.
+
+    Allows Unicode letters, combining characters, spaces, and a small set of
+    safe punctuation. Rejects path traversal, absolute paths, control
+    characters, and characters that could form Markdown / Obsidian links or
+    embeds inside the wiki-link destination.
+    """
+    normalized = unicodedata.normalize("NFC", value)
+    if not normalized:
         raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+    if any(unicodedata.category(char) == "Cc" for char in normalized):
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+    if any(
+        char in normalized
+        for char in ("[", "]", "!", "<", ">", '"', "'", "`", "|", "#", "^", "\n", "\r")
+    ):
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or len(path.parts) != 2 or path.parts[0] != "Videos":
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+
+    filename = path.parts[1]
+    if not filename.endswith(".md"):
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+
+    stem = filename[:-3]
+    if "--" not in stem:
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+    base, video_id = stem.rsplit("--", 1)
+    if not base or not _VIDEO_ID_RE.match(video_id) or not _SAFE_NOTE_BASE_RE.match(base):
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+
     return value
 
 

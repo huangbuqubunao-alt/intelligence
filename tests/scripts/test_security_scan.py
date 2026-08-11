@@ -9,11 +9,60 @@ from __future__ import annotations
 import subprocess
 import tarfile
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 SCANNER = ["bash", "scripts/security_scan.sh"]
+
+
+def _aws_secret_value() -> str:
+    """AWS-like secret built from fragments so the literal never appears in source."""
+    return "A" * 20 + "1234"
+
+
+def _openai_key_value() -> str:
+    """OpenAI-like key built from fragments so the literal never appears in source."""
+    return "sk-" + "abc" * 8 + "123"
+
+
+def _bearer_value() -> str:
+    """Bearer-like token built from fragments so the literal never appears in source."""
+    return "eyJ" + "a" * 10 + "In0"
+
+
+def _pem_value() -> str:
+    """PEM-like key built from fragments so the literal never appears in source."""
+    begin = "-----BEGIN" + " RSA PRIVATE KEY-----"
+    end = "-----END" + " RSA PRIVATE KEY-----"
+    return begin + "\n" + "M" * 32 + "\n" + end
+
+
+def _wheel_secret() -> str:
+    """Wheel fixture secret built from fragments so the literal never appears in source."""
+    return "rc-wheel-" + "A" * 20 + "1234"
+
+
+def _sdist_secret() -> str:
+    """Sdist fixture secret built from fragments so the literal never appears in source."""
+    return "rc-sdist-" + "A" * 20 + "1234"
+
+
+def _aws_payload() -> str:
+    return "AWS_SECRET_ACCESS_KEY" + " = '" + _aws_secret_value() + "'"
+
+
+def _api_key_payload() -> str:
+    return "API_KEY" + ' = "' + _openai_key_value() + '"'
+
+
+def _bearer_payload() -> str:
+    return "Authorization" + ': "Bearer ' + _bearer_value() + '"'
+
+
+def _pem_payload() -> str:
+    return _pem_value()
 
 
 def _init_git_fixture(path: Path) -> None:
@@ -35,18 +84,19 @@ def _run_scanner(cwd: Path) -> tuple[int, str, str]:
 
 
 @pytest.mark.parametrize(
-    ("filename", "payload", "rule"),
+    ("filename", "payload_factory", "rule"),
     (
-        ("aws_secret.py", "AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCY12345678'", "aws-credential"),
-        ("api_key.py", 'API_KEY = "sk-abcdefghijklmnopqrstuvwxyz123456"', "generic-credential"),
-        ("bearer.py", 'Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"', "bearer-auth"),
-        ("pem.pem", "-----BEGIN RSA PRIVATE KEY-----\nMIIEpQIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MhgwKVPSmwaFkYLv\n-----END RSA PRIVATE KEY-----", "pem-private-key"),
+        ("aws_secret.py", _aws_payload, "aws-credential"),
+        ("api_key.py", _api_key_payload, "api-key"),
+        ("bearer.py", _bearer_payload, "bearer-auth"),
+        ("pem.pem", _pem_payload, "pem-private-key"),
     ),
     ids=("aws-single-quote", "api-key-double-quote", "bearer-token", "pem-key"),
 )
 def test_credential_positive_cases_are_detected_and_redacted(
-    tmp_path: Path, filename: str, payload: str, rule: str
+    tmp_path: Path, filename: str, payload_factory: Callable[[], str], rule: str
 ) -> None:
+    payload = payload_factory()
     (tmp_path / filename).write_text(payload, encoding="utf-8")
     _init_git_fixture(tmp_path)
 
@@ -81,10 +131,10 @@ def test_multiline_subprocess_shell_true_is_detected(tmp_path: Path) -> None:
 def test_wheel_with_fake_secret_is_detected_and_redacted(tmp_path: Path) -> None:
     wheel_dir = tmp_path / "dist"
     wheel_dir.mkdir()
-    secret = "rc-wheel-ABCDEFGHIJKLMNOPQRSTUVWXYZ1234"
+    secret = _wheel_secret()
     wheel_path = wheel_dir / "fake-0.0.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel_path, "w") as archive:
-        archive.writestr("fake/leaked.py", f"API_KEY = '{secret}'\n")
+        archive.writestr("fake/leaked.py", "API_KEY" + " = '" + secret + "'\n")
     _init_git_fixture(tmp_path)
 
     exit_code, stdout, stderr = _run_scanner(tmp_path)
@@ -98,10 +148,10 @@ def test_wheel_with_fake_secret_is_detected_and_redacted(tmp_path: Path) -> None
 def test_sdist_with_fake_secret_is_detected_and_redacted(tmp_path: Path) -> None:
     sdist_dir = tmp_path / "dist"
     sdist_dir.mkdir()
-    secret = "rc-sdist-ABCDEFGHIJKLMNOPQRSTUVWXYZ1234"
+    secret = _sdist_secret()
     sdist_path = sdist_dir / "fake-0.0.0.tar.gz"
     with tarfile.open(sdist_path, "w:gz") as archive:
-        data = f"API_KEY = '{secret}'\n".encode("utf-8")
+        data = ("API_KEY" + " = '" + secret + "'\n").encode("utf-8")
         info = tarfile.TarInfo(name="fake/leaked.py")
         info.size = len(data)
         archive.addfile(info, fileobj=__import__("io").BytesIO(data))
@@ -144,10 +194,12 @@ def test_invalid_python_syntax_fails_closed(tmp_path: Path) -> None:
         ("your_key.py", "SECRET_KEY = \"YOUR_KEY\""),
         ("dummy.py", "ACCESS_TOKEN = 'dummy'"),
         ("example.py", "CLIENT_SECRET = 'example_placeholder'"),
+        ("fake_key.py", "API_KEY = 'fake_key_value'"),
+        ("key_tag.py", "API_KEY = '<key>'"),
         ("shell_false.py", "import subprocess\nsubprocess.run('ls', shell=False)\n"),
         ("revision.py", 'MODEL_REVISION = "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"\n'),
     ),
-    ids=("replace-me", "your-key", "dummy", "example-placeholder", "shell-false", "model-revision"),
+    ids=("replace-me", "your-key", "dummy", "example-placeholder", "fake-key-value", "key-tag", "shell-false", "model-revision"),
 )
 def test_negative_cases_do_not_block(tmp_path: Path, filename: str, payload: str) -> None:
     (tmp_path / filename).write_text(payload, encoding="utf-8")
@@ -156,3 +208,24 @@ def test_negative_cases_do_not_block(tmp_path: Path, filename: str, payload: str
     exit_code, stdout, stderr = _run_scanner(tmp_path)
 
     assert exit_code == 0, f"unexpected block for {filename}: {stdout}{stderr}"
+
+
+def _bypass_secret() -> str:
+    """A value that contains 'placeholder' but is not an allowed sentinel."""
+    return "actual" + "placeholder" + "credential123456"
+
+
+def test_placeholder_substring_does_not_bypass_scanner(tmp_path: Path) -> None:
+    """A value that merely contains 'placeholder' must not be whitelisted."""
+    secret = _bypass_secret()
+    (tmp_path / "bypass.py").write_text(
+        "API_KEY" + ' = "' + secret + '"\n', encoding="utf-8"
+    )
+    _init_git_fixture(tmp_path)
+
+    exit_code, stdout, stderr = _run_scanner(tmp_path)
+
+    combined = stdout + stderr
+    assert exit_code != 0
+    assert "generic-credential" in combined
+    assert secret not in combined

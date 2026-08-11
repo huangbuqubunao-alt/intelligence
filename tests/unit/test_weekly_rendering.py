@@ -25,6 +25,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.reporting import (
     WeeklyReportValidationError,
+    _safe_note_path,
     _VerifiedWeeklyReport,
     render_weekly_report,
 )
@@ -203,6 +204,56 @@ def test_weekly_report_rejects_unsafe_note_path() -> None:
     bad_report = report.model_copy(update={"items": (item,)})
     with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
         render_weekly_report(bad_report)
+
+
+def test_weekly_report_accepts_unicode_note_path() -> None:
+    report = _report()
+    item = report.items[0].model_copy(
+        update={
+            "note_ref": NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path="Videos/中文产品分析--abc123.md",
+                content_hash="c" * 64,
+            ),
+        }
+    )
+    rendered = render_weekly_report(report.model_copy(update={"items": (item,)}))
+    assert "中文产品分析" in rendered
+    assert "[[Videos/中文产品分析--abc123.md|" in rendered
+
+
+def test_safe_note_path_rejects_traversal_and_absolute_paths() -> None:
+    with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
+        _safe_note_path("../evil.md")
+    with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
+        _safe_note_path("/absolute/path.md")
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "Videos/[link](evil)--abc123.md",
+        "Videos/![image](evil)--abc123.md",
+        "Videos/[[wiki]]--abc123.md",
+        "Videos/![[embed]]--abc123.md",
+        "Videos/auto<link>--abc123.md",
+        "Videos/pipe|alias--abc123.md",
+    ),
+    ids=("md-link", "md-image", "wiki-link", "obsidian-embed", "auto-link", "pipe-alias"),
+)
+def test_weekly_report_rejects_markdown_and_obsidian_injection_in_path(relative_path: str) -> None:
+    report = _report()
+    item = report.items[0].model_copy(
+        update={
+            "note_ref": NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path=relative_path,
+                content_hash="c" * 64,
+            ),
+        }
+    )
+    with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
+        render_weekly_report(report.model_copy(update={"items": (item,)}))
 
 
 def test_weekly_report_preserves_unicode_and_chinese_text() -> None:

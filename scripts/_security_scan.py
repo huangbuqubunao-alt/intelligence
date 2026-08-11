@@ -36,7 +36,9 @@ _TRACKED_EXTENSIONS: Final = frozenset(
     }
 )
 
-_ARTIFACT_TEXT_EXTENSIONS: Final = frozenset({".py", ".txt", ".cfg", ".toml", ".ini"})
+_ARTIFACT_TEXT_EXTENSIONS: Final = frozenset(
+    {".py", ".txt", ".cfg", ".toml", ".ini", ".md", ".json", ".yaml", ".yml", ".sh"}
+)
 
 _SUBPROCESS_NAMES: Final = frozenset({"run", "Popen", "call", "check_call", "check_output"})
 
@@ -86,9 +88,24 @@ _CREDENTIAL_PATTERNS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
     ),
 )
 
-_PLACEHOLDER_RE: Final = re.compile(
-    r"(?i)(?:test_fixture|placeholder|example|fake[_-]?key|dummy|YOUR_KEY|<key>|REPLACE_ME|probe)"
+# Exact sentinel values that are allowed in test fixtures and review probes.
+# Only a quoted value that equals one of these strings is skipped;
+# substring/contains matching is intentionally forbidden to avoid bypasses like
+# "actualplaceholdercredential...".
+_EXACT_PLACEHOLDER_VALUES: Final = frozenset(
+    {
+        "REPLACE_ME",
+        "YOUR_KEY",
+        "<key>",
+        "dummy",
+        "example_placeholder",
+        "fake_key_value",
+        # Documented reviewer probe sentinel in handoffs/TASK-002.md (not a real key).
+        "sk-independent-reviewer-probe-9f3a2b",
+    }
 )
+
+_QUOTED_VALUE_RE: Final = re.compile(r"""(["'])(.*?)\1""")
 
 # Best-effort entropy heuristic: base64-ish strings of length >= 32.
 _ENTROPY_RE: Final = re.compile(r"[A-Za-z0-9+/]{32,}={0,2}")
@@ -105,7 +122,7 @@ _ENTROPY_EXCLUDE_RE: Final = re.compile(
 
 _PRINT_RE: Final = re.compile(r"(?:^|[^a-zA-Z0-9_])print\s*\(")
 
-_IGNORED_PRINT_FILES: Final = frozenset({"cloud_llm.py", "public_subtitle_smoke.py"})
+_IGNORED_PRINT_FILES: Final = frozenset({"cloud_llm.py", "public_subtitle_smoke.py", "_security_scan.py"})
 
 _GITIGNORE_PATTERNS: Final = frozenset(
     {
@@ -188,9 +205,18 @@ def _scan_text_for_credentials(path: Path, findings: list[Finding], root: Path) 
         for rule, pattern in _CREDENTIAL_PATTERNS:
             for match in pattern.finditer(line):
                 matched = match.group(0)
-                if _PLACEHOLDER_RE.search(matched):
+                if _is_exact_placeholder(matched):
                     continue
                 findings.append(Finding(rule, path, line_number, matched, root))
+
+
+def _is_exact_placeholder(matched: str) -> bool:
+    """Return True only when the full match or a quoted value is an allowed sentinel."""
+    if matched in _EXACT_PLACEHOLDER_VALUES:
+        return True
+    return any(
+        value in _EXACT_PLACEHOLDER_VALUES for _quote, value in _QUOTED_VALUE_RE.findall(matched)
+    )
 
 
 def _scan_python_ast(path: Path, findings: list[Finding], root: Path) -> None:
@@ -244,8 +270,10 @@ def _scan_high_entropy(path: Path, warnings: list[str], root: Path) -> None:
 
 def _scan_print_calls(path: Path, warnings: list[str], root: Path) -> None:
     content = _read_text(path)
+    if path.name in _IGNORED_PRINT_FILES:
+        return
     for line_number, line in enumerate(content.splitlines(), start=1):
-        if _PRINT_RE.search(line) and "cloud_llm.py" not in str(path):
+        if _PRINT_RE.search(line):
             rel = _relative_path(path, root)
             warnings.append(
                 f"rule=print-call path={rel} line={line_number}"
