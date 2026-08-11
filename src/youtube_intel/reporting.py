@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import stat
 import unicodedata
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from youtube_intel.domain import (
     WeeklyReportInput,
     WeeklyReportItem,
 )
+from youtube_intel.notes import _safe_inline
 from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
 
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
@@ -204,11 +206,11 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
 
     items = tuple(
         {
-            "title": _inline(item.video.title),
-            "note_path": item.note_ref.relative_path,
+            "title": _safe_inline(item.video.title),
+            "note_path": _safe_note_path(item.note_ref.relative_path),
             "score": f"{item.score.score:g}",
-            "reason": _inline(item.score.reason),
-            "summary": _inline(item.one_sentence_summary),
+            "reason": _safe_inline(item.score.reason),
+            "summary": _safe_inline(item.one_sentence_summary),
         }
         for item in report.items
     )
@@ -218,13 +220,20 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
     content = _template().render(
         iso_year=report.iso_year,
         iso_week=report.iso_week,
-        timezone=_inline(report.timezone),
+        timezone=_safe_inline(report.timezone),
         item_count=len(items),
         items=items,
         keywords=keywords,
-        directions=directions,
+        directions=tuple(_safe_inline(direction) for direction in directions),
     )
     return cast(str, content).replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
+
+
+def _safe_note_path(value: str) -> str:
+    """Validate a verified note path before embedding it in a wiki link."""
+    if not re.match(r"^Videos/[A-Za-z0-9_.()\- ]+--[A-Za-z0-9_-]{6,32}\.md$", value):
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
+    return value
 
 
 def _template() -> Any:
@@ -286,7 +295,7 @@ def _normalized_counts(values: Any) -> tuple[dict[str, object], ...]:
         else:
             counts[normalized] = (min(previous[0], display), previous[1] + 1)
     return tuple(
-        {"keyword": display, "count": count}
+        {"keyword": _safe_inline(display), "count": count}
         for _, (display, count) in sorted(
             counts.items(), key=lambda entry: (-entry[1][1], entry[0])
         )
@@ -440,7 +449,3 @@ def _video_metadata(record: Any) -> VideoMetadata:
         live_status=LiveStatus(record.live_status),
         availability=Availability(record.availability),
     )
-
-
-def _inline(value: str) -> str:
-    return " ".join(value.replace("\r", "\n").splitlines()).strip()

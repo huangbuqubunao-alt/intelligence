@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import re
 import unicodedata
+import urllib.parse
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
@@ -30,6 +32,7 @@ _WINDOWS_DEVICE_NAMES: Final = frozenset(
 _MAX_SAFE_TITLE_BYTES: Final = 120
 _MAX_MANAGED_BYTES: Final = 1 << 20
 _TEMPLATE_RESOURCE: Final = ("templates", "video.md")
+_SAFE_SOURCE_SCHEMES: Final = frozenset({"http", "https"})
 
 
 class NoteRenderingError(ValueError):
@@ -96,10 +99,10 @@ def render_video_note(
             processed_at=processed_at,
             pipeline_version=pipeline_version,
         ),
-        title=_inline(video.title),
-        score=_inline(f"{scoring.result.score:g}"),
-        scoring_reason=_inline(scoring.result.reason),
-        topics=tuple(_inline(topic) for topic in scoring.result.topics),
+        title=_safe_inline(video.title),
+        score=f"{scoring.result.score:g}",
+        scoring_reason=_safe_inline(scoring.result.reason),
+        topics=tuple(_safe_inline(topic) for topic in scoring.result.topics),
         analysis=_analysis_values(analysis),
     )
     content = content.replace("\r\n", "\n").replace("\r", "\n")
@@ -152,17 +155,17 @@ def _frontmatter(
     values = (
         ("type", "video"),
         ("video_id", video.video_id),
-        ("title", _inline(video.title)),
-        ("channel", _inline(video.channel_name)),
+        ("title", _safe_inline(video.title)),
+        ("channel", _safe_inline(video.channel_name)),
         ("published", published),
-        ("source", video.source_url),
+        ("source", _safe_source_url(video.source_url)),
         ("language", transcript.language),
         ("transcript_source", transcript.source_type.value),
     )
     lines = [f"{name}: {json.dumps(value, ensure_ascii=False)}" for name, value in values]
     lines.append(f"score: {scoring.result.score!r}")
     lines.append(
-        "topics: [" + ", ".join(json.dumps(_inline(topic), ensure_ascii=False) for topic in scoring.result.topics) + "]"
+        "topics: [" + ", ".join(json.dumps(_safe_inline(topic), ensure_ascii=False) for topic in scoring.result.topics) + "]"
     )
     lines.append(f"processed_at: {json.dumps(processed)}")
     lines.append(f"pipeline_version: {json.dumps(pipeline_version)}")
@@ -174,7 +177,7 @@ def _analysis_values(analysis: AnalysisOutcome) -> dict[str, object]:
         return {
             "skipped": True,
             "skip_reason": analysis.reason.value,
-            "skip_message": _inline(analysis.safe_message),
+            "skip_message": _safe_inline(analysis.safe_message),
             "summary": "未生成：云端分析按策略跳过。",
             "core_points": (),
             "key_facts": (),
@@ -194,28 +197,95 @@ def _analysis_values(analysis: AnalysisOutcome) -> dict[str, object]:
         "skipped": False,
         "skip_reason": "",
         "skip_message": "",
-        "summary": _inline(result.one_sentence_summary),
-        "core_points": tuple(_inline(point.text) for point in result.core_points),
-        "key_facts": tuple(_inline(point.text) for point in result.key_facts),
-        "product_opportunities": tuple(_inline(point.text) for point in result.product_opportunities),
-        "business_opportunities": tuple(_inline(point.text) for point in result.business_opportunities),
-        "actionable_directions": tuple(_inline(point.text) for point in result.actionable_directions),
-        "hypotheses_to_validate": tuple(_inline(point.text) for point in result.hypotheses_to_validate),
-        "action_recommendations": tuple(_inline(point.text) for point in result.action_recommendations),
-        "risks": tuple(_inline(point.text) for point in result.risks),
+        "summary": _safe_block(result.one_sentence_summary),
+        "core_points": tuple(_safe_inline(point.text) for point in result.core_points),
+        "key_facts": tuple(_safe_inline(point.text) for point in result.key_facts),
+        "product_opportunities": tuple(_safe_inline(point.text) for point in result.product_opportunities),
+        "business_opportunities": tuple(_safe_inline(point.text) for point in result.business_opportunities),
+        "actionable_directions": tuple(_safe_inline(point.text) for point in result.actionable_directions),
+        "hypotheses_to_validate": tuple(_safe_inline(point.text) for point in result.hypotheses_to_validate),
+        "action_recommendations": tuple(_safe_inline(point.text) for point in result.action_recommendations),
+        "risks": tuple(_safe_inline(point.text) for point in result.risks),
         "evidence": tuple(
-            _inline(f"{item.evidence_id}（{item.source.value}）：{item.excerpt}")
+            _safe_inline(f"{item.evidence_id}（{item.source.value}）：{item.excerpt}")
             for item in result.evidence
         ),
-        "keywords": tuple(_inline(keyword) for keyword in result.keywords),
+        "keywords": tuple(_safe_inline(keyword) for keyword in result.keywords),
     }
 
 
-def _inline(value: str) -> str:
+def _safe_source_url(value: str) -> str:
+    """Validate that the video source URL uses an allowed scheme."""
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except ValueError as exc:
+        raise NoteRenderingError("source URL is invalid") from exc
+    if parsed.scheme not in _SAFE_SOURCE_SCHEMES:
+        raise NoteRenderingError(f"source URL scheme is not allowed: {parsed.scheme}")
+    return urllib.parse.urlunparse(parsed)
+
+
+def _safe_inline(value: str) -> str:
+    """Escape a single-line primitive for inline Markdown/HTML contexts.
+
+    Collapses whitespace and removes control characters, then HTML-escapes and
+    neutralizes Markdown structural characters so that untrusted text cannot
+    form links, images, headings, code, or table separators.
+    """
     normalized = unicodedata.normalize("NFC", value)
-    return " ".join(
-        "".join(character for character in normalized if unicodedata.category(character) != "Cc").split()
-    )
+    cleaned = "".join(character for character in normalized if unicodedata.category(character) != "Cc")
+    collapsed = " ".join(cleaned.split())
+    escaped = html.escape(collapsed, quote=True)
+    for old, new in (
+        ("[", "&#91;"),
+        ("]", "&#93;"),
+        ("!", "&#33;"),
+        ("#", "&#35;"),
+        ("`", "&#96;"),
+        ("|", "&#124;"),
+        ("*", "&#42;"),
+        ("_", "&#95;"),
+    ):
+        escaped = escaped.replace(old, new)
+    return escaped
+
+
+def _safe_block(value: str) -> str:
+    """Escape a multi-line block so it cannot form active HTML or Markdown structure.
+
+    Unlike `_safe_inline`, newlines are preserved. Line-start Markdown block
+    structures (headings, blockquotes, lists, horizontal rules, fenced-code
+    delimiters) are neutralised in addition to the inline link/image/code escapes.
+    """
+    normalized = unicodedata.normalize("NFC", value)
+    cleaned = "".join(character for character in normalized if unicodedata.category(character) != "Cc")
+    lines = cleaned.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    escaped_lines: list[str] = []
+    for line in lines:
+        escaped = html.escape(line, quote=True)
+        for old, new in (
+            ("[", "&#91;"),
+            ("]", "&#93;"),
+            ("!", "&#33;"),
+            ("`", "&#96;"),
+            ("|", "&#124;"),
+        ):
+            escaped = escaped.replace(old, new)
+
+        stripped = escaped.lstrip(" ")
+        leading_spaces = escaped[: len(escaped) - len(stripped)]
+        if stripped.startswith("#"):
+            stripped = re.sub(r"^(#+)", lambda match: "&#35;" * len(match.group(1)), stripped)
+        elif stripped.startswith(("- ", "* ", "+ ")):
+            stripped = "\\" + stripped[0] + stripped[1:]
+        elif re.match(r"^(\d+)\. ", stripped):
+            match = re.match(r"^(\d+)\. ", stripped)
+            if match is not None:
+                stripped = match.group(1) + "\\. " + stripped[match.end():]
+        elif re.match(r"^(-{3,}|\*{3,}|_{3,})$", stripped):
+            stripped = "\\" + stripped
+        escaped_lines.append(leading_spaces + stripped)
+    return "\n".join(escaped_lines)
 
 
 def _template() -> Template:
