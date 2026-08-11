@@ -1598,3 +1598,82 @@
     pytest, build/package checks, other CLI subcommands, network, real smoke,
     authentication, media, Vault, models or cloud services, merge, push,
     Reviewer startup, task-state changes, source cleanup, and index generation.
+
+## WorkBuddy P1 Remediation Evidence (2026-08-11)
+
+Performed on branch `workbuddy/fix-rc-p1` from base `qoder/continue-dev` @ `296f701`.
+Scope: fix the three P1 blockers raised in the Codex Maintainer Review of the
+RC on `qoder/continue-dev`. No redesign of TASK-014B11; no new features.
+
+### P1-1: Security scanner fail-closed, cross-platform, redaction, AST shell=True
+
+- Rewrote `scripts/security_scan.sh` to call new helper `scripts/_security_scan.py`.
+- Credential patterns now match `KEY="value"`, `KEY='value'`, `KEY = "value"`,
+  `KEY = 'value'` for required key names using Python `re`; compatible with
+  macOS BSD and Linux without GNU-only extensions.
+- Added AST traversal detecting `subprocess.run/Popen/call/check_call/check_output(..., shell=True)`.
+- Scanner is fail-closed: enumeration/read/AST/extract failures return non-zero.
+- Findings are redacted: only `rule=`, `path=`, `line=`, and a short SHA-256
+  fingerprint are emitted; the secret text is never echoed.
+- Scan scope expanded to all tracked `.py/.sh/.toml/.yaml/.yml/.json/.md/.txt/.cfg/.ini`
+  plus wheel/sdist contents.
+- Added `tests/scripts/test_security_scan.py` with positive/negative probes.
+- Scanner result after remediation: `status=clean` (documented WARNs are false
+  positives: legitimate hashes, print in smoke command, missing LICENSE).
+
+### P1-2: Backup/recovery drill deterministic validation and honest reporting
+
+- Rewrote `scripts/backup_recovery_drill.sh` (v3) with explicit PASS/WARN/FAIL
+  state model.
+- Corruption detection is deterministic:
+  - SQLite magic-header overwrite (rejected by sqlite3 open/integrity_check);
+  - 50% file truncation (rejected by integrity_check);
+  - backup manifest SHA-256 mismatch (rejected by manifest verification);
+  - recovered-file checksum mismatch after byte-level corruption.
+- Data-level verification covers schema, user_version, migration record,
+  migration checksum, videos/jobs row counts and key business-field values,
+  pre- and post-recovery `PRAGMA integrity_check`, backup/recovered checksums,
+  read-only post-recovery query, and CLI `doctor` on the recovered project.
+- Idempotency proven by running the same verification a second time on the
+  SAME recovered database and asserting row counts do not change.
+- Honest limitations preserved: real power-fail, kernel crash, concurrent
+  writers, real Vault restore, and exactly-once semantics are NOT proven.
+- Drill result after remediation: 17 PASS, 1 WARN, 0 FAIL; exit code 0.
+
+### P1-3: Obsidian Markdown/HTML safe rendering per ADR-009
+
+- `src/youtube_intel/notes.py` now distinguishes `_safe_inline()` for
+  single-line primitives and `_safe_block()` for multi-line block text, with
+  context-appropriate HTML and Markdown neutralization.
+- Active HTML tags and boundary characters (`< > & " '`) are escaped.
+- Markdown structures are neutralized: links, images, wiki links, Obsidian
+  embeds, headings, blockquotes, lists, fenced code, horizontal rules.
+- Source URL scheme is validated; only `http` and `https` are allowed.
+- Marker shape validation ensures auto/user region markers are not forged by
+  model/external input.
+- `src/youtube_intel/reporting.py` applies the same escaping to weekly report
+  items, keywords, and directions.
+- Expanded `tests/unit/test_note_rendering.py` and added
+  `tests/unit/test_weekly_rendering.py` covering payloads and user-region
+  preservation on note update.
+
+### Full regression run on `workbuddy/fix-rc-p1`
+
+| Gate | Command | Result |
+|---|---|---|
+| Lock consistency | `uv lock --check` | PASS |
+| Offline sync | `uv sync --locked --offline` | PASS |
+| Unit + integration tests | `uv run pytest -x -q` | **583 passed** |
+| Type checking | `uv run mypy src` | PASS (24 files) |
+| Lint | `uv run ruff check .` | PASS |
+| CLI help | `uv run youtube-intel --help` | PASS |
+| Offline build | `uv run uv build --offline` | PASS (sdist + wheel) |
+| Git diff check | `git diff --check` | PASS |
+| Security scan | `bash scripts/security_scan.sh` | PASS (status=clean) |
+| Backup/recovery drill | `bash scripts/backup_recovery_drill.sh` | PASS WITH WARNINGS (17/1/0) |
+
+Distribution blockers documented in `docs/RELEASE_BLOCKERS.md` remain unresolved;
+public distribution is still blocked pending human decisions on license, SBOM,
+and third-party NOTICE items.
+
+Verdict: REMEDIATION READY FOR CODEX REVIEW.

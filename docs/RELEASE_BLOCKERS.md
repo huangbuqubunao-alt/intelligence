@@ -1,10 +1,13 @@
 # Release Blockers — Items Requiring Human Decision
 
-- Status: `BLOCKED`
-- Last updated: 2026-07-31 (updated after Reviewer RC1 feedback)
-- These items cannot be resolved by code changes alone. Each requires
-  explicit authorization, legal review, or production credential access
-  from the designated decision maker.
+- Status: `BLOCKED FOR PUBLIC DISTRIBUTION`
+- Last updated: 2026-08-11 (updated after P1 remediation)
+- P1 remediation status: The three Codex Maintainer Review P1 blockers
+  (security scanner fail-open, backup/recovery drill false-pass, Obsidian
+  Markdown/HTML rendering safety) are remediated on `workbuddy/fix-rc-p1`.
+- Remaining items below cannot be resolved by code changes alone. Each
+  requires explicit authorization, legal review, or production credential
+  access from the designated decision maker.
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 
@@ -111,6 +114,7 @@
 
 ### 3.1 Backup & Recovery Drill (Real Environment)
 
+- **Status**: Automated drill v3 remediated and passing on `workbuddy/fix-rc-p1`.
 - **Decision maker**: QA + TL
 - **Risk**: The automated drill (`scripts/backup_recovery_drill.sh`)
   validates temporary environments. A real drill requires temporary
