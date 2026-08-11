@@ -6,6 +6,8 @@ fail-closed behaviour, redaction, and cross-platform pattern coverage.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import tarfile
 import zipfile
@@ -229,3 +231,63 @@ def test_placeholder_substring_does_not_bypass_scanner(tmp_path: Path) -> None:
     assert exit_code != 0
     assert "generic-credential" in combined
     assert secret not in combined
+
+
+def test_git_ls_files_pattern_failure_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-zero exit from git ls-files (pattern variant) must fail-closed."""
+    real_git = shutil.which("git")
+    assert real_git is not None
+    (tmp_path / "safe.py").write_text("x = 1\n", encoding="utf-8")
+    _init_git_fixture(tmp_path)
+
+    fake_git = tmp_path / "git"
+    # Intercept ls-files: succeed for the plain enumeration, fail for pattern queries.
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "ls-files" ]; then\n'
+        '  for arg in "$@"; do\n'
+        '    case "$arg" in *"*")\n'
+        "      echo 'fatal: simulated ls-files pattern failure' >&2\n"
+        "      exit 42\n"
+        "      ;;\n"
+        "    esac\n"
+        "  done\n"
+        "  printf 'safe.py\\000'\n"
+        "  exit 0\n"
+        "fi\n"
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    exit_code, _stdout, stderr = _run_scanner(tmp_path)
+
+    assert exit_code != 0
+    assert "git-ls-files-pattern-failed" in stderr
+
+
+def test_non_utf8_tracked_path_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A git ls-files entry that is not valid UTF-8 must make the scanner fail-closed."""
+    real_git = shutil.which("git")
+    assert real_git is not None
+    (tmp_path / "safe.py").write_text("x = 1\n", encoding="utf-8")
+    _init_git_fixture(tmp_path)
+
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "ls-files" ]; then\n'
+        "  printf 'bad\\xffname.txt\\000'\n"
+        "  exit 0\n"
+        "fi\n"
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    exit_code, _stdout, stderr = _run_scanner(tmp_path)
+
+    assert exit_code != 0
+    assert "non-UTF-8 path" in stderr

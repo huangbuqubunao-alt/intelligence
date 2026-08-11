@@ -206,20 +206,36 @@ def test_weekly_report_rejects_unsafe_note_path() -> None:
         render_weekly_report(bad_report)
 
 
-def test_weekly_report_accepts_unicode_note_path() -> None:
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "Videos/中文产品分析--abc123.md",
+        "Videos/日本語分析--abc123.md",
+        # Devanagari with explicit combining marks (ma + halant + ra).
+        "Videos/हिन्दीमेंविश्लेषण--abc123.md",
+        # Arabic with tashkil combining marks.
+        "Videos/تحليل_عَرَبِيّ--abc123.md",
+        # Latin base + combining acute accent (NFD then normalized to NFC by the validator).
+        "Videos/café_analysis--abc123.md",
+    ),
+    ids=("chinese", "japanese", "hindi-combining", "arabic-combining", "latin-combining"),
+)
+def test_weekly_report_accepts_unicode_note_path(relative_path: str) -> None:
     report = _report()
     item = report.items[0].model_copy(
         update={
             "note_ref": NoteRef(
                 kind=NoteKind.VIDEO,
-                relative_path="Videos/中文产品分析--abc123.md",
+                relative_path=relative_path,
                 content_hash="c" * 64,
             ),
         }
     )
     rendered = render_weekly_report(report.model_copy(update={"items": (item,)}))
-    assert "中文产品分析" in rendered
-    assert "[[Videos/中文产品分析--abc123.md|" in rendered
+    # The base name (without extension) must appear safely inside the wiki link.
+    base = relative_path.split("/")[1].rsplit("--", 1)[0]
+    assert base in rendered
+    assert f"[[{relative_path}|" in rendered
 
 
 def test_safe_note_path_rejects_traversal_and_absolute_paths() -> None:
@@ -227,6 +243,21 @@ def test_safe_note_path_rejects_traversal_and_absolute_paths() -> None:
         _safe_note_path("../evil.md")
     with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
         _safe_note_path("/absolute/path.md")
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "[link].md",
+        "![[embed]].md",
+        "Videos/[link]--abc123.md",
+        "Videos/![[embed]]--abc123.md",
+    ),
+    ids=("plain-link", "plain-embed", "video-link", "video-embed"),
+)
+def test_safe_note_path_rejects_markdown_and_obsidian_injection(relative_path: str) -> None:
+    with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
+        _safe_note_path(relative_path)
 
 
 @pytest.mark.parametrize(

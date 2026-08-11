@@ -230,16 +230,28 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
 
 
 _VIDEO_ID_RE: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
-_SAFE_NOTE_BASE_RE: Final = re.compile(r"^[\w _.()-]+$", re.UNICODE)
+# Safe punctuation already permitted in note base names.
+_SAFE_NOTE_BASE_PUNCTUATION: Final = frozenset(" _.()-")
+
+
+def _is_safe_note_base_char(char: str) -> bool:
+    """Allow Unicode letters and combining marks plus a small safe punctuation set."""
+    category = unicodedata.category(char)
+    return category.startswith(("L", "M")) or char in _SAFE_NOTE_BASE_PUNCTUATION
 
 
 def _safe_note_path(value: str) -> str:
     """Validate a verified note path before embedding it in a wiki link.
 
-    Allows Unicode letters, combining characters, spaces, and a small set of
-    safe punctuation. Rejects path traversal, absolute paths, control
+    Allows Unicode letters, combining characters (Mark), spaces, and a small
+    set of safe punctuation. Rejects path traversal, absolute paths, control
     characters, and characters that could form Markdown / Obsidian links or
     embeds inside the wiki-link destination.
+
+    This validator intentionally mirrors the production-side checks in
+    WeeklyReportService._verified_item and _verify_managed_note_file so that
+    the rendering path does not accept paths the pipeline would not have
+    produced.
     """
     normalized = unicodedata.normalize("NFC", value)
     if not normalized:
@@ -264,7 +276,11 @@ def _safe_note_path(value: str) -> str:
     if "--" not in stem:
         raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
     base, video_id = stem.rsplit("--", 1)
-    if not base or not _VIDEO_ID_RE.match(video_id) or not _SAFE_NOTE_BASE_RE.match(base):
+    if (
+        not base
+        or not _VIDEO_ID_RE.match(video_id)
+        or not all(_is_safe_note_base_char(char) for char in base)
+    ):
         raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
 
     return value

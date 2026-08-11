@@ -316,15 +316,16 @@ def _run_git_ls_files_with_patterns(root: Path, patterns: set[str]) -> list[Path
         check=False,
     )
     if result.returncode != 0:
-        return []
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ScannerFailure(f"git-ls-files-pattern-failed: {stderr}")
     paths: list[Path] = []
     for raw in result.stdout.split(b"\0"):
         if not raw:
             continue
         try:
             text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
+        except UnicodeDecodeError as exc:
+            raise ScannerFailure(f"git-ls-files-non-utf8-path: {raw!r}") from exc
         paths.append(root / text)
     return paths
 
