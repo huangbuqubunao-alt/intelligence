@@ -23,6 +23,7 @@ from youtube_intel.domain import (
     VideoMetadata,
     WeeklyReportItem,
 )
+from youtube_intel.notes import build_video_note_filename
 from youtube_intel.reporting import (
     WeeklyReportValidationError,
     _safe_note_path,
@@ -292,3 +293,72 @@ def test_weekly_report_preserves_unicode_and_chinese_text() -> None:
     assert "产品策略" in rendered
     assert "Café" in rendered
     assert "中文摘要" in rendered
+
+
+def _report_with_generated_path(title: str) -> _VerifiedWeeklyReport:
+    """Build a weekly report whose note path comes from the real producer."""
+    video_id = "video-a"
+    relative_path = f"Videos/{build_video_note_filename(title, video_id)}"
+    video = _video(video_id=video_id, title=title)
+    analysis = _analysis()
+    return _VerifiedWeeklyReport(
+        iso_year=2026,
+        iso_week=1,
+        timezone="Asia/Shanghai",
+        items=(
+            WeeklyReportItem(
+                video=video,
+                score=_scoring().result,
+                note_ref=NoteRef(
+                    kind=NoteKind.VIDEO,
+                    relative_path=relative_path,
+                    content_hash="c" * 64,
+                ),
+                one_sentence_summary="A compact summary.",
+            ),
+        ),
+        analysis_results=(analysis,),
+        generated_at=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "title",
+    (
+        "Product 2026",
+        "版本２",
+        # Devanagari with explicit combining marks.
+        "हिन्दी में",
+        # Latin base + combining acute accent.
+        "cafe\u0301",
+    ),
+    ids=("latin-number", "chinese-number", "hindi-combining", "latin-combining"),
+)
+def test_weekly_report_renders_real_producer_unicode_path(title: str) -> None:
+    """A filename produced by notes.py must render through reporting.py unchanged."""
+    report = _report_with_generated_path(title)
+    rendered = render_weekly_report(report)
+    expected_path = report.items[0].note_ref.relative_path
+    assert f"[[{expected_path}|" in rendered
+
+
+def test_weekly_report_rejects_injected_path_through_shared_validator() -> None:
+    """If reporting.py bypassed the shared validator, an injected path would render.
+
+    The producer sanitizes ``[injected]`` to a safe base, so this test mutates
+    the report to an unsafe path and proves ``render_weekly_report`` still
+    rejects it via ``validate_video_note_relative_path``.
+    """
+    report = _report_with_generated_path("safe title")
+    unsafe_item = report.items[0].model_copy(
+        update={
+            "note_ref": NoteRef(
+                kind=NoteKind.VIDEO,
+                relative_path="Videos/[injected]--video-a.md",
+                content_hash="c" * 64,
+            ),
+        }
+    )
+    unsafe_report = report.model_copy(update={"items": (unsafe_item,)})
+    with pytest.raises(WeeklyReportValidationError, match="note path is unsafe"):
+        render_weekly_report(unsafe_report)
