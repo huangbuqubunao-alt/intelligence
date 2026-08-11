@@ -24,6 +24,7 @@ from youtube_intel.domain import (
     TranscriptArtifact,
     VideoMetadata,
 )
+from youtube_intel.path_validation import is_safe_note_base_character
 
 _SAFE_VIDEO_ID: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
 _WINDOWS_DEVICE_NAMES: Final = frozenset(
@@ -120,8 +121,7 @@ def render_video_note(
 
 
 def _safe_title_character(character: str) -> str:
-    category = unicodedata.category(character)
-    if category.startswith(("L", "N", "M")) or character in " -_.()":
+    if is_safe_note_base_character(character):
         return character
     return "-"
 

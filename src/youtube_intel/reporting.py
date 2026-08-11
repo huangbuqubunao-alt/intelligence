@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import os
-import re
 import stat
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Any, Final, Protocol, cast
+from typing import Any, Protocol, cast
 from zoneinfo import ZoneInfo
 
 from jinja2 import StrictUndefined
@@ -29,6 +28,10 @@ from youtube_intel.domain import (
     WeeklyReportItem,
 )
 from youtube_intel.notes import _safe_inline
+from youtube_intel.path_validation import (
+    InvalidNotePathError,
+    validate_video_note_relative_path,
+)
 from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
 
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
@@ -229,61 +232,17 @@ def render_weekly_report(report: WeeklyReportInput) -> str:
     return cast(str, content).replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
 
 
-_VIDEO_ID_RE: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
-# Safe punctuation already permitted in note base names.
-_SAFE_NOTE_BASE_PUNCTUATION: Final = frozenset(" _.()-")
-
-
-def _is_safe_note_base_char(char: str) -> bool:
-    """Allow Unicode letters and combining marks plus a small safe punctuation set."""
-    category = unicodedata.category(char)
-    return category.startswith(("L", "M")) or char in _SAFE_NOTE_BASE_PUNCTUATION
-
-
 def _safe_note_path(value: str) -> str:
     """Validate a verified note path before embedding it in a wiki link.
 
-    Allows Unicode letters, combining characters (Mark), spaces, and a small
-    set of safe punctuation. Rejects path traversal, absolute paths, control
-    characters, and characters that could form Markdown / Obsidian links or
-    embeds inside the wiki-link destination.
-
-    This validator intentionally mirrors the production-side checks in
-    WeeklyReportService._verified_item and _verify_managed_note_file so that
-    the rendering path does not accept paths the pipeline would not have
-    produced.
+    Delegates to the shared path contract in ``youtube_intel.path_validation``
+    so the rendering path accepts exactly the same characters and shapes the
+    producer is allowed to generate.
     """
-    normalized = unicodedata.normalize("NFC", value)
-    if not normalized:
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-    if any(unicodedata.category(char) == "Cc" for char in normalized):
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-    if any(
-        char in normalized
-        for char in ("[", "]", "!", "<", ">", '"', "'", "`", "|", "#", "^", "\n", "\r")
-    ):
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-
-    path = PurePosixPath(normalized)
-    if path.is_absolute() or len(path.parts) != 2 or path.parts[0] != "Videos":
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-
-    filename = path.parts[1]
-    if not filename.endswith(".md"):
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-
-    stem = filename[:-3]
-    if "--" not in stem:
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-    base, video_id = stem.rsplit("--", 1)
-    if (
-        not base
-        or not _VIDEO_ID_RE.match(video_id)
-        or not all(_is_safe_note_base_char(char) for char in base)
-    ):
-        raise WeeklyReportValidationError("weekly note path is unsafe for rendering")
-
-    return value
+    try:
+        return validate_video_note_relative_path(value)
+    except InvalidNotePathError as exc:
+        raise WeeklyReportValidationError("weekly note path is unsafe for rendering") from exc
 
 
 def _template() -> Any:
