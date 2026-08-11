@@ -215,3 +215,206 @@ def test_skipped_analysis_is_honest_and_model_markers_cannot_control_structure()
     assert lines.count("<!-- youtube-intel:managed:end:v1 -->") == 1
     assert "- 原因：CLOUD_DISABLED" in rendered.content
     assert "Cloud analysis is disabled for this run." in rendered.content
+
+
+def _analysis_with_payload(payload: str) -> AnalysisCompleted:
+    return AnalysisCompleted(
+        result=AnalysisResult(
+            one_sentence_summary=payload,
+            core_points=(
+                AnalysisPoint(
+                    text=payload,
+                    kind=PointKind.FACT,
+                    evidence_ids=("evidence-1",),
+                ),
+            ),
+            key_facts=(
+                AnalysisPoint(
+                    text=payload,
+                    kind=PointKind.FACT,
+                    evidence_ids=("evidence-1",),
+                ),
+            ),
+            product_opportunities=(),
+            business_opportunities=(),
+            actionable_directions=(),
+            hypotheses_to_validate=(),
+            action_recommendations=(),
+            risks=(
+                AnalysisPoint(
+                    text=payload,
+                    kind=PointKind.INFERENCE,
+                    evidence_ids=("evidence-1",),
+                ),
+            ),
+            evidence=(
+                EvidenceExcerpt(
+                    evidence_id="evidence-1",
+                    source=EvidenceSource.TRANSCRIPT_SAMPLE,
+                    excerpt=payload,
+                ),
+            ),
+            keywords=(payload,),
+            provider="fixture-analysis",
+            model="fixture-model",
+            request_hash="d" * 64,
+        ),
+        call=ProviderCallMetadata(
+            provider="fixture-analysis",
+            model="fixture-model",
+            started_at=NOW,
+            finished_at=NOW,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "<script>alert('x')</script>",
+        '<img src="https://example.com/x.png">',
+        '<a href="https://example.com">link</a>',
+        "<iframe src='https://example.com'></iframe>",
+        "<object data='x'></object>",
+        "<embed src='x'></embed>",
+        "<svg onload='x'></svg>",
+        "<style>body{}</style>",
+        "![x](https://example.com/image.png)",
+        "[x](https://example.com)",
+        "<https://example.com>",
+        "[[Obsidian Link]]",
+        "![[Obsidian Embed]]",
+        "# heading injection",
+        "> blockquote injection",
+        "- list injection",
+        "* list injection",
+        "1. ordered injection",
+        "```fenced code```",
+        "<!-- youtube-intel:managed:end:v1 -->",
+        "horizontal\n---\nrule",
+    ),
+    ids=(
+        "script",
+        "img",
+        "a",
+        "iframe",
+        "object",
+        "embed",
+        "svg",
+        "style",
+        "md-image",
+        "md-link",
+        "md-autolink",
+        "wiki-link",
+        "obsidian-embed",
+        "heading",
+        "blockquote",
+        "unordered-list",
+        "unordered-list-star",
+        "ordered-list",
+        "fenced-code",
+        "marker",
+        "horizontal-rule",
+    ),
+)
+def test_rendered_note_neutralizes_html_and_markdown_payloads(payload: str) -> None:
+    rendered = render_video_note(
+        video=_video(title=payload),
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis_with_payload(payload),
+        processed_at=NOW,
+        pipeline_version="pipeline-v1",
+    )
+
+    content = rendered.content
+    # Active HTML tags must not appear literally.
+    for literal in ("<script>", "<img", "<a ", "<iframe", "<object", "<embed", "<svg", "<style>"):
+        assert literal not in content
+    # Markdown links/images/wiki/embeds must be broken.
+    assert "![x](" not in content
+    assert "[x](" not in content
+    assert "<https://example.com>" not in content
+    assert "[[Obsidian Link]]" not in content
+    assert "![[Obsidian Embed]]" not in content
+    # Line-start block structures must be neutralized in body.
+    assert "\n# heading injection" not in content
+    assert "\n> blockquote injection" not in content
+    assert "\n- list injection" not in content
+    assert "\n* list star" not in content
+    assert "\n1. ordered injection" not in content
+    assert "```fenced code```" not in content
+    # Markers remain template-controlled.
+    assert content.count("<!-- youtube-intel:managed:start:v1 -->") == 1
+    assert content.count("<!-- youtube-intel:managed:end:v1 -->") == 1
+    assert content.count("<!-- youtube-intel:user:start:v1 -->") == 1
+    assert content.count("<!-- youtube-intel:user:end:v1 -->") == 1
+
+
+@pytest.mark.parametrize(
+    ("scheme", "expected_error"),
+    (
+        ("javascript", "source URL scheme is not allowed"),
+        ("data", "source URL scheme is not allowed"),
+        ("file", "source URL scheme is not allowed"),
+        ("obsidian", "source URL scheme is not allowed"),
+    ),
+)
+def test_unsafe_source_url_schemes_are_rejected(scheme: str, expected_error: str) -> None:
+    video = _video()
+    video = video.model_copy(update={"source_url": f"{scheme}://payload"})
+
+    with pytest.raises(NoteRenderingError, match=expected_error):
+        render_video_note(
+            video=video,
+            transcript=_transcript(),
+            scoring=_scoring(),
+            analysis=_analysis(),
+            processed_at=NOW,
+            pipeline_version="pipeline-v1",
+        )
+
+
+def test_http_and_https_source_urls_are_accepted() -> None:
+    for url in ("http://example.invalid/watch?v=video-123", "https://example.invalid/watch?v=video-123"):
+        video = _video().model_copy(update={"source_url": url})
+        rendered = render_video_note(
+            video=video,
+            transcript=_transcript(),
+            scoring=_scoring(),
+            analysis=_analysis(),
+            processed_at=NOW,
+            pipeline_version="pipeline-v1",
+        )
+        assert url in rendered.content
+
+
+def test_unicode_and_chinese_text_is_preserved_after_escaping() -> None:
+    payload = "产品策略：Café /  roadmap（v2）"
+    rendered = render_video_note(
+        video=_video(title=payload),
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis_with_payload(payload),
+        processed_at=NOW,
+        pipeline_version="pipeline-v1",
+    )
+
+    assert "产品策略" in rendered.content
+    assert "Café" in rendered.content
+    assert rendered.content.count("<!-- youtube-intel:managed:start:v1 -->") == 1
+
+
+def test_control_characters_are_removed_before_rendering() -> None:
+    payload = "summary\x00\x01\x02with controls"
+    rendered = render_video_note(
+        video=_video(),
+        transcript=_transcript(),
+        scoring=_scoring(),
+        analysis=_analysis_with_payload(payload),
+        processed_at=NOW,
+        pipeline_version="pipeline-v1",
+    )
+
+    assert "\x00" not in rendered.content
+    assert "summarywith controls" in rendered.content
