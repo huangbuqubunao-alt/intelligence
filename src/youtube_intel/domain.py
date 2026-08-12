@@ -361,25 +361,53 @@ class ScoreDimensions(_DomainModel):
 
 
 ScoringOutputLanguage: TypeAlias = Literal["zh-CN", "en"]
-_ASCII_WORD_RE: Final = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
+_ASCII_WORD_RE: Final = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:['-][A-Za-z0-9]+)*")
+_SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
+    {
+        "ai",
+        "api",
+        "cpu",
+        "gpu",
+        "gpt",
+        "http",
+        "https",
+        "json",
+        "llm",
+        "mlx",
+        "ollama",
+        "pydantic",
+        "qwen",
+        "rag",
+        "sdk",
+        "sql",
+        "sqlite",
+        "youtube",
+    }
+)
+_MIN_HAN_SUBJECT_CHARACTERS: Final = 4
+_MIN_ENGLISH_SUBJECT_WORDS: Final = 3
+_MIN_ENGLISH_SUBJECT_LETTERS: Final = 12
+_MIN_MIXED_ENGLISH_SUBJECT_WORDS: Final = 5
 
 
 def _contains_obvious_wrong_scoring_language(
     reason: str,
     output_language: ScoringOutputLanguage,
 ) -> bool:
-    """Reject only clear whole-paragraph language mismatches.
+    """Require a minimum natural-language subject after technical-term stripping.
 
-    This deliberately is not a percentage-based language detector.  Chinese
-    reasons may contain English product names, and English reasons may contain
-    short CJK names.  The threshold only catches an unmistakable full paragraph
-    in the other supported output language.
+    This deliberately is not a character-ratio detector. Chinese reasons may
+    contain approved English technical terms, and English reasons may contain
+    short CJK proper names, but neither can pass on a token or one-character
+    marker without a substantive subject in the configured language.
     """
 
-    ascii_words = _ASCII_WORD_RE.findall(reason)
-    latin_letters = sum(len(word.replace("-", "").replace("'", "")) for word in ascii_words)
-    english_prose_words = sum(
-        any(character.islower() for character in word) for word in ascii_words
+    ascii_words = tuple(word.casefold() for word in _ASCII_WORD_RE.findall(reason))
+    prose_words = tuple(
+        word for word in ascii_words if word not in _SCORING_TECHNICAL_TERMS
+    )
+    prose_letters = sum(
+        sum(character.isalpha() for character in word) for word in prose_words
     )
     han_characters = sum(
         "\u3400" <= character <= "\u4dbf"
@@ -387,9 +415,16 @@ def _contains_obvious_wrong_scoring_language(
         or "\uf900" <= character <= "\ufaff"
         for character in reason
     )
+    has_han_subject = han_characters >= _MIN_HAN_SUBJECT_CHARACTERS
+    has_english_subject = (
+        len(prose_words) >= _MIN_ENGLISH_SUBJECT_WORDS
+        and prose_letters >= _MIN_ENGLISH_SUBJECT_LETTERS
+    )
     if output_language == "zh-CN":
-        return han_characters == 0 and latin_letters >= 12 and len(ascii_words) >= 3
-    return han_characters >= 4 and english_prose_words < 3
+        return not has_han_subject or has_english_subject
+    if not has_english_subject:
+        return True
+    return has_han_subject and len(prose_words) < _MIN_MIXED_ENGLISH_SUBJECT_WORDS
 
 
 class ScoreResult(_DomainModel):
@@ -457,6 +492,26 @@ class ScoreResult(_DomainModel):
             msg = "reason does not match output_language"
             raise ValueError(msg)
         return self
+
+
+def validate_score_result(value: object) -> ScoreResult:
+    """Revalidate an untrusted score even when it is already a Pydantic instance.
+
+    Pydantic intentionally exposes unchecked construction/copy APIs.  Provider,
+    cache, artifact, and Runtime boundaries therefore treat model instances as
+    data and rebuild them through the complete schema and language validators.
+    """
+
+    candidate = (
+        value.model_dump(mode="python") if isinstance(value, ScoreResult) else value
+    )
+    return ScoreResult.model_validate(candidate)
+
+
+def validate_score_result_json(value: str | bytes | bytearray) -> ScoreResult:
+    """Parse persisted JSON and apply the same trusted score validation entry."""
+
+    return validate_score_result(ScoreResult.model_validate_json(value))
 
 
 class _UpdateProtectedAnalysisContract(_DomainModel):

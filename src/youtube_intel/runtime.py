@@ -44,6 +44,7 @@ from youtube_intel.domain import (
     TranscriptionRequired,
     TranscriptReady,
     VideoMetadata,
+    validate_score_result_json,
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
@@ -412,7 +413,7 @@ class RuntimeOperations(Operations):
         artifact = self._repository.latest_artifact(video_id, ArtifactKind.SCORING_STRUCTURED)
         if artifact is None:
             raise ValueError("persisted score is unavailable")
-        result = ScoreResult.model_validate_json(
+        result = validate_score_result_json(
             self._verified_artifact(artifact, max_bytes=1_000_000)
         )
         self._validate_scoring_provenance(artifact, result, video_id)

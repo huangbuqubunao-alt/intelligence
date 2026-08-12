@@ -31,6 +31,8 @@ from youtube_intel.domain import (
     ScoringProvider,
     TranscriptSample,
     VideoMetadata,
+    validate_score_result,
+    validate_score_result_json,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -75,10 +77,12 @@ class InMemoryScoringCache:
         self._results: dict[str, ScoreResult] = {}
 
     def get(self, request_hash: str) -> ScoreResult | None:
-        return self._results.get(request_hash)
+        result = self._results.get(request_hash)
+        return None if result is None else validate_score_result(result)
 
     def put(self, result: ScoreResult) -> None:
-        self._results[result.request_hash] = result
+        trusted = validate_score_result(result)
+        self._results[trusted.request_hash] = trusted
 
 
 class _RawResponseScoringProvider(Protocol):
@@ -353,7 +357,7 @@ class ScoringService:
         cached = self._cache.get(scoring_input.request_hash)
         diagnostics: list[DiagnosticEntry] = []
         if cached is None:
-            result = self._provider.score(scoring_input)
+            result = validate_score_result(self._provider.score(scoring_input))
             if result.request_hash != scoring_input.request_hash:
                 msg = "scoring provider returned a result for a different request"
                 raise ValueError(msg)
@@ -362,7 +366,10 @@ class ScoringService:
                 raise ValueError(msg)
             self._cache.put(result)
         else:
-            result = cached
+            result = validate_score_result(cached)
+            if result.request_hash != scoring_input.request_hash:
+                msg = "cached scoring result belongs to a different request"
+                raise ValueError(msg)
             if result.output_language != scoring_input.output_language:
                 msg = "cached scoring result has a different output language"
                 raise ValueError(msg)
@@ -699,13 +706,12 @@ class RepositoryBackedScoringService:
         raw_response: str | None = None
         recovery_required = False
         try:
-            result = self._provider.score(scoring_input)
-            if result.request_hash != request.request_hash:
-                raise ValueError("scoring provider returned a result for a different request")
-            if result.output_language != scoring_input.output_language:
-                raise ValueError(
-                    "scoring provider returned a result for a different output language"
-                )
+            result = validate_score_result(self._provider.score(scoring_input))
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=scoring_input.output_language,
+            )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -769,16 +775,17 @@ class RepositoryBackedScoringService:
         result: ScoreResult | None = None
         raw_response: str | None = None
         try:
-            result = self._provider._repair_saved_primary_response(
-                primary_raw_response=primary_raw_response,
-                scoring_input=scoring_input,
-            )
-            if result.request_hash != request.request_hash:
-                raise ValueError("repaired scoring result belongs to a different request")
-            if result.output_language != scoring_input.output_language:
-                raise ValueError(
-                    "repaired scoring result has a different output language"
+            result = validate_score_result(
+                self._provider._repair_saved_primary_response(
+                    primary_raw_response=primary_raw_response,
+                    scoring_input=scoring_input,
                 )
+            )
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=scoring_input.output_language,
+            )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -968,6 +975,12 @@ class RepositoryBackedScoringService:
         video_id: str,
         now: datetime,
     ) -> tuple[tuple[ArtifactWrite, ArtifactWrite], tuple[Path, ...]]:
+        result = validate_score_result(result)
+        self._validate_result_provenance(
+            result=result,
+            request=request,
+            output_language=result.output_language,
+        )
         raw_content = raw_response.encode("utf-8")
         structured_content = _canonical_json(result.model_dump(mode="json")).encode("utf-8")
         raw_key = request.deterministic_artifact_key
@@ -1092,7 +1105,7 @@ class RepositoryBackedScoringService:
                 != structured.content_hash
             ):
                 raise ValueError("scoring artifact verification failed")
-            result = ScoreResult.model_validate_json(structured_content)
+            result = validate_score_result_json(structured_content)
         except Exception:
             raise ScoringPersistenceError(
                 self._error(
@@ -1108,10 +1121,12 @@ class RepositoryBackedScoringService:
             or raw.video_id != video_id
             or structured.video_id != video_id
             or raw.artifact_id != provider_call.response_artifact_id
-            or result.request_hash != request.request_hash
-            or result.provider != request.provider
-            or result.model != request.model
-            or result.output_language != output_language
+            or provider_call.request_hash != request.request_hash
+            or provider_call.operation != request.operation
+            or provider_call.provider != request.provider
+            or provider_call.model != request.model
+            or provider_call.prompt_version != request.prompt_version
+            or provider_call.schema_version != request.schema_version
         ):
             raise ScoringPersistenceError(
                 self._error(
@@ -1121,7 +1136,40 @@ class RepositoryBackedScoringService:
                     video_id=video_id,
                 )
             )
+        try:
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=output_language,
+            )
+        except ValueError:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "verified local scoring artifact provenance is invalid",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            ) from None
         return result
+
+    @staticmethod
+    def _validate_result_provenance(
+        *,
+        result: ScoreResult,
+        request: ProviderCallRequest,
+        output_language: ScoringOutputLanguage,
+    ) -> None:
+        if (
+            result.request_hash != request.request_hash
+            or result.provider != request.provider
+            or result.model != request.model
+            or result.output_language != output_language
+            or result.prompt_version != request.prompt_version
+            or result.schema_version != request.schema_version
+        ):
+            msg = "local scoring result provenance does not match the current request"
+            raise ValueError(msg)
 
     def _artifact_path(self, relative_path: str) -> Path:
         root = self._artifact_root.resolve()
@@ -1140,6 +1188,7 @@ class RepositoryBackedScoringService:
         now: datetime,
         video_id: str,
     ) -> None:
+        trusted_result = validate_score_result(outcome.result)
         try:
             self._repository.complete_stage(
                 job_id=self._context.job_id,
@@ -1151,7 +1200,7 @@ class RepositoryBackedScoringService:
                 artifacts=artifacts,
                 provider_call=provider_call,
                 scoring_summary=ScoringSummaryWrite(
-                    score=outcome.result.score,
+                    score=trusted_result.score,
                     should_summarize=outcome.decision.final_should_summarize,
                 ),
                 now=now,

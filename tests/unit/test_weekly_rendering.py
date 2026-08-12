@@ -50,7 +50,11 @@ def _video(*, video_id: str = "video-a", title: str = "A safe product note") -> 
     )
 
 
-def _scoring(*, score: float = 9.0, reason: str = "Directly useful.") -> ScoringOutcome:
+def _scoring(
+    *,
+    score: float = 9.0,
+    reason: str = "This video is directly useful.",
+) -> ScoringOutcome:
     result = ScoreResult(
         schema_version="score-result-v2",
         score=score,
@@ -114,7 +118,7 @@ def _report(
     *,
     title: str = "A safe product note",
     summary: str = "A compact summary.",
-    reason: str = "Directly useful.",
+    reason: str = "This video is directly useful.",
     keyword: str = "product",
     direction: str = "Use the verified direction.",
 ) -> _VerifiedWeeklyReport:
@@ -157,7 +161,13 @@ def _report(
     ),
 )
 def test_weekly_report_neutralizes_html_and_markdown_in_items(payload: str, dangerous_literal: str) -> None:
-    rendered = render_weekly_report(_report(title=payload, summary=payload, reason=payload))
+    rendered = render_weekly_report(
+        _report(
+            title=payload,
+            summary=payload,
+            reason=f"The video provides a detailed practical explanation. {payload}",
+        )
+    )
     assert dangerous_literal not in rendered
     assert "<!-- youtube-intel:weekly:v1 -->" in rendered
 

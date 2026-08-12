@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import TracebackType
@@ -639,6 +641,169 @@ def test_repository_backed_scoring_commits_artifacts_call_summary_and_reuses_ver
         "PERSISTED_CACHE_HIT",
         "MODEL_POLICY_DISAGREEMENT",
     ]
+
+
+@pytest.mark.parametrize(
+    ("provenance_field", "wrong_value"),
+    [
+        ("request_hash", "b" * 64),
+        ("provider", "wrong-provider"),
+        ("model", "wrong-model"),
+        ("output_language", "zh-CN"),
+        ("prompt_version", "scoring-prompt-v1"),
+        ("schema_version", "score-result-v1"),
+    ],
+)
+def test_repository_cache_rejects_mismatched_result_provenance_without_cache_hit(
+    tmp_path: Path,
+    provenance_field: str,
+    wrong_value: str,
+) -> None:
+    now = datetime(2026, 7, 19, tzinfo=UTC)
+    repository, context = _repository_with_claimed_scoring_job(tmp_path, now=now)
+    provider = _PersistentCountingProvider()
+    artifact_root = tmp_path / "artifacts"
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=context,
+        artifact_root=artifact_root,
+        clock=lambda: now,
+    )
+    service.score(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        output_language="en",
+    )
+    request_hash = build_scoring_input(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        output_language="en",
+        settings=_settings(),
+    ).request_hash
+    structured = repository.get_artifact_by_key(
+        f"scoring/{request_hash}/structured"
+    )
+    assert structured is not None
+    structured_path = artifact_root / structured.relative_path
+    payload = json.loads(structured_path.read_text(encoding="utf-8"))
+    payload[provenance_field] = wrong_value
+    if provenance_field == "output_language":
+        payload["reason"] = "视频清楚说明了产品工作流程，因此具有实际参考价值。"
+    tampered = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    structured_path.write_bytes(tampered)
+    tampered_hash = hashlib.sha256(tampered).hexdigest()
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+            (tampered_hash, structured.artifact_key),
+        )
+    finally:
+        connection.close()
+
+    retry_context = _reset_video_for_scoring_retry(
+        repository,
+        now=now + timedelta(minutes=1),
+        job_id=f"scoring-job-{provenance_field}",
+    )
+    retry_service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=retry_context,
+        artifact_root=artifact_root,
+        clock=lambda: now + timedelta(minutes=1),
+    )
+
+    with pytest.raises(ScoringPersistenceError) as exc_info:
+        retry_service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+            output_language="en",
+        )
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert provider.calls == 1
+
+
+@pytest.mark.parametrize("version_field", ["prompt_version", "schema_version"])
+def test_repository_cache_rejects_mismatched_provider_call_version(
+    tmp_path: Path,
+    version_field: str,
+) -> None:
+    now = datetime(2026, 7, 19, tzinfo=UTC)
+    repository, context = _repository_with_claimed_scoring_job(tmp_path, now=now)
+    provider = _PersistentCountingProvider()
+    artifact_root = tmp_path / "artifacts"
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=context,
+        artifact_root=artifact_root,
+        clock=lambda: now,
+    )
+    service.score(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        output_language="en",
+    )
+    request_hash = build_scoring_input(
+        video=_video(),
+        transcript_text="0123456789",
+        language="en",
+        output_language="en",
+        settings=_settings(),
+    ).request_hash
+    connection = repository._connect()
+    try:
+        statement = (
+            "UPDATE provider_calls SET prompt_version = ? WHERE request_hash = ?"
+            if version_field == "prompt_version"
+            else "UPDATE provider_calls SET schema_version = ? WHERE request_hash = ?"
+        )
+        connection.execute(statement, ("wrong-version", request_hash))
+    finally:
+        connection.close()
+    retry_context = _reset_video_for_scoring_retry(
+        repository,
+        now=now + timedelta(minutes=1),
+        job_id=f"scoring-job-call-{version_field}",
+    )
+    retry_service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=retry_context,
+        artifact_root=artifact_root,
+        clock=lambda: now + timedelta(minutes=1),
+    )
+
+    with pytest.raises(ScoringPersistenceError) as exc_info:
+        retry_service.score(
+            video=_video(),
+            transcript_text="0123456789",
+            language="en",
+            output_language="en",
+        )
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
+    assert exc_info.value.error.message == (
+        "local scoring provider call reservation failed"
+    )
+    assert provider.calls == 1
 
 
 @pytest.mark.parametrize(

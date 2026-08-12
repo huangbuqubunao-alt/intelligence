@@ -7,7 +7,13 @@ from datetime import UTC, datetime
 import pytest
 
 from youtube_intel.config import LocalScoringSettings
-from youtube_intel.domain import Availability, LiveStatus, ScoreResult, VideoMetadata
+from youtube_intel.domain import (
+    Availability,
+    LiveStatus,
+    ScoreResult,
+    VideoMetadata,
+    validate_score_result,
+)
 from youtube_intel.scoring import (
     InMemoryScoringCache,
     ScoringService,
@@ -68,8 +74,12 @@ def test_output_language_changes_request_hash() -> None:
     [
         ("zh-CN", "The video gives a detailed practical explanation of the product workflow."),
         ("zh-CN", "Useful, clear, practical, product, workflow, advice."),
+        ("zh-CN", "Useful, clear, practical, product, workflow, advice. 中"),
+        ("zh-CN", "中"),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
         ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
+        ("en", "这个视频详细解释了 api、sdk、llm 的产品工作流程。"),
+        ("en", "API SDK LLM"),
     ],
 )
 def test_score_result_rejects_obvious_wrong_language(
@@ -148,6 +158,86 @@ def test_score_result_rejects_unchecked_output_language_copy() -> None:
 
     with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
         result.model_copy(update={"output_language": "en"})
+
+
+@pytest.mark.parametrize("unchecked_factory", ["copy", "construct"])
+def test_trusted_score_validation_rejects_unchecked_language_mutation(
+    unchecked_factory: str,
+) -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason="视频清楚说明了产品工作流程，因此具有实际参考价值。",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="zh-CN",
+    )
+    payload = {**result.model_dump(mode="python"), "output_language": "en"}
+    if unchecked_factory == "copy":
+        with pytest.warns(DeprecationWarning):
+            unchecked = result.copy(update={"output_language": "en"})
+    else:
+        unchecked = ScoreResult.model_construct(**payload)
+
+    with pytest.raises(ValueError, match="reason does not match output_language"):
+        validate_score_result(unchecked)
+
+
+def test_in_memory_cache_revalidates_unchecked_score_result() -> None:
+    unchecked = ScoreResult.model_construct(
+        schema_version="score-result-v2",
+        score=8,
+        reason="视频清楚说明了产品工作流程，因此具有实际参考价值。",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+
+    with pytest.raises(ValueError, match="reason does not match output_language"):
+        InMemoryScoringCache().put(unchecked)
+
+
+def test_scoring_service_revalidates_unchecked_provider_result_before_cache() -> None:
+    class _UncheckedProvider:
+        def score(self, scoring_input: object) -> ScoreResult:
+            return ScoreResult.model_construct(
+                schema_version="score-result-v2",
+                score=8,
+                reason="这个视频详细解释了产品工作流程。",
+                topics=("product",),
+                should_summarize=True,
+                provider="ollama",
+                model="qwen3:8b",
+                prompt_version="scoring-prompt-v2",
+                request_hash=getattr(scoring_input, "request_hash"),
+                output_language="en",
+            )
+
+    cache = InMemoryScoringCache()
+    service = ScoringService(
+        provider=_UncheckedProvider(),
+        settings=_settings(),
+        summary_threshold=7,
+        cache=cache,
+    )
+
+    with pytest.raises(ValueError, match="reason does not match output_language"):
+        service.score(
+            video=_video(),
+            transcript_text="canonical transcript",
+            language="en",
+            output_language="en",
+        )
+
+    assert cache._results == {}
 
 
 def test_result_language_mismatch_is_not_cached() -> None:

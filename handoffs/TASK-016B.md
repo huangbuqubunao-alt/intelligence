@@ -88,6 +88,46 @@
 - 复现/验证说明：使用上述 Full Gates；真实 smoke 只允许固定视频、本地模型和评分
   reason，不得扩展到 Deep Analysis。
 
+## Final Correction Round 2（2026-08-13）
+
+### Root cause 与修复
+
+- P1-1：旧启发式只检查目标字符是否出现，单个汉字可掩盖英文主体，且小写技术词会
+  被误当英文自然语言。现先剥离固定技术词，再分别要求最小汉字主体或英文自然语言
+  主体；不使用字符比例，单字符和纯技术词均不能通过，中文技术混排与英文中的短中文
+  专名仍保留。
+- P1-2：Pydantic 的 deprecated `copy(update=...)` 和 `model_construct()` 可生成
+  未重验实例。新增单一 `validate_score_result()` / JSON 入口，把模型实例重新转为
+  data 后执行完整 schema + language validators；内存 Cache、Provider/repair、
+  Artifact 写入、stage completion 与 Runtime persisted load 均接入可信入口。
+- P1-3：Repository cache 只校验 request/provider/model/language，未同时绑定
+  `prompt_version` 与 `schema_version`。现 Result 与 ProviderCall 都必须匹配当前
+  request 的 request hash、provider、model、output language、prompt 与 schema；
+  任一错配均不得返回 `PERSISTED_CACHE_HIT`。
+
+### 对抗与 provenance 证据
+
+- 真实 Ollama Fake-transport 路径覆盖 `zh-CN` 英文主体加单字绕过，以及 `en` 中文
+  主体加小写 `api/sdk/llm` 绕过；均进入一次 repair，修复后仍错误则 fail-closed。
+- Domain 覆盖短单字、纯技术词、中文+英文技术词、英文主体和英文+中文专名。
+- `copy(update=...)`、`model_construct()`、Provider 返回与内存 Cache 注入均在
+  trusted boundary 重新验证，不会持久化或返回为有效结果。
+- SQLite repository-backed 恢复矩阵分别篡改 Result 的六项 provenance，以及
+  ProviderCall 的 prompt/schema version；Provider 调用计数保持 1，证明没有把错版
+  Artifact 当作 persisted cache hit。
+
+### Final gates
+
+- Focused contracts/runtime/provider/provenance/weekly：`248 passed`；周报安全与
+  Unicode 回归单独为 `41 passed`。
+- Full pytest：`729 passed`。
+- `uv lock --check`、`uv sync --locked --offline`：PASS，锁文件未变且无下载。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS，sdist/wheel 成功。
+- `git diff --check`：PASS。
+- 本轮未运行网络、真实 Provider、Cloud、Vault、TASK-016C、merge 或 push。
+
 ## Reviewer 结论
 
 - Reviewer agent/session：
