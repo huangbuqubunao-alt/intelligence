@@ -359,7 +359,7 @@ class WeeklyCandidateRecord:
 
     video: VideoRecord
     score_artifact: ArtifactRecord
-    analysis_artifact: ArtifactRecord
+    analysis_artifact: ArtifactRecord | None
     note_artifact: ArtifactRecord
 
 
@@ -1015,6 +1015,127 @@ class SQLiteStateRepository:
                 {"video_id": video_id},
             ).fetchone()
             return None if row is None else self._video_from_row(row)
+        finally:
+            connection.close()
+
+    def list_videos_for_processing(
+        self,
+        *,
+        pipeline_version: str,
+        limit: int = 100,
+    ) -> tuple[VideoRecord, ...]:
+        """Return stable non-terminal video work without changing state."""
+
+        if not pipeline_version.strip() or limit <= 0 or limit > 1000:
+            raise ValueError("processing query arguments are invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM videos WHERE pipeline_version = :pipeline_version "
+                "AND pipeline_status NOT IN (:complete, :duration_limit) "
+                "ORDER BY discovered_at, video_id LIMIT :limit",
+                {
+                    "pipeline_version": pipeline_version,
+                    "complete": PipelineStatus.COMPLETE.value,
+                    "duration_limit": PipelineStatus.SKIPPED_DURATION_LIMIT.value,
+                    "limit": limit,
+                },
+            ).fetchall()
+            return tuple(self._video_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def latest_video_job(
+        self,
+        video_id: str,
+        *,
+        target_stage: ProcessingStage | None = None,
+    ) -> JobRecord | None:
+        """Return the newest video-stage Job for user feedback."""
+
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE video_id = :video_id "
+                "AND job_type = :job_type "
+                "AND (:target_stage IS NULL OR target_stage = :target_stage) "
+                "ORDER BY updated_at DESC, "
+                "CASE WHEN status = :succeeded THEN 1 ELSE 0 END, "
+                "job_id DESC LIMIT 1",
+                {
+                    "video_id": video_id,
+                    "job_type": JobType.VIDEO_STAGE.value,
+                    "succeeded": JobStatus.SUCCEEDED.value,
+                    "target_stage": (
+                        None if target_stage is None else target_stage.value
+                    ),
+                },
+            ).fetchone()
+            return None if row is None else self._job_from_row(row)
+        finally:
+            connection.close()
+
+    def list_failed_video_jobs(self, *, limit: int = 100) -> tuple[JobRecord, ...]:
+        """Return one newest final failure per video in stable order."""
+
+        if limit <= 0 or limit > 1000:
+            raise ValueError("failed job query limit is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT j.* FROM jobs AS j WHERE j.job_type = :job_type "
+                "AND j.status = :failed AND j.video_id IS NOT NULL "
+                "AND NOT EXISTS (SELECT 1 FROM jobs AS newer "
+                "WHERE newer.video_id = j.video_id AND newer.job_type = :job_type "
+                "AND newer.status = :failed "
+                "AND (newer.updated_at > j.updated_at OR "
+                "(newer.updated_at = j.updated_at AND newer.job_id > j.job_id))) "
+                "ORDER BY j.updated_at, j.job_id LIMIT :limit",
+                {
+                    "job_type": JobType.VIDEO_STAGE.value,
+                    "failed": JobStatus.FAILED_FINAL.value,
+                    "limit": limit,
+                },
+            ).fetchall()
+            return tuple(self._job_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def transcript_refresh_generation(self, video_id: str) -> int:
+        """Return the durable refresh generation after final transcript failures."""
+
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM jobs WHERE video_id = :video_id "
+                "AND job_type = :job_type AND target_stage = :target_stage "
+                "AND status = :failed",
+                {
+                    "video_id": video_id,
+                    "job_type": JobType.VIDEO_STAGE.value,
+                    "target_stage": ProcessingStage.TRANSCRIPT.value,
+                    "failed": JobStatus.FAILED_FINAL.value,
+                },
+            ).fetchone()
+            return int(row[0])
+        finally:
+            connection.close()
+
+    def latest_artifact(
+        self,
+        video_id: str,
+        kind: ArtifactKind,
+    ) -> ArtifactRecord | None:
+        """Return the newest active indexed Artifact for an application loader."""
+
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM artifacts WHERE video_id = :video_id AND kind = :kind "
+                "AND deleted_at IS NULL ORDER BY created_at DESC, artifact_id DESC LIMIT 1",
+                {"video_id": video_id, "kind": kind.value},
+            ).fetchone()
+            return None if row is None else self._artifact_from_row(row)
         finally:
             connection.close()
 
@@ -2520,12 +2641,16 @@ class SQLiteStateRepository:
                 analysis = _latest_weekly_artifact(
                     connection, video.video_id, ArtifactKind.ANALYSIS_STRUCTURED
                 )
-                if note is not None and score is not None and analysis is not None:
+                if note is not None and score is not None:
                     candidates.append(
                         WeeklyCandidateRecord(
                             video=video,
                             score_artifact=self._artifact_from_row(score),
-                            analysis_artifact=self._artifact_from_row(analysis),
+                            analysis_artifact=(
+                                None
+                                if analysis is None
+                                else self._artifact_from_row(analysis)
+                            ),
                             note_artifact=self._artifact_from_row(note),
                         )
                     )

@@ -590,6 +590,14 @@ smoke-public-subtitles --temporary-root ABSOLUTE_NEW_EMPTY_DIR --video-id ID [--
 
 launchd 只负责按时间启动 CLI，不包含业务重试逻辑。安装、卸载或加载 launchd 配置属于用户明确执行的操作；初始化脚本不得静默注册服务。
 
+ADR-022 增加正式 production composition root：非 `doctor` 业务命令在配置校验后幂等
+bootstrap 项目内 DATA/logs/SQLite migration 与既有 Vault 根下的受管子目录，再组合 RSS、
+yt-dlp metadata/subtitle、SQLite Planner/Orchestrator、本地 Ollama、Cloud policy、Obsidian
+与 weekly 服务。CLI 仍保留 `Operations` 注入点，但正式默认路径不再使用占位实现。
+`doctor` 继续零写入；为满足首次用户诊断，它只对配置已限定为 loopback 的 Ollama 执行一次
+有界 `/api/tags` 读取并核对模型 digest，不调用业务 Provider、YouTube、云端或凭据。此点由
+ADR-022 对 ADR-011 O-02 的“不得探测 loopback”作窄范围替代。
+
 `smoke-public-subtitles` 是 ADR-013 专用的发布 QA 组合入口，不是通用下载或处理命令。它不读取 YAML、
 密钥、Cookie 或默认运行目录；只接受 1–3 个显式公开视频 ID 和一个不存在的绝对临时根，创建其中的临时
 SQLite、DATA、测试 Vault 与脱敏 JSONL 审计目录。每个 ID 最多一次元数据读取、一次字幕目录读取和一次选中

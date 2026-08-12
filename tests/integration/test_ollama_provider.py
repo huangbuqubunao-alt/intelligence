@@ -176,10 +176,36 @@ def test_fake_transport_returns_valid_scoring_result_without_real_ollama() -> No
         "http://127.0.0.1:11434/api/tags",
         "http://127.0.0.1:11434/api/generate",
     ]
+
+
+def test_official_bare_sha256_digest_shape_matches_frozen_config() -> None:
+    transport = _FakeTransport(
+        [_tags(digest="b" * 64), _generate(_fixture("valid_result.json"))]
+    )
+
+    result = _provider(transport).score(_input())
+
+    assert result.score == 8.5
     payload = json.loads(transport.requests[1][2] or b"{}")
     assert payload["stream"] is False
     assert payload["think"] is False
     assert payload["options"]["temperature"] == 0.0
+    serialized_format = json.dumps(payload["format"])
+    assert all(
+        keyword not in serialized_format
+        for keyword in (
+            '"minimum"',
+            '"maximum"',
+            '"minLength"',
+            '"maxLength"',
+            '"minItems"',
+            '"maxItems"',
+        )
+    )
+    assert payload["format"]["properties"]["score"] == {
+        "type": "integer",
+        "enum": list(range(11)),
+    }
 
 
 def test_provider_exposes_the_final_generate_envelope_for_artifact_persistence() -> None:

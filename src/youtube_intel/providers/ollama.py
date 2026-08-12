@@ -38,25 +38,26 @@ _SCORE_RESULT_FORMAT: Final[dict[str, object]] = {
     "additionalProperties": False,
     "required": ["score", "reason", "topics", "should_summarize"],
     "properties": {
-        "score": {"type": "number", "minimum": 0, "maximum": 10},
-        "reason": {"type": "string", "minLength": 1, "maxLength": 2000},
+        # Ollama's local grammar supports the structural JSON Schema subset.
+        # Pydantic ScoreResult validation below remains the fail-closed owner
+        # of all numeric, string, and collection bounds.
+        "score": {"type": "integer", "enum": list(range(11))},
+        "reason": {"type": "string"},
         "topics": {
             "type": "array",
-            "minItems": 1,
-            "maxItems": 10,
-            "items": {"type": "string", "minLength": 1, "maxLength": 80},
+            "items": {"type": "string"},
         },
         "should_summarize": {"type": "boolean"},
         "dimensions": {
             "type": "object",
             "additionalProperties": False,
             "properties": {
-                "technical": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
-                "business": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
-                "product": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
-                "originality": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
-                "practicality": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
-                "industry_impact": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
+                "technical": {"type": ["number", "null"]},
+                "business": {"type": ["number", "null"]},
+                "product": {"type": ["number", "null"]},
+                "originality": {"type": ["number", "null"]},
+                "practicality": {"type": ["number", "null"]},
+                "industry_impact": {"type": ["number", "null"]},
             },
         },
     },
@@ -354,7 +355,17 @@ class OllamaScoringProvider:
                 continue
             name = item.get("name")
             digest = item.get("digest")
-            if name == self._settings.model and digest == self._settings.expected_model_digest:
+            normalized_digest = (
+                f"sha256:{digest}"
+                if isinstance(digest, str)
+                and len(digest) == 64
+                and all(character in "0123456789abcdef" for character in digest)
+                else digest
+            )
+            if (
+                name == self._settings.model
+                and normalized_digest == self._settings.expected_model_digest
+            ):
                 return
         raise _safe_error(
             ErrorCode.CONFIG_INVALID,

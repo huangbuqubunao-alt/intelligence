@@ -19,7 +19,12 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.state import JobRecord, VideoRecord
+from youtube_intel.state import (
+    ArtifactWrite,
+    JobRecord,
+    ProviderCallCompletion,
+    VideoRecord,
+)
 
 
 class StageDisposition(str, Enum):
@@ -58,8 +63,8 @@ class PipelineRepository(Protocol):
         expected_status: PipelineStatus,
         target_status: PipelineStatus,
         pipeline_version: str,
-        artifacts: tuple[object, ...],
-        provider_call: None,
+        artifacts: tuple[ArtifactWrite, ...],
+        provider_call: ProviderCallCompletion | None,
         now: datetime,
     ) -> object: ...
 
