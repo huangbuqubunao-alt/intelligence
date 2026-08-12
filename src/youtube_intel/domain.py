@@ -385,9 +385,79 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
     }
 )
 _MIN_HAN_SUBJECT_CHARACTERS: Final = 4
-_MIN_ENGLISH_SUBJECT_WORDS: Final = 3
-_MIN_ENGLISH_SUBJECT_LETTERS: Final = 12
-_MIN_MIXED_ENGLISH_SUBJECT_WORDS: Final = 5
+_SCORING_SEGMENT_RE: Final = re.compile(r"[\n\r.!?。！？；;]+")
+_ENGLISH_PREDICATE_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "am",
+        "are",
+        "be",
+        "been",
+        "being",
+        "can",
+        "clarify",
+        "compare",
+        "could",
+        "describe",
+        "discuss",
+        "evaluate",
+        "explain",
+        "explore",
+        "give",
+        "had",
+        "has",
+        "have",
+        "help",
+        "is",
+        "may",
+        "might",
+        "must",
+        "offer",
+        "present",
+        "provide",
+        "recommend",
+        "show",
+        "should",
+        "support",
+        "teach",
+        "use",
+        "was",
+        "were",
+        "will",
+        "would",
+    }
+)
+_ENGLISH_RELATION_WORDS: Final[frozenset[str]] = frozenset(
+    {"above", "because", "below", "for", "therefore", "to", "with"}
+)
+
+
+def _scoring_segment_language(segment: str) -> ScoringOutputLanguage | None:
+    """Classify one natural-language segment after removing technical terms."""
+
+    prose_words = tuple(
+        word.casefold()
+        for word in _ASCII_WORD_RE.findall(segment)
+        if word.casefold() not in _SCORING_TECHNICAL_TERMS
+    )
+    has_english_predicate = any(
+        word in _ENGLISH_PREDICATE_WORDS
+        or word in _ENGLISH_RELATION_WORDS
+        or (len(word) > 3 and word.endswith(("ed", "ing")))
+        or (len(word) > 3 and word.endswith("s"))
+        for word in prose_words
+    )
+    if has_english_predicate:
+        return "en"
+
+    han_characters = sum(
+        "\u3400" <= character <= "\u4dbf"
+        or "\u4e00" <= character <= "\u9fff"
+        or "\uf900" <= character <= "\ufaff"
+        for character in segment
+    )
+    if han_characters >= _MIN_HAN_SUBJECT_CHARACTERS:
+        return "zh-CN"
+    return None
 
 
 def _contains_obvious_wrong_scoring_language(
@@ -402,29 +472,11 @@ def _contains_obvious_wrong_scoring_language(
     marker without a substantive subject in the configured language.
     """
 
-    ascii_words = tuple(word.casefold() for word in _ASCII_WORD_RE.findall(reason))
-    prose_words = tuple(
-        word for word in ascii_words if word not in _SCORING_TECHNICAL_TERMS
-    )
-    prose_letters = sum(
-        sum(character.isalpha() for character in word) for word in prose_words
-    )
-    han_characters = sum(
-        "\u3400" <= character <= "\u4dbf"
-        or "\u4e00" <= character <= "\u9fff"
-        or "\uf900" <= character <= "\ufaff"
-        for character in reason
-    )
-    has_han_subject = han_characters >= _MIN_HAN_SUBJECT_CHARACTERS
-    has_english_subject = (
-        len(prose_words) >= _MIN_ENGLISH_SUBJECT_WORDS
-        and prose_letters >= _MIN_ENGLISH_SUBJECT_LETTERS
-    )
-    if output_language == "zh-CN":
-        return not has_han_subject or has_english_subject
-    if not has_english_subject:
-        return True
-    return has_han_subject and len(prose_words) < _MIN_MIXED_ENGLISH_SUBJECT_WORDS
+    for segment in _SCORING_SEGMENT_RE.split(reason):
+        subject_language = _scoring_segment_language(segment)
+        if subject_language is not None:
+            return subject_language != output_language
+    return True
 
 
 class ScoreResult(_DomainModel):

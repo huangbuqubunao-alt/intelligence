@@ -194,7 +194,7 @@ def _score(**kwargs: object) -> ScoreResult:
     data: dict[str, object] = {
         "schema_version": "1",
         "score": 8.0,
-        "reason": "solid product insight",
+        "reason": "This provides solid product insight.",
         "topics": ("ai", "product"),
         "should_summarize": True,
         "provider": "ollama",

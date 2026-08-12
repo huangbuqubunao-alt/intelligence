@@ -137,6 +137,51 @@
 - Verdict：`APPROVE | REJECT`
 - 未解决 P0/P1：
 
+## Final Correction Round 3（2026-08-13）
+
+### Root cause
+
+- P1-1：Round 2 仍把整段文本压平成英文词计数；中文主体后追加若干英文词即可达到
+  阈值，无法表达用户真正看到的首个自然语言主体。
+- P1-3：SQLite 中成功的 `ProviderCall` 与 Artifact key 都是不可原位覆盖的审计
+  记录。旧实现把 prompt/schema provenance mismatch 当作持久化错误，没有把它解释
+  为可重算的 cache miss。
+
+### Fixes 与对抗证据
+
+- 语言校验先按换行及中英文句末符切分，再剥离固定技术词；逐段寻找首个可辨识自然
+  语言主体。英文主体由谓词/关系结构识别，不再使用固定英文词数或字符比例；单汉字、
+  技术缩写及无谓词英文尾巴都不能改变主体语言。
+- Domain 与真实 Ollama Fake transport 的 primary/一次 repair/fail-closed 路径覆盖：
+  `en` 中文主体加英文短尾、`zh-CN` 英文主体加中文短尾均拒绝；中文主体混排
+  API/SDK/LLM/MLX 与英文主体混排 API/SDK/LLM 均通过。
+- prompt/schema 版本失配现在建立确定性的 `scoring-cache-recompute-v1` 请求身份，
+  调用 Provider 重新计算并写入新的 ProviderCall 与 raw/structured Artifact；旧
+  ProviderCall、Artifact 记录和文件均保留。第三次相同恢复命中新可信缓存，不会反复
+  调用 Provider。
+- SQLite 对抗测试分别覆盖 Result Artifact 与 ProviderCall 的 wrong
+  `prompt_version` / `schema_version`：Provider 调用由 1 增至 2、ProviderCall 表由
+  1 增至 2、新 Artifact ID/路径生成，旧审计证据不变；request/provider/model/
+  output_language 的非版本篡改仍保持 fail-closed，未削弱原有边界。
+
+### Final gates
+
+- TDD RED：`7 failed, 15 passed`，分别证明语言绕过仍被接受、版本失配仍直接失败。
+- Focused scoring/domain/Ollama/repository：`71 passed`。
+- `uv lock --check`、`uv sync --locked --offline`：PASS（84 resolved / 61 checked，
+  无下载，锁文件未变）。
+- Full pytest：`734 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未运行网络、真实 Provider、Cloud、Vault、TASK-016C、merge 或 push。
+
+### Round 3 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 Final Correction Round 3 Report。
+
 ## 主控验收
 
 - Orchestrator：

@@ -173,6 +173,10 @@ class ScoringPersistenceError(Exception):
         self.error = error
 
 
+class _ScoringCacheMiss(Exception):
+    """A verified cache entry is stale and must not be returned."""
+
+
 def _raise_sanitized_persistence_error(error: AppError) -> NoReturn:
     """Raise only after provider payloads and artifact paths left the traceback."""
 
@@ -498,16 +502,34 @@ class RepositoryBackedScoringService:
             request_hash=request.request_hash,
             video_id=video.video_id,
         )
+        if self._provider_call_version_mismatch(previous_call, request):
+            assert previous_call is not None
+            return self._recompute_stale_cache(
+                scoring_input=scoring_input,
+                original_request=request,
+                stale_call=previous_call,
+                now=now,
+                video_id=video.video_id,
+            )
         recovery_required = self._is_recovery_required(previous_call, request)
         reservation = self._reserve(request, now=now, video_id=video.video_id)
         if not reservation.acquired:
             if reservation.record.status is ProviderCallStatus.SUCCEEDED:
-                result = self._load_verified_cached_result(
-                    request=request,
-                    provider_call=reservation.record,
-                    video_id=video.video_id,
-                    output_language=scoring_input.output_language,
-                )
+                try:
+                    result = self._load_verified_cached_result(
+                        request=request,
+                        provider_call=reservation.record,
+                        video_id=video.video_id,
+                        output_language=scoring_input.output_language,
+                    )
+                except _ScoringCacheMiss:
+                    return self._recompute_stale_cache(
+                        scoring_input=scoring_input,
+                        original_request=request,
+                        stale_call=reservation.record,
+                        now=now,
+                        video_id=video.video_id,
+                    )
                 outcome = self._outcome(
                     result,
                     started_at=now,
@@ -613,6 +635,166 @@ class RepositoryBackedScoringService:
                 ),
                 now=now,
                 recovery_required=recovery_input_used,
+            )
+            raise
+        return outcome
+
+    @staticmethod
+    def _provider_call_version_mismatch(
+        provider_call: ProviderCallRecord | None,
+        request: ProviderCallRequest,
+    ) -> bool:
+        return (
+            provider_call is not None
+            and provider_call.status is ProviderCallStatus.SUCCEEDED
+            and provider_call.request_hash == request.request_hash
+            and provider_call.operation == request.operation
+            and provider_call.provider == request.provider
+            and provider_call.model == request.model
+            and (
+                provider_call.prompt_version != request.prompt_version
+                or provider_call.schema_version != request.schema_version
+            )
+        )
+
+    def _recompute_stale_cache(
+        self,
+        *,
+        scoring_input: ScoringInput,
+        original_request: ProviderCallRequest,
+        stale_call: ProviderCallRecord,
+        now: datetime,
+        video_id: str,
+    ) -> ScoringOutcome:
+        """Treat stale provenance as a miss while retaining its audit records."""
+
+        raw = self._repository.get_artifact_by_key(
+            original_request.deterministic_artifact_key
+        )
+        structured = self._repository.get_artifact_by_key(
+            f"scoring/{original_request.request_hash}/structured"
+        )
+        if raw is None or structured is None:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "stale local scoring cache cannot be audited",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+        recompute_seed = _canonical_json(
+            {
+                "policy": "scoring-cache-recompute-v1",
+                "original_request_hash": original_request.request_hash,
+                "raw_content_hash": raw.content_hash,
+                "structured_content_hash": structured.content_hash,
+                "stored_prompt_version": stale_call.prompt_version,
+                "stored_schema_version": stale_call.schema_version,
+            }
+        )
+        request_without_key = ProviderCallRequest(
+            operation=original_request.operation,
+            normalized_input_hash=_sha256_text(recompute_seed),
+            provider=original_request.provider,
+            model=original_request.model,
+            prompt_version=original_request.prompt_version,
+            schema_version=original_request.schema_version,
+            deterministic_artifact_key="pending",
+        )
+        request = ProviderCallRequest(
+            operation=request_without_key.operation,
+            normalized_input_hash=request_without_key.normalized_input_hash,
+            provider=request_without_key.provider,
+            model=request_without_key.model,
+            prompt_version=request_without_key.prompt_version,
+            schema_version=request_without_key.schema_version,
+            deterministic_artifact_key=(
+                f"scoring/{request_without_key.request_hash}/raw"
+            ),
+        )
+        recompute_input = ScoringInput.model_validate(
+            {
+                **scoring_input.model_dump(mode="python"),
+                "request_hash": request.request_hash,
+            }
+        )
+        reservation = self._reserve(request, now=now, video_id=video_id)
+        if not reservation.acquired:
+            if reservation.record.status is ProviderCallStatus.SUCCEEDED:
+                result = self._load_verified_cached_result(
+                    request=request,
+                    provider_call=reservation.record,
+                    video_id=video_id,
+                    output_language=recompute_input.output_language,
+                )
+                outcome = self._outcome(
+                    result,
+                    started_at=now,
+                    finished_at=self._clock(),
+                    cache_hit=True,
+                )
+                self._complete_stage(
+                    outcome=outcome,
+                    artifacts=(),
+                    provider_call=None,
+                    now=now,
+                    video_id=video_id,
+                )
+                return outcome
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.PROVIDER_UNAVAILABLE,
+                    "local scoring recompute is already reserved or unavailable",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+
+        result, raw_response = self._call_provider(
+            scoring_input=recompute_input,
+            request=request,
+            now=now,
+        )
+        outcome = self._outcome(
+            result,
+            started_at=now,
+            finished_at=self._clock(),
+            cache_hit=False,
+        )
+        written_paths: tuple[Path, ...] = ()
+        try:
+            artifacts, written_paths = self._write_artifacts(
+                result=result,
+                raw_response=raw_response,
+                request=request,
+                video_id=video_id,
+                now=now,
+            )
+            self._complete_stage(
+                outcome=outcome,
+                artifacts=artifacts,
+                provider_call=ProviderCallCompletion(
+                    request_hash=request.request_hash,
+                    response_artifact_id=artifacts[0].artifact_id,
+                    input_tokens=None,
+                    output_tokens=None,
+                    cost_microusd=None,
+                ),
+                now=now,
+                video_id=video_id,
+            )
+        except ScoringPersistenceError:
+            self._remove_written_paths(written_paths)
+            self._record_failure(
+                request_hash=request.request_hash,
+                error=self._error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "local scoring recompute persistence failed",
+                    retryable=True,
+                    video_id=video_id,
+                ),
+                now=now,
             )
             raise
         return outcome
@@ -1136,6 +1318,11 @@ class RepositoryBackedScoringService:
                     video_id=video_id,
                 )
             )
+        if (
+            result.prompt_version != request.prompt_version
+            or result.schema_version != request.schema_version
+        ):
+            raise _ScoringCacheMiss
         try:
             self._validate_result_provenance(
                 result=result,

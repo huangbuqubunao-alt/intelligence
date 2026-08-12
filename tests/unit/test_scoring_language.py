@@ -75,10 +75,19 @@ def test_output_language_changes_request_hash() -> None:
         ("zh-CN", "The video gives a detailed practical explanation of the product workflow."),
         ("zh-CN", "Useful, clear, practical, product, workflow, advice."),
         ("zh-CN", "Useful, clear, practical, product, workflow, advice. 中"),
+        (
+            "zh-CN",
+            "The video clearly explains the product workflow and gives useful advice.\n中",
+        ),
         ("zh-CN", "中"),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
         ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
         ("en", "这个视频详细解释了 api、sdk、llm 的产品工作流程。"),
+        (
+            "en",
+            "这个视频详细解释了产品工作流程并给出了建议。\n"
+            "Useful clear practical product workflow advice.",
+        ),
         ("en", "API SDK LLM"),
     ],
 )
@@ -106,6 +115,23 @@ def test_chinese_reason_allows_english_technical_terms() -> None:
         schema_version="score-result-v2",
         score=8,
         reason="视频清楚说明了 GPT、API、MLX 与 Ollama 的组合方式，具有实际参考价值。",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="zh-CN",
+    )
+
+    assert result.output_language == "zh-CN"
+
+
+def test_chinese_subject_with_technical_abbreviations_is_valid() -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason="视频说明了 API、SDK、LLM 和 MLX 的产品工作流程，并给出实用建议。",
         topics=("product",),
         should_summarize=True,
         provider="ollama",
