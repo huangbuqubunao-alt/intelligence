@@ -1,12 +1,20 @@
 # TASK-015：正式 Runtime Composition 与 Local-First Smoke
 
-- Status: `IN_PROGRESS`
+- Status: `DONE`
 - Assignee: `Codex Lead Maintainer`
 - Base: `main@41ed7ee55afe5f8cb44ca20931c776257d15805f`
 - Branch: `codex/task-015-runtime-composition`
 - Dependencies: TASK-013 `DONE`、TASK-014 离线能力已整合、ADR-022 `Accepted`
 - Reuse decision: `DIRECT` — 既有 SQLite Repository、Pipeline、yt-dlp/RSS、字幕、
   Ollama、cloud policy、Obsidian、weekly、标准库与已锁定依赖；不新增依赖。
+
+## Closure
+
+- Accepted source：`workbuddy/task-015-p1-fix@429bf45daacaaeb5474faca6d27b11616e448aae`
+- Merge：`451766f9b1772eed9d36587d7956328ee7c2f7ff`
+- Maintainer Review：APPROVE；整合后 675 tests、mypy、Ruff、CLI、安全扫描与备份恢复
+  门禁通过。
+- Remaining P2 保留为独立后续项，不并入 TASK-016。
 
 ## 目标
 

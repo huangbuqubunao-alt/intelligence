@@ -1,14 +1,14 @@
 # YouTube Intelligence Agent 项目状态
 
 - 更新时间：2026-08-12
-- 当前阶段：Phase 3 — TASK-013 已整合并收口为 `DONE`
+- 当前阶段：TASK-016 — Local-only 第一验收里程碑
 - 主控状态：ACTIVE
-- TASK-015 已从 `main@41ed7ee55afe5f8cb44ca20931c776257d15805f` 在
-  `codex/task-015-runtime-composition` 完成 production composition、首次 bootstrap、
-  doctor/错误反馈与隔离真实 Local Smoke，现为 `READY_FOR_INDEPENDENT_REVIEW`。真实公开
-  字幕视频已完成 metadata → transcript → local scoring → Cloud-off note → weekly；Cloud、
-  真实用户 Vault、凭据、付费调用和固定 Whisper 权重下载均未执行。该结果只支持本地 Demo，
-  不解除 TASK-014 的公开分发 No-Go。
+- TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
+  APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
+  Cloud-off 知识笔记为空的产品断层。
+- 产品负责人已批准 ADR-023 与 TASK-016，并要求以 Local-only 为第一验收里程碑。当前
+  只允许分配 TASK-016A 契约基础；016A 未独立审查并整合前不得启动 016B–H。TASK-016
+  不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008` /

@@ -637,3 +637,22 @@ worktree/角色/文件范围。TASK-008A Correction 1 另获一次 OpenAI 官方
 单独授权：真实密钥或付费云调用、云端 token-count 请求、真实 YouTube/字幕、
 Cookie/账号登录、remote components、ffmpeg、媒体下载、写入真实 Vault、最终 Vault
 文件删除/移动、加载 launchd，以及任何超出 V1 白名单的改变。
+
+## 19. Intelligence V2 架构
+
+ADR-023 在不新增 Pipeline 状态或 SQLite migration 的前提下，把 `ANALYSIS_READY` 的
+产品语义收紧为“存在当前配置下经过验证的 Structured Knowledge”。Cloud disabled 不再
+产生空分析成功结果。
+
+所有视频先由 Local Scoring 决定阈值；高价值视频再由 Deep Analysis Router 按
+`local-only | hybrid | cloud` 选择 Provider。Local 与 Cloud 返回同一 Knowledge V2，
+Renderer、Weekly、Artifact 与 cache 不感知具体 Provider，只消费可信 provenance。
+
+Evidence Registry 由应用从当前 canonical Transcript 建立，模型只能返回 Registry 中的
+ID；excerpt 与可选 timestamp 由应用补全。无法从 timed subtitle 稳定映射时必须省略时间，
+不得使用模型生成的时间戳。Weekly V2 默认只读取已验证 Structured Knowledge 与其证据
+引用，不读取 Obsidian 用户区或发送本周全部 Transcript。
+
+request/execution identity 必须包含 provider、model/digest、requested/executed mode、
+output language、Prompt/Schema/sampling/privacy version 与 Transcript/input hash。任何
+配置切换都不得绕过 TASK-015 的 provider/model/current-config binding。
