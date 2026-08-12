@@ -1,6 +1,6 @@
 # TASK-016A：Intelligence Mode、配置与 Knowledge V2 契约基础
 
-- Status: `IN_REVIEW`
+- Status: `DONE`
 - Assignee: `Codex`
 - Base: assignment prompt 动态冻结
 - Branch: `codex/task-016a-intelligence-contract-foundation`
@@ -16,6 +16,7 @@
 - Review 3 evidence: `81ec5c6f9d015d5d48cc36053ca6a680be893acb` — `REJECT`，P1：Result 继承 Content 允许 Python 子类实例穿透模型边界。
 - Correction 3: `af3d168c89bed09f563e4ce00ac902d6c340bf14` — Result 改为组合式可信边界，等待 Reviewer 4。
 - Review 4 evidence: `e7bbb6ac610fbf97513af02c5c4d77e816970719` — `APPROVE`，P0–P3=0；等待主控验收与整合授权。
+- Integration: `945dadec75bfba33e0708212e567584b35e3107f` — `INTEGRATED`；固定 accepted source `e7bbb6ac610fbf97513af02c5c4d77e816970719` 已通过 `--no-ff` 进入 `main`，整合后契约测试 `87 passed`、全量测试 `687 passed`，mypy、Ruff、CLI help、离线构建、安全扫描与 Diff 检查均通过。
 
 ## 用户价值
 
