@@ -288,6 +288,10 @@ class RuntimeOperations(Operations):
             or artifact.kind is not ArtifactKind.SCORING_STRUCTURED
             or artifact.artifact_key != f"scoring/{result.request_hash}/structured"
             or artifact.producer_version != "scoring-structured-v1"
+            or artifact.provider != "ollama"
+            or artifact.provider != result.provider
+            or artifact.model is None
+            or artifact.model != result.model
             or not artifact.job_id
         ):
             raise ValueError("persisted scoring artifact identity is invalid")
@@ -326,10 +330,14 @@ class RuntimeOperations(Operations):
             or raw.video_id != video_id
             or raw.job_id != artifact.job_id
             or raw.provider != result.provider
+            or raw.provider != artifact.provider
             or raw.model != result.model
+            or raw.model != artifact.model
             or raw.producer_version != "ollama-raw-v1"
         ):
             raise ValueError("persisted scoring raw artifact provenance is invalid")
+        if result.model != self._config.settings.local_scoring.model:
+            raise ValueError("persisted scoring model does not match current configuration")
         self._verified_artifact(raw, max_bytes=1_000_000)
 
     def _validate_analysis_provenance(
@@ -342,6 +350,10 @@ class RuntimeOperations(Operations):
             or artifact.kind is not ArtifactKind.ANALYSIS_STRUCTURED
             or artifact.artifact_key != f"analysis/{result.request_hash}/structured"
             or artifact.producer_version != "analysis-structured-v1"
+            or artifact.provider != self._config.settings.cloud.provider
+            or artifact.provider != result.provider
+            or artifact.model is None
+            or artifact.model != result.model
             or not artifact.job_id
         ):
             raise ValueError("persisted analysis artifact identity is invalid")
@@ -380,10 +392,16 @@ class RuntimeOperations(Operations):
             or raw.video_id != video_id
             or raw.job_id != artifact.job_id
             or raw.provider != result.provider
+            or raw.provider != artifact.provider
             or raw.model != result.model
+            or raw.model != artifact.model
             or raw.producer_version != "analysis-raw-v1"
         ):
             raise ValueError("persisted analysis raw artifact provenance is invalid")
+        if result.model != self._config.settings.cloud.model:
+            raise ValueError("persisted analysis model does not match current configuration")
+        if result.provider != self._config.settings.cloud.provider:
+            raise ValueError("persisted analysis provider does not match current configuration")
         self._verified_artifact(raw, max_bytes=1_000_000)
 
     def _load_scoring(self, video_id: str) -> ScoringOutcome:

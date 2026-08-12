@@ -920,6 +920,16 @@ def _mutate_scoring(
                     "UPDATE artifacts SET producer_version = 'wrong-version' WHERE artifact_key = ?",
                     (structured.artifact_key,),
                 )
+            case "structured_provider_mismatch":
+                conn.execute(
+                    "UPDATE artifacts SET provider = 'wrong-provider' WHERE artifact_key = ?",
+                    (structured.artifact_key,),
+                )
+            case "structured_model_mismatch":
+                conn.execute(
+                    "UPDATE artifacts SET model = 'wrong-model' WHERE artifact_key = ?",
+                    (structured.artifact_key,),
+                )
             case "file_hash_mismatch":
                 path = data_root / structured.relative_path
                 path.write_bytes(b'{"corrupted": true}')
@@ -955,6 +965,8 @@ def _mutate_scoring(
         "request_hash_mismatch",
         "artifact_key_mismatch",
         "producer_version_mismatch",
+        "structured_provider_mismatch",
+        "structured_model_mismatch",
         "file_hash_mismatch",
         "schema_version_mismatch",
     ],
@@ -1110,6 +1122,16 @@ def _mutate_analysis(
                     "UPDATE artifacts SET producer_version = 'wrong-version' WHERE artifact_key = ?",
                     (structured.artifact_key,),
                 )
+            case "structured_provider_mismatch":
+                conn.execute(
+                    "UPDATE artifacts SET provider = 'wrong-provider' WHERE artifact_key = ?",
+                    (structured.artifact_key,),
+                )
+            case "structured_model_mismatch":
+                conn.execute(
+                    "UPDATE artifacts SET model = 'wrong-model' WHERE artifact_key = ?",
+                    (structured.artifact_key,),
+                )
             case "file_hash_mismatch":
                 path = data_root / structured.relative_path
                 path.write_bytes(b'{"corrupted": true}')
@@ -1145,6 +1167,8 @@ def _mutate_analysis(
         "request_hash_mismatch",
         "artifact_key_mismatch",
         "producer_version_mismatch",
+        "structured_provider_mismatch",
+        "structured_model_mismatch",
         "file_hash_mismatch",
         "schema_version_mismatch",
     ],
@@ -1179,4 +1203,209 @@ def test_analysis_provenance_fail_closed(
 
     with pytest.raises(ValueError):
         ops2._load_analysis(VIDEO_ID)
+    assert analysis_provider.calls == 0
+
+
+def _project_with_models(
+    tmp_path: Path,
+    *,
+    local_scoring_model: str = "qwen3:8b",
+    cloud_model: str = "gpt-4.1-mini",
+) -> Path:
+    (tmp_path / "config").mkdir()
+    (tmp_path / "vault").mkdir()
+    (tmp_path / "config" / "channels.yaml").write_text(
+        f"channels:\n  - channel_id: {CHANNEL_ID}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "config" / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+local_scoring:
+  model: {local_scoring_model}
+  expected_model_digest: sha256:{'1' * 64}
+cloud:
+  enabled: true
+  model: {cloud_model}
+  api_key_env: OPENAI_API_KEY
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {tmp_path / 'vault'}
+  vault_subdir: YouTube Intel
+""",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def test_scoring_current_config_model_mismatch_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_with_models(tmp_path, local_scoring_model="qwen3:8b-current")
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    request_hash = "a" * 64
+    job_id = "scoring-job-config"
+
+    _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    raw, structured, result = _persist_scoring_provenance(
+        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    )
+    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
+
+    scoring_provider = _ScoringProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(scoring=scoring_provider),
+    )
+    ops2 = RuntimeOperations(config=_config(project), project_root=project)
+
+    with pytest.raises(ValueError):
+        ops2._load_scoring(VIDEO_ID)
+    assert scoring_provider.calls == 0
+
+
+def test_scoring_valid_recovery_matches_current_config_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_with_models(tmp_path, local_scoring_model="qwen3:8b")
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    request_hash = "a" * 64
+    job_id = "scoring-job-config-valid"
+
+    _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    raw, structured, result = _persist_scoring_provenance(
+        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    )
+    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
+
+    scoring_provider = _ScoringProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(scoring=scoring_provider),
+    )
+    ops2 = RuntimeOperations(config=_config(project), project_root=project)
+
+    outcome = ops2._load_scoring(VIDEO_ID)
+    assert outcome.result.score == 8.0
+    assert outcome.result.model == "qwen3:8b"
+    assert scoring_provider.calls == 0
+
+
+def test_analysis_current_config_model_mismatch_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_with_models(tmp_path, cloud_model="gpt-4.1")
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    request_hash = "a" * 64
+    job_id = "analysis-job-config"
+
+    _setup_analysis_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    raw, structured, result = _persist_analysis_provenance(
+        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    )
+    _complete_analysis_job(repository, VIDEO_ID, job_id, (raw, structured), NOW)
+
+    analysis_provider = _AnalysisProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(analysis=analysis_provider),
+    )
+    ops2 = RuntimeOperations(config=_config(project), project_root=project)
+
+    with pytest.raises(ValueError):
+        ops2._load_analysis(VIDEO_ID)
+    assert analysis_provider.calls == 0
+
+
+def test_analysis_current_config_provider_mismatch_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_with_models(tmp_path)
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    request_hash = "a" * 64
+    job_id = "analysis-job-config-provider"
+
+    _setup_analysis_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    raw, structured, result = _persist_analysis_provenance(
+        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    )
+    _complete_analysis_job(repository, VIDEO_ID, job_id, (raw, structured), NOW)
+
+    # Keep JSON consistent with DB mutations so the failure is against the
+    # current cloud.provider="openai" binding rather than internal consistency.
+    conn = repository._connect()
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute(
+            "UPDATE artifacts SET provider = 'anthropic' WHERE artifact_key IN (?, ?)",
+            (structured.artifact_key, raw.artifact_key),
+        )
+        conn.execute(
+            "UPDATE provider_calls SET provider = 'anthropic' WHERE request_hash = ?",
+            (request_hash,),
+        )
+        data = json.loads(
+            (ops._data_root / structured.relative_path).read_text(encoding="utf-8")
+        )
+        data["provider"] = "anthropic"
+        new_content = _canonical_json(data).encode("utf-8")
+        (ops._data_root / structured.relative_path).write_bytes(new_content)
+        conn.execute(
+            "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+            (hashlib.sha256(new_content).hexdigest(), structured.artifact_key),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    analysis_provider = _AnalysisProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(analysis=analysis_provider),
+    )
+    ops2 = RuntimeOperations(config=_config(project), project_root=project)
+
+    with pytest.raises(ValueError):
+        ops2._load_analysis(VIDEO_ID)
+    assert analysis_provider.calls == 0
+
+
+def test_analysis_valid_recovery_matches_current_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_with_models(tmp_path, cloud_model="gpt-4.1-mini")
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    request_hash = "a" * 64
+    job_id = "analysis-job-config-valid"
+
+    _setup_analysis_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    raw, structured, result = _persist_analysis_provenance(
+        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    )
+    _complete_analysis_job(repository, VIDEO_ID, job_id, (raw, structured), NOW)
+
+    analysis_provider = _AnalysisProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(analysis=analysis_provider),
+    )
+    ops2 = RuntimeOperations(config=_config(project), project_root=project)
+
+    outcome = ops2._load_analysis(VIDEO_ID)
+    assert isinstance(outcome, AnalysisCompleted)
+    assert outcome.result.model == "gpt-4.1-mini"
+    assert outcome.result.provider == "openai"
     assert analysis_provider.calls == 0
