@@ -164,7 +164,9 @@ def _adapter_for_info(
     return adapter, handle
 
 
-def test_ytdlp_adapter_enumerates_tracks_with_safe_no_download_options() -> None:
+def test_ytdlp_adapter_enumerates_tracks_with_safe_no_download_options(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     captured: list[object] = []
     adapter, handle = _adapter_for_info(
         _load_json("info_tracks.json"),
@@ -210,6 +212,8 @@ def test_ytdlp_adapter_enumerates_tracks_with_safe_no_download_options() -> None
     assert opts["writeautomaticsub"] is False
     assert opts["writethumbnail"] is False
     assert opts["socket_timeout"] == 12.0
+    assert opts["logger"].error("sensitive provider error") is None
+    assert capsys.readouterr() == ("", "")
     assert all(
         key not in opts
         for key in (

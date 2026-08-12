@@ -465,6 +465,7 @@ class DiscoveryService:
         *,
         pipeline_version: str,
         now: datetime,
+        limit: int | None = None,
     ) -> DiscoveryBatch:
         if now.tzinfo is None:
             _raise_adapter(
@@ -476,6 +477,12 @@ class DiscoveryService:
             _raise_adapter(
                 ErrorCode.CONFIG_INVALID,
                 "discovery requires pipeline_version",
+                retryable=False,
+            )
+        if limit is not None and limit < 1:
+            _raise_adapter(
+                ErrorCode.CONFIG_INVALID,
+                "discovery limit must be positive",
                 retryable=False,
             )
         record = self._repository.get_channel_cursor(channel.channel_id)
@@ -506,6 +513,8 @@ class DiscoveryService:
                 "provider next_cursor.channel_id does not match channel",
                 retryable=False,
             )
+        if limit is not None:
+            batch = batch.model_copy(update={"video_ids": batch.video_ids[:limit]})
         self._repository.save_discovery_batch(
             batch,
             expected_cursor=expected_cursor,

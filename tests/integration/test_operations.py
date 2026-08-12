@@ -97,6 +97,27 @@ def test_commands_dispatch_with_uuid4_jsonl_and_partial_failure(tmp_path: Path) 
     assert all(str(project) not in json.dumps(record) for record in records)
 
 
+def test_logging_failure_is_visible_and_prevents_business_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = _project(tmp_path)
+    operations = FakeOperations()
+
+    def fail_log(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise OSError("private path")
+
+    monkeypatch.setattr(JsonlLogger, "emit", fail_log)
+
+    assert main(_args(project, "check"), operations=operations) is ExitCode.LOCAL_RESOURCE
+    assert operations.calls == []
+    output = capsys.readouterr()
+    assert "operations log is unavailable" in output.err
+    assert "private path" not in output.err
+
+
 def test_process_retry_and_weekly_preserve_arguments(tmp_path: Path) -> None:
     project = _project(tmp_path)
     operations = FakeOperations()
@@ -120,10 +141,14 @@ def test_usage_and_configuration_fail_with_exit_code_two(tmp_path: Path) -> None
     assert main(_args(project, "doctor")) is ExitCode.USAGE_OR_CONFIGURATION
 
 
-def test_default_operations_remain_fail_closed(tmp_path: Path) -> None:
+def test_default_operations_use_production_composition_and_report_provider_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     project = _project(tmp_path)
 
-    assert main(_args(project, "check")) is ExitCode.USAGE_OR_CONFIGURATION
+    assert main(_args(project, "check")) is ExitCode.EXECUTION_FAILED
+    assert "channel(s) failed" in capsys.readouterr().err
 
 
 def test_non_smoke_commands_reject_directory_only_before_constructing_runner(
@@ -147,7 +172,7 @@ def test_doctor_only_reads_initialized_temporary_resources(tmp_path: Path) -> No
 
     exit_code = main(_args(project, "doctor"), operations=operations)
 
-    assert exit_code is ExitCode.OK
+    assert exit_code is ExitCode.LOCAL_RESOURCE
     assert database.read_bytes() == before
     assert operations.calls == []
     assert not (project / "logs").exists()
@@ -158,6 +183,25 @@ def test_doctor_reports_missing_database_as_local_resource(tmp_path: Path) -> No
     project = _project(tmp_path)
 
     assert main(_args(project, "doctor")) is ExitCode.LOCAL_RESOURCE
+
+
+def test_doctor_unexpected_failure_is_visible_and_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = _project(tmp_path)
+
+    def fail_doctor(config: object, project_root: Path) -> None:
+        del config, project_root
+        raise RuntimeError("internal detail must not be shown")
+
+    monkeypatch.setattr("youtube_intel.runtime.doctor", fail_doctor)
+
+    assert main(_args(project, "doctor")) is ExitCode.EXECUTION_FAILED
+    output = capsys.readouterr()
+    assert "failed safely" in output.err
+    assert "internal detail" not in output.err
 
 
 def test_doctor_with_missing_vault_does_not_create_local_paths(tmp_path: Path) -> None:

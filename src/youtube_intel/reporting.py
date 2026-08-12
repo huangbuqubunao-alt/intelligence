@@ -37,6 +37,7 @@ from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
 _MAX_ARTIFACT_BYTES = 5 << 20
 _MAX_NOTE_BYTES = 5 << 20
+_LOCAL_ONLY_SUMMARY = "云端深度分析未启用；请查看视频笔记。"
 
 
 class _WeeklyRepository(Protocol):
@@ -120,7 +121,9 @@ class WeeklyReportService:
             timezone=period.timezone,
             items=tuple(item for item, _ in verified),
             generated_at=now,
-            analysis_results=tuple(analysis for _, analysis in verified),
+            analysis_results=tuple(
+                analysis for _, analysis in verified if analysis is not None
+            ),
         )
         return GeneratedWeeklyReport(
             period=period,
@@ -130,12 +133,18 @@ class WeeklyReportService:
 
     def _verified_item(
         self, candidate: WeeklyCandidateRecord
-    ) -> tuple[WeeklyReportItem, AnalysisResult]:
+    ) -> tuple[WeeklyReportItem, AnalysisResult | None]:
         try:
             video = _video_metadata(candidate.video)
             score = _verified_score(self._artifact_root, candidate.score_artifact, video.video_id)
-            analysis = _verified_analysis(
-                self._artifact_root, candidate.analysis_artifact, video.video_id
+            analysis = (
+                None
+                if candidate.analysis_artifact is None
+                else _verified_analysis(
+                    self._artifact_root,
+                    candidate.analysis_artifact,
+                    video.video_id,
+                )
             )
         except (OSError, TypeError, ValueError):
             raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
@@ -164,7 +173,11 @@ class WeeklyReportService:
                     video=video,
                     score=score,
                     note_ref=note_ref,
-                    one_sentence_summary=analysis.one_sentence_summary,
+                    one_sentence_summary=(
+                        _LOCAL_ONLY_SUMMARY
+                        if analysis is None
+                        else analysis.one_sentence_summary
+                    ),
                 ),
                 analysis,
             )
@@ -258,7 +271,7 @@ def _template() -> Any:
 
 def _analyses_for_report(report: WeeklyReportInput) -> tuple[AnalysisResult, ...]:
     analyses = getattr(report, "analysis_results", None)
-    if not isinstance(analyses, tuple) or len(analyses) != len(report.items):
+    if not isinstance(analyses, tuple) or len(analyses) > len(report.items):
         raise WeeklyReportValidationError("weekly analysis inputs are missing")
     if not all(isinstance(analysis, AnalysisResult) for analysis in analyses):
         raise WeeklyReportValidationError("weekly analysis inputs are invalid")

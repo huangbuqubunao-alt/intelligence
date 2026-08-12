@@ -19,7 +19,12 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.state import JobRecord, VideoRecord
+from youtube_intel.state import (
+    ArtifactWrite,
+    JobRecord,
+    ProviderCallCompletion,
+    VideoRecord,
+)
 
 
 class StageDisposition(str, Enum):
@@ -44,7 +49,12 @@ class PipelineRepository(Protocol):
     def get_job(self, job_id: str) -> JobRecord | None: ...
 
     def claim_next_job(
-        self, *, owner: str, lease_until: datetime, now: datetime
+        self,
+        *,
+        owner: str,
+        lease_until: datetime,
+        now: datetime,
+        video_id: str | None = None,
     ) -> JobRecord | None: ...
 
     def complete_job(self, job_id: str, *, owner: str, now: datetime) -> JobRecord: ...
@@ -58,8 +68,8 @@ class PipelineRepository(Protocol):
         expected_status: PipelineStatus,
         target_status: PipelineStatus,
         pipeline_version: str,
-        artifacts: tuple[object, ...],
-        provider_call: None,
+        artifacts: tuple[ArtifactWrite, ...],
+        provider_call: ProviderCallCompletion | None,
         now: datetime,
     ) -> object: ...
 
@@ -98,20 +108,21 @@ class PipelineOrchestrator:
         self.planner.recover(now=timestamp)
         for video_id in video_ids:
             self.planner.ensure_next_job(video_id, now=timestamp)
-        self._drain(timestamp)
+        self._drain(timestamp, video_id=None)
 
     def resume_video(self, video_id: str, *, now: datetime | None = None) -> None:
         timestamp = self._now(now)
         self.planner.recover(now=timestamp)
         self.planner.ensure_next_job(video_id, now=timestamp)
-        self._drain(timestamp)
+        self._drain(timestamp, video_id=video_id)
 
-    def _drain(self, now: datetime) -> None:
+    def _drain(self, now: datetime, *, video_id: str | None = None) -> None:
         while True:
             claimed = self.repository.claim_next_job(
                 owner=self.owner,
                 lease_until=now + timedelta(seconds=self.lease_seconds),
                 now=now,
+                video_id=video_id,
             )
             if claimed is None:
                 return

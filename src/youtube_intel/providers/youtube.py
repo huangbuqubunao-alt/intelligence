@@ -42,6 +42,19 @@ _PROVIDER_NAME: Final = "yt-dlp"
 _WATCH_URL: Final = "https://www.youtube.com/watch?v={video_id}"
 _VIDEO_ID_RE: Final = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
 
+
+class _SilentYtDlpLogger:
+    """Prevent the dependency from bypassing the Adapter's safe error boundary."""
+
+    def debug(self, message: str) -> None:
+        del message
+
+    def warning(self, message: str) -> None:
+        del message
+
+    def error(self, message: str) -> None:
+        del message
+
 # ---------------------------------------------------------------------------
 # Private yt-dlp option / mapping internals (NOT part of cross-module API)
 # ---------------------------------------------------------------------------
@@ -65,6 +78,7 @@ _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     # Explicitly avoid network side-channels and local auth.
     "usenetrc": False,
     "extract_flat": False,
+    "logger": _SilentYtDlpLogger(),
     # Do not set cookiefile / cookiesfrombrowser / username / password / netrc_location.
     # Do not set remote_components / allow_remote / ffmpeg_location / paths that download media.
 }

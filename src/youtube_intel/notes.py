@@ -104,7 +104,10 @@ def render_video_note(
         score=f"{scoring.result.score:g}",
         scoring_reason=_safe_inline(scoring.result.reason),
         topics=tuple(_safe_inline(topic) for topic in scoring.result.topics),
-        analysis=_analysis_values(analysis),
+        analysis=_analysis_values(
+            analysis,
+            fallback_keywords=scoring.result.topics,
+        ),
     )
     content = content.replace("\r\n", "\n").replace("\r", "\n")
     if not content.endswith("\n"):
@@ -172,7 +175,11 @@ def _frontmatter(
     return "\n".join(lines)
 
 
-def _analysis_values(analysis: AnalysisOutcome) -> dict[str, object]:
+def _analysis_values(
+    analysis: AnalysisOutcome,
+    *,
+    fallback_keywords: tuple[str, ...],
+) -> dict[str, object]:
     if isinstance(analysis, AnalysisSkipped):
         return {
             "skipped": True,
@@ -188,7 +195,7 @@ def _analysis_values(analysis: AnalysisOutcome) -> dict[str, object]:
             "action_recommendations": (),
             "risks": (),
             "evidence": (),
-            "keywords": (),
+            "keywords": tuple(_safe_inline(topic) for topic in fallback_keywords),
         }
     if not isinstance(analysis, AnalysisCompleted):
         raise NoteRenderingError("analysis outcome is invalid")

@@ -1,8 +1,14 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-07-29
+- 更新时间：2026-08-12
 - 当前阶段：Phase 3 — TASK-013 已整合并收口为 `DONE`
 - 主控状态：ACTIVE
+- TASK-015 已从 `main@41ed7ee55afe5f8cb44ca20931c776257d15805f` 在
+  `codex/task-015-runtime-composition` 完成 production composition、首次 bootstrap、
+  doctor/错误反馈与隔离真实 Local Smoke，现为 `READY_FOR_INDEPENDENT_REVIEW`。真实公开
+  字幕视频已完成 metadata → transcript → local scoring → Cloud-off note → weekly；Cloud、
+  真实用户 Vault、凭据、付费调用和固定 Whisper 权重下载均未执行。该结果只支持本地 Demo，
+  不解除 TASK-014 的公开分发 No-Go。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
 - 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008` /

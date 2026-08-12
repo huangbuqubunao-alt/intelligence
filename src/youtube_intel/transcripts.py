@@ -1872,6 +1872,7 @@ class SubtitleAcquisitionService:
         language_preferences: Sequence[str],
         now: datetime,
         provider_record: ProviderCallRecord | None,
+        complete_stage: bool = True,
     ) -> TranscriptReady | None:
         provider_request = self._provider_request(raw_request_hash)
         raw_record = self._get_artifact(
@@ -1967,6 +1968,13 @@ class SubtitleAcquisitionService:
             _canonical_artifact_key(raw_request_hash, canonical_request_hash),
             video_id=video_id,
         )
+        if canonical_record is None and not complete_stage:
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "verified canonical transcript artifact is missing",
+                retryable=False,
+                video_id=video_id,
+            )
         if canonical_record is None:
             return self._rebuild_canonical_from_raw(
                 video_id=video_id,
@@ -2094,7 +2102,8 @@ class SubtitleAcquisitionService:
             created_at=canonical_record.created_at,
             quality_flags=quality_flags,
         )
-        self._complete_cached_stage(video_id=video_id, now=now)
+        if complete_stage:
+            self._complete_cached_stage(video_id=video_id, now=now)
         return TranscriptReady(
             artifact=artifact,
             call=ProviderCallMetadata(
@@ -2541,6 +2550,49 @@ class SubtitleAcquisitionService:
             )
             raise TranscriptError(fallback)
         return owner_result
+
+    def load_verified_transcript(
+        self,
+        video: VideoMetadata,
+        language_preferences: Sequence[str],
+    ) -> TranscriptReady:
+        """Recover an existing canonical transcript without completing a stage.
+
+        This public application boundary reuses the same provider binding,
+        path, hash, provenance, UTF-8, and quality checks as normal cache
+        recovery, while avoiding a second Job transition.
+        """
+
+        video_id = video.video_id
+        now = _aware_utc(self._clock(), video_id=video_id)
+        raw_request_hash = build_raw_request_hash(
+            video_id=video_id,
+            language_preferences=language_preferences,
+            provider=self._adapter.provider_name,
+            provider_version=self._adapter.provider_version,
+            refresh_generation=self._context.refresh_generation,
+        )
+        provider_request = self._provider_request(raw_request_hash)
+        provider_record = self._get_provider_call(
+            provider_request.request_hash,
+            video_id=video_id,
+        )
+        cached = self._load_cached(
+            video_id=video_id,
+            raw_request_hash=raw_request_hash,
+            language_preferences=language_preferences,
+            now=now,
+            provider_record=provider_record,
+            complete_stage=False,
+        )
+        if cached is None:
+            raise _service_error(
+                ErrorCode.LOCAL_RESOURCE,
+                "verified canonical transcript is unavailable",
+                retryable=False,
+                video_id=video_id,
+            )
+        return cached
 
 
 _WHISPER_OPERATION: Final = "local-whisper-transcription-v1"

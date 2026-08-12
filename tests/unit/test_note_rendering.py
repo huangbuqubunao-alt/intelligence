@@ -215,6 +215,7 @@ def test_skipped_analysis_is_honest_and_model_markers_cannot_control_structure()
     assert lines.count("<!-- youtube-intel:managed:end:v1 -->") == 1
     assert "- 原因：CLOUD_DISABLED" in rendered.content
     assert "Cloud analysis is disabled for this run." in rendered.content
+    assert "## 标签\n\n- product\n- strategy" in rendered.content
 
 
 def _analysis_with_payload(payload: str) -> AnalysisCompleted:

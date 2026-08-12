@@ -28,10 +28,12 @@ temporary URLs, absolute paths, business records, or Vault notes. The existing
 commands remain fail-closed when no `Operations` composition is injected.
 
 `doctor` validates YAML structure, project-relative storage paths, the existing
-`data/state.sqlite` migration record, Vault path containment, and enabled Provider
-configuration. It does not create Jobs, process videos, read a secret value, read
-Vault contents, contact a Provider, probe loopback, or use the network. Use it
-before allowing an application composition root to run a processing command.
+`data/state.sqlite` migration record, Vault path containment, yt-dlp/MLX packages,
+and the configured Ollama model through one bounded loopback `/api/tags` read. It
+does not create Jobs, files, directories, or reports; process videos; read a secret
+value or Vault contents; contact YouTube or a cloud Provider; or repair local state.
+On a first run, use its missing-state report as guidance, run `check` to perform the
+idempotent bootstrap, then run `doctor` again.
 
 Each invocation writes JSONL records to `logs/operations.jsonl` with a UUID4
 `run_id`. Records contain timestamp, level, event, run_id, stage and a safe

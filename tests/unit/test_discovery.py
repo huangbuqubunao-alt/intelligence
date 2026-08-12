@@ -311,6 +311,18 @@ def test_discover_and_save_all_or_nothing_and_idempotent() -> None:
     assert all(status is PipelineStatus.DISCOVERED for status in repo.videos.values())
 
 
+def test_discover_and_save_limit_caps_the_persisted_candidate_batch() -> None:
+    provider = _rss_provider(_load_bytes("rss_sample.xml"))
+    repo = FakeDiscoveryRepository()
+    service = DiscoveryService(provider, repo)
+
+    batch = service.discover_and_save(CHANNEL, limit=2, **SAVE_KW)
+
+    assert batch.video_ids == ("vid_new_1", "vid_dup")
+    assert tuple(repo.videos) == batch.video_ids
+    assert repo.cursors["UC_example"].cursor.latest_video_id == "vid_new_1"
+
+
 def test_candidate_write_failure_rolls_back_cursor() -> None:
     provider = _rss_provider(_load_bytes("rss_sample.xml"))
     repo = FakeDiscoveryRepository(fail_on_video_id="vid_mid")
@@ -578,7 +590,9 @@ def test_private_partial_does_not_forge_empty_metadata() -> None:
     assert "private" in err.message.lower()
 
 
-def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
+def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """Prove safe options via private builder + private test hooks on Provider."""
     opts = youtube_mod._build_ydl_opts(socket_timeout=30.0)
     assert opts["skip_download"] is True
@@ -589,6 +603,8 @@ def test_safe_ydl_opts_have_no_download_cookie_remote_or_ffmpeg() -> None:
     assert opts["writeautomaticsub"] is False
     assert opts["writethumbnail"] is False
     assert opts["usenetrc"] is False
+    assert opts["logger"].error("sensitive provider error") is None
+    assert capsys.readouterr() == ("", "")
     forbidden_keys = {
         "cookiefile",
         "cookiesfrombrowser",

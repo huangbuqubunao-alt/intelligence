@@ -224,6 +224,19 @@ class _ContentAvailabilityState(Enum):
     UNKNOWN = auto()
 
 
+class _SilentYtDlpLogger:
+    """Prevent the dependency from bypassing the Adapter's safe error boundary."""
+
+    def debug(self, message: str) -> None:
+        del message
+
+    def warning(self, message: str) -> None:
+        del message
+
+    def error(self, message: str) -> None:
+        del message
+
+
 @dataclass(frozen=True, slots=True)
 class _DirectoryOriginFingerprint:
     origin: str
@@ -269,6 +282,7 @@ _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "keepvideo": False,
     "usenetrc": False,
     "extract_flat": False,
+    "logger": _SilentYtDlpLogger(),
 }
 
 

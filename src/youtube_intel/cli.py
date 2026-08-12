@@ -3,89 +3,17 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import sqlite3
 import sys
 import time
-from dataclasses import dataclass
-from enum import IntEnum
-from importlib import resources
 from pathlib import Path
-from typing import NoReturn, Protocol, Sequence
+from typing import NoReturn, Sequence
 from uuid import uuid4
 
 from youtube_intel.config import AppConfig, ConfigError, load_app_config
 from youtube_intel.logging import JsonlLogger
+from youtube_intel.operations import CommandOutcome, ExitCode, Operations
 from youtube_intel.public_subtitle_smoke import PublicSubtitleSmoke
-
-
-class ExitCode(IntEnum):
-    OK = 0
-    EXECUTION_FAILED = 1
-    USAGE_OR_CONFIGURATION = 2
-    LOCAL_RESOURCE = 3
-
-
-@dataclass(frozen=True, slots=True)
-class CommandOutcome:
-    """A service result that keeps partial failure visible to the CLI."""
-
-    attempted: int = 0
-    failed: int = 0
-    prerequisite_failed: bool = False
-    local_resource_failed: bool = False
-
-    def __post_init__(self) -> None:
-        if self.attempted < 0 or self.failed < 0 or self.failed > self.attempted:
-            raise ValueError("command outcome counts are invalid")
-        if self.prerequisite_failed and self.local_resource_failed:
-            raise ValueError("command outcome has conflicting terminal categories")
-
-    @property
-    def exit_code(self) -> ExitCode:
-        if self.local_resource_failed:
-            return ExitCode.LOCAL_RESOURCE
-        if self.prerequisite_failed:
-            return ExitCode.USAGE_OR_CONFIGURATION
-        if self.failed:
-            return ExitCode.EXECUTION_FAILED
-        return ExitCode.OK
-
-
-class Operations(Protocol):
-    """Frozen application-service boundary; concrete wiring stays outside parsing."""
-
-    def check(self, *, channel: str | None, limit: int | None) -> CommandOutcome: ...
-
-    def process(self, *, video: str | None, resume: bool) -> CommandOutcome: ...
-
-    def retry(self, *, video: str | None, failed_only: bool) -> CommandOutcome: ...
-
-    def weekly(self, *, week: str | None) -> CommandOutcome: ...
-
-
-class _UnavailableOperations:
-    """Fail closed until an explicit composition root supplies the services."""
-
-    @staticmethod
-    def _result() -> CommandOutcome:
-        return CommandOutcome(prerequisite_failed=True)
-
-    def check(self, *, channel: str | None, limit: int | None) -> CommandOutcome:
-        del channel, limit
-        return self._result()
-
-    def process(self, *, video: str | None, resume: bool) -> CommandOutcome:
-        del video, resume
-        return self._result()
-
-    def retry(self, *, video: str | None, failed_only: bool) -> CommandOutcome:
-        del video, failed_only
-        return self._result()
-
-    def weekly(self, *, week: str | None) -> CommandOutcome:
-        del week
-        return self._result()
 
 
 class _Parser(argparse.ArgumentParser):
@@ -158,36 +86,93 @@ def main(
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
     except (ConfigError, OSError, ValueError):
+        print(
+            "ERROR: Configuration or command arguments are invalid. "
+            "Run `youtube-intel --help` and `youtube-intel doctor`.",
+            file=sys.stderr,
+        )
         return ExitCode.USAGE_OR_CONFIGURATION
 
     if args.command == "doctor":
         try:
-            return _doctor(config, project_root).exit_code
+            from youtube_intel.runtime import doctor
+
+            report = doctor(config, project_root)
+            print(report.render())
+            return report.exit_code
         except _LocalResourceFailure:
+            print(
+                "ERROR: Doctor could not read a required local resource.",
+                file=sys.stderr,
+            )
             return ExitCode.LOCAL_RESOURCE
         except (OSError, sqlite3.Error):
+            print(
+                "ERROR: Doctor could not read the local filesystem or database.",
+                file=sys.stderr,
+            )
             return ExitCode.LOCAL_RESOURCE
         except Exception:
+            print(
+                "ERROR: Doctor failed safely before completing its checks.",
+                file=sys.stderr,
+            )
             return ExitCode.EXECUTION_FAILED
+
+    if operations is None:
+        try:
+            from youtube_intel.runtime import create_runtime_operations
+
+            operations = create_runtime_operations(config, project_root)
+        except (OSError, sqlite3.Error, ValueError):
+            print(
+                "ERROR: Local runtime initialization failed. Run `youtube-intel doctor` for details.",
+                file=sys.stderr,
+            )
+            return ExitCode.LOCAL_RESOURCE
 
     logger = JsonlLogger(_project_path(project_root, config.settings.storage.logs_dir) / "operations.jsonl")
     stage = str(args.command)
     started = time.monotonic()
-    logger.emit(
-        level="INFO",
-        event="command.started",
-        run_id=run_id,
-        stage=stage,
-        safe_message="command started",
-    )
     try:
-        outcome = _dispatch(args, operations or _UnavailableOperations())
+        logger.emit(
+            level="INFO",
+            event="command.started",
+            run_id=run_id,
+            stage=stage,
+            safe_message="command started",
+        )
+    except (OSError, ValueError):
+        print(
+            "ERROR: The local operations log is unavailable. "
+            "Check the configured logs directory.",
+            file=sys.stderr,
+        )
+        return ExitCode.LOCAL_RESOURCE
+    try:
+        outcome = _dispatch(args, operations)
     except _LocalResourceFailure:
-        outcome = CommandOutcome(local_resource_failed=True)
+        outcome = CommandOutcome(
+            local_resource_failed=True,
+            safe_message="A required local resource is unavailable.",
+        )
     except (OSError, sqlite3.Error):
-        outcome = CommandOutcome(local_resource_failed=True)
+        outcome = CommandOutcome(
+            local_resource_failed=True,
+            safe_message=(
+                "A required local file or database is unavailable. "
+                "Run `youtube-intel doctor` for details."
+            ),
+        )
     except Exception:
-        outcome = CommandOutcome(failed=1, attempted=1)
+        outcome = CommandOutcome(
+            failed=1,
+            attempted=1,
+            safe_message=(
+                "The command failed safely. Run `youtube-intel doctor` "
+                "and inspect the local JSONL log."
+            ),
+        )
 
     duration_ms = int((time.monotonic() - started) * 1000)
     if outcome.exit_code is ExitCode.OK:
@@ -198,14 +183,26 @@ def main(
         event, message = "command.failed", "command prerequisite is unavailable"
     else:
         event, message = "command.failed", "one or more executed items failed"
-    logger.emit(
-        level="INFO" if outcome.exit_code is ExitCode.OK else "ERROR",
-        event=event,
-        run_id=run_id,
-        stage=stage,
-        safe_message=message,
-        duration_ms=duration_ms,
-    )
+    try:
+        logger.emit(
+            level="INFO" if outcome.exit_code is ExitCode.OK else "ERROR",
+            event=event,
+            run_id=run_id,
+            stage=stage,
+            safe_message=message,
+            duration_ms=duration_ms,
+        )
+    except (OSError, ValueError):
+        print(
+            "ERROR: The command finished but its local operations log could not be written.",
+            file=sys.stderr,
+        )
+        return ExitCode.LOCAL_RESOURCE
+    if outcome.safe_message is not None:
+        print(
+            outcome.safe_message,
+            file=sys.stdout if outcome.exit_code is ExitCode.OK else sys.stderr,
+        )
     return outcome.exit_code
 
 
@@ -268,47 +265,6 @@ def _dispatch(args: argparse.Namespace, operations: Operations) -> CommandOutcom
 
 class _LocalResourceFailure(Exception):
     pass
-
-
-def _doctor(config: AppConfig, root: Path) -> CommandOutcome:
-    storage = config.settings.storage
-    data_dir = _project_path(root, storage.data_dir)
-    _project_path(root, storage.logs_dir)
-    _project_path(root, storage.templates_dir)
-    _verify_database(data_dir / "state.sqlite")
-    _verify_vault_boundary(Path(storage.vault_root), storage.vault_subdir)
-    # Pydantic validation already checks enabled Provider configuration.  Do not
-    # read environment values or contact the configured loopback/remote endpoint.
-    return CommandOutcome()
-
-
-def _verify_database(path: Path) -> None:
-    if not path.is_file():
-        raise _LocalResourceFailure
-    expected = hashlib.sha256(
-        resources.files("youtube_intel").joinpath("migrations", "001_initial.sql").read_bytes()
-    ).hexdigest()
-    try:
-        with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
-            row = connection.execute(
-                "SELECT version, name, checksum FROM schema_migrations ORDER BY version DESC LIMIT 1"
-            ).fetchone()
-            user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-    except (OSError, sqlite3.Error) as error:
-        raise _LocalResourceFailure from error
-    if row != (1, "001_initial.sql", expected) or user_version != 1:
-        raise _LocalResourceFailure
-
-
-def _verify_vault_boundary(vault_root: Path, vault_subdir: str) -> None:
-    if not vault_root.is_dir():
-        raise _LocalResourceFailure
-    root = vault_root.resolve(strict=True)
-    target = (root / vault_subdir).resolve(strict=False)
-    try:
-        target.relative_to(root)
-    except ValueError as error:
-        raise _LocalResourceFailure from error
 
 
 __all__ = ["CommandOutcome", "ExitCode", "Operations", "main"]

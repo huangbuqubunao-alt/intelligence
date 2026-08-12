@@ -123,6 +123,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B11](TASK-014B11-safe-directory-contract-diagnostics.md) | 安全字幕目录契约状态诊断 | Scout 报告 `11` 命中：`9` 个非新增 self-match、`2` 个新增 unknown；未确认真实凭据但风险未排除。Correction 2 仅授权两份 integration tests 与 handoff，须先安全分类，原 `f57b21c…` merge 继续阻断 | IN_PROGRESS / Codex | 014；B4/B5/B6/B7/B8/B10 DONE；ADR-021 |
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
+| [TASK-015](TASK-015-runtime-composition.md) | 正式 Runtime Composition 与 Local-First Smoke | Codex Lead Maintainer | IN_PROGRESS | 013；ADR-022 |
 
 ## 主控分配模板
 

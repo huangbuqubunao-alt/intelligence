@@ -63,6 +63,7 @@ def _candidate(
     analysis_keyword: str | None = None,
     analysis_keywords: tuple[str, ...] | None = None,
     direction: str = "Use the verified direction.",
+    with_analysis: bool = True,
 ) -> WeeklyCandidateRecord:
     score_result = ScoreResult(
         schema_version="score-result-v1",
@@ -107,7 +108,10 @@ def _candidate(
     analysis_bytes = analysis_result.model_dump_json().encode()
     score_path = f"scoring/{score_result.request_hash}/structured.json"
     analysis_path = f"analysis/{analysis_result.request_hash}/structured.json"
-    for relative_path, content in ((score_path, score_bytes), (analysis_path, analysis_bytes)):
+    artifacts = [(score_path, score_bytes)]
+    if with_analysis:
+        artifacts.append((analysis_path, analysis_bytes))
+    for relative_path, content in artifacts:
         path = root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
@@ -138,9 +142,13 @@ def _candidate(
             video_id, ArtifactKind.SCORING_STRUCTURED, score_path, score_bytes,
             f"scoring/{score_result.request_hash}/structured", "fixture-score",
         ),
-        analysis_artifact=_artifact(
-            video_id, ArtifactKind.ANALYSIS_STRUCTURED, analysis_path, analysis_bytes,
-            f"analysis/{analysis_result.request_hash}/structured", "fixture-analysis",
+        analysis_artifact=(
+            _artifact(
+                video_id, ArtifactKind.ANALYSIS_STRUCTURED, analysis_path, analysis_bytes,
+                f"analysis/{analysis_result.request_hash}/structured", "fixture-analysis",
+            )
+            if with_analysis
+            else None
         ),
         note_artifact=_artifact(
             video_id, ArtifactKind.VIDEO_NOTE, f"Videos/note--{video_id}.md", b"note",
@@ -217,6 +225,28 @@ def test_weekly_report_writes_a_stable_empty_week(tmp_path: Path) -> None:
     assert "本周没有符合条件的高价值视频。" in content
     assert "本周暂无可持续关注方向。" in content
     assert len(repository.reports) == 1
+
+
+def test_cloud_disabled_candidate_still_appears_without_analysis_trends(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate = _candidate(
+        artifact_root,
+        video_id="video-local",
+        score=9,
+        topic="local-topic",
+        with_analysis=False,
+    )
+    service, _, vault_root = _service(tmp_path, (candidate,))
+
+    generated = service.generate(now=NOW)
+
+    content = (vault_root / "Knowledge" / generated.note_ref.relative_path).read_text()
+    assert "[[Videos/note--video-local.md|Title video-local]]" in content
+    assert "云端深度分析未启用；请查看视频笔记。" in content
+    assert "local-topic" not in content
+    assert "本周暂无可持续关注方向。" in content
 
 
 def test_weekly_report_retries_after_database_failure_without_duplicate_files(tmp_path: Path) -> None:

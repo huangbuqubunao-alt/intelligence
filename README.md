@@ -28,7 +28,7 @@ Whisper 模型、Ollama/模型、OpenAI API/密钥/付费调用、真实 Obsidia
   成功到 SQLite 提交、文件原子 replace 到 SQLite 提交、以及音频清理的最终 CAS 都仍有
   崩溃窗口。不得将离线恢复测试表述为消除了这些窗口。
 
-## 计划中的本地安装与初始化（尚未作为发行验证）
+## 本地安装与初始化（公开分发仍为 No-Go）
 
 目标环境为 macOS Apple Silicon 与 Python 3.12+。锁定的依赖和构建元数据在
 `pyproject.toml` 与 `uv.lock` 中；在发布签署和对应环境授权完成后，操作者应从干净
@@ -38,15 +38,16 @@ Whisper 模型、Ollama/模型、OpenAI API/密钥/付费调用、真实 Obsidia
    不提交配置副本、密钥或 Vault 路径。
 2. 使用锁定依赖完成安装；安装后的正式命令为 `youtube-intel`（与
    `python -m youtube_intel` 使用同一 CLI 主入口）。发布前必须重新核对锁文件、SBOM、许可证和分发形态。
-3. 在受控的、非真实 Vault 环境初始化 `data/` 与 `logs/`；这两个路径现在只会在仓库根
-   匹配，嵌套的源码、测试夹具和文档目录不会被此规则静默忽略。
-4. 先运行 `youtube-intel doctor`。它检查 YAML、项目相对存储路径、已有 SQLite migration
-   记录、Vault 路径边界和启用 Provider 配置；它不读取密钥值、Vault 内容，不访问网络，
-   也不探测 Provider。
+3. 先运行 `youtube-intel doctor`。全新项目会如实报告 DATA、SQLite 与受管 Vault 子目录
+   尚未初始化；它不会为了诊断而创建文件、Job 或目录。
+4. 运行首个业务命令（通常是 `youtube-intel check --limit N`）。它会幂等创建项目内
+   `data/`、`logs/`、SQLite migration，以及已存在测试 Vault 根下的受管子目录。
+5. 再次运行 `doctor`。它检查 YAML、项目相对存储路径、SQLite、Vault 边界、yt-dlp、
+   MLX Whisper package，并通过有界 loopback `/api/tags` 检查 Ollama 与固定模型 digest；
+   它不读取密钥值、Vault 内容或调用云端 Provider。
 
-`doctor` 需要已有的 `data/state.sqlite`。若该文件不存在或 migration 记录不一致，它会以
-本地资源/持久化失败退出，而不是创建或修复数据。实际命令、退出码和运行边界见
-[运维说明](docs/operations.md)。
+`doctor` 若发现 `data/state.sqlite` 不存在或 migration 不一致，会以本地资源失败退出并
+给出下一步，而不是创建或修复数据。实际命令、退出码和运行边界见[运维说明](docs/operations.md)。
 
 ## 手动运行与调度
 
