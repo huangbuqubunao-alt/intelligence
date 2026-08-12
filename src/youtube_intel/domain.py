@@ -83,6 +83,26 @@ class PointKind(str, Enum):
     RECOMMENDATION = "recommendation"
 
 
+class IntelligenceMode(str, Enum):
+    LOCAL_ONLY = "local-only"
+    HYBRID = "hybrid"
+    CLOUD = "cloud"
+
+
+class KnowledgeExecutionMode(str, Enum):
+    LOCAL = "local"
+    CLOUD = "cloud"
+
+
+class KnowledgeFallbackReason(str, Enum):
+    CREDENTIAL_UNAVAILABLE = "credential-unavailable"
+    BUDGET_EXHAUSTED = "budget-exhausted"
+    INPUT_NOT_ELIGIBLE = "input-not-eligible"
+    PROVIDER_UNAVAILABLE = "provider-unavailable"
+    PROVIDER_TIMEOUT = "provider-timeout"
+    INVALID_RESPONSE = "invalid-response"
+
+
 class EvidenceSource(str, Enum):
     TITLE = "title"
     CHANNEL_NAME = "channel_name"
@@ -521,6 +541,328 @@ class AnalysisResult(AnalysisContent):
     model: str = Field(min_length=1, pattern=r"\S")
     prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+# ---------------------------------------------------------------------------
+# Provider-neutral Knowledge V2 contracts
+# ---------------------------------------------------------------------------
+
+
+def _validate_unique_semantic_items(
+    value: tuple[str, ...],
+    *,
+    field_name: str,
+) -> tuple[str, ...]:
+    if len(value) != len(set(value)):
+        msg = f"{field_name} items must be unique"
+        raise ValueError(msg)
+    for item in value:
+        if not item.strip() or len(item) > 2000:
+            msg = f"{field_name} items must be non-empty and at most 2000 characters"
+            raise ValueError(msg)
+    return value
+
+
+class KnowledgeEvidence(_UpdateProtectedAnalysisContract):
+    evidence_id: str = Field(min_length=1, max_length=100, pattern=r"\S")
+    source: EvidenceSource
+    excerpt: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    source_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    start_seconds: float | None = Field(default=None, ge=0)
+    end_seconds: float | None = Field(default=None, ge=0)
+    timestamp_basis: Literal["timed-subtitle"] | None = None
+
+    @model_validator(mode="after")
+    def _timestamp_integrity(self) -> KnowledgeEvidence:
+        timestamps_present = self.start_seconds is not None
+        if timestamps_present != (self.end_seconds is not None):
+            msg = "start_seconds and end_seconds must be provided together"
+            raise ValueError(msg)
+        if timestamps_present:
+            if self.source is not EvidenceSource.TRANSCRIPT_SAMPLE:
+                msg = "timestamps are allowed only for transcript evidence"
+                raise ValueError(msg)
+            if self.timestamp_basis != "timed-subtitle":
+                msg = "timestamps require the trusted timed-subtitle basis"
+                raise ValueError(msg)
+            assert self.start_seconds is not None
+            assert self.end_seconds is not None
+            if self.end_seconds < self.start_seconds:
+                msg = "end_seconds must be >= start_seconds"
+                raise ValueError(msg)
+        elif self.timestamp_basis is not None:
+            msg = "timestamp_basis must be absent when timestamps are absent"
+            raise ValueError(msg)
+        return self
+
+
+class EvidenceRegistry(_UpdateProtectedAnalysisContract):
+    items: tuple[KnowledgeEvidence, ...] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def _unique_ids(self) -> EvidenceRegistry:
+        evidence_ids = tuple(item.evidence_id for item in self.items)
+        if len(evidence_ids) != len(set(evidence_ids)):
+            msg = "evidence_id values must be unique within EvidenceRegistry"
+            raise ValueError(msg)
+        return self
+
+
+class KnowledgeGraph(_UpdateProtectedAnalysisContract):
+    topics: tuple[str, ...] = Field(min_length=1, max_length=20)
+    entities: tuple[str, ...] = Field(default=(), max_length=30)
+    related_themes: tuple[str, ...] = Field(default=(), max_length=20)
+    future_watch_topics: tuple[str, ...] = Field(default=(), max_length=20)
+
+    @field_validator("topics", "entities", "related_themes", "future_watch_topics")
+    @classmethod
+    def _semantic_items(
+        cls,
+        value: tuple[str, ...],
+        info: ValidationInfo,
+    ) -> tuple[str, ...]:
+        return _validate_unique_semantic_items(
+            value,
+            field_name=info.field_name or "knowledge_graph",
+        )
+
+
+class KnowledgeProvenance(_UpdateProtectedAnalysisContract):
+    requested_mode: IntelligenceMode
+    executed_mode: KnowledgeExecutionMode
+    fallback_reason: KnowledgeFallbackReason | None = None
+    provider: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    model: str = Field(min_length=1, max_length=300, pattern=r"\S")
+    model_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    output_language: str = Field(min_length=1, max_length=40, pattern=r"\S")
+    prompt_version: Literal["knowledge-prompt-v2"] = "knowledge-prompt-v2"
+    schema_version: Literal["knowledge-result-v2"] = "knowledge-result-v2"
+    sampling_version: Literal["knowledge-sampling-v2"] = "knowledge-sampling-v2"
+    privacy_version: Literal["knowledge-privacy-v2"] = "knowledge-privacy-v2"
+    transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def _mode_and_model_identity(self) -> KnowledgeProvenance:
+        if (
+            self.requested_mode is IntelligenceMode.LOCAL_ONLY
+            and self.executed_mode is not KnowledgeExecutionMode.LOCAL
+        ):
+            msg = "local-only requests must execute locally"
+            raise ValueError(msg)
+        if (
+            self.requested_mode is IntelligenceMode.CLOUD
+            and self.executed_mode is not KnowledgeExecutionMode.CLOUD
+        ):
+            msg = "cloud requests must execute in cloud mode"
+            raise ValueError(msg)
+        if (
+            self.requested_mode is IntelligenceMode.HYBRID
+            and self.executed_mode is KnowledgeExecutionMode.LOCAL
+        ) != (self.fallback_reason is not None):
+            msg = (
+                "fallback_reason is required only when a hybrid request "
+                "falls back to local execution"
+            )
+            raise ValueError(msg)
+        if (
+            self.executed_mode is KnowledgeExecutionMode.LOCAL
+            and self.model_digest is None
+        ):
+            msg = "model_digest is required for local execution"
+            raise ValueError(msg)
+        if (
+            self.executed_mode is KnowledgeExecutionMode.CLOUD
+            and self.model_digest is not None
+        ):
+            msg = "model_digest must be absent for cloud execution"
+            raise ValueError(msg)
+        return self
+
+
+class KnowledgeContent(_UpdateProtectedAnalysisContract):
+    one_sentence_summary: str = Field(min_length=1, max_length=500, pattern=r"\S")
+    summary_evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=10)
+    why_it_matters: AnalysisPoint
+    core_points: tuple[AnalysisPoint, ...] = Field(min_length=1, max_length=10)
+    key_facts: tuple[AnalysisPoint, ...] = Field(default=(), max_length=20)
+    important_concepts: tuple[AnalysisPoint, ...] = Field(default=(), max_length=20)
+    key_arguments: tuple[AnalysisPoint, ...] = Field(default=(), max_length=20)
+    counterpoints: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    product_opportunities: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    business_opportunities: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    actionable_directions: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    hypotheses_to_validate: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    action_recommendations: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    risks: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
+    knowledge_graph: KnowledgeGraph
+    evidence_registry: EvidenceRegistry
+
+    @field_validator("summary_evidence_ids")
+    @classmethod
+    def _summary_evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return _validate_unique_semantic_items(
+            value,
+            field_name="summary_evidence_ids",
+        )
+
+    @model_validator(mode="after")
+    def _grounding_and_semantics(self) -> KnowledgeContent:
+        evidence_ids = {item.evidence_id for item in self.evidence_registry.items}
+        all_reference_ids = [*self.summary_evidence_ids]
+        kind_rules = (
+            ("why_it_matters", (self.why_it_matters,), {PointKind.INFERENCE}),
+            ("core_points", self.core_points, {PointKind.FACT, PointKind.INFERENCE}),
+            ("key_facts", self.key_facts, {PointKind.FACT}),
+            ("important_concepts", self.important_concepts, {PointKind.FACT, PointKind.INFERENCE}),
+            ("key_arguments", self.key_arguments, {PointKind.FACT, PointKind.INFERENCE}),
+            ("counterpoints", self.counterpoints, {PointKind.INFERENCE}),
+            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE}),
+            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE}),
+            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION}),
+            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE}),
+            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION}),
+            ("risks", self.risks, {PointKind.INFERENCE}),
+        )
+        for field_name, points, allowed_kinds in kind_rules:
+            for point in points:
+                if point.kind not in allowed_kinds:
+                    allowed = ", ".join(sorted(kind.value for kind in allowed_kinds))
+                    msg = f"{field_name} items must have kind in {{{allowed}}}"
+                    raise ValueError(msg)
+                all_reference_ids.extend(point.evidence_ids)
+        missing = sorted(set(all_reference_ids) - evidence_ids)
+        if missing:
+            msg = f"knowledge fields reference unknown evidence: {missing}"
+            raise ValueError(msg)
+        return self
+
+
+class KnowledgeResult(KnowledgeContent):
+    schema_version: Literal["knowledge-result-v2"] = "knowledge-result-v2"
+    provenance: KnowledgeProvenance
+
+
+class WeeklyKnowledgeSource(_UpdateProtectedAnalysisContract):
+    video_id: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=20)
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def _evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return _validate_unique_semantic_items(value, field_name="evidence_ids")
+
+
+class WeeklyKnowledgePoint(_UpdateProtectedAnalysisContract):
+    text: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    sources: tuple[WeeklyKnowledgeSource, ...] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def _unique_sources(self) -> WeeklyKnowledgePoint:
+        video_ids = tuple(source.video_id for source in self.sources)
+        if len(video_ids) != len(set(video_ids)):
+            msg = "WeeklyKnowledgePoint source video_id values must be unique"
+            raise ValueError(msg)
+        return self
+
+
+class WeeklyKnowledgeProvenance(_UpdateProtectedAnalysisContract):
+    requested_mode: IntelligenceMode
+    executed_mode: KnowledgeExecutionMode
+    fallback_reason: KnowledgeFallbackReason | None = None
+    provider: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    model: str = Field(min_length=1, max_length=300, pattern=r"\S")
+    model_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    output_language: str = Field(min_length=1, max_length=40, pattern=r"\S")
+    prompt_version: Literal["weekly-knowledge-prompt-v2"] = (
+        "weekly-knowledge-prompt-v2"
+    )
+    schema_version: Literal["weekly-knowledge-result-v2"] = (
+        "weekly-knowledge-result-v2"
+    )
+    sampling_version: Literal["weekly-knowledge-sampling-v2"] = (
+        "weekly-knowledge-sampling-v2"
+    )
+    privacy_version: Literal["weekly-knowledge-privacy-v2"] = (
+        "weekly-knowledge-privacy-v2"
+    )
+    input_knowledge_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def _mode_and_model_identity(self) -> WeeklyKnowledgeProvenance:
+        if (
+            self.requested_mode is IntelligenceMode.LOCAL_ONLY
+            and self.executed_mode is not KnowledgeExecutionMode.LOCAL
+        ):
+            msg = "local-only weekly synthesis must execute locally"
+            raise ValueError(msg)
+        if (
+            self.requested_mode is IntelligenceMode.CLOUD
+            and self.executed_mode is not KnowledgeExecutionMode.CLOUD
+        ):
+            msg = "cloud weekly synthesis must execute in cloud mode"
+            raise ValueError(msg)
+        if (
+            self.requested_mode is IntelligenceMode.HYBRID
+            and self.executed_mode is KnowledgeExecutionMode.LOCAL
+        ) != (self.fallback_reason is not None):
+            msg = (
+                "fallback_reason is required only when hybrid weekly synthesis "
+                "falls back to local execution"
+            )
+            raise ValueError(msg)
+        if (
+            self.executed_mode is KnowledgeExecutionMode.LOCAL
+            and self.model_digest is None
+        ):
+            msg = "model_digest is required for local weekly synthesis"
+            raise ValueError(msg)
+        if (
+            self.executed_mode is KnowledgeExecutionMode.CLOUD
+            and self.model_digest is not None
+        ):
+            msg = "model_digest must be absent for cloud weekly synthesis"
+            raise ValueError(msg)
+        return self
+
+
+class WeeklyKnowledgeContent(_UpdateProtectedAnalysisContract):
+    key_conclusions: tuple[WeeklyKnowledgePoint, ...] = Field(min_length=1, max_length=5)
+    repeated_themes: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    supporting_views: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    conflicting_views: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    emerging_trends: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    multiweek_themes: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    product_opportunities: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    business_opportunities: tuple[WeeklyKnowledgePoint, ...] = Field(default=(), max_length=10)
+    next_week_questions: tuple[str, ...] = Field(default=(), max_length=10)
+    must_watch_video_ids: tuple[str, ...] = Field(default=(), max_length=10)
+
+    @field_validator("next_week_questions", "must_watch_video_ids")
+    @classmethod
+    def _unique_text_items(
+        cls,
+        value: tuple[str, ...],
+        info: ValidationInfo,
+    ) -> tuple[str, ...]:
+        return _validate_unique_semantic_items(
+            value,
+            field_name=info.field_name or "weekly_items",
+        )
+
+
+class WeeklyKnowledgeResult(WeeklyKnowledgeContent):
+    schema_version: Literal["weekly-knowledge-result-v2"] = (
+        "weekly-knowledge-result-v2"
+    )
+    provenance: WeeklyKnowledgeProvenance
 
 
 # ---------------------------------------------------------------------------
@@ -996,6 +1338,9 @@ __all__ = [
     "TranscriptQualityFlag",
     "TranscriptionReason",
     "PointKind",
+    "IntelligenceMode",
+    "KnowledgeExecutionMode",
+    "KnowledgeFallbackReason",
     "EvidenceSource",
     "AnalysisSkipReason",
     "NotAvailableReason",
@@ -1014,6 +1359,17 @@ __all__ = [
     "AnalysisPoint",
     "AnalysisContent",
     "AnalysisResult",
+    "KnowledgeEvidence",
+    "EvidenceRegistry",
+    "KnowledgeGraph",
+    "KnowledgeProvenance",
+    "KnowledgeContent",
+    "KnowledgeResult",
+    "WeeklyKnowledgeSource",
+    "WeeklyKnowledgePoint",
+    "WeeklyKnowledgeProvenance",
+    "WeeklyKnowledgeContent",
+    "WeeklyKnowledgeResult",
     "DiagnosticEntry",
     "ProviderCallMetadata",
     "AnalysisCompleted",

@@ -7,8 +7,9 @@ Secrets are referenced only by environment variable name; values are never read.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import Any, Final, Literal, Self
+from typing import Any, Final, Literal, Never, Self
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -22,6 +23,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from youtube_intel.domain import IntelligenceMode
 
 _ENV_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED: Final = "[REDACTED]"
@@ -40,6 +43,17 @@ _FROZEN: Final = ConfigDict(extra="forbid", frozen=True)
 
 class _ConfigModel(BaseModel):
     model_config = _FROZEN
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for configuration contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
 
 
 # ---------------------------------------------------------------------------
@@ -152,18 +166,22 @@ def _validate_env_var_name(value: str) -> str:
     return value
 
 
-def _validate_loopback_http_base_url(value: str) -> str:
+def _validate_loopback_http_base_url(
+    value: str,
+    *,
+    field_name: str = "local_scoring.base_url",
+) -> str:
     if not value or value != value.strip():
-        msg = "local_scoring.base_url must be a non-empty URL without surrounding whitespace"
+        msg = f"{field_name} must be a non-empty URL without surrounding whitespace"
         raise ValueError(msg)
     try:
         parsed = urlsplit(value)
         port = parsed.port
     except ValueError as exc:
-        msg = "local_scoring.base_url must contain a valid loopback port"
+        msg = f"{field_name} must contain a valid loopback port"
         raise ValueError(msg) from exc
     if parsed.scheme != "http":
-        msg = "local_scoring.base_url must use http"
+        msg = f"{field_name} must use http"
         raise ValueError(msg)
     if (
         "@" in parsed.netloc
@@ -173,12 +191,12 @@ def _validate_loopback_http_base_url(value: str) -> str:
         or parsed.fragment
     ):
         msg = (
-            "local_scoring.base_url must be a loopback http origin without "
+            f"{field_name} must be a loopback http origin without "
             "userinfo, path, query, or fragment"
         )
         raise ValueError(msg)
     if port is not None and not 0 < port <= 65535:
-        msg = "local_scoring.base_url port must be in 1..65535"
+        msg = f"{field_name} port must be in 1..65535"
         raise ValueError(msg)
     return value
 
@@ -280,7 +298,7 @@ class ChannelsFile(_ConfigModel):
             sorted(self.channels, key=lambda c: (-c.priority, c.channel_id))
         )
         if self.channels != ordered:
-            return self.model_copy(update={"channels": ordered})
+            return type(self)(channels=ordered)
         return self
 
 
@@ -436,6 +454,48 @@ class LocalScoringSettings(_ConfigModel):
         return value
 
 
+class IntelligenceSettings(_ConfigModel):
+    mode: IntelligenceMode = IntelligenceMode.LOCAL_ONLY
+
+
+class LocalAnalysisSettings(_ConfigModel):
+    model: str = Field(min_length=1)
+    base_url: str = "http://127.0.0.1:11434"
+    expected_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    temperature: float = Field(default=0.0, ge=0, le=2)
+    max_output_tokens: int = Field(default=5000, gt=0, le=8000)
+    max_transcript_chars: int = Field(default=48000, ge=3)
+    max_description_chars: int = Field(default=4000, ge=0, le=20_000)
+    prompt_version: Literal["knowledge-prompt-v2"] = "knowledge-prompt-v2"
+    schema_version: Literal["knowledge-result-v2"] = "knowledge-result-v2"
+    sampling_version: Literal["knowledge-sampling-v2"] = "knowledge-sampling-v2"
+    privacy_version: Literal["knowledge-privacy-v2"] = "knowledge-privacy-v2"
+
+    @field_validator("model")
+    @classmethod
+    def _model(cls, value: str) -> str:
+        if not value or value != value.strip():
+            msg = "local_analysis.model must be a non-empty Ollama model identifier"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("base_url")
+    @classmethod
+    def _base_url(cls, value: str) -> str:
+        return _validate_loopback_http_base_url(
+            value,
+            field_name="local_analysis.base_url",
+        )
+
+    @field_validator("expected_model_digest")
+    @classmethod
+    def _expected_model_digest(cls, value: str) -> str:
+        if value != value.strip():
+            msg = "local_analysis.expected_model_digest must not contain surrounding whitespace"
+            raise ValueError(msg)
+        return value
+
+
 class CloudSettings(_ConfigModel):
     enabled: bool = False
     provider: Literal["openai"] = "openai"
@@ -540,8 +600,84 @@ class AppSettings(_ConfigModel):
     timeouts: TimeoutSettings = Field(default_factory=TimeoutSettings)
     transcription: TranscriptionSettings = Field(default_factory=TranscriptionSettings)
     local_scoring: LocalScoringSettings
+    intelligence: IntelligenceSettings = Field(default_factory=IntelligenceSettings)
+    local_analysis: LocalAnalysisSettings
     cloud: CloudSettings = Field(default_factory=CloudSettings)
     storage: StorageSettings
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_intelligence_configuration(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        resolved = dict(data)
+
+        cloud_raw = resolved.get("cloud", {})
+        if isinstance(cloud_raw, CloudSettings):
+            cloud_enabled = cloud_raw.enabled
+        elif isinstance(cloud_raw, Mapping):
+            cloud_enabled = cloud_raw.get("enabled", False) is True
+        else:
+            cloud_enabled = False
+
+        intelligence_was_explicit = "intelligence" in resolved
+        intelligence_raw = resolved.get("intelligence", {})
+        if isinstance(intelligence_raw, IntelligenceSettings):
+            mode = intelligence_raw.mode
+        elif isinstance(intelligence_raw, Mapping):
+            mode = IntelligenceMode(
+                intelligence_raw.get("mode", IntelligenceMode.LOCAL_ONLY.value)
+            )
+        else:
+            return data
+
+        if not intelligence_was_explicit:
+            mode = (
+                IntelligenceMode.HYBRID
+                if cloud_enabled
+                else IntelligenceMode.LOCAL_ONLY
+            )
+            resolved["intelligence"] = {"mode": mode.value}
+        elif cloud_enabled != (mode is not IntelligenceMode.LOCAL_ONLY):
+            msg = (
+                "intelligence.mode and legacy cloud.enabled disagree; "
+                "cloud.enabled must be false for local-only and true for hybrid/cloud"
+            )
+            raise ValueError(msg)
+
+        scoring_raw = resolved.get("local_scoring")
+        if isinstance(scoring_raw, LocalScoringSettings):
+            scoring_values: Mapping[str, Any] = scoring_raw.model_dump()
+        elif isinstance(scoring_raw, Mapping):
+            scoring_values = scoring_raw
+        else:
+            scoring_values = {}
+
+        analysis_raw = resolved.get("local_analysis", {})
+        if isinstance(analysis_raw, LocalAnalysisSettings):
+            analysis_values = analysis_raw.model_dump()
+        elif isinstance(analysis_raw, Mapping):
+            analysis_values = dict(analysis_raw)
+        else:
+            return data
+        for field_name in ("model", "base_url", "expected_model_digest"):
+            if field_name not in analysis_values and field_name in scoring_values:
+                analysis_values[field_name] = scoring_values[field_name]
+        resolved["local_analysis"] = analysis_values
+        return resolved
+
+
+    @model_validator(mode="after")
+    def _mode_requires_cloud_configuration(self) -> AppSettings:
+        cloud_enabled = self.cloud.enabled
+        mode_uses_cloud = self.intelligence.mode is not IntelligenceMode.LOCAL_ONLY
+        if cloud_enabled != mode_uses_cloud:
+            msg = (
+                "intelligence.mode and legacy cloud.enabled disagree; "
+                "cloud.enabled must be false for local-only and true for hybrid/cloud"
+            )
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="wrap")
     @classmethod
@@ -563,6 +699,8 @@ class SettingsOverrides(_ConfigModel):
     timeouts: TimeoutSettings | None = None
     transcription: TranscriptionSettings | None = None
     local_scoring: LocalScoringSettings | None = None
+    intelligence: IntelligenceSettings | None = None
+    local_analysis: LocalAnalysisSettings | None = None
     cloud: CloudSettings | None = None
     storage: StorageSettings | None = None
 
@@ -622,6 +760,8 @@ def _apply_overrides(settings: AppSettings, overrides: SettingsOverrides) -> App
         "timeouts",
         "transcription",
         "local_scoring",
+        "intelligence",
+        "local_analysis",
         "cloud",
         "storage",
     ):
@@ -630,7 +770,28 @@ def _apply_overrides(settings: AppSettings, overrides: SettingsOverrides) -> App
             updates[name] = value
     if not updates:
         return settings
-    return settings.model_copy(update=updates)
+    resolved = settings.model_dump()
+    intelligence_override = updates.get("intelligence")
+    cloud_override = updates.get("cloud")
+    if isinstance(intelligence_override, IntelligenceSettings) and cloud_override is None:
+        cloud = dict(resolved["cloud"])
+        cloud["enabled"] = intelligence_override.mode is not IntelligenceMode.LOCAL_ONLY
+        resolved["cloud"] = cloud
+    if isinstance(cloud_override, CloudSettings) and intelligence_override is None:
+        resolved["intelligence"] = {
+            "mode": (
+                IntelligenceMode.HYBRID.value
+                if cloud_override.enabled
+                else IntelligenceMode.LOCAL_ONLY.value
+            )
+        }
+    resolved.update(
+        {
+            name: value.model_dump() if isinstance(value, BaseModel) else value
+            for name, value in updates.items()
+        }
+    )
+    return AppSettings.model_validate(resolved)
 
 
 def _validate_settings_mapping(raw: dict[str, Any], path: Path) -> AppSettings | str:
@@ -680,6 +841,8 @@ __all__ = [
     "TimeoutSettings",
     "TranscriptionSettings",
     "LocalScoringSettings",
+    "IntelligenceSettings",
+    "LocalAnalysisSettings",
     "CloudSettings",
     "StorageSettings",
     "AppSettings",
