@@ -90,15 +90,16 @@ class _CountingProvider:
         self.calls += 1
         request_hash = getattr(scoring_input, "request_hash")
         return ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=6.5,
             reason="Useful but below the configured summary threshold.",
             topics=("product",),
             should_summarize=True,
             provider="fake-scoring",
             model="fake-model",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=request_hash,
+            output_language=getattr(scoring_input, "output_language"),
         )
 
 
@@ -114,15 +115,16 @@ class _PersistentCountingProvider(_CountingProvider):
     def score(self, scoring_input: object) -> ScoreResult:
         self.calls += 1
         result = ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=6.5,
             reason="Useful but below the configured summary threshold.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=getattr(scoring_input, "request_hash"),
+            output_language=getattr(scoring_input, "output_language"),
         )
         self._raw_response = self.raw_payload
         return result
@@ -182,15 +184,16 @@ class _RecoveryProvider:
         self.recovery_repair_calls += 1
         self._raw_response = self.repaired_raw
         return ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=7.5,
             reason="Recovered from the saved primary response.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=getattr(scoring_input, "request_hash"),
+            output_language=getattr(scoring_input, "output_language"),
         )
 
 
@@ -363,18 +366,21 @@ def test_scoring_input_hash_covers_truncated_description_and_sample() -> None:
         video=_video(description="abcdef"),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=settings,
     )
     same_prefix = build_scoring_input(
         video=_video(description="abcdeZ"),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=settings,
     )
     changed_sample = build_scoring_input(
         video=_video(description="abcdef"),
         transcript_text="012345678X",
         language="en",
+        output_language="en",
         settings=settings,
     )
 
@@ -391,6 +397,7 @@ def test_scoring_input_hash_separates_every_frozen_cache_dimension(
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=settings,
     ).request_hash
 
@@ -399,82 +406,94 @@ def test_scoring_input_hash_separates_every_frozen_cache_dimension(
             video=_video(title="A different title"),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(channel_name="Another Channel"),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(published_at=datetime(2026, 7, 20, tzinfo=UTC)),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(duration_seconds=121),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(default_language="zh"),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(),
             transcript_text="0123X56789",
             language="en",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="zh",
+            output_language="en",
             settings=settings,
         ),
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=_settings(model="another-model"),
         ),
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=_settings(temperature=0.1),
         ),
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=_settings(max_output_tokens=1201),
         ),
     )
 
     assert all(item.request_hash != baseline for item in variants)
 
-    monkeypatch.setattr(scoring_module, "PROMPT_VERSION", "scoring-prompt-v2")
+    monkeypatch.setattr(scoring_module, "PROMPT_VERSION", "scoring-prompt-v3")
     assert (
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ).request_hash
         != baseline
     )
-    monkeypatch.setattr(scoring_module, "SCHEMA_VERSION", "score-result-v2")
+    monkeypatch.setattr(scoring_module, "SCHEMA_VERSION", "score-result-v3")
     assert (
         build_scoring_input(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ).request_hash
         != baseline
@@ -485,6 +504,7 @@ def test_scoring_input_hash_separates_every_frozen_cache_dimension(
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
             settings=settings,
         ).request_hash
         != baseline
@@ -504,11 +524,13 @@ def test_scoring_service_caches_canonical_input_and_records_policy_disagreement(
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
     )
     second = service.score(
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
     )
 
     assert provider.calls == 1
@@ -549,12 +571,14 @@ def test_repository_backed_scoring_commits_artifacts_call_summary_and_reuses_ver
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
     )
 
     request_hash = build_scoring_input(
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
     raw_artifact = repository.get_artifact_by_key(f"scoring/{request_hash}/raw")
@@ -573,6 +597,10 @@ def test_repository_backed_scoring_commits_artifacts_call_summary_and_reuses_ver
     assert structured_artifact is not None
     assert structured_artifact.kind is ArtifactKind.SCORING_STRUCTURED
     assert structured_artifact.retention_class is RetentionClass.LONG_LIVED
+    structured_body = (
+        tmp_path / "artifacts" / structured_artifact.relative_path
+    ).read_text(encoding="utf-8")
+    assert ScoreResult.model_validate_json(structured_body).output_language == "en"
     assert provider_call is not None
     assert provider_call.status is ProviderCallStatus.SUCCEEDED
     assert provider_call.response_artifact_id == raw_artifact.artifact_id
@@ -602,6 +630,7 @@ def test_repository_backed_scoring_commits_artifacts_call_summary_and_reuses_ver
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
     )
 
     assert provider.calls == 1
@@ -649,12 +678,14 @@ def test_repository_backed_scoring_rolls_back_success_writes_after_injected_fail
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     request_hash = build_scoring_input(
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
     video = repository.get_video("video-123")
@@ -695,6 +726,7 @@ def test_repository_backed_scoring_redacts_raw_provider_response_after_artifact_
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
     conflicting_path = tmp_path / "artifacts" / "scoring" / request_hash / "raw.json"
@@ -706,6 +738,7 @@ def test_repository_backed_scoring_redacts_raw_provider_response_after_artifact_
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     _assert_library_exception_graph_is_redacted(exc_info.value, sentinel)
@@ -731,6 +764,7 @@ def test_failed_primary_and_repair_persist_a_recoverable_raw_response_and_repair
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
     recovery_key = f"scoring/{request_hash}/recovery-primary"
@@ -740,6 +774,7 @@ def test_failed_primary_and_repair_persist_a_recoverable_raw_response_and_repair
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     _assert_library_exception_graph_is_redacted(
@@ -791,6 +826,7 @@ def test_failed_primary_and_repair_persist_a_recoverable_raw_response_and_repair
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
     )
 
     raw = repository.get_artifact_by_key(f"scoring/{request_hash}/raw")
@@ -842,6 +878,7 @@ def test_recovery_completion_rolls_back_new_success_writes_but_keeps_the_recover
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
 
@@ -850,6 +887,7 @@ def test_recovery_completion_rolls_back_new_success_writes_but_keeps_the_recover
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     def fail_at_requested_boundary(point: str) -> None:
@@ -878,6 +916,7 @@ def test_recovery_completion_rolls_back_new_success_writes_but_keeps_the_recover
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     recovery = repository.get_artifact_by_key(
@@ -927,6 +966,7 @@ def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primar
         video=_video(),
         transcript_text="0123456789",
         language="en",
+        output_language="en",
         settings=_settings(),
     ).request_hash
 
@@ -935,6 +975,7 @@ def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primar
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     recovery = repository.get_artifact_by_key(
@@ -993,6 +1034,7 @@ def test_tampered_or_mismatched_recovery_state_fails_closed_without_a_new_primar
             video=_video(),
             transcript_text="0123456789",
             language="en",
+            output_language="en",
         )
 
     _assert_library_exception_graph_is_redacted(exc_info.value, sentinel)

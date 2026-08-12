@@ -120,7 +120,11 @@ def _settings() -> LocalScoringSettings:
     )
 
 
-def _input(*, transcript_text: str = "A sufficiently long canonical transcript for scoring.") -> object:
+def _input(
+    *,
+    transcript_text: str = "A sufficiently long canonical transcript for scoring.",
+    output_language: str = "en",
+) -> object:
     video = VideoMetadata(
         video_id="video-123",
         channel_id="channel-123",
@@ -136,6 +140,7 @@ def _input(*, transcript_text: str = "A sufficiently long canonical transcript f
         video=video,
         transcript_text=transcript_text,
         language="en",
+        output_language=output_language,
         settings=_settings(),
     )
 
@@ -171,11 +176,115 @@ def test_fake_transport_returns_valid_scoring_result_without_real_ollama() -> No
     assert result.score == 8.5
     assert result.provider == "ollama"
     assert result.model == "qwen3:8b"
+    assert result.output_language == "en"
     assert [method for method, _, _ in transport.requests] == ["GET", "POST"]
     assert [url for _, url, _ in transport.requests] == [
         "http://127.0.0.1:11434/api/tags",
         "http://127.0.0.1:11434/api/generate",
     ]
+
+
+@pytest.mark.parametrize(
+    ("output_language", "required_instruction"),
+    [("zh-CN", "Simplified Chinese"), ("en", "English")],
+)
+def test_primary_prompt_contains_authoritative_output_language_instruction(
+    output_language: str,
+    required_instruction: str,
+) -> None:
+    reason = (
+        "视频清楚说明了产品工作流，因此具有实际参考价值。"
+        if output_language == "zh-CN"
+        else "The video clearly explains the product workflow and has practical value."
+    )
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate(
+                json.dumps(
+                    {
+                        "score": 8,
+                        "reason": reason,
+                        "topics": ["product"],
+                        "should_summarize": True,
+                    }
+                )
+            ),
+        ]
+    )
+
+    _provider(transport).score(_input(output_language=output_language))
+
+    payload = json.loads(transport.requests[1][2] or b"{}")
+    prompt = payload["prompt"]
+    assert f'"output_language":"{output_language}"' in prompt
+    assert required_instruction in prompt
+    assert "untrusted" in prompt
+
+
+@pytest.mark.parametrize(
+    ("output_language", "primary_reason", "repair_reason", "instruction"),
+    [
+        (
+            "zh-CN",
+            "The video gives a detailed explanation of the product workflow.",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "这个视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+    ],
+)
+def test_wrong_language_reason_uses_one_language_bound_repair(
+    output_language: str,
+    primary_reason: str,
+    repair_reason: str,
+    instruction: str,
+) -> None:
+    result_template = {
+        "score": 8,
+        "topics": ["product"],
+        "should_summarize": True,
+    }
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate(json.dumps({**result_template, "reason": primary_reason})),
+            _generate(json.dumps({**result_template, "reason": repair_reason})),
+        ]
+    )
+
+    result = _provider(transport).score(_input(output_language=output_language))
+
+    repair_payload = json.loads(transport.requests[2][2] or b"{}")
+    assert result.reason == repair_reason
+    assert result.output_language == output_language
+    assert instruction in repair_payload["prompt"]
+    assert len(transport.requests) == 3
+
+
+def test_wrong_language_after_single_repair_fails_closed() -> None:
+    wrong_language = json.dumps(
+        {
+            "score": 8,
+            "reason": "The video gives a detailed explanation of the product workflow.",
+            "topics": ["product"],
+            "should_summarize": True,
+        }
+    )
+    transport = _FakeTransport(
+        [_tags(), _generate(wrong_language), _generate(wrong_language)]
+    )
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        _provider(transport).score(_input(output_language="zh-CN"))
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert len(transport.requests) == 3
 
 
 def test_official_bare_sha256_digest_shape_matches_frozen_config() -> None:

@@ -186,15 +186,16 @@ class _ScoringProvider:
             '"topics":["product"],"should_summarize":true}'
         )
         return ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=8.6,
-            reason="Controlled local score for production-composition coverage.",
+            reason="受控本地评分覆盖了正式运行时组合。",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=getattr(scoring_input, "request_hash"),
+            output_language=getattr(scoring_input, "output_language"),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
@@ -378,15 +379,16 @@ def _build_scoring_fixture(
     now: datetime,
 ) -> tuple[ArtifactWrite, ArtifactWrite, ScoreResult]:
     result = ScoreResult(
-        schema_version="score-result-v1",
+        schema_version="score-result-v2",
         score=8.0,
-        reason="Fixture score for provenance tests.",
+        reason="该夹具用于验证评分来源链。",
         topics=("fixture",),
         should_summarize=True,
         provider="ollama",
         model="qwen3:8b",
-        prompt_version="scoring-prompt-v1",
+        prompt_version="scoring-prompt-v2",
         request_hash=request_hash,
+        output_language="zh-CN",
     )
     raw_content = _canonical_json({"raw": "fixture response"}).encode("utf-8")
     raw_hash = hashlib.sha256(raw_content).hexdigest()
@@ -410,7 +412,7 @@ def _build_scoring_fixture(
         content_hash=raw_hash,
         provider="ollama",
         model="qwen3:8b",
-        producer_version="ollama-raw-v1",
+        producer_version="ollama-raw-v2",
         retention_class=RetentionClass.RAW_RESPONSE_30D,
         expires_at=now + timedelta(days=30),
     )
@@ -425,7 +427,7 @@ def _build_scoring_fixture(
         content_hash=structured_hash,
         provider="ollama",
         model="qwen3:8b",
-        producer_version="scoring-structured-v1",
+        producer_version="scoring-structured-v2",
         retention_class=RetentionClass.LONG_LIVED,
         expires_at=None,
     )
@@ -445,8 +447,8 @@ def _persist_scoring_provenance(
         normalized_input_hash=request_hash,
         provider="ollama",
         model="qwen3:8b",
-        prompt_version="scoring-prompt-v1",
-        schema_version="score-result-v1",
+        prompt_version="scoring-prompt-v2",
+        schema_version="score-result-v2",
         deterministic_artifact_key=f"scoring/{request_hash}/raw",
     )
     raw, structured, result = _build_scoring_fixture(
@@ -943,6 +945,27 @@ def _mutate_scoring(
                     "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
                     (hashlib.sha256(new_content).hexdigest(), structured.artifact_key),
                 )
+            case "output_language_mismatch":
+                path = data_root / structured.relative_path
+                data = json.loads(path.read_text(encoding="utf-8"))
+                data["output_language"] = "en"
+                data["reason"] = "This fixture verifies current-language provenance."
+                new_content = _canonical_json(data).encode("utf-8")
+                path.write_bytes(new_content)
+                conn.execute(
+                    "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+                    (hashlib.sha256(new_content).hexdigest(), structured.artifact_key),
+                )
+            case "legacy_missing_output_language":
+                path = data_root / structured.relative_path
+                data = json.loads(path.read_text(encoding="utf-8"))
+                del data["output_language"]
+                new_content = _canonical_json(data).encode("utf-8")
+                path.write_bytes(new_content)
+                conn.execute(
+                    "UPDATE artifacts SET content_hash = ? WHERE artifact_key = ?",
+                    (hashlib.sha256(new_content).hexdigest(), structured.artifact_key),
+                )
             case _:
                 raise ValueError(f"unknown scoring mutation: {mutation}")
         conn.commit()
@@ -969,6 +992,8 @@ def _mutate_scoring(
         "structured_model_mismatch",
         "file_hash_mismatch",
         "schema_version_mismatch",
+        "output_language_mismatch",
+        "legacy_missing_output_language",
     ],
 )
 def test_scoring_provenance_fail_closed(

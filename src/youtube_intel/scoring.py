@@ -27,6 +27,7 @@ from youtube_intel.domain import (
     ScoringDecision,
     ScoringInput,
     ScoringOutcome,
+    ScoringOutputLanguage,
     ScoringProvider,
     TranscriptSample,
     VideoMetadata,
@@ -46,12 +47,12 @@ from youtube_intel.state import (
     build_provider_request_hash,
 )
 
-PROMPT_VERSION: Final = "scoring-prompt-v1"
-SCHEMA_VERSION: Final = "score-result-v1"
+PROMPT_VERSION: Final = "scoring-prompt-v2"
+SCHEMA_VERSION: Final = "score-result-v2"
 SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"
-_RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v1"
-_STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v1"
+_RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
+_STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
 _MAX_PERSISTED_ARTIFACT_BYTES: Final = 1_000_000
 _RECOVERY_PRIMARY_ARTIFACT_SUFFIX: Final = "recovery-primary"
@@ -196,6 +197,7 @@ def _normalized_scoring_input_hash(
     video: VideoMetadata,
     sample: TranscriptSample,
     language: str,
+    output_language: ScoringOutputLanguage,
     settings: LocalScoringSettings,
 ) -> str:
     return _sha256_text(
@@ -220,6 +222,7 @@ def _normalized_scoring_input_hash(
                     "sampling_version": sample.sampling_version,
                 },
                 "language": language,
+                "output_language": output_language,
                 "model": settings.model,
                 "temperature": settings.temperature,
                 "max_output_tokens": settings.max_output_tokens,
@@ -272,6 +275,7 @@ def build_scoring_input(
     video: VideoMetadata,
     transcript_text: str,
     language: str,
+    output_language: ScoringOutputLanguage,
     settings: LocalScoringSettings,
 ) -> ScoringInput:
     """Build one versioned scoring input and its provider-call cache key."""
@@ -288,6 +292,7 @@ def build_scoring_input(
         video=video,
         sample=sample,
         language=language,
+        output_language=output_language,
         settings=settings,
     )
     request_hash = build_provider_request_hash(
@@ -303,6 +308,7 @@ def build_scoring_input(
         sample=sample,
         transcript_content_hash=sample.source_content_hash,
         language=language,
+        output_language=output_language,
         request_hash=request_hash,
     )
 
@@ -334,11 +340,13 @@ class ScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         scoring_input = build_scoring_input(
             video=video,
             transcript_text=transcript_text,
             language=language,
+            output_language=output_language,
             settings=self._settings,
         )
         started_at = self._clock()
@@ -349,9 +357,15 @@ class ScoringService:
             if result.request_hash != scoring_input.request_hash:
                 msg = "scoring provider returned a result for a different request"
                 raise ValueError(msg)
+            if result.output_language != scoring_input.output_language:
+                msg = "scoring provider returned a result for a different output language"
+                raise ValueError(msg)
             self._cache.put(result)
         else:
             result = cached
+            if result.output_language != scoring_input.output_language:
+                msg = "cached scoring result has a different output language"
+                raise ValueError(msg)
             diagnostics.append(
                 DiagnosticEntry(
                     code="CACHE_HIT",
@@ -421,6 +435,7 @@ class RepositoryBackedScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         failure: AppError | None = None
         try:
@@ -428,6 +443,7 @@ class RepositoryBackedScoringService:
                 video=video,
                 transcript_text=transcript_text,
                 language=language,
+                output_language=output_language,
             )
         except ScoringPersistenceError as error:
             failure = error.error
@@ -442,6 +458,7 @@ class RepositoryBackedScoringService:
         del video
         del transcript_text
         del language
+        del output_language
         _raise_sanitized_persistence_error(
             failure
             if failure is not None
@@ -459,11 +476,13 @@ class RepositoryBackedScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         scoring_input = build_scoring_input(
             video=video,
             transcript_text=transcript_text,
             language=language,
+            output_language=output_language,
             settings=self._settings,
         )
         now = self._clock()
@@ -480,6 +499,7 @@ class RepositoryBackedScoringService:
                     request=request,
                     provider_call=reservation.record,
                     video_id=video.video_id,
+                    output_language=scoring_input.output_language,
                 )
                 outcome = self._outcome(
                     result,
@@ -595,6 +615,7 @@ class RepositoryBackedScoringService:
             video=scoring_input.video,
             sample=scoring_input.sample,
             language=scoring_input.language,
+            output_language=scoring_input.output_language,
             settings=self._settings,
         )
         request = ProviderCallRequest(
@@ -681,6 +702,10 @@ class RepositoryBackedScoringService:
             result = self._provider.score(scoring_input)
             if result.request_hash != request.request_hash:
                 raise ValueError("scoring provider returned a result for a different request")
+            if result.output_language != scoring_input.output_language:
+                raise ValueError(
+                    "scoring provider returned a result for a different output language"
+                )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -750,6 +775,10 @@ class RepositoryBackedScoringService:
             )
             if result.request_hash != request.request_hash:
                 raise ValueError("repaired scoring result belongs to a different request")
+            if result.output_language != scoring_input.output_language:
+                raise ValueError(
+                    "repaired scoring result has a different output language"
+                )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -1035,6 +1064,7 @@ class RepositoryBackedScoringService:
         request: ProviderCallRequest,
         provider_call: ProviderCallRecord,
         video_id: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoreResult:
         raw = self._repository.get_artifact_by_key(request.deterministic_artifact_key)
         structured = self._repository.get_artifact_by_key(
@@ -1081,6 +1111,7 @@ class RepositoryBackedScoringService:
             or result.request_hash != request.request_hash
             or result.provider != request.provider
             or result.model != request.model
+            or result.output_language != output_language
         ):
             raise ScoringPersistenceError(
                 self._error(

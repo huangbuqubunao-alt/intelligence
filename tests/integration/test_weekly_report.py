@@ -66,15 +66,16 @@ def _candidate(
     with_analysis: bool = True,
 ) -> WeeklyCandidateRecord:
     score_result = ScoreResult(
-        schema_version="score-result-v1",
+        schema_version="score-result-v2",
         score=score,
         reason=f"{video_id} is useful.",
         topics=(topic,),
         should_summarize=True,
         provider="fixture-score",
         model="fixture-model",
-        prompt_version="scoring-prompt-v1",
+        prompt_version="scoring-prompt-v2",
         request_hash=hashlib.sha256(f"score:{video_id}".encode()).hexdigest(),
+        output_language="en",
     )
     analysis_result = AnalysisResult(
         one_sentence_summary=f"Summary for {video_id}.",

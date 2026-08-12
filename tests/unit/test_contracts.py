@@ -201,6 +201,7 @@ def _score(**kwargs: object) -> ScoreResult:
         "model": "qwen2.5:14b",
         "prompt_version": "v1",
         "request_hash": "abc",
+        "output_language": "en",
     }
     data.update(kwargs)
     return ScoreResult.model_validate(data)
@@ -1625,6 +1626,7 @@ def test_scoring_sample_and_outcome_bind_hash_and_final_policy() -> None:
         sample=sample,
         transcript_content_hash=TRANSCRIPT_HASH,
         language="en",
+        output_language="en",
         request_hash="request-hash",
     )
     assert scoring_input.sample == sample
@@ -1638,6 +1640,7 @@ def test_scoring_sample_and_outcome_bind_hash_and_final_policy() -> None:
             sample=sample,
             transcript_content_hash="c" * 64,
             language="en",
+            output_language="en",
             request_hash="request-hash",
         )
 
@@ -1678,6 +1681,7 @@ def test_scoring_contract_model_copy_rejects_all_updates() -> None:
         sample=sample,
         transcript_content_hash=TRANSCRIPT_HASH,
         language="en",
+        output_language="en",
         request_hash="request-hash",
     )
     decision = ScoringDecision(
@@ -1811,6 +1815,7 @@ def test_cross_module_io_objects() -> None:
         sample=_sample(),
         transcript_content_hash=TRANSCRIPT_HASH,
         language="zh",
+        output_language="zh-CN",
         request_hash="rh",
     )
     analysis_in = AnalysisInput(
@@ -2477,6 +2482,7 @@ def test_provider_returns_new_objects_not_mutated_input() -> None:
         sample=_sample(),
         transcript_content_hash=TRANSCRIPT_HASH,
         language="en",
+        output_language="en",
         request_hash="r",
     )
 

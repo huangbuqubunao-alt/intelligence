@@ -1,0 +1,238 @@
+"""TASK-016B scoring output-language contract tests."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import pytest
+
+from youtube_intel.config import LocalScoringSettings
+from youtube_intel.domain import Availability, LiveStatus, ScoreResult, VideoMetadata
+from youtube_intel.scoring import (
+    InMemoryScoringCache,
+    ScoringService,
+    build_scoring_input,
+)
+
+
+def _settings() -> LocalScoringSettings:
+    return LocalScoringSettings(
+        model="qwen3:8b",
+        expected_model_digest="sha256:" + ("a" * 64),
+    )
+
+
+def _video() -> VideoMetadata:
+    return VideoMetadata(
+        video_id="video-123",
+        channel_id="channel-123",
+        channel_name="Example Channel",
+        title="A useful title",
+        source_url="https://example.invalid/watch?v=video-123",
+        published_at=datetime(2026, 8, 13, tzinfo=UTC),
+        duration_seconds=120,
+        live_status=LiveStatus.NONE,
+        availability=Availability.PUBLIC,
+    )
+
+
+@pytest.mark.parametrize("output_language", ["zh-CN", "en"])
+def test_scoring_input_contains_output_language(output_language: str) -> None:
+    scoring_input = build_scoring_input(
+        video=_video(),
+        transcript_text="A sufficiently long canonical transcript.",
+        language="en",
+        output_language=output_language,
+        settings=_settings(),
+    )
+
+    assert scoring_input.output_language == output_language
+
+
+def test_output_language_changes_request_hash() -> None:
+    common = {
+        "video": _video(),
+        "transcript_text": "A sufficiently long canonical transcript.",
+        "language": "en",
+        "settings": _settings(),
+    }
+
+    zh = build_scoring_input(output_language="zh-CN", **common)
+    en = build_scoring_input(output_language="en", **common)
+
+    assert zh.request_hash != en.request_hash
+
+
+@pytest.mark.parametrize(
+    ("output_language", "reason"),
+    [
+        ("zh-CN", "The video gives a detailed practical explanation of the product workflow."),
+        ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
+    ],
+)
+def test_score_result_rejects_obvious_wrong_language(
+    output_language: str,
+    reason: str,
+) -> None:
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language=output_language,
+        )
+
+
+def test_chinese_reason_allows_english_technical_terms() -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason="视频清楚说明了 GPT、API、MLX 与 Ollama 的组合方式，具有实际参考价值。",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="zh-CN",
+    )
+
+    assert result.output_language == "zh-CN"
+
+
+def test_result_language_mismatch_is_not_cached() -> None:
+    class _WrongLanguageProvider:
+        calls = 0
+
+        def score(self, scoring_input: object) -> ScoreResult:
+            self.calls += 1
+            return ScoreResult(
+                schema_version="score-result-v2",
+                score=8,
+                reason="This video gives a useful explanation of the product workflow.",
+                topics=("product",),
+                should_summarize=True,
+                provider="ollama",
+                model="qwen3:8b",
+                prompt_version="scoring-prompt-v2",
+                request_hash=getattr(scoring_input, "request_hash"),
+                output_language="en",
+            )
+
+    provider = _WrongLanguageProvider()
+    cache = InMemoryScoringCache()
+    service = ScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7,
+        cache=cache,
+    )
+
+    with pytest.raises(ValueError, match="output language"):
+        service.score(
+            video=_video(),
+            transcript_text="canonical transcript",
+            language="en",
+            output_language="zh-CN",
+        )
+
+    assert provider.calls == 1
+    assert cache._results == {}
+
+
+@pytest.mark.parametrize(
+    ("first_language", "second_language"),
+    [("zh-CN", "en"), ("en", "zh-CN")],
+)
+def test_cache_is_not_reused_across_output_languages(
+    first_language: str,
+    second_language: str,
+) -> None:
+    class _LanguageProvider:
+        calls = 0
+
+        def score(self, scoring_input: object) -> ScoreResult:
+            self.calls += 1
+            output_language = getattr(scoring_input, "output_language")
+            reason = (
+                "视频清楚说明了产品工作流，因此具有实际参考价值。"
+                if output_language == "zh-CN"
+                else "The video clearly explains the product workflow and has practical value."
+            )
+            return ScoreResult(
+                schema_version="score-result-v2",
+                score=8,
+                reason=reason,
+                topics=("product",),
+                should_summarize=True,
+                provider="ollama",
+                model="qwen3:8b",
+                prompt_version="scoring-prompt-v2",
+                request_hash=getattr(scoring_input, "request_hash"),
+                output_language=output_language,
+            )
+
+    provider = _LanguageProvider()
+    cache = InMemoryScoringCache()
+    for output_language in (first_language, second_language):
+        service = ScoringService(
+            provider=provider,
+            settings=_settings(),
+            summary_threshold=7,
+            cache=cache,
+        )
+        service.score(
+            video=_video(),
+            transcript_text="canonical transcript",
+            language="en",
+            output_language=output_language,
+        )
+
+    assert provider.calls == 2
+
+
+def test_valid_language_bound_cache_uses_zero_additional_provider_calls() -> None:
+    class _LanguageProvider:
+        calls = 0
+
+        def score(self, scoring_input: object) -> ScoreResult:
+            self.calls += 1
+            return ScoreResult(
+                schema_version="score-result-v2",
+                score=8,
+                reason="视频清楚说明了产品工作流，因此具有实际参考价值。",
+                topics=("product",),
+                should_summarize=True,
+                provider="ollama",
+                model="qwen3:8b",
+                prompt_version="scoring-prompt-v2",
+                request_hash=getattr(scoring_input, "request_hash"),
+                output_language="zh-CN",
+            )
+
+    provider = _LanguageProvider()
+    service = ScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7,
+        cache=InMemoryScoringCache(),
+    )
+
+    first = service.score(
+        video=_video(), transcript_text="canonical transcript", language="en",
+        output_language="zh-CN",
+    )
+    second = service.score(
+        video=_video(), transcript_text="canonical transcript", language="en",
+        output_language="zh-CN",
+    )
+
+    assert provider.calls == 1
+    assert first.result == second.result
+    assert [entry.code for entry in second.call.diagnostics] == ["CACHE_HIT"]

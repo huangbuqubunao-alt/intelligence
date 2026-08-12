@@ -359,6 +359,39 @@ class ScoreDimensions(_DomainModel):
     industry_impact: float | None = Field(default=None, ge=0, le=10)
 
 
+ScoringOutputLanguage: TypeAlias = Literal["zh-CN", "en"]
+
+
+def _contains_obvious_wrong_scoring_language(
+    reason: str,
+    output_language: ScoringOutputLanguage,
+) -> bool:
+    """Reject only clear whole-paragraph language mismatches.
+
+    This deliberately is not a percentage-based language detector.  Chinese
+    reasons may contain English product names, and English reasons may contain
+    short CJK names.  The threshold only catches an unmistakable full paragraph
+    in the other supported output language.
+    """
+
+    latin_letters = sum(
+        character.isascii() and character.isalpha() for character in reason
+    )
+    latin_words = sum(
+        token.strip("-' ").isalpha()
+        for token in reason.replace("/", " ").split()
+    )
+    han_characters = sum(
+        "\u3400" <= character <= "\u4dbf"
+        or "\u4e00" <= character <= "\u9fff"
+        or "\uf900" <= character <= "\ufaff"
+        for character in reason
+    )
+    if output_language == "zh-CN":
+        return han_characters == 0 and latin_letters >= 24 and latin_words >= 5
+    return han_characters >= 8 and han_characters > latin_letters
+
+
 class ScoreResult(_DomainModel):
     schema_version: str = Field(min_length=1)
     score: float = Field(ge=0, le=10)
@@ -370,6 +403,7 @@ class ScoreResult(_DomainModel):
     model: str = Field(min_length=1)
     prompt_version: str = Field(min_length=1)
     request_hash: str = Field(min_length=1)
+    output_language: ScoringOutputLanguage
 
     @field_validator("reason")
     @classmethod
@@ -402,6 +436,16 @@ class ScoreResult(_DomainModel):
                 raise ValueError(msg)
             seen.add(topic)
         return value
+
+    @model_validator(mode="after")
+    def _reason_matches_output_language(self) -> ScoreResult:
+        if _contains_obvious_wrong_scoring_language(
+            self.reason,
+            self.output_language,
+        ):
+            msg = "reason does not match output_language"
+            raise ValueError(msg)
+        return self
 
 
 class _UpdateProtectedAnalysisContract(_DomainModel):
@@ -1029,6 +1073,7 @@ class ScoringInput(_UpdateProtectedScoringContract):
     sample: TranscriptSample
     transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     language: str = Field(min_length=1)
+    output_language: ScoringOutputLanguage
     request_hash: str = Field(min_length=1)
 
     @model_validator(mode="after")

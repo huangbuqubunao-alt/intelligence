@@ -52,15 +52,16 @@ def _video(*, video_id: str = "video-a", title: str = "A safe product note") -> 
 
 def _scoring(*, score: float = 9.0, reason: str = "Directly useful.") -> ScoringOutcome:
     result = ScoreResult(
-        schema_version="score-result-v1",
+        schema_version="score-result-v2",
         score=score,
         reason=reason,
         topics=("product",),
         should_summarize=True,
         provider="fixture-score",
         model="fixture-model",
-        prompt_version="scoring-prompt-v1",
+        prompt_version="scoring-prompt-v2",
         request_hash="a" * 64,
+        output_language="en",
     )
     return ScoringOutcome(
         result=result,
