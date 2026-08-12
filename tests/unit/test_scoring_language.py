@@ -79,6 +79,11 @@ def test_output_language_changes_request_hash() -> None:
             "zh-CN",
             "The video clearly explains the product workflow and gives useful advice.\n中",
         ),
+        (
+            "zh-CN",
+            "Useful clear practical product workflow advice.\n"
+            "这个视频介绍产品流程。",
+        ),
         ("zh-CN", "中"),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
         ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),

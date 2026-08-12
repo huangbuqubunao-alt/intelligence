@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import PurePosixPath
@@ -361,7 +362,6 @@ class ScoreDimensions(_DomainModel):
 
 
 ScoringOutputLanguage: TypeAlias = Literal["zh-CN", "en"]
-_ASCII_WORD_RE: Final = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:['-][A-Za-z0-9]+)*")
 _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
     {
         "ai",
@@ -384,80 +384,66 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
         "youtube",
     }
 )
-_MIN_HAN_SUBJECT_CHARACTERS: Final = 4
 _SCORING_SEGMENT_RE: Final = re.compile(r"[\n\r.!?。！？；;]+")
-_ENGLISH_PREDICATE_WORDS: Final[frozenset[str]] = frozenset(
-    {
-        "am",
-        "are",
-        "be",
-        "been",
-        "being",
-        "can",
-        "clarify",
-        "compare",
-        "could",
-        "describe",
-        "discuss",
-        "evaluate",
-        "explain",
-        "explore",
-        "give",
-        "had",
-        "has",
-        "have",
-        "help",
-        "is",
-        "may",
-        "might",
-        "must",
-        "offer",
-        "present",
-        "provide",
-        "recommend",
-        "show",
-        "should",
-        "support",
-        "teach",
-        "use",
-        "was",
-        "were",
-        "will",
-        "would",
-    }
+_SCORING_LEXICAL_RUN_RE: Final = re.compile(
+    r"[A-Za-z][A-Za-z0-9]*(?:['-][A-Za-z0-9]+)*"
+    r"|[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+"
 )
-_ENGLISH_RELATION_WORDS: Final[frozenset[str]] = frozenset(
-    {"above", "because", "below", "for", "therefore", "to", "with"}
-)
+_ENGLISH_VOWEL_NUCLEUS_RE: Final = re.compile(r"[aeiouy]+")
 
 
-def _scoring_segment_language(segment: str) -> ScoringOutputLanguage | None:
-    """Classify one natural-language segment after removing technical terms."""
+@dataclass(frozen=True, slots=True)
+class _ScoringSegmentEvidence:
+    zh_confidence: int
+    en_confidence: int
+    unknown_confidence: int
 
-    prose_words = tuple(
-        word.casefold()
-        for word in _ASCII_WORD_RE.findall(segment)
-        if word.casefold() not in _SCORING_TECHNICAL_TERMS
+
+def _scoring_segment_evidence(segment: str) -> _ScoringSegmentEvidence:
+    """Return script-framed, non-technical information for one segment."""
+
+    lexical_runs: list[tuple[ScoringOutputLanguage, str]] = []
+    for match in _SCORING_LEXICAL_RUN_RE.finditer(segment):
+        value = match.group(0)
+        if value[0].isascii():
+            if value.casefold() in _SCORING_TECHNICAL_TERMS:
+                continue
+            lexical_runs.append(("en", value))
+        else:
+            lexical_runs.append(("zh-CN", value))
+
+    if not lexical_runs:
+        return _ScoringSegmentEvidence(0, 0, 0)
+
+    languages = {language for language, _ in lexical_runs}
+    zh_units = sum(
+        len(value) for language, value in lexical_runs if language == "zh-CN"
     )
-    has_english_predicate = any(
-        word in _ENGLISH_PREDICATE_WORDS
-        or word in _ENGLISH_RELATION_WORDS
-        or (len(word) > 3 and word.endswith(("ed", "ing")))
-        or (len(word) > 3 and word.endswith("s"))
-        for word in prose_words
+    en_units = sum(
+        len(_ENGLISH_VOWEL_NUCLEUS_RE.findall(value.casefold()))
+        for language, value in lexical_runs
+        if language == "en"
     )
-    if has_english_predicate:
-        return "en"
+    # Adjacent natural-language units carry evidence; a lone marker carries none.
+    zh_information = max(zh_units - 1, 0)
+    en_information = max(en_units - 1, 0)
+    if len(languages) == 1:
+        language = lexical_runs[0][0]
+    elif lexical_runs[0][0] == lexical_runs[-1][0]:
+        # An embedded foreign proper name inherits the surrounding prose frame.
+        language = lexical_runs[0][0]
+    else:
+        return _ScoringSegmentEvidence(0, 0, max(zh_units + en_units, 1))
 
-    han_characters = sum(
-        "\u3400" <= character <= "\u4dbf"
-        or "\u4e00" <= character <= "\u9fff"
-        or "\uf900" <= character <= "\ufaff"
-        for character in segment
+    confidence = zh_information if language == "zh-CN" else en_information
+    if confidence == 0:
+        return _ScoringSegmentEvidence(0, 0, 0)
+
+    return _ScoringSegmentEvidence(
+        zh_confidence=confidence if language == "zh-CN" else 0,
+        en_confidence=confidence if language == "en" else 0,
+        unknown_confidence=0,
     )
-    if han_characters >= _MIN_HAN_SUBJECT_CHARACTERS:
-        return "zh-CN"
-    return None
 
 
 def _contains_obvious_wrong_scoring_language(
@@ -472,11 +458,19 @@ def _contains_obvious_wrong_scoring_language(
     marker without a substantive subject in the configured language.
     """
 
-    for segment in _SCORING_SEGMENT_RE.split(reason):
-        subject_language = _scoring_segment_language(segment)
-        if subject_language is not None:
-            return subject_language != output_language
-    return True
+    evidence = tuple(
+        _scoring_segment_evidence(segment)
+        for segment in _SCORING_SEGMENT_RE.split(reason)
+        if segment.strip()
+    )
+    if any(item.unknown_confidence for item in evidence):
+        return True
+    zh_information = sum(item.zh_confidence for item in evidence)
+    en_information = sum(item.en_confidence for item in evidence)
+    if zh_information == en_information:
+        return True
+    subject_language = "zh-CN" if zh_information > en_information else "en"
+    return subject_language != output_language
 
 
 class ScoreResult(_DomainModel):

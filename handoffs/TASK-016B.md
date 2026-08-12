@@ -182,6 +182,43 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 Final Correction Round 3 Report。
 
+## Final Correction Round 4（2026-08-13）
+
+### Root cause 与 algorithm change
+
+- Round 3 仍以英文谓词词表及 `-ed/-ing/-s` 后缀识别英文主体，因此无谓词的英文
+  自然语言段会被当作无证据，后接中文短段后可能被误判为中文。
+- Round 4 删除谓词词表和后缀启发式。Reason 先按句末符/换行分段，每段剥离固定
+  技术词，再输出 `zh_confidence`、`en_confidence` 或 `unknown_confidence`。
+- 中文证据来自相邻汉字信息单元；英文证据来自相邻元音核信息单元。两者都是连续的
+  自然语言信息量，不是固定词数、固定字符比例或“首个已识别语言”。技术词、单字符
+  标记及零自然语言信息的 markup 段不形成主体证据。
+- 所有段的有效信息量聚合后决定主体；混合脚本无法建立可靠 framing、unknown 非零、
+  两种证据并列或无证据时均 fail-closed。
+
+### Adversarial 与 Ollama repair evidence
+
+- Domain 覆盖并通过：`en` 中文主体+英文短尾拒绝；`zh-CN` 英文主体+中文短尾拒绝；
+  中文主体+API/SDK/LLM/MLX 通过；英文主体+API/SDK/LLM 通过；纯技术词不形成主体。
+- 真实 Ollama Fake transport 覆盖 primary language validation → 唯一一次 repair →
+  repair validation；Round 4 英文无谓词主体+中文短尾会进入 repair，repair 后仍错则
+  `INVALID_RESPONSE` fail-closed。
+- TDD RED：`3 failed, 17 passed`，分别证明 Domain、repair 路径和 repair 后
+  fail-closed 的同一绕过。
+- 额外安全渲染兼容回归：合法英文 reason 后的 HTML/Markdown payload 不会成为语言
+  证据，Weekly 既有中和测试保持通过；未修改 Weekly 生产代码。
+
+### Gates
+
+- Focused Domain/Ollama/Weekly：`94 passed`。
+- Full pytest、mypy、Ruff、offline build 与最终 Diff 结果见 Round 4 Final Report。
+- 未运行网络、真实 Ollama、Cloud、Vault、TASK-016C、merge 或 push。
+
+### Round 4 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 Final Correction Round 4 Report。
+
 ## 主控验收
 
 - Orchestrator：
