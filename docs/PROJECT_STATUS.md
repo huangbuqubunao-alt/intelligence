@@ -13,7 +13,8 @@
   模型只引用 ID 的信任边界。Correction 2 `dfe0879…` 已把 Registry 移至可信 Result
   边界。Review 3 evidence `81ec5c6…` 再次 REJECT：Result 继承 Content，使 Python
   子类实例仍可穿透模型边界。Correction 3 `af3d168…` 已改为组合式 Result 并进入独立
-  Reviewer 4；复审并整合前不得启动 016B–H。TASK-016
+  Reviewer 4；evidence `e7bbb6a…` 已 APPROVE（P0–P3=0），现等待主控验收与整合。
+  完成整合前不得启动 016B–H。TASK-016
   不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包

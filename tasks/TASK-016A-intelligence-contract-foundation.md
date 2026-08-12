@@ -15,6 +15,7 @@
 - Correction 2: `dfe087924d1c99695b2608afbfea96e46e93175f` — Content 只引用 ID，Registry 移至可信 Result 边界，等待 Reviewer 3。
 - Review 3 evidence: `81ec5c6f9d015d5d48cc36053ca6a680be893acb` — `REJECT`，P1：Result 继承 Content 允许 Python 子类实例穿透模型边界。
 - Correction 3: `af3d168c89bed09f563e4ce00ac902d6c340bf14` — Result 改为组合式可信边界，等待 Reviewer 4。
+- Review 4 evidence: `e7bbb6ac610fbf97513af02c5c4d77e816970719` — `APPROVE`，P0–P3=0；等待主控验收与整合授权。
 
 ## 用户价值
 
