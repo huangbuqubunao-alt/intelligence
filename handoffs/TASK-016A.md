@@ -293,3 +293,56 @@ excerpt、hash 或 timestamp。类型契约允许任何接受 `KnowledgeContent`
   显式 `result.content` 可进入 Content 契约。
 - 最终门禁：contracts `87 passed`、full `687 passed`、mypy、Ruff、locked offline
   sync、offline build、Correction/完整范围 diff check 均通过。
+
+## Independent Reviewer 4 evidence（2026-08-13）
+
+### 固定对象与范围
+
+- Reviewer：全新独立 Codex Reviewer 4。
+- 固定 Correction 3 source：`af3d168c89bed09f563e4ce00ac902d6c340bf14`；唯一父提交为
+  Review 3 evidence `81ec5c6f9d015d5d48cc36053ca6a680be893acb`。
+- Review 3 evidence 精确为 handoff-only；Correction 3 Diff 精确为 domain、契约测试与
+  本 handoff 三条路径；完整 TASK-016A Diff 精确为任务允许的五条路径。
+- 固定 branch/HEAD、动态 main 授权、Git 身份、父链、禁止范围、两组
+  `git diff --check` 及 main/source 洁净度均通过。
+
+### 对抗性信任边界复核
+
+- `KnowledgeResult` 已改为持有 `content` 的独立组合对象，不再是
+  `KnowledgeContent` 子类。
+- 独立对象探针确认完整 Result 的实例、`model_dump()` Mapping 和完整 JSON 都被
+  `KnowledgeContent` 拒绝；只有显式 `result.content` 的实例、Mapping 或 JSON 可以进入
+  Content 契约。
+- Content 对 `evidence_registry`、`excerpt`、`source_content_hash`、起止时间与
+  `timestamp_basis` 六类注入全部 fail-closed。
+- Result 缺失 Registry、Registry 重复 Evidence ID 均被拒绝；summary、why-it-matters
+  以及 core/key facts/concepts/arguments/counterpoints/opportunities/directions/
+  hypotheses/recommendations/risks 共全部 Evidence 引用入口逐项替换为未知 ID 后均被拒绝。
+- 合法 Result 的 Mapping/JSON round-trip 保持一致；非有限对象/JSON 时间戳、非可信
+  timestamp basis、mode/fallback/digest、Weekly 契约及 `model_copy(update=...)` 防绕过
+  均无退化。
+
+### 独立门禁结果
+
+- `uv lock --check` → `uv sync --locked --offline` → `uv lock --check`：PASS，84
+  packages resolved、61 checked，无下载或锁文件变化。
+- `uv run pytest tests/unit/test_contracts.py -q`：PASS，`87 passed`。
+- `uv run mypy src/youtube_intel/config.py src/youtube_intel/domain.py`：PASS，2 个源文件
+  无问题。
+- `uv run ruff check .`：PASS。任务卡原始命令把 YAML 路径交给 Ruff，Ruff 会按 Python
+  解析并如实返回 syntax errors；这是 handoff 已登记的命令缺陷，未将该无效命令误报为通过。
+- `uv run pytest -x -q`：PASS，`687 passed`。
+- `uv build --offline`：PASS，sdist 与 wheel 均成功生成。
+- `yaml.safe_load`、`load_settings()`、Local-only/Cloud OFF/本地模型与 digest 断言：PASS。
+- Correction 3 与完整 TASK-016A 两组 `git diff --check`：PASS。
+- 未运行网络、Provider、Ollama、OpenAI、Key、真实 Vault、用户数据或 TASK-016B–H。
+
+### Findings 与 Verdict
+
+- `P0`：0。
+- `P1`：0。
+- `P2`：0。
+- `P3`：0。
+- Verdict：`APPROVE`。Correction 3 已关闭 Result 实例/Mapping/JSON 穿透，并维持完整
+  Evidence Registry 引用与 provenance 信任边界；本结论仅覆盖 TASK-016A，不代表后续
+  Provider、持久化、Note/Weekly Runtime 或真实资源路径已获验收。
