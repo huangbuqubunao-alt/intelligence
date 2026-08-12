@@ -1,6 +1,6 @@
 # TASK-016A：Intelligence Mode、配置与 Knowledge V2 契约基础
 
-- Status: `IN_PROGRESS`
+- Status: `IN_REVIEW`
 - Assignee: `Codex`
 - Base: assignment prompt 动态冻结
 - Branch: `codex/task-016a-intelligence-contract-foundation`
@@ -12,6 +12,7 @@
 - Review 1 evidence: `6a564b18a3c91e4366c1b744733910dc5584854b` — `REJECT`，P1：Evidence 时间戳接受非有限值并在 JSON 序列化时破坏成对契约。
 - Correction 1: `26a74cd508b28c9fd89e86af741414c8653f2721` — 非有限时间值 fail-closed，等待 Reviewer 2。
 - Review 2 evidence: `2ea00258ec2b1843e268d4ed1ffef03bd6b0347d` — `REJECT`，P1：模型侧 Content 可自建 Evidence Registry，违反应用拥有的可信证据边界。
+- Correction 2: `dfe087924d1c99695b2608afbfea96e46e93175f` — Content 只引用 ID，Registry 移至可信 Result 边界，等待 Reviewer 3。
 
 ## 用户价值
 

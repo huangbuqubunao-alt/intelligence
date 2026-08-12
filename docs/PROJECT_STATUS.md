@@ -10,7 +10,8 @@
   TASK-016A Review 1 evidence `6a564b1…` 为 REJECT：非有限 Evidence 时间值会在 JSON
   序列化时破坏可信成对时间戳；Correction 1 已关闭该问题。Review 2 evidence
   `2ea0025…` 再次 REJECT：模型侧 Content 可自建 Evidence Registry，违反应用拥有证据、
-  模型只引用 ID 的信任边界。任务已退回 Correction 2；复审并整合前不得启动 016B–H。TASK-016
+  模型只引用 ID 的信任边界。Correction 2 `dfe0879…` 已把 Registry 移至可信 Result
+  边界并进入独立 Reviewer 3；复审并整合前不得启动 016B–H。TASK-016
   不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
