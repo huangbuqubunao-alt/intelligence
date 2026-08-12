@@ -135,3 +135,14 @@ Evidence Registry fail-closed 边界。它会让已经验证的对象在 Artifac
 - 未解决 P0/P1：`P1-1`。
 - 未运行真实 Provider、Ollama、OpenAI、Key、网络、真实 Vault 或用户数据路径。
 - 本次只追加本 handoff；未修改业务代码、任务状态或其他任务资料，未 merge/push。
+
+## Correction 1 Implementer evidence（2026-08-12）
+
+- 固定起点：Review 1 evidence `6a564b18a3c91e4366c1b744733910dc5584854b`。
+- 修复范围：仅 `KnowledgeEvidence.start_seconds/end_seconds` 增加有限数值约束，
+  并新增对象构造、JSON overflow 和合法 JSON round-trip 回归。
+- TDD RED：非有限对象值未抛出 `ValidationError`，目标测试 `1 failed`。
+- GREEN：契约测试 `87 passed`、全量 `687 passed`、mypy、Ruff、offline build、
+  Correction/完整范围 diff check 均通过。
+- 未改变 mode、fallback、Evidence ID、Weekly、Config 或其他产品语义；未触及依赖、
+  Schema、Runtime、Provider、模板或真实资源。

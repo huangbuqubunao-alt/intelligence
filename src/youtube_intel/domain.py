@@ -568,8 +568,8 @@ class KnowledgeEvidence(_UpdateProtectedAnalysisContract):
     source: EvidenceSource
     excerpt: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     source_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    start_seconds: float | None = Field(default=None, ge=0)
-    end_seconds: float | None = Field(default=None, ge=0)
+    start_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    end_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     timestamp_basis: Literal["timed-subtitle"] | None = None
 
     @model_validator(mode="after")

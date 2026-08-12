@@ -2945,6 +2945,40 @@ def test_knowledge_evidence_timestamps_are_registered_and_never_half_present() -
         _knowledge_evidence(start_seconds=10.0, end_seconds=12.5)
 
 
+def test_knowledge_evidence_rejects_non_finite_timestamps_at_all_boundaries() -> None:
+    for field_name in ("start_seconds", "end_seconds"):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            values = {
+                "start_seconds": 10.0,
+                "end_seconds": 12.5,
+                field_name: value,
+            }
+            with pytest.raises(ValidationError):
+                _knowledge_evidence(
+                    start_seconds=values["start_seconds"],
+                    end_seconds=values["end_seconds"],
+                    timestamp_basis="timed-subtitle",
+                )
+
+    overflow_json = (
+        '{"evidence_id":"e1","source":"transcript_sample",'
+        '"excerpt":"verified","source_content_hash":"'
+        + "a" * 64
+        + '","start_seconds":0.0,"end_seconds":1e999,'
+        '"timestamp_basis":"timed-subtitle"}'
+    )
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeEvidence.model_validate_json(overflow_json)
+
+    valid = _knowledge_evidence(
+        start_seconds=10.0,
+        end_seconds=12.5,
+        timestamp_basis="timed-subtitle",
+    )
+    restored = domain_mod.KnowledgeEvidence.model_validate_json(valid.model_dump_json())
+    assert restored == valid
+
+
 def test_weekly_knowledge_v2_is_provider_neutral_and_source_grounded() -> None:
     source = domain_mod.WeeklyKnowledgeSource(
         video_id="video-1",
