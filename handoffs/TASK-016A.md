@@ -78,3 +78,60 @@
 - Findings：pending
 - Verdict：pending
 - 未解决 P0/P1：pending
+
+## Independent Reviewer 1 evidence（2026-08-12）
+
+### 固定对象与范围
+
+- Reviewer：全新独立 Codex Reviewer。
+- 固定实现提交：`210dd203e722eabf3453808f490f4afe52139183`。
+- 唯一父提交：`36969c5c5f7af75a2cf2255b63f742c12cf4fb0c`。
+- Source 分支/worktree 与固定授权一致，审查开始时工作树干净。
+- 完整产品 Diff 精确为任务允许的五条路径；`pyproject.toml`、`uv.lock`、migration、
+  State、Runtime、Provider 和模板均未变化。
+
+### Findings
+
+- `P0`：0。
+- `P1`：1。
+- `P2`：0（P1 后依任务包停止继续穷尽审查）。
+- `P3`：0（P1 后依任务包停止继续穷尽审查）。
+
+#### P1-1：可信 Evidence 时间戳接受非有限值，序列化后破坏契约
+
+`src/youtube_intel/domain.py` 的 `KnowledgeEvidence.start_seconds` 与
+`end_seconds` 仅使用 `ge=0`。独立 JSON 边界探针证明：
+
+- 输入 `end_seconds: 1e999` 会被 Pydantic 解析并接受为正无穷 `inf`；
+- 该对象同时被接受为 `source=transcript_sample`、
+  `timestamp_basis=timed-subtitle` 的可信 Evidence；
+- 随后 `model_dump_json()` 将 `inf` 序列化为 `null`，而 `start_seconds` 保持
+  `0.0`，产生无法通过同一契约恢复的半时间戳 payload。
+
+这违反 ADR-023 “只有可验证的字幕时间映射才展示 timestamp”以及 TASK-016A
+Evidence Registry fail-closed 边界。它会让已经验证的对象在 Artifact/JSON
+持久化边界变成自相矛盾的数据，因此定为 P1。修复需对两个时间字段明确要求有限值，
+并新增 JSON 输入、对象构造、JSON round-trip 对 `NaN/+Inf/-Inf/overflow` 的回归。
+
+### 独立检查证据
+
+- `uv lock --check`：PASS。
+- `uv sync --locked --offline`：PASS；无网络。
+- `uv run pytest tests/unit/test_contracts.py -q`：PASS，`86 passed`。
+- `uv run mypy src/youtube_intel/config.py src/youtube_intel/domain.py`：PASS。
+- `uv run ruff check .`：PASS。
+- example settings `yaml.safe_load` 与关键值断言：PASS。
+- mode/execution/fallback/digest 对抗矩阵：仅接受预期四种组合。
+- Local Analysis 继承值重新校验探针：PASS。
+- `uv run pytest -x -q`：PASS，`686 passed`。
+- `uv build --offline`：PASS，sdist/wheel 均成功。
+- 固定实现范围 `git diff --check`：PASS。
+- 非有限时间戳 JSON 对抗探针：FAIL，复现上述 P1。
+- 发现 P1 后未继续运行额外产品命令或扩大探针。
+
+### Reviewer verdict
+
+- Verdict：`REJECT`。
+- 未解决 P0/P1：`P1-1`。
+- 未运行真实 Provider、Ollama、OpenAI、Key、网络、真实 Vault 或用户数据路径。
+- 本次只追加本 handoff；未修改业务代码、任务状态或其他任务资料，未 merge/push。
