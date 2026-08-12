@@ -1,9 +1,10 @@
 # TASK-016A：Intelligence Mode、配置与 Knowledge V2 契约基础
 
-- Status: `READY`
-- Assignee: `UNASSIGNED`
+- Status: `IN_PROGRESS`
+- Assignee: `Codex`
 - Base: assignment prompt 动态冻结
-- Branch: assignment 时填写
+- Branch: `codex/task-016a-intelligence-contract-foundation`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
 - Dependencies: ADR-023 `Accepted`、TASK-015 `DONE`
 - Reuse decision: `DIRECT` — Pydantic、现有 Config/Domain 契约和 Provider-neutral
   Protocol；不新增依赖，不修改 Schema。

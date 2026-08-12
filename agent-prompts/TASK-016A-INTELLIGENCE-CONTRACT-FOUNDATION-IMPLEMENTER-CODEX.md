@@ -1,5 +1,7 @@
 # TASK-016A Implementer — Intelligence Contract Foundation
 
+任务状态：`IN_PROGRESS / Codex`。本包只授权 TASK-016A，不授权连续启动后续任务。
+
 完整读取并严格执行：
 
 1. `AGENTS.md`
