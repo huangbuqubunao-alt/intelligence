@@ -219,6 +219,60 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 Final Correction Round 4 Report。
 
+## Final Correction Round 5（2026-08-13）
+
+### Root cause 与 algorithm change
+
+- P1-1：Round 4 仍以字符数量、元音核与首尾脚本 framing 推断主体；两个同脚本标记
+  可以把另一语种主体包在中间，且英文无谓词自然短语的判定依赖数量启发式。
+- Round 5 删除字符数量比较、字符比例、元音核、减一阈值及对称首尾继承。Reason
+  仍先按句末符/换行分段并剥离固定技术词，但主体证据改为结构性连续证据：中文需要
+  连续且非单一重复标记的汉字段，英文需要相邻非技术词形成的连续短语。判断只回答
+  “是否存在主体”，不比较哪一方字符或词更多。
+- 双语主体默认 `unknown` 并 fail-closed。唯一保留的保守兼容是：完整英文语境两侧
+  包围的中文专名不会取代已成立的英文主体；中文输出不会通过首尾汉字 framing 吸收
+  英文主体。
+
+### Adversarial 与 Ollama repair evidence
+
+- Domain 覆盖首尾单汉字包裹、首尾多汉字包裹、单字符 `中`/`a`、中文主体加英文
+  尾段、英文主体加中文尾段、纯技术词及英文无谓词自然短语；全部按冻结契约通过或
+  拒绝。
+- 合法样例覆盖 `该视频介绍 API、SDK、LLM、MLX 技术流程。`、`This video
+  explains API, SDK and LLM workflow.`、中文技术词混排及英文中的中文专名。
+- 真实 Fake Ollama transport 覆盖 primary language validation → 唯一一次 repair
+  → repair validation → fail-closed；首尾单/多字符攻击均不会绕过 primary 或 repair。
+
+### Artifact persistence
+
+- Provider 以私有 `_InvalidLanguageResponse` 区分错语种与其他可恢复格式错误。错语种
+  primary 在 repair 最终失败时不会通过 `consume_raw_response()` 暴露给 Repository，
+  因而不会生成正式 `SCORING_RAW` / `SCORING_STRUCTURED` Artifact，也不会形成成功
+  `response_artifact_id` provenance；ProviderCall 保持 `FAILED_RETRYABLE`。
+- repair 成功时只持久化已经通过 schema 与语言 invariant 的 repair envelope；测试
+  从 SQLite Artifact 读取并解析内容，确认正式 raw 中不存在错语种 primary reason。
+- 非语言格式错误的既有 recovery-primary 行为保持不变，未扩大到 TASK-016C、Cloud、
+  Router、Weekly production 或 DB Schema。
+
+### TDD 与 final gates
+
+- RED：语言对抗初始 `6 failed, 22 passed`；Repository-backed 双次错语种初始生成
+  `scoring_raw`，直接复现两类 P1。
+- Focused Domain/Ollama/scoring：`93 passed`。
+- `uv lock --check`、`uv sync --locked --offline`：PASS（84 resolved / 61 checked，
+  无下载，锁文件未变）。
+- Full pytest：`752 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未运行网络、真实 Provider、Cloud、Vault、TASK-016C、merge 或 push。
+
+### Round 5 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Final Correction Round 5 Report。
+
 ## 主控验收
 
 - Orchestrator：

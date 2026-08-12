@@ -11,6 +11,7 @@ from youtube_intel.domain import (
     Availability,
     LiveStatus,
     ScoreResult,
+    ScoringOutputLanguage,
     VideoMetadata,
     validate_score_result,
 )
@@ -84,6 +85,14 @@ def test_output_language_changes_request_hash() -> None:
             "Useful clear practical product workflow advice.\n"
             "这个视频介绍产品流程。",
         ),
+        (
+            "zh-CN",
+            "中 Useful clear practical product workflow advice 中",
+        ),
+        (
+            "zh-CN",
+            "中文 Useful clear practical product workflow advice 中文",
+        ),
         ("zh-CN", "中"),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
         ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
@@ -93,7 +102,9 @@ def test_output_language_changes_request_hash() -> None:
             "这个视频详细解释了产品工作流程并给出了建议。\n"
             "Useful clear practical product workflow advice.",
         ),
+        ("en", "a 这个视频详细解释产品流程 a"),
         ("en", "API SDK LLM"),
+        ("en", "a"),
     ],
 )
 def test_score_result_rejects_obvious_wrong_language(
@@ -147,6 +158,50 @@ def test_chinese_subject_with_technical_abbreviations_is_valid() -> None:
     )
 
     assert result.output_language == "zh-CN"
+
+
+@pytest.mark.parametrize(
+    ("output_language", "reason"),
+    [
+        ("zh-CN", "该视频介绍 API、SDK、LLM、MLX 技术流程。"),
+        ("en", "This video explains API, SDK and LLM workflow."),
+    ],
+)
+def test_continuous_subject_survives_technical_term_stripping(
+    output_language: ScoringOutputLanguage,
+    reason: str,
+) -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason=reason,
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language=output_language,
+    )
+
+    assert result.reason == reason
+
+
+def test_english_subject_without_predicate_is_valid() -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason="Useful clear practical product workflow advice.",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+
+    assert result.output_language == "en"
 
 
 @pytest.mark.parametrize(

@@ -389,14 +389,21 @@ _SCORING_LEXICAL_RUN_RE: Final = re.compile(
     r"[A-Za-z][A-Za-z0-9]*(?:['-][A-Za-z0-9]+)*"
     r"|[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+"
 )
-_ENGLISH_VOWEL_NUCLEUS_RE: Final = re.compile(r"[aeiouy]+")
-
-
 @dataclass(frozen=True, slots=True)
 class _ScoringSegmentEvidence:
-    zh_confidence: int
-    en_confidence: int
-    unknown_confidence: int
+    zh_confidence: bool
+    en_confidence: bool
+    unknown: bool
+
+
+def _has_chinese_language_evidence(value: str) -> bool:
+    """A lone or repeated Han marker is not a natural-language subject."""
+
+    letters = (character.casefold() for character in value if character.isalpha())
+    previous = next(letters, None)
+    if previous is None:
+        return False
+    return any(character != previous for character in letters)
 
 
 def _scoring_segment_evidence(segment: str) -> _ScoringSegmentEvidence:
@@ -413,37 +420,69 @@ def _scoring_segment_evidence(segment: str) -> _ScoringSegmentEvidence:
             lexical_runs.append(("zh-CN", value))
 
     if not lexical_runs:
-        return _ScoringSegmentEvidence(0, 0, 0)
+        return _ScoringSegmentEvidence(False, False, False)
 
-    languages = {language for language, _ in lexical_runs}
-    zh_units = sum(
-        len(value) for language, value in lexical_runs if language == "zh-CN"
-    )
-    en_units = sum(
-        len(_ENGLISH_VOWEL_NUCLEUS_RE.findall(value.casefold()))
-        for language, value in lexical_runs
+    english_phrase_positions = frozenset(
+        index
+        for index, (language, _) in enumerate(lexical_runs)
         if language == "en"
+        and (
+            (index > 0 and lexical_runs[index - 1][0] == "en")
+            or (
+                index + 1 < len(lexical_runs)
+                and lexical_runs[index + 1][0] == "en"
+            )
+        )
     )
-    # Adjacent natural-language units carry evidence; a lone marker carries none.
-    zh_information = max(zh_units - 1, 0)
-    en_information = max(en_units - 1, 0)
-    if len(languages) == 1:
-        language = lexical_runs[0][0]
-    elif lexical_runs[0][0] == lexical_runs[-1][0]:
-        # An embedded foreign proper name inherits the surrounding prose frame.
-        language = lexical_runs[0][0]
-    else:
-        return _ScoringSegmentEvidence(0, 0, max(zh_units + en_units, 1))
-
-    confidence = zh_information if language == "zh-CN" else en_information
-    if confidence == 0:
-        return _ScoringSegmentEvidence(0, 0, 0)
+    evidence_runs = tuple(
+        (
+            language,
+            index in english_phrase_positions
+            if language == "en"
+            else _has_chinese_language_evidence(value),
+        )
+        for index, (language, value) in enumerate(lexical_runs)
+    )
+    zh_positions = tuple(
+        index
+        for index, (language, has_evidence) in enumerate(evidence_runs)
+        if language == "zh-CN" and has_evidence
+    )
+    en_positions = tuple(
+        index
+        for index, (language, has_evidence) in enumerate(evidence_runs)
+        if language == "en" and has_evidence
+    )
+    zh_confidence = bool(zh_positions)
+    en_confidence = bool(en_positions)
+    if zh_confidence and en_confidence:
+        all_en_positions = tuple(
+            index
+            for index, (language, _) in enumerate(lexical_runs)
+            if language == "en"
+        )
+        chinese_name_is_embedded_in_english = all(
+            any(en_index < zh_index for en_index in all_en_positions)
+            and any(en_index > zh_index for en_index in all_en_positions)
+            for zh_index in zh_positions
+        )
+        if chinese_name_is_embedded_in_english:
+            zh_confidence = False
 
     return _ScoringSegmentEvidence(
-        zh_confidence=confidence if language == "zh-CN" else 0,
-        en_confidence=confidence if language == "en" else 0,
-        unknown_confidence=0,
+        zh_confidence=zh_confidence,
+        en_confidence=en_confidence,
+        unknown=zh_confidence and en_confidence,
     )
+
+
+def scoring_reason_matches_output_language(
+    reason: str,
+    output_language: ScoringOutputLanguage,
+) -> bool:
+    """Return whether a reason has one unambiguous configured-language subject."""
+
+    return not _contains_obvious_wrong_scoring_language(reason, output_language)
 
 
 def _contains_obvious_wrong_scoring_language(
@@ -463,13 +502,13 @@ def _contains_obvious_wrong_scoring_language(
         for segment in _SCORING_SEGMENT_RE.split(reason)
         if segment.strip()
     )
-    if any(item.unknown_confidence for item in evidence):
+    if any(item.unknown for item in evidence):
         return True
-    zh_information = sum(item.zh_confidence for item in evidence)
-    en_information = sum(item.en_confidence for item in evidence)
-    if zh_information == en_information:
+    has_zh_subject = any(item.zh_confidence for item in evidence)
+    has_en_subject = any(item.en_confidence for item in evidence)
+    if has_zh_subject == has_en_subject:
         return True
-    subject_language = "zh-CN" if zh_information > en_information else "en"
+    subject_language = "zh-CN" if has_zh_subject else "en"
     return subject_language != output_language
 
 
@@ -531,9 +570,8 @@ class ScoreResult(_DomainModel):
 
     @model_validator(mode="after")
     def _reason_matches_output_language(self) -> ScoreResult:
-        if _contains_obvious_wrong_scoring_language(
-            self.reason,
-            self.output_language,
+        if not scoring_reason_matches_output_language(
+            self.reason, self.output_language
         ):
             msg = "reason does not match output_language"
             raise ValueError(msg)

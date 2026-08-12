@@ -19,6 +19,7 @@ from youtube_intel.domain import (
     ScoreResult,
     ScoringInput,
     ScoringOutputLanguage,
+    scoring_reason_matches_output_language,
 )
 from youtube_intel.scoring import PROMPT_VERSION, SCHEMA_VERSION
 from youtube_intel.state import build_provider_request_hash
@@ -86,6 +87,10 @@ class _InvalidModelResponse(Exception):
     """Private parse marker; response content is never exposed in errors or logs."""
 
 
+class _InvalidLanguageResponse(_InvalidModelResponse):
+    """Private marker used to keep wrong-language payloads out of artifacts."""
+
+
 @dataclass(frozen=True, slots=True)
 class _GeneratedResponse:
     response_text: str
@@ -148,6 +153,7 @@ class OllamaScoringProvider:
         failure: AppError | None = None
         primary_response: _GeneratedResponse | None = None
         repair_response: _GeneratedResponse | None = None
+        primary_language_invalid = False
         self._last_raw_response = None
         self._last_request_hash = None
         try:
@@ -162,7 +168,8 @@ class OllamaScoringProvider:
                     request_hash,
                     scoring_input.output_language,
                 )
-            except _InvalidModelResponse:
+            except _InvalidModelResponse as error:
+                primary_language_invalid = isinstance(error, _InvalidLanguageResponse)
                 if primary_response is None:
                     failure = AppError(
                         code=ErrorCode.INVALID_RESPONSE,
@@ -224,7 +231,7 @@ class OllamaScoringProvider:
                 stage=ProcessingStage.SCORING,
             )
 
-        if primary_response is not None:
+        if primary_response is not None and not primary_language_invalid:
             self._last_raw_response = primary_response.raw_response
             self._last_request_hash = request_hash
         primary_response = None
@@ -565,6 +572,11 @@ class OllamaScoringProvider:
             raise _InvalidModelResponse
         if not set(parsed).issubset(_MODEL_RESULT_FIELDS):
             raise _InvalidModelResponse
+        reason = parsed.get("reason")
+        if isinstance(reason, str) and not scoring_reason_matches_output_language(
+            reason, output_language
+        ):
+            raise _InvalidLanguageResponse
         candidate: dict[str, object] = dict(parsed)
         candidate.update(
             {
