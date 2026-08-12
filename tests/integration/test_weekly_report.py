@@ -68,7 +68,7 @@ def _candidate(
     score_result = ScoreResult(
         schema_version="score-result-v2",
         score=score,
-        reason=f"{video_id} is useful.",
+        reason=f"{video_id} provides useful practical guidance.",
         topics=(topic,),
         should_summarize=True,
         provider="fixture-score",

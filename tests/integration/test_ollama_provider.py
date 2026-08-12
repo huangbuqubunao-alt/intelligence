@@ -329,6 +329,12 @@ def test_primary_prompt_contains_authoritative_output_language_instruction(
         ),
         (
             "en",
+            "a clear 这个视频详细解释产品流程 advice",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
+            "en",
             "这个视频详细解释了产品工作流程并给出了建议。\n"
             "Useful clear practical product workflow advice.",
             "The video clearly explains the product workflow and has practical value.",
@@ -387,6 +393,7 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
             "Useful clear practical product workflow advice.",
         ),
         ("en", "a 这个视频详细解释产品流程 a"),
+        ("en", "a clear 这个视频详细解释产品流程 advice"),
     ],
 )
 def test_wrong_language_after_single_repair_fails_closed(

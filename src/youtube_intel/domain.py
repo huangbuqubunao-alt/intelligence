@@ -6,6 +6,7 @@ This module must not import concrete provider SDKs or free-form dict public APIs
 from __future__ import annotations
 
 import re
+import unicodedata
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -385,10 +386,15 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
     }
 )
 _SCORING_SEGMENT_RE: Final = re.compile(r"[\n\r.!?。！？；;]+")
-_SCORING_LEXICAL_RUN_RE: Final = re.compile(
-    r"[A-Za-z][A-Za-z0-9]*(?:['-][A-Za-z0-9]+)*"
-    r"|[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+"
-)
+_ScoringScript: TypeAlias = Literal["Han", "Latin", "other"]
+
+
+@dataclass(frozen=True, slots=True)
+class _ScoringScriptSpan:
+    script: _ScoringScript
+    text: str
+
+
 @dataclass(frozen=True, slots=True)
 class _ScoringSegmentEvidence:
     zh_confidence: bool
@@ -396,83 +402,84 @@ class _ScoringSegmentEvidence:
     unknown: bool
 
 
-def _has_chinese_language_evidence(value: str) -> bool:
-    """A lone or repeated Han marker is not a natural-language subject."""
+def _scoring_character_script(character: str) -> _ScoringScript:
+    codepoint = ord(character)
+    if (
+        0x3400 <= codepoint <= 0x4DBF
+        or 0x4E00 <= codepoint <= 0x9FFF
+        or 0xF900 <= codepoint <= 0xFAFF
+        or 0x20000 <= codepoint <= 0x323AF
+    ):
+        return "Han"
+    if character.isalpha() and "LATIN" in unicodedata.name(character, ""):
+        return "Latin"
+    return "other"
 
-    letters = (character.casefold() for character in value if character.isalpha())
-    previous = next(letters, None)
-    if previous is None:
-        return False
-    return any(character != previous for character in letters)
+
+def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
+    """Split text by Unicode script without interpreting span position."""
+
+    spans: list[_ScoringScriptSpan] = []
+    current_script: _ScoringScript | None = None
+    current_characters: list[str] = []
+    for character in value:
+        script = _scoring_character_script(character)
+        if current_script is not None and script != current_script:
+            spans.append(
+                _ScoringScriptSpan(current_script, "".join(current_characters))
+            )
+            current_characters.clear()
+        current_script = script
+        current_characters.append(character)
+    if current_script is not None:
+        spans.append(_ScoringScriptSpan(current_script, "".join(current_characters)))
+    return tuple(spans)
+
+
+def _has_strong_han_evidence(value: str) -> bool:
+    """A strong Han span requires more than a single continuous ideograph."""
+
+    return len(value) >= 2
+
+
+def _has_strong_latin_evidence(tokens: Sequence[str]) -> bool:
+    """A strong Latin span requires four non-technical natural tokens."""
+
+    natural_tokens = tuple(
+        token
+        for token in tokens
+        if len(token) > 1 and token.casefold() not in _SCORING_TECHNICAL_TERMS
+    )
+    return len(natural_tokens) >= 4
+
+
+def _flush_latin_span(tokens: list[str]) -> bool:
+    strong = _has_strong_latin_evidence(tokens)
+    tokens.clear()
+    return strong
 
 
 def _scoring_segment_evidence(segment: str) -> _ScoringSegmentEvidence:
-    """Return script-framed, non-technical information for one segment."""
+    """Classify independent Han and Latin script spans as strong or absent."""
 
-    lexical_runs: list[tuple[ScoringOutputLanguage, str]] = []
-    for match in _SCORING_LEXICAL_RUN_RE.finditer(segment):
-        value = match.group(0)
-        if value[0].isascii():
-            if value.casefold() in _SCORING_TECHNICAL_TERMS:
-                continue
-            lexical_runs.append(("en", value))
-        else:
-            lexical_runs.append(("zh-CN", value))
+    has_zh_subject = False
+    has_en_subject = False
+    latin_tokens: list[str] = []
+    for span in _scoring_script_spans(segment):
+        if span.script == "Latin":
+            latin_tokens.append(span.text)
+            continue
+        if span.script == "other":
+            continue
 
-    if not lexical_runs:
-        return _ScoringSegmentEvidence(False, False, False)
-
-    english_phrase_positions = frozenset(
-        index
-        for index, (language, _) in enumerate(lexical_runs)
-        if language == "en"
-        and (
-            (index > 0 and lexical_runs[index - 1][0] == "en")
-            or (
-                index + 1 < len(lexical_runs)
-                and lexical_runs[index + 1][0] == "en"
-            )
-        )
-    )
-    evidence_runs = tuple(
-        (
-            language,
-            index in english_phrase_positions
-            if language == "en"
-            else _has_chinese_language_evidence(value),
-        )
-        for index, (language, value) in enumerate(lexical_runs)
-    )
-    zh_positions = tuple(
-        index
-        for index, (language, has_evidence) in enumerate(evidence_runs)
-        if language == "zh-CN" and has_evidence
-    )
-    en_positions = tuple(
-        index
-        for index, (language, has_evidence) in enumerate(evidence_runs)
-        if language == "en" and has_evidence
-    )
-    zh_confidence = bool(zh_positions)
-    en_confidence = bool(en_positions)
-    if zh_confidence and en_confidence:
-        all_en_positions = tuple(
-            index
-            for index, (language, _) in enumerate(lexical_runs)
-            if language == "en"
-        )
-        chinese_name_is_embedded_in_english = all(
-            any(en_index < zh_index for en_index in all_en_positions)
-            and any(en_index > zh_index for en_index in all_en_positions)
-            for zh_index in zh_positions
-        )
-        if chinese_name_is_embedded_in_english:
-            zh_confidence = False
+        has_en_subject = _flush_latin_span(latin_tokens) or has_en_subject
+        has_zh_subject = _has_strong_han_evidence(span.text) or has_zh_subject
+    has_en_subject = _flush_latin_span(latin_tokens) or has_en_subject
 
     return _ScoringSegmentEvidence(
-        zh_confidence=zh_confidence,
-        en_confidence=en_confidence,
-        unknown=zh_confidence and en_confidence,
+        zh_confidence=has_zh_subject,
+        en_confidence=has_en_subject,
+        unknown=has_zh_subject and has_en_subject,
     )
 
 
@@ -491,10 +498,9 @@ def _contains_obvious_wrong_scoring_language(
 ) -> bool:
     """Require a minimum natural-language subject after technical-term stripping.
 
-    This deliberately is not a character-ratio detector. Chinese reasons may
-    contain approved English technical terms, and English reasons may contain
-    short CJK proper names, but neither can pass on a token or one-character
-    marker without a substantive subject in the configured language.
+    This deliberately is not a character-ratio detector. Approved English
+    technical terms are excluded, single-character markers are not evidence,
+    and strong evidence in both scripts fails closed.
     """
 
     evidence = tuple(

@@ -103,6 +103,9 @@ def test_output_language_changes_request_hash() -> None:
             "Useful clear practical product workflow advice.",
         ),
         ("en", "a 这个视频详细解释产品流程 a"),
+        ("en", "a clear 这个视频详细解释产品流程 advice"),
+        ("en", "The 北京大学人工智能实验室 team clearly explains the product workflow."),
+        ("en", "Useful practical advice"),
         ("en", "API SDK LLM"),
         ("en", "a"),
     ],
@@ -164,7 +167,7 @@ def test_chinese_subject_with_technical_abbreviations_is_valid() -> None:
     ("output_language", "reason"),
     [
         ("zh-CN", "该视频介绍 API、SDK、LLM、MLX 技术流程。"),
-        ("en", "This video explains API, SDK and LLM workflow."),
+        ("en", "This video explains API, SDK and LLM workflow clearly."),
     ],
 )
 def test_continuous_subject_survives_technical_term_stripping(
@@ -204,14 +207,8 @@ def test_english_subject_without_predicate_is_valid() -> None:
     assert result.output_language == "en"
 
 
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "The 北京大学人工智能实验室 team clearly explains the product workflow.",
-        "API, SDK, LLM, RAG, GPT, and MLX provide useful technical context.",
-    ],
-)
-def test_english_reason_allows_chinese_names_and_technical_terms(reason: str) -> None:
+def test_english_reason_allows_technical_terms() -> None:
+    reason = "API, SDK, LLM, RAG, GPT, and MLX provide useful technical context."
     result = ScoreResult(
         schema_version="score-result-v2",
         score=8,
