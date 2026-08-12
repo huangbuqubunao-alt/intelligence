@@ -227,13 +227,13 @@ def test_primary_prompt_contains_authoritative_output_language_instruction(
     [
         (
             "zh-CN",
-            "The video gives a detailed explanation of the product workflow.",
+            "Useful, clear, practical, product, workflow, advice.",
             "视频清楚说明了产品工作流，因此具有实际参考价值。",
             "Simplified Chinese",
         ),
         (
             "en",
-            "这个视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。",
             "The video clearly explains the product workflow and has practical value.",
             "English",
         ),
@@ -267,11 +267,21 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
     assert len(transport.requests) == 3
 
 
-def test_wrong_language_after_single_repair_fails_closed() -> None:
+@pytest.mark.parametrize(
+    ("output_language", "reason"),
+    [
+        ("zh-CN", "Useful, clear, practical, product, workflow, advice."),
+        ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
+    ],
+)
+def test_wrong_language_after_single_repair_fails_closed(
+    output_language: str,
+    reason: str,
+) -> None:
     wrong_language = json.dumps(
         {
             "score": 8,
-            "reason": "The video gives a detailed explanation of the product workflow.",
+            "reason": reason,
             "topics": ["product"],
             "should_summarize": True,
         }
@@ -281,7 +291,7 @@ def test_wrong_language_after_single_repair_fails_closed() -> None:
     )
 
     with pytest.raises(OllamaProviderError) as exc_info:
-        _provider(transport).score(_input(output_language="zh-CN"))
+        _provider(transport).score(_input(output_language=output_language))
 
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
     assert len(transport.requests) == 3

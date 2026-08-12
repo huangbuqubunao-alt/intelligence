@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from youtube_intel.analysis import (
     AnalysisJobContext,
@@ -40,7 +40,6 @@ from youtube_intel.domain import (
     ScoreResult,
     ScoringDecision,
     ScoringOutcome,
-    ScoringOutputLanguage,
     SourceProvider,
     TranscriptionRequired,
     TranscriptReady,
@@ -522,12 +521,6 @@ class RuntimeOperations(Operations):
                 max_bytes=4_000_000,
             ).decode("utf-8")
             configured_output_language = self._config.settings.general.output_language
-            if configured_output_language not in {"zh-CN", "en"}:
-                raise ValueError("local scoring supports output_language zh-CN or en")
-            output_language = cast(
-                ScoringOutputLanguage,
-                configured_output_language,
-            )
             RepositoryBackedScoringService(
                 provider=self._dependencies.scoring_provider_factory(),
                 settings=self._config.settings.local_scoring,
@@ -540,7 +533,7 @@ class RuntimeOperations(Operations):
                 video=video,
                 transcript_text=text,
                 language=transcript.language,
-                output_language=output_language,
+                output_language=configured_output_language,
             )
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:

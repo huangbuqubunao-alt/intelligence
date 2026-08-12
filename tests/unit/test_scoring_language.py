@@ -67,7 +67,9 @@ def test_output_language_changes_request_hash() -> None:
     ("output_language", "reason"),
     [
         ("zh-CN", "The video gives a detailed practical explanation of the product workflow."),
+        ("zh-CN", "Useful, clear, practical, product, workflow, advice."),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
+        ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
     ],
 )
 def test_score_result_rejects_obvious_wrong_language(
@@ -104,6 +106,48 @@ def test_chinese_reason_allows_english_technical_terms() -> None:
     )
 
     assert result.output_language == "zh-CN"
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "The 北京大学人工智能实验室 team clearly explains the product workflow.",
+        "API, SDK, LLM, RAG, GPT, and MLX provide useful technical context.",
+    ],
+)
+def test_english_reason_allows_chinese_names_and_technical_terms(reason: str) -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason=reason,
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+
+    assert result.reason == reason
+
+
+def test_score_result_rejects_unchecked_output_language_copy() -> None:
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason="视频清楚说明了产品工作流，因此具有实际参考价值。",
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="zh-CN",
+    )
+
+    with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+        result.model_copy(update={"output_language": "en"})
 
 
 def test_result_language_mismatch_is_not_cached() -> None:

@@ -299,6 +299,22 @@ def test_defaults_yaml_overrides_priority(tmp_path: Path) -> None:
     assert merged.retry.max_attempts == 3
 
 
+@pytest.mark.parametrize("output_language", ["fr", "en-US"])
+def test_scoring_output_language_fails_during_config_loading(
+    tmp_path: Path,
+    output_language: str,
+) -> None:
+    data = _minimal_settings_dict()
+    data["general"] = {
+        "timezone": "Asia/Shanghai",
+        "output_language": output_language,
+        "transcript_languages": ["zh", "en"],
+    }
+
+    with pytest.raises(ConfigError, match="settings validation failed"):
+        load_settings(_write_settings(tmp_path, data))
+
+
 def test_channel_stable_sort_by_priority_then_id(tmp_path: Path) -> None:
     path = _write_channels(tmp_path)
     channels = load_channels(path)

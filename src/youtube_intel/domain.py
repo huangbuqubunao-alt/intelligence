@@ -5,6 +5,7 @@ This module must not import concrete provider SDKs or free-form dict public APIs
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
@@ -360,6 +361,7 @@ class ScoreDimensions(_DomainModel):
 
 
 ScoringOutputLanguage: TypeAlias = Literal["zh-CN", "en"]
+_ASCII_WORD_RE: Final = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
 
 
 def _contains_obvious_wrong_scoring_language(
@@ -374,12 +376,10 @@ def _contains_obvious_wrong_scoring_language(
     in the other supported output language.
     """
 
-    latin_letters = sum(
-        character.isascii() and character.isalpha() for character in reason
-    )
-    latin_words = sum(
-        token.strip("-' ").isalpha()
-        for token in reason.replace("/", " ").split()
+    ascii_words = _ASCII_WORD_RE.findall(reason)
+    latin_letters = sum(len(word.replace("-", "").replace("'", "")) for word in ascii_words)
+    english_prose_words = sum(
+        any(character.islower() for character in word) for word in ascii_words
     )
     han_characters = sum(
         "\u3400" <= character <= "\u4dbf"
@@ -388,8 +388,8 @@ def _contains_obvious_wrong_scoring_language(
         for character in reason
     )
     if output_language == "zh-CN":
-        return han_characters == 0 and latin_letters >= 24 and latin_words >= 5
-    return han_characters >= 8 and han_characters > latin_letters
+        return han_characters == 0 and latin_letters >= 12 and len(ascii_words) >= 3
+    return han_characters >= 4 and english_prose_words < 3
 
 
 class ScoreResult(_DomainModel):
@@ -404,6 +404,17 @@ class ScoreResult(_DomainModel):
     prompt_version: str = Field(min_length=1)
     request_hash: str = Field(min_length=1)
     output_language: ScoringOutputLanguage
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for scoring contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
 
     @field_validator("reason")
     @classmethod
