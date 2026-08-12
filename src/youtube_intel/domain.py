@@ -733,28 +733,29 @@ class KnowledgeContent(_UpdateProtectedAnalysisContract):
         return self
 
 
-class KnowledgeResult(KnowledgeContent):
+class KnowledgeResult(_UpdateProtectedAnalysisContract):
     schema_version: Literal["knowledge-result-v2"] = "knowledge-result-v2"
+    content: KnowledgeContent
     evidence_registry: EvidenceRegistry
     provenance: KnowledgeProvenance
 
     @model_validator(mode="after")
     def _references_registered_evidence(self) -> KnowledgeResult:
         evidence_ids = {item.evidence_id for item in self.evidence_registry.items}
-        reference_ids = [*self.summary_evidence_ids]
-        reference_ids.extend(self.why_it_matters.evidence_ids)
+        reference_ids = [*self.content.summary_evidence_ids]
+        reference_ids.extend(self.content.why_it_matters.evidence_ids)
         for points in (
-            self.core_points,
-            self.key_facts,
-            self.important_concepts,
-            self.key_arguments,
-            self.counterpoints,
-            self.product_opportunities,
-            self.business_opportunities,
-            self.actionable_directions,
-            self.hypotheses_to_validate,
-            self.action_recommendations,
-            self.risks,
+            self.content.core_points,
+            self.content.key_facts,
+            self.content.important_concepts,
+            self.content.key_arguments,
+            self.content.counterpoints,
+            self.content.product_opportunities,
+            self.content.business_opportunities,
+            self.content.actionable_directions,
+            self.content.hypotheses_to_validate,
+            self.content.action_recommendations,
+            self.content.risks,
         ):
             for point in points:
                 reference_ids.extend(point.evidence_ids)

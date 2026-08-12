@@ -282,3 +282,14 @@ excerpt、hash 或 timestamp。类型契约允许任何接受 `KnowledgeContent`
 - Verdict：`REJECT`。
 - 未解决 P0/P1：`P1-1`。
 - 本次只追加本 handoff；未修改业务代码、任务状态或其他文件，未 merge/push。
+
+## Correction 3 Implementer evidence（2026-08-13）
+
+- 固定起点：Review 3 evidence `81ec5c6f9d015d5d48cc36053ca6a680be893acb`。
+- TDD RED：组合式构造被继承式 `KnowledgeResult` 拒绝，目标测试 `1 failed`。
+- 最小修复：`KnowledgeResult` 改为独立组合对象，具有 `content`、可信 Registry 与
+  provenance；应用边界通过 `content.*` 统一校验证据引用。
+- 对抗范围：Result 实例、Result Mapping、Result JSON 均不能当成模型 Content；只有
+  显式 `result.content` 可进入 Content 契约。
+- 最终门禁：contracts `87 passed`、full `687 passed`、mypy、Ruff、locked offline
+  sync、offline build、Correction/完整范围 diff check 均通过。

@@ -2732,7 +2732,7 @@ def _knowledge_result(
         kind=domain_mod.PointKind.INFERENCE,
         evidence_ids=("e1",),
     )
-    return domain_mod.KnowledgeResult(
+    content = domain_mod.KnowledgeContent(
         one_sentence_summary="一句话总结",
         summary_evidence_ids=("e1",),
         why_it_matters=point,
@@ -2741,6 +2741,9 @@ def _knowledge_result(
             topics=("AI 产品",),
             entities=("Example",),
         ),
+    )
+    return domain_mod.KnowledgeResult(
+        content=content,
         evidence_registry=domain_mod.EvidenceRegistry(
             items=(_knowledge_evidence(),),
         ),
@@ -2864,27 +2867,28 @@ def test_knowledge_v2_is_provider_neutral_grounded_and_opportunities_may_be_empt
 
     assert result.schema_version == "knowledge-result-v2"
     assert result.provenance.executed_mode is domain_mod.KnowledgeExecutionMode.LOCAL
-    assert result.product_opportunities == ()
-    assert result.business_opportunities == ()
-    assert result.action_recommendations == ()
+    assert result.content.product_opportunities == ()
+    assert result.content.business_opportunities == ()
+    assert result.content.action_recommendations == ()
     assert result.evidence_registry.items[0].evidence_id == "e1"
     assert "provider" not in domain_mod.KnowledgeContent.model_fields
     assert "evidence_registry" not in domain_mod.KnowledgeContent.model_fields
 
-    content_payload = {
-        key: value
-        for key, value in result.model_dump().items()
-        if key not in {"schema_version", "provenance", "evidence_registry"}
-    }
+    content_payload = result.content.model_dump()
     content = domain_mod.KnowledgeContent.model_validate(content_payload)
     assert content.summary_evidence_ids == ("e1",)
     with pytest.raises(ValidationError):
         domain_mod.KnowledgeContent.model_validate(
             {**content_payload, "evidence_registry": result.evidence_registry.model_dump()}
         )
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate(result)
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate_json(result.model_dump_json())
+    assert domain_mod.KnowledgeContent.model_validate(result.content) is result.content
 
     payload = result.model_dump()
-    payload["summary_evidence_ids"] = ("missing",)
+    payload["content"]["summary_evidence_ids"] = ("missing",)
     with pytest.raises(ValidationError, match="unknown evidence"):
         domain_mod.KnowledgeResult.model_validate(payload)
 
