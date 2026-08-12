@@ -222,3 +222,63 @@ Registry 与模型只读引用之间的信任边界。
   拒绝；Result 缺 Registry 或引用未知 ID 均 fail-closed。
 - 最终门禁：contracts `87 passed`、full `687 passed`、mypy、Ruff、locked offline
   sync、offline build、Correction/完整范围 diff check 均通过。
+
+## Independent Reviewer 3 evidence（2026-08-13）
+
+### 固定对象与范围
+
+- Reviewer：全新独立 Codex Reviewer 3。
+- 固定 Correction 2 提交：`dfe087924d1c99695b2608afbfea96e46e93175f`；唯一父提交为
+  Review 2 evidence `2ea00258ec2b1843e268d4ed1ffef03bd6b0347d`。
+- Review 2 evidence 仅追加本 handoff；Correction 2 Diff 精确为 domain、契约测试与
+  本 handoff 三条路径；完整 TASK-016A Diff 精确为任务允许的五条路径。
+- Source 分支、授权控制面、父链、固定范围、`git diff --check` 与 worktree 洁净度
+  均通过前置核验。
+
+### Findings
+
+- `P0`：0。
+- `P1`：1。
+- `P2`：0（发现 P1 后按 Reviewer 包立即停止，未继续穷尽审查）。
+- `P3`：0（发现 P1 后按 Reviewer 包立即停止，未继续穷尽审查）。
+
+#### P1-1：KnowledgeResult 子类实例可穿透模型侧 KnowledgeContent 边界
+
+Correction 2 已使 JSON/mapping 形式的模型 payload 不能向 `KnowledgeContent` 注入
+`evidence_registry`。但 `KnowledgeResult` 仍继承 `KnowledgeContent`，而 Pydantic 默认
+不会重新验证已是目标类型子类的实例。独立对象边界探针证明：
+
+- `KnowledgeContent.model_validate(result)` 接受一个带可信 Registry 的
+  `KnowledgeResult`；
+- 返回值与传入 `result` 是同一实例，运行时类型仍是 `KnowledgeResult`；
+- 返回对象仍可访问 `evidence_registry`，其 `model_dump()` 仍包含 Registry、excerpt、
+  source hash、可选 timestamp、provenance 与结果 schema 字段；
+- 相同内容转成 mapping 后会被 `extra=forbid` 正确拒绝，说明缺口专属于 Python 对象/
+  子类边界，而不是映射校验。
+
+这违反 Correction 2 Reviewer 包的绝对要求：模型侧 `KnowledgeContent` 不能接受 Registry、
+excerpt、hash 或 timestamp。类型契约允许任何接受 `KnowledgeContent` 的 Provider/解析边界
+直接接收 `KnowledgeResult`，使应用拥有的可信 Registry 再次进入模型侧对象；后续 Provider
+只要传递领域对象而不是原始 mapping，就会绕过这次修复。因此该公共契约仍未真正分离信任
+边界，定为 P1。
+
+最小修复方向：不要让可信 `KnowledgeResult` 成为 `KnowledgeContent` 的子类；改用组合或
+其他能在对象边界保持类型隔离的结构，并继续由应用侧 Result 对 Content 的全部 Evidence ID
+引用与 Registry 做统一交叉验证。回归必须覆盖 mapping 注入和已构造 Result/子类实例注入。
+
+### 独立检查证据
+
+- Git 身份、固定 branch/HEAD/唯一父、动态 main 授权、Review 2 handoff-only、Correction
+  三路径、完整五路径、禁止范围、两组 `git diff --check`：PASS。
+- 模型侧 mapping Registry 注入：按现有测试与独立探针为拒绝。
+- 模型侧 `KnowledgeResult` 实例注入：FAIL；`same_instance=True`、运行时类型保持
+  `KnowledgeResult`、Registry 仍存在。
+- 按“发现 P0/P1 立即停止”规则，未运行 lock、offline sync、contracts、mypy、Ruff、
+  full pytest、offline build 或 YAML safe-load；Implementer 自报门禁不计为本轮独立证据。
+- 未运行网络、Provider、Ollama、OpenAI、Key、真实 Vault、用户数据或 TASK-016B–H。
+
+### Reviewer 3 verdict
+
+- Verdict：`REJECT`。
+- 未解决 P0/P1：`P1-1`。
+- 本次只追加本 handoff；未修改业务代码、任务状态或其他文件，未 merge/push。
