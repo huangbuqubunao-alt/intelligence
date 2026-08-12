@@ -1444,23 +1444,36 @@ class SQLiteStateRepository:
         owner: str,
         lease_until: datetime,
         now: datetime,
+        video_id: str | None = None,
     ) -> JobRecord | None:
         if not owner.strip():
             msg = "lease owner must be non-empty"
+            raise ValueError(msg)
+        if video_id is not None and not video_id.strip():
+            msg = "video_id filter must be non-empty when provided"
             raise ValueError(msg)
         now_text = format_utc_datetime(now)
         lease_text = format_utc_datetime(lease_until)
         if lease_text <= now_text:
             msg = "lease_until must be after now"
             raise ValueError(msg)
+        video_filter = ""
+        params: dict[str, object] = {
+            "status": JobStatus.PENDING.value,
+            "now": now_text,
+        }
+        if video_id is not None:
+            video_filter = " AND video_id = :video_id"
+            params["video_id"] = video_id
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
                 row = connection.execute(
                     "SELECT * FROM jobs WHERE status = :status "
                     "AND available_at <= :now AND attempt_count < max_attempts "
+                    f"{video_filter} "
                     "ORDER BY available_at, created_at, job_id LIMIT 1",
-                    {"status": JobStatus.PENDING.value, "now": now_text},
+                    params,
                 ).fetchone()
                 if row is None:
                     return None
