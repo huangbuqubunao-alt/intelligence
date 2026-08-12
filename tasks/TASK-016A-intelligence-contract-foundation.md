@@ -1,6 +1,6 @@
 # TASK-016A：Intelligence Mode、配置与 Knowledge V2 契约基础
 
-- Status: `IN_REVIEW`
+- Status: `IN_PROGRESS`
 - Assignee: `Codex`
 - Base: assignment prompt 动态冻结
 - Branch: `codex/task-016a-intelligence-contract-foundation`
@@ -9,6 +9,7 @@
 - Reuse decision: `DIRECT` — Pydantic、现有 Config/Domain 契约和 Provider-neutral
   Protocol；不新增依赖，不修改 Schema。
 - Implementation: `codex/task-016a-intelligence-contract-foundation@210dd203e722eabf3453808f490f4afe52139183`
+- Review 1 evidence: `6a564b18a3c91e4366c1b744733910dc5584854b` — `REJECT`，P1：Evidence 时间戳接受非有限值并在 JSON 序列化时破坏成对契约。
 
 ## 用户价值
 

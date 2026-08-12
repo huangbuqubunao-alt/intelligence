@@ -7,7 +7,9 @@
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。
 - 产品负责人已批准 ADR-023 与 TASK-016，并要求以 Local-only 为第一验收里程碑。
-  TASK-016A source `210dd20…` 已完成实现并进入独立审查；016A 未独立审查并整合前不得启动 016B–H。TASK-016
+  TASK-016A Review 1 evidence `6a564b1…` 为 REJECT：非有限 Evidence 时间值会在 JSON
+  序列化时破坏可信成对时间戳。任务已退回最小 Correction；独立复审并整合前不得启动
+  016B–H。TASK-016
   不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包

@@ -125,7 +125,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 | [TASK-015](TASK-015-runtime-composition.md) | 正式 Runtime Composition 与 Local-First Smoke | merge `451766f…`；Maintainer APPROVE，675 tests | DONE | 013；ADR-022 |
 | [TASK-016](TASK-016-intelligence-output.md) | Local / Hybrid / Cloud Intelligence 与中文知识输出 | Codex Orchestrator；Local-only 第一里程碑 | IN_PROGRESS | 015；ADR-023 |
-| [TASK-016A](TASK-016A-intelligence-contract-foundation.md) | Intelligence Mode、配置与 Knowledge V2 契约基础 | Codex Implementer；source `210dd20…` 等待独立 Reviewer | IN_REVIEW | 015；ADR-023 |
+| [TASK-016A](TASK-016A-intelligence-contract-foundation.md) | Intelligence Mode、配置与 Knowledge V2 契约基础 | Review 1 `6a564b1…` REJECT；修复非有限 Evidence 时间戳 | IN_PROGRESS | 015；ADR-023 |
 
 ## 主控分配模板
 
