@@ -2869,6 +2869,19 @@ def test_knowledge_v2_is_provider_neutral_grounded_and_opportunities_may_be_empt
     assert result.action_recommendations == ()
     assert result.evidence_registry.items[0].evidence_id == "e1"
     assert "provider" not in domain_mod.KnowledgeContent.model_fields
+    assert "evidence_registry" not in domain_mod.KnowledgeContent.model_fields
+
+    content_payload = {
+        key: value
+        for key, value in result.model_dump().items()
+        if key not in {"schema_version", "provenance", "evidence_registry"}
+    }
+    content = domain_mod.KnowledgeContent.model_validate(content_payload)
+    assert content.summary_evidence_ids == ("e1",)
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate(
+            {**content_payload, "evidence_registry": result.evidence_registry.model_dump()}
+        )
 
     payload = result.model_dump()
     payload["summary_evidence_ids"] = ("missing",)

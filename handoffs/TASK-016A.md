@@ -211,3 +211,14 @@ Registry 与模型只读引用之间的信任边界。
 - 未解决 P0/P1：`P1-1`。
 - 未运行真实 Provider、Ollama、OpenAI、Key、网络、真实 Vault 或用户数据路径。
 - 本次只追加本 handoff；未修改业务代码、任务状态或其他任务资料，未 merge/push。
+
+## Correction 2 Implementer evidence（2026-08-13）
+
+- 固定起点：Review 2 evidence `2ea00258ec2b1843e268d4ed1ffef03bd6b0347d`。
+- TDD RED：`KnowledgeContent.model_fields` 仍含 `evidence_registry`，目标测试 `1 failed`。
+- 最小修复：模型侧 `KnowledgeContent` 只保留 Evidence ID；可信应用侧
+  `KnowledgeResult` 注入 `EvidenceRegistry` 并统一验证所有引用。
+- 明确边界：Content 额外提交 Registry/excerpt/hash/timestamp 会因 `extra=forbid`
+  拒绝；Result 缺 Registry 或引用未知 ID 均 fail-closed。
+- 最终门禁：contracts `87 passed`、full `687 passed`、mypy、Ruff、locked offline
+  sync、offline build、Correction/完整范围 diff check 均通过。

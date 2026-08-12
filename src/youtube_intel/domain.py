@@ -699,7 +699,6 @@ class KnowledgeContent(_UpdateProtectedAnalysisContract):
     action_recommendations: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
     risks: tuple[AnalysisPoint, ...] = Field(default=(), max_length=10)
     knowledge_graph: KnowledgeGraph
-    evidence_registry: EvidenceRegistry
 
     @field_validator("summary_evidence_ids")
     @classmethod
@@ -710,9 +709,7 @@ class KnowledgeContent(_UpdateProtectedAnalysisContract):
         )
 
     @model_validator(mode="after")
-    def _grounding_and_semantics(self) -> KnowledgeContent:
-        evidence_ids = {item.evidence_id for item in self.evidence_registry.items}
-        all_reference_ids = [*self.summary_evidence_ids]
+    def _semantic_kinds(self) -> KnowledgeContent:
         kind_rules = (
             ("why_it_matters", (self.why_it_matters,), {PointKind.INFERENCE}),
             ("core_points", self.core_points, {PointKind.FACT, PointKind.INFERENCE}),
@@ -733,17 +730,39 @@ class KnowledgeContent(_UpdateProtectedAnalysisContract):
                     allowed = ", ".join(sorted(kind.value for kind in allowed_kinds))
                     msg = f"{field_name} items must have kind in {{{allowed}}}"
                     raise ValueError(msg)
-                all_reference_ids.extend(point.evidence_ids)
-        missing = sorted(set(all_reference_ids) - evidence_ids)
-        if missing:
-            msg = f"knowledge fields reference unknown evidence: {missing}"
-            raise ValueError(msg)
         return self
 
 
 class KnowledgeResult(KnowledgeContent):
     schema_version: Literal["knowledge-result-v2"] = "knowledge-result-v2"
+    evidence_registry: EvidenceRegistry
     provenance: KnowledgeProvenance
+
+    @model_validator(mode="after")
+    def _references_registered_evidence(self) -> KnowledgeResult:
+        evidence_ids = {item.evidence_id for item in self.evidence_registry.items}
+        reference_ids = [*self.summary_evidence_ids]
+        reference_ids.extend(self.why_it_matters.evidence_ids)
+        for points in (
+            self.core_points,
+            self.key_facts,
+            self.important_concepts,
+            self.key_arguments,
+            self.counterpoints,
+            self.product_opportunities,
+            self.business_opportunities,
+            self.actionable_directions,
+            self.hypotheses_to_validate,
+            self.action_recommendations,
+            self.risks,
+        ):
+            for point in points:
+                reference_ids.extend(point.evidence_ids)
+        missing = sorted(set(reference_ids) - evidence_ids)
+        if missing:
+            msg = f"knowledge fields reference unknown evidence: {missing}"
+            raise ValueError(msg)
+        return self
 
 
 class WeeklyKnowledgeSource(_UpdateProtectedAnalysisContract):
