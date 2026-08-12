@@ -56,6 +56,25 @@ local_scoring:
   max_transcript_chars: 30000
   max_description_chars: 4000
 
+# Safe default: local-only never sends transcript or analysis content off-device.
+intelligence:
+  mode: local-only
+
+# Deep analysis may use a stronger local model than fast scoring. The example
+# keeps both identities equal; change model and digest together when overriding.
+local_analysis:
+  model: qwen3:8b
+  base_url: http://127.0.0.1:11434
+  expected_model_digest: sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41
+  temperature: 0.0
+  max_output_tokens: 5000
+  max_transcript_chars: 48000
+  max_description_chars: 4000
+  prompt_version: knowledge-prompt-v2
+  schema_version: knowledge-result-v2
+  sampling_version: knowledge-sampling-v2
+  privacy_version: knowledge-privacy-v2
+
 cloud:
   enabled: false
   provider: openai

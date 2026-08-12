@@ -2675,3 +2675,410 @@ def test_manual_invalid_threshold_and_timezone_error_paths(tmp_path: Path) -> No
     msg2 = str(exc_info2.value)
     assert re.search(r"timezone|IANA", msg2, re.I)
     assert "sk-" not in msg2
+
+
+# ---------------------------------------------------------------------------
+# TASK-016A: intelligence configuration and provider-neutral Knowledge V2
+# ---------------------------------------------------------------------------
+
+
+def _knowledge_evidence(
+    *,
+    evidence_id: str = "e1",
+    source: domain_mod.EvidenceSource = domain_mod.EvidenceSource.TRANSCRIPT_SAMPLE,
+    start_seconds: float | None = None,
+    end_seconds: float | None = None,
+    timestamp_basis: str | None = None,
+) -> domain_mod.KnowledgeEvidence:
+    return domain_mod.KnowledgeEvidence(
+        evidence_id=evidence_id,
+        source=source,
+        excerpt="Verified source excerpt",
+        source_content_hash="a" * 64,
+        start_seconds=start_seconds,
+        end_seconds=end_seconds,
+        timestamp_basis=timestamp_basis,
+    )
+
+
+def _knowledge_provenance(
+    *,
+    requested_mode: domain_mod.IntelligenceMode = domain_mod.IntelligenceMode.LOCAL_ONLY,
+    executed_mode: domain_mod.KnowledgeExecutionMode = domain_mod.KnowledgeExecutionMode.LOCAL,
+    provider: str = "ollama",
+    model: str = "qwen3:8b",
+    model_digest: str | None = MODEL_DIGEST,
+    fallback_reason: domain_mod.KnowledgeFallbackReason | None = None,
+) -> domain_mod.KnowledgeProvenance:
+    return domain_mod.KnowledgeProvenance(
+        requested_mode=requested_mode,
+        executed_mode=executed_mode,
+        fallback_reason=fallback_reason,
+        provider=provider,
+        model=model,
+        model_digest=model_digest,
+        output_language="zh-CN",
+        transcript_content_hash="a" * 64,
+        request_hash="b" * 64,
+    )
+
+
+def _knowledge_result(
+    *,
+    provenance: domain_mod.KnowledgeProvenance | None = None,
+) -> domain_mod.KnowledgeResult:
+    point = domain_mod.AnalysisPoint(
+        text="Grounded product conclusion",
+        kind=domain_mod.PointKind.INFERENCE,
+        evidence_ids=("e1",),
+    )
+    content = domain_mod.KnowledgeContent(
+        one_sentence_summary="一句话总结",
+        summary_evidence_ids=("e1",),
+        why_it_matters=point,
+        core_points=(point,),
+        knowledge_graph=domain_mod.KnowledgeGraph(
+            topics=("AI 产品",),
+            entities=("Example",),
+        ),
+    )
+    return domain_mod.KnowledgeResult(
+        content=content,
+        evidence_registry=domain_mod.EvidenceRegistry(
+            items=(_knowledge_evidence(),),
+        ),
+        provenance=provenance or _knowledge_provenance(),
+    )
+
+
+def test_intelligence_config_defaults_to_local_only_and_resolves_local_identity() -> None:
+    settings = config_mod.AppSettings.model_validate(_minimal_settings_dict())
+
+    assert settings.intelligence.mode is domain_mod.IntelligenceMode.LOCAL_ONLY
+    assert settings.cloud.enabled is False
+    assert settings.local_analysis.model == settings.local_scoring.model
+    assert settings.local_analysis.base_url == settings.local_scoring.base_url
+    assert (
+        settings.local_analysis.expected_model_digest
+        == settings.local_scoring.expected_model_digest
+    )
+    assert settings.local_analysis.model != ""
+
+    example = load_settings(SETTINGS_EXAMPLE)
+    assert example.intelligence.mode is domain_mod.IntelligenceMode.LOCAL_ONLY
+    assert example.local_analysis.model == "qwen3:8b"
+    assert example.local_analysis.expected_model_digest == MODEL_DIGEST
+
+
+def test_local_analysis_can_diverge_from_scoring_with_concrete_cache_identity() -> None:
+    analysis_digest = "sha256:" + "c" * 64
+    settings = config_mod.AppSettings.model_validate(
+        _minimal_settings_dict(
+            intelligence={"mode": "local-only"},
+            local_analysis={
+                "model": "qwen3:14b",
+                "expected_model_digest": analysis_digest,
+                "max_output_tokens": 5000,
+            },
+        )
+    )
+
+    assert settings.local_scoring.model == "qwen3:8b"
+    assert settings.local_analysis.model == "qwen3:14b"
+    assert settings.local_analysis.expected_model_digest == analysis_digest
+    assert settings.local_analysis.base_url == settings.local_scoring.base_url
+
+
+def test_legacy_cloud_mapping_is_explicit_and_never_silently_expands_egress() -> None:
+    legacy_cloud = config_mod.AppSettings.model_validate(
+        _minimal_settings_dict(
+            cloud={"enabled": True, "model": "gpt-4.1-mini"},
+        )
+    )
+    assert legacy_cloud.intelligence.mode is domain_mod.IntelligenceMode.HYBRID
+
+    with pytest.raises(ValidationError, match="cloud.enabled"):
+        config_mod.AppSettings.model_validate(
+            _minimal_settings_dict(
+                intelligence={"mode": "local-only"},
+                cloud={"enabled": True, "model": "gpt-4.1-mini"},
+            )
+        )
+    with pytest.raises(ValidationError, match="cloud.enabled"):
+        config_mod.AppSettings.model_validate(
+            _minimal_settings_dict(
+                intelligence={"mode": "hybrid"},
+                cloud={"enabled": False},
+            )
+        )
+    with pytest.raises(ValidationError):
+        config_mod.AppSettings.model_validate(
+            _minimal_settings_dict(intelligence={"mode": "LOCAL_ONLY"})
+        )
+
+
+def test_config_contracts_reject_unchecked_model_copy_updates() -> None:
+    settings = config_mod.AppSettings.model_validate(_minimal_settings_dict())
+    for contract in (
+        settings,
+        settings.intelligence,
+        settings.local_analysis,
+    ):
+        with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+            contract.model_copy(update={})
+        assert contract.model_copy() == contract
+
+
+def test_named_overrides_revalidate_and_keep_legacy_cloud_mapping_unambiguous(
+    tmp_path: Path,
+) -> None:
+    path = _write_settings(tmp_path)
+    cloud_model = config_mod.CloudSettings(enabled=True, model="gpt-4.1-mini")
+
+    by_mode = load_settings(
+        path,
+        overrides=config_mod.SettingsOverrides(
+            intelligence=config_mod.IntelligenceSettings(mode="hybrid"),
+            cloud=cloud_model,
+        ),
+    )
+    assert by_mode.intelligence.mode is domain_mod.IntelligenceMode.HYBRID
+    assert by_mode.cloud.enabled is True
+
+    legacy_only = load_settings(
+        path,
+        overrides=config_mod.SettingsOverrides(cloud=cloud_model),
+    )
+    assert legacy_only.intelligence.mode is domain_mod.IntelligenceMode.HYBRID
+    assert legacy_only.cloud.enabled is True
+
+    with pytest.raises(ValidationError, match="cloud.enabled"):
+        load_settings(
+            path,
+            overrides=config_mod.SettingsOverrides(
+                intelligence=config_mod.IntelligenceSettings(mode="local-only"),
+                cloud=cloud_model,
+            ),
+        )
+
+
+def test_knowledge_v2_is_provider_neutral_grounded_and_opportunities_may_be_empty() -> None:
+    result = _knowledge_result()
+
+    assert result.schema_version == "knowledge-result-v2"
+    assert result.provenance.executed_mode is domain_mod.KnowledgeExecutionMode.LOCAL
+    assert result.content.product_opportunities == ()
+    assert result.content.business_opportunities == ()
+    assert result.content.action_recommendations == ()
+    assert result.evidence_registry.items[0].evidence_id == "e1"
+    assert "provider" not in domain_mod.KnowledgeContent.model_fields
+    assert "evidence_registry" not in domain_mod.KnowledgeContent.model_fields
+
+    content_payload = result.content.model_dump()
+    content = domain_mod.KnowledgeContent.model_validate(content_payload)
+    assert content.summary_evidence_ids == ("e1",)
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate(
+            {**content_payload, "evidence_registry": result.evidence_registry.model_dump()}
+        )
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate(result)
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeContent.model_validate_json(result.model_dump_json())
+    assert domain_mod.KnowledgeContent.model_validate(result.content) is result.content
+
+    payload = result.model_dump()
+    payload["content"]["summary_evidence_ids"] = ("missing",)
+    with pytest.raises(ValidationError, match="unknown evidence"):
+        domain_mod.KnowledgeResult.model_validate(payload)
+
+
+def test_knowledge_v2_provenance_cross_validates_mode_model_and_versions() -> None:
+    local = _knowledge_provenance()
+    assert local.schema_version == "knowledge-result-v2"
+    assert local.prompt_version == "knowledge-prompt-v2"
+    assert local.sampling_version == "knowledge-sampling-v2"
+    assert local.privacy_version == "knowledge-privacy-v2"
+
+    with pytest.raises(ValidationError, match="local-only"):
+        _knowledge_provenance(
+            executed_mode=domain_mod.KnowledgeExecutionMode.CLOUD,
+            provider="openai",
+            model="gpt-4.1-mini",
+            model_digest=None,
+        )
+    with pytest.raises(ValidationError, match="model_digest"):
+        _knowledge_provenance(model_digest=None)
+
+    cloud = _knowledge_provenance(
+        requested_mode=domain_mod.IntelligenceMode.CLOUD,
+        executed_mode=domain_mod.KnowledgeExecutionMode.CLOUD,
+        provider="openai",
+        model="gpt-4.1-mini",
+        model_digest=None,
+    )
+    assert cloud.executed_mode is domain_mod.KnowledgeExecutionMode.CLOUD
+
+    hybrid_fallback = _knowledge_provenance(
+        requested_mode=domain_mod.IntelligenceMode.HYBRID,
+        fallback_reason=domain_mod.KnowledgeFallbackReason.PROVIDER_UNAVAILABLE,
+    )
+    assert hybrid_fallback.fallback_reason is (
+        domain_mod.KnowledgeFallbackReason.PROVIDER_UNAVAILABLE
+    )
+    with pytest.raises(ValidationError, match="fallback_reason"):
+        _knowledge_provenance(requested_mode=domain_mod.IntelligenceMode.HYBRID)
+    with pytest.raises(ValidationError, match="fallback_reason"):
+        _knowledge_provenance(
+            fallback_reason=domain_mod.KnowledgeFallbackReason.PROVIDER_TIMEOUT,
+        )
+
+
+def test_knowledge_evidence_timestamps_are_registered_and_never_half_present() -> None:
+    timed = _knowledge_evidence(
+        start_seconds=10.0,
+        end_seconds=12.5,
+        timestamp_basis="timed-subtitle",
+    )
+    assert timed.start_seconds == 10.0
+    assert timed.end_seconds == 12.5
+
+    with pytest.raises(ValidationError, match="together"):
+        _knowledge_evidence(start_seconds=10.0, timestamp_basis="timed-subtitle")
+    with pytest.raises(ValidationError, match="transcript"):
+        _knowledge_evidence(
+            source=domain_mod.EvidenceSource.TITLE,
+            start_seconds=10.0,
+            end_seconds=12.5,
+            timestamp_basis="timed-subtitle",
+        )
+    with pytest.raises(ValidationError, match="end_seconds"):
+        _knowledge_evidence(
+            start_seconds=12.5,
+            end_seconds=10.0,
+            timestamp_basis="timed-subtitle",
+        )
+    with pytest.raises(ValidationError, match="timed-subtitle"):
+        _knowledge_evidence(start_seconds=10.0, end_seconds=12.5)
+
+
+def test_knowledge_evidence_rejects_non_finite_timestamps_at_all_boundaries() -> None:
+    for field_name in ("start_seconds", "end_seconds"):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            values = {
+                "start_seconds": 10.0,
+                "end_seconds": 12.5,
+                field_name: value,
+            }
+            with pytest.raises(ValidationError):
+                _knowledge_evidence(
+                    start_seconds=values["start_seconds"],
+                    end_seconds=values["end_seconds"],
+                    timestamp_basis="timed-subtitle",
+                )
+
+    overflow_json = (
+        '{"evidence_id":"e1","source":"transcript_sample",'
+        '"excerpt":"verified","source_content_hash":"'
+        + "a" * 64
+        + '","start_seconds":0.0,"end_seconds":1e999,'
+        '"timestamp_basis":"timed-subtitle"}'
+    )
+    with pytest.raises(ValidationError):
+        domain_mod.KnowledgeEvidence.model_validate_json(overflow_json)
+
+    valid = _knowledge_evidence(
+        start_seconds=10.0,
+        end_seconds=12.5,
+        timestamp_basis="timed-subtitle",
+    )
+    restored = domain_mod.KnowledgeEvidence.model_validate_json(valid.model_dump_json())
+    assert restored == valid
+
+
+def test_weekly_knowledge_v2_is_provider_neutral_and_source_grounded() -> None:
+    source = domain_mod.WeeklyKnowledgeSource(
+        video_id="video-1",
+        evidence_ids=("e1",),
+    )
+    conclusion = domain_mod.WeeklyKnowledgePoint(
+        text="本周产品方向正在收敛",
+        sources=(source,),
+    )
+    weekly = domain_mod.WeeklyKnowledgeResult(
+        key_conclusions=(conclusion,),
+        repeated_themes=(conclusion,),
+        next_week_questions=("下周需要验证什么？",),
+        provenance=domain_mod.WeeklyKnowledgeProvenance(
+            requested_mode=domain_mod.IntelligenceMode.LOCAL_ONLY,
+            executed_mode=domain_mod.KnowledgeExecutionMode.LOCAL,
+            provider="ollama",
+            model="qwen3:8b",
+            model_digest=MODEL_DIGEST,
+            output_language="zh-CN",
+            input_knowledge_hash="c" * 64,
+            request_hash="d" * 64,
+        ),
+    )
+
+    assert weekly.schema_version == "weekly-knowledge-result-v2"
+    assert weekly.product_opportunities == ()
+    assert weekly.business_opportunities == ()
+    assert weekly.key_conclusions[0].sources[0].video_id == "video-1"
+    with pytest.raises(ValidationError, match="unique"):
+        domain_mod.WeeklyKnowledgeSource(
+            video_id="video-1",
+            evidence_ids=("e1", "e1"),
+        )
+
+
+def test_knowledge_v2_contracts_reject_unchecked_updates() -> None:
+    result = _knowledge_result()
+    source = domain_mod.WeeklyKnowledgeSource(video_id="video-1", evidence_ids=("e1",))
+    weekly_point = domain_mod.WeeklyKnowledgePoint(text="Conclusion", sources=(source,))
+    weekly = domain_mod.WeeklyKnowledgeResult(
+        key_conclusions=(weekly_point,),
+        provenance=domain_mod.WeeklyKnowledgeProvenance(
+            requested_mode=domain_mod.IntelligenceMode.CLOUD,
+            executed_mode=domain_mod.KnowledgeExecutionMode.CLOUD,
+            provider="openai",
+            model="gpt-4.1-mini",
+            model_digest=None,
+            output_language="zh-CN",
+            input_knowledge_hash="c" * 64,
+            request_hash="d" * 64,
+        ),
+    )
+    for contract in (result, result.provenance, result.evidence_registry, weekly):
+        with pytest.raises(ValueError, match=r"model_copy\(update=\.\.\.\) is disabled"):
+            contract.model_copy(update={})
+
+
+def test_weekly_knowledge_v2_rejects_ambiguous_routing_provenance() -> None:
+    common = {
+        "provider": "ollama",
+        "model": "qwen3:8b",
+        "model_digest": MODEL_DIGEST,
+        "output_language": "zh-CN",
+        "input_knowledge_hash": "c" * 64,
+        "request_hash": "d" * 64,
+    }
+    with pytest.raises(ValidationError, match="local-only"):
+        domain_mod.WeeklyKnowledgeProvenance(
+            requested_mode=domain_mod.IntelligenceMode.LOCAL_ONLY,
+            executed_mode=domain_mod.KnowledgeExecutionMode.CLOUD,
+            **common,
+        )
+    with pytest.raises(ValidationError, match="fallback_reason"):
+        domain_mod.WeeklyKnowledgeProvenance(
+            requested_mode=domain_mod.IntelligenceMode.HYBRID,
+            executed_mode=domain_mod.KnowledgeExecutionMode.LOCAL,
+            **common,
+        )
+    hybrid = domain_mod.WeeklyKnowledgeProvenance(
+        requested_mode=domain_mod.IntelligenceMode.HYBRID,
+        executed_mode=domain_mod.KnowledgeExecutionMode.LOCAL,
+        fallback_reason=domain_mod.KnowledgeFallbackReason.BUDGET_EXHAUSTED,
+        **common,
+    )
+    assert hybrid.fallback_reason is domain_mod.KnowledgeFallbackReason.BUDGET_EXHAUSTED
