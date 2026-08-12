@@ -8,8 +8,9 @@
   Cloud-off 知识笔记为空的产品断层。
 - 产品负责人已批准 ADR-023 与 TASK-016，并要求以 Local-only 为第一验收里程碑。
   TASK-016A Review 1 evidence `6a564b1…` 为 REJECT：非有限 Evidence 时间值会在 JSON
-  序列化时破坏可信成对时间戳。Correction 1 `26a74cd…` 已完成并进入独立 Reviewer 2；
-  复审并整合前不得启动 016B–H。TASK-016
+  序列化时破坏可信成对时间戳；Correction 1 已关闭该问题。Review 2 evidence
+  `2ea0025…` 再次 REJECT：模型侧 Content 可自建 Evidence Registry，违反应用拥有证据、
+  模型只引用 ID 的信任边界。任务已退回 Correction 2；复审并整合前不得启动 016B–H。TASK-016
   不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
