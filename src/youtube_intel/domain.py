@@ -384,7 +384,27 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
         "youtube",
     }
 )
-_ScoringScript: TypeAlias = Literal["Han", "Latin", "other"]
+_ScoringScript: TypeAlias = Literal[
+    "Han",
+    "Latin",
+    "Hiragana",
+    "Katakana",
+    "Hangul",
+    "Cyrillic",
+    "Arabic",
+    "Other",
+]
+_SCORING_NON_TARGET_SCRIPTS: Final[frozenset[_ScoringScript]] = frozenset(
+    {"Hiragana", "Katakana", "Hangul", "Cyrillic", "Arabic"}
+)
+_SCORING_NAMED_SCRIPTS: Final[tuple[_ScoringScript, ...]] = (
+    "Latin",
+    "Hiragana",
+    "Katakana",
+    "Hangul",
+    "Cyrillic",
+    "Arabic",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,9 +428,12 @@ def _scoring_character_script(character: str) -> _ScoringScript:
         or 0x20000 <= codepoint <= 0x323AF
     ):
         return "Han"
-    if character.isalpha() and "LATIN" in unicodedata.name(character, ""):
-        return "Latin"
-    return "other"
+    if character.isalpha():
+        unicode_name = unicodedata.name(character, "")
+        for script in _SCORING_NAMED_SCRIPTS:
+            if script.upper() in unicode_name:
+                return script
+    return "Other"
 
 
 def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
@@ -433,11 +456,24 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
     return tuple(spans)
 
 
+def _is_technical_identifier(value: str) -> bool:
+    folded = value.casefold()
+    if folded in _SCORING_TECHNICAL_TERMS:
+        return True
+    if folded.endswith("s") and folded[:-1] in _SCORING_TECHNICAL_TERMS:
+        return True
+    if len(value) > 1 and value.isupper():
+        return True
+    if any(character.isupper() for character in value[1:]):
+        return True
+    return value.istitle()
+
+
 def _has_nontechnical_latin_text(spans: Sequence[_ScoringScriptSpan]) -> bool:
     latin_tokens = tuple(
-        span.text.casefold() for span in spans if span.script == "Latin"
+        span.text for span in spans if span.script == "Latin"
     )
-    return any(token not in _SCORING_TECHNICAL_TERMS for token in latin_tokens)
+    return any(not _is_technical_identifier(token) for token in latin_tokens)
 
 
 def detect_scoring_language_violation(
@@ -449,10 +485,18 @@ def detect_scoring_language_violation(
     spans = _scoring_script_spans(reason)
     has_han = any(span.script == "Han" for span in spans)
     has_latin = _has_nontechnical_latin_text(spans)
-    if has_han == has_latin:
+    has_other_language_script = any(
+        span.script in _SCORING_NON_TARGET_SCRIPTS for span in spans
+    )
+    if output_language == "zh-CN":
+        has_target_evidence = has_han
+        has_conflicting_evidence = has_latin or has_other_language_script
+    else:
+        has_target_evidence = has_latin
+        has_conflicting_evidence = has_han or has_other_language_script
+    if has_target_evidence == has_conflicting_evidence:
         return ScoringLanguageValidation.UNCERTAIN
-    detected_language: ScoringOutputLanguage = "zh-CN" if has_han else "en"
-    if detected_language == output_language:
+    if has_target_evidence:
         return ScoringLanguageValidation.VALID
     return ScoringLanguageValidation.INVALID
 

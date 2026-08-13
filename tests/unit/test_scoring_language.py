@@ -113,6 +113,16 @@ def test_output_language_changes_request_hash() -> None:
             ScoringLanguageValidation.VALID,
         ),
         ("en", "API SDK LLM", ScoringLanguageValidation.UNCERTAIN),
+        (
+            "zh-CN",
+            "この動画はAPIの製品ワークフローを詳しく説明します。",
+            ScoringLanguageValidation.UNCERTAIN,
+        ),
+        ("zh-CN", "中文かな", ScoringLanguageValidation.UNCERTAIN),
+        ("zh-CN", "中文カナ", ScoringLanguageValidation.UNCERTAIN),
+        ("zh-CN", "中文한글", ScoringLanguageValidation.UNCERTAIN),
+        ("zh-CN", "中文русский", ScoringLanguageValidation.UNCERTAIN),
+        ("zh-CN", "中文العربية", ScoringLanguageValidation.UNCERTAIN),
     ],
 )
 def test_language_violation_detector_returns_three_state_result(
@@ -176,6 +186,40 @@ def test_score_result_rejects_obvious_wrong_language(
             prompt_version="scoring-prompt-v2",
             request_hash="a" * 64,
             output_language=output_language,
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "REST CUDA NLP CNN",
+        "APIs SDKs LLMs GPTs MLXs",
+        "OpenAI PyTorch TensorFlow Kubernetes",
+        "この動画はAPIの製品ワークフローを詳しく説明します。",
+    ],
+)
+def test_technical_identifiers_and_non_chinese_scripts_cannot_prove_language(
+    reason: str,
+) -> None:
+    assert (
+        detect_scoring_language_violation(
+            reason,
+            "zh-CN" if "動画" in reason else "en",
+        )
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="zh-CN" if "動画" in reason else "en",
         )
 
 
