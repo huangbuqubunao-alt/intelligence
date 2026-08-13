@@ -498,7 +498,7 @@ _ENTITY_INTERNAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
     {"amod", "appos", "compound", "det", "flat", "pobj", "prep"}
 )
 _NATURAL_NOMINAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
-    {"acl", "advmod", "amod", "det", "nummod", "poss", "prep", "relcl"}
+    {"acl", "advmod", "det", "nummod", "poss", "prep", "relcl"}
 )
 
 
@@ -507,31 +507,35 @@ def _has_natural_dependency_structure(tokens: Sequence[_DependencyToken]) -> boo
 
 
 def _coordinated_predicate_has_subject_context(token: _DependencyToken) -> bool:
-    if token.dep_ != "conj" or token.head.pos_ not in {"NOUN", "PROPN"}:
+    if token.dep_ != "conj" or token.head.pos_ not in {"INTJ", "NOUN", "PROPN"}:
         return False
     head_children = tuple(token.head.children)
     return any(child.dep_ == "cc" for child in head_children) and any(
         child is not token
         and child.pos_ in {"NOUN", "PROPN"}
-        and child.dep_ in {"compound", "nsubj"}
+        and child.dep_ in {"compound", "conj", "nsubj"}
         for child in head_children
     )
 
 
 def _nominal_argument_has_natural_structure(token: _DependencyToken) -> bool:
-    for child in token.children:
+    children = tuple(token.children)
+    for child in children:
         if child.dep_ in _NATURAL_NOMINAL_DEPENDENCIES:
             return True
-        if child.dep_ in {"compound", "flat"} and _nominal_argument_has_natural_structure(
-            child
-        ):
-            return True
+    modifiers = {child.dep_ for child in children}
+    related = (token, *children)
+    if (
+        {"amod", "compound"} <= modifiers
+        and all(item.ent_iob_ == "O" for item in related)
+    ):
+        return True
     return False
 
 
 def _nominal_argument_is_named_entity_structure(token: _DependencyToken) -> bool:
     related = (token, *tuple(token.children))
-    if token.ent_iob_ != "O":
+    if any(item.ent_iob_ != "O" for item in related):
         return all(
             child is token
             or child.dep_ in _ENTITY_INTERNAL_DEPENDENCIES

@@ -633,6 +633,59 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 14 Correction Report。
 
+## Round 15 Correction（2026-08-13）
+
+### Root cause 与 entity evidence boundary
+
+- Round 14 仍把任意 `amod` 当作 nominal natural-language evidence；因此固定本地
+  parser 将 `General Electric` 解析为 `general/ADJ/amod -> electric/NOUN/dobj`
+  时，纯 entity-only phrase 可以进入 `VALID`。
+- Round 15 不再让单独 `amod+noun` 或嵌套在 `compound` 下的 adjective 提供自然
+  语言证明。只有同一直接论元同时包含 adjective 与 compound、且论元及其直接子节点
+  均无 NER entity 标记时，该结构才能作为 nominal natural evidence；含 NER 的
+  `amod/compound` 子树保持 entity-like。
+- 并列实体列表作为 subject、后接完整 verbal predicate 的既有合法句，通过通用
+  `cc + nominal conj + verbal conj` 依存结构识别；未加入品牌、公司、产品、技术
+  白名单，也未增加大小写、token 数量/长度/位置或词尾规则。
+- 保持单次 `casefold()` parser、三态保守验证与 parser 不确定即 `UNCERTAIN`。
+  `Redis stores data` 在固定 parser 下没有 `VERB`，因此有明确回归固定为
+  `UNCERTAIN`；完整的 `Redis stores data and improves application performance`
+  及其原始/lowercase/uppercase 形式全部为 `VALID`。
+
+### Adversarial、Repair、Artifact 与 Cache evidence
+
+- 新增八个结构型 entity-only 攻击：General Electric、National Geographic、Meta
+  Platforms、Advanced Micro Devices、Red Bull、Whole Foods Market、General
+  Motors、Federal Express；连同 Jack in the Box、The Home Depot、Salesforce 与
+  既有 identifier 矩阵，全部为 `UNCERTAIN`。
+- Docker containers、Redis 完整句、OpenAI develops、The system relies 四类合法
+  英文及规定大小写变体保持 `VALID`。
+- Fake Ollama 证明 General Electric primary 必须进入唯一一次 repair；repair 再
+  失败返回 `INVALID_RESPONSE`。Repository-backed 回归确认无 `ScoreResult`、
+  `SCORING_RAW`、`SCORING_STRUCTURED`、成功 `response_artifact_id` 或可恢复成功
+  cache；repair 成功时正式 raw Artifact 只包含合法 repair response。
+- P1-2 `ScoreResult` contract、P1-3 cache provenance、TASK-016C、Cloud、Router、
+  Weekly production、DB Schema 与 migration 均未修改。
+
+### TDD 与 Full gates
+
+- RED：`11 failed, 158 passed`，覆盖八个 Domain entity-only 绕过、Ollama 未 repair、
+  失败响应正式持久化及成功 repair 错存 primary。
+- Focused Domain/Ollama：`169 passed`。
+- `uv lock --check`：PASS（107 packages）。
+- `uv sync --locked --offline`：PASS（107 resolved / 84 checked，无下载，锁文件未变）。
+- Full pytest：`853 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未运行网络、真实 Provider、Cloud、Vault、TASK-016C、merge、push 或 tag。
+
+### Round 15 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 15 Correction Report。
+
 ## 主控验收
 
 - Orchestrator：

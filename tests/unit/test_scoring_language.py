@@ -271,6 +271,14 @@ def test_bare_entity_arguments_do_not_become_language_evidence(reason: str) -> N
 @pytest.mark.parametrize(
     "reason",
     [
+        "Amazon Connect General Electric",
+        "Amazon Connect National Geographic",
+        "Amazon Connect Meta Platforms",
+        "Amazon Connect Advanced Micro Devices",
+        "Amazon Connect Red Bull",
+        "Amazon Connect Whole Foods Market",
+        "Amazon Connect General Motors",
+        "Amazon Connect Federal Express",
         "Amazon Connect Jack in the Box",
         "Amazon Connect The Home Depot",
         "Amazon Connect The North Face",
@@ -389,6 +397,27 @@ def test_technical_entity_with_english_relation_structure_is_valid(
         output_language="en",
     )
     assert result.reason == reason
+
+
+def test_parser_ambiguous_short_clause_remains_uncertain() -> None:
+    reason = "Redis stores data"
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="en",
+        )
 
 
 @pytest.mark.parametrize(
