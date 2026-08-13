@@ -123,7 +123,7 @@ class KnowledgeSink:
 | `DiscoveryCursor` | `channel_id` | `last_checked_at`、`latest_published_at`、`latest_video_id`、`provider_cursor` |
 | `DiscoveryBatch` | `channel_id`、`video_ids`、`next_cursor`、`call` | `video_ids` 去重并保持 Provider 顺序；只有完整保存批次后才能推进 `next_cursor` |
 | `TranscriptSample` | `head`、`body`、`tail`、`selected_char_count`、`source_content_hash`、`sampling_version` | 不可变；三段不重叠，版本固定为 `sampling-v1` |
-| `ScoringInput` | `video`、`sample`、`transcript_content_hash`、`language`、`request_hash` | `sample.source_content_hash` 必须等于完整规范文本哈希；入选元数据的稳定顺序见 ADR-007 L-06 |
+| `ScoringInput` | `video`、`sample`、`transcript_content_hash`、`language`、`output_language`、`request_hash` | `sample.source_content_hash` 必须等于完整规范文本哈希；`output_language` 仅为 `zh-CN | en` 并进入 request identity；入选元数据的稳定顺序见 ADR-007 L-06 |
 | `ScoringDecision` | `threshold`、`final_should_summarize`、`model_disagrees` | 最终值严格由 `score >= threshold` 推导，不覆盖模型建议 |
 | `ScoringOutcome` | `result`、`decision`、`call` | `result` 保留模型原始 `should_summarize`；`call` 为对应评分调用元数据 |
 | `AnalysisInput` | `video`、`transcript_text`、`transcript_content_hash`、`score`、`language`、`request_hash` | 文本必须已通过云端长度、隐私和预算策略 |
@@ -181,6 +181,7 @@ Provider 调用元数据属于 `TranscriptReady.call` / `TranscriptionRequired.c
 - `should_summarize`。
 - 可选 `dimensions`，字段固定为 `technical`、`business`、`product`、`originality`、`practicality`、`industry_impact`；每项为 `0..10` 或缺省。
 - `provider`、`model`、`prompt_version`、`request_hash`。
+- `output_language`：可信应用上下文写入的 `zh-CN | en`，必须与 `reason` 及当前配置一致。
 
 阈值判断由应用策略完成，不能完全信任模型给出的 `should_summarize`。两者不一致时记录诊断，并以配置策略为准。
 
@@ -403,6 +404,10 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 - `ScoreResult.should_summarize` 是模型建议；`ScoringDecision.final_should_summarize`
   必须由阈值策略决定，并记录 `model_disagrees`。评分阶段在同一事务写入原始/结构化
   Artifact、Provider call、`videos.score` 与最终 `videos.should_summarize`。
+- `general.output_language` 进入 `ScoringInput`、Prompt、request hash、结构化
+  `ScoreResult` 与恢复 provenance。`zh-CN` 的 `reason` 使用简体中文（可保留英文
+  技术名词），`en` 使用英文；明显整段错语种触发既有一次 repair，仍不合规则
+  fail-closed。旧 Artifact 缺少该身份时保留审计但不可恢复为当前结果。
 - 默认 `temperature=0.0`、`max_output_tokens=1200`、`max_transcript_chars=30000`，
   最小长度为 3；`max_description_chars=4000`，范围 0..20000。完整哈希维度、Prompt/
   Schema 版本、一次格式修复和错误映射以 ADR-007 L-05、L-06、L-09 为准。

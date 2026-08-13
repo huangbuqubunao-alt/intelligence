@@ -1,6 +1,6 @@
 {
   "score": 8.5,
-  "reason": "Explains a concrete product strategy with useful trade-offs.",
+  "reason": "This response explains a concrete product strategy with useful trade-offs.",
   "topics": ["product strategy", "experimentation"],
   "should_summarize": true,
   "dimensions": {

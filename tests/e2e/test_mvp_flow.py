@@ -175,19 +175,22 @@ class _ScoringProvider:
         video_id = getattr(scoring_input, "video").video_id
         score = self._scores[video_id]
         self._raw = (
-            '{"score":' + str(score) + ',"reason":"offline fixture",'
+            '{"score":'
+            + str(score)
+            + ',"reason":"This offline fixture explains service-flow recovery behavior.",'
             '"topics":["product"],"should_summarize":true}'
         )
         return ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=score,
-            reason="Offline fixture score for the service-flow acceptance test.",
+            reason="This offline fixture explains service-flow recovery behavior.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=getattr(scoring_input, "request_hash"),
+            output_language=getattr(scoring_input, "output_language"),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
@@ -564,7 +567,12 @@ class _OfflineMvpFlow:
             ),
             artifact_root=self.data_root,
             clock=lambda: NOW,
-        ).score(video=self.videos[video_id], transcript_text=text, language=transcript.language)
+        ).score(
+            video=self.videos[video_id],
+            transcript_text=text,
+            language=transcript.language,
+            output_language="en",
+        )
 
     def _analysis_stage(self, job: object, video: object) -> object | None:
         video_id = getattr(video, "video_id")

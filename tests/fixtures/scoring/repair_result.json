@@ -1,6 +1,6 @@
 {
   "score": 7.5,
-  "reason": "The repair response is valid structured JSON.",
+  "reason": "The repair response clearly explains how users apply the structured result.",
   "topics": ["repair"],
   "should_summarize": false
 }

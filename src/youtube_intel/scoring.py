@@ -27,9 +27,12 @@ from youtube_intel.domain import (
     ScoringDecision,
     ScoringInput,
     ScoringOutcome,
+    ScoringOutputLanguage,
     ScoringProvider,
     TranscriptSample,
     VideoMetadata,
+    validate_score_result,
+    validate_score_result_json,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -46,12 +49,12 @@ from youtube_intel.state import (
     build_provider_request_hash,
 )
 
-PROMPT_VERSION: Final = "scoring-prompt-v1"
-SCHEMA_VERSION: Final = "score-result-v1"
+PROMPT_VERSION: Final = "scoring-prompt-v2"
+SCHEMA_VERSION: Final = "score-result-v2"
 SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"
-_RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v1"
-_STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v1"
+_RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
+_STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
 _MAX_PERSISTED_ARTIFACT_BYTES: Final = 1_000_000
 _RECOVERY_PRIMARY_ARTIFACT_SUFFIX: Final = "recovery-primary"
@@ -74,10 +77,12 @@ class InMemoryScoringCache:
         self._results: dict[str, ScoreResult] = {}
 
     def get(self, request_hash: str) -> ScoreResult | None:
-        return self._results.get(request_hash)
+        result = self._results.get(request_hash)
+        return None if result is None else validate_score_result(result)
 
     def put(self, result: ScoreResult) -> None:
-        self._results[result.request_hash] = result
+        trusted = validate_score_result(result)
+        self._results[trusted.request_hash] = trusted
 
 
 class _RawResponseScoringProvider(Protocol):
@@ -168,6 +173,10 @@ class ScoringPersistenceError(Exception):
         self.error = error
 
 
+class _ScoringCacheMiss(Exception):
+    """A verified cache entry is stale and must not be returned."""
+
+
 def _raise_sanitized_persistence_error(error: AppError) -> NoReturn:
     """Raise only after provider payloads and artifact paths left the traceback."""
 
@@ -196,6 +205,7 @@ def _normalized_scoring_input_hash(
     video: VideoMetadata,
     sample: TranscriptSample,
     language: str,
+    output_language: ScoringOutputLanguage,
     settings: LocalScoringSettings,
 ) -> str:
     return _sha256_text(
@@ -220,6 +230,7 @@ def _normalized_scoring_input_hash(
                     "sampling_version": sample.sampling_version,
                 },
                 "language": language,
+                "output_language": output_language,
                 "model": settings.model,
                 "temperature": settings.temperature,
                 "max_output_tokens": settings.max_output_tokens,
@@ -272,6 +283,7 @@ def build_scoring_input(
     video: VideoMetadata,
     transcript_text: str,
     language: str,
+    output_language: ScoringOutputLanguage,
     settings: LocalScoringSettings,
 ) -> ScoringInput:
     """Build one versioned scoring input and its provider-call cache key."""
@@ -288,6 +300,7 @@ def build_scoring_input(
         video=video,
         sample=sample,
         language=language,
+        output_language=output_language,
         settings=settings,
     )
     request_hash = build_provider_request_hash(
@@ -303,6 +316,7 @@ def build_scoring_input(
         sample=sample,
         transcript_content_hash=sample.source_content_hash,
         language=language,
+        output_language=output_language,
         request_hash=request_hash,
     )
 
@@ -334,24 +348,35 @@ class ScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         scoring_input = build_scoring_input(
             video=video,
             transcript_text=transcript_text,
             language=language,
+            output_language=output_language,
             settings=self._settings,
         )
         started_at = self._clock()
         cached = self._cache.get(scoring_input.request_hash)
         diagnostics: list[DiagnosticEntry] = []
         if cached is None:
-            result = self._provider.score(scoring_input)
+            result = validate_score_result(self._provider.score(scoring_input))
             if result.request_hash != scoring_input.request_hash:
                 msg = "scoring provider returned a result for a different request"
                 raise ValueError(msg)
+            if result.output_language != scoring_input.output_language:
+                msg = "scoring provider returned a result for a different output language"
+                raise ValueError(msg)
             self._cache.put(result)
         else:
-            result = cached
+            result = validate_score_result(cached)
+            if result.request_hash != scoring_input.request_hash:
+                msg = "cached scoring result belongs to a different request"
+                raise ValueError(msg)
+            if result.output_language != scoring_input.output_language:
+                msg = "cached scoring result has a different output language"
+                raise ValueError(msg)
             diagnostics.append(
                 DiagnosticEntry(
                     code="CACHE_HIT",
@@ -421,6 +446,7 @@ class RepositoryBackedScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         failure: AppError | None = None
         try:
@@ -428,6 +454,7 @@ class RepositoryBackedScoringService:
                 video=video,
                 transcript_text=transcript_text,
                 language=language,
+                output_language=output_language,
             )
         except ScoringPersistenceError as error:
             failure = error.error
@@ -442,6 +469,7 @@ class RepositoryBackedScoringService:
         del video
         del transcript_text
         del language
+        del output_language
         _raise_sanitized_persistence_error(
             failure
             if failure is not None
@@ -459,11 +487,13 @@ class RepositoryBackedScoringService:
         video: VideoMetadata,
         transcript_text: str,
         language: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoringOutcome:
         scoring_input = build_scoring_input(
             video=video,
             transcript_text=transcript_text,
             language=language,
+            output_language=output_language,
             settings=self._settings,
         )
         now = self._clock()
@@ -472,15 +502,34 @@ class RepositoryBackedScoringService:
             request_hash=request.request_hash,
             video_id=video.video_id,
         )
+        if self._provider_call_version_mismatch(previous_call, request):
+            assert previous_call is not None
+            return self._recompute_stale_cache(
+                scoring_input=scoring_input,
+                original_request=request,
+                stale_call=previous_call,
+                now=now,
+                video_id=video.video_id,
+            )
         recovery_required = self._is_recovery_required(previous_call, request)
         reservation = self._reserve(request, now=now, video_id=video.video_id)
         if not reservation.acquired:
             if reservation.record.status is ProviderCallStatus.SUCCEEDED:
-                result = self._load_verified_cached_result(
-                    request=request,
-                    provider_call=reservation.record,
-                    video_id=video.video_id,
-                )
+                try:
+                    result = self._load_verified_cached_result(
+                        request=request,
+                        provider_call=reservation.record,
+                        video_id=video.video_id,
+                        output_language=scoring_input.output_language,
+                    )
+                except _ScoringCacheMiss:
+                    return self._recompute_stale_cache(
+                        scoring_input=scoring_input,
+                        original_request=request,
+                        stale_call=reservation.record,
+                        now=now,
+                        video_id=video.video_id,
+                    )
                 outcome = self._outcome(
                     result,
                     started_at=now,
@@ -590,11 +639,172 @@ class RepositoryBackedScoringService:
             raise
         return outcome
 
+    @staticmethod
+    def _provider_call_version_mismatch(
+        provider_call: ProviderCallRecord | None,
+        request: ProviderCallRequest,
+    ) -> bool:
+        return (
+            provider_call is not None
+            and provider_call.status is ProviderCallStatus.SUCCEEDED
+            and provider_call.request_hash == request.request_hash
+            and provider_call.operation == request.operation
+            and provider_call.provider == request.provider
+            and provider_call.model == request.model
+            and (
+                provider_call.prompt_version != request.prompt_version
+                or provider_call.schema_version != request.schema_version
+            )
+        )
+
+    def _recompute_stale_cache(
+        self,
+        *,
+        scoring_input: ScoringInput,
+        original_request: ProviderCallRequest,
+        stale_call: ProviderCallRecord,
+        now: datetime,
+        video_id: str,
+    ) -> ScoringOutcome:
+        """Treat stale provenance as a miss while retaining its audit records."""
+
+        raw = self._repository.get_artifact_by_key(
+            original_request.deterministic_artifact_key
+        )
+        structured = self._repository.get_artifact_by_key(
+            f"scoring/{original_request.request_hash}/structured"
+        )
+        if raw is None or structured is None:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "stale local scoring cache cannot be audited",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+        recompute_seed = _canonical_json(
+            {
+                "policy": "scoring-cache-recompute-v1",
+                "original_request_hash": original_request.request_hash,
+                "raw_content_hash": raw.content_hash,
+                "structured_content_hash": structured.content_hash,
+                "stored_prompt_version": stale_call.prompt_version,
+                "stored_schema_version": stale_call.schema_version,
+            }
+        )
+        request_without_key = ProviderCallRequest(
+            operation=original_request.operation,
+            normalized_input_hash=_sha256_text(recompute_seed),
+            provider=original_request.provider,
+            model=original_request.model,
+            prompt_version=original_request.prompt_version,
+            schema_version=original_request.schema_version,
+            deterministic_artifact_key="pending",
+        )
+        request = ProviderCallRequest(
+            operation=request_without_key.operation,
+            normalized_input_hash=request_without_key.normalized_input_hash,
+            provider=request_without_key.provider,
+            model=request_without_key.model,
+            prompt_version=request_without_key.prompt_version,
+            schema_version=request_without_key.schema_version,
+            deterministic_artifact_key=(
+                f"scoring/{request_without_key.request_hash}/raw"
+            ),
+        )
+        recompute_input = ScoringInput.model_validate(
+            {
+                **scoring_input.model_dump(mode="python"),
+                "request_hash": request.request_hash,
+            }
+        )
+        reservation = self._reserve(request, now=now, video_id=video_id)
+        if not reservation.acquired:
+            if reservation.record.status is ProviderCallStatus.SUCCEEDED:
+                result = self._load_verified_cached_result(
+                    request=request,
+                    provider_call=reservation.record,
+                    video_id=video_id,
+                    output_language=recompute_input.output_language,
+                )
+                outcome = self._outcome(
+                    result,
+                    started_at=now,
+                    finished_at=self._clock(),
+                    cache_hit=True,
+                )
+                self._complete_stage(
+                    outcome=outcome,
+                    artifacts=(),
+                    provider_call=None,
+                    now=now,
+                    video_id=video_id,
+                )
+                return outcome
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.PROVIDER_UNAVAILABLE,
+                    "local scoring recompute is already reserved or unavailable",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            )
+
+        result, raw_response = self._call_provider(
+            scoring_input=recompute_input,
+            request=request,
+            now=now,
+        )
+        outcome = self._outcome(
+            result,
+            started_at=now,
+            finished_at=self._clock(),
+            cache_hit=False,
+        )
+        written_paths: tuple[Path, ...] = ()
+        try:
+            artifacts, written_paths = self._write_artifacts(
+                result=result,
+                raw_response=raw_response,
+                request=request,
+                video_id=video_id,
+                now=now,
+            )
+            self._complete_stage(
+                outcome=outcome,
+                artifacts=artifacts,
+                provider_call=ProviderCallCompletion(
+                    request_hash=request.request_hash,
+                    response_artifact_id=artifacts[0].artifact_id,
+                    input_tokens=None,
+                    output_tokens=None,
+                    cost_microusd=None,
+                ),
+                now=now,
+                video_id=video_id,
+            )
+        except ScoringPersistenceError:
+            self._remove_written_paths(written_paths)
+            self._record_failure(
+                request_hash=request.request_hash,
+                error=self._error(
+                    ErrorCode.LOCAL_RESOURCE,
+                    "local scoring recompute persistence failed",
+                    retryable=True,
+                    video_id=video_id,
+                ),
+                now=now,
+            )
+            raise
+        return outcome
+
     def _provider_request(self, scoring_input: ScoringInput) -> ProviderCallRequest:
         normalized_input_hash = _normalized_scoring_input_hash(
             video=scoring_input.video,
             sample=scoring_input.sample,
             language=scoring_input.language,
+            output_language=scoring_input.output_language,
             settings=self._settings,
         )
         request = ProviderCallRequest(
@@ -678,9 +888,12 @@ class RepositoryBackedScoringService:
         raw_response: str | None = None
         recovery_required = False
         try:
-            result = self._provider.score(scoring_input)
-            if result.request_hash != request.request_hash:
-                raise ValueError("scoring provider returned a result for a different request")
+            result = validate_score_result(self._provider.score(scoring_input))
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=scoring_input.output_language,
+            )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -744,12 +957,17 @@ class RepositoryBackedScoringService:
         result: ScoreResult | None = None
         raw_response: str | None = None
         try:
-            result = self._provider._repair_saved_primary_response(
-                primary_raw_response=primary_raw_response,
-                scoring_input=scoring_input,
+            result = validate_score_result(
+                self._provider._repair_saved_primary_response(
+                    primary_raw_response=primary_raw_response,
+                    scoring_input=scoring_input,
+                )
             )
-            if result.request_hash != request.request_hash:
-                raise ValueError("repaired scoring result belongs to a different request")
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=scoring_input.output_language,
+            )
             raw_response = self._provider.consume_raw_response(
                 request_hash=request.request_hash
             )
@@ -939,6 +1157,12 @@ class RepositoryBackedScoringService:
         video_id: str,
         now: datetime,
     ) -> tuple[tuple[ArtifactWrite, ArtifactWrite], tuple[Path, ...]]:
+        result = validate_score_result(result)
+        self._validate_result_provenance(
+            result=result,
+            request=request,
+            output_language=result.output_language,
+        )
         raw_content = raw_response.encode("utf-8")
         structured_content = _canonical_json(result.model_dump(mode="json")).encode("utf-8")
         raw_key = request.deterministic_artifact_key
@@ -1035,6 +1259,7 @@ class RepositoryBackedScoringService:
         request: ProviderCallRequest,
         provider_call: ProviderCallRecord,
         video_id: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoreResult:
         raw = self._repository.get_artifact_by_key(request.deterministic_artifact_key)
         structured = self._repository.get_artifact_by_key(
@@ -1062,7 +1287,7 @@ class RepositoryBackedScoringService:
                 != structured.content_hash
             ):
                 raise ValueError("scoring artifact verification failed")
-            result = ScoreResult.model_validate_json(structured_content)
+            result = validate_score_result_json(structured_content)
         except Exception:
             raise ScoringPersistenceError(
                 self._error(
@@ -1078,9 +1303,12 @@ class RepositoryBackedScoringService:
             or raw.video_id != video_id
             or structured.video_id != video_id
             or raw.artifact_id != provider_call.response_artifact_id
-            or result.request_hash != request.request_hash
-            or result.provider != request.provider
-            or result.model != request.model
+            or provider_call.request_hash != request.request_hash
+            or provider_call.operation != request.operation
+            or provider_call.provider != request.provider
+            or provider_call.model != request.model
+            or provider_call.prompt_version != request.prompt_version
+            or provider_call.schema_version != request.schema_version
         ):
             raise ScoringPersistenceError(
                 self._error(
@@ -1090,7 +1318,45 @@ class RepositoryBackedScoringService:
                     video_id=video_id,
                 )
             )
+        if (
+            result.prompt_version != request.prompt_version
+            or result.schema_version != request.schema_version
+        ):
+            raise _ScoringCacheMiss
+        try:
+            self._validate_result_provenance(
+                result=result,
+                request=request,
+                output_language=output_language,
+            )
+        except ValueError:
+            raise ScoringPersistenceError(
+                self._error(
+                    ErrorCode.INVALID_RESPONSE,
+                    "verified local scoring artifact provenance is invalid",
+                    retryable=True,
+                    video_id=video_id,
+                )
+            ) from None
         return result
+
+    @staticmethod
+    def _validate_result_provenance(
+        *,
+        result: ScoreResult,
+        request: ProviderCallRequest,
+        output_language: ScoringOutputLanguage,
+    ) -> None:
+        if (
+            result.request_hash != request.request_hash
+            or result.provider != request.provider
+            or result.model != request.model
+            or result.output_language != output_language
+            or result.prompt_version != request.prompt_version
+            or result.schema_version != request.schema_version
+        ):
+            msg = "local scoring result provenance does not match the current request"
+            raise ValueError(msg)
 
     def _artifact_path(self, relative_path: str) -> Path:
         root = self._artifact_root.resolve()
@@ -1109,6 +1375,7 @@ class RepositoryBackedScoringService:
         now: datetime,
         video_id: str,
     ) -> None:
+        trusted_result = validate_score_result(outcome.result)
         try:
             self._repository.complete_stage(
                 job_id=self._context.job_id,
@@ -1120,7 +1387,7 @@ class RepositoryBackedScoringService:
                 artifacts=artifacts,
                 provider_call=provider_call,
                 scoring_summary=ScoringSummaryWrite(
-                    score=outcome.result.score,
+                    score=trusted_result.score,
                     should_summarize=outcome.decision.final_should_summarize,
                 ),
                 now=now,

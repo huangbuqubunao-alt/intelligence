@@ -24,7 +24,7 @@ from pydantic import (
     model_validator,
 )
 
-from youtube_intel.domain import IntelligenceMode
+from youtube_intel.domain import IntelligenceMode, ScoringOutputLanguage
 
 _ENV_NAME_RE: Final = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED: Final = "[REDACTED]"
@@ -304,21 +304,13 @@ class ChannelsFile(_ConfigModel):
 
 class GeneralSettings(_ConfigModel):
     timezone: str = "Asia/Shanghai"
-    output_language: str = "zh-CN"
+    output_language: ScoringOutputLanguage = "zh-CN"
     transcript_languages: tuple[str, ...]
 
     @field_validator("timezone")
     @classmethod
     def _tz(cls, value: str) -> str:
         return _validate_iana_timezone(value)
-
-    @field_validator("output_language")
-    @classmethod
-    def _output_lang(cls, value: str) -> str:
-        if not value or value != value.strip():
-            msg = "output_language must be a non-empty language tag"
-            raise ValueError(msg)
-        return value
 
     @field_validator("transcript_languages", mode="before")
     @classmethod

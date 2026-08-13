@@ -44,6 +44,7 @@ from youtube_intel.domain import (
     TranscriptionRequired,
     TranscriptReady,
     VideoMetadata,
+    validate_score_result_json,
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
@@ -287,7 +288,7 @@ class RuntimeOperations(Operations):
             artifact.video_id != video_id
             or artifact.kind is not ArtifactKind.SCORING_STRUCTURED
             or artifact.artifact_key != f"scoring/{result.request_hash}/structured"
-            or artifact.producer_version != "scoring-structured-v1"
+            or artifact.producer_version != "scoring-structured-v2"
             or artifact.provider != "ollama"
             or artifact.provider != result.provider
             or artifact.model is None
@@ -312,9 +313,9 @@ class RuntimeOperations(Operations):
             or provider_call.provider != "ollama"
             or provider_call.provider != result.provider
             or provider_call.model != result.model
-            or provider_call.prompt_version != "scoring-prompt-v1"
+            or provider_call.prompt_version != "scoring-prompt-v2"
             or provider_call.prompt_version != result.prompt_version
-            or provider_call.schema_version != "score-result-v1"
+            or provider_call.schema_version != "score-result-v2"
             or provider_call.schema_version != result.schema_version
             or provider_call.request_hash != result.request_hash
             or not provider_call.response_artifact_id
@@ -333,11 +334,15 @@ class RuntimeOperations(Operations):
             or raw.provider != artifact.provider
             or raw.model != result.model
             or raw.model != artifact.model
-            or raw.producer_version != "ollama-raw-v1"
+            or raw.producer_version != "ollama-raw-v2"
         ):
             raise ValueError("persisted scoring raw artifact provenance is invalid")
         if result.model != self._config.settings.local_scoring.model:
             raise ValueError("persisted scoring model does not match current configuration")
+        if result.output_language != self._config.settings.general.output_language:
+            raise ValueError(
+                "persisted scoring output language does not match current configuration"
+            )
         self._verified_artifact(raw, max_bytes=1_000_000)
 
     def _validate_analysis_provenance(
@@ -408,7 +413,7 @@ class RuntimeOperations(Operations):
         artifact = self._repository.latest_artifact(video_id, ArtifactKind.SCORING_STRUCTURED)
         if artifact is None:
             raise ValueError("persisted score is unavailable")
-        result = ScoreResult.model_validate_json(
+        result = validate_score_result_json(
             self._verified_artifact(artifact, max_bytes=1_000_000)
         )
         self._validate_scoring_provenance(artifact, result, video_id)
@@ -516,6 +521,7 @@ class RuntimeOperations(Operations):
                 artifact,
                 max_bytes=4_000_000,
             ).decode("utf-8")
+            configured_output_language = self._config.settings.general.output_language
             RepositoryBackedScoringService(
                 provider=self._dependencies.scoring_provider_factory(),
                 settings=self._config.settings.local_scoring,
@@ -524,7 +530,12 @@ class RuntimeOperations(Operations):
                 context=ScoringJobContext(job.job_id, owner, PIPELINE_VERSION),
                 artifact_root=self._data_root,
                 clock=_utcnow,
-            ).score(video=video, transcript_text=text, language=transcript.language)
+            ).score(
+                video=video,
+                transcript_text=text,
+                language=transcript.language,
+                output_language=configured_output_language,
+            )
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:

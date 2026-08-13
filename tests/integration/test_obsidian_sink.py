@@ -87,15 +87,16 @@ def _transcript() -> TranscriptArtifact:
 def _scoring() -> ScoringOutcome:
     return ScoringOutcome(
         result=ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=8.5,
-            reason="Directly useful to product strategy.",
+            reason="This insight directly supports product strategy.",
             topics=("product",),
             should_summarize=True,
             provider="fixture-scoring",
             model="fixture-model",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash="c" * 64,
+            output_language="en",
         ),
         decision=ScoringDecision(
             threshold=7.0,

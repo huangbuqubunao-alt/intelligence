@@ -126,6 +126,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-015](TASK-015-runtime-composition.md) | 正式 Runtime Composition 与 Local-First Smoke | merge `451766f…`；Maintainer APPROVE，675 tests | DONE | 013；ADR-022 |
 | [TASK-016](TASK-016-intelligence-output.md) | Local / Hybrid / Cloud Intelligence 与中文知识输出 | Codex Orchestrator；Local-only 第一里程碑 | IN_PROGRESS | 015；ADR-023 |
 | [TASK-016A](TASK-016A-intelligence-contract-foundation.md) | Intelligence Mode、配置与 Knowledge V2 契约基础 | merge `945dade…`；contracts `87`、full pytest `687`、mypy、Ruff、CLI help、offline build、安全扫描与 Diff checks 通过 | DONE | 015；ADR-023 |
+| [TASK-016B](TASK-016B-scoring-output-language.md) | 本地评分输出语言契约 | Codex Implementer；等待独立 Reviewer | IN_PROGRESS | 016A；ADR-023 |
 
 ## 主控分配模板
 

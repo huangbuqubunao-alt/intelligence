@@ -154,15 +154,16 @@ class _ScoringProvider:
             '"topics":["product"],"should_summarize":true}'
         )
         return ScoreResult(
-            schema_version="score-result-v1",
+            schema_version="score-result-v2",
             score=8.6,
-            reason="Controlled local score for production-composition coverage.",
+            reason="受控本地评分覆盖了正式运行时组合。",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v1",
+            prompt_version="scoring-prompt-v2",
             request_hash=getattr(scoring_input, "request_hash"),
+            output_language=getattr(scoring_input, "output_language"),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:

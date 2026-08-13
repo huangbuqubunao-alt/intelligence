@@ -18,6 +18,8 @@ from youtube_intel.domain import (
     ProcessingStage,
     ScoreResult,
     ScoringInput,
+    ScoringOutputLanguage,
+    scoring_reason_matches_output_language,
 )
 from youtube_intel.scoring import PROMPT_VERSION, SCHEMA_VERSION
 from youtube_intel.state import build_provider_request_hash
@@ -28,7 +30,7 @@ _GENERATE_PATH: Final = "/api/generate"
 _REPAIR_OPERATION: Final = "local-scoring-repair"
 _MAX_RESPONSE_BYTES: Final = 1_000_000
 _MAX_MODEL_RESPONSE_CHARS: Final = 20_000
-_PROMPT_VERSION_MARKER: Final = "prompt_version: scoring-prompt-v1"
+_PROMPT_VERSION_MARKER: Final = "prompt_version: scoring-prompt-v2"
 
 _MODEL_RESULT_FIELDS: Final = frozenset(
     {"score", "reason", "topics", "should_summarize", "dimensions"}
@@ -85,6 +87,10 @@ class _InvalidModelResponse(Exception):
     """Private parse marker; response content is never exposed in errors or logs."""
 
 
+class _InvalidLanguageResponse(_InvalidModelResponse):
+    """Private marker used to keep wrong-language payloads out of artifacts."""
+
+
 @dataclass(frozen=True, slots=True)
 class _GeneratedResponse:
     response_text: str
@@ -130,7 +136,7 @@ class OllamaScoringProvider:
         transport: _Transport = _default_transport,
     ) -> None:
         if _PROMPT_VERSION_MARKER not in prompt:
-            msg = "scoring prompt must declare scoring-prompt-v1"
+            msg = "scoring prompt must declare scoring-prompt-v2"
             raise ValueError(msg)
         self._settings = settings
         self._prompt = prompt
@@ -147,6 +153,7 @@ class OllamaScoringProvider:
         failure: AppError | None = None
         primary_response: _GeneratedResponse | None = None
         repair_response: _GeneratedResponse | None = None
+        primary_language_invalid = False
         self._last_raw_response = None
         self._last_request_hash = None
         try:
@@ -159,8 +166,10 @@ class OllamaScoringProvider:
                 result = self._parse_score_result(
                     primary_response.response_text,
                     request_hash,
+                    scoring_input.output_language,
                 )
-            except _InvalidModelResponse:
+            except _InvalidModelResponse as error:
+                primary_language_invalid = isinstance(error, _InvalidLanguageResponse)
                 if primary_response is None:
                     failure = AppError(
                         code=ErrorCode.INVALID_RESPONSE,
@@ -174,6 +183,7 @@ class OllamaScoringProvider:
                         prompt=self._render_repair_prompt(
                             primary_response.response_text,
                             request_hash,
+                            scoring_input.output_language,
                         ),
                         video_id=video_id,
                     )
@@ -181,6 +191,7 @@ class OllamaScoringProvider:
                         result = self._parse_score_result(
                             repair_response.response_text,
                             request_hash,
+                            scoring_input.output_language,
                         )
                     except _InvalidModelResponse:
                         failure = AppError(
@@ -220,7 +231,7 @@ class OllamaScoringProvider:
                 stage=ProcessingStage.SCORING,
             )
 
-        if primary_response is not None:
+        if primary_response is not None and not primary_language_invalid:
             self._last_raw_response = primary_response.raw_response
             self._last_request_hash = request_hash
         primary_response = None
@@ -272,12 +283,17 @@ class OllamaScoringProvider:
                 primary_raw_response
             )
             repair_response = self._generate(
-                prompt=self._render_repair_prompt(primary_response_text, request_hash),
+                prompt=self._render_repair_prompt(
+                    primary_response_text,
+                    request_hash,
+                    scoring_input.output_language,
+                ),
                 video_id=video_id,
             )
             result = self._parse_score_result(
                 repair_response.response_text,
                 request_hash,
+                scoring_input.output_language,
             )
         except _InvalidModelResponse:
             failure = AppError(
@@ -542,6 +558,7 @@ class OllamaScoringProvider:
         self,
         response_text: str,
         request_hash: str,
+        output_language: ScoringOutputLanguage,
     ) -> ScoreResult:
         invalid_json = False
         try:
@@ -555,6 +572,11 @@ class OllamaScoringProvider:
             raise _InvalidModelResponse
         if not set(parsed).issubset(_MODEL_RESULT_FIELDS):
             raise _InvalidModelResponse
+        reason = parsed.get("reason")
+        if isinstance(reason, str) and not scoring_reason_matches_output_language(
+            reason, output_language
+        ):
+            raise _InvalidLanguageResponse
         candidate: dict[str, object] = dict(parsed)
         candidate.update(
             {
@@ -563,6 +585,7 @@ class OllamaScoringProvider:
                 "model": self._settings.model,
                 "prompt_version": PROMPT_VERSION,
                 "request_hash": request_hash,
+                "output_language": output_language,
             }
         )
         invalid_model = False
@@ -576,6 +599,9 @@ class OllamaScoringProvider:
 
     def _render_primary_prompt(self, scoring_input: ScoringInput) -> str:
         return self._prompt.replace(
+            "{{OUTPUT_LANGUAGE_INSTRUCTION}}",
+            self._output_language_instruction(scoring_input.output_language),
+        ).replace(
             "{{SCORING_INPUT_JSON}}",
             json.dumps(
                 {
@@ -586,6 +612,7 @@ class OllamaScoringProvider:
                     "duration_seconds": scoring_input.video.duration_seconds,
                     "default_language": scoring_input.video.default_language,
                     "language": scoring_input.language,
+                    "output_language": scoring_input.output_language,
                     "description": scoring_input.video.description[
                         : self._settings.max_description_chars
                     ],
@@ -604,6 +631,7 @@ class OllamaScoringProvider:
         self,
         invalid_response: str,
         request_hash: str,
+        output_language: ScoringOutputLanguage,
     ) -> str:
         repair_hash = build_provider_request_hash(
             operation=_REPAIR_OPERATION,
@@ -615,10 +643,25 @@ class OllamaScoringProvider:
         )
         return (
             "Return only one corrected JSON object that satisfies the supplied JSON schema. "
+            + self._output_language_instruction(output_language)
+            + " "
             "Do not add commentary. Repair request: "
             + repair_hash
             + "\nInvalid response follows:\n"
             + invalid_response
+        )
+
+    @staticmethod
+    def _output_language_instruction(
+        output_language: ScoringOutputLanguage,
+    ) -> str:
+        if output_language == "zh-CN":
+            return (
+                "Write the user-visible reason in Simplified Chinese; English technical "
+                "proper nouns may remain English. Keep every JSON schema key in English."
+            )
+        return (
+            "Write the user-visible reason in English. Keep every JSON schema key in English."
         )
 
     def _endpoint(self, path: str) -> str:

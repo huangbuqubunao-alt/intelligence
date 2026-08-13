@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.client import IncompleteRead
 from pathlib import Path
 from types import TracebackType
@@ -16,10 +16,23 @@ from youtube_intel.domain import (
     Availability,
     ErrorCode,
     LiveStatus,
+    PipelineStatus,
+    ProcessingStage,
     VideoMetadata,
 )
 from youtube_intel.providers.ollama import OllamaProviderError, OllamaScoringProvider
-from youtube_intel.scoring import build_scoring_input
+from youtube_intel.scoring import (
+    RepositoryBackedScoringService,
+    ScoringJobContext,
+    ScoringPersistenceError,
+    build_scoring_input,
+)
+from youtube_intel.state import (
+    ArtifactKind,
+    JobType,
+    ProviderCallStatus,
+    SQLiteStateRepository,
+)
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "scoring"
 PROMPT = Path(__file__).resolve().parents[2] / "prompts" / "scoring.md"
@@ -120,8 +133,22 @@ def _settings() -> LocalScoringSettings:
     )
 
 
-def _input(*, transcript_text: str = "A sufficiently long canonical transcript for scoring.") -> object:
-    video = VideoMetadata(
+def _input(
+    *,
+    transcript_text: str = "A sufficiently long canonical transcript for scoring.",
+    output_language: str = "en",
+) -> object:
+    return build_scoring_input(
+        video=_video(),
+        transcript_text=transcript_text,
+        language="en",
+        output_language=output_language,
+        settings=_settings(),
+    )
+
+
+def _video() -> VideoMetadata:
+    return VideoMetadata(
         video_id="video-123",
         channel_id="channel-123",
         channel_name="Example Channel",
@@ -132,12 +159,61 @@ def _input(*, transcript_text: str = "A sufficiently long canonical transcript f
         live_status=LiveStatus.NONE,
         availability=Availability.PUBLIC,
     )
-    return build_scoring_input(
-        video=video,
-        transcript_text=transcript_text,
-        language="en",
-        settings=_settings(),
+
+
+def _repository_scoring_service(
+    tmp_path: Path,
+    provider: OllamaScoringProvider,
+) -> tuple[SQLiteStateRepository, RepositoryBackedScoringService]:
+    now = datetime(2026, 8, 13, tzinfo=UTC)
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    repository.initialize(now=now)
+    repository.upsert_video_metadata(_video(), pipeline_version="pipeline-v1", now=now)
+    assert repository.advance_pipeline(
+        "video-123",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=now,
     )
+    assert repository.advance_pipeline(
+        "video-123",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="pipeline-v1",
+        now=now,
+    )
+    repository.create_job(
+        job_id="scoring-job-1",
+        scope_key="video:video-123:SCORING",
+        video_id="video-123",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.SCORING,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=now,
+        now=now,
+    )
+    claimed = repository.claim_next_job(
+        owner="test-worker",
+        lease_until=now + timedelta(minutes=5),
+        now=now,
+    )
+    assert claimed is not None
+    service = RepositoryBackedScoringService(
+        provider=provider,
+        settings=_settings(),
+        summary_threshold=7.0,
+        repository=repository,
+        context=ScoringJobContext(
+            job_id=claimed.job_id,
+            owner="test-worker",
+            pipeline_version="pipeline-v1",
+        ),
+        artifact_root=tmp_path / "artifacts",
+        clock=lambda: now,
+    )
+    return repository, service
 
 
 def _tags(*, digest: str | None = None) -> dict[str, object]:
@@ -171,11 +247,337 @@ def test_fake_transport_returns_valid_scoring_result_without_real_ollama() -> No
     assert result.score == 8.5
     assert result.provider == "ollama"
     assert result.model == "qwen3:8b"
+    assert result.output_language == "en"
     assert [method for method, _, _ in transport.requests] == ["GET", "POST"]
     assert [url for _, url, _ in transport.requests] == [
         "http://127.0.0.1:11434/api/tags",
         "http://127.0.0.1:11434/api/generate",
     ]
+
+
+@pytest.mark.parametrize(
+    ("output_language", "required_instruction"),
+    [("zh-CN", "Simplified Chinese"), ("en", "English")],
+)
+def test_primary_prompt_contains_authoritative_output_language_instruction(
+    output_language: str,
+    required_instruction: str,
+) -> None:
+    reason = (
+        "视频清楚说明了产品工作流，因此具有实际参考价值。"
+        if output_language == "zh-CN"
+        else "The video clearly explains the product workflow and has practical value."
+    )
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate(
+                json.dumps(
+                    {
+                        "score": 8,
+                        "reason": reason,
+                        "topics": ["product"],
+                        "should_summarize": True,
+                    }
+                )
+            ),
+        ]
+    )
+
+    _provider(transport).score(_input(output_language=output_language))
+
+    payload = json.loads(transport.requests[1][2] or b"{}")
+    prompt = payload["prompt"]
+    assert f'"output_language":"{output_language}"' in prompt
+    assert required_instruction in prompt
+    assert "untrusted" in prompt
+
+
+@pytest.mark.parametrize(
+    ("output_language", "primary_reason", "repair_reason", "instruction"),
+    [
+        (
+            "zh-CN",
+            "The video clearly explains the product workflow and gives useful advice.\n中",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "zh-CN",
+            "Useful clear practical product workflow advice.\n"
+            "这个视频介绍产品流程。",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "zh-CN",
+            "中 Useful clear practical product workflow advice 中",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "zh-CN",
+            "中文 Useful clear practical product workflow advice 中文",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "a 这个视频详细解释产品流程 a",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
+            "en",
+            "a clear 这个视频详细解释产品流程 advice",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
+            "zh-CN",
+            "good nice happy 中文",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "clear 中文 advice",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
+            "zh-CN",
+            "この動画はAPIの製品ワークフローを詳しく説明します。",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "zh-CN",
+            "中 REST CUDA NLP CNN",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "a API SDK LLM GPT MLX",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
+            "en",
+            "Docker Kubernetes Terraform Ansible",
+            "Docker containers help developers deploy applications.",
+            "English",
+        ),
+        (
+            "en",
+            "这个视频详细解释了产品工作流程并给出了建议。\n"
+            "Useful clear practical product workflow advice.",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+    ],
+)
+def test_wrong_language_reason_uses_one_language_bound_repair(
+    output_language: str,
+    primary_reason: str,
+    repair_reason: str,
+    instruction: str,
+) -> None:
+    result_template = {
+        "score": 8,
+        "topics": ["product"],
+        "should_summarize": True,
+    }
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate(json.dumps({**result_template, "reason": primary_reason})),
+            _generate(json.dumps({**result_template, "reason": repair_reason})),
+        ]
+    )
+
+    result = _provider(transport).score(_input(output_language=output_language))
+
+    repair_payload = json.loads(transport.requests[2][2] or b"{}")
+    assert result.reason == repair_reason
+    assert result.output_language == output_language
+    assert instruction in repair_payload["prompt"]
+    assert len(transport.requests) == 3
+
+
+@pytest.mark.parametrize(
+    ("output_language", "reason"),
+    [
+        ("zh-CN", "Useful, clear, practical, product, workflow, advice."),
+        ("zh-CN", "Useful, clear, practical, product, workflow, advice. 中"),
+        (
+            "zh-CN",
+            "The video clearly explains the product workflow and gives useful advice.\n中",
+        ),
+        (
+            "zh-CN",
+            "Useful clear practical product workflow advice.\n"
+            "这个视频介绍产品流程。",
+        ),
+        ("zh-CN", "中 Useful clear practical product workflow advice 中"),
+        ("zh-CN", "中文 Useful clear practical product workflow advice 中文"),
+        ("en", "这个视频详细解释了 api、sdk、llm 的产品工作流程。"),
+        (
+            "en",
+            "这个视频详细解释了产品工作流程并给出了建议。\n"
+            "Useful clear practical product workflow advice.",
+        ),
+        ("en", "a 这个视频详细解释产品流程 a"),
+        ("en", "a clear 这个视频详细解释产品流程 advice"),
+        ("zh-CN", "good nice happy 中文"),
+        ("en", "clear 中文 advice"),
+        ("zh-CN", "この動画はAPIの製品ワークフローを詳しく説明します。"),
+        ("zh-CN", "中 REST CUDA NLP CNN"),
+        ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Amazon Connect Salesforce"),
+        ("en", "Amazon Connect General Electric"),
+        ("en", "Amazon Connect Jack in the Box"),
+        ("en", "Amazon Connect The Home Depot"),
+        ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "docker kubernetes terraform ansible"),
+        ("en", "Docker Terraform Kubernetes Ansible"),
+        ("en", "Redis Kafka PostgreSQL MongoDB"),
+        ("en", "redis kafka postgresql mongodb"),
+        ("en", "Docker helps"),
+        ("en", "Redis stores"),
+        ("en", "OpenAI develops"),
+    ],
+)
+def test_wrong_language_after_single_repair_fails_closed(
+    output_language: str,
+    reason: str,
+) -> None:
+    wrong_language = json.dumps(
+        {
+            "score": 8,
+            "reason": reason,
+            "topics": ["product"],
+            "should_summarize": True,
+        }
+    )
+    transport = _FakeTransport(
+        [_tags(), _generate(wrong_language), _generate(wrong_language)]
+    )
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        _provider(transport).score(_input(output_language=output_language))
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    assert len(transport.requests) == 3
+
+
+@pytest.mark.parametrize(
+    ("output_language", "wrong_reason"),
+    [
+        ("zh-CN", "中 REST CUDA NLP CNN"),
+        ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Amazon Connect Salesforce"),
+        ("en", "Amazon Connect General Electric"),
+        ("en", "Amazon Connect Jack in the Box"),
+        ("en", "Amazon Connect The Home Depot"),
+        ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "docker kubernetes terraform ansible"),
+        ("en", "Redis Kafka PostgreSQL MongoDB"),
+        ("en", "redis kafka postgresql mongodb"),
+    ],
+)
+def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
+    tmp_path: Path,
+    output_language: str,
+    wrong_reason: str,
+) -> None:
+    wrong_response = json.dumps(
+        {
+            "score": 8,
+            "reason": wrong_reason,
+            "topics": ["product"],
+            "should_summarize": True,
+        }
+    )
+    transport = _FakeTransport(
+        [_tags(), _generate(wrong_response), _generate(wrong_response)]
+    )
+    repository, service = _repository_scoring_service(
+        tmp_path,
+        _provider(transport),
+    )
+
+    with pytest.raises(ScoringPersistenceError) as exc_info:
+        service.score(
+            video=_video(),
+            transcript_text="canonical transcript",
+            language="en",
+            output_language=output_language,
+        )
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    connection = repository._connect()
+    try:
+        artifact_kinds = tuple(
+            row[0] for row in connection.execute("SELECT kind FROM artifacts")
+        )
+        provider_call = connection.execute(
+            "SELECT status, response_artifact_id FROM provider_calls"
+        ).fetchone()
+    finally:
+        connection.close()
+    assert ArtifactKind.SCORING_RAW.value not in artifact_kinds
+    assert ArtifactKind.SCORING_STRUCTURED.value not in artifact_kinds
+    assert provider_call is not None
+    assert provider_call[0] == ProviderCallStatus.FAILED_RETRYABLE.value
+    assert provider_call[1] is None
+    assert not any(
+        path.is_file() for path in (tmp_path / "artifacts").rglob("*")
+    )
+
+
+def test_successful_language_repair_persists_only_the_valid_repair_response(
+    tmp_path: Path,
+) -> None:
+    primary_reason = "Amazon Connect General Electric"
+    repaired_reason = "Docker containers help developers deploy applications."
+    result_template = {
+        "score": 8,
+        "topics": ["product"],
+        "should_summarize": True,
+    }
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _generate(json.dumps({**result_template, "reason": primary_reason})),
+            _generate(json.dumps({**result_template, "reason": repaired_reason})),
+        ]
+    )
+    repository, service = _repository_scoring_service(
+        tmp_path,
+        _provider(transport),
+    )
+
+    outcome = service.score(
+        video=_video(),
+        transcript_text="canonical transcript",
+        language="en",
+        output_language="en",
+    )
+
+    raw = repository.get_artifact_by_key(
+        f"scoring/{outcome.result.request_hash}/raw"
+    )
+    assert raw is not None
+    assert raw.kind is ArtifactKind.SCORING_RAW
+    raw_content = (tmp_path / "artifacts" / raw.relative_path).read_text(
+        encoding="utf-8"
+    )
+    persisted_response = json.loads(raw_content)
+    persisted_result = json.loads(persisted_response["response"])
+    assert persisted_result["reason"] == repaired_reason
+    assert persisted_result["reason"] != primary_reason
 
 
 def test_official_bare_sha256_digest_shape_matches_frozen_config() -> None:
