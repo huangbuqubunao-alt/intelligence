@@ -372,6 +372,7 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
         "http",
         "https",
         "json",
+        "kubernetes",
         "llm",
         "mlx",
         "ollama",
@@ -458,6 +459,8 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
 
 def _is_technical_identifier(value: str) -> bool:
     folded = value.casefold()
+    if len(value) == 1:
+        return True
     if folded in _SCORING_TECHNICAL_TERMS:
         return True
     if folded.endswith("s") and folded[:-1] in _SCORING_TECHNICAL_TERMS:
@@ -466,7 +469,7 @@ def _is_technical_identifier(value: str) -> bool:
         return True
     if any(character.isupper() for character in value[1:]):
         return True
-    return value.istitle()
+    return False
 
 
 def _has_nontechnical_latin_text(spans: Sequence[_ScoringScriptSpan]) -> bool:
@@ -483,7 +486,7 @@ def detect_scoring_language_violation(
     """Detect only unambiguous wrong-script responses; mixed text is uncertain."""
 
     spans = _scoring_script_spans(reason)
-    has_han = any(span.script == "Han" for span in spans)
+    has_han = any(span.script == "Han" and len(span.text) > 1 for span in spans)
     has_latin = _has_nontechnical_latin_text(spans)
     has_other_language_script = any(
         span.script in _SCORING_NON_TARGET_SCRIPTS for span in spans

@@ -352,6 +352,18 @@ def test_primary_prompt_contains_authoritative_output_language_instruction(
             "Simplified Chinese",
         ),
         (
+            "zh-CN",
+            "中 REST CUDA NLP CNN",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "a API SDK LLM GPT MLX",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
             "en",
             "这个视频详细解释了产品工作流程并给出了建议。\n"
             "Useful clear practical product workflow advice.",
@@ -415,6 +427,8 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ("zh-CN", "good nice happy 中文"),
         ("en", "clear 中文 advice"),
         ("zh-CN", "この動画はAPIの製品ワークフローを詳しく説明します。"),
+        ("zh-CN", "中 REST CUDA NLP CNN"),
+        ("en", "a API SDK LLM GPT MLX"),
     ],
 )
 def test_wrong_language_after_single_repair_fails_closed(
@@ -440,10 +454,18 @@ def test_wrong_language_after_single_repair_fails_closed(
     assert len(transport.requests) == 3
 
 
+@pytest.mark.parametrize(
+    ("output_language", "wrong_reason"),
+    [
+        ("zh-CN", "中 REST CUDA NLP CNN"),
+        ("en", "a API SDK LLM GPT MLX"),
+    ],
+)
 def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
     tmp_path: Path,
+    output_language: str,
+    wrong_reason: str,
 ) -> None:
-    wrong_reason = "中 Useful clear practical product workflow advice 中"
     wrong_response = json.dumps(
         {
             "score": 8,
@@ -465,7 +487,7 @@ def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
             video=_video(),
             transcript_text="canonical transcript",
             language="en",
-            output_language="zh-CN",
+            output_language=output_language,
         )
 
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE

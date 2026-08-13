@@ -273,6 +273,53 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Final Correction Round 5 Report。
 
+## Round 9 Correction（2026-08-13）
+
+### 修复原因与设计边界
+
+- Round 8 把单个 Han `中` 和单个 Latin `a` 当作足够语言证据，因此二者可与纯技术
+  identifier 组合后错误生成 `VALID`。Round 8 同时把所有 TitleCase token 视为
+  identifier，误杀正常英文标题。
+- Round 9 保持三态 Violation Detector，不恢复字符比例、位置、首尾关系、谓词词表或
+  固定 token 数量。单个 Han/Latin 字符现在提供零语言证据；全大写、CamelCase、
+  已登记 identifier 及其复数仍提供零证据；普通 TitleCase token 不再被整体排除。
+- `Kubernetes` 与普通 TitleCase token 在无词典/模型条件下不存在可泛化的结构差异，
+  因此仅将任务明确冻结的该 identifier 加入既有技术集合；没有增加自然语言词表。
+
+### 对抗、Repair 与 Artifact 证据
+
+- `中 REST CUDA NLP CNN` 与 `a API SDK LLM GPT MLX` 均返回 `UNCERTAIN`，不能生成
+  `ScoreResult`；纯技术 identifier 组同样保持 `UNCERTAIN`。
+- `This Video Explains Machine Learning Workflows Clearly`、`OpenAI Develops
+  Useful AI Models` 均为合法英文；`该视频介绍 GPT API 调用流程` 为合法中文。
+- Fake Ollama 两条攻击均覆盖 primary validation → 一次 repair → 再验证；repair
+  仍失败时返回 `INVALID_RESPONSE`。
+- Repository-backed 双次失败回归确认：无正式 `SCORING_RAW` / `SCORING_STRUCTURED`
+  Artifact、无成功 `response_artifact_id`，ProviderCall 为 `FAILED_RETRYABLE`。
+- P1-2 ScoreResult contract、P1-3 cache provenance 与已有 Artifact fail-closed 生产
+  流程均未修改。
+
+### TDD 与 Full gates
+
+- 有效 RED：`8 failed, 59 passed`，精确覆盖两个攻击的 Domain/Ollama 路径与两个
+  TitleCase 合法英文误杀；最初一次测试补丁插入错误产生 SyntaxError，修正测试结构
+  后未计入产品 RED。
+- Focused Domain/Ollama/scoring：`130 passed`。
+- `uv lock --check`、`uv sync --locked --offline`：PASS（84 resolved / 61 checked，
+  无下载，锁文件未变）。
+- Full pytest：`789 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未修改 TASK-016C、Cloud、Router、Weekly production 或 DB Schema；未运行网络、
+  真实 Provider、merge 或 push。
+
+### Round 9 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 9 Correction Report。
+
 ## 主控验收
 
 - Orchestrator：

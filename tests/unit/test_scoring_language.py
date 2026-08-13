@@ -105,14 +105,24 @@ def test_output_language_changes_request_hash() -> None:
             "clear 中文 advice",
             ScoringLanguageValidation.UNCERTAIN,
         ),
-        ("zh-CN", "中", ScoringLanguageValidation.VALID),
-        ("en", "a", ScoringLanguageValidation.VALID),
+        ("zh-CN", "中", ScoringLanguageValidation.UNCERTAIN),
+        ("en", "a", ScoringLanguageValidation.UNCERTAIN),
         (
             "en",
             "Useful practical advice",
             ScoringLanguageValidation.VALID,
         ),
         ("en", "API SDK LLM", ScoringLanguageValidation.UNCERTAIN),
+        (
+            "zh-CN",
+            "中 REST CUDA NLP CNN",
+            ScoringLanguageValidation.UNCERTAIN,
+        ),
+        (
+            "en",
+            "a API SDK LLM GPT MLX",
+            ScoringLanguageValidation.UNCERTAIN,
+        ),
         (
             "zh-CN",
             "この動画はAPIの製品ワークフローを詳しく説明します。",
@@ -221,6 +231,54 @@ def test_technical_identifiers_and_non_chinese_scripts_cannot_prove_language(
             request_hash="a" * 64,
             output_language="zh-CN" if "動画" in reason else "en",
         )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "This Video Explains Machine Learning Workflows Clearly",
+        "OpenAI Develops Useful AI Models",
+    ],
+)
+def test_title_case_english_natural_language_is_valid(reason: str) -> None:
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.VALID
+    )
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason=reason,
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+    assert result.reason == reason
+
+
+def test_chinese_natural_language_with_technical_identifiers_is_valid() -> None:
+    reason = "该视频介绍 GPT API 调用流程"
+    assert (
+        detect_scoring_language_violation(reason, "zh-CN")
+        is ScoringLanguageValidation.VALID
+    )
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason=reason,
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="zh-CN",
+    )
+    assert result.reason == reason
 
 
 def test_chinese_reason_allows_english_technical_terms() -> None:
