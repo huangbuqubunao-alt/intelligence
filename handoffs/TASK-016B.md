@@ -585,6 +585,54 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 10 Correction Report。
 
+## Round 14 Correction（2026-08-13）
+
+### Root cause 与 algorithm change
+
+- Round 13 将介词宾语上的 `det` 误当作独立自然语言证据，因此 spaCy 对
+  `Amazon Connect Jack in the Box` 生成的 subject / VERB / object / prep tree
+  可以绕过 entity-only 边界。
+- Round 14 将直接 predicate arguments 与 prepositional arguments 分开。只有直接
+  核心论元中存在非 entity natural-language span，或介词补语提供非 entity-internal
+  结构时，parse 才能成为可信英文证据；`det`、`compound`、`flat`、`amod`、`prep`、
+  `pobj`、`appos` 组成的实体内部延伸不能单独证明语言。
+- 英文解析改为对单一 `casefold()` 规范表示执行一次 parser。没有 lower/title/upper
+  多版本投票、宽松结果选择、品牌/产品名单、token 数量/位置或词尾规则；同一自然
+  英文的原始、lowercase、uppercase 形式因此进入相同的确定性 parse 边界。
+
+### Adversarial、Repair 与 Artifact evidence
+
+- `Amazon Connect Jack in the Box`、`Amazon Connect The Home Depot`、
+  `Amazon Connect The North Face`、`The Home Depot`、`Amazon Connect Salesforce`
+  及既有纯 identifier 矩阵全部为 `UNCERTAIN`。
+- 四条合法自然英文（Docker containers、Redis stores、OpenAI develops、The system
+  relies）各自的原始/lowercase/uppercase 形式均为 `VALID`。
+- Fake Ollama 证明 Jack entity-only primary 必须进入唯一一次 repair；repair 再失败
+  返回 `INVALID_RESPONSE`。Repository-backed 回归确认失败路径无 `ScoreResult`、
+  `SCORING_RAW`、`SCORING_STRUCTURED`、成功 `response_artifact_id` 或可恢复 cache；
+  repair 成功时 raw Artifact 只保存合法 repair response。
+- P1-2 `ScoreResult` contract、P1-3 cache provenance、TASK-016C、Cloud、Router、
+  Weekly production 与 DB Schema 均未修改。
+
+### TDD 与 Full gates
+
+- RED：`6 failed, 152 passed`，精确复现 Jack entity-only Domain/Ollama/Artifact 绕过、
+  成功 repair 错存 primary，以及 uppercase Redis/OpenAI 回归。
+- Focused Domain/Ollama：`158 passed`。
+- `uv lock --check`：PASS（107 packages）。
+- `uv sync --locked --offline`：PASS（107 resolved / 84 checked，无下载，锁文件未变）。
+- Full pytest：`842 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未运行网络、真实 Provider、Cloud、Vault、TASK-016C、merge、push 或 tag。
+
+### Round 14 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 14 Correction Report。
+
 ## 主控验收
 
 - Orchestrator：

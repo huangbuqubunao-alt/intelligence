@@ -495,7 +495,7 @@ _NATURAL_STRUCTURE_DEPENDENCIES: Final[frozenset[str]] = frozenset(
     }
 )
 _ENTITY_INTERNAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
-    {"amod", "compound", "det", "flat"}
+    {"amod", "appos", "compound", "det", "flat", "pobj", "prep"}
 )
 _NATURAL_NOMINAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
     {"acl", "advmod", "amod", "det", "nummod", "poss", "prep", "relcl"}
@@ -563,10 +563,30 @@ def _nominal_argument_is_entity_like(token: _DependencyToken) -> bool:
     return not _nominal_argument_has_natural_structure(token)
 
 
-def _predicate_arguments(
+def _nominal_argument_has_only_entity_internal_structure(
+    token: _DependencyToken,
+) -> bool:
+    """Return whether a nominal subtree contains no natural-language evidence."""
+
+    if token.pos_ not in {"NOUN", "PROPN"}:
+        return False
+    return all(
+        child.pos_ == "PUNCT"
+        or child.dep_ in _ENTITY_INTERNAL_DEPENDENCIES
+        for child in token.children
+    )
+
+
+def _predicate_direct_arguments(
     children: Sequence[_DependencyToken],
 ) -> tuple[_DependencyToken, ...]:
-    arguments = [child for child in children if child.dep_ in _DEPENDENCY_ARGUMENTS]
+    return tuple(child for child in children if child.dep_ in _DEPENDENCY_ARGUMENTS)
+
+
+def _predicate_prepositional_arguments(
+    children: Sequence[_DependencyToken],
+) -> tuple[_DependencyToken, ...]:
+    arguments: list[_DependencyToken] = []
     for child in children:
         if child.dep_ != "prep":
             continue
@@ -586,7 +606,9 @@ def _predicate_has_complete_structure(
         return False
     children = tuple(token.children)
     subjects = tuple(child for child in children if child.dep_ in _DEPENDENCY_SUBJECTS)
-    arguments = _predicate_arguments(children)
+    direct_arguments = _predicate_direct_arguments(children)
+    prepositional_arguments = _predicate_prepositional_arguments(children)
+    arguments = (*direct_arguments, *prepositional_arguments)
     if not arguments:
         return False
     coordinated_subject = _coordinated_predicate_has_subject_context(token)
@@ -594,11 +616,17 @@ def _predicate_has_complete_structure(
         return False
     if token.ent_iob_ != "O":
         return False
-    if not coordinated_subject and all(
-        _nominal_argument_is_entity_like(argument)
-        for argument in (*subjects, *arguments)
-    ):
-        return False
+    if not coordinated_subject:
+        core_arguments_are_entities = bool(direct_arguments) and all(
+            _nominal_argument_is_entity_like(argument)
+            for argument in (*subjects, *direct_arguments)
+        )
+        prepositions_are_entity_internal = all(
+            _nominal_argument_has_only_entity_internal_structure(argument)
+            for argument in prepositional_arguments
+        )
+        if core_arguments_are_entities and prepositions_are_entity_internal:
+            return False
     return _has_natural_dependency_structure(tokens)
 
 
@@ -607,7 +635,9 @@ def _parse_has_complete_english_structure(
     text: str,
 ) -> bool:
     try:
-        tokens = tuple(parser(text))
+        # Parse one deterministic case-neutral representation. This avoids
+        # selecting a permissive result from multiple casing-dependent parses.
+        tokens = tuple(parser(text.casefold()))
         return any(
             _predicate_has_complete_structure(token, tokens)
             for token in tokens

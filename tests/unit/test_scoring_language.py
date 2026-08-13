@@ -271,6 +271,7 @@ def test_bare_entity_arguments_do_not_become_language_evidence(reason: str) -> N
 @pytest.mark.parametrize(
     "reason",
     [
+        "Amazon Connect Jack in the Box",
         "Amazon Connect The Home Depot",
         "Amazon Connect The North Face",
         "Amazon Connect The Weather Channel",
@@ -358,8 +359,14 @@ def test_missing_local_dependency_model_is_uncertain(
         "docker containers help developers deploy applications",
         "DOCKER CONTAINERS HELP DEVELOPERS DEPLOY APPLICATIONS",
         "The system relies on Docker for deployment.",
+        "the system relies on docker for deployment.",
+        "THE SYSTEM RELIES ON DOCKER FOR DEPLOYMENT.",
         "Redis stores data and improves application performance",
+        "redis stores data and improves application performance",
+        "REDIS STORES DATA AND IMPROVES APPLICATION PERFORMANCE",
         "OpenAI develops useful AI models",
+        "openai develops useful ai models",
+        "OPENAI DEVELOPS USEFUL AI MODELS",
     ],
 )
 def test_technical_entity_with_english_relation_structure_is_valid(

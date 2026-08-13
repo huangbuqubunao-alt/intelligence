@@ -436,6 +436,7 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
         ("en", "Amazon Connect Salesforce"),
+        ("en", "Amazon Connect Jack in the Box"),
         ("en", "Amazon Connect The Home Depot"),
         ("en", "Docker Kubernetes Terraform Ansible"),
         ("en", "docker kubernetes terraform ansible"),
@@ -476,6 +477,7 @@ def test_wrong_language_after_single_repair_fails_closed(
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
         ("en", "Amazon Connect Salesforce"),
+        ("en", "Amazon Connect Jack in the Box"),
         ("en", "Amazon Connect The Home Depot"),
         ("en", "Docker Kubernetes Terraform Ansible"),
         ("en", "docker kubernetes terraform ansible"),
@@ -536,7 +538,7 @@ def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
 def test_successful_language_repair_persists_only_the_valid_repair_response(
     tmp_path: Path,
 ) -> None:
-    primary_reason = "Amazon Connect The Home Depot"
+    primary_reason = "Amazon Connect Jack in the Box"
     repaired_reason = "Docker containers help developers deploy applications."
     result_template = {
         "score": 8,
