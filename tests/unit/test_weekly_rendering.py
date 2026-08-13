@@ -53,7 +53,7 @@ def _video(*, video_id: str = "video-a", title: str = "A safe product note") -> 
 def _scoring(
     *,
     score: float = 9.0,
-    reason: str = "This video is directly useful.",
+    reason: str = "This video provides directly useful guidance.",
 ) -> ScoringOutcome:
     result = ScoreResult(
         schema_version="score-result-v2",
@@ -118,7 +118,7 @@ def _report(
     *,
     title: str = "A safe product note",
     summary: str = "A compact summary.",
-    reason: str = "This video is directly useful.",
+    reason: str = "This video provides directly useful guidance.",
     keyword: str = "product",
     direction: str = "Use the verified direction.",
 ) -> _VerifiedWeeklyReport:

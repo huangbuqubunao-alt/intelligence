@@ -435,6 +435,7 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ("zh-CN", "この動画はAPIの製品ワークフローを詳しく説明します。"),
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Amazon Connect Salesforce"),
         ("en", "Docker Kubernetes Terraform Ansible"),
         ("en", "docker kubernetes terraform ansible"),
         ("en", "Docker Terraform Kubernetes Ansible"),
@@ -473,6 +474,7 @@ def test_wrong_language_after_single_repair_fails_closed(
     [
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Amazon Connect Salesforce"),
         ("en", "Docker Kubernetes Terraform Ansible"),
         ("en", "docker kubernetes terraform ansible"),
         ("en", "Redis Kafka PostgreSQL MongoDB"),

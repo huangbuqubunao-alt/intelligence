@@ -445,15 +445,10 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
     return tuple(spans)
 
 
-class _DependencyMorphology(Protocol):
-    def get(self, feature: str) -> list[str]: ...
-
-
 class _DependencyToken(Protocol):
     pos_: str
     dep_: str
     head: _DependencyToken
-    morph: _DependencyMorphology
 
     @property
     def children(self) -> Iterable[_DependencyToken]: ...
@@ -482,30 +477,95 @@ _DEPENDENCY_SUBJECTS: Final[frozenset[str]] = frozenset(
 _DEPENDENCY_ARGUMENTS: Final[frozenset[str]] = frozenset(
     {"dobj", "obj", "iobj", "attr", "oprd", "ccomp", "xcomp", "acomp"}
 )
+_NATURAL_STRUCTURE_DEPENDENCIES: Final[frozenset[str]] = frozenset(
+    {
+        "acl",
+        "advcl",
+        "advmod",
+        "amod",
+        "aux",
+        "cc",
+        "ccomp",
+        "det",
+        "mark",
+        "prep",
+        "relcl",
+        "xcomp",
+    }
+)
+_NATURAL_NOMINAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
+    {"acl", "advmod", "amod", "det", "nummod", "poss", "prep", "relcl"}
+)
 
 
-def _predicate_has_complete_structure(token: _DependencyToken) -> bool:
-    if token.pos_ not in {"VERB", "AUX"}:
-        return False
-    children = tuple(token.children)
-    has_argument = any(child.dep_ in _DEPENDENCY_ARGUMENTS for child in children)
-    if not has_argument:
-        return False
-    if any(child.dep_ in _DEPENDENCY_SUBJECTS for child in children):
-        return True
-    if token.dep_ != "conj":
+def _has_natural_dependency_structure(tokens: Sequence[_DependencyToken]) -> bool:
+    return any(token.dep_ in _NATURAL_STRUCTURE_DEPENDENCIES for token in tokens)
+
+
+def _coordinated_predicate_has_subject_context(token: _DependencyToken) -> bool:
+    if token.dep_ != "conj" or token.head.pos_ not in {"NOUN", "PROPN"}:
         return False
     head_children = tuple(token.head.children)
-    return (
-        token.head.pos_ in {"NOUN", "PROPN"}
-        and any(child.dep_ == "cc" for child in head_children)
-        and any(
-            child is not token
-            and child.pos_ in {"NOUN", "PROPN"}
-            and child.dep_ in {"compound", "nsubj"}
-            for child in head_children
-        )
+    return any(child.dep_ == "cc" for child in head_children) and any(
+        child is not token
+        and child.pos_ in {"NOUN", "PROPN"}
+        and child.dep_ in {"compound", "nsubj"}
+        for child in head_children
     )
+
+
+def _nominal_argument_has_natural_structure(token: _DependencyToken) -> bool:
+    for child in token.children:
+        if child.dep_ in _NATURAL_NOMINAL_DEPENDENCIES:
+            return True
+        if child.dep_ in {"compound", "flat"} and _nominal_argument_has_natural_structure(
+            child
+        ):
+            return True
+    return False
+
+
+def _nominal_argument_is_entity_like(token: _DependencyToken) -> bool:
+    if token.pos_ not in {"NOUN", "PROPN"}:
+        return False
+    return not _nominal_argument_has_natural_structure(token)
+
+
+def _predicate_arguments(
+    children: Sequence[_DependencyToken],
+) -> tuple[_DependencyToken, ...]:
+    arguments = [child for child in children if child.dep_ in _DEPENDENCY_ARGUMENTS]
+    for child in children:
+        if child.dep_ != "prep":
+            continue
+        arguments.extend(
+            complement
+            for complement in child.children
+            if complement.dep_ in {"pcomp", "pobj"}
+        )
+    return tuple(arguments)
+
+
+def _predicate_has_complete_structure(
+    token: _DependencyToken,
+    tokens: Sequence[_DependencyToken],
+) -> bool:
+    if token.pos_ != "VERB" or token.dep_ not in {"ROOT", "conj"}:
+        return False
+    children = tuple(token.children)
+    subjects = tuple(child for child in children if child.dep_ in _DEPENDENCY_SUBJECTS)
+    arguments = _predicate_arguments(children)
+    if not arguments:
+        return False
+    coordinated_subject = _coordinated_predicate_has_subject_context(token)
+    if not subjects and not coordinated_subject:
+        return False
+    if not coordinated_subject and all(
+        _nominal_argument_is_entity_like(argument)
+        for argument in (*subjects, *arguments)
+    ):
+        return False
+    return _has_natural_dependency_structure(tokens)
 
 
 def _parse_has_complete_english_structure(
@@ -513,24 +573,22 @@ def _parse_has_complete_english_structure(
     text: str,
 ) -> bool:
     try:
-        return any(_predicate_has_complete_structure(token) for token in parser(text))
+        tokens = tuple(parser(text))
+        return any(
+            _predicate_has_complete_structure(token, tokens)
+            for token in tokens
+        )
     except Exception:
         return False
 
 
 def _has_english_relation_structure(reason: str) -> bool:
-    """Require a case-robust consensus of complete dependency evidence."""
+    """Require one complete parse with a predicate, arguments, and structure."""
 
     parser = _load_english_dependency_parser()
     if parser is None:
         return False
-    variants = tuple(dict.fromkeys((reason, reason.lower(), reason.title())))
-    matches = sum(
-        _parse_has_complete_english_structure(parser, variant)
-        for variant in variants
-    )
-    required_consensus = 1 if len(variants) == 1 else 2
-    return matches >= required_consensus
+    return _parse_has_complete_english_structure(parser, reason)
 
 
 def _latin_text_groups(

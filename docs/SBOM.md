@@ -4,7 +4,8 @@
 - 生成依据：已提交的 `pyproject.toml`、`uv.lock`、ADR-007、ADR-008、ADR-009、
   `docs/REUSE_REGISTER.md` 与已有 handoff/验收记录。
 - 范围：锁文件解析到的 Python 分发包，以及条件性模型、系统工具和固定资源边界。
-- 不在本阶段执行：安装、构建、包内容检查、许可证扫描、网络查询、哈希生成或真实资源验证。
+- TASK-016B 补充：已对 spaCy 新增依赖执行锁定安装、离线构建、包 metadata/LICENSE
+  清点与模型哈希核验；其余 Phase A 组件仍沿用原证据边界。
 
 本清单是发行决策输入，不是法律意见，也不表示任何锁定组件、资源或其组合已经获准
 分发。`uv.lock` 记录版本、来源与工件哈希，但不携带完整的许可证文本、NOTICE、版权
@@ -21,7 +22,7 @@
 | `openai` | `2.46.0`；直接运行依赖 | ADR-008 / Reuse Register：Apache-2.0 | 收集 SDK 与所有传递项的发行 NOTICE；不含真实密钥、响应或云验证。 |
 | `pydantic` | `2.13.4`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
 | `pyyaml` | `6.0.3`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
-| `spacy` | `3.8.15`；直接运行依赖 | 官方 PyPI 元数据与上游 LICENSE：MIT | 固定本地 CPU 解析能力；21 个新增传递解析项单列于锁定清单。最终发行前逐项补齐版权与 NOTICE。 |
+| `spacy` | `3.8.15`；直接运行依赖 | 固定 wheel metadata/LICENSE：MIT；© 2015 Matthew Honnibal、2016 spaCy GmbH、2016–2024 ExplosionAI GmbH | 固定本地 CPU 解析能力；21 个新增传递项逐项证据见 `THIRD_PARTY_NOTICES.md`。Local-only 已闭合；公开 bundle 仍阻断。 |
 | `tiktoken` | `0.13.0`；直接运行依赖 | ADR-008 / Reuse Register：MIT | 收集其发行 NOTICE；不能据此推断附带 BPE 文件的文件级许可。 |
 | `yt-dlp[default,deno]` | `2026.7.4`；直接运行依赖 | Reuse Register：DIRECT；锁文件固定 extras | `default` 会带入 `mutagen`；二进制/捆绑发行被其 GPL 门禁阻断。 |
 | `mypy` / `pytest` / `ruff` | `2.3.0` / `9.1.1` / `0.15.21`；直接开发依赖 | 锁文件版本 | 开发工具不自动进入运行时发行物；若随发行物提供，仍须组件级清单与许可证证据。 |
@@ -37,6 +38,9 @@
 | spaCy `en_core_web_sm` 英文模型 | 固定 `3.8.0` 官方 wheel、大小与 SHA-256；模型包声明 MIT；来源清单含 OntoNotes 5、ClearNLP 转换规则与 WordNet 3.0。 | 运行时只能加载已安装的固定包，缺失时 fail-closed；不得自动下载。公开分发前须复核训练来源归属、WordNet NOTICE 和模型随发行物策略。 |
 
 ## 锁定解析清单
+
+TASK-016B 新增的 23 个包均已在 `docs/THIRD_PARTY_NOTICES.md` 明确记录版本、许可证、
+版权、来源和分发状态；不再属于下述通用 `EVIDENCE GAP`。其余组件仍遵循本节限制。
 
 以下是 `uv.lock` 中除上表已列直接依赖外的其余非根解析包（版本由锁文件直接给出）。
 除本文件上表与 ADR 明确给出证据的组件外，许可证/版权/NOTICE 一律标为 `EVIDENCE GAP`，而非根据名称、

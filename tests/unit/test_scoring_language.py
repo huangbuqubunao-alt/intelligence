@@ -203,6 +203,7 @@ def test_score_result_rejects_obvious_wrong_language(
 @pytest.mark.parametrize(
     "reason",
     [
+        "Amazon Connect Salesforce",
         "Docker Kubernetes Terraform Ansible",
         "docker kubernetes terraform ansible",
         "Docker Terraform Kubernetes Ansible",
@@ -236,6 +237,34 @@ def test_technical_identifiers_and_non_chinese_scripts_cannot_prove_language(
             prompt_version="scoring-prompt-v2",
             request_hash="a" * 64,
             output_language="zh-CN" if "動画" in reason else "en",
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "Kubernetes orchestrates Docker",
+        "kubernetes orchestrates docker",
+        "KUBERNETES ORCHESTRATES DOCKER",
+    ],
+)
+def test_bare_entity_arguments_do_not_become_language_evidence(reason: str) -> None:
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="en",
         )
 
 
@@ -291,6 +320,9 @@ def test_missing_local_dependency_model_is_uncertain(
     "reason",
     [
         "Docker containers help developers deploy applications",
+        "docker containers help developers deploy applications",
+        "DOCKER CONTAINERS HELP DEVELOPERS DEPLOY APPLICATIONS",
+        "The system relies on Docker for deployment.",
         "Redis stores data and improves application performance",
         "OpenAI develops useful AI models",
     ],

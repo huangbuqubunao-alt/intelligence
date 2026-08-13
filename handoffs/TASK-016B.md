@@ -207,6 +207,84 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 11 Implementation Report。
 
+## Round 12 Correction（2026-08-13）
+
+### Root cause 与 algorithm correction
+
+- Round 11 将 spaCy 给出的 dependency relation 本身当作语言证明，并通过原文、
+  `lower()`、`title()` 多版本共识抵抗误标。`Amazon Connect Salesforce` 会被 parser
+  误标成 `nsubj + VERB ROOT + dobj`，从而穿透；同一句话的大小写也会改变共识结果。
+- Round 12 完全删除大小写变体和 consensus，只解析用户收到的原始 reason 一次。
+  大小写不再作为正面或负面语言证据。
+- 英文 `VALID` 现在要求：真实 `VERB`；仅允许 `ROOT` 或有明确 coordinated subject
+  context 的 `conj` predicate；同时具备 subject 与 object/attribute/complement
+  （含介词的 `pobj`/`pcomp`）；并存在 determiner/modifier/coordination/complement
+  等自然依存结构。
+- subject 与主要 argument 若全部只是无内部自然结构的 `NOUN`/`PROPN` entity-like
+  span，则保持 `UNCERTAIN`。该规则只读取 parser 的 POS/dependency tree，不包含品牌
+  词表、白名单、黑名单、token 数量/位置或后缀启发式。
+
+### Adversarial matrix
+
+- `Amazon Connect Salesforce`、`Docker Kubernetes Terraform Ansible`、`Redis
+  Kafka PostgreSQL MongoDB`、`OpenAI PyTorch TensorFlow Kubernetes`：全部
+  `UNCERTAIN`。
+- `Kubernetes orchestrates Docker`、lowercase 与全大写变体：结果一致，全部
+  `UNCERTAIN`；证明大小写不会改变 bare entity-argument 判定。
+- `Docker containers help developers deploy applications` 的原始、lowercase 与
+  全大写变体全部 `VALID`；`Redis stores data and improves application performance`、
+  `OpenAI develops useful AI models`、`This Video Explains Machine Learning
+  Workflows Clearly` 继续 `VALID`。
+- 中文技术混排、日文/韩文/阿拉伯文及模型缺失 fail-closed 矩阵保持通过。
+
+### Artifact boundary evidence
+
+- 新增真实 Fake Ollama `Amazon Connect Salesforce` primary → language validation →
+  唯一一次 repair → validation 回归；repair 仍失败返回 `INVALID_RESPONSE`。
+- Repository-backed 回归确认该 identifier-only response 不会得到
+  `ProviderCall SUCCEEDED` 或 cache hit；无 `SCORING_RAW`、
+  `SCORING_STRUCTURED`、成功 `response_artifact_id` 或 Artifact 文件。
+- repair 成功只保存修复后的可信 response；P1-2 ScoreResult trusted validation 与
+  P1-3 六项 cache provenance 逻辑未修改。
+
+### Dependency compliance
+
+- `docs/THIRD_PARTY_NOTICES.md` 已逐项列出 TASK-016B 新增 23 个包的固定版本、许可证、
+  版权归属、上游来源和分发状态；覆盖 spaCy 本体及 21 个 transitive dependencies。
+- 明确记录 `en_core_web_sm` MIT/Explosion 版权、OntoNotes 5 commercial source
+  licensed by Explosion、ClearNLP citation-only 来源，以及 WordNet Release 3.0 的
+  Princeton copyright、notice/disclaimer 保留和禁止宣传使用名称义务；WordNet
+  要求随副本保留的完整 notice 已逐字收入 NOTICE 文档。
+- 合规结论：固定 Local-only 安装/运行/离线构建证据闭合；公开 bundle 仍为 NO-GO，
+  直至模型来源再分发、许可证文本装载及 release-owner sign-off 完成。SBOM 已同步，
+  不把本轮合规补证误写成公开发行批准。
+
+### TDD 与门禁
+
+- 有效 RED：`4 failed, 134 passed`，分别证明 Amazon Domain 绕过、Kubernetes 大小写
+  不一致、Ollama 未进入 repair，以及 Repository 错误持久化正式评分 Artifact。
+- 聚焦 Domain/Ollama：`139 passed`；Weekly 安全/渲染回归单独 `41 passed`。
+- 首次 full pytest 在 `792 passed` 后暴露一个旧测试夹具兼容问题：系词句
+  `This video is directly useful.` 的核心被 parser 标为 `ADJ`，不再满足冻结的
+  real-`VERB` 契约。仅将测试夹具改为等义的
+  `This video provides directly useful guidance.`；Weekly production 未修改，
+  对应 41 项回归随后通过。
+- `uv lock --check` → `uv sync --locked --offline` → `uv lock --check`：PASS
+  （107 resolved / 84 checked，无下载或锁漂移）。
+- Full pytest：`823 passed`；`uv run mypy src`：PASS（27 source files）；
+  `uv run ruff check .`：PASS；CLI help：PASS；`uv build --offline`：sdist/wheel
+  PASS；wheel metadata 精确保留 `spacy==3.8.15` 与固定 3.8.0 模型 URL。
+- 新增 23 包 NOTICE 清单与已安装版本逐项一致；WordNet 完整 notice 存在；
+  `bash scripts/security_scan.sh`：`status=clean`（仅既有非阻断 WARN）；
+  `git diff --check`：PASS。
+- 未修改 TASK-016C、Cloud、Router、Weekly production、DB Schema/Migration；未运行
+  网络、真实 Provider、merge、push、tag 或 release。
+
+### Round 12 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 12 Correction Report。
+
 ## Final Correction Round 3（2026-08-13）
 
 ### Root cause
