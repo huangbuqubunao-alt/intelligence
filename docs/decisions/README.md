@@ -37,3 +37,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-021](ADR-021-safe-subtitle-directory-contract-state-diagnostics.md) | Accepted | 2026-07-29 | 冻结 mapping `INVALID_RESPONSE` 的六字段无值目录契约状态矩阵 |
 | [ADR-022](ADR-022-production-runtime-composition.md) | Accepted | 2026-08-12 | 正式 CLI production composition、首次运行 bootstrap 与可操作诊断 |
 | [ADR-023](ADR-023-local-hybrid-cloud-intelligence.md) | Accepted | 2026-08-12 | Local/Hybrid/Cloud 模式、统一 Knowledge V2、中文输出、Evidence 与 Local-only 首个里程碑 |
+| [ADR-024](ADR-024-scoring-language-validator-scope.md) | Accepted | 2026-08-13 | 冻结评分语言校验器的可判定职责边界，实体与内容质量识别移交独立后续任务 |

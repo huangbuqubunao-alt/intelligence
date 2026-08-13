@@ -686,6 +686,33 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 15 Correction Report。
 
+## Round 16 Scope Decision（2026-08-13）
+
+### 不可判定性证据
+
+- 固定单次 `casefold()` spaCy parse 中，`General Dynamics Corporation` 与
+  `useful AI models` 的 object 均为 `NOUN/dobj`，直接子节点均为
+  `ADJ/amod + NOUN/compound`，且 NER 均无可用实体标记。
+- 在禁止品牌/实体词典、外部知识、语义模型和 token/dependency 隐性启发式的约束下，
+  无法可靠地把前者固定为 entity-only，同时把后者固定为自然语言。
+
+### 决定与边界
+
+- 已接受 [ADR-024](../docs/decisions/ADR-024-scoring-language-validator-scope.md)。
+- Language Validator 只负责 script mismatch、自然语言结构验证与不确定时 fail-closed；
+  不负责品牌/公司/产品识别、实体真实性或 entity stuffing 检测。
+- 保持正常英文样例有效；entity-only 内容质量风险移交未来独立 Content Quality 任务，
+  本轮不创建或启动该任务。
+- 产品基线保持 `08fbae17086c74757b5cf98bf8ad76613872a32c`；未增加 entity/brand
+  规则、dependency 例外、token 启发式或产品代码修改。
+
+### 本轮验证
+
+- 仅修改 ADR-024、ADR 索引与本 handoff。
+- 未运行产品测试、类型检查、Lint 或 build：本轮没有代码、配置、依赖或测试变更。
+- `git diff --check`：PASS。
+- 未运行网络、模型、Cloud、Vault、TASK-016C、merge、push、tag 或 release。
+
 ## 主控验收
 
 - Orchestrator：
