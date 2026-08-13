@@ -11,8 +11,10 @@ from youtube_intel.domain import (
     Availability,
     LiveStatus,
     ScoreResult,
+    ScoringLanguageValidation,
     ScoringOutputLanguage,
     VideoMetadata,
+    detect_scoring_language_violation,
     validate_score_result,
 )
 from youtube_intel.scoring import (
@@ -71,6 +73,57 @@ def test_output_language_changes_request_hash() -> None:
 
 
 @pytest.mark.parametrize(
+    ("output_language", "reason", "expected"),
+    [
+        (
+            "zh-CN",
+            "Useful clear practical workflow advice",
+            ScoringLanguageValidation.INVALID,
+        ),
+        (
+            "zh-CN",
+            "该视频介绍 API、SDK、LLM 技术流程",
+            ScoringLanguageValidation.VALID,
+        ),
+        (
+            "zh-CN",
+            "good nice happy 中文",
+            ScoringLanguageValidation.UNCERTAIN,
+        ),
+        (
+            "en",
+            "这个视频详细解释产品流程",
+            ScoringLanguageValidation.INVALID,
+        ),
+        (
+            "en",
+            "This video explains API and LLM workflow.",
+            ScoringLanguageValidation.VALID,
+        ),
+        (
+            "en",
+            "clear 中文 advice",
+            ScoringLanguageValidation.UNCERTAIN,
+        ),
+        ("zh-CN", "中", ScoringLanguageValidation.VALID),
+        ("en", "a", ScoringLanguageValidation.VALID),
+        (
+            "en",
+            "Useful practical advice",
+            ScoringLanguageValidation.VALID,
+        ),
+        ("en", "API SDK LLM", ScoringLanguageValidation.UNCERTAIN),
+    ],
+)
+def test_language_violation_detector_returns_three_state_result(
+    output_language: ScoringOutputLanguage,
+    reason: str,
+    expected: ScoringLanguageValidation,
+) -> None:
+    assert detect_scoring_language_violation(reason, output_language) is expected
+
+
+@pytest.mark.parametrize(
     ("output_language", "reason"),
     [
         ("zh-CN", "The video gives a detailed practical explanation of the product workflow."),
@@ -93,7 +146,6 @@ def test_output_language_changes_request_hash() -> None:
             "zh-CN",
             "中文 Useful clear practical product workflow advice 中文",
         ),
-        ("zh-CN", "中"),
         ("en", "这个视频清晰完整地解释了产品流程，并给出了可以直接执行的建议。"),
         ("en", "这个视频详细解释了 API、SDK、LLM、RAG、GPT 和 MLX 的产品工作流程。"),
         ("en", "这个视频详细解释了 api、sdk、llm 的产品工作流程。"),
@@ -105,9 +157,7 @@ def test_output_language_changes_request_hash() -> None:
         ("en", "a 这个视频详细解释产品流程 a"),
         ("en", "a clear 这个视频详细解释产品流程 advice"),
         ("en", "The 北京大学人工智能实验室 team clearly explains the product workflow."),
-        ("en", "Useful practical advice"),
         ("en", "API SDK LLM"),
-        ("en", "a"),
     ],
 )
 def test_score_result_rejects_obvious_wrong_language(

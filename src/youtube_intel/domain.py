@@ -5,7 +5,6 @@ This module must not import concrete provider SDKs or free-form dict public APIs
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
@@ -385,7 +384,6 @@ _SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
         "youtube",
     }
 )
-_SCORING_SEGMENT_RE: Final = re.compile(r"[\n\r.!?。！？；;]+")
 _ScoringScript: TypeAlias = Literal["Han", "Latin", "other"]
 
 
@@ -395,11 +393,10 @@ class _ScoringScriptSpan:
     text: str
 
 
-@dataclass(frozen=True, slots=True)
-class _ScoringSegmentEvidence:
-    zh_confidence: bool
-    en_confidence: bool
-    unknown: bool
+class ScoringLanguageValidation(str, Enum):
+    VALID = "VALID"
+    INVALID = "INVALID"
+    UNCERTAIN = "UNCERTAIN"
 
 
 def _scoring_character_script(character: str) -> _ScoringScript:
@@ -436,51 +433,28 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
     return tuple(spans)
 
 
-def _has_strong_han_evidence(value: str) -> bool:
-    """A strong Han span requires more than a single continuous ideograph."""
-
-    return len(value) >= 2
-
-
-def _has_strong_latin_evidence(tokens: Sequence[str]) -> bool:
-    """A strong Latin span requires four non-technical natural tokens."""
-
-    natural_tokens = tuple(
-        token
-        for token in tokens
-        if len(token) > 1 and token.casefold() not in _SCORING_TECHNICAL_TERMS
+def _has_nontechnical_latin_text(spans: Sequence[_ScoringScriptSpan]) -> bool:
+    latin_tokens = tuple(
+        span.text.casefold() for span in spans if span.script == "Latin"
     )
-    return len(natural_tokens) >= 4
+    return any(token not in _SCORING_TECHNICAL_TERMS for token in latin_tokens)
 
 
-def _flush_latin_span(tokens: list[str]) -> bool:
-    strong = _has_strong_latin_evidence(tokens)
-    tokens.clear()
-    return strong
+def detect_scoring_language_violation(
+    reason: str,
+    output_language: ScoringOutputLanguage,
+) -> ScoringLanguageValidation:
+    """Detect only unambiguous wrong-script responses; mixed text is uncertain."""
 
-
-def _scoring_segment_evidence(segment: str) -> _ScoringSegmentEvidence:
-    """Classify independent Han and Latin script spans as strong or absent."""
-
-    has_zh_subject = False
-    has_en_subject = False
-    latin_tokens: list[str] = []
-    for span in _scoring_script_spans(segment):
-        if span.script == "Latin":
-            latin_tokens.append(span.text)
-            continue
-        if span.script == "other":
-            continue
-
-        has_en_subject = _flush_latin_span(latin_tokens) or has_en_subject
-        has_zh_subject = _has_strong_han_evidence(span.text) or has_zh_subject
-    has_en_subject = _flush_latin_span(latin_tokens) or has_en_subject
-
-    return _ScoringSegmentEvidence(
-        zh_confidence=has_zh_subject,
-        en_confidence=has_en_subject,
-        unknown=has_zh_subject and has_en_subject,
-    )
+    spans = _scoring_script_spans(reason)
+    has_han = any(span.script == "Han" for span in spans)
+    has_latin = _has_nontechnical_latin_text(spans)
+    if has_han == has_latin:
+        return ScoringLanguageValidation.UNCERTAIN
+    detected_language: ScoringOutputLanguage = "zh-CN" if has_han else "en"
+    if detected_language == output_language:
+        return ScoringLanguageValidation.VALID
+    return ScoringLanguageValidation.INVALID
 
 
 def scoring_reason_matches_output_language(
@@ -489,33 +463,10 @@ def scoring_reason_matches_output_language(
 ) -> bool:
     """Return whether a reason has one unambiguous configured-language subject."""
 
-    return not _contains_obvious_wrong_scoring_language(reason, output_language)
-
-
-def _contains_obvious_wrong_scoring_language(
-    reason: str,
-    output_language: ScoringOutputLanguage,
-) -> bool:
-    """Require a minimum natural-language subject after technical-term stripping.
-
-    This deliberately is not a character-ratio detector. Approved English
-    technical terms are excluded, single-character markers are not evidence,
-    and strong evidence in both scripts fails closed.
-    """
-
-    evidence = tuple(
-        _scoring_segment_evidence(segment)
-        for segment in _SCORING_SEGMENT_RE.split(reason)
-        if segment.strip()
+    return (
+        detect_scoring_language_violation(reason, output_language)
+        is ScoringLanguageValidation.VALID
     )
-    if any(item.unknown for item in evidence):
-        return True
-    has_zh_subject = any(item.zh_confidence for item in evidence)
-    has_en_subject = any(item.en_confidence for item in evidence)
-    if has_zh_subject == has_en_subject:
-        return True
-    subject_language = "zh-CN" if has_zh_subject else "en"
-    return subject_language != output_language
 
 
 class ScoreResult(_DomainModel):

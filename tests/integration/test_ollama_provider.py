@@ -334,6 +334,18 @@ def test_primary_prompt_contains_authoritative_output_language_instruction(
             "English",
         ),
         (
+            "zh-CN",
+            "good nice happy 中文",
+            "视频清楚说明了产品工作流，因此具有实际参考价值。",
+            "Simplified Chinese",
+        ),
+        (
+            "en",
+            "clear 中文 advice",
+            "The video clearly explains the product workflow and has practical value.",
+            "English",
+        ),
+        (
             "en",
             "这个视频详细解释了产品工作流程并给出了建议。\n"
             "Useful clear practical product workflow advice.",
@@ -394,6 +406,8 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ),
         ("en", "a 这个视频详细解释产品流程 a"),
         ("en", "a clear 这个视频详细解释产品流程 advice"),
+        ("zh-CN", "good nice happy 中文"),
+        ("en", "clear 中文 advice"),
     ],
 )
 def test_wrong_language_after_single_repair_fails_closed(
