@@ -94,7 +94,7 @@ class _CountingProvider:
         return ScoreResult(
             schema_version="score-result-v2",
             score=6.5,
-            reason="Useful but below the configured summary threshold.",
+            reason="This result has a score below the configured summary threshold.",
             topics=("product",),
             should_summarize=True,
             provider="fake-scoring",
@@ -119,7 +119,7 @@ class _PersistentCountingProvider(_CountingProvider):
         result = ScoreResult(
             schema_version="score-result-v2",
             score=6.5,
-            reason="Useful but below the configured summary threshold.",
+            reason="This result has a score below the configured summary threshold.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
@@ -188,7 +188,7 @@ class _RecoveryProvider:
         return ScoreResult(
             schema_version="score-result-v2",
             score=7.5,
-            reason="Recovered from the saved primary response.",
+            reason="The saved response produces this recovered result.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",

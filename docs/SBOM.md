@@ -15,11 +15,13 @@
 | 组件 | 锁定版本 / 关系 | 已有许可证或来源证据 | 发行缺口与处理 |
 |---|---|---|---|
 | `youtube-intel` | `0.1.0`；项目根 | `pyproject.toml` | 本任务不选择、创建或暗示项目自身 LICENSE。 |
+| `en-core-web-sm` | `3.8.0`；固定 URL 直接运行依赖 | Explosion 官方 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85` | 仅用于本地英文依存分析；训练来源含 Explosion 授权的 OntoNotes 5 与 WordNet 3.0，最终分发前须完成模型级 NOTICE/许可复核。运行时禁止下载或网络 fallback。 |
 | `jinja2` | `3.1.6`；直接运行依赖 | ADR-009 / Reuse Register：BSD-3-Clause | 收集发行包的版权与 NOTICE 证据；其传递 `markupsafe` 单列。 |
 | `mlx-whisper` | `0.4.3`；直接运行依赖 | ADR-007 / Reuse Register：MIT | 仅条件性本地转写能力；模型、ffmpeg、传递包与真实资源另行审批。 |
 | `openai` | `2.46.0`；直接运行依赖 | ADR-008 / Reuse Register：Apache-2.0 | 收集 SDK 与所有传递项的发行 NOTICE；不含真实密钥、响应或云验证。 |
 | `pydantic` | `2.13.4`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
 | `pyyaml` | `6.0.3`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
+| `spacy` | `3.8.15`；直接运行依赖 | 官方 PyPI 元数据与上游 LICENSE：MIT | 固定本地 CPU 解析能力；21 个新增传递解析项单列于锁定清单。最终发行前逐项补齐版权与 NOTICE。 |
 | `tiktoken` | `0.13.0`；直接运行依赖 | ADR-008 / Reuse Register：MIT | 收集其发行 NOTICE；不能据此推断附带 BPE 文件的文件级许可。 |
 | `yt-dlp[default,deno]` | `2026.7.4`；直接运行依赖 | Reuse Register：DIRECT；锁文件固定 extras | `default` 会带入 `mutagen`；二进制/捆绑发行被其 GPL 门禁阻断。 |
 | `mypy` / `pytest` / `ruff` | `2.3.0` / `9.1.1` / `0.15.21`；直接开发依赖 | 锁文件版本 | 开发工具不自动进入运行时发行物；若随发行物提供，仍须组件级清单与许可证证据。 |
@@ -32,6 +34,7 @@
 | MLX Community Whisper 转换模型 | ADR-007 固定 revision、大小和权重哈希；上游 OpenAI Whisper 资料为 MIT。 | 转换仓库 model card 缺少许可声明；不得推断转换产物许可或纳入任何发行物。 |
 | ffmpeg | ADR-007 记录 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 未获安装/调用/捆绑授权；不得捆绑或重新分发。 |
 | Ollama 与 `qwen3:8b` | ADR-007 记录 Ollama MIT、固定 qwen digest；上游 Qwen3-8B 为 Apache-2.0。 | 程序版本、模型拉取、本机服务与模型分发均待单独供应链/授权审查。 |
+| spaCy `en_core_web_sm` 英文模型 | 固定 `3.8.0` 官方 wheel、大小与 SHA-256；模型包声明 MIT；来源清单含 OntoNotes 5、ClearNLP 转换规则与 WordNet 3.0。 | 运行时只能加载已安装的固定包，缺失时 fail-closed；不得自动下载。公开分发前须复核训练来源归属、WordNet NOTICE 和模型随发行物策略。 |
 
 ## 锁定解析清单
 
@@ -42,15 +45,18 @@ PyPI 来源或历史记忆推断。它们是直接依赖的传递解析项，或
 
 ```text
 annotated-types 0.7.0        anyio 4.14.2                 ast-serialize 0.6.0
+annotated-doc 0.0.5          blis 1.3.3                   catalogue 2.0.10
 brotli 1.2.0                 brotlicffi 1.2.0.1           certifi 2026.6.17
 cffi 2.1.0                   charset-normalizer 3.4.9     click 8.4.2
 colorama 0.4.6               cuda-bindings 13.3.1         cuda-pathfinder 1.5.6
+cloudpathlib 0.24.0          confection 1.3.3             cymem 2.0.13
 cuda-toolkit 13.0.3.0        deno 2.9.2                   distro 1.9.0
 filelock 3.31.0              fsspec 2026.6.0              h11 0.16.0
 hf-xet 1.5.2                 httpcore 1.0.9               httpx 0.28.1
 huggingface-hub 1.24.0       idna 3.18                    iniconfig 2.3.0
 jiter 0.16.0                 librt 0.13.0                 llvmlite 0.48.0
 markupsafe 3.0.3             mlx 0.32.0                   mlx-metal 0.32.0
+markdown-it-py 4.2.0         mdurl 0.1.2                  murmurhash 1.0.15
 more-itertools 11.1.0        mpmath 1.3.0                 mutagen 1.48.1
 mypy-extensions 1.1.0        networkx 3.6.1               numba 0.66.0
 numpy 2.4.6                  nvidia-cublas 13.1.1.3       nvidia-cuda-cupti 13.0.85
@@ -59,12 +65,16 @@ nvidia-cufft 12.0.0.61       nvidia-cufile 1.15.1.6       nvidia-curand 10.4.0.3
 nvidia-cusolver 12.0.4.66    nvidia-cusparse 12.6.3.3     nvidia-cusparselt-cu13 0.8.1
 nvidia-nccl-cu13 2.29.7      nvidia-nvjitlink 13.3.33     nvidia-nvshmem-cu13 3.4.5
 nvidia-nvtx 13.0.85          packaging 26.2               pathspec 1.1.1
+preshed 3.0.13               rich 15.0.0                  shellingham 1.5.4
 pluggy 1.6.0                 pycparser 3.0                pycryptodomex 3.23.0
 pydantic-core 2.46.4         pygments 2.20.0              regex 2026.7.10
 requests 2.34.2              scipy 1.18.0                 setuptools 83.0.0
-sniffio 1.3.1                sympy 1.14.0                 torch 2.13.0
+smart-open 8.0.1             sniffio 1.3.1                spacy-legacy 3.0.12
+spacy-loggers 1.0.5          srsly 2.5.3                  sympy 1.14.0
+thinc 8.3.13                 torch 2.13.0                 typer 0.27.1
 tqdm 4.69.0                  triton 3.7.1                 typing-extensions 4.16.0
-typing-inspection 0.4.2      urllib3 2.7.0                websockets 16.1
+typing-inspection 0.4.2      urllib3 2.7.0                wasabi 1.1.3
+weasel 1.0.0                 websockets 16.1              wrapt 2.3.0
 yt-dlp-ejs 0.8.0
 ```
 

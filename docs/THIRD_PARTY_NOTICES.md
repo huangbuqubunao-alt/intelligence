@@ -12,6 +12,8 @@
 | OpenAI Python SDK `openai==2.46.0` | ADR-008、Reuse Register：Apache-2.0。 | 收集 SDK 及传递项的版权/NOTICE；SDK 隔离导入不等于可分发签署。 |
 | `tiktoken==0.13.0` | ADR-008、Reuse Register：MIT。 | 收集包级 NOTICE；不得把此结论延伸到 `o200k_base.tiktoken` 文件。 |
 | `Jinja2==3.1.6` | ADR-009、Reuse Register：BSD-3-Clause。 | 收集发行物所需归属/NOTICE；传递 `MarkupSafe==3.0.3` 独立补证。 |
+| `spaCy==3.8.15` | Explosion 官方 Python 包；上游 LICENSE 与 PyPI 元数据声明 MIT；TASK-016B 固定版本和锁文件工件哈希。 | 本地英文依存分析的直接依赖；其新增传递项仍须逐项补齐版权与 NOTICE。运行时不得下载模型或联网 fallback。 |
+| `en_core_web_sm==3.8.0` | Explosion 官方模型 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85`。模型来源清单包含 OntoNotes 5（commercial，licensed by Explosion）、ClearNLP conversion reference 与 WordNet 3.0 License。 | **RELEASE REVIEW REQUIRED**：Local-only 可从固定包加载；公开发行前须保留模型 LICENSE/来源归属、满足 WordNet NOTICE，并由发布负责人确认模型随 wheel/sdist/安装缓存的分发方式。缺失时只能 fail-closed，不得自动下载。 |
 | `MarkupSafe==3.0.3` | 锁文件中存在；本阶段输入没有其许可证/NOTICE 原始证据。 | **EVIDENCE GAP**：发布前补充组件级证据与义务。 |
 | `mlx-whisper==0.4.3` | ADR-007、Reuse Register：MIT。 | 条件性本地转写组件；解析后的 MLX/torch/Numba/NumPy 等及最终目标平台包必须逐项审查。 |
 | MLX Community Whisper 转换模型 | ADR-007：固定来源/revision/权重哈希；转换仓库 model card 未声明 license。 | **BLOCKER**：不得假定转换模型可再分发或纳入发布物。 |

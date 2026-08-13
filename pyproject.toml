@@ -14,11 +14,13 @@ version = "0.1.0"
 description = "A local-first YouTube intelligence agent"
 requires-python = ">=3.12"
 dependencies = [
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "jinja2>=3.1.6,<3.2",
     "mlx-whisper>=0.4.3,<0.5",
     "openai>=2.46.0,<2.47",
     "pydantic>=2.13.4,<2.14",
     "pyyaml>=6.0.3,<7",
+    "spacy==3.8.15",
     "tiktoken>=0.13.0,<0.14",
     "yt-dlp[default,deno]>=2026.7.4,<2026.8",
 ]

@@ -7,7 +7,8 @@
 - Worktree: `/Users/hua/Documents/yia-worktrees/task-016b-scoring-output-language`
 - Dependencies: TASK-016A `DONE`、ADR-023 `Accepted`
 - Reuse decision: `DIRECT` — 复用 Pydantic、现有 Ollama Adapter、一次 repair、SQLite
-  Artifact/ProviderCall 与 Runtime provenance；不新增依赖，不修改 Schema。
+  Artifact/ProviderCall 与 Runtime provenance；Round 11 经用户明确批准固定
+  `spacy==3.8.15` / `en_core_web_sm==3.8.0` 作为离线英文依存分析器；不修改 Schema。
 
 ## 用户价值
 

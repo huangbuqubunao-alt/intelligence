@@ -7,13 +7,24 @@ from __future__ import annotations
 
 import unicodedata
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from functools import lru_cache
+from importlib import import_module
 from pathlib import PurePosixPath
 from types import MappingProxyType
-from typing import Final, Literal, Never, Protocol, Self, TypeAlias, runtime_checkable
+from typing import (
+    Final,
+    Literal,
+    Never,
+    Protocol,
+    Self,
+    TypeAlias,
+    cast,
+    runtime_checkable,
+)
 
 from pydantic import (
     BaseModel,
@@ -434,84 +445,149 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
     return tuple(spans)
 
 
-def _is_identifier_shaped(value: str) -> bool:
-    """Return whether a token has identifier shape, without a product-name list."""
-
-    if len(value) == 1:
-        return True
-    if len(value) > 1 and value.isupper():
-        return True
-    if any(character.isupper() for character in value[1:]):
-        return True
-    return False
+class _DependencyMorphology(Protocol):
+    def get(self, feature: str) -> list[str]: ...
 
 
-def _latin_token_groups(
+class _DependencyToken(Protocol):
+    pos_: str
+    dep_: str
+    head: _DependencyToken
+    morph: _DependencyMorphology
+
+    @property
+    def children(self) -> Iterable[_DependencyToken]: ...
+
+
+class _DependencyParser(Protocol):
+    def __call__(self, text: str) -> Sequence[_DependencyToken]: ...
+
+
+@lru_cache(maxsize=1)
+def _load_english_dependency_parser() -> _DependencyParser | None:
+    """Load only the installed fixed model package; never resolve or download."""
+
+    try:
+        module = import_module("en_core_web_sm")
+        load = cast(Callable[..., object], getattr(module, "load"))
+        parser = load(exclude=("ner", "lemmatizer"))
+    except Exception:
+        return None
+    return cast(_DependencyParser, parser)
+
+
+_DEPENDENCY_SUBJECTS: Final[frozenset[str]] = frozenset(
+    {"nsubj", "nsubjpass", "csubj", "csubjpass"}
+)
+_DEPENDENCY_ARGUMENTS: Final[frozenset[str]] = frozenset(
+    {"dobj", "obj", "iobj", "attr", "oprd", "ccomp", "xcomp", "acomp"}
+)
+
+
+def _predicate_has_complete_structure(token: _DependencyToken) -> bool:
+    if token.pos_ not in {"VERB", "AUX"}:
+        return False
+    children = tuple(token.children)
+    has_argument = any(child.dep_ in _DEPENDENCY_ARGUMENTS for child in children)
+    if not has_argument:
+        return False
+    if any(child.dep_ in _DEPENDENCY_SUBJECTS for child in children):
+        return True
+    if token.dep_ != "conj":
+        return False
+    head_children = tuple(token.head.children)
+    return (
+        token.head.pos_ in {"NOUN", "PROPN"}
+        and any(child.dep_ == "cc" for child in head_children)
+        and any(
+            child is not token
+            and child.pos_ in {"NOUN", "PROPN"}
+            and child.dep_ in {"compound", "nsubj"}
+            for child in head_children
+        )
+    )
+
+
+def _parse_has_complete_english_structure(
+    parser: _DependencyParser,
+    text: str,
+) -> bool:
+    try:
+        return any(_predicate_has_complete_structure(token) for token in parser(text))
+    except Exception:
+        return False
+
+
+def _has_english_relation_structure(reason: str) -> bool:
+    """Require a case-robust consensus of complete dependency evidence."""
+
+    parser = _load_english_dependency_parser()
+    if parser is None:
+        return False
+    variants = tuple(dict.fromkeys((reason, reason.lower(), reason.title())))
+    matches = sum(
+        _parse_has_complete_english_structure(parser, variant)
+        for variant in variants
+    )
+    required_consensus = 1 if len(variants) == 1 else 2
+    return matches >= required_consensus
+
+
+def _latin_text_groups(
     spans: Sequence[_ScoringScriptSpan],
-) -> tuple[tuple[str, ...], ...]:
-    """Group Latin tokens separated only by neutral punctuation or whitespace."""
+) -> tuple[str, ...]:
+    """Return Latin groups separated by a non-Latin language script."""
 
-    groups: list[tuple[str, ...]] = []
+    groups: list[str] = []
     current: list[str] = []
     for span in spans:
         if span.script == "Latin":
             current.append(span.text)
-        elif span.script != "Other" and current:
-            groups.append(tuple(current))
+        elif span.script == "Other":
+            current.append(" ")
+        elif current:
+            text = "".join(current).strip()
+            if any(character.isalpha() for character in text):
+                groups.append(text)
             current.clear()
     if current:
-        groups.append(tuple(current))
+        text = "".join(current).strip()
+        if any(character.isalpha() for character in text):
+            groups.append(text)
     return tuple(groups)
 
 
-def _has_english_relation_structure(
+_IDENTIFIER_COMPATIBLE_POS: Final[frozenset[str]] = frozenset(
+    {"NOUN", "PROPN", "X", "SYM", "NUM"}
+)
+
+
+def _latin_groups_are_identifier_material(
     spans: Sequence[_ScoringScriptSpan],
 ) -> bool:
-    """Detect conservative Latin relation structure, never named entities alone.
+    """Accept mixed-script Latin only when the parser sees nominal material."""
 
-    Lowercase lexical adjacency supplies a language connection. Title-cased text
-    needs an internal inflected relation form so a list of title-cased product
-    names cannot establish English by itself. This intentionally does not try to
-    identify or enumerate products, companies, frameworks, or models.
-    """
-
-    for group in _latin_token_groups(spans):
-        lexical_tokens = tuple(
-            token for token in group if not _is_identifier_shaped(token)
+    parser = _load_english_dependency_parser()
+    if parser is None:
+        return False
+    groups = _latin_text_groups(spans)
+    if not groups:
+        return True
+    try:
+        return all(
+            all(
+                token.pos_ in _IDENTIFIER_COMPATIBLE_POS
+                for token in parser(group)
+                if token.pos_ not in {"PUNCT", "SPACE"}
+            )
+            for group in groups
         )
-        if any(
-            left.islower() and right.islower()
-            for left, right in zip(lexical_tokens, lexical_tokens[1:])
-        ):
-            return True
-        for index, token in enumerate(group[1:-1], start=1):
-            folded = token.casefold()
-            if (
-                not _is_identifier_shaped(token)
-                and token.istitle()
-                and folded.endswith(("s", "ed", "ing"))
-                and not folded.endswith(("is", "us", "ss"))
-                and (
-                    index >= 2
-                    or any(
-                        _is_identifier_shaped(candidate)
-                        for candidate in group[:index]
-                    )
-                )
-                and any(
-                    not _is_identifier_shaped(candidate)
-                    for candidate in group[index + 1 :]
-                )
-            ):
-                return True
-    return False
+    except Exception:
+        return False
 
 
 def _has_weak_latin_evidence(spans: Sequence[_ScoringScriptSpan]) -> bool:
-    return any(
-        span.script == "Latin" and not _is_identifier_shaped(span.text)
-        for span in spans
-    )
+    return any(span.script == "Latin" for span in spans)
 
 
 def detect_scoring_language_violation(
@@ -522,24 +598,32 @@ def detect_scoring_language_violation(
 
     spans = _scoring_script_spans(reason)
     has_han = any(span.script == "Han" and len(span.text) > 1 for span in spans)
-    has_latin = _has_english_relation_structure(spans)
     has_weak_latin = _has_weak_latin_evidence(spans)
     has_other_language_script = any(
         span.script in _SCORING_NON_TARGET_SCRIPTS for span in spans
     )
     if output_language == "zh-CN":
-        has_target_evidence = has_han
-        has_conflicting_evidence = has_latin or has_other_language_script
-    else:
-        has_target_evidence = has_latin
-        has_conflicting_evidence = has_han or has_other_language_script
-        if not has_target_evidence and has_conflicting_evidence and has_weak_latin:
+        if not has_han:
+            if has_other_language_script:
+                return ScoringLanguageValidation.INVALID
+            if _has_english_relation_structure(reason):
+                return ScoringLanguageValidation.INVALID
             return ScoringLanguageValidation.UNCERTAIN
-    if has_target_evidence == has_conflicting_evidence:
+        if has_other_language_script:
+            return ScoringLanguageValidation.UNCERTAIN
+        if not has_weak_latin or _latin_groups_are_identifier_material(spans):
+            return ScoringLanguageValidation.VALID
         return ScoringLanguageValidation.UNCERTAIN
-    if has_target_evidence:
+
+    if has_other_language_script:
+        return ScoringLanguageValidation.UNCERTAIN
+    if has_han:
+        if has_weak_latin:
+            return ScoringLanguageValidation.UNCERTAIN
+        return ScoringLanguageValidation.INVALID
+    if _has_english_relation_structure(reason):
         return ScoringLanguageValidation.VALID
-    return ScoringLanguageValidation.INVALID
+    return ScoringLanguageValidation.UNCERTAIN
 
 
 def scoring_reason_matches_output_language(

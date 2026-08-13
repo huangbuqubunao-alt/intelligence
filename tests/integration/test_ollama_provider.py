@@ -436,7 +436,13 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
         ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "docker kubernetes terraform ansible"),
+        ("en", "Docker Terraform Kubernetes Ansible"),
         ("en", "Redis Kafka PostgreSQL MongoDB"),
+        ("en", "redis kafka postgresql mongodb"),
+        ("en", "Docker helps"),
+        ("en", "Redis stores"),
+        ("en", "OpenAI develops"),
     ],
 )
 def test_wrong_language_after_single_repair_fails_closed(
@@ -468,7 +474,9 @@ def test_wrong_language_after_single_repair_fails_closed(
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
         ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "docker kubernetes terraform ansible"),
         ("en", "Redis Kafka PostgreSQL MongoDB"),
+        ("en", "redis kafka postgresql mongodb"),
     ],
 )
 def test_failed_language_repair_never_persists_a_formal_scoring_artifact(

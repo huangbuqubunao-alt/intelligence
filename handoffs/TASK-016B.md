@@ -137,6 +137,76 @@
 - Verdict：`APPROVE | REJECT`
 - 未解决 P0/P1：
 
+## Round 11：本地英文依存分析实现（2026-08-13）
+
+### Root cause 与算法变更
+
+- Round 10 的启发式会把相邻 token、大小写、后缀或有限技术词表误当成英文自然语言
+  证据，因此无法可靠区分纯产品/技术实体列表与完整英文句法。
+- Round 11 删除这些证明规则，改为固定本地 `en_core_web_sm` 依存分析：只有解析器成功
+  加载，且至少两种大小写表示对完整 predicate + subject + argument/complement 结构
+  达成共识，英文才为 `VALID`。大小写只用于抵抗模型对实体的偶发误标，不单独增加
+  语言可信度。
+- `Docker helps`、`Redis stores`、`OpenAI develops` 等缺少完整论元的短语保持
+  `UNCERTAIN`。模型包缺失、加载失败或解析异常也统一返回 `UNCERTAIN`。
+- 中文继续要求 Han 自然语言证据；Latin 混排只在本地 parser 判断为名词/专名材料时
+  兼容。日文、韩文、阿拉伯文等非目标 script 继续 fail-closed。
+
+### Dependency Change Review
+
+- 用户批准并固定两个直接依赖：`spacy==3.8.15` 与 Explosion 官方
+  `en_core_web_sm==3.8.0` wheel。模型 wheel 为 12,806,118 bytes，SHA-256 为
+  `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85`。
+- `uv.lock` 从 84 增至 107 packages；新增 23 个包（2 direct + 21 transitive）：
+  `annotated-doc`、`blis`、`catalogue`、`cloudpathlib`、`confection`、`cymem`、
+  `en-core-web-sm`、`markdown-it-py`、`mdurl`、`murmurhash`、`preshed`、`rich`、
+  `shellingham`、`smart-open`、`spacy`、`spacy-legacy`、`spacy-loggers`、`srsly`、
+  `thinc`、`typer`、`wasabi`、`weasel`、`wrapt`。
+- 新增包在本机安装后的合计文件体积约 48,807,374 bytes；其中 spaCy 约
+  19,347,396 bytes，模型约 15,252,156 bytes。新 `uv.lock` SHA-256 为
+  `782947100813f925f08e238e45ace62a9247a8a89b60cc706d8419969709d82f`。
+- 已更新 `docs/SBOM.md`、`docs/THIRD_PARTY_NOTICES.md` 与
+  `docs/REUSE_REGISTER.md`。spaCy/模型主体为 MIT；新增传递项的已安装 metadata
+  显示 MIT/BSD/ISC 族许可证。模型来源包含 OntoNotes 5 与 WordNet 3.0，公开分发前
+  仍须完成模型级 NOTICE/来源归属复核；此实现不解除 TASK-014 No-Go。
+- 运行时只 `import_module("en_core_web_sm")` 并调用包内 `load`；不存在
+  `spacy.load`、`spacy.cli.download`、网络 fallback 或用户远程模型地址。
+
+### Adversarial、repair 与 Artifact 证据
+
+- `Docker Kubernetes Terraform Ansible`、其 lowercase/排列变体、`Redis Kafka
+  PostgreSQL MongoDB`（含 lowercase）、`OpenAI PyTorch TensorFlow Kubernetes`、
+  `REST CUDA NLP CNN` 与复数缩写列表均为 `UNCERTAIN`。
+- `Docker containers help developers deploy applications`、`Redis stores data
+  and improves application performance`、`OpenAI develops useful AI models` 与
+  `This Video Explains Machine Learning Workflows Clearly` 均为 `VALID(en)`。
+- 中文 `该视频介绍 GPT API 调用流程` 为 `VALID(zh-CN)`；纯单字加技术标识、日文及
+  其他非目标 script 不能形成成功结果。
+- Fake Ollama 覆盖 primary validation → 一次 repair → repair validation；失败时
+  返回 `INVALID_RESPONSE`，且无 `ScoreResult`、`SCORING_RAW`、
+  `SCORING_STRUCTURED` 或成功 `response_artifact_id`；repair 成功仅持久化修复后
+  response。既有 ScoreResult 可信入口与六项 cache provenance 校验未改。
+
+### TDD 与门禁
+
+- TDD RED：新增对抗用例初始为 `8 failed, 34 passed, 87 deselected`，直接复现
+  lowercase 纯实体列表被误判为英文。
+- Focused Domain/Ollama：`130 passed`；E2E recovery：`9 passed`；Note/Weekly 与
+  scoring fixture 回归分别为 `49 passed`、`39 passed`。
+- `uv lock --check` → `uv sync --locked --offline` → `uv lock --check`：PASS，
+  107 resolved / 84 checked，无下载或锁漂移。
+- Full pytest：`814 passed`；`uv run mypy src`：PASS（27 source files）；
+  `uv run ruff check .`：PASS；`uv build --offline`：sdist/wheel PASS；
+  wheel metadata 精确包含两个固定 direct requirements；`git diff --check`：PASS。
+- `bash scripts/security_scan.sh`：`status=clean`；仅保留既有非阻断 WARN，项目自身
+  LICENSE 仍为 UNRESOLVED。
+- 未运行网络、真实 Ollama、Cloud、Vault、TASK-016C、merge、push、tag 或 release。
+
+### Round 11 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 11 Implementation Report。
+
 ## Final Correction Round 3（2026-08-13）
 
 ### Root cause

@@ -175,13 +175,15 @@ class _ScoringProvider:
         video_id = getattr(scoring_input, "video").video_id
         score = self._scores[video_id]
         self._raw = (
-            '{"score":' + str(score) + ',"reason":"offline fixture",'
+            '{"score":'
+            + str(score)
+            + ',"reason":"This offline fixture explains service-flow recovery behavior.",'
             '"topics":["product"],"should_summarize":true}'
         )
         return ScoreResult(
             schema_version="score-result-v2",
             score=score,
-            reason="Offline fixture score for the service-flow acceptance test.",
+            reason="This offline fixture explains service-flow recovery behavior.",
             topics=("product",),
             should_summarize=True,
             provider="ollama",

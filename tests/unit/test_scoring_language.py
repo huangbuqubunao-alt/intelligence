@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+import youtube_intel.domain as domain_module
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     Availability,
@@ -78,7 +79,7 @@ def test_output_language_changes_request_hash() -> None:
         (
             "zh-CN",
             "Useful clear practical workflow advice",
-            ScoringLanguageValidation.INVALID,
+            ScoringLanguageValidation.UNCERTAIN,
         ),
         (
             "zh-CN",
@@ -110,7 +111,7 @@ def test_output_language_changes_request_hash() -> None:
         (
             "en",
             "Useful practical advice",
-            ScoringLanguageValidation.VALID,
+            ScoringLanguageValidation.UNCERTAIN,
         ),
         ("en", "API SDK LLM", ScoringLanguageValidation.UNCERTAIN),
         (
@@ -203,7 +204,10 @@ def test_score_result_rejects_obvious_wrong_language(
     "reason",
     [
         "Docker Kubernetes Terraform Ansible",
+        "docker kubernetes terraform ansible",
+        "Docker Terraform Kubernetes Ansible",
         "Redis Kafka PostgreSQL MongoDB",
+        "redis kafka postgresql mongodb",
         "REST CUDA NLP CNN",
         "APIs SDKs LLMs GPTs MLXs",
         "OpenAI PyTorch TensorFlow Kubernetes",
@@ -262,6 +266,27 @@ def test_title_case_english_natural_language_is_valid(reason: str) -> None:
     assert result.reason == reason
 
 
+def test_missing_local_dependency_model_is_uncertain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    domain_module._load_english_dependency_parser.cache_clear()
+
+    def _missing_package(_: str) -> object:
+        raise ImportError("fixed local model is unavailable")
+
+    monkeypatch.setattr(domain_module, "import_module", _missing_package)
+    try:
+        assert (
+            detect_scoring_language_violation(
+                "This video explains useful product workflows clearly.",
+                "en",
+            )
+            is ScoringLanguageValidation.UNCERTAIN
+        )
+    finally:
+        domain_module._load_english_dependency_parser.cache_clear()
+
+
 @pytest.mark.parametrize(
     "reason",
     [
@@ -290,6 +315,34 @@ def test_technical_entity_with_english_relation_structure_is_valid(
         output_language="en",
     )
     assert result.reason == reason
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "Docker helps",
+        "Redis stores",
+        "OpenAI develops",
+    ],
+)
+def test_incomplete_english_predicate_is_uncertain(reason: str) -> None:
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="en",
+        )
 
 
 def test_chinese_natural_language_with_technical_identifiers_is_valid() -> None:
@@ -374,21 +427,26 @@ def test_continuous_subject_survives_technical_term_stripping(
     assert result.reason == reason
 
 
-def test_english_subject_without_predicate_is_valid() -> None:
-    result = ScoreResult(
-        schema_version="score-result-v2",
-        score=8,
-        reason="Useful clear practical product workflow advice.",
-        topics=("product",),
-        should_summarize=True,
-        provider="ollama",
-        model="qwen3:8b",
-        prompt_version="scoring-prompt-v2",
-        request_hash="a" * 64,
-        output_language="en",
-    )
+def test_english_phrase_without_predicate_is_uncertain() -> None:
+    reason = "Useful clear practical product workflow advice."
 
-    assert result.output_language == "en"
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="en",
+        )
 
 
 def test_english_reason_allows_technical_terms() -> None:
