@@ -365,6 +365,12 @@ def test_primary_prompt_contains_authoritative_output_language_instruction(
         ),
         (
             "en",
+            "Docker Kubernetes Terraform Ansible",
+            "Docker containers help developers deploy applications.",
+            "English",
+        ),
+        (
+            "en",
             "这个视频详细解释了产品工作流程并给出了建议。\n"
             "Useful clear practical product workflow advice.",
             "The video clearly explains the product workflow and has practical value.",
@@ -429,6 +435,8 @@ def test_wrong_language_reason_uses_one_language_bound_repair(
         ("zh-CN", "この動画はAPIの製品ワークフローを詳しく説明します。"),
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "Redis Kafka PostgreSQL MongoDB"),
     ],
 )
 def test_wrong_language_after_single_repair_fails_closed(
@@ -459,6 +467,8 @@ def test_wrong_language_after_single_repair_fails_closed(
     [
         ("zh-CN", "中 REST CUDA NLP CNN"),
         ("en", "a API SDK LLM GPT MLX"),
+        ("en", "Docker Kubernetes Terraform Ansible"),
+        ("en", "Redis Kafka PostgreSQL MongoDB"),
     ],
 )
 def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
@@ -514,8 +524,8 @@ def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
 def test_successful_language_repair_persists_only_the_valid_repair_response(
     tmp_path: Path,
 ) -> None:
-    primary_reason = "中 Useful clear practical product workflow advice 中"
-    repaired_reason = "视频清楚说明了产品工作流，因此具有实际参考价值。"
+    primary_reason = "Docker Kubernetes Terraform Ansible"
+    repaired_reason = "Docker containers help developers deploy applications."
     result_template = {
         "score": 8,
         "topics": ["product"],
@@ -537,7 +547,7 @@ def test_successful_language_repair_persists_only_the_valid_repair_response(
         video=_video(),
         transcript_text="canonical transcript",
         language="en",
-        output_language="zh-CN",
+        output_language="en",
     )
 
     raw = repository.get_artifact_by_key(

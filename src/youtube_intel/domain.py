@@ -362,29 +362,6 @@ class ScoreDimensions(_DomainModel):
 
 
 ScoringOutputLanguage: TypeAlias = Literal["zh-CN", "en"]
-_SCORING_TECHNICAL_TERMS: Final[frozenset[str]] = frozenset(
-    {
-        "ai",
-        "api",
-        "cpu",
-        "gpu",
-        "gpt",
-        "http",
-        "https",
-        "json",
-        "kubernetes",
-        "llm",
-        "mlx",
-        "ollama",
-        "pydantic",
-        "qwen",
-        "rag",
-        "sdk",
-        "sql",
-        "sqlite",
-        "youtube",
-    }
-)
 _ScoringScript: TypeAlias = Literal[
     "Han",
     "Latin",
@@ -457,13 +434,10 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
     return tuple(spans)
 
 
-def _is_technical_identifier(value: str) -> bool:
-    folded = value.casefold()
+def _is_identifier_shaped(value: str) -> bool:
+    """Return whether a token has identifier shape, without a product-name list."""
+
     if len(value) == 1:
-        return True
-    if folded in _SCORING_TECHNICAL_TERMS:
-        return True
-    if folded.endswith("s") and folded[:-1] in _SCORING_TECHNICAL_TERMS:
         return True
     if len(value) > 1 and value.isupper():
         return True
@@ -472,11 +446,72 @@ def _is_technical_identifier(value: str) -> bool:
     return False
 
 
-def _has_nontechnical_latin_text(spans: Sequence[_ScoringScriptSpan]) -> bool:
-    latin_tokens = tuple(
-        span.text for span in spans if span.script == "Latin"
+def _latin_token_groups(
+    spans: Sequence[_ScoringScriptSpan],
+) -> tuple[tuple[str, ...], ...]:
+    """Group Latin tokens separated only by neutral punctuation or whitespace."""
+
+    groups: list[tuple[str, ...]] = []
+    current: list[str] = []
+    for span in spans:
+        if span.script == "Latin":
+            current.append(span.text)
+        elif span.script != "Other" and current:
+            groups.append(tuple(current))
+            current.clear()
+    if current:
+        groups.append(tuple(current))
+    return tuple(groups)
+
+
+def _has_english_relation_structure(
+    spans: Sequence[_ScoringScriptSpan],
+) -> bool:
+    """Detect conservative Latin relation structure, never named entities alone.
+
+    Lowercase lexical adjacency supplies a language connection. Title-cased text
+    needs an internal inflected relation form so a list of title-cased product
+    names cannot establish English by itself. This intentionally does not try to
+    identify or enumerate products, companies, frameworks, or models.
+    """
+
+    for group in _latin_token_groups(spans):
+        lexical_tokens = tuple(
+            token for token in group if not _is_identifier_shaped(token)
+        )
+        if any(
+            left.islower() and right.islower()
+            for left, right in zip(lexical_tokens, lexical_tokens[1:])
+        ):
+            return True
+        for index, token in enumerate(group[1:-1], start=1):
+            folded = token.casefold()
+            if (
+                not _is_identifier_shaped(token)
+                and token.istitle()
+                and folded.endswith(("s", "ed", "ing"))
+                and not folded.endswith(("is", "us", "ss"))
+                and (
+                    index >= 2
+                    or any(
+                        _is_identifier_shaped(candidate)
+                        for candidate in group[:index]
+                    )
+                )
+                and any(
+                    not _is_identifier_shaped(candidate)
+                    for candidate in group[index + 1 :]
+                )
+            ):
+                return True
+    return False
+
+
+def _has_weak_latin_evidence(spans: Sequence[_ScoringScriptSpan]) -> bool:
+    return any(
+        span.script == "Latin" and not _is_identifier_shaped(span.text)
+        for span in spans
     )
-    return any(not _is_technical_identifier(token) for token in latin_tokens)
 
 
 def detect_scoring_language_violation(
@@ -487,7 +522,8 @@ def detect_scoring_language_violation(
 
     spans = _scoring_script_spans(reason)
     has_han = any(span.script == "Han" and len(span.text) > 1 for span in spans)
-    has_latin = _has_nontechnical_latin_text(spans)
+    has_latin = _has_english_relation_structure(spans)
+    has_weak_latin = _has_weak_latin_evidence(spans)
     has_other_language_script = any(
         span.script in _SCORING_NON_TARGET_SCRIPTS for span in spans
     )
@@ -497,6 +533,8 @@ def detect_scoring_language_violation(
     else:
         has_target_evidence = has_latin
         has_conflicting_evidence = has_han or has_other_language_script
+        if not has_target_evidence and has_conflicting_evidence and has_weak_latin:
+            return ScoringLanguageValidation.UNCERTAIN
     if has_target_evidence == has_conflicting_evidence:
         return ScoringLanguageValidation.UNCERTAIN
     if has_target_evidence:

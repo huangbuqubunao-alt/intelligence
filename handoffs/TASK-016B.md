@@ -320,6 +320,56 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 9 Correction Report。
 
+## Round 10 Correction（2026-08-13）
+
+### Root cause 与 algorithm change
+
+- Round 9 仍把任意未命中有限技术词集合的 Latin token 当作英文证据，因此此前未登记
+  的产品/框架实体（例如 Docker、Redis、Terraform）可以跳过 repair 并进入可信
+  `ScoreResult`、Artifact 与 Cache。
+- Round 10 删除有限产品/技术词集作为语言证明来源。通用 identifier shape（单字符、
+  全大写、CamelCase）只会降低证据，不会增加英文可信度；实现不包含 Docker、Redis、
+  Kafka、Terraform、PostgreSQL 等产品白名单。
+- 英文证据改为同一 Latin 片段内的自然语言连接，或标题式文本中的内部关系形态；
+  单独的公司名、产品名、模型名、框架名序列只有弱证据，固定返回 `UNCERTAIN`。
+  Unicode script、`zh-CN`/`en` 双语言门禁及三态 fail-closed 契约保持不变。
+
+### Adversarial、Ollama repair 与 Artifact evidence
+
+- Domain 对抗覆盖 `Docker Kubernetes Terraform Ansible`、`Redis Kafka PostgreSQL
+  MongoDB`、`OpenAI PyTorch TensorFlow Kubernetes`、`REST CUDA NLP CNN` 与复数
+  acronym 序列；均为 `UNCERTAIN`，不能构造可信 `ScoreResult`。
+- 合法英文覆盖 TitleCase、实体加自然语言关系：`This Video Explains Machine
+  Learning Workflows Clearly`、`Docker containers help developers deploy
+  applications`、`Redis stores data and improves application performance`、
+  `OpenAI develops useful AI models`；中文技术混排继续通过。
+- Fake Ollama 证明纯实体 primary 必须进入唯一一次 language-bound repair；repair
+  再失败返回 `INVALID_RESPONSE`。Repository-backed 回归确认失败路径无
+  `SCORING_RAW`、无 `SCORING_STRUCTURED`、无成功 `response_artifact_id`；repair
+  成功时正式 raw 只保存通过语言 invariant 的修复响应。
+- P1-2 `ScoreResult` trusted validation、P1-3 cache provenance 与既有 cache
+  recompute 行为未修改。
+
+### TDD 与 Full gates
+
+- 有效 RED：`8 failed, 37 passed`，同时复现 Domain 误判、Ollama 未 repair、失败
+  response 生成正式 Artifact 以及成功路径错误保存 primary。
+- Focused Domain/Ollama：`115 passed`。
+- `uv lock --check` → `uv sync --locked --offline` → `uv lock --check`：PASS
+  （84 resolved / 61 checked，无下载，锁文件未变）。
+- Full pytest：`799 passed`。
+- `uv run mypy src`：PASS（27 source files）。
+- `uv run ruff check .`：PASS。
+- `uv build --offline`：PASS（sdist/wheel）。
+- `git diff --check`：PASS。
+- 未修改 TASK-016C、Cloud、Router、Weekly production 或 DB Schema；未运行真实
+  Provider、网络、merge、push 或 tag。
+
+### Round 10 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 10 Correction Report。
+
 ## 主控验收
 
 - Orchestrator：

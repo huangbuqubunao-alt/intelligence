@@ -202,6 +202,8 @@ def test_score_result_rejects_obvious_wrong_language(
 @pytest.mark.parametrize(
     "reason",
     [
+        "Docker Kubernetes Terraform Ansible",
+        "Redis Kafka PostgreSQL MongoDB",
         "REST CUDA NLP CNN",
         "APIs SDKs LLMs GPTs MLXs",
         "OpenAI PyTorch TensorFlow Kubernetes",
@@ -241,6 +243,36 @@ def test_technical_identifiers_and_non_chinese_scripts_cannot_prove_language(
     ],
 )
 def test_title_case_english_natural_language_is_valid(reason: str) -> None:
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.VALID
+    )
+    result = ScoreResult(
+        schema_version="score-result-v2",
+        score=8,
+        reason=reason,
+        topics=("product",),
+        should_summarize=True,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+    assert result.reason == reason
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "Docker containers help developers deploy applications",
+        "Redis stores data and improves application performance",
+        "OpenAI develops useful AI models",
+    ],
+)
+def test_technical_entity_with_english_relation_structure_is_valid(
+    reason: str,
+) -> None:
     assert (
         detect_scoring_language_violation(reason, "en")
         is ScoringLanguageValidation.VALID
