@@ -448,6 +448,7 @@ def _scoring_script_spans(value: str) -> tuple[_ScoringScriptSpan, ...]:
 class _DependencyToken(Protocol):
     pos_: str
     dep_: str
+    ent_iob_: str
     head: _DependencyToken
 
     @property
@@ -465,7 +466,7 @@ def _load_english_dependency_parser() -> _DependencyParser | None:
     try:
         module = import_module("en_core_web_sm")
         load = cast(Callable[..., object], getattr(module, "load"))
-        parser = load(exclude=("ner", "lemmatizer"))
+        parser = load(exclude=("lemmatizer",))
     except Exception:
         return None
     return cast(_DependencyParser, parser)
@@ -492,6 +493,9 @@ _NATURAL_STRUCTURE_DEPENDENCIES: Final[frozenset[str]] = frozenset(
         "relcl",
         "xcomp",
     }
+)
+_ENTITY_INTERNAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
+    {"amod", "compound", "det", "flat"}
 )
 _NATURAL_NOMINAL_DEPENDENCIES: Final[frozenset[str]] = frozenset(
     {"acl", "advmod", "amod", "det", "nummod", "poss", "prep", "relcl"}
@@ -525,9 +529,37 @@ def _nominal_argument_has_natural_structure(token: _DependencyToken) -> bool:
     return False
 
 
+def _nominal_argument_is_named_entity_structure(token: _DependencyToken) -> bool:
+    related = (token, *tuple(token.children))
+    if token.ent_iob_ != "O":
+        return all(
+            child is token
+            or child.dep_ in _ENTITY_INTERNAL_DEPENDENCIES
+            or child.pos_ == "PUNCT"
+            for child in related
+        )
+    return False
+
+
+def _nominal_argument_is_det_compound_entity_structure(
+    token: _DependencyToken,
+) -> bool:
+    children = tuple(token.children)
+    dependencies = {child.dep_ for child in children}
+    return (
+        "det" in dependencies
+        and dependencies <= _ENTITY_INTERNAL_DEPENDENCIES
+        and any(child.dep_ in {"compound", "flat"} for child in children)
+    )
+
+
 def _nominal_argument_is_entity_like(token: _DependencyToken) -> bool:
     if token.pos_ not in {"NOUN", "PROPN"}:
         return False
+    if _nominal_argument_is_named_entity_structure(token):
+        return True
+    if _nominal_argument_is_det_compound_entity_structure(token):
+        return True
     return not _nominal_argument_has_natural_structure(token)
 
 
@@ -559,6 +591,8 @@ def _predicate_has_complete_structure(
         return False
     coordinated_subject = _coordinated_predicate_has_subject_context(token)
     if not subjects and not coordinated_subject:
+        return False
+    if token.ent_iob_ != "O":
         return False
     if not coordinated_subject and all(
         _nominal_argument_is_entity_like(argument)

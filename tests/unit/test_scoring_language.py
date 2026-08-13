@@ -271,6 +271,41 @@ def test_bare_entity_arguments_do_not_become_language_evidence(reason: str) -> N
 @pytest.mark.parametrize(
     "reason",
     [
+        "Amazon Connect The Home Depot",
+        "Amazon Connect The North Face",
+        "Amazon Connect The Weather Channel",
+        "Amazon Connect The New York Times",
+        "The Home Depot",
+        "The North Face",
+        "amazon connect the home depot",
+        "AMAZON CONNECT THE HOME DEPOT",
+    ],
+)
+def test_named_entity_spans_cannot_be_mistaken_for_predicate_structure(
+    reason: str,
+) -> None:
+    assert (
+        detect_scoring_language_violation(reason, "en")
+        is ScoringLanguageValidation.UNCERTAIN
+    )
+    with pytest.raises(ValueError):
+        ScoreResult(
+            schema_version="score-result-v2",
+            score=8,
+            reason=reason,
+            topics=("product",),
+            should_summarize=True,
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="scoring-prompt-v2",
+            request_hash="a" * 64,
+            output_language="en",
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
         "This Video Explains Machine Learning Workflows Clearly",
         "OpenAI Develops Useful AI Models",
     ],

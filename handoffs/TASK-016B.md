@@ -285,6 +285,73 @@
 - 建议：重新进入 Independent Review。
 - Commit SHA：见 TASK-016B Round 12 Correction Report。
 
+## Round 13 Correction（2026-08-13）
+
+### Root cause 与 parser/entity correction
+
+- Round 12 把 `det`/`amod` 当作普通名词论元的自然结构证据，但品牌实体内部同样可包含
+  `The`、`New`、`Home` 等依存修饰。固定 spaCy 模型因此把
+  `Amazon Connect The Home Depot` 解析为 `nsubj + VERB ROOT + dobj`，并让整个品牌
+  字符串穿透可信 `ScoreResult`。
+- Round 13 继续使用已固定、离线的 `en_core_web_sm==3.8.0`，但不再排除其 NER pipeline。
+  Predicate 本身处于命名实体 span 时立即 fail-closed；subject/object/complement 若
+  全部属于命名实体内部，或只由 `det/amod/compound/flat` 组成，也不能建立 predicate
+  independence。
+- lowercase/all-caps 下 NER 可能不稳定，因此另以同一 dependency tree 的
+  `det + compound/flat` 封闭名词结构兜底；判断不读取品牌名、公司名、token 大小写、
+  token 位置、固定 token 数量或后缀。
+- 正常句子只要至少一个核心论元包含独立自然语言结构即可通过。例如普通名词
+  `containers/developers/data/models/system/deployment` 继续提供可信论元；实体
+  `Docker/OpenAI/Redis` 本身不提供、也不阻止语言证据。
+
+### Adversarial 与 spaCy validation evidence
+
+- `Amazon Connect The Home Depot`、`The North Face` 等八个品牌/大小写变体全部
+  `UNCERTAIN`；固定模型在 TitleCase 样例中返回单个或两个 `ORG` span，在 lowercase
+  NER 为空、all-caps 仅部分命中时，dependency entity structure 仍保持相同结果。
+- `Docker Kubernetes Terraform Ansible`、`Redis Kafka PostgreSQL MongoDB`、
+  `OpenAI PyTorch TensorFlow Kubernetes` 继续 `UNCERTAIN`。
+- `Docker containers help developers deploy applications`、`Redis stores data
+  and improves application performance`、`OpenAI develops useful AI models`、
+  `The system relies on Docker for deployment.` 继续 `VALID`。
+- TDD RED：`9 failed, 140 passed`，分别证明六个 Domain/ScoreResult 绕过、Ollama 未
+  repair、Repository 错误持久化 primary，以及成功 repair 仍保存品牌 primary。
+- 首个 GREEN 收紧把所有 `det + compound` 一律视作 entity，导致 10 个合法自然语言/
+  repair fixture 回归；随后把门禁限定为 NER entity-internal 或封闭
+  `det + compound/flat` 结构，最终聚焦 Domain/Ollama `149 passed`。
+
+### Artifact boundary evidence
+
+- Fake Ollama 对 `Amazon Connect The Home Depot` 执行 primary validation → 唯一一次
+  repair → repair validation；repair 仍失败时返回 `INVALID_RESPONSE`。
+- Repository-backed 失败回归确认 ProviderCall 为 `FAILED_RETRYABLE` 且
+  `response_artifact_id` 为空；不存在 `SCORING_RAW`、`SCORING_STRUCTURED`、Artifact
+  文件、成功 ProviderCall 或 persisted cache hit。
+- repair 成功回归把同一品牌攻击作为 primary，并从 SQLite Artifact 实际读取 raw
+  response，确认只保存通过验证的 repair reason。P1-2 ScoreResult trusted validation
+  与 P1-3 六项 cache provenance 均未修改。
+
+### Dependency status 与 full gates
+
+- 未新增或升级依赖；`pyproject.toml`、`uv.lock`、SBOM 和 NOTICE 均无 Round 13 Diff。
+  既有 23 项 spaCy 新增包清单仍完整，锁文件 SHA-256 仍为
+  `782947100813f925f08e238e45ace62a9247a8a89b60cc706d8419969709d82f`；公开分发仍
+  `NO-GO`，Local-only 边界不变。
+- `uv lock --check` → `uv sync --locked --offline` → `uv lock --check`：PASS
+  （107 resolved / 84 checked，无下载或锁漂移）。
+- Full pytest：`833 passed`；`uv run mypy src`：PASS（27 source files）；
+  `uv run ruff check .`、CLI help、`uv build --offline` sdist/wheel、
+  `git diff --check`：全部 PASS。
+- `bash scripts/security_scan.sh`：`status=clean`；仅既有非阻断 WARN 与项目自身 LICENSE
+  未决提示。
+- 未修改 TASK-016C、Cloud、Router、Weekly production、DB Schema/Migration；未运行
+  网络、真实 Provider、merge、push、tag 或 release。
+
+### Round 13 结论
+
+- 建议：重新进入 Independent Review。
+- Commit SHA：见 TASK-016B Round 13 Correction Report。
+
 ## Final Correction Round 3（2026-08-13）
 
 ### Root cause
