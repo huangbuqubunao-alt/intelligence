@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Interface Design — Round 2
+# TASK-016C Content Quality Interface Design — Round 3.5
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -32,13 +32,13 @@ flowchart TD
     E -->|"CONTINUE"| J["LocalContentQualityJudge"]
     J --> W["TrustedContentQualityWrapper"]
     W -->|"REJECT / UNCERTAIN"| R
-    W -->|"PASS"| T["QualityPassAttestation"]
+    W -->|"PASS"| T["in-memory QualityPassAttestation"]
     R -->|"one repair remains"| B2["Repair Provider -> ScoringCandidate"]
     B2 --> C2["schema + language + quality repair"]
     R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
     F --> S["ScoreResult"]
-    S --> P["qualified raw envelope + structured Artifact/cache"]
+    S --> P["atomic persistence: raw + structured + attestation + calls + cache"]
 ```
 
 Cache recovery 不直接反序列化可信 `ScoreResult`：
@@ -51,15 +51,19 @@ persisted structured payload + raw attestation envelope
   -> fresh trusted ScoreResult instance
 ```
 
+这里读取的历史 Artifact/ProviderCall 可以来自先前成功的 atomic commit；读取不是当前执行
+的新成功写入。当前 cache recovery 仍须在 Finalizer 成功前保持只读，不能提前返回 hit、
+完成当前调用或推进 stage。
+
 ## 3. ScoringCandidate 与 Provider contract
 
 ```python
 class ScoringCandidate(FrozenDomainModel):
-    score: int
+    score: float
     reason: str
     topics: tuple[str, ...]
     should_summarize: bool
-    dimensions: ScoringDimensions
+    dimensions: ScoreDimensions | None = None
 
 class ScoringCandidateProvider(Protocol):
     def score_candidate(self, value: ScoringInput) -> ScoringCandidate: ...
@@ -75,6 +79,15 @@ class ScoringCandidateProvider(Protocol):
 
 Adapter 严格解析 candidate schema，但这不赋予可信结果身份。任何 Provider 实现返回
 `ScoreResult` 都是接口违约。
+
+该 wrapper 必须与现有业务契约精确兼容：score 保持 `float` 的原有精度，dimensions 保持
+`ScoreDimensions | None`，reason/topics/should_summarize 的类型、约束和含义不变。不得
+新增、删除、重命名或收窄 `ScoreResult` 业务字段。
+
+ADR-025 明确 supersede `docs/SYSTEM_DESIGN.md` 现有
+`ScoringProvider.score(ScoringInput) -> ScoreResult` 语义；新接口固定为
+`score_candidate(ScoringInput) -> ScoringCandidate`。这是契约替换，不是同时保留两个
+可信入口。
 
 ## 4. ContentQualityInput 与 evidence
 
@@ -147,8 +160,36 @@ General Dynamics Corporation
 Amazon Connect Salesforce
 ```
 
-`EXACT_REPETITION` 只接受 schema normalization 后两个相邻非空 segment 完全相等的机械
-证据；大小写不同、近似文本、同义词和重复 token 列表都不能由 Gate 判断。
+### 5.1 固定 normalization 与检测顺序
+
+处理 `reason` 的唯一顺序：
+
+1. 严格 UTF-8/Unicode 解码；失败属于 candidate schema invalid；
+2. 原始 decoded reason 扫描控制字符；
+3. 若通过，才执行 EXACT_REPETITION 的 ASCII trim/LF split；
+4. 不执行任何其他 normalization。
+
+Control scan：
+
+```text
+reject: Unicode General Category Cc
+allow exceptions: TAB U+0009, LF U+000A
+always reject: NULL U+0000, ZERO WIDTH SPACE U+200B, BOM U+FEFF
+```
+
+`U+200B`/`U+FEFF` 不是 `Cc`，所以是显式附加拒绝。CR `U+000D` 仍为 `Cc` 且不在例外
+中，必须拒绝；输入必须使用 LF。
+
+EXACT_REPETITION：
+
+```python
+trimmed = reason.strip("\t\n\v\f\r ")
+segments = [segment for segment in trimmed.split("\n") if segment != ""]
+reject = any(left == right for left, right in pairwise(segments))
+```
+
+比较是精确 code-point equality。禁止 casefold、lowercase、标点 normalization、Unicode
+normalization、tokenization、NLP、segment 二次 trim 或非相邻比较。
 
 ## 6. Local Judge response
 
@@ -305,15 +346,18 @@ class QualityPassAttestation(FrozenDomainModel):
     attestation_hash: str
 ```
 
-`attestation_hash` 是除自身外 canonical payload 的 SHA-256。创建步骤：
+`attestation_hash` 是除自身外 canonical payload 的 SHA-256。它首先是内存中的可信
+Finalizer 输入；此时不得注册 Artifact、完成 ProviderCall 或建立 cache hit。创建与提交
+步骤：
 
 1. wrapper 获得合法 `ContentQualityResult(PASS)`；
 2. 应用从当前 registry 和可信 config 重新计算所有字段；
 3. 计算 canonical attestation hash；
-4. 写入 quality-qualified raw envelope；
-5. 将对应 Judge ProviderCall 以同一 raw Artifact 完成；
-6. 调用 `TrustedScoringFinalizer`；
-7. 写 structured Artifact 并完成 scoring stage。
+4. 调用 `TrustedScoringFinalizer`；
+5. Finalizer 成功后构造 raw envelope 与 structured bytes；
+6. 安全写入/fsync 临时文件，但不注册为 Artifact；
+7. 单一 Repository transaction 原子登记 raw/structured Artifact、attestation、scoring 与
+   Judge ProviderCall completion、cache identity 和 stage completion。
 
 ## 9. TrustedScoringFinalizer
 
@@ -350,6 +394,9 @@ Finalizer 总是：
 Provider、Judge、Repository、Artifact reader、cache recovery 和 Runtime 其他模块不得直接
 调用 `ScoreResult(...)`、`ScoreResult.model_validate*` 或 unchecked copy/construct 作为
 可信结果。实现 Review 应以静态调用点扫描证明唯一入口。
+
+Finalizer 本身是纯领域终结边界：不写文件、不写 DB、不完成 ProviderCall。它成功前只能
+存在内存 candidate、quality result 和 attestation。
 
 ## 10. Judge operation、attempt state 与恢复
 
@@ -418,7 +465,33 @@ scoring identity；raw envelope 的 attestation 又绑定具体 candidate 与 Ju
 二者 operation identity 独立，且共用的 provider/model/digest 必须精确等于当前固定本地
 配置。若未来 Judge 与 scoring 使用不同 provider/model，该复用不再成立，必须先修订 ADR。
 
-### 11.3 Cache recovery matrix
+### 11.3 Atomic persistence boundary
+
+Finalizer 成功后，应用准备 raw/structured 的 deterministic key、bytes 与 hash，再调用唯一
+atomic persistence API：
+
+```python
+class TrustedScoringPersistence(Protocol):
+    def commit_finalized_scoring(
+        self,
+        *,
+        finalized: ScoreResult,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        quality_attestation: QualityPassAttestation,
+        scoring_call: ProviderCallCompletion,
+        quality_call: ProviderCallCompletion,
+        cache_identity: ScoringCacheIdentity,
+        stage: ScoringStageCompletion,
+    ) -> ScoringOutcome: ...
+```
+
+该方法必须在单一 SQLite transaction 内登记两份 Artifact、两份 Provider completion、
+attestation 绑定/cache identity 和 stage。现有 Schema 可复用，但现有一次只完成一个
+ProviderCall 的 API 不足，实施需增加 Repository 方法而不修改表结构。临时文件可以在事务
+前写入并 fsync，但 Finalizer 前不得写，且在 transaction commit 前不具 Artifact/cache 身份。
+
+### 11.4 Cache recovery matrix
 
 | 情形 | 结果 | Judge calls |
 |---|---|---:|
@@ -434,22 +507,38 @@ ProviderCall 均保留审计，不覆盖、不删除、不回写为当前成功�
 
 ## 12. Repair/finalize event contract
 
-对需要 repair 的 Fake 流，事件顺序固定为：
+primary PASS 的事件顺序固定为：
 
 ```text
-SCHEMA_PRIMARY
+CANDIDATE_PRIMARY
+LANGUAGE_PRIMARY
+QUALITY_PRIMARY
+ATTESTATION_PRIMARY
+FINALIZE
+ATOMIC_PERSISTENCE
+```
+
+`CANDIDATE_*` 事件包含 Provider DTO 的严格 schema parsing；schema invalid 时事件失败并
+进入共享 repair，不会产生 language/quality/attestation。
+
+需要 repair 的事件顺序固定为：
+
+```text
+CANDIDATE_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 REPAIR
-SCHEMA_REPAIR
+CANDIDATE_REPAIR
 LANGUAGE_REPAIR
 QUALITY_REPAIR
+ATTESTATION_REPAIR
 FINALIZE
-PERSIST
+ATOMIC_PERSISTENCE
 ```
 
-任何 `FINALIZE` 提前、quality 重复调用、跳过 repair language/schema、或在 finalization
-之前产生正式 Artifact 都是契约错误。
+任何 `FINALIZE` 提前、quality 重复调用、跳过 repair language、或在 finalization 之前
+产生 `SCORING_RAW` / `SCORING_STRUCTURED` / response_artifact_id / ProviderCall SUCCESS /
+cache identity 都是契约错误。
 
 ## 13. 错误与安全日志
 

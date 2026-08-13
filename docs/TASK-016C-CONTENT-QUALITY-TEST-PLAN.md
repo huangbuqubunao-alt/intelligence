@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Round 2
+# TASK-016C Content Quality Test Plan — Round 3.5
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -18,7 +18,8 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 6. cache hit 不调用 Judge，缺失/版本不匹配与 integrity failure 使用不同恢复语义；
 7. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
 8. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
-9. quality `PASS` 之前零正式 scoring Artifact/cache；
+9. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
+   cache identity；成功后只允许单事务 atomic persistence；
 10. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
 
 ## 2. TDD 纵切顺序
@@ -47,6 +48,31 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 | 含禁止控制字符 | `REJECT / CONTROL_CHARACTER_INVALID` |
 | 两个规范化后完全相同的相邻非空 segment | `REJECT / EXACT_REPETITION` |
 | 大小写不同或近似重复 | `CONTINUE`，不得模糊判断 |
+
+固定顺序和字符矩阵必须逐项覆盖：
+
+- 严格 decode 失败在 Gate 前拒绝；
+- NULL `U+0000` -> `CONTROL_CHARACTER_INVALID`；
+- TAB `U+0009` 与 LF `U+000A` -> control scan 允许；
+- CR `U+000D` -> 拒绝；
+- ZERO WIDTH SPACE `U+200B` -> 拒绝；
+- BOM `U+FEFF` -> 拒绝；
+- 其他 Unicode `Cc` -> 拒绝。
+
+EXACT_REPETITION 表格：
+
+| reason | 预期 |
+|---|---|
+| `same\nsame` | `REJECT / EXACT_REPETITION` |
+| ` same\nsame ` | 首尾 ASCII trim 后 `REJECT` |
+| `same\n\nsame` | 删除空 segment 后 `REJECT` |
+| `same\n same` | `CONTINUE`；segment 不二次 trim |
+| `Same\nsame` | `CONTINUE`；禁止 lowercase/casefold |
+| `same!\nsame` | `CONTINUE`；禁止标点 normalization |
+| `same\nother\nsame` | `CONTINUE`；只比较相邻 segment |
+
+静态扫描不得出现 casefold/lower、tokenization、NLP、Unicode/标点 normalization 或
+非相邻 repetition 逻辑。
 
 ### 3.2 必须进入 Local Judge
 
@@ -110,6 +136,11 @@ Amazon Connect Salesforce
 ### 5.1 Provider boundary
 
 - Fake primary/repair Adapter 只返回 `ScoringCandidate`；
+- `score` 接受并 round-trip 非整数 `7.25`，不得丢失精度；
+- `dimensions=None` 与完整 `ScoreDimensions` 都合法；
+- Candidate 与 Finalizer 输出的 reason/topics/should_summarize/dimensions 业务字段保持等值；
+- 静态契约确认 ADR-025 supersede SYSTEM_DESIGN 的 Provider->ScoreResult 旧语义，生产
+  composition 只有 Provider->Candidate->Finalizer 一条可信路径；
 - 返回 `ScoreResult`、带 provenance 的 candidate、未知 quality 字段全部拒绝；
 - Provider response 在 quality `PASS` 前不能被 Runtime/Artifact/cache 当成结果。
 
@@ -196,32 +227,39 @@ Markdown/HTML/Obsidian 指令、Unicode confusables 和 stuffing 都不能改变
 ### 8.1 Primary PASS
 
 ```text
-SCHEMA_PRIMARY
+CANDIDATE_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
+ATTESTATION_PRIMARY
 FINALIZE
-PERSIST
+ATOMIC_PERSISTENCE
 ```
 
-断言 Judge=1、repair=0，只保存 primary 的 attested raw envelope 和 structured result。
+断言 Judge=1、repair=0。ATTESTATION_PRIMARY 结束时仍无 Artifact、response_artifact_id、
+ProviderCall SUCCESS 或 cache；Finalizer 成功后一次事务才保存 attested raw envelope、
+structured result、两份 completion 与 cache identity。
+
+`CANDIDATE_*` 必须包含严格 schema parsing；非法 DTO 在 language/quality 前停止并消费共享
+repair。不得另插一个可以绕过 Candidate 的 schema 事件。
 
 ### 8.2 Primary quality failure, repair PASS
 
 必须严格产生：
 
 ```text
-SCHEMA_PRIMARY
+CANDIDATE_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 REPAIR
-SCHEMA_REPAIR
+CANDIDATE_REPAIR
 LANGUAGE_REPAIR
 QUALITY_REPAIR
+ATTESTATION_REPAIR
 FINALIZE
-PERSIST
+ATOMIC_PERSISTENCE
 ```
 
-不得遗漏 repair schema/language，不得提前 Finalize，不得保存 primary raw。
+不得遗漏 repair candidate/language，不得提前 Finalize，不得保存 primary raw。
 
 ### 8.3 失败矩阵
 
@@ -260,8 +298,9 @@ takeover 后再外部调用。
 | SUCCEEDED + missing/mismatched artifact | integrity failure | 0 |
 
 故障注入点：reserve 后、transport 前；transport 后、response parse 前；PASS wrapper 后、
-raw Artifact 写入前；raw 写入后、ProviderCall complete 前；Judge complete 后、Finalizer 前；
-structured write/stage completion 前。任何“可能已调用”的状态都不能重调同一 identity。
+attestation 构造前；attestation 后、Finalizer 前；Finalizer 后、临时文件前；临时文件后、
+atomic transaction 前；transaction 内每个 Artifact/completion/cache/stage 步骤。任何“可能
+已调用”的状态都不能重调同一 identity；transaction 内失败不得留下部分 DB 成功状态。
 
 统计断言：PRIMARY<=1、REPAIR<=1、总 Judge<=2、scoring repair<=1；进程重启不能清零。
 
@@ -271,6 +310,7 @@ structured write/stage completion 前。任何“可能已调用”的状态都�
 
 - candidate/input/Judge operation 生成稳定 canonical hash；
 - attestation hash 排除自身字段并稳定；
+- attestation 首先只存在内存；Finalizer 前 Repository 中不存在其 Artifact/cache/成功调用；
 - raw envelope round-trip 保留最终 provider raw 与完整 attestation；
 - Judge ProviderCall `SUCCEEDED.response_artifact_id` 指向同一 raw envelope；
 - structured payload 仍能由 Finalizer 的 persisted candidate 路径恢复，且外部 ScoreResult
@@ -296,6 +336,22 @@ structured write/stage completion 前。任何“可能已调用”的状态都�
 任何篡改不得因重新计算单个外层 hash 而变成可信；Recovery 必须从当前 input/config 和两份
 Artifact 重建全链交叉关系。
 
+### 10.3 Atomic persistence tests
+
+Finalizer 成功前逐项查询并断言不存在：
+
+- `SCORING_RAW` / `SCORING_STRUCTURED` Artifact record；
+- scoring/quality `response_artifact_id`；
+- scoring/quality ProviderCall `SUCCEEDED`；
+- 可命中的 cache identity；
+- pipeline `SCORED` 状态。
+
+Finalizer 成功后调用一次 atomic Repository API。对 raw insert、structured insert、quality
+attestation binding、scoring completion、quality completion、cache identity 和 stage update
+逐点注入异常，断言整个 SQLite transaction 回滚且零部分状态。全成功时单事务提交全部对象，
+两个 ProviderCall 与 attested raw Artifact/structured Artifact 关系完整。事务前临时文件不在
+Artifact 索引中，不能 cache hit；失败后仅可作为不可见临时文件清理，不能恢复成成功记录。
+
 ## 11. Cache recovery tests
 
 在临时 SQLite/DATA 建立合法 PASS cache：
@@ -310,6 +366,9 @@ Artifact 重建全链交叉关系。
 - 验证 Judge call 与 raw envelope；
 - 经 Finalizer 重建 ScoreResult；
 - 返回 persisted cache hit。
+
+允许只读观察历史 atomic commit 中已有的 `SUCCEEDED` 和 Artifact；断言当前执行在
+Finalizer 成功前没有新 ProviderCall/Artifact/cache/stage 写入，也没有向调用方返回 hit。
 
 ### 11.2 普通 miss
 
@@ -352,6 +411,7 @@ Artifact 重建全链交叉关系。
 
 - `pyproject.toml` / `uv.lock` 无变化；
 - migrations 与 state Schema 无变化；
+- 允许为原子多 completion 增加 Repository 方法，但不得改变表、CHECK 或 migration；
 - ADR-024、TASK-016B source/tests/archive/handoff 无变化；
 - 没有品牌/公司/产品/技术词典；
 - Gate 没有 token/case/POS/dependency/spaCy 逻辑；
@@ -387,7 +447,11 @@ git diff --check <base>...HEAD
 - [ ] 四个攻击样例是否全部进入 Judge？
 - [ ] Provider 是否只能返回 ScoringCandidate？
 - [ ] Finalizer 是否为 primary/repair/cache 唯一 ScoreResult 入口？
+- [ ] Candidate 是否保持 score=float、dimensions 可选和全部现有业务字段？
+- [ ] ADR-025 是否明确 supersede SYSTEM_DESIGN 的 Provider->ScoreResult 旧契约？
 - [ ] PASS attestation 是否绑定用户要求的全部字段并可重算？
+- [ ] Finalizer 前是否零 Artifact/call success/cache，之后是否单事务原子提交？
+- [ ] EXACT_REPETITION 和 CONTROL_CHARACTER 是否严格采用冻结算法与顺序？
 - [ ] Cache hit 是否零 Judge 调用？
 - [ ] PRIMARY/REPAIR 是否各最多一次，PENDING unknown 不重调？
 - [ ] 三项 confidence 与 status/reason/signal 矩阵是否封闭？

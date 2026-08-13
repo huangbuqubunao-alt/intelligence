@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed；2026-08-13 Round 2 修订待 Independent Design Review
+Proposed；2026-08-13 Round 3.5 修订待 Independent Design Review
 
 ## Date
 
@@ -60,8 +60,21 @@ CONTROL_CHARACTER_INVALID
 EXACT_REPETITION
 ```
 
-其中 `EXACT_REPETITION` 只允许比较经过 schema whitespace normalization 后完全相同的
-非空 segment；不得做模糊匹配、case folding、token 分析或语义归并。
+`EXACT_REPETITION` 只检查 `reason`，机械算法固定为：
+
+1. 以固定 ASCII whitespace 集 `U+0009..U+000D` 与 `U+0020` trim `reason` 首尾；
+2. 只按 LF `U+000A` split；
+3. 删除值为精确空字符串的 segment，不额外 trim segment；
+4. 若任意两个相邻 segment 按 code point 完全相等，则拒绝。
+
+不得 casefold、lowercase、规范标点、Unicode normalization、tokenize、模糊匹配、NLP 或
+语义归并。内部空格、大小写或标点不同即不相等。
+
+`CONTROL_CHARACTER_INVALID` 的检测发生在上述 trim/split 和任何其他 normalization 之前。
+它拒绝所有 Unicode General Category `Cc`，但明确允许 TAB `U+0009` 和 LF `U+000A`；
+此外无论 Unicode category 如何，明确拒绝 ZERO WIDTH SPACE `U+200B` 与 BOM / ZERO WIDTH
+NO-BREAK SPACE `U+FEFF`。因此 NULL `U+0000` 必须拒绝。严格 UTF-8/Unicode 解码先于该
+扫描；解码失败直接 schema invalid，不进入 Gate。
 
 Gate 明确禁止：
 
@@ -108,8 +121,22 @@ Judge 的 `PASS` 只证明候选在当前有界输入中具有最小可用、可
 
 ### 4. 唯一可信 ScoreResult 构造点
 
-Provider Adapter 的返回类型固定为不可信 `ScoringCandidate`。Provider、repair、Artifact
-reader 和 cache recovery 均不得直接构造、反序列化为或返回可信 `ScoreResult`。
+ADR-025 明确 supersede `docs/SYSTEM_DESIGN.md` 中旧的
+`ScoringProvider.score(ScoringInput) -> ScoreResult` 语义契约。TASK-016C 生效后的唯一
+Provider 契约是：
+
+```text
+ScoringInput -> Provider Adapter -> ScoringCandidate
+```
+
+Provider、repair、Artifact reader 和 cache recovery 均不得直接构造、反序列化为或返回
+可信 `ScoreResult`。
+
+`ScoringCandidate` 不是新业务结果，而是现有评分业务字段的不可信 wrapper。它必须保持
+现有精度与可选性：`score: float`、`dimensions: ScoreDimensions | None`，并原样保留
+`reason`、`topics`、`should_summarize`。不得把 score 收窄为 integer、把 dimensions 变成
+必填，也不得新增、删除或改变任何 `ScoreResult` 业务字段。Candidate 只移除可信
+provenance，并增加“不可信、尚未 final”这一类型边界。
 
 `TrustedScoringFinalizer` 是唯一允许创建 `ScoreResult` 的应用边界。它必须同时接收并
 重新验证：
@@ -131,7 +158,7 @@ Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 
 
 ### 5. Quality PASS attestation
 
-每个最终 `PASS` 必须有 `quality-pass-attestation-v1`，至少绑定：
+每个最终 `PASS` 必须先在内存中构造并验证 `quality-pass-attestation-v1`，至少绑定：
 
 - `candidate_hash`；
 - `quality_input_hash`；
@@ -145,16 +172,14 @@ Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 
 - 三项 confidence 与已验证 evidence IDs。
 
 Attestation 由应用根据已验证 Judge response 和可信配置构造，模型不能自报。其 canonical
-payload 计算 SHA-256 `attestation_hash`。v1 不新增 Artifact kind 或数据库字段：最终
-`SCORING_RAW` 改为固定版本的 quality-qualified composite raw envelope，保存最终
-scoring provider raw response、已验证且有限的 Judge PASS decision 与该 attestation；
-`SCORING_STRUCTURED` 仍保持现有 canonical `ScoreResult` JSON，避免破坏 Runtime、
-Report 和 Weekly consumer。最终 scoring call 与 Judge call 可以引用同一 composite raw
-Artifact，但两者必须分别具有正确 operation identity；该 Artifact 的 provider/model 必须
-与两次调用共同使用的固定本地 provider/model 精确一致。
+payload 计算 SHA-256 `attestation_hash`。该内存对象不是 Artifact、cache entry 或成功
+ProviderCall，只是 Finalizer 输入。
 
-该 envelope 只有在 Quality `PASS` 后才能成为正式 Artifact。`REJECT` / `UNCERTAIN`
-candidate 不产生正式 scoring raw/structured Artifact。
+v1 不新增 Artifact kind 或数据库字段。Finalizer 成功后，正式 `SCORING_RAW` 使用固定
+quality-qualified composite envelope，保存最终 scoring provider raw response、已验证且
+有限的 Judge PASS decision 与该 attestation；`SCORING_STRUCTURED` 仍保持 canonical
+`ScoreResult` JSON。Attestation 作为 raw envelope 的受版本化组成部分与 raw Artifact 一起
+持久化，不伪造第三种 Artifact kind。
 
 Attestation integrity 是现有本地信任模型内的交叉一致性，不是对拥有 SQLite 与 DATA
 写权限的攻击者提供密码学不可伪造性。恢复时必须重算 candidate/input/attestation hash，
@@ -228,21 +253,36 @@ evidence ID，且不得含 rejection reason 或负向冲突 signal。完整 stat
 ### 8. Repair 与持久化顺序
 
 ```text
-primary schema
-  -> primary language
-  -> quality primary
-  -> (if non-PASS) repair once
-  -> repair schema
-  -> repair language
-  -> quality repair
+candidate
+  -> language
+  -> quality
+  -> in-memory PASS attestation
   -> TrustedScoringFinalizer
-  -> formal Artifact / cache
+  -> atomic persistence
 ```
 
-schema、language 或 quality 失败共享同一个 repair budget。第二次仍非 `PASS` 或 Judge
-不可用时返回 `INVALID_RESPONSE`。未通过 Finalizer 的 candidate 不得产生可信
-`ScoreResult`、正式 `SCORING_RAW` / `SCORING_STRUCTURED`、成功 scoring provenance
-或当前 cache。
+primary 或 repair 都必须完整执行这一顺序；repair 只是产生新的 candidate，不能跳过任何
+节点。schema、language 或 quality 失败共享同一个 repair budget。第二次仍非 `PASS` 或
+Judge 不可用时返回 `INVALID_RESPONSE`。
+
+Finalizer 前严格禁止：
+
+- 正式或已登记的 `SCORING_RAW`；
+- `SCORING_STRUCTURED`；
+- 任何成功 `response_artifact_id`；
+- scoring 或 quality ProviderCall `SUCCEEDED`；
+- 可命中的 cache identity。
+
+该禁止项约束当前执行产生的新状态转换。Cache recovery 可以只读观察历史原子提交留下的
+`SUCCEEDED`/Artifact/attestation，但在当前 Finalizer 成功前不得把它返回为 cache hit、
+不得写入新完成状态，也不得推进当前 stage。
+
+Finalizer 成功后，应用可以先在 DATA 根安全创建并 fsync 可验证的临时文件，但它们不是
+Artifact。随后使用一个 SQLite transaction 原子完成：登记 raw Artifact、登记 structured
+Artifact、持久化 raw envelope 内的 quality attestation、完成 scoring/quality ProviderCall、
+提交可命中的 cache identity，并推进 scoring stage。任何一步失败全部回滚 DB；未索引临时
+文件不得被读取为 Artifact 或 cache。该原子提交可能需要新增 Repository 方法，但不需要
+数据库 migration。
 
 ### 9. Cache recovery
 
@@ -262,8 +302,9 @@ Cache hit 不调用 Judge。恢复必须同时验证：
 
 ### 10. Reuse decision
 
-- `DIRECT`：现有 Pydantic、标准库 hashing/JSON、受限 Ollama Adapter、ProviderCall、
-  Artifact、cache identity 与原子 stage completion。
+- `ADAPT`：现有 Pydantic、标准库 hashing/JSON、受限 Ollama Adapter、ProviderCall、
+  Artifact、cache identity 与原子 stage completion；新增无 migration 的多 ProviderCall
+  completion 原子 Repository 方法，以保证 Finalizer 后一次事务提交。
 - `DIRECT`：已锁定 spaCy 只继续服务 TASK-016B；TASK-016C 不修改其职责。
 - `REJECT`：品牌/公司/产品词典、网络查询、Wikipedia、外部 API、远程知识库、动态模型
   下载和新增依赖。
@@ -297,6 +338,8 @@ v1 拒绝。quality-qualified raw envelope、现有 Artifact metadata 和 Provid
 - 评分路径最多增加两次固定本地 Judge 调用；崩溃未知状态宁可停止也不重复调用。
 - Deterministic Gate 召回率刻意很低；复杂垃圾必须交给 Local Judge。
 - `ScoreResult` 外部形状不变，但内部构造权收敛到一个 Finalizer。
+- SYSTEM_DESIGN 的旧 Provider->ScoreResult 契约被本 ADR supersede；实现后应由独立文档
+  同步任务更新陈旧说明，但本轮设计修订不修改该文件。
 - PASS 不等于事实核验；只代表当前输入内的最小内容价值与 grounding 达到固定门槛。
 - 本 ADR 不授权 Local Deep Analysis、Cloud、Router、Weekly V2、数据库 migration、真实
   模型或网络操作。
