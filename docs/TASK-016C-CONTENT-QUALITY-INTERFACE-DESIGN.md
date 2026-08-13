@@ -1,210 +1,217 @@
-# TASK-016C Content Quality Interface Design
+# TASK-016C Content Quality Interface Design — Round 2
 
-- 状态：`PROPOSED / REVIEW REQUIRED`
+- 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
-- 实现授权：尚未生效；本文件通过 Design Review 后才可生成 Implementer task card
+- 实现授权：尚未生效；本设计通过独立审查后才能创建 Implementer task card
 
-## 1. 设计目标
+## 1. 设计目标与不可绕过的不变量
 
-在不修改 TASK-016B Language Validator 和 `ScoreResult` 公共字段的前提下，为每个
-schema-valid、language-valid 的评分候选建立独立内容质量门禁。接口必须保证：
+在不修改 TASK-016B Language Validator 和 `ScoreResult` 公共字段的前提下，建立以下
+不变量：
 
-1. 模型响应在质量 `PASS` 前仍是不可信 candidate；
-2. 明显垃圾由确定性门禁处理，复杂语义由固定本地 Judge 处理；
-3. Judge 不能伪造 provenance 或引用评分输入之外的 evidence；
-4. `REJECT` / `UNCERTAIN` 不进入正式 Artifact 或 cache；
-5. 版本、model digest 和 policy 任一变化都会产生新的 request identity；
-6. 不新增数据库 migration 或外部服务。
+1. Provider Adapter 只能返回 `ScoringCandidate`；
+2. `TrustedScoringFinalizer` 是唯一 `ScoreResult` 构造入口；
+3. 每个成功结果绑定一份具体 candidate/input/Judge identity 的 Quality PASS
+   attestation；
+4. primary、repair 和 cache recovery 都经过相同 Finalizer；
+5. cache hit 零 Judge 调用，恢复严格验证 attestation；
+6. primary 与 repair 的 Judge 各最多一次，崩溃未知状态不得重调；
+7. `REJECT` / `UNCERTAIN` 不进入正式 scoring Artifact 或 cache；
+8. 无新依赖、无数据库 migration、无外部知识或网络 fallback。
 
-## 2. 模块边界
+## 2. 模块与数据流
 
 ```mermaid
 flowchart TD
-    A["Ollama scoring response (untrusted)"] --> B["ScoringCandidate schema boundary"]
-    B --> C["TASK-016B Language Validator (frozen)"]
-    C --> D["DeterministicContentQualityGate"]
-    D -->|"obvious reject"| R["shared repair budget"]
-    D -->|"continue"| E["LocalContentQualityJudge"]
-    E --> F["ContentQualityResult wrapper"]
-    F -->|"PASS"| G["trusted ScoreResult"]
-    F -->|"REJECT / UNCERTAIN"| R
-    R -->|"one repair remains"| A
-    R -->|"budget exhausted"| X["INVALID_RESPONSE; no formal artifact/cache"]
-    G --> H["qualified SCORING_RAW / SCORING_STRUCTURED"]
-    H --> I["ProviderCall + stage completion"]
+    A["Provider Adapter"] --> B["ScoringCandidate (untrusted)"]
+    B --> C["Candidate schema validation"]
+    C --> D["TASK-016B Language Validator (frozen)"]
+    D --> E["DeterministicContentQualityGate"]
+    E -->|"three mechanical rejects"| R["shared repair budget"]
+    E -->|"CONTINUE"| J["LocalContentQualityJudge"]
+    J --> W["TrustedContentQualityWrapper"]
+    W -->|"REJECT / UNCERTAIN"| R
+    W -->|"PASS"| T["QualityPassAttestation"]
+    R -->|"one repair remains"| B2["Repair Provider -> ScoringCandidate"]
+    B2 --> C2["schema + language + quality repair"]
+    R -->|"budget exhausted"| X["INVALID_RESPONSE"]
+    T --> F["TrustedScoringFinalizer"]
+    F --> S["ScoreResult"]
+    S --> P["qualified raw envelope + structured Artifact/cache"]
 ```
 
-`ScoringCandidate` 是 Adapter/application 私有 DTO，不是新的公共 Provider contract。
-它只承载现有模型可返回的业务字段：score、reason、topics、should_summarize、dimensions。
-provider/model/version/request hash/output language 继续由应用补充。
+Cache recovery 不直接反序列化可信 `ScoreResult`：
 
-## 3. 稳定领域枚举
+```text
+persisted structured payload + raw attestation envelope
+  -> untrusted ScoringCandidate reconstruction
+  -> provenance / hash / attestation validation
+  -> TrustedScoringFinalizer
+  -> fresh trusted ScoreResult instance
+```
 
-### 3.1 ContentQualityStatus
+## 3. ScoringCandidate 与 Provider contract
 
 ```python
-class ContentQualityStatus(str, Enum):
-    PASS = "PASS"
-    REJECT = "REJECT"
-    UNCERTAIN = "UNCERTAIN"
+class ScoringCandidate(FrozenDomainModel):
+    score: int
+    reason: str
+    topics: tuple[str, ...]
+    should_summarize: bool
+    dimensions: ScoringDimensions
+
+class ScoringCandidateProvider(Protocol):
+    def score_candidate(self, value: ScoringInput) -> ScoringCandidate: ...
 ```
 
-- `PASS`：存在最小 claim，且当前输入 evidence 足以支持；允许构造可信 `ScoreResult`。
-- `REJECT`：有确定、有限的拒绝原因；触发共享一次 repair。
-- `UNCERTAIN`：Judge、证据或判定不足；与 `REJECT` 一样 fail-closed 并触发 repair。
+`ScoringCandidate` 只承载模型可提出的业务字段，不含：
 
-### 3.2 ContentQualityConfidence
+- provider、model、output language；
+- scoring/quality prompt 或 schema version；
+- request/candidate/input hash；
+- quality status/confidence/evidence；
+- Artifact 或 ProviderCall identity。
 
-```python
-class ContentQualityConfidence(str, Enum):
-    HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
-    LOW = "LOW"
-```
+Adapter 严格解析 candidate schema，但这不赋予可信结果身份。任何 Provider 实现返回
+`ScoreResult` 都是接口违约。
 
-它是本地质量判断置信度，不是事实概率。`PASS` 只允许 `HIGH | MEDIUM`；
-`UNCERTAIN` 必须是 `LOW`。不得使用任意 float 或模型自报概率。
-
-### 3.3 ContentQualitySignal
-
-v1 固定信号：
-
-```text
-IDENTIFIER_ONLY
-ENTITY_ONLY
-LOW_INFORMATION
-MINIMAL_CLAIM_PRESENT
-MINIMAL_CLAIM_MISSING
-GROUNDING_PRESENT
-GROUNDING_INSUFFICIENT
-REPETITIVE_OUTPUT
-JUDGE_UNAVAILABLE
-JUDGE_INVALID_RESPONSE
-```
-
-这些是内容质量类别，不是品牌或实体事实标签。实现不得通过增加品牌/产品名扩展该枚举。
-
-### 3.4 ContentQualityRejectionReason
-
-```text
-IDENTIFIER_ONLY
-ENTITY_ONLY
-LOW_INFORMATION
-MINIMAL_CLAIM_MISSING
-GROUNDING_INSUFFICIENT
-REPETITIVE_OUTPUT
-JUDGE_UNAVAILABLE
-JUDGE_INVALID_RESPONSE
-```
-
-`PASS` 的 rejection reason 必须为空；`REJECT` / `UNCERTAIN` 必须有一个固定 reason。
-
-### 3.5 ContentQualityDecisionSource
-
-```text
-DETERMINISTIC_GATE
-LOCAL_JUDGE
-```
-
-确定性门禁只能产生 `REJECT / DETERMINISTIC_GATE`；`PASS` 和 `UNCERTAIN` 只能来自
-`LOCAL_JUDGE`。该字段避免把“配置了 Judge”误写成“实际调用了 Judge”。
-
-## 4. 输入契约
-
-### 4.1 ContentQualityInput
+## 4. ContentQualityInput 与 evidence
 
 ```python
 class ContentQualityInput(FrozenDomainModel):
-    scoring_request_hash: str       # 64 lowercase hex
-    candidate_hash: str             # canonical ScoringCandidate JSON hash
+    scoring_request_hash: str
+    candidate_hash: str
     output_language: Literal["zh-CN", "en"]
-    reason: str                     # already schema/language validated
-    topics: tuple[str, ...]          # already bounded by scoring schema
+    reason: str
+    topics: tuple[str, ...]
     evidence_registry: tuple[ScoringEvidence, ...]
     policy_version: Literal["content-quality-policy-v1"]
-```
 
-构造规则：
-
-- `candidate_hash` 由应用对 canonical candidate JSON 计算，Judge 不提供；
-- `reason/topics` 不得包含模型响应 envelope、异常、路径或 provider diagnostics；
-- registry 只来自当前 `ScoringInput` 已有的标题、受限 description 和 TranscriptSample；
-- registry 的总字符上限不得超过当前 ScoringInput 已经批准的本地内容上限；
-- registry 项稳定排序，重复 excerpt 去重。
-
-### 4.2 ScoringEvidence
-
-```python
 class ScoringEvidence(FrozenDomainModel):
-    evidence_id: str                # app-derived stable opaque ID
+    evidence_id: str
     source: Literal[
         "TITLE", "DESCRIPTION", "TRANSCRIPT_HEAD",
         "TRANSCRIPT_BODY", "TRANSCRIPT_TAIL"
     ]
-    excerpt: str                    # exact substring of current bounded input
+    excerpt: str
 ```
 
-应用构建 registry 并在 Judge 返回后补全/验证引用。Judge 只能返回 `evidence_id`；不得
-返回 excerpt、timestamp、URL、路径、provider/model 或自由 diagnostics。
+应用从当前有界 `ScoringInput` 建 registry；Judge 只能返回已有 `evidence_id`。应用按
+canonical JSON 计算：
 
-## 5. 两层接口
+```text
+candidate_hash = sha256(canonical ScoringCandidate)
+quality_input_hash = sha256(canonical ContentQualityInput without derived hash)
+```
 
-### 5.1 DeterministicContentQualityGate
+Registry 必须稳定排序、去重、受总字符上限约束。Judge 不能返回 excerpt、URL、路径、
+timestamp、provider/model/digest、版本或 request hash。
+
+## 5. Deterministic Safety Gate
 
 ```python
+class DeterministicGateReason(str, Enum):
+    EMPTY_CONTENT = "EMPTY_CONTENT"
+    CONTROL_CHARACTER_INVALID = "CONTROL_CHARACTER_INVALID"
+    EXACT_REPETITION = "EXACT_REPETITION"
+
 class DeterministicGateDecision(str, Enum):
     CONTINUE = "CONTINUE"
     REJECT = "REJECT"
 
 class DeterministicGateResult(FrozenDomainModel):
     decision: DeterministicGateDecision
-    signals: tuple[ContentQualitySignal, ...]
-    rejection_reason: ContentQualityRejectionReason | None
+    reason: DeterministicGateReason | None
 
 class DeterministicContentQualityGate(Protocol):
     def evaluate(self, value: ContentQualityInput) -> DeterministicGateResult: ...
 ```
 
-该 Gate：
+合法组合只有：
 
-- 只处理无语义歧义的退化结构；
-- 可以 `REJECT`，不能直接 `PASS`；
-- 不读取配置外文件、不调用模型、不写 Artifact；
-- 不维护品牌、公司、产品或开放式技术词表；
-- 对 `Amazon Connect General Dynamics Corporation` 等复杂样例必须 `CONTINUE` 给
-  Judge，而不是冒充品牌识别器。
+| decision | reason |
+|---|---|
+| `CONTINUE` | `None` |
+| `REJECT` | 三个固定 reason 之一 |
 
-### 5.2 LocalContentQualityJudge
+Gate 不能 `PASS`，不能产生 confidence/evidence，也不能执行 identifier、acronym、技术词、
+品牌、产品、token 数量、大小写、POS 或 dependency 判断。
+
+以下必须 `CONTINUE`：
+
+```text
+API SDK GPT LLM
+Docker Kubernetes Terraform
+General Dynamics Corporation
+Amazon Connect Salesforce
+```
+
+`EXACT_REPETITION` 只接受 schema normalization 后两个相邻非空 segment 完全相等的机械
+证据；大小写不同、近似文本、同义词和重复 token 列表都不能由 Gate 判断。
+
+## 6. Local Judge response
+
+### 6.1 有限枚举
+
+```python
+class ContentQualityStatus(str, Enum):
+    PASS = "PASS"
+    REJECT = "REJECT"
+    UNCERTAIN = "UNCERTAIN"
+
+class ContentQualityConfidence(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+class ContentQualitySignal(str, Enum):
+    IDENTIFIER_ONLY = "IDENTIFIER_ONLY"
+    ENTITY_ONLY = "ENTITY_ONLY"
+    LOW_INFORMATION = "LOW_INFORMATION"
+    MINIMAL_CLAIM_PRESENT = "MINIMAL_CLAIM_PRESENT"
+    MINIMAL_CLAIM_MISSING = "MINIMAL_CLAIM_MISSING"
+    GROUNDING_PRESENT = "GROUNDING_PRESENT"
+    GROUNDING_INSUFFICIENT = "GROUNDING_INSUFFICIENT"
+    JUDGE_UNAVAILABLE = "JUDGE_UNAVAILABLE"
+    JUDGE_INVALID_RESPONSE = "JUDGE_INVALID_RESPONSE"
+
+class ContentQualityReason(str, Enum):
+    IDENTIFIER_ONLY = "IDENTIFIER_ONLY"
+    ENTITY_ONLY = "ENTITY_ONLY"
+    LOW_INFORMATION = "LOW_INFORMATION"
+    MINIMAL_CLAIM_MISSING = "MINIMAL_CLAIM_MISSING"
+    GROUNDING_INSUFFICIENT = "GROUNDING_INSUFFICIENT"
+    JUDGE_UNAVAILABLE = "JUDGE_UNAVAILABLE"
+    JUDGE_INVALID_RESPONSE = "JUDGE_INVALID_RESPONSE"
+```
+
+Deterministic reasons 不出现在 Judge 枚举；identifier/entity 也不出现在 deterministic
+枚举。这个类型分离防止职责漂移。
+
+### 6.2 不可信响应
 
 ```python
 class ContentQualityJudgeResponse(FrozenDomainModel):
     status: ContentQualityStatus
-    confidence: ContentQualityConfidence
+    decision_confidence: ContentQualityConfidence
+    grounding_confidence: ContentQualityConfidence
+    usefulness_confidence: ContentQualityConfidence
     signals: tuple[ContentQualitySignal, ...]
-    rejection_reason: ContentQualityRejectionReason | None
+    reason: ContentQualityReason | None
     evidence_ids: tuple[str, ...]
-
-class LocalContentQualityJudge(Protocol):
-    def judge(self, value: ContentQualityInput) -> ContentQualityJudgeResponse: ...
 ```
 
-Judge response 是不可信输入，必须拒绝未知字段、重复枚举/ID、自由文本、空白 ID、超限
-集合和 registry 外引用。`PASS` 至少要求：
+严格禁止未知字段、自由文本 diagnostics、重复 signal/ID、registry 外 ID、模型自报
+provenance 和任意 float confidence。
 
-- `MINIMAL_CLAIM_PRESENT`；
-- `GROUNDING_PRESENT`；
-- 至少一个 registry 中的 evidence ID；
-- confidence 为 `HIGH` 或 `MEDIUM`；
-- rejection reason 为空；
-- 不含拒绝/不可用信号。
-
-Judge 运行配置固定为：
+### 6.3 固定运行配置
 
 ```text
 provider: ollama
-model: current trusted local_scoring.model (fixed for the request)
-model_digest: current local_scoring.expected_model_digest
+model: trusted current local_scoring.model
+model_digest: trusted current local_scoring.expected_model_digest
+policy_version: content-quality-policy-v1
 prompt_version: content-quality-prompt-v1
 schema_version: content-quality-result-v1
 temperature: 0
@@ -213,129 +220,258 @@ think: false
 tools: none
 ```
 
-模型预检和请求只复用既有 loopback 安全边界。任何自动下载、远程地址、cloud tag、动态
-prompt 或网络 fallback 都是接口违约。
+只允许既有 loopback transport。模型缺失、digest mismatch、超时、响应超限、非法 JSON
+或任何 transport 不确定性统一成为 `UNCERTAIN`；禁止 download、pull 或 network fallback。
 
-## 6. 可信结果契约
+## 7. ContentQualityResult 与合法组合矩阵
 
 ```python
+class ContentQualityDecisionSource(str, Enum):
+    DETERMINISTIC_GATE = "DETERMINISTIC_GATE"
+    LOCAL_JUDGE = "LOCAL_JUDGE"
+
 class ContentQualityResult(FrozenDomainModel):
     schema_version: Literal["content-quality-result-v1"]
     policy_version: Literal["content-quality-policy-v1"]
     prompt_version: Literal["content-quality-prompt-v1"]
     status: ContentQualityStatus
     decision_source: ContentQualityDecisionSource
-    confidence: ContentQualityConfidence
+    decision_confidence: ContentQualityConfidence
+    grounding_confidence: ContentQualityConfidence
+    usefulness_confidence: ContentQualityConfidence
     signals: tuple[ContentQualitySignal, ...]
-    rejection_reason: ContentQualityRejectionReason | None
+    reason: DeterministicGateReason | ContentQualityReason | None
     evidence_ids: tuple[str, ...]
     candidate_hash: str
+    quality_input_hash: str
     scoring_request_hash: str
+    judge_provider: Literal["ollama"] | None
+    judge_model: str | None
+    judge_model_digest: str | None
+```
+
+应用 wrapper 从 canonical mapping 重新构造该对象。合法矩阵：
+
+| source | status | confidence | reason | signals/evidence |
+|---|---|---|---|---|
+| Gate | `REJECT` | decision=`HIGH`; grounding/usefulness=`LOW` | 三个 deterministic reason 之一 | signals 为空；evidence 为空；Judge identity 全空 |
+| Judge | `PASS` | decision=`HIGH`; grounding>=`MEDIUM`; usefulness>=`MEDIUM` | `None` | 必含 `MINIMAL_CLAIM_PRESENT`、`GROUNDING_PRESENT`；至少 1 个合法 evidence ID；无负向 signal |
+| Judge | `REJECT`：identifier/entity/low-information/minimal-claim | decision=`HIGH`; grounding in {`LOW`,`MEDIUM`}; usefulness=`LOW` | 对应四个内容拒绝 reason 之一 | 必含与 reason 同名的负向 signal；不得同时声明冲突正向 signal |
+| Judge | `REJECT`：grounding | decision=`HIGH`; grounding=`LOW`; usefulness in {`LOW`,`MEDIUM`,`HIGH`} | `GROUNDING_INSUFFICIENT` | 必含同名 signal；不得含 `GROUNDING_PRESENT` |
+| Judge | `UNCERTAIN` | 三项全部=`LOW` | `GROUNDING_INSUFFICIENT`、`JUDGE_UNAVAILABLE` 或 `JUDGE_INVALID_RESPONSE` | 必含同名 signal；不得含 `PASS` 所需的完整正向 signal 对 |
+
+额外不变量：
+
+- Judge 路径三项 identity 必须全部非空并来自可信配置；Gate 路径必须全部为空；
+- `PASS` evidence ID 唯一且全部属于当前 registry；
+- `REJECT` 的 grounding/usefulness confidence 必须精确符合上表对应分支，不接受其他
+  组合；
+- unknown enum、空 hash、非 64 位小写 hex、超限集合全部拒绝；
+- `model_copy(update=...)`、`model_construct()` 或 subclass instance 只有经过 canonical
+  mapping/JSON 重建并再次验证才可进入 wrapper；instance identity 不被信任。
+
+## 8. Quality PASS attestation
+
+```python
+class QualityAttemptRole(str, Enum):
+    PRIMARY = "PRIMARY"
+    REPAIR = "REPAIR"
+
+class QualityPassAttestation(FrozenDomainModel):
+    attestation_schema: Literal["quality-pass-attestation-v1"]
+    status: Literal[ContentQualityStatus.PASS]
+    candidate_hash: str
+    quality_input_hash: str
+    scoring_request_hash: str
+    policy_version: Literal["content-quality-policy-v1"]
+    scoring_schema_version: str
+    scoring_prompt_version: str
+    quality_schema_version: Literal["content-quality-result-v1"]
+    quality_prompt_version: Literal["content-quality-prompt-v1"]
     judge_provider: Literal["ollama"]
+    judge_model: str
+    judge_model_digest: str
+    judge_operation: Literal["local-content-quality-v1"]
+    judge_request_hash: str
+    attempt_role: QualityAttemptRole
+    decision_confidence: Literal[ContentQualityConfidence.HIGH]
+    grounding_confidence: Literal[
+        ContentQualityConfidence.MEDIUM, ContentQualityConfidence.HIGH
+    ]
+    usefulness_confidence: Literal[
+        ContentQualityConfidence.MEDIUM, ContentQualityConfidence.HIGH
+    ]
+    evidence_ids: tuple[str, ...]
+    attestation_hash: str
+```
+
+`attestation_hash` 是除自身外 canonical payload 的 SHA-256。创建步骤：
+
+1. wrapper 获得合法 `ContentQualityResult(PASS)`；
+2. 应用从当前 registry 和可信 config 重新计算所有字段；
+3. 计算 canonical attestation hash；
+4. 写入 quality-qualified raw envelope；
+5. 将对应 Judge ProviderCall 以同一 raw Artifact 完成；
+6. 调用 `TrustedScoringFinalizer`；
+7. 写 structured Artifact 并完成 scoring stage。
+
+## 9. TrustedScoringFinalizer
+
+```python
+class TrustedScoringContext(FrozenDomainModel):
+    scoring_request_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    output_language: Literal["zh-CN", "en"]
+    scoring_prompt_version: str
+    scoring_schema_version: str
+
+class TrustedScoringFinalizer(Protocol):
+    def finalize(
+        self,
+        *,
+        candidate: ScoringCandidate | Mapping[str, object],
+        context: TrustedScoringContext | Mapping[str, object],
+        quality_input: ContentQualityInput | Mapping[str, object],
+        attestation: QualityPassAttestation | Mapping[str, object],
+    ) -> ScoreResult: ...
+```
+
+Finalizer 总是：
+
+1. 从 mapping 重建 candidate/context/input/attestation，拒绝 unchecked instance；
+2. 重跑 candidate schema 与 TASK-016B language invariant；
+3. 重算 candidate、quality input 和 attestation hash；
+4. 验证当前 policy/prompt/schema/provider/model/digest；
+5. 验证 PASS confidence、evidence registry 与 Judge operation；
+6. 使用 candidate 业务字段和可信 context 新建 `ScoreResult`。
+
+Provider、Judge、Repository、Artifact reader、cache recovery 和 Runtime 其他模块不得直接
+调用 `ScoreResult(...)`、`ScoreResult.model_validate*` 或 unchecked copy/construct 作为
+可信结果。实现 Review 应以静态调用点扫描证明唯一入口。
+
+## 10. Judge operation、attempt state 与恢复
+
+```python
+class QualityJudgeOperationInput(FrozenDomainModel):
+    scoring_request_hash: str
+    attempt_role: QualityAttemptRole
+    candidate_hash: str
+    quality_input_hash: str
+    policy_version: str
+    prompt_version: str
+    schema_version: str
+    judge_provider: str
     judge_model: str
     judge_model_digest: str
 ```
 
-只有应用可构造该对象。确定性拒绝路径直接从已验证的 Gate result 封装；Judge 路径按
-以下步骤封装：
+其 canonical hash 是 `judge_request_hash`；provider operation 固定为
+`local-content-quality-v1`。PRIMARY 与 REPAIR 使用不同 role，因此 identity 不同。
+one-shot wrapper 必须先调用 Repository 的只读查询。record 不存在时才可 reserve 并外部
+调用；live PENDING 只能等待或停止；expired PENDING 只允许在完整 PASS raw envelope 已被
+独立验证后，以 `VerifiedArtifact` 进入通用 reserve 的 artifact-recovery 分支，绝不在
+acquired takeover 后调用 Judge。不得把通用 reserve 对 expired `PENDING` /
+`FAILED_RETRYABLE` 的 takeover 语义用于质量 Judge。
 
-1. 重新验证 `ContentQualityInput`；
-2. 严格解析 Judge response（确定性拒绝时不适用）；
-3. 验证所有 evidence IDs 属于当前 registry；
-4. 以可信配置补充 provider/model/digest/version/hash；
-5. 重新执行跨字段不变量，包括 decision source 与 status 的合法组合。
-
-`judge_provider/model/digest` 始终绑定当前质量 policy 的固定配置；只有
-`decision_source=LOCAL_JUDGE` 才表示实际进行了 Judge 调用。
-
-禁止 unchecked `model_copy(update=...)` 或 `model_construct()` 结果进入 Runtime、Artifact
-或 cache；边界函数必须从 canonical mapping/JSON 重建并验证。
-
-## 7. Repair 与调用预算
-
-每个 scoring request 只有一个共享 repair budget：
-
-| 主候选结果 | 行为 | Judge calls |
+| ProviderCall state | 恢复动作 | 是否调用 Judge |
 |---|---|---:|
-| schema/language invalid | repair；repair 后跑全部门禁 | 0 或 1 |
-| deterministic REJECT | repair；不调用 Judge | 0 |
-| Judge REJECT/UNCERTAIN | repair；repair 后跑全部门禁 | 最多 2 |
-| PASS | 构造 ScoreResult 并持久化 | 1 |
+| missing | 原子 reserve 后调用 | 1 |
+| live `PENDING` | 报告 in progress / fail-closed | 0 |
+| expired `PENDING` + 完整验证的 deterministic PASS artifact | 仅 artifact recovery | 0 |
+| expired `PENDING` 且无完整 PASS artifact | 结果未知，fail-closed；禁止 reclaim 调用 | 0 |
+| `FAILED_RETRYABLE` / `FAILED_FINAL` | role 已消费；fail-closed | 0 |
+| `SUCCEEDED` + 完整 PASS attestation | 恢复 PASS | 0 |
+| `SUCCEEDED` + 非 PASS / 缺失或矛盾 artifact | integrity failure | 0 |
 
-repair candidate 失败后不得再次 repair。Judge call 计数由应用层维护，任何路径不得超过
-2；恢复路径也必须从已持久化 request state 得知 repair 是否已消费，不能因重启重置预算。
+Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调用后崩溃形成 PENDING
+时，不得推测结果，也不得调用 repair，因为不能证明 primary 判定已完成。需要人工启动新
+产品操作 identity，而不是自动重复当前 attempt。
 
-## 8. Artifact / cache 接口
+## 11. Artifact 与 cache
 
-### 8.1 不变的外部形状
+### 11.1 外部兼容
 
-- `ScoreResult` 字段与校验不变；
-- `SCORING_STRUCTURED` 文件仍为 canonical `ScoreResult` JSON；
-- `ScoringOutcome.result` 仍为 `ScoreResult`；
-- SQLite Schema、`ArtifactKind` 和 migration 不变。
+- `ScoreResult` shape 不变；
+- `SCORING_STRUCTURED` 仍是 canonical ScoreResult JSON；
+- SQLite Schema、`ArtifactKind` 与 migration 不变；
+- `ScoringOutcome.result` 仍为 Finalizer 返回的 ScoreResult。
 
-### 8.2 PASS metadata
+### 11.2 Raw envelope
 
-成功 Artifact 使用按 kind 区分的固定 producer version，例如：
-
-```text
-SCORING_RAW: scoring-raw-content-quality-v1
-SCORING_STRUCTURED: scoring-structured-content-quality-v1
-```
-
-这些值只表示同一最终候选已通过 ADR-025 v1 门禁。完整 identity 进入 scoring
-normalized input hash：
+最终 `SCORING_RAW` 使用固定 `scoring-raw-content-quality-v1` envelope：
 
 ```json
 {
-  "content_quality": {
-    "policy_version": "content-quality-policy-v1",
-    "prompt_version": "content-quality-prompt-v1",
-    "schema_version": "content-quality-result-v1",
-    "judge_provider": "ollama",
-    "judge_model": "<trusted current model>",
-    "judge_model_digest": "<trusted current sha256 digest>"
-  }
+  "envelope_schema": "scoring-raw-content-quality-v1",
+  "final_provider_response": "<bounded raw response>",
+  "validated_quality_pass_decision": { "status": "PASS", "...": "finite fields only" },
+  "quality_pass_attestation": { "...": "quality-pass-attestation-v1" }
 }
 ```
 
-ProviderCall 的现有 prompt/schema columns 继续记录 scoring prompt/schema；quality identity
-作为 normalized input 的一部分参与现有 request hash，不复用或改写字段语义。
+`SCORING_STRUCTURED` producer version 固定为
+`scoring-structured-content-quality-v1`。Raw/structured key 和 content hash 仍绑定当前
+scoring identity；raw envelope 的 attestation 又绑定具体 candidate 与 Judge operation。
+最终 scoring ProviderCall 和 PASS Judge ProviderCall 可以引用同一 composite raw Artifact；
+二者 operation identity 独立，且共用的 provider/model/digest 必须精确等于当前固定本地
+配置。若未来 Judge 与 scoring 使用不同 provider/model，该复用不再成立，必须先修订 ADR。
 
-### 8.3 Recovery
+### 11.3 Cache recovery matrix
 
-cache hit 必须满足：
+| 情形 | 结果 | Judge calls |
+|---|---|---:|
+| 所有 scoring provenance、Artifact、attestation、Judge call 完全匹配 | cache hit；Finalizer 重建 | 0 |
+| 旧 cache 无 attestation | cache miss，旧物保留，以当前新 identity 计算 | 按新请求预算 |
+| policy/prompt/schema/model/digest 版本变化 | cache miss；新 Judge identity | 按新请求预算 |
+| raw/structured hash、candidate/input/attestation hash 不一致 | integrity failure，停止 | 0 |
+| 当前 Judge identity 为 PENDING/FAILED | fail-closed，禁止通过 cache miss 重调 | 0 |
+| Judge call SUCCEEDED 但 response artifact 不指向同一 attested raw envelope | integrity failure | 0 |
 
-- scoring request/provider/model/output language/prompt/schema 全部匹配；
-- quality identity 全部匹配；
-- raw/structured Artifact ID、key、path、hash、provider/model 全部匹配；
-- raw/structured producer version 分别精确为当前 qualified version；
-- `ScoreResult` 重新执行 schema 与 TASK-016B language invariant。
+Cache hit 必须重新验证 attestation 并调用 Finalizer，但绝不调用 Judge。旧文件、Artifact 与
+ProviderCall 均保留审计，不覆盖、不删除、不回写为当前成功。
 
-旧 Artifact、旧 producer version 或缺少 quality identity 时：保留旧文件和索引，返回
-cache miss，重新 Provider compute。不得把 provenance mismatch 变成当前 cache hit，也
-不得删除审计材料。
+## 12. Repair/finalize event contract
 
-## 9. 错误与日志
+对需要 repair 的 Fake 流，事件顺序固定为：
 
-对外继续使用现有 `INVALID_RESPONSE`、`PROVIDER_UNAVAILABLE`、`TRANSIENT_NETWORK`
-等 `AppError`；不扩展 DB enum。安全 diagnostics 可记录：
+```text
+SCHEMA_PRIMARY
+LANGUAGE_PRIMARY
+QUALITY_PRIMARY
+REPAIR
+SCHEMA_REPAIR
+LANGUAGE_REPAIR
+QUALITY_REPAIR
+FINALIZE
+PERSIST
+```
+
+任何 `FINALIZE` 提前、quality 重复调用、跳过 repair language/schema、或在 finalization
+之前产生正式 Artifact 都是契约错误。
+
+## 13. 错误与安全日志
+
+对外复用现有 `INVALID_RESPONSE`、`PROVIDER_UNAVAILABLE`、`TRANSIENT_NETWORK`；不扩展
+DB enum。安全码可包含：
 
 ```text
 CONTENT_QUALITY_REJECTED
 CONTENT_QUALITY_UNCERTAIN
 CONTENT_QUALITY_JUDGE_UNAVAILABLE
 CONTENT_QUALITY_JUDGE_INVALID
+CONTENT_QUALITY_ATTESTATION_INVALID
+CONTENT_QUALITY_ATTEMPT_UNKNOWN
 ```
 
-不得记录 candidate reason、topics、evidence excerpt、Transcript、模型原始响应、路径、
+不得记录 candidate reason/topics、evidence excerpt、Transcript、prompt/response、路径、
 URL、Cookie、token、Key 或异常原文。
 
-## 10. 兼容与演进
+## 14. 演进约束
 
-- v1 不新增依赖；复用现有 Ollama transport、Pydantic 和 hashing。
-- v1 不对外承诺 deterministic/Judge 的内部信号排序之外的实现细节。
-- 新增 signal、policy、prompt 或 schema 必须升级版本并失效旧 cache。
-- 如果未来需要长期持久化完整 quality result，应新建 ADR 和 migration；不能把它伪装成
-  `SCORING_RAW`、`ANALYSIS_*` 或其他既有 Artifact kind。
-- Local Deep Analysis 的新任务号由主控另行决定；TASK-016C 不能顺便实现它。
+- v1 不新增依赖；
+- signal/reason/policy/prompt/schema 或 attestation 变化必须版本化并失效旧 cache；
+- 若需要可查询的独立 quality Artifact 或 cryptographic authenticity，另开 ADR 与 migration；
+- Local Deep Analysis 为 `TBD / UNASSIGNED`；TASK-016C 不得顺便实现；
+- 本文件只冻结接口，不授权编码、真实 Ollama、网络、Cloud、Router、Weekly 或数据库变化。

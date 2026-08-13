@@ -1,8 +1,8 @@
-# ADR-025：Content Quality Layer 职责与信任边界
+# ADR-025：Content Quality Layer 职责、可信终结与恢复边界
 
 ## Status
 
-Accepted
+Proposed；2026-08-13 Round 2 修订待 Independent Design Review
 
 ## Date
 
@@ -10,23 +10,25 @@ Accepted
 
 ## Context
 
-TASK-016B 已按 ADR-024 验收并冻结。Language Validator 只判断 Unicode script 是否
-明显不匹配、是否存在保守的自然语言结构证据，以及无法证明时是否应 fail-closed。它
-不能在无品牌词库、实体数据库、外部知识或语义模型的条件下可靠区分：
+TASK-016B 已按 ADR-024 验收并冻结。Language Validator 只负责 script mismatch、
+自然语言结构验证与无法证明时 fail-closed。它不负责判断评分理由是否有价值、是否由
+identifier 或实体名称堆叠而成，也不负责事实性实体识别。
 
-- 有价值的自然语言评分理由；
-- 品牌、产品、框架或 identifier 的堆叠；
-- 语法成立但没有评分价值的低信息文本；
-- 看似有主谓宾但无法由当前评分输入支持的陈述。
+TASK-016C 建立独立 Content Quality Layer。但第一版设计仍有三处不可接受的信任缺口：
 
-继续把这些问题塞入 Language Validator 会违反 ADR-024，并重新引入品牌词表、token
-位置、大小写、词尾或 dependency 例外等不可穷举的启发式。TASK-016C 因此建立独立
-Content Quality Layer，使“语言形式合规”与“内容具有可信评分价值”成为两个串行门禁。
+1. Deterministic Gate 试图识别 acronym / identifier，重新引入了 TASK-016B 已拒绝的
+   token、技术词和实体启发式；
+2. Provider、repair 与 cache recovery 仍可能直接恢复或构造 `ScoreResult`，没有唯一的
+   可信构造点；
+3. producer version 与 request identity 只能证明“当前策略本应运行”，不能证明某一
+   candidate 实际获得了完整的 Quality `PASS`。
 
-ADR-023 原先把 `TASK-016C` 分配给 Local Deep Analysis Provider。本 ADR 仅替代
-ADR-023“Local-only 第一里程碑”清单中的该任务编号分配：`TASK-016C` 现用于 Content
-Quality Layer。Local Deep Analysis 的产品目标和其他 ADR-023 决策保持有效，但必须由
-主控在未来重新编号并重新分配，不能从本 ADR 推断其已获实现授权。
+本修订把 Deterministic Gate 缩到可机械证明的三个错误，把 `ScoreResult` 的创建权集中到
+`TrustedScoringFinalizer`，并引入可恢复、可交叉验证的 Quality PASS attestation。
+
+ADR-023 原先把 `TASK-016C` 分配给 Local Deep Analysis Provider。该任务编号分配已被本
+ADR supersede：`TASK-016C` 只表示 Content Quality Layer。Local Deep Analysis 保持产品
+方向，但当前状态为 `TBD / UNASSIGNED`，不得从旧清单推断已获设计或实现授权。
 
 ## Decision
 
@@ -34,12 +36,11 @@ Quality Layer。Local Deep Analysis 的产品目标和其他 ADR-023 决策保�
 
 TASK-016C v1 负责：
 
-- identifier-only response detection；
-- entity-only / entity-stuffing 的内容质量识别，但不判断实体真实身份；
+- identifier-only、entity-only 与 identifier-stuffing 的内容质量判定；
 - low-information scoring reason detection；
 - minimal claim validation；
-- 相对于当前 `ScoringInput` 的 grounding confidence；
-- 在无法可靠确认时返回 `UNCERTAIN` 并 fail-closed。
+- 相对于当前 `ScoringInput` 的 grounding 与 usefulness confidence；
+- 在不能可靠证明 `PASS` 时返回 `REJECT` 或 `UNCERTAIN` 并 fail-closed。
 
 TASK-016C 不负责：
 
@@ -47,14 +48,40 @@ TASK-016C 不负责：
 - 品牌、公司、产品或技术实体的事实识别；
 - 事实真伪核验；
 - Web、Wikipedia、外部 API、远程知识库或用户知识库查询；
-- TASK-016B Language Validator 的修改、替换或重新解释。
+- 修改、替换或重新解释 TASK-016B Language Validator。
 
-### 2. 双层判定
+### 2. Deterministic Gate 的封闭范围
 
-Content Quality Validator 固定为两层：
+Deterministic Gate 只能产生以下三种拒绝：
 
 ```text
-schema-valid scoring candidate
+EMPTY_CONTENT
+CONTROL_CHARACTER_INVALID
+EXACT_REPETITION
+```
+
+其中 `EXACT_REPETITION` 只允许比较经过 schema whitespace normalization 后完全相同的
+非空 segment；不得做模糊匹配、case folding、token 分析或语义归并。
+
+Gate 明确禁止：
+
+- identifier list / acronym detection；
+- 技术词、品牌、公司或产品判断；
+- token 数量、token 位置、大小写、词尾规则；
+- POS、dependency、NER 或其他语言学分析；
+- 直接产生 `PASS`。
+
+因此 `API SDK GPT LLM`、`Docker Kubernetes Terraform`、
+`General Dynamics Corporation` 以及所有结构合法但语义未知的文本都必须 `CONTINUE`
+到 Local Judge。
+
+### 3. 双层质量判定
+
+```text
+schema-valid ScoringCandidate
+        |
+        v
+frozen TASK-016B Language Validator
         |
         v
 Deterministic Safety Gate
@@ -66,127 +93,210 @@ Fixed Local Content Quality Judge
 ContentQualityResult: PASS | REJECT | UNCERTAIN
 ```
 
-Deterministic Safety Gate 只拒绝无需语义判断即可证明的垃圾，例如空白/控制字符材料、
-越界结构、重复退化输出和明显的 acronym/code identifier 列表。它不能以品牌词表、公司
-名单或开放式技术词表判断复杂样例，也不能单独产生 `PASS`。
+Local Judge：
 
-所有未被确定性门禁拒绝的候选都必须进入固定本地 Judge。复杂的 entity-only、低信息、
-最小 claim 和 grounding 判断由 Judge 完成；Judge 缺失、加载失败、超时、输出无效或
-证据不足统一产生 `UNCERTAIN`，不得宽松放行。
+- 复用当前 `local_scoring` 的固定 Ollama provider/model 与 expected digest；
+- 仅允许既有受限 loopback Adapter；
+- 固定 policy、prompt 与 schema version；
+- 使用结构化输出、`temperature=0`、`stream=false`、`think=false`、无 tools；
+- 禁止下载、model pull、远程地址、用户动态 prompt、cloud 或 network fallback；
+- 只能返回有限枚举、固定 confidence 与应用预先建立的 evidence ID；
+- 不得自报 excerpt、provider、model、digest、version、request hash 或自由 diagnostics。
 
-### 3. Judge 运行边界
+Judge 的 `PASS` 只证明候选在当前有界输入中具有最小可用、可 grounding 的评分价值，
+不证明外部事实真实。
 
-v1 Judge：
+### 4. 唯一可信 ScoreResult 构造点
 
-- 复用当前 `local_scoring` 的固定 Ollama model 与 expected model digest；
-- 只允许现有受限 loopback HTTP Adapter，不允许远程 base URL；
-- 固定 `content-quality-prompt-v1`、`content-quality-result-v1` 与
-  `content-quality-policy-v1`；
-- 使用结构化输出、`temperature=0`、`stream=false`、`think=false`，不使用 tools；
-- 不启动 Ollama、不拉取模型、不下载资源、不执行网络 fallback；
-- 不接受用户提供的远程模型地址、动态 prompt 或外部知识源；
-- 每个 scoring request 最多调用两次：主评分候选一次、唯一 repair 候选一次；
-- 只返回有限枚举、布尔判定和由应用预先建立的 evidence ID，不能自报 provider、model、
-  digest、版本、request hash 或 excerpt。
+Provider Adapter 的返回类型固定为不可信 `ScoringCandidate`。Provider、repair、Artifact
+reader 和 cache recovery 均不得直接构造、反序列化为或返回可信 `ScoreResult`。
 
-Judge 的 `PASS` 不是事实真实性证明，只表示候选包含最小可用 claim，且该 claim 在当前
-评分输入的有限 evidence 中有足够支持。
+`TrustedScoringFinalizer` 是唯一允许创建 `ScoreResult` 的应用边界。它必须同时接收并
+重新验证：
 
-### 4. Fail-closed 与 repair
+1. canonical `ScoringCandidate`；
+2. 当前可信 scoring context（provider/model/output language/prompt/schema）；
+3. 完整且有效的 Quality PASS attestation；
+4. 当前 scoring request 与 quality input 的重算 hash。
 
-处理顺序冻结为：
+只有全部一致时，Finalizer 才从业务字段和可信 context 新建 `ScoreResult`。三条路径均
+必须经过它：
+
+- primary scoring candidate；
+- 唯一 repair candidate；
+- persisted cache recovery。
+
+Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 `ScoreResult`。
+禁止把 `model_copy(update=...)`、`model_construct()` 或已构造 instance 当成可信捷径。
+
+### 5. Quality PASS attestation
+
+每个最终 `PASS` 必须有 `quality-pass-attestation-v1`，至少绑定：
+
+- `candidate_hash`；
+- `quality_input_hash`；
+- quality policy version；
+- scoring 与 quality schema version；
+- scoring 与 quality prompt version；
+- Judge provider；
+- Judge model；
+- Judge expected model digest；
+- Judge operation identity、request hash 与 attempt role；
+- 三项 confidence 与已验证 evidence IDs。
+
+Attestation 由应用根据已验证 Judge response 和可信配置构造，模型不能自报。其 canonical
+payload 计算 SHA-256 `attestation_hash`。v1 不新增 Artifact kind 或数据库字段：最终
+`SCORING_RAW` 改为固定版本的 quality-qualified composite raw envelope，保存最终
+scoring provider raw response、已验证且有限的 Judge PASS decision 与该 attestation；
+`SCORING_STRUCTURED` 仍保持现有 canonical `ScoreResult` JSON，避免破坏 Runtime、
+Report 和 Weekly consumer。最终 scoring call 与 Judge call 可以引用同一 composite raw
+Artifact，但两者必须分别具有正确 operation identity；该 Artifact 的 provider/model 必须
+与两次调用共同使用的固定本地 provider/model 精确一致。
+
+该 envelope 只有在 Quality `PASS` 后才能成为正式 Artifact。`REJECT` / `UNCERTAIN`
+candidate 不产生正式 scoring raw/structured Artifact。
+
+Attestation integrity 是现有本地信任模型内的交叉一致性，不是对拥有 SQLite 与 DATA
+写权限的攻击者提供密码学不可伪造性。恢复时必须重算 candidate/input/attestation hash，
+核对当前配置、Artifact metadata/content hash，以及对应 Judge ProviderCall 的
+`SUCCEEDED` 状态和相同 response artifact。任一不一致都不得成为 cache hit。
+
+### 6. Judge 调用预算与 operation identity
+
+每个 scoring request 的质量 Judge 预算冻结为：
+
+- `PRIMARY` candidate：最多一次；
+- `REPAIR` candidate：最多一次；
+- 总计最多两次；scoring repair 自身仍最多一次。
+
+每次 Judge 的 operation identity 由以下 canonical 字段派生：
 
 ```text
-untrusted Ollama response
-  -> structural candidate validation
-  -> frozen TASK-016B Language Validator
-  -> TASK-016C Content Quality Validator
-  -> trusted ScoreResult
-  -> Artifact / cache
+scoring_request_hash
+attempt_role (PRIMARY | REPAIR)
+candidate_hash
+quality_input_hash
+policy_version
+prompt_version
+schema_version
+judge_provider/model/digest
 ```
 
-schema、language 或 content-quality 任一门禁返回失败时，共享同一个“最多一次 repair”
-预算。repair 后重新执行全部门禁。第二次仍为 `REJECT` / `UNCERTAIN`，或 Judge 自身不可用，
-必须返回 `INVALID_RESPONSE`。
+调用前必须在既有 ProviderCall store 原子保留该 identity。TASK-016C 的 one-shot wrapper
+必须先只读查询 identity。记录不存在时才可 reserve 并外部调用；live PENDING 只能等待或
+停止，expired PENDING 只允许以完整验证的 deterministic PASS artifact 调用通用 reserve
+的 artifact-recovery 分支，绝不进入 takeover 后外部调用。它不得把既有 Repository 对
+expired `PENDING` /
+`FAILED_RETRYABLE` 的通用 takeover 能力用于 Judge。恢复规则：
 
-未获 `PASS` 的候选不得生成可信 `ScoreResult`，不得写正式 `SCORING_RAW`、
-`SCORING_STRUCTURED`、成功 Provider-call provenance 或当前 cache。安全日志只记录有限
-错误码和版本，不记录模型原文、Transcript、路径或用户数据。
+| 持久状态 | 行为 |
+|---|---|
+| 无记录 | 可保留并调用一次 |
+| `SUCCEEDED` 且 PASS attestation 完整 | 恢复结果；Judge 调用为 0 |
+| `FAILED_*` | 该 role 已消费；不得再次调用 |
+| live `PENDING` | 等待或 fail-closed；此时通用 Repository 不执行 artifact recovery |
+| expired `PENDING` + 完整验证的 deterministic PASS artifact | 只恢复并完成记录，不重新调用 |
+| expired `PENDING` 且无完整 PASS artifact | 外部结果未知；fail-closed，不重新调用 |
+| record / attestation / Artifact 相互矛盾 | integrity failure；fail-closed，不重新调用 |
 
-### 5. ContentQualityResult
+Primary Judge 明确 `REJECT` / `UNCERTAIN` 时，可用现有失败状态和有限安全码记录该 role
+已消费，然后进入唯一 repair。若进程在外部调用后、持久完成前崩溃，不能证明调用是否
+发生，必须按 unknown state 停止；只有显式的新产品操作 identity 才能再次尝试，自动
+restart/retry 不得重置预算。
 
-`ContentQualityResult.status` 只允许 `PASS | REJECT | UNCERTAIN`。其他字段也使用有限
-枚举或受限 ID：confidence、signals、rejection reason、grounding evidence IDs、candidate
-hash，以及由应用补充的 policy/prompt/schema/provider/model/digest provenance。
+### 7. Confidence 与组合契约
 
-模型输出只是未可信 Judge response；只有应用验证 evidence 引用、组合规则和可信
-provenance 后，才能构造 `ContentQualityResult`。`ScoreResult` 的现有字段、语言契约与
-Pydantic 不变量保持不变。
+`ContentQualityResult` 使用三项独立有限 confidence：
 
-### 6. Artifact 与 cache
+- `decision_confidence`；
+- `grounding_confidence`；
+- `usefulness_confidence`。
 
-TASK-016C 不新增 SQLite migration。现有 `artifacts.kind` 有固定 CHECK，v1 不新增
-Artifact kind 或数据库字段。
+值只允许 `LOW | MEDIUM | HIGH`。`PASS` 固定门槛为：
 
-只有 quality `PASS` 的结果才能写现有 `SCORING_STRUCTURED`。v1 用以下已有能力表达
-质量决策：
+```text
+decision_confidence == HIGH
+grounding_confidence in {MEDIUM, HIGH}
+usefulness_confidence in {MEDIUM, HIGH}
+```
 
-- `SCORING_RAW` 与 `SCORING_STRUCTURED` 分别使用新的、固定的 quality-qualified
-  producer version，表示它们只可能来自已通过 `content-quality-policy-v1` 的同一
-  最终候选；
-- normalized scoring identity 纳入 quality policy version、Judge prompt/schema
-  version、provider、model 与 expected model digest；
-- Artifact key/content hash 与 Provider-call request hash 继续绑定该 identity；
-- `SCORING_STRUCTURED` 的 JSON 内容继续保持现有 `ScoreResult` 形状，避免破坏当前
-  Runtime、Report 与 Weekly consumer。
+并且必须同时具有 `MINIMAL_CLAIM_PRESENT`、`GROUNDING_PRESENT`、至少一个当前 registry
+evidence ID，且不得含 rejection reason 或负向冲突 signal。完整 status/reason/signal
+矩阵由 Interface Design 冻结；非法组合必须在应用 wrapper、JSON restore 和 Finalizer
+三处 fail-closed。
 
-因此，成功 Artifact 的存在与固定 producer metadata 表示 `PASS`；v1 不把 REJECT /
-UNCERTAIN 结果持久化为正式 scoring Artifact。若以后必须长期保存完整 quality signals，
-必须另开 ADR 评估新的 Artifact kind 或 Schema，而不能复用错误 kind。
+### 8. Repair 与持久化顺序
 
-cache recovery 必须同时验证：既有评分 provenance，以及 quality policy version、Judge
-prompt version、Judge schema version、Judge provider/model/digest 和 qualified producer
-version。任一缺失或不匹配都视为 cache miss，保留旧 Artifact 供审计并重新计算，不得
-返回 persisted cache hit。
+```text
+primary schema
+  -> primary language
+  -> quality primary
+  -> (if non-PASS) repair once
+  -> repair schema
+  -> repair language
+  -> quality repair
+  -> TrustedScoringFinalizer
+  -> formal Artifact / cache
+```
 
-### 7. Reuse decision
+schema、language 或 quality 失败共享同一个 repair budget。第二次仍非 `PASS` 或 Judge
+不可用时返回 `INVALID_RESPONSE`。未通过 Finalizer 的 candidate 不得产生可信
+`ScoreResult`、正式 `SCORING_RAW` / `SCORING_STRUCTURED`、成功 scoring provenance
+或当前 cache。
 
-- `DIRECT`：现有 Pydantic 领域校验、标准库 hashing/JSON、受限 Ollama loopback Adapter、
-  `local_scoring` 固定 model/digest、ProviderCall、Artifact 和 cache identity。
-- `DIRECT`：已锁定 spaCy 只继续服务 TASK-016B；TASK-016C 不扩展或修改其语言职责。
+### 9. Cache recovery
+
+Cache hit 不调用 Judge。恢复必须同时验证：
+
+- 既有 scoring request/provider/model/output language/prompt/schema provenance；
+- quality PASS attestation 的所有绑定字段与 canonical hash；
+- Judge ProviderCall operation identity、`SUCCEEDED` 状态和 response Artifact 绑定；
+- raw envelope 与 structured Artifact 的 ID/key/path/content hash/provider/model；
+- quality-qualified producer versions；
+- 从 persisted payload 重算的 candidate/input hash；
+- Finalizer 对当前配置的完整重建。
+
+旧 Artifact 或缺少 attestation 的记录是普通 cache miss：保留审计并以当前新 identity
+重新计算。版本变化生成新 Judge identity，可安全调用。已有当前 identity 的
+`PENDING`、失败或矛盾记录不是普通 miss，必须 fail-closed，不能借 recompute 重复调用。
+
+### 10. Reuse decision
+
+- `DIRECT`：现有 Pydantic、标准库 hashing/JSON、受限 Ollama Adapter、ProviderCall、
+  Artifact、cache identity 与原子 stage completion。
+- `DIRECT`：已锁定 spaCy 只继续服务 TASK-016B；TASK-016C 不修改其职责。
 - `REJECT`：品牌/公司/产品词典、网络查询、Wikipedia、外部 API、远程知识库、动态模型
-  下载和新增 NLP 依赖。
+  下载和新增依赖。
 
 ## Alternatives Considered
 
-### 把 entity-only 规则继续加入 Language Validator
+### 让 Deterministic Gate 判断 identifier / acronym
 
-拒绝。ADR-024 已证明语法同构结构不可可靠区分，继续添加规则会重新打开 TASK-016B。
+拒绝。它会不可避免地引入词表、token 或语言启发式，无法机械证明且会误杀正常技术内容。
 
-### 只使用确定性规则
+### 让所有模块都能构造 ScoreResult
 
-拒绝。复杂 entity-only、低信息和 grounding 需要有限语义判断；纯规则要么漏检，要么
-误杀正常技术内容。
+拒绝。Provider、repair 与 cache 的多入口会使 quality attestation 可以被绕过。
 
-### 只使用 Local Judge
+### 只用 producer version 代表 PASS
 
-拒绝。明显垃圾无需消耗模型调用；输入边界、资源上限和退化模式应由确定性门禁先处理。
+拒绝。版本只能证明预期策略，不能绑定具体 candidate、input、Judge identity 和实际调用。
 
-### 引入品牌/实体知识库或网络检索
+### Cache hit 时重新调用 Judge
 
-拒绝。超出 Local-only、隐私和离线边界，也不能穷举实体。
+拒绝。它破坏 cache 语义、调用预算和崩溃恢复的 at-most-once 边界。
 
 ### 新增数据库字段或 Artifact kind
 
-拒绝 v1。现有 Schema 对 kind 有 CHECK，新 kind 必须 migration；成功结果的 PASS 标记与
-完整 provenance 可由既有 producer metadata 和 request identity 承载。
+v1 拒绝。quality-qualified raw envelope、现有 Artifact metadata 和 ProviderCall 可以在
+不迁移 Schema 的前提下表达可验证 attestation；若以后需要独立查询质量决策，再开 ADR。
 
 ## Consequences
 
-- 评分路径增加最多两次固定本地 Judge 调用，延迟与本机资源占用上升。
-- 保守策略允许部分正常候选进入 `UNCERTAIN` 并触发一次 repair；安全性优先于召回率。
-- 通过 quality gate 不等于外部事实核验，只证明当前评分理由具有最小内容价值和输入内
-  grounding。
-- 旧 scoring Artifact 因缺少 quality provenance 不再是当前 cache hit，但继续保留审计。
-- TASK-016C 实现必须先通过独立 Review；本 ADR 不授权 TASK-016C 之外的 Local Deep
-  Analysis、Cloud、Router、Weekly V2、数据库 migration、真实模型或网络操作。
+- 所有成功评分多一个可验证 PASS attestation，恢复路径更严格且旧 cache 自动失效。
+- 评分路径最多增加两次固定本地 Judge 调用；崩溃未知状态宁可停止也不重复调用。
+- Deterministic Gate 召回率刻意很低；复杂垃圾必须交给 Local Judge。
+- `ScoreResult` 外部形状不变，但内部构造权收敛到一个 Finalizer。
+- PASS 不等于事实核验；只代表当前输入内的最小内容价值与 grounding 达到固定门槛。
+- 本 ADR 不授权 Local Deep Analysis、Cloud、Router、Weekly V2、数据库 migration、真实
+  模型或网络操作。

@@ -20,7 +20,8 @@ Artifact provenance、Vault 安全与离线优先边界。
 1. 支持 `local-only`、`hybrid`、`cloud` 三种 Intelligence Mode。
 2. 三种模式均先运行 Local Fast Scoring；只有达到 `thresholds.summary_score` 的视频
    才进入 Deep Analysis。
-3. `local-only` 使用独立可配的本地 Deep Analysis Provider，不需要 API Key。
+3. `local-only` 的 Local Deep Analysis 产品方向保留，但具体 Provider、任务号和实现边界
+   当前为 `TBD / UNASSIGNED`，不需要 API Key。
 4. `hybrid` 是产品推荐模式，但新安装和旧配置的安全初始行为不得自动启用云端；Cloud
    通过全部门禁后优先执行，失败、无 Key、超预算或输入不合格时降级到 Local。
 5. `cloud` 仍先本地评分，并保持严格 Cloud 语义；失败时不得静默降级为 Local。
@@ -45,14 +46,15 @@ Artifact provenance、Vault 安全与离线优先边界。
 
 1. `TASK-016A`：模式、配置与统一知识契约。
 2. `TASK-016B`：本地评分语言契约。
-3. `TASK-016C`：Local Deep Analysis Provider。
+3. Local Deep Analysis：`TBD / UNASSIGNED`，不得使用 `TASK-016C`。
 4. `TASK-016D`：Local-only 持久化编排与 cache provenance。
 5. `TASK-016E`：Evidence Registry 与 Video Note V2。
 6. `TASK-016F`：Weekly Intelligence V2。
 
-编号修订（2026-08-13）：本清单第 3 项的 `TASK-016C` 分配已由 ADR-025 窄范围替代；
-`TASK-016C` 现用于 Content Quality Layer。Local Deep Analysis 的目标保持，但后续任务号
-必须由主控重新分配；本修订不自动重编号或启动第 4–6 项。
+编号修订（2026-08-13）：本 ADR 对 `TASK-016C` 的旧任务分配已由 ADR-025 明确
+supersede；`TASK-016C` 只用于 Content Quality Layer。Local Deep Analysis 目标保持为
+`TBD / UNASSIGNED`，其 Provider、任务号、接口、持久化和验收边界都必须由未来独立决策
+重新分配。本修订不自动重编号、不授权实现，也不启动第 4–6 项。
 
 Local-only 真实验收通过后，主控再次请求产品确认，才可分配 Hybrid/Cloud 路由与最终跨
 模式验收任务。
