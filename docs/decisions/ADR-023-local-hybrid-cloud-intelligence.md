@@ -50,6 +50,10 @@ Artifact provenance、Vault 安全与离线优先边界。
 5. `TASK-016E`：Evidence Registry 与 Video Note V2。
 6. `TASK-016F`：Weekly Intelligence V2。
 
+编号修订（2026-08-13）：本清单第 3 项的 `TASK-016C` 分配已由 ADR-025 窄范围替代；
+`TASK-016C` 现用于 Content Quality Layer。Local Deep Analysis 的目标保持，但后续任务号
+必须由主控重新分配；本修订不自动重编号或启动第 4–6 项。
+
 Local-only 真实验收通过后，主控再次请求产品确认，才可分配 Hybrid/Cloud 路由与最终跨
 模式验收任务。
 
