@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Interface Design — Round 3.5
+# TASK-016C Content Quality Interface Design — Round 4
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -15,7 +15,7 @@
 3. 每个成功结果绑定一份具体 candidate/input/Judge identity 的 Quality PASS
    attestation；
 4. primary、repair 和 cache recovery 都经过相同 Finalizer；
-5. cache hit 零 Judge 调用，恢复严格验证 attestation；
+5. cache hit 零 Judge 调用，恢复从既有事实重算 derived verification view；
 6. primary 与 repair 的 Judge 各最多一次，崩溃未知状态不得重调；
 7. `REJECT` / `UNCERTAIN` 不进入正式 scoring Artifact 或 cache；
 8. 无新依赖、无数据库 migration、无外部知识或网络 fallback。
@@ -38,7 +38,8 @@ flowchart TD
     R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
     F --> S["ScoreResult"]
-    S --> P["atomic persistence: raw + structured + attestation + calls + cache"]
+    S --> P["file commit protocol"]
+    P --> Q["atomic DB registration"]
 ```
 
 Cache recovery 不直接反序列化可信 `ScoreResult`：
@@ -355,9 +356,10 @@ Finalizer 输入；此时不得注册 Artifact、完成 ProviderCall 或建立 c
 3. 计算 canonical attestation hash；
 4. 调用 `TrustedScoringFinalizer`；
 5. Finalizer 成功后构造 raw envelope 与 structured bytes；
-6. 安全写入/fsync 临时文件，但不注册为 Artifact；
-7. 单一 Repository transaction 原子登记 raw/structured Artifact、attestation、scoring 与
-   Judge ProviderCall completion、cache identity 和 stage completion。
+6. 按第 11.3 节将 raw/structured 写入同 filesystem 临时文件、fsync、校验并原子 promote；
+7. fsync parent directory，重新打开 final files 并验证类型、路径、长度和 hash；
+8. 单一 Repository transaction 原子登记 raw/structured Artifact、attestation 绑定、
+   scoring/Judge ProviderCall completion 和 stage completion；不写独立 cache identity。
 
 ## 9. TrustedScoringFinalizer
 
@@ -417,8 +419,8 @@ class QualityJudgeOperationInput(FrozenDomainModel):
 其 canonical hash 是 `judge_request_hash`；provider operation 固定为
 `local-content-quality-v1`。PRIMARY 与 REPAIR 使用不同 role，因此 identity 不同。
 one-shot wrapper 必须先调用 Repository 的只读查询。record 不存在时才可 reserve 并外部
-调用；live PENDING 只能等待或停止；expired PENDING 只允许在完整 PASS raw envelope 已被
-独立验证后，以 `VerifiedArtifact` 进入通用 reserve 的 artifact-recovery 分支，绝不在
+调用；live PENDING 只能等待或停止；expired PENDING 只允许在完整 PASS raw envelope 与
+promoted files 已被独立验证后，以 `VerifiedPromotedFiles` 进入专用 recovery 分支，绝不在
 acquired takeover 后调用 Judge。不得把通用 reserve 对 expired `PENDING` /
 `FAILED_RETRYABLE` 的 takeover 语义用于质量 Judge。
 
@@ -426,8 +428,8 @@ acquired takeover 后调用 Judge。不得把通用 reserve 对 expired `PENDING
 |---|---|---:|
 | missing | 原子 reserve 后调用 | 1 |
 | live `PENDING` | 报告 in progress / fail-closed | 0 |
-| expired `PENDING` + 完整验证的 deterministic PASS artifact | 仅 artifact recovery | 0 |
-| expired `PENDING` 且无完整 PASS artifact | 结果未知，fail-closed；禁止 reclaim 调用 | 0 |
+| expired `PENDING` + 完整验证的 deterministic PASS promoted files | 原子 recovery claim 后登记 | 0 |
+| expired `PENDING` 且无完整 PASS promoted files | 结果未知，fail-closed；禁止 reclaim 调用 | 0 |
 | `FAILED_RETRYABLE` / `FAILED_FINAL` | role 已消费；fail-closed | 0 |
 | `SUCCEEDED` + 完整 PASS attestation | 恢复 PASS | 0 |
 | `SUCCEEDED` + 非 PASS / 缺失或矛盾 artifact | integrity failure | 0 |
@@ -465,10 +467,33 @@ scoring identity；raw envelope 的 attestation 又绑定具体 candidate 与 Ju
 二者 operation identity 独立，且共用的 provider/model/digest 必须精确等于当前固定本地
 配置。若未来 Judge 与 scoring 使用不同 provider/model，该复用不再成立，必须先修订 ADR。
 
-### 11.3 Atomic persistence boundary
+### 11.3 Artifact file commit protocol
 
-Finalizer 成功后，应用准备 raw/structured 的 deterministic key、bytes 与 hash，再调用唯一
-atomic persistence API：
+Finalizer 成功后，应用准备 raw/structured 的 deterministic key、canonical bytes、长度与
+SHA-256，并严格执行：
+
+```text
+same-filesystem operation-scoped temporary write
+  -> fsync temporary file
+  -> verify temporary byte length and SHA-256
+  -> no-clobber atomic rename/promote to deterministic final path
+  -> fsync affected parent directory
+  -> re-open final regular file and verify controlled path/length/SHA-256
+```
+
+两个文件分别执行，但必须都在同一个受控 DATA filesystem，且全部 final verification 通过后
+才能进入 SQLite transaction。Temporary name 必须绑定 operation identity、request hash 和
+随机不可预测 component，并使用 exclusive create；禁止跟随 symlink、跨 filesystem rename、
+覆盖式 `replace` 或接收任意调用方路径。
+
+Final path 已存在时绝不覆盖或删除。只有它与本次 deterministic key/operation 归属一致，
+是受控根内普通文件，并且长度/hash 与本次计划完全相同，才可视为同 operation 的幂等
+promote；否则 fail-closed。已被其他 operation 或不同 Artifact key 索引的文件，即使 hash
+相同也不得据为己有。
+
+### 11.4 Atomic DB registration boundary
+
+文件协议完成后，调用唯一 atomic registration API：
 
 ```python
 class TrustedScoringPersistence(Protocol):
@@ -481,21 +506,53 @@ class TrustedScoringPersistence(Protocol):
         quality_attestation: QualityPassAttestation,
         scoring_call: ProviderCallCompletion,
         quality_call: ProviderCallCompletion,
-        cache_identity: ScoringCacheIdentity,
         stage: ScoringStageCompletion,
+        final_file_verification: tuple[VerifiedPromotedArtifact, ...],
     ) -> ScoringOutcome: ...
 ```
 
-该方法必须在单一 SQLite transaction 内登记两份 Artifact、两份 Provider completion、
-attestation 绑定/cache identity 和 stage。现有 Schema 可复用，但现有一次只完成一个
-ProviderCall 的 API 不足，实施需增加 Repository 方法而不修改表结构。临时文件可以在事务
-前写入并 fsync，但 Finalizer 前不得写，且在 transaction commit 前不具 Artifact/cache 身份。
+该方法必须先验证 proof 与 final 文件仍一致，再在单一 SQLite transaction 内登记两份
+Artifact、两份 Provider completion、raw envelope 的 attestation 绑定和 stage。现有 Schema
+可复用，但现有一次只完成一个 ProviderCall 的 API 不足，实施需增加 Repository 方法而不
+修改表结构。SQLite 只能登记已 promote、parent fsync 且 hash-verified 的 final 文件；事务
+提交前，这些文件没有 Artifact/cache 身份。
 
-### 11.4 Cache recovery matrix
+### 11.5 Derived cache verification view
+
+`ScoringCacheIdentity` 仅作为不可持久化的运行时 derived verification view：
+
+```python
+class DerivedScoringCacheView(NamedTuple):
+    scoring_request_hash: str
+    scoring_provider_call_request_hash: str
+    quality_provider_call_request_hash: str
+    raw_artifact_key: str
+    raw_artifact_version: str
+    raw_artifact_hash: str
+    structured_artifact_key: str
+    structured_artifact_version: str
+    structured_artifact_hash: str
+    quality_attestation_hash: str
+    quality_policy_version: str
+    scoring_schema_version: str
+    scoring_prompt_version: str
+    quality_schema_version: str
+    quality_prompt_version: str
+    judge_provider: str
+    judge_model: str
+    judge_model_digest: str
+```
+
+它每次从两份 ProviderCall、两份 Artifact 记录和文件、producer metadata、raw envelope 的
+Quality PASS attestation 以及当前 trusted config 重算。Repository 不得提供
+`put_cache_identity`，也不得新增 cache table/row/Artifact/file 或 migration。只有完整 view
+与当前请求逐字段相等，且 Finalizer 重新验证成功，才返回 cache hit。
+
+### 11.6 Cache recovery matrix
 
 | 情形 | 结果 | Judge calls |
 |---|---|---:|
-| 所有 scoring provenance、Artifact、attestation、Judge call 完全匹配 | cache hit；Finalizer 重建 | 0 |
+| derived view 的 ProviderCall、Artifact、producer metadata、attestation 与当前 config 完全匹配 | cache hit；Finalizer 重建 | 0 |
 | 旧 cache 无 attestation | cache miss，旧物保留，以当前新 identity 计算 | 按新请求预算 |
 | policy/prompt/schema/model/digest 版本变化 | cache miss；新 Judge identity | 按新请求预算 |
 | raw/structured hash、candidate/input/attestation hash 不一致 | integrity failure，停止 | 0 |
@@ -504,6 +561,21 @@ ProviderCall 的 API 不足，实施需增加 Repository 方法而不修改表�
 
 Cache hit 必须重新验证 attestation 并调用 Finalizer，但绝不调用 Judge。旧文件、Artifact 与
 ProviderCall 均保留审计，不覆盖、不删除、不回写为当前成功。
+
+### 11.7 Crash/restart matrix
+
+| crash 点 | restart 行为 |
+|---|---|
+| tmp write/fsync 前后 | 只可识别并清理当前 operation 的 orphan tmp；其他 tmp/final 均不动 |
+| raw 或 raw+structured promote 后、DB commit 前 | 文件不是 Artifact/cache；按 deterministic identity 重验后继续缺失 promote 或 DB registration，Judge=0 |
+| SQLite transaction 内 | 依赖 transaction 全回滚或全提交；重新查询完整关系，不补写部分行 |
+| DB commit 后 | 重新读取 Artifact/files/calls/attestation，重算 derived view；全部匹配才 hit，Judge=0 |
+
+Promoted orphan 恢复只允许在对应 ProviderCall 的 operation identity 已存在且可被原子恢复
+claim 时进行；live owner 不得被抢占。Raw envelope 必须足以重建 candidate、attestation 和
+canonical structured bytes。任一文件缺失、symlink/非普通文件、路径逸出、version/length/
+hash 不符或 ProviderCall identity 矛盾均 fail-closed，不调用 Judge，不删除已有 final 文件。
+自动删除范围永远只限当前 operation 明确拥有的 orphan temporary files。
 
 ## 12. Repair/finalize event contract
 
@@ -515,7 +587,8 @@ LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 ATTESTATION_PRIMARY
 FINALIZE
-ATOMIC_PERSISTENCE
+FILE_COMMIT_PROTOCOL
+ATOMIC_DB_REGISTRATION
 ```
 
 `CANDIDATE_*` 事件包含 Provider DTO 的严格 schema parsing；schema invalid 时事件失败并
@@ -533,12 +606,13 @@ LANGUAGE_REPAIR
 QUALITY_REPAIR
 ATTESTATION_REPAIR
 FINALIZE
-ATOMIC_PERSISTENCE
+FILE_COMMIT_PROTOCOL
+ATOMIC_DB_REGISTRATION
 ```
 
 任何 `FINALIZE` 提前、quality 重复调用、跳过 repair language、或在 finalization 之前
 产生 `SCORING_RAW` / `SCORING_STRUCTURED` / response_artifact_id / ProviderCall SUCCESS /
-cache identity 都是契约错误。
+cache hit 都是契约错误。
 
 ## 13. 错误与安全日志
 

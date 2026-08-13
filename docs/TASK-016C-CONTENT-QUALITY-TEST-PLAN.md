@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Round 3.5
+# TASK-016C Content Quality Test Plan — Round 4
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -15,11 +15,12 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 4. primary、repair、cache recovery 都只能经 `TrustedScoringFinalizer` 创建
    `ScoreResult`；
 5. 每个成功结果有完整、可重算的 Quality PASS attestation；
-6. cache hit 不调用 Judge，缺失/版本不匹配与 integrity failure 使用不同恢复语义；
+6. cache hit 不调用 Judge，且从 ProviderCall、Artifact、producer metadata、attestation
+   和当前配置重算 derived verification view；
 7. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
 8. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
 9. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
-   cache identity；成功后只允许单事务 atomic persistence；
+   cache hit；成功后必须先执行 tmp/fsync/hash/promote/dir-fsync，再单事务登记；
 10. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
 
 ## 2. TDD 纵切顺序
@@ -33,7 +34,7 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 5. Local Judge 固定请求与严格响应 wrapper；
 6. Quality PASS attestation 创建与验证；
 7. PRIMARY/REPAIR operation identity、一次性预算与崩溃恢复；
-8. raw envelope、structured Artifact 与 cache recovery；
+8. raw envelope、Artifact file commit protocol、atomic DB registration 与 cache recovery；
 9. production composition 和 TASK-016B 回归。
 
 不得删除、跳过、弱化断言、修改既有测试门禁或把失败样例移入生产词表。
@@ -232,12 +233,13 @@ LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 ATTESTATION_PRIMARY
 FINALIZE
-ATOMIC_PERSISTENCE
+FILE_COMMIT_PROTOCOL
+ATOMIC_DB_REGISTRATION
 ```
 
 断言 Judge=1、repair=0。ATTESTATION_PRIMARY 结束时仍无 Artifact、response_artifact_id、
-ProviderCall SUCCESS 或 cache；Finalizer 成功后一次事务才保存 attested raw envelope、
-structured result、两份 completion 与 cache identity。
+ProviderCall SUCCESS 或 cache hit。Finalizer 成功后，先完成两份文件的可验证 promote，
+再由一次事务登记 attested raw envelope、structured result、两份 completion 与 stage。
 
 `CANDIDATE_*` 必须包含严格 schema parsing；非法 DTO 在 language/quality 前停止并消费共享
 repair。不得另插一个可以绕过 Candidate 的 schema 事件。
@@ -256,7 +258,8 @@ LANGUAGE_REPAIR
 QUALITY_REPAIR
 ATTESTATION_REPAIR
 FINALIZE
-ATOMIC_PERSISTENCE
+FILE_COMMIT_PROTOCOL
+ATOMIC_DB_REGISTRATION
 ```
 
 不得遗漏 repair candidate/language，不得提前 Finalize，不得保存 primary raw。
@@ -281,8 +284,8 @@ ATOMIC_PERSISTENCE
 
 为 PRIMARY / REPAIR operation 分别验证 canonical identity 包含全部冻结字段且 role 不同。
 另以 Fake Repository 证明 one-shot wrapper 先查询：record 不存在时可 reserve/call；
-live PENDING 只能等待或停止；expired PENDING 只有在 deterministic PASS Artifact 完整
-验证后才可进入 artifact recovery；任何既有 record 都不得进入通用 expired/failed
+live PENDING 只能等待或停止；expired PENDING 只有在 deterministic PASS raw envelope 与
+promoted files 完整验证后才可进入专用 recovery；任何既有 record 都不得进入通用 expired/failed
 takeover 后再外部调用。
 
 | 预置状态 | 运行行为 | 调用计数 |
@@ -290,16 +293,17 @@ takeover 后再外部调用。
 | missing PRIMARY | reserve -> call -> complete | 1 |
 | missing REPAIR after explicit primary non-PASS | reserve -> call -> complete | 1 |
 | live PENDING | fail-closed / in progress | 0 |
-| expired PENDING + verified PASS artifact | artifact recovery | 0 |
-| expired PENDING without verified PASS artifact | `ATTEMPT_UNKNOWN`，不 reclaim | 0 |
+| expired PENDING + verified PASS promoted files | atomic recovery claim + DB registration | 0 |
+| expired PENDING without verified PASS promoted files | `ATTEMPT_UNKNOWN`，不 reclaim | 0 |
 | FAILED_RETRYABLE | role 已消费，不自动 retry | 0 |
 | FAILED_FINAL | role 已消费 | 0 |
 | SUCCEEDED + valid PASS attestation | recover | 0 |
 | SUCCEEDED + missing/mismatched artifact | integrity failure | 0 |
 
 故障注入点：reserve 后、transport 前；transport 后、response parse 前；PASS wrapper 后、
-attestation 构造前；attestation 后、Finalizer 前；Finalizer 后、临时文件前；临时文件后、
-atomic transaction 前；transaction 内每个 Artifact/completion/cache/stage 步骤。任何“可能
+attestation 构造前；attestation 后、Finalizer 前；Finalizer 后、每个临时文件 write/fsync/
+hash verify 后；每个 promote 后；parent dir fsync 后；transaction 内每个 Artifact/
+completion/stage 步骤。任何“可能
 已调用”的状态都不能重调同一 identity；transaction 内失败不得留下部分 DB 成功状态。
 
 统计断言：PRIMARY<=1、REPAIR<=1、总 Judge<=2、scoring repair<=1；进程重启不能清零。
@@ -310,7 +314,7 @@ atomic transaction 前；transaction 内每个 Artifact/completion/cache/stage �
 
 - candidate/input/Judge operation 生成稳定 canonical hash；
 - attestation hash 排除自身字段并稳定；
-- attestation 首先只存在内存；Finalizer 前 Repository 中不存在其 Artifact/cache/成功调用；
+- attestation 首先只存在内存；Finalizer 前 Repository 中不存在其 Artifact/cache hit/成功调用；
 - raw envelope round-trip 保留最终 provider raw 与完整 attestation；
 - Judge ProviderCall `SUCCEEDED.response_artifact_id` 指向同一 raw envelope；
 - structured payload 仍能由 Finalizer 的 persisted candidate 路径恢复，且外部 ScoreResult
@@ -343,18 +347,57 @@ Finalizer 成功前逐项查询并断言不存在：
 - `SCORING_RAW` / `SCORING_STRUCTURED` Artifact record；
 - scoring/quality `response_artifact_id`；
 - scoring/quality ProviderCall `SUCCEEDED`；
-- 可命中的 cache identity；
+- 任何独立持久化的 cache identity/table/row/Artifact/file；
+- 当前运行可返回的 cache hit；
 - pipeline `SCORED` 状态。
 
-Finalizer 成功后调用一次 atomic Repository API。对 raw insert、structured insert、quality
-attestation binding、scoring completion、quality completion、cache identity 和 stage update
-逐点注入异常，断言整个 SQLite transaction 回滚且零部分状态。全成功时单事务提交全部对象，
-两个 ProviderCall 与 attested raw Artifact/structured Artifact 关系完整。事务前临时文件不在
-Artifact 索引中，不能 cache hit；失败后仅可作为不可见临时文件清理，不能恢复成成功记录。
+上面的“cache identity”只可作为运行时派生视图检查项，不得在 Repository/DB 中找到对应
+table、row、Artifact 或文件。
+
+### 10.4 Artifact file commit protocol
+
+对 raw/structured 分别验证固定顺序：same-filesystem exclusive tmp write -> file fsync ->
+length/hash verify -> no-clobber atomic promote -> parent dir fsync -> reopen final verify。
+
+参数化故障/攻击：
+
+- tmp 短写、fsync 失败、hash mismatch；
+- tmp/final 是 symlink、非普通文件或路径逸出 DATA root；
+- cross-filesystem promote；
+- final 已存在且 hash 不同、key/operation ownership 不同；
+- final 已存在且同 operation/key/length/hash 全同的幂等恢复；
+- concurrent no-clobber promote，只有一方可成功；
+- raw promote 成功而 structured 尚未 promote；
+- 两文件 promote 成功而 parent dir fsync 或 DB 尚未完成。
+
+每条失败断言：零 Artifact/ProviderCall SUCCESS/cache hit；不覆盖或删除任何已有 final 文件；
+自动清理只触及当前 operation identity 的 orphan tmp，其他 operation tmp 不变。
+
+### 10.5 Atomic DB registration
+
+两份 final 文件全部重新验证后才调用一次 Repository API。对 raw insert、structured insert、
+quality attestation binding、scoring completion、quality completion 和 stage update 逐点注入
+异常，断言整个 SQLite transaction 回滚且零部分 DB 状态。全成功时单事务提交全部关系。
+API 不接受或写入独立 cache identity；传入未 promote、未 dir-fsync 或未 hash-verified 的
+proof 必须在事务前 fail-closed。
+
+### 10.6 Crash/restart matrix
+
+| crash | restart 断言 |
+|---|---|
+| tmp write 前/中/后 | 不读为 Artifact/cache；只清理当前 operation orphan tmp |
+| raw promote 后、structured promote 前 | 重验 raw；可从可信 raw envelope 生成/验证 structured 并继续；Judge=0 |
+| 两文件 promote 后、DB 前 | 重验 deterministic key/type/path/version/length/hash 后原子登记；Judge=0 |
+| DB transaction 内 | SQLite 全回滚或全提交；不得补写部分行 |
+| DB commit 后 | 完整重验 files/records/attestation/derived view；匹配才 hit；Judge=0 |
+
+Promoted file 缺失或任一 mismatch 必须 integrity failure；不当成普通 miss，不删除 formal
+file，不重调 Judge。Live operation owner 不得被 restart 抢占；expired/unknown operation
+只有在原子 recovery claim 与完整文件证明同时成立时才可登记。
 
 ## 11. Cache recovery tests
 
-在临时 SQLite/DATA 建立合法 PASS cache：
+在临时 SQLite/DATA 建立合法 PASS graph；不得建立独立 cache identity 持久化对象：
 
 ### 11.1 完整 hit
 
@@ -362,6 +405,8 @@ Artifact 索引中，不能 cache hit；失败后仅可作为不可见临时文�
 
 - scoring transport=0；
 - Judge transport=0；
+- 从 ProviderCall request hashes、Artifact key/version/hash、producer metadata、attestation
+  和当前 policy/schema/prompt/model digest 重算 derived verification view；
 - 重算 candidate/input/attestation hash；
 - 验证 Judge call 与 raw envelope；
 - 经 Finalizer 重建 ScoreResult；
@@ -379,7 +424,7 @@ Finalizer 成功前没有新 ProviderCall/Artifact/cache/stage 写入，也没�
 - trusted Judge model/digest 变化；
 - output language 或 scoring request 变化。
 
-断言新 identity 的 scoring provider/Judge 各按预算调用，旧 Artifact 不删除、不覆盖。
+断言新 operation identity 的 scoring provider/Judge 各按预算调用，旧 Artifact 不删除、不覆盖。
 
 ### 11.3 Integrity failure / unknown attempt
 
@@ -391,6 +436,16 @@ Finalizer 成功前没有新 ProviderCall/Artifact/cache/stage 写入，也没�
 - 当前 identity 已 FAILED。
 
 断言 fail-closed、Judge=0、无新成功 Artifact/cache。
+
+### 11.4 Derived identity persistence prohibition
+
+- schema introspection 证明没有 cache identity table/column；
+- Repository Fake/spy 证明没有 `put_cache_identity` 或等价写调用；
+- DB snapshot 与 DATA tree 证明只有既有 ProviderCall、Artifact、producer metadata、raw
+  attestation 和 stage facts；
+- 分别篡改 derived view 的每个来源字段，均不得 hit；
+- 仅修改当前 config 的 policy/schema/prompt/provider/model/digest 时为普通 miss，旧审计保留；
+- 文件/记录/hash 互相矛盾时为 integrity failure，不得降级为 miss。
 
 ## 12. Production composition regression
 
@@ -450,7 +505,10 @@ git diff --check <base>...HEAD
 - [ ] Candidate 是否保持 score=float、dimensions 可选和全部现有业务字段？
 - [ ] ADR-025 是否明确 supersede SYSTEM_DESIGN 的 Provider->ScoreResult 旧契约？
 - [ ] PASS attestation 是否绑定用户要求的全部字段并可重算？
-- [ ] Finalizer 前是否零 Artifact/call success/cache，之后是否单事务原子提交？
+- [ ] Finalizer 前是否零 Artifact/call success/cache hit？
+- [ ] 是否严格执行 tmp write/file fsync/hash/no-clobber promote/dir fsync/final verify/DB transaction？
+- [ ] Crash matrix 是否证明不删除 formal files 且只清理当前 operation orphan tmp？
+- [ ] Cache identity 是否只由既有事实派生，且无 table/row/Artifact/file/migration？
 - [ ] EXACT_REPETITION 和 CONTROL_CHARACTER 是否严格采用冻结算法与顺序？
 - [ ] Cache hit 是否零 Judge 调用？
 - [ ] PRIMARY/REPAIR 是否各最多一次，PENDING unknown 不重调？

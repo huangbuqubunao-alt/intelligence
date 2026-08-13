@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed；2026-08-13 Round 3.5 修订待 Independent Design Review
+Proposed；2026-08-13 Round 4 修订待 Independent Design Review
 
 ## Date
 
@@ -209,8 +209,8 @@ judge_provider/model/digest
 
 调用前必须在既有 ProviderCall store 原子保留该 identity。TASK-016C 的 one-shot wrapper
 必须先只读查询 identity。记录不存在时才可 reserve 并外部调用；live PENDING 只能等待或
-停止，expired PENDING 只允许以完整验证的 deterministic PASS artifact 调用通用 reserve
-的 artifact-recovery 分支，绝不进入 takeover 后外部调用。它不得把既有 Repository 对
+停止，expired PENDING 只允许以完整验证的 deterministic PASS raw envelope 与 promoted
+files 进入专用 verified-file recovery 分支，绝不进入 takeover 后外部调用。它不得把既有 Repository 对
 expired `PENDING` /
 `FAILED_RETRYABLE` 的通用 takeover 能力用于 Judge。恢复规则：
 
@@ -220,8 +220,8 @@ expired `PENDING` /
 | `SUCCEEDED` 且 PASS attestation 完整 | 恢复结果；Judge 调用为 0 |
 | `FAILED_*` | 该 role 已消费；不得再次调用 |
 | live `PENDING` | 等待或 fail-closed；此时通用 Repository 不执行 artifact recovery |
-| expired `PENDING` + 完整验证的 deterministic PASS artifact | 只恢复并完成记录，不重新调用 |
-| expired `PENDING` 且无完整 PASS artifact | 外部结果未知；fail-closed，不重新调用 |
+| expired `PENDING` + 完整验证的 deterministic PASS promoted files | 原子 recovery claim 后只恢复/登记，不重新调用 |
+| expired `PENDING` 且无完整 PASS promoted files | 外部结果未知；fail-closed，不重新调用 |
 | record / attestation / Artifact 相互矛盾 | integrity failure；fail-closed，不重新调用 |
 
 Primary Judge 明确 `REJECT` / `UNCERTAIN` 时，可用现有失败状态和有限安全码记录该 role
@@ -258,7 +258,8 @@ candidate
   -> quality
   -> in-memory PASS attestation
   -> TrustedScoringFinalizer
-  -> atomic persistence
+  -> verified file commit protocol
+  -> atomic SQLite registration
 ```
 
 primary 或 repair 都必须完整执行这一顺序；repair 只是产生新的 candidate，不能跳过任何
@@ -271,22 +272,62 @@ Finalizer 前严格禁止：
 - `SCORING_STRUCTURED`；
 - 任何成功 `response_artifact_id`；
 - scoring 或 quality ProviderCall `SUCCEEDED`；
-- 可命中的 cache identity。
+- 当前运行可返回的 cache hit。
 
 该禁止项约束当前执行产生的新状态转换。Cache recovery 可以只读观察历史原子提交留下的
 `SUCCEEDED`/Artifact/attestation，但在当前 Finalizer 成功前不得把它返回为 cache hit、
 不得写入新完成状态，也不得推进当前 stage。
 
-Finalizer 成功后，应用可以先在 DATA 根安全创建并 fsync 可验证的临时文件，但它们不是
-Artifact。随后使用一个 SQLite transaction 原子完成：登记 raw Artifact、登记 structured
-Artifact、持久化 raw envelope 内的 quality attestation、完成 scoring/quality ProviderCall、
-提交可命中的 cache identity，并推进 scoring stage。任何一步失败全部回滚 DB；未索引临时
-文件不得被读取为 Artifact 或 cache。该原子提交可能需要新增 Repository 方法，但不需要
-数据库 migration。
+Finalizer 成功后的文件提交协议固定为：
+
+```text
+Finalizer
+  -> same-filesystem temporary file write
+  -> fsync each temporary file
+  -> verify byte length and SHA-256 against planned ArtifactWrite
+  -> no-clobber atomic rename/promote to deterministic final path
+  -> fsync every affected parent directory
+  -> re-open final files and verify type/path/length/SHA-256
+  -> one SQLite transaction
+```
+
+Raw/structured 两个文件都必须在同一 DATA filesystem 上完成该协议。Promote 必须
+no-clobber：若 final path 不存在才可原子创建；若已存在，只能在其普通文件、受控路径、
+长度和 hash 与本次计划全部相同后视为幂等成功，绝不覆盖或删除已有正式文件。SQLite
+transaction 只能登记已经 promote、目录 fsync 且重新 hash-verified 的 final 文件。
+
+单一 transaction 原子登记 raw/structured Artifact、raw envelope 内的 attestation 绑定、
+完成 scoring/quality ProviderCall，并推进 scoring stage。没有独立 cache record 或 cache
+identity 写入。任何 DB 步骤失败全部回滚；未索引 final 文件是 orphan promoted files，
+不是 Artifact、不是 cache hit，也不能单独证明 ProviderCall 成功。该事务可能需要新增
+Repository 方法，但不需要数据库 migration。
+
+Crash/restart 边界：
+
+| crash 点 | 持久状态 | 恢复 |
+|---|---|---|
+| temporary write/fsync 前后 | 只有本次 operation 命名空间的 tmp | 验证 owner/operation 后只清理这些 orphan tmp；不读为 cache |
+| 一个或两个文件 promote 后、DB commit 前 | 可能有未索引 final 文件 | 不删除/覆盖；逐文件验证 hash 与 deterministic key，全部匹配才允许同 identity 继续 DB transaction |
+| DB transaction 中 | SQLite 全回滚或全提交 | 重新查询完整关系；不得补写部分状态 |
+| DB commit 后 | 完整 Artifact/call/stage graph | restart 重新验证文件和派生 cache view，零 Judge 调用 |
+
+任一 final 文件 hash/type/path/version 不匹配都 fail-closed，不覆盖、不删除、不自动修复。
+自动清理只允许本次 operation identity 创建且仍位于受控临时命名空间的 orphan temporary
+files；已有 final 文件、已索引 Artifact 和其他 operation 的临时文件均不得删除。
 
 ### 9. Cache recovery
 
-Cache hit 不调用 Judge。恢复必须同时验证：
+`ScoringCacheIdentity` 只是一份运行时 derived verification view，不是领域持久化对象、表、
+Artifact、文件或可提交记录。它每次从以下既有事实重新计算：
+
+- scoring 与 Judge ProviderCall `request_hash` / operation / trusted provenance；
+- raw/structured Artifact deterministic key、producer version、content hash 与 metadata；
+- raw envelope 内的 Quality PASS attestation；
+- 当前 policy、scoring/quality schema、prompt、provider/model/digest 配置。
+
+禁止新增 cache table、cache row、cache Artifact、migration 或独立 cache identity 文件。
+
+Cache hit 不调用 Judge。恢复必须重新计算 derived view，并同时验证：
 
 - 既有 scoring request/provider/model/output language/prompt/schema provenance；
 - quality PASS attestation 的所有绑定字段与 canonical hash；
@@ -303,7 +344,7 @@ Cache hit 不调用 Judge。恢复必须同时验证：
 ### 10. Reuse decision
 
 - `ADAPT`：现有 Pydantic、标准库 hashing/JSON、受限 Ollama Adapter、ProviderCall、
-  Artifact、cache identity 与原子 stage completion；新增无 migration 的多 ProviderCall
+  Artifact、派生 cache verification 与原子 stage completion；新增无 migration 的多 ProviderCall
   completion 原子 Repository 方法，以保证 Finalizer 后一次事务提交。
 - `DIRECT`：已锁定 spaCy 只继续服务 TASK-016B；TASK-016C 不修改其职责。
 - `REJECT`：品牌/公司/产品词典、网络查询、Wikipedia、外部 API、远程知识库、动态模型
