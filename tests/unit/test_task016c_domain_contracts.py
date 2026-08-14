@@ -10,6 +10,9 @@ import pytest
 from pydantic import ValidationError
 
 from youtube_intel.domain import (
+    _MAX_EVIDENCE_EXCERPT_LENGTH,
+    _MAX_EVIDENCE_REGISTRY_ITEMS,
+    _MAX_EVIDENCE_REGISTRY_TOTAL_CHARS,
     ContentQualityConfidence,
     ContentQualityDecisionSource,
     ContentQualityInput,
@@ -632,12 +635,53 @@ def test_evidence_registry_rejects_count_above_max() -> None:
 
 
 def test_evidence_registry_rejects_total_chars_above_max() -> None:
-    # 101 entries at the per-item excerpt maximum exceed the derived total bound.
+    """The total-character bound must be independently provable.
+
+    The previous version of this test used 101 entries at the per-item excerpt
+    maximum. That input already violates the count bound, so removing the
+    total-character check would not make the old test fail. Here we use exactly
+    the count limit (100 items) and exceed the total-character limit only via
+    the per-item excerpt maximum plus the unavoidable evidence_id characters.
+    """
     registry = tuple(
-        _evidence(evidence_id=f"e{i:03d}", excerpt="x" * 2000) for i in range(101)
+        _evidence(
+            evidence_id=f"e{i}",
+            excerpt="x" * _MAX_EVIDENCE_EXCERPT_LENGTH,
+        )
+        for i in range(_MAX_EVIDENCE_REGISTRY_ITEMS)
     )
-    with pytest.raises(ValidationError):
+    total = sum(len(e.evidence_id) + len(e.excerpt) for e in registry)
+
+    assert len(registry) == _MAX_EVIDENCE_REGISTRY_ITEMS
+    assert total > _MAX_EVIDENCE_REGISTRY_TOTAL_CHARS
+    with pytest.raises(ValidationError, match="total characters"):
         _content_quality_input(evidence_registry=registry)
+
+
+def test_evidence_registry_old_total_chars_test_depended_on_count_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the previous total-character test could not isolate the two checks.
+
+    The old test built 101 max-length entries. Even if the total-character bound
+    is effectively removed (monkey-patched to a huge value), that input is still
+    rejected by the count bound. Therefore the old test did not prove that a
+    total-character bound exists.
+    """
+    old_registry = tuple(
+        _evidence(
+            evidence_id=f"e{i:03d}",
+            excerpt="x" * _MAX_EVIDENCE_EXCERPT_LENGTH,
+        )
+        for i in range(_MAX_EVIDENCE_REGISTRY_ITEMS + 1)
+    )
+
+    monkeypatch.setattr(
+        "youtube_intel.domain._MAX_EVIDENCE_REGISTRY_TOTAL_CHARS",
+        _MAX_EVIDENCE_REGISTRY_TOTAL_CHARS * 100,
+    )
+    with pytest.raises(ValidationError, match="at most 100 items"):
+        _content_quality_input(evidence_registry=old_registry)
 
 
 def test_scoring_evidence_rejects_id_above_max_length() -> None:
