@@ -44,7 +44,18 @@ class TestEmptyContent:
         self,
         gate: DeterministicContentQualityGate,
     ) -> None:
-        result = _gate_result(gate, "   \t\n\r\v\f  ")
+        # Only legal ASCII whitespace (space, TAB, LF) triggers EMPTY_CONTENT.
+        result = _gate_result(gate, "   \t\n  ")
+        assert result is not None
+        assert result.reason is DeterministicGateReason.EMPTY_CONTENT
+
+    def test_tab_only_rejects(self, gate: DeterministicContentQualityGate) -> None:
+        result = _gate_result(gate, "\t\t\t")
+        assert result is not None
+        assert result.reason is DeterministicGateReason.EMPTY_CONTENT
+
+    def test_lf_only_rejects(self, gate: DeterministicContentQualityGate) -> None:
+        result = _gate_result(gate, "\n\n\n")
         assert result is not None
         assert result.reason is DeterministicGateReason.EMPTY_CONTENT
 
@@ -85,6 +96,21 @@ class TestControlCharacterInvalid:
         gate: DeterministicContentQualityGate,
     ) -> None:
         result = _gate_result(gate, "hello\rworld")
+        assert result is not None
+        assert result.reason is DeterministicGateReason.CONTROL_CHARACTER_INVALID
+
+    def test_cr_only_rejects_control(self, gate: DeterministicContentQualityGate) -> None:
+        result = _gate_result(gate, "\r")
+        assert result is not None
+        assert result.reason is DeterministicGateReason.CONTROL_CHARACTER_INVALID
+
+    def test_vt_only_rejects_control(self, gate: DeterministicContentQualityGate) -> None:
+        result = _gate_result(gate, "\v")
+        assert result is not None
+        assert result.reason is DeterministicGateReason.CONTROL_CHARACTER_INVALID
+
+    def test_ff_only_rejects_control(self, gate: DeterministicContentQualityGate) -> None:
+        result = _gate_result(gate, "\f")
         assert result is not None
         assert result.reason is DeterministicGateReason.CONTROL_CHARACTER_INVALID
 
@@ -220,6 +246,42 @@ class TestStructuralAndBoundary:
         gate: DeterministicContentQualityGate,
     ) -> None:
         result = _gate_result(gate, "first idea\nsecond idea\nthird idea")
+        assert result is None
+
+
+class TestContinueAdversarialVectors:
+    """Frozen adversarial inputs that must CONTINUE through the Gate.
+
+    These tests prove the Gate contains no token, acronym, entity, or
+    uppercase heuristic.  They intentionally require no implementation logic.
+    """
+
+    def test_acronym_tech_stack_continues(
+        self,
+        gate: DeterministicContentQualityGate,
+    ) -> None:
+        result = _gate_result(gate, "API SDK GPT LLM")
+        assert result is None
+
+    def test_devops_stack_continues(
+        self,
+        gate: DeterministicContentQualityGate,
+    ) -> None:
+        result = _gate_result(gate, "Docker Kubernetes Terraform")
+        assert result is None
+
+    def test_corporate_entity_continues(
+        self,
+        gate: DeterministicContentQualityGate,
+    ) -> None:
+        result = _gate_result(gate, "General Dynamics Corporation")
+        assert result is None
+
+    def test_product_names_continues(
+        self,
+        gate: DeterministicContentQualityGate,
+    ) -> None:
+        result = _gate_result(gate, "Amazon Connect Salesforce")
         assert result is None
 
 

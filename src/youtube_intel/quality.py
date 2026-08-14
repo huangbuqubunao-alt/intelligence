@@ -70,23 +70,22 @@ class DeterministicContentQualityGate:
         )
 
     def _classify(self, content: str) -> DeterministicGateReason | None:
-        if self._is_empty(content):
+        # Order is load-bearing: raw control characters (CR/VT/FF/NULL/etc.)
+        # must be detected before ASCII-whitespace-only content is classified
+        # as empty, so rejection provenance is deterministic.
+        if content == "":
             return DeterministicGateReason.EMPTY_CONTENT
 
         if self._has_invalid_control_character(content):
             return DeterministicGateReason.CONTROL_CHARACTER_INVALID
 
+        if content.strip(_ASCII_WHITESPACE) == "":
+            return DeterministicGateReason.EMPTY_CONTENT
+
         if self._has_exact_repetition(content):
             return DeterministicGateReason.EXACT_REPETITION
 
         return None
-
-    def _is_empty(self, content: str) -> bool:
-        """Raw-empty or ASCII-whitespace-only content is empty."""
-
-        if not content:
-            return True
-        return content.strip(_ASCII_WHITESPACE) == ""
 
     def _has_invalid_control_character(self, content: str) -> bool:
         """Scan raw content for disallowed control characters.

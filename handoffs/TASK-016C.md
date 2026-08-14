@@ -191,3 +191,97 @@ Correction 开始时新增测试全部 RED：
 - 主线 commit：
 - 整合后检查：
 - 最终状态：`DONE | BLOCKED`
+
+---
+
+# TASK-016C Phase B 交接报告
+
+## 元数据
+
+- Task: `TASK-016C Phase B`
+- Role: `Implementer`
+- Agent/session: `WorkBuddy`
+- Phase B authorization commit: `0f558f36376f3f113e68d1ab7a2e5969aabd0073`
+- Phase B implementation commit: `7e5e71d02e9d270a69da9f140d2ff7e7c9a92061`
+- Phase B correction round commit: see 实现者结论 below
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+
+## 目标与范围
+
+- 任务目标：实现纯本地的 `DeterministicContentQualityGate`，仅覆盖 `EMPTY_CONTENT`、`CONTROL_CHARACTER_INVALID`、`EXACT_REPETITION` 三类 REJECT；所有结构合法但未命中门控的内容返回 `None`，交给后续阶段。
+- 允许修改：
+  - `src/youtube_intel/quality.py`
+  - `tests/unit/test_task016c_quality_gate.py`
+  - `handoffs/TASK-016C.md`
+- 实际修改（原始 Phase B commit）：
+  - `src/youtube_intel/quality.py`：新建 `DeterministicContentQualityGate`，按 raw empty → raw control scan → ASCII-whitespace empty → exact-repetition 顺序分类；结果通过 `ContentQualityResult.model_validate` 构造 DETERMINISTIC_GATE REJECT。
+  - `tests/unit/test_task016c_quality_gate.py`：新建 35 项 RED-before-GREEN 测试，覆盖三类 REJECT、边界、结果契约与 mutation killers。
+- 明确未做：Local Quality Judge、H1/H2 persistence、Quality PASS Attestation、`TrustedScoringFinalizer`、pre-write validation、`ValidatedScoringWritePlan`、Artifact 文件提交协议、原子 DB 登记、cache recovery、CLI 改动、数据库 migration、新依赖。
+
+## Phase B 原始 RED/GREEN Evidence
+
+- 原始 Phase B commit `7e5e71d` 实施前，`src/youtube_intel/quality.py` 不存在，35 项新增测试全部 RED（ImportError / 未实现失败）。
+- 实现后：
+  - `tests/unit/test_task016c_quality_gate.py`：35 passed
+  - 全量 pytest：948 passed, 2 warnings（来自 Phase A 既有 bypass-revalidation 测试）
+  - `uv run mypy src`：PASS
+  - `uv run ruff check .`：PASS
+  - `git diff --check`：PASS
+- Mutation 验证（均已还原）：临时移除 control validation、使用 `lower()`/`casefold()` 比较、移除 exact-empty filter 均导致对应测试失败。
+
+## Phase B Correction Round 1
+
+### 范围声明
+
+- 本 correction round 仅修正 Review 发现的 P1-1 顺序回归、增加 P1-2 frozen CONTINUE adversarial vectors，并补充 P2-1 handoff 说明。
+- 本 correction commit **不**重新证明原始 Phase B RED chronology；原始 RED/GREEN evidence 已由 `7e5e71d` 记录。
+
+### P1-1 CONTROL_CHARACTER 检测顺序
+
+- 问题：原始实现先执行 `_is_empty()`（含 ASCII trim），导致 `\r`、`\v`、`\f` 等 raw control characters 被错误归类为 `EMPTY_CONTENT`。
+- 修正：`_classify()` 现在严格按 `raw empty → raw control-character scan → ASCII-whitespace empty → EXACT_REPETITION` 顺序执行。
+- 结果：
+  - `\r`、`\v`、`\f`、`\x00`、`\u200b`、`\ufeff` 单独出现均返回 `CONTROL_CHARACTER_INVALID`。
+  - `""`、`" "`、`"   "`、`"\t"`、`"\n"` 等仅含合法 ASCII whitespace 的内容返回 `EMPTY_CONTENT`。
+- 测试：新增 `test_cr_only_rejects_control`、`test_vt_only_rejects_control`、`test_ff_only_rejects_control`；修正 `test_ascii_whitespace_only_rejects` 仅使用 space/TAB/LF。
+
+### P1-2 冻结 CONTINUE adversarial vectors
+
+- 仅增加测试，未增加任何实现逻辑：
+  - `"API SDK GPT LLM"`
+  - `"Docker Kubernetes Terraform"`
+  - `"General Dynamics Corporation"`
+  - `"Amazon Connect Salesforce"`
+- 目的：证明 Gate 不包含 token、acronym、entity 或 uppercase heuristic。
+
+### 修改文件
+
+- `src/youtube_intel/quality.py`
+- `tests/unit/test_task016c_quality_gate.py`
+- `handoffs/TASK-016C.md`
+
+## Correction Round 1 验证结果
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv run pytest -x -q tests/unit/test_task016c_quality_gate.py` | 44 passed |
+| `uv run pytest -x -q` | 957 passed, 2 warnings |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+## 实现者结论
+
+- 建议状态：`IN_REVIEW / PHASE B CORRECTION ROUND 1 COMPLETE`
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv run pytest -x -q tests/unit/test_task016c_quality_gate.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE
