@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Interface Design — Round 4.5
+# TASK-016C Content Quality Interface Design — Round 4.6
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -18,7 +18,9 @@
 5. cache hit 零 Judge 调用，恢复完整 PASS result 并从既有事实重算 derived verification view；
 6. primary 与 repair 的 Judge 各最多一次，崩溃未知状态不得重调；
 7. `REJECT` / `UNCERTAIN` 不进入正式 scoring Artifact 或 cache；
-8. 无新依赖、无数据库 migration、无外部知识或网络 fallback。
+8. Finalizer 后、任何文件写入前，最终 raw/structured bytes 必须经完整 pre-write validation，
+   且只有纯内存 `ValidatedScoringWritePlan` 能进入 writer；
+9. 无新依赖、无数据库 migration、无外部知识或网络 fallback。
 
 ## 2. 模块与数据流
 
@@ -40,7 +42,10 @@ flowchart TD
     R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
     F --> S["ScoreResult"]
-    S --> P["file commit protocol"]
+    S --> Z["canonical raw / structured bytes"]
+    Z --> Y["pre-write reparse + full validation"]
+    Y --> L["ValidatedScoringWritePlan (memory only)"]
+    L --> P["file commit protocol"]
     P --> Q["atomic DB registration"]
 ```
 
@@ -389,9 +394,12 @@ decision：既有 confidence/evidence 字段只是与完整 result 的精确 mir
 4. 计算 canonical attestation hash；
 5. 调用 `TrustedScoringFinalizer`；
 6. Finalizer 成功后构造 raw envelope 与 structured bytes；
-7. 按第 11.3 节将 raw/structured 写入同 filesystem 临时文件、fsync、校验并原子 promote；
-8. fsync parent directory，重新打开 final files并验证类型、路径、长度和 hash；
-9. 单一 Repository transaction 原子登记 raw/structured Artifact、attestation 绑定、
+7. 按第 11.3 节重新解析和完整验证最终 bytes，并创建内存
+   `ValidatedScoringWritePlan`；
+8. 按第 11.4 节仅凭该 plan 将 raw/structured 写入同 filesystem 临时文件、fsync、校验并
+   原子 promote；
+9. fsync parent directory，重新打开 final files 并验证类型、路径、长度和 hash；
+10. 单一 Repository transaction 原子登记 raw/structured Artifact、attestation 绑定、
    scoring/Judge ProviderCall completion 和 stage completion；不写独立 cache identity。
 
 ## 9. TrustedScoringFinalizer
@@ -546,8 +554,11 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
 {
   "envelope_schema": "scoring-raw-content-quality-v1",
   "final_provider_response": "<bounded raw response>",
+  "scoring_candidate": { "...": "complete untrusted candidate business fields" },
+  "finalized_scoring_binding": { "...": "trusted ScoreResult identity and business binding" },
   "validated_quality_pass_decision": { "status": "PASS", "...": "complete ContentQualityResult" },
-  "quality_pass_attestation": { "...": "quality-pass-attestation-v1" }
+  "quality_pass_attestation": { "...": "quality-pass-attestation-v1" },
+  "provenance": { "...": "required request/config/producer/call identities" }
 }
 ```
 
@@ -558,6 +569,11 @@ hash -> compare attestation `quality_result_hash` -> verify ProviderCall identit
 Artifact content SHA-256 只证明 envelope bytes 与 Artifact record 一致；它不能代替 result 的
 语义完整性 binding `quality_result_hash`。
 
+`scoring_candidate`、`finalized_scoring_binding` 与 `provenance` 是 pre-write 交叉验证所需的
+完整受版本化字段，不得由 serializer 省略或用 summary 替代。它们必须分别绑定 Finalizer
+输入/输出、当前 scoring request/config、raw/structured producer version，以及 scoring/Judge
+ProviderCall identities；字段的 canonical 形状在实现规格中冻结，不能接受自由 metadata。
+
 `SCORING_STRUCTURED` producer version 固定为
 `scoring-structured-content-quality-v1`。Raw/structured key 和 content hash 仍绑定当前
 scoring identity；raw envelope 的 attestation 又绑定具体 candidate 与 Judge operation。
@@ -565,10 +581,111 @@ scoring identity；raw envelope 的 attestation 又绑定具体 candidate 与 Ju
 二者 operation identity 独立，且共用的 provider/model/digest 必须精确等于当前固定本地
 配置。若未来 Judge 与 scoring 使用不同 provider/model，该复用不再成立，必须先修订 ADR。
 
-### 11.3 Artifact file commit protocol
+### 11.3 Pre-write validation 与 `ValidatedScoringWritePlan`
 
-Finalizer 成功后，应用准备 raw/structured 的 deterministic key、canonical bytes、长度与
-SHA-256，并严格执行：
+Finalizer 成功后，应用从同一可信输入一次性构造最终 canonical raw envelope bytes、
+canonical structured `ScoreResult` bytes，以及两份预期 `ArtifactWrite` metadata。构造完成
+不代表可以写盘；必须先把**最终将要写入的 exact bytes**送入唯一 pre-write planner：
+
+```python
+class TrustedScoringWriteProvenance:
+    scoring_context: TrustedScoringContext
+    scoring_provider_call_request_hash: str
+    quality_policy_version: str
+    quality_prompt_version: str
+    quality_schema_version: str
+    judge_provider: str
+    judge_model: str
+    judge_model_digest: str
+    judge_request_hash: str  # H2
+    attempt_role: QualityAttemptRole
+    candidate_hash: str
+    quality_input_hash: str
+    raw_producer_version: str
+    structured_producer_version: str
+
+class ValidatedScoringWritePlan:
+    """Opaque, immutable, process-memory-only capability; not serializable."""
+
+    finalized: ScoreResult
+    quality_result: ContentQualityResult
+    quality_attestation: QualityPassAttestation
+    quality_result_hash: str
+    raw_bytes: bytes
+    structured_bytes: bytes
+    raw_artifact: ArtifactWrite
+    structured_artifact: ArtifactWrite
+    raw_expected_length: int
+    raw_expected_sha256: str
+    structured_expected_length: int
+    structured_expected_sha256: str
+    scoring_call_identity: ProviderCallIdentity
+    quality_call_identity: QualityJudgeProviderCallIdentity
+    current_provenance: TrustedScoringWriteProvenance
+
+class TrustedScoringWritePlanner(Protocol):
+    def prepare(
+        self,
+        *,
+        finalized: ScoreResult,
+        candidate: ScoringCandidate | Mapping[str, object],
+        quality_input: ContentQualityInput | Mapping[str, object],
+        quality_result: ContentQualityResult | Mapping[str, object],
+        quality_attestation: QualityPassAttestation | Mapping[str, object],
+        raw_bytes: bytes,
+        structured_bytes: bytes,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        scoring_call_identity: ProviderCallIdentity,
+        quality_call_identity: QualityJudgeProviderCallIdentity,
+        current_provenance: TrustedScoringWriteProvenance | Mapping[str, object],
+    ) -> ValidatedScoringWritePlan: ...
+
+class TrustedScoringArtifactWriter(Protocol):
+    def write_and_promote(
+        self,
+        plan: ValidatedScoringWritePlan,
+    ) -> tuple[VerifiedPromotedArtifact, ...]: ...
+```
+
+上面的 class 只表达接口约束；实现必须让 plan 成为 opaque/branded immutable capability，只有
+`TrustedScoringWritePlanner.prepare` 能创建。它不是 Pydantic restore target，不接受
+`model_construct` / unchecked copy，不可 JSON 化、写 DB、写 Artifact、写 cache、跨进程恢复
+或被调用方自行伪造。Writer 只能接收 plan，不能接收散装 bytes/metadata 参数。
+
+Planner 在任何 temporary-file create/write 之前，严格按以下顺序验证：
+
+1. 严格 UTF-8/JSON 解析最终 raw bytes，要求固定 envelope schema 和完整 decision；
+2. 从 raw decision 重建 `ContentQualityResult`，重跑 model/domain validation、normalization 与
+   PASS matrix；
+3. 重算 `quality_result_hash`，要求等于 raw attestation、传入 attestation 和传入完整 result；
+4. 核对 candidate/quality-input hash、evidence binding、signals、三项 confidence、decision
+   source、Judge operation/provider/model/digest/H2，以及 scoring request/config provenance；
+5. 核对 raw envelope 中的最终 provider response 与 finalized candidate/ScoreResult binding；
+6. 严格解析 structured bytes，并从 untrusted mapping 经唯一可信验证路径重建
+   `ScoreResult`；核对其业务字段及 provider/model/output-language/prompt/schema provenance
+   与 `finalized` 和 `current_provenance`；
+7. 对 raw/structured 各自 canonical reserialize，要求 byte-for-byte 等于传入最终 bytes；
+8. 最后计算两份 expected length/SHA-256，并要求 `ArtifactWrite` 的 deterministic
+   key/path/version/producer/content metadata 与 bytes、身份和当前配置完全一致。
+
+Raw envelope 若只有 PASS summary、缺少 decision，或任一 signals/confidence/evidence/
+source/candidate/input/Judge/provenance 字段被篡改，均在此拒绝。Structured payload 若无法
+完整重建可信 `ScoreResult`，或其 request/provider/model/language/prompt/schema/binding 任一
+不一致，也在此拒绝。只有 raw 与 structured 全部通过，才创建 plan。
+
+显式 serializer bug 场景必须 fail-closed：Finalizer 已验证 Decision A + Attestation A，
+但 serializer 写出 Decision B + Attestation A 时，Planner 必须在 result hash/full-decision
+binding 处拒绝。此时不得创建 plan，不得调用 writer，不得创建 tmp，不得占用 final path，
+也不得产生 Artifact、ProviderCall completion、`response_artifact_id`、stage 或 cache hit。
+Plan 创建成功后的 tmp write/fsync/verify 失败继续严格采用第 11.4/11.8 节既有
+operation-scoped cleanup/crash 规则；promote 后 DB registration 失败继续采用 orphan-final
+recovery。Pre-write boundary 不修改、放宽或替代这些 Round 4 语义。
+
+### 11.4 Artifact file commit protocol
+
+取得 `ValidatedScoringWritePlan` 后，writer 使用 plan 中已冻结的 raw/structured bytes、
+deterministic key、metadata、长度与 SHA-256，并严格执行：
 
 ```text
 same-filesystem operation-scoped temporary write
@@ -589,7 +706,7 @@ Final path 已存在时绝不覆盖或删除。只有它与本次 deterministic 
 promote；否则 fail-closed。已被其他 operation 或不同 Artifact key 索引的文件，即使 hash
 相同也不得据为己有。
 
-### 11.4 Atomic DB registration boundary
+### 11.5 Atomic DB registration boundary
 
 文件协议完成后，调用唯一 atomic registration API：
 
@@ -598,11 +715,7 @@ class TrustedScoringPersistence(Protocol):
     def commit_finalized_scoring(
         self,
         *,
-        finalized: ScoreResult,
-        quality_result: ContentQualityResult,
-        raw_artifact: ArtifactWrite,
-        structured_artifact: ArtifactWrite,
-        quality_attestation: QualityPassAttestation,
+        write_plan: ValidatedScoringWritePlan,
         scoring_call: ProviderCallCompletion,
         quality_call: ProviderCallCompletion,
         stage: ScoringStageCompletion,
@@ -610,14 +723,18 @@ class TrustedScoringPersistence(Protocol):
     ) -> ScoringOutcome: ...
 ```
 
-该方法必须先重建并验证 `quality_result`，重算其 hash，确认 raw envelope 保存的是该完整
-result 与匹配 attestation，再验证 proof 与 final 文件仍一致；随后在单一 SQLite transaction
-内登记两份 Artifact、两份 Provider completion、raw envelope 的 attestation 绑定和 stage。现有 Schema
+该方法只接受已经执行过 pre-write validation 的 opaque plan。它必须防御性地确认 final files
+存在并重新打开，复核 controlled path/type/length/hash/`ArtifactWrite` metadata，并要求两份 completion 的 operation /
+request/provider/model identity、raw envelope 的 attestation/result hashes、finalized result 和
+当前 provenance 全部等于 plan；随后在单一 SQLite transaction 内登记两份 Artifact、两份
+Provider completion、raw envelope 的 attestation 绑定和 stage。该 DB 边界允许再次解析
+final bytes 作为 defense in depth，但不得成为首次或唯一的完整 result validation，也不得在
+没有 `PREWRITE_VALIDATE` 与 `WRITE_PLAN_CREATED` 证据时接受散装等价参数。现有 Schema
 可复用，但现有一次只完成一个 ProviderCall 的 API 不足，实施需增加 Repository 方法而不
 修改表结构。SQLite 只能登记已 promote、parent fsync 且 hash-verified 的 final 文件；事务
 提交前，这些文件没有 Artifact/cache 身份。
 
-### 11.5 Derived cache verification view
+### 11.6 Derived cache verification view
 
 `ScoringCacheIdentity` 仅作为不可持久化的运行时 derived verification view：
 
@@ -651,7 +768,7 @@ Result canonical hash、attestation `quality_result_hash` 与 view `quality_resu
 `put_cache_identity`，也不得新增 cache table/row/Artifact/file 或 migration。只有完整 view
 与当前请求逐字段相等，且 Finalizer 重新验证成功，才返回 cache hit。
 
-### 11.6 Cache recovery matrix
+### 11.7 Cache recovery matrix
 
 | 情形 | 结果 | Judge calls |
 |---|---|---:|
@@ -669,10 +786,11 @@ Legacy envelope 缺少完整 quality result/hash/attestation 是普通 miss；�
 result 缺失、非法、非 PASS、PASS matrix 失败，或 signals/reason/source/confidence/evidence/
 hash 被篡改属于 integrity failure。两者都不得通过调用 Judge 修补原历史 identity。
 
-### 11.7 Crash/restart matrix
+### 11.8 Crash/restart matrix
 
 | crash 点 | restart 行为 |
 |---|---|
+| pre-write validation 前后 | 丢弃内存状态；无 tmp/final/DB 状态可恢复 |
 | tmp write/fsync 前后 | 只可识别并清理当前 operation 的 orphan tmp；其他 tmp/final 均不动 |
 | raw 或 raw+structured promote 后、DB commit 前 | 文件不是 Artifact/cache；按 deterministic identity 重验后继续缺失 promote 或 DB registration，Judge=0 |
 | SQLite transaction 内 | 依赖 transaction 全回滚或全提交；重新查询完整关系，不补写部分行 |
@@ -690,36 +808,57 @@ primary PASS 的事件顺序固定为：
 
 ```text
 CANDIDATE_PRIMARY
+SCHEMA_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 ATTESTATION_PRIMARY
 FINALIZE
-FILE_COMMIT_PROTOCOL
-ATOMIC_DB_REGISTRATION
+SERIALIZE
+PREWRITE_VALIDATE
+WRITE_PLAN_CREATED
+TMP_WRITE
+FILE_FSYNC
+VERIFY
+PROMOTE
+DIR_FSYNC
+FINAL_VERIFY
+DB_REGISTER
 ```
 
-`CANDIDATE_*` 事件包含 Provider DTO 的严格 schema parsing；schema invalid 时事件失败并
-进入共享 repair，不会产生 language/quality/attestation。
+`CANDIDATE_*` 表示收到不可信 Provider DTO，`SCHEMA_*` 表示完成严格 schema parsing；schema
+invalid 时进入共享 repair，不会产生 language/quality/attestation。`SERIALIZE` 只能构造内存
+bytes；在 `PREWRITE_VALIDATE` 和 `WRITE_PLAN_CREATED` 成功前不得进入 `TMP_WRITE`。
 
 需要 repair 的事件顺序固定为：
 
 ```text
 CANDIDATE_PRIMARY
+SCHEMA_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 REPAIR
 CANDIDATE_REPAIR
+SCHEMA_REPAIR
 LANGUAGE_REPAIR
 QUALITY_REPAIR
 ATTESTATION_REPAIR
 FINALIZE
-FILE_COMMIT_PROTOCOL
-ATOMIC_DB_REGISTRATION
+SERIALIZE
+PREWRITE_VALIDATE
+WRITE_PLAN_CREATED
+TMP_WRITE
+FILE_FSYNC
+VERIFY
+PROMOTE
+DIR_FSYNC
+FINAL_VERIFY
+DB_REGISTER
 ```
 
 任何 `FINALIZE` 提前、quality 重复调用、跳过 repair language、或在 finalization 之前
 产生 `SCORING_RAW` / `SCORING_STRUCTURED` / response_artifact_id / ProviderCall SUCCESS /
-cache hit 都是契约错误。
+cache hit 都是契约错误。任何 pre-write validation 失败还必须证明 `TMP_WRITE`、`PROMOTE`、
+`DB_REGISTER` 均未发生，DATA 中无本 operation 的 tmp/final path occupation。
 
 ## 13. 错误与安全日志
 

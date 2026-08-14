@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed；2026-08-14 Round 4.5 修订待 Independent Design Review
+Proposed；2026-08-14 Round 4.6 修订待 Independent Design Review
 
 ## Date
 
@@ -25,6 +25,12 @@ TASK-016C 建立独立 Content Quality Layer。但第一版设计仍有三处不
 
 本修订把 Deterministic Gate 缩到可机械证明的三个错误，把 `ScoreResult` 的创建权集中到
 `TrustedScoringFinalizer`，并引入可恢复、可交叉验证的 Quality PASS attestation。
+
+Round 4.6 进一步关闭持久化前的信任缺口：Finalizer 返回可信 `ScoreResult` 后，应用必须
+先构造 canonical raw/structured bytes，并在任何 temporary file write 之前重新解析、完整
+验证和交叉绑定这些最终 bytes。只有这一 pre-write boundary 成功后，才能创建纯内存
+`ValidatedScoringWritePlan` 并进入 Round 4 已冻结的文件提交协议。SQLite registration 只在
+文件 durable promote 后做防御性复核，不能承担或替代“首次写盘前验证”。
 
 ADR-023 原先把 `TASK-016C` 分配给 Local Deep Analysis Provider。该任务编号分配已被本
 ADR supersede：`TASK-016C` 只表示 Content Quality Layer。Local Deep Analysis 保持产品
@@ -202,11 +208,13 @@ confidence/evidence mirror 只能与完整 validated result 做精确 equality b
 解释、补写或覆盖 result 的 signals/confidence/reason。该内存对象不是 Artifact、cache entry
 或成功 ProviderCall，只是 Finalizer 输入。
 
-v1 不新增 Artifact kind 或数据库字段。Finalizer 成功后，正式 `SCORING_RAW` 使用固定
-quality-qualified composite envelope，保存最终 scoring provider raw response、可完整重建的
-validated `ContentQualityResult(PASS)` 与该 attestation；`SCORING_STRUCTURED` 仍保持 canonical
-`ScoreResult` JSON。Attestation 作为 raw envelope 的受版本化组成部分与 raw Artifact 一起
-持久化，不伪造第三种 Artifact kind。
+v1 不新增 Artifact kind 或数据库字段。Finalizer 成功且最终 bytes 已通过 pre-write validation
+并形成内存 plan 后，正式 `SCORING_RAW` 使用固定 quality-qualified composite envelope，保存
+最终 scoring provider raw response、完整 `ScoringCandidate` / finalized scoring binding、可完整
+重建的 validated `ContentQualityResult(PASS)`、该 attestation，以及必要的 request/config/
+producer/ProviderCall provenance；`SCORING_STRUCTURED` 仍保持 canonical `ScoreResult` JSON。
+Attestation 作为 raw envelope 的受版本化组成部分与 raw Artifact 一起持久化，不伪造第三种
+Artifact kind。
 
 Attestation integrity 是现有本地信任模型内的交叉一致性，不是对拥有 SQLite 与 DATA
 写权限的攻击者提供密码学不可伪造性。恢复时必须从 raw envelope 重建并完整验证
@@ -318,11 +326,20 @@ evidence ID，且不得含 rejection reason 或负向冲突 signal。完整 stat
 
 ```text
 candidate
+  -> schema validation
   -> language
   -> quality
   -> in-memory PASS attestation
   -> TrustedScoringFinalizer
-  -> verified file commit protocol
+  -> construct canonical raw/structured bytes
+  -> pre-write reparse + full validation
+  -> in-memory ValidatedScoringWritePlan
+  -> temporary file write
+  -> file fsync
+  -> hash/length verification
+  -> no-clobber promote
+  -> parent-directory fsync
+  -> final file verification
   -> atomic SQLite registration
 ```
 
@@ -342,10 +359,39 @@ Finalizer 前严格禁止：
 `SUCCEEDED`/Artifact/attestation，但在当前 Finalizer 成功前不得把它返回为 cache hit、
 不得写入新完成状态，也不得推进当前 stage。
 
-Finalizer 成功后的文件提交协议固定为：
+Finalizer 成功不直接授权文件写入。应用先从 finalized `ScoreResult`、完整 validated
+`ContentQualityResult(PASS)`、attestation 与当前可信 provenance 构造 canonical raw/structured
+bytes，再执行 pre-write validation：
+
+- 从最终 raw bytes 严格重建完整 `ContentQualityResult`，重跑 model/domain validation 与
+  PASS matrix，重算并核对 `quality_result_hash`；
+- 核对 candidate/input binding、Judge ProviderCall H2、finalized `ScoreResult`、
+  producer/version/request/config provenance，以及 raw envelope 中完整 attestation；
+- 拒绝 summary-only、decision 缺失，或 signals/confidence/evidence/source 任一篡改；
+- 从 structured bytes 严格重建可信 `ScoreResult`，核对 request/provider/model/language/
+  prompt/schema 与 Finalizer 输出；
+- 对两份 bytes 做 canonical reserialization equality，再计算期望长度与 SHA-256，并核对
+  planned `ArtifactWrite` metadata。
+
+两份最终 bytes 均通过后，应用才可创建 `ValidatedScoringWritePlan`。该对象只存在于当前
+进程内，不是 DB row、Artifact、cache identity、migration 或可恢复文件。它完整绑定：
+
+- finalized trusted `ScoreResult`；
+- canonical raw/structured bytes；
+- raw/structured `ArtifactWrite` 的 expected key/path/version/producer metadata；
+- 两份 bytes 的 expected length 与 SHA-256；
+- `QualityPassAttestation` 与 `quality_result_hash`；
+- scoring ProviderCall identity、quality Judge ProviderCall H2；
+- 当前 request/config provenance。
+
+Writer 只能接受由该 pre-write boundary 创建的 plan，不接受调用方直接传入 bytes 或
+`ArtifactWrite`。Pre-write validation 失败时，禁止创建 plan，且不得产生 tmp/final file、
+Artifact、ProviderCall completion、`response_artifact_id`、stage advance 或 cache hit。
+
+获得 plan 后，Round 4 已冻结的文件提交协议固定为：
 
 ```text
-Finalizer
+ValidatedScoringWritePlan
   -> same-filesystem temporary file write
   -> fsync each temporary file
   -> verify byte length and SHA-256 against planned ArtifactWrite
@@ -358,7 +404,10 @@ Finalizer
 Raw/structured 两个文件都必须在同一 DATA filesystem 上完成该协议。Promote 必须
 no-clobber：若 final path 不存在才可原子创建；若已存在，只能在其普通文件、受控路径、
 长度和 hash 与本次计划全部相同后视为幂等成功，绝不覆盖或删除已有正式文件。SQLite
-transaction 只能登记已经 promote、目录 fsync 且重新 hash-verified 的 final 文件。
+transaction 只能登记已经 promote、目录 fsync 且重新 hash-verified 的 final 文件。它必须把
+final files、Artifact metadata、ProviderCall identities、attestation 与 result hashes 防御性地
+重验为等于同一 `ValidatedScoringWritePlan`；该复核发生在写盘之后，不能替代 plan 创建前的
+完整 reparse/validation。
 
 单一 transaction 原子登记 raw/structured Artifact、raw envelope 内的 attestation 绑定、
 完成 scoring/quality ProviderCall，并推进 scoring stage。没有独立 cache record 或 cache
@@ -370,6 +419,7 @@ Crash/restart 边界：
 
 | crash 点 | 持久状态 | 恢复 |
 |---|---|---|
+| pre-write validation 前后 | 零文件、零 DB 成功状态 | 丢弃内存对象；不得创建 tmp 或返回 cache hit |
 | temporary write/fsync 前后 | 只有本次 operation 命名空间的 tmp | 验证 owner/operation 后只清理这些 orphan tmp；不读为 cache |
 | 一个或两个文件 promote 后、DB commit 前 | 可能有未索引 final 文件 | 不删除/覆盖；逐文件验证 hash 与 deterministic key，全部匹配才允许同 identity 继续 DB transaction |
 | DB transaction 中 | SQLite 全回滚或全提交 | 重新查询完整关系；不得补写部分状态 |

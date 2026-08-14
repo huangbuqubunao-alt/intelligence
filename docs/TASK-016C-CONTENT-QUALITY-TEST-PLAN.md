@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Round 4.5
+# TASK-016C Content Quality Test Plan — Round 4.6
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -22,8 +22,11 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 8. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
 9. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
 10. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
-   cache hit；成功后必须先执行 tmp/fsync/hash/promote/dir-fsync，再单事务登记；
-11. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
+    cache hit；Finalizer 后必须先对 exact final bytes 做 pre-write reparse/full validation，
+    只有内存 `ValidatedScoringWritePlan` 可进入 tmp/fsync/hash/promote/dir-fsync；
+11. DB registration 只登记已 promote 且 final-verified 的 plan，并做防御性复核，不承担或
+    替代首次写盘前验证；
+12. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
 
 ## 2. TDD 纵切顺序
 
@@ -36,8 +39,10 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 5. Local Judge 固定请求与严格响应 wrapper；
 6. Quality PASS attestation 与完整 result hash binding；
 7. PRIMARY/REPAIR H1/H2 identity、一次性预算与崩溃恢复；
-8. raw envelope、Artifact file commit protocol、atomic DB registration 与 cache recovery；
-9. production composition 和 TASK-016B 回归。
+8. raw/structured canonical serialization、pre-write validation 与
+   `ValidatedScoringWritePlan`；
+9. Artifact file commit protocol、atomic DB registration 与 cache recovery；
+10. production composition 和 TASK-016B 回归。
 
 不得删除、跳过、弱化断言、修改既有测试门禁或把失败样例移入生产词表。
 
@@ -247,20 +252,30 @@ Markdown/HTML/Obsidian 指令、Unicode confusables 和 stuffing 都不能改变
 
 ```text
 CANDIDATE_PRIMARY
+SCHEMA_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 ATTESTATION_PRIMARY
 FINALIZE
-FILE_COMMIT_PROTOCOL
-ATOMIC_DB_REGISTRATION
+SERIALIZE
+PREWRITE_VALIDATE
+WRITE_PLAN_CREATED
+TMP_WRITE
+FILE_FSYNC
+VERIFY
+PROMOTE
+DIR_FSYNC
+FINAL_VERIFY
+DB_REGISTER
 ```
 
 断言 Judge=1、repair=0。ATTESTATION_PRIMARY 结束时仍无 Artifact、response_artifact_id、
-ProviderCall SUCCESS 或 cache hit。Finalizer 成功后，先完成两份文件的可验证 promote，
-再由一次事务登记 attested raw envelope、structured result、两份 completion 与 stage。
+ProviderCall SUCCESS 或 cache hit。`SERIALIZE` 后先验证 exact bytes 并创建内存 plan；plan
+之前无 tmp/final。随后完成两份文件的可验证 promote，再由一次事务登记 attested raw
+envelope、structured result、两份 completion 与 stage。
 
-`CANDIDATE_*` 必须包含严格 schema parsing；非法 DTO 在 language/quality 前停止并消费共享
-repair。不得另插一个可以绕过 Candidate 的 schema 事件。
+`CANDIDATE_*` 是不可信 DTO 到达事件，严格 parsing 在紧随其后的 `SCHEMA_*` 完成；非法 DTO
+在 language/quality 前停止并消费共享 repair。不得跳过 Candidate 或 schema validation。
 
 ### 8.2 Primary quality failure, repair PASS
 
@@ -268,16 +283,26 @@ repair。不得另插一个可以绕过 Candidate 的 schema 事件。
 
 ```text
 CANDIDATE_PRIMARY
+SCHEMA_PRIMARY
 LANGUAGE_PRIMARY
 QUALITY_PRIMARY
 REPAIR
 CANDIDATE_REPAIR
+SCHEMA_REPAIR
 LANGUAGE_REPAIR
 QUALITY_REPAIR
 ATTESTATION_REPAIR
 FINALIZE
-FILE_COMMIT_PROTOCOL
-ATOMIC_DB_REGISTRATION
+SERIALIZE
+PREWRITE_VALIDATE
+WRITE_PLAN_CREATED
+TMP_WRITE
+FILE_FSYNC
+VERIFY
+PROMOTE
+DIR_FSYNC
+FINAL_VERIFY
+DB_REGISTER
 ```
 
 不得遗漏 repair candidate/language，不得提前 Finalize，不得保存 primary raw。
@@ -347,8 +372,9 @@ takeover 后再外部调用。
 | SUCCEEDED + missing/mismatched artifact | integrity failure | 0 |
 
 故障注入点：reserve 后、transport 前；transport 后、response parse 前；PASS wrapper 后、
-attestation 构造前；attestation 后、Finalizer 前；Finalizer 后、每个临时文件 write/fsync/
-hash verify 后；每个 promote 后；parent dir fsync 后；transaction 内每个 Artifact/
+attestation 构造前；attestation 后、Finalizer 前；Finalizer 后、serialize 后、pre-write
+validation 中/后、write-plan 创建后；每个临时文件 write/fsync/hash verify 后；每个 promote
+后；parent dir fsync 后；transaction 内每个 Artifact/
 completion/stage 步骤。任何“可能
 已调用”的状态都不能重调同一 identity；transaction 内失败不得留下部分 DB 成功状态。
 
@@ -406,7 +432,7 @@ completion/stage 步骤。任何“可能
 重建完整 ContentQualityResult，执行 model/domain + PASS matrix validation，重算 result hash，
 再从当前 input/config、attestation、ProviderCall 和两份 Artifact 重建全链交叉关系。
 
-### 10.3 Atomic persistence tests
+### 10.3 Pre-write validation 与零写入 tests
 
 Finalizer 成功前逐项查询并断言不存在：
 
@@ -420,9 +446,47 @@ Finalizer 成功前逐项查询并断言不存在：
 上面的“cache identity”只可作为运行时派生视图检查项，不得在 Repository/DB 中找到对应
 table、row、Artifact 或文件。
 
+Finalizer 成功后，使用 spy writer 与临时空 DATA root 验证成功事件严格为：
+
+```text
+SERIALIZE
+PREWRITE_VALIDATE
+WRITE_PLAN_CREATED
+TMP_WRITE
+```
+
+`ValidatedScoringWritePlan` 必须是 opaque、immutable、process-memory-only capability；禁止
+JSON/DB/Artifact/cache round-trip，禁止调用方以 Mapping、unchecked construct/copy 或散装
+bytes/`ArtifactWrite` 伪造。Writer public boundary 只接受 plan。
+
+在 `PREWRITE_VALIDATE` 中分别断言：
+
+- raw exact bytes 可严格解析，完整 `ContentQualityResult` 重建并通过 model/domain validation、
+  normalization 与 PASS matrix；
+- 重算的 `quality_result_hash` 同时等于完整 result、raw attestation 和传入 attestation；
+- candidate/input binding、Judge H2、scoring/quality ProviderCall identity、finalized
+  `ScoreResult`、request/config/producer/version provenance 全部一致；
+- structured exact bytes 可经可信 validation 重建与 finalized 完全一致的 `ScoreResult`，并
+  精确核对 provider/model/language/prompt/schema；
+- raw/structured canonical reserialization 分别 byte-for-byte 相等；长度、SHA-256 与两份
+  `ArtifactWrite` expected metadata 精确一致。
+
+参数化篡改 final raw bytes：Decision A + Attestation A 已通过 Finalizer，但 serializer 输出
+Decision B + Attestation A；raw Decision A + Attestation B；decision 缺失；只保留 PASS
+summary；分别修改 signals、三项 confidence、evidence、decision source、candidate/input
+binding、Judge H2、producer/version/request provenance。再参数化篡改 structured bytes 的
+任一业务字段及 provider/model/language/prompt/schema binding。即使攻击者同步重算外层
+Artifact SHA，也必须在 plan 创建前拒绝。
+
+每个失败必须精确产生 `SERIALIZE -> PREWRITE_VALIDATE_FAILED`，并证明事件流中不存在
+`WRITE_PLAN_CREATED`、`TMP_WRITE`、`PROMOTE`、`DB_REGISTER`；DATA root 不存在本 operation
+的 tmp/final path，DB 中无 Artifact、completion、`response_artifact_id`、stage advance 或
+cache hit。
+
 ### 10.4 Artifact file commit protocol
 
-对 raw/structured 分别验证固定顺序：same-filesystem exclusive tmp write -> file fsync ->
+以合法 `ValidatedScoringWritePlan` 对 raw/structured 分别验证固定顺序：same-filesystem
+exclusive tmp write -> file fsync ->
 length/hash verify -> no-clobber atomic promote -> parent dir fsync -> reopen final verify。
 
 参数化故障/攻击：
@@ -447,14 +511,18 @@ quality attestation binding、scoring completion、quality completion 和 stage 
 API 不接受或写入独立 cache identity；传入未 promote、未 dir-fsync 或未 hash-verified 的
 proof 必须在事务前 fail-closed。
 
-Atomic API 还必须从 raw bytes 重建完整 quality result，确认它与传入的 validated result、
-attestation `quality_result_hash` 及 Artifact write hash 全部一致。Decision A + attestation B、
-PASS 摘要替代完整 result、或只重算 Artifact SHA 的输入必须在文件写入前拒绝。
+Atomic API 只接受原始 `ValidatedScoringWritePlan` 与 final-file verification proof，拒绝把
+散装 finalized/result/attestation/ArtifactWrite 拼成等价调用。它在 DB transaction 前防御性
+重验 final file path/type/length/hash/metadata、两份 ProviderCall identity、完整 result /
+attestation hashes 与当前 provenance 全部等于 plan。可再次解析 final bytes 作为 defense in
+depth，但测试必须证明即使移除 DB 复核，pre-write boundary 仍会在任何 tmp write 前拒绝
+Decision A/B mismatch、summary-only 与所有字段篡改；DB 复核不得成为首次验证点。
 
 ### 10.6 Crash/restart matrix
 
 | crash | restart 断言 |
 |---|---|
+| pre-write validation 前/中/后 | 丢弃纯内存状态；无 tmp/final/Artifact/cache，Judge 不重调 |
 | tmp write 前/中/后 | 不读为 Artifact/cache；只清理当前 operation orphan tmp |
 | raw promote 后、structured promote 前 | 重验 raw；可从可信 raw envelope 生成/验证 structured 并继续；Judge=0 |
 | 两文件 promote 后、DB 前 | 重验 deterministic key/type/path/version/length/hash 后原子登记；Judge=0 |
@@ -584,6 +652,11 @@ git diff --check <base>...HEAD
 - [ ] H1 是否仅为 QualityJudgeOperationInput normalized hash，H2 是否复用 ADR-003 builder？
 - [ ] Attestation、ProviderCall 与 derived view 的 H2 是否严格相等？
 - [ ] Finalizer 前是否零 Artifact/call success/cache hit？
+- [ ] Finalizer 后是否先验证 exact final raw/structured bytes，且只在两者通过后创建内存 WritePlan？
+- [ ] WritePlan 是否不可持久化/恢复/伪造，writer 是否拒绝散装 bytes/ArtifactWrite？
+- [ ] Decision A + Attestation A 被 serializer 写成 Decision B + Attestation A 时，是否零 tmp/final/DB 状态？
+- [ ] Summary-only、decision omitted 与 signals/confidence/evidence/source/provenance 篡改是否都在写盘前拒绝？
+- [ ] DB registration 是否只做相对同一 plan 的防御性复核，而不承担首次 pre-write validation？
 - [ ] 是否严格执行 tmp write/file fsync/hash/no-clobber promote/dir fsync/final verify/DB transaction？
 - [ ] Crash matrix 是否证明不删除 formal files 且只清理当前 operation orphan tmp？
 - [ ] Cache identity 是否只由既有事实派生，且无 table/row/Artifact/file/migration？
@@ -592,7 +665,8 @@ git diff --check <base>...HEAD
 - [ ] PRIMARY/REPAIR 是否各最多一次，PENDING unknown 不重调？
 - [ ] 三项 confidence 与 status/reason/signal 矩阵是否封闭？
 - [ ] model_copy/model_construct/JSON restore 是否均不能绕过？
-- [ ] Fake event 顺序是否精确且 PASS 前零正式 Artifact？
+- [ ] Fake event 是否精确包含 SCHEMA/SERIALIZE/PREWRITE_VALIDATE/WRITE_PLAN_CREATED/TMP_WRITE/
+      FILE_FSYNC/VERIFY/PROMOTE/DIR_FSYNC/FINAL_VERIFY/DB_REGISTER，且失败时无后续写事件？
 - [ ] 无 migration 条件下 raw envelope 是否不破坏 structured consumer？
 - [ ] ADR-023 是否明确 TASK-016C 被 ADR-025 supersede，Local Deep Analysis 为 TBD？
 - [ ] TASK-016B、依赖、DB、Cloud、Router、Weekly 是否完全未改？
