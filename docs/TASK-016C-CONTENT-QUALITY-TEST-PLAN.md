@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Round 4
+# TASK-016C Content Quality Test Plan — Round 4.5
 
 - 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
@@ -14,26 +14,28 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 3. Provider Adapter 只能返回 `ScoringCandidate`；
 4. primary、repair、cache recovery 都只能经 `TrustedScoringFinalizer` 创建
    `ScoreResult`；
-5. 每个成功结果有完整、可重算的 Quality PASS attestation；
+5. 每个成功结果的完整 validated `ContentQualityResult(PASS)` 有稳定 canonical
+   `quality_result_hash`，且与 attestation 精确绑定；
 6. cache hit 不调用 Judge，且从 ProviderCall、Artifact、producer metadata、attestation
    和当前配置重算 derived verification view；
-7. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
-8. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
-9. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
+7. Judge identity 严格分为 H1 normalized-input hash 与 ADR-003 H2 ProviderCall request hash；
+8. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
+9. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
+10. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
    cache hit；成功后必须先执行 tmp/fsync/hash/promote/dir-fsync，再单事务登记；
-10. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
+11. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
 
 ## 2. TDD 纵切顺序
 
 实现须逐步形成可复现 RED，再实现 GREEN：
 
 1. 三个 deterministic reason 与 Gate 组合；
-2. `ContentQualityResult` 三 confidence 和合法矩阵；
+2. `ContentQualityResult` 三 confidence、合法矩阵与完整 canonical hash；
 3. `ScoringCandidate` Provider contract 与唯一 Finalizer；
 4. `ContentQualityInput`、Evidence Registry、candidate/input hash；
 5. Local Judge 固定请求与严格响应 wrapper；
-6. Quality PASS attestation 创建与验证；
-7. PRIMARY/REPAIR operation identity、一次性预算与崩溃恢复；
+6. Quality PASS attestation 与完整 result hash binding；
+7. PRIMARY/REPAIR H1/H2 identity、一次性预算与崩溃恢复；
 8. raw envelope、Artifact file commit protocol、atomic DB registration 与 cache recovery；
 9. production composition 和 TASK-016B 回归。
 
@@ -132,6 +134,16 @@ Amazon Connect Salesforce
 
 断言 wrapper 总是从 canonical mapping/JSON 重建；对象已是目标类型也不能跳过验证。
 
+### 4.3 Canonical quality result hash
+
+- 使用项目现有 `canonical_json` 规则（UTF-8、非 ASCII 转义关闭、sort keys、compact
+  separators）对完整 validated `model_dump(mode="json")` 计算 hash；
+- signals 按 enum 排序去重、evidence IDs 按稳定 ID 排序去重后必须再次完整验证；
+- 相同合法 PASS 的 Mapping/JSON round-trip 得到相同 `quality_result_hash`；
+- schema/policy/prompt/status/source/confidence/signals/reason/evidence/candidate/input/request/
+  Judge provenance 任一 canonical 字段变化，hash 必须变化或 validation 先失败；
+- 静态扫描不得存在手写 PASS 字段子集 hash，也不得对 unchecked instance 直接 hash。
+
 ## 5. ScoringCandidate 与唯一 Finalizer tests
 
 ### 5.1 Provider boundary
@@ -147,17 +159,21 @@ Amazon Connect Salesforce
 
 ### 5.2 Finalizer positive path
 
-用合法 candidate/context/input/attestation 调用 Finalizer，断言：
+用合法 candidate/context/input/full-quality-result/attestation/quality-call identity 调用
+Finalizer，断言：
 
 - 返回现有公共 shape 的 `ScoreResult`；
 - provider/model/output language/prompt/schema 来自 trusted context；
 - candidate、input、attestation hash 全部重算；
+- 完整 quality result 重建、PASS matrix 重验并重算 `quality_result_hash`；
+- `computed_quality_result_hash == attestation.quality_result_hash`；
+- Judge ProviderCall identity 由 H1 经既有 builder 得到 H2，并与 attestation 精确相等；
 - TASK-016B language invariant 仍执行；
 - primary、repair 和 cache recovery 三个入口都调用同一 Finalizer。
 
 ### 5.3 Finalizer bypass matrix
 
-逐字段篡改 candidate、context、attestation：
+逐字段篡改 candidate、context、quality result、attestation、quality call identity：
 
 - `model_copy(update=...)`；
 - `model_construct()`；
@@ -166,7 +182,9 @@ Amazon Connect Salesforce
 - candidate/output language 不一致；
 - candidate/input/attestation hash 任一不一致；
 - policy/prompt/schema/provider/model/digest 任一不匹配；
-- evidence registry 外引用。
+- evidence registry 外引用；
+- full quality result 与 attestation 的 `quality_result_hash` 不一致；
+- attestation/result/ProviderCall/derived view 的 H2 任一不一致。
 
 全部必须拒绝且无 ScoreResult/Artifact/cache。静态扫描生产代码确认除
 `TrustedScoringFinalizer` 外，没有 TASK-016C 路径直接构造、copy、construct 或 restore
@@ -282,7 +300,35 @@ ATOMIC_DB_REGISTRATION
 
 ## 9. Judge budget、crash 与 recovery tests
 
-为 PRIMARY / REPAIR operation 分别验证 canonical identity 包含全部冻结字段且 role 不同。
+为 PRIMARY / REPAIR operation 分别验证两层 identity。H1 必须等于完整 validated
+`QualityJudgeOperationInput` 的 canonical SHA-256；H2 必须等于：
+
+```text
+build_provider_request_hash(
+  operation="local-content-quality-v1",
+  normalized_input_hash=H1,
+  provider=trusted judge provider,
+  model=trusted judge model,
+  prompt_version=quality prompt version,
+  schema_version=quality schema version,
+)
+```
+
+断言 H1 不是 ProviderCall key，且 fixture 中 H1 != H2。冻结 equality：
+
+```text
+attestation.judge_request_hash
+  == ProviderCall.request_hash
+  == DerivedScoringCacheView.quality_provider_call_request_hash
+  == H2
+```
+
+复用现有 `build_provider_request_hash` 的 golden/维度测试，证明 operation、H1、provider、
+model、prompt、schema 任一变化按既有规则改变 H2；candidate/input/policy/role/digest 变化先
+改变 H1 并进而改变 H2；相同 operation/input/config 在 restart 后
+重建完全相同 H1/H2。PRIMARY/REPAIR 使用同一 operation，但 role 进入 H1，因此两者 identity
+稳定不同。Unknown reservation 必须继续使用原 H2，不能因重算 H1 创建新 request hash。
+
 另以 Fake Repository 证明 one-shot wrapper 先查询：record 不存在时可 reserve/call；
 live PENDING 只能等待或停止；expired PENDING 只有在 deterministic PASS raw envelope 与
 promoted files 完整验证后才可进入专用 recovery；任何既有 record 都不得进入通用 expired/failed
@@ -313,19 +359,38 @@ completion/stage 步骤。任何“可能
 ### 10.1 生成与 round-trip
 
 - candidate/input/Judge operation 生成稳定 canonical hash；
+- 完整合法 PASS result 生成稳定 `quality_result_hash`；
+- attestation 的 `quality_result_hash` 与完整 result 精确一致；
 - attestation hash 排除自身字段并稳定；
 - attestation 首先只存在内存；Finalizer 前 Repository 中不存在其 Artifact/cache hit/成功调用；
-- raw envelope round-trip 保留最终 provider raw 与完整 attestation；
+- raw envelope round-trip 保留最终 provider raw、可完整重建的 validated quality result 与
+  完整 attestation；
 - Judge ProviderCall `SUCCEEDED.response_artifact_id` 指向同一 raw envelope；
 - structured payload 仍能由 Finalizer 的 persisted candidate 路径恢复，且外部 ScoreResult
   JSON shape 不变。
 
-### 10.2 单字段篡改
+### 10.2 Quality decision binding 与单字段篡改
 
-逐项篡改并拒绝：
+必须覆盖以下精确矩阵：
+
+1. valid `ContentQualityResult(PASS)` -> canonical hash stable；
+2. 修改 signals -> `quality_result_hash` mismatch；
+3. 修改 rejection reason -> validation 或 hash mismatch；
+4. 修改 decision source -> validation 或 hash mismatch；
+5. 修改 decision confidence -> validation 或 hash mismatch；
+6. 修改 grounding confidence -> validation 或 hash mismatch；
+7. 修改 usefulness confidence -> validation 或 hash mismatch；
+8. 修改 evidence binding -> validation 或 hash mismatch；
+9. raw envelope decision A + attestation B -> recovery rejected；
+10. `model_copy` / `model_construct` / Mapping / JSON restore -> 完整重建验证后才可 hash/finalize；
+11. Artifact SHA 正确但 `quality_result_hash` 错误 -> integrity failure；
+12. attestation hash 正确但完整 PASS matrix 非法 -> rejected。
+
+并逐项篡改以下 provenance 后拒绝：
 
 - candidate hash；
 - quality input hash；
+- quality result hash；
 - scoring request hash；
 - policy/schema/prompt version；
 - scoring schema/prompt version；
@@ -337,8 +402,9 @@ completion/stage 步骤。任何“可能
 - raw Artifact key/path/content hash/producer version；
 - Judge ProviderCall status 或 response artifact ID。
 
-任何篡改不得因重新计算单个外层 hash 而变成可信；Recovery 必须从当前 input/config 和两份
-Artifact 重建全链交叉关系。
+任何篡改不得因重算 Artifact SHA 或单个外层 hash 而变成可信；Recovery 必须从 raw envelope
+重建完整 ContentQualityResult，执行 model/domain + PASS matrix validation，重算 result hash，
+再从当前 input/config、attestation、ProviderCall 和两份 Artifact 重建全链交叉关系。
 
 ### 10.3 Atomic persistence tests
 
@@ -381,6 +447,10 @@ quality attestation binding、scoring completion、quality completion 和 stage 
 API 不接受或写入独立 cache identity；传入未 promote、未 dir-fsync 或未 hash-verified 的
 proof 必须在事务前 fail-closed。
 
+Atomic API 还必须从 raw bytes 重建完整 quality result，确认它与传入的 validated result、
+attestation `quality_result_hash` 及 Artifact write hash 全部一致。Decision A + attestation B、
+PASS 摘要替代完整 result、或只重算 Artifact SHA 的输入必须在文件写入前拒绝。
+
 ### 10.6 Crash/restart matrix
 
 | crash | restart 断言 |
@@ -407,7 +477,9 @@ file，不重调 Judge。Live operation owner 不得被 restart 抢占；expired
 - Judge transport=0；
 - 从 ProviderCall request hashes、Artifact key/version/hash、producer metadata、attestation
   和当前 policy/schema/prompt/model digest 重算 derived verification view；
-- 重算 candidate/input/attestation hash；
+- 重算 candidate/input/full-quality-result/attestation hash；
+- 断言 raw result hash == attestation quality_result_hash == derived view quality_result_hash；
+- 断言 attestation H2 == quality ProviderCall request hash == derived view quality call H2；
 - 验证 Judge call 与 raw envelope；
 - 经 Finalizer 重建 ScoreResult；
 - 返回 persisted cache hit。
@@ -420,6 +492,7 @@ Finalizer 成功前没有新 ProviderCall/Artifact/cache/stage 写入，也没�
 以下视为 miss，保留旧审计并以新 identity 计算：
 
 - legacy cache 无 quality attestation；
+- legacy cache 无完整 quality result 或 `quality_result_hash`；
 - quality/scoring policy、prompt、schema 版本变化；
 - trusted Judge model/digest 变化；
 - output language 或 scoring request 变化。
@@ -431,6 +504,7 @@ Finalizer 成功前没有新 ProviderCall/Artifact/cache/stage 写入，也没�
 以下不是普通 miss，不得重新调用同一 Judge identity：
 
 - 当前版本 attestation 或 Artifact hash 矛盾；
+- 当前 envelope result 缺失、非 PASS、matrix 非法或任一 canonical 字段/hash 被篡改；
 - Judge call `SUCCEEDED` 但 response artifact 不一致；
 - 当前 identity 为 live/expired PENDING；
 - 当前 identity 已 FAILED。
@@ -505,6 +579,10 @@ git diff --check <base>...HEAD
 - [ ] Candidate 是否保持 score=float、dimensions 可选和全部现有业务字段？
 - [ ] ADR-025 是否明确 supersede SYSTEM_DESIGN 的 Provider->ScoreResult 旧契约？
 - [ ] PASS attestation 是否绑定用户要求的全部字段并可重算？
+- [ ] 完整 PASS result 是否先完整验证，再 canonical hash，并与 attestation 精确绑定？
+- [ ] Raw envelope recovery 是否重建完整 result，而非只信 attestation？
+- [ ] H1 是否仅为 QualityJudgeOperationInput normalized hash，H2 是否复用 ADR-003 builder？
+- [ ] Attestation、ProviderCall 与 derived view 的 H2 是否严格相等？
 - [ ] Finalizer 前是否零 Artifact/call success/cache hit？
 - [ ] 是否严格执行 tmp write/file fsync/hash/no-clobber promote/dir fsync/final verify/DB transaction？
 - [ ] Crash matrix 是否证明不删除 formal files 且只清理当前 operation orphan tmp？

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed；2026-08-13 Round 4 修订待 Independent Design Review
+Proposed；2026-08-14 Round 4.5 修订待 Independent Design Review
 
 ## Date
 
@@ -143,8 +143,9 @@ provenance，并增加“不可信、尚未 final”这一类型边界。
 
 1. canonical `ScoringCandidate`；
 2. 当前可信 scoring context（provider/model/output language/prompt/schema）；
-3. 完整且有效的 Quality PASS attestation；
-4. 当前 scoring request 与 quality input 的重算 hash。
+3. 从不可信输入重建、通过完整 PASS matrix 且已 canonicalize 的 `ContentQualityResult`；
+4. 完整且有效、绑定该 result hash 的 Quality PASS attestation；
+5. 当前 scoring request、quality input 与 Judge ProviderCall identity 的重算结果。
 
 只有全部一致时，Finalizer 才从业务字段和可信 context 新建 `ScoreResult`。三条路径均
 必须经过它：
@@ -158,10 +159,34 @@ Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 
 
 ### 5. Quality PASS attestation
 
+完整 PASS decision 的唯一 canonical binding 定义为：
+
+```text
+validated_quality_result
+  = ContentQualityResult.model_validate(untrusted mapping/JSON)
+  -> cross-field PASS matrix validation
+  -> normalized signals/evidence IDs
+
+quality_result_hash
+  = SHA256(
+      canonical_json(validated_quality_result.model_dump(mode="json"))
+    )
+```
+
+`canonical_json` 必须复用项目现有规则：UTF-8、`ensure_ascii=False`、key lexicographic
+sorting、紧凑 separators `(",", ":")`。Signals 按枚举值排序去重，evidence IDs 按稳定 ID
+排序去重；完成这些 normalization 后重新执行完整领域校验，再序列化。Hash 输入是完整
+`ContentQualityResult`，不是 PASS 所需字段子集，覆盖 schema/policy/prompt version、status、
+decision source、三项 confidence、全部 signals、rejection reason（模型字段 `reason`）、
+evidence IDs、candidate/input bindings、Judge provenance 及模型未来增加的所有 canonical
+字段。Unchecked instance、`model_copy`、`model_construct`、Mapping 或 JSON 都必须先重建并
+通过上述两层验证，不能直接参与可信 hash。
+
 每个最终 `PASS` 必须先在内存中构造并验证 `quality-pass-attestation-v1`，至少绑定：
 
 - `candidate_hash`；
 - `quality_input_hash`；
+- `quality_result_hash`；
 - quality policy version；
 - scoring 与 quality schema version；
 - scoring 与 quality prompt version；
@@ -172,18 +197,21 @@ Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 
 - 三项 confidence 与已验证 evidence IDs。
 
 Attestation 由应用根据已验证 Judge response 和可信配置构造，模型不能自报。其 canonical
-payload 计算 SHA-256 `attestation_hash`。该内存对象不是 Artifact、cache entry 或成功
-ProviderCall，只是 Finalizer 输入。
+payload 计算 SHA-256 `attestation_hash`。Attestation 不是第二份 PASS decision；其中既有
+confidence/evidence mirror 只能与完整 validated result 做精确 equality binding，不能独立
+解释、补写或覆盖 result 的 signals/confidence/reason。该内存对象不是 Artifact、cache entry
+或成功 ProviderCall，只是 Finalizer 输入。
 
 v1 不新增 Artifact kind 或数据库字段。Finalizer 成功后，正式 `SCORING_RAW` 使用固定
-quality-qualified composite envelope，保存最终 scoring provider raw response、已验证且
-有限的 Judge PASS decision 与该 attestation；`SCORING_STRUCTURED` 仍保持 canonical
+quality-qualified composite envelope，保存最终 scoring provider raw response、可完整重建的
+validated `ContentQualityResult(PASS)` 与该 attestation；`SCORING_STRUCTURED` 仍保持 canonical
 `ScoreResult` JSON。Attestation 作为 raw envelope 的受版本化组成部分与 raw Artifact 一起
 持久化，不伪造第三种 Artifact kind。
 
 Attestation integrity 是现有本地信任模型内的交叉一致性，不是对拥有 SQLite 与 DATA
-写权限的攻击者提供密码学不可伪造性。恢复时必须重算 candidate/input/attestation hash，
-核对当前配置、Artifact metadata/content hash，以及对应 Judge ProviderCall 的
+写权限的攻击者提供密码学不可伪造性。恢复时必须从 raw envelope 重建并完整验证
+`ContentQualityResult(PASS)`，重算 quality-result/candidate/input/attestation hash，核对当前
+配置、Artifact metadata/content hash，以及对应 Judge ProviderCall 的
 `SUCCEEDED` 状态和相同 response artifact。任一不一致都不得成为 cache hit。
 
 ### 6. Judge 调用预算与 operation identity
@@ -194,7 +222,7 @@ Attestation integrity 是现有本地信任模型内的交叉一致性，不是�
 - `REPAIR` candidate：最多一次；
 - 总计最多两次；scoring repair 自身仍最多一次。
 
-每次 Judge 的 operation identity 由以下 canonical 字段派生：
+每次 Judge 使用两个不可混用的 hash layer。Layer 1 是 normalized input identity：
 
 ```text
 scoring_request_hash
@@ -207,7 +235,43 @@ schema_version
 judge_provider/model/digest
 ```
 
-调用前必须在既有 ProviderCall store 原子保留该 identity。TASK-016C 的 one-shot wrapper
+```text
+H1 = judge_normalized_input_hash
+   = SHA256(canonical_json(validated QualityJudgeOperationInput))
+```
+
+Layer 2 必须直接复用 ADR-003 与现有 `build_provider_request_hash(...)`：
+
+```text
+H2 = judge_request_hash
+   = build_provider_request_hash(
+       operation="local-content-quality-v1",
+       normalized_input_hash=H1,
+       provider=trusted_judge_provider,
+       model=trusted_judge_model,
+       prompt_version=quality_prompt_version,
+       schema_version=quality_schema_version,
+     )
+```
+
+PRIMARY 与 REPAIR 都使用同一固定 operation；`attempt_role` 已在
+`QualityJudgeOperationInput` 中，因此 H1/H2 对两个 role 分别稳定且不同。H1 是 H2 的输入，
+不是 ProviderCall key；H1 与 H2 语义不同且正常预期不相等，任何位置都不得互相替代。冻结
+等式：
+
+```text
+QualityPassAttestation.judge_request_hash
+  == Quality Judge ProviderCall.request_hash
+  == DerivedScoringCacheView.quality_provider_call_request_hash
+  == H2
+```
+
+不得修改 `build_provider_request_hash` 或 ADR-003 的六维语义（operation、normalized input
+hash、provider、model、prompt version、schema version）。
+
+调用前必须以 H2 在既有 ProviderCall store 原子保留 identity。Restart 必须从同一可信输入
+重建 H1，再经既有 builder 得到同一 H2；若不一致则 fail-closed。已存在或 unknown 的 H2
+不得因重新计算 H1 而派生一个替代 ProviderCall identity。TASK-016C 的 one-shot wrapper
 必须先只读查询 identity。记录不存在时才可 reserve 并外部调用；live PENDING 只能等待或
 停止，expired PENDING 只允许以完整验证的 deterministic PASS raw envelope 与 promoted
 files 进入专用 verified-file recovery 分支，绝不进入 takeover 后外部调用。它不得把既有 Repository 对
@@ -322,12 +386,15 @@ Artifact、文件或可提交记录。它每次从以下既有事实重新计算
 
 - scoring 与 Judge ProviderCall `request_hash` / operation / trusted provenance；
 - raw/structured Artifact deterministic key、producer version、content hash 与 metadata；
-- raw envelope 内的 Quality PASS attestation；
+- raw envelope 内完整 validated `ContentQualityResult(PASS)`、其 `quality_result_hash` 与
+  Quality PASS attestation；
 - 当前 policy、scoring/quality schema、prompt、provider/model/digest 配置。
 
 禁止新增 cache table、cache row、cache Artifact、migration 或独立 cache identity 文件。
 
-Cache hit 不调用 Judge。恢复必须重新计算 derived view，并同时验证：
+Derived view 必须包含 `quality_result_hash`。Cache hit 不调用 Judge。恢复必须从 raw envelope
+重建完整 result，执行 model/domain + PASS matrix validation，重算 canonical
+`quality_result_hash`，并要求它与 attestation 及 derived view 三者相等，然后同时验证：
 
 - 既有 scoring request/provider/model/output language/prompt/schema provenance；
 - quality PASS attestation 的所有绑定字段与 canonical hash；
@@ -336,6 +403,11 @@ Cache hit 不调用 Judge。恢复必须重新计算 derived view，并同时验
 - quality-qualified producer versions；
 - 从 persisted payload 重算的 candidate/input hash；
 - Finalizer 对当前配置的完整重建。
+
+Legacy entry 缺少完整 result/hash/attestation 时是 cache miss，保留旧审计并使用新 identity
+计算；当前版本 envelope 的 result 缺失、非 PASS、矩阵非法，或 signals/reason/source/
+confidence/evidence/hash 被篡改时是 integrity failure。两类情况都不得调用 Judge 来修补原
+历史 identity；后者必须 fail-closed。
 
 旧 Artifact 或缺少 attestation 的记录是普通 cache miss：保留审计并以当前新 identity
 重新计算。版本变化生成新 Judge identity，可安全调用。已有当前 identity 的
