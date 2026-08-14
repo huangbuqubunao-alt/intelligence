@@ -532,7 +532,7 @@ class TestJudgeReconstructionAtEntry:
 
         assert transport.requests == []
 
-    def test_malformed_content_input_fails_closed_without_validation_error(
+    def test_truly_malformed_content_input_fails_closed_without_validation_error(
         self,
     ) -> None:
         transport = _FakeTransport([])
@@ -542,7 +542,7 @@ class TestJudgeReconstructionAtEntry:
             transport=transport,
         )
         malformed = ContentQualityInput.model_construct(
-            scoring_request_hash=VALID_HASH,
+            scoring_request_hash="not-a-valid-hash",
             candidate_hash=VALID_HASH,
             output_language="en",
             reason="reason",
@@ -573,6 +573,105 @@ class TestJudgeReconstructionAtEntry:
             operation_input,
             content_input=content_input,
         )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    @pytest.mark.parametrize(
+        "field_name,value",
+        [
+            ("candidate_hash", OTHER_HASH),
+            ("scoring_request_hash", OTHER_HASH),
+        ],
+    )
+    def test_content_input_hash_mismatch_fails_closed_before_transport(
+        self,
+        field_name: str,
+        value: str,
+    ) -> None:
+        content_input = _content_input()
+        altered = content_input.model_dump(mode="python")
+        altered[field_name] = value
+        altered_content_input = ContentQualityInput.model_validate(altered)
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(altered_content_input),
+        )
+        transport = _FakeTransport(
+            [
+                _tags(),
+                _judge_response(
+                    status="PASS",
+                    signals=[
+                        "MINIMAL_CLAIM_PRESENT",
+                        "GROUNDING_PRESENT",
+                    ],
+                    evidence_ids=["title-1"],
+                ),
+            ]
+        )
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=altered_content_input,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    @pytest.mark.parametrize(
+        "field_name,value",
+        [
+            ("judge_provider", ""),
+            ("judge_model", ""),
+            ("judge_model_digest", "not-a-valid-digest"),
+            ("scoring_request_hash", "not-a-hash"),
+            ("candidate_hash", "not-a-hash"),
+            ("quality_input_hash", "not-a-hash"),
+        ],
+    )
+    def test_malformed_exact_base_operation_input_fails_closed(
+        self,
+        field_name: str,
+        value: object,
+    ) -> None:
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        object.__setattr__(operation_input, field_name, value)
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(operation_input, content_input=content_input)
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_malformed_exact_base_operation_input_returns_no_validation_error(
+        self,
+    ) -> None:
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        object.__setattr__(operation_input, "candidate_hash", "not-a-hash")
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(operation_input, content_input=content_input)
 
         assert result.status is ContentQualityStatus.UNCERTAIN
         assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
@@ -742,7 +841,7 @@ class TestJudgePayload:
         )
         assert build_content_quality_input_hash(content_input_a) == build_content_quality_input_hash(content_input_b)
 
-    def test_judge_with_empty_evidence_registry_succeeds(self) -> None:
+    def test_judge_empty_registry_pass_with_empty_evidence_fails_closed(self) -> None:
         transport = _FakeTransport(
             [
                 _tags(),
@@ -780,8 +879,8 @@ class TestJudgePayload:
             content_input=content_input,
         )
 
-        assert result.status is ContentQualityStatus.PASS
-        assert result.evidence_ids == ()
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_INVALID_RESPONSE
 
 
 class TestJudgeRequest:
@@ -1251,3 +1350,60 @@ class TestJudgeNoSideEffects:
 
         assert result is not None
         assert result.status is ContentQualityStatus.UNCERTAIN
+
+
+class TestContentQualityResultPassMatrix:
+    def test_pass_with_empty_evidence_ids_rejected(self) -> None:
+        with pytest.raises(ValueError, match="PASS requires at least one evidence_id"):
+            ContentQualityResult.model_validate(
+                {
+                    "schema_version": "content-quality-result-v1",
+                    "policy_version": "content-quality-policy-v1",
+                    "prompt_version": "content-quality-prompt-v1",
+                    "status": "PASS",
+                    "decision_source": "LOCAL_JUDGE",
+                    "decision_confidence": "HIGH",
+                    "grounding_confidence": "MEDIUM",
+                    "usefulness_confidence": "MEDIUM",
+                    "signals": [
+                        "MINIMAL_CLAIM_PRESENT",
+                        "GROUNDING_PRESENT",
+                    ],
+                    "reason": None,
+                    "evidence_ids": [],
+                    "candidate_hash": VALID_HASH,
+                    "quality_input_hash": VALID_HASH,
+                    "scoring_request_hash": VALID_HASH,
+                    "judge_provider": "ollama",
+                    "judge_model": "qwen3:8b",
+                    "judge_model_digest": DIGEST,
+                }
+            )
+
+    def test_pass_with_one_valid_evidence_id_accepted(self) -> None:
+        result = ContentQualityResult.model_validate(
+            {
+                "schema_version": "content-quality-result-v1",
+                "policy_version": "content-quality-policy-v1",
+                "prompt_version": "content-quality-prompt-v1",
+                "status": "PASS",
+                "decision_source": "LOCAL_JUDGE",
+                "decision_confidence": "HIGH",
+                "grounding_confidence": "MEDIUM",
+                "usefulness_confidence": "MEDIUM",
+                "signals": [
+                    "MINIMAL_CLAIM_PRESENT",
+                    "GROUNDING_PRESENT",
+                ],
+                "reason": None,
+                "evidence_ids": ["title-1"],
+                "candidate_hash": VALID_HASH,
+                "quality_input_hash": VALID_HASH,
+                "scoring_request_hash": VALID_HASH,
+                "judge_provider": "ollama",
+                "judge_model": "qwen3:8b",
+                "judge_model_digest": DIGEST,
+            }
+        )
+        assert result.status is ContentQualityStatus.PASS
+        assert result.evidence_ids == ("title-1",)

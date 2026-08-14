@@ -792,18 +792,25 @@ class OllamaQualityJudgeProvider:
                 QualityJudgeOperationInput,
                 operation_input,
             )
-            if content_input is None:
-                return self._build_uncertain_result(
-                    trusted_operation,
-                    reason=ContentQualityReason.JUDGE_UNAVAILABLE,
-                )
+        except Exception:
+            return self._build_safe_uncertain_result(
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        if content_input is None:
+            return self._build_uncertain_result(
+                trusted_operation,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        try:
             trusted_content = _revalidated_fields(
                 ContentQualityInput,
                 content_input,
             )
         except Exception:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
@@ -1213,6 +1220,41 @@ class OllamaQualityJudgeProvider:
                 "candidate_hash": operation_input.candidate_hash,
                 "quality_input_hash": operation_input.quality_input_hash,
                 "scoring_request_hash": operation_input.scoring_request_hash,
+                "judge_provider": _QUALITY_JUDGE_PROVIDER,
+                "judge_model": self._settings.model,
+                "judge_model_digest": self._settings.expected_model_digest,
+            }
+        )
+
+    def _build_safe_uncertain_result(
+        self,
+        *,
+        reason: ContentQualityReason,
+    ) -> ContentQualityResult:
+        """Build a fail-closed UNCERTAIN result without trusting malformed input.
+
+        This path is used only when the operation input cannot be reconstructed
+        into the exact base contract.  It therefore cannot use any field from
+        the unvalidated object, including hash or model identity values.
+        """
+
+        expected_signal = ContentQualitySignal(reason.value)
+        return ContentQualityResult.model_validate(
+            {
+                "schema_version": _QUALITY_SCHEMA_VERSION,
+                "policy_version": _QUALITY_POLICY_VERSION,
+                "prompt_version": _QUALITY_PROMPT_VERSION,
+                "status": ContentQualityStatus.UNCERTAIN,
+                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+                "decision_confidence": ContentQualityConfidence.LOW,
+                "grounding_confidence": ContentQualityConfidence.LOW,
+                "usefulness_confidence": ContentQualityConfidence.LOW,
+                "signals": (expected_signal,),
+                "reason": reason,
+                "evidence_ids": (),
+                "candidate_hash": "0" * 64,
+                "quality_input_hash": "0" * 64,
+                "scoring_request_hash": "0" * 64,
                 "judge_provider": _QUALITY_JUDGE_PROVIDER,
                 "judge_model": self._settings.model,
                 "judge_model_digest": self._settings.expected_model_digest,

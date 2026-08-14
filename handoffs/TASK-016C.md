@@ -590,3 +590,125 @@ Round 3 先写测试再实现。RED 阶段失败类别：
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# TASK-016C Phase C Correction Round 4
+
+## 元数据
+
+- Role: `Implementer (Correction Round 4)`
+- Agent/session: `WorkBuddy`
+- Parent commit: `f2827e2dc8a2a3f58f9e4cfe6c21ced310e86bdb`
+- Correction commit: `913618c2e4cc834fb4152daec2b884c5a4b88b0f`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+- Started: `2026-08-14`
+- Reported: `2026-08-14`
+
+## 目标与范围
+
+- 仅关闭 Phase C Correction Round 3 Independent Review 剩余的 2 个 P1 与 2 个 P2 test gaps。
+- 禁止进入 Phase D；禁止扩大 Phase C 范围；不重新设计 Phase C。
+- 允许修改：
+  - `src/youtube_intel/domain.py`
+  - `src/youtube_intel/providers/ollama.py`
+  - `tests/unit/test_task016c_quality_judge_contract.py`
+  - `handoffs/TASK-016C.md`
+- 明确未做：`src/youtube_intel/scoring.py`、`src/youtube_intel/state.py`、runtime composition、Artifact、cache、DB、migration、ProviderCall persistence、QualityPassAttestation、TrustedScoringFinalizer、PREWRITE_VALIDATE、filesystem protocol、repair orchestration、TASK-016B production logic、Phase D+。
+
+## P1-1 — 恢复 PASS Evidence Invariant
+
+- 问题：`ContentQualityResult` 的 PASS 矩阵未要求 `evidence_ids` 非空；空 evidence registry 的输入仍可能产生 `PASS` 结果。
+- 修复：在 `ContentQualityResult._validate_pass_matrix` 中增加 `evidence_ids` 非空检查。
+- 边界：
+  - `ContentQualityInput.evidence_registry` 仍可为空。
+  - Local Judge 对空 registry 仍可执行并发出请求。
+  - Judge 返回 `PASS` 但 `evidence_ids=[]` 时，按 Phase C 既有的 invalid-response 语义 fail-closed 为 `UNCERTAIN`/`JUDGE_INVALID_RESPONSE`。
+- 回归测试：
+  - `test_pass_with_empty_evidence_ids_rejected`
+  - `test_pass_with_one_valid_evidence_id_accepted`
+  - `test_judge_empty_registry_pass_with_empty_evidence_fails_closed`
+  - 保留 `test_empty_evidence_registry_is_valid`、`test_empty_evidence_registry_hash_is_deterministic`
+
+## P1-2 — Malformed Operation Input Fail-Closed
+
+- 问题：`OllamaQualityJudgeProvider.judge()` 在 operation input 重建失败时，使用原始（可能已损坏）的 operation input 构造 UNCERTAIN 结果；若该对象的 hash/provider/model/digest 字段不合法，`ContentQualityResult.model_validate` 会抛出 `ValidationError`。
+- 修复：
+  - 将 operation input 重建与 content input 重建分离。
+  - operation input 重建失败时，直接返回不依赖任何输入字段的安全 UNCERTAIN 结果：hash 字段使用固定占位符 `"0" * 64`，Judge identity 使用 settings 中的可信 model/digest 与固定 provider。
+  - 该路径零 transport、不构造 PASS/REJECT、不持久化、不暴露未验证字段。
+- 回归测试：
+  - `test_malformed_exact_base_operation_input_fails_closed`：参数化覆盖 provider、model、digest、scoring_request_hash、candidate_hash、quality_input_hash 的非法值。
+  - `test_malformed_exact_base_operation_input_returns_no_validation_error`：显式断言无 `ValidationError` 泄露。
+
+## P2 — 独立 Hash Mismatch 测试
+
+- 新增 `test_content_input_hash_mismatch_fails_closed_before_transport`：
+  - `candidate_hash` 不匹配：其余 hash 与 quality_input_hash 重新计算保持一致；预期 `UNCERTAIN`/`JUDGE_UNAVAILABLE` 且零 transport。
+  - `scoring_request_hash` 不匹配：同上。
+  - transport 配置为可成功响应；若移除对应显式比较，测试将因返回 `PASS` 而失败。
+
+## P2 — 真正 Malformed Content Input 测试
+
+- 替换原 `test_malformed_content_input_fails_closed_without_validation_error`（其使用空 registry，在 Round 3 后已是合法输入）。
+- 新增 `test_truly_malformed_content_input_fails_closed_without_validation_error`：使用 `ContentQualityInput.model_construct(..., scoring_request_hash="not-a-valid-hash")` 等非法字段；预期 `UNCERTAIN`/`JUDGE_UNAVAILABLE`、零 transport、无 `ValidationError` 泄露。
+- 保留独立测试证明空 registry 本身合法。
+
+## TDD RED Evidence
+
+Round 4 先写测试再实现。RED 阶段失败数与类别：
+
+- 失败数：6
+- 失败类别：
+  - `test_pass_with_empty_evidence_ids_rejected`：PASS 空 `evidence_ids` 未拒绝。
+  - `test_judge_empty_registry_pass_with_empty_evidence_fails_closed`：Judge 返回 PASS + 空 `evidence_ids` 被接受。
+  - `test_malformed_exact_base_operation_input_fails_closed[scoring_request_hash-not-a-hash]` / `[candidate_hash-not-a-hash]` / `[quality_input_hash-not-a-hash]`：损坏 operation input 导致 `ValidationError` 泄露。
+  - `test_malformed_exact_base_operation_input_returns_no_validation_error`：同上。
+
+**RED chronology 说明**：本 Round 4 仅针对新增/调整用例记录 RED；前序 Round 的 RED evidence 已分别由 `da1154d`、`69b508b`、`eba5420`、`f2827e2` 记录，Git 历史未重写。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked --offline` | PASS |
+| `uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py` | 78 passed |
+| `uv run pytest -x -q tests/integration/test_ollama_provider.py` | 71 passed |
+| `uv run pytest -x -q` | 1038 passed, 2 warnings |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+## 修改文件
+
+- `src/youtube_intel/domain.py`
+  - `ContentQualityResult._validate_pass_matrix`：新增 `evidence_ids` 非空检查。
+- `src/youtube_intel/providers/ollama.py`
+  - `OllamaQualityJudgeProvider.judge()`：分离 operation/content 重建异常处理；operation 重建失败使用 `_build_safe_uncertain_result`。
+  - 新增 `_build_safe_uncertain_result()`：不依赖未验证输入字段的安全 fail-closed 结果构造。
+- `tests/unit/test_task016c_quality_judge_contract.py`：新增/调整 Round 4 回归测试，总计 78 项。
+- `handoffs/TASK-016C.md`：本报告。
+
+## 失败、跳过与风险
+
+- 已解决：P1-1 PASS evidence invariant、P1-2 malformed operation fail-closed、P2 candidate/scoring hash mismatch 独立测试、P2 truly malformed content input 测试。
+- 剩余风险：同进程内存模型下物理内存篡改不在本合约防御范围内；安全 fail-closed 路径依赖 `LocalScoringSettings` 在 provider 构造时已验证。
+- `DECISION NEEDED`：无（Phase C correction 范围内）。
+
+## 实现者结论
+
+- 建议状态：`READY FOR PHASE C FOCUSED FINAL REVIEW`
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q tests/integration/test_ollama_provider.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

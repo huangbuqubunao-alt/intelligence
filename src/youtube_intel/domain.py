@@ -2199,6 +2199,9 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
         if _NEGATIVE_SIGNALS.intersection(self.signals):
             msg = "PASS must not contain negative signals"
             raise ValueError(msg)
+        if not self.evidence_ids:
+            msg = "PASS requires at least one evidence_id"
+            raise ValueError(msg)
 
     def _validate_reject_matrix(self) -> None:
         if self.decision_confidence is not ContentQualityConfidence.HIGH:
