@@ -7,7 +7,8 @@
 - Agent/session: `WorkBuddy`
 - Accepted design baseline: `c547b7c46afbf254979331c2c56cddb93a8503f2`
 - Original Phase A implementation commit: `cd9d8b2c41a130aadfc828559d537611f341850a`
-- Correction commit: `见下方实现者结论（SHA 在最终提交后确定）`
+- Correction Round 1 commit: `e9ffe699c52d1c2f4a20f9322df3c5eb445b1cf5`
+- Correction Round 1.1 commit: `e8ccc2d9e3b348d23942450b3f99861cdbc25aa3`
 - Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
@@ -35,7 +36,7 @@
   - `handoffs/TASK-016C.md`
 - 实际修改：
   - `src/youtube_intel/domain.py`：修正 `ContentQualityResult` REJECT 矩阵分派；补全 Evidence Registry canonical ordering、uniqueness、count/total-size bound；统一 `ScoringEvidence.evidence_id` 与 `ContentQualityResult.evidence_ids` 的 lexical/length contract。
-  - `tests/unit/test_task016c_domain_contracts.py`：新增 26 项 RED-before-GREEN 测试（P1-1 矩阵 11 项、P1-2 registry 8 项、revalidation 2 项，以及 annotation 修复触发的覆盖），总计 59 项。
+  - `tests/unit/test_task016c_domain_contracts.py`：新增 26 项 RED-before-GREEN 测试（P1-1 矩阵 11 项、P1-2 registry 8 项、revalidation 2 项，以及 annotation 修复触发的覆盖），总计 59 项；Correction Round 1.1 再补充 1 项独立 total-character 测试与 1 项旧测试缺陷证明，总计 60 项。
   - `handoffs/TASK-016C.md`：修正 base/original/correction SHA、design status、test coverage 与验证结果。
 - 明确未做：Deterministic Gate 实现、Local Quality Judge 调用、H1/H2 persistence、Quality PASS Attestation、`TrustedScoringFinalizer`、pre-write validation、`ValidatedScoringWritePlan`、Artifact 文件提交协议、原子 DB 登记、cache recovery、CLI 改动、数据库 migration、新依赖。
 
@@ -82,6 +83,7 @@
 - 条目数上限：100（复用项目既有 registry 模式）。
 - 总字符上限：200,000（= 100 × 单条 excerpt 上限 2000，从 frozen per-item limit 推导）。
 - 单条上限：`evidence_id` ≤ 100、`excerpt` ≤ 2000（已冻结）。
+- Correction Round 1.1 已补充独立 total-character 回归测试，确保 count bound 不掩盖 total bound。
 
 ### Registry / Result 分离
 
@@ -101,11 +103,36 @@ Correction 开始时新增测试全部 RED：
   - Gate / grounding REJECT 的 trusted JSON revalidation 失败（2 例）
   - 另有 1 例测试期望去重但实际应拒绝重复，已按 fail-closed 修正测试本身
 
+## Correction Round 1.1：独立 total-character 测试
+
+### 旧测试缺陷
+
+`test_evidence_registry_rejects_total_chars_above_max` 原实现使用 101 条 excerpt 最大长度（2000）的 evidence。该输入已经违反条目数上限（100），因此即使删除总字符上限校验，旧测试仍然会因 count bound 失败，无法独立证明总字符上限存在。
+
+### RED Evidence
+
+新增 `test_evidence_registry_old_total_chars_test_depended_on_count_bound`：
+
+- 构造与原测试相同的 101 条 max-length registry；
+- 通过 monkeypatch 将 `_MAX_EVIDENCE_REGISTRY_TOTAL_CHARS` 放大 100 倍，模拟移除总字符上限；
+- 验证该输入仍因 "at most 100 items" 被拒绝。
+
+这证明旧测试无法区分 count validation 与 total-character validation。
+
+### GREEN Evidence
+
+新增/替换 `test_evidence_registry_rejects_total_chars_above_max`：
+
+- 使用恰好 100 条 evidence（count 合法，不触发 count bound）；
+- 每条 excerpt 取 frozen 单条上限 2000，evidence_id 取最短合法长度；
+- 总字符 = 100 × (2000 + 1..3) = 200100+，超过 frozen 总上限 200,000；
+- 验证仅因 "total characters" 被拒绝。
+
 ## GREEN Evidence
 
 | 检查 | 结果 |
 |---|---|
-| Phase A focused tests (`tests/unit/test_task016c_domain_contracts.py`) | 59 passed |
+| Phase A focused tests (`tests/unit/test_task016c_domain_contracts.py`) | 60 passed |
 | TASK-016B language regression (`tests/unit/test_scoring_language.py`) | 101 passed |
 | 全量 unit tests (`tests/unit`) | 456 passed |
 | 全量 pytest | 912 passed, 2 warnings |
@@ -119,7 +146,7 @@ Correction 开始时新增测试全部 RED：
 
 ## 失败、跳过与风险
 
-- 已解决失败：P1-1 Gate/grounding REJECT 矩阵、P1-2 Evidence Registry contract、P2-1 handoff 元数据。
+- 已解决失败：P1-1 Gate/grounding REJECT 矩阵、P1-2 Evidence Registry contract（含 Correction Round 1.1 独立 total-character 测试）、P2-1 handoff 元数据。
 - 剩余风险：
   - Phase A 仍为纯内存 schema/matrix 验证契约，未涉及真实 Ollama、SQLite 持久化、文件提交协议或 cache recovery。
   - Registry 总字符上限 200,000 是从 frozen per-item excerpt limit（2000）与既有项目 registry count pattern（100）推导得出；frozen design 文本中未显式给出总上限数字。
