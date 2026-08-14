@@ -16,6 +16,7 @@ from importlib import import_module
 from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import (
+    Any,
     Final,
     Literal,
     Never,
@@ -30,7 +31,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     ValidationInfo,
     field_validator,
     model_validator,
@@ -2008,6 +2008,9 @@ class ContentQualityInput(_UpdateProtectedQualityContract):
         cls,
         value: tuple[ScoringEvidence, ...],
     ) -> tuple[ScoringEvidence, ...]:
+        if not value:
+            msg = "evidence_registry must contain at least one item"
+            raise ValueError(msg)
         seen: set[str] = set()
         total_chars = 0
         for item in value:
@@ -2269,10 +2272,11 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
 class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
     """Stable normalized input identity for a single quality Judge attempt.
 
-    Instances must be created through ``model_validate`` or normal construction
-    so that the after-validator runs and marks them as validated.  ``model_copy``
-    with updates is disabled by the base class and ``model_construct`` bypasses
-    the validator, so neither can produce a trusted identity.
+    Trusted identity must never rely on a mutable instance marker.  This class
+    therefore disables ``model_construct`` and rejects any attempt to treat an
+    unchecked or mutated instance as validated.  Callers that need an identity
+    must pass the instance to ``build_judge_h1_h2``, which reconstructs the
+    input from its raw field dictionary through a fresh validation pass.
     """
 
     scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -2286,12 +2290,17 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
     judge_model: str = Field(min_length=1)
     judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
-    _validated: bool = PrivateAttr(default=False)
-
-    @model_validator(mode="after")
-    def _mark_validated(self) -> Self:
-        self._validated = True
-        return self
+    @classmethod
+    def model_construct(
+        cls,
+        _fields_set: set[str] | None = None,
+        **values: Any,
+    ) -> Self:
+        msg = (
+            "QualityJudgeOperationInput.model_construct is disabled; "
+            "use model_validate or normal construction"
+        )
+        raise ValueError(msg)
 
     def model_post_init(self, __context: Mapping[str, str]) -> None:
         super().model_post_init(__context)

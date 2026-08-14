@@ -11,11 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import unicodedata
-from typing import Final
+from typing import Final, TypeVar
+
+from pydantic import BaseModel
 
 from youtube_intel.domain import (
     ContentQualityConfidence,
     ContentQualityDecisionSource,
+    ContentQualityInput,
     ContentQualityResult,
     ContentQualityStatus,
     DeterministicGateReason,
@@ -135,6 +138,32 @@ class DeterministicContentQualityGate:
 # ---------------------------------------------------------------------------
 
 
+_T = TypeVar("_T", bound=BaseModel)
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _revalidated_fields(model: type[_T], instance: object) -> _T:
+    """Return a fresh validated instance reconstructed from raw ``__dict__``.
+
+    This intentionally bypasses any subclass property overrides or overridden
+    ``model_dump`` methods by reading the underlying field dictionary and
+    running it through the exact base-class validators.
+    """
+    if type(instance) is not model:
+        msg = f"expected exact type {model.__name__}, got {type(instance).__name__}"
+        raise ValueError(msg)
+    raw_fields = dict(instance.__dict__)
+    return model.model_validate(raw_fields)
+
+
 def build_judge_h1_h2(
     operation_input: QualityJudgeOperationInput,
 ) -> tuple[str, str]:
@@ -153,24 +182,8 @@ def build_judge_h1_h2(
     H1 and H2 are not interchangeable and are expected to differ.
     """
 
-    if not isinstance(operation_input, QualityJudgeOperationInput):
-        msg = "operation_input must be a QualityJudgeOperationInput instance"
-        raise ValueError(msg)
-    if not operation_input._validated:
-        msg = "operation_input must be created through validation"
-        raise ValueError(msg)
-
-    # Reconstruct from the raw field dictionary.  ``model_dump`` is intentionally
-    # avoided because subclasses may override it to return tampered data.
-    raw_fields = dict(operation_input.__dict__)
-    validated = QualityJudgeOperationInput.model_validate(raw_fields)
-
-    canonical = json.dumps(
-        validated.model_dump(mode="json"),
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+    validated = _revalidated_fields(QualityJudgeOperationInput, operation_input)
+    canonical = _canonical_json(validated.model_dump(mode="json"))
     h1 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     h2 = build_provider_request_hash(
         operation="local-content-quality-v1",
@@ -181,3 +194,11 @@ def build_judge_h1_h2(
         schema_version=validated.schema_version,
     )
     return h1, h2
+
+
+def build_content_quality_input_hash(content_input: ContentQualityInput) -> str:
+    """Return the canonical SHA-256 identity of a validated content input."""
+
+    validated = _revalidated_fields(ContentQualityInput, content_input)
+    canonical = _canonical_json(validated.model_dump(mode="json"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

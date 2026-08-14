@@ -12,6 +12,7 @@ from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     ContentQualityConfidence,
     ContentQualityDecisionSource,
+    ContentQualityInput,
     ContentQualityReason,
     ContentQualityResult,
     ContentQualitySignal,
@@ -24,7 +25,10 @@ from youtube_intel.domain import (
 from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
 )
-from youtube_intel.quality import build_judge_h1_h2
+from youtube_intel.quality import (
+    build_content_quality_input_hash,
+    build_judge_h1_h2,
+)
 from youtube_intel.state import build_provider_request_hash
 
 VALID_HASH = "a" * 64
@@ -75,10 +79,12 @@ def _settings(
     *,
     model: str = "qwen3:8b",
     digest: str = DIGEST,
+    base_url: str = "http://127.0.0.1:11434",
 ) -> LocalScoringSettings:
     return LocalScoringSettings(
         model=model,
         expected_model_digest=digest,
+        base_url=base_url,
     )
 
 
@@ -119,6 +125,30 @@ def _evidence_registry(*evidence_ids: str) -> tuple[ScoringEvidence, ...]:
             excerpt=f"excerpt for {eid}",
         )
         for eid in evidence_ids
+    )
+
+
+def _content_input(
+    *,
+    scoring_request_hash: str = VALID_HASH,
+    candidate_hash: str = VALID_HASH,
+    output_language: str = "en",
+    reason: str = "A concise candidate reason",
+    topics: tuple[str, ...] = ("topic-a", "topic-b"),
+    evidence_registry: tuple[ScoringEvidence, ...] | None = None,
+) -> ContentQualityInput:
+    if evidence_registry is None:
+        evidence_registry = _evidence_registry("title-1")
+    return ContentQualityInput.model_validate(
+        {
+            "scoring_request_hash": scoring_request_hash,
+            "candidate_hash": candidate_hash,
+            "output_language": output_language,
+            "reason": reason,
+            "topics": topics,
+            "evidence_registry": evidence_registry,
+            "policy_version": "content-quality-policy-v1",
+        }
     )
 
 
@@ -269,19 +299,38 @@ class TestJudgeIdentity:
             operation_input.model_copy(update={"model": "tampered"})
 
     def test_unchecked_model_construct_cannot_produce_trusted_h1(self) -> None:
-        constructed = QualityJudgeOperationInput.model_construct(
-            scoring_request_hash="invalid-hash",
-            attempt_role=QualityJudgeAttemptRole.PRIMARY,
-            candidate_hash=VALID_HASH,
-            quality_input_hash=VALID_HASH,
-            policy_version="content-quality-policy-v1",
-            prompt_version="content-quality-prompt-v1",
-            schema_version="content-quality-result-v1",
-            judge_provider="ollama",
-            judge_model="qwen3:8b",
-            judge_model_digest=DIGEST,
-        )
         with pytest.raises(ValueError):
+            QualityJudgeOperationInput.model_construct(
+                scoring_request_hash=VALID_HASH,
+                attempt_role=QualityJudgeAttemptRole.PRIMARY,
+                candidate_hash=VALID_HASH,
+                quality_input_hash=VALID_HASH,
+                policy_version="content-quality-policy-v1",
+                prompt_version="content-quality-prompt-v1",
+                schema_version="content-quality-result-v1",
+                judge_provider="ollama",
+                judge_model="qwen3:8b",
+                judge_model_digest=DIGEST,
+            )
+
+    def test_model_construct_and_private_marker_injection_fails(
+        self,
+    ) -> None:
+        """Private marker injection cannot promote trust: construction itself is disabled."""
+        with pytest.raises(ValueError):
+            constructed = QualityJudgeOperationInput.model_construct(
+                scoring_request_hash=VALID_HASH,
+                attempt_role=QualityJudgeAttemptRole.PRIMARY,
+                candidate_hash=VALID_HASH,
+                quality_input_hash=VALID_HASH,
+                policy_version="content-quality-policy-v1",
+                prompt_version="content-quality-prompt-v1",
+                schema_version="content-quality-result-v1",
+                judge_provider="ollama",
+                judge_model="qwen3:8b",
+                judge_model_digest=DIGEST,
+            )
+            object.__setattr__(constructed, "_validated", True)
             build_judge_h1_h2(constructed)
 
     def test_unchecked_mapping_cannot_produce_trusted_h1(self) -> None:
@@ -317,7 +366,7 @@ class TestJudgeIdentity:
         with pytest.raises(ValueError):
             QualityJudgeOperationInput.model_validate_json(payload)
 
-    def test_h2_uses_validated_fields_not_subclass_property_override(self) -> None:
+    def test_subclass_property_override_rejected_for_h1_h2(self) -> None:
         class _TamperedInput(QualityJudgeOperationInput):
             @property
             def judge_provider(self) -> str:
@@ -325,18 +374,10 @@ class TestJudgeIdentity:
 
         base = _operation_input()
         tampered = _TamperedInput.model_validate(base.model_dump(mode="python"))
-        h1, h2 = build_judge_h1_h2(tampered)
-        expected_h2 = build_provider_request_hash(
-            operation="local-content-quality-v1",
-            normalized_input_hash=h1,
-            provider="ollama",
-            model=base.judge_model,
-            prompt_version=base.prompt_version,
-            schema_version=base.schema_version,
-        )
-        assert h2 == expected_h2
+        with pytest.raises(ValueError):
+            build_judge_h1_h2(tampered)
 
-    def test_h2_uses_validated_fields_not_model_dump_mismatch(self) -> None:
+    def test_model_dump_override_rejected_for_h1_h2(self) -> None:
         class _MismatchInput(QualityJudgeOperationInput):
             def model_dump(self, **kwargs: object) -> dict[str, object]:
                 data = super().model_dump(**kwargs)
@@ -345,32 +386,8 @@ class TestJudgeIdentity:
 
         base = _operation_input()
         mismatch = _MismatchInput.model_validate(base.model_dump(mode="python"))
-        h1, h2 = build_judge_h1_h2(mismatch)
-        expected_h2 = build_provider_request_hash(
-            operation="local-content-quality-v1",
-            normalized_input_hash=h1,
-            provider=base.judge_provider,
-            model="qwen3:8b",
-            prompt_version=base.prompt_version,
-            schema_version=base.schema_version,
-        )
-        assert h2 == expected_h2
-
-    def test_model_construct_bypass_rejected_for_h1_and_h2(self) -> None:
-        constructed = QualityJudgeOperationInput.model_construct(
-            scoring_request_hash=VALID_HASH,
-            attempt_role=QualityJudgeAttemptRole.PRIMARY,
-            candidate_hash=VALID_HASH,
-            quality_input_hash=VALID_HASH,
-            policy_version="content-quality-policy-v1",
-            prompt_version="content-quality-prompt-v1",
-            schema_version="content-quality-result-v1",
-            judge_provider="ollama",
-            judge_model="qwen3:8b",
-            judge_model_digest=DIGEST,
-        )
         with pytest.raises(ValueError):
-            build_judge_h1_h2(constructed)
+            build_judge_h1_h2(mismatch)
 
 
 class TestJudgeConfigBinding:
@@ -380,6 +397,7 @@ class TestJudgeConfigBinding:
             ("judge_model", "mismatched-model"),
             ("judge_model_digest", OTHER_DIGEST),
             ("judge_provider", "openai"),
+            ("policy_version", "content-quality-policy-v2"),
             ("prompt_version", "content-quality-prompt-v2"),
             ("schema_version", "content-quality-result-v2"),
         ],
@@ -390,7 +408,11 @@ class TestJudgeConfigBinding:
         value: object,
     ) -> None:
         transport = _FakeTransport([])
-        operation_input = _operation_input(**{field_name: value})
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+            **{field_name: value},
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -398,10 +420,7 @@ class TestJudgeConfigBinding:
 
         result = provider.judge(
             operation_input,
-            reason=None,
-            topics=("topic-a",),
-            language="en",
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -410,12 +429,29 @@ class TestJudgeConfigBinding:
 
 
 class TestJudgeLoopback:
-    def test_remote_base_url_fails_closed_before_transport(self) -> None:
+    @pytest.mark.parametrize(
+        "base_url",
+        [
+            "https://example.com",
+            "http://example.com:11434",
+            "http://user@127.0.0.1:11434",
+            "http://127.0.0.1:11434?query=1",
+            "http://127.0.0.1:11434#fragment",
+        ],
+    )
+    def test_non_loopback_base_url_fails_closed_before_transport(
+        self,
+        base_url: str,
+    ) -> None:
         transport = _FakeTransport([])
         settings = LocalScoringSettings.model_construct(
             model="qwen3:8b",
             expected_model_digest=DIGEST,
-            base_url="https://example.com",
+            base_url=base_url,
+        )
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
         )
         provider = OllamaQualityJudgeProvider(
             settings=settings,
@@ -423,16 +459,84 @@ class TestJudgeLoopback:
         )
 
         result = provider.judge(
-            _operation_input(),
-            reason=None,
-            topics=("topic-a",),
-            language="en",
-            evidence_registry=_evidence_registry("title-1"),
+            operation_input,
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
         assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
         assert transport.requests == []
+
+
+class TestJudgePayload:
+    def test_missing_payload_is_rejected(self) -> None:
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=None,  # type: ignore[arg-type]
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_noncanonical_payload_type_is_rejected(self) -> None:
+        transport = _FakeTransport([])
+        operation_input = _operation_input()
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input={"not": "a validated payload"},  # type: ignore[arg-type]
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_quality_input_hash_mismatch_is_rejected(self) -> None:
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        operation_input = _operation_input(quality_input_hash=OTHER_HASH)
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=content_input,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_payload_requires_nonempty_reason_topics_and_evidence(self) -> None:
+        with pytest.raises(ValueError):
+            ContentQualityInput.model_validate(
+                {
+                    "scoring_request_hash": VALID_HASH,
+                    "candidate_hash": VALID_HASH,
+                    "output_language": "en",
+                    "reason": "",
+                    "topics": (),
+                    "evidence_registry": (),
+                    "policy_version": "content-quality-policy-v1",
+                }
+            )
 
 
 class TestJudgeRequest:
@@ -450,7 +554,10 @@ class TestJudgeRequest:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -458,7 +565,7 @@ class TestJudgeRequest:
 
         provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert [method for method, _, _ in transport.requests] == ["GET", "POST"]
@@ -488,7 +595,10 @@ class TestJudgeRequest:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -496,7 +606,7 @@ class TestJudgeRequest:
 
         provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         generate_payload = json.loads(transport.requests[1][2] or b"{}")
@@ -517,7 +627,14 @@ class TestJudgeRequest:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input(
+            output_language="zh-CN",
+            reason="A concise reason",
+            topics=("topic-a", "topic-b"),
+        )
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -525,22 +642,24 @@ class TestJudgeRequest:
 
         provider.judge(
             operation_input,
-            reason="A concise reason",
-            topics=("topic-a", "topic-b"),
-            language="zh-CN",
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         generate_payload = json.loads(transport.requests[1][2] or b"{}")
         prompt = generate_payload["prompt"]
         h1, _ = build_judge_h1_h2(operation_input)
         assert h1 in prompt
-        assert "A concise reason" in prompt
-        assert "topic-a" in prompt
-        assert "topic-b" in prompt
-        assert "zh-CN" in prompt
-        assert "title-1" in prompt
-        assert "excerpt for title-1" in prompt
+        # Prompt is a fixed prefix followed by one canonical JSON object.
+        json_start = prompt.index("{")
+        embedded = json.loads(prompt[json_start:])
+        assert embedded["judge_identity"] == h1
+        assert embedded["quality_input_hash"] == operation_input.quality_input_hash
+        assert embedded["language"] == "zh-CN"
+        assert embedded["candidate_reason"] == "A concise reason"
+        assert embedded["candidate_topics"] == ["topic-a", "topic-b"]
+        registry = embedded["evidence_registry"]
+        assert any(item["id"] == "title-1" for item in registry)
+        assert any("excerpt for title-1" in item["excerpt"] for item in registry)
 
 
 class TestJudgeResponse:
@@ -558,7 +677,10 @@ class TestJudgeResponse:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -566,7 +688,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert isinstance(result, ContentQualityResult)
@@ -597,7 +719,10 @@ class TestJudgeResponse:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -605,7 +730,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.REJECT
@@ -627,7 +752,10 @@ class TestJudgeResponse:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -635,7 +763,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -652,7 +780,10 @@ class TestJudgeResponse:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -660,7 +791,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -673,7 +804,10 @@ class TestJudgeResponse:
                 {"response": "not valid json"},
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -681,7 +815,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -694,7 +828,10 @@ class TestJudgeResponse:
                 _Response(b"\xff\xfe not utf-8"),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -702,7 +839,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -712,7 +849,10 @@ class TestJudgeResponse:
         def _timeout_transport(request: object, timeout: float) -> _Response:
             raise TimeoutError
 
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=_timeout_transport,
@@ -720,7 +860,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -734,7 +874,10 @@ class TestJudgeResponse:
                 {"response": huge_response},
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -742,7 +885,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -750,7 +893,10 @@ class TestJudgeResponse:
 
     def test_model_digest_mismatch_fails_closed_as_uncertain(self) -> None:
         transport = _FakeTransport([_tags(digest="c" * 64)])
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -758,7 +904,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -778,7 +924,10 @@ class TestJudgeResponse:
                 ),
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -786,7 +935,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -815,7 +964,10 @@ class TestJudgeResponse:
                 },
             ]
         )
-        operation_input = _operation_input()
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
@@ -823,7 +975,7 @@ class TestJudgeResponse:
 
         result = provider.judge(
             operation_input,
-            evidence_registry=_evidence_registry("title-1"),
+            content_input=content_input,
         )
 
         assert result.status is ContentQualityStatus.UNCERTAIN
@@ -838,14 +990,18 @@ class TestJudgeNoSideEffects:
                 {"response": "not valid json"},
             ]
         )
+        content_input = _content_input()
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
         provider = OllamaQualityJudgeProvider(
             settings=_settings(),
             transport=transport,
         )
 
         result = provider.judge(
-            _operation_input(),
-            evidence_registry=_evidence_registry("title-1"),
+            operation_input,
+            content_input=content_input,
         )
 
         assert result is not None

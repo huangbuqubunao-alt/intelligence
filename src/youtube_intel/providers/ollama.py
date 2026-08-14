@@ -6,7 +6,7 @@ import json
 import socket
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from http.client import IncompleteRead
 from typing import Final, NoReturn, Protocol, cast
@@ -16,6 +16,7 @@ from youtube_intel.domain import (
     AppError,
     ContentQualityConfidence,
     ContentQualityDecisionSource,
+    ContentQualityInput,
     ContentQualityJudgeResponse,
     ContentQualityReason,
     ContentQualityResult,
@@ -747,11 +748,6 @@ _QUALITY_JUDGE_PROMPT: Final[str] = (
     "ONLY one JSON object that satisfies the supplied JSON schema. "
     "Do not add commentary, diagnostics, or fields outside the schema. "
     "Reference only evidence IDs that are present in the input registry.\n"
-    "Input identity: {judge_normalized_input_hash}\n"
-    "Language: {language}\n"
-    "Candidate reason: {reason}\n"
-    "Candidate topics: {topics}\n"
-    "Evidence registry:\n{evidence_registry_entries}\n"
 )
 
 
@@ -780,10 +776,7 @@ class OllamaQualityJudgeProvider:
         self,
         operation_input: QualityJudgeOperationInput,
         *,
-        reason: str | None = None,
-        topics: Sequence[str] = (),
-        language: str = "en",
-        evidence_registry: tuple[ScoringEvidence, ...],
+        content_input: ContentQualityInput | None,
     ) -> ContentQualityResult:
         """Return a trusted content-quality result, or UNCERTAIN on any failure."""
 
@@ -794,6 +787,18 @@ class OllamaQualityJudgeProvider:
             )
 
         if not self._validate_loopback_settings():
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        if type(content_input) is not ContentQualityInput:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        if not self._validate_content_input_identity(operation_input, content_input):
             return self._build_uncertain_result(
                 operation_input,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
@@ -813,13 +818,7 @@ class OllamaQualityJudgeProvider:
             )
 
         try:
-            response = self._generate(
-                operation_input,
-                reason=reason,
-                topics=topics,
-                language=language,
-                evidence_registry=evidence_registry,
-            )
+            response = self._generate(operation_input, content_input=content_input)
         except _InvalidModelResponse:
             return self._build_uncertain_result(
                 operation_input,
@@ -839,7 +838,7 @@ class OllamaQualityJudgeProvider:
         try:
             judge_response = self._parse_judge_response(
                 response.response_text,
-                evidence_registry=evidence_registry,
+                evidence_registry=content_input.evidence_registry,
             )
         except Exception:
             return self._build_uncertain_result(
@@ -869,9 +868,26 @@ class OllamaQualityJudgeProvider:
             and operation_input.judge_model == self._settings.model
             and operation_input.judge_model_digest
             == self._settings.expected_model_digest
+            and operation_input.policy_version == _QUALITY_POLICY_VERSION
             and operation_input.prompt_version == _QUALITY_PROMPT_VERSION
             and operation_input.schema_version == _QUALITY_SCHEMA_VERSION
         )
+
+    def _validate_content_input_identity(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        content_input: ContentQualityInput,
+    ) -> bool:
+        """Verify the supplied payload is the one bound to the operation input."""
+
+        from youtube_intel.quality import build_content_quality_input_hash
+
+        if content_input.candidate_hash != operation_input.candidate_hash:
+            return False
+        if content_input.scoring_request_hash != operation_input.scoring_request_hash:
+            return False
+        expected_hash = build_content_quality_input_hash(content_input)
+        return expected_hash == operation_input.quality_input_hash
 
     def _validate_loopback_settings(self) -> bool:
         """Revalidate that the configured endpoint is loopback-only."""
@@ -920,29 +936,27 @@ class OllamaQualityJudgeProvider:
         self,
         operation_input: QualityJudgeOperationInput,
         *,
-        reason: str | None,
-        topics: Sequence[str],
-        language: str,
-        evidence_registry: tuple[ScoringEvidence, ...],
+        content_input: ContentQualityInput,
     ) -> _GeneratedResponse:
         from youtube_intel.quality import build_judge_h1_h2
 
         h1, _ = build_judge_h1_h2(operation_input)
-        topics_text = json.dumps(
-            list(topics),
+        payload: dict[str, object] = {
+            "judge_identity": h1,
+            "quality_input_hash": operation_input.quality_input_hash,
+            "language": content_input.output_language,
+            "candidate_reason": content_input.reason,
+            "candidate_topics": content_input.topics,
+            "evidence_registry": [
+                {"id": item.evidence_id, "excerpt": item.excerpt}
+                for item in content_input.evidence_registry
+            ],
+        }
+        prompt = _QUALITY_JUDGE_PROMPT + json.dumps(
+            payload,
             ensure_ascii=False,
             separators=(",", ":"),
-        )
-        registry_entries = "\n".join(
-            f"- {item.evidence_id}: {item.excerpt}"
-            for item in evidence_registry
-        )
-        prompt = _QUALITY_JUDGE_PROMPT.format(
-            judge_normalized_input_hash=h1,
-            language=language,
-            reason=reason if reason is not None else "",
-            topics=topics_text,
-            evidence_registry_entries=registry_entries,
+            sort_keys=True,
         )
         body = json.dumps(
             {
@@ -960,7 +974,7 @@ class OllamaQualityJudgeProvider:
             separators=(",", ":"),
         ).encode("utf-8")
         try:
-            payload, raw_response = self._request_json(
+            response_payload, raw_response = self._request_json(
                 urllib.request.Request(
                     self._endpoint(_GENERATE_PATH),
                     data=body,
@@ -973,9 +987,9 @@ class OllamaQualityJudgeProvider:
             if exc.error.code is ErrorCode.INVALID_RESPONSE:
                 raise _InvalidModelResponse from exc
             raise
-        if not isinstance(payload, Mapping):
+        if not isinstance(response_payload, Mapping):
             raise _InvalidModelResponse
-        response = payload.get("response")
+        response = response_payload.get("response")
         if not isinstance(response, str) or len(response) > _MAX_MODEL_RESPONSE_CHARS:
             raise _InvalidModelResponse
         return _GeneratedResponse(response_text=response, raw_response=raw_response)

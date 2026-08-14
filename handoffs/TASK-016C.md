@@ -285,3 +285,184 @@ Correction 开始时新增测试全部 RED：
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# TASK-016C Phase C Correction Round 2 交接报告
+
+## 元数据
+
+- Task: `TASK-016C Phase C`
+- Role: `Implementer (Correction Round 2)`
+- Agent/session: `WorkBuddy`
+- Previous correction commit: `69b508b`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+- Started: `2026-08-14`
+- Reported: `2026-08-14`
+
+## 目标与范围
+
+- 仅关闭独立审查在 Phase C 中剩余的 P1 findings，不扩展 Phase C 范围，不进入 Phase D+。
+- 允许修改：
+  - `src/youtube_intel/domain.py`
+  - `src/youtube_intel/quality.py`
+  - `src/youtube_intel/providers/ollama.py`
+  - `tests/unit/test_task016c_quality_judge_contract.py`
+  - `tests/integration/test_ollama_provider.py`
+  - `handoffs/TASK-016C.md`
+- 明确未做：ProviderCall persistence、Quality PASS Attestation、`TrustedScoringFinalizer`、pre-write validation、`ValidatedScoringWritePlan`、Artifact 文件提交协议、原子 DB 登记、cache recovery、Primary/Repair 编排、CLI 改动、数据库 migration、新依赖、Phase D+。
+
+## P1-1 H1/H2 可信身份边界
+
+### 问题
+
+`_validated=True` 可通过 `model_construct()`、private attribute 赋值、subclass override、model_dump override 绕过。
+
+### 修正
+
+- 移除 `QualityJudgeOperationInput._validated` 可变标记与 after-validator。
+- 禁用 `QualityJudgeOperationInput.model_construct()`，任何构造绕过直接失败。
+- `build_judge_h1_h2` 仅接受精确类型 `QualityJudgeOperationInput`，拒绝 subclass。
+- 身份计算前必须从原始 `__dict__` 重新执行一次 `model_validate`，使 overridden `model_dump`/property 无法影响 H1/H2。
+- 修改文件：
+  - `src/youtube_intel/domain.py`
+  - `src/youtube_intel/quality.py`
+  - `tests/unit/test_task016c_quality_judge_contract.py`
+
+### 新增回归测试
+
+- `test_model_construct_and_private_marker_injection_fails`
+- `test_subclass_property_override_rejected_for_h1_h2`
+- `test_model_dump_override_rejected_for_h1_h2`
+- 保留 `test_unchecked_model_copy_update_cannot_produce_trusted_h1`
+
+## P1-2 Trusted policy binding
+
+### 问题
+
+`policy_version` 未与固定 Judge 配置绑定；仅校验了 provider/model/digest/prompt/schema。
+
+### 修正
+
+- `OllamaQualityJudgeProvider._validate_trusted_binding` 增加 `policy_version == _QUALITY_POLICY_VERSION` 检查。
+- 任何 mismatch 在发起 transport 前返回 `UNCERTAIN`/`JUDGE_UNAVAILABLE`，零 fake/真实请求。
+
+### 新增回归测试
+
+- `test_config_mismatch_fails_closed_without_transport` 参数化增加 `policy_version`。
+
+## P1-3 Canonical Judge Payload Boundary
+
+### 问题
+
+Judge 请求参数 `reason=None`、`topics=()`  defaults 允许空评估材料；payload 不是 canonical、bounded、identity-bound。
+
+### 修正
+
+- `OllamaQualityJudgeProvider.judge` 改为要求 `content_input: ContentQualityInput`。
+- 新增 `build_content_quality_input_hash`（`src/youtube_intel/quality.py`），对 `ContentQualityInput` 做精确类型检查 + raw `__dict__` 重验证 + canonical SHA-256。
+- Provider 在校验 trusted binding 与 loopback 之后、transport 之前验证：
+  - `content_input` 精确类型为 `ContentQualityInput`；
+  - `content_input.candidate_hash == operation_input.candidate_hash`；
+  - `content_input.scoring_request_hash == operation_input.scoring_request_hash`；
+  - `build_content_quality_input_hash(content_input) == operation_input.quality_input_hash`。
+- 任何失败 fail closed 为 `UNCERTAIN`/`JUDGE_UNAVAILABLE`，不发出请求。
+- Prompt 仅由固定前缀 + 一个 canonical JSON payload 组成，payload 包含：
+  - `judge_identity`（H1）
+  - `quality_input_hash`
+  - `language`
+  - `candidate_reason`
+  - `candidate_topics`
+  - `evidence_registry`（id + excerpt）
+- 无 raw 字符串插值，无空默认评估材料。
+- `ContentQualityInput.evidence_registry` 增加非空校验，确保 payload Nonempty。
+
+### 新增回归测试
+
+- `test_missing_payload_is_rejected`
+- `test_noncanonical_payload_type_is_rejected`
+- `test_quality_input_hash_mismatch_is_rejected`
+- `test_payload_requires_nonempty_reason_topics_and_evidence`
+- `test_judge_request_payload_contains_bounded_evaluation_content` 改为解析 prompt 中单一 canonical JSON 并校验字段。
+
+## P2 Loopback URL 变体
+
+### 新增测试
+
+`test_non_loopback_base_url_fails_closed_before_transport` 覆盖：
+
+- `https://example.com`
+- `http://example.com:11434`
+- `http://user@127.0.0.1:11434`
+- `http://127.0.0.1:11434?query=1`
+- `http://127.0.0.1:11434#fragment`
+
+复用现有 `_validate_loopback_http_base_url`，所有变体在 transport 收到请求前返回 `UNCERTAIN`。
+
+## TDD RED Evidence
+
+本次 correction 先写测试再实现。由于接口签名变化，原有部分调用在修正前直接触发 `TypeError`/`ImportError`；针对新增回归用例的 RED 表现：
+
+- `test_model_construct_and_private_marker_injection_fails`：修正前 `model_construct` 成功 + private marker 注入后 `build_judge_h1_h2` 返回可信身份。
+- `test_subclass_property_override_rejected_for_h1_h2`：修正前 subclass 被接受，H2 使用被覆盖 property。
+- `test_model_dump_override_rejected_for_h1_h2`：修正前 subclass 被接受，H2 使用被篡改 `model_dump`。
+- `test_config_mismatch_fails_closed_without_transport[policy_version]`：修正前 policy mismatch 仍发起 transport 并返回 `PASS`。
+- `test_missing_payload_is_rejected`、`test_noncanonical_payload_type_is_rejected`、`test_quality_input_hash_mismatch_is_rejected`：修正前新 signature 不存在，调用异常或绕过 payload 校验。
+- `test_judge_request_payload_contains_bounded_evaluation_content`：修正前 prompt 使用多字段 `.format` 插值，非 canonical JSON。
+
+**RED chronology 说明**：Phase C 原始实现 commit `da1154d` 的 RED evidence 已由该 commit 记录；Correction Round 1 commit `69b508b` 的 RED evidence 已由该 commit 记录。本 Round 2 仅针对新增/调整用例记录 RED，不重新证明前序 RED chronology。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked --offline` | PASS |
+| `uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py` | 57 passed |
+| `uv run pytest -x -q tests/integration/test_ollama_provider.py` | 71 passed |
+| `uv run pytest -x -q` | 1017 passed, 2 warnings |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+## 修改文件
+
+- `src/youtube_intel/domain.py`
+  - `QualityJudgeOperationInput`：移除 `_validated`，禁用 `model_construct`。
+  - `ContentQualityInput.evidence_registry`：增加非空校验。
+- `src/youtube_intel/quality.py`
+  - `build_judge_h1_h2`：精确类型检查 + raw `__dict__` 重验证。
+  - 新增 `build_content_quality_input_hash` 与内部 `_revalidated_fields`/`_canonical_json` helper。
+- `src/youtube_intel/providers/ollama.py`
+  - `OllamaQualityJudgeProvider.judge`：改为要求 `content_input`。
+  - `_validate_trusted_binding`：增加 `policy_version` 校验。
+  - 新增 `_validate_content_input_identity`。
+  - `_generate`：prompt 改为固定前缀 + canonical JSON payload。
+- `tests/unit/test_task016c_quality_judge_contract.py`：新增/调整 57 项测试。
+- `tests/integration/test_ollama_provider.py`：调整 Judge 调用为新的 payload API，新增 `_judge_content_input` helper。
+- `handoffs/TASK-016C.md`：本报告。
+
+## 失败、跳过与风险
+
+- 已解决：P1-1 H1/H2 信任边界、P1-2 policy_version 绑定、P1-3 canonical payload boundary、P2 loopback URL 变体。
+- 剩余风险：
+  - 同进程内存模型下 `object.__setattr__` 仍可修改 `__dict__`；本修正通过“每次都从 raw `__dict__` 重验证”将风险转化为“只能传入有效数据”，但不具备密码学防篡改能力。
+  - `ContentQualityInput` 非空 evidence 约束是新增强制规则；后续调用方需保证至少一条 evidence。
+- `DECISION NEEDED`：无（Phase C correction 范围内）。
+
+## 实现者结论
+
+- 建议状态：`IN_REVIEW / PHASE C CORRECTION ROUND 2 COMPLETE`
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q tests/integration/test_ollama_provider.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

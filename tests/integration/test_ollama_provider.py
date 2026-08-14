@@ -14,6 +14,7 @@ import pytest
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     Availability,
+    ContentQualityInput,
     ContentQualityReason,
     ContentQualitySignal,
     ContentQualityStatus,
@@ -32,7 +33,7 @@ from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
     OllamaScoringProvider,
 )
-from youtube_intel.quality import build_judge_h1_h2
+from youtube_intel.quality import build_content_quality_input_hash, build_judge_h1_h2
 from youtube_intel.scoring import (
     RepositoryBackedScoringService,
     ScoringJobContext,
@@ -800,13 +801,14 @@ def _judge_settings() -> LocalScoringSettings:
 def _judge_operation_input(
     *,
     attempt_role: QualityJudgeAttemptRole = QualityJudgeAttemptRole.PRIMARY,
+    quality_input_hash: str = "a" * 64,
 ) -> QualityJudgeOperationInput:
     return QualityJudgeOperationInput.model_validate(
         {
             "scoring_request_hash": "a" * 64,
             "attempt_role": attempt_role,
             "candidate_hash": "a" * 64,
-            "quality_input_hash": "a" * 64,
+            "quality_input_hash": quality_input_hash,
             "policy_version": "content-quality-policy-v1",
             "prompt_version": "content-quality-prompt-v1",
             "schema_version": "content-quality-result-v1",
@@ -856,6 +858,24 @@ def _judge_evidence_registry() -> tuple[ScoringEvidence, ...]:
     )
 
 
+def _judge_content_input(
+    output_language: str = "en",
+    reason: str = "The video explains the product workflow clearly.",
+    topics: tuple[str, ...] = ("product", "workflow"),
+) -> ContentQualityInput:
+    return ContentQualityInput.model_validate(
+        {
+            "scoring_request_hash": "a" * 64,
+            "candidate_hash": "a" * 64,
+            "output_language": output_language,
+            "reason": reason,
+            "topics": topics,
+            "evidence_registry": _judge_evidence_registry(),
+            "policy_version": "content-quality-policy-v1",
+        }
+    )
+
+
 def test_quality_judge_fake_transport_returns_pass_without_real_ollama() -> None:
     transport = _FakeTransport(
         [
@@ -870,11 +890,14 @@ def test_quality_judge_fake_transport_returns_pass_without_real_ollama() -> None
             ),
         ]
     )
-    operation_input = _judge_operation_input()
+    content_input = _judge_content_input()
+    operation_input = _judge_operation_input(
+        quality_input_hash=build_content_quality_input_hash(content_input),
+    )
 
     result = _judge_provider(transport).judge(
         operation_input,
-        evidence_registry=_judge_evidence_registry(),
+        content_input=content_input,
     )
 
     assert result.status is ContentQualityStatus.PASS
@@ -897,11 +920,14 @@ def test_quality_judge_computes_h1_h2_identity_from_operation_input() -> None:
 
 def test_quality_judge_invalid_response_fails_closed_as_uncertain() -> None:
     transport = _FakeTransport([_tags(), {"response": "not json"}])
-    operation_input = _judge_operation_input()
+    content_input = _judge_content_input()
+    operation_input = _judge_operation_input(
+        quality_input_hash=build_content_quality_input_hash(content_input),
+    )
 
     result = _judge_provider(transport).judge(
         operation_input,
-        evidence_registry=_judge_evidence_registry(),
+        content_input=content_input,
     )
 
     assert result.status is ContentQualityStatus.UNCERTAIN
