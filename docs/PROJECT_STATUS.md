@@ -3,6 +3,7 @@
 - 更新时间：2026-08-12
 - 当前阶段：TASK-016 — Local-only 第一验收里程碑
 - 主控状态：ACTIVE
+- TASK-016C Round 4.6 Independent Design Review 已 `APPROVE FOR IMPLEMENTATION`；唯一 accepted design baseline 为 `c547b7c46afbf254979331c2c56cddb93a8503f2`。ADR-025、Interface Design 与 Test Plan 语义已冻结。仅 Phase A（Domain Contracts and Candidate Boundary）分配给 WorkBuddy；Phase B–K 未授权。TASK-016C 不修改 TASK-016B Language Validator，不新增依赖、migration、Artifact kind、品牌/实体词典、网络或外部知识边界。
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。

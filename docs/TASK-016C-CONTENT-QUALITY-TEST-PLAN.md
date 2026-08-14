@@ -1,9 +1,11 @@
 # TASK-016C Content Quality Test Plan — Round 4.6
 
-- 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
+- 状态：`ACCEPTED / PHASE A IMPLEMENTATION AUTHORIZED ONLY`
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 接口：[TASK-016C Interface Design](TASK-016C-CONTENT-QUALITY-INTERFACE-DESIGN.md)
 - 测试环境：完全离线；Fake scoring/Judge transport、临时 SQLite、临时 DATA root
+- accepted design baseline：`c547b7c46afbf254979331c2c56cddb93a8503f2`
+- 执行控制：本轮仅 Phase A；Phase B–K 不因本计划被自动授权
 
 ## 1. 验收目标
 

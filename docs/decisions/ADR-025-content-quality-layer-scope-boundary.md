@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed；2026-08-14 Round 4.6 修订待 Independent Design Review
+Accepted；2026-08-14 Round 4.6 Independent Design Review `APPROVE FOR IMPLEMENTATION`。
+唯一 accepted design baseline：`c547b7c46afbf254979331c2c56cddb93a8503f2`。
+本 ADR 的语义冻结；后续实现只能在不改变本决策边界的前提下进行。
 
 ## Date
 

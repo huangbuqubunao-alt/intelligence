@@ -1,9 +1,10 @@
 # TASK-016C Content Quality Interface Design — Round 4.6
 
-- 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
+- 状态：`ACCEPTED / IMPLEMENTATION AUTHORIZED FOR PHASE A ONLY`
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
-- 实现授权：尚未生效；本设计通过独立审查后才能创建 Implementer task card
+- accepted design baseline：`c547b7c46afbf254979331c2c56cddb93a8503f2`
+- 实现授权：仅 [TASK-016C Phase A](../tasks/TASK-016C-content-quality-layer.md)；其余 Phase B–K 仍须逐阶段独立授权
 
 ## 1. 设计目标与不可绕过的不变量
 
