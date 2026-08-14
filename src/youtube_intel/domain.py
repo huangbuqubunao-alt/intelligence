@@ -1927,6 +1927,19 @@ class _UpdateProtectedQualityContract(_DomainModel):
             raise ValueError(msg)
         return super().model_copy(deep=deep)
 
+    @no_type_check
+    def copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+        **kwargs: Never,
+    ) -> Self:
+        if update is not None:
+            msg = "copy(update=...) is disabled for content-quality contracts"
+            raise ValueError(msg)
+        return super().copy(update=None, deep=deep, **kwargs)
+
 
 class ScoringCandidate(_UpdateProtectedScoringContract):
     """Untrusted scoring candidate returned by a Provider Adapter.
@@ -2317,6 +2330,93 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
         super().model_post_init(__context)
 
 
+class QualityPassAttestation(_UpdateProtectedQualityContract):
+    """Application-created attestation binding a validated quality PASS to its
+    full identity context.
+
+    Only the application — never a provider, model, cache, artifact, or caller —
+    creates this object via the trusted constructor in ``quality.py``.  The
+    attestation is *not* a second PASS decision: its confidence and Evidence-ID
+    fields are exact mirrors of the validated ``ContentQualityResult(PASS)``.
+    ``attestation_hash`` is SHA-256 of the complete canonical payload excluding
+    only itself.
+    """
+
+    attestation_schema: Literal["quality-pass-attestation-v1"] = (
+        "quality-pass-attestation-v1"
+    )
+    status: Literal[ContentQualityStatus.PASS]
+    candidate_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    quality_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    quality_result_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    policy_version: Literal["content-quality-policy-v1"] = (
+        "content-quality-policy-v1"
+    )
+    scoring_schema_version: str = Field(min_length=1)
+    scoring_prompt_version: str = Field(min_length=1)
+    quality_schema_version: Literal["content-quality-result-v1"] = (
+        "content-quality-result-v1"
+    )
+    quality_prompt_version: Literal["content-quality-prompt-v1"] = (
+        "content-quality-prompt-v1"
+    )
+    judge_provider: Literal["ollama"] = "ollama"
+    judge_model: str = Field(min_length=1)
+    judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    judge_operation: Literal["local-content-quality-v1"] = (
+        "local-content-quality-v1"
+    )
+    judge_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    attempt_role: QualityJudgeAttemptRole
+    decision_confidence: Literal[ContentQualityConfidence.HIGH]
+    grounding_confidence: Literal[
+        ContentQualityConfidence.MEDIUM, ContentQualityConfidence.HIGH
+    ]
+    usefulness_confidence: Literal[
+        ContentQualityConfidence.MEDIUM, ContentQualityConfidence.HIGH
+    ]
+    evidence_ids: tuple[str, ...]
+    attestation_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def _canonical_evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        for eid in value:
+            _validate_evidence_identity(eid)
+            if eid in seen:
+                msg = "evidence_ids must be unique"
+                raise ValueError(msg)
+            seen.add(eid)
+        return tuple(sorted(value))
+
+    @classmethod
+    def model_construct(
+        cls,
+        _fields_set: set[str] | None = None,
+        **values: Any,
+    ) -> Self:
+        msg = (
+            "QualityPassAttestation.model_construct is disabled; "
+            "use model_validate or the trusted constructor"
+        )
+        raise ValueError(msg)
+
+    @no_type_check
+    def copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+        **kwargs: Never,
+    ) -> Self:
+        if update is not None:
+            msg = "copy(update=...) is disabled for QualityPassAttestation"
+            raise ValueError(msg)
+        return super().copy(update=None, deep=deep, **kwargs)
+
+
 class ContentQualityJudgeResponse(_UpdateProtectedQualityContract):
     """Validated raw response contract from the local content-quality Judge.
 
@@ -2443,6 +2543,7 @@ __all__ = [
     "ContentQualityResult",
     "QualityJudgeAttemptRole",
     "QualityJudgeOperationInput",
+    "QualityPassAttestation",
     "ContentQualityJudgeResponse",
     "validate_scoring_candidate",
     "validate_scoring_candidate_json",

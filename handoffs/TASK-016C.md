@@ -712,3 +712,160 @@ Round 4 先写测试再实现。RED 阶段失败数与类别：
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# TASK-016C Phase D 交接报告
+
+## 元数据
+
+- Task: `TASK-016C Phase D`
+- Role: `Implementer`
+- Agent/session: `WorkBuddy`
+- Parent commit: `dab0ba9d358c4624fb7619e95bfa034dd4dc70d7`
+- Phase D authorization commit: `dab0ba9d358c4624fb7619e95bfa034dd4dc70d7`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+- Started: `2026-08-14`
+- Reported: `2026-08-14`
+
+## 目标与范围
+
+- 任务目标：实现纯内存 quality `PASS` attestation 和 canonical `quality_result_hash`。重建并哈希完整 `ContentQualityResult(PASS)`；构造并验证 `quality-pass-attestation-v1`；绑定到 candidate / quality-input / request / version / judge / attempt 身份；任何畸形或不匹配值 fail closed。
+- 允许修改：
+  - `src/youtube_intel/domain.py`
+  - `src/youtube_intel/quality.py`
+  - `tests/unit/test_task016c_quality_attestation.py`（新建）
+  - `tests/unit/test_task016c_domain_contracts.py`（最小改动）
+  - `tests/unit/test_task016c_quality_judge_contract.py`（最小改动，实际未改）
+  - `handoffs/TASK-016C.md`
+- 实际修改：
+  - `src/youtube_intel/domain.py`：新增 `QualityPassAttestation` frozen 模型（schema `quality-pass-attestation-v1`），含完整 frozen binding 字段、`evidence_ids` canonical 排序去重 validator、禁用 `model_construct` 与 `copy(update=...)`；在 `_UpdateProtectedQualityContract` 基类增加 `copy(update=...)` 禁用（统一所有 content-quality contract 的 bypass 防御）。
+  - `src/youtube_intel/quality.py`：新增 `build_content_quality_result_hash`（untrusted reconstruction -> canonical SHA-256）、`build_quality_pass_attestation`（trusted application-side constructor）、`verify_quality_pass_attestation`（reconstruct + verify attestation_hash + cross-check）、`_reconstruct`（通用 untrusted->trusted 重建）、`_verify_pass_eligibility`（PASS + evidence registry 解析）、`_verify_cross_bindings`（跨 result/operation_input/quality_input 身份绑定）、`_compute_attestation_hash`。
+  - `tests/unit/test_task016c_quality_attestation.py`：新建 91 项 RED-first 测试。
+  - `tests/unit/test_task016c_domain_contracts.py`：更新 `test_deprecated_copy_update_bypass_is_revalidated` -> `test_deprecated_copy_update_bypass_is_blocked`（反映 `copy(update=...)` 现已被禁用）。
+- 明确未做：`providers/ollama.py`、`scoring.py`、`state.py`、`TrustedScoringFinalizer`、trusted ScoreResult construction、Artifact、cache、DB、migration、ProviderCall persistence、PREWRITE_VALIDATE、filesystem protocol、repair orchestration、runtime composition、Phase E-K、dependencies、`pyproject.toml`、`uv.lock`。
+
+## TDD RED Evidence
+
+Phase D 先写测试再实现。RED 阶段所有 91 项测试因 `ImportError: cannot import name 'QualityPassAttestation'` 无法收集，全部 RED。
+
+- RED 失败数：91（collection error）
+- RED 失败类别：ImportError（`QualityPassAttestation` 及 `build_content_quality_result_hash` / `build_quality_pass_attestation` / `verify_quality_pass_attestation` 尚不存在）
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check` | PASS |
+| `uv sync --locked --offline` | PASS |
+| `tests/unit/test_task016c_quality_attestation.py` | 91 passed |
+| `tests/unit/test_task016c_domain_contracts.py` | 60 passed, 1 warning |
+| `tests/unit/test_task016c_quality_judge_contract.py` | 78 passed |
+| 全量 `pytest -x -q` | 1129 passed, 1 warning |
+| `uv run mypy src` | PASS (28 source files) |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+## quality_result_hash Contract Evidence
+
+- `build_content_quality_result_hash` 对 untrusted `ContentQualityResult | Mapping | JSON` 执行 `_reconstruct`（instance -> `_revalidated_fields` 拒绝 subclass；Mapping/JSON -> `model_validate`/`model_validate_json`），然后对 `model_dump(mode="json")` 做 `_canonical_json`（UTF-8、`ensure_ascii=False`、sorted keys、separators `(",", ":")`）+ SHA-256。
+- signals 由模型 `_canonical_signals` validator 按 enum value 排序去重；evidence_ids 由 `_canonical_evidence_ids` validator 按 stable ID 排序去重。
+- 每个 frozen canonical 字段变化均改变 hash 或使 validation 失败（parametrized 测试覆盖 8 个 hash-changing 字段 + 14 个 validation-failing 字段）。
+- Mapping / JSON 等价输入产生相同 hash（`test_mapping_and_json_equivalent_inputs_produce_same_hash`）。
+- 手动 canonical JSON 独立验证 hash 值（`test_valid_pass_result_hash_matches_manual_canonical_json`）。
+
+## Attestation Binding Evidence
+
+- `build_quality_pass_attestation` 绑定全部 frozen 字段：candidate_hash、quality_input_hash、quality_result_hash、scoring_request_hash、policy_version、scoring_schema_version、scoring_prompt_version、quality_schema_version、quality_prompt_version、judge_provider、judge_model、judge_model_digest、judge_operation、judge_request_hash (H2)、attempt_role、decision_confidence、grounding_confidence、usefulness_confidence、evidence_ids、attestation_hash。
+- `attestation_hash` 覆盖完整 canonical payload，仅排除自身（`test_attestation_hash_covers_full_payload_excluding_itself` 手动验证）。
+- H1/H2 只复用 Phase C 已接受 `build_judge_h1_h2`，不重写（`test_attestation_binds_h2_as_judge_request_hash`、`test_h1_and_h2_remain_distinct`）。
+- H2 = `build_provider_request_hash("local-content-quality-v1", H1, provider, model, prompt_version, schema_version)`，语义不变。
+- confidence 与 evidence_ids 精确 mirror validated result。
+
+## Adversarial / Mutation Evidence
+
+### Bypass 防御
+
+- `model_construct` on `QualityPassAttestation` -> 禁用，raises ValueError。
+- `model_copy(update=...)` on `QualityPassAttestation` -> 禁用（继承 `_UpdateProtectedQualityContract`）。
+- `copy(update=...)` on `QualityPassAttestation` -> 禁用（新增 override）。
+- `copy(update=...)` on `ContentQualityResult` -> 禁用（`_UpdateProtectedQualityContract` 基类新增 override）。
+- `model_construct` on `ContentQualityResult` -> 未禁用（Phase A 行为），但 `build_content_quality_result_hash` 通过 `_revalidated_fields` 从 `__dict__` 重建并 re-validate，无效值被拒绝。
+- subclass property override -> `_revalidated_fields` 拒绝（`type(instance) is not model`）。
+- subclass model_dump override -> `_revalidated_fields` 读 `__dict__` 不读 `model_dump()`，拒绝 subclass。
+- fake trusted flag / unknown field -> `extra="forbid"` 拒绝。
+
+### Binding mismatch fail-closed
+
+- candidate_hash / quality_input_hash / scoring_request_hash mismatch -> build raises。
+- judge_provider / judge_model / judge_model_digest / policy_version / prompt_version / schema_version mismatch -> build raises。
+- non-PASS result -> build raises。
+- external evidence ID -> build raises。
+- empty registry -> build raises。
+- forged attestation_hash -> verify raises。
+- forged quality_result_hash -> verify raises。
+- H2 mismatch -> verify raises。
+- attempt_role mismatch -> verify raises。
+- confidence mismatch -> verify raises。
+- evidence mismatch -> verify raises。
+- scoring_schema_version / scoring_prompt_version mismatch -> verify raises。
+- unknown fields -> verify raises。
+- forged complete attestation -> verify raises。
+
+### Mutation proof
+
+- 移除 `_verify_cross_bindings` 调用 -> `test_candidate_input_request_hash_mismatch_rejects[candidate_hash]` 失败（DID NOT RAISE）。已还原。
+
+## No-Side-Effect Evidence
+
+- `build_quality_pass_attestation` 和 `verify_quality_pass_attestation` 均为纯内存操作。
+- `test_build_creates_no_filesystem_side_effects`：`tmp_path` 下无文件创建。
+- `test_verify_creates_no_filesystem_side_effects`：同上。
+- `test_attestation_has_no_persistence_identity_fields`：attestation 无 persistence 字段。
+- 未导入或调用 `ScoreResult`、`Artifact`、`ProviderCall`、cache、DB、filesystem 模块。
+
+## Reuse Decision
+
+| 组件 | 决策 | 说明 |
+|---|---|---|
+| `_canonical_json` (quality.py) | DIRECT | 复用 Phase C 已接受 helper。 |
+| `_revalidated_fields` (quality.py) | DIRECT | 复用 Phase C 已接受 helper。 |
+| `build_judge_h1_h2` (quality.py) | DIRECT | 复用 Phase C 已接受 H1/H2 builder，不重写。 |
+| `build_content_quality_input_hash` (quality.py) | DIRECT | 复用 Phase C 已接受 quality input hash。 |
+| `build_provider_request_hash` (state.py) | DIRECT | 通过 `build_judge_h1_h2` 间接复用 ADR-003 builder。 |
+| `_UpdateProtectedQualityContract` (domain.py) | ADAPT | 在基类增加 `copy(update=...)` 禁用。 |
+
+## 修改文件
+
+- `src/youtube_intel/domain.py`：新增 `QualityPassAttestation` 类；`_UpdateProtectedQualityContract` 新增 `copy(update=...)` 禁用；`__all__` 新增导出。
+- `src/youtube_intel/quality.py`：新增 `build_content_quality_result_hash`、`build_quality_pass_attestation`、`verify_quality_pass_attestation` 及内部 helper。
+- `tests/unit/test_task016c_quality_attestation.py`：新建 91 项 RED-first 测试。
+- `tests/unit/test_task016c_domain_contracts.py`：更新 1 项测试。
+- `handoffs/TASK-016C.md`：本报告。
+
+## 失败、跳过与风险
+
+- 已解决：全部 Phase D frozen contract 要求。
+- 剩余风险：
+  - 同进程内存模型下 `object.__setattr__` 仍可修改 `__dict__`；通过"每次都从 raw `__dict__` 重验证"防御。
+  - `ContentQualityResult.model_construct` 未禁用（Phase A 行为）；依赖 `_revalidated_fields` 在入口处重建验证。
+  - 1 个 Pydantic serialization warning 来自 Phase A 既有测试，非 Phase D 引入。
+- `DECISION NEEDED`：无。
+
+## 实现者结论
+
+- 建议状态：`IN_REVIEW / PHASE D COMPLETE`
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

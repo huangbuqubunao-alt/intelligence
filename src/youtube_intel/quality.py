@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import unicodedata
+from collections.abc import Mapping
 from typing import Final, TypeVar
 
 from pydantic import BaseModel
@@ -23,6 +24,7 @@ from youtube_intel.domain import (
     ContentQualityStatus,
     DeterministicGateReason,
     QualityJudgeOperationInput,
+    QualityPassAttestation,
 )
 from youtube_intel.state import build_provider_request_hash
 
@@ -202,3 +204,254 @@ def build_content_quality_input_hash(content_input: ContentQualityInput) -> str:
     validated = _revalidated_fields(ContentQualityInput, content_input)
     canonical = _canonical_json(validated.model_dump(mode="json"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Phase D: canonical result hash and PASS attestation
+# ---------------------------------------------------------------------------
+
+
+def _reconstruct(
+    model: type[_T],
+    value: _T | Mapping[str, object] | str | bytes | bytearray,
+) -> _T:
+    """Reconstruct and fully revalidate from an untrusted source.
+
+    Rejects subclasses, ``model_construct`` instances, and any non-mapping
+    non-JSON input.  For ``BaseModel`` instances the raw ``__dict__`` is
+    re-validated so overridden ``model_dump``/property overrides cannot
+    influence the result.
+    """
+
+    if isinstance(value, BaseModel):
+        return _revalidated_fields(model, value)
+    if isinstance(value, Mapping):
+        return model.model_validate(dict(value))
+    if isinstance(value, (str, bytes, bytearray)):
+        return model.model_validate_json(value)
+    msg = (
+        f"expected {model.__name__}, Mapping, or JSON; "
+        f"got {type(value).__name__}"
+    )
+    raise ValueError(msg)
+
+
+def build_content_quality_result_hash(
+    result: ContentQualityResult | Mapping[str, object] | str | bytes | bytearray,
+) -> str:
+    """Return the canonical SHA-256 hash of a fully validated ``ContentQualityResult``.
+
+    The result is treated as untrusted: it is reconstructed from its raw
+    ``__dict__`` (or Mapping/JSON) and fully re-validated before hashing.
+    Signals are normalised by enum value and Evidence IDs by stable ID
+    (sort + deduplicate) inside the model validators.
+    """
+
+    validated = _reconstruct(ContentQualityResult, result)
+    canonical = _canonical_json(validated.model_dump(mode="json"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _verify_pass_eligibility(
+    result: ContentQualityResult,
+    content_input: ContentQualityInput,
+) -> None:
+    """Verify the result is a PASS whose Evidence IDs resolve in the registry."""
+
+    if result.status is not ContentQualityStatus.PASS:
+        msg = "only ContentQualityResult(PASS) can be attested"
+        raise ValueError(msg)
+    if not result.evidence_ids:
+        msg = "PASS requires at least one evidence_id"
+        raise ValueError(msg)
+    registry_ids = frozenset(
+        evidence.evidence_id for evidence in content_input.evidence_registry
+    )
+    for eid in result.evidence_ids:
+        if eid not in registry_ids:
+            msg = f"evidence_id {eid!r} not in supplied evidence registry"
+            raise ValueError(msg)
+
+
+def _verify_cross_bindings(
+    result: ContentQualityResult,
+    op_input: QualityJudgeOperationInput,
+    content_input: ContentQualityInput,
+) -> None:
+    """Verify all identity bindings across result, operation input, and input."""
+
+    expected_qih = build_content_quality_input_hash(content_input)
+    _bindings: list[tuple[str, object, object]] = [
+        ("candidate_hash", result.candidate_hash, op_input.candidate_hash),
+        ("candidate_hash", result.candidate_hash, content_input.candidate_hash),
+        (
+            "quality_input_hash",
+            result.quality_input_hash,
+            op_input.quality_input_hash,
+        ),
+        ("quality_input_hash", result.quality_input_hash, expected_qih),
+        (
+            "scoring_request_hash",
+            result.scoring_request_hash,
+            op_input.scoring_request_hash,
+        ),
+        (
+            "scoring_request_hash",
+            result.scoring_request_hash,
+            content_input.scoring_request_hash,
+        ),
+        ("judge_provider", result.judge_provider, op_input.judge_provider),
+        ("judge_model", result.judge_model, op_input.judge_model),
+        (
+            "judge_model_digest",
+            result.judge_model_digest,
+            op_input.judge_model_digest,
+        ),
+        ("policy_version", result.policy_version, op_input.policy_version),
+        ("prompt_version", result.prompt_version, op_input.prompt_version),
+        ("schema_version", result.schema_version, op_input.schema_version),
+    ]
+    for field_name, left, right in _bindings:
+        if left != right:
+            msg = (
+                f"{field_name} mismatch: "
+                f"quality_result={left!r}, trusted={right!r}"
+            )
+            raise ValueError(msg)
+
+
+def build_quality_pass_attestation(
+    *,
+    quality_result: (
+        ContentQualityResult
+        | Mapping[str, object]
+        | str
+        | bytes
+        | bytearray
+    ),
+    operation_input: (
+        QualityJudgeOperationInput
+        | Mapping[str, object]
+        | str
+        | bytes
+        | bytearray
+    ),
+    quality_input: (
+        ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
+    ),
+    scoring_schema_version: str,
+    scoring_prompt_version: str,
+) -> QualityPassAttestation:
+    """Trusted application-side constructor for ``quality-pass-attestation-v1``.
+
+    Reconstructs and fully re-validates every input before constructing the
+    attestation.  Fails closed on any malformed value or binding mismatch.
+    """
+
+    result = _reconstruct(ContentQualityResult, quality_result)
+    op_input = _reconstruct(QualityJudgeOperationInput, operation_input)
+    content_input = _reconstruct(ContentQualityInput, quality_input)
+
+    _verify_pass_eligibility(result, content_input)
+    _verify_cross_bindings(result, op_input, content_input)
+
+    result_hash = build_content_quality_result_hash(result)
+    _, h2 = build_judge_h1_h2(op_input)
+
+    # PASS matrix guarantees non-None Judge identity for LOCAL_JUDGE.
+    assert result.judge_provider is not None
+    assert result.judge_model is not None
+    assert result.judge_model_digest is not None
+
+    payload: dict[str, object] = {
+        "attestation_schema": "quality-pass-attestation-v1",
+        "status": ContentQualityStatus.PASS.value,
+        "candidate_hash": result.candidate_hash,
+        "quality_input_hash": result.quality_input_hash,
+        "quality_result_hash": result_hash,
+        "scoring_request_hash": result.scoring_request_hash,
+        "policy_version": result.policy_version,
+        "scoring_schema_version": scoring_schema_version,
+        "scoring_prompt_version": scoring_prompt_version,
+        "quality_schema_version": result.schema_version,
+        "quality_prompt_version": result.prompt_version,
+        "judge_provider": result.judge_provider,
+        "judge_model": result.judge_model,
+        "judge_model_digest": result.judge_model_digest,
+        "judge_operation": "local-content-quality-v1",
+        "judge_request_hash": h2,
+        "attempt_role": op_input.attempt_role.value,
+        "decision_confidence": result.decision_confidence.value,
+        "grounding_confidence": result.grounding_confidence.value,
+        "usefulness_confidence": result.usefulness_confidence.value,
+        "evidence_ids": list(result.evidence_ids),
+    }
+
+    canonical = _canonical_json(payload)
+    attestation_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    payload["attestation_hash"] = attestation_hash
+
+    return QualityPassAttestation.model_validate(payload)
+
+
+def _compute_attestation_hash(attestation: QualityPassAttestation) -> str:
+    """Recompute the canonical attestation_hash from a validated attestation."""
+
+    payload = attestation.model_dump(mode="json")
+    payload.pop("attestation_hash")
+    canonical = _canonical_json(payload)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def verify_quality_pass_attestation(
+    attestation: (
+        QualityPassAttestation | Mapping[str, object] | str | bytes | bytearray
+    ),
+    *,
+    quality_result: (
+        ContentQualityResult
+        | Mapping[str, object]
+        | str
+        | bytes
+        | bytearray
+    ),
+    operation_input: (
+        QualityJudgeOperationInput
+        | Mapping[str, object]
+        | str
+        | bytes
+        | bytearray
+    ),
+    quality_input: (
+        ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
+    ),
+    scoring_schema_version: str,
+    scoring_prompt_version: str,
+) -> QualityPassAttestation:
+    """Reconstruct and fully verify an alleged attestation; fail closed.
+
+    The alleged attestation is treated as untrusted.  Its ``attestation_hash``
+    is recomputed and compared, then a fresh trusted attestation is built from
+    the same inputs and compared field-by-field.
+    """
+
+    alleged = _reconstruct(QualityPassAttestation, attestation)
+
+    expected_hash = _compute_attestation_hash(alleged)
+    if expected_hash != alleged.attestation_hash:
+        msg = "attestation_hash does not match canonical payload"
+        raise ValueError(msg)
+
+    fresh = build_quality_pass_attestation(
+        quality_result=quality_result,
+        operation_input=operation_input,
+        quality_input=quality_input,
+        scoring_schema_version=scoring_schema_version,
+        scoring_prompt_version=scoring_prompt_version,
+    )
+
+    if alleged != fresh:
+        msg = "attestation does not match trusted reconstruction"
+        raise ValueError(msg)
+
+    return fresh

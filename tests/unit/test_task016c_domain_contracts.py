@@ -371,13 +371,13 @@ def test_model_copy_update_bypass_is_rejected() -> None:
         result.model_copy(update={"score": 5.0})
 
 
-def test_deprecated_copy_update_bypass_is_revalidated() -> None:
+def test_deprecated_copy_update_bypass_is_blocked() -> None:
+    """Phase D hardened _UpdateProtectedQualityContract: copy(update=...) is disabled."""
     result = _pass_result()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        unchecked = result.copy(update={"status": "REJECT"})
-    with pytest.raises(ValidationError):
-        validate_content_quality_result(unchecked)
+        with pytest.raises(ValueError, match="copy"):
+            result.copy(update={"status": "REJECT"})
 
 
 def test_model_construct_bypass_is_revalidated() -> None:
