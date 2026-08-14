@@ -6,12 +6,12 @@ import json
 import socket
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from http.client import IncompleteRead
 from typing import Final, NoReturn, Protocol, cast
 
-from youtube_intel.config import LocalScoringSettings
+from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
 from youtube_intel.domain import (
     AppError,
     ContentQualityConfidence,
@@ -748,7 +748,10 @@ _QUALITY_JUDGE_PROMPT: Final[str] = (
     "Do not add commentary, diagnostics, or fields outside the schema. "
     "Reference only evidence IDs that are present in the input registry.\n"
     "Input identity: {judge_normalized_input_hash}\n"
-    "Evidence registry IDs: {evidence_registry_ids}\n"
+    "Language: {language}\n"
+    "Candidate reason: {reason}\n"
+    "Candidate topics: {topics}\n"
+    "Evidence registry:\n{evidence_registry_entries}\n"
 )
 
 
@@ -777,9 +780,24 @@ class OllamaQualityJudgeProvider:
         self,
         operation_input: QualityJudgeOperationInput,
         *,
+        reason: str | None = None,
+        topics: Sequence[str] = (),
+        language: str = "en",
         evidence_registry: tuple[ScoringEvidence, ...],
     ) -> ContentQualityResult:
         """Return a trusted content-quality result, or UNCERTAIN on any failure."""
+
+        if not self._validate_trusted_binding(operation_input):
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        if not self._validate_loopback_settings():
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
 
         try:
             model_ok = self._verify_expected_model()
@@ -795,7 +813,13 @@ class OllamaQualityJudgeProvider:
             )
 
         try:
-            response = self._generate(operation_input, evidence_registry)
+            response = self._generate(
+                operation_input,
+                reason=reason,
+                topics=topics,
+                language=language,
+                evidence_registry=evidence_registry,
+            )
         except _InvalidModelResponse:
             return self._build_uncertain_result(
                 operation_input,
@@ -834,6 +858,30 @@ class OllamaQualityJudgeProvider:
                 reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
             )
 
+    def _validate_trusted_binding(
+        self,
+        operation_input: QualityJudgeOperationInput,
+    ) -> bool:
+        """Verify the operation input matches the trusted local configuration."""
+
+        return (
+            operation_input.judge_provider == _QUALITY_JUDGE_PROVIDER
+            and operation_input.judge_model == self._settings.model
+            and operation_input.judge_model_digest
+            == self._settings.expected_model_digest
+            and operation_input.prompt_version == _QUALITY_PROMPT_VERSION
+            and operation_input.schema_version == _QUALITY_SCHEMA_VERSION
+        )
+
+    def _validate_loopback_settings(self) -> bool:
+        """Revalidate that the configured endpoint is loopback-only."""
+
+        try:
+            _validate_loopback_http_base_url(self._settings.base_url)
+        except ValueError:
+            return False
+        return True
+
     def _verify_expected_model(self) -> bool:
         request = urllib.request.Request(
             self._endpoint(_TAGS_PATH),
@@ -871,19 +919,30 @@ class OllamaQualityJudgeProvider:
     def _generate(
         self,
         operation_input: QualityJudgeOperationInput,
+        *,
+        reason: str | None,
+        topics: Sequence[str],
+        language: str,
         evidence_registry: tuple[ScoringEvidence, ...],
     ) -> _GeneratedResponse:
         from youtube_intel.quality import build_judge_h1_h2
 
         h1, _ = build_judge_h1_h2(operation_input)
-        evidence_ids = json.dumps(
-            [item.evidence_id for item in evidence_registry],
+        topics_text = json.dumps(
+            list(topics),
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        registry_entries = "\n".join(
+            f"- {item.evidence_id}: {item.excerpt}"
+            for item in evidence_registry
+        )
         prompt = _QUALITY_JUDGE_PROMPT.format(
             judge_normalized_input_hash=h1,
-            evidence_registry_ids=evidence_ids,
+            language=language,
+            reason=reason if reason is not None else "",
+            topics=topics_text,
+            evidence_registry_entries=registry_entries,
         )
         body = json.dumps(
             {
@@ -1113,9 +1172,9 @@ class OllamaQualityJudgeProvider:
                 "candidate_hash": operation_input.candidate_hash,
                 "quality_input_hash": operation_input.quality_input_hash,
                 "scoring_request_hash": operation_input.scoring_request_hash,
-                "judge_provider": operation_input.judge_provider,
-                "judge_model": operation_input.judge_model,
-                "judge_model_digest": operation_input.judge_model_digest,
+                "judge_provider": _QUALITY_JUDGE_PROVIDER,
+                "judge_model": self._settings.model,
+                "judge_model_digest": self._settings.expected_model_digest,
             }
         )
 

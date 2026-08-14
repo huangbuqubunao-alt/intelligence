@@ -30,6 +30,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     ValidationInfo,
     field_validator,
     model_validator,
@@ -2266,7 +2267,13 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
 
 
 class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
-    """Stable normalized input identity for a single quality Judge attempt."""
+    """Stable normalized input identity for a single quality Judge attempt.
+
+    Instances must be created through ``model_validate`` or normal construction
+    so that the after-validator runs and marks them as validated.  ``model_copy``
+    with updates is disabled by the base class and ``model_construct`` bypasses
+    the validator, so neither can produce a trusted identity.
+    """
 
     scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     attempt_role: QualityJudgeAttemptRole
@@ -2278,6 +2285,16 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
     judge_provider: str = Field(min_length=1)
     judge_model: str = Field(min_length=1)
     judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    _validated: bool = PrivateAttr(default=False)
+
+    @model_validator(mode="after")
+    def _mark_validated(self) -> Self:
+        self._validated = True
+        return self
+
+    def model_post_init(self, __context: Mapping[str, str]) -> None:
+        super().model_post_init(__context)
 
 
 class ContentQualityJudgeResponse(_UpdateProtectedQualityContract):
@@ -2302,7 +2319,13 @@ class ContentQualityJudgeResponse(_UpdateProtectedQualityContract):
         cls,
         value: tuple[ContentQualitySignal, ...],
     ) -> tuple[ContentQualitySignal, ...]:
-        return tuple(sorted(frozenset(value), key=lambda s: s.value))
+        seen: set[ContentQualitySignal] = set()
+        for signal in value:
+            if signal in seen:
+                msg = "signals must be unique"
+                raise ValueError(msg)
+            seen.add(signal)
+        return tuple(sorted(value, key=lambda s: s.value))
 
     @field_validator("evidence_ids")
     @classmethod

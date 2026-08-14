@@ -317,6 +317,123 @@ class TestJudgeIdentity:
         with pytest.raises(ValueError):
             QualityJudgeOperationInput.model_validate_json(payload)
 
+    def test_h2_uses_validated_fields_not_subclass_property_override(self) -> None:
+        class _TamperedInput(QualityJudgeOperationInput):
+            @property
+            def judge_provider(self) -> str:
+                return "tampered-provider"
+
+        base = _operation_input()
+        tampered = _TamperedInput.model_validate(base.model_dump(mode="python"))
+        h1, h2 = build_judge_h1_h2(tampered)
+        expected_h2 = build_provider_request_hash(
+            operation="local-content-quality-v1",
+            normalized_input_hash=h1,
+            provider="ollama",
+            model=base.judge_model,
+            prompt_version=base.prompt_version,
+            schema_version=base.schema_version,
+        )
+        assert h2 == expected_h2
+
+    def test_h2_uses_validated_fields_not_model_dump_mismatch(self) -> None:
+        class _MismatchInput(QualityJudgeOperationInput):
+            def model_dump(self, **kwargs: object) -> dict[str, object]:
+                data = super().model_dump(**kwargs)
+                data["judge_model"] = "tampered-model"
+                return data
+
+        base = _operation_input()
+        mismatch = _MismatchInput.model_validate(base.model_dump(mode="python"))
+        h1, h2 = build_judge_h1_h2(mismatch)
+        expected_h2 = build_provider_request_hash(
+            operation="local-content-quality-v1",
+            normalized_input_hash=h1,
+            provider=base.judge_provider,
+            model="qwen3:8b",
+            prompt_version=base.prompt_version,
+            schema_version=base.schema_version,
+        )
+        assert h2 == expected_h2
+
+    def test_model_construct_bypass_rejected_for_h1_and_h2(self) -> None:
+        constructed = QualityJudgeOperationInput.model_construct(
+            scoring_request_hash=VALID_HASH,
+            attempt_role=QualityJudgeAttemptRole.PRIMARY,
+            candidate_hash=VALID_HASH,
+            quality_input_hash=VALID_HASH,
+            policy_version="content-quality-policy-v1",
+            prompt_version="content-quality-prompt-v1",
+            schema_version="content-quality-result-v1",
+            judge_provider="ollama",
+            judge_model="qwen3:8b",
+            judge_model_digest=DIGEST,
+        )
+        with pytest.raises(ValueError):
+            build_judge_h1_h2(constructed)
+
+
+class TestJudgeConfigBinding:
+    @pytest.mark.parametrize(
+        "field_name,value",
+        [
+            ("judge_model", "mismatched-model"),
+            ("judge_model_digest", OTHER_DIGEST),
+            ("judge_provider", "openai"),
+            ("prompt_version", "content-quality-prompt-v2"),
+            ("schema_version", "content-quality-result-v2"),
+        ],
+    )
+    def test_config_mismatch_fails_closed_without_transport(
+        self,
+        field_name: str,
+        value: object,
+    ) -> None:
+        transport = _FakeTransport([])
+        operation_input = _operation_input(**{field_name: value})
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            reason=None,
+            topics=("topic-a",),
+            language="en",
+            evidence_registry=_evidence_registry("title-1"),
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+
+class TestJudgeLoopback:
+    def test_remote_base_url_fails_closed_before_transport(self) -> None:
+        transport = _FakeTransport([])
+        settings = LocalScoringSettings.model_construct(
+            model="qwen3:8b",
+            expected_model_digest=DIGEST,
+            base_url="https://example.com",
+        )
+        provider = OllamaQualityJudgeProvider(
+            settings=settings,
+            transport=transport,
+        )
+
+        result = provider.judge(
+            _operation_input(),
+            reason=None,
+            topics=("topic-a",),
+            language="en",
+            evidence_registry=_evidence_registry("title-1"),
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
 
 class TestJudgeRequest:
     def test_judge_request_uses_trusted_config_and_fixed_parameters(self) -> None:
@@ -385,6 +502,45 @@ class TestJudgeRequest:
         generate_payload = json.loads(transport.requests[1][2] or b"{}")
         h1, _ = build_judge_h1_h2(operation_input)
         assert h1 in generate_payload["prompt"]
+
+    def test_judge_request_payload_contains_bounded_evaluation_content(self) -> None:
+        transport = _FakeTransport(
+            [
+                _tags(),
+                _judge_response(
+                    status="PASS",
+                    signals=[
+                        "MINIMAL_CLAIM_PRESENT",
+                        "GROUNDING_PRESENT",
+                    ],
+                    evidence_ids=["title-1"],
+                ),
+            ]
+        )
+        operation_input = _operation_input()
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        provider.judge(
+            operation_input,
+            reason="A concise reason",
+            topics=("topic-a", "topic-b"),
+            language="zh-CN",
+            evidence_registry=_evidence_registry("title-1"),
+        )
+
+        generate_payload = json.loads(transport.requests[1][2] or b"{}")
+        prompt = generate_payload["prompt"]
+        h1, _ = build_judge_h1_h2(operation_input)
+        assert h1 in prompt
+        assert "A concise reason" in prompt
+        assert "topic-a" in prompt
+        assert "topic-b" in prompt
+        assert "zh-CN" in prompt
+        assert "title-1" in prompt
+        assert "excerpt for title-1" in prompt
 
 
 class TestJudgeResponse:
@@ -455,6 +611,35 @@ class TestJudgeResponse:
         assert result.status is ContentQualityStatus.REJECT
         assert result.reason is ContentQualityReason.IDENTIFIER_ONLY
         assert ContentQualitySignal.IDENTIFIER_ONLY in result.signals
+
+    def test_duplicate_signal_fails_closed_as_uncertain(self) -> None:
+        transport = _FakeTransport(
+            [
+                _tags(),
+                _judge_response(
+                    status="PASS",
+                    signals=[
+                        "MINIMAL_CLAIM_PRESENT",
+                        "MINIMAL_CLAIM_PRESENT",
+                        "GROUNDING_PRESENT",
+                    ],
+                    evidence_ids=["title-1"],
+                ),
+            ]
+        )
+        operation_input = _operation_input()
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            evidence_registry=_evidence_registry("title-1"),
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_INVALID_RESPONSE
 
     def test_unknown_status_fails_closed_as_uncertain(self) -> None:
         transport = _FakeTransport(

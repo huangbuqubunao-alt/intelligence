@@ -145,14 +145,26 @@ def build_judge_h1_h2(
     existing ``build_provider_request_hash`` using ``local-content-quality-v1``
     as the operation and H1 as the normalized input hash.
 
+    The function rejects subclasses and instances that bypassed Pydantic
+    validation (for example via ``model_construct``).  It reconstructs the
+    input from its raw field dictionary so that overridden ``model_dump``
+    methods or property overrides cannot influence the identity.
+
     H1 and H2 are not interchangeable and are expected to differ.
     """
 
-    # Revalidate so that unchecked ``model_construct`` or subclass bypasses
-    # cannot produce a trusted H1/H2.
-    validated = QualityJudgeOperationInput.model_validate(
-        operation_input.model_dump(mode="python")
-    )
+    if not isinstance(operation_input, QualityJudgeOperationInput):
+        msg = "operation_input must be a QualityJudgeOperationInput instance"
+        raise ValueError(msg)
+    if not operation_input._validated:
+        msg = "operation_input must be created through validation"
+        raise ValueError(msg)
+
+    # Reconstruct from the raw field dictionary.  ``model_dump`` is intentionally
+    # avoided because subclasses may override it to return tampered data.
+    raw_fields = dict(operation_input.__dict__)
+    validated = QualityJudgeOperationInput.model_validate(raw_fields)
+
     canonical = json.dumps(
         validated.model_dump(mode="json"),
         ensure_ascii=False,
@@ -163,9 +175,9 @@ def build_judge_h1_h2(
     h2 = build_provider_request_hash(
         operation="local-content-quality-v1",
         normalized_input_hash=h1,
-        provider=operation_input.judge_provider,
-        model=operation_input.judge_model,
-        prompt_version=operation_input.prompt_version,
-        schema_version=operation_input.schema_version,
+        provider=validated.judge_provider,
+        model=validated.judge_model,
+        prompt_version=validated.prompt_version,
+        schema_version=validated.schema_version,
     )
     return h1, h2
