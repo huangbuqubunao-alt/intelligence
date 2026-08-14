@@ -14,9 +14,18 @@ from typing import Final, NoReturn, Protocol, cast
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     AppError,
+    ContentQualityConfidence,
+    ContentQualityDecisionSource,
+    ContentQualityJudgeResponse,
+    ContentQualityReason,
+    ContentQualityResult,
+    ContentQualitySignal,
+    ContentQualityStatus,
     ErrorCode,
     ProcessingStage,
+    QualityJudgeOperationInput,
     ScoreResult,
+    ScoringEvidence,
     ScoringInput,
     ScoringOutputLanguage,
     scoring_reason_matches_output_language,
@@ -668,4 +677,454 @@ class OllamaScoringProvider:
         return self._settings.base_url + path
 
 
-__all__ = ["OllamaProviderError", "OllamaScoringProvider"]
+# ---------------------------------------------------------------------------
+# Local Content Quality Judge adapter (TASK-016C Phase C)
+# ---------------------------------------------------------------------------
+
+_QUALITY_JUDGE_OPERATION: Final = "local-content-quality-v1"
+_QUALITY_POLICY_VERSION: Final = "content-quality-policy-v1"
+_QUALITY_PROMPT_VERSION: Final = "content-quality-prompt-v1"
+_QUALITY_SCHEMA_VERSION: Final = "content-quality-result-v1"
+_QUALITY_JUDGE_PROVIDER: Final = "ollama"
+
+_QUALITY_JUDGE_RESULT_FIELDS: Final[frozenset[str]] = frozenset(
+    {
+        "status",
+        "decision_confidence",
+        "grounding_confidence",
+        "usefulness_confidence",
+        "signals",
+        "reason",
+        "evidence_ids",
+    }
+)
+
+_QUALITY_JUDGE_FORMAT: Final[dict[str, object]] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "status",
+        "decision_confidence",
+        "grounding_confidence",
+        "usefulness_confidence",
+        "signals",
+        "reason",
+        "evidence_ids",
+    ],
+    "properties": {
+        "status": {
+            "type": "string",
+            "enum": ["PASS", "REJECT", "UNCERTAIN"],
+        },
+        "decision_confidence": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH"],
+        },
+        "grounding_confidence": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH"],
+        },
+        "usefulness_confidence": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH"],
+        },
+        "signals": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "reason": {
+            "type": ["string", "null"],
+        },
+        "evidence_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+}
+
+_QUALITY_JUDGE_PROMPT: Final[str] = (
+    "You are a strict content-quality judge. Evaluate the input and return "
+    "ONLY one JSON object that satisfies the supplied JSON schema. "
+    "Do not add commentary, diagnostics, or fields outside the schema. "
+    "Reference only evidence IDs that are present in the input registry.\n"
+    "Input identity: {judge_normalized_input_hash}\n"
+    "Evidence registry IDs: {evidence_registry_ids}\n"
+)
+
+
+class OllamaQualityJudgeProvider:
+    """Loopback-only local Judge adapter for the content-quality layer.
+
+    The adapter validates the configured model/digest, issues a single
+    deterministic generate request, parses the strict response contract, and
+    returns a trusted ``ContentQualityResult``.  Any transport, parse, schema,
+    model/digest, or evidence-identity failure fails closed as ``UNCERTAIN``.
+
+    This class does not reserve or persist ProviderCalls, write artifacts,
+    construct attestations, or perform primary/repair orchestration.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings: LocalScoringSettings,
+        transport: _Transport = _default_transport,
+    ) -> None:
+        self._settings = settings
+        self._transport = transport
+
+    def judge(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        *,
+        evidence_registry: tuple[ScoringEvidence, ...],
+    ) -> ContentQualityResult:
+        """Return a trusted content-quality result, or UNCERTAIN on any failure."""
+
+        try:
+            model_ok = self._verify_expected_model()
+        except Exception:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+        if not model_ok:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        try:
+            response = self._generate(operation_input, evidence_registry)
+        except _InvalidModelResponse:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
+            )
+        except OllamaProviderError:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+        except Exception:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        try:
+            judge_response = self._parse_judge_response(
+                response.response_text,
+                evidence_registry=evidence_registry,
+            )
+        except Exception:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
+            )
+
+        try:
+            return self._build_result_from_response(
+                operation_input,
+                judge_response,
+            )
+        except Exception:
+            return self._build_uncertain_result(
+                operation_input,
+                reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
+            )
+
+    def _verify_expected_model(self) -> bool:
+        request = urllib.request.Request(
+            self._endpoint(_TAGS_PATH),
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        try:
+            payload, _ = self._request_json(request, video_id="quality-judge")
+        except Exception:
+            return False
+        if not isinstance(payload, Mapping):
+            return False
+        models = payload.get("models")
+        if not isinstance(models, list):
+            return False
+        for item in models:
+            if not isinstance(item, Mapping):
+                continue
+            name = item.get("name")
+            digest = item.get("digest")
+            normalized_digest = (
+                f"sha256:{digest}"
+                if isinstance(digest, str)
+                and len(digest) == 64
+                and all(character in "0123456789abcdef" for character in digest)
+                else digest
+            )
+            if (
+                name == self._settings.model
+                and normalized_digest == self._settings.expected_model_digest
+            ):
+                return True
+        return False
+
+    def _generate(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        evidence_registry: tuple[ScoringEvidence, ...],
+    ) -> _GeneratedResponse:
+        from youtube_intel.quality import build_judge_h1_h2
+
+        h1, _ = build_judge_h1_h2(operation_input)
+        evidence_ids = json.dumps(
+            [item.evidence_id for item in evidence_registry],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        prompt = _QUALITY_JUDGE_PROMPT.format(
+            judge_normalized_input_hash=h1,
+            evidence_registry_ids=evidence_ids,
+        )
+        body = json.dumps(
+            {
+                "model": self._settings.model,
+                "prompt": prompt,
+                "stream": False,
+                "format": _QUALITY_JUDGE_FORMAT,
+                "think": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_predict": self._settings.max_output_tokens,
+                },
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        try:
+            payload, raw_response = self._request_json(
+                urllib.request.Request(
+                    self._endpoint(_GENERATE_PATH),
+                    data=body,
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    method="POST",
+                ),
+                video_id="quality-judge",
+            )
+        except OllamaProviderError as exc:
+            if exc.error.code is ErrorCode.INVALID_RESPONSE:
+                raise _InvalidModelResponse from exc
+            raise
+        if not isinstance(payload, Mapping):
+            raise _InvalidModelResponse
+        response = payload.get("response")
+        if not isinstance(response, str) or len(response) > _MAX_MODEL_RESPONSE_CHARS:
+            raise _InvalidModelResponse
+        return _GeneratedResponse(response_text=response, raw_response=raw_response)
+
+    def _request_json(
+        self,
+        request: urllib.request.Request,
+        *,
+        video_id: str,
+    ) -> tuple[object, str]:
+        response: _Response | None = None
+        failure_code: ErrorCode | None = None
+        failure_message = ""
+        http_status: int | None = None
+        try:
+            response = self._transport(request, 300.0)
+        except urllib.error.HTTPError as exc:
+            http_status = exc.code
+            try:
+                exc.close()
+            except OSError:
+                pass
+        except (TimeoutError, socket.timeout):
+            failure_code = ErrorCode.TRANSIENT_NETWORK
+            failure_message = "Ollama request timed out"
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            if isinstance(reason, (TimeoutError, socket.timeout)):
+                failure_code = ErrorCode.TRANSIENT_NETWORK
+                failure_message = "Ollama request timed out"
+            else:
+                failure_code = ErrorCode.PROVIDER_UNAVAILABLE
+                failure_message = "Ollama local provider is unavailable"
+        except Exception:
+            failure_code = ErrorCode.PROVIDER_UNAVAILABLE
+            failure_message = "Ollama local provider is unavailable"
+
+        if http_status is not None:
+            self._raise_http_error(http_status, video_id)
+        if failure_code is not None:
+            raise _safe_error(
+                failure_code,
+                failure_message,
+                retryable=True,
+                video_id=video_id,
+            )
+        if response is None:
+            raise _safe_error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "Ollama local provider is unavailable",
+                retryable=True,
+                video_id=video_id,
+            )
+
+        body: bytes | object | None = None
+        read_failed = False
+        try:
+            body = response.read(_MAX_RESPONSE_BYTES + 1)
+        except (IncompleteRead, TimeoutError, socket.timeout, OSError):
+            read_failed = True
+        except Exception:
+            read_failed = True
+        finally:
+            try:
+                response.close()
+            except Exception:
+                read_failed = True
+        if read_failed:
+            raise _safe_error(
+                ErrorCode.TRANSIENT_NETWORK,
+                "Ollama response could not be read completely",
+                retryable=True,
+                video_id=video_id,
+            )
+        if not isinstance(body, bytes):
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama returned an invalid API response body",
+                retryable=True,
+                video_id=video_id,
+            )
+        if len(body) > _MAX_RESPONSE_BYTES:
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama response exceeded the configured safety limit",
+                retryable=True,
+                video_id=video_id,
+            )
+        try:
+            decoded = body.decode("utf-8")
+            return json.loads(decoded), decoded
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama returned a non-JSON API response",
+                retryable=True,
+                video_id=video_id,
+            )
+
+    def _raise_http_error(self, status: int, video_id: str) -> NoReturn:
+        if status == 429:
+            raise _safe_error(
+                ErrorCode.RATE_LIMITED,
+                "Ollama local provider rate limited the request",
+                retryable=True,
+                video_id=video_id,
+            )
+        if 500 <= status <= 599:
+            raise _safe_error(
+                ErrorCode.PROVIDER_UNAVAILABLE,
+                "Ollama local provider is unavailable",
+                retryable=True,
+                video_id=video_id,
+            )
+        if status in {401, 403}:
+            raise _safe_error(
+                ErrorCode.PERMISSION_DENIED,
+                "Ollama local provider denied access",
+                retryable=False,
+                video_id=video_id,
+            )
+        raise _safe_error(
+            ErrorCode.INVALID_RESPONSE,
+            "Ollama returned an invalid HTTP response",
+            retryable=False,
+            video_id=video_id,
+        )
+
+    def _parse_judge_response(
+        self,
+        response_text: str,
+        *,
+        evidence_registry: tuple[ScoringEvidence, ...],
+    ) -> ContentQualityJudgeResponse:
+        parsed: object = json.loads(response_text)
+        if not isinstance(parsed, dict):
+            raise _InvalidModelResponse
+        if not set(parsed).issubset(_QUALITY_JUDGE_RESULT_FIELDS):
+            raise _InvalidModelResponse
+        judge_response = ContentQualityJudgeResponse.model_validate(parsed)
+        valid_ids = {item.evidence_id for item in evidence_registry}
+        for eid in judge_response.evidence_ids:
+            if eid not in valid_ids:
+                raise _InvalidModelResponse
+        return judge_response
+
+    def _build_result_from_response(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        judge_response: ContentQualityJudgeResponse,
+    ) -> ContentQualityResult:
+        return ContentQualityResult.model_validate(
+            {
+                "schema_version": _QUALITY_SCHEMA_VERSION,
+                "policy_version": _QUALITY_POLICY_VERSION,
+                "prompt_version": _QUALITY_PROMPT_VERSION,
+                "status": judge_response.status,
+                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+                "decision_confidence": judge_response.decision_confidence,
+                "grounding_confidence": judge_response.grounding_confidence,
+                "usefulness_confidence": judge_response.usefulness_confidence,
+                "signals": judge_response.signals,
+                "reason": judge_response.reason,
+                "evidence_ids": judge_response.evidence_ids,
+                "candidate_hash": operation_input.candidate_hash,
+                "quality_input_hash": operation_input.quality_input_hash,
+                "scoring_request_hash": operation_input.scoring_request_hash,
+                "judge_provider": operation_input.judge_provider,
+                "judge_model": operation_input.judge_model,
+                "judge_model_digest": operation_input.judge_model_digest,
+            }
+        )
+
+    def _build_uncertain_result(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        *,
+        reason: ContentQualityReason,
+    ) -> ContentQualityResult:
+        expected_signal = ContentQualitySignal(reason.value)
+        return ContentQualityResult.model_validate(
+            {
+                "schema_version": _QUALITY_SCHEMA_VERSION,
+                "policy_version": _QUALITY_POLICY_VERSION,
+                "prompt_version": _QUALITY_PROMPT_VERSION,
+                "status": ContentQualityStatus.UNCERTAIN,
+                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+                "decision_confidence": ContentQualityConfidence.LOW,
+                "grounding_confidence": ContentQualityConfidence.LOW,
+                "usefulness_confidence": ContentQualityConfidence.LOW,
+                "signals": (expected_signal,),
+                "reason": reason,
+                "evidence_ids": (),
+                "candidate_hash": operation_input.candidate_hash,
+                "quality_input_hash": operation_input.quality_input_hash,
+                "scoring_request_hash": operation_input.scoring_request_hash,
+                "judge_provider": operation_input.judge_provider,
+                "judge_model": operation_input.judge_model,
+                "judge_model_digest": operation_input.judge_model_digest,
+            }
+        )
+
+    def _endpoint(self, path: str) -> str:
+        return self._settings.base_url + path
+
+
+__all__ = [
+    "OllamaProviderError",
+    "OllamaScoringProvider",
+    "OllamaQualityJudgeProvider",
+]

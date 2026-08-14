@@ -14,13 +14,25 @@ import pytest
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     Availability,
+    ContentQualityReason,
+    ContentQualitySignal,
+    ContentQualityStatus,
     ErrorCode,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
+    QualityJudgeAttemptRole,
+    QualityJudgeOperationInput,
+    ScoringEvidence,
+    ScoringEvidenceSource,
     VideoMetadata,
 )
-from youtube_intel.providers.ollama import OllamaProviderError, OllamaScoringProvider
+from youtube_intel.providers.ollama import (
+    OllamaProviderError,
+    OllamaQualityJudgeProvider,
+    OllamaScoringProvider,
+)
+from youtube_intel.quality import build_judge_h1_h2
 from youtube_intel.scoring import (
     RepositoryBackedScoringService,
     ScoringJobContext,
@@ -771,3 +783,126 @@ def test_mismatched_digest_fails_before_any_generate_request() -> None:
     assert exc_info.value.error.code is ErrorCode.CONFIG_INVALID
     assert exc_info.value.error.retryable is False
     assert [method for method, _, _ in transport.requests] == ["GET"]
+
+
+# ---------------------------------------------------------------------------
+# TASK-016C Phase C — focused fake-transport Quality Judge contract coverage
+# ---------------------------------------------------------------------------
+
+
+def _judge_settings() -> LocalScoringSettings:
+    return LocalScoringSettings(
+        model="qwen3:8b",
+        expected_model_digest="sha256:" + ("b" * 64),
+    )
+
+
+def _judge_operation_input(
+    *,
+    attempt_role: QualityJudgeAttemptRole = QualityJudgeAttemptRole.PRIMARY,
+) -> QualityJudgeOperationInput:
+    return QualityJudgeOperationInput.model_validate(
+        {
+            "scoring_request_hash": "a" * 64,
+            "attempt_role": attempt_role,
+            "candidate_hash": "a" * 64,
+            "quality_input_hash": "a" * 64,
+            "policy_version": "content-quality-policy-v1",
+            "prompt_version": "content-quality-prompt-v1",
+            "schema_version": "content-quality-result-v1",
+            "judge_provider": "ollama",
+            "judge_model": "qwen3:8b",
+            "judge_model_digest": "sha256:" + ("b" * 64),
+        }
+    )
+
+
+def _judge_response_payload(
+    *,
+    status: str = "PASS",
+    signals: list[str] | None = None,
+    reason: str | None = None,
+    evidence_ids: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "response": json.dumps(
+            {
+                "status": status,
+                "decision_confidence": "HIGH",
+                "grounding_confidence": "MEDIUM",
+                "usefulness_confidence": "MEDIUM",
+                "signals": signals if signals is not None else [],
+                "reason": reason,
+                "evidence_ids": evidence_ids if evidence_ids is not None else [],
+            }
+        ),
+    }
+
+
+def _judge_provider(transport: _FakeTransport) -> OllamaQualityJudgeProvider:
+    return OllamaQualityJudgeProvider(
+        settings=_judge_settings(),
+        transport=transport,
+    )
+
+
+def _judge_evidence_registry() -> tuple[ScoringEvidence, ...]:
+    return (
+        ScoringEvidence(
+            evidence_id="title-1",
+            source=ScoringEvidenceSource.TITLE,
+            excerpt="A useful title excerpt",
+        ),
+    )
+
+
+def test_quality_judge_fake_transport_returns_pass_without_real_ollama() -> None:
+    transport = _FakeTransport(
+        [
+            _tags(),
+            _judge_response_payload(
+                status="PASS",
+                signals=[
+                    "MINIMAL_CLAIM_PRESENT",
+                    "GROUNDING_PRESENT",
+                ],
+                evidence_ids=["title-1"],
+            ),
+        ]
+    )
+    operation_input = _judge_operation_input()
+
+    result = _judge_provider(transport).judge(
+        operation_input,
+        evidence_registry=_judge_evidence_registry(),
+    )
+
+    assert result.status is ContentQualityStatus.PASS
+    assert result.decision_source.value == "LOCAL_JUDGE"
+    assert ContentQualitySignal.MINIMAL_CLAIM_PRESENT in result.signals
+    assert ContentQualitySignal.GROUNDING_PRESENT in result.signals
+    assert result.evidence_ids == ("title-1",)
+
+
+def test_quality_judge_computes_h1_h2_identity_from_operation_input() -> None:
+    operation_input = _judge_operation_input(
+        attempt_role=QualityJudgeAttemptRole.PRIMARY,
+    )
+    h1, h2 = build_judge_h1_h2(operation_input)
+
+    assert h1 != h2
+    assert len(h1) == 64
+    assert len(h2) == 64
+
+
+def test_quality_judge_invalid_response_fails_closed_as_uncertain() -> None:
+    transport = _FakeTransport([_tags(), {"response": "not json"}])
+    operation_input = _judge_operation_input()
+
+    result = _judge_provider(transport).judge(
+        operation_input,
+        evidence_registry=_judge_evidence_registry(),
+    )
+
+    assert result.status is ContentQualityStatus.UNCERTAIN
+    assert result.reason is ContentQualityReason.JUDGE_INVALID_RESPONSE

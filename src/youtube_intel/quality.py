@@ -8,6 +8,8 @@ etc.) can continue evaluation.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import unicodedata
 from typing import Final
 
@@ -17,7 +19,9 @@ from youtube_intel.domain import (
     ContentQualityResult,
     ContentQualityStatus,
     DeterministicGateReason,
+    QualityJudgeOperationInput,
 )
+from youtube_intel.state import build_provider_request_hash
 
 _ASCII_WHITESPACE: Final[str] = " \t\n\r\v\f"
 
@@ -124,3 +128,44 @@ class DeterministicContentQualityGate:
             if previous == current:
                 return True
         return False
+
+
+# ---------------------------------------------------------------------------
+# Local Judge identity (TASK-016C Phase C)
+# ---------------------------------------------------------------------------
+
+
+def build_judge_h1_h2(
+    operation_input: QualityJudgeOperationInput,
+) -> tuple[str, str]:
+    """Build the two-layer Judge identity for a validated operation input.
+
+    H1 is the SHA-256 of canonical JSON for the fully validated
+    ``QualityJudgeOperationInput``.  H2 is derived only through the unchanged
+    existing ``build_provider_request_hash`` using ``local-content-quality-v1``
+    as the operation and H1 as the normalized input hash.
+
+    H1 and H2 are not interchangeable and are expected to differ.
+    """
+
+    # Revalidate so that unchecked ``model_construct`` or subclass bypasses
+    # cannot produce a trusted H1/H2.
+    validated = QualityJudgeOperationInput.model_validate(
+        operation_input.model_dump(mode="python")
+    )
+    canonical = json.dumps(
+        validated.model_dump(mode="json"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    h1 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    h2 = build_provider_request_hash(
+        operation="local-content-quality-v1",
+        normalized_input_hash=h1,
+        provider=operation_input.judge_provider,
+        model=operation_input.judge_model,
+        prompt_version=operation_input.prompt_version,
+        schema_version=operation_input.schema_version,
+    )
+    return h1, h2

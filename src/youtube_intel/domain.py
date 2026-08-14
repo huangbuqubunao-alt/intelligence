@@ -2280,6 +2280,43 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
     judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
+class ContentQualityJudgeResponse(_UpdateProtectedQualityContract):
+    """Validated raw response contract from the local content-quality Judge.
+
+    This model intentionally excludes provenance fields (candidate/input hashes,
+    Judge identity, decision source).  Those are supplied by the caller when the
+    response is promoted to a trusted ``ContentQualityResult``.
+    """
+
+    status: ContentQualityStatus
+    decision_confidence: ContentQualityConfidence
+    grounding_confidence: ContentQualityConfidence
+    usefulness_confidence: ContentQualityConfidence
+    signals: tuple[ContentQualitySignal, ...]
+    reason: ContentQualityReason | None = None
+    evidence_ids: tuple[str, ...] = ()
+
+    @field_validator("signals")
+    @classmethod
+    def _canonical_signals(
+        cls,
+        value: tuple[ContentQualitySignal, ...],
+    ) -> tuple[ContentQualitySignal, ...]:
+        return tuple(sorted(frozenset(value), key=lambda s: s.value))
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def _canonical_evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        for eid in value:
+            _validate_evidence_identity(eid)
+            if eid in seen:
+                msg = "evidence_ids must be unique"
+                raise ValueError(msg)
+            seen.add(eid)
+        return tuple(sorted(value))
+
+
 def validate_scoring_candidate(value) -> ScoringCandidate:  # type: ignore[no-untyped-def]
     """Revalidate an untrusted scoring candidate even if it is already a model.
 
@@ -2363,6 +2400,7 @@ __all__ = [
     "ContentQualityResult",
     "QualityJudgeAttemptRole",
     "QualityJudgeOperationInput",
+    "ContentQualityJudgeResponse",
     "validate_scoring_candidate",
     "validate_scoring_candidate_json",
     "validate_content_quality_result",
