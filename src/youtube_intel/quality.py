@@ -1,0 +1,127 @@
+"""Deterministic content-quality safety gate (TASK-016C Phase B).
+
+The gate is intentionally narrow: it can only reject content for one of three
+deterministic reasons.  Structurally valid content that does not match any of
+these patterns returns ``None`` so that later phases (Local Judge, Finalizer,
+etc.) can continue evaluation.
+"""
+
+from __future__ import annotations
+
+import unicodedata
+from typing import Final
+
+from youtube_intel.domain import (
+    ContentQualityConfidence,
+    ContentQualityDecisionSource,
+    ContentQualityResult,
+    ContentQualityStatus,
+    DeterministicGateReason,
+)
+
+_ASCII_WHITESPACE: Final[str] = " \t\n\r\v\f"
+
+_CONTROL_ALLOWED: Final[frozenset[str]] = frozenset({"\t", "\n"})
+
+_CONTROL_DISALLOWED_CODEPOINTS: Final[frozenset[int]] = frozenset(
+    {0x0000, 0x200B, 0xFEFF}
+)
+
+
+class DeterministicContentQualityGate:
+    """Pure-local deterministic gate for EMPTY_CONTENT, CONTROL_CHARACTER_INVALID,
+    and EXACT_REPETITION.
+    """
+
+    def evaluate(
+        self,
+        *,
+        content: str,
+        candidate_hash: str,
+        quality_input_hash: str,
+        scoring_request_hash: str,
+    ) -> ContentQualityResult | None:
+        """Return a deterministic REJECT result, or ``None`` to continue."""
+
+        reason = self._classify(content)
+        if reason is None:
+            return None
+
+        return ContentQualityResult.model_validate(
+            {
+                "schema_version": "content-quality-result-v1",
+                "policy_version": "content-quality-policy-v1",
+                "prompt_version": "content-quality-prompt-v1",
+                "status": ContentQualityStatus.REJECT.value,
+                "decision_source": ContentQualityDecisionSource.DETERMINISTIC_GATE.value,
+                "decision_confidence": ContentQualityConfidence.HIGH.value,
+                "grounding_confidence": ContentQualityConfidence.LOW.value,
+                "usefulness_confidence": ContentQualityConfidence.LOW.value,
+                "signals": (),
+                "reason": reason.value,
+                "evidence_ids": (),
+                "candidate_hash": candidate_hash,
+                "quality_input_hash": quality_input_hash,
+                "scoring_request_hash": scoring_request_hash,
+                "judge_provider": None,
+                "judge_model": None,
+                "judge_model_digest": None,
+            }
+        )
+
+    def _classify(self, content: str) -> DeterministicGateReason | None:
+        if self._is_empty(content):
+            return DeterministicGateReason.EMPTY_CONTENT
+
+        if self._has_invalid_control_character(content):
+            return DeterministicGateReason.CONTROL_CHARACTER_INVALID
+
+        if self._has_exact_repetition(content):
+            return DeterministicGateReason.EXACT_REPETITION
+
+        return None
+
+    def _is_empty(self, content: str) -> bool:
+        """Raw-empty or ASCII-whitespace-only content is empty."""
+
+        if not content:
+            return True
+        return content.strip(_ASCII_WHITESPACE) == ""
+
+    def _has_invalid_control_character(self, content: str) -> bool:
+        """Scan raw content for disallowed control characters.
+
+        LF and TAB are allowed; other Cc characters, NULL, U+200B and U+FEFF
+        are rejected.
+        """
+
+        for char in content:
+            codepoint = ord(char)
+            if codepoint in _CONTROL_DISALLOWED_CODEPOINTS:
+                return True
+            if char in _CONTROL_ALLOWED:
+                continue
+            if unicodedata.category(char) == "Cc":
+                return True
+        return False
+
+    def _has_exact_repetition(self, content: str) -> bool:
+        """Detect adjacent exact-codepoint repetition after ASCII trim/LF split.
+
+        The algorithm is intentionally literal:
+
+        1. Strip ASCII whitespace from both ends.
+        2. Split on LF.
+        3. Drop empty segments.
+        4. If any remaining segment equals the next one, reject.
+
+        No lowercase, casefold, Unicode normalization, or fuzzy matching is
+        performed.
+        """
+
+        trimmed = content.strip(_ASCII_WHITESPACE)
+        segments = [segment for segment in trimmed.split("\n") if segment]
+        for previous, current in zip(segments, segments[1:]):
+            if previous == current:
+                return True
+        return False
