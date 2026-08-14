@@ -486,3 +486,209 @@ def test_scoring_candidate_mapping_restore() -> None:
     mapping = candidate.model_dump(mode="python")
     restored = validate_scoring_candidate(mapping)
     assert restored == candidate
+
+
+# ---------------------------------------------------------------------------
+# P1-1 ContentQualityResult REJECT matrix corrections
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("reason", list(DeterministicGateReason))
+def test_gate_reject_legal_all_deterministic_reasons(
+    reason: DeterministicGateReason,
+) -> None:
+    result = _gate_reject_result(reason=reason)
+    assert result.status is ContentQualityStatus.REJECT
+    assert result.decision_source is ContentQualityDecisionSource.DETERMINISTIC_GATE
+    assert result.signals == ()
+    assert result.evidence_ids == ()
+    assert result.judge_provider is None
+
+
+def test_gate_reject_does_not_require_judge_signal() -> None:
+    # If the implementation wrongly falls through to the Judge rejection matrix,
+    # it would demand a signal matching the reason. Gate rejections have no signals.
+    result = _gate_reject_result(
+        reason=DeterministicGateReason.EMPTY_CONTENT,
+        signals=(),
+    )
+    assert result.reason is DeterministicGateReason.EMPTY_CONTENT
+    assert result.signals == ()
+
+
+def test_judge_reject_grounding_insufficient_legal_high_usefulness() -> None:
+    result = _reject_result(
+        reason=ContentQualityReason.GROUNDING_INSUFFICIENT,
+        signals=(ContentQualitySignal.GROUNDING_INSUFFICIENT,),
+        grounding_confidence=ContentQualityConfidence.LOW,
+        usefulness_confidence=ContentQualityConfidence.HIGH,
+    )
+    assert result.status is ContentQualityStatus.REJECT
+
+
+@pytest.mark.parametrize(
+    "usefulness",
+    [
+        ContentQualityConfidence.LOW,
+        ContentQualityConfidence.MEDIUM,
+        ContentQualityConfidence.HIGH,
+    ],
+)
+def test_judge_reject_grounding_insufficient_legal_usefulness_boundaries(
+    usefulness: ContentQualityConfidence,
+) -> None:
+    result = _reject_result(
+        reason=ContentQualityReason.GROUNDING_INSUFFICIENT,
+        signals=(ContentQualitySignal.GROUNDING_INSUFFICIENT,),
+        grounding_confidence=ContentQualityConfidence.LOW,
+        usefulness_confidence=usefulness,
+    )
+    assert result.reason is ContentQualityReason.GROUNDING_INSUFFICIENT
+
+
+def test_judge_reject_grounding_insufficient_rejects_non_low_grounding() -> None:
+    with pytest.raises(ValidationError):
+        _reject_result(
+            reason=ContentQualityReason.GROUNDING_INSUFFICIENT,
+            signals=(ContentQualitySignal.GROUNDING_INSUFFICIENT,),
+            grounding_confidence=ContentQualityConfidence.MEDIUM,
+            usefulness_confidence=ContentQualityConfidence.HIGH,
+        )
+
+
+def test_judge_reject_grounding_insufficient_rejects_grounding_present_signal() -> None:
+    with pytest.raises(ValidationError):
+        _reject_result(
+            reason=ContentQualityReason.GROUNDING_INSUFFICIENT,
+            signals=(
+                ContentQualitySignal.GROUNDING_INSUFFICIENT,
+                ContentQualitySignal.GROUNDING_PRESENT,
+            ),
+            grounding_confidence=ContentQualityConfidence.LOW,
+            usefulness_confidence=ContentQualityConfidence.HIGH,
+        )
+
+
+def test_judge_content_reject_rejects_non_low_usefulness() -> None:
+    with pytest.raises(ValidationError):
+        _reject_result(
+            reason=ContentQualityReason.IDENTIFIER_ONLY,
+            signals=(ContentQualitySignal.IDENTIFIER_ONLY,),
+            grounding_confidence=ContentQualityConfidence.LOW,
+            usefulness_confidence=ContentQualityConfidence.MEDIUM,
+        )
+
+
+def test_gate_reject_with_judge_reason_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _gate_reject_result(reason=ContentQualityReason.IDENTIFIER_ONLY)  # type: ignore[arg-type]
+
+
+def test_judge_reject_with_gate_reason_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _reject_result(reason=DeterministicGateReason.EMPTY_CONTENT)  # type: ignore[arg-type]
+
+
+def test_uncertain_with_deterministic_reason_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _uncertain_result(
+            reason=DeterministicGateReason.EMPTY_CONTENT,  # type: ignore[arg-type]
+            signals=(ContentQualitySignal.GROUNDING_INSUFFICIENT,),
+        )
+
+
+def test_gate_reject_with_judge_identity_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _gate_reject_result(
+            judge_provider="ollama",
+            judge_model="qwen3:8b",
+            judge_model_digest=MODEL_DIGEST,
+        )
+
+
+# ---------------------------------------------------------------------------
+# P1-2 Evidence registry contract
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_registry_canonical_ordering() -> None:
+    inp = _content_quality_input(
+        evidence_registry=(_evidence(evidence_id="e2"), _evidence(evidence_id="e1")),
+    )
+    assert [e.evidence_id for e in inp.evidence_registry] == ["e1", "e2"]
+
+
+def test_evidence_registry_rejects_duplicate_id() -> None:
+    with pytest.raises(ValidationError):
+        _content_quality_input(
+            evidence_registry=(_evidence(evidence_id="e1"), _evidence(evidence_id="e1")),
+        )
+
+
+def test_evidence_registry_rejects_count_above_max() -> None:
+    registry = tuple(_evidence(evidence_id=f"e{i}") for i in range(101))
+    with pytest.raises(ValidationError):
+        _content_quality_input(evidence_registry=registry)
+
+
+def test_evidence_registry_rejects_total_chars_above_max() -> None:
+    # 101 entries at the per-item excerpt maximum exceed the derived total bound.
+    registry = tuple(
+        _evidence(evidence_id=f"e{i:03d}", excerpt="x" * 2000) for i in range(101)
+    )
+    with pytest.raises(ValidationError):
+        _content_quality_input(evidence_registry=registry)
+
+
+def test_scoring_evidence_rejects_id_above_max_length() -> None:
+    with pytest.raises(ValidationError):
+        _evidence(evidence_id="x" * 101)
+
+
+def test_result_evidence_ids_reject_id_above_max_length() -> None:
+    with pytest.raises(ValidationError):
+        _pass_result(evidence_ids=("x" * 101,))
+
+
+def test_result_evidence_ids_canonicalize_and_reject_duplicates() -> None:
+    with pytest.raises(ValidationError):
+        _pass_result(evidence_ids=("e3", "e1", "e3", "e2"))
+
+
+def test_result_evidence_ids_are_canonically_ordered() -> None:
+    result = _pass_result(evidence_ids=("e3", "e1", "e2"))
+    assert result.evidence_ids == ("e1", "e2", "e3")
+
+
+def test_equal_registry_semantics_have_identical_canonical_order() -> None:
+    inp_a = _content_quality_input(
+        evidence_registry=(_evidence(evidence_id="e2"), _evidence(evidence_id="e1")),
+    )
+    inp_b = _content_quality_input(
+        evidence_registry=(_evidence(evidence_id="e1"), _evidence(evidence_id="e2")),
+    )
+    assert inp_a.evidence_registry == inp_b.evidence_registry
+
+
+# ---------------------------------------------------------------------------
+# P1 correction trusted revalidation coverage
+# ---------------------------------------------------------------------------
+
+
+def test_validate_content_quality_result_accepts_gate_reject() -> None:
+    result = _gate_reject_result(reason=DeterministicGateReason.EXACT_REPETITION)
+    raw = result.model_dump_json()
+    restored = validate_content_quality_result_json(raw)
+    assert restored == result
+
+
+def test_validate_content_quality_result_accepts_grounding_reject() -> None:
+    result = _reject_result(
+        reason=ContentQualityReason.GROUNDING_INSUFFICIENT,
+        signals=(ContentQualitySignal.GROUNDING_INSUFFICIENT,),
+        grounding_confidence=ContentQualityConfidence.LOW,
+        usefulness_confidence=ContentQualityConfidence.HIGH,
+    )
+    raw = result.model_dump_json()
+    restored = validate_content_quality_result_json(raw)
+    assert restored == result

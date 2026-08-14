@@ -1891,6 +1891,25 @@ _UNCERTAIN_REASONS: Final[frozenset[ContentQualityReason]] = frozenset(
     }
 )
 
+# Evidence registry bounds are derived from the frozen per-item limits above
+# and the existing project registry pattern (max 100 items).
+_MAX_EVIDENCE_ID_LENGTH: Final[int] = 100
+_MAX_EVIDENCE_EXCERPT_LENGTH: Final[int] = 2000
+_MAX_EVIDENCE_REGISTRY_ITEMS: Final[int] = 100
+_MAX_EVIDENCE_REGISTRY_TOTAL_CHARS: Final[int] = (
+    _MAX_EVIDENCE_REGISTRY_ITEMS * _MAX_EVIDENCE_EXCERPT_LENGTH
+)
+
+
+def _validate_evidence_identity(value: str) -> str:
+    if not value or not value.strip():
+        msg = "evidence_id must be non-empty"
+        raise ValueError(msg)
+    if len(value) > _MAX_EVIDENCE_ID_LENGTH:
+        msg = f"evidence_id must be at most {_MAX_EVIDENCE_ID_LENGTH} characters"
+        raise ValueError(msg)
+    return value
+
 
 class _UpdateProtectedQualityContract(_DomainModel):
     """Prevent callers from bypassing content-quality validation boundaries."""
@@ -1957,9 +1976,18 @@ class ScoringCandidate(_UpdateProtectedScoringContract):
 class ScoringEvidence(_UpdateProtectedQualityContract):
     """One evidence entry in the content-quality input registry."""
 
-    evidence_id: str = Field(min_length=1, max_length=100, pattern=r"\S")
+    evidence_id: str = Field(
+        min_length=1, max_length=_MAX_EVIDENCE_ID_LENGTH, pattern=r"\S"
+    )
     source: ScoringEvidenceSource
-    excerpt: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    excerpt: str = Field(
+        min_length=1, max_length=_MAX_EVIDENCE_EXCERPT_LENGTH, pattern=r"\S"
+    )
+
+    @field_validator("evidence_id")
+    @classmethod
+    def _validate_evidence_id(cls, value: str) -> str:
+        return _validate_evidence_identity(value)
 
 
 class ContentQualityInput(_UpdateProtectedQualityContract):
@@ -1972,6 +2000,35 @@ class ContentQualityInput(_UpdateProtectedQualityContract):
     topics: tuple[str, ...] = Field(min_length=1, max_length=10)
     evidence_registry: tuple[ScoringEvidence, ...]
     policy_version: Literal["content-quality-policy-v1"] = "content-quality-policy-v1"
+
+    @field_validator("evidence_registry")
+    @classmethod
+    def _canonical_registry(
+        cls,
+        value: tuple[ScoringEvidence, ...],
+    ) -> tuple[ScoringEvidence, ...]:
+        seen: set[str] = set()
+        total_chars = 0
+        for item in value:
+            eid = item.evidence_id
+            if eid in seen:
+                msg = f"duplicate evidence_id in registry: {eid}"
+                raise ValueError(msg)
+            seen.add(eid)
+            total_chars += len(eid) + len(item.excerpt)
+        if len(value) > _MAX_EVIDENCE_REGISTRY_ITEMS:
+            msg = (
+                f"evidence_registry must contain at most "
+                f"{_MAX_EVIDENCE_REGISTRY_ITEMS} items"
+            )
+            raise ValueError(msg)
+        if total_chars > _MAX_EVIDENCE_REGISTRY_TOTAL_CHARS:
+            msg = (
+                f"evidence_registry total characters must be at most "
+                f"{_MAX_EVIDENCE_REGISTRY_TOTAL_CHARS}"
+            )
+            raise ValueError(msg)
+        return tuple(sorted(value, key=lambda item: item.evidence_id))
 
     @field_validator("reason")
     @classmethod
@@ -2049,9 +2106,7 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
     def _canonical_evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         seen: set[str] = set()
         for eid in value:
-            if not eid.strip():
-                msg = "evidence_ids items must be non-empty"
-                raise ValueError(msg)
+            _validate_evidence_identity(eid)
             if eid in seen:
                 msg = "evidence_ids must be unique"
                 raise ValueError(msg)
@@ -2061,7 +2116,9 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
     @model_validator(mode="after")
     def _cross_field_integrity(self) -> ContentQualityResult:
         self._validate_source_judge_consistency()
-        if self.status is ContentQualityStatus.PASS:
+        if self.decision_source is ContentQualityDecisionSource.DETERMINISTIC_GATE:
+            self._validate_gate_reject_matrix()
+        elif self.status is ContentQualityStatus.PASS:
             self._validate_pass_matrix()
         elif self.status is ContentQualityStatus.REJECT:
             self._validate_reject_matrix()
@@ -2104,6 +2161,17 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
             msg = "LOCAL_JUDGE result requires complete Judge identity"
             raise ValueError(msg)
 
+    def _validate_gate_reject_matrix(self) -> None:
+        # Source consistency already enforces the Gate path; this method exists
+        # to make the source-specific dispatch explicit and to prevent future
+        # edits from accidentally falling through to the Judge matrix.
+        if self.status is not ContentQualityStatus.REJECT:
+            msg = "DETERMINISTIC_GATE can only produce REJECT"
+            raise ValueError(msg)
+        if not isinstance(self.reason, DeterministicGateReason):
+            msg = "DETERMINISTIC_GATE requires a deterministic reason"
+            raise ValueError(msg)
+
     def _validate_pass_matrix(self) -> None:
         if self.decision_confidence is not ContentQualityConfidence.HIGH:
             msg = "PASS requires decision_confidence=HIGH"
@@ -2140,7 +2208,10 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
         if self.reason is None:
             msg = "REJECT requires a reason"
             raise ValueError(msg)
-        if self.reason in _UNCERTAIN_REASONS:
+        if self.reason in {
+            ContentQualityReason.JUDGE_UNAVAILABLE,
+            ContentQualityReason.JUDGE_INVALID_RESPONSE,
+        }:
             msg = "REJECT may not use an UNCERTAIN-only reason"
             raise ValueError(msg)
         if self.reason not in set(ContentQualityReason):
@@ -2209,7 +2280,7 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
     judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
-def validate_scoring_candidate(value: object) -> ScoringCandidate:
+def validate_scoring_candidate(value) -> ScoringCandidate:  # type: ignore[no-untyped-def]
     """Revalidate an untrusted scoring candidate even if it is already a model.
 
     Provider, cache and Artifact boundaries treat model instances as data and
@@ -2228,7 +2299,7 @@ def validate_scoring_candidate_json(value: str | bytes | bytearray) -> ScoringCa
     return validate_scoring_candidate(ScoringCandidate.model_validate_json(value))
 
 
-def validate_content_quality_result(value: object) -> ContentQualityResult:
+def validate_content_quality_result(value) -> ContentQualityResult:  # type: ignore[no-untyped-def]
     """Revalidate an untrusted quality result even if it is already a model."""
 
     candidate = (
