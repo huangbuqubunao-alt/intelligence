@@ -1791,6 +1791,464 @@ class KnowledgeSink(ABC):
 
 
 # ---------------------------------------------------------------------------
+# Content Quality Layer contracts (TASK-016C Phase A)
+# ---------------------------------------------------------------------------
+
+# Phase A only establishes the domain contracts and candidate boundary.
+# Deterministic Gate, Local Quality Judge, H1/H2 persistence, attestation,
+# finalizer, write-plan, artifact persistence and repair orchestration are
+# intentionally out of scope.
+
+
+class ContentQualityStatus(str, Enum):
+    PASS = "PASS"
+    REJECT = "REJECT"
+    UNCERTAIN = "UNCERTAIN"
+
+
+class ContentQualityDecisionSource(str, Enum):
+    DETERMINISTIC_GATE = "DETERMINISTIC_GATE"
+    LOCAL_JUDGE = "LOCAL_JUDGE"
+
+
+class ContentQualityConfidence(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class ContentQualitySignal(str, Enum):
+    IDENTIFIER_ONLY = "IDENTIFIER_ONLY"
+    ENTITY_ONLY = "ENTITY_ONLY"
+    LOW_INFORMATION = "LOW_INFORMATION"
+    MINIMAL_CLAIM_PRESENT = "MINIMAL_CLAIM_PRESENT"
+    MINIMAL_CLAIM_MISSING = "MINIMAL_CLAIM_MISSING"
+    GROUNDING_PRESENT = "GROUNDING_PRESENT"
+    GROUNDING_INSUFFICIENT = "GROUNDING_INSUFFICIENT"
+    JUDGE_UNAVAILABLE = "JUDGE_UNAVAILABLE"
+    JUDGE_INVALID_RESPONSE = "JUDGE_INVALID_RESPONSE"
+
+
+class ContentQualityReason(str, Enum):
+    IDENTIFIER_ONLY = "IDENTIFIER_ONLY"
+    ENTITY_ONLY = "ENTITY_ONLY"
+    LOW_INFORMATION = "LOW_INFORMATION"
+    MINIMAL_CLAIM_MISSING = "MINIMAL_CLAIM_MISSING"
+    GROUNDING_INSUFFICIENT = "GROUNDING_INSUFFICIENT"
+    JUDGE_UNAVAILABLE = "JUDGE_UNAVAILABLE"
+    JUDGE_INVALID_RESPONSE = "JUDGE_INVALID_RESPONSE"
+
+
+class DeterministicGateReason(str, Enum):
+    EMPTY_CONTENT = "EMPTY_CONTENT"
+    CONTROL_CHARACTER_INVALID = "CONTROL_CHARACTER_INVALID"
+    EXACT_REPETITION = "EXACT_REPETITION"
+
+
+class QualityJudgeAttemptRole(str, Enum):
+    PRIMARY = "PRIMARY"
+    REPAIR = "REPAIR"
+
+
+class ScoringEvidenceSource(str, Enum):
+    TITLE = "TITLE"
+    DESCRIPTION = "DESCRIPTION"
+    TRANSCRIPT_HEAD = "TRANSCRIPT_HEAD"
+    TRANSCRIPT_BODY = "TRANSCRIPT_BODY"
+    TRANSCRIPT_TAIL = "TRANSCRIPT_TAIL"
+
+
+_PASS_SIGNALS: Final[frozenset[ContentQualitySignal]] = frozenset(
+    {ContentQualitySignal.MINIMAL_CLAIM_PRESENT, ContentQualitySignal.GROUNDING_PRESENT}
+)
+
+_NEGATIVE_SIGNALS: Final[frozenset[ContentQualitySignal]] = frozenset(
+    {
+        ContentQualitySignal.IDENTIFIER_ONLY,
+        ContentQualitySignal.ENTITY_ONLY,
+        ContentQualitySignal.LOW_INFORMATION,
+        ContentQualitySignal.MINIMAL_CLAIM_MISSING,
+        ContentQualitySignal.GROUNDING_INSUFFICIENT,
+        ContentQualitySignal.JUDGE_UNAVAILABLE,
+        ContentQualitySignal.JUDGE_INVALID_RESPONSE,
+    }
+)
+
+_CONTENT_REJECT_REASONS: Final[frozenset[ContentQualityReason]] = frozenset(
+    {
+        ContentQualityReason.IDENTIFIER_ONLY,
+        ContentQualityReason.ENTITY_ONLY,
+        ContentQualityReason.LOW_INFORMATION,
+        ContentQualityReason.MINIMAL_CLAIM_MISSING,
+    }
+)
+
+_UNCERTAIN_REASONS: Final[frozenset[ContentQualityReason]] = frozenset(
+    {
+        ContentQualityReason.GROUNDING_INSUFFICIENT,
+        ContentQualityReason.JUDGE_UNAVAILABLE,
+        ContentQualityReason.JUDGE_INVALID_RESPONSE,
+    }
+)
+
+
+class _UpdateProtectedQualityContract(_DomainModel):
+    """Prevent callers from bypassing content-quality validation boundaries."""
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        if update is not None:
+            msg = "model_copy(update=...) is disabled for content-quality contracts"
+            raise ValueError(msg)
+        return super().model_copy(deep=deep)
+
+
+class ScoringCandidate(_UpdateProtectedScoringContract):
+    """Untrusted scoring candidate returned by a Provider Adapter.
+
+    ``ScoringCandidate`` preserves the existing ``ScoreResult`` business fields
+    but carries no trusted provenance.  It must be finalized through the
+    ``TrustedScoringFinalizer`` boundary before it becomes a trusted result.
+    """
+
+    score: float = Field(ge=0, le=10, allow_inf_nan=False)
+    reason: str = Field(min_length=1, max_length=2000)
+    topics: tuple[str, ...] = Field(min_length=1, max_length=10)
+    should_summarize: bool
+    dimensions: ScoreDimensions | None = None
+
+    @field_validator("reason")
+    @classmethod
+    def _strip_reason(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            msg = "reason must be non-empty after strip"
+            raise ValueError(msg)
+        if len(stripped) > 2000:
+            msg = "reason must be at most 2000 characters after strip"
+            raise ValueError(msg)
+        return stripped
+
+    @field_validator("topics")
+    @classmethod
+    def _validate_topics(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if not value:
+            msg = "topics must contain at least one item"
+            raise ValueError(msg)
+        if len(value) > 10:
+            msg = "topics must contain at most 10 items"
+            raise ValueError(msg)
+        seen: set[str] = set()
+        for topic in value:
+            if not 1 <= len(topic) <= 80:
+                msg = "each topic must have length 1..80"
+                raise ValueError(msg)
+            if topic in seen:
+                msg = "topics must be unique"
+                raise ValueError(msg)
+            seen.add(topic)
+        return value
+
+
+class ScoringEvidence(_UpdateProtectedQualityContract):
+    """One evidence entry in the content-quality input registry."""
+
+    evidence_id: str = Field(min_length=1, max_length=100, pattern=r"\S")
+    source: ScoringEvidenceSource
+    excerpt: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+
+
+class ContentQualityInput(_UpdateProtectedQualityContract):
+    """Trusted binding contract between a scoring candidate and its evidence."""
+
+    scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    output_language: ScoringOutputLanguage
+    reason: str = Field(min_length=1, max_length=2000)
+    topics: tuple[str, ...] = Field(min_length=1, max_length=10)
+    evidence_registry: tuple[ScoringEvidence, ...]
+    policy_version: Literal["content-quality-policy-v1"] = "content-quality-policy-v1"
+
+    @field_validator("reason")
+    @classmethod
+    def _strip_reason(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            msg = "reason must be non-empty after strip"
+            raise ValueError(msg)
+        if len(stripped) > 2000:
+            msg = "reason must be at most 2000 characters after strip"
+            raise ValueError(msg)
+        return stripped
+
+    @field_validator("topics")
+    @classmethod
+    def _validate_topics(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if not value:
+            msg = "topics must contain at least one item"
+            raise ValueError(msg)
+        if len(value) > 10:
+            msg = "topics must contain at most 10 items"
+            raise ValueError(msg)
+        seen: set[str] = set()
+        for topic in value:
+            if not 1 <= len(topic) <= 80:
+                msg = "each topic must have length 1..80"
+                raise ValueError(msg)
+            if topic in seen:
+                msg = "topics must be unique"
+                raise ValueError(msg)
+            seen.add(topic)
+        return value
+
+
+class ContentQualityResult(_UpdateProtectedQualityContract):
+    """Validated content-quality decision with frozen cross-field invariants.
+
+    The model normalizes ``signals`` and ``evidence_ids`` to a deterministic
+    canonical order and then enforces the approved status/reason/signal
+    matrix.  Any unchecked construction, copy or JSON restore must be passed
+    through ``validate_content_quality_result`` before it is trusted.
+    """
+
+    schema_version: Literal["content-quality-result-v1"] = "content-quality-result-v1"
+    policy_version: Literal["content-quality-policy-v1"] = "content-quality-policy-v1"
+    prompt_version: Literal["content-quality-prompt-v1"] = "content-quality-prompt-v1"
+    status: ContentQualityStatus
+    decision_source: ContentQualityDecisionSource
+    decision_confidence: ContentQualityConfidence
+    grounding_confidence: ContentQualityConfidence
+    usefulness_confidence: ContentQualityConfidence
+    signals: tuple[ContentQualitySignal, ...]
+    reason: DeterministicGateReason | ContentQualityReason | None = None
+    evidence_ids: tuple[str, ...] = ()
+    candidate_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    quality_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    judge_provider: Literal["ollama"] | None = None
+    judge_model: str | None = None
+    judge_model_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+
+    @field_validator("signals")
+    @classmethod
+    def _canonical_signals(
+        cls,
+        value: tuple[ContentQualitySignal, ...],
+    ) -> tuple[ContentQualitySignal, ...]:
+        return tuple(sorted(frozenset(value), key=lambda s: s.value))
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def _canonical_evidence_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        for eid in value:
+            if not eid.strip():
+                msg = "evidence_ids items must be non-empty"
+                raise ValueError(msg)
+            if eid in seen:
+                msg = "evidence_ids must be unique"
+                raise ValueError(msg)
+            seen.add(eid)
+        return tuple(sorted(value))
+
+    @model_validator(mode="after")
+    def _cross_field_integrity(self) -> ContentQualityResult:
+        self._validate_source_judge_consistency()
+        if self.status is ContentQualityStatus.PASS:
+            self._validate_pass_matrix()
+        elif self.status is ContentQualityStatus.REJECT:
+            self._validate_reject_matrix()
+        elif self.status is ContentQualityStatus.UNCERTAIN:
+            self._validate_uncertain_matrix()
+        return self
+
+    def _validate_source_judge_consistency(self) -> None:
+        judge_fields = (self.judge_provider, self.judge_model, self.judge_model_digest)
+        if self.decision_source is ContentQualityDecisionSource.DETERMINISTIC_GATE:
+            if self.status is not ContentQualityStatus.REJECT:
+                msg = "DETERMINISTIC_GATE can only produce REJECT"
+                raise ValueError(msg)
+            if not isinstance(self.reason, DeterministicGateReason):
+                msg = "DETERMINISTIC_GATE requires a deterministic reason"
+                raise ValueError(msg)
+            if self.signals:
+                msg = "DETERMINISTIC_GATE result must have empty signals"
+                raise ValueError(msg)
+            if self.evidence_ids:
+                msg = "DETERMINISTIC_GATE result must have empty evidence_ids"
+                raise ValueError(msg)
+            if any(field is not None for field in judge_fields):
+                msg = "DETERMINISTIC_GATE result must have empty Judge identity"
+                raise ValueError(msg)
+            if (
+                self.decision_confidence is not ContentQualityConfidence.HIGH
+                or self.grounding_confidence is not ContentQualityConfidence.LOW
+                or self.usefulness_confidence is not ContentQualityConfidence.LOW
+            ):
+                msg = "DETERMINISTIC_GATE confidence must be HIGH/LOW/LOW"
+                raise ValueError(msg)
+            return
+
+        if self.decision_source is not ContentQualityDecisionSource.LOCAL_JUDGE:
+            msg = "decision_source must be DETERMINISTIC_GATE or LOCAL_JUDGE"
+            raise ValueError(msg)
+
+        if any(field is None or field == "" for field in judge_fields):
+            msg = "LOCAL_JUDGE result requires complete Judge identity"
+            raise ValueError(msg)
+
+    def _validate_pass_matrix(self) -> None:
+        if self.decision_confidence is not ContentQualityConfidence.HIGH:
+            msg = "PASS requires decision_confidence=HIGH"
+            raise ValueError(msg)
+        if self.grounding_confidence not in {
+            ContentQualityConfidence.MEDIUM,
+            ContentQualityConfidence.HIGH,
+        }:
+            msg = "PASS requires grounding_confidence>=MEDIUM"
+            raise ValueError(msg)
+        if self.usefulness_confidence not in {
+            ContentQualityConfidence.MEDIUM,
+            ContentQualityConfidence.HIGH,
+        }:
+            msg = "PASS requires usefulness_confidence>=MEDIUM"
+            raise ValueError(msg)
+        if self.reason is not None:
+            msg = "PASS must not have a rejection reason"
+            raise ValueError(msg)
+        if not self.evidence_ids:
+            msg = "PASS requires at least one evidence ID"
+            raise ValueError(msg)
+        if not _PASS_SIGNALS.issubset(self.signals):
+            msg = "PASS requires MINIMAL_CLAIM_PRESENT and GROUNDING_PRESENT"
+            raise ValueError(msg)
+        if _NEGATIVE_SIGNALS.intersection(self.signals):
+            msg = "PASS must not contain negative signals"
+            raise ValueError(msg)
+
+    def _validate_reject_matrix(self) -> None:
+        if self.decision_confidence is not ContentQualityConfidence.HIGH:
+            msg = "REJECT requires decision_confidence=HIGH"
+            raise ValueError(msg)
+        if self.reason is None:
+            msg = "REJECT requires a reason"
+            raise ValueError(msg)
+        if self.reason in _UNCERTAIN_REASONS:
+            msg = "REJECT may not use an UNCERTAIN-only reason"
+            raise ValueError(msg)
+        if self.reason not in set(ContentQualityReason):
+            msg = "REJECT reason is not an approved Judge reason"
+            raise ValueError(msg)
+
+        expected_signal = ContentQualitySignal(self.reason.value)
+        if expected_signal not in self.signals:
+            msg = "REJECT must include the signal matching its reason"
+            raise ValueError(msg)
+
+        if self.reason is ContentQualityReason.GROUNDING_INSUFFICIENT:
+            if self.grounding_confidence is not ContentQualityConfidence.LOW:
+                msg = "GROUNDING_INSUFFICIENT REJECT requires grounding_confidence=LOW"
+                raise ValueError(msg)
+            if ContentQualitySignal.GROUNDING_PRESENT in self.signals:
+                msg = "GROUNDING_INSUFFICIENT REJECT must not claim GROUNDING_PRESENT"
+                raise ValueError(msg)
+        else:
+            if self.grounding_confidence not in {
+                ContentQualityConfidence.LOW,
+                ContentQualityConfidence.MEDIUM,
+            }:
+                msg = "content REJECT requires grounding_confidence in {LOW,MEDIUM}"
+                raise ValueError(msg)
+            if self.usefulness_confidence is not ContentQualityConfidence.LOW:
+                msg = "content REJECT requires usefulness_confidence=LOW"
+                raise ValueError(msg)
+
+        if _PASS_SIGNALS.issubset(self.signals):
+            msg = "REJECT must not claim complete PASS signals"
+            raise ValueError(msg)
+
+    def _validate_uncertain_matrix(self) -> None:
+        if (
+            self.decision_confidence is not ContentQualityConfidence.LOW
+            or self.grounding_confidence is not ContentQualityConfidence.LOW
+            or self.usefulness_confidence is not ContentQualityConfidence.LOW
+        ):
+            msg = "UNCERTAIN requires all confidences=LOW"
+            raise ValueError(msg)
+        if self.reason not in _UNCERTAIN_REASONS:
+            msg = "UNCERTAIN requires an approved uncertain reason"
+            raise ValueError(msg)
+        expected_signal = ContentQualitySignal(self.reason.value)
+        if expected_signal not in self.signals:
+            msg = "UNCERTAIN must include the signal matching its reason"
+            raise ValueError(msg)
+        if _PASS_SIGNALS.issubset(self.signals):
+            msg = "UNCERTAIN must not claim complete PASS signals"
+            raise ValueError(msg)
+
+
+class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
+    """Stable normalized input identity for a single quality Judge attempt."""
+
+    scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    attempt_role: QualityJudgeAttemptRole
+    candidate_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    quality_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    policy_version: str = Field(min_length=1)
+    prompt_version: str = Field(min_length=1)
+    schema_version: str = Field(min_length=1)
+    judge_provider: str = Field(min_length=1)
+    judge_model: str = Field(min_length=1)
+    judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+def validate_scoring_candidate(value: object) -> ScoringCandidate:
+    """Revalidate an untrusted scoring candidate even if it is already a model.
+
+    Provider, cache and Artifact boundaries treat model instances as data and
+    rebuild them through the complete schema validators.
+    """
+
+    candidate = (
+        value.model_dump(mode="python") if isinstance(value, ScoringCandidate) else value
+    )
+    return ScoringCandidate.model_validate(candidate)
+
+
+def validate_scoring_candidate_json(value: str | bytes | bytearray) -> ScoringCandidate:
+    """Parse persisted JSON and apply the same trusted candidate validation."""
+
+    return validate_scoring_candidate(ScoringCandidate.model_validate_json(value))
+
+
+def validate_content_quality_result(value: object) -> ContentQualityResult:
+    """Revalidate an untrusted quality result even if it is already a model."""
+
+    candidate = (
+        value.model_dump(mode="python")
+        if isinstance(value, ContentQualityResult)
+        else value
+    )
+    return ContentQualityResult.model_validate(candidate)
+
+
+def validate_content_quality_result_json(
+    value: str | bytes | bytearray,
+) -> ContentQualityResult:
+    """Parse persisted JSON and apply the same trusted quality validation."""
+
+    return validate_content_quality_result(ContentQualityResult.model_validate_json(value))
+
+
+
+# ---------------------------------------------------------------------------
 # Public exports
 # ---------------------------------------------------------------------------
 
@@ -1821,6 +2279,23 @@ __all__ = [
     "TranscriptArtifact",
     "ScoreDimensions",
     "ScoreResult",
+    "ScoringCandidate",
+    "ContentQualityStatus",
+    "ContentQualityDecisionSource",
+    "ContentQualityConfidence",
+    "ContentQualitySignal",
+    "ContentQualityReason",
+    "DeterministicGateReason",
+    "ScoringEvidence",
+    "ScoringEvidenceSource",
+    "ContentQualityInput",
+    "ContentQualityResult",
+    "QualityJudgeAttemptRole",
+    "QualityJudgeOperationInput",
+    "validate_scoring_candidate",
+    "validate_scoring_candidate_json",
+    "validate_content_quality_result",
+    "validate_content_quality_result_json",
     "AnalysisPayload",
     "EvidenceExcerpt",
     "AnalysisPoint",
