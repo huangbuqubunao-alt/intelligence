@@ -778,29 +778,53 @@ class OllamaQualityJudgeProvider:
         *,
         content_input: ContentQualityInput | None,
     ) -> ContentQualityResult:
-        """Return a trusted content-quality result, or UNCERTAIN on any failure."""
+        """Return a trusted content-quality result, or UNCERTAIN on any failure.
 
-        if not self._validate_trusted_binding(operation_input):
+        The provider reconstructs both inputs into exact base contract types
+        before any transport-visible check so that subclass spoofing or mutated
+        instances cannot influence trusted binding validation.
+        """
+
+        from youtube_intel.quality import _revalidated_fields
+
+        try:
+            trusted_operation = _revalidated_fields(
+                QualityJudgeOperationInput,
+                operation_input,
+            )
+            if content_input is None:
+                return self._build_uncertain_result(
+                    trusted_operation,
+                    reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+                )
+            trusted_content = _revalidated_fields(
+                ContentQualityInput,
+                content_input,
+            )
+        except Exception:
             return self._build_uncertain_result(
                 operation_input,
+                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
+            )
+
+        if not self._validate_trusted_binding(trusted_operation):
+            return self._build_uncertain_result(
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
         if not self._validate_loopback_settings():
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
-        if type(content_input) is not ContentQualityInput:
+        if not self._validate_content_input_identity(
+            trusted_operation,
+            trusted_content,
+        ):
             return self._build_uncertain_result(
-                operation_input,
-                reason=ContentQualityReason.JUDGE_UNAVAILABLE,
-            )
-
-        if not self._validate_content_input_identity(operation_input, content_input):
-            return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
@@ -808,52 +832,55 @@ class OllamaQualityJudgeProvider:
             model_ok = self._verify_expected_model()
         except Exception:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
         if not model_ok:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
         try:
-            response = self._generate(operation_input, content_input=content_input)
+            response = self._generate(
+                trusted_operation,
+                content_input=trusted_content,
+            )
         except _InvalidModelResponse:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
             )
         except OllamaProviderError:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
         except Exception:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
         try:
             judge_response = self._parse_judge_response(
                 response.response_text,
-                evidence_registry=content_input.evidence_registry,
+                evidence_registry=trusted_content.evidence_registry,
             )
         except Exception:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
             )
 
         try:
             return self._build_result_from_response(
-                operation_input,
+                trusted_operation,
                 judge_response,
             )
         except Exception:
             return self._build_uncertain_result(
-                operation_input,
+                trusted_operation,
                 reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
             )
 

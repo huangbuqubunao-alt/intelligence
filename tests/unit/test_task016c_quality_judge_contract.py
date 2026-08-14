@@ -296,7 +296,12 @@ class TestJudgeIdentity:
     def test_unchecked_model_copy_update_cannot_produce_trusted_h1(self) -> None:
         operation_input = _operation_input()
         with pytest.raises(ValueError, match="model_copy"):
-            operation_input.model_copy(update={"model": "tampered"})
+            operation_input.model_copy(update={"judge_model": "tampered"})
+
+    def test_deprecated_copy_update_cannot_produce_trusted_h1(self) -> None:
+        operation_input = _operation_input()
+        with pytest.raises(ValueError, match="copy"):
+            operation_input.copy(update={"judge_model": "tampered"})
 
     def test_unchecked_model_construct_cannot_produce_trusted_h1(self) -> None:
         with pytest.raises(ValueError):
@@ -428,6 +433,152 @@ class TestJudgeConfigBinding:
         assert transport.requests == []
 
 
+class TestJudgeReconstructionAtEntry:
+    def test_subclass_getattribute_spoof_emits_zero_transport(self) -> None:
+        """Spoofed __getattribute__ on a subclass must not reach GET /api/tags."""
+
+        _trusted = {
+            "judge_provider": "ollama",
+            "judge_model": "qwen3:8b",
+            "judge_model_digest": DIGEST,
+            "policy_version": "content-quality-policy-v1",
+            "prompt_version": "content-quality-prompt-v1",
+            "schema_version": "content-quality-result-v1",
+        }
+
+        class _TamperedInput(QualityJudgeOperationInput):
+            def __getattribute__(self, name: str) -> object:
+                if name in _trusted:
+                    return _trusted[name]
+                return object.__getattribute__(self, name)
+
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        base = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        malicious_dump = base.model_dump(mode="python")
+        malicious_dump["judge_model"] = "other-model"
+        malicious_dump["judge_provider"] = "openai"
+        tampered = _TamperedInput.model_validate(malicious_dump)
+        assert tampered.judge_model == "qwen3:8b"
+        assert tampered.judge_provider == "ollama"
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            tampered,
+            content_input=content_input,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_subclass_model_dump_spoof_emits_zero_transport(self) -> None:
+        class _MismatchInput(QualityJudgeOperationInput):
+            def model_dump(self, **kwargs: object) -> dict[str, object]:
+                data = super().model_dump(**kwargs)
+                data["judge_model"] = "qwen3:8b"
+                return data
+
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        base = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        malicious_dump = base.model_dump(mode="python")
+        malicious_dump["judge_model"] = "other-model"
+        mismatch = _MismatchInput.model_validate(malicious_dump)
+        assert mismatch.model_dump()["judge_model"] == "qwen3:8b"
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            mismatch,
+            content_input=content_input,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_model_construct_operation_input_emits_zero_transport(self) -> None:
+        transport = _FakeTransport([])
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+        content_input = _content_input()
+
+        with pytest.raises(ValueError):
+            constructed = QualityJudgeOperationInput.model_construct(
+                scoring_request_hash=VALID_HASH,
+                attempt_role=QualityJudgeAttemptRole.PRIMARY,
+                candidate_hash=VALID_HASH,
+                quality_input_hash=VALID_HASH,
+                policy_version="content-quality-policy-v1",
+                prompt_version="content-quality-prompt-v1",
+                schema_version="content-quality-result-v1",
+                judge_provider="ollama",
+                judge_model="qwen3:8b",
+                judge_model_digest=DIGEST,
+            )
+            provider.judge(constructed, content_input=content_input)
+
+        assert transport.requests == []
+
+    def test_malformed_content_input_fails_closed_without_validation_error(
+        self,
+    ) -> None:
+        transport = _FakeTransport([])
+        operation_input = _operation_input()
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+        malformed = ContentQualityInput.model_construct(
+            scoring_request_hash=VALID_HASH,
+            candidate_hash=VALID_HASH,
+            output_language="en",
+            reason="reason",
+            topics=("topic",),
+            evidence_registry=(),
+            policy_version="content-quality-policy-v1",
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=malformed,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+    def test_zero_transport_on_content_input_hash_mismatch(self) -> None:
+        transport = _FakeTransport([])
+        content_input = _content_input()
+        operation_input = _operation_input(quality_input_hash=OTHER_HASH)
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=content_input,
+        )
+
+        assert result.status is ContentQualityStatus.UNCERTAIN
+        assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
+        assert transport.requests == []
+
+
 class TestJudgeLoopback:
     @pytest.mark.parametrize(
         "base_url",
@@ -524,7 +675,7 @@ class TestJudgePayload:
         assert result.reason is ContentQualityReason.JUDGE_UNAVAILABLE
         assert transport.requests == []
 
-    def test_payload_requires_nonempty_reason_topics_and_evidence(self) -> None:
+    def test_empty_reason_rejected(self) -> None:
         with pytest.raises(ValueError):
             ContentQualityInput.model_validate(
                 {
@@ -532,11 +683,105 @@ class TestJudgePayload:
                     "candidate_hash": VALID_HASH,
                     "output_language": "en",
                     "reason": "",
+                    "topics": ("topic-a",),
+                    "evidence_registry": (),
+                    "policy_version": "content-quality-policy-v1",
+                }
+            )
+
+    def test_empty_topics_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            ContentQualityInput.model_validate(
+                {
+                    "scoring_request_hash": VALID_HASH,
+                    "candidate_hash": VALID_HASH,
+                    "output_language": "en",
+                    "reason": "A reason",
                     "topics": (),
                     "evidence_registry": (),
                     "policy_version": "content-quality-policy-v1",
                 }
             )
+
+    def test_empty_evidence_registry_is_valid(self) -> None:
+        content_input = ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": VALID_HASH,
+                "candidate_hash": VALID_HASH,
+                "output_language": "en",
+                "reason": "A concise candidate reason",
+                "topics": ("topic-a",),
+                "evidence_registry": (),
+                "policy_version": "content-quality-policy-v1",
+            }
+        )
+        assert content_input.evidence_registry == ()
+
+    def test_empty_evidence_registry_hash_is_deterministic(self) -> None:
+        content_input_a = ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": VALID_HASH,
+                "candidate_hash": VALID_HASH,
+                "output_language": "en",
+                "reason": "A concise candidate reason",
+                "topics": ("topic-a",),
+                "evidence_registry": (),
+                "policy_version": "content-quality-policy-v1",
+            }
+        )
+        content_input_b = ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": VALID_HASH,
+                "candidate_hash": VALID_HASH,
+                "output_language": "en",
+                "reason": "A concise candidate reason",
+                "topics": ("topic-a",),
+                "evidence_registry": (),
+                "policy_version": "content-quality-policy-v1",
+            }
+        )
+        assert build_content_quality_input_hash(content_input_a) == build_content_quality_input_hash(content_input_b)
+
+    def test_judge_with_empty_evidence_registry_succeeds(self) -> None:
+        transport = _FakeTransport(
+            [
+                _tags(),
+                _judge_response(
+                    status="PASS",
+                    signals=[
+                        "MINIMAL_CLAIM_PRESENT",
+                        "GROUNDING_PRESENT",
+                    ],
+                    evidence_ids=[],
+                ),
+            ]
+        )
+        content_input = ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": VALID_HASH,
+                "candidate_hash": VALID_HASH,
+                "output_language": "en",
+                "reason": "A concise candidate reason",
+                "topics": ("topic-a",),
+                "evidence_registry": (),
+                "policy_version": "content-quality-policy-v1",
+            }
+        )
+        operation_input = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(content_input),
+        )
+        provider = OllamaQualityJudgeProvider(
+            settings=_settings(),
+            transport=transport,
+        )
+
+        result = provider.judge(
+            operation_input,
+            content_input=content_input,
+        )
+
+        assert result.status is ContentQualityStatus.PASS
+        assert result.evidence_ids == ()
 
 
 class TestJudgeRequest:

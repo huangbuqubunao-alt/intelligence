@@ -466,3 +466,127 @@ Judge 请求参数 `reason=None`、`topics=()`  defaults 允许空评估材料�
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# TASK-016C Phase C Correction Round 3
+
+## 元数据
+
+- Role: `Implementer (Correction Round 3)`
+- Agent/session: `WorkBuddy`
+- Parent commit: `eba5420f3ab89076f99c527743a55a11c99fa3fd`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+- Started: `2026-08-14`
+- Reported: `2026-08-14`
+
+## 目标与范围
+
+- 仅关闭 Phase C Correction Round 2 Independent Review 剩余的 3 个 P1 与相关 P2 gaps。
+- 禁止进入 Phase D；禁止扩大 Phase C 范围。
+- 允许修改：
+  - `src/youtube_intel/domain.py`
+  - `src/youtube_intel/quality.py`
+  - `src/youtube_intel/providers/ollama.py`
+  - `tests/unit/test_task016c_quality_judge_contract.py`
+  - `tests/integration/test_ollama_provider.py`
+  - `handoffs/TASK-016C.md`
+- 明确未做：scoring.py、state.py、runtime composition、Artifact、cache、DB、migration、ProviderCall persistence、Attestation、Finalizer、filesystem protocol、Phase D+。
+
+## P1-1 — H1/H2 可信身份边界
+
+- 问题：`QualityJudgeOperationInput` 的 deprecated `copy(update=...)` 仍可产生被修改的实例并进入 `build_judge_h1_h2`。
+- 修复：在 `QualityJudgeOperationInput` 上覆盖 `copy()`，当 `update is not None` 时直接抛 `ValueError`；`model_copy(update=...)` 已由 `_UpdateProtectedQualityContract` 拒绝。
+- 回归测试：
+  - `test_deprecated_copy_update_cannot_produce_trusted_h1`
+  - `test_unchecked_model_copy_update_cannot_produce_trusted_h1`
+  - `test_unchecked_model_construct_cannot_produce_trusted_h1`
+  - `test_subclass_property_override_rejected_for_h1_h2`
+  - `test_model_dump_override_rejected_for_h1_h2`
+
+## P1-2 — Judge 入口处立即重建
+
+- 问题：`OllamaQualityJudgeProvider.judge()` 在信任重建前读取原始 operation input 的属性，subclass spoof 可到达 `GET /api/tags`。
+- 修复：`judge()` 入口立即通过 `_revalidated_fields` 重建 `QualityJudgeOperationInput` 与 `ContentQualityInput`；所有后续 binding/loopback/identity/transport 逻辑只使用重建后的精确基类对象。
+- 回归测试：
+  - `test_subclass_getattribute_spoof_emits_zero_transport`
+  - `test_subclass_model_dump_spoof_emits_zero_transport`
+  - `test_model_construct_operation_input_emits_zero_transport`
+  - `test_malformed_content_input_fails_closed_without_validation_error`
+  - `test_zero_transport_on_content_input_hash_mismatch`
+
+## P1-3 — 恢复空 Evidence Registry
+
+- 问题：Correction Round 2 未经授权地给 `ContentQualityInput.evidence_registry` 增加了非空约束，导致 `ContentQualityResult` PASS 矩阵也要求至少一个 evidence ID。
+- 修复：
+  - 移除 `ContentQualityInput._canonical_registry` 中的非空检查。
+  - 移除 `ContentQualityResult._validate_pass_matrix` 中 "PASS requires at least one evidence ID" 的检查。
+  - 保留 canonical ordering、duplicate ID rejection、registry bounds、evidence ID lexical constraints。
+- 回归测试：
+  - `test_empty_evidence_registry_is_valid`
+  - `test_empty_evidence_registry_hash_is_deterministic`
+  - `test_judge_with_empty_evidence_registry_succeeds`
+
+## 相关 P2 — Malformed Content Input Fail-Closed
+
+- 问题：`ContentQualityInput.model_construct(...)` 绕过验证后，judge 内部重建时可能抛出 `ValidationError` 给调用方。
+- 修复：`judge()` 入口的重建/身份验证全部包裹在 `try/except` 中，任何失败返回 `UNCERTAIN` 且零 transport。
+- 回归测试：`test_malformed_content_input_fails_closed_without_validation_error`。
+
+## TDD RED Evidence
+
+Round 3 先写测试再实现。RED 阶段失败类别：
+
+- `test_deprecated_copy_update_cannot_produce_trusted_h1`：修正前 `copy(update={"judge_model": ...})` 成功返回被修改实例。
+- `test_subclass_getattribute_spoof_emits_zero_transport`：修正前 subclass 通过信任绑定，发出 `GET /api/tags`。
+- `test_malformed_content_input_fails_closed_without_validation_error`：修正前 `ContentQualityInput.model_construct(...)` 进入 judge 后抛出 `ValidationError`。
+- `test_empty_evidence_registry_is_valid` / `test_empty_evidence_registry_hash_is_deterministic` / `test_judge_with_empty_evidence_registry_succeeds`：修正前空 registry 直接触发 `ValidationError`。
+
+**RED chronology 说明**：本 Round 3 仅针对新增/调整用例记录 RED；前序 Round 的 RED evidence 已分别由 `da1154d`、`69b508b`、`eba5420` 记录，Git 历史未重写。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| `uv lock --check --offline` | PASS |
+| `uv sync --locked --offline` | PASS |
+| `uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py` | 67 passed |
+| `uv run pytest -x -q tests/integration/test_ollama_provider.py` | 71 passed |
+| `uv run pytest -x -q` | 1027 passed, 2 warnings |
+| `uv run mypy src` | PASS |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+## 修改文件
+
+- `src/youtube_intel/domain.py`
+  - `QualityJudgeOperationInput.copy()`：拒绝 `copy(update=...)`。
+  - `ContentQualityInput._canonical_registry`：移除非空约束。
+  - `ContentQualityResult._validate_pass_matrix`：移除对空 evidence_ids 的拒绝。
+- `src/youtube_intel/providers/ollama.py`
+  - `OllamaQualityJudgeProvider.judge()`：入口立即重建 operation/content input；重建失败 fail-closed；所有后续逻辑只使用重建对象。
+- `tests/unit/test_task016c_quality_judge_contract.py`：新增/调整 10 项 Round 3 回归测试，总计 67 项。
+- `handoffs/TASK-016C.md`：本报告。
+
+## 失败、跳过与风险
+
+- 已解决：P1-1 copy/update identity bypass、P1-2 reconstruction-at-entry、P1-3 empty evidence registry、P2 malformed content fail-closed。
+- 剩余风险：同进程内存模型下物理内存篡改不在本合约防御范围内；每次重建仍依赖 Python 运行时提供的 `__dict__` 隔离。
+- `DECISION NEEDED`：无（Phase C correction 范围内）。
+
+## 实现者结论
+
+- 建议状态：`IN_REVIEW / PHASE C CORRECTION ROUND 3 COMPLETE`
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q tests/integration/test_ollama_provider.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

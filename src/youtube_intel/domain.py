@@ -24,6 +24,7 @@ from typing import (
     Self,
     TypeAlias,
     cast,
+    no_type_check,
     runtime_checkable,
 )
 
@@ -2008,9 +2009,6 @@ class ContentQualityInput(_UpdateProtectedQualityContract):
         cls,
         value: tuple[ScoringEvidence, ...],
     ) -> tuple[ScoringEvidence, ...]:
-        if not value:
-            msg = "evidence_registry must contain at least one item"
-            raise ValueError(msg)
         seen: set[str] = set()
         total_chars = 0
         for item in value:
@@ -2195,9 +2193,6 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
         if self.reason is not None:
             msg = "PASS must not have a rejection reason"
             raise ValueError(msg)
-        if not self.evidence_ids:
-            msg = "PASS requires at least one evidence ID"
-            raise ValueError(msg)
         if not _PASS_SIGNALS.issubset(self.signals):
             msg = "PASS requires MINIMAL_CLAIM_PRESENT and GROUNDING_PRESENT"
             raise ValueError(msg)
@@ -2301,6 +2296,19 @@ class QualityJudgeOperationInput(_UpdateProtectedQualityContract):
             "use model_validate or normal construction"
         )
         raise ValueError(msg)
+
+    @no_type_check
+    def copy(
+        self,
+        *,
+        update: Mapping[str, Never] | None = None,
+        deep: bool = False,
+        **kwargs: Never,
+    ) -> Self:
+        if update is not None:
+            msg = "copy(update=...) is disabled for QualityJudgeOperationInput"
+            raise ValueError(msg)
+        return super().copy(update=None, deep=deep, **kwargs)
 
     def model_post_init(self, __context: Mapping[str, str]) -> None:
         super().model_post_init(__context)
