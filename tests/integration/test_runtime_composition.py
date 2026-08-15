@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from youtube_intel.cli import ExitCode, main
+from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
     Availability,
     ChannelRef,
@@ -26,7 +27,8 @@ from youtube_intel.domain import (
     TranscriptSourceType,
     VideoMetadata,
 )
-from youtube_intel.runtime import RuntimeDependencies
+from youtube_intel.quality import QualityProvenanceAuthority
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.state import PipelineStatus, SQLiteStateRepository
 from youtube_intel.transcripts import (
     SubtitleReadResult,
@@ -373,3 +375,37 @@ def test_no_subtitle_stops_at_named_transcription_prerequisite(
     assert "managed audio transcription is not yet composed" in retry_output.err
     # An explicit retry advances the durable provider refresh generation.
     assert subtitle.enumerate_calls == 2
+
+
+def test_runtime_operations_mints_quality_provenance_authority_from_config(
+    tmp_path: Path,
+) -> None:
+    """Runtime composition is the sole authority-minting boundary.
+
+    The authority is derived from the already-loaded ``AppConfig``
+    ``local_scoring`` settings, not from hard-coded constants, example files or
+    caller input.  The fixture config uses a non-bbbb digest to prove the
+    binding is real.
+    """
+    project = _project(tmp_path)
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+    runtime = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+
+    authority = runtime._quality_provenance_authority
+    assert isinstance(authority, QualityProvenanceAuthority)
+    assert authority.judge_model == "qwen3:8b"
+    assert authority.judge_model_digest == f"sha256:{'1' * 64}"
+    assert authority.judge_provider == "ollama"

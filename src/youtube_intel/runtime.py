@@ -21,7 +21,7 @@ from youtube_intel.analysis import (
     EnvironmentCredentialResolver,
     RepositoryBackedAnalysisService,
 )
-from youtube_intel.config import AppConfig
+from youtube_intel.config import AppConfig, LocalScoringSettings
 from youtube_intel.discovery import DiscoveryService, YouTubeRssSourceProvider
 from youtube_intel.domain import (
     AnalysisCompleted,
@@ -54,6 +54,18 @@ from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.providers.ollama import OllamaScoringProvider
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
+from youtube_intel.quality import (
+    _JUDGE_PROVIDER,
+    _QUALITY_JUDGE_OPERATION,
+    _QUALITY_POLICY_VERSION,
+    _QUALITY_PROMPT_VERSION,
+    _QUALITY_PROVENANCE_AUTHORITY_SENTINEL,
+    _QUALITY_SCHEMA_VERSION,
+    _SCORING_PROMPT_VERSION,
+    _SCORING_SCHEMA_VERSION,
+    QualityProvenanceAuthority,
+    _mint_quality_provenance_authority,
+)
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.scoring import RepositoryBackedScoringService, ScoringJobContext
@@ -94,6 +106,44 @@ class DoctorCheck:
     status: str
     message: str
     blocking: bool
+
+
+def _build_quality_provenance_authority(
+    local_scoring: LocalScoringSettings,
+) -> QualityProvenanceAuthority:
+    """Mint the current quality provenance authority from validated config.
+
+    This is the sole production path from an already-loaded ``AppConfig`` to a
+    ``QualityProvenanceAuthority``.  It is called during ``RuntimeOperations``
+    composition and is not exposed as a public factory.
+    """
+
+    return _mint_quality_provenance_authority(
+        sentinel=_QUALITY_PROVENANCE_AUTHORITY_SENTINEL,
+        judge_provider=_JUDGE_PROVIDER,
+        judge_model=local_scoring.model,
+        judge_model_digest=local_scoring.expected_model_digest,
+        scoring_schema_version=_SCORING_SCHEMA_VERSION,
+        scoring_prompt_version=_SCORING_PROMPT_VERSION,
+        quality_policy_version=_QUALITY_POLICY_VERSION,
+        quality_schema_version=_QUALITY_SCHEMA_VERSION,
+        quality_prompt_version=_QUALITY_PROMPT_VERSION,
+        judge_operation=_QUALITY_JUDGE_OPERATION,
+    )
+
+
+def _mint_quality_provenance_authority_for_test(
+    local_scoring: LocalScoringSettings,
+) -> QualityProvenanceAuthority:
+    """Controlled composition seam for unit tests.
+
+    Tests need an authority but must not be able to mint one from arbitrary
+    caller input.  This function uses the same private runtime minting path and
+    is intentionally prefixed with an underscore; it is not part of the public
+    product API.
+    """
+
+    return _build_quality_provenance_authority(local_scoring)
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +256,9 @@ class RuntimeOperations(Operations):
         self._root = project_root.resolve(strict=True)
         self._repository = bootstrap_runtime(config, self._root)
         self._dependencies = dependencies or _production_dependencies(config)
+        self._quality_provenance_authority = _build_quality_provenance_authority(
+            config.settings.local_scoring
+        )
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,

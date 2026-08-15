@@ -25,16 +25,192 @@ from youtube_intel.domain import (
     DeterministicGateReason,
     QualityJudgeOperationInput,
     QualityPassAttestation,
-    TrustedQualityProvenance,
 )
 from youtube_intel.state import build_provider_request_hash
 
 _JUDGE_PROVIDER: Final[str] = "ollama"
 _QUALITY_JUDGE_OPERATION: Final[str] = "local-content-quality-v1"
-_JUDGE_MODEL: Final[str] = "qwen3:8b"
-_JUDGE_MODEL_DIGEST: Final[str] = "sha256:" + "b" * 64
+_QUALITY_POLICY_VERSION: Final[str] = "content-quality-policy-v1"
+_QUALITY_SCHEMA_VERSION: Final[str] = "content-quality-result-v1"
+_QUALITY_PROMPT_VERSION: Final[str] = "content-quality-prompt-v1"
 _SCORING_SCHEMA_VERSION: Final[str] = "scoring-schema-v1"
 _SCORING_PROMPT_VERSION: Final[str] = "scoring-prompt-v1"
+
+
+class _QualityProvenanceAuthoritySentinel:
+    """Private sentinel; only ``runtime.py`` can mint an authority."""
+
+    __slots__ = ()
+
+
+_QUALITY_PROVENANCE_AUTHORITY_SENTINEL = _QualityProvenanceAuthoritySentinel()
+
+
+class QualityProvenanceAuthority:
+    """Opaque, runtime-minted authority for quality attestation provenance.
+
+    This object is **not** a Pydantic DTO and cannot be constructed by callers.
+    It is created only by ``runtime.py`` from the already-loaded ``AppConfig``,
+    after configuration validation.  It carries the current Judge provider,
+    model, digest, scoring versions, quality policy/schema/prompt versions and
+    Judge operation identity that ``build_quality_pass_attestation`` and
+    ``verify_quality_pass_attestation`` bind to.
+
+    The sentinel guard prevents accidental or routine caller construction; it
+    does not claim to resist arbitrary code already executing in the same
+    Python process.
+    """
+
+    __slots__ = (
+        "_judge_provider",
+        "_judge_model",
+        "_judge_model_digest",
+        "_scoring_schema_version",
+        "_scoring_prompt_version",
+        "_quality_policy_version",
+        "_quality_schema_version",
+        "_quality_prompt_version",
+        "_judge_operation",
+    )
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        judge_provider: str,
+        judge_model: str,
+        judge_model_digest: str,
+        scoring_schema_version: str,
+        scoring_prompt_version: str,
+        quality_policy_version: str,
+        quality_schema_version: str,
+        quality_prompt_version: str,
+        judge_operation: str,
+    ) -> None:
+        if sentinel is not _QUALITY_PROVENANCE_AUTHORITY_SENTINEL:
+            msg = (
+                "QualityProvenanceAuthority can only be minted by runtime "
+                "composition; callers cannot construct it directly"
+            )
+            raise ValueError(msg)
+        self._judge_provider = judge_provider
+        self._judge_model = judge_model
+        self._judge_model_digest = judge_model_digest
+        self._scoring_schema_version = scoring_schema_version
+        self._scoring_prompt_version = scoring_prompt_version
+        self._quality_policy_version = quality_policy_version
+        self._quality_schema_version = quality_schema_version
+        self._quality_prompt_version = quality_prompt_version
+        self._judge_operation = judge_operation
+
+    @property
+    def judge_provider(self) -> str:
+        return self._judge_provider
+
+    @property
+    def judge_model(self) -> str:
+        return self._judge_model
+
+    @property
+    def judge_model_digest(self) -> str:
+        return self._judge_model_digest
+
+    @property
+    def scoring_schema_version(self) -> str:
+        return self._scoring_schema_version
+
+    @property
+    def scoring_prompt_version(self) -> str:
+        return self._scoring_prompt_version
+
+    @property
+    def quality_policy_version(self) -> str:
+        return self._quality_policy_version
+
+    @property
+    def quality_schema_version(self) -> str:
+        return self._quality_schema_version
+
+    @property
+    def quality_prompt_version(self) -> str:
+        return self._quality_prompt_version
+
+    @property
+    def judge_operation(self) -> str:
+        return self._judge_operation
+
+    def __repr__(self) -> str:
+        return (
+            f"QualityProvenanceAuthority("
+            f"judge_provider={self._judge_provider!r}, "
+            f"judge_model={self._judge_model!r}, "
+            f"judge_model_digest={self._judge_model_digest!r}, "
+            f"scoring_schema_version={self._scoring_schema_version!r}, "
+            f"scoring_prompt_version={self._scoring_prompt_version!r}, "
+            f"quality_policy_version={self._quality_policy_version!r}, "
+            f"quality_schema_version={self._quality_schema_version!r}, "
+            f"quality_prompt_version={self._quality_prompt_version!r}, "
+            f"judge_operation={self._judge_operation!r})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, QualityProvenanceAuthority):
+            return NotImplemented
+        return (
+            self._judge_provider == other._judge_provider
+            and self._judge_model == other._judge_model
+            and self._judge_model_digest == other._judge_model_digest
+            and self._scoring_schema_version == other._scoring_schema_version
+            and self._scoring_prompt_version == other._scoring_prompt_version
+            and self._quality_policy_version == other._quality_policy_version
+            and self._quality_schema_version == other._quality_schema_version
+            and self._quality_prompt_version == other._quality_prompt_version
+            and self._judge_operation == other._judge_operation
+        )
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self._judge_provider,
+                self._judge_model,
+                self._judge_model_digest,
+                self._scoring_schema_version,
+                self._scoring_prompt_version,
+                self._quality_policy_version,
+                self._quality_schema_version,
+                self._quality_prompt_version,
+                self._judge_operation,
+            )
+        )
+
+
+# Sentinel-backed factory exposed privately to runtime composition.
+def _mint_quality_provenance_authority(
+    *,
+    judge_provider: str,
+    judge_model: str,
+    judge_model_digest: str,
+    scoring_schema_version: str,
+    scoring_prompt_version: str,
+    quality_policy_version: str,
+    quality_schema_version: str,
+    quality_prompt_version: str,
+    judge_operation: str,
+    sentinel: object,
+) -> QualityProvenanceAuthority:
+    return QualityProvenanceAuthority(
+        sentinel=sentinel,
+        judge_provider=judge_provider,
+        judge_model=judge_model,
+        judge_model_digest=judge_model_digest,
+        scoring_schema_version=scoring_schema_version,
+        scoring_prompt_version=scoring_prompt_version,
+        quality_policy_version=quality_policy_version,
+        quality_schema_version=quality_schema_version,
+        quality_prompt_version=quality_prompt_version,
+        judge_operation=judge_operation,
+    )
+
 
 _ASCII_WHITESPACE: Final[str] = " \t\n\r\v\f"
 
@@ -328,56 +504,57 @@ def _verify_cross_bindings(
             raise ValueError(msg)
 
 
-def _build_current_quality_provenance() -> TrustedQualityProvenance:
-    """Build the current trusted quality provenance from fixed application config.
-
-    This factory is the only supported path to ``TrustedQualityProvenance``.
-    All fields are module-level constants owned by the application; callers
-    cannot supply, override, or substitute any provenance value.
-    """
-
-    return TrustedQualityProvenance.model_validate(
-        {
-            "judge_provider": _JUDGE_PROVIDER,
-            "judge_model": _JUDGE_MODEL,
-            "judge_model_digest": _JUDGE_MODEL_DIGEST,
-            "scoring_schema_version": _SCORING_SCHEMA_VERSION,
-            "scoring_prompt_version": _SCORING_PROMPT_VERSION,
-        }
-    )
-
-
 def _verify_trusted_provenance(
     result: ContentQualityResult,
     op_input: QualityJudgeOperationInput,
-    trusted: TrustedQualityProvenance,
+    authority: QualityProvenanceAuthority,
 ) -> None:
-    """Verify Judge and scoring provenance match the current authorized config."""
+    """Verify Judge, scoring and quality provenance match the runtime authority."""
 
     _trusted_bindings: list[tuple[str, object, object]] = [
-        ("judge_provider", result.judge_provider, trusted.judge_provider),
-        ("judge_model", result.judge_model, trusted.judge_model),
+        ("judge_provider", result.judge_provider, authority.judge_provider),
+        ("judge_model", result.judge_model, authority.judge_model),
         (
             "judge_model_digest",
             result.judge_model_digest,
-            trusted.judge_model_digest,
+            authority.judge_model_digest,
         ),
-        ("judge_provider", op_input.judge_provider, trusted.judge_provider),
-        ("judge_model", op_input.judge_model, trusted.judge_model),
+        ("judge_provider", op_input.judge_provider, authority.judge_provider),
+        ("judge_model", op_input.judge_model, authority.judge_model),
         (
             "judge_model_digest",
             op_input.judge_model_digest,
-            trusted.judge_model_digest,
+            authority.judge_model_digest,
         ),
         (
-            "scoring_schema_version",
-            _SCORING_SCHEMA_VERSION,
-            trusted.scoring_schema_version,
+            "quality_schema_version",
+            result.schema_version,
+            authority.quality_schema_version,
         ),
         (
-            "scoring_prompt_version",
-            _SCORING_PROMPT_VERSION,
-            trusted.scoring_prompt_version,
+            "quality_prompt_version",
+            result.prompt_version,
+            authority.quality_prompt_version,
+        ),
+        (
+            "quality_policy_version",
+            result.policy_version,
+            authority.quality_policy_version,
+        ),
+        (
+            "quality_schema_version",
+            op_input.schema_version,
+            authority.quality_schema_version,
+        ),
+        (
+            "quality_prompt_version",
+            op_input.prompt_version,
+            authority.quality_prompt_version,
+        ),
+        (
+            "quality_policy_version",
+            op_input.policy_version,
+            authority.quality_policy_version,
         ),
     ]
     for field_name, actual, expected in _trusted_bindings:
@@ -408,25 +585,31 @@ def build_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
+    authority: QualityProvenanceAuthority,
 ) -> QualityPassAttestation:
     """Trusted application-side constructor for ``quality-pass-attestation-v1``.
 
     Reconstructs and fully re-validates every input before constructing the
-    attestation.  The current trusted provenance is generated internally from
-    fixed application constants; callers cannot supply, override, or substitute
-    any provenance value.  Fails closed on any malformed value, binding
-    mismatch, or provenance that does not match the current authorized
-    configuration.
+    attestation.  The current trusted provenance is taken from the runtime-minted
+    ``authority``; callers cannot supply, override, or substitute any provenance
+    value.  Fails closed on any malformed value, binding mismatch, or provenance
+    that does not match the current authorized configuration.
     """
+
+    if not isinstance(authority, QualityProvenanceAuthority):
+        msg = (
+            f"authority must be a runtime-minted QualityProvenanceAuthority, "
+            f"got {type(authority).__name__}"
+        )
+        raise TypeError(msg)
 
     result = _reconstruct(ContentQualityResult, quality_result)
     op_input = _reconstruct(QualityJudgeOperationInput, operation_input)
     content_input = _reconstruct(ContentQualityInput, quality_input)
-    trusted = _build_current_quality_provenance()
 
     _verify_pass_eligibility(result, content_input)
     _verify_cross_bindings(result, op_input, content_input)
-    _verify_trusted_provenance(result, op_input, trusted)
+    _verify_trusted_provenance(result, op_input, authority)
 
     result_hash = build_content_quality_result_hash(result)
     _, h2 = build_judge_h1_h2(op_input)
@@ -443,15 +626,15 @@ def build_quality_pass_attestation(
         "quality_input_hash": result.quality_input_hash,
         "quality_result_hash": result_hash,
         "scoring_request_hash": result.scoring_request_hash,
-        "policy_version": result.policy_version,
-        "scoring_schema_version": trusted.scoring_schema_version,
-        "scoring_prompt_version": trusted.scoring_prompt_version,
-        "quality_schema_version": result.schema_version,
-        "quality_prompt_version": result.prompt_version,
+        "policy_version": authority.quality_policy_version,
+        "scoring_schema_version": authority.scoring_schema_version,
+        "scoring_prompt_version": authority.scoring_prompt_version,
+        "quality_schema_version": authority.quality_schema_version,
+        "quality_prompt_version": authority.quality_prompt_version,
         "judge_provider": result.judge_provider,
         "judge_model": result.judge_model,
         "judge_model_digest": result.judge_model_digest,
-        "judge_operation": _QUALITY_JUDGE_OPERATION,
+        "judge_operation": authority.judge_operation,
         "judge_request_hash": h2,
         "attempt_role": op_input.attempt_role.value,
         "decision_confidence": result.decision_confidence.value,
@@ -498,16 +681,23 @@ def verify_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
+    authority: QualityProvenanceAuthority,
 ) -> QualityPassAttestation:
     """Reconstruct and fully verify an alleged attestation; fail closed.
 
     The alleged attestation is treated as untrusted.  Its ``attestation_hash``
     is recomputed and compared, then a fresh trusted attestation is built from
-    the same inputs and the current trusted provenance derived from fixed
-    application constants, and compared field-by-field.  A historical or
-    attacker-selected configuration cannot verify under the current trusted
-    configuration.
+    the same inputs and the current runtime-minted ``authority``, and compared
+    field-by-field.  A historical or attacker-selected configuration cannot
+    verify under a different current trusted configuration.
     """
+
+    if not isinstance(authority, QualityProvenanceAuthority):
+        msg = (
+            f"authority must be a runtime-minted QualityProvenanceAuthority, "
+            f"got {type(authority).__name__}"
+        )
+        raise TypeError(msg)
 
     alleged = _reconstruct(QualityPassAttestation, attestation)
 
@@ -520,6 +710,7 @@ def verify_quality_pass_attestation(
         quality_result=quality_result,
         operation_input=operation_input,
         quality_input=quality_input,
+        authority=authority,
     )
 
     if alleged != fresh:

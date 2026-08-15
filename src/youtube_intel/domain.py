@@ -2417,40 +2417,6 @@ class QualityPassAttestation(_UpdateProtectedQualityContract):
         return super().copy(update=None, deep=deep, **kwargs)
 
 
-class TrustedQualityProvenance(_UpdateProtectedQualityContract):
-    """Application-owned current authorized configuration for quality attestation.
-
-    Binds the frozen current Judge and scoring provenance that an attestation
-    must match.  This is NOT sourced from provider/model/cache/artifact payload
-    — it is application-owned trusted input to ``build_quality_pass_attestation``
-    and ``verify_quality_pass_attestation``.
-
-    The frozen design (section 6.3) defines ``model`` and ``model_digest`` as
-    "trusted current" configuration; ``scoring_schema_version`` and
-    ``scoring_prompt_version`` come from ``TrustedScoringContext`` (section 9).
-    Fixed Literal version constants (policy/schema/prompt) are enforced by the
-    attestation model's type system and are NOT duplicated here.
-    """
-
-    judge_provider: Literal["ollama"] = "ollama"
-    judge_model: str = Field(min_length=1)
-    judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    scoring_schema_version: str = Field(min_length=1)
-    scoring_prompt_version: str = Field(min_length=1)
-
-    @classmethod
-    def model_construct(
-        cls,
-        _fields_set: set[str] | None = None,
-        **values: Any,
-    ) -> Self:
-        msg = (
-            "TrustedQualityProvenance.model_construct is disabled; "
-            "use model_validate or normal construction"
-        )
-        raise ValueError(msg)
-
-
 class ContentQualityJudgeResponse(_UpdateProtectedQualityContract):
     """Validated raw response contract from the local content-quality Judge.
 
@@ -2578,7 +2544,6 @@ __all__ = [
     "QualityJudgeAttemptRole",
     "QualityJudgeOperationInput",
     "QualityPassAttestation",
-    "TrustedQualityProvenance",
     "ContentQualityJudgeResponse",
     "validate_scoring_candidate",
     "validate_scoring_candidate_json",

@@ -1139,3 +1139,147 @@ Phase D 先写测试再实现。RED 阶段所有 91 项测试因 `ImportError: c
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# Phase D Authority Boundary Amendment — Bind attestation to runtime provenance authority
+
+## 目标
+
+关闭 Phase D 剩余 P1：Round 3 使用硬编码测试身份（``_JUDGE_MODEL`` / ``_JUDGE_MODEL_DIGEST``）作为生产 authority，会同时拒绝真实应用配置。本轮通过 Option A 架构将信任边界迁移到 runtime composition：``already-loaded AppConfig → runtime.py → mint in-memory QualityProvenanceAuthority → quality.py``。
+
+## 父提交
+
+- ``39a1e864238388abe651c466c0a41a023934c872``
+
+## Amendment cherry-pick
+
+- SHA: ``17f0f23eec5263cf30d4b1bc2468480c81b16145``
+- Source: ``31d35b82741e0069c4108ea7c4f2601cff54e7c7``
+- 说明：仅 cherry-pick 新的 Authority Boundary Amendment；原 ``790644a2771315e5d3f96286ffd39cd4e863cd79`` 已通过 ``dab0ba9d358c4624fb7619e95bfa034dd4dc70d7`` 存在于祖先历史，未重复 cherry-pick。
+
+## 变更路径
+
+- ``src/youtube_intel/domain.py``：
+  - 移除 ``TrustedQualityProvenance`` 及其 ``__all__`` 导出。
+  - 质量 provenance 的权威表达不再通过可序列化/可构造的 Pydantic DTO。
+- ``src/youtube_intel/quality.py``：
+  - 新增 ``QualityProvenanceAuthority``：非 Pydantic、私有 sentinel 保护的 opaque runtime-minted 对象。
+  - 新增 ``_QualityProvenanceAuthoritySentinel`` / ``_QUALITY_PROVENANCE_AUTHORITY_SENTINEL``：仅 ``runtime.py`` 可通过私有工厂持有 sentinel。
+  - 新增 ``_mint_quality_provenance_authority``：私有工厂，接收 sentinel。
+  - 删除 Round 3 的硬编码 ``_JUDGE_MODEL`` / ``_JUDGE_MODEL_DIGEST``。
+  - ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 改为接收 ``authority: QualityProvenanceAuthority``，拒绝 ``LocalScoringSettings``、``TrustedQualityProvenance``、Mapping、JSON 等 caller-created DTO（``TypeError``）。
+  - ``_verify_trusted_provenance`` 扩展为同时校验 quality policy/schema/prompt 版本与 Judge operation identity，全部来自 authority。
+- ``src/youtube_intel/runtime.py``：
+  - 新增 ``_build_quality_provenance_authority(local_scoring)``：唯一生产路径，从 ``AppConfig.settings.local_scoring`` 的 ``model`` / ``expected_model_digest`` 派生 authority。
+  - 新增 ``_mint_quality_provenance_authority_for_test(local_scoring)``：受控测试 seam，仍走同一私有 minting 路径。
+  - ``RuntimeOperations.__init__`` 在 composition 时调用上述函数，生成 ``self._quality_provenance_authority``。
+- ``tests/unit/test_task016c_quality_attestation.py``：
+  - 移除 ``TrustedQualityProvenance`` 导入。
+  - 新增 ``REAL_CONFIG_DIGEST`` 常量，用于证明不再依赖 ``sha256:bbbb...``。
+  - 新增 ``_current_authority()`` / ``_real_config_authority()`` helper，通过 ``_mint_quality_provenance_authority_for_test`` 从 ``LocalScoringSettings`` 获取 runtime-minted authority。
+  - 所有 ``build`` / ``verify`` 调用增加 ``authority=...``。
+  - 重写 ``TestTrustedProvenanceBinding``：
+    - 新增 ``test_real_current_config_build_and_verify_succeeds``：真实当前 config digest（非 bbbb）可成功 build + verify。
+    - 保留 ``test_caller_local_scoring_settings_rejected_by_build`` / ``test_caller_local_scoring_settings_rejected_by_verify``。
+    - 新增 ``test_caller_mapping_rejected_as_authority``。
+    - 新增 ``test_direct_authority_construction_rejected``：无 sentinel 直接构造 ``QualityProvenanceAuthority`` 失败。
+    - 保留并更新 ``test_self_consistent_attacker_inputs_build_rejects`` / ``test_self_consistent_fake_provenance_verify_rejects`` / ``test_configuration_rotation_verify_rejects``。
+  - 新增 ``TestQualityProvenanceAuthorityBypass``：证明 authority 无 ``model_copy`` / ``model_construct`` / ``model_validate`` 等 Pydantic bypass 路径。
+- ``tests/integration/test_runtime_composition.py``：
+  - 新增 ``test_runtime_operations_mints_quality_provenance_authority_from_config``：通过真实 ``load_app_config`` 加载 fixture 配置，验证 ``RuntimeOperations`` 生成的 authority 确实来自 ``AppConfig.settings.local_scoring``，digest 为 ``sha256:{'1' * 64}``（非 bbbb）。
+
+## 受信边界
+
+- 唯一 authority minting boundary：``src/youtube_intel/runtime.py`` 中的 ``_build_quality_provenance_authority``。
+- Authority 来源：已经加载并验证的 ``AppConfig.settings.local_scoring.model`` 与 ``expected_model_digest``。
+- 冻结常量仍保留在 ``quality.py``：``_JUDGE_PROVIDER``、``_QUALITY_JUDGE_OPERATION``、``_QUALITY_POLICY_VERSION``、``_QUALITY_SCHEMA_VERSION``、``_QUALITY_PROMPT_VERSION``、``_SCORING_SCHEMA_VERSION``、``_SCORING_PROMPT_VERSION``。
+- ``quality.py`` 不读取配置文件；authority 由 runtime composition 注入。
+- Caller 无法通过 ``LocalScoringSettings``、``TrustedQualityProvenance``、Mapping、JSON 或普通 ``QualityProvenanceAuthority(...)`` 构造绕过 sentinel 检查。
+
+## AppConfig → Authority 路径
+
+```
+load_app_config(channels_path, settings_path)
+  → AppConfig.settings.local_scoring
+      → RuntimeOperations.__init__
+          → _build_quality_provenance_authority(config.settings.local_scoring)
+              → _mint_quality_provenance_authority(sentinel=private, model=..., digest=...)
+                  → QualityProvenanceAuthority
+```
+
+## RED Evidence
+
+- 修正前（Round 3 状态）：``quality.py`` 内部使用硬编码 ``_JUDGE_MODEL_DIGEST = "sha256:" + "b" * 64``，无法代表真实应用配置；真实 current config digest（如 ``sha256:{'1' * 64}``）会被拒绝。
+- 本 Amendment 新增测试在修正前失败：
+  - ``test_real_current_config_build_and_verify_succeeds``：真实 config digest 与硬编码 bbbb 不匹配，build/verify 拒绝。
+  - ``test_runtime_operations_mints_quality_provenance_authority_from_config``：runtime 尚未 mint authority，断言失败。
+  - ``test_caller_local_scoring_settings_rejected_by_build`` / ``test_caller_local_scoring_settings_rejected_by_verify``：API 仍接受 ``settings`` 参数，未抛出 ``TypeError``（Round 3 已部分覆盖，但 authority 类型检查强化后重新验证）。
+  - ``test_direct_authority_construction_rejected``：无 sentinel 时 ``QualityProvenanceAuthority`` 可被直接构造。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| ``uv lock --check --offline`` | PASS |
+| ``uv sync --locked --offline`` | PASS |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py`` | 112 passed |
+| ``uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py`` | 60 passed, 1 warning |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py`` | 78 passed |
+| ``uv run pytest -x -q`` | 1151 passed, 1 warning |
+| ``uv run mypy src`` | Success (28 source files) |
+| ``uv run ruff check .`` | All checks passed |
+| ``git diff --check`` | PASS |
+
+## 新增关键测试
+
+- ``test_real_current_config_build_and_verify_succeeds``：真实 current config digest（非 bbbb）可成功 build + verify。
+- ``test_caller_local_scoring_settings_rejected_by_build`` / ``test_caller_local_scoring_settings_rejected_by_verify``：caller-created ``LocalScoringSettings`` 无法作为 authority。
+- ``test_caller_mapping_rejected_as_authority``：caller-created Mapping 无法作为 authority。
+- ``test_direct_authority_construction_rejected``：无 runtime sentinel 无法构造 ``QualityProvenanceAuthority``。
+- ``test_self_consistent_attacker_inputs_build_rejects``：攻击者自洽 model/digest 输入 build 被拒绝。
+- ``test_self_consistent_fake_provenance_verify_rejects``：攻击者构造完全自洽、hash 正确的 fake attestation，verify 被拒绝。
+- ``test_configuration_rotation_verify_rejects``：authority A 创建的 attestation 在 authority B 下 verify 失败。
+- ``test_runtime_operations_mints_quality_provenance_authority_from_config``：runtime composition 从 ``AppConfig.settings.local_scoring`` 派生 authority，digest 为真实 fixture 值。
+
+## Mutation Evidence
+
+- 临时破坏 ``src/youtube_intel/runtime.py`` 中 ``_build_quality_provenance_authority`` 的 config-to-digest 绑定，将 ``judge_model_digest=local_scoring.expected_model_digest`` 替换为固定 ``"sha256:" + "f" * 64`` 后：
+  - ``tests/unit/test_task016c_quality_attestation.py::TestTrustedProvenanceBinding::test_real_current_config_build_and_verify_succeeds`` 失败（``ValueError: judge_model_digest does not match trusted current provenance``）。
+  - ``tests/integration/test_runtime_composition.py::test_runtime_operations_mints_quality_provenance_authority_from_config`` 失败（digest 断言不匹配）。
+  - ``test_configuration_rotation_verify_rejects`` 同样因 digest 绑定被破坏而失败。
+- 回退 mutation 后，上述测试重新通过。
+
+## 范围验证
+
+- ``git diff --name-only HEAD`` 仅包含：
+  - ``src/youtube_intel/domain.py``
+  - ``src/youtube_intel/quality.py``
+  - ``src/youtube_intel/runtime.py``
+  - ``tests/unit/test_task016c_quality_attestation.py``
+  - ``tests/integration/test_runtime_composition.py``
+  - ``handoffs/TASK-016C.md``
+- 未修改 ``providers/ollama.py``、``scoring.py``、``state.py``、DB、cache、Artifact、ProviderCall persistence、Finalizer、Phase E+、依赖、锁文件。
+- ``runtime.py`` 变更范围严格限于 authority minting/injection bridge，未扩展 runtime 功能。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D AUTHORITY BOUNDARY INDEPENDENT REVIEW`
+
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE
