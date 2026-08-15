@@ -935,3 +935,94 @@ Phase D 先写测试再实现。RED 阶段所有 91 项测试因 `ImportError: c
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# Phase D Correction Round 2 — Close trusted provenance authority boundary
+
+## 目标
+
+关闭 Independent Review 剩余 P1：``TrustedQualityProvenance`` 仍是 caller-authoritative（调用者可自行创建并传入）。必须改为由应用当前配置（``LocalScoringSettings``）通过可信 provenance 工厂生成 ``TrustedQualityProvenance``，再用于 ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation``，确保调用者无法成为信任来源。
+
+## 父提交
+
+- ``721b1c53233dfdea548e1d09e9fb6c0d4470f463``
+
+## 变更路径
+
+- ``src/youtube_intel/quality.py``：
+  - 移除 ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 的 ``trusted_provenance`` 参数。
+  - 新增模块常量：``_JUDGE_PROVIDER = "ollama"``、``_QUALITY_JUDGE_OPERATION = "local-content-quality-v1"``、``_SCORING_SCHEMA_VERSION = "scoring-schema-v1"``、``_SCORING_PROMPT_VERSION = "scoring-prompt-v1"``。
+  - 新增内部工厂 ``_build_trusted_quality_provenance(settings: LocalScoringSettings) -> TrustedQualityProvenance``：仅由应用当前配置生成受信 provenance，调用者无法传入。
+  - ``_verify_trusted_provenance`` 增加 scoring_schema_version / scoring_prompt_version 一致性校验。
+  - 签名统一改为 ``settings: LocalScoringSettings``。
+- ``tests/unit/test_task016c_quality_attestation.py``：
+  - 所有 ``trusted_provenance=_authorized_provenance()`` 调用点改为 ``settings=_authorized_settings()``。
+  - 新增 ``LocalScoringSettings``/``_authorized_settings``/``_unauthorized_settings`` helper。
+  - 保留 ``TrustedQualityProvenance`` 用于域模型级 bypass 测试。
+  - 新增 ``test_self_consistent_attacker_provenance_rejected``：证明自洽的攻击者配置（模型/digest 互相对齐但非授权）在授权应用配置下 build 与 verify 均被拒绝。
+  - 更新 ``test_scoring_version_mismatch_rejects`` 与 ``test_individual_field_mismatch_verify_rejects``：改为直接篡改 attestation JSON（重算 hash）后使用授权 settings verify，反映 scoring 版本现为应用固定常量。
+
+## 受信边界
+
+- 信任来源：``LocalScoringSettings.model`` + ``LocalScoringSettings.expected_model_digest``（应用当前配置）。
+- 固定常量（模块所有）：``judge_provider``、``judge_operation``、``scoring_schema_version``、``scoring_prompt_version``。
+- 工厂 ``_build_trusted_quality_provenance`` 是唯一从应用到 ``TrustedQualityProvenance`` 的支持路径。
+
+## RED Evidence
+
+- 修正前（由临时脚本 ``_vuln_demo.py`` 记录）：调用者构造的 ``TrustedQualityProvenance``（模型 ``untrusted-local-model``、digest ``sha256:dddd...``、scoring 版本任意）可成功 build 并 verify 自洽 attestation。
+- 新测试 ``test_self_consistent_attacker_provenance_rejected`` 在修正前会失败：build 不会拒绝，verify 不会拒绝。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| ``uv lock --check --offline`` | PASS |
+| ``uv sync --locked --offline`` | PASS |
+| ``tests/unit/test_task016c_quality_attestation.py`` | 107 passed |
+| 全量 ``uv run --offline pytest`` | 1145 passed, 1 warning |
+| ``uv run --offline mypy src`` | Success (28 source files) |
+| ``uv run --offline ruff check .`` | All checks passed |
+| ``git diff --check`` | PASS |
+
+## 新增关键测试
+
+- ``test_self_consistent_attacker_provenance_rejected``：
+  - 使用攻击者 settings 可成功 build（证明输入本身不是非法的，只是非授权）。
+  - 同一组输入在授权 settings 下 build 被拒绝。
+  - 攻击者 settings 下生成的合法 hash attestation，在授权 settings 下 verify 被拒绝。
+
+## 突变证据
+
+- 临时注释 ``build_quality_pass_attestation`` 中 ``_verify_trusted_provenance`` 调用后，``test_self_consistent_attacker_provenance_rejected`` 失败（DID NOT RAISE）；已回退。
+
+## 范围验证
+
+- ``git diff --name-only`` 仅包含 ``src/youtube_intel/quality.py``、``tests/unit/test_task016c_quality_attestation.py``。
+- 未修改 ``src/youtube_intel/domain.py``、``providers/ollama.py``、``scoring.py``、``state.py``、``pyproject.toml``、``uv.lock``、DB、Artifact、cache、Finalizer 等禁止路径。
+- 未进入 Phase E。
+
+## 已知基线
+
+- ``tests/unit/test_task016c_quality_attestation.py`` 存在若干 pre-existing mypy 错误（如 ``**{field: value}`` 类型展开、subclass property override 等），本次变更未引入新的 mypy 错误；生产代码 ``src`` 保持 mypy clean。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D FOCUSED INDEPENDENT REVIEW`
+
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run --offline pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run --offline pytest -x -q
+  uv run --offline mypy src
+  uv run --offline ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

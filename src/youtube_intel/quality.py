@@ -16,6 +16,7 @@ from typing import Final, TypeVar
 
 from pydantic import BaseModel
 
+from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     ContentQualityConfidence,
     ContentQualityDecisionSource,
@@ -28,6 +29,11 @@ from youtube_intel.domain import (
     TrustedQualityProvenance,
 )
 from youtube_intel.state import build_provider_request_hash
+
+_JUDGE_PROVIDER: Final[str] = "ollama"
+_QUALITY_JUDGE_OPERATION: Final[str] = "local-content-quality-v1"
+_SCORING_SCHEMA_VERSION: Final[str] = "scoring-schema-v1"
+_SCORING_PROMPT_VERSION: Final[str] = "scoring-prompt-v1"
 
 _ASCII_WHITESPACE: Final[str] = " \t\n\r\v\f"
 
@@ -321,6 +327,29 @@ def _verify_cross_bindings(
             raise ValueError(msg)
 
 
+def _build_trusted_quality_provenance(
+    settings: LocalScoringSettings,
+) -> TrustedQualityProvenance:
+    """Build the current trusted quality provenance from application config.
+
+    The application configuration is the trust source; this factory is the only
+    supported path from config to ``TrustedQualityProvenance``.  Fixed scoring
+    schema/prompt versions and the local Judge provider are constants owned by
+    this module; the Judge model and digest come from validated local-scoring
+    settings.
+    """
+
+    return TrustedQualityProvenance.model_validate(
+        {
+            "judge_provider": _JUDGE_PROVIDER,
+            "judge_model": settings.model,
+            "judge_model_digest": settings.expected_model_digest,
+            "scoring_schema_version": _SCORING_SCHEMA_VERSION,
+            "scoring_prompt_version": _SCORING_PROMPT_VERSION,
+        }
+    )
+
+
 def _verify_trusted_provenance(
     result: ContentQualityResult,
     op_input: QualityJudgeOperationInput,
@@ -342,6 +371,16 @@ def _verify_trusted_provenance(
             "judge_model_digest",
             op_input.judge_model_digest,
             trusted.judge_model_digest,
+        ),
+        (
+            "scoring_schema_version",
+            _SCORING_SCHEMA_VERSION,
+            trusted.scoring_schema_version,
+        ),
+        (
+            "scoring_prompt_version",
+            _SCORING_PROMPT_VERSION,
+            trusted.scoring_prompt_version,
         ),
     ]
     for field_name, actual, expected in _trusted_bindings:
@@ -372,21 +411,22 @@ def build_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
-    trusted_provenance: (
-        TrustedQualityProvenance | Mapping[str, object] | str | bytes | bytearray
-    ),
+    settings: LocalScoringSettings,
 ) -> QualityPassAttestation:
     """Trusted application-side constructor for ``quality-pass-attestation-v1``.
 
     Reconstructs and fully re-validates every input before constructing the
-    attestation.  Fails closed on any malformed value, binding mismatch, or
-    provenance that does not match the current authorized configuration.
+    attestation.  The current trusted provenance is obtained from the validated
+    application ``LocalScoringSettings`` via the internal factory, never from a
+    caller-created ``TrustedQualityProvenance``.  Fails closed on any malformed
+    value, binding mismatch, or provenance that does not match the current
+    authorized configuration.
     """
 
     result = _reconstruct(ContentQualityResult, quality_result)
     op_input = _reconstruct(QualityJudgeOperationInput, operation_input)
     content_input = _reconstruct(ContentQualityInput, quality_input)
-    trusted = _reconstruct(TrustedQualityProvenance, trusted_provenance)
+    trusted = _build_trusted_quality_provenance(settings)
 
     _verify_pass_eligibility(result, content_input)
     _verify_cross_bindings(result, op_input, content_input)
@@ -415,7 +455,7 @@ def build_quality_pass_attestation(
         "judge_provider": result.judge_provider,
         "judge_model": result.judge_model,
         "judge_model_digest": result.judge_model_digest,
-        "judge_operation": "local-content-quality-v1",
+        "judge_operation": _QUALITY_JUDGE_OPERATION,
         "judge_request_hash": h2,
         "attempt_role": op_input.attempt_role.value,
         "decision_confidence": result.decision_confidence.value,
@@ -462,17 +502,16 @@ def verify_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
-    trusted_provenance: (
-        TrustedQualityProvenance | Mapping[str, object] | str | bytes | bytearray
-    ),
+    settings: LocalScoringSettings,
 ) -> QualityPassAttestation:
     """Reconstruct and fully verify an alleged attestation; fail closed.
 
     The alleged attestation is treated as untrusted.  Its ``attestation_hash``
     is recomputed and compared, then a fresh trusted attestation is built from
-    the same inputs and the current trusted provenance, and compared
-    field-by-field.  A historical or attacker-selected configuration cannot
-    verify under a different current trusted configuration.
+    the same inputs and the current trusted provenance derived from
+    ``settings``, and compared field-by-field.  A historical or
+    attacker-selected configuration cannot verify under a different current
+    trusted configuration.
     """
 
     alleged = _reconstruct(QualityPassAttestation, attestation)
@@ -486,7 +525,7 @@ def verify_quality_pass_attestation(
         quality_result=quality_result,
         operation_input=operation_input,
         quality_input=quality_input,
-        trusted_provenance=trusted_provenance,
+        settings=settings,
     )
 
     if alleged != fresh:

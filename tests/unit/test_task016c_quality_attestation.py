@@ -17,6 +17,7 @@ import json
 import pytest
 from pydantic import BaseModel
 
+from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     ContentQualityInput,
     ContentQualityResult,
@@ -188,6 +189,24 @@ def _consistent_trio(
     return content_input, operation_input, pass_result
 
 
+def _authorized_settings() -> LocalScoringSettings:
+    return LocalScoringSettings(
+        model="qwen3:8b",
+        expected_model_digest=DIGEST,
+    )
+
+
+def _unauthorized_settings(
+    *,
+    model: str = UNAUTHORIZED_MODEL,
+    digest: str = UNAUTHORIZED_DIGEST,
+) -> LocalScoringSettings:
+    return LocalScoringSettings(
+        model=model,
+        expected_model_digest=digest,
+    )
+
+
 def _authorized_provenance() -> TrustedQualityProvenance:
     return TrustedQualityProvenance.model_validate(
         {
@@ -206,7 +225,7 @@ def _build_valid_attestation() -> QualityPassAttestation:
         quality_result=pass_result,
         operation_input=operation_input,
         quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
     )
 
 
@@ -470,7 +489,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.candidate_hash == pass_result.candidate_hash
         assert attestation.candidate_hash == operation_input.candidate_hash
@@ -482,7 +501,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         expected_qih = build_content_quality_input_hash(content_input)
         assert attestation.quality_input_hash == expected_qih
@@ -494,7 +513,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         expected = build_content_quality_result_hash(pass_result)
         assert attestation.quality_result_hash == expected
@@ -505,7 +524,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.scoring_request_hash == pass_result.scoring_request_hash
 
@@ -515,7 +534,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.judge_provider == "ollama"
         assert attestation.judge_model == pass_result.judge_model
@@ -528,7 +547,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         _, h2 = build_judge_h1_h2(operation_input)
         assert attestation.judge_request_hash == h2
@@ -539,7 +558,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.attempt_role == operation_input.attempt_role
 
@@ -549,7 +568,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.decision_confidence == pass_result.decision_confidence
         assert attestation.grounding_confidence == pass_result.grounding_confidence
@@ -563,7 +582,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.evidence_ids == pass_result.evidence_ids
 
@@ -573,7 +592,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.scoring_schema_version == SCORING_SCHEMA_VERSION
         assert attestation.scoring_prompt_version == SCORING_PROMPT_VERSION
@@ -584,7 +603,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert attestation.quality_schema_version == "content-quality-result-v1"
         assert attestation.quality_prompt_version == "content-quality-prompt-v1"
@@ -645,7 +664,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=reject_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_evidence_free_pass_rejects(self) -> None:
@@ -664,7 +683,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_empty_registry_pass_rejects(self) -> None:
@@ -677,7 +696,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     @pytest.mark.parametrize(
@@ -707,7 +726,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=tampered_operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     @pytest.mark.parametrize(
@@ -741,7 +760,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=tampered_operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
 
@@ -762,7 +781,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_forged_quality_result_hash_rejects(self) -> None:
@@ -788,7 +807,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_h2_mismatch_rejects(self) -> None:
@@ -813,7 +832,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_attempt_role_mismatch_rejects(self) -> None:
@@ -838,7 +857,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     @pytest.mark.parametrize(
@@ -875,7 +894,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_evidence_mismatch_rejects(self) -> None:
@@ -891,7 +910,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         tampered = attestation.model_dump(mode="json")
         tampered["evidence_ids"] = ["title-2"]
@@ -912,7 +931,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     @pytest.mark.parametrize(
@@ -927,21 +946,33 @@ class TestQualityPassAttestationVerifyBindingMismatches:
         field_name: str,
         value: str,
     ) -> None:
+        """A correct-hash attestation with wrong scoring versions cannot verify.
+
+        Scoring versions are fixed constants owned by the application; a caller
+        cannot supply an alternate TrustedQualityProvenance to make them match.
+        """
         attestation = _build_valid_attestation()
         content_input, operation_input, pass_result = _consistent_trio()
-        mismatched = TrustedQualityProvenance.model_validate(
-            {
-                **_authorized_provenance().model_dump(),
-                field_name: value,
-            }
+        tampered = attestation.model_dump(mode="json")
+        tampered[field_name] = value
+        payload = dict(tampered)
+        payload.pop("attestation_hash")
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
         )
+        tampered["attestation_hash"] = hashlib.sha256(
+            canonical.encode("utf-8")
+        ).hexdigest()
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
-                attestation,
+                tampered,
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=mismatched,
+                settings=_authorized_settings(),
             )
 
     def test_forged_complete_attestation_rejects(self) -> None:
@@ -957,7 +988,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
             quality_result=pass_result_b,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
@@ -965,7 +996,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result_a,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_unknown_fields_rejects(self) -> None:
@@ -979,7 +1010,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
 
@@ -999,7 +1030,6 @@ class TestQualityPassAttestationReconstruction:
                 quality_result_hash=VALID_HASH,
                 scoring_request_hash=VALID_HASH,
                 policy_version="content-quality-policy-v1",
-                trusted_provenance=_authorized_provenance(),
                 quality_schema_version="content-quality-result-v1",
                 quality_prompt_version="content-quality-prompt-v1",
                 judge_provider="ollama",
@@ -1042,7 +1072,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_subclass_model_dump_override_rejected_by_verify(self) -> None:
@@ -1063,7 +1093,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_fake_trusted_flag_unknown_field_rejected(self) -> None:
@@ -1077,7 +1107,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_verify_accepts_valid_attestation(self) -> None:
@@ -1088,7 +1118,7 @@ class TestQualityPassAttestationReconstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert verified == attestation
 
@@ -1101,7 +1131,7 @@ class TestQualityPassAttestationReconstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert verified == attestation
 
@@ -1140,7 +1170,7 @@ class TestQualityPassAttestationNoSideEffects:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-        trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert isinstance(verified, QualityPassAttestation)
         assert not any(pathlib.Path(str(tmp_path)).iterdir())
@@ -1185,7 +1215,7 @@ class TestMutationEvidence:
                 quality_result=pass_result,
                 operation_input=mismatched_op,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
     def test_unchecked_input_not_hashed(self) -> None:
@@ -1232,7 +1262,7 @@ class TestMutationEvidence:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                trusted_provenance=_authorized_provenance(),
+                    settings=_authorized_settings(),
             )
 
 
@@ -1242,20 +1272,59 @@ class TestMutationEvidence:
 
 
 class TestTrustedProvenanceBinding:
-    """P1 fix: attestation must bind to current authorized configuration."""
+    """P1 fix: attestation must bind to current authorized configuration.
 
-    def _unauthorized_provenance(self) -> TrustedQualityProvenance:
-        return TrustedQualityProvenance.model_validate(
-            {
-                "judge_provider": "ollama",
-                "judge_model": UNAUTHORIZED_MODEL,
-                "judge_model_digest": UNAUTHORIZED_DIGEST,
-                "scoring_schema_version": SCORING_SCHEMA_VERSION,
-                "scoring_prompt_version": SCORING_PROMPT_VERSION,
-            }
+    The application configuration (``LocalScoringSettings``) is the sole trust
+    source.  A caller cannot supply a self-constructed
+    ``TrustedQualityProvenance`` to make an attestation match an unauthorized
+    Judge model or digest.
+    """
+
+    # --- Critical forgery: internally consistent attacker config ---
+
+    def test_self_consistent_attacker_provenance_rejected(self) -> None:
+        """A self-consistent attacker-chosen Judge config is not trusted.
+
+        Before the authority boundary fix, a caller could create a
+        ``TrustedQualityProvenance`` matching self-consistent attacker inputs
+        and successfully build and verify an attestation.  Now the application
+        configuration is the only trust source, so build under the authorized
+        settings rejects, and a correct-hash attestation built under the
+        attacker settings fails verification under the authorized settings.
+        """
+        ci, oi, pr = _consistent_trio(
+            judge_model=UNAUTHORIZED_MODEL,
+            judge_model_digest=UNAUTHORIZED_DIGEST,
         )
 
-    # --- Critical forgery: internally consistent unauthorized config ---
+        # The inputs are valid in the attacker's own configuration world.
+        forged = build_quality_pass_attestation(
+            quality_result=pr,
+            operation_input=oi,
+            quality_input=ci,
+            settings=_unauthorized_settings(),
+        )
+        assert isinstance(forged, QualityPassAttestation)
+
+        # Build under the authorized application configuration must reject.
+        with pytest.raises((ValueError, Exception)):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                settings=_authorized_settings(),
+            )
+
+        # The attacker-built attestation must not verify under the authorized
+        # application configuration.
+        with pytest.raises((ValueError, Exception)):
+            verify_quality_pass_attestation(
+                forged,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                settings=_authorized_settings(),
+            )
 
     def test_unauthorized_judge_model_build_rejects(self) -> None:
         """Internally consistent unauthorized Judge model cannot build."""
@@ -1268,7 +1337,7 @@ class TestTrustedProvenanceBinding:
                 quality_result=pr,
                 operation_input=oi,
                 quality_input=ci,
-                trusted_provenance=_authorized_provenance(),
+                settings=_authorized_settings(),
             )
 
     def test_unauthorized_judge_model_verify_rejects(self) -> None:
@@ -1281,7 +1350,7 @@ class TestTrustedProvenanceBinding:
             quality_result=pr,
             operation_input=oi,
             quality_input=ci,
-            trusted_provenance=self._unauthorized_provenance(),
+            settings=_unauthorized_settings(),
         )
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
@@ -1289,7 +1358,7 @@ class TestTrustedProvenanceBinding:
                 quality_result=pr,
                 operation_input=oi,
                 quality_input=ci,
-                trusted_provenance=_authorized_provenance(),
+                settings=_authorized_settings(),
             )
 
     def test_unauthorized_judge_digest_build_rejects(self) -> None:
@@ -1303,7 +1372,7 @@ class TestTrustedProvenanceBinding:
                 quality_result=pr,
                 operation_input=oi,
                 quality_input=ci,
-                trusted_provenance=_authorized_provenance(),
+                settings=_authorized_settings(),
             )
 
     # --- Individual current-binding build tests ---
@@ -1334,7 +1403,7 @@ class TestTrustedProvenanceBinding:
                 quality_result=tampered_pr,
                 operation_input=tampered_op,
                 quality_input=ci,
-                trusted_provenance=_authorized_provenance(),
+                settings=_authorized_settings(),
             )
 
     # --- Individual current-binding verify tests ---
@@ -1353,21 +1422,34 @@ class TestTrustedProvenanceBinding:
         field: str,
         value: str,
     ) -> None:
+        """Tampering any trusted provenance field makes verify fail.
+
+        The attestation hash is recomputed so the payload is internally
+        consistent; verification still fails because the trusted reconstruction
+        from the current authorized ``LocalScoringSettings`` disagrees.
+        """
         attestation = _build_valid_attestation()
         ci, oi, pr = _consistent_trio()
-        mismatched = TrustedQualityProvenance.model_validate(
-            {
-                **_authorized_provenance().model_dump(),
-                field: value,
-            }
+        tampered = attestation.model_dump(mode="json")
+        tampered[field] = value
+        payload = dict(tampered)
+        payload.pop("attestation_hash")
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
         )
+        tampered["attestation_hash"] = hashlib.sha256(
+            canonical.encode("utf-8")
+        ).hexdigest()
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
-                attestation,
+                tampered,
                 quality_result=pr,
                 operation_input=oi,
                 quality_input=ci,
-                trusted_provenance=mismatched,
+                settings=_authorized_settings(),
             )
 
     def test_authorized_provenance_build_succeeds(self) -> None:
@@ -1384,7 +1466,7 @@ class TestTrustedProvenanceBinding:
             quality_result=pr,
             operation_input=oi,
             quality_input=ci,
-            trusted_provenance=_authorized_provenance(),
+            settings=_authorized_settings(),
         )
         assert verified == att
 
@@ -1415,41 +1497,6 @@ class TestTrustedProvenanceBypass:
             warnings.simplefilter("ignore", DeprecationWarning)
             with pytest.raises((ValueError, TypeError)):
                 prov.copy(update={"judge_model": UNAUTHORIZED_MODEL})
-
-    def test_subclass_property_override_rejected(self) -> None:
-        class _Spoofed(TrustedQualityProvenance):
-            @property
-            def judge_model(self) -> str:  # type: ignore[override]
-                return UNAUTHORIZED_MODEL
-
-        base = _authorized_provenance()
-        spoofed = _Spoofed.model_validate(base.model_dump(mode="python"))
-        ci, oi, pr = _consistent_trio()
-        with pytest.raises(ValueError):
-            build_quality_pass_attestation(
-                quality_result=pr,
-                operation_input=oi,
-                quality_input=ci,
-                trusted_provenance=spoofed,
-            )
-
-    def test_subclass_model_dump_override_rejected(self) -> None:
-        class _Spoofed(TrustedQualityProvenance):
-            def model_dump(self, **kwargs: object) -> dict[str, object]:
-                data = super().model_dump(**kwargs)
-                data["judge_model"] = UNAUTHORIZED_MODEL
-                return data
-
-        base = _authorized_provenance()
-        spoofed = _Spoofed.model_validate(base.model_dump(mode="python"))
-        ci, oi, pr = _consistent_trio()
-        with pytest.raises(ValueError):
-            build_quality_pass_attestation(
-                quality_result=pr,
-                operation_input=oi,
-                quality_input=ci,
-                trusted_provenance=spoofed,
-            )
 
     def test_unknown_field_rejected(self) -> None:
         mapping = _authorized_provenance().model_dump(mode="json")
