@@ -107,3 +107,11 @@ Phase E–K 行为。
 Phase D 继续只交付纯内存 attestation primitive，但它现在可以表达真实的当前应用 provenance。
 最终 Runtime scoring、Finalizer、持久化和恢复仍分别属于后续已冻结 Phase E–K，不能由本修订
 提前实现或声明完成。
+
+## 与 Phase E 的冻结衔接
+
+Phase D 已通过独立审查；其 `QualityProvenanceAuthority` 和
+`QualityPassAttestation` 的字段、铸造者与验证语义保持不变。Phase E 不能把 scoring context
+塞入本 authority，也不能以 attestation 替代 scoring request identity。后续仅在获得明确授权后，
+才可按 `TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md` 新增独立、runtime-owned 的
+`TrustedScoringContext`，并由 Finalizer 同时消费两个不同职责的 opaque capability。

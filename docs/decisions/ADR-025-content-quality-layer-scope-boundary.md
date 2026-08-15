@@ -146,23 +146,31 @@ Provider、repair、Artifact reader 和 cache recovery 均不得直接构造、�
 必填，也不得新增、删除或改变任何 `ScoreResult` 业务字段。Candidate 只移除可信
 provenance，并增加“不可信、尚未 final”这一类型边界。
 
-`TrustedScoringFinalizer` 是唯一允许创建 `ScoreResult` 的应用边界。它必须同时接收并
-重新验证：
+`TrustedScoringFinalizer` 是唯一允许从已验证业务字段创建底层 `ScoreResult`、并铸造
+`TrustedScoreResult` 不透明包装的应用边界。`ScoreResult` 的公开 Pydantic shape 与既有
+业务字段保持兼容，但它本身不是可信 capability：provider/兼容边界可暂时持有裸对象，后续
+受信任流水线不得接收裸对象。此约束由
+`TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md` 的设计决定细化；该文档不授权实现。
+
+Finalizer 必须同时接收并重新验证：
 
 1. canonical `ScoringCandidate`；
-2. 当前可信 scoring context（provider/model/output language/prompt/schema）；
+2. RuntimeOperations 唯一铸造的 opaque `TrustedScoringContext`
+   （provider/model/digest、output language、prompt/schema、operation 与 identity 参数）；
 3. 从不可信输入重建、通过完整 PASS matrix 且已 canonicalize 的 `ContentQualityResult`；
 4. 完整且有效、绑定该 result hash 的 Quality PASS attestation；
-5. 当前 scoring request、quality input 与 Judge ProviderCall identity 的重算结果。
+5. 从 `ScoringInput` 与可信 context 以唯一 canonical builder 重算的 scoring request identity，
+   以及 quality input 与 Judge operation identity 的重算结果。
 
-只有全部一致时，Finalizer 才从业务字段和可信 context 新建 `ScoreResult`。三条路径均
+只有全部一致时，Finalizer 才从业务字段和可信 context 新建底层 `ScoreResult` 并包装为
+`TrustedScoreResult`。三条路径均
 必须经过它：
 
 - primary scoring candidate；
 - 唯一 repair candidate；
 - persisted cache recovery。
 
-Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 `ScoreResult`。
+Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 `TrustedScoreResult`。
 禁止把 `model_copy(update=...)`、`model_construct()` 或已构造 instance 当成可信捷径。
 
 ### 5. Quality PASS attestation

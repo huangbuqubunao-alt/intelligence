@@ -16,7 +16,7 @@ untrusted Provider response
 → TASK-016C Content Quality
 → QualityPassAttestation
 → TrustedScoringFinalizer
-→ trusted ScoreResult
+→ TrustedScoreResult（内部保存已验证的 ScoreResult）
 → canonical serialization
 → PREWRITE_VALIDATE
 → ValidatedScoringWritePlan
@@ -34,8 +34,8 @@ No Provider-to-`ScoreResult`, Candidate-to-Artifact, attestation-only, pre-write
 | A | Domain Contracts and Candidate Boundary | READY / assigned to WorkBuddy | accepted design |
 | B | Deterministic Safety Gate | NOT AUTHORIZED | A accepted |
 | C | Local Judge Contract and H1/H2 | NOT AUTHORIZED | B accepted |
-| D | PASS Attestation and Canonical Hashing | AUTHORITY BOUNDARY CORRECTION READY；仅 ADR-026 狭义修订 | C accepted；Phase D Correction Round 3 review finding |
-| E | TrustedScoringFinalizer | NOT AUTHORIZED | D accepted |
+| D | PASS Attestation and Canonical Hashing | ACCEPTED / Phase D `2c11faf41e17c3b823a39bfd1018c5c876b236c5` | C accepted |
+| E | TrustedScoringFinalizer | DESIGN READY / IMPLEMENTATION NOT AUTHORIZED | D accepted；Phase E Authority Amendment Round 3 仍待独立设计审查与显式实施授权 |
 | F | PREWRITE_VALIDATE / ValidatedScoringWritePlan | NOT AUTHORIZED | E accepted |
 | G | Filesystem + Atomic DB Registration | NOT AUTHORIZED | F accepted |
 | H | Primary/Repair Orchestration and Budget | NOT AUTHORIZED | G accepted |
@@ -54,4 +54,7 @@ Every phase follows RED → minimal GREEN → focused checks → independent rev
 
 ## Review and integration
 
-WorkBuddy must stop after its assigned phase. Codex performs the independent review. Only an `APPROVE PHASE A` verdict may lead to a separately authorized Phase B assignment. No Phase is merge-authorized by this plan.
+WorkBuddy must stop after its assigned phase. Codex performs the independent review. Only an independent
+approval of a phase may lead to a separately authorized next phase. Phase D is accepted, but Phase E remains
+implementation-blocked until the Round 3 authority amendment passes independent design review and receives a
+separate authorization. No Phase is merge-authorized by this plan.

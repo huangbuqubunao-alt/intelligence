@@ -42,7 +42,7 @@ flowchart TD
     B2 --> C2["schema + language + quality repair"]
     R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
-    F --> S["ScoreResult"]
+    F --> S["TrustedScoreResult (validated ScoreResult wrapper)"]
     S --> Z["canonical raw / structured bytes"]
     Z --> Y["pre-write reparse + full validation"]
     Y --> L["ValidatedScoringWritePlan (memory only)"]
@@ -57,7 +57,7 @@ persisted structured payload + raw attestation envelope
   -> untrusted ScoringCandidate reconstruction
   -> full ContentQualityResult + provenance / hash / attestation / ProviderCall validation
   -> TrustedScoringFinalizer
-  -> fresh trusted ScoreResult instance
+  -> fresh TrustedScoreResult
 ```
 
 这里读取的历史 Artifact/ProviderCall 可以来自先前成功的 atomic commit；读取不是当前执行
@@ -406,51 +406,82 @@ decision：既有 confidence/evidence 字段只是与完整 result 的精确 mir
 ## 9. TrustedScoringFinalizer
 
 ```python
-class TrustedScoringContext(FrozenDomainModel):
-    scoring_request_hash: str
-    provider: str
-    model: str
-    model_digest: str
+class TrustedScoringContext:
+    """Runtime-owned opaque capability; non-Pydantic and non-serializable."""
+
+    # RuntimeOperations private minting sentinel；禁止公开 constructor。
+    scoring_provider: str
+    scoring_model: str
+    scoring_model_digest: str
     output_language: Literal["zh-CN", "en"]
-    scoring_prompt_version: str
     scoring_schema_version: str
+    scoring_prompt_version: str
+    scoring_operation: str
+    temperature: float
+    max_output_tokens: int
+    max_description_chars: int
+
+class TrustedScoreResult:
+    """Finalizer-owned opaque wrapper; internally holds a validated ScoreResult."""
 
 class TrustedScoringFinalizer(Protocol):
     def finalize(
         self,
         *,
         candidate: ScoringCandidate | Mapping[str, object],
-        context: TrustedScoringContext | Mapping[str, object],
+        scoring_input: ScoringInput | Mapping[str, object],
         quality_input: ContentQualityInput | Mapping[str, object],
         quality_result: ContentQualityResult | Mapping[str, object],
         attestation: QualityPassAttestation | Mapping[str, object],
-        quality_call: QualityJudgeProviderCallIdentity | Mapping[str, object],
-    ) -> ScoreResult: ...
+        quality_operation: QualityJudgeOperationInput | Mapping[str, object],
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+    ) -> TrustedScoreResult: ...
 ```
+
+`TrustedScoringContext` 不是 `FrozenDomainModel`、DTO、Mapping 或 JSON。只有
+`RuntimeOperations` 在 validated `AppConfig` 已被组合后，才能通过 private mint 和 private
+sentinel 创建它；`LocalScoringSettings`、`AppConfig` DTO、Mapping、JSON、provider response、
+cache、Artifact、测试 fixture 都不能创建。它拒绝 subclass、proxy/property spoof、copy、deepcopy、
+pickle 和任何 serialization。读取 capability 字段前必须先做 exact-type 与 sentinel binding 校验。
+它包含 scoring provider/model/digest、output language、schema/prompt、operation、temperature、
+max output tokens、max description chars；**不**包含 request hash，也不包含 Judge/policy/H1/H2 字段。
+`max_transcript_chars` 继续通过既有 `ScoringInput.sample` 的内容与采样 metadata 进入 legacy hash，
+不得改变现有 request-hash 语义。
+
+`TrustedScoreResult` 同样是 non-Pydantic 的 exact-type、private-sentinel、不可复制/序列化/继承
+capability。仅 Finalizer 可铸造，内部保存已验证的 `ScoreResult`。裸 `ScoreResult` 可在 provider 或
+兼容解析边界短暂存在，但 Phase F–I 的 trusted pipeline 只能接收 `TrustedScoreResult`；
+`model_validate`、`model_construct`、JSON restore 或 unchecked copy 绝不产生 trusted wrapper。
 
 Finalizer 总是：
 
-1. 从 mapping 重建 candidate/context/input/quality result/attestation/quality call identity，
-   拒绝 unchecked instance；
+1. 从不可信 mapping/instance 重建 `ScoringCandidate`、`ScoringInput`、`ContentQualityInput`、
+   `ContentQualityResult`、`QualityJudgeOperationInput` 与 `QualityPassAttestation`，拒绝 unchecked
+   instance；先 exact-type 验证两个 opaque authority，才读取其字段；
 2. 重跑 candidate schema 与 TASK-016B language invariant；
 3. 对 quality result 重跑 model/domain validation、status=`PASS` 与完整 PASS matrix；
 4. 对完整 normalized result 重算 `quality_result_hash`，要求等于 attestation 字段；
-5. 重算 candidate、quality input 和 attestation hash；
-6. 验证当前 policy/prompt/schema/provider/model/digest；
-7. 验证 result 与 attestation 的 confidence/evidence mirror、candidate/input binding；
-8. 验证 quality call 的 operation/request hash/provider/model/prompt/schema 与 result、
-   attestation、当前 trusted config 全部一致；
-9. 使用 candidate 业务字段和可信 context 新建 `ScoreResult`。
+5. 使用唯一纯内存 `build_scoring_request_identity()` 从已重建 `ScoringInput` 和已验证的
+   `TrustedScoringContext` 重算 legacy-compatible request hash；该 builder 复用既有
+   `build_scoring_input()` / `_provider_request()` 的 canonicalization，且不是 authority；
+6. 验证 request identity 的 provider/model/digest/language/schema/prompt/operation，以及
+   temperature、max output tokens、max description chars 与 scoring context 一致；
+7. 用既有 `verify_quality_pass_attestation()` 验证 `QualityPassAttestation`、quality result、
+   `QualityJudgeOperationInput`、quality input 和未改变的 `QualityProvenanceAuthority`；
+8. 验证 result 与 attestation 的 confidence/evidence mirror、candidate/input binding 及 H1/H2；
+9. 使用 candidate 业务字段和可信 context 新建底层 `ScoreResult`，再铸造唯一
+   `TrustedScoreResult`。
 
-任一步不一致都 fail-closed：不得构造 trusted ScoreResult、进入文件提交协议、完成任一
+任一步不一致都 fail-closed：不得构造 `TrustedScoreResult`、进入文件提交协议、完成任一
 ProviderCall、产生 response_artifact_id 或返回 cache hit。
 
 Provider、Judge、Repository、Artifact reader、cache recovery 和 Runtime 其他模块不得直接
 调用 `ScoreResult(...)`、`ScoreResult.model_validate*` 或 unchecked copy/construct 作为
 可信结果。实现 Review 应以静态调用点扫描证明唯一入口。
 
-Finalizer 本身是纯领域终结边界：不写文件、不写 DB、不完成 ProviderCall。它成功前只能
-存在内存 candidate、quality result 和 attestation。
+Finalizer 本身是纯领域终结边界：不写文件、不写 DB、不完成 ProviderCall，也不访问 cache、
+Artifact、filesystem、Ollama 或网络。它成功前只能存在内存 candidate、quality result 和 attestation。
 
 ## 10. Judge operation、attempt state 与恢复
 
@@ -545,7 +576,8 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
 - `ScoreResult` shape 不变；
 - `SCORING_STRUCTURED` 仍是 canonical ScoreResult JSON；
 - SQLite Schema、`ArtifactKind` 与 migration 不变；
-- `ScoringOutcome.result` 仍为 Finalizer 返回的 ScoreResult。
+- `ScoringOutcome.result` 的既有外部业务 shape 保持 `ScoreResult`；未来 trusted pipeline 内部使用
+  `TrustedScoreResult`，只能在明确的 compatibility boundary 解封装为其已验证的底层结果。
 
 ### 11.2 Raw envelope
 
@@ -608,7 +640,7 @@ class TrustedScoringWriteProvenance:
 class ValidatedScoringWritePlan:
     """Opaque, immutable, process-memory-only capability; not serializable."""
 
-    finalized: ScoreResult
+    finalized: TrustedScoreResult
     quality_result: ContentQualityResult
     quality_attestation: QualityPassAttestation
     quality_result_hash: str
@@ -628,7 +660,7 @@ class TrustedScoringWritePlanner(Protocol):
     def prepare(
         self,
         *,
-        finalized: ScoreResult,
+        finalized: TrustedScoreResult,
         candidate: ScoringCandidate | Mapping[str, object],
         quality_input: ContentQualityInput | Mapping[str, object],
         quality_result: ContentQualityResult | Mapping[str, object],
