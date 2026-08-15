@@ -596,7 +596,7 @@ def build_quality_pass_attestation(
     that does not match the current authorized configuration.
     """
 
-    if not isinstance(authority, QualityProvenanceAuthority):
+    if type(authority) is not QualityProvenanceAuthority:
         msg = (
             f"authority must be a runtime-minted QualityProvenanceAuthority, "
             f"got {type(authority).__name__}"
@@ -692,7 +692,7 @@ def verify_quality_pass_attestation(
     verify under a different current trusted configuration.
     """
 
-    if not isinstance(authority, QualityProvenanceAuthority):
+    if type(authority) is not QualityProvenanceAuthority:
         msg = (
             f"authority must be a runtime-minted QualityProvenanceAuthority, "
             f"got {type(authority).__name__}"

@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
 
-from youtube_intel.config import LocalScoringSettings
+from youtube_intel.config import LocalScoringSettings, load_app_config
 from youtube_intel.domain import (
     ContentQualityInput,
     ContentQualityResult,
@@ -35,7 +37,7 @@ from youtube_intel.quality import (
     build_quality_pass_attestation,
     verify_quality_pass_attestation,
 )
-from youtube_intel.runtime import _mint_quality_provenance_authority_for_test
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -189,23 +191,100 @@ def _consistent_trio(
     return content_input, operation_input, pass_result
 
 
+def _write_minimal_project(
+    project: Path,
+    *,
+    model: str,
+    digest: str,
+) -> None:
+    """Write the smallest valid project configuration for authority minting."""
+    (project / "config").mkdir(parents=True, exist_ok=True)
+    (project / "vault").mkdir(parents=True, exist_ok=True)
+    (project / "config" / "channels.yaml").write_text(
+        "channels:\n  - channel_id: UCtest000000000000000000000000000\n",
+        encoding="utf-8",
+    )
+    (project / "config" / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+local_scoring:
+  model: {model}
+  expected_model_digest: {digest}
+cloud:
+  enabled: false
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {project / 'vault'}
+  vault_subdir: YouTube Intel
+""",
+        encoding="utf-8",
+    )
+
+
+def _runtime_authority(project: Path) -> QualityProvenanceAuthority:
+    """Mint an authority by loading real AppConfig through RuntimeOperations."""
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+    runtime = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+    return runtime._quality_provenance_authority
+
+
+_module_authority_project: Path | None = None
+
+
+def _default_authority_project() -> Path:
+    """Lazily create one project for the default test authority.
+
+    The authority is immutable, so sharing it across tests is safe.  Each Python
+    process gets its own directory via ``tempfile.mkdtemp``.
+    """
+    global _module_authority_project
+    if _module_authority_project is None:
+        _module_authority_project = Path(tempfile.mkdtemp(prefix="yia-authority-"))
+        _write_minimal_project(
+            _module_authority_project,
+            model="qwen3:8b",
+            digest=DIGEST,
+        )
+    return _module_authority_project
+
+
 def _current_authority(
+    tmp_path: Path | None = None,
     *,
     model: str = "qwen3:8b",
     digest: str = DIGEST,
 ) -> QualityProvenanceAuthority:
-    """Runtime-minted authority matching the default test trio."""
-    return _mint_quality_provenance_authority_for_test(
-        LocalScoringSettings(
-            model=model,
-            expected_model_digest=digest,
-        )
-    )
+    """Runtime-minted authority matching the default test trio.
+
+    When ``tmp_path`` is provided, a fresh project is created there; otherwise a
+    module-level project is reused for callers that do not need a custom config.
+    """
+    if tmp_path is None:
+        return _runtime_authority(_default_authority_project())
+    project = tmp_path / "authority-project"
+    _write_minimal_project(project, model=model, digest=digest)
+    return _runtime_authority(project)
 
 
-def _real_config_authority() -> QualityProvenanceAuthority:
+def _real_config_authority(tmp_path: Path) -> QualityProvenanceAuthority:
     """Runtime-minted authority using a real current config digest, not bbbb."""
-    return _current_authority(digest=REAL_CONFIG_DIGEST)
+    return _current_authority(tmp_path, digest=REAL_CONFIG_DIGEST)
 
 
 def _build_valid_attestation(
@@ -216,7 +295,7 @@ def _build_valid_attestation(
         quality_result=pass_result,
         operation_input=operation_input,
         quality_input=content_input,
-        authority=authority or _current_authority(),
+        authority=authority or _runtime_authority(_default_authority_project()),
     )
 
 
@@ -1272,11 +1351,14 @@ class TestTrustedProvenanceBinding:
 
     # --- Real current configuration succeeds ---
 
-    def test_real_current_config_build_and_verify_succeeds(self) -> None:
+    def test_real_current_config_build_and_verify_succeeds(
+        self,
+        tmp_path: Path,
+    ) -> None:
         """An authority minted from a real current config digest (not bbbb)
         can build and verify a PASS attestation when inputs match that config.
         """
-        authority = _real_config_authority()
+        authority = _real_config_authority(tmp_path)
         ci, oi, pr = _consistent_trio(
             judge_model="qwen3:8b",
             judge_model_digest=REAL_CONFIG_DIGEST,
@@ -1539,10 +1621,13 @@ class TestTrustedProvenanceBinding:
                 authority=_current_authority(),
             )
 
-    def test_configuration_rotation_verify_rejects(self) -> None:
+    def test_configuration_rotation_verify_rejects(
+        self,
+        tmp_path: Path,
+    ) -> None:
         """An attestation built under authority A must fail under authority B."""
-        authority_a = _current_authority(digest=OTHER_DIGEST)
-        authority_b = _current_authority(digest=DIGEST)
+        authority_a = _current_authority(tmp_path, digest=OTHER_DIGEST)
+        authority_b = _current_authority(tmp_path, digest=DIGEST)
         ci, oi, pr = _consistent_trio(
             judge_model="qwen3:8b",
             judge_model_digest=OTHER_DIGEST,
@@ -1581,6 +1666,141 @@ class TestTrustedProvenanceBinding:
         assert verified == att
 
 
+class _ModelOverrideAuthority(QualityProvenanceAuthority):
+    __slots__ = ("_spoofed_model",)
+
+    def __init__(self) -> None:
+        self._judge_provider = "ollama"
+        self._judge_model = "qwen3:8b"
+        self._judge_model_digest = DIGEST
+        self._scoring_schema_version = SCORING_SCHEMA_VERSION
+        self._scoring_prompt_version = SCORING_PROMPT_VERSION
+        self._quality_policy_version = "content-quality-policy-v1"
+        self._quality_schema_version = "content-quality-result-v1"
+        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._judge_operation = "local-content-quality-v1"
+        self._spoofed_model = UNAUTHORIZED_MODEL
+
+    @property
+    def judge_model(self) -> str:  # type: ignore[override]
+        return self._spoofed_model
+
+
+class _DigestOverrideAuthority(QualityProvenanceAuthority):
+    __slots__ = ("_spoofed_digest",)
+
+    def __init__(self) -> None:
+        self._judge_provider = "ollama"
+        self._judge_model = "qwen3:8b"
+        self._judge_model_digest = DIGEST
+        self._scoring_schema_version = SCORING_SCHEMA_VERSION
+        self._scoring_prompt_version = SCORING_PROMPT_VERSION
+        self._quality_policy_version = "content-quality-policy-v1"
+        self._quality_schema_version = "content-quality-result-v1"
+        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._judge_operation = "local-content-quality-v1"
+        self._spoofed_digest = UNAUTHORIZED_DIGEST
+
+    @property
+    def judge_model_digest(self) -> str:  # type: ignore[override]
+        return self._spoofed_digest
+
+
+class _SchemaPromptOverrideAuthority(QualityProvenanceAuthority):
+    __slots__ = ("_spoofed_schema", "_spoofed_prompt")
+
+    def __init__(self) -> None:
+        self._judge_provider = "ollama"
+        self._judge_model = "qwen3:8b"
+        self._judge_model_digest = DIGEST
+        self._scoring_schema_version = SCORING_SCHEMA_VERSION
+        self._scoring_prompt_version = SCORING_PROMPT_VERSION
+        self._quality_policy_version = "content-quality-policy-v1"
+        self._quality_schema_version = "content-quality-result-v1"
+        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._judge_operation = "local-content-quality-v1"
+        self._spoofed_schema = OTHER_SCORING_SCHEMA
+        self._spoofed_prompt = OTHER_SCORING_PROMPT
+
+    @property
+    def scoring_schema_version(self) -> str:  # type: ignore[override]
+        return self._spoofed_schema
+
+    @property
+    def scoring_prompt_version(self) -> str:  # type: ignore[override]
+        return self._spoofed_prompt
+
+
+class TestQualityProvenanceAuthoritySubclassRejection:
+    """Exact-type enforcement rejects subclass/property spoof at both boundaries."""
+
+    def test_subclass_overriding_judge_model_rejected_by_build(self) -> None:
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_ModelOverrideAuthority(),
+            )
+
+    def test_subclass_overriding_judge_model_rejected_by_verify(self) -> None:
+        attestation = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            verify_quality_pass_attestation(
+                attestation,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_ModelOverrideAuthority(),
+            )
+
+    def test_subclass_overriding_judge_model_digest_rejected_by_build(self) -> None:
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_DigestOverrideAuthority(),
+            )
+
+    def test_subclass_overriding_judge_model_digest_rejected_by_verify(self) -> None:
+        attestation = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            verify_quality_pass_attestation(
+                attestation,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_DigestOverrideAuthority(),
+            )
+
+    def test_subclass_overriding_schema_prompt_rejected_by_build(self) -> None:
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_SchemaPromptOverrideAuthority(),
+            )
+
+    def test_subclass_overriding_schema_prompt_rejected_by_verify(self) -> None:
+        attestation = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError):
+            verify_quality_pass_attestation(
+                attestation,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=_SchemaPromptOverrideAuthority(),
+            )
+
+
 class TestQualityProvenanceAuthorityBypass:
     """QualityProvenanceAuthority itself must resist caller construction."""
 
@@ -1608,4 +1828,72 @@ class TestQualityProvenanceAuthorityBypass:
                     "judge_model": "qwen3:8b",
                     "judge_model_digest": DIGEST,
                 }
+            )
+
+
+class TestQualityProvenanceAuthorityMintingBoundary:
+    """Only runtime composition can mint an authority."""
+
+    def test_caller_local_scoring_settings_cannot_mint_authority(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """No public seam turns caller-created LocalScoringSettings into authority."""
+        import youtube_intel.runtime as runtime_module
+
+        assert not hasattr(
+            runtime_module,
+            "_mint_quality_provenance_authority_for_test",
+        )
+        ci, oi, pr = _consistent_trio()
+        attacker_settings = LocalScoringSettings(
+            model=UNAUTHORIZED_MODEL,
+            expected_model_digest=UNAUTHORIZED_DIGEST,
+        )
+        with pytest.raises(TypeError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=attacker_settings,  # type: ignore[arg-type]
+            )
+        with pytest.raises(TypeError):
+            verify_quality_pass_attestation(
+                _build_valid_attestation(),
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=attacker_settings,  # type: ignore[arg-type]
+            )
+
+    def test_caller_fake_provenance_cannot_mint_authority(self) -> None:
+        """Caller-created fake provenance DTO cannot authorize attestation."""
+
+        class _FakeProvenance:
+            judge_provider = "ollama"
+            judge_model = "qwen3:8b"
+            judge_model_digest = DIGEST
+            scoring_schema_version = SCORING_SCHEMA_VERSION
+            scoring_prompt_version = SCORING_PROMPT_VERSION
+            quality_schema_version = "content-quality-result-v1"
+            quality_prompt_version = "content-quality-prompt-v1"
+            quality_policy_version = "content-quality-policy-v1"
+            judge_operation = "local-content-quality-v1"
+
+        ci, oi, pr = _consistent_trio()
+        fake = _FakeProvenance()
+        with pytest.raises(TypeError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=fake,  # type: ignore[arg-type]
+            )
+        with pytest.raises(TypeError):
+            verify_quality_pass_attestation(
+                _build_valid_attestation(),
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=fake,  # type: ignore[arg-type]
             )

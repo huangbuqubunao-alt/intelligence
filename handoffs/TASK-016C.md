@@ -1283,3 +1283,119 @@ load_app_config(channels_path, settings_path)
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# Phase D Correction Round 4 — Close authority minting boundary
+
+## 目标
+
+关闭 Independent Review 剩余两个 P1：
+
+- P1-1：`QualityProvenanceAuthority` 接受 `isinstance(authority, QualityProvenanceAuthority)`，导致 subclass/property override/proxy/spoofed attribute 可通过信任边界。
+- P1-2：`_mint_quality_provenance_authority_for_test(LocalScoringSettings)` 是 caller-controlled minting seam，违反 ADR-026 要求的 `AppConfig → Runtime composition → QualityProvenanceAuthority` 单一边界。
+
+## 父提交
+
+- ``23d3f1c727b948ace6bb0ac8eefa7858f17c07cf``
+
+## 变更路径
+
+- ``src/youtube_intel/quality.py``：
+  - ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 的信任边界检查由 ``isinstance(authority, QualityProvenanceAuthority)`` 改为 ``type(authority) is QualityProvenanceAuthority``。
+  - 拒绝 subclass、property override 对象、proxy 对象、spoofed attribute 对象。
+- ``src/youtube_intel/runtime.py``：
+  - 删除 ``_mint_quality_provenance_authority_for_test(local_scoring: LocalScoringSettings)`` 及全部相关导入/引用。
+  - 唯一保留的 minting 路径是 ``_build_quality_provenance_authority``，由 ``RuntimeOperations.__init__`` 在 composition 时调用。
+- ``tests/unit/test_task016c_quality_attestation.py``：
+  - 移除 ``_mint_quality_provenance_authority_for_test`` 导入。
+  - 新增 ``_write_minimal_project`` / ``_runtime_authority`` / ``_default_authority_project`` helper：所有 authority 必须通过 ``load_app_config`` → ``RuntimeOperations`` → ``QualityProvenanceAuthority`` 获得。
+  - 新增 ``TestQualityProvenanceAuthoritySubclassRejection``：6 项回归测试覆盖 subclass 覆盖 ``judge_model``、``judge_model_digest``、``scoring_schema_version`` / ``scoring_prompt_version`` 在 build 与 verify 阶段均被拒绝。
+  - 新增 ``TestQualityProvenanceAuthorityMintingBoundary``：
+    - ``test_caller_local_scoring_settings_cannot_mint_authority``：断言测试 seam 已删除，且 ``LocalScoringSettings`` 作为 authority 被 ``TypeError`` 拒绝。
+    - ``test_caller_fake_provenance_cannot_mint_authority``：caller-created fake provenance DTO 作为 authority 被 ``TypeError`` 拒绝。
+  - 更新 ``test_real_current_config_build_and_verify_succeeds`` 与 ``test_configuration_rotation_verify_rejects`` 使用 ``tmp_path`` 通过真实 ``RuntimeOperations`` 获取 authority。
+- ``tests/integration/test_runtime_composition.py``：
+  - ``_project`` 增加 ``model`` / ``digest`` 参数。
+  - 新增 ``test_runtime_operations_derives_authority_from_different_model_config``：证明 ``AppConfig`` 加载 ``model: different-model``、``expected_model_digest: sha256:{'1' * 64}`` 后，``RuntimeOperations`` 派生的 authority 包含完全相同的值。
+
+## 受信边界
+
+- 唯一 authority minting boundary：``src/youtube_intel/runtime.py`` 中的 ``_build_quality_provenance_authority``，由 ``RuntimeOperations`` composition 拥有。
+- ``quality.py`` 仅接受精确类型 ``QualityProvenanceAuthority`` 的 opaque capability；subclass、property override、proxy、spoofed attribute 均在边界处被 ``TypeError`` 拒绝。
+- Caller 无法通过 ``LocalScoringSettings``、fake provenance DTO、Mapping、JSON 或普通 ``QualityProvenanceAuthority(...)`` 构造绕过 sentinel 检查。
+
+## RED Evidence
+
+- 修正前（Round 3 Amendment 状态）：``isinstance`` 检查允许 subclass 覆盖 ``judge_model`` / ``judge_model_digest`` / ``scoring_schema_version`` / ``scoring_prompt_version`` 并通过 build/verify。
+- ``_mint_quality_provenance_authority_for_test`` 在修正前存在，调用者可用任意 ``LocalScoringSettings`` mint authority。
+- 本 Round 新增测试在修正前失败：
+  - ``test_subclass_overriding_judge_model_rejected_by_build`` / ``..._verify``：subclass 被接受，build/verify 成功。
+  - ``test_subclass_overriding_judge_model_digest_rejected_by_build`` / ``..._verify``：同上。
+  - ``test_subclass_overriding_schema_prompt_rejected_by_build`` / ``..._verify``：同上。
+  - ``test_caller_local_scoring_settings_cannot_mint_authority``：测试 seam 存在，``LocalScoringSettings`` 被接受。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| ``uv lock --check --offline`` | PASS |
+| ``uv sync --locked --offline`` | PASS |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py`` | 118 passed |
+| ``uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py`` | 60 passed, 1 warning |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py`` | 78 passed |
+| ``uv run pytest -x -q tests/integration/test_runtime_composition.py`` | 9 passed |
+| 全量 ``uv run pytest -x -q`` | 1160 passed, 1 warning |
+| ``uv run mypy src`` | Success (28 source files) |
+| ``uv run ruff check .`` | All checks passed |
+| ``git diff --check`` | PASS |
+
+## 新增关键测试
+
+- ``test_subclass_overriding_judge_model_rejected_by_build`` / ``..._verify``
+- ``test_subclass_overriding_judge_model_digest_rejected_by_build`` / ``..._verify``
+- ``test_subclass_overriding_schema_prompt_rejected_by_build`` / ``..._verify``
+- ``test_caller_local_scoring_settings_cannot_mint_authority``
+- ``test_caller_fake_provenance_cannot_mint_authority``
+- ``test_runtime_operations_derives_authority_from_different_model_config``
+
+## Mutation Evidence
+
+- 临时破坏 ``src/youtube_intel/runtime.py`` 中 ``_build_quality_provenance_authority`` 的 config-to-digest 绑定，将 ``judge_model_digest=local_scoring.expected_model_digest`` 替换为固定 ``"sha256:" + "f" * 64`` 后：
+  - ``tests/unit/test_task016c_quality_attestation.py`` 大量测试失败（首个失败为 ``TestQualityPassAttestationConstruction::test_valid_attestation_is_deterministic``，``ValueError: judge_model_digest does not match trusted current provenance``）。
+  - ``tests/integration/test_runtime_composition.py::test_runtime_operations_mints_quality_provenance_authority_from_config`` 与 ``test_runtime_operations_derives_authority_from_different_model_config`` 的 digest 断言失败。
+- 回退 mutation 后，上述测试重新通过。
+
+## 范围验证
+
+- ``git diff --name-only HEAD`` 仅包含：
+  - ``src/youtube_intel/quality.py``
+  - ``src/youtube_intel/runtime.py``
+  - ``tests/unit/test_task016c_quality_attestation.py``
+  - ``tests/integration/test_runtime_composition.py``
+  - ``handoffs/TASK-016C.md``
+- 未修改 ``providers/ollama.py``、``scoring.py``、``state.py``、DB、cache、Artifact、ProviderCall persistence、Finalizer、Phase E+、依赖、锁文件。
+- ``runtime.py`` 变更范围严格限于删除测试 seam；未新增 composition 功能。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D AUTHORITY BOUNDARY INDEPENDENT REVIEW`
+
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q tests/integration/test_runtime_composition.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE

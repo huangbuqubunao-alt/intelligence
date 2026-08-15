@@ -176,7 +176,12 @@ class _ScoringProvider:
         return response
 
 
-def _project(tmp_path: Path) -> Path:
+def _project(
+    tmp_path: Path,
+    *,
+    model: str = "qwen3:8b",
+    digest: str = f"sha256:{'1' * 64}",
+) -> Path:
     (tmp_path / "config").mkdir()
     (tmp_path / "vault").mkdir()
     (tmp_path / "config" / "channels.yaml").write_text(
@@ -188,8 +193,8 @@ def _project(tmp_path: Path) -> Path:
 general:
   transcript_languages: [en]
 local_scoring:
-  model: qwen3:8b
-  expected_model_digest: sha256:{'1' * 64}
+  model: {model}
+  expected_model_digest: {digest}
 cloud:
   enabled: false
 storage:
@@ -407,5 +412,37 @@ def test_runtime_operations_mints_quality_provenance_authority_from_config(
     authority = runtime._quality_provenance_authority
     assert isinstance(authority, QualityProvenanceAuthority)
     assert authority.judge_model == "qwen3:8b"
+    assert authority.judge_model_digest == f"sha256:{'1' * 64}"
+    assert authority.judge_provider == "ollama"
+
+
+def test_runtime_operations_derives_authority_from_different_model_config(
+    tmp_path: Path,
+) -> None:
+    """Runtime minting follows the loaded AppConfig for any model/digest pair."""
+    project = _project(
+        tmp_path,
+        model="different-model",
+        digest=f"sha256:{'1' * 64}",
+    )
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+    runtime = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+
+    authority = runtime._quality_provenance_authority
+    assert type(authority) is QualityProvenanceAuthority
+    assert authority.judge_model == "different-model"
     assert authority.judge_model_digest == f"sha256:{'1' * 64}"
     assert authority.judge_provider == "ollama"

@@ -132,20 +132,6 @@ def _build_quality_provenance_authority(
     )
 
 
-def _mint_quality_provenance_authority_for_test(
-    local_scoring: LocalScoringSettings,
-) -> QualityProvenanceAuthority:
-    """Controlled composition seam for unit tests.
-
-    Tests need an authority but must not be able to mint one from arbitrary
-    caller input.  This function uses the same private runtime minting path and
-    is intentionally prefixed with an underscore; it is not part of the public
-    product API.
-    """
-
-    return _build_quality_provenance_authority(local_scoring)
-
-
 @dataclass(frozen=True, slots=True)
 class DoctorReport:
     checks: tuple[DoctorCheck, ...]
