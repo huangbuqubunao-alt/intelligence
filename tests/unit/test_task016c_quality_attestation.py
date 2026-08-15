@@ -25,6 +25,7 @@ from youtube_intel.domain import (
     QualityPassAttestation,
     ScoringEvidence,
     ScoringEvidenceSource,
+    TrustedQualityProvenance,
 )
 from youtube_intel.quality import (
     build_content_quality_input_hash,
@@ -42,6 +43,8 @@ VALID_HASH = "a" * 64
 OTHER_HASH = "0" * 64
 DIGEST = "sha256:" + "b" * 64
 OTHER_DIGEST = "sha256:" + "c" * 64
+UNAUTHORIZED_MODEL = "untrusted-local-model"
+UNAUTHORIZED_DIGEST = "sha256:" + "d" * 64
 SCORING_SCHEMA_VERSION = "scoring-schema-v1"
 SCORING_PROMPT_VERSION = "scoring-prompt-v1"
 OTHER_SCORING_SCHEMA = "scoring-schema-v2"
@@ -162,15 +165,39 @@ def _pass_result(
     )
 
 
-def _consistent_trio() -> tuple[
+def _consistent_trio(
+    *,
+    judge_model: str = "qwen3:8b",
+    judge_model_digest: str = DIGEST,
+) -> tuple[
     ContentQualityInput, QualityJudgeOperationInput, ContentQualityResult
 ]:
     """Return (content_input, operation_input, pass_result) with consistent hashes."""
     content_input = _content_input()
     qih = build_content_quality_input_hash(content_input)
-    operation_input = _operation_input(quality_input_hash=qih)
-    pass_result = _pass_result(quality_input_hash=qih)
+    operation_input = _operation_input(
+        quality_input_hash=qih,
+        judge_model=judge_model,
+        judge_model_digest=judge_model_digest,
+    )
+    pass_result = _pass_result(
+        quality_input_hash=qih,
+        judge_model=judge_model,
+        judge_model_digest=judge_model_digest,
+    )
     return content_input, operation_input, pass_result
+
+
+def _authorized_provenance() -> TrustedQualityProvenance:
+    return TrustedQualityProvenance.model_validate(
+        {
+            "judge_provider": "ollama",
+            "judge_model": "qwen3:8b",
+            "judge_model_digest": DIGEST,
+            "scoring_schema_version": SCORING_SCHEMA_VERSION,
+            "scoring_prompt_version": SCORING_PROMPT_VERSION,
+        }
+    )
 
 
 def _build_valid_attestation() -> QualityPassAttestation:
@@ -179,8 +206,7 @@ def _build_valid_attestation() -> QualityPassAttestation:
         quality_result=pass_result,
         operation_input=operation_input,
         quality_input=content_input,
-        scoring_schema_version=SCORING_SCHEMA_VERSION,
-        scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
     )
 
 
@@ -444,8 +470,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.candidate_hash == pass_result.candidate_hash
         assert attestation.candidate_hash == operation_input.candidate_hash
@@ -457,8 +482,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         expected_qih = build_content_quality_input_hash(content_input)
         assert attestation.quality_input_hash == expected_qih
@@ -470,8 +494,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         expected = build_content_quality_result_hash(pass_result)
         assert attestation.quality_result_hash == expected
@@ -482,8 +505,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.scoring_request_hash == pass_result.scoring_request_hash
 
@@ -493,8 +515,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.judge_provider == "ollama"
         assert attestation.judge_model == pass_result.judge_model
@@ -507,8 +528,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         _, h2 = build_judge_h1_h2(operation_input)
         assert attestation.judge_request_hash == h2
@@ -519,8 +539,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.attempt_role == operation_input.attempt_role
 
@@ -530,8 +549,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.decision_confidence == pass_result.decision_confidence
         assert attestation.grounding_confidence == pass_result.grounding_confidence
@@ -545,8 +563,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.evidence_ids == pass_result.evidence_ids
 
@@ -556,8 +573,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.scoring_schema_version == SCORING_SCHEMA_VERSION
         assert attestation.scoring_prompt_version == SCORING_PROMPT_VERSION
@@ -568,8 +584,7 @@ class TestQualityPassAttestationConstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert attestation.quality_schema_version == "content-quality-result-v1"
         assert attestation.quality_prompt_version == "content-quality-prompt-v1"
@@ -630,8 +645,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=reject_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_evidence_free_pass_rejects(self) -> None:
@@ -650,8 +664,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_empty_registry_pass_rejects(self) -> None:
@@ -664,8 +677,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     @pytest.mark.parametrize(
@@ -695,8 +707,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=tampered_operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     @pytest.mark.parametrize(
@@ -730,8 +741,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
                 quality_result=pass_result,
                 operation_input=tampered_operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
 
@@ -752,8 +762,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_forged_quality_result_hash_rejects(self) -> None:
@@ -779,8 +788,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_h2_mismatch_rejects(self) -> None:
@@ -805,8 +813,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_attempt_role_mismatch_rejects(self) -> None:
@@ -831,8 +838,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     @pytest.mark.parametrize(
@@ -869,8 +875,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_evidence_mismatch_rejects(self) -> None:
@@ -886,8 +891,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         tampered = attestation.model_dump(mode="json")
         tampered["evidence_ids"] = ["title-2"]
@@ -908,8 +912,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     @pytest.mark.parametrize(
@@ -926,18 +929,19 @@ class TestQualityPassAttestationVerifyBindingMismatches:
     ) -> None:
         attestation = _build_valid_attestation()
         content_input, operation_input, pass_result = _consistent_trio()
-        kwargs = {
-            "scoring_schema_version": SCORING_SCHEMA_VERSION,
-            "scoring_prompt_version": SCORING_PROMPT_VERSION,
-        }
-        kwargs[field_name] = value
+        mismatched = TrustedQualityProvenance.model_validate(
+            {
+                **_authorized_provenance().model_dump(),
+                field_name: value,
+            }
+        )
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
                 attestation,
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                **kwargs,
+                trusted_provenance=mismatched,
             )
 
     def test_forged_complete_attestation_rejects(self) -> None:
@@ -953,8 +957,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
             quality_result=pass_result_b,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         with pytest.raises((ValueError, Exception)):
             verify_quality_pass_attestation(
@@ -962,8 +965,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result_a,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_unknown_fields_rejects(self) -> None:
@@ -977,8 +979,7 @@ class TestQualityPassAttestationVerifyBindingMismatches:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
 
@@ -998,8 +999,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result_hash=VALID_HASH,
                 scoring_request_hash=VALID_HASH,
                 policy_version="content-quality-policy-v1",
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
                 quality_schema_version="content-quality-result-v1",
                 quality_prompt_version="content-quality-prompt-v1",
                 judge_provider="ollama",
@@ -1042,8 +1042,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_subclass_model_dump_override_rejected_by_verify(self) -> None:
@@ -1064,8 +1063,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_fake_trusted_flag_unknown_field_rejected(self) -> None:
@@ -1079,8 +1077,7 @@ class TestQualityPassAttestationReconstruction:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_verify_accepts_valid_attestation(self) -> None:
@@ -1091,8 +1088,7 @@ class TestQualityPassAttestationReconstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert verified == attestation
 
@@ -1105,8 +1101,7 @@ class TestQualityPassAttestationReconstruction:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert verified == attestation
 
@@ -1145,8 +1140,7 @@ class TestQualityPassAttestationNoSideEffects:
             quality_result=pass_result,
             operation_input=operation_input,
             quality_input=content_input,
-            scoring_schema_version=SCORING_SCHEMA_VERSION,
-            scoring_prompt_version=SCORING_PROMPT_VERSION,
+        trusted_provenance=_authorized_provenance(),
         )
         assert isinstance(verified, QualityPassAttestation)
         assert not any(pathlib.Path(str(tmp_path)).iterdir())
@@ -1191,8 +1185,7 @@ class TestMutationEvidence:
                 quality_result=pass_result,
                 operation_input=mismatched_op,
                 quality_input=content_input,
-                scoring_schema_version=SCORING_SCHEMA_VERSION,
-                scoring_prompt_version=SCORING_PROMPT_VERSION,
+                trusted_provenance=_authorized_provenance(),
             )
 
     def test_unchecked_input_not_hashed(self) -> None:
@@ -1239,6 +1232,227 @@ class TestMutationEvidence:
                 quality_result=pass_result,
                 operation_input=operation_input,
                 quality_input=content_input,
+                trusted_provenance=_authorized_provenance(),
+            )
+
+
+# ---------------------------------------------------------------------------
+# 10. Trusted current provenance binding (Phase D Correction Round 1)
+# ---------------------------------------------------------------------------
+
+
+class TestTrustedProvenanceBinding:
+    """P1 fix: attestation must bind to current authorized configuration."""
+
+    def _unauthorized_provenance(self) -> TrustedQualityProvenance:
+        return TrustedQualityProvenance.model_validate(
+            {
+                "judge_provider": "ollama",
+                "judge_model": UNAUTHORIZED_MODEL,
+                "judge_model_digest": UNAUTHORIZED_DIGEST,
+                "scoring_schema_version": SCORING_SCHEMA_VERSION,
+                "scoring_prompt_version": SCORING_PROMPT_VERSION,
+            }
+        )
+
+    # --- Critical forgery: internally consistent unauthorized config ---
+
+    def test_unauthorized_judge_model_build_rejects(self) -> None:
+        """Internally consistent unauthorized Judge model cannot build."""
+        ci, oi, pr = _consistent_trio(
+            judge_model=UNAUTHORIZED_MODEL,
+            judge_model_digest=UNAUTHORIZED_DIGEST,
+        )
+        with pytest.raises((ValueError, Exception)):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=_authorized_provenance(),
+            )
+
+    def test_unauthorized_judge_model_verify_rejects(self) -> None:
+        """A correct-hash attestation with unauthorized model cannot verify."""
+        ci, oi, pr = _consistent_trio(
+            judge_model=UNAUTHORIZED_MODEL,
+            judge_model_digest=UNAUTHORIZED_DIGEST,
+        )
+        forged = build_quality_pass_attestation(
+            quality_result=pr,
+            operation_input=oi,
+            quality_input=ci,
+            trusted_provenance=self._unauthorized_provenance(),
+        )
+        with pytest.raises((ValueError, Exception)):
+            verify_quality_pass_attestation(
+                forged,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=_authorized_provenance(),
+            )
+
+    def test_unauthorized_judge_digest_build_rejects(self) -> None:
+        """Internally consistent unauthorized digest cannot build."""
+        ci, oi, pr = _consistent_trio(
+            judge_model="qwen3:8b",
+            judge_model_digest=UNAUTHORIZED_DIGEST,
+        )
+        with pytest.raises((ValueError, Exception)):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=_authorized_provenance(),
+            )
+
+    # --- Individual current-binding build tests ---
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("judge_model", UNAUTHORIZED_MODEL),
+            ("judge_model_digest", UNAUTHORIZED_DIGEST),
+        ],
+    )
+    def test_individual_judge_field_mismatch_build_rejects(
+        self,
+        field: str,
+        value: str,
+    ) -> None:
+        ci, oi, pr = _consistent_trio()
+        tampered_op = _operation_input(
+            quality_input_hash=build_content_quality_input_hash(ci),
+            **{field: value},
+        )
+        tampered_pr = _pass_result(
+            quality_input_hash=build_content_quality_input_hash(ci),
+            **{field: value},
+        )
+        with pytest.raises((ValueError, Exception)):
+            build_quality_pass_attestation(
+                quality_result=tampered_pr,
+                operation_input=tampered_op,
+                quality_input=ci,
+                trusted_provenance=_authorized_provenance(),
+            )
+
+    # --- Individual current-binding verify tests ---
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("judge_model", UNAUTHORIZED_MODEL),
+            ("judge_model_digest", UNAUTHORIZED_DIGEST),
+            ("scoring_schema_version", OTHER_SCORING_SCHEMA),
+            ("scoring_prompt_version", OTHER_SCORING_PROMPT),
+        ],
+    )
+    def test_individual_field_mismatch_verify_rejects(
+        self,
+        field: str,
+        value: str,
+    ) -> None:
+        attestation = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        mismatched = TrustedQualityProvenance.model_validate(
+            {
+                **_authorized_provenance().model_dump(),
+                field: value,
+            }
+        )
+        with pytest.raises((ValueError, Exception)):
+            verify_quality_pass_attestation(
+                attestation,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=mismatched,
+            )
+
+    def test_authorized_provenance_build_succeeds(self) -> None:
+        """Sanity: authorized provenance must still build successfully."""
+        att = _build_valid_attestation()
+        assert isinstance(att, QualityPassAttestation)
+
+    def test_authorized_provenance_verify_succeeds(self) -> None:
+        """Sanity: authorized provenance must still verify successfully."""
+        att = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        verified = verify_quality_pass_attestation(
+            att,
+            quality_result=pr,
+            operation_input=oi,
+            quality_input=ci,
+            trusted_provenance=_authorized_provenance(),
+        )
+        assert verified == att
+
+
+class TestTrustedProvenanceBypass:
+    """TrustedQualityProvenance itself must resist bypass."""
+
+    def test_model_construct_bypass_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            TrustedQualityProvenance.model_construct(
+                judge_provider="ollama",
+                judge_model="qwen3:8b",
+                judge_model_digest=DIGEST,
                 scoring_schema_version=SCORING_SCHEMA_VERSION,
                 scoring_prompt_version=SCORING_PROMPT_VERSION,
             )
+
+    def test_model_copy_update_bypass_rejected(self) -> None:
+        prov = _authorized_provenance()
+        with pytest.raises(ValueError, match="model_copy"):
+            prov.model_copy(update={"judge_model": UNAUTHORIZED_MODEL})
+
+    def test_deprecated_copy_update_bypass_rejected(self) -> None:
+        import warnings
+
+        prov = _authorized_provenance()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            with pytest.raises((ValueError, TypeError)):
+                prov.copy(update={"judge_model": UNAUTHORIZED_MODEL})
+
+    def test_subclass_property_override_rejected(self) -> None:
+        class _Spoofed(TrustedQualityProvenance):
+            @property
+            def judge_model(self) -> str:  # type: ignore[override]
+                return UNAUTHORIZED_MODEL
+
+        base = _authorized_provenance()
+        spoofed = _Spoofed.model_validate(base.model_dump(mode="python"))
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(ValueError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=spoofed,
+            )
+
+    def test_subclass_model_dump_override_rejected(self) -> None:
+        class _Spoofed(TrustedQualityProvenance):
+            def model_dump(self, **kwargs: object) -> dict[str, object]:
+                data = super().model_dump(**kwargs)
+                data["judge_model"] = UNAUTHORIZED_MODEL
+                return data
+
+        base = _authorized_provenance()
+        spoofed = _Spoofed.model_validate(base.model_dump(mode="python"))
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(ValueError):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                trusted_provenance=spoofed,
+            )
+
+    def test_unknown_field_rejected(self) -> None:
+        mapping = _authorized_provenance().model_dump(mode="json")
+        mapping["_trusted"] = True
+        with pytest.raises((ValueError, Exception)):
+            TrustedQualityProvenance.model_validate(mapping)

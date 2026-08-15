@@ -25,6 +25,7 @@ from youtube_intel.domain import (
     DeterministicGateReason,
     QualityJudgeOperationInput,
     QualityPassAttestation,
+    TrustedQualityProvenance,
 )
 from youtube_intel.state import build_provider_request_hash
 
@@ -320,6 +321,38 @@ def _verify_cross_bindings(
             raise ValueError(msg)
 
 
+def _verify_trusted_provenance(
+    result: ContentQualityResult,
+    op_input: QualityJudgeOperationInput,
+    trusted: TrustedQualityProvenance,
+) -> None:
+    """Verify Judge and scoring provenance match the current authorized config."""
+
+    _trusted_bindings: list[tuple[str, object, object]] = [
+        ("judge_provider", result.judge_provider, trusted.judge_provider),
+        ("judge_model", result.judge_model, trusted.judge_model),
+        (
+            "judge_model_digest",
+            result.judge_model_digest,
+            trusted.judge_model_digest,
+        ),
+        ("judge_provider", op_input.judge_provider, trusted.judge_provider),
+        ("judge_model", op_input.judge_model, trusted.judge_model),
+        (
+            "judge_model_digest",
+            op_input.judge_model_digest,
+            trusted.judge_model_digest,
+        ),
+    ]
+    for field_name, actual, expected in _trusted_bindings:
+        if actual != expected:
+            msg = (
+                f"{field_name} does not match trusted current provenance: "
+                f"actual={actual!r}, trusted={expected!r}"
+            )
+            raise ValueError(msg)
+
+
 def build_quality_pass_attestation(
     *,
     quality_result: (
@@ -339,21 +372,25 @@ def build_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
-    scoring_schema_version: str,
-    scoring_prompt_version: str,
+    trusted_provenance: (
+        TrustedQualityProvenance | Mapping[str, object] | str | bytes | bytearray
+    ),
 ) -> QualityPassAttestation:
     """Trusted application-side constructor for ``quality-pass-attestation-v1``.
 
     Reconstructs and fully re-validates every input before constructing the
-    attestation.  Fails closed on any malformed value or binding mismatch.
+    attestation.  Fails closed on any malformed value, binding mismatch, or
+    provenance that does not match the current authorized configuration.
     """
 
     result = _reconstruct(ContentQualityResult, quality_result)
     op_input = _reconstruct(QualityJudgeOperationInput, operation_input)
     content_input = _reconstruct(ContentQualityInput, quality_input)
+    trusted = _reconstruct(TrustedQualityProvenance, trusted_provenance)
 
     _verify_pass_eligibility(result, content_input)
     _verify_cross_bindings(result, op_input, content_input)
+    _verify_trusted_provenance(result, op_input, trusted)
 
     result_hash = build_content_quality_result_hash(result)
     _, h2 = build_judge_h1_h2(op_input)
@@ -371,8 +408,8 @@ def build_quality_pass_attestation(
         "quality_result_hash": result_hash,
         "scoring_request_hash": result.scoring_request_hash,
         "policy_version": result.policy_version,
-        "scoring_schema_version": scoring_schema_version,
-        "scoring_prompt_version": scoring_prompt_version,
+        "scoring_schema_version": trusted.scoring_schema_version,
+        "scoring_prompt_version": trusted.scoring_prompt_version,
         "quality_schema_version": result.schema_version,
         "quality_prompt_version": result.prompt_version,
         "judge_provider": result.judge_provider,
@@ -425,14 +462,17 @@ def verify_quality_pass_attestation(
     quality_input: (
         ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
     ),
-    scoring_schema_version: str,
-    scoring_prompt_version: str,
+    trusted_provenance: (
+        TrustedQualityProvenance | Mapping[str, object] | str | bytes | bytearray
+    ),
 ) -> QualityPassAttestation:
     """Reconstruct and fully verify an alleged attestation; fail closed.
 
     The alleged attestation is treated as untrusted.  Its ``attestation_hash``
     is recomputed and compared, then a fresh trusted attestation is built from
-    the same inputs and compared field-by-field.
+    the same inputs and the current trusted provenance, and compared
+    field-by-field.  A historical or attacker-selected configuration cannot
+    verify under a different current trusted configuration.
     """
 
     alleged = _reconstruct(QualityPassAttestation, attestation)
@@ -446,8 +486,7 @@ def verify_quality_pass_attestation(
         quality_result=quality_result,
         operation_input=operation_input,
         quality_input=quality_input,
-        scoring_schema_version=scoring_schema_version,
-        scoring_prompt_version=scoring_prompt_version,
+        trusted_provenance=trusted_provenance,
     )
 
     if alleged != fresh:

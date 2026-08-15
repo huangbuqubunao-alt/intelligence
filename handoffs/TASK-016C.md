@@ -856,6 +856,72 @@ Phase D 先写测试再实现。RED 阶段所有 91 项测试因 `ImportError: c
 ## 实现者结论
 
 - 建议状态：`IN_REVIEW / PHASE D COMPLETE`
+
+---
+
+# Phase D Correction Round 1 — Bind attestation to trusted current provenance
+
+## 目标
+
+关闭 Independent Review 剩余 P1：``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 未绑定当前受信配置，导致自洽但未经授权的 provenance 可通过验证。
+
+## 父提交
+
+- ``b22a3ba0d64b8cfb79abb2a3acb261affdf92e92``
+
+## 变更路径
+
+- ``src/youtube_intel/domain.py``：新增 ``TrustedQualityProvenance`` 模型；``__all__`` 导出。
+- ``src/youtube_intel/quality.py``：``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 改为接收 ``trusted_provenance``；新增 ``_verify_trusted_provenance`` 对 Judge 模型/digest 和 scoring schema/prompt 版本做当前受信上下文校验；``scoring_schema_version`` / ``scoring_prompt_version`` 改为从受信上下文写入，不再由调用方直接指定。
+- ``tests/unit/test_task016c_quality_attestation.py``：新增 17 项 RED-first 回归测试，覆盖自洽非法 Judge 模型/digest 在 build 与 verify 阶段被拒绝、scoring 版本在 verify 阶段因受信上下文变化被拒绝、``TrustedQualityProvenance`` 自身 bypass 防御、合法配置仍可通过。
+
+## 信任当前上下文绑定项
+
+- ``judge_provider``
+- ``judge_model``
+- ``judge_model_digest``
+- ``scoring_schema_version``
+- ``scoring_prompt_version``
+
+## RED Evidence
+
+- 修正前：未授权模型 ``untrusted-local-model`` + 任意 digest + 任意 scoring 版本可在 build 与 verify 阶段生成/验证有效 attestation。
+- 修正后测试写入时：108 项 attestation 测试全部 RED（依赖 ``TrustedQualityProvenance`` 未导入）；其中 17 项为新增 provenance 回归测试。
+
+## GREEN Evidence
+
+- ``tests/unit/test_task016c_quality_attestation.py``：108 passed
+- ``tests/unit/test_task016c_domain_contracts.py``：60 passed, 1 warning
+- ``tests/unit/test_task016c_quality_judge_contract.py``：78 passed
+- ``uv run pytest -x -q``：1146 passed, 1 warning
+- ``uv run mypy src``：Success (28 files)
+- ``uv run ruff check .``：All checks passed
+- ``git diff --check``：passed
+
+## 伪造一致配置证据
+
+- ``test_unauthorized_judge_model_build_rejects``：内部一致的未授权模型无法在授权受信上下文下 build。
+- ``test_unauthorized_judge_model_verify_rejects``：使用未授权上下文构建的合法 hash attestation，在授权上下文 verify 时失败。
+- ``test_unauthorized_judge_digest_build_rejects``：内部一致的未授权 digest 无法 build。
+- ``test_individual_field_mismatch_verify_rejects``：scoring_schema_version / scoring_prompt_version 的受信上下文变化导致 verify 失败。
+
+## 突变证据
+
+- 临时注释 ``_verify_trusted_provenance`` 后，``test_unauthorized_judge_model_build_rejects`` 失败；已回退。
+
+## 范围验证
+
+- ``git diff --name-only`` 仅包含 ``src/youtube_intel/domain.py``、``src/youtube_intel/quality.py``、``tests/unit/test_task016c_quality_attestation.py``。
+- 未修改 ``providers/ollama.py``、``scoring.py``、``state.py``、``pyproject.toml``、``uv.lock``、DB、Artifact、cache、Finalizer 等禁止路径。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D FOCUSED INDEPENDENT REVIEW`
+
 - 复现/验证说明：
   ```bash
   uv lock --check
