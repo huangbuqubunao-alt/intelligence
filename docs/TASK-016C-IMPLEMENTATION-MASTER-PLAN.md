@@ -34,7 +34,7 @@ No Provider-to-`ScoreResult`, Candidate-to-Artifact, attestation-only, pre-write
 | A | Domain Contracts and Candidate Boundary | READY / assigned to WorkBuddy | accepted design |
 | B | Deterministic Safety Gate | NOT AUTHORIZED | A accepted |
 | C | Local Judge Contract and H1/H2 | NOT AUTHORIZED | B accepted |
-| D | PASS Attestation and Canonical Hashing | NOT AUTHORIZED | C accepted |
+| D | PASS Attestation and Canonical Hashing | AUTHORITY BOUNDARY CORRECTION READY；仅 ADR-026 狭义修订 | C accepted；Phase D Correction Round 3 review finding |
 | E | TrustedScoringFinalizer | NOT AUTHORIZED | D accepted |
 | F | PREWRITE_VALIDATE / ValidatedScoringWritePlan | NOT AUTHORIZED | E accepted |
 | G | Filesystem + Atomic DB Registration | NOT AUTHORIZED | F accepted |
