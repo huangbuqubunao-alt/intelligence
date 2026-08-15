@@ -1,5 +1,18 @@
 # TASK-016C 交接报告
 
+## Phase F 实施条件发现
+
+- Conclusion: `BLOCKED`，未创建 Phase F implementation authorization 或代码。
+- 冲突：主控任务将 Phase F 定义为 runtime integration（`Quality → Finalizer`），但冻结
+  master plan 仍定义为 `PREWRITE_VALIDATE / ValidatedScoringWritePlan`。
+- 架构事实：`runtime.py` 生产路径调用 `RepositoryBackedScoringService.score()`；该 service
+  及 `providers/ollama.py` 仍以 `ScoringInput → ScoreResult` 直接契约运行。质量/Finalizer
+  不能在裸 `ScoreResult` 后补接，否则违反 ADR-025 唯一可信构造边界。
+- 影响：要交付 runtime integration，必须先通过设计 amendment 明确 Phase F 重排，并精确授权
+  对 `providers/ollama.py` 的 Candidate provider contract 修改（或批准一条不触碰该文件且能在
+  provider 前取得 `ScoringCandidate` 的等效边界）。现有 mission 禁止该文件，因此停止。
+- 未执行：Phase F–I 代码、Provider/网络、持久化、cache、DB、Artifact、merge 或 history rewrite。
+
 ## Phase E 实现交接
 
 - Status: `IN_REVIEW`；仅实现纯内存 Trusted Finalizer，尚未进入 Phase F 或持久化。

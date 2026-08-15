@@ -35,7 +35,7 @@ No Provider-to-`ScoreResult`, Candidate-to-Artifact, attestation-only, pre-write
 | B | Deterministic Safety Gate | NOT AUTHORIZED | A accepted |
 | C | Local Judge Contract and H1/H2 | NOT AUTHORIZED | B accepted |
 | D | PASS Attestation and Canonical Hashing | APPROVED / `2c11faf41e17c3b823a39bfd1018c5c876b236c5` | C accepted |
-| E | TrustedScoringFinalizer | READY / AUTHORIZED | D APPROVED；Round 3 design review passed |
+| E | TrustedScoringFinalizer | APPROVED / `9b92946…` | D APPROVED；pure-memory finalization accepted |
 | F | PREWRITE_VALIDATE / ValidatedScoringWritePlan | NOT AUTHORIZED | E accepted |
 | G | Filesystem + Atomic DB Registration | NOT AUTHORIZED | F accepted |
 | H | Primary/Repair Orchestration and Budget | NOT AUTHORIZED | G accepted |
