@@ -228,6 +228,10 @@ def test_finalizer_accepts_only_runtime_bound_pass_material(tmp_path: Path) -> N
     assert type(trusted) is TrustedScoreResult
     assert trusted.result.request_hash == scoring_input.request_hash
     assert trusted.result.output_language == "en"
+    with pytest.raises(TypeError, match="immutable"):
+        runtime._trusted_scoring_context._output_language = "zh-CN"  # type: ignore[attr-defined]
+    with pytest.raises(TypeError, match="immutable"):
+        trusted._result = trusted.result  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError, match="candidate_hash"):
         TrustedScoringFinalizer().finalize(

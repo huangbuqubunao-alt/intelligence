@@ -264,6 +264,7 @@ class TrustedScoringContext:
         "_temperature",
         "_max_output_tokens",
         "_max_description_chars",
+        "_sealed",
     )
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
@@ -297,6 +298,12 @@ class TrustedScoringContext:
         self._temperature = temperature
         self._max_output_tokens = max_output_tokens
         self._max_description_chars = max_description_chars
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("TrustedScoringContext is immutable")
+        object.__setattr__(self, name, value)
 
     @property
     def scoring_provider(self) -> str:
@@ -385,7 +392,7 @@ def _mint_trusted_scoring_context(
 class TrustedScoreResult:
     """Opaque Finalizer output; a bare ScoreResult is never trusted pipeline data."""
 
-    __slots__ = ("_result",)
+    __slots__ = ("_result", "_sealed")
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
         del cls, kwargs
@@ -395,6 +402,12 @@ class TrustedScoreResult:
         if sentinel is not _TRUSTED_SCORE_RESULT_SENTINEL:
             raise ValueError("TrustedScoreResult can only be minted by finalizer")
         self._result = result
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("TrustedScoreResult is immutable")
+        object.__setattr__(self, name, value)
 
     @property
     def result(self) -> ScoreResult:

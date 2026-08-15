@@ -37,6 +37,18 @@
 - 剩余风险：Phase E 只证明内存内 trust/provenance binding。尚未授权/实现 artifact file
   commit、atomic persistence、cache recovery、retry/recovery 或真实模型验证。
 
+### Phase E Correction 1（主控独立式审查发现）
+
+- P1：`TrustedScoringContext` 与 `TrustedScoreResult` 初版可通过普通 attribute assignment
+  改写 private slot，破坏 opaque capability 的运行时不可变性。
+- RED：`test_finalizer_accepts_only_runtime_bound_pass_material` 在尝试写入 Context language
+  时复现 `Failed: DID NOT RAISE TypeError`。
+- 修复：两个 wrapper 增加 sealed slot 与 fail-closed `__setattr__`；私有构造仍先使用
+  sentinel，实例完成初始化后拒绝任何普通属性赋值。
+- GREEN：Phase E focused `3 passed`；修正后重新执行 `uv lock --check`、
+  `uv sync --locked --offline`、全量 pytest（`1174 passed, 1 warning`）、`mypy src`
+  （28 files）、Ruff、offline build、security scan 与 diff check，均通过。
+
 ## Phase E control-plane authorization
 
 - Status: `READY / AUTHORIZED`；implementation 尚未开始。
