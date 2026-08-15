@@ -11,8 +11,10 @@ The production API surface exercised here is:
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+import pickle
 import tempfile
 from pathlib import Path
 
@@ -1828,6 +1830,60 @@ class TestQualityProvenanceAuthorityBypass:
                     "judge_model": "qwen3:8b",
                     "judge_model_digest": DIGEST,
                 }
+            )
+
+
+class TestQualityProvenanceAuthorityCopySerialization:
+    """Native copy/serialization cannot manufacture an accepted authority."""
+
+    def test_copy_rejected(self) -> None:
+        authority = _current_authority()
+        with pytest.raises(TypeError, match="cannot be copied"):
+            copy.copy(authority)
+
+    def test_deepcopy_rejected(self) -> None:
+        authority = _current_authority()
+        with pytest.raises(TypeError, match="cannot be copied"):
+            copy.deepcopy(authority)
+
+    def test_pickle_dumps_rejected(self) -> None:
+        authority = _current_authority()
+        with pytest.raises(TypeError, match="cannot be serialized"):
+            pickle.dumps(authority)
+
+    @pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+    def test_pickle_dumps_all_protocols_rejected(
+        self,
+        protocol: int,
+    ) -> None:
+        authority = _current_authority()
+        with pytest.raises(TypeError, match="cannot be serialized"):
+            pickle.dumps(authority, protocol=protocol)
+
+    def test_build_with_copy_attempt_rejected(self) -> None:
+        """A copied authority cannot be supplied to build; copy itself fails."""
+        authority = _current_authority()
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError, match="cannot be copied"):
+            build_quality_pass_attestation(
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=copy.copy(authority),
+            )
+
+    def test_verify_with_copy_attempt_rejected(self) -> None:
+        """A copied authority cannot be supplied to verify; copy itself fails."""
+        authority = _current_authority()
+        attestation = _build_valid_attestation()
+        ci, oi, pr = _consistent_trio()
+        with pytest.raises(TypeError, match="cannot be copied"):
+            verify_quality_pass_attestation(
+                attestation,
+                quality_result=pr,
+                operation_input=oi,
+                quality_input=ci,
+                authority=copy.copy(authority),
             )
 
 

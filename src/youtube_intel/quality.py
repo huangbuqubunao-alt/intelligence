@@ -12,7 +12,7 @@ import hashlib
 import json
 import unicodedata
 from collections.abc import Mapping
-from typing import Final, TypeVar
+from typing import Final, NoReturn, TypeVar
 
 from pydantic import BaseModel
 
@@ -182,6 +182,22 @@ class QualityProvenanceAuthority:
                 self._judge_operation,
             )
         )
+
+    def __copy__(self) -> "QualityProvenanceAuthority":
+        msg = "QualityProvenanceAuthority cannot be copied"
+        raise TypeError(msg)
+
+    def __deepcopy__(self, memo: object) -> "QualityProvenanceAuthority":
+        msg = "QualityProvenanceAuthority cannot be copied"
+        raise TypeError(msg)
+
+    def __reduce__(self) -> NoReturn:
+        msg = "QualityProvenanceAuthority cannot be serialized"
+        raise TypeError(msg)
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        msg = "QualityProvenanceAuthority cannot be serialized"
+        raise TypeError(msg)
 
 
 # Sentinel-backed factory exposed privately to runtime composition.

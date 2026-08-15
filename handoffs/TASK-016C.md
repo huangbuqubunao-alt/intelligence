@@ -1399,3 +1399,105 @@ load_app_config(channels_path, settings_path)
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# Phase D Correction Round 5 — Close authority copy/serialization boundary
+
+## 目标
+
+关闭 Independent Review 剩余 P1： native copy/serialization 可制造出被 ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 接受的 ``QualityProvenanceAuthority`` 实例，绕过 runtime composition 单一边界。
+
+## 父提交
+
+- ``2993c688538d47dd1261e5860a2039355be6081d``
+
+## 变更路径
+
+- ``src/youtube_intel/quality.py``：
+  - 为 ``QualityProvenanceAuthority`` 新增 ``__copy__`` / ``__deepcopy__``：抛出 ``TypeError("QualityProvenanceAuthority cannot be copied")``。
+  - 新增 ``__reduce__`` / ``__reduce_ex__``：抛出 ``TypeError("QualityProvenanceAuthority cannot be serialized")``。
+  - 阻止 ``copy.copy``、``copy.deepcopy``、``pickle.dumps``、``pickle.loads`` 制造 accepted authority 实例。
+- ``tests/unit/test_task016c_quality_attestation.py``：
+  - 新增 ``TestQualityProvenanceAuthorityCopySerialization``：
+    - ``test_copy_rejected``
+    - ``test_deepcopy_rejected``
+    - ``test_pickle_dumps_rejected``
+    - ``test_pickle_dumps_all_protocols_rejected``（参数化覆盖协议 0 至 ``pickle.HIGHEST_PROTOCOL``）
+    - ``test_build_with_copy_attempt_rejected``
+    - ``test_verify_with_copy_attempt_rejected``
+
+## 受信边界
+
+- ``QualityProvenanceAuthority`` 现在是 runtime-minted、non-copyable、non-serializable 的 opaque capability。
+- 唯一来源仍为 ``RuntimeOperations`` composition 拥有的 ``_build_quality_provenance_authority``。
+- 即使攻击者通过 native copy/serialization 获得一个 type 完全相同的实例，其创建操作本身会失败；无法传递到 build/verify 边界。
+
+## RED Evidence
+
+- 修正前（Round 4 状态）：``copy.copy(authority)`` 与 ``pickle.loads(pickle.dumps(authority))`` 可成功生成 ``QualityProvenanceAuthority`` 实例，并被 ``type(authority) is QualityProvenanceAuthority`` 接受。
+- 本 Round 新增测试在修正前失败：
+  - ``test_copy_rejected`` / ``test_deepcopy_rejected``：未抛出 ``TypeError``。
+  - ``test_pickle_dumps_rejected`` / ``test_pickle_dumps_all_protocols_rejected``：未抛出 ``TypeError``。
+  - ``test_build_with_copy_attempt_rejected`` / ``test_verify_with_copy_attempt_rejected``：copy 成功并传入 build/verify 边界。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| ``uv lock --check --offline`` | PASS |
+| ``uv sync --locked --offline`` | PASS |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py`` | 124 passed |
+| ``uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py`` | 60 passed, 1 warning |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py`` | 78 passed |
+| ``uv run pytest -x -q tests/integration/test_runtime_composition.py`` | 9 passed |
+| 全量 ``uv run pytest -x -q`` | 1171 passed, 1 warning |
+| ``uv run mypy src`` | Success (28 source files) |
+| ``uv run ruff check .`` | All checks passed |
+| ``git diff --check`` | PASS |
+
+## 新增关键测试
+
+- ``test_copy_rejected``：``copy.copy(authority)`` 抛出 ``TypeError``。
+- ``test_deepcopy_rejected``：``copy.deepcopy(authority)`` 抛出 ``TypeError``。
+- ``test_pickle_dumps_rejected``：``pickle.dumps(authority)`` 抛出 ``TypeError``。
+- ``test_pickle_dumps_all_protocols_rejected``：所有 pickle 协议均抛出 ``TypeError``。
+- ``test_build_with_copy_attempt_rejected``：无法将 copied authority 传入 ``build_quality_pass_attestation``。
+- ``test_verify_with_copy_attempt_rejected``：无法将 copied authority 传入 ``verify_quality_pass_attestation``。
+
+## Mutation Evidence
+
+- 临时注释 ``src/youtube_intel/quality.py`` 中 ``QualityProvenanceAuthority`` 的 ``__copy__`` / ``__deepcopy__`` / ``__reduce__`` / ``__reduce_ex__`` 后：
+  - ``TestQualityProvenanceAuthorityCopySerialization::test_copy_rejected`` 失败（DID NOT RAISE ``TypeError``）。
+- 回退 mutation 后，上述测试重新通过。
+
+## 范围验证
+
+- ``git diff --name-only HEAD`` 仅包含：
+  - ``src/youtube_intel/quality.py``
+  - ``tests/unit/test_task016c_quality_attestation.py``
+  - ``handoffs/TASK-016C.md``
+- 未修改 ``src/youtube_intel/runtime.py``、``providers/ollama.py``、``scoring.py``、``state.py``、DB、cache、Artifact、ProviderCall persistence、Finalizer、Phase E+、依赖、锁文件。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D AUTHORITY BOUNDARY INDEPENDENT REVIEW`
+
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q tests/integration/test_runtime_composition.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE
