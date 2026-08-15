@@ -6,7 +6,7 @@
 
 本轮仅更新设计控制面，未修改 `src/`、测试、依赖、数据库、Artifact、cache 或任何 Phase E 实现。
 
-- Phase D accepted baseline：`2c11faf41e17c3b823a39bfd1018c5c876b236c5`。
+- Phase D APPROVED baseline：`2c11faf41e17c3b823a39bfd1018c5c876b236c5`。
 - `QualityProvenanceAuthority` / `QualityPassAttestation` 保持 Phase D 的 Judge provenance 职责，
   不混入 scoring context。
 - 后续 Phase E 必须使用 RuntimeOperations 私有铸造的 opaque `TrustedScoringContext`，并让

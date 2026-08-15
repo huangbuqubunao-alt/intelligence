@@ -39,4 +39,4 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-023](ADR-023-local-hybrid-cloud-intelligence.md) | Accepted；TASK-016C allocation superseded by ADR-025 | 2026-08-12；修订 2026-08-13 | Local/Hybrid/Cloud 总体方向；Local Deep Analysis 为 TBD / UNASSIGNED |
 | [ADR-024](ADR-024-scoring-language-validator-scope.md) | Accepted | 2026-08-13 | 冻结评分语言校验器的可判定职责边界，实体与内容质量识别移交独立后续任务 |
 | [ADR-025](ADR-025-content-quality-layer-scope-boundary.md) | Accepted；Round 4.6 Independent Design Review 已通过 | 2026-08-13 | 冻结 TASK-016C 窄 Deterministic Gate、可信 Finalizer、PASS attestation、Judge one-shot budget 与 cache recovery 边界 |
-| [ADR-026](ADR-026-task-016c-phase-d-provenance-authority-boundary.md) | Accepted | 2026-08-15 | 狭义修订 Phase D：已加载当前 AppConfig 仅能在 runtime composition 铸造 PASS attestation provenance capability |
+| [ADR-026](ADR-026-task-016c-phase-d-provenance-authority-boundary.md) | Accepted；Phase D APPROVED | 2026-08-15 | 狭义修订 Phase D：已加载当前 AppConfig 仅能在 runtime composition 铸造 PASS attestation provenance capability |

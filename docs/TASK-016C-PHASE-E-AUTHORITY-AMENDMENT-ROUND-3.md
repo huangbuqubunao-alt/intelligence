@@ -12,7 +12,7 @@
 
 - Accepted TASK-016C design：`c547b7c46afbf254979331c2c56cddb93a8503f2`
 - Accepted Phase A：`e8ccc2d9e3b348d23942450b3f99861cdbc25aa3`
-- Accepted Phase D：`2c11faf41e17c3b823a39bfd1018c5c876b236c5`
+- APPROVED Phase D：`2c11faf41e17c3b823a39bfd1018c5c876b236c5`
 - Phase D authority chain：`AppConfig → RuntimeOperations → QualityProvenanceAuthority → QualityPassAttestation`
 - Phase E：仅完成设计，尚未获得 implementation authorization。
 

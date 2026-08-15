@@ -110,7 +110,7 @@ Phase D 继续只交付纯内存 attestation primitive，但它现在可以表�
 
 ## 与 Phase E 的冻结衔接
 
-Phase D 已通过独立审查；其 `QualityProvenanceAuthority` 和
+Phase D 状态为 **APPROVED**（已通过独立审查）；其 `QualityProvenanceAuthority` 和
 `QualityPassAttestation` 的字段、铸造者与验证语义保持不变。Phase E 不能把 scoring context
 塞入本 authority，也不能以 attestation 替代 scoring request identity。后续仅在获得明确授权后，
 才可按 `TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md` 新增独立、runtime-owned 的
