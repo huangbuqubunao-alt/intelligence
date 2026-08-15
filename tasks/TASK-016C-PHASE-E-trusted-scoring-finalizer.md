@@ -2,9 +2,12 @@
 
 ## 状态
 
-`READY / AUTHORIZED`。本任务的 implementation source 必须从
-`codex/task-016c-phase-e-finalizer@<Phase-E-control-plane-commit>` 开始，且该提交必须是
-Phase D `2c11faf41e17c3b823a39bfd1018c5c876b236c5` 的 descendant。
+`APPROVED`（主控独立式复核）。implementation chain：
+`2c11faf41e17c3b823a39bfd1018c5c876b236c5` →
+`8aa9f0bb99d6c83250407d53bbb63eb909da0212` →
+`94c5dac24c0155f7db7949265479029cce0590c9` →
+`1293d87ee2a62f075a359e7076a5403cb5811e54` → reviewer evidence。
+本阶段只接受纯内存 Finalizer；不得据此推断 Phase F–I 已实现或已授权。
 
 ## 目标
 

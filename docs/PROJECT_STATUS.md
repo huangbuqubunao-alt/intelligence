@@ -3,9 +3,9 @@
 - 更新时间：2026-08-12
 - 当前阶段：TASK-016 — Local-only 第一验收里程碑
 - 主控状态：ACTIVE
-- TASK-016C Phase D 已 `APPROVED`（`2c11faf…`）。Phase E 仅获当前 worktree 的受限授权：
-  canonical scoring identity、runtime-owned `TrustedScoringContext`、pure Finalizer 与
-  `TrustedScoreResult`；禁止 Provider、DB、Artifact、cache、filesystem、真实模型及 Phase F–K。
+- TASK-016C Phase D 与 Phase E 均已 `APPROVED`。Phase E 实现并复核了 canonical scoring identity、
+  runtime-owned `TrustedScoringContext`、pure `TrustedScoringFinalizer` 与 `TrustedScoreResult`；
+  Provider、DB、Artifact、cache、filesystem、真实模型及 Phase F–I 仍未实现或授权。
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。

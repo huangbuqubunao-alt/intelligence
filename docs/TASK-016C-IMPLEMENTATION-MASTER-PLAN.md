@@ -55,6 +55,6 @@ Every phase follows RED → minimal GREEN → focused checks → independent rev
 ## Review and integration
 
 WorkBuddy must stop after its assigned phase. Codex performs the independent review. Only an independent
-approval of a phase may lead to a separately authorized next phase. Phase D is APPROVED and Phase E is now
-separately authorized only by `TASK-016C-PHASE-E-trusted-scoring-finalizer.md`; no later phase is authorized
-or merge-authorized by this plan.
+approval of a phase may lead to a separately authorized next phase. Phase D and Phase E are APPROVED;
+Phase E is limited to canonical identity, runtime-owned scoring context and pure finalization only. No later
+phase is authorized or merge-authorized by this plan.
