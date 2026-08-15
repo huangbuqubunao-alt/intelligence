@@ -49,6 +49,22 @@
   `uv sync --locked --offline`、全量 pytest（`1174 passed, 1 warning`）、`mypy src`
   （28 files）、Ruff、offline build、security scan 与 diff check，均通过。
 
+### Phase E 主控独立式最终复核
+
+- Verdict: `APPROVE`；P0=0、P1=0、P2=0、P3=0。
+- Git/范围：`2c11faf` 为 HEAD ancestor；implementation+correction 相对
+  `8aa9f0b` 精确为 5 条授权路径（quality/runtime/scoring、Phase E test、handoff）；
+  `git diff --check` 通过，worktree clean。
+- 信任边界：RuntimeOperations 是唯一 production Context minting path；Finalizer 在读取
+  capability 字段前执行 exact-type 验证，重建每个外来 DTO、重算 canonical request
+  identity、验证 candidate/quality/attestation 交叉绑定，并只返回 opaque wrapper。
+- 对抗覆盖：直接构造、subclass、copy/deepcopy、pickle、普通 slot mutation、Mapping
+  capability spoof 和 candidate hash 篡改均 fail-closed；没有 ProviderCall、cache、Artifact
+  或 filesystem 副作用。
+- 检查复核：lock/offline sync、focused 3、scoring+attestation 159、full pytest 1174、
+  mypy 28、Ruff、offline build、security scan clean 与 diff check 均通过；未运行网络、
+  实际模型、云、数据库 migration 或 Phase F–I。
+
 ## Phase E control-plane authorization
 
 - Status: `READY / AUTHORIZED`；implementation 尚未开始。
