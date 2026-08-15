@@ -1,5 +1,14 @@
 # TASK-016C 交接报告
 
+## Phase E control-plane authorization
+
+- Status: `READY / AUTHORIZED`；implementation 尚未开始。
+- Phase D baseline: `2c11faf41e17c3b823a39bfd1018c5c876b236c5`。
+- Authority: `docs/TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md`、
+  `tasks/TASK-016C-PHASE-E-trusted-scoring-finalizer.md` 与
+  `agent-prompts/TASK-016C-PHASE-E-IMPLEMENTER-CODEX.md`。
+- 本控制面不含 production/test/dependency 变更；Phase E only，Phase F–K 保持未授权。
+
 ## 元数据
 
 - Task: `TASK-016C Phase A`

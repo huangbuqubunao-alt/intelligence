@@ -1,6 +1,8 @@
 # TASK-016C Content Quality Interface Design — Round 4.6
 
-- 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
+- 状态：`ACCEPTED DESIGN / PHASE E AUTHORIZED ONLY`；Phase E 的 authority 边界由
+  [Round 3 Amendment](TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md) 补充并优先于本文件的旧
+  `TrustedScoringFinalizer` 文字示例。
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
 - 实现授权：尚未生效；本设计通过独立审查后才能创建 Implementer task card
@@ -41,7 +43,7 @@ flowchart TD
     B2 --> C2["schema + language + quality repair"]
     R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
-    F --> S["ScoreResult"]
+    F --> S["TrustedScoreResult (validated ScoreResult wrapper)"]
     S --> Z["canonical raw / structured bytes"]
     Z --> Y["pre-write reparse + full validation"]
     Y --> L["ValidatedScoringWritePlan (memory only)"]
