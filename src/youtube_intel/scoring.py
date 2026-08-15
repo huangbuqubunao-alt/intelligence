@@ -206,7 +206,10 @@ def _normalized_scoring_input_hash(
     sample: TranscriptSample,
     language: str,
     output_language: ScoringOutputLanguage,
-    settings: LocalScoringSettings,
+    model: str,
+    temperature: float,
+    max_output_tokens: int,
+    max_description_chars: int,
 ) -> str:
     return _sha256_text(
         _canonical_json(
@@ -219,7 +222,7 @@ def _normalized_scoring_input_hash(
                     video.duration_seconds,
                     video.default_language,
                     language,
-                    video.description[: settings.max_description_chars],
+                    video.description[:max_description_chars],
                 ],
                 "transcript_content_hash": sample.source_content_hash,
                 "sample": {
@@ -231,13 +234,65 @@ def _normalized_scoring_input_hash(
                 },
                 "language": language,
                 "output_language": output_language,
-                "model": settings.model,
-                "temperature": settings.temperature,
-                "max_output_tokens": settings.max_output_tokens,
+                "model": model,
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
                 "prompt_version": PROMPT_VERSION,
                 "schema_version": SCHEMA_VERSION,
             }
         )
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringRequestIdentity:
+    """Canonical, pure scoring request identity with no authority semantics."""
+
+    normalized_input_hash: str
+    request_hash: str
+
+
+def build_scoring_request_identity(
+    *,
+    scoring_input: ScoringInput,
+    model: str,
+    temperature: float,
+    max_output_tokens: int,
+    max_description_chars: int,
+) -> ScoringRequestIdentity:
+    """Rebuild the frozen provider identity from validated scoring material.
+
+    This function deliberately accepts ordinary identity material: authority is
+    established by the caller's boundary, not by this canonical hash builder.
+    """
+
+    if type(scoring_input) is not ScoringInput:
+        msg = (
+            "scoring_input must be an exact validated ScoringInput; "
+            f"got {type(scoring_input).__name__}"
+        )
+        raise ValueError(msg)
+    validated = ScoringInput.model_validate(dict(scoring_input.__dict__))
+    normalized_input_hash = _normalized_scoring_input_hash(
+        video=validated.video,
+        sample=validated.sample,
+        language=validated.language,
+        output_language=validated.output_language,
+        model=model,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        max_description_chars=max_description_chars,
+    )
+    return ScoringRequestIdentity(
+        normalized_input_hash=normalized_input_hash,
+        request_hash=build_provider_request_hash(
+            operation=_SCORING_OPERATION,
+            normalized_input_hash=normalized_input_hash,
+            provider="ollama",
+            model=model,
+            prompt_version=PROMPT_VERSION,
+            schema_version=SCHEMA_VERSION,
+        ),
     )
 
 
@@ -296,20 +351,20 @@ def build_scoring_input(
         transcript_text,
         max_chars=settings.max_transcript_chars,
     )
-    normalized_input_hash = _normalized_scoring_input_hash(
+    provisional = ScoringInput(
         video=video,
         sample=sample,
+        transcript_content_hash=sample.source_content_hash,
         language=language,
         output_language=output_language,
-        settings=settings,
+        request_hash="0" * 64,
     )
-    request_hash = build_provider_request_hash(
-        operation=_SCORING_OPERATION,
-        normalized_input_hash=normalized_input_hash,
-        provider="ollama",
+    identity = build_scoring_request_identity(
+        scoring_input=provisional,
         model=settings.model,
-        prompt_version=PROMPT_VERSION,
-        schema_version=SCHEMA_VERSION,
+        temperature=settings.temperature,
+        max_output_tokens=settings.max_output_tokens,
+        max_description_chars=settings.max_description_chars,
     )
     return ScoringInput(
         video=video,
@@ -317,7 +372,7 @@ def build_scoring_input(
         transcript_content_hash=sample.source_content_hash,
         language=language,
         output_language=output_language,
-        request_hash=request_hash,
+        request_hash=identity.request_hash,
     )
 
 
@@ -800,16 +855,16 @@ class RepositoryBackedScoringService:
         return outcome
 
     def _provider_request(self, scoring_input: ScoringInput) -> ProviderCallRequest:
-        normalized_input_hash = _normalized_scoring_input_hash(
-            video=scoring_input.video,
-            sample=scoring_input.sample,
-            language=scoring_input.language,
-            output_language=scoring_input.output_language,
-            settings=self._settings,
+        identity = build_scoring_request_identity(
+            scoring_input=scoring_input,
+            model=self._settings.model,
+            temperature=self._settings.temperature,
+            max_output_tokens=self._settings.max_output_tokens,
+            max_description_chars=self._settings.max_description_chars,
         )
         request = ProviderCallRequest(
             operation=_SCORING_OPERATION,
-            normalized_input_hash=normalized_input_hash,
+            normalized_input_hash=identity.normalized_input_hash,
             provider="ollama",
             model=self._settings.model,
             prompt_version=PROMPT_VERSION,

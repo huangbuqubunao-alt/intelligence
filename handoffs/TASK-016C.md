@@ -1,5 +1,42 @@
 # TASK-016C 交接报告
 
+## Phase E 实现交接
+
+- Status: `IN_REVIEW`；仅实现纯内存 Trusted Finalizer，尚未进入 Phase F 或持久化。
+- Base: `2c11faf41e17c3b823a39bfd1018c5c876b236c5`（Phase D 已批准）；Phase E control-plane
+  authorization: `8aa9f0bb99d6c83250407d53bbb63eb909da0212`。
+- 目标：建立 runtime-only `TrustedScoringContext`、唯一 canonical scoring request identity、
+  `TrustedScoreResult` opaque wrapper 与无副作用 `TrustedScoringFinalizer`。
+- 实际修改：
+  - `src/youtube_intel/scoring.py`：抽取 `build_scoring_request_identity()`；
+    `build_scoring_input()` 与 Repository-backed `_provider_request()` 均复用该纯函数，
+    保持既有 request hash 行为。
+  - `src/youtube_intel/runtime.py`：仅从已验证的 `AppConfig` 通过 `RuntimeOperations`
+    铸造 `TrustedScoringContext`；LocalScoringSettings、Mapping、JSON、Provider、cache 和
+    Artifact 均不能单独铸造 capability。
+  - `src/youtube_intel/quality.py`：增加 exact-type、private-sentinel、不可复制/序列化/
+    子类化的 Context 和 Result wrapper；Finalizer 先检查 capabilities，再重建所有
+    不可信 DTO，重算 scoring identity，交叉验证 candidate/quality/attestation provenance，
+    最后才创建 `TrustedScoreResult`。
+  - `tests/unit/test_task016c_finalizer.py`：覆盖 hash compatibility、真实 Runtime
+    authority chain、PASS 最终化、candidate hash 篡改、Mapping capability spoof 与 capability
+    直接构造/复制/pickle/subclass 拒绝。
+- 明确未做：Provider/Ollama 调用、repair orchestration、ProviderCall、Artifact、cache、
+  filesystem、SQLite、migration、依赖或网络调用；Phase F–I 未启动。
+
+### TDD 与验证证据
+
+- RED：新增 Finalizer 端到端测试先因 `TrustedScoringFinalizer` 尚不存在而 collection
+  ImportError；canonical identity 测试也先因 builder 不存在而 ImportError。
+- GREEN：焦点 finalizer 测试 `3 passed`；与已有 scoring/attestation 回归组合 `159 passed`。
+- 全量：`uv lock --check` → PASS；`uv sync --locked --offline` → PASS（84 packages checked）；
+  `uv run pytest -x -q` → `1174 passed, 1 warning`；`uv run mypy src` → 28 source files PASS；
+  `uv run ruff check .` → PASS；`uv build --offline` → sdist/wheel PASS；
+  `bash scripts/security_scan.sh` → `status=clean`（已有非阻断 WARN 与项目 LICENSE unresolved
+  warning）；`git diff --check` → PASS。
+- 剩余风险：Phase E 只证明内存内 trust/provenance binding。尚未授权/实现 artifact file
+  commit、atomic persistence、cache recovery、retry/recovery 或真实模型验证。
+
 ## Phase E control-plane authorization
 
 - Status: `READY / AUTHORIZED`；implementation 尚未开始。

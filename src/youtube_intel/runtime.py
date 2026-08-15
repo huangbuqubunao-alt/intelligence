@@ -63,12 +63,19 @@ from youtube_intel.quality import (
     _QUALITY_SCHEMA_VERSION,
     _SCORING_PROMPT_VERSION,
     _SCORING_SCHEMA_VERSION,
+    _TRUSTED_SCORING_CONTEXT_SENTINEL,
     QualityProvenanceAuthority,
+    TrustedScoringContext,
     _mint_quality_provenance_authority,
+    _mint_trusted_scoring_context,
 )
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.scoring import RepositoryBackedScoringService, ScoringJobContext
+from youtube_intel.scoring import (
+    _SCORING_OPERATION,
+    RepositoryBackedScoringService,
+    ScoringJobContext,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
@@ -129,6 +136,25 @@ def _build_quality_provenance_authority(
         quality_schema_version=_QUALITY_SCHEMA_VERSION,
         quality_prompt_version=_QUALITY_PROMPT_VERSION,
         judge_operation=_QUALITY_JUDGE_OPERATION,
+    )
+
+
+def _build_trusted_scoring_context(config: AppConfig) -> TrustedScoringContext:
+    """Mint scoring provenance from the validated runtime configuration only."""
+
+    local_scoring = config.settings.local_scoring
+    return _mint_trusted_scoring_context(
+        sentinel=_TRUSTED_SCORING_CONTEXT_SENTINEL,
+        scoring_provider=_JUDGE_PROVIDER,
+        scoring_model=local_scoring.model,
+        scoring_model_digest=local_scoring.expected_model_digest,
+        output_language=config.settings.general.output_language,
+        scoring_schema_version=_SCORING_SCHEMA_VERSION,
+        scoring_prompt_version=_SCORING_PROMPT_VERSION,
+        scoring_operation=_SCORING_OPERATION,
+        temperature=local_scoring.temperature,
+        max_output_tokens=local_scoring.max_output_tokens,
+        max_description_chars=local_scoring.max_description_chars,
     )
 
 
@@ -245,6 +271,7 @@ class RuntimeOperations(Operations):
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
         )
+        self._trusted_scoring_context = _build_trusted_scoring_context(config)
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,

@@ -25,7 +25,11 @@ from youtube_intel.domain import (
     DeterministicGateReason,
     QualityJudgeOperationInput,
     QualityPassAttestation,
+    ScoreResult,
+    ScoringCandidate,
+    ScoringInput,
 )
+from youtube_intel.scoring import build_scoring_request_identity
 from youtube_intel.state import build_provider_request_hash
 
 _JUDGE_PROVIDER: Final[str] = "ollama"
@@ -44,6 +48,24 @@ class _QualityProvenanceAuthoritySentinel:
 
 
 _QUALITY_PROVENANCE_AUTHORITY_SENTINEL = _QualityProvenanceAuthoritySentinel()
+
+
+class _TrustedScoringContextSentinel:
+    """Private sentinel; only runtime composition can mint scoring authority."""
+
+    __slots__ = ()
+
+
+_TRUSTED_SCORING_CONTEXT_SENTINEL = _TrustedScoringContextSentinel()
+
+
+class _TrustedScoreResultSentinel:
+    """Private sentinel; only TrustedScoringFinalizer can mint wrappers."""
+
+    __slots__ = ()
+
+
+_TRUSTED_SCORE_RESULT_SENTINEL = _TrustedScoreResultSentinel()
 
 
 class QualityProvenanceAuthority:
@@ -226,6 +248,169 @@ def _mint_quality_provenance_authority(
         quality_prompt_version=quality_prompt_version,
         judge_operation=judge_operation,
     )
+
+
+class TrustedScoringContext:
+    """Opaque current scoring provenance minted only by RuntimeOperations."""
+
+    __slots__ = (
+        "_scoring_provider",
+        "_scoring_model",
+        "_scoring_model_digest",
+        "_output_language",
+        "_scoring_schema_version",
+        "_scoring_prompt_version",
+        "_scoring_operation",
+        "_temperature",
+        "_max_output_tokens",
+        "_max_description_chars",
+    )
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("TrustedScoringContext cannot be subclassed")
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        scoring_provider: str,
+        scoring_model: str,
+        scoring_model_digest: str,
+        output_language: str,
+        scoring_schema_version: str,
+        scoring_prompt_version: str,
+        scoring_operation: str,
+        temperature: float,
+        max_output_tokens: int,
+        max_description_chars: int,
+    ) -> None:
+        if sentinel is not _TRUSTED_SCORING_CONTEXT_SENTINEL:
+            raise ValueError("TrustedScoringContext can only be minted by runtime")
+        self._scoring_provider = scoring_provider
+        self._scoring_model = scoring_model
+        self._scoring_model_digest = scoring_model_digest
+        self._output_language = output_language
+        self._scoring_schema_version = scoring_schema_version
+        self._scoring_prompt_version = scoring_prompt_version
+        self._scoring_operation = scoring_operation
+        self._temperature = temperature
+        self._max_output_tokens = max_output_tokens
+        self._max_description_chars = max_description_chars
+
+    @property
+    def scoring_provider(self) -> str:
+        return self._scoring_provider
+
+    @property
+    def scoring_model(self) -> str:
+        return self._scoring_model
+
+    @property
+    def scoring_model_digest(self) -> str:
+        return self._scoring_model_digest
+
+    @property
+    def output_language(self) -> str:
+        return self._output_language
+
+    @property
+    def scoring_schema_version(self) -> str:
+        return self._scoring_schema_version
+
+    @property
+    def scoring_prompt_version(self) -> str:
+        return self._scoring_prompt_version
+
+    @property
+    def scoring_operation(self) -> str:
+        return self._scoring_operation
+
+    @property
+    def temperature(self) -> float:
+        return self._temperature
+
+    @property
+    def max_output_tokens(self) -> int:
+        return self._max_output_tokens
+
+    @property
+    def max_description_chars(self) -> int:
+        return self._max_description_chars
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("TrustedScoringContext cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("TrustedScoringContext cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("TrustedScoringContext cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("TrustedScoringContext cannot be serialized")
+
+
+def _mint_trusted_scoring_context(
+    *,
+    scoring_provider: str,
+    scoring_model: str,
+    scoring_model_digest: str,
+    output_language: str,
+    scoring_schema_version: str,
+    scoring_prompt_version: str,
+    scoring_operation: str,
+    temperature: float,
+    max_output_tokens: int,
+    max_description_chars: int,
+    sentinel: object,
+) -> TrustedScoringContext:
+    """Private runtime-only minting seam, protected by the module sentinel."""
+
+    return TrustedScoringContext(
+        sentinel=sentinel,
+        scoring_provider=scoring_provider,
+        scoring_model=scoring_model,
+        scoring_model_digest=scoring_model_digest,
+        output_language=output_language,
+        scoring_schema_version=scoring_schema_version,
+        scoring_prompt_version=scoring_prompt_version,
+        scoring_operation=scoring_operation,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        max_description_chars=max_description_chars,
+    )
+
+
+class TrustedScoreResult:
+    """Opaque Finalizer output; a bare ScoreResult is never trusted pipeline data."""
+
+    __slots__ = ("_result",)
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("TrustedScoreResult cannot be subclassed")
+
+    def __init__(self, *, sentinel: object, result: ScoreResult) -> None:
+        if sentinel is not _TRUSTED_SCORE_RESULT_SENTINEL:
+            raise ValueError("TrustedScoreResult can only be minted by finalizer")
+        self._result = result
+
+    @property
+    def result(self) -> ScoreResult:
+        return self._result
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("TrustedScoreResult cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("TrustedScoreResult cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("TrustedScoreResult cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("TrustedScoreResult cannot be serialized")
 
 
 _ASCII_WHITESPACE: Final[str] = " \t\n\r\v\f"
@@ -734,3 +919,192 @@ def verify_quality_pass_attestation(
         raise ValueError(msg)
 
     return fresh
+
+
+# ---------------------------------------------------------------------------
+# Phase E: trusted scoring finalization (pure memory only)
+# ---------------------------------------------------------------------------
+
+
+def build_scoring_candidate_hash(
+    candidate: ScoringCandidate | Mapping[str, object] | str | bytes | bytearray,
+) -> str:
+    """Return a canonical hash for a fully revalidated scoring candidate."""
+
+    validated = _reconstruct(ScoringCandidate, candidate)
+    canonical = _canonical_json(validated.model_dump(mode="json"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _require_exact_capability(
+    value: object,
+    expected_type: type[QualityProvenanceAuthority] | type[TrustedScoringContext],
+) -> None:
+    if type(value) is not expected_type:
+        msg = (
+            f"expected runtime-minted {expected_type.__name__}, "
+            f"got {type(value).__name__}"
+        )
+        raise TypeError(msg)
+
+
+def _verify_scoring_context(
+    *,
+    context: TrustedScoringContext,
+    authority: QualityProvenanceAuthority,
+    scoring_input: ScoringInput,
+) -> None:
+    """Verify current scoring and Judge provenance are one runtime configuration."""
+
+    if context.scoring_provider != _JUDGE_PROVIDER:
+        raise ValueError("trusted scoring provider is not supported")
+    if context.output_language != scoring_input.output_language:
+        raise ValueError("scoring input output_language mismatches trusted context")
+    if context.scoring_schema_version != authority.scoring_schema_version:
+        raise ValueError("scoring schema version mismatches quality authority")
+    if context.scoring_prompt_version != authority.scoring_prompt_version:
+        raise ValueError("scoring prompt version mismatches quality authority")
+
+    # Phase E has one runtime-owned local model configuration.  A later phase
+    # may deliberately split scorer and Judge models, but must amend this
+    # explicit binding rather than silently weakening provenance verification.
+    bindings = (
+        ("model", context.scoring_model, authority.judge_model),
+        ("model digest", context.scoring_model_digest, authority.judge_model_digest),
+    )
+    for name, actual, expected in bindings:
+        if actual != expected:
+            raise ValueError(f"trusted scoring {name} mismatches quality authority")
+
+
+class TrustedScoringFinalizer:
+    """The sole Phase-E constructor of opaque trusted scoring output.
+
+    The finalizer is deliberately side-effect free.  It rebuilds each
+    caller-provided model, validates both runtime-owned capabilities before
+    reading their fields, verifies identity/provenance/attestation bindings,
+    then wraps one freshly validated ``ScoreResult``.  It does not create an
+    Artifact, cache entry, ProviderCall completion, or filesystem effect.
+    """
+
+    def finalize(
+        self,
+        *,
+        candidate: ScoringCandidate | Mapping[str, object] | str | bytes | bytearray,
+        scoring_input: ScoringInput | Mapping[str, object] | str | bytes | bytearray,
+        quality_input: (
+            ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_result: (
+            ContentQualityResult | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_operation: (
+            QualityJudgeOperationInput
+            | Mapping[str, object]
+            | str
+            | bytes
+            | bytearray
+        ),
+        attestation: (
+            QualityPassAttestation | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+    ) -> TrustedScoreResult:
+        """Create trusted output only if all current, complete bindings match."""
+
+        # Capabilities are checked before any capability property is read.
+        _require_exact_capability(quality_authority, QualityProvenanceAuthority)
+        _require_exact_capability(scoring_context, TrustedScoringContext)
+
+        validated_candidate = _reconstruct(ScoringCandidate, candidate)
+        validated_input = _reconstruct(ScoringInput, scoring_input)
+        validated_quality_input = _reconstruct(ContentQualityInput, quality_input)
+        validated_quality_result = _reconstruct(ContentQualityResult, quality_result)
+        validated_operation = _reconstruct(QualityJudgeOperationInput, quality_operation)
+
+        _verify_scoring_context(
+            context=scoring_context,
+            authority=quality_authority,
+            scoring_input=validated_input,
+        )
+        identity = build_scoring_request_identity(
+            scoring_input=validated_input,
+            model=scoring_context.scoring_model,
+            temperature=scoring_context.temperature,
+            max_output_tokens=scoring_context.max_output_tokens,
+            max_description_chars=scoring_context.max_description_chars,
+        )
+        if identity.request_hash != validated_input.request_hash:
+            raise ValueError("scoring request hash mismatches canonical identity")
+
+        candidate_hash = build_scoring_candidate_hash(validated_candidate)
+        expected_quality_input_hash = build_content_quality_input_hash(
+            validated_quality_input
+        )
+        bindings = (
+            ("candidate_hash", validated_quality_input.candidate_hash, candidate_hash),
+            ("candidate_hash", validated_quality_result.candidate_hash, candidate_hash),
+            ("candidate_hash", validated_operation.candidate_hash, candidate_hash),
+            (
+                "quality_input_hash",
+                validated_quality_result.quality_input_hash,
+                expected_quality_input_hash,
+            ),
+            (
+                "quality_input_hash",
+                validated_operation.quality_input_hash,
+                expected_quality_input_hash,
+            ),
+            (
+                "scoring_request_hash",
+                validated_quality_input.scoring_request_hash,
+                identity.request_hash,
+            ),
+            (
+                "scoring_request_hash",
+                validated_quality_result.scoring_request_hash,
+                identity.request_hash,
+            ),
+            (
+                "scoring_request_hash",
+                validated_operation.scoring_request_hash,
+                identity.request_hash,
+            ),
+            ("output_language", validated_quality_input.output_language, scoring_context.output_language),
+            ("candidate reason", validated_quality_input.reason, validated_candidate.reason),
+            ("candidate topics", validated_quality_input.topics, validated_candidate.topics),
+        )
+        for name, actual, expected in bindings:
+            if actual != expected:
+                raise ValueError(f"{name} mismatches trusted finalization input")
+
+        verified_attestation = verify_quality_pass_attestation(
+            attestation,
+            quality_result=validated_quality_result,
+            operation_input=validated_operation,
+            quality_input=validated_quality_input,
+            authority=quality_authority,
+        )
+        if verified_attestation.scoring_request_hash != identity.request_hash:
+            raise ValueError("quality attestation mismatches canonical scoring identity")
+
+        result = ScoreResult.model_validate(
+            {
+                "schema_version": scoring_context.scoring_schema_version,
+                "score": validated_candidate.score,
+                "reason": validated_candidate.reason,
+                "topics": validated_candidate.topics,
+                "should_summarize": validated_candidate.should_summarize,
+                "dimensions": validated_candidate.dimensions,
+                "provider": scoring_context.scoring_provider,
+                "model": scoring_context.scoring_model,
+                "prompt_version": scoring_context.scoring_prompt_version,
+                "request_hash": identity.request_hash,
+                "output_language": scoring_context.output_language,
+            }
+        )
+        return TrustedScoreResult(
+            sentinel=_TRUSTED_SCORE_RESULT_SENTINEL,
+            result=result,
+        )
