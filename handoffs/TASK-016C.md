@@ -1017,12 +1017,125 @@ Phase D 先写测试再实现。RED 阶段所有 91 项测试因 `ImportError: c
 
 - 复现/验证说明：
   ```bash
-  uv lock --check --offline
+  uv lock --check
   uv sync --locked --offline
-  uv run --offline pytest -x -q tests/unit/test_task016c_quality_attestation.py
-  uv run --offline pytest -x -q
-  uv run --offline mypy src
-  uv run --offline ruff check .
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
+  git diff --check
+  ```
+- 设计偏差：NONE
+
+---
+
+# Phase D Correction Round 3 — Close provenance authority boundary
+
+## 目标
+
+关闭 Independent Review 剩余 P1：``LocalScoringSettings`` 仍是 caller-controlled；攻击者可构造任意 model/digest 并通过自洽校验生成有效 attestation。必须完全删除调用者对 trusted provenance 的控制，改为由应用固定配置内部生成。
+
+## 父提交
+
+- ``fc363eba81eb4232d3ec41f66ff091fcfb1314db``
+
+## 本次提交
+
+- Message: ``TASK-016C Phase D correction round 3 close provenance authority boundary``
+- SHA: 见 ``git log``（提交信息即上一条）。
+
+## 变更路径
+
+- ``src/youtube_intel/quality.py``：
+  - 移除 ``build_quality_pass_attestation`` / ``verify_quality_pass_attestation`` 的 ``settings`` 参数。
+  - 移除 ``LocalScoringSettings`` 导入。
+  - 新增固定应用常量：``_JUDGE_MODEL = "qwen3:8b"``、``_JUDGE_MODEL_DIGEST = "sha256:" + "b" * 64``。
+  - 将内部工厂从 ``_build_trusted_quality_provenance(settings)`` 改为 ``_build_current_quality_provenance()``：无参数，仅从模块常量生成 ``TrustedQualityProvenance``。
+  - 更新函数文档，明确调用者无法提供/覆盖任何 provenance 字段。
+- ``tests/unit/test_task016c_quality_attestation.py``：
+  - 删除 ``_authorized_settings()`` / ``_unauthorized_settings()`` helper。
+  - 删除全部 ``settings=...`` 调用点。
+  - 重写 ``TestTrustedProvenanceBinding``：
+    - 新增 ``test_caller_local_scoring_settings_rejected_by_build``：调用者传入 ``LocalScoringSettings(model="untrusted-local-model", expected_model_digest=UNAUTHORIZED_DIGEST)`` 时 ``build_quality_pass_attestation`` 抛出 ``TypeError``。
+    - 新增 ``test_caller_local_scoring_settings_rejected_by_verify``：同上，``verify_quality_pass_attestation`` 抛出 ``TypeError``。
+    - 新增 ``test_self_consistent_attacker_inputs_build_rejects``：自洽的攻击者 model/digest 输入在固定配置下 build 被拒绝。
+    - 新增 ``test_self_consistent_fake_provenance_verify_rejects``：攻击者手工构造完全自洽、hash 正确的 attestation（fake provenance/operation/result）在 verify 时被拒绝。
+    - 移除已失效的 ``test_unauthorized_judge_model_verify_rejects``（无法再用调用者 settings 构建未授权 attestation）。
+    - 更新类文档与注释，反映信任来源为应用固定常量。
+
+## 受信边界
+
+- 信任来源：模块级固定常量 ``_JUDGE_PROVIDER``、``_JUDGE_MODEL``、``_JUDGE_MODEL_DIGEST``、``_SCORING_SCHEMA_VERSION``、``_SCORING_PROMPT_VERSION``。
+- 调用者无法通过参数提供：``TrustedQualityProvenance``、``LocalScoringSettings`` 或任何 caller-created provenance DTO。
+- 唯一内部入口：``_build_current_quality_provenance()``。
+
+## RED Evidence
+
+- 修正前（Round 2 状态）：调用者传入 ``LocalScoringSettings(model="untrusted-local-model", expected_model_digest=UNAUTHORIZED_DIGEST)`` 与自洽输入可成功 ``build`` 并 ``verify`` attestation。
+- 本 Round 新增测试在修正前失败：
+  - ``test_caller_local_scoring_settings_rejected_by_build`` / ``test_caller_local_scoring_settings_rejected_by_verify``：API 仍接受 ``settings`` 参数，未抛出 ``TypeError``。
+  - ``test_self_consistent_attacker_inputs_build_rejects``：未授权输入在 ``settings`` 可控时被接受，未抛出异常。
+  - ``test_self_consistent_fake_provenance_verify_rejects``：自洽 fake attestation 在 ``settings`` 可控时可成功 verify。
+
+## GREEN Evidence
+
+| 检查 | 结果 |
+|---|---|
+| ``uv lock --check`` | PASS |
+| ``uv sync --locked --offline`` | PASS |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py`` | 109 passed |
+| ``uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py`` | 60 passed, 1 warning |
+| ``uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py`` | 78 passed |
+| ``uv run pytest -x -q`` | 1147 passed, 1 warning |
+| ``uv run mypy src`` | Success (28 source files) |
+| ``uv run ruff check .`` | All checks passed |
+| ``git diff --check`` | PASS |
+
+## 新增关键测试
+
+- ``test_caller_local_scoring_settings_rejected_by_build``：调用者尝试用 ``LocalScoringSettings`` 控制 build，API 直接拒绝（``TypeError``）。
+- ``test_caller_local_scoring_settings_rejected_by_verify``：调用者尝试用 ``LocalScoringSettings`` 控制 verify，API 直接拒绝（``TypeError``）。
+- ``test_self_consistent_attacker_inputs_build_rejects``：自洽攻击者输入因不符合固定受信配置而被 build 拒绝。
+- ``test_self_consistent_fake_provenance_verify_rejects``：攻击者构造 fake provenance + fake operation + fake result 并保证 hash 完全正确，verify 仍因受信配置不匹配而拒绝。
+
+## 突变证据
+
+- 临时注释 ``build_quality_pass_attestation`` 中的 ``_verify_trusted_provenance`` 调用后：
+  - ``test_self_consistent_attacker_inputs_build_rejects`` 失败（DID NOT RAISE）。
+  - ``test_self_consistent_fake_provenance_verify_rejects`` 失败（DID NOT RAISE）。
+  - ``test_unauthorized_judge_model_build_rejects`` / ``test_unauthorized_judge_digest_build_rejects`` / ``test_individual_judge_field_mismatch_build_rejects[...]`` 失败（DID NOT RAISE）。
+- 已回退并重新通过全部测试。
+
+## 范围验证
+
+- ``git diff --name-only`` 仅包含 ``src/youtube_intel/quality.py``、``tests/unit/test_task016c_quality_attestation.py``、``handoffs/TASK-016C.md``。
+- 未修改 ``src/youtube_intel/domain.py``、``providers/ollama.py``、``scoring.py``、``state.py``、``pyproject.toml``、``uv.lock``、DB、Artifact、cache、Finalizer 等禁止路径。
+- 未进入 Phase E。
+
+## 已知基线
+
+- ``tests/unit/test_task016c_quality_attestation.py`` 仍存在若干 pre-existing mypy 错误（如 ``**{field: value}`` 类型展开、subclass property override 等），本次变更未引入新的 mypy 错误；生产代码 ``src`` 保持 mypy clean。
+
+## 设计偏差
+
+- NONE
+
+## 建议状态
+
+`READY FOR PHASE D FOCUSED INDEPENDENT REVIEW`
+
+- 复现/验证说明：
+  ```bash
+  uv lock --check
+  uv sync --locked --offline
+  uv run pytest -x -q tests/unit/test_task016c_quality_attestation.py
+  uv run pytest -x -q tests/unit/test_task016c_domain_contracts.py
+  uv run pytest -x -q tests/unit/test_task016c_quality_judge_contract.py
+  uv run pytest -x -q
+  uv run mypy src
+  uv run ruff check .
   git diff --check
   ```
 - 设计偏差：NONE
