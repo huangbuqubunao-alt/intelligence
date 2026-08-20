@@ -7,7 +7,7 @@
   `c0268a… -> df920cc… -> 931674e…` 已经用户授权以 conflict-free、线性、tree/content-equivalent 的
   integrated equivalents `61bb0bb… -> d059bea… -> 2f6e30b…` 落在当前基线；不得重写历史恢复原 SHA。
   Phase F 保持 PRIMARY-only、memory-only、zero-persistence，并输出 request-bound
-  `PhaseFTrustedScoringSuccess`。Phase G 现为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`：它将先
+  `PhaseFTrustedScoringSuccess`。Phase G 现为 `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`：它将先
   补全 sealed F→G quality/input continuation，再实现 PREWRITE_VALIDATE、validated write plan、
   verified filesystem + atomic SQLite registration 与 normal runtime cutover；它仍不含 repair/retry/
   recovery/cache recovery。H 负责 repair/retry/recovery/budget，I 负责 cache verification/recovery
