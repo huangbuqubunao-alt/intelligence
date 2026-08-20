@@ -1,16 +1,22 @@
 # TASK-016C 交接报告
 
-## Phase F 实施条件发现
+## Phase F Runtime Integration Amendment Round 2
 
-- Conclusion: `BLOCKED`，未创建 Phase F implementation authorization 或代码。
-- 冲突：主控任务将 Phase F 定义为 runtime integration（`Quality → Finalizer`），但冻结
-  master plan 仍定义为 `PREWRITE_VALIDATE / ValidatedScoringWritePlan`。
-- 架构事实：`runtime.py` 生产路径调用 `RepositoryBackedScoringService.score()`；该 service
-  及 `providers/ollama.py` 仍以 `ScoringInput → ScoreResult` 直接契约运行。质量/Finalizer
-  不能在裸 `ScoreResult` 后补接，否则违反 ADR-025 唯一可信构造边界。
-- 影响：要交付 runtime integration，必须先通过设计 amendment 明确 Phase F 重排，并精确授权
-  对 `providers/ollama.py` 的 Candidate provider contract 修改（或批准一条不触碰该文件且能在
-  provider 前取得 `ScoringCandidate` 的等效边界）。现有 mission 禁止该文件，因此停止。
+- Conclusion: `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`；没有创建 Phase F authorization 或
+  代码。
+- 唯一阶段顺序已冻结：F=PRIMARY-only、candidate-only 的 non-production in-memory seam；
+  G=pre-write validation + persistence registration + production cutover；H=repair/retry/recovery/
+  budget；I=derived cache verification/recovery + production hardening/release acceptance。旧 J/K
+  验收标签并入 I，不存在 capability 双重归属。
+- 兼容生产链 `RuntimeOperations → RepositoryBackedScoringService → bare ScoreResult → persistence`
+  仍是 `PRE-TASK-016C COMPATIBILITY PATH`，不能被称为 trusted path；Phase F 不改 default
+  dispatch。F future seam 必须 exact-type 拒绝 bare ScoreResult、Mapping、JSON 和 legacy output，
+  但不实例化/调用 RepositoryBackedScoringService。G 才可在 persistence boundary 后授权 cutover。
+- Finalizer 输出合同已统一为 `TrustedScoringFinalizer -> TrustedScoreResult`。wrapper 内部保留
+  已验证的 ScoreResult 业务字段；bare ScoreResult 只可位于 `LEGACY / EXTERNAL COMPATIBILITY
+  BOUNDARY`。Phase F-G-H 不授权 internal unwrap。
+- F 不拥有 repair/retry/budget/recovery：PRIMARY 任一步失败即 fail-closed，不能自动 repair；
+  repair 的 operation identity 与未知 reservation recovery 都留给 H。
 - 未执行：Phase F–I 代码、Provider/网络、持久化、cache、DB、Artifact、merge 或 history rewrite。
 
 ## Phase E 实现交接

@@ -1,8 +1,8 @@
-# TASK-016C Content Quality Interface Design — Round 4.6
+# TASK-016C Content Quality Interface Design — Phase F Round 2 Alignment
 
-- 状态：`ACCEPTED DESIGN / PHASE E AUTHORIZED ONLY`；Phase E 的 authority 边界由
-  [Round 3 Amendment](TASK-016C-PHASE-E-AUTHORITY-AMENDMENT-ROUND-3.md) 补充并优先于本文件的旧
-  `TrustedScoringFinalizer` 文字示例。
+- 状态：Phase E 已 `APPROVED`；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
+  [Phase F Round 2 Amendment](TASK-016C-PHASE-F-RUNTIME-INTEGRATION-AMENDMENT.md) 对 F–I
+  的阶段归属、legacy isolation 与 `TrustedScoringFinalizer` 输出合同具有优先级。
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
 - 实现授权：尚未生效；本设计通过独立审查后才能创建 Implementer task card
@@ -13,12 +13,13 @@
 不变量：
 
 1. Provider Adapter 只能返回 `ScoringCandidate`；
-2. `TrustedScoringFinalizer` 是唯一 `ScoreResult` 构造入口；
+2. `TrustedScoringFinalizer` 是唯一内部 `ScoreResult` 构造入口，且只输出
+   `TrustedScoreResult`；
 3. 每个成功结果绑定完整 validated `ContentQualityResult(PASS)` 的 canonical hash，以及
    具体 candidate/input/Judge identity 的 Quality PASS attestation；
-4. primary、repair 和 cache recovery 都经过相同 Finalizer；
-5. cache hit 零 Judge 调用，恢复完整 PASS result 并从既有事实重算 derived verification view；
-6. primary 与 repair 的 Judge 各最多一次，崩溃未知状态不得重调；
+4. Phase F 只允许 PRIMARY 经 Finalizer；repair/retry/recovery/budget 属于 H，cache recovery
+   属于 I；
+5. G 才拥有 pre-write、文件和 DB registration；I 的合法 cache hit 不调用 Judge；
 7. `REJECT` / `UNCERTAIN` 不进入正式 scoring Artifact 或 cache；
 8. Finalizer 后、任何文件写入前，最终 raw/structured bytes 必须经完整 pre-write validation，
    且只有纯内存 `ValidatedScoringWritePlan` 能进入 writer；
@@ -32,16 +33,13 @@ flowchart TD
     B --> C["Candidate schema validation"]
     C --> D["TASK-016B Language Validator (frozen)"]
     D --> E["DeterministicContentQualityGate"]
-    E -->|"three mechanical rejects"| R["shared repair budget"]
+    E -->|"three mechanical rejects"| X["INVALID_RESPONSE"]
     E -->|"CONTINUE"| J["LocalContentQualityJudge"]
     J --> W["TrustedContentQualityWrapper"]
-    W -->|"REJECT / UNCERTAIN"| R
+    W -->|"REJECT / UNCERTAIN"| X
     W -->|"PASS"| V["fully validated ContentQualityResult(PASS)"]
     V --> H["canonical quality_result_hash"]
     H --> T["in-memory QualityPassAttestation"]
-    R -->|"one repair remains"| B2["Repair Provider -> ScoringCandidate"]
-    B2 --> C2["schema + language + quality repair"]
-    R -->|"budget exhausted"| X["INVALID_RESPONSE"]
     T --> F["TrustedScoringFinalizer"]
     F --> S["TrustedScoreResult (validated ScoreResult wrapper)"]
     S --> Z["canonical raw / structured bytes"]
@@ -58,7 +56,7 @@ persisted structured payload + raw attestation envelope
   -> untrusted ScoringCandidate reconstruction
   -> full ContentQualityResult + provenance / hash / attestation / ProviderCall validation
   -> TrustedScoringFinalizer
-  -> fresh trusted ScoreResult instance
+  -> fresh TrustedScoreResult
 ```
 
 这里读取的历史 Artifact/ProviderCall 可以来自先前成功的 atomic commit；读取不是当前执行
@@ -407,32 +405,29 @@ decision：既有 confidence/evidence 字段只是与完整 result 的精确 mir
 ## 9. TrustedScoringFinalizer
 
 ```python
-class TrustedScoringContext(FrozenDomainModel):
-    scoring_request_hash: str
-    provider: str
-    model: str
-    model_digest: str
-    output_language: Literal["zh-CN", "en"]
-    scoring_prompt_version: str
-    scoring_schema_version: str
+# TrustedScoringContext 是 RuntimeOperations private mint 的 opaque、non-Pydantic capability；
+# Mapping/JSON/fixture/caller settings 均不能创建它。
 
 class TrustedScoringFinalizer(Protocol):
     def finalize(
         self,
         *,
         candidate: ScoringCandidate | Mapping[str, object],
-        context: TrustedScoringContext | Mapping[str, object],
+        scoring_input: ScoringInput | Mapping[str, object],
         quality_input: ContentQualityInput | Mapping[str, object],
         quality_result: ContentQualityResult | Mapping[str, object],
         attestation: QualityPassAttestation | Mapping[str, object],
-        quality_call: QualityJudgeProviderCallIdentity | Mapping[str, object],
-    ) -> ScoreResult: ...
+        quality_operation: QualityJudgeOperationInput | Mapping[str, object],
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+    ) -> TrustedScoreResult: ...
 ```
 
 Finalizer 总是：
 
-1. 从 mapping 重建 candidate/context/input/quality result/attestation/quality call identity，
-   拒绝 unchecked instance；
+1. 从不可信值重建 candidate/input/quality result/attestation/quality operation，拒绝 unchecked
+   instance；在读取字段前 exact-type 验证 opaque `quality_authority` 与 `scoring_context`，两者
+   不接受 Mapping/JSON/fixture；
 2. 重跑 candidate schema 与 TASK-016B language invariant；
 3. 对 quality result 重跑 model/domain validation、status=`PASS` 与完整 PASS matrix；
 4. 对完整 normalized result 重算 `quality_result_hash`，要求等于 attestation 字段；
@@ -441,9 +436,10 @@ Finalizer 总是：
 7. 验证 result 与 attestation 的 confidence/evidence mirror、candidate/input binding；
 8. 验证 quality call 的 operation/request hash/provider/model/prompt/schema 与 result、
    attestation、当前 trusted config 全部一致；
-9. 使用 candidate 业务字段和可信 context 新建 `ScoreResult`。
+9. 使用 candidate 业务字段和可信 context 新建内部 `ScoreResult`，并封装为
+   `TrustedScoreResult`。
 
-任一步不一致都 fail-closed：不得构造 trusted ScoreResult、进入文件提交协议、完成任一
+任一步不一致都 fail-closed：不得构造 `TrustedScoreResult`、进入文件提交协议、完成任一
 ProviderCall、产生 response_artifact_id 或返回 cache hit。
 
 Provider、Judge、Repository、Artifact reader、cache recovery 和 Runtime 其他模块不得直接
@@ -451,7 +447,9 @@ Provider、Judge、Repository、Artifact reader、cache recovery 和 Runtime 其
 可信结果。实现 Review 应以静态调用点扫描证明唯一入口。
 
 Finalizer 本身是纯领域终结边界：不写文件、不写 DB、不完成 ProviderCall。它成功前只能
-存在内存 candidate、quality result 和 attestation。
+存在内存 candidate、quality result 和 attestation。bare `ScoreResult` 只能存在于
+`LEGACY / EXTERNAL COMPATIBILITY BOUNDARY`；不得升级回 wrapper，且 Phase F-G-H 不授权
+任何 internal unwrap。
 
 ## 10. Judge operation、attempt state 与恢复
 
@@ -546,7 +544,8 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
 - `ScoreResult` shape 不变；
 - `SCORING_STRUCTURED` 仍是 canonical ScoreResult JSON；
 - SQLite Schema、`ArtifactKind` 与 migration 不变；
-- `ScoringOutcome.result` 仍为 Finalizer 返回的 ScoreResult。
+- `ScoringOutcome.result` 的 legacy 形状不构成 trusted pipeline 输入；G cutover 后的新
+  persisted path 只接受 `TrustedScoreResult`。
 
 ### 11.2 Raw envelope
 
@@ -804,7 +803,10 @@ canonical structured bytes。任一文件缺失、symlink/非普通文件、路�
 hash 不符或 ProviderCall identity 矛盾均 fail-closed，不调用 Judge，不删除已有 final 文件。
 自动删除范围永远只限当前 operation 明确拥有的 orphan temporary files。
 
-## 12. Repair/finalize event contract
+## 12. Phase G/H future repair/finalize event contract（非 Phase F 授权）
+
+Phase F 的事件止于 `FINALIZE`，且 PRIMARY 失败即 fail-closed。以下 `SERIALIZE` 之后的
+持久化事件属于 G；`REPAIR`、共享预算与 unknown-state recovery 属于 H；本节不授权它们。
 
 primary PASS 的事件顺序固定为：
 
@@ -828,7 +830,8 @@ DB_REGISTER
 ```
 
 `CANDIDATE_*` 表示收到不可信 Provider DTO，`SCHEMA_*` 表示完成严格 schema parsing；schema
-invalid 时进入共享 repair，不会产生 language/quality/attestation。`SERIALIZE` 只能构造内存
+invalid 时，在 H 已授权时才可进入共享 repair；Phase F 直接 fail-closed，不会产生
+language/quality/attestation。`SERIALIZE` 只能构造内存
 bytes；在 `PREWRITE_VALIDATE` 和 `WRITE_PLAN_CREATED` 成功前不得进入 `TMP_WRITE`。
 
 需要 repair 的事件顺序固定为：

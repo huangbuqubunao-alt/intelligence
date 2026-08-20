@@ -1,191 +1,159 @@
-# TASK-016C Phase F — Runtime Integration Amendment
+# TASK-016C Phase F — Runtime Integration Amendment Round 2
 
 ## 状态
 
-`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
+`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。本修订以已批准的 Phase E 链
+`2c11faf` → `8aa9f0b` → `94c5dac` → `1293d87` → `9b92946` 为唯一前提；仅修订
+设计与控制面，不授权代码、测试、持久化或 public runtime cutover。
 
-本 Amendment 以 Phase E 已批准链为前提：`2c11faf` → `8aa9f0b` →
-`94c5dac` → `1293d87` → `9b92946`。它只重新定义后续实施顺序和
-provider/runtime 契约；不修改 ADR-024 的 Language Validator 边界，也不授权任何代码。
+## 1. 唯一阶段归属
 
-## 1. Phase F 新定义
+| Phase | Owner | Allowed behavior | Forbidden behavior | Entry condition | Exit condition |
+|---|---|---|---|---|---|
+| F | Candidate-only in-memory runtime integration | PRIMARY-only candidate → schema → language → quality → attestation → Finalizer → `TrustedScoreResult` 的内存 seam | repair/retry/budget/recovery、Artifact、ProviderCall success、cache、DB/filesystem、默认 runtime cutover | E 已批准且本 Amendment 获独立设计审查 | isolated seam 的 PRIMARY 路径与 14 项测试矩阵通过；没有持久化或 legacy upgrade |
+| G | Pre-write validation + persistence registration boundary | `TrustedScoreResult` → pre-write validation → `ValidatedScoringWritePlan` → 文件提交协议 → SQLite registration → formal Artifact/ProviderCall success → production cutover | repair/retry/recovery policy、未验证输入、裸 `ScoreResult`、独立 cache identity | F 已接受；原子文件与 DB 设计/授权齐备 | 只有已 promote、hash-verified 的 plan 被原子登记，正式 runtime 才可 cut over |
+| H | Repair/retry/recovery/budget orchestration | PRIMARY/REPAIR 预算、repair attempt identity、unknown reservation/crash recovery、fail-closed retry policy | 绕过 F/G 验证、超预算自动重调、把 unknown 当 cache miss | G 已接受 | primary/repair/recovery 事件顺序、预算与 crash matrix 独立通过 |
+| I | Production hardening / release acceptance | derived cache verification/recovery、adversarial/crash/bypass 复核、性能与完整 release evidence | 未经验证的历史升级、公开发布或 Production Go 的自动声明 | H 已接受 | 独立 release acceptance；另行处理现有公开分发 No-Go |
 
-Phase F 是 **Candidate-only Runtime Composition**：让生产组合层能够按下列
-可信顺序运行一条无持久化的评分准备链。
+旧的 J/K 标签已并入 I；不得再把 cache recovery、crash verification 或 acceptance 另列为与
+I 重叠的实施阶段。每个 capability 仅由上表一阶段拥有。
+
+## 2. Phase F 的新定义：非生产、隔离的内存可信组合 seam
+
+Phase F 是 **NON-PRODUCTION / ISOLATED IN-MEMORY TRUSTED COMPOSITION SEAM**，唯一
+允许的成功流是 PRIMARY：
 
 ```text
 ScoringInput
-  -> candidate-only provider attempt (untrusted)
-  -> candidate schema + frozen language validation
-  -> deterministic quality gate
-  -> local quality Judge
+  -> candidate-only Provider transport/parser
+  -> ScoringCandidate
+  -> schema validation
+  -> frozen TASK-016B Language Validator
+  -> Deterministic Safety Gate
+  -> Local Content Quality Judge (PRIMARY)
+  -> ContentQualityResult(PASS)
   -> QualityPassAttestation
   -> TrustedScoringFinalizer
   -> TrustedScoreResult (memory only)
 ```
 
-Phase F 不写 Artifact、不预留或完成 ProviderCall、不更新 cache、不推进 SCORING stage，
-也不让 `RuntimeOperations.process` 切换到没有原子持久化保护的新写入路径。正式的
-runtime stage cutover 属于 Phase G：它将 trusted result 接到 pre-write validation、
-文件提交协议与原子 DB registration 后才可以发生。
+任一 PRIMARY 节点失败均 fail-closed；F **不得**自动 repair、retry、重置预算、创建 repair
+attempt identity 或处理 unknown reservation。以上职责全部属于 H。F 也不改变
+`RuntimeOperations.process` 或 `RuntimeOperations.scoring_stage()` 的正式 persisted stage。
 
-这将此前 master plan 中的 `PREWRITE_VALIDATE / ValidatedScoringWritePlan` 明确移至
-**Phase G**。Phase H 保留 reliability（primary/repair budget、crash/recovery、corruption
-handling），Phase I 保留 derived cache recovery 与 production hardening 的验收前置设计；
-任何更改必须在各自 amendment 获批后进行。
+现有 `RuntimeOperations → RepositoryBackedScoringService → OllamaScoringProvider.score() →
+bare ScoreResult → persistence` 仍是 **PRE-TASK-016C COMPATIBILITY PATH**。它不是 F 的
+trusted path，不能被宣称已完成迁移或 production cutover。
 
-## 2. 当前运行链（调查事实）
+### Legacy isolation 与最小 fail-closed guard
 
-```mermaid
-flowchart LR
-  I["ScoringInput"] --> O["OllamaScoringProvider.score"]
-  O --> P["Provider creates ScoreResult\nand performs parse/language repair"]
-  P --> R["RepositoryBackedScoringService"]
-  R --> C["ProviderCall reserve / cache check"]
-  R --> A["SCORING_RAW + SCORING_STRUCTURED Artifact write"]
-  A --> D["SQLite stage completion / ProviderCall SUCCESS"]
+仅靠命名不足以保证新 seam 不包装 legacy 输出。因此 F 的最小授权包含一项**seam 入口
+exact-type guard**：in-memory helper 只接收 `ScoringCandidate` 和 Phase E 的 opaque
+capabilities；传入 bare `ScoreResult`、legacy provider result、Mapping、JSON 或兼容 service
+输出必须拒绝。该 guard 位于允许修改的 `scoring.py`，不调用、实例化或改写
+`RepositoryBackedScoringService`。
+
+这不是 process-level dispatch guard：F 无权改变默认 persisted route。任何将 public
+`RuntimeOperations.process` 切换到新 trusted path 的 dispatch 改动只能在 G 获得 persistence
+boundary 授权后实施。G cutover 前，legacy `ScoreResult` 不得进入、包装为或被视作
+TASK-016C trusted result。
+
+## 3. Provider contract
+
+F trusted path 的 Provider 只可暴露 candidate-only PRIMARY 方法：
+
+```text
+ScoringInput -> provider transport/parser -> ScoringCandidate
 ```
 
-`RuntimeOperations.scoring_stage()` 直接构造 `RepositoryBackedScoringService`。该 service
-调用 `OllamaScoringProvider.score()`，随后可预留 ProviderCall、读写 cache、写 raw/structured
-Artifact 并完成 pipeline stage。故任何在 `ScoreResult` 之后补接 Quality 的方案都会让
-未通过 Quality 的内容先进入可信持久化边界，违反 ADR-025。
+- Provider 不得构造 `ScoreResult`、`TrustedScoreResult`、attestation、Artifact、cache 或
+  ProviderCall completion。
+- 最小 `providers/ollama.py` 修改仅抽离 candidate parser/contract；既有 transport、loopback
+  guard、model/digest checks、prompt/request body、timeout、safe error 清洗及 no-download /
+  no-fallback 行为不变。
+- F 不定义 provider repair method；任何 repair transport 调用、repair prompt 或预算编排由 H
+  单独设计、授权和实现。
 
-## 3. 目标可信运行链
+## 4. TrustedScoreResult supersession
 
-```mermaid
-flowchart LR
-  I["ScoringInput"] --> A["Ollama candidate transport"]
-  A --> C["UntrustedScoringAttempt\n(candidate + ephemeral raw bytes)"]
-  C --> L["schema + frozen Language Validator"]
-  L --> G["Deterministic Gate"]
-  G --> J["Local Content Quality Judge"]
-  J --> Q["ContentQualityResult(PASS)"]
-  Q --> T["QualityPassAttestation"]
-  T --> F["TrustedScoringFinalizer"]
-  F --> S["TrustedScoreResult"]
-  S -. "Phase G only" .-> W["pre-write + atomic persistence"]
+本 Amendment 正式 supersede 旧的 `TrustedScoringFinalizer -> ScoreResult` 表述：
+
+```text
+TrustedScoringFinalizer -> TrustedScoreResult
 ```
 
-`UntrustedScoringAttempt` 是 Phase F 内部值对象：包含一次 provider response 的候选及仅供
-后续已授权 raw envelope 使用的短生命周期原始响应。它不是 Artifact、cache entry、
-ProviderCall completion 或 `ScoreResult`。任一 schema/language/gate/Judge/attestation/finalizer
-失败均返回安全 `INVALID_RESPONSE`，并丢弃该 attempt 的 raw 内容。
+`TrustedScoreResult` 内部保存已验证的 `ScoreResult` 业务字段，但它是 F–I 唯一的 trusted
+pipeline result。裸 `ScoreResult` 只允许位于明确命名的 **LEGACY / EXTERNAL COMPATIBILITY
+BOUNDARY**；它不能重新进入 trusted pipeline，也不能升级为 wrapper。
 
-## 4. Provider Contract（Q1、Q2）
+**No internal unwrap is authorized in Phase F-G-H.** 若未来确实需要外部兼容 unwrap，必须以
+新的 boundary 名称、调用方和 fail-closed non-reentry 规则取得独立授权；本 Amendment 不授权。
 
-Provider **不得继续返回 `ScoreResult`**。Phase F 的最小新边界为：
+## 5. scoring.py 与 runtime.py 边界
 
-```python
-class CandidateScoringProvider(Protocol):
-    def primary_attempt(self, scoring_input: ScoringInput) -> UntrustedScoringAttempt: ...
-    def repair_attempt(
-        self,
-        *,
-        prior: UntrustedScoringAttempt,
-        scoring_input: ScoringInput,
-    ) -> UntrustedScoringAttempt: ...
+F 可在 `scoring.py` 新增纯内存 trusted scoring helper。它只能组合 candidate、已有 quality
+authority、已有 `TrustedScoringContext` 与 `TrustedScoringFinalizer`；它不得调用或实例化
+`RepositoryBackedScoringService`，更不得触发 reservation、cache、Artifact write、ProviderCall
+completion 或 stage completion。
+
+`runtime.py` 只可完成 composition wiring：从已验证的 `AppConfig` 使用现有
+`QualityProvenanceAuthority`、现有 `TrustedScoringContext`、candidate Provider 和 Finalizer 建立
+这个测试/内存 seam。正式 compatibility production path 与新 seam 必须有不同且显式的入口，
+两者不得共享 trusted-result 语义。
+
+## 6. F/G 持久化边界
+
+F 输出的 `TrustedScoreResult` 仅留在内存。F 禁止 Artifact、ProviderCall success、
+`response_artifact_id`、cache、SQLite、formal file、stage advance 和 filesystem mutation。
+
+G 才拥有以下唯一写入链：
+
+```text
+TrustedScoreResult
+  -> PREWRITE_VALIDATE
+  -> ValidatedScoringWritePlan
+  -> temporary write / fsync / hash verification / promote / directory fsync
+  -> SQLite registration
+  -> formal Artifact + ProviderCall success
+  -> production runtime cutover
 ```
 
-- `primary_attempt` 与 `repair_attempt` 只解析 `ScoringCandidate` 的业务字段；不得创建
-  `ScoreResult`、attestation、Artifact、cache 或 ProviderCall。
-- 修复预算由 Phase F orchestrator 持有：primary candidate 经 language/quality 失败后，最多
-  一次 repair；repair 也失败则 fail-closed。Provider 不再自行决定“已经合格”。
-- Ollama endpoint、loopback-only URL guard、固定 model/digest、固定 prompt、请求体、timeouts、
-  stream/think/tools 限制和 transport 错误清洗必须保持原行为。此 Amendment 不授权重写
-  Ollama 网络调用或改变模型行为。
+G 才能将 trusted in-memory result 接到 persisted runtime；H/I 不能反向扩大 F 的写入权限。
 
-**Phase F 需要最小修改 `providers/ollama.py`。** 该修改仅把现有 parsing/repair 编排从
-`ScoreResult` 返回边界拆为 candidate attempts；不得改变网络 transport、安全 guard、下载行为
-（仍禁止下载）、模型选择或远程 fallback。若实现发现无法在该文件内保持这些不变量，必须停止并
-提交新的 Amendment，不能以 adapter monkey-patch 或双重可信入口规避。
+## 7. Phase F test acceptance matrix
 
-## 5. ScoreResult 所有权（Q3）
+未来 F task card 必须用 TDD 覆盖以下 14 项：
 
-`TrustedScoringFinalizer` 是唯一的 `ScoreResult` 创建者。其输出的
-`TrustedScoreResult` 是唯一允许进入 Phase G–I trusted pipeline 的对象。
+1. Provider trusted path 返回 `ScoringCandidate`，不返回 `ScoreResult`。
+2. Candidate 保留 score/dimensions/reason/topics/should_summarize 业务字段。
+3. PRIMARY 成功路径产生 `TrustedScoreResult`。
+4. Quality failure 不产生 `TrustedScoreResult`。
+5. Invalid attestation 不产生 `TrustedScoreResult`。
+6. bare `ScoreResult` 被 trusted seam 拒绝。
+7. 新 seam 不实例化或调用 `RepositoryBackedScoringService` 路径。
+8. 不产生 Artifact。
+9. 不产生 ProviderCall success。
+10. 不发生 DB/cache/filesystem mutation。
+11. TASK-016B language ordering 不变。
+12. Phase C/D/E trust tests 继续通过。
+13. F 中没有 repair/retry 调用。
+14. legacy compatibility `ScoreResult` 不能升级为 `TrustedScoreResult`。
 
-- `ScoringCandidate`、provider raw response、Mapping、JSON、缓存/Artifact 恢复物和裸
-  `ScoreResult` 都是不可信输入；
-- Provider、quality Judge、repair、RepositoryBackedScoringService、runtime caller 均不得
-  创建或接受可信 `ScoreResult`；
-- 兼容期的旧 `OllamaScoringProvider.score()` 与 `RepositoryBackedScoringService.score()`
-  只能作为未迁移 legacy path 保留，不得被新的 Phase F composition 调用；Phase G stage
-  cutover 后必须删除或 fail-closed 该生产入口，具体变更需另行授权。
+## 8. 未来 F 的最小允许范围
 
-## 6. 持久化边界（Q4）
+- `src/youtube_intel/providers/ollama.py`：candidate parser/contract；
+- `src/youtube_intel/scoring.py`：纯内存 seam 与 exact-type legacy rejection；
+- `src/youtube_intel/runtime.py`：仅 composition wiring；
+- `src/youtube_intel/quality.py`：必要的 Phase E Finalizer glue；
+- `src/youtube_intel/domain.py`：必要 typing/contract；
+- 对应测试与 TASK-016C handoff。
 
-Phase F 中下列对象不接受任何 Candidate 或裸 `ScoreResult`：Artifact writer、ProviderCall
-completion、cache writer/reader、SQLite stage completion。它们也不接受 `TrustedScoreResult`
-**写入**，因为 Phase F 尚未实现 final-byte pre-write validation。
-
-Phase G 的唯一输入将是 `TrustedScoreResult`，并在临时文件、fsync、hash、promote、directory
-fsync 和 SQLite transaction 前产生 immutable `ValidatedScoringWritePlan`。Phase I cache recovery
-只可重建 untrusted materials，再经同一 Finalizer 返回新的 wrapper；它不得反序列化为可信 hit。
-
-## 7. 迁移策略
-
-1. **F（本 Amendment）**：新增 candidate-only provider 与纯内存 orchestrator/composition seam；
-   以 Fake transport 验证 primary → language → quality → repair → finalizer 事件顺序；不切换
-   `RuntimeOperations.scoring_stage`，避免尚未具备原子持久化时造成生产数据语义倒退。
-2. **G**：设计并实现 canonical raw/structured envelope、pre-write reparse、write plan 和
-   atomic persistence；在完整故障矩阵通过后，单独授权切换 `RuntimeOperations.scoring_stage`。
-3. **H**：把 at-most-once repair/Judge budget、crash unknown-state 和 corruption failure handling
-   接入已切换的 runtime flow。
-4. **I**：实现 derived cache verification/recovery，并确认历史 legacy cache 要么隔离、要么当作
-   miss；不进行未验证的历史数据转换。
-
-任何阶段都不迁移或删除既有 DB 数据；旧 records 留存审计，不能被写成 trusted cache hit。
-
-## 8. Phase F 最小授权范围
-
-### Allowed files（未来 Implementer 授权）
-
-- `src/youtube_intel/providers/ollama.py`：仅 candidate attempt return contract 与既有 parser 的
-  最小拆分；
-- `src/youtube_intel/scoring.py`：纯内存 candidate/quality/finalizer orchestrator 与现有接口的
-  明确隔离；
-- `src/youtube_intel/runtime.py`：从已验证 AppConfig 注入 Phase E authorities 和新 composition
-  seam，但不得切换持久化 stage；
-- `src/youtube_intel/quality.py`：仅消费既有 Quality capability/Finalizer 的最小 glue；
-- 对应 unit/integration tests、TASK-016C handoff 和经批准的 task/prompt 文件。
-
-### Forbidden files / actions
-
-- `state.py`、任何 schema/migration、DB/Artifact/cache implementation、filesystem protocol、
-  ProviderCall persistence；
-- config/CLI/Language Validator、cloud/router/weekly、依赖、`pyproject.toml`、`uv.lock`；
-- 网络、真实 Ollama、模型 download、cloud fallback、真实 Vault、凭据；
-- 直接修改/清理 legacy 数据、merge/rebase/squash/amend/rewrite history。
-
-## 9. Test Strategy
-
-实施前的 task card 必须冻结 TDD矩阵：
-
-1. Provider primary/repair 返回 `ScoringCandidate` + ephemeral raw material，永不返回或构造
-   `ScoreResult`；parser、loopback guard、prompt/model/digest 和 safe error 行为回归不变。
-2. 完整 Fake path：`candidate-primary → schema → language → gate → Judge-primary → attestation →
-   finalizer`；quality/language failure 才可触发最多一次 repair；repair failure 为
-   `INVALID_RESPONSE`。
-3. Candidate/quality/attestation/context/request hash 任一篡改，及 Mapping/JSON/subclass/copy/pickle
-   spoof，全部 fail-closed，且无 Artifact、ProviderCall SUCCESS、cache hit 或 response artifact ID。
-4. `RuntimeOperations` 只能经 runtime-owned authority 注入 orchestration seam；不得以 caller config、
-   provider output、fixture、cache 或 Artifact 铸造 context。
-5. 旧 `RepositoryBackedScoringService` 不被新 seam 调用；Phase F 不更改其 DB/Artifact 行为。
-6. focused + full pytest、mypy、Ruff、offline build、security scan 和 diff check；无网络/真实模型。
-
-## 10. 风险与独立审查重点
-
-- provider 内部 repair 移出后，必须证明恰好一次预算仍受控，且 raw primary content 不会在失败时
-  留给 persistence；
-- phase labels 改动不得被误解为 Phase G/H/I 已获授权或现有 CLI 已切换；
-- 保持 legacy direct-score path 的时间窗口是迁移风险：它只可供现有未迁移生产路径使用，不能被
-  新 trusted pipeline 复用或声明为已满足 ADR-025；
-- Phase F 不能达到 Production Ready。Production readiness 需要至少 G–I、真正独立 review、
-  integration、持久化/恢复故障测试与现有公开分发 No-Go 的独立关闭。
+禁止 `state.py`、DB schema/migration、Artifact/cache/persistence、ProviderCall completion、
+filesystem protocol、repair/retry/recovery、config/CLI、Language Validator、依赖/lockfile、真实
+Ollama/network/cloud/Vault，以及 Phase G–I 的任何代码。
 
 ## 结论
 
-`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。本 Amendment 需要独立架构审查后，才能
-生成 Phase F Implementer authorization；在此之前不得修改 `providers/ollama.py`、`scoring.py`、
-`runtime.py` 或任何持久化边界。
+`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。本 Round 2 关闭阶段归属、repair ownership、
+legacy isolation 和 Finalizer output contract 的设计冲突；仍须独立设计审查后，才可生成
+Phase F implementation authorization。

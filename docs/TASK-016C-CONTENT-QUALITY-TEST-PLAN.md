@@ -1,6 +1,8 @@
-# TASK-016C Content Quality Test Plan — Round 4.6
+# TASK-016C Content Quality Test Plan — Phase F Round 2 Alignment
 
-- 状态：`PROPOSED / INDEPENDENT DESIGN REVIEW REQUIRED`
+- 状态：Phase E 已批准；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
+  本计划中的 repair/retry/recovery、持久化和 cache 项目分别归 H、G、I，不构成 Phase F
+  实现授权。
 - 依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 接口：[TASK-016C Interface Design](TASK-016C-CONTENT-QUALITY-INTERFACE-DESIGN.md)
 - 测试环境：完全离线；Fake scoring/Judge transport、临时 SQLite、临时 DATA root
@@ -12,20 +14,20 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 1. TASK-016B source、ADR-024 与 Language Validator 行为未修改；
 2. Deterministic Gate 只有三个机械 reason，所有 identifier/entity 样例进入 Local Judge；
 3. Provider Adapter 只能返回 `ScoringCandidate`；
-4. primary、repair、cache recovery 都只能经 `TrustedScoringFinalizer` 创建
-   `ScoreResult`；
+4. `TrustedScoringFinalizer` 只创建内部业务 `ScoreResult` 并输出 `TrustedScoreResult`；
+   Phase F 仅验证 PRIMARY，repair/retry/recovery 属于 H，cache recovery 属于 I；
 5. 每个成功结果的完整 validated `ContentQualityResult(PASS)` 有稳定 canonical
    `quality_result_hash`，且与 attestation 精确绑定；
 6. cache hit 不调用 Judge，且从 ProviderCall、Artifact、producer metadata、attestation
    和当前配置重算 derived verification view；
 7. Judge identity 严格分为 H1 normalized-input hash 与 ADR-003 H2 ProviderCall request hash；
-8. PRIMARY 与 REPAIR Judge 各最多一次，崩溃未知状态不重复调用；
+8. H 的 PRIMARY/REPAIR Judge 预算及崩溃未知状态不得重调；F 不调用 repair/retry；
 9. 三项 confidence 和 status/reason/signal 组合全部 fail-closed；
-10. Finalizer 成功之前零 scoring Artifact、response_artifact_id、ProviderCall SUCCESS 或
-    cache hit；Finalizer 后必须先对 exact final bytes 做 pre-write reparse/full validation，
-    只有内存 `ValidatedScoringWritePlan` 可进入 tmp/fsync/hash/promote/dir-fsync；
-11. DB registration 只登记已 promote 且 final-verified 的 plan，并做防御性复核，不承担或
-    替代首次写盘前验证；
+10. F 的 Finalizer 成功前后均无 scoring Artifact、response_artifact_id、ProviderCall SUCCESS、
+    cache hit、DB 或 filesystem mutation；G 才实施 exact-byte pre-write validation 与
+    `ValidatedScoringWritePlan`；
+11. G 的 DB registration 只登记已 promote 且 final-verified 的 plan，不承担或替代首次
+    写盘前验证；
 12. 无新依赖、无 migration、无品牌词库、无网络或外部知识查询。
 
 ## 2. TDD 纵切顺序
@@ -38,11 +40,11 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 4. `ContentQualityInput`、Evidence Registry、candidate/input hash；
 5. Local Judge 固定请求与严格响应 wrapper；
 6. Quality PASS attestation 与完整 result hash binding；
-7. PRIMARY/REPAIR H1/H2 identity、一次性预算与崩溃恢复；
-8. raw/structured canonical serialization、pre-write validation 与
-   `ValidatedScoringWritePlan`；
-9. Artifact file commit protocol、atomic DB registration 与 cache recovery；
-10. production composition 和 TASK-016B 回归。
+7. Phase F PRIMARY-only in-memory candidate composition 与 bare `ScoreResult` legacy rejection；
+8. Phase G raw/structured canonical serialization、pre-write validation、
+   `ValidatedScoringWritePlan`、文件协议与 atomic DB registration；
+9. Phase H PRIMARY/REPAIR H1/H2 identity、一次性预算与崩溃 recovery；
+10. Phase I derived cache verification/recovery、adversarial/crash/bypass 与 release acceptance。
 
 不得删除、跳过、弱化断言、修改既有测试门禁或把失败样例移入生产词表。
 
@@ -153,7 +155,8 @@ Amazon Connect Salesforce
 
 ### 5.1 Provider boundary
 
-- Fake primary/repair Adapter 只返回 `ScoringCandidate`；
+- Phase F Fake PRIMARY Adapter 只返回 `ScoringCandidate`；repair Adapter/attempt 仅在 H 测试中
+  出现；
 - `score` 接受并 round-trip 非整数 `7.25`，不得丢失精度；
 - `dimensions=None` 与完整 `ScoreDimensions` 都合法；
 - Candidate 与 Finalizer 输出的 reason/topics/should_summarize/dimensions 业务字段保持等值；
@@ -167,14 +170,14 @@ Amazon Connect Salesforce
 用合法 candidate/context/input/full-quality-result/attestation/quality-call identity 调用
 Finalizer，断言：
 
-- 返回现有公共 shape 的 `ScoreResult`；
+- 返回 opaque `TrustedScoreResult`，其内部业务字段与现有公开 `ScoreResult` shape 等值；
 - provider/model/output language/prompt/schema 来自 trusted context；
 - candidate、input、attestation hash 全部重算；
 - 完整 quality result 重建、PASS matrix 重验并重算 `quality_result_hash`；
 - `computed_quality_result_hash == attestation.quality_result_hash`；
 - Judge ProviderCall identity 由 H1 经既有 builder 得到 H2，并与 attestation 精确相等；
 - TASK-016B language invariant 仍执行；
-- primary、repair 和 cache recovery 三个入口都调用同一 Finalizer。
+- Phase F 仅 PRIMARY 入口调用 Finalizer；H/I 的 repair/cache 路径在各自授权后也必须调用它。
 
 ### 5.3 Finalizer bypass matrix
 
@@ -246,9 +249,14 @@ response 若换成另一 request 的 evidence ID，必须拒绝。
 Markdown/HTML/Obsidian 指令、Unicode confusables 和 stuffing 都不能改变 model、endpoint、
 版本、schema 或 evidence registry，也不能触发文件、工具、subprocess 或网络访问。
 
-## 8. Fake flow 与事件顺序
+## 8. Later-phase Fake flow 与事件顺序（非 Phase F 授权）
 
-### 8.1 Primary PASS
+Phase F 只测试 `CANDIDATE_PRIMARY -> SCHEMA_PRIMARY -> LANGUAGE_PRIMARY -> QUALITY_PRIMARY ->
+ATTESTATION_PRIMARY -> FINALIZE` 的纯内存前缀，并在任一失败时 fail-closed。下列 `SERIALIZE`
+及之后的步骤属于 G；所有 `REPAIR` 步骤、共享 budget 和 recovery 属于 H；cache verification
+属于 I。它们保留为后续任务的冻结验收要求，不得被解释为 F 要求或授权。
+
+### 8.1 Phase G primary PASS continuation
 
 ```text
 CANDIDATE_PRIMARY
@@ -277,7 +285,7 @@ envelope、structured result、两份 completion 与 stage。
 `CANDIDATE_*` 是不可信 DTO 到达事件，严格 parsing 在紧随其后的 `SCHEMA_*` 完成；非法 DTO
 在 language/quality 前停止并消费共享 repair。不得跳过 Candidate 或 schema validation。
 
-### 8.2 Primary quality failure, repair PASS
+### 8.2 Phase H primary quality failure, repair PASS
 
 必须严格产生：
 
@@ -389,11 +397,11 @@ completion/stage 步骤。任何“可能
 - attestation 的 `quality_result_hash` 与完整 result 精确一致；
 - attestation hash 排除自身字段并稳定；
 - attestation 首先只存在内存；Finalizer 前 Repository 中不存在其 Artifact/cache hit/成功调用；
-- raw envelope round-trip 保留最终 provider raw、可完整重建的 validated quality result 与
+- G 的 raw envelope round-trip 保留最终 provider raw、可完整重建的 validated quality result 与
   完整 attestation；
-- Judge ProviderCall `SUCCEEDED.response_artifact_id` 指向同一 raw envelope；
-- structured payload 仍能由 Finalizer 的 persisted candidate 路径恢复，且外部 ScoreResult
-  JSON shape 不变。
+- G 的 Judge ProviderCall `SUCCEEDED.response_artifact_id` 指向同一 raw envelope；
+- I 的 structured recovery 只能经 Finalizer 返回 `TrustedScoreResult`，而外部 ScoreResult JSON
+  业务 shape 保持不变。
 
 ### 10.2 Quality decision binding 与单字段篡改
 
@@ -643,7 +651,7 @@ git diff --check <base>...HEAD
 - [ ] Deterministic Gate 是否精确只有三个 reason？
 - [ ] 四个攻击样例是否全部进入 Judge？
 - [ ] Provider 是否只能返回 ScoringCandidate？
-- [ ] Finalizer 是否为 primary/repair/cache 唯一 ScoreResult 入口？
+- [ ] Finalizer 是否为 F PRIMARY、H repair、I cache recovery 的唯一 `TrustedScoreResult` 入口？
 - [ ] Candidate 是否保持 score=float、dimensions 可选和全部现有业务字段？
 - [ ] ADR-025 是否明确 supersede SYSTEM_DESIGN 的 Provider->ScoreResult 旧契约？
 - [ ] PASS attestation 是否绑定用户要求的全部字段并可重算？

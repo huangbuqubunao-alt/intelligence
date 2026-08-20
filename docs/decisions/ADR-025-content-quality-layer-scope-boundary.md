@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed；2026-08-14 Round 4.6 修订待 Independent Design Review
+Accepted core design；2026-08-20 Phase F Runtime Integration Amendment Round 2
+`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`
 
 ## Date
 
@@ -26,7 +27,7 @@ TASK-016C 建立独立 Content Quality Layer。但第一版设计仍有三处不
 本修订把 Deterministic Gate 缩到可机械证明的三个错误，把 `ScoreResult` 的创建权集中到
 `TrustedScoringFinalizer`，并引入可恢复、可交叉验证的 Quality PASS attestation。
 
-Round 4.6 进一步关闭持久化前的信任缺口：Finalizer 返回可信 `ScoreResult` 后，应用必须
+Round 4.6 进一步关闭持久化前的信任缺口：Finalizer 返回可信 `TrustedScoreResult` 后，应用必须
 先构造 canonical raw/structured bytes，并在任何 temporary file write 之前重新解析、完整
 验证和交叉绑定这些最终 bytes。只有这一 pre-write boundary 成功后，才能创建纯内存
 `ValidatedScoringWritePlan` 并进入 Round 4 已冻结的文件提交协议。SQLite registration 只在
@@ -144,7 +145,8 @@ Provider、repair、Artifact reader 和 cache recovery 均不得直接构造、�
 必填，也不得新增、删除或改变任何 `ScoreResult` 业务字段。Candidate 只移除可信
 provenance，并增加“不可信、尚未 final”这一类型边界。
 
-`TrustedScoringFinalizer` 是唯一允许创建 `ScoreResult` 的应用边界。它必须同时接收并
+`TrustedScoringFinalizer` 是唯一允许从不可信业务字段创建内部 `ScoreResult` 并封装为
+`TrustedScoreResult` 的应用边界。它必须同时接收并
 重新验证：
 
 1. canonical `ScoringCandidate`；
@@ -153,15 +155,15 @@ provenance，并增加“不可信、尚未 final”这一类型边界。
 4. 完整且有效、绑定该 result hash 的 Quality PASS attestation；
 5. 当前 scoring request、quality input 与 Judge ProviderCall identity 的重算结果。
 
-只有全部一致时，Finalizer 才从业务字段和可信 context 新建 `ScoreResult`。三条路径均
-必须经过它：
+只有全部一致时，Finalizer 才从业务字段和可信 context 新建内部 `ScoreResult`，并只返回
+opaque `TrustedScoreResult`。Phase F–I trusted pipeline 只能接受 wrapper；bare `ScoreResult`
+仅允许留在明确命名的 `LEGACY / EXTERNAL COMPATIBILITY BOUNDARY`，不得升级或重新进入
+trusted pipeline。禁止把 `model_copy(update=...)`、`model_construct()`、JSON restore 或已构造
+instance 当成可信捷径。**No internal unwrap is authorized in Phase F-G-H.**
 
-- primary scoring candidate；
-- 唯一 repair candidate；
-- persisted cache recovery。
-
-Cache reader 只能恢复 untrusted persisted payload，再由 Finalizer 重建 `ScoreResult`。
-禁止把 `model_copy(update=...)`、`model_construct()` 或已构造 instance 当成可信捷径。
+Phase ownership 由 Phase F Amendment Round 2 冻结：F 仅处理 PRIMARY in-memory path；G 处理
+pre-write 与持久化 registration；H 处理 repair/retry/recovery/budget；I 处理 derived cache
+verification/recovery 与 production hardening。任何阶段不得接管另一阶段的能力。
 
 ### 5. Quality PASS attestation
 
@@ -322,7 +324,7 @@ evidence ID，且不得含 rejection reason 或负向冲突 signal。完整 stat
 矩阵由 Interface Design 冻结；非法组合必须在应用 wrapper、JSON restore 和 Finalizer
 三处 fail-closed。
 
-### 8. Repair 与持久化顺序
+### 8. 跨阶段顺序（非单一阶段实现授权）
 
 ```text
 candidate
@@ -343,9 +345,10 @@ candidate
   -> atomic SQLite registration
 ```
 
-primary 或 repair 都必须完整执行这一顺序；repair 只是产生新的 candidate，不能跳过任何
-节点。schema、language 或 quality 失败共享同一个 repair budget。第二次仍非 `PASS` 或
-Judge 不可用时返回 `INVALID_RESPONSE`。
+Phase F 只允许 PRIMARY 到 `TrustedScoreResult` 的内存前缀；PRIMARY 失败即 fail-closed，
+不得自动 repair。G 才实现其后的 pre-write/file/DB registration。H 才定义 repair/retry/budget/
+crash recovery；I 才定义 cache verification/recovery 与 release acceptance。repair 产生的新
+candidate 时也不得跳过 schema、language、quality 或 Finalizer。
 
 Finalizer 前严格禁止：
 
@@ -359,7 +362,7 @@ Finalizer 前严格禁止：
 `SUCCEEDED`/Artifact/attestation，但在当前 Finalizer 成功前不得把它返回为 cache hit、
 不得写入新完成状态，也不得推进当前 stage。
 
-Finalizer 成功不直接授权文件写入。应用先从 finalized `ScoreResult`、完整 validated
+Finalizer 成功不直接授权文件写入。应用先从 finalized `TrustedScoreResult`（内部业务字段）、完整 validated
 `ContentQualityResult(PASS)`、attestation 与当前可信 provenance 构造 canonical raw/structured
 bytes，再执行 pre-write validation：
 
@@ -500,7 +503,8 @@ v1 拒绝。quality-qualified raw envelope、现有 Artifact metadata 和 Provid
 - 所有成功评分多一个可验证 PASS attestation，恢复路径更严格且旧 cache 自动失效。
 - 评分路径最多增加两次固定本地 Judge 调用；崩溃未知状态宁可停止也不重复调用。
 - Deterministic Gate 召回率刻意很低；复杂垃圾必须交给 Local Judge。
-- `ScoreResult` 外部形状不变，但内部构造权收敛到一个 Finalizer。
+- `ScoreResult` 外部业务形状不变，但 trusted pipeline 的唯一结果类型为
+  `TrustedScoreResult`；其内部构造权收敛到一个 Finalizer。
 - SYSTEM_DESIGN 的旧 Provider->ScoreResult 契约被本 ADR supersede；实现后应由独立文档
   同步任务更新陈旧说明，但本轮设计修订不修改该文件。
 - PASS 不等于事实核验；只代表当前输入内的最小内容价值与 grounding 达到固定门槛。
