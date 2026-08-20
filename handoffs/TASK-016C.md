@@ -1612,3 +1612,303 @@ load_app_config(channels_path, settings_path)
   git diff --check
   ```
 - 设计偏差：NONE
+
+---
+
+# TASK-016C Phase F 交接报告 — PRIMARY In-Memory Trusted Scoring Seam
+
+## 元数据
+
+- Task: `TASK-016C Phase F`
+- Role: `Implementer`
+- Agent/session: WorkBuddy
+- Base/authorization commit: `acdaac1dbc0899e2b2b6e9871b1a734c7edb136e`
+- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Branch: `workbuddy/task-016c-content-quality-layer`
+- Head commit: `c0268a2157d7b9bb99bdc888b2ee493655bbbaa2`
+- Direct parent: `acdaac1dbc0899e2b2b6e9871b1a734c7edb136e`
+- Commit message: `TASK-016C Phase F implement primary in-memory trusted scoring seam`
+- 祖先核验（单父链，无 squash/rebase/rewrite，全部通过）：
+  - Phase D 基线 `2c11faf41e17c3b823a39bfd1018c5c876b236c5` = ancestor ✓
+  - Phase E 基线 `9b92946a3c156a7c365d808f92f7a1734dcca874` = ancestor ✓
+  - Phase F Round 4 设计 `e00f9579bed3ad91a088c7f9a378cb0808308045` = ancestor ✓
+  - Phase F authorization `acdaac1dbc0899e2b2b6e9871b1a734c7edb136e` = HEAD^ ✓
+- 工作树：tracked 文件干净（仅 untracked `.workbuddy/`，按要求不读取/不提交）。
+
+## 目标与范围
+
+- 任务目标：实现 PRIMARY-only、candidate-only、memory-only 的 trusted scoring seam：
+  ```text
+  Provider raw response → 唯一 canonical parser → ScoringCandidate
+  → candidate/request/raw binding → schema/language/quality → QualityPassAttestation
+  → TrustedScoringFinalizer → TrustedScoreResult → PhaseFTrustedScoringSuccess
+  ```
+- 实际修改（4 文件，+1518/−2）：
+  - `src/youtube_intel/providers/ollama.py`（+97）：抽取唯一 canonical parser `parse_scoring_candidate`（bounded raw → strict UTF-8 → JSON → subset-field → `ScoringCandidate.model_validate`）；`OllamaScoringProvider.primary_attempt()` 单次生成 attempt、无 repair path。
+  - `src/youtube_intel/scoring.py`（+378）：`PrimaryScoringAttempt`（frozen，10 字段）、`build_primary_scoring_attempt`（exact-type → 重 parse → candidate 相等核对 → identity 重建 → 双 hash）、`mint_phase_f_trusted_scoring_success`（sealed 三 hash、private sentinel、防 copy/deepcopy/pickle/subclass）、`run_primary_trusted_scoring_seam`（全部 binding 再校验 + Finalizer + mint）。顶层不 import `quality`/`ollama`（函数内 lazy import，满足 import-graph 约束）。
+  - `src/youtube_intel/runtime.py`（+38）：`RuntimeOperations.run_primary_trusted_scoring()` 薄包装；默认/legacy dispatch 不变。
+  - `tests/unit/test_task016c_phase_f.py`（+1007）：28 个 focused 测试。
+- 明确未做（授权禁止范围，均未触碰）：
+  - 未修改 `state.py`、`quality.py`、`domain.py`、`pyproject.toml`、`uv.lock`。
+  - 无 DB/migration、Artifact/cache persistence、ProviderCall completion、filesystem commit protocol、repair/retry/budget/recovery。
+  - 无真实 Ollama/network/cloud/Vault/凭据调用；全程离线。
+  - 未改变 transport、loopback、model/download/fallback/network semantics；未改 TASK-016B Language Validator；未改默认 persisted runtime dispatch。
+
+## TDD RED Evidence
+
+- 首次运行（RED，收集阶段即失败）：
+  ```text
+  ImportError: cannot import name 'parse_scoring_candidate' from 'youtube_intel.providers.ollama'
+  ```
+- 随后以最小 GREEN 逐项点亮 28 个 focused 测试；RED-first 成立（测试先于实现存在并失败）。
+
+## GREEN Evidence
+
+- `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` → `28 passed`
+- 28 测试清单（覆盖 Authorization 8 项 TDD/对抗验收、5 项 mutation proof、checklist Implementer Completion 10 项与 Reviewer Matrix 8 项）：
+  1. `test_provider_primary_attempt_returns_candidate_only_continuation` — Provider 只产生 Candidate/Attempt，非 `ScoreResult`；2 次 HTTP（GET+POST），无 repair
+  2. `test_candidate_business_fields_match_score_result_contract` — candidate 业务字段兼容 `ScoreResult` 契约
+  3. `test_attempt_factory_rejects_raw_a_candidate_b` — raw A + candidate B fail-closed
+  4. `test_attempt_factory_rejects_post_parse_candidate_mutation` — post-parse candidate mutation 拒绝
+  5. `test_attempt_factory_rejects_bare_score_result_candidate` — bare `ScoreResult` 不能充当 candidate
+  6. `test_attempt_factory_rejects_mapping_candidate` — Mapping candidate 拒绝
+  7. `test_attempt_factory_rejects_oversized_raw` — oversized raw（>1MB）fail-closed
+  8. `test_attempt_factory_rejects_invalid_utf8_raw` — invalid UTF-8（`\ud800`）fail-closed
+  9. `test_attempt_factory_rejects_oversized_inner_response` — inner response >20k chars 拒绝
+  10. `test_one_byte_raw_mutation_changes_raw_hash` — 一 byte raw mutation 改变 raw hash（candidate hash 不变）
+  11. `test_semantically_equal_different_bytes_raw_hash_differs` — 语义相同 bytes 不同 JSON → raw hash 不同
+  12. `test_attempt_is_frozen_and_exact_type` — attempt frozen + exact-type
+  13. `test_seam_rejects_attempt_raw_hash_mismatch` — seam raw hash 再校验拒绝
+  14. `test_seam_rejects_attempt_candidate_hash_mismatch` — seam candidate hash 再校验拒绝
+  15. `test_seam_rejects_attempt_candidate_not_from_raw` — candidate 非 canonical parse 产物拒绝
+  16. `test_seam_rejects_request_identity_mismatch` — request identity mismatch 拒绝
+  17. `test_seam_rejects_provider_model_digest_mismatch` — provider/model/digest mismatch 拒绝
+  18. `test_seam_rejects_non_primary_attempt_role` — 非 PRIMARY role 拒绝
+  19. `test_seam_rejects_bare_score_result` — legacy isolation：bare `ScoreResult` exact-type 拒绝
+  20. `test_seam_rejects_mapping_and_json_in_attempt_slot` — legacy isolation：Mapping/JSON exact-type 拒绝
+  21. `test_primary_flow_reaches_phase_f_trusted_scoring_success` — 合法 PRIMARY 流到达 aggregate
+  22. `test_trusted_result_alone_is_not_a_phase_f_success` — TrustedResult 单独 ≠ envelope（mint 拒绝）
+  23. `test_language_failure_blocks_success_aggregate` — language 失败（zh-CN reason + en output_language）阻止 aggregate
+  24. `test_quality_reject_blocks_success_aggregate` — quality REJECT（DETERMINISTIC_GATE EMPTY_CONTENT）阻止 aggregate
+  25. `test_attestation_mismatch_blocks_success_aggregate` — 异 candidate attestation 阻止 aggregate
+  26. `test_success_mint_rejects_forged_trusted_result` — 伪造 TrustedResult exact-type 拒绝
+  27. `test_success_aggregate_is_opaque_immutable_and_non_serializable` — 直接构造/copy/deepcopy/pickle/subclass/`_sealed` 变更全拒绝
+  28. `test_primary_flow_has_zero_persistence_and_no_legacy_service` — 零持久化（快照相等）+ 无 legacy service
+
+## Mutation Evidence（每项删除 → 对应测试失败 → 立即恢复）
+
+1. **M1** 删除 raw reparse（canonical 重 parse 与 candidate 相等核对）→ `test_seam_rejects_attempt_candidate_not_from_raw` FAILED
+2. **M2** 删除 raw-hash comparison（seam + mint 两层同时删除）→ `test_seam_rejects_attempt_raw_hash_mismatch` FAILED
+3. **M3** 删除 candidate-hash comparison（seam + mint 两层同时删除）→ `test_seam_rejects_attempt_candidate_hash_mismatch` FAILED
+4. **M4** 删除 exact-type trusted-result guard → `test_success_mint_rejects_forged_trusted_result` FAILED（AttributeError）
+5. **M5** 删除 legacy isolation guard → `test_seam_rejects_bare_score_result` 与 `test_seam_rejects_mapping_and_json_in_attempt_slot` FAILED
+- 全部恢复后：`28 passed` 复确认；无 mutation 残留标记。
+
+## Raw→Candidate Binding Evidence
+
+- 唯一 canonical parser：`parse_scoring_candidate`（`providers/ollama.py`），F 与未来 G 共用；无重复 parser 或 candidate-hash 算法。
+- `raw_response_hash = SHA-256(final_raw_response.encode("utf-8"))` 对 exact response-body bytes；不使用 `payload["response"]`、截断值或 reserialized JSON。
+- attempt factory 顺序：exact-type 检查 → 重 parse raw → candidate 相等核对 → identity 重建 → candidate/raw hash 计算。
+- seam 与 mint 双重再校验：raw hash、candidate hash、canonical reparse、identity（request/normalized hash）、provider/model/digest。
+- 测试证明：一 byte raw mutation 改变 raw hash 且不影响 candidate hash；语义相同而 bytes 不同的 JSON 具有不同 raw hash。
+
+## 零副作用 / 零持久化 Evidence
+
+- seam 全程不实例化、不调用 `RepositoryBackedScoringService`（该名称仅出现在 docstring 中）。
+- seam 签名不含 provider handle。
+- `test_primary_flow_has_zero_persistence_and_no_legacy_service`：项目根与 `data/` 目录 before/after 快照逐项相等（`bootstrap_runtime` 在组合期创建 `data/`，故以快照相等证明零写入）。
+- grep 确认 seam 代码无 `state`/`Artifact`/`Cache`/`ProviderCall`/`data_dir`/`Path(` 写入引用；无 repair/retry/budget。
+
+## Legacy Isolation Evidence
+
+- seam 入口 exact-type guard：bare `ScoreResult`、legacy output/raw、Mapping、JSON 均以 `match="PrimaryScoringAttempt"` 拒绝。
+- trusted path 永不触达 `ScoreResult`（Finalizer 内部短暂构造 `TrustedScoreResult`，与 legacy `ScoreResult` 类型隔离）。
+- `RuntimeOperations → RepositoryBackedScoringService → ScoreResult → persistence` 保持 PRE-TASK-016C COMPATIBILITY PATH 未改动。
+
+## 必须门禁（全部 PASS）
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | Resolved 107 packages, PASS |
+| 2 | `uv sync --locked --offline` | Checked 84 packages, PASS |
+| 3 | focused Phase F tests | `28 passed` |
+| 4 | Phase A–E trust tests（5 个既有 task016c unit 文件 + `test_scoring_language.py`） | `417 passed, 1 warning` |
+| 5 | `uv run --offline pytest -x -q`（全量） | `1202 passed, 1 warning`（46s） |
+| 6 | `uv run --offline mypy src` | `Success: no issues found in 28 source files` |
+| 7 | `uv run --offline ruff check . --output-format concise` | `All checks passed!` |
+| 8 | `uv build --offline` | `dist/youtube_intel-0.1.0.tar.gz` + `py3-none-any.whl` 构建成功 |
+| 9 | `bash scripts/security_scan.sh` | `status=clean`（仅既有 high-entropy-warn/test artifacts + license WARN） |
+| 10 | `git diff --check` | `DIFF-CHECK-CLEAN` |
+
+- 全部命令 `--offline`：uv 在线解析 `en-core-web-sm==3.8.0` 曾报网络/TLS 失败，统一离线后稳定；无下载、无联网、无真实模型调用。
+
+## Reuse Decision
+
+- `parse_scoring_candidate`：由 `ollama.py` 既有 parse 逻辑抽取为唯一 canonical parser（`ADAPT`，同文件内抽取，无新增依赖）。
+- `build_scoring_candidate_hash` / `TrustedScoringFinalizer` / `ScoreResult.model_validate`（language fail-closed 强制点，domain.py:825-832）：复用 `quality.py` 既有实现（`DIRECT`，未复制算法）。
+- `RepositoryBackedScoringService`：`REJECT/DEFER`——seam 不调用 legacy persistence path，属 Phase G 范围。
+- 未新增依赖、未修改 lockfile。
+
+## 设计偏差
+
+1. provider/model mismatch 错误消息措辞加入 `"provider"` 子串（如 `"attempt provider model mismatches..."`、`"attempt provider model digest mismatches the trusted scoring context"`），以满足 `match="provider"` 断言。仅消息措辞，校验行为不变。
+2. raw/candidate hash 校验同时存在于 seam 与 mint 两层（defense-in-depth）。单层删除不足以使测试失败，需两层同时删除才暴露——比授权最低要求更强；已作为 M2/M3 mutation 证据记录。
+
+## 失败、跳过与风险
+
+- 已解决失败：
+  - uv 在线解析 `en-core-web-sm==3.8.0` 网络/TLS 失败 → 统一 `uv run --offline` / `uv sync --locked --offline`。
+  - ruff F401（TYPE_CHECKING 未用导入）与 F841（未用局部变量）→ 清理后通过。
+  - `data/` 存在性断言误报（`bootstrap_runtime` 组合期建目录）→ 改为 before/after 快照相等断言。
+- 跳过检查及原因：真实 Ollama/network/cloud 执行——授权明确禁止，未执行。
+- 剩余风险：
+  - 本 seam 为非生产、PRIMARY-only、memory-only；未做默认 runtime cutover（属 Phase G）。
+  - `PrimaryScoringAttempt` 是 untrusted continuation，生命周期仅限 aggregate handoff。
+- `DECISION NEEDED`：`None`
+
+## 实现者结论
+
+- 建议状态：`READY FOR PHASE F INDEPENDENT REVIEW`
+- Commit SHA：`c0268a2157d7b9bb99bdc888b2ee493655bbbaa2`
+- 直接父提交：`acdaac1dbc0899e2b2b6e9871b1a734c7edb136e`
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run --offline pytest tests/unit/test_task016c_phase_f.py -q
+  uv run --offline pytest -x -q tests/unit/test_task016c_domain_contracts.py tests/unit/test_task016c_finalizer.py tests/unit/test_task016c_quality_attestation.py tests/unit/test_task016c_quality_gate.py tests/unit/test_task016c_quality_judge_contract.py tests/unit/test_scoring_language.py
+  uv run --offline pytest -x -q
+  uv run --offline mypy src
+  uv run --offline ruff check .
+  uv build --offline
+  bash scripts/security_scan.sh
+  git diff --check
+  ```
+
+---
+
+## Phase F Correction Round 1
+
+### 审查状态
+
+- 触发审查的 implementation commit：`c0268a2157d7b9bb99bdc888b2ee493655bbbaa2`
+- Review verdict：`REQUEST CHANGES`
+- 本次 correction implementation commit：`df920cc268f732a5c809ba3d9e0c6b98ea1f44b0`
+- 本次直接父提交：`c0268a2157d7b9bb99bdc888b2ee493655bbbaa2`
+- 目标状态：`READY FOR PHASE F CORRECTION INDEPENDENT REVIEW`
+
+### 关闭的 P1/P2 问题
+
+- **P1-1** public aggregate mint bypass
+  - `mint_phase_f_trusted_scoring_success` 从 `scoring.__all__` 移除并改名为 `_mint_phase_f_trusted_scoring_success`
+  - mint 增加 raw reparse 检查：`parse_scoring_candidate(final_raw_response) == attempt.candidate`
+  - mint 增加 business-field binding：trusted result 的 score/reason/topics/should_summarize/dimensions 必须与 attempt.candidate 一致
+- **P1-2** deterministic gate + Local Judge ordering 缺失
+  - `RuntimeOperations.run_primary_trusted_scoring` 现在只接受 `attempt` 和 `scoring_input`
+  - 内部构造 `ContentQualityInput`
+  - 执行 `DeterministicContentQualityGate.evaluate()`，reject 则 fail closed
+  - 执行 `OllamaQualityJudgeProvider.judge()`，非 PASS 则 fail closed
+  - 内部用 `self._quality_provenance_authority` 构建 `QualityPassAttestation`
+  - 最后调用 private `_run_primary_trusted_scoring_seam`
+- **P1-3** runtime caller-selected authority/context
+  - `run_primary_trusted_scoring` 不再接受 `quality_authority` / `scoring_context` / 任何 quality material
+  - 统一使用 `self._quality_provenance_authority` 和 `self._trusted_scoring_context`
+- **P1-4** committed handoff evidence
+  - 本 handoff 作为单独 commit 提交
+- **P2** provider/model/digest 独立回归测试
+  - 新增 `test_seam_rejects_provider_mismatch`
+  - 新增 `test_seam_rejects_model_mismatch`
+  - 新增 `test_seam_rejects_digest_mismatch_independent`
+
+### RED Evidence
+
+在修代码前加入 RED tests，记录失败证据：
+
+- `test_mint_is_not_a_public_export` FAILED（mint 仍在 `__all__`）
+- `test_seam_is_not_a_public_export` FAILED（seam 仍在 `__all__`）
+- `test_mint_rejects_raw_a_candidate_b_bypass` FAILED（mint 接受 raw A + candidate B + legitimate TrustedScoreResult B）
+- `test_mint_rejects_business_field_mismatch` FAILED（mint 接受 TrustedScoreResult B + attempt A）
+- `test_deterministic_gate_blocks_exact_repetition` FAILED / TypeError（runtime 方法仍要求 8 个 kwargs）
+- `test_deterministic_reject_prevents_judge_call` FAILED / TypeError
+- `test_judge_non_pass_prevents_trusted_success` FAILED / TypeError
+- `test_judge_failure_prevents_trusted_success` FAILED / TypeError
+- `test_runtime_rejects_quality_authority_param` FAILED（runtime 接受 `quality_authority`）
+- `test_runtime_rejects_scoring_context_param` FAILED（runtime 接受 `scoring_context`）
+- 合计：10 failed, 31 passed
+
+### GREEN Evidence
+
+- `uv run pytest tests/unit/test_task016c_phase_f.py -q` → `41 passed`
+
+### Mutation Proofs（M1–M6）
+
+每次 mutation 后运行完整 Phase F 测试，记录失败测试，然后恢复并复现 `41 passed`：
+
+- **M1** 删除 mint 所有校验 → `test_trusted_result_alone_is_not_a_phase_f_success`、`test_success_mint_rejects_forged_trusted_result`、`test_mint_rejects_raw_a_candidate_b_bypass`、`test_mint_rejects_business_field_mismatch` FAILED
+- **M2** 删除 seam 与 mint 的 raw reparse → `test_seam_rejects_attempt_candidate_not_from_raw`、`test_mint_rejects_raw_a_candidate_b_bypass` FAILED
+- **M3** 删除 deterministic gate → `test_quality_reject_blocks_success_aggregate`、`test_deterministic_gate_blocks_exact_repetition`、`test_deterministic_reject_prevents_judge_call` FAILED
+- **M4** 将 Judge 调用替换为 synthetic PASS → `test_judge_non_pass_prevents_trusted_success`、`test_judge_failure_prevents_trusted_success` FAILED
+- **M5** 允许 `quality_authority` 参数 → `test_runtime_rejects_quality_authority_param` FAILED
+- **M6** 允许 `scoring_context` 参数 → `test_runtime_rejects_scoring_context_param` FAILED
+
+### 10 Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | focused Phase F tests | `41 passed` |
+| 4 | Phase A–E trust tests | `316 passed, 1 warning` |
+| 5 | `uv run pytest -x -q` | `1215 passed, 1 warning` |
+| 6 | `uv run mypy src` | PASS |
+| 7 | `uv run ruff check .` | PASS |
+| 8 | `uv build --offline` | PASS |
+| 9 | `bash scripts/security_scan.sh` | `status=clean` |
+| 10 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`tests/unit/test_task016c_phase_f.py`、`handoffs/TASK-016C.md`
+- 未修改 `state.py`、DB、migration、Artifact/cache persistence、ProviderCall completion、filesystem protocol、repair/retry、依赖或 lockfile
+- 未进入 Phase G
+- 未 rebase / squash / amend / merge / push / tag
+
+### Diff Review
+
+- `scoring.py`：将 mint/seam 私有化；mint 增加 raw reparse + business-field binding
+- `runtime.py`：`run_primary_trusted_scoring` 改为仅接受 `attempt`/`scoring_input`；内部执行 gate → Judge → attestation → private seam；新增 `quality_judge_provider_factory` 测试注入点
+- `tests/unit/test_task016c_phase_f.py`：新增 13 个 RED/regression 测试，更新现有 runtime 测试至新 API
+
+### Reuse Decision
+
+- `DeterministicContentQualityGate`：`DIRECT`（`quality.py` 已有）
+- `OllamaQualityJudgeProvider`：`DIRECT`（`providers/ollama.py` 已有）
+- `build_quality_pass_attestation` / `TrustedScoringFinalizer`：`DIRECT`（`quality.py` 已有）
+- 未新增依赖
+
+### 失败、跳过与风险
+
+- 已解决：
+  - RED tests 中部分 `quality_authority`/`scoring_context` 拒绝测试因额外 kwargs 产生误报 → 改为仅传入目标 extra param，使用 `_judge_runtime` 提供 fake Judge
+  - exact repetition 测试 reason 因语言检测失败提前退出 → 改用 "This video explains product strategy.\nThis video explains product strategy."
+- 跳过：真实 Ollama/network/cloud 执行（授权禁止）
+- 剩余风险：
+  - 本 seam 仍为非生产、PRIMARY-only、memory-only
+  - `RuntimeDependencies.quality_judge_provider_factory` 仅用于测试注入
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE F CORRECTION INDEPENDENT REVIEW`
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run --offline pytest tests/unit/test_task016c_phase_f.py -q
+  uv run --offline pytest tests/unit/test_task016c_quality_gate.py tests/unit/test_task016c_quality_judge_contract.py tests/unit/test_task016c_domain_contracts.py tests/unit/test_task016c_quality_attestation.py tests/unit/test_task016c_finalizer.py -q
+  uv run --offline pytest -x -q
+  uv run --offline mypy src
+  uv run --offline ruff check .
+  uv build --offline
+  bash scripts/security_scan.sh
+  git diff --check
+  ```
