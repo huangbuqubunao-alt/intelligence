@@ -1,7 +1,7 @@
-# TASK-016C Content Quality Interface Design — Phase F Round 3 Alignment
+# TASK-016C Content Quality Interface Design — Phase F Round 4 Alignment
 
 - 状态：Phase E 已 `APPROVED`；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
-  [Phase F Round 3 Amendment](TASK-016C-PHASE-F-RUNTIME-INTEGRATION-AMENDMENT.md) 对 F–I
+  [Phase F Round 4 Amendment](TASK-016C-PHASE-F-RUNTIME-INTEGRATION-AMENDMENT.md) 对 F–I
   的阶段归属、legacy isolation 与 `TrustedScoringFinalizer` 输出合同具有优先级。
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
@@ -113,6 +113,7 @@ class PrimaryScoringAttempt:
     scoring_request_hash: str
     candidate: ScoringCandidate
     candidate_hash: str
+    raw_response_hash: str  # SHA-256(exact final_raw_response UTF-8 bytes)
     provider: str
     model: str
     model_digest: str
@@ -126,18 +127,26 @@ class PhaseFTrustedScoringSuccess:
     primary_attempt: PrimaryScoringAttempt
     scoring_request_hash: str  # sealed copy; must equal primary_attempt value
     candidate_hash: str         # sealed copy; must equal recomputed attempt candidate hash
+    raw_response_hash: str      # sealed copy; must equal primary_attempt raw hash
 ```
 
 两者均不是 Pydantic restore/JSON/Artifact/cache/ProviderCall 类型。attempt 的 hash 必须复用
 `build_scoring_request_identity()`，而 `final_raw_response` 必须是 candidate 所来自的 bounded、严格
 UTF-8 decoded 完整 Provider HTTP JSON response。它不是 `payload["response"]`、截断文本或
-重新序列化 JSON；G 只能以该 string 的 UTF-8 encode 取得 raw envelope bytes。
+重新序列化 JSON；`raw_response_hash` 固定为 `SHA-256(final_raw_response.encode("utf-8"))`，G 只能以该
+string 的 UTF-8 encode 取得 raw envelope bytes。
+
+F 与 G 必须复用从 `providers/ollama.py` response parsing 抽取或复用的**同一 pure canonical candidate
+parser**：`bounded raw -> strict UTF-8 decode -> JSON parse -> parser -> ScoringCandidate -> candidate_hash`。
+F 先由 raw 重建 candidate、重算 raw/candidate hash，再将 parser-derived candidate 与任何 supplied/returned
+candidate 的 hash 交叉比较；不一致时不创建 attempt。G 重复该 parse/hashing chain。因而 provider 或 caller
+不能将 raw A 与 candidate B 拼接为成功 continuation。
 
 F seam 必须重算 `candidate_hash`，并将 attempt candidate 与传给 Finalizer 的 candidate 精确绑定。
 Finalizer 不读取或信任 raw string：它仍独立重建 candidate/input/quality DTO 并验证 capabilities；
 F helper 只可将已交叉验证的 `attempt.candidate` 传入 Finalizer。success aggregate 不赋予 raw 任何
 trusted business 或 persistence 身份。aggregate 必须 exact-type/private-sentinel mint；G 先验证该
-capability，再重算并比较它封存的 request/candidate hash。任何 F-G-H boundary 均不得 return 或 accept
+capability，再重算并比较它封存的 request/candidate/raw hash。任何 F-G-H boundary 均不得 return 或 accept
 bare `ScoreResult`；未来 G 若需 structured bytes，只能由另行授权的 sealed serializer 从 wrapper 直接
 产出 bytes，不能向 caller unwrap `ScoreResult`。
 
@@ -608,8 +617,9 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
 ```
 
 Phase G 的 planner 只接受 `PhaseFTrustedScoringSuccess`，并且 raw-envelope source 只能为其
-`primary_attempt.final_raw_response`。它必须重新验证 request/candidate identity、trusted result
-business binding 与 quality attestation；不得 provider recall，不得接受 caller、cache 或 legacy
+`primary_attempt.final_raw_response`。它必须按顺序重算 request identity、raw hash、同一 canonical parser
+重建的 candidate/candidate hash，再比较 aggregate seals、attempt、trusted-result binding 与 quality
+attestation；任一失败均在 envelope 前 fail-closed。不得 provider recall，不得接受 caller、cache 或 legacy
 Artifact 替代 raw，且 `TrustedScoreResult` 单独不足以构造 raw envelope。
 
 `validated_quality_pass_decision` 必须包含足以从 untrusted JSON 完整重建第 7 节模型的全部

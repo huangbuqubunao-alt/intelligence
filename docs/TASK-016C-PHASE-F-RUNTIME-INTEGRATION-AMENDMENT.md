@@ -1,4 +1,4 @@
-# TASK-016C Phase F — Runtime Integration Amendment Round 3
+# TASK-016C Phase F — Runtime Integration Amendment Round 4
 
 ## 状态
 
@@ -26,7 +26,7 @@ Phase F 是 **NON-PRODUCTION / ISOLATED IN-MEMORY TRUSTED COMPOSITION SEAM**，�
 ```text
 ScoringInput
   -> candidate-only Provider transport/parser
-  -> PrimaryScoringAttempt (untrusted continuation)
+  -> exact bounded raw response -> same canonical parser -> PrimaryScoringAttempt (untrusted continuation)
   -> ScoringCandidate
   -> schema validation
   -> frozen TASK-016B Language Validator
@@ -74,6 +74,7 @@ scoring_input_normalized_hash    # 由 build_scoring_request_identity() 得到
 scoring_request_hash             # 同一 canonical builder 的 request_hash
 candidate                        # exact reconstructed ScoringCandidate
 candidate_hash                   # candidate canonical identity
+raw_response_hash                # SHA-256(exact final_raw_response UTF-8 bytes)
 provider                         # 固定 provider identity
 model                            # scoring model identity
 model_digest                     # runtime-verified model digest
@@ -92,9 +93,31 @@ Finalizer/G 与可信 context 交叉验证的陈述，不是 capability，也不
 该重新编码 byte-for-byte 保留收到的 response bytes。对象必须 immutable，或在 F/G 入口以 exact
 type、长度上限与 canonical hash 重新验证并按不可变值处理。
 
-候选绑定不可拆分：`attempt.candidate_hash` 必须等于从 `attempt.candidate` 重算的 canonical hash，
-而 Finalizer 的 candidate 也必须重建为同一 hash。任何 `raw A + candidate B + trusted result C`
-拼接均 fail-closed。
+`raw_response_hash` 固定为 `SHA-256(final_raw_response.encode("utf-8"))`；它哈希的是完整 response body
+bytes，绝不哈希 `payload["response"]`、截断文本、canonicalized JSON 或重新序列化 JSON。
+
+### Raw response → candidate 的唯一 canonical parser
+
+F/G 共同拥有一个唯一的 pure canonical candidate parser contract。它从现有
+`providers/ollama.py` response parsing 中抽取或复用，不得复制出 provider parser 与 G validation parser
+两套实现：
+
+```text
+bounded raw body -> strict UTF-8 decode -> JSON parse -> canonical candidate parser
+  -> reconstructed ScoringCandidate -> canonical candidate_hash
+```
+
+该 parser 无 transport、network、DB、persistence 或 runtime state；输入是完整 parsed/raw provider response，
+输出只能是已验证的 `ScoringCandidate` 或 fail-closed。Phase F construction 和 Phase G
+`PREWRITE_VALIDATE` 必须调用**同一** parser。若 G 尚未获修改 provider module 的授权，本轮仅冻结未来的
+复用合同，不实现 parser extraction。
+
+候选绑定不可拆分。创建 `PrimaryScoringAttempt` 前，F 必须依次：(1) 验证 bounded raw；(2) 计算
+`raw_response_hash`；(3) 通过 canonical parser 重建 candidate；(4) 计算 canonical `candidate_hash`；
+(5) 将它与任何 supplied/returned candidate 的 hash 比较。仅完全相等才可创建 attempt，且其 `candidate`
+字段必须是 parser-derived candidate，而非第二个独立来源。然后 F 只能把该同一 candidate 交给 Finalizer。
+因此 `raw A -> same parser -> candidate A -> candidate hash A -> trusted result A` 是单一语义链；
+`raw A + candidate B + trusted result B` 在 F 不能创建，在 G 也不能持久化。
 
 Phase F 唯一成功输出为 `PhaseFTrustedScoringSuccess`，一个不可序列化、纯内存 aggregate：
 
@@ -109,10 +132,11 @@ aggregate 只证明这两个对象已在同一 PRIMARY flow 中被交叉绑定�
 不得写文件、DB、cache、Artifact、ProviderCall completion 或 serialization for recovery。
 
 aggregate 必须是 exact-type、private-sentinel mint 的 opaque capability，且额外封存
-`scoring_request_hash` 与 `candidate_hash`。F seam 仅在对 attempt 重算两者、以
+`scoring_request_hash`、`candidate_hash` 与 `raw_response_hash`（可由 attempt 存储，但 aggregate 必须对三者
+具有无歧义 sealed binding）。F seam 仅在对 attempt 重算三者、以
 `attempt.candidate` 调用 Finalizer 并取得 `TrustedScoreResult` 后才可 mint aggregate。G 必须先
-验证 aggregate exact type，再重算 attempt 的 request/candidate binding 并比较封存值；这就是
-`attempt.candidate -> Finalizer input -> trusted success` 的不可拆分交叉绑定。
+验证 aggregate exact type，再重算 attempt 的 request/raw/candidate binding 并比较封存值；这就是
+`raw response -> parser-derived candidate -> Finalizer input -> trusted success` 的不可拆分交叉绑定。
 
 ## 3. Provider contract
 
@@ -181,36 +205,43 @@ PhaseFTrustedScoringSuccess
 
 G 才能将 trusted in-memory result 接到 persisted runtime；H/I 不能反向扩大 F 的写入权限。
 G 的唯一 raw-envelope source 是 success 中绑定的
-`PrimaryScoringAttempt.final_raw_response`。G 必须重算并核对 attempt request identity、candidate
-identity、`TrustedScoreResult` business binding 与 Quality PASS attestation，随后才可构造 envelope。
+`PrimaryScoringAttempt.final_raw_response`。构造 envelope 前，G 必须依次：(1) exact-type/structural
+验证 aggregate；(2) 重算 scoring request identity；(3) 重算 `SHA-256(final_raw_response.encode("utf-8"))`；
+(4) 与 sealed `raw_response_hash` 比较；(5) 用**同一** canonical candidate parser 重 parse raw；
+(6) 重建 candidate 并重算 canonical `candidate_hash`；(7) 要求其等于 attempt hash；(8) 要求同一 candidate
+identity 同时绑定 `TrustedScoreResult`、quality result、attestation 与 request identity。只有全部成功才可构造
+raw envelope → `PREWRITE_VALIDATE` → WritePlan。
 G 禁止重新调用 Provider、从 caller/cache/legacy Artifact 接受替代 raw payload、用
 `TrustedScoreResult` 反向重建 raw，或把 legacy ScoreResult/raw payload 伪装成 attempt。
 “No internal unwrap” 的含义是任何 F-G-H 边界均不得**返回或接受** bare `ScoreResult`。未来 G 的
 pre-write planner 只能接收 opaque `TrustedScoreResult`，并且如需 canonical structured bytes，必须通过
-另行授权的 sealed serializer 直接产生 bytes、不得把 bare `ScoreResult` 暴露给 caller；Round 3 不设计或
+另行授权的 sealed serializer 直接产生 bytes、不得把 bare `ScoreResult` 暴露给 caller；Round 4 不设计或
 授权该 serializer。
 
 ## 7. Phase F test acceptance matrix
 
 未来 F/G task cards 必须用 TDD 覆盖以下 continuation 矩阵：
 
-1. PRIMARY Provider path 返回 `PrimaryScoringAttempt`，其中唯一业务 DTO 是 `ScoringCandidate`，
-   不返回 `ScoreResult`。
-2. Candidate 保留 score/dimensions/reason/topics/should_summarize 业务字段。
-3. final raw response 在 F 内存中保留至 success aggregate。
-4. final raw response 受现有 transport byte 上限及严格 UTF-8 约束。
-5. final raw response 与 `scoring_request_hash`、provider/model/digest 和 `PRIMARY` role 绑定。
-6. `raw A + candidate B` 的 mismatch fail-closed。
-7. attempt candidate identity 必须等于 Finalizer candidate identity。
-8. PRIMARY 成功只产生 `PhaseFTrustedScoringSuccess`，其中唯一 trusted business result 是
-   `TrustedScoreResult`。
-9. Quality failure 或 invalid attestation 不产生 success aggregate。
-10. bare legacy ScoreResult/raw 或 Mapping/JSON 不能成为 `PrimaryScoringAttempt` 或 trusted success。
-11. F 不产生 Artifact、cache entry、ProviderCall success、DB/filesystem mutation，也不实例化或调用
+1. `raw A + candidate B` 在 F attempt construction 中拒绝。
+2. raw parse 后 mutation candidate，attempt construction 失败。
+3. raw 任一 byte 改变会改变 `raw_response_hash`。
+4. 语义等价但 bytes 不同的 reserialized JSON 有不同 `raw_response_hash`。
+5. G 重算 `raw_response_hash`。
+6. sealed raw hash mismatch 在 envelope construction 前失败。
+7. G 通过同一 canonical candidate parser 重 parse raw。
+8. reparse 后 candidate hash mismatch 失败。
+9. 删除 raw reparse 会使 mutation test 失败。
+10. 删除 candidate-hash comparison 会使 mutation test 失败。
+11. 删除 raw-hash comparison 会使 mutation test 失败。
+12. provider 不能提供与 raw 不一致的 independent candidate。
+13. `TrustedScoreResult` 单独不足以构造 G raw envelope。
+14. G 不得 provider recall。
+15. F 不产生 Artifact、cache entry、ProviderCall success、DB/filesystem mutation，也不实例化或调用
     `RepositoryBackedScoringService`。
-12. G 只接受 success aggregate 的 raw-response source；caller/cache/legacy raw substitution 均拒绝。
-13. `TrustedScoreResult` 单独不足以构造 G raw envelope；G cutover/recovery 不得 provider recall。
-14. TASK-016B ordering 与 Phase C/D/E trust tests 继续通过，F 不调用 repair/retry。
+
+既有基础覆盖仍须保留：final raw response 在 F 内存中保留至 success aggregate、受 transport byte 上限和
+strict UTF-8 约束，并与 provider/model/digest/`PRIMARY` role 及 `scoring_request_hash` 交叉绑定。上述新增
+mutation tests 不能替代这些 transport 或 no-repair/no-legacy-upgrade 边界测试。
 
 ## 8. 未来 F 的最小允许范围
 
@@ -227,6 +258,6 @@ Ollama/network/cloud/Vault，以及 Phase G–I 的任何代码。
 
 ## 结论
 
-`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。本 Round 2 关闭阶段归属、repair ownership、
-legacy isolation 和 Finalizer output contract 的设计冲突；仍须独立设计审查后，才可生成
+`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。本 Round 4 关闭 F→G raw response 与 canonical candidate
+的语义绑定，以及 Round 3 的轮次笔误；仍须独立设计审查后，才可生成
 Phase F implementation authorization。

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted core design；2026-08-20 Phase F Runtime Integration Amendment Round 3
+Accepted core design；2026-08-20 Phase F Runtime Integration Amendment Round 4
 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`
 
 ## Date
@@ -161,7 +161,7 @@ opaque `TrustedScoreResult`。Phase F–I trusted pipeline 只能接受 wrapper�
 trusted pipeline。禁止把 `model_copy(update=...)`、`model_construct()`、JSON restore 或已构造
 instance 当成可信捷径。**No internal unwrap is authorized in Phase F-G-H.**
 
-Phase ownership 由 Phase F Amendment Round 3 冻结：F 仅处理 PRIMARY in-memory path；G 处理
+Phase ownership 由 Phase F Amendment Round 4 冻结：F 仅处理 PRIMARY in-memory path；G 处理
 pre-write 与持久化 registration；H 处理 repair/retry/recovery/budget；I 处理 derived cache
 verification/recovery 与 production hardening。任何阶段不得接管另一阶段的能力。
 
@@ -172,22 +172,27 @@ Phase F 的唯一成功输出不是单独的 wrapper，而是内存 `PhaseFTrust
 绑定由既有 `build_scoring_request_identity()` 重算的 normalized-input/request hash、canonical candidate
 hash、provider/model/model digest 和固定 `PRIMARY` role；不得另建 identity 算法。
 
-attempt 的唯一 raw 表示是 bounded、严格 UTF-8 decoded 的完整 Provider HTTP JSON response string。
-这正是产生该 candidate 的 response，Phase G 以 UTF-8 re-encode 取得 exact envelope bytes；不得用
-candidate response text、重序列化 JSON、caller payload、cache、legacy Artifact 或 Provider recall 替代。
-attempt 是不可序列化、不可恢复的 untrusted continuation，既不构成 Artifact/cache/ProviderCall，也不
-单独授权 Finalizer、持久化、cache hit 或 stage completion。
+attempt 的唯一 raw 表示是 bounded、严格 UTF-8 decoded 的完整 Provider HTTP JSON response string，且
+`raw_response_hash = SHA-256(final_raw_response.encode("utf-8"))`。该 hash 只针对 received exact
+response-body bytes，不得用 candidate response text、重序列化 JSON、caller payload、cache、legacy Artifact
+或 Provider recall 替代。attempt 是不可序列化、不可恢复的 untrusted continuation，既不构成
+Artifact/cache/ProviderCall，也不单独授权 Finalizer、持久化、cache hit 或 stage completion。
 
-success aggregate 必须 exact-type/private-sentinel mint，并封存重算后的 `scoring_request_hash` 与
-`candidate_hash`；只可在 F seam 将同一 attempt candidate 交给 Finalizer 并取得 wrapper 后创建。
-G 先验证 aggregate capability，再比较封存值与 attempt 重算值。F-G-H 不得 return 或 accept bare
-`ScoreResult`；若 G 未来需要 structured bytes，必须另行授权 sealed serializer 从 wrapper 直接产生
-bytes，不得向调用方 unwrap。
+F/G 必须复用从当前 Ollama response parsing 抽取或复用的唯一 pure canonical candidate parser：exact raw
+→ strict UTF-8 decode → JSON parse → parser → `ScoringCandidate` → canonical candidate hash。F 仅在 parser-derived
+candidate 与任何 supplied/returned candidate hash 完全一致后创建 attempt；G 在 PREWRITE_VALIDATE 重复同一
+parse/hash 链。故 `raw A + candidate B + result B` 无法在 F 创建或在 G 持久化。
+
+success aggregate 必须 exact-type/private-sentinel mint，并封存重算后的 `scoring_request_hash`、
+`candidate_hash` 与 `raw_response_hash`；只可在 F seam 将同一 parser-derived attempt candidate 交给 Finalizer
+并取得 wrapper 后创建。G 先验证 aggregate capability，再比较封存值与 attempt 重算值。F-G-H 不得 return
+或 accept bare `ScoreResult`；若 G 未来需要 structured bytes，必须另行授权 sealed serializer 从 wrapper
+直接产生 bytes，不得向调用方 unwrap。
 
 Finalizer 只用 attempt 的 candidate 与 identity statement 做重新验证，不信任或解析 raw string，也不
-降低已有 context/quality/attestation 验证。G 必须同时验证 attempt request/candidate identity、
-TrustedScoreResult binding 和 attestation，才可构造 raw envelope。bare legacy ScoreResult/raw 不能伪装
-成 attempt；Phase F-G-H 无 internal unwrap。
+降低已有 context/quality/attestation 验证。G 必须按 exact type → request identity → raw hash → same-parser
+raw reparse → candidate hash → attempt/result/quality/attestation cross-binding 的固定顺序验证，才可构造 raw
+envelope。bare legacy ScoreResult/raw 不能伪装成 attempt；Phase F-G-H 无 internal unwrap。
 
 ### 5. Quality PASS attestation
 

@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Phase F Round 3 Alignment
+# TASK-016C Content Quality Test Plan — Phase F Round 4 Alignment
 
 - 状态：Phase E 已批准；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
   本计划中的 repair/retry/recovery、持久化和 cache 项目分别归 H、G、I，不构成 Phase F
@@ -203,24 +203,28 @@ Finalizer，断言：
 
 以下设计测试必须在未来 F/G 分别实现，且不要求或授权真实 Provider、DB 或 filesystem：
 
-1. final raw response 在 F 内存中保留到 `PhaseFTrustedScoringSuccess`；
-2. raw response 受既有 byte 上限约束，且是严格 UTF-8 decoded 完整 HTTP JSON response；
-3. raw response 绑定同一 `scoring_request_hash`、provider/model/digest 与 `PRIMARY` role；
-4. `raw A + candidate B` 组合拒绝；
-5. attempt candidate hash 必须等于 Finalizer candidate hash；
-6. legacy raw/result、bare `ScoreResult`、Mapping 或 JSON 不能成为 attempt 或 trusted success；
-7. F 不产生 Artifact；
-8. F 不产生 cache entry；
-9. F 不完成 ProviderCall；
-10. F 不写 DB 或 filesystem；
-11. G 只接受 success aggregate 的 raw-response source；
-12. caller/cache/legacy Artifact 不能替换该 raw source；
+1. `raw A + candidate B` 在 Phase F attempt creation 被拒绝；
+2. raw parse 后 mutation candidate 会使 attempt creation 失败；
+3. raw 任一 byte 改变会改变 `raw_response_hash`；
+4. 语义等价但 bytes 不同的 reserialized JSON 具有不同 `raw_response_hash`；
+5. Phase G 重算 `raw_response_hash`；
+6. sealed raw hash mismatch 必须在 envelope construction 前失败；
+7. G 用与 F 相同的 canonical candidate parser 重 parse raw；
+8. reparse candidate hash mismatch 必须失败；
+9. 删除 raw reparse 的 mutation 必须被测试捕获；
+10. 删除 candidate-hash comparison 的 mutation 必须被测试捕获；
+11. 删除 raw-hash comparison 的 mutation 必须被测试捕获；
+12. Provider 不能提供与 raw 不一致的 independent candidate；
 13. 单独 `TrustedScoreResult` 不足以构造 G raw envelope；
-14. G cutover/recovery 不得 provider recall。
+14. G 不得 provider recall；
+15. F 不产生 Artifact、cache entry、ProviderCall success、DB 或 filesystem side effect。
+
+既有 final raw 内存保留、byte 上限、strict UTF-8、provider/model/digest/`PRIMARY` role/request binding、
+no-repair/no-legacy-upgrade tests 必须保留；本矩阵只补强 raw→candidate semantic binding，不能替代这些基础边界。
 
 每个拒绝还必须证明没有 `response_artifact_id`、stage advance、cache hit 或 legacy upgrade；
 F 的 PRIMARY quality/attestation 失败直接 fail-closed，repair/retry 测试只属于 H。
-并且必须覆盖 aggregate private-sentinel/exact-type、封存 request/candidate hash 的 mutation/spoof
+并且必须覆盖 aggregate private-sentinel/exact-type、封存 request/candidate/raw hash 的 mutation/spoof
 拒绝，以及 F-G-H 接口不 return/accept bare `ScoreResult`。
 
 ## 6. Local Judge contract tests
