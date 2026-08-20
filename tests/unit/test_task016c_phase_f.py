@@ -31,7 +31,6 @@ from youtube_intel.domain import (
     ContentQualityResult,
     ContentQualitySignal,
     ContentQualityStatus,
-    DeterministicGateReason,
     LiveStatus,
     QualityJudgeOperationInput,
     QualityPassAttestation,
@@ -42,11 +41,13 @@ from youtube_intel.domain import (
     VideoMetadata,
 )
 from youtube_intel.providers.ollama import (
+    OllamaQualityJudgeProvider,
     OllamaScoringProvider,
     parse_scoring_candidate,
 )
 from youtube_intel.quality import (
     TrustedScoreResult,
+    TrustedScoringFinalizer,
     build_content_quality_input_hash,
     build_quality_pass_attestation,
     build_scoring_candidate_hash,
@@ -55,11 +56,11 @@ from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
+    _mint_phase_f_trusted_scoring_success,
+    _run_primary_trusted_scoring_seam,
     build_primary_scoring_attempt,
     build_scoring_input,
     build_scoring_request_identity,
-    mint_phase_f_trusted_scoring_success,
-    run_primary_trusted_scoring_seam,
 )
 
 _EN_REASON = (
@@ -283,6 +284,8 @@ def _seam_kwargs(
         "quality_authority": runtime._quality_provenance_authority,
         "scoring_context": runtime._trusted_scoring_context,
     }
+
+
 
 
 def _write_project(project: Path) -> None:
@@ -677,7 +680,7 @@ def test_seam_rejects_attempt_raw_hash_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="raw"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -696,7 +699,7 @@ def test_seam_rejects_attempt_candidate_hash_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="candidate"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -713,7 +716,7 @@ def test_seam_rejects_attempt_candidate_not_from_raw(tmp_path: Path) -> None:
     attempt = PrimaryScoringAttempt(**kwargs)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="candidate"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate_b)
         )
 
@@ -732,7 +735,7 @@ def test_seam_rejects_request_identity_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="request"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -751,7 +754,7 @@ def test_seam_rejects_provider_model_digest_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="provider"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -770,7 +773,7 @@ def test_seam_rejects_non_primary_attempt_role(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="PRIMARY"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -801,7 +804,7 @@ def test_seam_rejects_bare_score_result(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="PrimaryScoringAttempt"):
-        run_primary_trusted_scoring_seam(
+        _run_primary_trusted_scoring_seam(
             attempt=legacy, **_seam_kwargs(runtime, scoring_input, candidate)
         )
 
@@ -814,7 +817,7 @@ def test_seam_rejects_mapping_and_json_in_attempt_slot(tmp_path: Path) -> None:
 
     for forged in (_candidate_fields(), json.dumps(_candidate_fields())):
         with pytest.raises(ValueError, match="PrimaryScoringAttempt"):
-            run_primary_trusted_scoring_seam(attempt=forged, **base)  # type: ignore[arg-type]
+            _run_primary_trusted_scoring_seam(attempt=forged, **base)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -824,13 +827,13 @@ def test_seam_rejects_mapping_and_json_in_attempt_slot(tmp_path: Path) -> None:
 
 
 def test_primary_flow_reaches_phase_f_trusted_scoring_success(tmp_path: Path) -> None:
-    runtime = _runtime(tmp_path / "project")
+    runtime, _ = _judge_runtime(tmp_path / "project")
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, **_seam_kwargs(runtime, scoring_input, attempt.candidate)
+        attempt=attempt, scoring_input=scoring_input
     )
 
     assert type(success) is PhaseFTrustedScoringSuccess
@@ -845,17 +848,17 @@ def test_primary_flow_reaches_phase_f_trusted_scoring_success(tmp_path: Path) ->
 
 
 def test_trusted_result_alone_is_not_a_phase_f_success(tmp_path: Path) -> None:
-    runtime = _runtime(tmp_path / "project")
+    runtime, _ = _judge_runtime(tmp_path / "project")
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, **_seam_kwargs(runtime, scoring_input, attempt.candidate)
+        attempt=attempt, scoring_input=scoring_input
     )
 
     assert not isinstance(success.trusted_result, PhaseFTrustedScoringSuccess)
     with pytest.raises(ValueError, match="PrimaryScoringAttempt"):
-        mint_phase_f_trusted_scoring_success(
+        _mint_phase_f_trusted_scoring_success(
             trusted_result=success.trusted_result, primary_attempt=object()
         )
 
@@ -870,48 +873,40 @@ def test_language_failure_blocks_success_aggregate(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, **_seam_kwargs(runtime, scoring_input, attempt.candidate)
+            attempt=attempt, scoring_input=scoring_input
         )
 
 
 def test_quality_reject_blocks_success_aggregate(tmp_path: Path) -> None:
-    runtime = _runtime(tmp_path / "project")
+    """A deterministic gate rejection blocks the trusted success aggregate.
+
+    The runtime no longer accepts caller-provided quality results; this test
+    exercises the same fail-closed path through the deterministic gate.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
     scoring_input = _scoring_input()
-    raw = _raw_response(_candidate_fields())
+    raw = _raw_response(
+        _candidate_fields(
+            reason="This video explains product strategy.\nThis video explains product strategy."
+        )
+    )
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    kwargs = _seam_kwargs(runtime, scoring_input, attempt.candidate)
-    candidate_hash = build_scoring_candidate_hash(attempt.candidate)
-    quality_input_hash = build_content_quality_input_hash(
-        kwargs["quality_input"]  # type: ignore[arg-type]
-    )
-    reject_result = ContentQualityResult.model_validate(
-        {
-            "schema_version": "content-quality-result-v1",
-            "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
-            "status": ContentQualityStatus.REJECT.value,
-            "decision_source": ContentQualityDecisionSource.DETERMINISTIC_GATE.value,
-            "decision_confidence": ContentQualityConfidence.HIGH.value,
-            "grounding_confidence": ContentQualityConfidence.LOW.value,
-            "usefulness_confidence": ContentQualityConfidence.LOW.value,
-            "signals": [],
-            "reason": DeterministicGateReason.EMPTY_CONTENT.value,
-            "evidence_ids": [],
-            "candidate_hash": candidate_hash,
-            "quality_input_hash": quality_input_hash,
-            "scoring_request_hash": scoring_input.request_hash,
-            "judge_provider": None,
-            "judge_model": None,
-            "judge_model_digest": None,
-        }
-    )
-    kwargs["quality_result"] = reject_result
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(attempt=attempt, **kwargs)
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt, scoring_input=scoring_input
+        )
 
 
 def test_attestation_mismatch_blocks_success_aggregate(tmp_path: Path) -> None:
+    """A foreign attestation supplied to the private seam must fail finalization.
+
+    The public runtime method constructs the attestation internally; the
+    mismatch attack is only possible against the private seam, which remains
+    fail-closed.
+    """
+
     runtime = _runtime(tmp_path / "project")
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields(score=8.0))
@@ -924,7 +919,7 @@ def test_attestation_mismatch_blocks_success_aggregate(tmp_path: Path) -> None:
     kwargs["attestation"] = foreign_attestation
 
     with pytest.raises(ValueError, match="attestation"):
-        runtime.run_primary_trusted_scoring(attempt=attempt, **kwargs)
+        _run_primary_trusted_scoring_seam(attempt=attempt, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -939,7 +934,7 @@ def test_success_mint_rejects_forged_trusted_result(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError, match="TrustedScoreResult"):
-        mint_phase_f_trusted_scoring_success(
+        _mint_phase_f_trusted_scoring_success(
             trusted_result=object(), primary_attempt=attempt
         )
 
@@ -947,12 +942,12 @@ def test_success_mint_rejects_forged_trusted_result(tmp_path: Path) -> None:
 def test_success_aggregate_is_opaque_immutable_and_non_serializable(
     tmp_path: Path,
 ) -> None:
-    runtime = _runtime(tmp_path / "project")
+    runtime, _ = _judge_runtime(tmp_path / "project")
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, **_seam_kwargs(runtime, scoring_input, attempt.candidate)
+        attempt=attempt, scoring_input=scoring_input
     )
 
     with pytest.raises(ValueError, match="mint"):
@@ -983,7 +978,7 @@ def test_primary_flow_has_zero_persistence_and_no_legacy_service(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
-    runtime = _runtime(project)
+    runtime, _ = _judge_runtime(project)
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
@@ -991,7 +986,7 @@ def test_primary_flow_has_zero_persistence_and_no_legacy_service(
     before = _snapshot(project)
     data_before = _snapshot(project / "data")
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, **_seam_kwargs(runtime, scoring_input, attempt.candidate)
+        attempt=attempt, scoring_input=scoring_input
     )
     after = _snapshot(project)
     data_after = _snapshot(project / "data")
@@ -999,9 +994,333 @@ def test_primary_flow_has_zero_persistence_and_no_legacy_service(
     assert after == before
     assert data_after == data_before
     assert type(success) is PhaseFTrustedScoringSuccess
-    seam_source = inspect.getsource(run_primary_trusted_scoring_seam)
+    seam_source = inspect.getsource(_run_primary_trusted_scoring_seam)
     assert "RepositoryBackedScoringService" not in seam_source
     # the seam has no provider handle, so it cannot recall the provider
     assert "provider" not in inspect.signature(
-        run_primary_trusted_scoring_seam
+        _run_primary_trusted_scoring_seam
     ).parameters
+
+
+def _judge_pass() -> dict[str, object]:
+    return {
+        "status": "PASS",
+        "decision_confidence": "HIGH",
+        "grounding_confidence": "MEDIUM",
+        "usefulness_confidence": "MEDIUM",
+        "signals": ["MINIMAL_CLAIM_PRESENT", "GROUNDING_PRESENT"],
+        "reason": None,
+        "evidence_ids": ["title-1"],
+    }
+
+
+def _judge_reject() -> dict[str, object]:
+    return {
+        "status": "REJECT",
+        "decision_confidence": "HIGH",
+        "grounding_confidence": "LOW",
+        "usefulness_confidence": "LOW",
+        "signals": ["LOW_INFORMATION"],
+        "reason": "Content exhibits spam patterns.",
+        "evidence_ids": [],
+    }
+
+
+def _judge_runtime(
+    project: Path,
+    *,
+    responses: list[object] | None = None,
+) -> tuple[RuntimeOperations, _FakeTransport]:
+    """Create a runtime whose local Judge provider uses a fake transport.
+
+    If the current ``RuntimeDependencies`` does not yet support a Judge provider
+    factory, the runtime is created without one and the calling test will fail
+    at the public API boundary instead.
+    """
+
+    _write_project(project)
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+    transport = _FakeTransport(
+        responses if responses is not None else [_tags(), _generate(_judge_pass())]
+    )
+    deps_kwargs: dict[str, object] = {
+        "discovery_source": object(),  # type: ignore[arg-type]
+        "metadata_provider": object(),  # type: ignore[arg-type]
+        "subtitle_adapter_factory": lambda: object(),  # type: ignore[arg-type]
+        "scoring_provider_factory": lambda: object(),  # type: ignore[arg-type]
+        "analysis_provider_factory": lambda: object(),  # type: ignore[arg-type]
+    }
+    if "quality_judge_provider_factory" in inspect.signature(
+        RuntimeDependencies
+    ).parameters:
+        deps_kwargs["quality_judge_provider_factory"] = (
+            lambda: OllamaQualityJudgeProvider(
+                settings=config.settings.local_scoring,
+                transport=transport,
+            )
+        )
+    return (
+        RuntimeOperations(
+            config=config,
+            project_root=project,
+            dependencies=RuntimeDependencies(**deps_kwargs),  # type: ignore[arg-type]
+        ),
+        transport,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase F Correction Round 1: public surface and authority boundaries (P1-1, P1-3)
+# ---------------------------------------------------------------------------
+
+
+def test_mint_is_not_a_public_export() -> None:
+    import youtube_intel.scoring as scoring_module
+
+    assert "_mint_phase_f_trusted_scoring_success" not in scoring_module.__all__
+
+
+def test_seam_is_not_a_public_export() -> None:
+    import youtube_intel.scoring as scoring_module
+
+    assert "_run_primary_trusted_scoring_seam" not in scoring_module.__all__
+
+
+def test_mint_rejects_raw_a_candidate_b_bypass(tmp_path: Path) -> None:
+    """A legitimate TrustedScoreResult B plus a forged raw-A/candidate-B attempt
+    must be rejected at the aggregate mint.
+
+    The attack relies on constructing ``PrimaryScoringAttempt`` directly (it is
+    a frozen dataclass) so that ``build_primary_scoring_attempt`` cannot enforce
+    raw->candidate equality.  The mint must independently re-parse the raw body
+    and verify it matches the attempt's candidate.
+    """
+
+    runtime = _runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw_a = _raw_response(_candidate_fields(score=8.0))
+    candidate_b = ScoringCandidate.model_validate(_candidate_fields(score=9.0))
+    identity = _identity(scoring_input)
+
+    forged = PrimaryScoringAttempt(
+        scoring_input_normalized_hash=identity.normalized_input_hash,
+        scoring_request_hash=identity.request_hash,
+        candidate=candidate_b,
+        candidate_hash=build_scoring_candidate_hash(candidate_b),
+        raw_response_hash=hashlib.sha256(raw_a.encode("utf-8")).hexdigest(),
+        provider="ollama",
+        model=_MODEL,
+        model_digest=_DIGEST,
+        attempt_role="PRIMARY",
+        final_raw_response=raw_a,
+    )
+
+    quality_input, quality_result, operation, attestation = _quality_materials(
+        runtime, scoring_input, candidate_b
+    )
+    trusted_b = TrustedScoringFinalizer().finalize(
+        candidate=candidate_b,
+        scoring_input=scoring_input,
+        quality_input=quality_input,
+        quality_result=quality_result,
+        quality_operation=operation,
+        attestation=attestation,
+        quality_authority=runtime._quality_provenance_authority,
+        scoring_context=runtime._trusted_scoring_context,
+    )
+
+    with pytest.raises(ValueError, match="candidate"):
+        _mint_phase_f_trusted_scoring_success(
+            trusted_result=trusted_b, primary_attempt=forged
+        )
+
+
+def test_mint_rejects_business_field_mismatch(tmp_path: Path) -> None:
+    """A TrustedScoreResult from candidate B bound to a legitimate attempt for
+    candidate A must be rejected: the aggregate mint must verify score, reason,
+    topics, should_summarize, and dimensions match the attempt's candidate.
+    """
+
+    runtime = _runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw_a = _raw_response(_candidate_fields(score=8.0))
+    attempt_a = _build_attempt(scoring_input=scoring_input, raw=raw_a)
+    candidate_b = ScoringCandidate.model_validate(_candidate_fields(score=9.0))
+
+    quality_input, quality_result, operation, attestation = _quality_materials(
+        runtime, scoring_input, candidate_b
+    )
+    trusted_b = TrustedScoringFinalizer().finalize(
+        candidate=candidate_b,
+        scoring_input=scoring_input,
+        quality_input=quality_input,
+        quality_result=quality_result,
+        quality_operation=operation,
+        attestation=attestation,
+        quality_authority=runtime._quality_provenance_authority,
+        scoring_context=runtime._trusted_scoring_context,
+    )
+
+    with pytest.raises(ValueError, match="business|score|reason|topics|should_summarize|dimensions"):
+        _mint_phase_f_trusted_scoring_success(
+            trusted_result=trusted_b, primary_attempt=attempt_a
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase F Correction Round 1: deterministic gate and Local Judge ordering (P1-2)
+# ---------------------------------------------------------------------------
+
+
+def test_deterministic_gate_blocks_exact_repetition(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields(reason="This video explains product strategy.\nThis video explains product strategy."))
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(ValueError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt, scoring_input=scoring_input
+        )
+
+
+def test_deterministic_reject_prevents_judge_call(tmp_path: Path) -> None:
+    runtime, transport = _judge_runtime(tmp_path / "project", responses=[])
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields(reason="This video explains product strategy.\nThis video explains product strategy."))
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(ValueError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt, scoring_input=scoring_input
+        )
+
+    assert transport.requests == []
+
+
+def test_judge_non_pass_prevents_trusted_success(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(
+        tmp_path / "project",
+        responses=[_tags(), _generate(_judge_reject())],
+    )
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(ValueError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt, scoring_input=scoring_input
+        )
+
+
+def test_judge_failure_prevents_trusted_success(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(
+        tmp_path / "project",
+        responses=[_tags(), ConnectionRefusedError("judge down")],
+    )
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(ValueError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt, scoring_input=scoring_input
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase F Correction Round 1: runtime authority boundary (P1-3)
+# ---------------------------------------------------------------------------
+
+
+def test_runtime_rejects_quality_authority_param(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(TypeError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt,
+            scoring_input=scoring_input,
+            quality_authority=runtime._quality_provenance_authority,
+        )
+
+
+def test_runtime_rejects_scoring_context_param(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
+
+    with pytest.raises(TypeError):
+        runtime.run_primary_trusted_scoring(
+            attempt=attempt,
+            scoring_input=scoring_input,
+            scoring_context=runtime._trusted_scoring_context,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase F Correction Round 1: independent provider/model/digest regression (P2)
+# ---------------------------------------------------------------------------
+
+
+def test_seam_rejects_provider_mismatch(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    candidate = parse_scoring_candidate(raw)
+    identity = _identity(scoring_input)
+    kwargs = _attempt_kwargs(
+        scoring_input=scoring_input, raw=raw, candidate=candidate, identity=identity
+    )
+    attempt = PrimaryScoringAttempt(
+        **{**kwargs, "provider": "openai"}  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="provider"):
+        _run_primary_trusted_scoring_seam(
+            attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
+        )
+
+
+def test_seam_rejects_model_mismatch(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    candidate = parse_scoring_candidate(raw)
+    identity = _identity(scoring_input)
+    kwargs = _attempt_kwargs(
+        scoring_input=scoring_input, raw=raw, candidate=candidate, identity=identity
+    )
+    attempt = PrimaryScoringAttempt(
+        **{**kwargs, "model": "qwen3:14b"}  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="model"):
+        _run_primary_trusted_scoring_seam(
+            attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
+        )
+
+
+def test_seam_rejects_digest_mismatch_independent(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path / "project")
+    scoring_input = _scoring_input()
+    raw = _raw_response(_candidate_fields())
+    candidate = parse_scoring_candidate(raw)
+    identity = _identity(scoring_input)
+    kwargs = _attempt_kwargs(
+        scoring_input=scoring_input, raw=raw, candidate=candidate, identity=identity
+    )
+    attempt = PrimaryScoringAttempt(
+        **{**kwargs, "model_digest": "sha256:" + ("f" * 64)}  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="digest"):
+        _run_primary_trusted_scoring_seam(
+            attempt=attempt, **_seam_kwargs(runtime, scoring_input, candidate)
+        )

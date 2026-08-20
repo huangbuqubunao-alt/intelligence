@@ -32,23 +32,24 @@ from youtube_intel.domain import (
     AppError,
     ChannelRef,
     ContentQualityInput,
-    ContentQualityResult,
     ErrorCode,
     JobStatus,
     MetadataProvider,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
+    QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
-    QualityPassAttestation,
     ScoreResult,
     ScoringDecision,
+    ScoringEvidenceSource,
     ScoringInput,
     ScoringOutcome,
     SourceProvider,
     TranscriptionRequired,
     TranscriptReady,
     VideoMetadata,
+    scoring_reason_matches_output_language,
     validate_score_result_json,
 )
 from youtube_intel.jobs import PipelineJobPlanner
@@ -56,7 +57,10 @@ from youtube_intel.operations import CommandOutcome, ExitCode, Operations
 from youtube_intel.pipeline import PipelineOrchestrator
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
-from youtube_intel.providers.ollama import OllamaScoringProvider
+from youtube_intel.providers.ollama import (
+    OllamaQualityJudgeProvider,
+    OllamaScoringProvider,
+)
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.quality import (
@@ -69,10 +73,13 @@ from youtube_intel.quality import (
     _SCORING_PROMPT_VERSION,
     _SCORING_SCHEMA_VERSION,
     _TRUSTED_SCORING_CONTEXT_SENTINEL,
+    DeterministicContentQualityGate,
     QualityProvenanceAuthority,
     TrustedScoringContext,
     _mint_quality_provenance_authority,
     _mint_trusted_scoring_context,
+    build_content_quality_input_hash,
+    build_quality_pass_attestation,
 )
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
@@ -82,7 +89,8 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     RepositoryBackedScoringService,
     ScoringJobContext,
-    run_primary_trusted_scoring_seam,
+    _run_primary_trusted_scoring_seam,
+    build_scoring_request_identity,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -113,6 +121,7 @@ class RuntimeDependencies:
     subtitle_adapter_factory: Callable[[], SubtitleAdapter]
     scoring_provider_factory: Callable[[], Any]
     analysis_provider_factory: Callable[[], Any]
+    quality_judge_provider_factory: Callable[[], Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +270,9 @@ def _production_dependencies(config: AppConfig) -> RuntimeDependencies:
             model=cloud.model or "cloud-disabled",
             max_output_tokens=cloud.max_output_tokens,
         ),
+        quality_judge_provider_factory=lambda: OllamaQualityJudgeProvider(
+            settings=config.settings.local_scoring,
+        ),
     )
 
 
@@ -280,6 +292,11 @@ class RuntimeOperations(Operations):
             config.settings.local_scoring
         )
         self._trusted_scoring_context = _build_trusted_scoring_context(config)
+        self._quality_judge_provider = (
+            self._dependencies.quality_judge_provider_factory()
+            if self._dependencies.quality_judge_provider_factory is not None
+            else OllamaQualityJudgeProvider(settings=config.settings.local_scoring)
+        )
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,
@@ -294,29 +311,154 @@ class RuntimeOperations(Operations):
         *,
         attempt: PrimaryScoringAttempt,
         scoring_input: ScoringInput,
-        quality_input: ContentQualityInput,
-        quality_result: ContentQualityResult,
-        quality_operation: QualityJudgeOperationInput,
-        attestation: QualityPassAttestation,
-        quality_authority: QualityProvenanceAuthority,
-        scoring_context: TrustedScoringContext,
     ) -> PhaseFTrustedScoringSuccess:
         """Run the Phase F in-memory trusted scoring seam (memory only).
 
-        This is a thin explicit surface for the PRIMARY-only seam; the default
-        pipeline dispatch and the legacy ``RepositoryBackedScoringService``
-        compatibility path are unchanged.
+        The runtime owns the quality provenance authority and trusted scoring
+        context; callers cannot inject them.  The method enforces the mandatory
+        order: attempt binding, TASK-016B language validation,
+        ``DeterministicContentQualityGate``, PRIMARY Local Quality Judge,
+        attestation construction, and finalization through the private seam.
         """
 
-        return run_primary_trusted_scoring_seam(
+        if type(attempt) is not PrimaryScoringAttempt:
+            msg = "trusted scoring requires an exact PrimaryScoringAttempt"
+            raise ValueError(msg)
+        if attempt.attempt_role != "PRIMARY":
+            msg = "trusted scoring accepts only PRIMARY attempts"
+            raise ValueError(msg)
+        if type(scoring_input) is not ScoringInput:
+            msg = "trusted scoring requires an exact ScoringInput"
+            raise ValueError(msg)
+
+        context = self._trusted_scoring_context
+        if attempt.provider != context.scoring_provider:
+            msg = "attempt provider mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if attempt.model != context.scoring_model:
+            msg = "attempt model mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if attempt.model_digest != context.scoring_model_digest:
+            msg = "attempt model digest mismatches the trusted scoring context"
+            raise ValueError(msg)
+
+        try:
+            raw_bytes = attempt.final_raw_response.encode("utf-8")
+        except UnicodeEncodeError:
+            msg = "raw response is not valid strict UTF-8"
+            raise ValueError(msg) from None
+        raw_response_hash = hashlib.sha256(raw_bytes).hexdigest()
+        if raw_response_hash != attempt.raw_response_hash:
+            msg = "raw response hash mismatches the primary attempt binding"
+            raise ValueError(msg)
+
+        from youtube_intel.providers.ollama import parse_scoring_candidate
+
+        reparsed_candidate = parse_scoring_candidate(attempt.final_raw_response)
+        if reparsed_candidate != attempt.candidate:
+            msg = "candidate does not match the canonical parse of the raw response"
+            raise ValueError(msg)
+
+        from youtube_intel.quality import build_scoring_candidate_hash
+
+        candidate_hash = build_scoring_candidate_hash(attempt.candidate)
+        if candidate_hash != attempt.candidate_hash:
+            msg = "candidate hash mismatches the primary attempt binding"
+            raise ValueError(msg)
+
+        identity = build_scoring_request_identity(
+            scoring_input=scoring_input,
+            model=context.scoring_model,
+            temperature=context.temperature,
+            max_output_tokens=context.max_output_tokens,
+            max_description_chars=context.max_description_chars,
+        )
+        if attempt.scoring_request_hash != identity.request_hash:
+            msg = "scoring request hash mismatches the canonical identity"
+            raise ValueError(msg)
+        if attempt.scoring_input_normalized_hash != identity.normalized_input_hash:
+            msg = "scoring input identity mismatches the canonical identity"
+            raise ValueError(msg)
+        if scoring_input.request_hash != identity.request_hash:
+            msg = "scoring request hash mismatches the trusted scoring input"
+            raise ValueError(msg)
+
+        # TASK-016B language validation before the deterministic gate.
+        if not scoring_reason_matches_output_language(
+            attempt.candidate.reason, scoring_input.output_language
+        ):
+            msg = "candidate reason does not match output_language"
+            raise ValueError(msg)
+
+        # Build the content-quality input from the candidate and scoring input.
+        quality_input = ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": scoring_input.request_hash,
+                "candidate_hash": candidate_hash,
+                "output_language": scoring_input.output_language,
+                "reason": attempt.candidate.reason,
+                "topics": list(attempt.candidate.topics),
+                "evidence_registry": [
+                    {
+                        "evidence_id": "title-1",
+                        "source": ScoringEvidenceSource.TITLE.value,
+                        "excerpt": scoring_input.video.title,
+                    }
+                ],
+            }
+        )
+        quality_input_hash = build_content_quality_input_hash(quality_input)
+
+        # Deterministic gate: fail closed on deterministic rejection.
+        gate_result = DeterministicContentQualityGate().evaluate(
+            content=attempt.candidate.reason,
+            candidate_hash=candidate_hash,
+            quality_input_hash=quality_input_hash,
+            scoring_request_hash=scoring_input.request_hash,
+        )
+        if gate_result is not None:
+            msg = "deterministic content quality gate rejected the candidate"
+            raise ValueError(msg)
+
+        # PRIMARY Local Quality Judge: caller cannot supply a result.
+        quality_operation = QualityJudgeOperationInput.model_validate(
+            {
+                "scoring_request_hash": scoring_input.request_hash,
+                "attempt_role": QualityJudgeAttemptRole.PRIMARY.value,
+                "candidate_hash": candidate_hash,
+                "quality_input_hash": quality_input_hash,
+                "policy_version": _QUALITY_POLICY_VERSION,
+                "prompt_version": _QUALITY_PROMPT_VERSION,
+                "schema_version": _QUALITY_SCHEMA_VERSION,
+                "judge_provider": _JUDGE_PROVIDER,
+                "judge_model": self._config.settings.local_scoring.model,
+                "judge_model_digest": self._config.settings.local_scoring.expected_model_digest,
+            }
+        )
+        quality_result = self._quality_judge_provider.judge(
+            quality_operation,
+            content_input=quality_input,
+        )
+        if quality_result.status.value != "PASS":
+            msg = "local quality judge did not PASS the candidate"
+            raise ValueError(msg)
+
+        attestation = build_quality_pass_attestation(
+            quality_result=quality_result,
+            operation_input=quality_operation,
+            quality_input=quality_input,
+            authority=self._quality_provenance_authority,
+        )
+
+        return _run_primary_trusted_scoring_seam(
             attempt=attempt,
             scoring_input=scoring_input,
             quality_input=quality_input,
             quality_result=quality_result,
             quality_operation=quality_operation,
             attestation=attestation,
-            quality_authority=quality_authority,
-            scoring_context=scoring_context,
+            quality_authority=self._quality_provenance_authority,
+            scoring_context=self._trusted_scoring_context,
         )
 
     @staticmethod

@@ -1751,7 +1751,7 @@ class PhaseFTrustedScoringSuccess:
         raise TypeError("PhaseFTrustedScoringSuccess cannot be serialized")
 
 
-def mint_phase_f_trusted_scoring_success(
+def _mint_phase_f_trusted_scoring_success(
     *,
     trusted_result: TrustedScoreResult,
     primary_attempt: PrimaryScoringAttempt,
@@ -1759,9 +1759,13 @@ def mint_phase_f_trusted_scoring_success(
     """Seal the only Phase F success aggregate with self-verifying hashes.
 
     A bare ``TrustedScoreResult`` is not a Phase F success; the aggregate is
-    minted only with the exact primary attempt and re-verified in memory.
+    minted only with the exact primary attempt and re-verified in memory.  The
+    mint is private to the seam: it independently re-parses the bounded raw
+    body and binds every business field between the trusted result and the
+    attempt's candidate, closing the direct-construction bypass.
     """
 
+    from youtube_intel.providers.ollama import parse_scoring_candidate
     from youtube_intel.quality import (
         TrustedScoreResult,
         build_scoring_candidate_hash,
@@ -1797,6 +1801,27 @@ def mint_phase_f_trusted_scoring_success(
         msg = "trusted result request hash mismatches the primary attempt binding"
         raise ValueError(msg)
 
+    # Independent raw re-parse: a forged attempt with raw A + candidate B must
+    # fail even when all hashes are self-consistent.
+    reparsed_candidate = parse_scoring_candidate(primary_attempt.final_raw_response)
+    if reparsed_candidate != primary_attempt.candidate:
+        msg = "candidate does not match the canonical parse of the raw response"
+        raise ValueError(msg)
+
+    # Business-field binding: the trusted result must describe exactly the
+    # attempt's candidate, not merely a self-consistent request hash.
+    result = trusted_result.result
+    candidate = primary_attempt.candidate
+    if (
+        result.score != candidate.score
+        or result.reason != candidate.reason
+        or result.topics != candidate.topics
+        or result.should_summarize != candidate.should_summarize
+        or result.dimensions != candidate.dimensions
+    ):
+        msg = "trusted result business fields mismatch the primary attempt candidate"
+        raise ValueError(msg)
+
     return PhaseFTrustedScoringSuccess(
         sentinel=_PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL,
         trusted_result=trusted_result,
@@ -1807,7 +1832,7 @@ def mint_phase_f_trusted_scoring_success(
     )
 
 
-def run_primary_trusted_scoring_seam(
+def _run_primary_trusted_scoring_seam(
     *,
     attempt: PrimaryScoringAttempt,
     scoring_input: ScoringInput,
@@ -1913,7 +1938,7 @@ def run_primary_trusted_scoring_seam(
         quality_authority=quality_authority,
         scoring_context=scoring_context,
     )
-    return mint_phase_f_trusted_scoring_success(
+    return _mint_phase_f_trusted_scoring_success(
         trusted_result=trusted_result,
         primary_attempt=attempt,
     )
@@ -1933,7 +1958,5 @@ __all__ = [
     "ScoringService",
     "build_primary_scoring_attempt",
     "build_scoring_input",
-    "mint_phase_f_trusted_scoring_success",
-    "run_primary_trusted_scoring_seam",
     "sample_transcript",
 ]
