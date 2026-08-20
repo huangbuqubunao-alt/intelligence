@@ -7,6 +7,7 @@ service, and SQLite are production code.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
@@ -18,17 +19,26 @@ from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
     Availability,
     ChannelRef,
+    ContentQualityConfidence,
+    ContentQualityDecisionSource,
+    ContentQualityInput,
+    ContentQualityResult,
+    ContentQualitySignal,
+    ContentQualityStatus,
     DiscoveryBatch,
     DiscoveryCursor,
     LiveStatus,
     ProviderCallMetadata,
+    QualityJudgeOperationInput,
     ScoreResult,
     SubtitleFormat,
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.providers.ollama import parse_scoring_candidate
 from youtube_intel.quality import QualityProvenanceAuthority
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_attempt
 from youtube_intel.state import PipelineStatus, SQLiteStateRepository
 from youtube_intel.transcripts import (
     SubtitleReadResult,
@@ -149,16 +159,48 @@ class _ScoringProvider:
         self.calls = 0
         self._raw_response: str | None = None
 
+    def _raw_envelope(self) -> str:
+        inner = json.dumps(
+            {
+                "score": 8.6,
+                "reason": "该回答解释了具体的产品策略，并包含有用的权衡分析。",
+                "topics": ["product"],
+                "should_summarize": True,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return json.dumps(
+            {"model": "qwen3:8b", "response": inner, "done": True},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def primary_attempt(self, scoring_input: object) -> PrimaryScoringAttempt:
+        self.calls += 1
+        self._raw_response = self._raw_envelope()
+        candidate = parse_scoring_candidate(self._raw_response)
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            candidate=candidate,
+            final_raw_response=self._raw_response,
+            provider="ollama",
+            model="qwen3:8b",
+            model_digest="sha256:" + "1" * 64,
+            temperature=0.0,
+            max_output_tokens=1200,
+            max_description_chars=32,
+        )
+
     def score(self, scoring_input: object) -> ScoreResult:
         self.calls += 1
-        self._raw_response = (
-            '{"score":8.6,"reason":"controlled local result",'
-            '"topics":["product"],"should_summarize":true}'
-        )
+        self._raw_response = self._raw_envelope()
         return ScoreResult(
             schema_version="score-result-v2",
             score=8.6,
-            reason="受控本地评分覆盖了正式运行时组合。",
+            reason="该回答解释了具体的产品策略，并包含有用的权衡分析。",
             topics=("product",),
             should_summarize=True,
             provider="ollama",
@@ -174,6 +216,39 @@ class _ScoringProvider:
         response = self._raw_response
         self._raw_response = None
         return response
+
+
+class _QualityJudgeProvider:
+    """Controlled Judge boundary that always PASSes the fixture candidate."""
+
+    def judge(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        *,
+        content_input: ContentQualityInput | None,
+    ) -> ContentQualityResult:
+        del content_input
+        return ContentQualityResult.model_validate(
+            {
+                "status": ContentQualityStatus.PASS,
+                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+                "decision_confidence": ContentQualityConfidence.HIGH,
+                "grounding_confidence": ContentQualityConfidence.MEDIUM,
+                "usefulness_confidence": ContentQualityConfidence.MEDIUM,
+                "signals": [
+                    ContentQualitySignal.MINIMAL_CLAIM_PRESENT,
+                    ContentQualitySignal.GROUNDING_PRESENT,
+                ],
+                "reason": None,
+                "evidence_ids": ["title-1"],
+                "candidate_hash": operation_input.candidate_hash,
+                "quality_input_hash": operation_input.quality_input_hash,
+                "scoring_request_hash": operation_input.scoring_request_hash,
+                "judge_provider": operation_input.judge_provider,
+                "judge_model": operation_input.judge_model,
+                "judge_model_digest": operation_input.judge_model_digest,
+            }
+        )
 
 
 def _project(
@@ -289,6 +364,7 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
     metadata = _MetadataProvider()
     subtitle = _SubtitleAdapter()
     scoring = _ScoringProvider()
+    judge = _QualityJudgeProvider()
 
     monkeypatch.setattr(
         "youtube_intel.runtime._production_dependencies",
@@ -300,6 +376,7 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
             analysis_provider_factory=lambda: pytest.fail(
                 "cloud-disabled composition called the cloud provider"
             ),
+            quality_judge_provider_factory=lambda: judge,
         ),
     )
 
@@ -347,6 +424,7 @@ def test_no_subtitle_stops_at_named_transcription_prerequisite(
     project = _project(tmp_path)
     subtitle = _NoSubtitleAdapter()
     scoring = _ScoringProvider()
+    judge = _QualityJudgeProvider()
     monkeypatch.setattr(
         "youtube_intel.runtime._production_dependencies",
         lambda _config: RuntimeDependencies(
@@ -355,6 +433,7 @@ def test_no_subtitle_stops_at_named_transcription_prerequisite(
             subtitle_adapter_factory=lambda: subtitle,
             scoring_provider_factory=lambda: scoring,
             analysis_provider_factory=lambda: pytest.fail("cloud provider was called"),
+            quality_judge_provider_factory=lambda: judge,
         ),
     )
     assert main(["--project-root", str(project), "check", "--limit", "1"]) is ExitCode.OK

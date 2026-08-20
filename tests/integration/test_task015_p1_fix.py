@@ -21,18 +21,27 @@ from youtube_intel.domain import (
     AnalysisResult,
     Availability,
     ChannelRef,
+    ContentQualityConfidence,
+    ContentQualityDecisionSource,
+    ContentQualityInput,
+    ContentQualityResult,
+    ContentQualitySignal,
+    ContentQualityStatus,
     DiscoveryBatch,
     DiscoveryCursor,
     EvidenceSource,
     LiveStatus,
     PointKind,
     ProviderCallMetadata,
+    QualityJudgeOperationInput,
     ScoreResult,
     SubtitleFormat,
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.providers.ollama import parse_scoring_candidate
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_attempt
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -179,12 +188,44 @@ class _ScoringProvider:
         self.calls = 0
         self._raw_response: str | None = None
 
+    def _raw_envelope(self) -> str:
+        inner = json.dumps(
+            {
+                "score": 8.6,
+                "reason": "受控本地评分覆盖了正式运行时组合。",
+                "topics": ["product"],
+                "should_summarize": True,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return json.dumps(
+            {"model": "qwen3:8b", "response": inner, "done": True},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def primary_attempt(self, scoring_input: object) -> PrimaryScoringAttempt:
+        self.calls += 1
+        self._raw_response = self._raw_envelope()
+        candidate = parse_scoring_candidate(self._raw_response)
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            candidate=candidate,
+            final_raw_response=self._raw_response,
+            provider="ollama",
+            model="qwen3:8b",
+            model_digest="sha256:" + "1" * 64,
+            temperature=0.0,
+            max_output_tokens=1200,
+            max_description_chars=32,
+        )
+
     def score(self, scoring_input: object) -> ScoreResult:
         self.calls += 1
-        self._raw_response = (
-            '{"score":8.6,"reason":"controlled local result",'
-            '"topics":["product"],"should_summarize":true}'
-        )
+        self._raw_response = self._raw_envelope()
         return ScoreResult(
             schema_version="score-result-v2",
             score=8.6,
@@ -242,10 +283,44 @@ class _AnalysisProvider:
         return json.dumps({"output_text": {"one_sentence_summary": "Fixture."}})
 
 
+class _QualityJudgeProvider:
+    """Controlled Judge boundary that always PASSes the fixture candidate."""
+
+    def judge(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        *,
+        content_input: ContentQualityInput | None,
+    ) -> ContentQualityResult:
+        del content_input
+        return ContentQualityResult.model_validate(
+            {
+                "status": ContentQualityStatus.PASS,
+                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+                "decision_confidence": ContentQualityConfidence.HIGH,
+                "grounding_confidence": ContentQualityConfidence.MEDIUM,
+                "usefulness_confidence": ContentQualityConfidence.MEDIUM,
+                "signals": [
+                    ContentQualitySignal.MINIMAL_CLAIM_PRESENT,
+                    ContentQualitySignal.GROUNDING_PRESENT,
+                ],
+                "reason": None,
+                "evidence_ids": ["title-1"],
+                "candidate_hash": operation_input.candidate_hash,
+                "quality_input_hash": operation_input.quality_input_hash,
+                "scoring_request_hash": operation_input.scoring_request_hash,
+                "judge_provider": operation_input.judge_provider,
+                "judge_model": operation_input.judge_model,
+                "judge_model_digest": operation_input.judge_model_digest,
+            }
+        )
+
+
 def _dependencies(
     subtitle: _SubtitleAdapter | None = None,
     scoring: _ScoringProvider | None = None,
     analysis: _AnalysisProvider | None = None,
+    judge: _QualityJudgeProvider | None = None,
 ) -> RuntimeDependencies:
     return RuntimeDependencies(
         discovery_source=_DiscoverySource(),
@@ -253,6 +328,7 @@ def _dependencies(
         subtitle_adapter_factory=lambda: subtitle or _SubtitleAdapter(),
         scoring_provider_factory=lambda: scoring or _ScoringProvider(),
         analysis_provider_factory=lambda: analysis or _AnalysisProvider(),
+        quality_judge_provider_factory=lambda: judge or _QualityJudgeProvider(),
     )
 
 

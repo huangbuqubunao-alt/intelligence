@@ -1933,3 +1933,140 @@ load_app_config(channels_path, settings_path)
   bash scripts/security_scan.sh
   git diff --check
   ```
+
+## Phase G Implementation
+
+- Status: `READY FOR PHASE G INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Implementation baseline: `bff2b7d514ce4d65f5a2b68d976c5085539e728d`
+- Role: Implementer (continuation/recovery)
+
+### 目标与范围
+
+- 任务目标：实现 TASK-016C Phase G trusted prewrite persistence cutover：
+  `PREWRITE_VALIDATE -> ValidatedScoringWritePlan -> tmp/fsync/promote -> atomic SQLite registration -> normal scoring-stage cutover`。
+- 允许修改：
+  - `src/youtube_intel/scoring.py`
+  - `src/youtube_intel/runtime.py`
+  - `src/youtube_intel/state.py`
+  - `tests/unit/test_task016c_phase_g.py`
+  - 为 Phase G API 适配所必需的既有集成测试
+  - `handoffs/TASK-016C.md`
+- 实际修改：
+  - `src/youtube_intel/scoring.py`：
+    - 向后兼容地 enrich `PhaseFTrustedScoringSuccess`，封存 canonical ScoringInput/quality input/quality result/quality operation/attestation 与 sealed structured-result bytes/hashes；
+    - 新增 `_EnrichedQualityEvidence`、`_sealed_trusted_score_result_serializer`；
+    - 新增 `TrustedScoringPersistenceCommitter` 与 opaque `ValidatedScoringWritePlan`；
+    - 实现 zero-write `prewrite_validate`（exact aggregate、bytes/hash 自洽、domain reconstruction、raw/candidate binding、business-field binding、request identity、runtime authority rotation、quality attestation、raw envelope/structured serialization）；
+    - 实现 ordered filesystem writer（tmp exclusive create -> fsync -> hash/length verify -> no-clobber promote -> parent-directory fsync -> final reopen verify）；
+    - 实现 `commit` 调用 `SQLiteStateRepository.atomic_register_scoring_success`。
+  - `src/youtube_intel/runtime.py`：
+    - 新增 `_trusted_scoring_committer` runtime-owned factory；
+    - `scoring_stage` 唯一 cutover 到 `build_scoring_input -> primary_attempt -> run_primary_trusted_scoring -> prewrite_validate -> commit`；
+    - `_validate_scoring_provenance` 接受 Phase G 新的 producer versions 与 schema/prompt 版本，保持 legacy 读取兼容。
+  - `src/youtube_intel/state.py`：
+    - 新增 `atomic_register_scoring_success`，在同一 SQLite IMMEDIATE transaction 内完成：验证 RUNNING SCORING job、upsert raw/structured Artifact rows、reserve+complete scoring 与 Judge ProviderCall、更新 video score/threshold/stage、完成 job。
+  - `tests/unit/test_task016c_phase_g.py`：新增 21 项 Phase G 焦点测试，覆盖 enriched aggregate、PREWRITE_VALIDATE zero-write、filesystem ordering、atomic registration、idempotency、wrong owner/status、artifact hash binding、runtime cutover、legacy isolation、M1–M10 对抗矩阵。
+  - `tests/integration/test_runtime_composition.py` 与 `tests/integration/test_task015_p1_fix.py`：适配 `primary_attempt` API 与 `_QualityJudgeProvider`。
+- 明确未做：
+  - repair/retry/budget、unknown/crash recovery engine、cache recovery/hardening；
+  - 真实 Ollama/network/Cloud/Vault/credential 调用；
+  - DB schema/migration、新依赖、`uv.lock`、pyproject.toml；
+  - GUI、Web、多用户、V2 数据源；
+  - Phase H/I 功能。
+
+### 验收证据
+
+| 验收项 | PASS/FAIL | 证据 |
+|---|---|---|
+| AC-1: PREWRITE_VALIDATE 零写入且只接受 exact `PhaseFTrustedScoringSuccess` | PASS | `test_prewrite_validate_creates_plan_without_side_effects`、`test_prewrite_validate_rejects_non_aggregate`、`test_prewrite_validate_rejects_unenriched_aggregate` |
+| AC-2: filesystem 写入顺序与 no-clobber promote | PASS | `test_commit_writes_raw_and_structured_files`、`test_commit_raises_when_final_file_already_exists`、`test_commit_raises_when_temporary_file_already_exists` |
+| AC-3: SQLite 原子登记两 Artifact + 两 ProviderCall + stage/job | PASS | `test_atomic_register_scoring_success_commits_all_rows`、`test_atomic_register_is_idempotent_for_filesystem_then_sqlite_retry` |
+| AC-4: runtime scoring-stage 唯一走 trusted route | PASS | `test_scoring_stage_uses_trusted_route`、`test_repository_backed_scoring_service_remains_available_but_not_used` |
+| AC-5: M1–M10 mutation matrix 先 RED 再 GREEN | PASS | 见下方 Mutation Proofs |
+| AC-6: 全量 gates 通过 | PASS | 见下方 Gates |
+
+### Mutation Proofs（M1–M10）
+
+每次 mutation 临时删除/弱化一个 guard，确认至少一个对应测试失败，然后恢复并复现 `21 passed`：
+
+- **M1** exact success guard：将 `if type(success) is not PhaseFTrustedScoringSuccess` 改为 `if False` → `test_prewrite_validate_rejects_non_aggregate` FAILED
+- **M2** raw hash：将 `if raw_response_hash != primary_attempt.raw_response_hash` 改为 `if False` → `test_prewrite_validate_rejects_raw_response_hash_mutation` FAILED
+- **M3** raw reparse：将 `if reparsed_candidate != candidate` 改为 `if False` → `test_prewrite_validate_rejects_raw_reparse_mutation` FAILED
+- **M4** candidate/result binding：将 business-field binding check 改为 `if False` → `test_prewrite_validate_rejects_candidate_result_binding_mutation` FAILED
+- **M5** runtime authority/context：将 `if primary_attempt.provider != context.scoring_provider` 改为 `if False` → `test_prewrite_validate_rejects_runtime_authority_rotation` FAILED
+- **M6** ProviderCall request binding：将 `if scoring_call_request.request_hash != identity.request_hash` 改为 `if False` → `test_prewrite_validate_rejects_provider_call_request_binding_mutation` FAILED
+- **M7** Artifact content/hash binding：将 runtime `_verified_artifact` 中 `hashlib.sha256(body).hexdigest() != record.content_hash` 改为 `if False` → `test_load_scoring_rejects_corrupted_structured_artifact` FAILED
+- **M8** prewrite-before-write ordering：将 `if tmp_path.exists()` 改为 `if False` → `test_commit_raises_when_temporary_file_already_exists` FAILED
+- **M9** bare-result compatibility re-entry：将 `run_primary_trusted_scoring` 中 `type(attempt) is not PrimaryScoringAttempt` 改为 `if False` → `test_scoring_stage_rejects_bare_score_result_reentry` FAILED
+- **M10** stage-completion ordering：将 `atomic_register_scoring_success` 中 video `pipeline_status = :expected_status` 条件去掉 → `test_atomic_register_fails_on_wrong_pipeline_status` FAILED（commit 成功而非 fail-closed）
+
+### 10 Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `21 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | `uv run --offline pytest -x -q` | `1236 passed, 1 warning` |
+| 6 | `uv run --offline mypy src` | PASS |
+| 7 | `uv run --offline ruff check .` | PASS |
+| 8 | `uv build --offline` | PASS |
+| 9 | `bash scripts/security_scan.sh` | `status=clean` |
+| 10 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`tests/integration/test_runtime_composition.py`、`tests/integration/test_task015_p1_fix.py`、`handoffs/TASK-016C.md`
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend / merge / push / tag
+- 仅一笔 Phase G implementation commit
+
+### Diff Review
+
+- `scoring.py`：新增 Phase G committer/plan、enriched aggregate、sealed serializer、prewrite validator、ordered file writer
+- `runtime.py`：trusted scoring-stage cutover、committer factory、provenance acceptance for Phase G artifacts
+- `state.py`：原子 `atomic_register_scoring_success` transaction
+- `tests/unit/test_task016c_phase_g.py`：21 项新测试覆盖 trust/persistence/cutover/mutation
+- 集成测试适配：mock provider 使用 `primary_attempt` API 并提供 `_QualityJudgeProvider`
+
+### Reuse Decision
+
+- `SQLiteStateRepository` 与 `_immediate_transaction`：`DIRECT`（`state.py` 已有）
+- `ProviderCallRequest` / `ArtifactWrite` / `StageCompletionResult`：`DIRECT`（`state.py` 已有）
+- `TrustedScoringFinalizer` / `QualityProvenanceAuthority` / `TrustedScoringContext`：`DIRECT`（`quality.py` 已有）
+- `parse_scoring_candidate` / `build_scoring_candidate_hash`：`DIRECT`（`providers/ollama.py` / `quality.py` 已有）
+- 未新增依赖
+
+### 失败、跳过与风险
+
+- 已解决：
+  - 继续前 Recovery Audit 确认工作区处于 Phase G 部分实现、集成测试 RED 状态
+  - 修复 mock provider API 不兼容（`primary_attempt` + `_QualityJudgeProvider`）
+  - 修复 runtime provenance 校验未适配 Phase G artifacts 的问题
+  - 调整 M4/M6 测试以匹配实际 fail-closed guard 顺序（business binding 先于 structured bytes；ProviderCall request binding 通过替换 committer context 触发）
+  - 新增 M7（artifact hash binding）、M9（bare-result re-entry）、M10（stage-completion ordering）显式 RED 测试与 mutation 证据
+- 跳过：真实 Ollama/network/cloud 执行（授权禁止）
+- 剩余风险：
+  - 跨 filesystem/SQLite 崩溃恢复、cache verification/hardening、retry/repair 仍属于 Phase H/I
+  - G 仅覆盖 normal-success path，PENDING/FAILED/partial/legacy conflict 均 fail-closed 并留给 H/I
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G INDEPENDENT REVIEW`
+- 复现/验证说明：
+  ```bash
+  uv lock --check --offline
+  uv sync --locked --offline
+  uv run --offline pytest tests/unit/test_task016c_phase_g.py -q
+  uv run --offline pytest tests/unit/test_task016c_phase_f.py -q
+  uv run --offline pytest -x -q
+  uv run --offline mypy src
+  uv run --offline ruff check .
+  uv build --offline
+  bash scripts/security_scan.sh
+  git diff --check
+  ```

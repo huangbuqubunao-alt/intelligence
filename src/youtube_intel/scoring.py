@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -57,6 +58,7 @@ from youtube_intel.state import (
     ProviderReservation,
     RetentionClass,
     ScoringSummaryWrite,
+    StageCompletionResult,
     StorageRoot,
     build_provider_request_hash,
 )
@@ -158,6 +160,24 @@ class _ScoringRepository(Protocol):
         *,
         now: datetime,
     ) -> ArtifactRecord: ...
+
+    def atomic_register_scoring_success(
+        self,
+        *,
+        job_id: str,
+        owner: str,
+        video_id: str,
+        pipeline_version: str,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        now: datetime,
+        lease_duration: timedelta = ...,
+    ) -> StageCompletionResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -1671,6 +1691,30 @@ class _PhaseFTrustedScoringSuccessSentinel:
 _PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL = _PhaseFTrustedScoringSuccessSentinel()
 
 
+@dataclass(frozen=True, slots=True)
+class _EnrichedQualityEvidence:
+    """Phase G continuation evidence sealed inside the success aggregate.
+
+    Each field is the canonical JSON bytes of the corresponding validated
+    domain object and its SHA-256 hash.  The structured result bytes are
+    produced by the sealed serializer and are distinct from a bare ScoreResult
+    JSON serialization.
+    """
+
+    canonical_scoring_input_bytes: bytes
+    canonical_scoring_input_hash: str
+    canonical_quality_input_bytes: bytes
+    canonical_quality_input_hash: str
+    canonical_quality_result_bytes: bytes
+    canonical_quality_result_hash: str
+    canonical_quality_operation_bytes: bytes
+    canonical_quality_operation_hash: str
+    canonical_attestation_bytes: bytes
+    canonical_attestation_hash: str
+    canonical_structured_result_bytes: bytes
+    canonical_structured_result_hash: str
+
+
 class PhaseFTrustedScoringSuccess:
     """Opaque memory-only Phase F success aggregate.
 
@@ -1678,6 +1722,11 @@ class PhaseFTrustedScoringSuccess:
     serialized, subclassed, or mutated by callers.  It seals the trusted
     result together with its primary attempt through the three canonical
     hashes so a later phase can verify the complete binding in memory.
+
+    In Phase G the same opaque aggregate is backwards-compatibly enriched with
+    canonical scoring/quality evidence and sealed structured-result bytes.
+    A Phase F aggregate that lacks this evidence cannot be used as a Phase G
+    ingress and must fail-closed.
     """
 
     __slots__ = (
@@ -1686,6 +1735,7 @@ class PhaseFTrustedScoringSuccess:
         "_scoring_request_hash",
         "_candidate_hash",
         "_raw_response_hash",
+        "_enriched_evidence",
         "_sealed",
     )
 
@@ -1702,6 +1752,7 @@ class PhaseFTrustedScoringSuccess:
         scoring_request_hash: str,
         candidate_hash: str,
         raw_response_hash: str,
+        enriched_evidence: _EnrichedQualityEvidence | None = None,
     ) -> None:
         if sentinel is not _PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL:
             msg = "PhaseFTrustedScoringSuccess can only be minted by the trusted seam"
@@ -1711,6 +1762,7 @@ class PhaseFTrustedScoringSuccess:
         self._scoring_request_hash = scoring_request_hash
         self._candidate_hash = candidate_hash
         self._raw_response_hash = raw_response_hash
+        self._enriched_evidence = enriched_evidence
         self._sealed = True
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -1738,6 +1790,54 @@ class PhaseFTrustedScoringSuccess:
     def raw_response_hash(self) -> str:
         return self._raw_response_hash
 
+    @property
+    def canonical_scoring_input_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_scoring_input_bytes
+
+    @property
+    def canonical_scoring_input_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_scoring_input_hash
+
+    @property
+    def canonical_quality_input_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_input_bytes
+
+    @property
+    def canonical_quality_input_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_input_hash
+
+    @property
+    def canonical_quality_result_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_result_bytes
+
+    @property
+    def canonical_quality_result_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_result_hash
+
+    @property
+    def canonical_quality_operation_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_operation_bytes
+
+    @property
+    def canonical_quality_operation_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_quality_operation_hash
+
+    @property
+    def canonical_attestation_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_attestation_bytes
+
+    @property
+    def canonical_attestation_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_attestation_hash
+
+    @property
+    def canonical_structured_result_bytes(self) -> bytes | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_structured_result_bytes
+
+    @property
+    def canonical_structured_result_hash(self) -> str | None:
+        return None if self._enriched_evidence is None else self._enriched_evidence.canonical_structured_result_hash
+
     def __copy__(self) -> NoReturn:
         raise TypeError("PhaseFTrustedScoringSuccess cannot be copied")
 
@@ -1751,10 +1851,55 @@ class PhaseFTrustedScoringSuccess:
         raise TypeError("PhaseFTrustedScoringSuccess cannot be serialized")
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    """Return canonical deterministic JSON bytes for validated domain objects."""
+
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _verify_canonical_bytes_hash(
+    canonical_bytes: bytes,
+    expected_hash: str,
+    field_name: str,
+) -> None:
+    """Fail-closed helper: canonical bytes must match the sealed hash."""
+
+    if hashlib.sha256(canonical_bytes).hexdigest() != expected_hash:
+        msg = f"{field_name} canonical bytes do not match the sealed hash"
+        raise ValueError(msg)
+
+
+def _sealed_trusted_score_result_serializer(
+    trusted_result: TrustedScoreResult,
+) -> bytes:
+    """Sealed serializer: exact ``TrustedScoreResult`` -> canonical bytes.
+
+    The serializer is the only Phase G surface that unwraps the trusted result
+    into structured bytes.  It never accepts a bare ``ScoreResult`` and never
+    re-serializes from an untrusted source.
+    """
+
+    from youtube_intel.quality import TrustedScoreResult
+
+    if type(trusted_result) is not TrustedScoreResult:
+        msg = (
+            "sealed serializer requires an exact TrustedScoreResult; "
+            f"got {type(trusted_result).__name__}"
+        )
+        raise ValueError(msg)
+    return _canonical_json_bytes(trusted_result.result.model_dump(mode="json"))
+
+
 def _mint_phase_f_trusted_scoring_success(
     *,
     trusted_result: TrustedScoreResult,
     primary_attempt: PrimaryScoringAttempt,
+    enriched_evidence: _EnrichedQualityEvidence | None = None,
 ) -> PhaseFTrustedScoringSuccess:
     """Seal the only Phase F success aggregate with self-verifying hashes.
 
@@ -1829,6 +1974,7 @@ def _mint_phase_f_trusted_scoring_success(
         scoring_request_hash=primary_attempt.scoring_request_hash,
         candidate_hash=primary_attempt.candidate_hash,
         raw_response_hash=primary_attempt.raw_response_hash,
+        enriched_evidence=enriched_evidence,
     )
 
 
@@ -1938,10 +2084,808 @@ def _run_primary_trusted_scoring_seam(
         quality_authority=quality_authority,
         scoring_context=scoring_context,
     )
+
+    # Phase G continuation enrichment: seal canonical bytes/hashes of every
+    # validated domain object so PREWRITE_VALIDATE can re-verify without caller
+    # reconstruction and without touching persistence.
+    scoring_input_bytes = _canonical_json_bytes(scoring_input.model_dump(mode="json"))
+    quality_input_bytes = _canonical_json_bytes(quality_input.model_dump(mode="json"))
+    quality_result_bytes = _canonical_json_bytes(quality_result.model_dump(mode="json"))
+    quality_operation_bytes = _canonical_json_bytes(
+        quality_operation.model_dump(mode="json")
+    )
+    attestation_bytes = _canonical_json_bytes(attestation.model_dump(mode="json"))
+    structured_bytes = _sealed_trusted_score_result_serializer(trusted_result)
+    enriched_evidence = _EnrichedQualityEvidence(
+        canonical_scoring_input_bytes=scoring_input_bytes,
+        canonical_scoring_input_hash=hashlib.sha256(scoring_input_bytes).hexdigest(),
+        canonical_quality_input_bytes=quality_input_bytes,
+        canonical_quality_input_hash=hashlib.sha256(quality_input_bytes).hexdigest(),
+        canonical_quality_result_bytes=quality_result_bytes,
+        canonical_quality_result_hash=hashlib.sha256(quality_result_bytes).hexdigest(),
+        canonical_quality_operation_bytes=quality_operation_bytes,
+        canonical_quality_operation_hash=hashlib.sha256(
+            quality_operation_bytes
+        ).hexdigest(),
+        canonical_attestation_bytes=attestation_bytes,
+        canonical_attestation_hash=hashlib.sha256(attestation_bytes).hexdigest(),
+        canonical_structured_result_bytes=structured_bytes,
+        canonical_structured_result_hash=hashlib.sha256(structured_bytes).hexdigest(),
+    )
+
     return _mint_phase_f_trusted_scoring_success(
         trusted_result=trusted_result,
         primary_attempt=attempt,
+        enriched_evidence=enriched_evidence,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase G: trusted prewrite persistence committer
+# ---------------------------------------------------------------------------
+
+_G_RAW_ENVELOPE_SCHEMA: Final = "scoring-raw-envelope-v1"
+_G_RAW_ARTIFACT_PRODUCER_VERSION: Final = "scoring-raw-content-quality-v1"
+_G_STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-content-quality-v1"
+_G_ARTIFACT_RETENTION: Final = timedelta(days=30)
+
+
+class _ValidatedScoringWritePlanSentinel:
+    """Private sentinel; only PREWRITE_VALIDATE can mint a plan."""
+
+    __slots__ = ()
+
+
+_VALIDATED_SCORING_WRITE_PLAN_SENTINEL = _ValidatedScoringWritePlanSentinel()
+
+
+class ValidatedScoringWritePlan:
+    """Opaque, runtime-minted Phase G write capability.
+
+    A plan is not a DTO, cache identity, authority, or persistence record.  It
+    can only be created by ``TrustedScoringPersistenceCommitter.prewrite_validate``
+    and it freezes every byte, hash, Artifact identity and ProviderCall identity
+    required for the subsequent trusted filesystem + SQLite registration.
+    """
+
+    __slots__ = (
+        "_success",
+        "_raw_envelope_bytes",
+        "_raw_envelope_hash",
+        "_structured_bytes",
+        "_structured_hash",
+        "_raw_artifact",
+        "_structured_artifact",
+        "_scoring_call_request",
+        "_judge_call_request",
+        "_scoring_call_completion",
+        "_judge_call_completion",
+        "_scoring_summary",
+        "_video_id",
+        "_sealed",
+    )
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("ValidatedScoringWritePlan cannot be subclassed")
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        success: PhaseFTrustedScoringSuccess,
+        raw_envelope_bytes: bytes,
+        raw_envelope_hash: str,
+        structured_bytes: bytes,
+        structured_hash: str,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        video_id: str,
+    ) -> None:
+        if sentinel is not _VALIDATED_SCORING_WRITE_PLAN_SENTINEL:
+            msg = "ValidatedScoringWritePlan can only be minted by PREWRITE_VALIDATE"
+            raise ValueError(msg)
+        self._success = success
+        self._raw_envelope_bytes = raw_envelope_bytes
+        self._raw_envelope_hash = raw_envelope_hash
+        self._structured_bytes = structured_bytes
+        self._structured_hash = structured_hash
+        self._raw_artifact = raw_artifact
+        self._structured_artifact = structured_artifact
+        self._scoring_call_request = scoring_call_request
+        self._judge_call_request = judge_call_request
+        self._scoring_call_completion = scoring_call_completion
+        self._judge_call_completion = judge_call_completion
+        self._scoring_summary = scoring_summary
+        self._video_id = video_id
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("ValidatedScoringWritePlan is immutable")
+        object.__setattr__(self, name, value)
+
+    @property
+    def success(self) -> PhaseFTrustedScoringSuccess:
+        return self._success
+
+    @property
+    def raw_envelope_bytes(self) -> bytes:
+        return self._raw_envelope_bytes
+
+    @property
+    def raw_envelope_hash(self) -> str:
+        return self._raw_envelope_hash
+
+    @property
+    def structured_bytes(self) -> bytes:
+        return self._structured_bytes
+
+    @property
+    def structured_hash(self) -> str:
+        return self._structured_hash
+
+    @property
+    def raw_artifact(self) -> ArtifactWrite:
+        return self._raw_artifact
+
+    @property
+    def structured_artifact(self) -> ArtifactWrite:
+        return self._structured_artifact
+
+    @property
+    def scoring_call_request(self) -> ProviderCallRequest:
+        return self._scoring_call_request
+
+    @property
+    def judge_call_request(self) -> ProviderCallRequest:
+        return self._judge_call_request
+
+    @property
+    def scoring_call_completion(self) -> ProviderCallCompletion:
+        return self._scoring_call_completion
+
+    @property
+    def judge_call_completion(self) -> ProviderCallCompletion:
+        return self._judge_call_completion
+
+    @property
+    def scoring_summary(self) -> ScoringSummaryWrite:
+        return self._scoring_summary
+
+    @property
+    def video_id(self) -> str:
+        return self._video_id
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("ValidatedScoringWritePlan cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("ValidatedScoringWritePlan cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("ValidatedScoringWritePlan cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("ValidatedScoringWritePlan cannot be serialized")
+
+
+class TrustedScoringPersistenceCommitter:
+    """Runtime-owned Phase G trusted persistence boundary.
+
+    The committer is created by ``RuntimeOperations`` with runtime-owned
+    authority, context, repository, DATA root and job identity.  Its only
+    public operation accepts an exact ``PhaseFTrustedScoringSuccess`` and,
+    after zero-write PREWRITE_VALIDATE, performs the ordered filesystem +
+    SQLite registration protocol.  It never recalls providers, repairs,
+    retries, reads cache, or treats legacy/Artifact/ProviderCall records as
+    trusted input.
+    """
+
+    def __init__(
+        self,
+        *,
+        repository: _ScoringRepository,
+        data_root: Path,
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+        context: ScoringJobContext,
+        summary_threshold: float,
+        clock: _CLOCK = _utcnow,
+    ) -> None:
+        from youtube_intel.quality import (
+            QualityProvenanceAuthority,
+            TrustedScoringContext,
+        )
+
+        if type(quality_authority) is not QualityProvenanceAuthority:
+            msg = "quality_authority must be a runtime-minted QualityProvenanceAuthority"
+            raise ValueError(msg)
+        if type(scoring_context) is not TrustedScoringContext:
+            msg = "scoring_context must be a runtime-minted TrustedScoringContext"
+            raise ValueError(msg)
+        if not 0 <= summary_threshold <= 10:
+            msg = "summary_threshold must be in 0..10"
+            raise ValueError(msg)
+        self._repository = repository
+        self._data_root = data_root
+        self._quality_authority = quality_authority
+        self._scoring_context = scoring_context
+        self._context = context
+        self._summary_threshold = summary_threshold
+        self._clock = clock
+
+    def prewrite_validate(
+        self,
+        success: PhaseFTrustedScoringSuccess,
+    ) -> ValidatedScoringWritePlan:
+        """Zero-write validation of an exact Phase F success -> write plan.
+
+        All verification happens in memory.  No temporary file, final file,
+        directory, Artifact, ProviderCall, cache entry, stage or response id
+        is created before this method returns successfully.
+        """
+
+        from youtube_intel.providers.ollama import parse_scoring_candidate
+        from youtube_intel.quality import (
+            TrustedScoreResult,
+            build_content_quality_input_hash,
+            build_content_quality_result_hash,
+            build_judge_h1_h2,
+            build_scoring_candidate_hash,
+            verify_quality_pass_attestation,
+        )
+
+        # 1. Exact aggregate type and enrichment capability.
+        if type(success) is not PhaseFTrustedScoringSuccess:
+            msg = (
+                "Phase G ingress requires an exact PhaseFTrustedScoringSuccess; "
+                f"got {type(success).__name__}"
+            )
+            raise ValueError(msg)
+        if success._enriched_evidence is None:
+            msg = "Phase F success is missing the required Phase G quality evidence"
+            raise ValueError(msg)
+        evidence = success._enriched_evidence
+
+        # 2. Canonical bytes/hash self-consistency.
+        _verify_canonical_bytes_hash(
+            evidence.canonical_scoring_input_bytes,
+            evidence.canonical_scoring_input_hash,
+            "scoring_input",
+        )
+        _verify_canonical_bytes_hash(
+            evidence.canonical_quality_input_bytes,
+            evidence.canonical_quality_input_hash,
+            "quality_input",
+        )
+        _verify_canonical_bytes_hash(
+            evidence.canonical_quality_result_bytes,
+            evidence.canonical_quality_result_hash,
+            "quality_result",
+        )
+        _verify_canonical_bytes_hash(
+            evidence.canonical_quality_operation_bytes,
+            evidence.canonical_quality_operation_hash,
+            "quality_operation",
+        )
+        _verify_canonical_bytes_hash(
+            evidence.canonical_attestation_bytes,
+            evidence.canonical_attestation_hash,
+            "attestation",
+        )
+        _verify_canonical_bytes_hash(
+            evidence.canonical_structured_result_bytes,
+            evidence.canonical_structured_result_hash,
+            "structured_result",
+        )
+
+        # 3. Reconstruct validated domain objects from canonical bytes.
+        scoring_input = ScoringInput.model_validate_json(
+            evidence.canonical_scoring_input_bytes
+        )
+        quality_input = ContentQualityInput.model_validate_json(
+            evidence.canonical_quality_input_bytes
+        )
+        quality_result = ContentQualityResult.model_validate_json(
+            evidence.canonical_quality_result_bytes
+        )
+        quality_operation = QualityJudgeOperationInput.model_validate_json(
+            evidence.canonical_quality_operation_bytes
+        )
+        attestation = QualityPassAttestation.model_validate_json(
+            evidence.canonical_attestation_bytes
+        )
+        trusted_result = success.trusted_result
+        if type(trusted_result) is not TrustedScoreResult:
+            msg = "trusted result must be an exact TrustedScoreResult"
+            raise ValueError(msg)
+
+        primary_attempt = success.primary_attempt
+        candidate = primary_attempt.candidate
+        video_id = scoring_input.video.video_id
+
+        # 4. Raw/candidate binding: exact raw source, canonical parser, hashes.
+        try:
+            raw_bytes = primary_attempt.final_raw_response.encode("utf-8")
+        except UnicodeEncodeError:
+            msg = "raw response is not valid strict UTF-8"
+            raise ValueError(msg) from None
+        raw_response_hash = hashlib.sha256(raw_bytes).hexdigest()
+        if raw_response_hash != primary_attempt.raw_response_hash:
+            msg = "raw response hash mismatches the primary attempt binding"
+            raise ValueError(msg)
+        if raw_response_hash != success.raw_response_hash:
+            msg = "raw response hash mismatches the success aggregate seal"
+            raise ValueError(msg)
+        reparsed_candidate = parse_scoring_candidate(primary_attempt.final_raw_response)
+        if reparsed_candidate != candidate:
+            msg = "candidate does not match the canonical parse of the raw response"
+            raise ValueError(msg)
+        candidate_hash = build_scoring_candidate_hash(candidate)
+        if candidate_hash != primary_attempt.candidate_hash:
+            msg = "candidate hash mismatches the primary attempt binding"
+            raise ValueError(msg)
+        if candidate_hash != success.candidate_hash:
+            msg = "candidate hash mismatches the success aggregate seal"
+            raise ValueError(msg)
+
+        # 5. Candidate -> result business binding.
+        result = trusted_result.result
+        if (
+            result.score != candidate.score
+            or result.reason != candidate.reason
+            or result.topics != candidate.topics
+            or result.should_summarize != candidate.should_summarize
+            or result.dimensions != candidate.dimensions
+        ):
+            msg = "trusted result business fields mismatch the primary candidate"
+            raise ValueError(msg)
+
+        # 6. Request identity against current runtime scoring context.
+        identity = build_scoring_request_identity(
+            scoring_input=scoring_input,
+            model=self._scoring_context.scoring_model,
+            temperature=self._scoring_context.temperature,
+            max_output_tokens=self._scoring_context.max_output_tokens,
+            max_description_chars=self._scoring_context.max_description_chars,
+        )
+        if identity.request_hash != scoring_input.request_hash:
+            msg = "scoring request hash mismatches the canonical identity"
+            raise ValueError(msg)
+        if identity.request_hash != primary_attempt.scoring_request_hash:
+            msg = "scoring request hash mismatches the primary attempt"
+            raise ValueError(msg)
+        if identity.request_hash != success.scoring_request_hash:
+            msg = "scoring request hash mismatches the success aggregate seal"
+            raise ValueError(msg)
+        if identity.normalized_input_hash != primary_attempt.scoring_input_normalized_hash:
+            msg = "scoring input identity mismatches the primary attempt"
+            raise ValueError(msg)
+
+        # 7. Provider/model/digest/schema/prompt/operation/output language rotation.
+        context = self._scoring_context
+        if primary_attempt.provider != context.scoring_provider:
+            msg = "attempt provider mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if primary_attempt.model != context.scoring_model:
+            msg = "attempt model mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if primary_attempt.model_digest != context.scoring_model_digest:
+            msg = "attempt model digest mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.provider != context.scoring_provider:
+            msg = "result provider mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.model != context.scoring_model:
+            msg = "result model mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.prompt_version != context.scoring_prompt_version:
+            msg = "result prompt version mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.schema_version != context.scoring_schema_version:
+            msg = "result schema version mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.output_language != context.output_language:
+            msg = "result output_language mismatches the trusted scoring context"
+            raise ValueError(msg)
+        if result.request_hash != identity.request_hash:
+            msg = "result request_hash mismatches the canonical identity"
+            raise ValueError(msg)
+
+        # 8. Quality authority and full PASS attestation re-verification.
+        authority = self._quality_authority
+        verify_quality_pass_attestation(
+            attestation,
+            quality_result=quality_result,
+            operation_input=quality_operation,
+            quality_input=quality_input,
+            authority=authority,
+        )
+        if attestation.scoring_request_hash != identity.request_hash:
+            msg = "attestation scoring_request_hash mismatches the canonical identity"
+            raise ValueError(msg)
+        expected_qih = build_content_quality_input_hash(quality_input)
+        if quality_input.candidate_hash != candidate_hash:
+            msg = "quality input candidate_hash mismatches the primary candidate"
+            raise ValueError(msg)
+        if quality_result.candidate_hash != candidate_hash:
+            msg = "quality result candidate_hash mismatches the primary candidate"
+            raise ValueError(msg)
+        if quality_operation.candidate_hash != candidate_hash:
+            msg = "quality operation candidate_hash mismatches the primary candidate"
+            raise ValueError(msg)
+        if quality_result.quality_input_hash != expected_qih:
+            msg = "quality result quality_input_hash is invalid"
+            raise ValueError(msg)
+        if quality_operation.quality_input_hash != expected_qih:
+            msg = "quality operation quality_input_hash is invalid"
+            raise ValueError(msg)
+        expected_qrh = build_content_quality_result_hash(quality_result)
+        if attestation.quality_result_hash != expected_qrh:
+            msg = "attestation quality_result_hash is invalid"
+            raise ValueError(msg)
+        if quality_result.status.value != "PASS":
+            msg = "Phase G only persists PASS quality results"
+            raise ValueError(msg)
+
+        # 9. Canonical raw envelope and structured bytes.
+        structured_bytes = _sealed_trusted_score_result_serializer(trusted_result)
+        if structured_bytes != evidence.canonical_structured_result_bytes:
+            msg = "structured result bytes do not match the sealed serializer output"
+            raise ValueError(msg)
+        envelope = {
+            "envelope_schema": _G_RAW_ENVELOPE_SCHEMA,
+            "provider_raw_response": primary_attempt.final_raw_response,
+            "candidate": candidate.model_dump(mode="json"),
+            "trusted_result": result.model_dump(mode="json"),
+            "quality_input": quality_input.model_dump(mode="json"),
+            "quality_result": quality_result.model_dump(mode="json"),
+            "quality_operation": quality_operation.model_dump(mode="json"),
+            "attestation": attestation.model_dump(mode="json"),
+            "provenance": {
+                "scoring_provider": context.scoring_provider,
+                "scoring_model": context.scoring_model,
+                "scoring_model_digest": context.scoring_model_digest,
+                "scoring_operation": context.scoring_operation,
+                "scoring_schema_version": context.scoring_schema_version,
+                "scoring_prompt_version": context.scoring_prompt_version,
+                "output_language": context.output_language,
+                "temperature": context.temperature,
+                "max_output_tokens": context.max_output_tokens,
+                "max_description_chars": context.max_description_chars,
+                "judge_provider": authority.judge_provider,
+                "judge_model": authority.judge_model,
+                "judge_model_digest": authority.judge_model_digest,
+                "judge_operation": authority.judge_operation,
+                "quality_policy_version": authority.quality_policy_version,
+                "quality_schema_version": authority.quality_schema_version,
+                "quality_prompt_version": authority.quality_prompt_version,
+            },
+        }
+        raw_envelope_bytes = _canonical_json_bytes(envelope)
+        raw_envelope_hash = hashlib.sha256(raw_envelope_bytes).hexdigest()
+
+        # 10. ArtifactWrite records (no filesystem effect yet).
+        now = self._clock()
+        raw_key = f"scoring/{identity.request_hash}/raw"
+        structured_key = f"scoring/{identity.request_hash}/structured"
+        raw_relative_path = f"scoring/{identity.request_hash}/raw.json"
+        structured_relative_path = f"scoring/{identity.request_hash}/structured.json"
+        raw_artifact = ArtifactWrite(
+            artifact_id=f"scoring-raw-{_sha256_text(raw_key + raw_envelope_hash)}",
+            artifact_key=raw_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.SCORING_RAW,
+            storage_root=StorageRoot.DATA,
+            relative_path=raw_relative_path,
+            content_hash=raw_envelope_hash,
+            provider=context.scoring_provider,
+            model=context.scoring_model,
+            producer_version=_G_RAW_ARTIFACT_PRODUCER_VERSION,
+            retention_class=RetentionClass.RAW_RESPONSE_30D,
+            expires_at=now + _G_ARTIFACT_RETENTION,
+        )
+        structured_artifact = ArtifactWrite(
+            artifact_id=(
+                "scoring-structured-"
+                + _sha256_text(structured_key + evidence.canonical_structured_result_hash)
+            ),
+            artifact_key=structured_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.SCORING_STRUCTURED,
+            storage_root=StorageRoot.DATA,
+            relative_path=structured_relative_path,
+            content_hash=evidence.canonical_structured_result_hash,
+            provider=context.scoring_provider,
+            model=context.scoring_model,
+            producer_version=_G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        )
+
+        # 11. ProviderCall identities cross-bound to Artifact records.
+        # The scoring request hash must match the canonical identity built with
+        # the same prompt/schema versions used by build_scoring_request_identity.
+        scoring_call_request = ProviderCallRequest(
+            operation=context.scoring_operation,
+            normalized_input_hash=identity.normalized_input_hash,
+            provider=context.scoring_provider,
+            model=context.scoring_model,
+            prompt_version=PROMPT_VERSION,
+            schema_version=SCHEMA_VERSION,
+            deterministic_artifact_key=raw_key,
+        )
+        if scoring_call_request.request_hash != identity.request_hash:
+            msg = "scoring ProviderCall request_hash mismatches the canonical identity"
+            raise ValueError(msg)
+
+        judge_h1, judge_h2 = build_judge_h1_h2(quality_operation)
+        judge_call_request = ProviderCallRequest(
+            operation=authority.judge_operation,
+            normalized_input_hash=judge_h1,
+            provider=authority.judge_provider,
+            model=authority.judge_model,
+            prompt_version=authority.quality_prompt_version,
+            schema_version=authority.quality_schema_version,
+            deterministic_artifact_key=raw_key,
+        )
+        if judge_call_request.request_hash != judge_h2:
+            msg = "judge ProviderCall request_hash mismatches the attestation H2"
+            raise ValueError(msg)
+        if judge_h2 != attestation.judge_request_hash:
+            msg = "judge ProviderCall request_hash mismatches the attestation"
+            raise ValueError(msg)
+
+        scoring_call_completion = ProviderCallCompletion(
+            request_hash=scoring_call_request.request_hash,
+            response_artifact_id=raw_artifact.artifact_id,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microusd=None,
+        )
+        judge_call_completion = ProviderCallCompletion(
+            request_hash=judge_call_request.request_hash,
+            response_artifact_id=raw_artifact.artifact_id,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microusd=None,
+        )
+
+        scoring_summary = ScoringSummaryWrite(
+            score=result.score,
+            should_summarize=result.score >= self._summary_threshold,
+        )
+
+        return ValidatedScoringWritePlan(
+            sentinel=_VALIDATED_SCORING_WRITE_PLAN_SENTINEL,
+            success=success,
+            raw_envelope_bytes=raw_envelope_bytes,
+            raw_envelope_hash=raw_envelope_hash,
+            structured_bytes=structured_bytes,
+            structured_hash=evidence.canonical_structured_result_hash,
+            raw_artifact=raw_artifact,
+            structured_artifact=structured_artifact,
+            scoring_call_request=scoring_call_request,
+            judge_call_request=judge_call_request,
+            scoring_call_completion=scoring_call_completion,
+            judge_call_completion=judge_call_completion,
+            scoring_summary=scoring_summary,
+            video_id=video_id,
+        )
+
+    def commit(self, plan: ValidatedScoringWritePlan) -> StageCompletionResult:
+        """Execute the trusted filesystem + SQLite registration protocol.
+
+        Ordered durability: tmp exclusive-create -> fsync -> hash/length verify
+        -> no-clobber promote -> parent-directory fsync -> reopen final verify
+        -> single SQLite transaction.  Any failure raises ``ScoringPersistenceError``
+        and leaves no trusted artifact or provider call behind.
+        """
+
+        if type(plan) is not ValidatedScoringWritePlan:
+            msg = "commit requires an exact ValidatedScoringWritePlan"
+            raise ValueError(msg)
+
+        raw_artifact = plan.raw_artifact
+        structured_artifact = plan.structured_artifact
+        raw_final = self._data_root / raw_artifact.relative_path
+        structured_final = self._data_root / structured_artifact.relative_path
+
+        self._write_atomic_file(
+            final_path=raw_final,
+            content=plan.raw_envelope_bytes,
+            expected_hash=plan.raw_envelope_hash,
+            video_id=plan.video_id,
+        )
+        self._write_atomic_file(
+            final_path=structured_final,
+            content=plan.structured_bytes,
+            expected_hash=plan.structured_hash,
+            video_id=plan.video_id,
+        )
+
+        try:
+            return self._repository.atomic_register_scoring_success(
+                job_id=self._context.job_id,
+                owner=self._context.owner,
+                video_id=plan.video_id,
+                pipeline_version=self._context.pipeline_version,
+                raw_artifact=raw_artifact,
+                structured_artifact=structured_artifact,
+                scoring_call_request=plan.scoring_call_request,
+                judge_call_request=plan.judge_call_request,
+                scoring_call_completion=plan.scoring_call_completion,
+                judge_call_completion=plan.judge_call_completion,
+                scoring_summary=plan.scoring_summary,
+                now=self._clock(),
+            )
+        except ScoringPersistenceError:
+            raise
+        except Exception as error:
+            msg = f"atomic scoring registration failed: {error}"
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=msg,
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+    def _write_atomic_file(
+        self,
+        *,
+        final_path: Path,
+        content: bytes,
+        expected_hash: str,
+        video_id: str,
+    ) -> None:
+        """Write one artifact through the Phase G durability ordering."""
+
+        if final_path.exists():
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"artifact already exists at {final_path}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        final_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        tmp_path = final_path.with_name(final_path.name + ".tmp")
+        if tmp_path.exists():
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"stale temporary artifact at {tmp_path}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        fd = os.open(
+            tmp_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            os.write(fd, content)
+            os.fsync(fd)
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to write temporary artifact {tmp_path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+        finally:
+            os.close(fd)
+
+        # Verify the temporary file before promotion.
+        self._verify_file_hash(tmp_path, content, expected_hash, video_id=video_id)
+
+        if final_path.exists():
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"artifact appeared concurrently at {final_path}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        try:
+            os.rename(tmp_path, final_path)
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to promote {tmp_path} to {final_path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+        # Fsync parent directory so the rename is durable.
+        parent_fd = os.open(final_path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to fsync artifact directory {final_path.parent}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+        finally:
+            os.close(parent_fd)
+
+        # Final verify after promotion.
+        self._verify_file_hash(final_path, content, expected_hash, video_id=video_id)
+
+    def _verify_file_hash(
+        self,
+        path: Path,
+        expected_content: bytes,
+        expected_hash: str,
+        *,
+        video_id: str,
+    ) -> None:
+        """Re-read a file and assert length/hash."""
+
+        try:
+            actual_content = path.read_bytes()
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to read artifact {path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+        if len(actual_content) != len(expected_content):
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=(
+                        f"artifact {path} length mismatch: "
+                        f"expected {len(expected_content)}, got {len(actual_content)}"
+                    ),
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        actual_hash = hashlib.sha256(actual_content).hexdigest()
+        if actual_hash != expected_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"artifact {path} hash mismatch",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
 
 
 __all__ = [
@@ -1956,6 +2900,8 @@ __all__ = [
     "ScoringJobContext",
     "ScoringPersistenceError",
     "ScoringService",
+    "TrustedScoringPersistenceCommitter",
+    "ValidatedScoringWritePlan",
     "build_primary_scoring_attempt",
     "build_scoring_input",
     "sample_transcript",

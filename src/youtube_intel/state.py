@@ -2030,6 +2030,94 @@ class SQLiteStateRepository:
             == request.schema_version
         )
 
+    def _reserve_provider_call_in_transaction(
+        self,
+        connection: sqlite3.Connection,
+        request: ProviderCallRequest,
+        *,
+        owner: str,
+        lease_until: datetime,
+        available_at: datetime,
+        now: datetime,
+    ) -> ProviderCallRecord:
+        """Insert or re-use an in-transaction PENDING provider-call reservation.
+
+        Unlike the public ``reserve_provider_call``, this helper assumes it runs
+        inside an existing transaction and never performs recovery from an
+        existing artifact.  It is intended for Phase G-style atomic registration
+        where the response artifact is upserted in the same transaction.
+        """
+
+        _validate_sha256(request.request_hash, field_name="request_hash")
+        if not request.operation.strip() or not request.provider.strip():
+            msg = "provider call operation and provider must be non-empty"
+            raise ValueError(msg)
+        if not request.deterministic_artifact_key.strip():
+            msg = "deterministic artifact key must be non-empty"
+            raise ValueError(msg)
+        if not owner.strip():
+            msg = "reservation owner must be non-empty"
+            raise ValueError(msg)
+        if lease_until <= now:
+            msg = "provider call lease_until must be after now"
+            raise ValueError(msg)
+        now_text = format_utc_datetime(now)
+        lease_text = format_utc_datetime(lease_until)
+        available_text = format_utc_datetime(available_at)
+        row = connection.execute(
+            "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
+            {"request_hash": request.request_hash},
+        ).fetchone()
+        if row is None:
+            connection.execute(
+                "INSERT INTO provider_calls "
+                "(request_hash, operation, provider, model, prompt_version, "
+                "schema_version, status, reservation_owner, lease_until, "
+                "available_at, attempt_count, started_at, updated_at) "
+                "VALUES (:request_hash, :operation, :provider, :model, "
+                ":prompt_version, :schema_version, :status, :owner, "
+                ":lease_until, :available_at, 1, :started_at, :updated_at)",
+                {
+                    "request_hash": request.request_hash,
+                    "operation": request.operation,
+                    "provider": request.provider,
+                    "model": request.model,
+                    "prompt_version": request.prompt_version,
+                    "schema_version": request.schema_version,
+                    "status": ProviderCallStatus.PENDING.value,
+                    "owner": owner,
+                    "lease_until": lease_text,
+                    "available_at": available_text,
+                    "started_at": now_text,
+                    "updated_at": now_text,
+                },
+            )
+        else:
+            record = self._provider_call_from_row(row)
+            if not self._provider_request_matches(row, request):
+                msg = "request hash already identifies a different provider call"
+                raise IntegrityConflict(msg)
+            if record.status is ProviderCallStatus.SUCCEEDED:
+                return record
+            if (
+                record.status is ProviderCallStatus.PENDING
+                and record.reservation_owner == owner
+                and record.lease_until is not None
+                and record.lease_until > now
+            ):
+                pass
+            else:
+                msg = "provider call reservation is not owned or has expired"
+                raise LeaseConflict(msg)
+        saved = connection.execute(
+            "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
+            {"request_hash": request.request_hash},
+        ).fetchone()
+        if saved is None:
+            msg = "provider call reservation was not saved"
+            raise StateStoreError(msg)
+        return self._provider_call_from_row(saved)
+
     def reserve_provider_call(
         self,
         request: ProviderCallRequest,
@@ -2526,6 +2614,152 @@ class SQLiteStateRepository:
                     )
             except sqlite3.IntegrityError as error:
                 msg = "stage completion violates repository integrity"
+                raise IntegrityConflict(msg) from error
+        finally:
+            connection.close()
+
+    def atomic_register_scoring_success(
+        self,
+        *,
+        job_id: str,
+        owner: str,
+        video_id: str,
+        pipeline_version: str,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        now: datetime,
+        lease_duration: timedelta = timedelta(minutes=5),
+    ) -> StageCompletionResult:
+        """Atomically register filesystem-committed scoring artifacts and calls.
+
+        This is the single SQLite transaction used by Phase G.  It verifies the
+        owned RUNNING SCORING job, upserts the raw and structured Artifact rows,
+        reserves and immediately completes the scoring and Judge provider calls,
+        advances the video to ``SCORED``, and finishes the job.
+        """
+
+        if raw_artifact.job_id != job_id or structured_artifact.job_id != job_id:
+            msg = "artifacts must reference the completed job"
+            raise IntegrityConflict(msg)
+        if raw_artifact.video_id != video_id or structured_artifact.video_id != video_id:
+            msg = "artifacts must reference the completed video"
+            raise IntegrityConflict(msg)
+        if scoring_call_completion.request_hash != scoring_call_request.request_hash:
+            msg = "scoring completion request_hash mismatches the request"
+            raise IntegrityConflict(msg)
+        if judge_call_completion.request_hash != judge_call_request.request_hash:
+            msg = "judge completion request_hash mismatches the request"
+            raise IntegrityConflict(msg)
+        if scoring_call_completion.response_artifact_id != raw_artifact.artifact_id:
+            msg = "scoring completion must reference the raw artifact"
+            raise IntegrityConflict(msg)
+        if judge_call_completion.response_artifact_id != raw_artifact.artifact_id:
+            msg = "judge completion must reference the raw artifact"
+            raise IntegrityConflict(msg)
+
+        now_text = format_utc_datetime(now)
+        lease_until = now + lease_duration
+        available_at = now
+        connection = self._connect()
+        try:
+            try:
+                with _immediate_transaction(connection):
+                    job_row = self._owned_running_job(
+                        connection, job_id=job_id, owner=owner, now=now_text
+                    )
+                    if (
+                        job_row["video_id"] != video_id
+                        or job_row["pipeline_version"] != pipeline_version
+                    ):
+                        msg = "job scope does not match atomic registration"
+                        raise ConcurrencyConflict(msg)
+                    if job_row["target_stage"] != ProcessingStage.SCORING.value:
+                        msg = "job target stage is not SCORING"
+                        raise ConcurrencyConflict(msg)
+                    self._inject_failure("atomic_register.before_artifacts")
+                    raw_record = self._upsert_artifact_in_transaction(
+                        connection, raw_artifact, now=now_text
+                    )
+                    structured_record = self._upsert_artifact_in_transaction(
+                        connection, structured_artifact, now=now_text
+                    )
+                    self._inject_failure("atomic_register.after_artifacts")
+                    scoring_record = self._reserve_provider_call_in_transaction(
+                        connection,
+                        scoring_call_request,
+                        owner=owner,
+                        lease_until=lease_until,
+                        available_at=available_at,
+                        now=now,
+                    )
+                    judge_record = self._reserve_provider_call_in_transaction(
+                        connection,
+                        judge_call_request,
+                        owner=owner,
+                        lease_until=lease_until,
+                        available_at=available_at,
+                        now=now,
+                    )
+                    self._inject_failure("atomic_register.after_reservations")
+                    if scoring_record.status is ProviderCallStatus.PENDING:
+                        scoring_record = self._complete_provider_call_in_transaction(
+                            connection,
+                            scoring_call_completion,
+                            owner=owner,
+                            now=now_text,
+                        )
+                    if judge_record.status is ProviderCallStatus.PENDING:
+                        judge_record = self._complete_provider_call_in_transaction(
+                            connection,
+                            judge_call_completion,
+                            owner=owner,
+                            now=now_text,
+                        )
+                    self._inject_failure("atomic_register.after_provider_calls")
+                    changed = connection.execute(
+                        "UPDATE videos SET pipeline_status = :target_status, "
+                        "score = :score, should_summarize = :should_summarize, "
+                        "updated_at = :now, completed_at = NULL "
+                        "WHERE video_id = :video_id "
+                        "AND pipeline_status = :expected_status "
+                        "AND pipeline_version = :pipeline_version",
+                        {
+                            "target_status": PipelineStatus.SCORED.value,
+                            "score": scoring_summary.score,
+                            "should_summarize": int(scoring_summary.should_summarize),
+                            "now": now_text,
+                            "video_id": video_id,
+                            "expected_status": PipelineStatus.TRANSCRIPT_READY.value,
+                            "pipeline_version": pipeline_version,
+                        },
+                    ).rowcount
+                    if changed != 1:
+                        msg = "pipeline changed before atomic scoring registration"
+                        raise ConcurrencyConflict(msg)
+                    self._inject_failure("atomic_register.after_pipeline")
+                    job = self._finish_job_success_in_transaction(
+                        connection, job_id=job_id, owner=owner, now=now_text
+                    )
+                    video_row = connection.execute(
+                        "SELECT * FROM videos WHERE video_id = :video_id",
+                        {"video_id": video_id},
+                    ).fetchone()
+                    if video_row is None:
+                        msg = "completed video could not be read"
+                        raise StateStoreError(msg)
+                    return StageCompletionResult(
+                        job=job,
+                        video=self._video_from_row(video_row),
+                        artifacts=(raw_record, structured_record),
+                        provider_call=scoring_record,
+                    )
+            except sqlite3.IntegrityError as error:
+                msg = "atomic scoring registration violates repository integrity"
                 raise IntegrityConflict(msg) from error
         finally:
             connection.close()

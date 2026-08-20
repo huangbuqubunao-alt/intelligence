@@ -84,12 +84,19 @@ from youtube_intel.quality import (
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.scoring import (
+    _G_RAW_ARTIFACT_PRODUCER_VERSION,
+    _G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+    _RAW_ARTIFACT_PRODUCER_VERSION,
     _SCORING_OPERATION,
+    _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+    PROMPT_VERSION,
+    SCHEMA_VERSION,
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
-    RepositoryBackedScoringService,
     ScoringJobContext,
+    TrustedScoringPersistenceCommitter,
     _run_primary_trusted_scoring_seam,
+    build_scoring_input,
     build_scoring_request_identity,
 )
 from youtube_intel.state import (
@@ -461,6 +468,32 @@ class RuntimeOperations(Operations):
             scoring_context=self._trusted_scoring_context,
         )
 
+    def _trusted_scoring_committer(
+        self,
+        *,
+        job_id: str,
+        owner: str,
+        pipeline_version: str,
+    ) -> TrustedScoringPersistenceCommitter:
+        """Mint the runtime-owned Phase G persistence committer.
+
+        Authority, context, DATA root and job identity come from the runtime
+        closure; callers cannot substitute them.
+        """
+
+        return TrustedScoringPersistenceCommitter(
+            repository=self._repository,
+            data_root=self._data_root,
+            quality_authority=self._quality_provenance_authority,
+            scoring_context=self._trusted_scoring_context,
+            context=ScoringJobContext(
+                job_id=job_id,
+                owner=owner,
+                pipeline_version=pipeline_version,
+            ),
+            summary_threshold=self._config.settings.thresholds.summary_score,
+        )
+
     @staticmethod
     def _video_metadata(record: object) -> VideoMetadata:
         values = {
@@ -530,11 +563,15 @@ class RuntimeOperations(Operations):
     ) -> None:
         """Fail-closed provenance check before Runtime reuses a persisted score."""
 
+        accepted_structured_producers = {
+            _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+            _G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+        }
         if (
             artifact.video_id != video_id
             or artifact.kind is not ArtifactKind.SCORING_STRUCTURED
             or artifact.artifact_key != f"scoring/{result.request_hash}/structured"
-            or artifact.producer_version != "scoring-structured-v2"
+            or artifact.producer_version not in accepted_structured_producers
             or artifact.provider != "ollama"
             or artifact.provider != result.provider
             or artifact.model is None
@@ -552,6 +589,8 @@ class RuntimeOperations(Operations):
         ):
             raise ValueError("persisted scoring job provenance is invalid")
         provider_call = self._repository.get_provider_call(result.request_hash)
+        accepted_result_schema_versions = {SCHEMA_VERSION, _SCORING_SCHEMA_VERSION}
+        accepted_result_prompt_versions = {PROMPT_VERSION, _SCORING_PROMPT_VERSION}
         if (
             provider_call is None
             or provider_call.status is not ProviderCallStatus.SUCCEEDED
@@ -559,17 +598,21 @@ class RuntimeOperations(Operations):
             or provider_call.provider != "ollama"
             or provider_call.provider != result.provider
             or provider_call.model != result.model
-            or provider_call.prompt_version != "scoring-prompt-v2"
-            or provider_call.prompt_version != result.prompt_version
-            or provider_call.schema_version != "score-result-v2"
-            or provider_call.schema_version != result.schema_version
+            or provider_call.prompt_version != PROMPT_VERSION
+            or provider_call.schema_version != SCHEMA_VERSION
             or provider_call.request_hash != result.request_hash
             or not provider_call.response_artifact_id
+            or result.schema_version not in accepted_result_schema_versions
+            or result.prompt_version not in accepted_result_prompt_versions
         ):
             raise ValueError("persisted scoring provider call provenance is invalid")
         raw = self._repository.get_artifact_by_key(
             f"scoring/{result.request_hash}/raw"
         )
+        accepted_raw_producers = {
+            _RAW_ARTIFACT_PRODUCER_VERSION,
+            _G_RAW_ARTIFACT_PRODUCER_VERSION,
+        }
         if (
             raw is None
             or raw.artifact_id != provider_call.response_artifact_id
@@ -580,7 +623,7 @@ class RuntimeOperations(Operations):
             or raw.provider != artifact.provider
             or raw.model != result.model
             or raw.model != artifact.model
-            or raw.producer_version != "ollama-raw-v2"
+            or raw.producer_version not in accepted_raw_producers
         ):
             raise ValueError("persisted scoring raw artifact provenance is invalid")
         if result.model != self._config.settings.local_scoring.model:
@@ -768,20 +811,26 @@ class RuntimeOperations(Operations):
                 max_bytes=4_000_000,
             ).decode("utf-8")
             configured_output_language = self._config.settings.general.output_language
-            RepositoryBackedScoringService(
-                provider=self._dependencies.scoring_provider_factory(),
-                settings=self._config.settings.local_scoring,
-                summary_threshold=self._config.settings.thresholds.summary_score,
-                repository=self._repository,
-                context=ScoringJobContext(job.job_id, owner, PIPELINE_VERSION),
-                artifact_root=self._data_root,
-                clock=_utcnow,
-            ).score(
+            scoring_input = build_scoring_input(
                 video=video,
                 transcript_text=text,
                 language=transcript.language,
                 output_language=configured_output_language,
+                settings=self._config.settings.local_scoring,
             )
+            provider = self._dependencies.scoring_provider_factory()
+            attempt = provider.primary_attempt(scoring_input)
+            success = self.run_primary_trusted_scoring(
+                attempt=attempt,
+                scoring_input=scoring_input,
+            )
+            committer = self._trusted_scoring_committer(
+                job_id=job.job_id,
+                owner=owner,
+                pipeline_version=PIPELINE_VERSION,
+            )
+            plan = committer.prewrite_validate(success)
+            committer.commit(plan)
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:
