@@ -480,6 +480,11 @@ Finalizer 成功前逐项查询并断言不存在：
 - 当前运行可返回的 cache hit；
 - pipeline `SCORED` 状态。
 
+Phase G 另须先证实 F→G aggregate completeness：success 内封存的 canonical ScoringInput、quality input、
+full PASS quality result、quality operation 与 attestation 任一缺失、bytes/hash 篡改或与 aggregate seals
+不一致，都必须在 `PREWRITE_VALIDATE` 前失败；不得通过 caller Mapping/JSON 重新补入。该测试保护
+“G only accepts success”而不是退化为散装 DTO ingress。
+
 上面的“cache identity”只可作为运行时派生视图检查项，不得在 Repository/DB 中找到对应
 table、row、Artifact 或文件。
 

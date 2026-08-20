@@ -3,15 +3,15 @@
 - 更新时间：2026-08-12
 - 当前阶段：TASK-016 — Local-only 第一验收里程碑
 - 主控状态：ACTIVE
-- TASK-016C Phase D 与 Phase E 均已 `APPROVED`。Phase E 实现并复核了 canonical scoring identity、
-  runtime-owned `TrustedScoringContext`、pure `TrustedScoringFinalizer` 与 `TrustedScoreResult`。
-  Phase F Round 4 已 `READY / AUTHORIZED`，但 `IMPLEMENTATION NOT STARTED`：它仅授权 PRIMARY-only、
-  non-production in-memory candidate composition seam，并输出 request-bound untrusted
-  `PrimaryScoringAttempt` 与 `TrustedScoreResult` 的纯内存 success aggregate。attempt 封存 exact raw-body
-  hash，并以 F/G 共享的 canonical parser 将 raw response 语义绑定到 candidate；正式
-  pre-write/persistence cutover 属于 G，
-  repair/retry/recovery/budget 属于 H，cache verification/recovery 与 release acceptance 属于 I。
-  Provider、DB、Artifact、cache、filesystem 与真实模型均未实现；Phase F 代码已获授权但尚未启动，G–I 仍未授权。
+- TASK-016C Phase D、E 与 F 均已 `APPROVED`。Phase F accepted source
+  `c0268a… -> df920cc… -> 931674e…` 已经用户授权以 conflict-free、线性、tree/content-equivalent 的
+  integrated equivalents `61bb0bb… -> d059bea… -> 2f6e30b…` 落在当前基线；不得重写历史恢复原 SHA。
+  Phase F 保持 PRIMARY-only、memory-only、zero-persistence，并输出 request-bound
+  `PhaseFTrustedScoringSuccess`。Phase G 现为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`：它将先
+  补全 sealed F→G quality/input continuation，再实现 PREWRITE_VALIDATE、validated write plan、
+  verified filesystem + atomic SQLite registration 与 normal runtime cutover；它仍不含 repair/retry/
+  recovery/cache recovery。H 负责 repair/retry/recovery/budget，I 负责 cache verification/recovery
+  与 release acceptance。真实模型、网络、Cloud、DB migration 和依赖变更均未获授权。
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。

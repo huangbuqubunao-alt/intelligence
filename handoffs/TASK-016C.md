@@ -1,9 +1,30 @@
 # TASK-016C 交接报告
 
-## Phase F Implementation Authorization
+## Phase F accepted-equivalent integration 与 Phase G discovery
 
-- Status: `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`。Authorization 仅授权一个未来 WorkBuddy
-  implementation commit；未创建代码、实施分支、review、merge 或 Phase G work。
+- Current Phase G baseline：`2f6e30bd4720e76a72783974704e8e975b6f60c0`，tracked worktree clean。
+- 用户已授权把 conflict-free cherry-pick 的线性 integration equivalents 视为 Phase F 的 accepted
+  implementation history：`c0268a… -> 61bb0bb…`、`df920cc… -> d059bea…`、
+  `931674e… -> 2f6e30b…`。三组 tree/content diff 均为空；不要求 original source SHA 成为
+  current HEAD ancestor，严禁 rewrite/rebase/squash/amend 以恢复原 SHA。
+- Phase D `2c11faf…` 与 Phase E `9b92946…` 均已核验为当前 HEAD ancestor；Phase F 状态更新为
+  `APPROVED`，Phase G 状态为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
+- Discovery 事实：legacy `RepositoryBackedScoringService` 在 provider call 前持久化 reserve，随后直接
+  写 raw/structured files，最后由 `complete_stage()` 的一笔 SQLite transaction 登记 Artifact、完成 call、
+  更新 score/stage/job；它没有 tmp/fsync/promote protocol，filesystem 与 SQLite 不跨资源原子。
+- 设计发现并关闭：当前 Phase F success 未保存完整 ScoringInput/quality PASS/attestation evidence，无法在
+  “G only accepts success”条件下重验 trusted provenance。G 将最小 enrich 同一 sealed aggregate，以
+  canonical bytes/hashes 封存该 evidence；不得以 caller DTO 补信任。
+- G future normal path：`primary_attempt -> run_primary_trusted_scoring -> enriched success -> PREWRITE_VALIDATE
+  -> ValidatedScoringWritePlan -> verified tmp/promote -> one atomic SQLite registration`。G 不得在 prewrite
+  前 reserve/write/cache/stage，不得 provider/Judge recall；repair/recovery/cache verification 仍分别属于 H/I。
+- Design authority：[Phase G Amendment](../docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md)。
+- 本条仅为 control-plane discovery；未实施 Phase G、未运行真实 provider/network、未写 DB/filesystem。
+
+## Phase F Implementation Authorization（历史控制面；当前状态由上方 integration 条目 supersede）
+
+- Historical status at `acdaac1…`: `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`。该授权随后已经
+  accepted-equivalent linear integration 实施并 APPROVED；本段仅保留历史上下文。
 - Authority: `agent-prompts/TASK-016C-PHASE-F-IMPLEMENTATION-AUTHORIZATION.md`、
   `agent-prompts/TASK-016C-PHASE-F-IMPLEMENTER-WORKBUDDY.md` 与
   `docs/TASK-016C-PHASE-F-HANDOFF-CHECKLIST.md`。实现必须是本控制面提交和 Round 4 accepted design
