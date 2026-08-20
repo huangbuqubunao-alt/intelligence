@@ -13,17 +13,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Final, NoReturn, Protocol
+from typing import TYPE_CHECKING, Final, NoReturn, Protocol
 
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     AppError,
+    ContentQualityInput,
+    ContentQualityResult,
     DiagnosticEntry,
     ErrorCode,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
+    QualityJudgeOperationInput,
+    QualityPassAttestation,
     ScoreResult,
+    ScoringCandidate,
     ScoringDecision,
     ScoringInput,
     ScoringOutcome,
@@ -34,6 +39,13 @@ from youtube_intel.domain import (
     validate_score_result,
     validate_score_result_json,
 )
+
+if TYPE_CHECKING:
+    from youtube_intel.quality import (
+        QualityProvenanceAuthority,
+        TrustedScoreResult,
+        TrustedScoringContext,
+    )
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
@@ -1548,9 +1560,370 @@ class RepositoryBackedScoringService:
                 pass
 
 
+# ---------------------------------------------------------------------------
+# Phase F: PRIMARY-only in-memory trusted scoring seam (memory only)
+# ---------------------------------------------------------------------------
+#
+# The seam is deliberately non-production and isolated: it accepts only an
+# exact ``PrimaryScoringAttempt`` whose candidate was derived by the single
+# canonical parser from the exact bounded raw response bytes, re-verifies
+# every binding in memory, finalizes through ``TrustedScoringFinalizer``, and
+# seals the memory-only ``PhaseFTrustedScoringSuccess`` aggregate.  It never
+# touches persistence, artifacts, caches, provider recall, or the legacy
+# ``RepositoryBackedScoringService`` path.
+
+
+@dataclass(frozen=True, slots=True)
+class PrimaryScoringAttempt:
+    """Frozen candidate-only PRIMARY continuation (Phase F).
+
+    The attempt binds one canonical ``ScoringCandidate`` derived from the
+    exact bounded ``final_raw_response`` body to the scoring request identity,
+    with ``attempt_role`` fixed to ``"PRIMARY"``.  It is not a Pydantic DTO,
+    not restorable from JSON, and not a persistence/cache/artifact type.
+    """
+
+    scoring_input_normalized_hash: str
+    scoring_request_hash: str
+    candidate: ScoringCandidate
+    candidate_hash: str
+    raw_response_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    attempt_role: str
+    final_raw_response: str
+
+
+def build_primary_scoring_attempt(
+    *,
+    scoring_input: ScoringInput,
+    candidate: ScoringCandidate,
+    final_raw_response: str,
+    provider: str,
+    model: str,
+    model_digest: str,
+    temperature: float,
+    max_output_tokens: int,
+    max_description_chars: int,
+) -> PrimaryScoringAttempt:
+    """Bind a canonical candidate to the exact raw response and request identity.
+
+    The candidate is accepted only when it is an exact ``ScoringCandidate``
+    whose value equals the canonical re-parse of ``final_raw_response`` (raw A
+    + candidate B fails closed).  The raw body must be a bounded strict-UTF-8
+    string; the hash is computed over the exact response-body bytes.
+    """
+
+    if type(scoring_input) is not ScoringInput:
+        msg = (
+            "scoring_input must be an exact validated ScoringInput; "
+            f"got {type(scoring_input).__name__}"
+        )
+        raise ValueError(msg)
+    if type(candidate) is not ScoringCandidate:
+        msg = (
+            "candidate must be an exact ScoringCandidate; "
+            f"got {type(candidate).__name__}"
+        )
+        raise ValueError(msg)
+
+    from youtube_intel.providers.ollama import parse_scoring_candidate
+
+    parsed_candidate = parse_scoring_candidate(final_raw_response)
+    if parsed_candidate != candidate:
+        msg = "candidate does not match the canonical parse of the raw response"
+        raise ValueError(msg)
+
+    identity = build_scoring_request_identity(
+        scoring_input=scoring_input,
+        model=model,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        max_description_chars=max_description_chars,
+    )
+    from youtube_intel.quality import build_scoring_candidate_hash
+
+    candidate_hash = build_scoring_candidate_hash(parsed_candidate)
+    raw_response_hash = hashlib.sha256(
+        final_raw_response.encode("utf-8")
+    ).hexdigest()
+    return PrimaryScoringAttempt(
+        scoring_input_normalized_hash=identity.normalized_input_hash,
+        scoring_request_hash=identity.request_hash,
+        candidate=parsed_candidate,
+        candidate_hash=candidate_hash,
+        raw_response_hash=raw_response_hash,
+        provider=provider,
+        model=model,
+        model_digest=model_digest,
+        attempt_role="PRIMARY",
+        final_raw_response=final_raw_response,
+    )
+
+
+class _PhaseFTrustedScoringSuccessSentinel:
+    """Private sentinel; only the Phase F seam can mint the aggregate."""
+
+    __slots__ = ()
+
+
+_PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL = _PhaseFTrustedScoringSuccessSentinel()
+
+
+class PhaseFTrustedScoringSuccess:
+    """Opaque memory-only Phase F success aggregate.
+
+    The aggregate is not a Pydantic DTO and cannot be constructed, copied,
+    serialized, subclassed, or mutated by callers.  It seals the trusted
+    result together with its primary attempt through the three canonical
+    hashes so a later phase can verify the complete binding in memory.
+    """
+
+    __slots__ = (
+        "_trusted_result",
+        "_primary_attempt",
+        "_scoring_request_hash",
+        "_candidate_hash",
+        "_raw_response_hash",
+        "_sealed",
+    )
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("PhaseFTrustedScoringSuccess cannot be subclassed")
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        trusted_result: TrustedScoreResult,
+        primary_attempt: PrimaryScoringAttempt,
+        scoring_request_hash: str,
+        candidate_hash: str,
+        raw_response_hash: str,
+    ) -> None:
+        if sentinel is not _PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL:
+            msg = "PhaseFTrustedScoringSuccess can only be minted by the trusted seam"
+            raise ValueError(msg)
+        self._trusted_result = trusted_result
+        self._primary_attempt = primary_attempt
+        self._scoring_request_hash = scoring_request_hash
+        self._candidate_hash = candidate_hash
+        self._raw_response_hash = raw_response_hash
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("PhaseFTrustedScoringSuccess is immutable")
+        object.__setattr__(self, name, value)
+
+    @property
+    def trusted_result(self) -> TrustedScoreResult:
+        return self._trusted_result
+
+    @property
+    def primary_attempt(self) -> PrimaryScoringAttempt:
+        return self._primary_attempt
+
+    @property
+    def scoring_request_hash(self) -> str:
+        return self._scoring_request_hash
+
+    @property
+    def candidate_hash(self) -> str:
+        return self._candidate_hash
+
+    @property
+    def raw_response_hash(self) -> str:
+        return self._raw_response_hash
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("PhaseFTrustedScoringSuccess cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("PhaseFTrustedScoringSuccess cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("PhaseFTrustedScoringSuccess cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("PhaseFTrustedScoringSuccess cannot be serialized")
+
+
+def mint_phase_f_trusted_scoring_success(
+    *,
+    trusted_result: TrustedScoreResult,
+    primary_attempt: PrimaryScoringAttempt,
+) -> PhaseFTrustedScoringSuccess:
+    """Seal the only Phase F success aggregate with self-verifying hashes.
+
+    A bare ``TrustedScoreResult`` is not a Phase F success; the aggregate is
+    minted only with the exact primary attempt and re-verified in memory.
+    """
+
+    from youtube_intel.quality import (
+        TrustedScoreResult,
+        build_scoring_candidate_hash,
+    )
+
+    if type(trusted_result) is not TrustedScoreResult:
+        msg = (
+            "trusted result must be an exact TrustedScoreResult; "
+            f"got {type(trusted_result).__name__}"
+        )
+        raise ValueError(msg)
+    if type(primary_attempt) is not PrimaryScoringAttempt:
+        msg = (
+            "primary attempt must be an exact PrimaryScoringAttempt; "
+            f"got {type(primary_attempt).__name__}"
+        )
+        raise ValueError(msg)
+
+    try:
+        raw_bytes = primary_attempt.final_raw_response.encode("utf-8")
+    except UnicodeEncodeError:
+        msg = "raw response is not valid strict UTF-8"
+        raise ValueError(msg) from None
+    raw_response_hash = hashlib.sha256(raw_bytes).hexdigest()
+    if raw_response_hash != primary_attempt.raw_response_hash:
+        msg = "raw response hash mismatches the primary attempt binding"
+        raise ValueError(msg)
+    candidate_hash = build_scoring_candidate_hash(primary_attempt.candidate)
+    if candidate_hash != primary_attempt.candidate_hash:
+        msg = "candidate hash mismatches the primary attempt binding"
+        raise ValueError(msg)
+    if trusted_result.result.request_hash != primary_attempt.scoring_request_hash:
+        msg = "trusted result request hash mismatches the primary attempt binding"
+        raise ValueError(msg)
+
+    return PhaseFTrustedScoringSuccess(
+        sentinel=_PHASE_F_TRUSTED_SCORING_SUCCESS_SENTINEL,
+        trusted_result=trusted_result,
+        primary_attempt=primary_attempt,
+        scoring_request_hash=primary_attempt.scoring_request_hash,
+        candidate_hash=primary_attempt.candidate_hash,
+        raw_response_hash=primary_attempt.raw_response_hash,
+    )
+
+
+def run_primary_trusted_scoring_seam(
+    *,
+    attempt: PrimaryScoringAttempt,
+    scoring_input: ScoringInput,
+    quality_input: ContentQualityInput,
+    quality_result: ContentQualityResult,
+    quality_operation: QualityJudgeOperationInput,
+    attestation: QualityPassAttestation,
+    quality_authority: QualityProvenanceAuthority,
+    scoring_context: TrustedScoringContext,
+) -> PhaseFTrustedScoringSuccess:
+    """Finalize one PRIMARY attempt into the memory-only trusted success.
+
+    The seam holds no provider handle and cannot recall the provider: it
+    re-verifies the raw, candidate, and request bindings entirely from the
+    attempt plus the runtime-minted scoring context, then delegates business
+    finalization to ``TrustedScoringFinalizer`` with the parser-derived
+    candidate.  Legacy ``ScoreResult``, mappings, and JSON are rejected at the
+    entrance by exact-type guard.
+    """
+
+    # Legacy isolation guard: exact type before any attempt field is read.
+    if type(attempt) is not PrimaryScoringAttempt:
+        msg = (
+            "trusted seam requires an exact PrimaryScoringAttempt; "
+            f"got {type(attempt).__name__}"
+        )
+        raise ValueError(msg)
+    if attempt.attempt_role != "PRIMARY":
+        msg = "trusted seam accepts only PRIMARY attempts"
+        raise ValueError(msg)
+
+    if type(scoring_input) is not ScoringInput:
+        msg = (
+            "scoring_input must be an exact validated ScoringInput; "
+            f"got {type(scoring_input).__name__}"
+        )
+        raise ValueError(msg)
+
+    # Provider provenance binds the attempt to the current runtime context.
+    if attempt.provider != scoring_context.scoring_provider:
+        msg = "attempt provider mismatches the trusted scoring context"
+        raise ValueError(msg)
+    if attempt.model != scoring_context.scoring_model:
+        msg = "attempt provider model mismatches the trusted scoring context"
+        raise ValueError(msg)
+    if attempt.model_digest != scoring_context.scoring_model_digest:
+        msg = "attempt provider model digest mismatches the trusted scoring context"
+        raise ValueError(msg)
+
+    # Raw binding: the hash is over the exact response-body bytes.
+    try:
+        raw_bytes = attempt.final_raw_response.encode("utf-8")
+    except UnicodeEncodeError:
+        msg = "raw response is not valid strict UTF-8"
+        raise ValueError(msg) from None
+    raw_response_hash = hashlib.sha256(raw_bytes).hexdigest()
+    if raw_response_hash != attempt.raw_response_hash:
+        msg = "raw response hash mismatches the primary attempt binding"
+        raise ValueError(msg)
+
+    # Candidate binding: canonical hash, then a fresh canonical re-parse.
+    from youtube_intel.quality import build_scoring_candidate_hash
+
+    candidate_hash = build_scoring_candidate_hash(attempt.candidate)
+    if candidate_hash != attempt.candidate_hash:
+        msg = "candidate hash mismatches the primary attempt binding"
+        raise ValueError(msg)
+
+    from youtube_intel.providers.ollama import parse_scoring_candidate
+
+    reparsed_candidate = parse_scoring_candidate(attempt.final_raw_response)
+    if reparsed_candidate != attempt.candidate:
+        msg = "candidate does not match the canonical parse of the raw response"
+        raise ValueError(msg)
+
+    # Request identity: rebuilt from the runtime context, not trusted by name.
+    identity = build_scoring_request_identity(
+        scoring_input=scoring_input,
+        model=scoring_context.scoring_model,
+        temperature=scoring_context.temperature,
+        max_output_tokens=scoring_context.max_output_tokens,
+        max_description_chars=scoring_context.max_description_chars,
+    )
+    if attempt.scoring_request_hash != identity.request_hash:
+        msg = "scoring request hash mismatches the canonical identity"
+        raise ValueError(msg)
+    if attempt.scoring_input_normalized_hash != identity.normalized_input_hash:
+        msg = "scoring input identity mismatches the canonical identity"
+        raise ValueError(msg)
+    if scoring_input.request_hash != identity.request_hash:
+        msg = "scoring request hash mismatches the trusted scoring input"
+        raise ValueError(msg)
+
+    from youtube_intel.quality import TrustedScoringFinalizer
+
+    trusted_result = TrustedScoringFinalizer().finalize(
+        candidate=attempt.candidate,
+        scoring_input=scoring_input,
+        quality_input=quality_input,
+        quality_result=quality_result,
+        quality_operation=quality_operation,
+        attestation=attestation,
+        quality_authority=quality_authority,
+        scoring_context=scoring_context,
+    )
+    return mint_phase_f_trusted_scoring_success(
+        trusted_result=trusted_result,
+        primary_attempt=attempt,
+    )
+
+
 __all__ = [
     "InMemoryScoringCache",
     "PROMPT_VERSION",
+    "PhaseFTrustedScoringSuccess",
+    "PrimaryScoringAttempt",
     "RepositoryBackedScoringService",
     "SAMPLING_VERSION",
     "SCHEMA_VERSION",
@@ -1558,6 +1931,9 @@ __all__ = [
     "ScoringJobContext",
     "ScoringPersistenceError",
     "ScoringService",
+    "build_primary_scoring_attempt",
     "build_scoring_input",
+    "mint_phase_f_trusted_scoring_success",
+    "run_primary_trusted_scoring_seam",
     "sample_transcript",
 ]
