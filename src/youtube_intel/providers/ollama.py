@@ -26,12 +26,18 @@ from youtube_intel.domain import (
     ProcessingStage,
     QualityJudgeOperationInput,
     ScoreResult,
+    ScoringCandidate,
     ScoringEvidence,
     ScoringInput,
     ScoringOutputLanguage,
     scoring_reason_matches_output_language,
 )
-from youtube_intel.scoring import PROMPT_VERSION, SCHEMA_VERSION
+from youtube_intel.scoring import (
+    PROMPT_VERSION,
+    SCHEMA_VERSION,
+    PrimaryScoringAttempt,
+    build_primary_scoring_attempt,
+)
 from youtube_intel.state import build_provider_request_hash
 
 _PROVIDER_NAME: Final = "ollama"
@@ -107,6 +113,68 @@ class _GeneratedResponse:
     raw_response: str
 
 
+def parse_scoring_candidate(raw_response_text: str) -> ScoringCandidate:
+    """Parse the canonical bounded raw response body into a ``ScoringCandidate``.
+
+    This is the single pure raw->candidate parser shared by the Phase F trusted
+    seam and the future Phase G persistence path.  It deliberately owns no
+    request identity, provider provenance, or language policy: those bindings
+    are established by the attempt factory and the finalizer, not here.
+
+    Fail-closed order (mirrors ``_request_json``): bounded strict-UTF-8 body,
+    JSON object, model ``response`` string within the model response limit,
+    JSON object restricted to the scoring business fields, then full
+    ``ScoringCandidate`` revalidation.
+    """
+
+    if not isinstance(raw_response_text, str):
+        msg = "final_raw_response must be a strict UTF-8 decoded string"
+        raise ValueError(msg)
+    try:
+        raw_bytes = raw_response_text.encode("utf-8")
+    except UnicodeEncodeError:
+        msg = "final_raw_response is not valid strict UTF-8"
+        raise ValueError(msg)
+    if len(raw_bytes) > _MAX_RESPONSE_BYTES:
+        msg = "final_raw_response exceeded the bounded raw response size limit"
+        raise ValueError(msg)
+
+    invalid_json = False
+    try:
+        payload: object = json.loads(raw_response_text)
+    except json.JSONDecodeError:
+        invalid_json = True
+        payload = None
+    if invalid_json or not isinstance(payload, Mapping):
+        msg = "raw response is not a valid JSON object"
+        raise ValueError(msg)
+    response = payload.get("response")
+    if not isinstance(response, str):
+        msg = "raw response contains no model response text"
+        raise ValueError(msg)
+    if len(response) > _MAX_MODEL_RESPONSE_CHARS:
+        msg = "model response exceeded the configured character limit"
+        raise ValueError(msg)
+
+    invalid_inner_json = False
+    try:
+        parsed: object = json.loads(response)
+    except json.JSONDecodeError:
+        invalid_inner_json = True
+        parsed = None
+    if invalid_inner_json or not isinstance(parsed, dict):
+        msg = "model response is not a valid JSON object"
+        raise ValueError(msg)
+    if not set(parsed).issubset(_MODEL_RESULT_FIELDS):
+        msg = "model response contains fields outside the scoring contract"
+        raise ValueError(msg)
+    try:
+        return ScoringCandidate.model_validate(parsed)
+    except ValueError:
+        msg = "model response does not satisfy the scoring candidate contract"
+        raise ValueError(msg) from None
+
+
 def _default_transport(request: urllib.request.Request, timeout: float) -> _Response:
     return cast(_Response, urllib.request.urlopen(request, timeout=timeout))  # noqa: S310
 
@@ -153,6 +221,33 @@ class OllamaScoringProvider:
         self._transport = transport
         self._last_raw_response: str | None = None
         self._last_request_hash: str | None = None
+
+    def primary_attempt(self, scoring_input: ScoringInput) -> PrimaryScoringAttempt:
+        """Return the candidate-only PRIMARY continuation without any repair.
+
+        The trusted path performs exactly one model preflight (GET /api/tags)
+        and one deterministic generate (POST /api/generate).  The attempt binds
+        the full bounded raw response body, the canonical parsed candidate, and
+        the request identity; it never falls back to a repair request.
+        """
+
+        video_id = scoring_input.video.video_id
+        self._verify_expected_model(video_id)
+        generated = self._generate(
+            prompt=self._render_primary_prompt(scoring_input),
+            video_id=video_id,
+        )
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,
+            candidate=parse_scoring_candidate(generated.raw_response),
+            final_raw_response=generated.raw_response,
+            provider=_PROVIDER_NAME,
+            model=self._settings.model,
+            model_digest=self._settings.expected_model_digest,
+            temperature=self._settings.temperature,
+            max_output_tokens=self._settings.max_output_tokens,
+            max_description_chars=self._settings.max_description_chars,
+        )
 
     def score(self, scoring_input: ScoringInput) -> ScoreResult:
         """Return one validated score, never exposing untrusted failures."""

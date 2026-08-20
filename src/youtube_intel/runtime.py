@@ -31,14 +31,19 @@ from youtube_intel.domain import (
     AnalysisSkipReason,
     AppError,
     ChannelRef,
+    ContentQualityInput,
+    ContentQualityResult,
     ErrorCode,
     JobStatus,
     MetadataProvider,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
+    QualityJudgeOperationInput,
+    QualityPassAttestation,
     ScoreResult,
     ScoringDecision,
+    ScoringInput,
     ScoringOutcome,
     SourceProvider,
     TranscriptionRequired,
@@ -73,8 +78,11 @@ from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.scoring import (
     _SCORING_OPERATION,
+    PhaseFTrustedScoringSuccess,
+    PrimaryScoringAttempt,
     RepositoryBackedScoringService,
     ScoringJobContext,
+    run_primary_trusted_scoring_seam,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -280,6 +288,36 @@ class RuntimeOperations(Operations):
         self._data_root = _safe_project_path(
             self._root, self._config.settings.storage.data_dir
         ).resolve(strict=True)
+
+    def run_primary_trusted_scoring(
+        self,
+        *,
+        attempt: PrimaryScoringAttempt,
+        scoring_input: ScoringInput,
+        quality_input: ContentQualityInput,
+        quality_result: ContentQualityResult,
+        quality_operation: QualityJudgeOperationInput,
+        attestation: QualityPassAttestation,
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+    ) -> PhaseFTrustedScoringSuccess:
+        """Run the Phase F in-memory trusted scoring seam (memory only).
+
+        This is a thin explicit surface for the PRIMARY-only seam; the default
+        pipeline dispatch and the legacy ``RepositoryBackedScoringService``
+        compatibility path are unchanged.
+        """
+
+        return run_primary_trusted_scoring_seam(
+            attempt=attempt,
+            scoring_input=scoring_input,
+            quality_input=quality_input,
+            quality_result=quality_result,
+            quality_operation=quality_operation,
+            attestation=attestation,
+            quality_authority=quality_authority,
+            scoring_context=scoring_context,
+        )
 
     @staticmethod
     def _video_metadata(record: object) -> VideoMetadata:
