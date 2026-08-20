@@ -38,7 +38,7 @@ No Provider-to-`ScoreResult`, Candidate-to-Artifact, attestation-only, pre-write
 | C | Local Judge Contract and H1/H2 | NOT AUTHORIZED | B accepted |
 | D | PASS Attestation and Canonical Hashing | APPROVED / `2c11faf41e17c3b823a39bfd1018c5c876b236c5` | C accepted |
 | E | TrustedScoringFinalizer | APPROVED / `9b92946…` | D APPROVED；pure-memory finalization accepted |
-| F | Candidate-only in-memory runtime integration（含 PRIMARY raw-response continuation） | DESIGN READY / IMPLEMENTATION NOT AUTHORIZED | E accepted；Phase F Amendment Round 4 待独立审查 |
+| F | Candidate-only in-memory runtime integration（含 PRIMARY raw-response continuation） | READY / AUTHORIZED；IMPLEMENTATION NOT STARTED | E accepted；Phase F Amendment Round 4 approved；仅按正式 authorization 实施 |
 | G | Pre-write validation + persistence registration boundary | NOT AUTHORIZED | F accepted |
 | H | Repair/retry/recovery/budget orchestration | NOT AUTHORIZED | G accepted |
 | I | Production hardening / release acceptance（含 derived cache verification、adversarial/crash/bypass 与完整验收） | NOT AUTHORIZED | H accepted |
@@ -56,10 +56,10 @@ Every phase follows RED → minimal GREEN → focused checks → independent rev
 
 WorkBuddy must stop after its assigned phase. Codex performs the independent review. Only an independent
 approval of a phase may lead to a separately authorized next phase. Phase D and Phase E are APPROVED;
-Phase F 仅为 non-production、PRIMARY-only 的 isolated in-memory composition seam：它输出
+Phase F 现已获 implementation authorization，但仍未启动；它仅为 non-production、PRIMARY-only 的 isolated in-memory composition seam：它输出
 `PhaseFTrustedScoringSuccess`，其中 `PrimaryScoringAttempt` 是不可持久化的 untrusted raw continuation；
 其 exact raw body 必须经过同一 canonical parser 重建 candidate，并封存 raw/candidate/request binding，
-而 `TrustedScoreResult` 是唯一 trusted business result；尚未获实施授权。
+而 `TrustedScoreResult` 是唯一 trusted business result；仅 Phase F 已获实施授权且尚未启动。
 Phase G 才拥有 pre-write/persistence registration 与正式 runtime cutover；Phase H 才拥有 repair/
 retry/recovery/budget；Phase I 才拥有 derived cache verification 和 release acceptance。没有后续 phase
 获得实现、整合或发布授权。

@@ -1,9 +1,13 @@
 # TASK-016C 交接报告
 
-## Phase F Runtime Integration Amendment Round 4
+## Phase F Implementation Authorization
 
-- Conclusion: `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`；没有创建 Phase F authorization 或
-  代码。
+- Status: `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`。Authorization 仅授权一个未来 WorkBuddy
+  implementation commit；未创建代码、实施分支、review、merge 或 Phase G work。
+- Authority: `agent-prompts/TASK-016C-PHASE-F-IMPLEMENTATION-AUTHORIZATION.md`、
+  `agent-prompts/TASK-016C-PHASE-F-IMPLEMENTER-WORKBUDDY.md` 与
+  `docs/TASK-016C-PHASE-F-HANDOFF-CHECKLIST.md`。实现必须是本控制面提交和 Round 4 accepted design
+  `e00f957…` 的 descendant，禁止 squash/rebase/history rewrite。
 - 唯一阶段顺序已冻结：F=PRIMARY-only、candidate-only 的 non-production in-memory seam；
   G=pre-write validation + persistence registration + production cutover；H=repair/retry/recovery/
   budget；I=derived cache verification/recovery + production hardening/release acceptance。旧 J/K
@@ -27,6 +31,11 @@
   reparse/candidate hash/result/attestation 重新交叉验证；不得 provider recall、caller/cache/legacy raw substitution 或用 result
   反向重建 raw。
 - 未执行：Phase F–I 代码、Provider/网络、持久化、cache、DB、Artifact、merge 或 history rewrite。
+
+### Round 4 design provenance
+
+- Phase F Runtime Integration Amendment Round 4 已以 `e00f957…` 获独立设计批准：它冻结 exact raw-body hash、
+  shared canonical parser 与 F/G raw→candidate revalidation；本授权不改变该设计或扩大 Phase G–I。
 
 ## Phase E 实现交接
 
