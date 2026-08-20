@@ -1,4 +1,4 @@
-# TASK-016C Content Quality Test Plan — Phase F Round 2 Alignment
+# TASK-016C Content Quality Test Plan — Phase F Round 3 Alignment
 
 - 状态：Phase E 已批准；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
   本计划中的 repair/retry/recovery、持久化和 cache 项目分别归 H、G、I，不构成 Phase F
@@ -13,7 +13,8 @@ TASK-016C 只有在以下事实都有独立证据时才可验收：
 
 1. TASK-016B source、ADR-024 与 Language Validator 行为未修改；
 2. Deterministic Gate 只有三个机械 reason，所有 identifier/entity 样例进入 Local Judge；
-3. Provider Adapter 只能返回 `ScoringCandidate`；
+3. Provider Adapter 只返回 untrusted `PrimaryScoringAttempt`，其唯一业务 DTO 为
+   `ScoringCandidate`，绝不返回 `ScoreResult`；
 4. `TrustedScoringFinalizer` 只创建内部业务 `ScoreResult` 并输出 `TrustedScoreResult`；
    Phase F 仅验证 PRIMARY，repair/retry/recovery 属于 H，cache recovery 属于 I；
 5. 每个成功结果的完整 validated `ContentQualityResult(PASS)` 有稳定 canonical
@@ -155,8 +156,8 @@ Amazon Connect Salesforce
 
 ### 5.1 Provider boundary
 
-- Phase F Fake PRIMARY Adapter 只返回 `ScoringCandidate`；repair Adapter/attempt 仅在 H 测试中
-  出现；
+- Phase F Fake PRIMARY Adapter 只返回 `PrimaryScoringAttempt(candidate=ScoringCandidate)`；repair
+  Adapter/attempt 仅在 H 测试中出现；
 - `score` 接受并 round-trip 非整数 `7.25`，不得丢失精度；
 - `dimensions=None` 与完整 `ScoreDimensions` 都合法；
 - Candidate 与 Finalizer 输出的 reason/topics/should_summarize/dimensions 业务字段保持等值；
@@ -197,6 +198,30 @@ Finalizer，断言：
 全部必须拒绝且无 ScoreResult/Artifact/cache。静态扫描生产代码确认除
 `TrustedScoringFinalizer` 外，没有 TASK-016C 路径直接构造、copy、construct 或 restore
 可信 `ScoreResult`。
+
+### 5.4 Phase F → G raw continuation matrix
+
+以下设计测试必须在未来 F/G 分别实现，且不要求或授权真实 Provider、DB 或 filesystem：
+
+1. final raw response 在 F 内存中保留到 `PhaseFTrustedScoringSuccess`；
+2. raw response 受既有 byte 上限约束，且是严格 UTF-8 decoded 完整 HTTP JSON response；
+3. raw response 绑定同一 `scoring_request_hash`、provider/model/digest 与 `PRIMARY` role；
+4. `raw A + candidate B` 组合拒绝；
+5. attempt candidate hash 必须等于 Finalizer candidate hash；
+6. legacy raw/result、bare `ScoreResult`、Mapping 或 JSON 不能成为 attempt 或 trusted success；
+7. F 不产生 Artifact；
+8. F 不产生 cache entry；
+9. F 不完成 ProviderCall；
+10. F 不写 DB 或 filesystem；
+11. G 只接受 success aggregate 的 raw-response source；
+12. caller/cache/legacy Artifact 不能替换该 raw source；
+13. 单独 `TrustedScoreResult` 不足以构造 G raw envelope；
+14. G cutover/recovery 不得 provider recall。
+
+每个拒绝还必须证明没有 `response_artifact_id`、stage advance、cache hit 或 legacy upgrade；
+F 的 PRIMARY quality/attestation 失败直接 fail-closed，repair/retry 测试只属于 H。
+并且必须覆盖 aggregate private-sentinel/exact-type、封存 request/candidate hash 的 mutation/spoof
+拒绝，以及 F-G-H 接口不 return/accept bare `ScoreResult`。
 
 ## 6. Local Judge contract tests
 

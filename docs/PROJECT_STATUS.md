@@ -5,8 +5,10 @@
 - 主控状态：ACTIVE
 - TASK-016C Phase D 与 Phase E 均已 `APPROVED`。Phase E 实现并复核了 canonical scoring identity、
   runtime-owned `TrustedScoringContext`、pure `TrustedScoringFinalizer` 与 `TrustedScoreResult`。
-  Phase F Round 2 现为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`：它仅设计 PRIMARY-only、
-  non-production in-memory candidate composition seam；正式 pre-write/persistence cutover 属于 G，
+  Phase F Round 3 现为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`：它仅设计 PRIMARY-only、
+  non-production in-memory candidate composition seam，并输出 request-bound untrusted
+  `PrimaryScoringAttempt` 与 `TrustedScoreResult` 的纯内存 success aggregate；正式
+  pre-write/persistence cutover 属于 G，
   repair/retry/recovery/budget 属于 H，cache verification/recovery 与 release acceptance 属于 I。
   Provider、DB、Artifact、cache、filesystem、真实模型及 F–I 代码均未实现或授权。
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer

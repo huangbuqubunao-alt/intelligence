@@ -1,7 +1,7 @@
-# TASK-016C Content Quality Interface Design — Phase F Round 2 Alignment
+# TASK-016C Content Quality Interface Design — Phase F Round 3 Alignment
 
 - 状态：Phase E 已 `APPROVED`；Phase F 为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
-  [Phase F Round 2 Amendment](TASK-016C-PHASE-F-RUNTIME-INTEGRATION-AMENDMENT.md) 对 F–I
+  [Phase F Round 3 Amendment](TASK-016C-PHASE-F-RUNTIME-INTEGRATION-AMENDMENT.md) 对 F–I
   的阶段归属、legacy isolation 与 `TrustedScoringFinalizer` 输出合同具有优先级。
 - 决策依据：[ADR-025](decisions/ADR-025-content-quality-layer-scope-boundary.md)
 - 稳定基线：`task-016b-complete-accepted`
@@ -12,14 +12,17 @@
 在不修改 TASK-016B Language Validator 和 `ScoreResult` 公共字段的前提下，建立以下
 不变量：
 
-1. Provider Adapter 只能返回 `ScoringCandidate`；
+1. Provider Adapter 的唯一业务 DTO 是 `ScoringCandidate`；F-facing transport/parser envelope 只能是
+   untrusted `PrimaryScoringAttempt`，不得返回 `ScoreResult`；
 2. `TrustedScoringFinalizer` 是唯一内部 `ScoreResult` 构造入口，且只输出
    `TrustedScoreResult`；
 3. 每个成功结果绑定完整 validated `ContentQualityResult(PASS)` 的 canonical hash，以及
    具体 candidate/input/Judge identity 的 Quality PASS attestation；
-4. Phase F 只允许 PRIMARY 经 Finalizer；repair/retry/recovery/budget 属于 H，cache recovery
+4. F 的 PRIMARY success 必须同时保留 request-bound、untrusted `PrimaryScoringAttempt`；
+   `TrustedScoreResult` 仍是唯一 trusted business result；
+5. Phase F 只允许 PRIMARY 经 Finalizer；repair/retry/recovery/budget 属于 H，cache recovery
    属于 I；
-5. G 才拥有 pre-write、文件和 DB registration；I 的合法 cache hit 不调用 Judge；
+6. G 才拥有 pre-write、文件和 DB registration；I 的合法 cache hit 不调用 Judge；
 7. `REJECT` / `UNCERTAIN` 不进入正式 scoring Artifact 或 cache；
 8. Finalizer 后、任何文件写入前，最终 raw/structured bytes 必须经完整 pre-write validation，
    且只有纯内存 `ValidatedScoringWritePlan` 能进入 writer；
@@ -29,7 +32,8 @@
 
 ```mermaid
 flowchart TD
-    A["Provider Adapter"] --> B["ScoringCandidate (untrusted)"]
+    A["Provider Adapter"] --> P["PrimaryScoringAttempt\n(untrusted continuation)"]
+    P --> B["ScoringCandidate (untrusted)"]
     B --> C["Candidate schema validation"]
     C --> D["TASK-016B Language Validator (frozen)"]
     D --> E["DeterministicContentQualityGate"]
@@ -42,7 +46,8 @@ flowchart TD
     H --> T["in-memory QualityPassAttestation"]
     T --> F["TrustedScoringFinalizer"]
     F --> S["TrustedScoreResult (validated ScoreResult wrapper)"]
-    S --> Z["canonical raw / structured bytes"]
+    S --> U["PhaseFTrustedScoringSuccess\n(result + primary attempt)"]
+    U --> Z["Phase G canonical raw / structured bytes"]
     Z --> Y["pre-write reparse + full validation"]
     Y --> L["ValidatedScoringWritePlan (memory only)"]
     L --> P["file commit protocol"]
@@ -74,7 +79,7 @@ class ScoringCandidate(FrozenDomainModel):
     dimensions: ScoreDimensions | None = None
 
 class ScoringCandidateProvider(Protocol):
-    def score_candidate(self, value: ScoringInput) -> ScoringCandidate: ...
+    def primary_attempt(self, value: ScoringInput) -> PrimaryScoringAttempt: ...
 ```
 
 `ScoringCandidate` 只承载模型可提出的业务字段，不含：
@@ -85,8 +90,9 @@ class ScoringCandidateProvider(Protocol):
 - quality status/confidence/evidence；
 - Artifact 或 ProviderCall identity。
 
-Adapter 严格解析 candidate schema，但这不赋予可信结果身份。任何 Provider 实现返回
-`ScoreResult` 都是接口违约。
+Adapter 严格解析 candidate schema，并以同一 bounded raw HTTP response 创建 untrusted
+`PrimaryScoringAttempt`，但这不赋予可信结果身份。任何 Provider 实现返回 `ScoreResult` 都是
+接口违约。
 
 该 wrapper 必须与现有业务契约精确兼容：score 保持 `float` 的原有精度，dimensions 保持
 `ScoreDimensions | None`，reason/topics/should_summarize 的类型、约束和含义不变。不得
@@ -94,8 +100,46 @@ Adapter 严格解析 candidate schema，但这不赋予可信结果身份。任�
 
 ADR-025 明确 supersede `docs/SYSTEM_DESIGN.md` 现有
 `ScoringProvider.score(ScoringInput) -> ScoreResult` 语义；新接口固定为
-`score_candidate(ScoringInput) -> ScoringCandidate`。这是契约替换，不是同时保留两个
-可信入口。
+`primary_attempt(ScoringInput) -> PrimaryScoringAttempt(candidate=ScoringCandidate)`。这是契约替换，
+不是同时保留两个可信入口。
+
+### 3.1 Phase F raw continuation contract
+
+```python
+class PrimaryScoringAttempt:
+    """Opaque, untrusted, PRIMARY-only and memory-only continuation."""
+
+    scoring_input_normalized_hash: str
+    scoring_request_hash: str
+    candidate: ScoringCandidate
+    candidate_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    attempt_role: Literal["PRIMARY"]
+    final_raw_response: str  # bounded complete decoded Provider HTTP JSON response
+
+class PhaseFTrustedScoringSuccess:
+    """Memory-only pair; only result is a trusted business value."""
+
+    trusted_result: TrustedScoreResult
+    primary_attempt: PrimaryScoringAttempt
+    scoring_request_hash: str  # sealed copy; must equal primary_attempt value
+    candidate_hash: str         # sealed copy; must equal recomputed attempt candidate hash
+```
+
+两者均不是 Pydantic restore/JSON/Artifact/cache/ProviderCall 类型。attempt 的 hash 必须复用
+`build_scoring_request_identity()`，而 `final_raw_response` 必须是 candidate 所来自的 bounded、严格
+UTF-8 decoded 完整 Provider HTTP JSON response。它不是 `payload["response"]`、截断文本或
+重新序列化 JSON；G 只能以该 string 的 UTF-8 encode 取得 raw envelope bytes。
+
+F seam 必须重算 `candidate_hash`，并将 attempt candidate 与传给 Finalizer 的 candidate 精确绑定。
+Finalizer 不读取或信任 raw string：它仍独立重建 candidate/input/quality DTO 并验证 capabilities；
+F helper 只可将已交叉验证的 `attempt.candidate` 传入 Finalizer。success aggregate 不赋予 raw 任何
+trusted business 或 persistence 身份。aggregate 必须 exact-type/private-sentinel mint；G 先验证该
+capability，再重算并比较它封存的 request/candidate hash。任何 F-G-H boundary 均不得 return 或 accept
+bare `ScoreResult`；未来 G 若需 structured bytes，只能由另行授权的 sealed serializer 从 wrapper 直接
+产出 bytes，不能向 caller unwrap `ScoreResult`。
 
 ## 4. ContentQualityInput 与 evidence
 
@@ -554,7 +598,7 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
 ```json
 {
   "envelope_schema": "scoring-raw-content-quality-v1",
-  "final_provider_response": "<bounded raw response>",
+  "final_provider_response": "<only PrimaryScoringAttempt.final_raw_response>",
   "scoring_candidate": { "...": "complete untrusted candidate business fields" },
   "finalized_scoring_binding": { "...": "trusted ScoreResult identity and business binding" },
   "validated_quality_pass_decision": { "status": "PASS", "...": "complete ContentQualityResult" },
@@ -562,6 +606,11 @@ Primary 明确 REJECT/UNCERTAIN 后才可进入唯一 repair。Primary 外部调
   "provenance": { "...": "required request/config/producer/call identities" }
 }
 ```
+
+Phase G 的 planner 只接受 `PhaseFTrustedScoringSuccess`，并且 raw-envelope source 只能为其
+`primary_attempt.final_raw_response`。它必须重新验证 request/candidate identity、trusted result
+business binding 与 quality attestation；不得 provider recall，不得接受 caller、cache 或 legacy
+Artifact 替代 raw，且 `TrustedScoreResult` 单独不足以构造 raw envelope。
 
 `validated_quality_pass_decision` 必须包含足以从 untrusted JSON 完整重建第 7 节模型的全部
 canonical 字段，不得保存 PASS 摘要。Recovery 顺序固定为：raw envelope -> reconstruct

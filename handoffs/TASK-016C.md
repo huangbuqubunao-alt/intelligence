@@ -1,6 +1,6 @@
 # TASK-016C 交接报告
 
-## Phase F Runtime Integration Amendment Round 2
+## Phase F Runtime Integration Amendment Round 3
 
 - Conclusion: `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`；没有创建 Phase F authorization 或
   代码。
@@ -17,6 +17,13 @@
   BOUNDARY`。Phase F-G-H 不授权 internal unwrap。
 - F 不拥有 repair/retry/budget/recovery：PRIMARY 任一步失败即 fail-closed，不能自动 repair；
   repair 的 operation identity 与未知 reservation recovery 都留给 H。
+- F→G continuation 已冻结为内存 `PrimaryScoringAttempt`：它绑定既有 canonical scoring request
+  identity、canonical candidate identity、provider/model/digest、`PRIMARY` role 和唯一权威的 bounded
+  UTF-8 decoded 完整 Provider HTTP JSON raw string。F 成功只输出
+  `PhaseFTrustedScoringSuccess(TrustedScoreResult, PrimaryScoringAttempt)`；attempt 不可信、不可持久化、
+  不可恢复且不授权任何写入。G 只能消费该 aggregate 的 raw source，必须重新交叉验证 request/
+  candidate/result/attestation；不得 provider recall、caller/cache/legacy raw substitution 或用 result
+  反向重建 raw。
 - 未执行：Phase F–I 代码、Provider/网络、持久化、cache、DB、Artifact、merge 或 history rewrite。
 
 ## Phase E 实现交接
