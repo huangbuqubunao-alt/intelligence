@@ -8,7 +8,7 @@
   `931674e… -> 2f6e30b…`。三组 tree/content diff 均为空；不要求 original source SHA 成为
   current HEAD ancestor，严禁 rewrite/rebase/squash/amend 以恢复原 SHA。
 - Phase D `2c11faf…` 与 Phase E `9b92946…` 均已核验为当前 HEAD ancestor；Phase F 状态更新为
-  `APPROVED`，Phase G 状态为 `DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。
+  `APPROVED`。Phase G design/control-plane 已完成，状态为 `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`。
 - Discovery 事实：legacy `RepositoryBackedScoringService` 在 provider call 前持久化 reserve，随后直接
   写 raw/structured files，最后由 `complete_stage()` 的一笔 SQLite transaction 登记 Artifact、完成 call、
   更新 score/stage/job；它没有 tmp/fsync/promote protocol，filesystem 与 SQLite 不跨资源原子。

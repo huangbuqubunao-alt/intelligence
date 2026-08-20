@@ -39,7 +39,7 @@ No Provider-to-`ScoreResult`, Candidate-to-Artifact, attestation-only, pre-write
 | D | PASS Attestation and Canonical Hashing | APPROVED / `2c11faf41e17c3b823a39bfd1018c5c876b236c5` | C accepted |
 | E | TrustedScoringFinalizer | APPROVED / `9b92946…` | D APPROVED；pure-memory finalization accepted |
 | F | Candidate-only in-memory runtime integration（含 PRIMARY raw-response continuation） | APPROVED；integrated equivalents `61bb0bb… -> d059bea… -> 2f6e30b…` | E accepted；original accepted provenance `c0268a… -> df920cc… -> 931674e…`，以 conflict-free cherry-pick 内容等价整合 |
-| G | Pre-write validation + persistence registration boundary + normal runtime cutover | DESIGN READY；IMPLEMENTATION NOT AUTHORIZED | F approved；[Phase G Amendment](TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md) |
+| G | Pre-write validation + persistence registration boundary + normal runtime cutover | READY / AUTHORIZED；IMPLEMENTATION NOT STARTED | F approved；[Phase G Amendment](TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md) 与正式 authorization |
 | H | Repair/retry/recovery/budget orchestration | NOT AUTHORIZED | G accepted |
 | I | Production hardening / release acceptance（含 derived cache verification、adversarial/crash/bypass 与完整验收） | NOT AUTHORIZED | H accepted |
 
@@ -59,6 +59,6 @@ approval of a phase may lead to a separately authorized next phase. Phase D、E 
 三段 accepted history 已以用户授权、无冲突、线性且 tree/content-equivalent 的 commits
 `61bb0bb… -> d059bea… -> 2f6e30b…` 整合。`PhaseFTrustedScoringSuccess` 在 G 实现时必须最小扩展为
 完整、sealed 的 F→G evidence continuation，禁止以 caller DTO 补入 scoring/quality evidence。
-Phase G 已完成设计但尚未获得 implementation authorization；只有 G 才拥有 pre-write/persistence
+Phase G 已完成设计并获得 implementation authorization，但尚未启动；只有 G 才拥有 pre-write/persistence
 registration 与正式 runtime cutover。Phase H 才拥有 repair/retry/recovery/budget；Phase I 才拥有
 derived cache verification 和 release acceptance。没有后续 phase 获得实现、整合或发布授权。
