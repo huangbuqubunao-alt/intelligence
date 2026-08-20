@@ -622,6 +622,14 @@ Phase G 的 planner 只接受 `PhaseFTrustedScoringSuccess`，并且 raw-envelop
 attestation；任一失败均在 envelope 前 fail-closed。不得 provider recall，不得接受 caller、cache 或 legacy
 Artifact 替代 raw，且 `TrustedScoreResult` 单独不足以构造 raw envelope。
 
+> **Phase G implementation amendment.** 当前 Phase F aggregate 还必须封存 canonical
+> `ScoringInput`、quality input/result/operation 与 attestation 的 bytes/hashes，才能让 G 在不接收
+> caller DTO 的情况下完整重验 request identity、PASS matrix 与 H2。这些字段由 private Phase F seam
+> 一次 mint；canonical structured-result bytes 则必须由 exact `TrustedScoreResult` 的 sealed serializer
+> 产生，不能向 G 调用方 unwrap bare `ScoreResult`。aggregate 仍为 opaque memory-only capability；缺完整 evidence 的旧 aggregate 必须拒绝，
+> 不得升级。详细协议见
+> [Phase G Amendment](TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md)。
+
 `validated_quality_pass_decision` 必须包含足以从 untrusted JSON 完整重建第 7 节模型的全部
 canonical 字段，不得保存 PASS 摘要。Recovery 顺序固定为：raw envelope -> reconstruct
 ContentQualityResult -> full model/domain validation -> PASS matrix -> normalization + canonical
@@ -782,6 +790,12 @@ class TrustedScoringPersistence(Protocol):
         final_file_verification: tuple[VerifiedPromotedArtifact, ...],
     ) -> ScoringOutcome: ...
 ```
+
+Phase G 实现时，该 API 必须由 RuntimeOperations 私有持有的 committer 提供；authority/context、
+repository、DATA root 和 job/video scope 都是 composition closure，不是 caller 参数。Repository 层需要新增
+无 migration 的原子 registration primitive：在同一未提交 SQLite transaction 中插入 transient PENDING
+scoring/Judge ProviderCall、完成两者、登记两 Artifact、更新 scoring summary 并 finish Job。它不复用 legacy
+的 pre-provider `reserve_provider_call()`，从而保持 PREWRITE 前零写入。
 
 该方法只接受已经执行过 pre-write validation 的 opaque plan。它必须防御性地确认 final files
 存在并重新打开，复核 controlled path/type/length/hash/`ArtifactWrite` metadata，并要求两份 completion 的 operation /

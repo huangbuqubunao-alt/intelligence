@@ -3,7 +3,10 @@
 ## Status
 
 Accepted core design；2026-08-20 Phase F Runtime Integration Amendment Round 4
-`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`
+`DESIGN READY / IMPLEMENTATION NOT AUTHORIZED`。Phase F 已获 APPROVED；其 accepted source 已按用户授权
+以线性、conflict-free、tree/content-equivalent 的 integration equivalents
+`61bb0bb… -> d059bea… -> 2f6e30b…` 进入当前 Phase G baseline。原 SHA 仍是 review provenance，
+不要求作为当前 HEAD ancestor。
 
 ## Date
 
@@ -193,6 +196,39 @@ Finalizer 只用 attempt 的 candidate 与 identity statement 做重新验证，
 降低已有 context/quality/attestation 验证。G 必须按 exact type → request identity → raw hash → same-parser
 raw reparse → candidate hash → attempt/result/quality/attestation cross-binding 的固定顺序验证，才可构造 raw
 envelope。bare legacy ScoreResult/raw 不能伪装成 attempt；Phase F-G-H 无 internal unwrap。
+
+### 4.2 Phase G continuation completeness 与 pre-write persistence
+
+Phase G 的唯一 trusted ingress 是 exact `PhaseFTrustedScoringSuccess`。它不能接受 bare
+`ScoreResult`、single `TrustedScoreResult`、single `PrimaryScoringAttempt`、Mapping、JSON、Artifact、
+cache、ProviderCall 或 caller-rebuilt DTO。因为 G 必须重新验证 current scoring identity、完整 PASS
+decision 和 `QualityPassAttestation`，Phase G 允许对同一 opaque aggregate 做最小 F→G continuation
+enrichment：private F seam 必须把 canonical `ScoringInput`、`ContentQualityInput`、完整 PASS
+`ContentQualityResult`、`QualityJudgeOperationInput` 与 attestation 的 canonical bytes/hashes，以及由
+Finalizer 内 sealed serializer 生成的 canonical structured-result bytes/hash 同时封存。serializer 只接收
+exact `TrustedScoreResult` 并输出 bytes；不得向 Phase G 调用方 unwrap/return bare `ScoreResult`。G 从
+这些 bytes 重建，不得让 caller 参数补入 authority 或 evidence。缺任何项的旧 aggregate fail-closed，
+不得升级为 trusted persistence input。
+
+`PREWRITE_VALIDATE` 在任何写入前由 RuntimeOperations 私有持有的 current
+`TrustedScoringContext` 与 `QualityProvenanceAuthority` 运行。固定校验：exact success/result/attempt；
+request/raw/candidate seals；同一 canonical raw parser；candidate/result business binding；current
+provider/model/digest/schema/prompt/language/operation/config；完整 PASS result/attestation/Judge H2；
+最终 raw-envelope 与 structured bytes 的 canonical reserialization、hash、length 与 Artifact metadata。
+失败时零 tmp/final/DB/Artifact/ProviderCall/cache/stage/response_artifact_id 写入，也不得 recall provider。
+
+成功后唯一生成 `ValidatedScoringWritePlan`：opaque、sentinel-minted、immutable、non-copyable、
+non-serializable、process-memory-only 的 write capability，而不是 authority、DTO、cache identity 或
+持久化记录。其唯一 raw source 是 `PrimaryScoringAttempt.final_raw_response` 的 exact strict-UTF-8
+provider HTTP JSON string；不得使用 `payload["response"]`、candidate、cache、legacy Artifact、caller raw、
+re-serialized provider payload 或 `TrustedScoreResult` 反推 raw。
+
+文件 protocol 固定为 same-filesystem exclusive tmp write → tmp fsync → length/hash verify → no-clobber
+promote → parent directory fsync → controlled final reopen/verify。两 final files 全部验证后，单一 SQLite
+transaction 才登记 raw/structured Artifact、在未提交 transaction 内插入并完成 scoring 与 Judge
+ProviderCall、并推进 score/job stage；不得有 PREWRITE 前 reservation。此协议不声称 filesystem+SQLite
+跨资源原子：DB 失败后的 verified promoted files 是 H 所有的 orphan-final recovery input，G fail-closed，
+不得覆盖/删除 final 或重调 provider/Judge。G 不读写 cache hit/recovery；I 才持有 derived cache verification。
 
 ### 5. Quality PASS attestation
 
