@@ -2073,13 +2073,13 @@ load_app_config(channels_path, settings_path)
 
 ## Phase G Correction Round 1
 
-- Status: `READY FOR PHASE G CORRECTION INDEPENDENT REVIEW`
+- Status: `SUPERSEDED BY ROUND 2`
 - Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
   `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
   `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
 - Correction baseline: `ef89b1e` (Phase G implementation commit)
 - Correction commit: `b4497cf`
-- Handoff commit: 当前 HEAD（见最终报告）
+- Handoff commit: `6900b76`
 - Role: Implementer (continuation/recovery)
 
 ### Correction Scope
@@ -2153,4 +2153,104 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 ### 实现者结论
 
 - 建议状态：`READY FOR PHASE G CORRECTION INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN/mutation 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 2
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 2 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1` (HEAD)
+- Role: Implementer (continuation/recovery)
+
+### Correction Scope
+
+本次 correction 关闭 Round 1 Independent Review 的 REQUEST CHANGES，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1 | 位置 | 修复内容 |
+|---|---|---|
+| P1-1 Complete Graph Idempotency | `src/youtube_intel/scoring.py` `TrustedScoringPersistenceCommitter._check_committed_graph()` | 完整比较 committed graph：Filesystem（absolute controlled path、relative path、bytes、sha256、length）、Artifact rows（artifact_id/kind/path/relative_path/content_hash/size via length/provider/model/producer_version/retention_class/expires_at）、ProviderCall rows（provider/model/request_hash/operation/status/response_artifact_id/prompt_version/schema_version）、Video（score/should_summarize）、Job（job_id binding/stage/status/provenance）。任何 mismatch 均 fail-closed（不修复、不 recall provider） |
+| Plan Expected Metadata | `ValidatedScoringWritePlan` | 新增 `raw_envelope_length` 与 `structured_length`，由 PREWRITE validated capability 携带，作为 single source of truth |
+| P1-2 Registration Capability Authority | `src/youtube_intel/state.py` / `src/youtube_intel/scoring.py` | 关闭 `state.py` 的 `_mint_scoring_registration_capability()`；mint 能力完全内化为 `TrustedScoringPersistenceCommitter._mint_registration_capability()`；capability 新增 `_provenance_token`（SHA256 binding of job/owner/video/pipeline_version/artifact_ids/request_hashes/file_hashes）；registrar 重新计算并验证 token；普通 caller 无法 import mint、无法构造合法 capability、无法 copy/pickle/修改字段 |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正以下 RED→GREEN 测试：
+
+- **R2** complete graph idempotency：
+  - `test_r2_artifact_artifact_id_change_rejects`
+  - `test_r2_artifact_relative_path_change_rejects`
+  - `test_r2_artifact_kind_change_rejects`
+  - `test_r2_artifact_provider_metadata_change_rejects`
+  - `test_r2_provider_call_request_metadata_change_rejects`
+  - `test_r2_video_should_summarize_change_rejects`
+  - `test_r2_job_binding_change_rejects`
+- **R3** registration capability authority：
+  - `test_r3_import_mint_function_fails`
+  - `test_r3_direct_sentinel_construction_with_wrong_token_rejects`
+  - `test_r3_copy_capability_rejects`
+  - `test_r3_pickle_capability_rejects`
+  - `test_r3_modify_capability_field_rejects`
+  - `test_r3_legal_committer_path_succeeds`
+- **M15** filesystem-before-SQLite ordering：`test_m15_registration_before_final_verify_rejected`
+- **R5** filesystem fault injection（补充）：
+  - `test_r5_fsync_failure_no_sqlite_registration`
+  - `test_r5_promote_failure_no_sqlite_registration`
+  - `test_r5_dir_fsync_failure_no_sqlite_registration`
+  - `test_r5_final_reopen_verify_failure_no_sqlite_registration`
+
+### Mutation Matrix（M1–M15）
+
+使用 `run_mutation_matrix.py` 临时修改并恢复，每项至少导致一个测试失败：
+
+| Mutation | 目标 | 结果 |
+|---|---|---|
+| M1 | `prewrite_validate` exact success guard → `if False` | KILLED |
+| M2 | raw hash check → `if False` | KILLED |
+| M3 | raw reparse check → `if False` | KILLED |
+| M4 | candidate/result binding → `if False` | KILLED |
+| M5 | runtime authority/context check → `if False` | KILLED |
+| M6 | ProviderCall request binding → `if False` | KILLED |
+| M7 | runtime artifact content/hash binding → `if False` | KILLED |
+| M8 | stale-tmp O_EXCL guard 移除 | KILLED |
+| M9 | `run_primary_trusted_scoring` PrimaryScoringAttempt exact-type guard → `if False` | KILLED |
+| M10 | `_atomic_register_scoring_success` 跳过 job finish | KILLED |
+| M11 | `_write_atomic_file` 将 `os.link` 改回 `os.rename` | KILLED |
+| M12 | `commit()` 删除 complete-graph idempotency verification | KILLED |
+| M13 | `_atomic_register_scoring_success` 删除 capability + provenance token guard | KILLED |
+| M14 | `_atomic_register_scoring_success` 删除 final-file hash verification | KILLED |
+| M15 | `commit()` 将 DB registration 提前到 promoted finals 之前 | KILLED |
+
+Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN。
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline --dry-run` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `51 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E trust + TASK-016B regression | `417 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1266 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean` |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit `ef89b1e` 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud/credential 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 2 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN/mutation 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
