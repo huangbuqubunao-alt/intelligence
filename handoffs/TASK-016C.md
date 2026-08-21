@@ -2631,3 +2631,92 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 7 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、object.__new__ attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 8
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 8 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1`
+- Round 2 handoff commit: `52c0bcf`
+- Round 3 correction commit: `1780d9a`
+- Round 3 handoff commit: `c1971da`
+- Round 4 correction commit: `980497d`
+- Round 4 handoff commit: `dda8040`
+- Round 5 correction commit: `0649447`
+- Round 5 handoff commit: `b425dd4`
+- Round 6 correction commit: `dc3bad8`
+- Round 6 handoff commit: `d2b82ec`
+- Round 7 correction commit: `2f658b0`
+- Round 7 handoff commit: `e5f20b6`
+- Round 8 correction commit: `105457f`
+- Round 8 handoff commit: `<TBD>`
+- Role: Implementer
+
+### Correction Scope
+
+本次 correction 关闭 Round 7 Independent Review 的唯一 P1「Repository binding accepts caller-supplied provenance verifier」，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1/P2 | 位置 | 修复内容 |
+|---|---|---|
+| P1 Caller-Supplied Verifier Boundary | `src/youtube_intel/scoring.py` `_RegistrationBindingCapability` / `_mint_registration_binding`；`src/youtube_intel/runtime.py` `RuntimeOperations.__init__`；`src/youtube_intel/state.py` `_bind_registration_authority()` | 移除 `_bind_registration_authority(authority, verifier)` 的 verifier 参数；新增 `_RegistrationBindingCapability` 作为 runtime-only binding token，内部封装 runtime-created `_RegistrationAuthority` 与 runtime-owned verifier closure；repository 只接受该 binding capability，并校验其 verifier closure 必须捕获 runtime-local `WeakSet` 注册表，从而拒绝 `lambda _auth: True` 等 caller-supplied verifier |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正 RED→GREEN 测试，并同步修正 Round 5/6/7 中直接调用 `_bind_registration_authority(authority)` 的测试以适配新 API：
+
+- **P1 external supplied verifier rejection：** `test_external_supplied_verifier_cannot_authorize_registration`
+  - 旧 API `_bind_registration_authority(forged_authority, lambda _auth: True)` 直接因参数不匹配/类型错误被拒绝
+  - 伪造 `_RegistrationBindingCapability` 并设置 `lambda _auth: True` verifier → `IntegrityConflict("registration verifier is not runtime-issued")`，FAIL CLOSED
+  - 构造 self-consistent capability（正确 Artifact DTO、ProviderCall DTO、文件、hash）调用 register → FAIL CLOSED
+  - 断言无 Artifact success / ProviderCall success / Video SCORED / Job SUCCEEDED
+- **P1 runtime binding capability required：** `test_repository_requires_runtime_binding_capability`
+  - external `SQLiteStateRepository` 直接传入 authority 被拒绝
+  - 伪造 binding capability 因 verifier 无 runtime registry 被拒绝
+  - 绑定后 repository 仍无 trusted authority
+- **P1 positive control：** `test_runtime_owned_binding_still_succeeds`
+  - 正常 `RuntimeOperations` composition 通过 `_RegistrationBindingCapability` 完成绑定与 commit
+  - 结果：`StageCompletionResult`，job `SUCCEEDED`，video `SCORED`
+
+### Mutation Evidence
+
+本次 regression tests 在以下临时 mutation 下失败，恢复后重新 GREEN：
+
+| 删除/替换的保护 | Mutation 操作 | 观察结果 |
+|---|---|---|
+| 删除 runtime-owned verifier registry 校验 | 临时移除 `state.py` `_bind_registration_authority()` 中的 `_verifier_carries_runtime_registry(binding)` 检查 | `test_external_supplied_verifier_cannot_authorize_registration` 与 `test_repository_requires_runtime_binding_capability` 失败：伪造 binding 的 `lambda _auth: True` verifier 被接受 |
+| 恢复 caller-supplied verifier callback API | 临时让 `_bind_registration_authority()` 重新接受 `is_runtime_issued_authority` 参数并在提供时绕过 binding capability 校验 | `test_external_supplied_verifier_cannot_authorize_registration` 失败：旧 API 调用不再抛出 TypeError，攻击者可通过 `lambda _auth: True` 绑定 forged authority |
+| 恢复 external capability construction path | 临时注释掉 `scoring.py` `_RegistrationAuthority.__init__()` 中对 `_RuntimeIssuanceCapability` 的类型检查 | `test_external_authority_cannot_be_issued` 失败：外部可通过 `_RegistrationAuthority()` 创建 authority |
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `63 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E regression | `316 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1278 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean`（warnings only） |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未新增/保留 `src/youtube_intel/_phase_g_trust.py` 等超出允许范围的文件
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 8 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、caller-supplied verifier attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；不进入 Phase H。
