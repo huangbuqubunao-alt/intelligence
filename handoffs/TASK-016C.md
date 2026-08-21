@@ -3144,3 +3144,65 @@ work was performed.  Status: `READY FOR PHASE G CORRECTION ROUND 13 INDEPENDENT 
 
 No Phase H/I, provider/domain/migration/dependency/lockfile work was performed.
 Status: `READY FOR PHASE G CORRECTION ROUND 14 INDEPENDENT REVIEW`.
+
+---
+
+## TASK-016C Phase G Correction Round 15
+
+### Scope and implementation
+
+- Base: `cd97378` (Round 14 implementation); this correction changes only
+  `tests/unit/test_task016c_phase_g.py` and this handoff.
+- Round 14 production architecture is preserved: the sole success route is
+  `PhaseFTrustedScoringSuccess -> TrustedPersistenceEntry.persist_success()`
+  -> PREWRITE validation -> internal filesystem protocol -> internal SQLite
+  transaction.  No scatter-field runtime or repository ingress was restored.
+- Reuse decision: `DIRECT` — existing test fixtures, state transaction
+  primitives, and standard-library hashing/dataclass replacement only; no
+  dependency, provider, domain, migration, or lockfile changes.
+
+### Behavioral scatter-sink mutation evidence
+
+- RED attack mutation:
+  `test_restored_scatter_field_sink_accepts_forged_graph_mutation` installs
+  and **calls** an executable Round-13-equivalent scatter transaction fixture,
+  rather than inspecting names or attributes.  It supplies forged
+  `ArtifactWrite`, `ProviderCallCompletion`, `ScoringSummaryWrite`, raw bytes,
+  SHA-256 values, structured-artifact hash, and fake final files.  The restored
+  sink writes an Artifact row, completes the ProviderCall successfully, moves
+  the video to `SCORED`, and finishes the job as `SUCCEEDED`.  This demonstrates
+  the actual bypass that would return if a scatter-field persistence path were
+  restored.
+- GREEN current implementation:
+  `test_forged_scatter_field_persistence_sink_fails` attempts each historical
+  persistence ingress (`_persist_plan`, `_persist_registration`, and
+  `persist_transaction`) with forged scatter values.  Each call fails closed
+  with `AttributeError`; assertions confirm no artifact, successful provider
+  call, `SCORED` video, or successful job exists.
+- The behavioral mutation test is intentionally a test-only reconstruction of
+  the removed implementation.  It is not production API and does not alter
+  the Round 14 entry or create a caller-accessible persistence route.
+
+### Validation gates
+
+| Gate | Result |
+|---|---|
+| `uv lock --check --offline` | PASS |
+| `uv sync --locked --offline` | PASS (84 packages) |
+| Phase G focused | PASS (`76 passed`) |
+| Phase F focused | PASS (`41 passed`) |
+| TASK-016B regression | PASS (`101 passed`) |
+| `uv run --offline mypy src` | PASS (28 source files) |
+| `uv run --offline ruff check .` | PASS |
+| `uv build --offline` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings only) |
+| `git diff --check` | PASS |
+| Full pytest | BLOCKED: unchanged out-of-scope legacy E2E flow expects generic `complete_stage()` to perform forbidden `TRANSCRIPT_READY -> SCORED`: `tests/e2e/test_failure_recovery.py::test_service_boundary_failures_recover_without_duplicate_outputs[subtitle]`. |
+
+### Scope verification and conclusion
+
+- Changed files: `tests/unit/test_task016c_phase_g.py` and this handoff only.
+- No Phase H/I, legacy migration, retry/recovery/cache, providers, domain,
+  dependency, lockfile, or production persistence-architecture changes.
+
+Status: `READY FOR PHASE G CORRECTION ROUND 15 INDEPENDENT REVIEW`.
