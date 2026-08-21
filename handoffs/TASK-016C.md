@@ -2378,3 +2378,73 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 4 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 5
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 5 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1`
+- Round 2 handoff commit: `52c0bcf`
+- Round 3 correction commit: `1780d9a`
+- Round 3 handoff commit: `c1971da`
+- Round 4 correction commit: `980497d`
+- Round 4 handoff commit: `dda8040`
+- Role: Implementer
+
+### Correction Scope
+
+本次 correction 关闭 Round 4 Independent Review 的唯一 P1「SQLiteStateRepository remains authority-minting root」，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1/P2 | 位置 | 修复内容 |
+|---|---|---|
+| P1 Authority Minting Root | `src/youtube_intel/scoring.py` `_RegistrationAuthority`；`src/youtube_intel/runtime.py` `RuntimeOperations.__init__`；`src/youtube_intel/state.py` `SQLiteStateRepository.__init__` / `_bind_registration_authority()` / `_atomic_register_scoring_success()` | 从 `SQLiteStateRepository.__init__` 移除 authority 创建逻辑；`_RegistrationAuthority` 增加 runtime-issued 标记；`RuntimeOperations` 是唯一创建并标记 authority 的主体，然后通过私有 `_bind_registration_authority()` 绑定到 repository，同时注入 committer。直接构造的 `SQLiteStateRepository` 没有 authority，无法产生 accepted registrar capability |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正 RED→GREEN 测试：
+
+- **P1 external repository has no authority：** `test_external_repository_authority_cannot_create_registration_success`（Round 4 测试断言更新）
+  - caller 直接创建 `SQLiteStateRepository`
+  - caller 创建 forged `_RegistrationAuthority`
+  - caller 构造 self-consistent `ScoringRegistrationCapability`
+  - 调用 `_atomic_register_scoring_success()`
+  - 结果：`IntegrityConflict("repository has no runtime-bound registration authority")`，FAIL CLOSED
+- **P1 external repository cannot authorize with its own authority：** `test_external_repository_cannot_authorize_with_own_authority`
+  - caller 直接创建 `SQLiteStateRepository`
+  - caller 创建自己的 `_RegistrationAuthority` 并尝试通过 `_bind_registration_authority()` 绑定 → 失败（非 runtime-issued）
+  - caller 绕过 bind 检查直接将自己的 authority 附加到 repository，构造 self-consistent capability（正确 DTO、文件、hash）
+  - 调用 `_atomic_register_scoring_success()`
+  - 结果：`IntegrityConflict("registration authority was not issued by the runtime")`，FAIL CLOSED
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `54 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E regression | `316 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1269 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean` |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 5 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
