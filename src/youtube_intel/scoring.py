@@ -77,30 +77,49 @@ SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"
 
 
+class _RuntimeIssuanceCapability:
+    """Opaque capability minted once per RuntimeOperations instance.
+
+    Normal instantiation is rejected.  ``RuntimeOperations`` creates the
+    single valid instance via ``object.__new__`` and passes it to
+    ``_RegistrationAuthority`` during composition.  Validity is not determined
+    by type alone; the runtime maintains the only registry of valid issuance
+    capability instances, so a caller cannot forge one by importing private
+    names and calling ``object.__new__``.
+    """
+
+    __slots__ = ("__weakref__",)
+
+    def __new__(cls) -> "_RuntimeIssuanceCapability":
+        msg = (
+            "_RuntimeIssuanceCapability cannot be instantiated directly; "
+            "it is created only by RuntimeOperations composition"
+        )
+        raise RuntimeError(msg)
+
+
 class _RegistrationAuthority:
-    """Runtime-owned, unforgeable Phase G registration authority.
+    """Runtime-owned Phase G registration authority.
 
     Only ``RuntimeOperations`` composition can create this object by
     supplying the runtime-only ``_RuntimeIssuanceCapability``.  The
     capability is minted inside ``RuntimeOperations.__init__`` and never
     exposed as a value.  The SQLite registrar accepts a registration
     capability only when its ``authority_proof`` is the exact instance it
-    was configured with **and** that instance was constructed with the
-    runtime-minted issuance capability.  Because the issuance capability
-    has no public constructor and cannot be derived from plan fields, a
-    caller with correct DTOs, files and hashes cannot forge a valid
-    registration.
+    was configured with **and** that instance has been verified by the
+    runtime-owned issuance registry.  Because the registry is scoped to the
+    runtime composition and not to the capability type, a caller cannot
+    forge a valid authority by importing private names and calling
+    ``object.__new__``.
     """
 
     __slots__ = ("_secret", "_issuance")
 
     def __init__(self, issuance: object | None = None) -> None:
         # The authority must be created with the runtime-minted issuance
-        # capability.  We avoid importing the capability type here to keep
-        # scoring.py from becoming an issuance source; the runtime and the
-        # registrar perform the exact-type checks.
-        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
-
+        # capability.  This check only prevents accidental misuse; the real
+        # trust boundary is the runtime-owned issuance registry verified by
+        # the repository.
         if type(issuance) is not _RuntimeIssuanceCapability:
             msg = (
                 "_RegistrationAuthority must be created with a "

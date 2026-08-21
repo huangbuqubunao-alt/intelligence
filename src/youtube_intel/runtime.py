@@ -9,13 +9,13 @@ import os
 import sqlite3
 import urllib.error
 import urllib.request
+import weakref
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
-from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
 from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
@@ -98,6 +98,7 @@ from youtube_intel.scoring import (
     TrustedScoringPersistenceCommitter,
     _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
+    _RuntimeIssuanceCapability,
     build_scoring_input,
     build_scoring_request_identity,
 )
@@ -308,11 +309,25 @@ class RuntimeOperations(Operations):
         # exactly once per runtime instance.  The runtime-only issuance
         # capability is created here via object.__new__ so that normal
         # instantiation is impossible for callers; it is never exposed as a
-        # value.  The authority is bound to the composed repository and to
-        # every trusted scoring committer.
+        # value.  Validity is tracked only in this runtime-local WeakSet; the
+        # repository receives a verifier closure so it can confirm provenance
+        # without relying on type checks that object.__new__ could satisfy.
         issuance = object.__new__(_RuntimeIssuanceCapability)
+        _valid_issuance_capabilities: weakref.WeakSet[_RuntimeIssuanceCapability] = (
+            weakref.WeakSet()
+        )
+        _valid_issuance_capabilities.add(issuance)
+
+        def _is_runtime_issued_authority(auth: object) -> bool:
+            if type(auth) is not _RegistrationAuthority:
+                return False
+            return auth._issuance_capability in _valid_issuance_capabilities
+
         self._registration_authority = _RegistrationAuthority(issuance)
-        self._repository._bind_registration_authority(self._registration_authority)
+        self._repository._bind_registration_authority(
+            self._registration_authority,
+            _is_runtime_issued_authority,
+        )
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring

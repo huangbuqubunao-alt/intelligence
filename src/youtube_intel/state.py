@@ -7,7 +7,7 @@ import json
 import math
 import re
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -538,23 +538,25 @@ class SQLiteStateRepository:
         # repository.  External callers constructing a repository directly get
         # no authority and therefore cannot produce an accepted registrar
         # capability.  The runtime binds its authority via the private method
-        # below during composition.
+        # below during composition, supplying a verifier that is scoped to the
+        # runtime-owned issuance registry.
         self._registration_authority: _RegistrationAuthority | None = None
+        self._is_runtime_issued_authority: Callable[[object], bool] = lambda _auth: False
 
     def _bind_registration_authority(
         self,
         authority: _RegistrationAuthority,
+        is_runtime_issued_authority: Callable[[object], bool] | None = None,
     ) -> None:
         """Bind the runtime-owned authority to this repository.
 
-        Called exactly once by ``RuntimeOperations`` composition.  The
-        authority must have been created with the runtime-minted
-        ``_RuntimeIssuanceCapability``; a caller-created
-        ``_RegistrationAuthority`` cannot satisfy this check because the
-        issuance capability has no public constructor.
+        Called exactly once by ``RuntimeOperations`` composition with a
+        verifier closure that checks the authority against the runtime-local
+        issuance registry.  Without the runtime-owned registry, an authority
+        constructed with a forged ``_RuntimeIssuanceCapability`` (e.g. via
+        ``object.__new__``) cannot satisfy the verifier.
         """
 
-        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
         from youtube_intel.scoring import _RegistrationAuthority
 
         if type(authority) is not _RegistrationAuthority:
@@ -563,11 +565,12 @@ class SQLiteStateRepository:
         if self._registration_authority is not None:
             msg = "registration authority is already bound to this repository"
             raise RuntimeError(msg)
-        issuance = getattr(authority, "_issuance_capability", None)
-        if type(issuance) is not _RuntimeIssuanceCapability:
+        verifier = is_runtime_issued_authority or (lambda _auth: False)
+        if not verifier(authority):
             msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
         self._registration_authority = authority
+        self._is_runtime_issued_authority = verifier
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
@@ -2696,12 +2699,11 @@ class SQLiteStateRepository:
         scoring_summary = registration.scoring_summary
 
         # Verify the runtime-owned authority proof before looking at files.
-        # The authority is created by RuntimeOperations with the runtime-only
-        # _RuntimeIssuanceCapability and then bound to this repository.  A
-        # direct repository construction has no authority, and a caller-forged
-        # authority cannot carry the runtime-minted issuance capability, so
-        # neither can produce an accepted registrar capability.
-        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
+        # The authority is created by RuntimeOperations and verified against
+        # the runtime-local issuance registry when bound to this repository.
+        # A direct repository construction has no authority, and a caller-forged
+        # authority cannot be in the runtime registry, so neither can produce
+        # an accepted registrar capability.
         from youtube_intel.scoring import _RegistrationAuthority
 
         if self._registration_authority is None:
@@ -2713,8 +2715,7 @@ class SQLiteStateRepository:
         if registration.authority_proof is not self._registration_authority:
             msg = "registration authority proof mismatch"
             raise IntegrityConflict(msg)
-        issuance = getattr(registration.authority_proof, "_issuance_capability", None)
-        if type(issuance) is not _RuntimeIssuanceCapability:
+        if not self._is_runtime_issued_authority(self._registration_authority):
             msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
 
