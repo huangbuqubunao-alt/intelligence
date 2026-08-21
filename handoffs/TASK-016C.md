@@ -2720,3 +2720,115 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 8 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、caller-supplied verifier attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 9
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 9 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`
+- Baseline: Round 8 handoff commit（当前 HEAD ancestor）
+- Round 9 correction commit: `8ffd78c`
+- Round 9 handoff commit: `<TBD>`
+- Role: Implementer
+
+### Correction Scope
+
+- 修复 Round 8 Independent Review 唯一阻塞 finding：`RegistrationBindingCapability provenance remains forgeable`。
+- 彻底移除 closure/WeakSet/predicate 形式的 provenance；改为由 `RuntimeOperations` 独占创建并持有的 runtime-owned binding registry。
+- 修改文件：
+  - `src/youtube_intel/scoring.py`
+  - `src/youtube_intel/runtime.py`
+  - `src/youtube_intel/state.py`
+  - `tests/unit/test_task016c_phase_g.py`
+  - `handoffs/TASK-016C.md`
+- 未进入 Phase H；未修改 provider、domain、DB migration、依赖、uv.lock。
+
+### Finding
+
+Round 8 通过 closure（`_verify`）把 runtime-owned WeakSet 隐藏进 `_RegistrationBindingCapability`，但 repository 仍把 closure 当作 caller-supplied verifier 来执行；攻击者可构造自己的 closure 或捕获/重放 verifier，导致 provenance 可伪造（forgeable）。
+
+### Attack Reproduction（Round 8 shape）
+
+1. 攻击者通过 `object.__new__(_RuntimeIssuanceCapability)` 伪造 issuance capability。
+2. 构造 `_RegistrationAuthority(forged_issuance)`，得到类型正确的 authority。
+3. 通过 `object.__new__(_RegistrationBindingCapability)` 伪造 binding，并附带上自己的 `_verify` closure。
+4. 若 repository 接受 caller-supplied verifier，则该伪造 binding 可通过验证并授权后续 `_atomic_register_scoring_success`。
+
+### Redesign
+
+- 新增 `_RegistrationBindingRegistry`：仅由 `RuntimeOperations` 通过 `_create_binding_registry()` 创建，内部使用 `weakref.WeakSet` 按对象身份记录合法的 binding。
+- 重定义 `_RegistrationBindingCapability`：只携带 `_authority` 与 `_binding_registry` 引用；`__new__`、copy、pickle 全部禁用。
+- 新增 `_mint_registration_binding(authority, registry)`：在创建 binding 的同时将其身份注册到 runtime-owned registry。
+- `RuntimeOperations.__init__` 调用 factory 创建 registry、mint binding、再调用 `repository._bind_registration_authority(binding)`；不暴露任何 verifier/closure/WeakSet/predicate。
+- `SQLiteStateRepository._bind_registration_authority(binding)`：
+  - 仅接受单一 `binding` 参数；拒绝 caller-supplied verifier、callback、closure、WeakSet 或 predicate。
+  - 校验 binding 的 exact type、authority 的 exact type、registry 的 exact type。
+  - 最终校验 `binding in registry`（对象身份是否在 runtime-owned registry 中）。
+- `SQLiteStateRepository._atomic_register_scoring_success`：
+  - 校验 `_registration_binding` 与 `_binding_registry` 已绑定。
+  - 再次校验 `self._registration_binding in binding_registry`。
+  - 再校验 `registration.authority_proof is self._registration_authority`。
+
+### Implementation
+
+- `src/youtube_intel/scoring.py`
+  - 新增 `_RegistrationBindingRegistry` 与 `_create_binding_registry()`。
+  - 重定义 `_RegistrationBindingCapability`（`__slots__` 含 `__weakref__`；property `authority` / `_registry`）。
+  - 新增 `_mint_registration_binding()`。
+  - 删除 closure verifier 相关逻辑与 `inspect`/`weakref` 在 provenance 中的使用。
+- `src/youtube_intel/runtime.py`
+  - 使用 `_create_binding_registry()` 与 `_mint_registration_binding()` 替代 closure verifier。
+- `src/youtube_intel/state.py`
+  - 删除 `_verifier_carries_runtime_registry()` 与 `inspect` import。
+  - `__init__` 增加 `_registration_binding = None`、`_binding_registry = None`。
+  - `_bind_registration_authority(binding)` 改为仅接受 binding，新增 registry membership 校验。
+  - `_atomic_register_scoring_success` 新增 binding registry membership 校验。
+- `tests/unit/test_task016c_phase_g.py`
+  - 更新 Round 5–8 测试，移除对 `_verify` closure 的断言，改为断言伪造 binding 不在 runtime-owned registry 中。
+  - 新增 4 个 Round 9 committed tests：
+    - `test_external_fake_binding_object_new_fails`
+    - `test_attacker_closure_registry_cannot_authorize_binding`
+    - `test_external_repository_has_no_binding_registry`
+    - `test_runtime_owned_binding_registry_succeeds`
+
+### RED / GREEN Evidence
+
+- RED：在实现 registry membership 检查前，上述 4 个新测试与 `test_repository_requires_runtime_binding_capability`、`test_external_repository_cannot_become_trusted_root` 因伪造 binding 被接受而失败（`DID NOT RAISE IntegrityConflict`）。
+- GREEN：
+  - `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` → `66 passed`
+  - `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` → `41 passed`
+  - `uv run --offline pytest -q` → `1281 passed, 1 warning`
+
+### Mutation Evidence
+
+- Mutation 1 — 移除 registry membership 检查：临时注释掉 `_bind_registration_authority` 与 `_atomic_register_scoring_success` 中的 `binding not in registry` 检查；5 个攻击测试全部失败（`DID NOT RAISE IntegrityConflict`）。恢复检查后通过。
+- Mutation 2 — 恢复 closure verifier API：临时给 `_bind_registration_authority` 增加可选 `verifier` 参数，若 caller-supplied verifier 返回 `True` 则绕过 registry 检查；`test_attacker_closure_registry_cannot_authorize_binding` 在传入 `lambda _binding: True` 后失败（伪造 binding 被接受）。恢复后通过。
+- Mutation 3 — 用 type-only 检查替换 registry membership 检查：临时把 `_bind_registration_authority` 中的 registry 成员校验改为仅检查 `type(binding) is _RegistrationBindingCapability`；`test_external_fake_binding_object_new_fails` 失败（`object.__new__` 伪造的 exact-type binding 被接受）。恢复 registry 检查后通过。
+
+### Validation Gates
+
+| # | Gate | Result |
+|---|------|--------|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `66 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | TASK-016B regression | 未找到独立文件；由 full pytest 覆盖 |
+| 6 | `uv run --offline pytest -q` | `1281 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean`（warnings only） |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未新增超出允许范围的文件
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend 基线 commit 之外的历史
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 9 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、object.__new__ / closure-registry attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；**不进入 Phase H**。
