@@ -2316,3 +2316,65 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 3 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 4
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 4 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1`
+- Round 2 handoff commit: `52c0bcf`
+- Round 3 correction commit: `1780d9a`
+- Round 3 handoff commit: `c1971da`
+- Role: Implementer
+
+### Correction Scope
+
+本次 correction 关闭 Round 3 Independent Review 的唯一 P1「Registration authority remains caller-configurable」，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1/P2 | 位置 | 修复内容 |
+|---|---|---|
+| P1 Authority Injection Trust Boundary | `src/youtube_intel/runtime.py` `bootstrap_runtime()` / `RuntimeOperations.__init__`；`src/youtube_intel/state.py` `SQLiteStateRepository.__init__` / `ScoringRegistrationCapability` | 从 `bootstrap_runtime()` 与 `SQLiteStateRepository.__init__` 移除 `registration_authority` 参数；authority 改由 `SQLiteStateRepository` 在构造时内部创建。`RuntimeOperations` 只能从已组合的 repository 读取该实例并注入 committer。authority 不可外部传入、不可替换、不可复制、不可序列化。registrar 仍通过对象 identity 验证 capability 来源 |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增 RED→GREEN 测试：
+
+- **P1 external repository authority bypass：** `test_external_repository_authority_cannot_create_registration_success`
+  - caller 直接创建 `SQLiteStateRepository`
+  - caller 创建 forged `_RegistrationAuthority`
+  - caller 构造 self-consistent `ScoringRegistrationCapability`（含正确 DTO、文件、hash）
+  - 调用 `_atomic_register_scoring_success()`
+  - 结果：`IntegrityConflict("registration authority proof mismatch")`，FAIL CLOSED
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `53 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E regression | `316 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1268 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean` |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未修改 `src/youtube_intel/scoring.py`（authority 验证逻辑不变，仅 authority 来源从 caller-configurable 改为 repository 内部创建）、`providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 4 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
