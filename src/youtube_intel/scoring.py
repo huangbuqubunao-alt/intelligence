@@ -10,8 +10,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import secrets
-import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -76,183 +74,6 @@ PROMPT_VERSION: Final = "scoring-prompt-v2"
 SCHEMA_VERSION: Final = "score-result-v2"
 SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"
-
-
-class _RuntimeIssuanceCapability:
-    """Opaque capability minted once per RuntimeOperations instance.
-
-    Normal instantiation is rejected.  ``RuntimeOperations`` creates the
-    single valid instance via ``object.__new__`` and passes it to
-    ``_RegistrationAuthority`` during composition.  Validity is not determined
-    by type alone; the runtime maintains the only registry of valid issuance
-    capability instances, so a caller cannot forge one by importing private
-    names and calling ``object.__new__``.
-    """
-
-    __slots__ = ("__weakref__",)
-
-    def __new__(cls) -> "_RuntimeIssuanceCapability":
-        msg = (
-            "_RuntimeIssuanceCapability cannot be instantiated directly; "
-            "it is created only by RuntimeOperations composition"
-        )
-        raise RuntimeError(msg)
-
-
-class _RegistrationAuthority:
-    """Runtime-owned Phase G registration authority.
-
-    Only ``RuntimeOperations`` composition can create this object by
-    supplying the runtime-only ``_RuntimeIssuanceCapability``.  The
-    capability is minted inside ``RuntimeOperations.__init__`` and never
-    exposed as a value.  The SQLite registrar accepts a registration
-    capability only when its ``authority_proof`` is the exact instance it
-    was configured with **and** that instance has been verified by the
-    runtime-owned issuance registry.  Because the registry is scoped to the
-    runtime composition and not to the capability type, a caller cannot
-    forge a valid authority by importing private names and calling
-    ``object.__new__``.
-    """
-
-    __slots__ = ("_secret", "_issuance")
-
-    def __init__(self, issuance: object | None = None) -> None:
-        # The authority must be created with the runtime-minted issuance
-        # capability.  This check only prevents accidental misuse; the real
-        # trust boundary is the runtime-owned issuance registry verified by
-        # the repository.
-        if type(issuance) is not _RuntimeIssuanceCapability:
-            msg = (
-                "_RegistrationAuthority must be created with a "
-                "runtime-minted _RuntimeIssuanceCapability"
-            )
-            raise TypeError(msg)
-        # The secret is not used for cryptographic verification across
-        # boundaries; it exists only to make accidental inspection/copying
-        # worthless and to keep the authority object non-trivial.
-        self._secret = secrets.token_hex(32)
-        self._issuance = issuance
-
-    @property
-    def _issuance_capability(self) -> object:
-        return getattr(self, "_issuance", None)
-
-    def __copy__(self) -> NoReturn:
-        raise TypeError("_RegistrationAuthority cannot be copied")
-
-    def __deepcopy__(self, memo: object) -> NoReturn:
-        raise TypeError("_RegistrationAuthority cannot be copied")
-
-    def __reduce__(self) -> NoReturn:
-        raise TypeError("_RegistrationAuthority cannot be serialized")
-
-    def __reduce_ex__(self, protocol: object) -> NoReturn:
-        raise TypeError("_RegistrationAuthority cannot be serialized")
-
-
-class _RegistrationBindingRegistry:
-    """Runtime-owned registry of valid ``_RegistrationBindingCapability`` identities.
-
-    Only ``RuntimeOperations`` composition can create a registry and register
-    binding capabilities in it.  The registry stores binding capabilities by
-    exact object identity; a caller-forged capability is never in the runtime
-    registry, so it cannot authorize repository binding.
-    """
-
-    __slots__ = ("_bindings",)
-
-    def __new__(cls) -> "_RegistrationBindingRegistry":
-        msg = (
-            "_RegistrationBindingRegistry cannot be instantiated directly; "
-            "it is created only by RuntimeOperations composition"
-        )
-        raise RuntimeError(msg)
-
-    def __init__(self) -> None:
-        self._bindings: weakref.WeakSet[_RegistrationBindingCapability] = weakref.WeakSet()
-
-    def _register(self, binding: _RegistrationBindingCapability) -> None:
-        self._bindings.add(binding)
-
-    def __contains__(self, binding: object) -> bool:
-        return binding in self._bindings
-
-
-class _RegistrationBindingCapability:
-    """Runtime-only binding token passed to ``SQLiteStateRepository``.
-
-    This token carries the runtime-created ``_RegistrationAuthority`` and a
-    reference to the runtime-owned binding registry.  ``SQLiteStateRepository``
-    no longer accepts a caller-supplied verifier, callback, closure or
-    predicate; it only accepts a binding whose identity is registered in the
-    runtime-owned registry.
-    """
-
-    __slots__ = ("_authority", "_binding_registry", "__weakref__")
-
-    def __new__(cls) -> "_RegistrationBindingCapability":
-        msg = (
-            "_RegistrationBindingCapability cannot be instantiated directly; "
-            "it is created only by RuntimeOperations composition"
-        )
-        raise RuntimeError(msg)
-
-    @property
-    def authority(self) -> object:
-        return getattr(self, "_authority", None)
-
-    @property
-    def _registry(self) -> object:
-        return getattr(self, "_binding_registry", None)
-
-    def __copy__(self) -> NoReturn:
-        raise TypeError("_RegistrationBindingCapability cannot be copied")
-
-    def __deepcopy__(self, memo: object) -> NoReturn:
-        raise TypeError("_RegistrationBindingCapability cannot be copied")
-
-    def __reduce__(self) -> NoReturn:
-        raise TypeError("_RegistrationBindingCapability cannot be serialized")
-
-    def __reduce_ex__(self, protocol: object) -> NoReturn:
-        raise TypeError("_RegistrationBindingCapability cannot be serialized")
-
-
-def _create_binding_registry() -> _RegistrationBindingRegistry:
-    """Create the runtime-owned binding registry.
-
-    Normal instantiation is disabled, so this factory uses ``object.__new__``
-    and initializes the registry's internal state.  It is called only from
-    ``RuntimeOperations`` composition.
-    """
-
-    registry = object.__new__(_RegistrationBindingRegistry)
-    object.__setattr__(registry, "_bindings", weakref.WeakSet())
-    return registry
-
-
-def _mint_registration_binding(
-    authority: _RegistrationAuthority,
-    registry: _RegistrationBindingRegistry,
-) -> _RegistrationBindingCapability:
-    """Mint a runtime-owned binding capability and register its identity.
-
-    Called only from ``RuntimeOperations`` composition.  The binding is
-    registered by exact identity in the runtime-local registry; no closure,
-    callback or verifier is exposed.
-    """
-
-    if type(authority) is not _RegistrationAuthority:
-        msg = "binding authority must be a runtime-minted _RegistrationAuthority"
-        raise TypeError(msg)
-    if type(registry) is not _RegistrationBindingRegistry:
-        msg = "binding registry must be a runtime-owned _RegistrationBindingRegistry"
-        raise TypeError(msg)
-    binding = object.__new__(_RegistrationBindingCapability)
-    object.__setattr__(binding, "_authority", authority)
-    object.__setattr__(binding, "_binding_registry", registry)
-    registry._register(binding)
-    return binding
 _RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
 _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
@@ -350,15 +171,6 @@ class _ScoringRepository(Protocol):
         *,
         now: datetime,
     ) -> ArtifactRecord: ...
-
-    def _atomic_register_scoring_success(
-        self,
-        *,
-        registration: ScoringRegistrationCapability,
-        now: datetime,
-        lease_duration: timedelta = ...,
-    ) -> StageCompletionResult: ...
-
 
 @dataclass(frozen=True, slots=True)
 class ScoringJobContext:
@@ -2473,7 +2285,7 @@ class TrustedScoringPersistenceCommitter:
     """Runtime-owned Phase G trusted persistence boundary.
 
     The committer is created by ``RuntimeOperations`` with runtime-owned
-    authority, context, repository, DATA root and job identity.  Its only
+    context, repository, DATA root and job identity.  Its only
     public operation accepts an exact ``PhaseFTrustedScoringSuccess`` and,
     after zero-write PREWRITE_VALIDATE, performs the ordered filesystem +
     SQLite registration protocol.  It never recalls providers, repairs,
@@ -2490,7 +2302,6 @@ class TrustedScoringPersistenceCommitter:
         scoring_context: TrustedScoringContext,
         context: ScoringJobContext,
         summary_threshold: float,
-        registration_authority: _RegistrationAuthority,
         clock: _CLOCK = _utcnow,
     ) -> None:
         from youtube_intel.quality import (
@@ -2504,9 +2315,6 @@ class TrustedScoringPersistenceCommitter:
         if type(scoring_context) is not TrustedScoringContext:
             msg = "scoring_context must be a runtime-minted TrustedScoringContext"
             raise ValueError(msg)
-        if type(registration_authority) is not _RegistrationAuthority:
-            msg = "registration_authority must be a runtime-minted _RegistrationAuthority"
-            raise ValueError(msg)
         if not 0 <= summary_threshold <= 10:
             msg = "summary_threshold must be in 0..10"
             raise ValueError(msg)
@@ -2516,7 +2324,6 @@ class TrustedScoringPersistenceCommitter:
         self._scoring_context = scoring_context
         self._context = context
         self._summary_threshold = summary_threshold
-        self._registration_authority = registration_authority
         self._clock = clock
 
     def prewrite_validate(
@@ -2926,7 +2733,7 @@ class TrustedScoringPersistenceCommitter:
 
         registration = self._mint_registration_capability(plan)
         try:
-            return self._repository._atomic_register_scoring_success(
+            return self._persist_registration(
                 registration=registration,
                 now=self._clock(),
             )
@@ -2944,19 +2751,25 @@ class TrustedScoringPersistenceCommitter:
                 )
             ) from error
 
+    def _persist_registration(
+        self,
+        *,
+        registration: ScoringRegistrationCapability,
+        now: datetime,
+    ) -> StageCompletionResult:
+        """Runtime composition supplies the only trusted registration path."""
+
+        raise RuntimeError("trusted persistence is owned by RuntimeOperations")
+
     def _mint_registration_capability(
         self,
         plan: ValidatedScoringWritePlan,
     ) -> ScoringRegistrationCapability:
         """Mint the only valid Phase G registration capability for a plan.
 
-        This method is private to ``TrustedScoringPersistenceCommitter``;
-        ``state.py`` does not expose a mint seam.  The resulting capability
-        carries the runtime-owned ``_RegistrationAuthority`` instance as an
-        unforgeable proof of origin.  Because the authority object is scoped
-        to the runtime and never exposed as a deterministic value, a caller
-        with correct DTOs, files and hashes still cannot mint a valid
-        registration.
+        This method is private to ``TrustedScoringPersistenceCommitter``.
+        It freezes the prevalidated plan for the runtime-local persistence
+        entry; ``state.py`` does not expose a trusted registration ingress.
         """
 
         raw_final = self._data_root / plan.raw_artifact.relative_path
@@ -2977,7 +2790,6 @@ class TrustedScoringPersistenceCommitter:
             structured_final_path=structured_final,
             raw_envelope_hash=plan.raw_envelope_hash,
             structured_hash=plan.structured_hash,
-            authority_proof=self._registration_authority,
         )
 
     def _check_committed_graph(

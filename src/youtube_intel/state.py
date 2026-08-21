@@ -14,10 +14,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, NoReturn, cast
-
-if TYPE_CHECKING:
-    from youtube_intel.scoring import _RegistrationAuthority
+from typing import NoReturn, cast
 
 from youtube_intel.domain import (
     Availability,
@@ -534,60 +531,6 @@ class SQLiteStateRepository:
         database_path: str | Path,
     ) -> None:
         self._database_path = Path(database_path)
-        # The registration authority and binding registry are owned by
-        # RuntimeOperations, not by the repository.  External callers
-        # constructing a repository directly get no authority, no binding and
-        # no registry, and therefore cannot produce an accepted registrar
-        # capability.  The runtime binds its authority via the private method
-        # below during composition, passing only a runtime-minted binding
-        # capability.  No verifier, callback, closure or predicate is accepted.
-        self._registration_authority: _RegistrationAuthority | None = None
-        self._registration_binding: object | None = None
-        self._binding_registry: object | None = None
-
-    def _bind_registration_authority(
-        self,
-        binding: object,
-    ) -> None:
-        """Bind the runtime-owned authority to this repository.
-
-        Called exactly once by ``RuntimeOperations`` composition with a
-        ``_RegistrationBindingCapability``.  The binding capability is the
-        only trust root: it carries the runtime-created authority and a
-        reference to the runtime-owned binding registry.  The repository
-        rejects any caller-supplied verifier, callback, closure, WeakSet or
-        predicate.  A forged ``_RegistrationBindingCapability`` created with
-        ``object.__new__`` is never registered in the runtime-owned registry,
-        so it cannot authorize binding.
-        """
-
-        from youtube_intel.scoring import (
-            _RegistrationAuthority,
-            _RegistrationBindingCapability,
-            _RegistrationBindingRegistry,
-        )
-
-        if type(binding) is not _RegistrationBindingCapability:
-            msg = "registration binding must be a _RegistrationBindingCapability"
-            raise TypeError(msg)
-        authority = binding.authority
-        if type(authority) is not _RegistrationAuthority:
-            msg = "registration authority must be a _RegistrationAuthority"
-            raise TypeError(msg)
-        if self._registration_authority is not None:
-            msg = "registration authority is already bound to this repository"
-            raise RuntimeError(msg)
-        registry = binding._registry
-        if type(registry) is not _RegistrationBindingRegistry:
-            msg = "registration binding must carry a runtime-owned registry"
-            raise TypeError(msg)
-        if binding not in registry:
-            msg = "registration binding is not registered in the runtime-owned registry"
-            raise IntegrityConflict(msg)
-        self._registration_authority = authority
-        self._registration_binding = binding
-        self._binding_registry = registry
-
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
 
@@ -2677,7 +2620,7 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
-    def _atomic_register_scoring_success(
+    def _persist_scoring_registration(
         self,
         *,
         registration: ScoringRegistrationCapability,
@@ -2713,38 +2656,6 @@ class SQLiteStateRepository:
         scoring_call_completion = registration.scoring_call_completion
         judge_call_completion = registration.judge_call_completion
         scoring_summary = registration.scoring_summary
-
-        # Verify the runtime-owned authority proof before looking at files.
-        # The authority is created by RuntimeOperations and bound to this
-        # repository through a runtime-minted binding capability whose
-        # identity is registered in the runtime-owned binding registry.  A
-        # direct repository construction has no authority or binding, and a
-        # caller-forged binding is never in the runtime registry, so neither can
-        # produce an accepted registrar capability.  No caller-supplied
-        # verifier, callback, closure, WeakSet or predicate is accepted.
-        from youtube_intel.scoring import (
-            _RegistrationAuthority,
-            _RegistrationBindingRegistry,
-        )
-
-        if self._registration_authority is None:
-            msg = "repository has no runtime-bound registration authority"
-            raise IntegrityConflict(msg)
-        if self._registration_binding is None or self._binding_registry is None:
-            msg = "repository has no runtime-bound binding capability"
-            raise IntegrityConflict(msg)
-        binding_registry = cast(
-            "_RegistrationBindingRegistry", self._binding_registry
-        )
-        if self._registration_binding not in binding_registry:
-            msg = "registration binding is not registered in the runtime-owned registry"
-            raise IntegrityConflict(msg)
-        if type(registration.authority_proof) is not _RegistrationAuthority:
-            msg = "registration authority proof is not a _RegistrationAuthority"
-            raise IntegrityConflict(msg)
-        if registration.authority_proof is not self._registration_authority:
-            msg = "registration authority proof mismatch"
-            raise IntegrityConflict(msg)
 
         # Defensive final-file verification at the DB boundary.
         raw_final = registration.raw_final_path
@@ -3028,16 +2939,14 @@ class SQLiteStateRepository:
 
 
 class ScoringRegistrationCapability:
-    """Opaque, plan-bound capability for Phase G trusted SQLite registration.
+    """Frozen, plan-bound input for the Phase G SQLite transaction primitive.
 
     Only ``TrustedScoringPersistenceCommitter`` can mint this via
     ``_mint_registration_capability``.  It freezes every Artifact,
     ProviderCall and summary identity from the validated plan plus the
-    final-file paths and hashes for defensive verification at the DB
-    boundary.  A valid capability must carry the exact
-    ``_RegistrationAuthority`` instance created and issued by
-    ``RuntimeOperations`` and bound to the runtime-composed repository;
-    the repository itself does not mint authorities.
+    final-file paths and hashes for defensive verification at the DB boundary.
+    The runtime-local persistence entry, not this data holder or the
+    repository, owns trusted registration admission.
     """
 
     __slots__ = (
@@ -3056,7 +2965,6 @@ class ScoringRegistrationCapability:
         "_structured_final_path",
         "_raw_envelope_hash",
         "_structured_hash",
-        "_authority_proof",
         "_sealed",
     )
 
@@ -3082,7 +2990,6 @@ class ScoringRegistrationCapability:
         structured_final_path: Path,
         raw_envelope_hash: str,
         structured_hash: str,
-        authority_proof: object,
     ) -> None:
         self._job_id = job_id
         self._owner = owner
@@ -3099,7 +3006,6 @@ class ScoringRegistrationCapability:
         self._structured_final_path = structured_final_path
         self._raw_envelope_hash = raw_envelope_hash
         self._structured_hash = structured_hash
-        self._authority_proof = authority_proof
         self._sealed = True
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -3178,7 +3084,3 @@ class ScoringRegistrationCapability:
     @property
     def structured_hash(self) -> str:
         return self._structured_hash
-
-    @property
-    def authority_proof(self) -> object:
-        return self._authority_proof

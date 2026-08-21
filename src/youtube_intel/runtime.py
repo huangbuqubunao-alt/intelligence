@@ -9,7 +9,6 @@ import os
 import sqlite3
 import urllib.error
 import urllib.request
-import weakref
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
@@ -96,11 +95,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
-    _create_binding_registry,
-    _mint_registration_binding,
-    _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
-    _RuntimeIssuanceCapability,
     build_scoring_input,
     build_scoring_request_identity,
 )
@@ -109,7 +104,9 @@ from youtube_intel.state import (
     ArtifactRecord,
     JobRecord,
     ProviderCallStatus,
+    ScoringRegistrationCapability,
     SQLiteStateRepository,
+    StageCompletionResult,
     StorageRoot,
     VideoRecord,
 )
@@ -257,9 +254,8 @@ def bootstrap_runtime(
 ) -> SQLiteStateRepository:
     """Idempotently create the declared local runtime state.
 
-    The returned repository has no registration authority.  Only
-    ``RuntimeOperations`` creates, issues and binds the runtime-owned
-    ``_RegistrationAuthority`` during its own composition.
+    The returned repository is a low-level SQLite adapter.  Phase G trusted
+    registration is composed only inside ``RuntimeOperations``.
     """
 
     root = project_root.resolve(strict=True)
@@ -307,27 +303,6 @@ class RuntimeOperations(Operations):
         self._config = config
         self._root = project_root.resolve(strict=True)
         self._repository = bootstrap_runtime(config, self._root)
-        # The registration authority is owned by RuntimeOperations and minted
-        # exactly once per runtime instance.  The runtime-only issuance
-        # capability is created here via object.__new__ so that normal
-        # instantiation is impossible for callers; it is never exposed as a
-        # value.  Validity is tracked only in this runtime-local WeakSet and
-        # the runtime-owned binding registry.  The repository receives a
-        # runtime-minted binding capability; no closure, callback, verifier or
-        # predicate is exposed.
-        issuance = object.__new__(_RuntimeIssuanceCapability)
-        _valid_issuance_capabilities: weakref.WeakSet[_RuntimeIssuanceCapability] = (
-            weakref.WeakSet()
-        )
-        _valid_issuance_capabilities.add(issuance)
-
-        self._registration_authority = _RegistrationAuthority(issuance)
-        _binding_registry = _create_binding_registry()
-        binding = _mint_registration_binding(
-            self._registration_authority,
-            _binding_registry,
-        )
-        self._repository._bind_registration_authority(binding)
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
@@ -515,7 +490,23 @@ class RuntimeOperations(Operations):
         closure; callers cannot substitute them.
         """
 
-        return TrustedScoringPersistenceCommitter(
+        persist_transaction = self._repository._persist_scoring_registration
+
+        class _RuntimeTrustedScoringPersistenceCommitter(
+            TrustedScoringPersistenceCommitter
+        ):
+            def _persist_registration(
+                self,
+                *,
+                registration: ScoringRegistrationCapability,
+                now: datetime,
+            ) -> StageCompletionResult:
+                return persist_transaction(
+                    registration=registration,
+                    now=now,
+                )
+
+        return _RuntimeTrustedScoringPersistenceCommitter(
             repository=self._repository,
             data_root=self._data_root,
             quality_authority=self._quality_provenance_authority,
@@ -526,7 +517,6 @@ class RuntimeOperations(Operations):
                 pipeline_version=pipeline_version,
             ),
             summary_threshold=self._config.settings.thresholds.summary_score,
-            registration_authority=self._registration_authority,
         )
 
     @staticmethod
