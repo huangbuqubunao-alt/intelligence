@@ -547,12 +547,14 @@ class SQLiteStateRepository:
     ) -> None:
         """Bind the runtime-owned authority to this repository.
 
-        Called exactly once by ``RuntimeOperations`` composition.  A caller
-        that creates their own ``_RegistrationAuthority`` cannot satisfy the
-        runtime-issued check, so even a self-consistent forged capability
-        bound to an external repository fails closed.
+        Called exactly once by ``RuntimeOperations`` composition.  The
+        authority must have been created with the runtime-minted
+        ``_RuntimeIssuanceCapability``; a caller-created
+        ``_RegistrationAuthority`` cannot satisfy this check because the
+        issuance capability has no public constructor.
         """
 
+        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
         from youtube_intel.scoring import _RegistrationAuthority
 
         if type(authority) is not _RegistrationAuthority:
@@ -561,7 +563,8 @@ class SQLiteStateRepository:
         if self._registration_authority is not None:
             msg = "registration authority is already bound to this repository"
             raise RuntimeError(msg)
-        if not authority._is_runtime_issued:
+        issuance = getattr(authority, "_issuance_capability", None)
+        if type(issuance) is not _RuntimeIssuanceCapability:
             msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
         self._registration_authority = authority
@@ -2693,10 +2696,12 @@ class SQLiteStateRepository:
         scoring_summary = registration.scoring_summary
 
         # Verify the runtime-owned authority proof before looking at files.
-        # The authority is created and issued by RuntimeOperations, then bound
-        # to this repository.  A direct repository construction has no
-        # authority, and a caller-forged authority is not runtime-issued,
-        # so neither can produce an accepted registrar capability.
+        # The authority is created by RuntimeOperations with the runtime-only
+        # _RuntimeIssuanceCapability and then bound to this repository.  A
+        # direct repository construction has no authority, and a caller-forged
+        # authority cannot carry the runtime-minted issuance capability, so
+        # neither can produce an accepted registrar capability.
+        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
         from youtube_intel.scoring import _RegistrationAuthority
 
         if self._registration_authority is None:
@@ -2708,7 +2713,8 @@ class SQLiteStateRepository:
         if registration.authority_proof is not self._registration_authority:
             msg = "registration authority proof mismatch"
             raise IntegrityConflict(msg)
-        if not registration.authority_proof._is_runtime_issued:
+        issuance = getattr(registration.authority_proof, "_issuance_capability", None)
+        if type(issuance) is not _RuntimeIssuanceCapability:
             msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
 

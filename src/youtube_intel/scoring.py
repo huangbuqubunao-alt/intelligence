@@ -80,32 +80,42 @@ _SCORING_OPERATION: Final = "local-scoring"
 class _RegistrationAuthority:
     """Runtime-owned, unforgeable Phase G registration authority.
 
-    Only ``RuntimeOperations`` can create and issue this object; it is then
-    bound to exactly one ``SQLiteStateRepository`` and one
-    ``TrustedScoringPersistenceCommitter``.  The SQLite registrar accepts a
-    registration capability only when its ``authority_proof`` is the exact
-    instance it was configured with **and** the instance has been marked as
-    runtime-issued.  Because the object identity and issuance state are
-    runtime-scoped and cannot be derived from plan fields, a caller with
-    correct DTOs, files and hashes cannot forge a valid registration.
+    Only ``RuntimeOperations`` composition can create this object by
+    supplying the runtime-only ``_RuntimeIssuanceCapability``.  The
+    capability is minted inside ``RuntimeOperations.__init__`` and never
+    exposed as a value.  The SQLite registrar accepts a registration
+    capability only when its ``authority_proof`` is the exact instance it
+    was configured with **and** that instance was constructed with the
+    runtime-minted issuance capability.  Because the issuance capability
+    has no public constructor and cannot be derived from plan fields, a
+    caller with correct DTOs, files and hashes cannot forge a valid
+    registration.
     """
 
-    __slots__ = ("_secret", "_runtime_issued")
+    __slots__ = ("_secret", "_issuance")
 
-    def __init__(self) -> None:
+    def __init__(self, issuance: object | None = None) -> None:
+        # The authority must be created with the runtime-minted issuance
+        # capability.  We avoid importing the capability type here to keep
+        # scoring.py from becoming an issuance source; the runtime and the
+        # registrar perform the exact-type checks.
+        from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
+
+        if type(issuance) is not _RuntimeIssuanceCapability:
+            msg = (
+                "_RegistrationAuthority must be created with a "
+                "runtime-minted _RuntimeIssuanceCapability"
+            )
+            raise TypeError(msg)
         # The secret is not used for cryptographic verification across
         # boundaries; it exists only to make accidental inspection/copying
         # worthless and to keep the authority object non-trivial.
         self._secret = secrets.token_hex(32)
-        self._runtime_issued = False
-
-    def _mark_runtime_issued(self) -> None:
-        """Issued once by RuntimeOperations composition; not public API."""
-        self._runtime_issued = True
+        self._issuance = issuance
 
     @property
-    def _is_runtime_issued(self) -> bool:
-        return self._runtime_issued
+    def _issuance_capability(self) -> object:
+        return getattr(self, "_issuance", None)
 
     def __copy__(self) -> NoReturn:
         raise TypeError("_RegistrationAuthority cannot be copied")

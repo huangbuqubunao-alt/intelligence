@@ -15,6 +15,7 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
+from youtube_intel._phase_g_trust import _RuntimeIssuanceCapability
 from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
@@ -303,12 +304,14 @@ class RuntimeOperations(Operations):
         self._config = config
         self._root = project_root.resolve(strict=True)
         self._repository = bootstrap_runtime(config, self._root)
-        # The registration authority is owned by RuntimeOperations and issued
-        # exactly once per runtime instance.  It is bound to the composed
-        # repository and to every trusted scoring committer; callers cannot
-        # create, substitute, or re-create it.
-        self._registration_authority = _RegistrationAuthority()
-        self._registration_authority._mark_runtime_issued()
+        # The registration authority is owned by RuntimeOperations and minted
+        # exactly once per runtime instance.  The runtime-only issuance
+        # capability is created here via object.__new__ so that normal
+        # instantiation is impossible for callers; it is never exposed as a
+        # value.  The authority is bound to the composed repository and to
+        # every trusted scoring committer.
+        issuance = object.__new__(_RuntimeIssuanceCapability)
+        self._registration_authority = _RegistrationAuthority(issuance)
         self._repository._bind_registration_authority(self._registration_authority)
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
