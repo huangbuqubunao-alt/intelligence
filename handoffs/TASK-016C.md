@@ -2543,3 +2543,91 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 6 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、mutation evidence、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 7
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 7 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1`
+- Round 2 handoff commit: `52c0bcf`
+- Round 3 correction commit: `1780d9a`
+- Round 3 handoff commit: `c1971da`
+- Round 4 correction commit: `980497d`
+- Round 4 handoff commit: `dda8040`
+- Round 5 correction commit: `0649447`
+- Round 5 handoff commit: `b425dd4`
+- Round 6 correction commit: `dc3bad8`
+- Round 6 handoff commit: `d2b82ec`
+- Round 7 correction commit: `2f658b0`
+- Round 7 handoff commit: `<TBD>`
+- Role: Implementer
+
+### Correction Scope
+
+本次 correction 关闭 Round 6 Independent Review 的唯一 P1「Runtime issuance capability is forgeable through object.__new__ attack」，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1/P2 | 位置 | 修复内容 |
+|---|---|---|
+| P1 Capability Provenance Boundary | `src/youtube_intel/_phase_g_trust.py`（删除，超出范围）；`src/youtube_intel/scoring.py` `_RuntimeIssuanceCapability` / `_RegistrationAuthority`；`src/youtube_intel/runtime.py` `RuntimeOperations.__init__`；`src/youtube_intel/state.py` `_bind_registration_authority()` / `_atomic_register_scoring_success()` | 删除 Round 6 新增的 `_phase_g_trust.py`，将 capability 移回允许范围 `scoring.py`；`_RuntimeIssuanceCapability` 不再依赖 type-only validation，改为由 `RuntimeOperations` 在 composition 内维护唯一的 runtime-local `WeakSet` 实例注册表；repository binding 与 registrar 均通过 runtime 注入的 verifier closure 校验 authority 的 issuance capability 是否在该注册表中，从而拒绝 `object.__new__(_RuntimeIssuanceCapability)` 伪造的 capability 实例 |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正 RED→GREEN 测试：
+
+- **P1 object.__new__ capability forgery：** `test_object_new_runtime_capability_forgery_fails`
+  - 使用 `object.__new__(_RuntimeIssuanceCapability)` 伪造 capability 实例
+  - 用该实例构造类型正确的 `_RegistrationAuthority`
+  - 尝试绑定 external `SQLiteStateRepository` → `IntegrityConflict("registration authority was not issued by the runtime")`，FAIL CLOSED
+  - 构造 self-consistent capability（正确 Artifact DTO、ProviderCall DTO、文件、hash）调用 register → FAIL CLOSED
+  - 即使强行把 forged authority 附加到 external repository，registrar 仍因不在 runtime issuance registry 而 FAIL CLOSED
+  - 断言无 Artifact success / ProviderCall success / Video SCORED / Job SUCCEEDED
+- **P1 external capability instance cannot authorize：** `test_external_capability_instance_cannot_become_runtime_authority`
+  - `object.__new__(_RuntimeIssuanceCapability)` 得到的实例不是 runtime-issued
+  - 构造的 authority 无法通过 external repository 的 `_bind_registration_authority()`
+- **P1 positive control：** `test_runtime_owned_registration_still_succeeds`（Round 6 正控保留）
+  - 正常 `RuntimeOperations` composition 路径完成 commit
+  - 结果：`StageCompletionResult`，job `SUCCEEDED`，video `SCORED`
+
+### Mutation Evidence
+
+本次新增 regression tests 在以下临时 mutation 下失败，恢复后重新 GREEN：
+
+| 删除/替换的保护 | Mutation 操作 | 观察结果 |
+|---|---|---|
+| 删除 runtime-owned capability provenance validation | 临时将 `state.py` 的 verifier 默认改为 `lambda _auth: True`，并把 registrar 的 provenance 校验改为恒真 | `test_object_new_runtime_capability_forgery_fails` 失败：攻击成功，未抛出 `IntegrityConflict` |
+| 替换 instance provenance validation 为 `isinstance()` | 临时将 `state.py` `_bind_registration_authority()` 与 `_atomic_register_scoring_success()` 的 provenance 校验替换为 `isinstance(authority, _RegistrationAuthority)` | `test_object_new_runtime_capability_forgery_fails` 失败：`object.__new__(_RegistrationAuthority)` 通过 isinstance 检查， forged authority 被接受 |
+| 恢复 external capability construction path | （隐含）若同时允许外部构造 capability 并移除 registry 校验，则 object.__new__ 攻击链可完整走通；已由前两项 mutation 覆盖 | — |
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `60 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E regression | `316 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1275 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean`（warnings only） |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/runtime.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 删除文件：`src/youtube_intel/_phase_g_trust.py`（超出允许范围）
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 7 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、object.__new__ attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；不进入 Phase H。
