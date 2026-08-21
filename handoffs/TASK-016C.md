@@ -2077,8 +2077,9 @@ load_app_config(channels_path, settings_path)
 - Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
   `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
   `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
-- Correction baseline: `ef89b1e41e17c3b823a39bfd1018c5c876b236c5` (Phase G implementation commit)
-- Correction commit: `b4497cf` (HEAD)
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Correction commit: `b4497cf`
+- Handoff commit: `79ae31a` (HEAD)
 - Role: Implementer (continuation/recovery)
 
 ### Correction Scope
