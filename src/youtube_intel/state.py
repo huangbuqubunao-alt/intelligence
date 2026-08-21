@@ -529,10 +529,14 @@ class SQLiteStateRepository:
     def __init__(
         self,
         database_path: str | Path,
-        registration_authority: object | None = None,
     ) -> None:
         self._database_path = Path(database_path)
-        self._registration_authority = registration_authority
+        # The registration authority is created inside the repository and is
+        # not caller-configurable.  Only the runtime-composed committer that
+        # holds the exact same instance can mint a valid registration.
+        from youtube_intel.scoring import _RegistrationAuthority
+
+        self._registration_authority = _RegistrationAuthority()
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
@@ -2661,12 +2665,10 @@ class SQLiteStateRepository:
         scoring_summary = registration.scoring_summary
 
         # Verify the runtime-owned authority proof before looking at files.
-        # The authority object identity is scoped to the runtime and cannot
-        # be derived from plan fields, so a caller with correct DTOs/files
-        # but no committer authority cannot forge a valid registration.
-        if self._registration_authority is None:
-            msg = "repository is not configured with a registration authority"
-            raise TypeError(msg)
+        # The authority object identity is scoped to the runtime-composed
+        # repository and cannot be derived from plan fields, so a caller with
+        # correct DTOs/files but no committer authority cannot forge a valid
+        # registration.
         from youtube_intel.scoring import _RegistrationAuthority
 
         if type(registration.authority_proof) is not _RegistrationAuthority:
@@ -2964,9 +2966,10 @@ class ScoringRegistrationCapability:
     ``_mint_registration_capability``.  It freezes every Artifact,
     ProviderCall and summary identity from the validated plan plus the
     final-file paths and hashes for defensive verification at the DB
-    boundary.  A valid capability must carry the runtime-owned
-    ``_RegistrationAuthority`` instance configured in the repository;
-    callers cannot construct that instance.
+    boundary.  A valid capability must carry the exact
+    ``_RegistrationAuthority`` instance owned by the runtime-composed
+    repository; that authority is created inside the repository and is not
+    caller-configurable.
     """
 
     __slots__ = (

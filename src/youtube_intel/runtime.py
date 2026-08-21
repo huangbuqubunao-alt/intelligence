@@ -95,7 +95,6 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
-    _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
     build_scoring_input,
     build_scoring_request_identity,
@@ -250,19 +249,19 @@ def _ensure_vault_subdir(vault_root: Path, vault_subdir: str) -> None:
 def bootstrap_runtime(
     config: AppConfig,
     project_root: Path,
-    registration_authority: object | None = None,
 ) -> SQLiteStateRepository:
-    """Idempotently create the declared local runtime state."""
+    """Idempotently create the declared local runtime state.
+
+    The registration authority is owned by the composed repository; callers
+    cannot inject, substitute, or re-create it.
+    """
 
     root = project_root.resolve(strict=True)
     storage = config.settings.storage
     data_root = _ensure_project_directory(root, storage.data_dir)
     _ensure_project_directory(root, storage.logs_dir)
     _ensure_vault_subdir(Path(storage.vault_root), storage.vault_subdir)
-    repository = SQLiteStateRepository(
-        data_root / "state.sqlite",
-        registration_authority=registration_authority,
-    )
+    repository = SQLiteStateRepository(data_root / "state.sqlite")
     repository.initialize(now=_utcnow())
     return repository
 
@@ -301,10 +300,10 @@ class RuntimeOperations(Operations):
     ) -> None:
         self._config = config
         self._root = project_root.resolve(strict=True)
-        self._registration_authority = _RegistrationAuthority()
-        self._repository = bootstrap_runtime(
-            config, self._root, registration_authority=self._registration_authority
-        )
+        self._repository = bootstrap_runtime(config, self._root)
+        # The registration authority is owned by the repository and never
+        # leaves the runtime composition boundary.
+        self._registration_authority = self._repository._registration_authority
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring

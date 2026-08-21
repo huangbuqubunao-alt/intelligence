@@ -2130,3 +2130,77 @@ def test_r5_final_reopen_verify_failure_no_sqlite_registration(
         committer._verify_file_hash = original_verify  # type: ignore[method-assign]
 
     _assert_no_scoring_success(runtime._repository, plan, video_id)
+
+
+# ===========================================================================
+# Phase G Correction Round 4 — authority injection boundary
+# ===========================================================================
+
+
+def test_external_repository_authority_cannot_create_registration_success(
+    tmp_path: Path,
+) -> None:
+    """P1: a caller-created repository with a self-consistent forged
+    capability must fail closed.
+
+    The registration authority is created inside the repository and is not
+    caller-configurable.  Even with correct DTOs, promoted finals and hashes,
+    a capability signed with a caller-forged authority cannot satisfy the
+    registrar's object-identity check.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r4-external-authority"
+    job_id = "job-r4-external-authority"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    # Caller writes the promoted finals exactly as the real committer would.
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    raw_final.parent.mkdir(parents=True, exist_ok=True)
+    raw_final.write_bytes(plan.raw_envelope_bytes)
+    structured_final.parent.mkdir(parents=True, exist_ok=True)
+    structured_final.write_bytes(plan.structured_bytes)
+
+    # Caller creates their own repository instance (same DB is irrelevant;
+    # what matters is the authority is created inside the repository).
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    # Caller forges a fresh authority and builds a self-consistent capability.
+    forged_authority = _RegistrationAuthority()
+    forged_capability = ScoringRegistrationCapability(
+        job_id=committer._context.job_id,
+        owner=committer._context.owner,
+        video_id=plan.video_id,
+        pipeline_version=committer._context.pipeline_version,
+        raw_artifact=plan.raw_artifact,
+        structured_artifact=plan.structured_artifact,
+        scoring_call_request=plan.scoring_call_request,
+        judge_call_request=plan.judge_call_request,
+        scoring_call_completion=plan.scoring_call_completion,
+        judge_call_completion=plan.judge_call_completion,
+        scoring_summary=plan.scoring_summary,
+        raw_final_path=raw_final,
+        structured_final_path=structured_final,
+        raw_envelope_hash=plan.raw_envelope_hash,
+        structured_hash=plan.structured_hash,
+        authority_proof=forged_authority,
+    )
+
+    with pytest.raises(
+        IntegrityConflict, match="registration authority proof mismatch"
+    ):
+        external_repository._atomic_register_scoring_success(
+            registration=forged_capability,
+            now=datetime.now(UTC),
+        )
