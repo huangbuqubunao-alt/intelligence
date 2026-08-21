@@ -13,8 +13,11 @@ Reference documents (authoritative):
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+import os
+import pickle
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -22,7 +25,9 @@ import pytest
 
 from youtube_intel.config import LocalScoringSettings, load_app_config
 from youtube_intel.domain import (
+    AppError,
     Availability,
+    ErrorCode,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
@@ -55,6 +60,7 @@ from youtube_intel.scoring import (
     build_scoring_request_identity,
 )
 from youtube_intel.state import (
+    _SCORING_REGISTRATION_SENTINEL,
     ArtifactKind,
     ArtifactWrite,
     IntegrityConflict,
@@ -62,9 +68,11 @@ from youtube_intel.state import (
     JobType,
     ProviderCallStatus,
     RetentionClass,
+    ScoringRegistrationCapability,
     SQLiteStateRepository,
     StageCompletionResult,
     StorageRoot,
+    _build_scoring_registration_provenance_token,
 )
 
 _EN_REASON = (
@@ -1438,8 +1446,6 @@ def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
     promoted.
     """
 
-    from youtube_intel.state import _mint_scoring_registration_capability
-
     runtime, _ = _judge_runtime(tmp_path / "project")
     video_id = "video-m14-missing-finals"
     job_id = "job-m14-missing-finals"
@@ -1453,8 +1459,306 @@ def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    # Mint a valid registration capability, but do not write the files.
-    registration = _mint_scoring_registration_capability(
+    # Mint a valid registration capability through the private committer seam,
+    # but do not write the files.  The registrar must still reject it.
+    registration = committer._mint_registration_capability(plan)
+
+    with pytest.raises(
+        (IntegrityConflict, ScoringPersistenceError),
+        match="final file does not exist|raw final file",
+    ):
+        runtime._repository._atomic_register_scoring_success(
+            registration=registration,
+            now=datetime.now(UTC),
+        )
+
+
+# ===========================================================================
+# Phase G Correction Round 2 — RED tests
+# ===========================================================================
+
+
+# --- R2: Complete graph idempotency ----------------------------------------
+
+
+def _mutate_artifact_field(
+    repository: SQLiteStateRepository,
+    artifact_key: str,
+    field: str,
+    value: object,
+) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            f"UPDATE artifacts SET {field} = :value WHERE artifact_key = :key",
+            {"value": value, "key": artifact_key},
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _mutate_provider_call_field(
+    repository: SQLiteStateRepository,
+    request_hash: str,
+    field: str,
+    value: object,
+) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            f"UPDATE provider_calls SET {field} = :value WHERE request_hash = :rh",
+            {"value": value, "rh": request_hash},
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _mutate_video_field(
+    repository: SQLiteStateRepository,
+    video_id: str,
+    field: str,
+    value: object,
+) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            f"UPDATE videos SET {field} = :value WHERE video_id = :vid",
+            {"value": value, "vid": video_id},
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _mutate_job_field(
+    repository: SQLiteStateRepository,
+    job_id: str,
+    field: str,
+    value: object,
+) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            f"UPDATE jobs SET {field} = :value WHERE job_id = :jid",
+            {"value": value, "jid": job_id},
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_r2_artifact_artifact_id_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-artifact-id"
+    job_id = "job-r2-artifact-id"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    # Mutate the structured artifact's artifact_id; provider_calls reference
+    # the raw artifact, so this avoids a foreign-key violation while still
+    # testing the artifact_id field in the complete-graph idempotency check.
+    _mutate_artifact_field(
+        runtime._repository,
+        plan.structured_artifact.artifact_key,
+        "artifact_id",
+        "forged-artifact-id",
+    )
+
+    with pytest.raises(ScoringPersistenceError, match="artifact_id mismatch"):
+        committer.commit(plan)
+
+
+def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-rel-path"
+    job_id = "job-r2-rel-path"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_artifact_field(
+        runtime._repository,
+        plan.raw_artifact.artifact_key,
+        "relative_path",
+        "scoring/forged/raw.json",
+    )
+
+    with pytest.raises(
+        ScoringPersistenceError, match="relative_path mismatch"
+    ):
+        committer.commit(plan)
+
+
+def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-kind"
+    job_id = "job-r2-kind"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_artifact_field(
+        runtime._repository,
+        plan.raw_artifact.artifact_key,
+        "kind",
+        ArtifactKind.SUBTITLE_SOURCE.value,
+    )
+
+    with pytest.raises(ScoringPersistenceError, match="kind mismatch"):
+        committer.commit(plan)
+
+
+def test_r2_artifact_provider_metadata_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-provider-meta"
+    job_id = "job-r2-provider-meta"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_artifact_field(
+        runtime._repository,
+        plan.raw_artifact.artifact_key,
+        "provider",
+        "forged-provider",
+    )
+
+    with pytest.raises(ScoringPersistenceError, match="provider mismatch"):
+        committer.commit(plan)
+
+
+def test_r2_provider_call_request_metadata_change_rejects(
+    tmp_path: Path,
+) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-pc-meta"
+    job_id = "job-r2-pc-meta"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_provider_call_field(
+        runtime._repository,
+        plan.scoring_call_request.request_hash,
+        "operation",
+        "forged-operation",
+    )
+
+    with pytest.raises(ScoringPersistenceError, match="operation mismatch"):
+        committer.commit(plan)
+
+
+def test_r2_video_should_summarize_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-should-summarize"
+    job_id = "job-r2-should-summarize"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_video_field(
+        runtime._repository,
+        video_id,
+        "should_summarize",
+        0 if plan.scoring_summary.should_summarize else 1,
+    )
+
+    with pytest.raises(
+        ScoringPersistenceError, match="should_summarize mismatch"
+    ):
+        committer.commit(plan)
+
+
+def test_r2_job_binding_change_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-job-binding"
+    job_id = "job-r2-job-binding"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    _mutate_job_field(
+        runtime._repository,
+        job_id,
+        "target_stage",
+        ProcessingStage.TRANSCRIPT.value,
+    )
+
+    with pytest.raises(
+        ScoringPersistenceError, match="target_stage mismatch"
+    ):
+        committer.commit(plan)
+
+
+# --- R3: Registration capability authority ----------------------------------
+
+
+def test_r3_import_mint_function_fails() -> None:
+    """R3: the mint seam must not be importable from state.py."""
+
+    with pytest.raises(ImportError):
+        from youtube_intel.state import (  # noqa: F401  # type: ignore[import-not-found]
+            _mint_scoring_registration_capability,
+        )
+
+
+def test_r3_direct_sentinel_construction_with_wrong_token_rejects(
+    tmp_path: Path,
+) -> None:
+    """R3: a caller who obtains the sentinel still cannot forge a capability
+    with an invalid provenance token."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-wrong-token"
+    job_id = "job-r3-wrong-token"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    forged = ScoringRegistrationCapability(
+        sentinel=_SCORING_REGISTRATION_SENTINEL,
         job_id=committer._context.job_id,
         owner=committer._context.owner,
         video_id=plan.video_id,
@@ -1471,13 +1775,319 @@ def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
         / plan.structured_artifact.relative_path,
         raw_envelope_hash=plan.raw_envelope_hash,
         structured_hash=plan.structured_hash,
+        provenance_token="0" * 64,
     )
 
-    with pytest.raises(
-        (IntegrityConflict, ScoringPersistenceError),
-        match="final file does not exist|raw final file",
-    ):
+    with pytest.raises(IntegrityConflict, match="provenance token mismatch"):
         runtime._repository._atomic_register_scoring_success(
-            registration=registration,
+            registration=forged,
             now=datetime.now(UTC),
         )
+
+
+def test_r3_copy_capability_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-copy"
+    job_id = "job-r3-copy"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    capability = committer._mint_registration_capability(plan)
+
+    with pytest.raises(TypeError, match="cannot be copied"):
+        copy.copy(capability)
+    with pytest.raises(TypeError, match="cannot be copied"):
+        copy.deepcopy(capability)
+
+
+def test_r3_pickle_capability_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-pickle"
+    job_id = "job-r3-pickle"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    capability = committer._mint_registration_capability(plan)
+
+    with pytest.raises(TypeError, match="cannot be serialized"):
+        pickle.dumps(capability)
+
+
+def test_r3_modify_capability_field_rejects(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-modify"
+    job_id = "job-r3-modify"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    capability = committer._mint_registration_capability(plan)
+
+    with pytest.raises(TypeError, match="immutable"):
+        capability.job_id = "forged-job-id"
+
+
+def test_r3_legal_committer_path_succeeds(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-legal"
+    job_id = "job-r3-legal"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    capability = committer._mint_registration_capability(plan)
+    assert type(capability) is ScoringRegistrationCapability
+    assert capability.provenance_token == _build_scoring_registration_provenance_token(
+        job_id=committer._context.job_id,
+        owner=committer._context.owner,
+        video_id=plan.video_id,
+        pipeline_version=committer._context.pipeline_version,
+        raw_artifact_id=plan.raw_artifact.artifact_id,
+        structured_artifact_id=plan.structured_artifact.artifact_id,
+        scoring_request_hash=plan.scoring_call_request.request_hash,
+        judge_request_hash=plan.judge_call_request.request_hash,
+        raw_envelope_hash=plan.raw_envelope_hash,
+        structured_hash=plan.structured_hash,
+    )
+
+
+# --- M15: Filesystem-before-SQLite ordering ---------------------------------
+
+
+def test_m15_registration_before_final_verify_rejected(tmp_path: Path) -> None:
+    """M15: SQLite registration must happen only after filesystem promote
+    and final verify are complete for both artifacts.
+
+    The test instruments the committer to record filesystem-complete and
+    SQLite-registration events, then asserts the order.  If a mutation
+    reversed the order, sqlite_registration would appear before the final
+    filesystem_complete and the assertion would fail.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-m15-order"
+    job_id = "job-m15-order"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    events: list[str] = []
+    original_write = committer._write_atomic_file
+
+    def recording_write(*, final_path, content, expected_hash, video_id):
+        original_write(
+            final_path=final_path,
+            content=content,
+            expected_hash=expected_hash,
+            video_id=video_id,
+        )
+        events.append("filesystem_complete")
+
+    committer._write_atomic_file = recording_write  # type: ignore[method-assign]
+
+    original_register = runtime._repository._atomic_register_scoring_success
+
+    def recording_register(*, registration, now):
+        events.append("sqlite_registration")
+        return original_register(registration=registration, now=now)
+
+    runtime._repository._atomic_register_scoring_success = (  # type: ignore[method-assign]
+        recording_register
+    )
+
+    try:
+        committer.commit(plan)
+    finally:
+        committer._write_atomic_file = original_write  # type: ignore[method-assign]
+        runtime._repository._atomic_register_scoring_success = (  # type: ignore[method-assign]
+            original_register
+        )
+
+    fs_indices = [i for i, e in enumerate(events) if e == "filesystem_complete"]
+    sql_index = events.index("sqlite_registration")
+    assert len(fs_indices) == 2, "both artifacts must complete filesystem writes"
+    assert all(i < sql_index for i in fs_indices), (
+        f"SQLite registration must follow filesystem completion; events={events}"
+    )
+
+
+# --- R5: Filesystem fault injection -----------------------------------------
+
+
+def _assert_no_scoring_success(
+    repository: SQLiteStateRepository,
+    plan: object,
+    video_id: str,
+) -> None:
+    video = repository.get_video(video_id)
+    assert video is not None
+    assert video.pipeline_status is not PipelineStatus.SCORED
+    assert repository.get_artifact_by_key(plan.raw_artifact.artifact_key) is None
+    assert (
+        repository.get_provider_call(plan.scoring_call_request.request_hash) is None
+    )
+
+
+def test_r5_fsync_failure_no_sqlite_registration(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-fsync"
+    job_id = "job-r5-fsync"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    real_fsync = os.fsync
+    call_count = 0
+
+    def failing_fsync(fd: int) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise OSError(5, "injected fsync failure")
+        real_fsync(fd)
+
+    os.fsync = failing_fsync
+    try:
+        with pytest.raises(ScoringPersistenceError, match="fsync"):
+            committer.commit(plan)
+    finally:
+        os.fsync = real_fsync
+
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
+
+
+def test_r5_promote_failure_no_sqlite_registration(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-promote"
+    job_id = "job-r5-promote"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    real_link = os.link
+
+    def failing_link(src: str, dst: str) -> None:
+        raise OSError(1, "injected promote failure")
+
+    os.link = failing_link
+    try:
+        with pytest.raises(ScoringPersistenceError, match="promote"):
+            committer.commit(plan)
+    finally:
+        os.link = real_link
+
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
+
+
+def test_r5_dir_fsync_failure_no_sqlite_registration(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-dir-fsync"
+    job_id = "job-r5-dir-fsync"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    real_fsync = os.fsync
+    real_open = os.open
+    dir_fds: set[int] = set()
+
+    def capturing_open(path: str, flags: int, mode: int = 0o777) -> int:
+        fd = real_open(path, flags, mode)
+        if flags & os.O_DIRECTORY:
+            dir_fds.add(fd)
+        return fd
+
+    def failing_dir_fsync(fd: int) -> None:
+        if fd in dir_fds:
+            raise OSError(5, "injected directory fsync failure")
+        real_fsync(fd)
+
+    os.open = capturing_open
+    os.fsync = failing_dir_fsync
+    try:
+        with pytest.raises(
+            ScoringPersistenceError, match="fsync artifact directory"
+        ):
+            committer.commit(plan)
+    finally:
+        os.open = real_open
+        os.fsync = real_fsync
+
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
+
+
+def test_r5_final_reopen_verify_failure_no_sqlite_registration(
+    tmp_path: Path,
+) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-final-verify"
+    job_id = "job-r5-final-verify"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    original_verify = committer._verify_file_hash
+    call_count = 0
+
+    def failing_verify(path, expected_content, expected_hash, *, video_id):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="injected final reopen verify failure",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        return original_verify(
+            path, expected_content, expected_hash, video_id=video_id
+        )
+
+    committer._verify_file_hash = failing_verify  # type: ignore[method-assign]
+    try:
+        with pytest.raises(
+            ScoringPersistenceError, match="final reopen verify failure"
+        ):
+            committer.commit(plan)
+    finally:
+        committer._verify_file_hash = original_verify  # type: ignore[method-assign]
+
+    _assert_no_scoring_success(runtime._repository, plan, video_id)

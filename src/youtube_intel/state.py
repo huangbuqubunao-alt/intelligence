@@ -2655,6 +2655,23 @@ class SQLiteStateRepository:
         judge_call_completion = registration.judge_call_completion
         scoring_summary = registration.scoring_summary
 
+        # Verify the plan-bound provenance token before looking at files.
+        expected_token = _build_scoring_registration_provenance_token(
+            job_id=job_id,
+            owner=owner,
+            video_id=video_id,
+            pipeline_version=pipeline_version,
+            raw_artifact_id=raw_artifact.artifact_id,
+            structured_artifact_id=structured_artifact.artifact_id,
+            scoring_request_hash=scoring_call_request.request_hash,
+            judge_request_hash=judge_call_request.request_hash,
+            raw_envelope_hash=registration.raw_envelope_hash,
+            structured_hash=registration.structured_hash,
+        )
+        if registration.provenance_token != expected_token:
+            msg = "registration provenance token mismatch"
+            raise IntegrityConflict(msg)
+
         # Defensive final-file verification at the DB boundary.
         raw_final = registration.raw_final_path
         structured_final = registration.structured_final_path
@@ -2945,6 +2962,47 @@ class _ScoringRegistrationSentinel:
 _SCORING_REGISTRATION_SENTINEL = _ScoringRegistrationSentinel()
 
 
+def _build_scoring_registration_provenance_token(
+    *,
+    job_id: str,
+    owner: str,
+    video_id: str,
+    pipeline_version: str,
+    raw_artifact_id: str,
+    structured_artifact_id: str,
+    scoring_request_hash: str,
+    judge_request_hash: str,
+    raw_envelope_hash: str,
+    structured_hash: str,
+) -> str:
+    """Cryptographic binding of a registration capability to its plan.
+
+    The committer computes this token when minting the capability; the
+    registrar recomputes it from the capability fields and rejects the
+    registration if the token does not match.  This prevents a caller who
+    somehow obtains the sentinel from constructing a valid capability with
+    arbitrary fields.
+    """
+    payload = json.dumps(
+        {
+            "job_id": job_id,
+            "owner": owner,
+            "video_id": video_id,
+            "pipeline_version": pipeline_version,
+            "raw_artifact_id": raw_artifact_id,
+            "structured_artifact_id": structured_artifact_id,
+            "scoring_request_hash": scoring_request_hash,
+            "judge_request_hash": judge_request_hash,
+            "raw_envelope_hash": raw_envelope_hash,
+            "structured_hash": structured_hash,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 class ScoringRegistrationCapability:
     """Opaque, plan-bound capability for Phase G trusted SQLite registration.
 
@@ -2972,6 +3030,7 @@ class ScoringRegistrationCapability:
         "_structured_final_path",
         "_raw_envelope_hash",
         "_structured_hash",
+        "_provenance_token",
         "_sealed",
     )
 
@@ -2998,6 +3057,7 @@ class ScoringRegistrationCapability:
         structured_final_path: Path,
         raw_envelope_hash: str,
         structured_hash: str,
+        provenance_token: str,
     ) -> None:
         if sentinel is not _SCORING_REGISTRATION_SENTINEL:
             msg = "ScoringRegistrationCapability can only be minted by the committer"
@@ -3017,6 +3077,7 @@ class ScoringRegistrationCapability:
         self._structured_final_path = structured_final_path
         self._raw_envelope_hash = raw_envelope_hash
         self._structured_hash = structured_hash
+        self._provenance_token = provenance_token
         self._sealed = True
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -3096,40 +3157,6 @@ class ScoringRegistrationCapability:
     def structured_hash(self) -> str:
         return self._structured_hash
 
-
-def _mint_scoring_registration_capability(
-    *,
-    job_id: str,
-    owner: str,
-    video_id: str,
-    pipeline_version: str,
-    raw_artifact: ArtifactWrite,
-    structured_artifact: ArtifactWrite,
-    scoring_call_request: ProviderCallRequest,
-    judge_call_request: ProviderCallRequest,
-    scoring_call_completion: ProviderCallCompletion,
-    judge_call_completion: ProviderCallCompletion,
-    scoring_summary: ScoringSummaryWrite,
-    raw_final_path: Path,
-    structured_final_path: Path,
-    raw_envelope_hash: str,
-    structured_hash: str,
-) -> ScoringRegistrationCapability:
-    return ScoringRegistrationCapability(
-        sentinel=_SCORING_REGISTRATION_SENTINEL,
-        job_id=job_id,
-        owner=owner,
-        video_id=video_id,
-        pipeline_version=pipeline_version,
-        raw_artifact=raw_artifact,
-        structured_artifact=structured_artifact,
-        scoring_call_request=scoring_call_request,
-        judge_call_request=judge_call_request,
-        scoring_call_completion=scoring_call_completion,
-        judge_call_completion=judge_call_completion,
-        scoring_summary=scoring_summary,
-        raw_final_path=raw_final_path,
-        structured_final_path=structured_final_path,
-        raw_envelope_hash=raw_envelope_hash,
-        structured_hash=structured_hash,
-    )
+    @property
+    def provenance_token(self) -> str:
+        return self._provenance_token

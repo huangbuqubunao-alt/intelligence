@@ -50,23 +50,25 @@ if TYPE_CHECKING:
     )
     from youtube_intel.state import (
         JobRecord,
-        ScoringRegistrationCapability,
         VideoRecord,
     )
 from youtube_intel.state import (
+    _SCORING_REGISTRATION_SENTINEL,
     ArtifactKind,
     ArtifactRecord,
     ArtifactWrite,
+    JobType,
     ProviderCallCompletion,
     ProviderCallRecord,
     ProviderCallRequest,
     ProviderCallStatus,
     ProviderReservation,
     RetentionClass,
+    ScoringRegistrationCapability,
     ScoringSummaryWrite,
     StageCompletionResult,
     StorageRoot,
-    _mint_scoring_registration_capability,
+    _build_scoring_registration_provenance_token,
     build_provider_request_hash,
 )
 
@@ -2153,8 +2155,10 @@ class ValidatedScoringWritePlan:
         "_success",
         "_raw_envelope_bytes",
         "_raw_envelope_hash",
+        "_raw_envelope_length",
         "_structured_bytes",
         "_structured_hash",
+        "_structured_length",
         "_raw_artifact",
         "_structured_artifact",
         "_scoring_call_request",
@@ -2177,8 +2181,10 @@ class ValidatedScoringWritePlan:
         success: PhaseFTrustedScoringSuccess,
         raw_envelope_bytes: bytes,
         raw_envelope_hash: str,
+        raw_envelope_length: int,
         structured_bytes: bytes,
         structured_hash: str,
+        structured_length: int,
         raw_artifact: ArtifactWrite,
         structured_artifact: ArtifactWrite,
         scoring_call_request: ProviderCallRequest,
@@ -2194,8 +2200,10 @@ class ValidatedScoringWritePlan:
         self._success = success
         self._raw_envelope_bytes = raw_envelope_bytes
         self._raw_envelope_hash = raw_envelope_hash
+        self._raw_envelope_length = raw_envelope_length
         self._structured_bytes = structured_bytes
         self._structured_hash = structured_hash
+        self._structured_length = structured_length
         self._raw_artifact = raw_artifact
         self._structured_artifact = structured_artifact
         self._scoring_call_request = scoring_call_request
@@ -2224,12 +2232,20 @@ class ValidatedScoringWritePlan:
         return self._raw_envelope_hash
 
     @property
+    def raw_envelope_length(self) -> int:
+        return self._raw_envelope_length
+
+    @property
     def structured_bytes(self) -> bytes:
         return self._structured_bytes
 
     @property
     def structured_hash(self) -> str:
         return self._structured_hash
+
+    @property
+    def structured_length(self) -> int:
+        return self._structured_length
 
     @property
     def raw_artifact(self) -> ArtifactWrite:
@@ -2670,8 +2686,10 @@ class TrustedScoringPersistenceCommitter:
             success=success,
             raw_envelope_bytes=raw_envelope_bytes,
             raw_envelope_hash=raw_envelope_hash,
+            raw_envelope_length=len(raw_envelope_bytes),
             structured_bytes=structured_bytes,
             structured_hash=evidence.canonical_structured_result_hash,
+            structured_length=len(structured_bytes),
             raw_artifact=raw_artifact,
             structured_artifact=structured_artifact,
             scoring_call_request=scoring_call_request,
@@ -2724,23 +2742,7 @@ class TrustedScoringPersistenceCommitter:
             video_id=plan.video_id,
         )
 
-        registration = _mint_scoring_registration_capability(
-            job_id=self._context.job_id,
-            owner=self._context.owner,
-            video_id=plan.video_id,
-            pipeline_version=self._context.pipeline_version,
-            raw_artifact=raw_artifact,
-            structured_artifact=structured_artifact,
-            scoring_call_request=plan.scoring_call_request,
-            judge_call_request=plan.judge_call_request,
-            scoring_call_completion=plan.scoring_call_completion,
-            judge_call_completion=plan.judge_call_completion,
-            scoring_summary=plan.scoring_summary,
-            raw_final_path=raw_final,
-            structured_final_path=structured_final,
-            raw_envelope_hash=plan.raw_envelope_hash,
-            structured_hash=plan.structured_hash,
-        )
+        registration = self._mint_registration_capability(plan)
         try:
             return self._repository._atomic_register_scoring_success(
                 registration=registration,
@@ -2760,6 +2762,53 @@ class TrustedScoringPersistenceCommitter:
                 )
             ) from error
 
+    def _mint_registration_capability(
+        self,
+        plan: ValidatedScoringWritePlan,
+    ) -> ScoringRegistrationCapability:
+        """Mint the only valid Phase G registration capability for a plan.
+
+        This method is private to ``TrustedScoringPersistenceCommitter``;
+        ``state.py`` does not expose a mint seam.  The resulting capability
+        carries a provenance token that binds every Artifact, ProviderCall,
+        job, video and file hash in the plan so the registrar can detect
+        tampering even if a caller obtained the sentinel object.
+        """
+
+        raw_final = self._data_root / plan.raw_artifact.relative_path
+        structured_final = self._data_root / plan.structured_artifact.relative_path
+        token = _build_scoring_registration_provenance_token(
+            job_id=self._context.job_id,
+            owner=self._context.owner,
+            video_id=plan.video_id,
+            pipeline_version=self._context.pipeline_version,
+            raw_artifact_id=plan.raw_artifact.artifact_id,
+            structured_artifact_id=plan.structured_artifact.artifact_id,
+            scoring_request_hash=plan.scoring_call_request.request_hash,
+            judge_request_hash=plan.judge_call_request.request_hash,
+            raw_envelope_hash=plan.raw_envelope_hash,
+            structured_hash=plan.structured_hash,
+        )
+        return ScoringRegistrationCapability(
+            sentinel=_SCORING_REGISTRATION_SENTINEL,
+            job_id=self._context.job_id,
+            owner=self._context.owner,
+            video_id=plan.video_id,
+            pipeline_version=self._context.pipeline_version,
+            raw_artifact=plan.raw_artifact,
+            structured_artifact=plan.structured_artifact,
+            scoring_call_request=plan.scoring_call_request,
+            judge_call_request=plan.judge_call_request,
+            scoring_call_completion=plan.scoring_call_completion,
+            judge_call_completion=plan.judge_call_completion,
+            scoring_summary=plan.scoring_summary,
+            raw_final_path=raw_final,
+            structured_final_path=structured_final,
+            raw_envelope_hash=plan.raw_envelope_hash,
+            structured_hash=plan.structured_hash,
+            provenance_token=token,
+        )
+
     def _check_committed_graph(
         self,
         plan: ValidatedScoringWritePlan,
@@ -2768,8 +2817,8 @@ class TrustedScoringPersistenceCommitter:
     ) -> StageCompletionResult | None:
         """Return existing committed result if the full graph matches the plan.
 
-        If files exist, every field must match exactly.  If files exist but
-        any field mismatches, fail-closed (do not attempt to overwrite or
+        If files exist, every design field must match exactly.  If files exist
+        but any field mismatches, fail-closed (do not attempt to overwrite or
         repair).  If no files exist, return None (normal first-write path).
         """
 
@@ -2794,53 +2843,27 @@ class TrustedScoringPersistenceCommitter:
                 )
             )
 
-        # Both files exist — must verify the complete committed graph.
-        # If any part is missing or mismatched, fail-closed.
-        try:
-            raw_body = raw_final.read_bytes()
-        except OSError as error:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"failed to read existing raw final {raw_final}: {error}",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            ) from error
-        try:
-            structured_body = structured_final.read_bytes()
-        except OSError as error:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"failed to read existing structured final {structured_final}: {error}",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            ) from error
-
-        if hashlib.sha256(raw_body).hexdigest() != plan.raw_envelope_hash:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"existing raw final hash mismatch at {raw_final}",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
-        if hashlib.sha256(structured_body).hexdigest() != plan.structured_hash:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"existing structured final hash mismatch at {structured_final}",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
+        # Both files exist — verify the complete committed graph.
+        raw_body = self._read_existing_final(raw_final, plan.video_id)
+        structured_body = self._read_existing_final(
+            structured_final, plan.video_id
+        )
+        self._verify_existing_final(
+            raw_final,
+            raw_body,
+            plan.raw_envelope_hash,
+            plan.raw_envelope_length,
+            plan.raw_artifact.relative_path,
+            plan.video_id,
+        )
+        self._verify_existing_final(
+            structured_final,
+            structured_body,
+            plan.structured_hash,
+            plan.structured_length,
+            plan.structured_artifact.relative_path,
+            plan.video_id,
+        )
 
         # Verify the DB graph: Artifacts, ProviderCalls, video/stage/job.
         repo = self._repository
@@ -2858,26 +2881,18 @@ class TrustedScoringPersistenceCommitter:
                     stage=ProcessingStage.SCORING,
                 )
             )
-        if raw_record.content_hash != plan.raw_envelope_hash:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing raw Artifact content_hash mismatch",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
-        if structured_record.content_hash != plan.structured_hash:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing structured Artifact content_hash mismatch",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
+        self._verify_artifact_record(
+            record=raw_record,
+            expected=plan.raw_artifact,
+            expected_final=raw_final,
+            video_id=plan.video_id,
+        )
+        self._verify_artifact_record(
+            record=structured_record,
+            expected=plan.structured_artifact,
+            expected_final=structured_final,
+            video_id=plan.video_id,
+        )
 
         scoring_call = repo.get_provider_call(
             plan.scoring_call_request.request_hash
@@ -2895,46 +2910,20 @@ class TrustedScoringPersistenceCommitter:
                     stage=ProcessingStage.SCORING,
                 )
             )
-        if scoring_call.status is not ProviderCallStatus.SUCCEEDED:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing scoring ProviderCall is not SUCCEEDED",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
-        if judge_call.status is not ProviderCallStatus.SUCCEEDED:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing judge ProviderCall is not SUCCEEDED",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
-        if scoring_call.response_artifact_id != raw_record.artifact_id:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing scoring ProviderCall response_artifact_id mismatch",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
-        if judge_call.response_artifact_id != raw_record.artifact_id:
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message="existing judge ProviderCall response_artifact_id mismatch",
-                    retryable=False,
-                    video_id=plan.video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
+        self._verify_provider_call_record(
+            record=scoring_call,
+            request=plan.scoring_call_request,
+            completion=plan.scoring_call_completion,
+            raw_artifact_id=plan.raw_artifact.artifact_id,
+            video_id=plan.video_id,
+        )
+        self._verify_provider_call_record(
+            record=judge_call,
+            request=plan.judge_call_request,
+            completion=plan.judge_call_completion,
+            raw_artifact_id=plan.raw_artifact.artifact_id,
+            video_id=plan.video_id,
+        )
 
         video = repo.get_video(plan.video_id)
         if video is None or video.pipeline_status is not PipelineStatus.SCORED:
@@ -2957,6 +2946,16 @@ class TrustedScoringPersistenceCommitter:
                     stage=ProcessingStage.SCORING,
                 )
             )
+        if video.should_summarize != plan.scoring_summary.should_summarize:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing video should_summarize mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
 
         job = repo.get_job(self._context.job_id)
         if job is None or job.status is not JobStatus.SUCCEEDED:
@@ -2969,6 +2968,13 @@ class TrustedScoringPersistenceCommitter:
                     stage=ProcessingStage.SCORING,
                 )
             )
+        self._verify_job_record(
+            record=job,
+            expected_job_id=self._context.job_id,
+            expected_video_id=plan.video_id,
+            expected_pipeline_version=self._context.pipeline_version,
+            video_id=plan.video_id,
+        )
 
         # Complete committed graph matches — return existing result.
         return StageCompletionResult(
@@ -2977,6 +2983,187 @@ class TrustedScoringPersistenceCommitter:
             artifacts=(raw_record, structured_record),
             provider_call=scoring_call,
         )
+
+    def _read_existing_final(self, final_path: Path, video_id: str) -> bytes:
+        try:
+            return final_path.read_bytes()
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to read existing final {final_path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+    def _verify_existing_final(
+        self,
+        final_path: Path,
+        body: bytes,
+        expected_hash: str,
+        expected_length: int,
+        expected_relative_path: str,
+        video_id: str,
+    ) -> None:
+        expected_path = self._data_root / expected_relative_path
+        if final_path.resolve() != expected_path.resolve():
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=(
+                        f"existing final path mismatch: "
+                        f"expected {expected_path}, got {final_path}"
+                    ),
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if len(body) != expected_length:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=(
+                        f"existing final {final_path} length mismatch: "
+                        f"expected {expected_length}, got {len(body)}"
+                    ),
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if hashlib.sha256(body).hexdigest() != expected_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"existing final {final_path} hash mismatch",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+    def _verify_artifact_record(
+        self,
+        *,
+        record: ArtifactRecord,
+        expected: ArtifactWrite,
+        expected_final: Path,
+        video_id: str,
+    ) -> None:
+        expected_path = self._data_root / expected.relative_path
+        record_path = self._data_root / record.relative_path
+        checks: list[tuple[bool, str]] = [
+            (record.artifact_id == expected.artifact_id, "artifact_id"),
+            (record.artifact_key == expected.artifact_key, "artifact_key"),
+            (record.video_id == expected.video_id, "video_id"),
+            (record.job_id == expected.job_id, "job_id"),
+            (record.kind is expected.kind, "kind"),
+            (record.storage_root is expected.storage_root, "storage_root"),
+            (
+                record_path.resolve() == expected_path.resolve(),
+                "relative_path",
+            ),
+            (record.content_hash == expected.content_hash, "content_hash"),
+            (record.provider == expected.provider, "provider"),
+            (record.model == expected.model, "model"),
+            (
+                record.producer_version == expected.producer_version,
+                "producer_version",
+            ),
+            (
+                record.retention_class is expected.retention_class,
+                "retention_class",
+            ),
+            (record.expires_at == expected.expires_at, "expires_at"),
+        ]
+        for ok, field in checks:
+            if not ok:
+                raise ScoringPersistenceError(
+                    AppError(
+                        code=ErrorCode.LOCAL_RESOURCE,
+                        message=(
+                            f"existing Artifact {field} mismatch: "
+                            f"expected {getattr(expected, field)!r}, "
+                            f"got {getattr(record, field)!r}"
+                        ),
+                        retryable=False,
+                        video_id=video_id,
+                        stage=ProcessingStage.SCORING,
+                    )
+                )
+
+    def _verify_provider_call_record(
+        self,
+        *,
+        record: ProviderCallRecord,
+        request: ProviderCallRequest,
+        completion: ProviderCallCompletion,
+        raw_artifact_id: str,
+        video_id: str,
+    ) -> None:
+        checks: list[tuple[bool, str]] = [
+            (record.request_hash == request.request_hash, "request_hash"),
+            (record.operation == request.operation, "operation"),
+            (record.provider == request.provider, "provider"),
+            (record.model == request.model, "model"),
+            (record.prompt_version == request.prompt_version, "prompt_version"),
+            (record.schema_version == request.schema_version, "schema_version"),
+            (record.status is ProviderCallStatus.SUCCEEDED, "status"),
+            (
+                record.response_artifact_id == raw_artifact_id,
+                "response_artifact_id",
+            ),
+            (
+                record.response_artifact_id == completion.response_artifact_id,
+                "completion response_artifact_id",
+            ),
+        ]
+        for ok, field in checks:
+            if not ok:
+                raise ScoringPersistenceError(
+                    AppError(
+                        code=ErrorCode.LOCAL_RESOURCE,
+                        message=f"existing ProviderCall {field} mismatch",
+                        retryable=False,
+                        video_id=video_id,
+                        stage=ProcessingStage.SCORING,
+                    )
+                )
+
+    def _verify_job_record(
+        self,
+        *,
+        record: JobRecord,
+        expected_job_id: str,
+        expected_video_id: str,
+        expected_pipeline_version: str,
+        video_id: str,
+    ) -> None:
+        checks: list[tuple[bool, str]] = [
+            (record.job_id == expected_job_id, "job_id"),
+            (record.video_id == expected_video_id, "video_id"),
+            (record.job_type is JobType.VIDEO_STAGE, "job_type"),
+            (record.target_stage is ProcessingStage.SCORING, "target_stage"),
+            (
+                record.pipeline_version == expected_pipeline_version,
+                "pipeline_version",
+            ),
+            (record.status is JobStatus.SUCCEEDED, "status"),
+        ]
+        for ok, field in checks:
+            if not ok:
+                raise ScoringPersistenceError(
+                    AppError(
+                        code=ErrorCode.LOCAL_RESOURCE,
+                        message=f"existing Job {field} mismatch",
+                        retryable=False,
+                        video_id=video_id,
+                        stage=ProcessingStage.SCORING,
+                    )
+                )
 
     def _write_atomic_file(
         self,
