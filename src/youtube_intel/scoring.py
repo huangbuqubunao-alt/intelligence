@@ -63,7 +63,6 @@ from youtube_intel.state import (
     ProviderCallStatus,
     ProviderReservation,
     RetentionClass,
-    ScoringRegistrationCapability,
     ScoringSummaryWrite,
     StageCompletionResult,
     StorageRoot,
@@ -2731,10 +2730,11 @@ class TrustedScoringPersistenceCommitter:
             video_id=plan.video_id,
         )
 
-        registration = self._mint_registration_capability(plan)
         try:
             return self._persist_registration(
-                registration=registration,
+                plan=plan,
+                raw_final=raw_final,
+                structured_final=structured_final,
                 now=self._clock(),
             )
         except ScoringPersistenceError:
@@ -2754,43 +2754,15 @@ class TrustedScoringPersistenceCommitter:
     def _persist_registration(
         self,
         *,
-        registration: ScoringRegistrationCapability,
+        plan: ValidatedScoringWritePlan,
+        raw_final: Path,
+        structured_final: Path,
         now: datetime,
     ) -> StageCompletionResult:
         """Runtime composition supplies the only trusted registration path."""
 
+        del plan, raw_final, structured_final, now
         raise RuntimeError("trusted persistence is owned by RuntimeOperations")
-
-    def _mint_registration_capability(
-        self,
-        plan: ValidatedScoringWritePlan,
-    ) -> ScoringRegistrationCapability:
-        """Mint the only valid Phase G registration capability for a plan.
-
-        This method is private to ``TrustedScoringPersistenceCommitter``.
-        It freezes the prevalidated plan for the runtime-local persistence
-        entry; ``state.py`` does not expose a trusted registration ingress.
-        """
-
-        raw_final = self._data_root / plan.raw_artifact.relative_path
-        structured_final = self._data_root / plan.structured_artifact.relative_path
-        return ScoringRegistrationCapability(
-            job_id=self._context.job_id,
-            owner=self._context.owner,
-            video_id=plan.video_id,
-            pipeline_version=self._context.pipeline_version,
-            raw_artifact=plan.raw_artifact,
-            structured_artifact=plan.structured_artifact,
-            scoring_call_request=plan.scoring_call_request,
-            judge_call_request=plan.judge_call_request,
-            scoring_call_completion=plan.scoring_call_completion,
-            judge_call_completion=plan.judge_call_completion,
-            scoring_summary=plan.scoring_summary,
-            raw_final_path=raw_final,
-            structured_final_path=structured_final,
-            raw_envelope_hash=plan.raw_envelope_hash,
-            structured_hash=plan.structured_hash,
-        )
 
     def _check_committed_graph(
         self,

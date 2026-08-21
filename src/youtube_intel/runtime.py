@@ -10,7 +10,7 @@ import sqlite3
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -95,6 +95,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
+    ValidatedScoringWritePlan,
     _run_primary_trusted_scoring_seam,
     build_scoring_input,
     build_scoring_request_identity,
@@ -102,13 +103,17 @@ from youtube_intel.scoring import (
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
+    ConcurrencyConflict,
+    IntegrityConflict,
     JobRecord,
     ProviderCallStatus,
-    ScoringRegistrationCapability,
     SQLiteStateRepository,
     StageCompletionResult,
+    StateStoreError,
     StorageRoot,
     VideoRecord,
+    _immediate_transaction,
+    format_utc_datetime,
 )
 from youtube_intel.transcripts import (
     SubtitleAcquisitionService,
@@ -490,7 +495,144 @@ class RuntimeOperations(Operations):
         closure; callers cannot substitute them.
         """
 
-        persist_transaction = self._repository._persist_scoring_registration
+        repository = self._repository
+
+        def persist_transaction(
+            *,
+            plan: ValidatedScoringWritePlan,
+            raw_final: Path,
+            structured_final: Path,
+            now: datetime,
+        ) -> StageCompletionResult:
+            """Execute the captured, runtime-local SQLite transaction.
+
+            This closure is intentionally created only while composing a
+            RuntimeOperations-owned committer. SQLiteStateRepository exposes
+            no Phase-G scoring-success entry and cannot accept a caller graph.
+            """
+
+            if not raw_final.exists() or not structured_final.exists():
+                raise IntegrityConflict("final scoring artifact file does not exist")
+            raw_body = raw_final.read_bytes()
+            structured_body = structured_final.read_bytes()
+            if hashlib.sha256(raw_body).hexdigest() != plan.raw_envelope_hash:
+                raise IntegrityConflict("raw final file hash mismatch")
+            if hashlib.sha256(structured_body).hexdigest() != plan.structured_hash:
+                raise IntegrityConflict("structured final file hash mismatch")
+
+            now_text = format_utc_datetime(now)
+            lease_until = now + timedelta(minutes=5)
+            connection = repository._connect()
+            try:
+                try:
+                    with _immediate_transaction(connection):
+                        job_row = repository._owned_running_job(
+                            connection,
+                            job_id=job_id,
+                            owner=owner,
+                            now=now_text,
+                        )
+                        if (
+                            job_row["video_id"] != plan.video_id
+                            or job_row["pipeline_version"] != pipeline_version
+                        ):
+                            raise ConcurrencyConflict(
+                                "job scope does not match atomic registration"
+                            )
+                        if job_row["target_stage"] != ProcessingStage.SCORING.value:
+                            raise ConcurrencyConflict("job target stage is not SCORING")
+
+                        repository._inject_failure("atomic_register.before_artifacts")
+                        raw_record = repository._upsert_artifact_in_transaction(
+                            connection, plan.raw_artifact, now=now_text
+                        )
+                        structured_record = (
+                            repository._upsert_artifact_in_transaction(
+                                connection, plan.structured_artifact, now=now_text
+                            )
+                        )
+                        repository._inject_failure("atomic_register.after_artifacts")
+                        scoring_record = (
+                            repository._reserve_provider_call_in_transaction(
+                                connection,
+                                plan.scoring_call_request,
+                                owner=owner,
+                                lease_until=lease_until,
+                                available_at=now,
+                                now=now,
+                            )
+                        )
+                        judge_record = repository._reserve_provider_call_in_transaction(
+                            connection,
+                            plan.judge_call_request,
+                            owner=owner,
+                            lease_until=lease_until,
+                            available_at=now,
+                            now=now,
+                        )
+                        repository._inject_failure("atomic_register.after_reservations")
+                        if scoring_record.status is ProviderCallStatus.PENDING:
+                            scoring_record = (
+                                repository._complete_provider_call_in_transaction(
+                                    connection,
+                                    plan.scoring_call_completion,
+                                    owner=owner,
+                                    now=now_text,
+                                )
+                            )
+                        if judge_record.status is ProviderCallStatus.PENDING:
+                            judge_record = repository._complete_provider_call_in_transaction(
+                                connection,
+                                plan.judge_call_completion,
+                                owner=owner,
+                                now=now_text,
+                            )
+                        repository._inject_failure("atomic_register.after_provider_calls")
+                        changed = connection.execute(
+                            "UPDATE videos SET pipeline_status = :target_status, "
+                            "score = :score, should_summarize = :should_summarize, "
+                            "updated_at = :now, completed_at = NULL "
+                            "WHERE video_id = :video_id "
+                            "AND pipeline_status = :expected_status "
+                            "AND pipeline_version = :pipeline_version",
+                            {
+                                "target_status": PipelineStatus.SCORED.value,
+                                "score": plan.scoring_summary.score,
+                                "should_summarize": int(
+                                    plan.scoring_summary.should_summarize
+                                ),
+                                "now": now_text,
+                                "video_id": plan.video_id,
+                                "expected_status": PipelineStatus.TRANSCRIPT_READY.value,
+                                "pipeline_version": pipeline_version,
+                            },
+                        ).rowcount
+                        if changed != 1:
+                            raise ConcurrencyConflict(
+                                "pipeline changed before atomic scoring registration"
+                            )
+                        repository._inject_failure("atomic_register.after_pipeline")
+                        job = repository._finish_job_success_in_transaction(
+                            connection, job_id=job_id, owner=owner, now=now_text
+                        )
+                        video_row = connection.execute(
+                            "SELECT * FROM videos WHERE video_id = :video_id",
+                            {"video_id": plan.video_id},
+                        ).fetchone()
+                        if video_row is None:
+                            raise StateStoreError("completed video could not be read")
+                        return StageCompletionResult(
+                            job=job,
+                            video=repository._video_from_row(video_row),
+                            artifacts=(raw_record, structured_record),
+                            provider_call=scoring_record,
+                        )
+                except sqlite3.IntegrityError as error:
+                    raise IntegrityConflict(
+                        "atomic scoring registration violates repository integrity"
+                    ) from error
+            finally:
+                connection.close()
 
         class _RuntimeTrustedScoringPersistenceCommitter(
             TrustedScoringPersistenceCommitter
@@ -498,11 +640,15 @@ class RuntimeOperations(Operations):
             def _persist_registration(
                 self,
                 *,
-                registration: ScoringRegistrationCapability,
+                plan: ValidatedScoringWritePlan,
+                raw_final: Path,
+                structured_final: Path,
                 now: datetime,
             ) -> StageCompletionResult:
                 return persist_transaction(
-                    registration=registration,
+                    plan=plan,
+                    raw_final=raw_final,
+                    structured_final=structured_final,
                     now=now,
                 )
 
