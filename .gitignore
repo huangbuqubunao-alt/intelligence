@@ -28,3 +28,6 @@ htmlcov/
 
 # macOS metadata
 .DS_Store
+
+# WorkBuddy session memory (project-related, do not delete)
+.workbuddy/

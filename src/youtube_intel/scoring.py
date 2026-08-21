@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -53,7 +54,6 @@ if TYPE_CHECKING:
         VideoRecord,
     )
 from youtube_intel.state import (
-    _SCORING_REGISTRATION_SENTINEL,
     ArtifactKind,
     ArtifactRecord,
     ArtifactWrite,
@@ -68,7 +68,6 @@ from youtube_intel.state import (
     ScoringSummaryWrite,
     StageCompletionResult,
     StorageRoot,
-    _build_scoring_registration_provenance_token,
     build_provider_request_hash,
 )
 
@@ -76,6 +75,38 @@ PROMPT_VERSION: Final = "scoring-prompt-v2"
 SCHEMA_VERSION: Final = "score-result-v2"
 SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"
+
+
+class _RegistrationAuthority:
+    """Runtime-owned, unforgeable Phase G registration authority.
+
+    Only a ``TrustedScoringPersistenceCommitter`` minted by the runtime is
+    given this object.  The SQLite registrar accepts a registration
+    capability only when its ``authority_proof`` is the exact instance it
+    was configured with.  Because the object identity is runtime-scoped and
+    cannot be derived from plan fields, a caller with correct DTOs, files
+    and hashes cannot forge a valid registration.
+    """
+
+    __slots__ = ("_secret",)
+
+    def __init__(self) -> None:
+        # The secret is not used for cryptographic verification across
+        # boundaries; it exists only to make accidental inspection/copying
+        # worthless and to keep the authority object non-trivial.
+        self._secret = secrets.token_hex(32)
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("_RegistrationAuthority cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("_RegistrationAuthority cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("_RegistrationAuthority cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("_RegistrationAuthority cannot be serialized")
 _RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
 _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
@@ -2313,6 +2344,7 @@ class TrustedScoringPersistenceCommitter:
         scoring_context: TrustedScoringContext,
         context: ScoringJobContext,
         summary_threshold: float,
+        registration_authority: _RegistrationAuthority,
         clock: _CLOCK = _utcnow,
     ) -> None:
         from youtube_intel.quality import (
@@ -2326,6 +2358,9 @@ class TrustedScoringPersistenceCommitter:
         if type(scoring_context) is not TrustedScoringContext:
             msg = "scoring_context must be a runtime-minted TrustedScoringContext"
             raise ValueError(msg)
+        if type(registration_authority) is not _RegistrationAuthority:
+            msg = "registration_authority must be a runtime-minted _RegistrationAuthority"
+            raise ValueError(msg)
         if not 0 <= summary_threshold <= 10:
             msg = "summary_threshold must be in 0..10"
             raise ValueError(msg)
@@ -2335,6 +2370,7 @@ class TrustedScoringPersistenceCommitter:
         self._scoring_context = scoring_context
         self._context = context
         self._summary_threshold = summary_threshold
+        self._registration_authority = registration_authority
         self._clock = clock
 
     def prewrite_validate(
@@ -2770,27 +2806,16 @@ class TrustedScoringPersistenceCommitter:
 
         This method is private to ``TrustedScoringPersistenceCommitter``;
         ``state.py`` does not expose a mint seam.  The resulting capability
-        carries a provenance token that binds every Artifact, ProviderCall,
-        job, video and file hash in the plan so the registrar can detect
-        tampering even if a caller obtained the sentinel object.
+        carries the runtime-owned ``_RegistrationAuthority`` instance as an
+        unforgeable proof of origin.  Because the authority object is scoped
+        to the runtime and never exposed as a deterministic value, a caller
+        with correct DTOs, files and hashes still cannot mint a valid
+        registration.
         """
 
         raw_final = self._data_root / plan.raw_artifact.relative_path
         structured_final = self._data_root / plan.structured_artifact.relative_path
-        token = _build_scoring_registration_provenance_token(
-            job_id=self._context.job_id,
-            owner=self._context.owner,
-            video_id=plan.video_id,
-            pipeline_version=self._context.pipeline_version,
-            raw_artifact_id=plan.raw_artifact.artifact_id,
-            structured_artifact_id=plan.structured_artifact.artifact_id,
-            scoring_request_hash=plan.scoring_call_request.request_hash,
-            judge_request_hash=plan.judge_call_request.request_hash,
-            raw_envelope_hash=plan.raw_envelope_hash,
-            structured_hash=plan.structured_hash,
-        )
         return ScoringRegistrationCapability(
-            sentinel=_SCORING_REGISTRATION_SENTINEL,
             job_id=self._context.job_id,
             owner=self._context.owner,
             video_id=plan.video_id,
@@ -2806,7 +2831,7 @@ class TrustedScoringPersistenceCommitter:
             structured_final_path=structured_final,
             raw_envelope_hash=plan.raw_envelope_hash,
             structured_hash=plan.structured_hash,
-            provenance_token=token,
+            authority_proof=self._registration_authority,
         )
 
     def _check_committed_graph(
@@ -3055,6 +3080,8 @@ class TrustedScoringPersistenceCommitter:
     ) -> None:
         expected_path = self._data_root / expected.relative_path
         record_path = self._data_root / record.relative_path
+        # Exact relative_path string is the primary check; Path.resolve() can
+        # normalize away differences that the design treats as distinct.
         checks: list[tuple[bool, str]] = [
             (record.artifact_id == expected.artifact_id, "artifact_id"),
             (record.artifact_key == expected.artifact_key, "artifact_key"),
@@ -3062,9 +3089,10 @@ class TrustedScoringPersistenceCommitter:
             (record.job_id == expected.job_id, "job_id"),
             (record.kind is expected.kind, "kind"),
             (record.storage_root is expected.storage_root, "storage_root"),
+            (record.relative_path == expected.relative_path, "relative_path"),
             (
                 record_path.resolve() == expected_path.resolve(),
-                "relative_path",
+                "absolute_path",
             ),
             (record.content_hash == expected.content_hash, "content_hash"),
             (record.provider == expected.provider, "provider"),

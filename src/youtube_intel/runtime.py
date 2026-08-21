@@ -95,6 +95,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
+    _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
     build_scoring_input,
     build_scoring_request_identity,
@@ -246,7 +247,11 @@ def _ensure_vault_subdir(vault_root: Path, vault_subdir: str) -> None:
         os.close(current)
 
 
-def bootstrap_runtime(config: AppConfig, project_root: Path) -> SQLiteStateRepository:
+def bootstrap_runtime(
+    config: AppConfig,
+    project_root: Path,
+    registration_authority: object | None = None,
+) -> SQLiteStateRepository:
     """Idempotently create the declared local runtime state."""
 
     root = project_root.resolve(strict=True)
@@ -254,7 +259,10 @@ def bootstrap_runtime(config: AppConfig, project_root: Path) -> SQLiteStateRepos
     data_root = _ensure_project_directory(root, storage.data_dir)
     _ensure_project_directory(root, storage.logs_dir)
     _ensure_vault_subdir(Path(storage.vault_root), storage.vault_subdir)
-    repository = SQLiteStateRepository(data_root / "state.sqlite")
+    repository = SQLiteStateRepository(
+        data_root / "state.sqlite",
+        registration_authority=registration_authority,
+    )
     repository.initialize(now=_utcnow())
     return repository
 
@@ -293,7 +301,10 @@ class RuntimeOperations(Operations):
     ) -> None:
         self._config = config
         self._root = project_root.resolve(strict=True)
-        self._repository = bootstrap_runtime(config, self._root)
+        self._registration_authority = _RegistrationAuthority()
+        self._repository = bootstrap_runtime(
+            config, self._root, registration_authority=self._registration_authority
+        )
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
@@ -492,6 +503,7 @@ class RuntimeOperations(Operations):
                 pipeline_version=pipeline_version,
             ),
             summary_threshold=self._config.settings.thresholds.summary_score,
+            registration_authority=self._registration_authority,
         )
 
     @staticmethod

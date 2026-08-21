@@ -526,8 +526,13 @@ def _immediate_transaction(connection: sqlite3.Connection) -> Iterator[None]:
 class SQLiteStateRepository:
     """Owns the approved SQLite schema and repository transaction semantics."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        registration_authority: object | None = None,
+    ) -> None:
         self._database_path = Path(database_path)
+        self._registration_authority = registration_authority
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
@@ -2655,21 +2660,20 @@ class SQLiteStateRepository:
         judge_call_completion = registration.judge_call_completion
         scoring_summary = registration.scoring_summary
 
-        # Verify the plan-bound provenance token before looking at files.
-        expected_token = _build_scoring_registration_provenance_token(
-            job_id=job_id,
-            owner=owner,
-            video_id=video_id,
-            pipeline_version=pipeline_version,
-            raw_artifact_id=raw_artifact.artifact_id,
-            structured_artifact_id=structured_artifact.artifact_id,
-            scoring_request_hash=scoring_call_request.request_hash,
-            judge_request_hash=judge_call_request.request_hash,
-            raw_envelope_hash=registration.raw_envelope_hash,
-            structured_hash=registration.structured_hash,
-        )
-        if registration.provenance_token != expected_token:
-            msg = "registration provenance token mismatch"
+        # Verify the runtime-owned authority proof before looking at files.
+        # The authority object identity is scoped to the runtime and cannot
+        # be derived from plan fields, so a caller with correct DTOs/files
+        # but no committer authority cannot forge a valid registration.
+        if self._registration_authority is None:
+            msg = "repository is not configured with a registration authority"
+            raise TypeError(msg)
+        from youtube_intel.scoring import _RegistrationAuthority
+
+        if type(registration.authority_proof) is not _RegistrationAuthority:
+            msg = "registration authority proof is not a _RegistrationAuthority"
+            raise IntegrityConflict(msg)
+        if registration.authority_proof is not self._registration_authority:
+            msg = "registration authority proof mismatch"
             raise IntegrityConflict(msg)
 
         # Defensive final-file verification at the DB boundary.
@@ -2953,68 +2957,19 @@ class SQLiteStateRepository:
             connection.close()
 
 
-class _ScoringRegistrationSentinel:
-    """Private sentinel; only the committer can mint a registration."""
-
-    __slots__ = ()
-
-
-_SCORING_REGISTRATION_SENTINEL = _ScoringRegistrationSentinel()
-
-
-def _build_scoring_registration_provenance_token(
-    *,
-    job_id: str,
-    owner: str,
-    video_id: str,
-    pipeline_version: str,
-    raw_artifact_id: str,
-    structured_artifact_id: str,
-    scoring_request_hash: str,
-    judge_request_hash: str,
-    raw_envelope_hash: str,
-    structured_hash: str,
-) -> str:
-    """Cryptographic binding of a registration capability to its plan.
-
-    The committer computes this token when minting the capability; the
-    registrar recomputes it from the capability fields and rejects the
-    registration if the token does not match.  This prevents a caller who
-    somehow obtains the sentinel from constructing a valid capability with
-    arbitrary fields.
-    """
-    payload = json.dumps(
-        {
-            "job_id": job_id,
-            "owner": owner,
-            "video_id": video_id,
-            "pipeline_version": pipeline_version,
-            "raw_artifact_id": raw_artifact_id,
-            "structured_artifact_id": structured_artifact_id,
-            "scoring_request_hash": scoring_request_hash,
-            "judge_request_hash": judge_request_hash,
-            "raw_envelope_hash": raw_envelope_hash,
-            "structured_hash": structured_hash,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
 class ScoringRegistrationCapability:
     """Opaque, plan-bound capability for Phase G trusted SQLite registration.
 
     Only ``TrustedScoringPersistenceCommitter`` can mint this via
-    ``_mint_scoring_registration_capability``.  It freezes every
-    Artifact, ProviderCall and summary identity from the validated plan
-    plus the final-file paths and hashes for defensive verification at
-    the DB boundary.  Callers cannot construct it directly.
+    ``_mint_registration_capability``.  It freezes every Artifact,
+    ProviderCall and summary identity from the validated plan plus the
+    final-file paths and hashes for defensive verification at the DB
+    boundary.  A valid capability must carry the runtime-owned
+    ``_RegistrationAuthority`` instance configured in the repository;
+    callers cannot construct that instance.
     """
 
     __slots__ = (
-        "_sentinel",
         "_job_id",
         "_owner",
         "_video_id",
@@ -3030,7 +2985,7 @@ class ScoringRegistrationCapability:
         "_structured_final_path",
         "_raw_envelope_hash",
         "_structured_hash",
-        "_provenance_token",
+        "_authority_proof",
         "_sealed",
     )
 
@@ -3041,7 +2996,6 @@ class ScoringRegistrationCapability:
     def __init__(
         self,
         *,
-        sentinel: object,
         job_id: str,
         owner: str,
         video_id: str,
@@ -3057,11 +3011,8 @@ class ScoringRegistrationCapability:
         structured_final_path: Path,
         raw_envelope_hash: str,
         structured_hash: str,
-        provenance_token: str,
+        authority_proof: object,
     ) -> None:
-        if sentinel is not _SCORING_REGISTRATION_SENTINEL:
-            msg = "ScoringRegistrationCapability can only be minted by the committer"
-            raise ValueError(msg)
         self._job_id = job_id
         self._owner = owner
         self._video_id = video_id
@@ -3077,7 +3028,7 @@ class ScoringRegistrationCapability:
         self._structured_final_path = structured_final_path
         self._raw_envelope_hash = raw_envelope_hash
         self._structured_hash = structured_hash
-        self._provenance_token = provenance_token
+        self._authority_proof = authority_proof
         self._sealed = True
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -3158,5 +3109,5 @@ class ScoringRegistrationCapability:
         return self._structured_hash
 
     @property
-    def provenance_token(self) -> str:
-        return self._provenance_token
+    def authority_proof(self) -> object:
+        return self._authority_proof

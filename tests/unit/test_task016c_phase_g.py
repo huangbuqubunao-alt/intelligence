@@ -55,12 +55,12 @@ from youtube_intel.scoring import (
     TrustedScoringPersistenceCommitter,
     _EnrichedQualityEvidence,
     _mint_phase_f_trusted_scoring_success,
+    _RegistrationAuthority,
     build_primary_scoring_attempt,
     build_scoring_input,
     build_scoring_request_identity,
 )
 from youtube_intel.state import (
-    _SCORING_REGISTRATION_SENTINEL,
     ArtifactKind,
     ArtifactWrite,
     IntegrityConflict,
@@ -72,7 +72,6 @@ from youtube_intel.state import (
     SQLiteStateRepository,
     StageCompletionResult,
     StorageRoot,
-    _build_scoring_registration_provenance_token,
 )
 
 _EN_REASON = (
@@ -1391,9 +1390,7 @@ def test_r5_temp_write_failure_no_sqlite_registration(tmp_path: Path) -> None:
 
     # Restore and verify no DB success.
     committer._write_atomic_file = original_write  # type: ignore[method-assign]
-    video = runtime._repository.get_video(video_id)
-    assert video is not None
-    assert video.pipeline_status is not PipelineStatus.SCORED
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
 def test_r5_sqlite_transaction_rollback_no_partial_graph(
@@ -1423,13 +1420,7 @@ def test_r5_sqlite_transaction_rollback_no_partial_graph(
     with pytest.raises(ScoringPersistenceError):
         committer.commit(plan)
 
-    # No partial graph: no Artifact rows, no ProviderCall rows.
-    raw_record = runtime._repository.get_artifact_by_key(plan.raw_artifact.artifact_key)
-    assert raw_record is None, "raw Artifact must not exist after rollback"
-    scoring_call = runtime._repository.get_provider_call(
-        plan.scoring_call_request.request_hash
-    )
-    assert scoring_call is None, "ProviderCall must not exist after rollback"
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1602,6 +1593,39 @@ def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
         committer.commit(plan)
 
 
+def test_idempotency_rejects_relative_path_normalization_difference(
+    tmp_path: Path,
+) -> None:
+    """P1-2: a relative_path that resolves to the same absolute path but
+    differs as a string must fail the exact-graph idempotency check."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-rel-path-normalized"
+    job_id = "job-r2-rel-path-normalized"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+
+    original_path = plan.raw_artifact.relative_path
+    normalized_equivalent = original_path.replace("/", "/./", 1)
+    assert Path(normalized_equivalent).resolve() == Path(original_path).resolve()
+
+    _mutate_artifact_field(
+        runtime._repository,
+        plan.raw_artifact.artifact_key,
+        "relative_path",
+        normalized_equivalent,
+    )
+
+    with pytest.raises(ScoringPersistenceError, match="relative_path mismatch"):
+        committer.commit(plan)
+
+
 def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
     runtime, _ = _judge_runtime(tmp_path / "project")
     video_id = "video-r2-kind"
@@ -1740,15 +1764,19 @@ def test_r3_import_mint_function_fails() -> None:
         )
 
 
-def test_r3_direct_sentinel_construction_with_wrong_token_rejects(
+def test_direct_forged_capability_with_correct_fields_is_rejected(
     tmp_path: Path,
 ) -> None:
-    """R3: a caller who obtains the sentinel still cannot forge a capability
-    with an invalid provenance token."""
+    """P1-1: a caller with correct DTOs, files and hashes but no
+    runtime-owned authority must be rejected.
+
+    The authority proof is an unforgeable runtime-scoped object; a fresh
+    substitute or an arbitrary object cannot satisfy the registrar.
+    """
 
     runtime, _ = _judge_runtime(tmp_path / "project")
-    video_id = "video-r3-wrong-token"
-    job_id = "job-r3-wrong-token"
+    video_id = "video-r3-forged-authority"
+    job_id = "job-r3-forged-authority"
     _setup_transcript_ready_video(
         runtime._repository, runtime._data_root, video_id=video_id
     )
@@ -1757,8 +1785,16 @@ def test_r3_direct_sentinel_construction_with_wrong_token_rejects(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
+    # Write the promoted finals exactly as the real committer would.
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    raw_final.parent.mkdir(parents=True, exist_ok=True)
+    raw_final.write_bytes(plan.raw_envelope_bytes)
+    structured_final.parent.mkdir(parents=True, exist_ok=True)
+    structured_final.write_bytes(plan.structured_bytes)
+
+    forged_authority = _RegistrationAuthority()
     forged = ScoringRegistrationCapability(
-        sentinel=_SCORING_REGISTRATION_SENTINEL,
         job_id=committer._context.job_id,
         owner=committer._context.owner,
         video_id=plan.video_id,
@@ -1770,15 +1806,16 @@ def test_r3_direct_sentinel_construction_with_wrong_token_rejects(
         scoring_call_completion=plan.scoring_call_completion,
         judge_call_completion=plan.judge_call_completion,
         scoring_summary=plan.scoring_summary,
-        raw_final_path=runtime._data_root / plan.raw_artifact.relative_path,
-        structured_final_path=runtime._data_root
-        / plan.structured_artifact.relative_path,
+        raw_final_path=raw_final,
+        structured_final_path=structured_final,
         raw_envelope_hash=plan.raw_envelope_hash,
         structured_hash=plan.structured_hash,
-        provenance_token="0" * 64,
+        authority_proof=forged_authority,
     )
 
-    with pytest.raises(IntegrityConflict, match="provenance token mismatch"):
+    with pytest.raises(
+        IntegrityConflict, match="registration authority proof mismatch"
+    ):
         runtime._repository._atomic_register_scoring_success(
             registration=forged,
             now=datetime.now(UTC),
@@ -1852,18 +1889,7 @@ def test_r3_legal_committer_path_succeeds(tmp_path: Path) -> None:
 
     capability = committer._mint_registration_capability(plan)
     assert type(capability) is ScoringRegistrationCapability
-    assert capability.provenance_token == _build_scoring_registration_provenance_token(
-        job_id=committer._context.job_id,
-        owner=committer._context.owner,
-        video_id=plan.video_id,
-        pipeline_version=committer._context.pipeline_version,
-        raw_artifact_id=plan.raw_artifact.artifact_id,
-        structured_artifact_id=plan.structured_artifact.artifact_id,
-        scoring_request_hash=plan.scoring_call_request.request_hash,
-        judge_request_hash=plan.judge_call_request.request_hash,
-        raw_envelope_hash=plan.raw_envelope_hash,
-        structured_hash=plan.structured_hash,
-    )
+    assert capability.authority_proof is committer._registration_authority
 
 
 # --- M15: Filesystem-before-SQLite ordering ---------------------------------
@@ -1943,8 +1969,21 @@ def _assert_no_scoring_success(
     assert video.pipeline_status is not PipelineStatus.SCORED
     assert repository.get_artifact_by_key(plan.raw_artifact.artifact_key) is None
     assert (
-        repository.get_provider_call(plan.scoring_call_request.request_hash) is None
+        repository.get_artifact_by_key(plan.structured_artifact.artifact_key) is None
     )
+    scoring_call = repository.get_provider_call(
+        plan.scoring_call_request.request_hash
+    )
+    assert (
+        scoring_call is None
+        or scoring_call.status is not ProviderCallStatus.SUCCEEDED
+    )
+    judge_call = repository.get_provider_call(plan.judge_call_request.request_hash)
+    assert (
+        judge_call is None or judge_call.status is not ProviderCallStatus.SUCCEEDED
+    )
+    job = repository.get_job(plan.raw_artifact.job_id)
+    assert job is None or job.status is not JobStatus.SUCCEEDED
 
 
 def test_r5_fsync_failure_no_sqlite_registration(tmp_path: Path) -> None:
