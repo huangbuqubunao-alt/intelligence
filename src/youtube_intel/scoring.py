@@ -2130,11 +2130,11 @@ class _ValidatedScoringWritePlanSentinel:
 _VALIDATED_SCORING_WRITE_PLAN_SENTINEL = _ValidatedScoringWritePlanSentinel()
 
 
-class ValidatedScoringWritePlan:
+class _ValidatedScoringWritePlan:
     """Opaque, runtime-minted Phase G write capability.
 
     A plan is not a DTO, cache identity, authority, or persistence record.  It
-    can only be created by ``TrustedScoringPersistenceCommitter.prewrite_validate``
+    is strictly internal to ``TrustedPersistenceEntry.persist_success``.
     and it freezes every byte, hash, Artifact identity and ProviderCall identity
     required for the subsequent trusted filesystem + SQLite registration.
     """
@@ -2160,7 +2160,7 @@ class ValidatedScoringWritePlan:
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
         del cls, kwargs
-        raise TypeError("ValidatedScoringWritePlan cannot be subclassed")
+        raise TypeError("_ValidatedScoringWritePlan cannot be subclassed")
 
     def __init__(
         self,
@@ -2183,7 +2183,7 @@ class ValidatedScoringWritePlan:
         video_id: str,
     ) -> None:
         if sentinel is not _VALIDATED_SCORING_WRITE_PLAN_SENTINEL:
-            msg = "ValidatedScoringWritePlan can only be minted by PREWRITE_VALIDATE"
+            msg = "_ValidatedScoringWritePlan can only be minted by PREWRITE_VALIDATE"
             raise ValueError(msg)
         self._success = success
         self._raw_envelope_bytes = raw_envelope_bytes
@@ -2204,7 +2204,7 @@ class ValidatedScoringWritePlan:
 
     def __setattr__(self, name: str, value: object) -> None:
         if getattr(self, "_sealed", False):
-            raise TypeError("ValidatedScoringWritePlan is immutable")
+            raise TypeError("_ValidatedScoringWritePlan is immutable")
         object.__setattr__(self, name, value)
 
     @property
@@ -2268,19 +2268,19 @@ class ValidatedScoringWritePlan:
         return self._video_id
 
     def __copy__(self) -> NoReturn:
-        raise TypeError("ValidatedScoringWritePlan cannot be copied")
+        raise TypeError("_ValidatedScoringWritePlan cannot be copied")
 
     def __deepcopy__(self, memo: object) -> NoReturn:
-        raise TypeError("ValidatedScoringWritePlan cannot be copied")
+        raise TypeError("_ValidatedScoringWritePlan cannot be copied")
 
     def __reduce__(self) -> NoReturn:
-        raise TypeError("ValidatedScoringWritePlan cannot be serialized")
+        raise TypeError("_ValidatedScoringWritePlan cannot be serialized")
 
     def __reduce_ex__(self, protocol: object) -> NoReturn:
-        raise TypeError("ValidatedScoringWritePlan cannot be serialized")
+        raise TypeError("_ValidatedScoringWritePlan cannot be serialized")
 
 
-class TrustedScoringPersistenceCommitter:
+class TrustedPersistenceEntry:
     """Runtime-owned Phase G trusted persistence boundary.
 
     The committer is created by ``RuntimeOperations`` with runtime-owned
@@ -2325,10 +2325,10 @@ class TrustedScoringPersistenceCommitter:
         self._summary_threshold = summary_threshold
         self._clock = clock
 
-    def prewrite_validate(
+    def _prewrite_validate(
         self,
         success: PhaseFTrustedScoringSuccess,
-    ) -> ValidatedScoringWritePlan:
+    ) -> _ValidatedScoringWritePlan:
         """Zero-write validation of an exact Phase F success -> write plan.
 
         All verification happens in memory.  No temporary file, final file,
@@ -2669,7 +2669,7 @@ class TrustedScoringPersistenceCommitter:
             should_summarize=result.score >= self._summary_threshold,
         )
 
-        return ValidatedScoringWritePlan(
+        return _ValidatedScoringWritePlan(
             sentinel=_VALIDATED_SCORING_WRITE_PLAN_SENTINEL,
             success=success,
             raw_envelope_bytes=raw_envelope_bytes,
@@ -2688,7 +2688,9 @@ class TrustedScoringPersistenceCommitter:
             video_id=video_id,
         )
 
-    def commit(self, plan: ValidatedScoringWritePlan) -> StageCompletionResult:
+    def persist_success(
+        self, success: PhaseFTrustedScoringSuccess
+    ) -> StageCompletionResult:
         """Execute the trusted filesystem + SQLite registration protocol.
 
         Ordered durability: tmp exclusive-create -> fsync -> hash/length verify
@@ -2702,9 +2704,12 @@ class TrustedScoringPersistenceCommitter:
         mismatched state is fail-closed.
         """
 
-        if type(plan) is not ValidatedScoringWritePlan:
-            msg = "commit requires an exact ValidatedScoringWritePlan"
-            raise ValueError(msg)
+        # PREWRITE_VALIDATE and the temporary write plan are both contained in
+        # this call.  No caller can provide a DTO/capability to the write sink.
+        return self._persist_plan(self._prewrite_validate(success))
+
+    def _persist_plan(self, plan: _ValidatedScoringWritePlan) -> StageCompletionResult:
+        """Consume a plan minted in this entry's immediately preceding call."""
 
         raw_artifact = plan.raw_artifact
         structured_artifact = plan.structured_artifact
@@ -2754,7 +2759,7 @@ class TrustedScoringPersistenceCommitter:
     def _persist_registration(
         self,
         *,
-        plan: ValidatedScoringWritePlan,
+        plan: _ValidatedScoringWritePlan,
         raw_final: Path,
         structured_final: Path,
         now: datetime,
@@ -2766,7 +2771,7 @@ class TrustedScoringPersistenceCommitter:
 
     def _check_committed_graph(
         self,
-        plan: ValidatedScoringWritePlan,
+        plan: _ValidatedScoringWritePlan,
         raw_final: Path,
         structured_final: Path,
     ) -> StageCompletionResult | None:
@@ -3311,8 +3316,7 @@ __all__ = [
     "ScoringJobContext",
     "ScoringPersistenceError",
     "ScoringService",
-    "TrustedScoringPersistenceCommitter",
-    "ValidatedScoringWritePlan",
+    "TrustedPersistenceEntry",
     "build_primary_scoring_attempt",
     "build_scoring_input",
     "sample_transcript",

@@ -52,7 +52,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     ScoringPersistenceError,
-    TrustedScoringPersistenceCommitter,
+    TrustedPersistenceEntry,
     _EnrichedQualityEvidence,
     _mint_phase_f_trusted_scoring_success,
     build_primary_scoring_attempt,
@@ -376,10 +376,10 @@ def test_prewrite_validate_creates_plan_without_side_effects(tmp_path: Path) -> 
         owner="test-owner",
         pipeline_version="runtime-v1",
     )
-    plan = committer.prewrite_validate(success)
+    plan = committer._prewrite_validate(success)
 
     assert plan is not None
-    assert type(plan).__name__ == "ValidatedScoringWritePlan"
+    assert type(plan).__name__ == "_ValidatedScoringWritePlan"
     after_files = set(data_root.rglob("*")) if data_root.exists() else set()
     assert after_files == before_files
     after_artifacts = runtime._repository.get_artifact_by_key(
@@ -524,6 +524,34 @@ def _setup_scoring_job(
         )
 
 
+class _TestPersistenceHarness:
+    """Test-only adapter for inspecting an internal write plan.
+
+    Production exposes only ``TrustedPersistenceEntry.persist_success``; this
+    adapter deliberately lives in the test module so old durability assertions
+    can continue to inspect expected artifact identities without becoming a
+    production persistence ingress.
+    """
+
+    def __init__(self, entry: TrustedPersistenceEntry) -> None:
+        self._entry = entry
+
+    def prewrite_validate(self, success: PhaseFTrustedScoringSuccess) -> object:
+        return self._entry._prewrite_validate(success)
+
+    def commit(self, plan: object) -> StageCompletionResult:
+        return self._entry._persist_plan(plan)  # type: ignore[arg-type]
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._entry, name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "_entry":
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._entry, name, value)
+
+
 def _committer_and_plan(
     runtime: RuntimeOperations,
     *,
@@ -531,18 +559,19 @@ def _committer_and_plan(
     video_id: str,
     owner: str = "test-owner",
     pipeline_version: str = "runtime-v1",
-) -> tuple[TrustedScoringPersistenceCommitter, object]:
+) -> tuple[_TestPersistenceHarness, object]:
     scoring_input = _scoring_input(video_id=video_id)
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input
     )
-    committer = runtime._trusted_scoring_committer(
+    entry = runtime._trusted_persistence_entry(
         job_id=job_id,
         owner=owner,
         pipeline_version=pipeline_version,
     )
+    committer = _TestPersistenceHarness(entry)
     plan = committer.prewrite_validate(success)
     return committer, plan
 
@@ -810,7 +839,7 @@ def test_scoring_stage_uses_trusted_route(tmp_path: Path) -> None:
     # The trusted route must reference the new Phase F->G building blocks.
     assert "build_scoring_input" in names
     assert "run_primary_trusted_scoring" in names
-    assert "_trusted_scoring_committer" in names
+    assert "_trusted_persistence_entry" in names
     # The legacy repository-backed service must not be the normal path.
     assert "RepositoryBackedScoringService" not in names
 
@@ -863,7 +892,7 @@ def test_prewrite_validate_rejects_non_aggregate(tmp_path: Path) -> None:
         job_id="job-m1", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="PhaseFTrustedScoringSuccess"):
-        committer.prewrite_validate(object())  # type: ignore[arg-type]
+        committer._prewrite_validate(object())  # type: ignore[arg-type]
 
 
 def test_prewrite_validate_rejects_unenriched_aggregate(tmp_path: Path) -> None:
@@ -872,7 +901,7 @@ def test_prewrite_validate_rejects_unenriched_aggregate(tmp_path: Path) -> None:
         job_id="job-m2", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="missing the required Phase G quality evidence"):
-        committer.prewrite_validate(unenriched)
+        committer._prewrite_validate(unenriched)
 
 
 def test_prewrite_validate_rejects_canonical_hash_mismatch(tmp_path: Path) -> None:
@@ -907,7 +936,7 @@ def test_prewrite_validate_rejects_canonical_hash_mismatch(tmp_path: Path) -> No
         job_id="job-m3", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="scoring_input"):
-        committer.prewrite_validate(mutated_success)
+        committer._prewrite_validate(mutated_success)
 
 
 def test_prewrite_validate_rejects_raw_response_hash_mutation(tmp_path: Path) -> None:
@@ -936,7 +965,7 @@ def test_prewrite_validate_rejects_raw_response_hash_mutation(tmp_path: Path) ->
         job_id="job-m4", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="raw response hash"):
-        committer.prewrite_validate(success)
+        committer._prewrite_validate(success)
 
 
 def test_prewrite_validate_rejects_raw_reparse_mutation(tmp_path: Path) -> None:
@@ -971,7 +1000,7 @@ def test_prewrite_validate_rejects_raw_reparse_mutation(tmp_path: Path) -> None:
         job_id="job-m5", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="candidate does not match"):
-        committer.prewrite_validate(success)
+        committer._prewrite_validate(success)
 
 
 def test_prewrite_validate_rejects_candidate_result_binding_mutation(
@@ -1000,7 +1029,7 @@ def test_prewrite_validate_rejects_candidate_result_binding_mutation(
         job_id="job-m6", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="business fields mismatch"):
-        committer.prewrite_validate(success)
+        committer._prewrite_validate(success)
 
 
 def test_prewrite_validate_rejects_runtime_authority_rotation(tmp_path: Path) -> None:
@@ -1029,7 +1058,7 @@ def test_prewrite_validate_rejects_runtime_authority_rotation(tmp_path: Path) ->
         job_id="job-m7", owner="test-owner", pipeline_version="runtime-v1"
     )
     with pytest.raises(ValueError, match="attempt provider mismatches"):
-        committer.prewrite_validate(success)
+        committer._prewrite_validate(success)
 
 
 def test_prewrite_validate_rejects_provider_call_request_binding_mutation(
@@ -1064,7 +1093,7 @@ def test_prewrite_validate_rejects_provider_call_request_binding_mutation(
     )
     object.__setattr__(committer, "_scoring_context", forged_context)
     with pytest.raises(ValueError, match="scoring ProviderCall request_hash"):
-        committer.prewrite_validate(success)
+        committer._prewrite_validate(success)
 
 
 def test_scoring_stage_rejects_bare_score_result_reentry(tmp_path: Path) -> None:
@@ -1143,7 +1172,7 @@ def test_r1_promote_uses_atomic_link_not_rename(tmp_path: Path) -> None:
 
     import inspect
 
-    source = inspect.getsource(TrustedScoringPersistenceCommitter._write_atomic_file)
+    source = inspect.getsource(TrustedPersistenceEntry._write_atomic_file)
     assert "os.link" in source, "promote must use os.link for atomic no-clobber"
     # os.rename must NOT appear as the promote primitive call.  We check
     # for the call pattern, not mentions in docstrings/comments.
@@ -1761,7 +1790,7 @@ def test_r3_capability_admission_is_removed_from_repository() -> None:
 
     assert not hasattr(state_module, "ScoringRegistrationCapability")
     assert not hasattr(
-        TrustedScoringPersistenceCommitter, "_mint_registration_capability"
+        TrustedPersistenceEntry, "_mint_registration_capability"
     )
 
 
@@ -2208,3 +2237,86 @@ def test_direct_forged_capability_with_correct_fields_is_rejected(
 
 def test_r3_legal_committer_path_succeeds(tmp_path: Path) -> None:
     test_round10_runtime_scoring_stage_remains_the_only_success_path(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Phase G Correction Round 12 — trusted persistence ingress attacks
+# ---------------------------------------------------------------------------
+
+
+def test_external_repository_complete_stage_scoring_fails_closed(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r12-complete-stage"
+    job_id = "job-r12-complete-stage"
+    _setup_transcript_ready_video(runtime._repository, runtime._data_root, video_id=video_id)
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    _, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
+    external = SQLiteStateRepository(runtime._repository._database_path)
+
+    with pytest.raises(IntegrityConflict, match="trusted persistence entry"):
+        external.complete_stage(
+            job_id=job_id,
+            owner="test-owner",
+            video_id=video_id,
+            expected_status=PipelineStatus.TRANSCRIPT_READY,
+            target_status=PipelineStatus.SCORED,
+            pipeline_version="runtime-v1",
+            artifacts=(plan.raw_artifact, plan.structured_artifact),
+            provider_call=plan.scoring_call_completion,
+            scoring_summary=plan.scoring_summary,
+            now=_NOW,
+        )
+
+    _assert_no_scoring_success(external, plan, video_id)
+
+
+def test_forged_plan_has_no_consumer() -> None:
+    assert not hasattr(scoring_module, "ValidatedScoringWritePlan")
+    forged = object.__new__(scoring_module._ValidatedScoringWritePlan)
+    # Populate representative genuine-looking fields; no public entry accepts it.
+    object.__setattr__(forged, "_raw_envelope_bytes", b"forged")
+    object.__setattr__(forged, "_raw_envelope_hash", "a" * 64)
+    assert not hasattr(TrustedPersistenceEntry, "commit")
+    assert not hasattr(SQLiteStateRepository, "_persist_scoring_registration")
+
+
+def test_copied_real_plan_fails_to_enter_persistence(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    entry, plan = _committer_and_plan(
+        runtime, job_id="job-r12-copied", video_id="video-r12-copied"
+    )
+    copied = object.__new__(type(plan))
+    for name in type(plan).__slots__:
+        if hasattr(plan, name):
+            object.__setattr__(copied, name, getattr(plan, name))
+    assert not hasattr(entry._entry, "commit")
+    with pytest.raises(ValueError, match="PhaseFTrustedScoringSuccess"):
+        entry._entry.persist_success(copied)  # type: ignore[arg-type]
+
+
+def test_runtime_entry_requires_prewrite_before_any_write(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    data_root = runtime._data_root
+    before_files = set(data_root.rglob("*"))
+    entry = runtime._trusted_persistence_entry(
+        job_id="job-r12-prewrite", owner="test-owner", pipeline_version="runtime-v1"
+    )
+    with pytest.raises(ValueError, match="PhaseFTrustedScoringSuccess"):
+        entry.persist_success(object())  # type: ignore[arg-type]
+    assert set(data_root.rglob("*")) == before_files
+    assert runtime._repository.get_artifact_by_key("scoring/forged/raw") is None
+
+
+def test_normal_runtime_path_uses_entry_not_complete_stage(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r12-normal"
+    job_id = "job-r12-normal"
+    _setup_transcript_ready_video(runtime._repository, runtime._data_root, video_id=video_id)
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    entry, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
+    runtime._repository.complete_stage = lambda **_: (_ for _ in ()).throw(AssertionError("complete_stage called"))  # type: ignore[method-assign]
+    result = entry.commit(plan)
+    assert len(result.artifacts) == 2
+    assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
+    assert result.video.pipeline_status is PipelineStatus.SCORED
+    assert result.job.status is JobStatus.SUCCEEDED

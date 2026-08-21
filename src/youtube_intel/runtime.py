@@ -94,9 +94,9 @@ from youtube_intel.scoring import (
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
     ScoringJobContext,
-    TrustedScoringPersistenceCommitter,
-    ValidatedScoringWritePlan,
+    TrustedPersistenceEntry,
     _run_primary_trusted_scoring_seam,
+    _ValidatedScoringWritePlan,
     build_scoring_input,
     build_scoring_request_identity,
 )
@@ -482,13 +482,13 @@ class RuntimeOperations(Operations):
             scoring_context=self._trusted_scoring_context,
         )
 
-    def _trusted_scoring_committer(
+    def _trusted_persistence_entry(
         self,
         *,
         job_id: str,
         owner: str,
         pipeline_version: str,
-    ) -> TrustedScoringPersistenceCommitter:
+    ) -> TrustedPersistenceEntry:
         """Mint the runtime-owned Phase G persistence committer.
 
         Authority, context, DATA root and job identity come from the runtime
@@ -499,7 +499,7 @@ class RuntimeOperations(Operations):
 
         def persist_transaction(
             *,
-            plan: ValidatedScoringWritePlan,
+            plan: _ValidatedScoringWritePlan,
             raw_final: Path,
             structured_final: Path,
             now: datetime,
@@ -634,13 +634,13 @@ class RuntimeOperations(Operations):
             finally:
                 connection.close()
 
-        class _RuntimeTrustedScoringPersistenceCommitter(
-            TrustedScoringPersistenceCommitter
+        class _RuntimeTrustedPersistenceEntry(
+            TrustedPersistenceEntry
         ):
             def _persist_registration(
                 self,
                 *,
-                plan: ValidatedScoringWritePlan,
+                plan: _ValidatedScoringWritePlan,
                 raw_final: Path,
                 structured_final: Path,
                 now: datetime,
@@ -652,7 +652,7 @@ class RuntimeOperations(Operations):
                     now=now,
                 )
 
-        return _RuntimeTrustedScoringPersistenceCommitter(
+        return _RuntimeTrustedPersistenceEntry(
             repository=self._repository,
             data_root=self._data_root,
             quality_authority=self._quality_provenance_authority,
@@ -663,6 +663,15 @@ class RuntimeOperations(Operations):
                 pipeline_version=pipeline_version,
             ),
             summary_threshold=self._config.settings.thresholds.summary_score,
+        )
+
+    # Private compatibility seam for the already-approved Phase G test suite.
+    # It exposes the same runtime-local entry, never a repository capability.
+    def _trusted_scoring_committer(
+        self, *, job_id: str, owner: str, pipeline_version: str
+    ) -> TrustedPersistenceEntry:
+        return self._trusted_persistence_entry(
+            job_id=job_id, owner=owner, pipeline_version=pipeline_version
         )
 
     @staticmethod
@@ -995,13 +1004,12 @@ class RuntimeOperations(Operations):
                 attempt=attempt,
                 scoring_input=scoring_input,
             )
-            committer = self._trusted_scoring_committer(
+            entry = self._trusted_persistence_entry(
                 job_id=job.job_id,
                 owner=owner,
                 pipeline_version=PIPELINE_VERSION,
             )
-            plan = committer.prewrite_validate(success)
-            committer.commit(plan)
+            entry.persist_success(success)
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:

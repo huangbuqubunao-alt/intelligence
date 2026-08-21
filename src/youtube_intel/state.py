@@ -2495,6 +2495,14 @@ class SQLiteStateRepository:
             expected_status is PipelineStatus.TRANSCRIPT_READY
             and target_status is PipelineStatus.SCORED
         )
+        if is_scoring_completion:
+            # Phase G scoring success is deliberately not a generic repository
+            # stage completion.  Only RuntimeOperations' local persistence
+            # entry may compose the verified filesystem protocol with these
+            # low-level transaction primitives.  Reject before opening SQLite.
+            raise IntegrityConflict(
+                "TRANSCRIPT_READY -> SCORED requires the runtime trusted persistence entry"
+            )
         if is_scoring_completion and scoring_summary is None:
             msg = "scoring summary is required for TRANSCRIPT_READY -> SCORED"
             raise IntegrityConflict(msg)
