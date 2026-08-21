@@ -2157,7 +2157,7 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 ## Phase G Correction Round 2
 
-- Status: `READY FOR PHASE G CORRECTION ROUND 2 INDEPENDENT REVIEW`
+- Status: `SUPERSEDED BY ROUND 3`
 - Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
   `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
   `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
@@ -2254,3 +2254,65 @@ Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN�
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 2 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN/mutation 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
+
+## Phase G Correction Round 3
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 3 INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e` (Phase G implementation commit)
+- Round 1 correction commit: `b4497cf`
+- Round 1 handoff commit: `6900b76`
+- Round 2 correction commit: `b8005d1`
+- Round 2 handoff commit: `52c0bcf`
+- Round 3 correction commit: `1780d9a` (HEAD)
+- Role: Implementer (continuation/recovery)
+
+### Correction Scope
+
+本次 correction 关闭 Round 2 Independent Review 的 REQUEST CHANGES，不进入 Phase H/I，不重新设计/回滚/扩大范围，不修改 Phase F/D/E：
+
+| P1/P2 | 位置 | 修复内容 |
+|---|---|---|
+| P1-1 Registration Capability Authority | `src/youtube_intel/scoring.py` `_RegistrationAuthority` / `TrustedScoringPersistenceCommitter`；`src/youtube_intel/state.py` `ScoringRegistrationCapability` / `_atomic_register_scoring_success()`；`src/youtube_intel/runtime.py` `RuntimeOperations` | 引入 runtime-scoped 的 `_RegistrationAuthority` 对象作为不可推导的 authority proof；Runtime 创建唯一实例并同时注入 repository 与 committer；capability 必须携带该实例；registrar 通过对象 identity 验证来源。移除 deterministic SHA256 provenance token，避免被重新计算伪造。state.py 不再暴露任何 mint seam |
+| P1-2 Exact relative_path Verification | `src/youtube_intel/scoring.py` `TrustedScoringPersistenceCommitter._verify_artifact_record()` | 先比较 `record.relative_path == expected.relative_path` 字符串，再比较 resolved absolute path；禁止仅依赖 `Path.resolve()`；路径归一化后相同但字符串不同会被拒绝 |
+| P2 Failure Injection Completeness | `tests/unit/test_task016c_phase_g.py` `_assert_no_scoring_success()` | 每次 filesystem fault 后统一断言：raw/structured Artifact 不存在、scoring/judge ProviderCall 未 SUCCEEDED、video 未 SCORED、job 未 SUCCEEDED |
+| P2 Mutation-as-Tests | `tests/unit/test_task016c_phase_g.py` | 关键 mutation 保护已转为 committed pytest tests：`test_r1_promote_does_not_overwrite_existing_final`（no-replace overwrite）、`test_r2_same_plan_after_commit_is_idempotent`（complete graph idempotency）、`test_direct_forged_capability_with_correct_fields_is_rejected` + `test_r3_ordinary_capability_substitute_rejects`（capability bypass）、`test_m14_registration_rejects_missing_final_files`（final file verification）、`test_m15_registration_before_final_verify_rejected`（DB registration ordering） |
+| Worktree | `.gitignore` / `run_mutation_matrix.py` | 删除未跟踪的 `run_mutation_matrix.py`；将 `.workbuddy/` 加入 `.gitignore`（按策略不删除该目录） |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正以下 RED→GREEN 测试：
+
+- **P1-1 authority forge：** `test_direct_forged_capability_with_correct_fields_is_rejected`
+- **P1-2 exact relative_path：** `test_idempotency_rejects_relative_path_normalization_difference`
+- **P2 failure injection：** 通过 `_assert_no_scoring_success()` 统一增强 `test_r5_temp_write_failure_no_sqlite_registration`、`test_r5_fsync_failure_no_sqlite_registration`、`test_r5_promote_failure_no_sqlite_registration`、`test_r5_dir_fsync_failure_no_sqlite_registration`、`test_r5_final_reopen_verify_failure_no_sqlite_registration`、`test_r5_sqlite_transaction_rollback_no_partial_graph`
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline --dry-run` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `52 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E trust + TASK-016B regression | `417 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1267 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean` |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`.gitignore`、`src/youtube_intel/scoring.py`、`src/youtube_intel/state.py`、`src/youtube_intel/runtime.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION ROUND 3 INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
