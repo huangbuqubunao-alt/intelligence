@@ -2070,3 +2070,86 @@ load_app_config(channels_path, settings_path)
   bash scripts/security_scan.sh
   git diff --check
   ```
+
+## Phase G Correction Round 1
+
+- Status: `READY FOR PHASE G CORRECTION INDEPENDENT REVIEW`
+- Authority: `agent-prompts/TASK-016C-PHASE-G-IMPLEMENTATION-AUTHORIZATION.md`、
+  `docs/TASK-016C-PHASE-G-PREWRITE-PERSISTENCE-RUNTIME-CUTOVER-AMENDMENT.md`、
+  `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
+- Correction baseline: `ef89b1e41e17c3b823a39bfd1018c5c876b236c5` (Phase G implementation commit)
+- Correction commit: `b4497cf` (HEAD)
+- Role: Implementer (continuation/recovery)
+
+### Correction Scope
+
+本次 correction 仅关闭 Phase G 独立审查前发现的三个 P1 阻塞，不进入 Phase H/I，不重新设计/回滚/扩大范围：
+
+| P1 | 位置 | 修复内容 |
+|---|---|---|
+| P1-1 Atomic No-Clobber Promote | `src/youtube_intel/scoring.py` `TrustedScoringPersistenceCommitter._write_atomic_file()` | 将 `exists()+os.rename()` 改为 `os.link(tmp, final)+os.unlink(tmp)` 原子 no-replace promote；保留 tmp write、fsync、hash/length verify、dir fsync、final reopen verify |
+| P1-2 Strict Same-Plan Idempotency | `src/youtube_intel/scoring.py` `TrustedScoringPersistenceCommitter._check_committed_graph()` / `commit()` | 同一 plan 重复 commit 时，先验证完整 committed graph：raw/structured final 文件存在且 hash/length/path 匹配；Artifact rows、两个 SUCCEEDED ProviderCall、video SCORED、job SUCCEEDED 全部一致才返回已有结果；否则 fail-closed（不修复、不 recall provider） |
+| P1-3 Close `atomic_register` Bypass | `src/youtube_intel/state.py` `_atomic_register_scoring_success()` / `ScoringRegistrationCapability` | 注册入口改为私有 `_atomic_register_scoring_success()`，仅接受内部 sentinel-mint 的 `ScoringRegistrationCapability`；普通 `ArtifactWrite`/`ProviderCall`/Mapping/JSON/object 全部拒绝；DB boundary 再防御性验证 final files 存在且 hash 匹配 |
+
+### RED-first 补充测试
+
+在 `tests/unit/test_task016c_phase_g.py` 新增/修正以下 RED→GREEN 测试：
+
+- **R1** no-clobber race：`test_r1_promote_does_not_overwrite_existing_final`、`test_r1_promote_uses_atomic_link_not_rename`
+- **R2** strict same-plan idempotency：`test_r2_same_plan_after_commit_is_idempotent`、`test_r2_same_plan_with_raw_file_corrupt_rejects`、`test_r2_same_plan_with_partial_db_graph_rejects`、`test_r2_idempotent_retry_does_not_rewrite_files`
+- **R3** direct registrar bypass：`test_r3_direct_repository_call_with_ordinary_dtos_rejects`、`test_r3_ordinary_capability_substitute_rejects`
+- **R4** SQLite-after-promote failure semantics：`test_r4_sqlite_failure_leaves_promoted_finals`
+- **R5** filesystem fault injection：`test_r5_temp_write_failure_no_sqlite_registration`、`test_r5_sqlite_transaction_rollback_no_partial_graph`
+- **M14** final-file verification：`test_m14_registration_rejects_missing_final_files`
+
+### Mutation Matrix（M1–M15）
+
+使用 `run_mutation_matrix.py` 临时修改并恢复，每项至少导致一个测试失败：
+
+| Mutation | 目标 | 结果 |
+|---|---|---|
+| M1 | `prewrite_validate` exact success guard → `if False` | KILLED |
+| M2 | raw hash check → `if False` | KILLED |
+| M3 | raw reparse check → `if False` | KILLED |
+| M4 | candidate/result binding → `if False` | KILLED |
+| M5 | runtime authority/context check → `if False` | KILLED |
+| M6 | ProviderCall request binding → `if False` | KILLED |
+| M7 | runtime artifact content/hash binding → `if False` | KILLED |
+| M8 | stale-tmp O_EXCL guard 移除 | KILLED |
+| M9 | `run_primary_trusted_scoring` PrimaryScoringAttempt exact-type guard → `if False` | KILLED |
+| M10 | `_atomic_register_scoring_success` 跳过 job finish | KILLED |
+| M11 | `_write_atomic_file` 将 `os.link` 改回 `os.rename` | KILLED |
+| M12 | `commit()` 删除 complete-graph idempotency verification | KILLED |
+| M13 | `_atomic_register_scoring_success` 删除 `ScoringRegistrationCapability` type guard | KILLED |
+| M14 | `_atomic_register_scoring_success` 删除 final-file hash verification | KILLED |
+| M15 | `commit()` 将 DB registration 提前到 promoted finals 之前 | KILLED |
+
+Mutation 脚本本身未提交；生产代码在所有 mutation 恢复后 GREEN。
+
+### Mandatory Gates
+
+| # | Gate | 结果 |
+|---|---|---|
+| 1 | `uv lock --check --offline` | PASS |
+| 2 | `uv sync --locked --offline --dry-run` | PASS |
+| 3 | `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | `33 passed` |
+| 4 | `uv run --offline pytest tests/unit/test_task016c_phase_f.py -q` | `41 passed` |
+| 5 | Phase A–E trust + TASK-016B regression | `417 passed, 1 warning` |
+| 6 | `uv run --offline pytest -x -q` | `1248 passed, 1 warning` |
+| 7 | `uv run --offline mypy src` | PASS |
+| 8 | `uv run --offline ruff check .` | PASS |
+| 9 | `uv build --offline` | PASS |
+| 10 | `bash scripts/security_scan.sh` | `status=clean` |
+| 11 | `git diff --check` | PASS |
+
+### Scope Verification
+
+- 修改文件：`src/youtube_intel/scoring.py`、`src/youtube_intel/state.py`、`tests/unit/test_task016c_phase_g.py`、`handoffs/TASK-016C.md`
+- 未修改 `providers/ollama.py`、`domain.py`、TASK-016B Language Validator、Cloud、Router、Weekly production、DB migration、依赖、`uv.lock`
+- 未 rebase / squash / amend（基线 commit 之外的新 correction commit）/ merge / push / tag
+- 无真实 Ollama/network/cloud 调用
+
+### 实现者结论
+
+- 建议状态：`READY FOR PHASE G CORRECTION INDEPENDENT REVIEW`
+- 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN/mutation 证据、gates 与 handoff 后决定是否验收；不进入 Phase H。
