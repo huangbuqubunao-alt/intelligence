@@ -3072,3 +3072,47 @@ provider, domain/quality, TASK-016B, or external/network behavior was changed.
 `IN_REVIEW / DECISION NEEDED`: authorize an update to the out-of-scope legacy
 E2E flow, or explicitly accept its expected failure while Phase G closes the
 generic scoring ingress.  Do not begin Phase H.
+
+---
+
+## TASK-016C Phase G Correction Round 13
+
+### Implementation
+
+- Base: `050f3cc` (Round 12 handoff); scope remained limited to scoring,
+  runtime composition and the Phase G test suite.
+- Removed `TrustedPersistenceEntry._persist_plan(plan)`.  The only write
+  entry is `persist_success(exact PhaseFTrustedScoringSuccess)`; it creates
+  its private write plan after PREWRITE validation and consumes it inline.
+- Runtime transaction composition and idempotency verification no longer
+  receive `_ValidatedScoringWritePlan`; they receive only the internal fields
+  required for their immediate operation.  The repository remains a
+  low-level transaction primitive, not a scoring ingress.
+- Removed the test-only plan persistence adapter.  Test durability assertions
+  now exercise `persist_success(plan.success)` only.
+
+### Attack and mutation evidence
+
+- `test_forged_plan_cannot_reach_persistence_sink` constructs a real-field
+  copy using `object.__new__(_ValidatedScoringWritePlan)`, checks that no
+  `_persist_plan`/`commit` sink exists, attempts the sole public entry, and
+  verifies no Artifact, successful ProviderCall, `SCORED` video or successful
+  job exists.
+- Mutation: temporarily restoring `_persist_plan(plan)` made that attack test
+  fail at its required absence assertion.  The mutation was reverted and the
+  focused suite returned GREEN.
+
+### Validation
+
+| Gate | Result |
+|---|---|
+| `uv lock --check --offline` / `uv sync --locked --offline` | PASS |
+| Phase G | PASS (`73 passed`) |
+| Phase F | PASS (`41 passed`) |
+| TASK-016B language | PASS (`101 passed`) |
+| mypy / Ruff | PASS |
+| offline build / security scan / diff check | PASS (`status=clean`; warnings only) |
+| Full pytest | BLOCKED: unchanged out-of-scope legacy E2E test expects forbidden generic scoring completion: `tests/e2e/test_failure_recovery.py::test_service_boundary_failures_recover_without_duplicate_outputs[subtitle]`. |
+
+No Phase H/I, providers, domain, migration, dependency, lockfile or network
+work was performed.  Status: `READY FOR PHASE G CORRECTION ROUND 13 INDEPENDENT REVIEW`.
