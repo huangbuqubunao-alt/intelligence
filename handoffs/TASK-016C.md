@@ -2079,7 +2079,7 @@ load_app_config(channels_path, settings_path)
   `docs/TASK-016C-PHASE-G-HANDOFF-CHECKLIST.md`
 - Correction baseline: `ef89b1e` (Phase G implementation commit)
 - Correction commit: `b4497cf`
-- Handoff commit: `79ae31a` (HEAD)
+- Handoff commit: 当前 HEAD（见最终报告）
 - Role: Implementer (continuation/recovery)
 
 ### Correction Scope
