@@ -56,6 +56,7 @@ from youtube_intel.scoring import (
     _EnrichedQualityEvidence,
     _mint_phase_f_trusted_scoring_success,
     _RegistrationAuthority,
+    _RegistrationBindingCapability,
     _RuntimeIssuanceCapability,
     build_primary_scoring_attempt,
     build_scoring_input,
@@ -2261,15 +2262,25 @@ def test_external_repository_cannot_authorize_with_own_authority(
     with pytest.raises(TypeError, match="runtime-minted _RuntimeIssuanceCapability"):
         _RegistrationAuthority(object())
 
-    # Even if an attacker bypasses __init__ via object.__new__, the resulting
-    # authority carries no valid issuance capability, so the repository refuses
-    # to bind it.
+    # Directly passing an authority (not a _RegistrationBindingCapability) is
+    # rejected: the repository no longer accepts a caller-supplied verifier.
     caller_authority = object.__new__(_RegistrationAuthority)
     with pytest.raises(
-        IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
     ):
         external_repository._bind_registration_authority(caller_authority)
+
+    # A forged binding capability with a caller-supplied lambda verifier also
+    # fails: the repository only accepts a runtime-minted binding.
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", caller_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
 
     # Simulate an attacker that bypasses the bind check and directly stores
     # their own authority on the repository.  The registrar still rejects the
@@ -2343,12 +2354,25 @@ def test_external_repository_cannot_become_trusted_root(tmp_path: Path) -> None:
 
     assert external_repository._registration_authority is None
 
+    # Passing an authority directly is no longer accepted: the repository now
+    # requires a runtime-minted _RegistrationBindingCapability.
     caller_authority = object.__new__(_RegistrationAuthority)
     with pytest.raises(
-        IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
     ):
         external_repository._bind_registration_authority(caller_authority)
+
+    # A forged binding capability with a caller-supplied verifier is also
+    # rejected because the verifier carries no runtime-owned WeakSet.
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", caller_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
 
 
 def test_external_mark_bind_capability_register_attack_fails(
@@ -2394,12 +2418,22 @@ def test_external_mark_bind_capability_register_attack_fails(
     # 2. Attempt to bypass __init__: authority has no valid issuance capability.
     forged_authority = object.__new__(_RegistrationAuthority)
 
-    # 3. Attempt to bind the forged authority to the external repository.
+    # 3. The repository no longer accepts a raw authority or a caller-supplied
+    #    verifier; binding requires a runtime-minted _RegistrationBindingCapability.
     with pytest.raises(
-        IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
     ):
         external_repository._bind_registration_authority(forged_authority)
+
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
 
     # 4. Build a self-consistent forged capability with valid DTOs/files/hashes.
     forged_capability = ScoringRegistrationCapability(
@@ -2526,12 +2560,22 @@ def test_object_new_runtime_capability_forgery_fails(tmp_path: Path) -> None:
     forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
     forged_authority = _RegistrationAuthority(forged_capability_instance)
 
-    # 3. Binding to an external repository fails: no runtime verifier.
+    # 3. Binding to an external repository fails: it requires a runtime-minted
+    #    _RegistrationBindingCapability with a runtime-owned verifier closure.
     with pytest.raises(
-        IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
     ):
         external_repository._bind_registration_authority(forged_authority)
+
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
 
     # 4. Build a self-consistent forged capability with valid DTOs/files/hashes.
     forged_capability = ScoringRegistrationCapability(
@@ -2598,10 +2642,180 @@ def test_external_capability_instance_cannot_become_runtime_authority(
     forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
     forged_authority = _RegistrationAuthority(forged_capability_instance)
 
+    # Direct authority binding is rejected; forged binding with lambda verifier
+    # is rejected because the verifier carries no runtime-owned WeakSet.
     with pytest.raises(
-        IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
     ):
         external_repository._bind_registration_authority(forged_authority)
 
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
+
     assert external_repository._registration_authority is None
+
+
+# ===========================================================================
+# Phase G Correction Round 8 — remove caller-supplied provenance verifier
+# ===========================================================================
+
+
+def test_external_supplied_verifier_cannot_authorize_registration(
+    tmp_path: Path,
+) -> None:
+    """P1: repository binding no longer accepts a caller-supplied verifier.
+
+    The Independent Review attack passes a forged authority together with
+    ``lambda _auth: True`` as the provenance verifier.  With the new API the
+    repository only accepts a ``_RegistrationBindingCapability``; the verifier
+    is encapsulated inside that runtime-minted object and cannot be supplied
+    by the caller.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r8-external-verifier"
+    job_id = "job-r8-external-verifier"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    raw_final.parent.mkdir(parents=True, exist_ok=True)
+    raw_final.write_bytes(plan.raw_envelope_bytes)
+    structured_final.parent.mkdir(parents=True, exist_ok=True)
+    structured_final.write_bytes(plan.structured_bytes)
+
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
+    forged_authority = _RegistrationAuthority(forged_capability_instance)
+
+    # The old caller-supplied-verifier API is gone: extra positional arguments
+    # are rejected before any trust decision is made.
+    with pytest.raises(TypeError):
+        external_repository._bind_registration_authority(
+            forged_authority,
+            lambda _auth: True,
+        )
+
+    # A forged binding with an external verifier closure (not the runtime
+    # registry) is also rejected.
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
+
+    forged_capability = ScoringRegistrationCapability(
+        job_id=committer._context.job_id,
+        owner=committer._context.owner,
+        video_id=plan.video_id,
+        pipeline_version=committer._context.pipeline_version,
+        raw_artifact=plan.raw_artifact,
+        structured_artifact=plan.structured_artifact,
+        scoring_call_request=plan.scoring_call_request,
+        judge_call_request=plan.judge_call_request,
+        scoring_call_completion=plan.scoring_call_completion,
+        judge_call_completion=plan.judge_call_completion,
+        scoring_summary=plan.scoring_summary,
+        raw_final_path=raw_final,
+        structured_final_path=structured_final,
+        raw_envelope_hash=plan.raw_envelope_hash,
+        structured_hash=plan.structured_hash,
+        authority_proof=forged_authority,
+    )
+    _assert_no_scoring_success(external_repository, plan, video_id)
+    with pytest.raises(
+        IntegrityConflict,
+        match="repository has no runtime-bound registration authority",
+    ):
+        external_repository._atomic_register_scoring_success(
+            registration=forged_capability,
+            now=datetime.now(UTC),
+        )
+
+
+def test_repository_requires_runtime_binding_capability(tmp_path: Path) -> None:
+    """P1: SQLiteStateRepository cannot be bound without a runtime-minted token.
+
+    The only accepted trust root is a ``_RegistrationBindingCapability``
+    created by ``RuntimeOperations`` composition.  Direct authority, forged
+    binding objects and caller-supplied verifiers all fail closed.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    assert external_repository._registration_authority is None
+
+    forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
+    forged_authority = _RegistrationAuthority(forged_capability_instance)
+
+    # Raw authority is rejected.
+    with pytest.raises(
+        TypeError,
+        match="registration binding must be a _RegistrationBindingCapability",
+    ):
+        external_repository._bind_registration_authority(forged_authority)
+
+    # Forged binding without a runtime registry closure is rejected.
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration verifier is not runtime-issued",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
+
+    assert external_repository._registration_authority is None
+
+
+def test_runtime_owned_binding_still_succeeds(tmp_path: Path) -> None:
+    """P1: RuntimeOperations composition still succeeds with the binding token.
+
+    Positive control: the runtime-minted ``_RegistrationBindingCapability``
+    carries the runtime-owned verifier, binds the repository and authorizes
+    the full Phase G cutover (PREWRITE_VALIDATE, filesystem commit, SQLite
+    registration).
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r8-runtime-binding-success"
+    job_id = "job-r8-runtime-binding-success"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    result = committer.commit(plan)
+
+    assert isinstance(result, StageCompletionResult)
+    assert result.job.status is JobStatus.SUCCEEDED
+    assert result.video.pipeline_status is PipelineStatus.SCORED

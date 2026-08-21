@@ -96,6 +96,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
+    _mint_registration_binding,
     _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
     _RuntimeIssuanceCapability,
@@ -324,10 +325,11 @@ class RuntimeOperations(Operations):
             return auth._issuance_capability in _valid_issuance_capabilities
 
         self._registration_authority = _RegistrationAuthority(issuance)
-        self._repository._bind_registration_authority(
+        binding = _mint_registration_binding(
             self._registration_authority,
             _is_runtime_issued_authority,
         )
+        self._repository._bind_registration_authority(binding)
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring

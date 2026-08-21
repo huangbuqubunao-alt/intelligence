@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import math
 import re
 import sqlite3
+import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -31,6 +33,25 @@ from youtube_intel.domain import (
     VideoMetadata,
     transition_pipeline,
 )
+
+
+def _verifier_carries_runtime_registry(binding: object) -> bool:
+    """True when ``binding`` carries a runtime-owned verifier closure.
+
+    The runtime-owned provenance verifier closes over the local
+    ``_valid_issuance_capabilities`` WeakSet.  A caller-supplied ``lambda
+    _auth: True`` or an arbitrary function has no such closure state, so it
+    cannot authorize a repository binding.
+    """
+
+    verify = getattr(binding, "_verify", None)
+    if verify is None:
+        return False
+    try:
+        closure = inspect.getclosurevars(verify)
+    except (TypeError, ValueError):
+        return False
+    return any(isinstance(v, weakref.WeakSet) for v in closure.nonlocals.values())
 
 
 class StateStoreError(Exception):
@@ -545,32 +566,45 @@ class SQLiteStateRepository:
 
     def _bind_registration_authority(
         self,
-        authority: _RegistrationAuthority,
+        binding: object,
         is_runtime_issued_authority: Callable[[object], bool] | None = None,
     ) -> None:
         """Bind the runtime-owned authority to this repository.
 
         Called exactly once by ``RuntimeOperations`` composition with a
-        verifier closure that checks the authority against the runtime-local
-        issuance registry.  Without the runtime-owned registry, an authority
-        constructed with a forged ``_RuntimeIssuanceCapability`` (e.g. via
-        ``object.__new__``) cannot satisfy the verifier.
+        ``_RegistrationBindingCapability``.  The binding capability is the
+        only trust root: it encapsulates both the runtime-created authority
+        and the runtime-owned verifier closure that checks the authority
+        against the runtime-local issuance registry.  External callers cannot
+        supply their own verifier callback and cannot mint a valid binding
+        capability, so an authority constructed with a forged
+        ``_RuntimeIssuanceCapability`` (e.g. via ``object.__new__``) cannot
+        satisfy the verifier.
         """
 
-        from youtube_intel.scoring import _RegistrationAuthority
+        from youtube_intel.scoring import (
+            _RegistrationAuthority,
+            _RegistrationBindingCapability,
+        )
 
+        if type(binding) is not _RegistrationBindingCapability:
+            msg = "registration binding must be a _RegistrationBindingCapability"
+            raise TypeError(msg)
+        authority = binding.authority
         if type(authority) is not _RegistrationAuthority:
             msg = "registration authority must be a _RegistrationAuthority"
             raise TypeError(msg)
         if self._registration_authority is not None:
             msg = "registration authority is already bound to this repository"
             raise RuntimeError(msg)
-        verifier = is_runtime_issued_authority or (lambda _auth: False)
-        if not verifier(authority):
+        if not binding.verify(authority):
             msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
+        if not _verifier_carries_runtime_registry(binding):
+            msg = "registration verifier is not runtime-issued"
+            raise IntegrityConflict(msg)
         self._registration_authority = authority
-        self._is_runtime_issued_authority = verifier
+        self._is_runtime_issued_authority = binding.verify
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""

@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, NoReturn, Protocol
+from typing import TYPE_CHECKING, Final, NoReturn, Protocol, cast
 
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
@@ -147,6 +147,54 @@ class _RegistrationAuthority:
 
     def __reduce_ex__(self, protocol: object) -> NoReturn:
         raise TypeError("_RegistrationAuthority cannot be serialized")
+
+
+class _RegistrationBindingCapability:
+    """Runtime-only binding token passed to ``SQLiteStateRepository``.
+
+    This object encapsulates the runtime-created
+    ``_RegistrationAuthority`` and the runtime-owned provenance verifier.
+    ``SQLiteStateRepository`` no longer accepts a caller-supplied verifier
+    callback; it only accepts this binding capability, which can only be
+    minted by ``RuntimeOperations`` composition through
+    ``_mint_registration_binding``.
+    """
+
+    __slots__ = ("_authority", "_verify")
+
+    def __new__(cls) -> "_RegistrationBindingCapability":
+        msg = (
+            "_RegistrationBindingCapability cannot be instantiated directly; "
+            "it is created only by RuntimeOperations composition"
+        )
+        raise RuntimeError(msg)
+
+    @property
+    def authority(self) -> object:
+        return getattr(self, "_authority", None)
+
+    def verify(self, auth: object) -> bool:
+        verifier = cast(Callable[[object], bool] | None, getattr(self, "_verify", None))
+        if verifier is None:
+            return False
+        return bool(verifier(auth))
+
+
+def _mint_registration_binding(
+    authority: _RegistrationAuthority,
+    verify: Callable[[object], bool],
+) -> _RegistrationBindingCapability:
+    """Mint a runtime-owned binding capability.
+
+    Called only from ``RuntimeOperations`` composition.  The verifier is a
+    closure that captures the runtime-local issuance registry; it is never
+    exposed as a separate value and cannot be supplied by external callers.
+    """
+
+    binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(binding, "_authority", authority)
+    object.__setattr__(binding, "_verify", verify)
+    return binding
 _RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
 _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"
 _RAW_ARTIFACT_RETENTION: Final = timedelta(days=30)
