@@ -2832,3 +2832,88 @@ Round 8 通过 closure（`_verify`）把 runtime-owned WeakSet 隐藏进 `_Regis
 
 - 建议状态：`READY FOR PHASE G CORRECTION ROUND 9 INDEPENDENT REVIEW`
 - 下一步：由独立 reviewer 复核本 correction commit、RED/GREEN 证据、object.__new__ / closure-registry attack regression evidence、mutation evidence、gates 与 handoff 后决定是否验收；**不进入 Phase H**。
+
+## Phase G Correction Round 10
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 10 INDEPENDENT REVIEW`
+- Baseline: Round 9 implementation commit `8ffd78c`
+- Role: Implementer
+
+### Round 9 finding and architecture correction
+
+Round 9 made `_RegistrationBindingRegistry`, `_create_binding_registry()` and
+`_register()` the effective trust root.  That root was forgeable: a caller
+could private-import the types, use `object.__new__`, create a fresh registry,
+register a forged binding in that same registry, and then present the
+self-consistent objects to the repository.
+
+Round 10 removes the complete authority/binding/registry chain.  Runtime
+composition now captures the trusted repository's bound low-level transaction
+method in a local closure while creating a local committer subclass.  The
+subclass is the only production caller of that captured method.  The entry is
+not a `RuntimeOperations` field, is never stored in a repository, cannot be
+passed by a caller, and has no module-level getter or factory.
+
+`SQLiteStateRepository._persist_scoring_registration()` remains a mechanical
+SQLite primitive only: it retains final-file verification, graph writes,
+transaction ordering, idempotency and rollback semantics, but holds no
+authority, binding, registry, token, verifier, entry or trusted registration
+API.  The former `_atomic_register_scoring_success()` and
+`_bind_registration_authority()` ingress points no longer exist.
+
+### Scope
+
+- Changed only:
+  - `src/youtube_intel/scoring.py`
+  - `src/youtube_intel/runtime.py`
+  - `src/youtube_intel/state.py`
+  - `tests/unit/test_task016c_phase_g.py`
+  - `handoffs/TASK-016C.md`
+- Did not modify providers, `domain.py`, `quality.py`, schema/migrations,
+  TASK-016B implementation, dependencies or `uv.lock`.
+- Did not enter Phase H/I.
+
+### RED / GREEN evidence
+
+Round 10 tests cover an externally constructed repository, fake subclass,
+private-import plus `object.__new__`, repository attribute injection, and the
+normal runtime success path.
+
+- Initial RED (before migration): `4 failed` for the retained Round 9 trusted
+  ingress, inherited API and registry exposure.
+- GREEN: `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q -k round10`
+  → `5 passed, 65 deselected`.
+- Full Phase G: `70 passed`.
+
+### Mutation evidence
+
+1. Replaced the closure-captured bound transaction call with a dynamic lookup
+   through `self._repository`.  The fake-subclass/attribute-injection attack
+   regression failed with `ScoringPersistenceError` caused by
+   `runtime entry must retain its composed transaction`.  Restored the capture;
+   the test returned GREEN.
+2. Temporarily restored an external repository alias
+   `_atomic_register_scoring_success = _persist_scoring_registration`.  Four
+   Round 10 attacks failed because the old trusted ingress reappeared.  Removed
+   the alias and restored GREEN.
+
+### Validation gates
+
+| Gate | Result |
+|---|---|
+| Round 10 focused | `5 passed, 65 deselected` |
+| Phase G focused | `70 passed` |
+| Phase F focused | `41 passed` |
+| TASK-016B (`test_scoring_language.py`) | `101 passed` |
+| Full `pytest -q` | completed successfully |
+| `uv run --offline mypy src` | PASS |
+| `uv run --offline ruff check .` | PASS |
+| `uv build --offline` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (existing warnings only) |
+| `git diff --check` | PASS |
+
+### Implementer conclusion
+
+`READY FOR PHASE G CORRECTION ROUND 10 INDEPENDENT REVIEW`
+
+Stop here.  Do not begin Phase H before Independent Review.
