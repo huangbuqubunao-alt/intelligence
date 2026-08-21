@@ -3116,3 +3116,31 @@ generic scoring ingress.  Do not begin Phase H.
 
 No Phase H/I, providers, domain, migration, dependency, lockfile or network
 work was performed.  Status: `READY FOR PHASE G CORRECTION ROUND 13 INDEPENDENT REVIEW`.
+
+---
+
+## TASK-016C Phase G Correction Round 14
+
+- Base: `0f7045a`; changed only `scoring.py`, `runtime.py`, and the Phase G
+  unit suite (plus this evidence report).
+- Deleted runtime's `_persist_registration(...)` override and its scatter-field
+  transaction closure. `TrustedPersistenceEntry.persist_success(success)` now
+  owns PREWRITE, filesystem promotion, final-file verification and the single
+  SQLite transaction in one call; all write values are function-local.
+- No `_persist_plan`, `_persist_registration`, or `persist_transaction` is
+  present on the runtime entry. Sink discovery verifies the sole exposed
+  persistence operation has exactly one parameter: `success`.
+- Added forged scatter-field and API-discovery attack coverage. A temporary
+  restoration of `_persist_registration` makes the scatter-field attack test
+  RED; it was restored to the removed state before final GREEN.
+
+| Gate | Result |
+|---|---|
+| Phase G | PASS (`75 passed`) |
+| Phase F | PASS (`41 passed`) |
+| TASK-016B | PASS (`101 passed`) |
+| lock/sync, mypy, Ruff, build, security scan, diff check | PASS |
+| Full pytest | BLOCKED by the pre-existing out-of-scope legacy E2E expectation for forbidden generic scoring `complete_stage`, at `tests/e2e/test_failure_recovery.py::test_service_boundary_failures_recover_without_duplicate_outputs[subtitle]`. |
+
+No Phase H/I, provider/domain/migration/dependency/lockfile work was performed.
+Status: `READY FOR PHASE G CORRECTION ROUND 14 INDEPENDENT REVIEW`.
