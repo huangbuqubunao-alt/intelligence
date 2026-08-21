@@ -3015,3 +3015,60 @@ two ProviderCall completions, stage/job completion, and rollback behavior.
 `READY FOR PHASE G CORRECTION ROUND 11 INDEPENDENT REVIEW`
 
 Stop here. Do not begin Phase H before Independent Review.
+
+---
+
+## TASK-016C Phase G Correction Round 12
+
+### Scope and implementation
+
+- Base: `7f7eb15`; implementation parent: `b4402ce`.
+- Changed only `src/youtube_intel/scoring.py`, `src/youtube_intel/runtime.py`,
+  `src/youtube_intel/state.py`, and `tests/unit/test_task016c_phase_g.py`.
+- `complete_stage()` rejects `TRANSCRIPT_READY -> SCORED` before opening a
+  SQLite transaction.  Runtime's normal scoring route now creates a local
+  `TrustedPersistenceEntry` and calls `persist_success(exact_success)`.
+- Removed exported `ValidatedScoringWritePlan` and public `commit(plan)`.
+  The write plan is private implementation state; no repository method is a
+  plan consumer.
+- Reuse decision: `DIRECT` — existing SQLite transaction primitives,
+  filesystem protocol, Phase F success aggregate and standard library only;
+  no dependency changes.
+
+### RED / GREEN and attack evidence
+
+- RED mutation A: removing the `complete_stage` scoring guard made
+  `external_repository_complete_stage_scoring_fails_closed` fail (the call
+  reached legacy provider-call completion instead of rejecting pre-transaction).
+- RED mutation B: restoring `TrustedPersistenceEntry.commit(plan)` made
+  `forged_plan_has_no_consumer` fail.
+- Both mutations were restored; Phase G focused suite: `73 passed`.
+- New regressions cover external DTO `complete_stage` ingress, forged and
+  copied plans, malformed success before any write, and a successful entry
+  path while `complete_stage` is poisoned to fail.
+
+### Validation and known blocker
+
+| Gate | Result |
+|---|---|
+| `uv lock --check --offline` | PASS |
+| `uv sync --locked --offline` | PASS (84 packages) |
+| Phase G focused | PASS (`73 passed`) |
+| Phase F focused | PASS (`41 passed`) |
+| TASK-016B regression | PASS (`101 passed`) |
+| `uv run --offline mypy src` | PASS (28 files) |
+| `uv run --offline ruff check .` | PASS |
+| `uv build --offline` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (pre-existing warnings) |
+| `git diff --check` | PASS |
+| Full pytest | BLOCKED: `tests/e2e/test_failure_recovery.py::test_service_boundary_failures_recover_without_duplicate_outputs[subtitle]` expects the legacy repository-backed scoring service to complete `TRANSCRIPT_READY -> SCORED` via forbidden `complete_stage()`. |
+
+The full-suite failure is a direct conflict between this Round 12 requirement
+and an out-of-scope legacy E2E flow.  No Phase H work, migration, dependency,
+provider, domain/quality, TASK-016B, or external/network behavior was changed.
+
+### Implementer conclusion
+
+`IN_REVIEW / DECISION NEEDED`: authorize an update to the out-of-scope legacy
+E2E flow, or explicitly accept its expected failure while Phase G closes the
+generic scoring ingress.  Do not begin Phase H.
