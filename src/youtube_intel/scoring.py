@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Final, NoReturn, Protocol
 
 from youtube_intel.config import LocalScoringSettings
@@ -2706,11 +2707,7 @@ class TrustedPersistenceEntry:
 
         # PREWRITE_VALIDATE and the temporary write plan are both contained in
         # this call.  No caller can provide a DTO/capability to the write sink.
-        return self._persist_plan(self._prewrite_validate(success))
-
-    def _persist_plan(self, plan: _ValidatedScoringWritePlan) -> StageCompletionResult:
-        """Consume a plan minted in this entry's immediately preceding call."""
-
+        plan = self._prewrite_validate(success)
         raw_artifact = plan.raw_artifact
         structured_artifact = plan.structured_artifact
         raw_final = self._data_root / raw_artifact.relative_path
@@ -2718,7 +2715,22 @@ class TrustedPersistenceEntry:
 
         # Strict same-plan idempotency: check if a complete committed graph
         # already exists before attempting any write.
-        existing = self._check_committed_graph(plan, raw_final, structured_final)
+        existing = self._check_committed_graph(
+            raw_artifact=plan.raw_artifact,
+            structured_artifact=plan.structured_artifact,
+            raw_envelope_hash=plan.raw_envelope_hash,
+            raw_envelope_length=plan.raw_envelope_length,
+            structured_hash=plan.structured_hash,
+            structured_length=plan.structured_length,
+            scoring_call_request=plan.scoring_call_request,
+            judge_call_request=plan.judge_call_request,
+            scoring_call_completion=plan.scoring_call_completion,
+            judge_call_completion=plan.judge_call_completion,
+            scoring_summary=plan.scoring_summary,
+            video_id=plan.video_id,
+            raw_final=raw_final,
+            structured_final=structured_final,
+        )
         if existing is not None:
             return existing
 
@@ -2737,7 +2749,16 @@ class TrustedPersistenceEntry:
 
         try:
             return self._persist_registration(
-                plan=plan,
+                raw_artifact=plan.raw_artifact,
+                structured_artifact=plan.structured_artifact,
+                raw_envelope_hash=plan.raw_envelope_hash,
+                structured_hash=plan.structured_hash,
+                scoring_call_request=plan.scoring_call_request,
+                judge_call_request=plan.judge_call_request,
+                scoring_call_completion=plan.scoring_call_completion,
+                judge_call_completion=plan.judge_call_completion,
+                scoring_summary=plan.scoring_summary,
+                video_id=plan.video_id,
                 raw_final=raw_final,
                 structured_final=structured_final,
                 now=self._clock(),
@@ -2759,19 +2780,54 @@ class TrustedPersistenceEntry:
     def _persist_registration(
         self,
         *,
-        plan: _ValidatedScoringWritePlan,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        raw_envelope_hash: str,
+        structured_hash: str,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        video_id: str,
         raw_final: Path,
         structured_final: Path,
         now: datetime,
     ) -> StageCompletionResult:
         """Runtime composition supplies the only trusted registration path."""
 
-        del plan, raw_final, structured_final, now
+        del (
+            raw_artifact,
+            structured_artifact,
+            raw_envelope_hash,
+            structured_hash,
+            scoring_call_request,
+            judge_call_request,
+            scoring_call_completion,
+            judge_call_completion,
+            scoring_summary,
+            video_id,
+            raw_final,
+            structured_final,
+            now,
+        )
         raise RuntimeError("trusted persistence is owned by RuntimeOperations")
 
     def _check_committed_graph(
         self,
-        plan: _ValidatedScoringWritePlan,
+        *,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        raw_envelope_hash: str,
+        raw_envelope_length: int,
+        structured_hash: str,
+        structured_length: int,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        video_id: str,
         raw_final: Path,
         structured_final: Path,
     ) -> StageCompletionResult | None:
@@ -2782,6 +2838,20 @@ class TrustedPersistenceEntry:
         repair).  If no files exist, return None (normal first-write path).
         """
 
+        plan = SimpleNamespace(
+            raw_artifact=raw_artifact,
+            structured_artifact=structured_artifact,
+            raw_envelope_hash=raw_envelope_hash,
+            raw_envelope_length=raw_envelope_length,
+            structured_hash=structured_hash,
+            structured_length=structured_length,
+            scoring_call_request=scoring_call_request,
+            judge_call_request=judge_call_request,
+            scoring_call_completion=scoring_call_completion,
+            judge_call_completion=judge_call_completion,
+            scoring_summary=scoring_summary,
+            video_id=video_id,
+        )
         raw_exists = raw_final.exists()
         structured_exists = structured_final.exists()
 

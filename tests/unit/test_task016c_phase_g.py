@@ -535,12 +535,13 @@ class _TestPersistenceHarness:
 
     def __init__(self, entry: TrustedPersistenceEntry) -> None:
         self._entry = entry
+        self._entry._clock = lambda: _NOW
 
     def prewrite_validate(self, success: PhaseFTrustedScoringSuccess) -> object:
         return self._entry._prewrite_validate(success)
 
-    def commit(self, plan: object) -> StageCompletionResult:
-        return self._entry._persist_plan(plan)  # type: ignore[arg-type]
+    def persist_success(self, success: PhaseFTrustedScoringSuccess) -> StageCompletionResult:
+        return self._entry.persist_success(success)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._entry, name)
@@ -595,7 +596,7 @@ def test_commit_writes_raw_and_structured_files(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    result = committer.commit(plan)
+    result = committer.persist_success(plan.success)
 
     assert isinstance(result, StageCompletionResult)
     raw_path = runtime._data_root / plan.raw_artifact.relative_path
@@ -629,7 +630,7 @@ def test_commit_raises_when_final_file_already_exists(tmp_path: Path) -> None:
     raw_path.write_bytes(b"stale final artifact")
 
     with pytest.raises(ScoringPersistenceError, match="partial artifact state"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_commit_raises_when_temporary_file_already_exists(tmp_path: Path) -> None:
@@ -651,7 +652,7 @@ def test_commit_raises_when_temporary_file_already_exists(tmp_path: Path) -> Non
     tmp_path.write_bytes(b"stale temporary artifact")
 
     with pytest.raises(ScoringPersistenceError, match="stale temporary"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 # ---------------------------------------------------------------------------
@@ -672,7 +673,7 @@ def test_atomic_register_scoring_success_commits_all_rows(tmp_path: Path) -> Non
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     raw_record = runtime._repository.get_artifact_by_key(plan.raw_artifact.artifact_key)
     structured_record = runtime._repository.get_artifact_by_key(
@@ -724,11 +725,11 @@ def test_atomic_register_is_idempotent_for_filesystem_then_sqlite_retry(
     )
 
     # First call writes files and commits SQLite.
-    first = committer.commit(plan)
+    first = committer.persist_success(plan.success)
     # Second call with the same plan must be idempotent — the complete
     # committed graph matches, so it returns the existing result without
     # rewriting files or creating duplicate DB rows.
-    second = committer.commit(plan)
+    second = committer.persist_success(plan.success)
     assert second.job.job_id == first.job.job_id
 
     # The SQLite state remains the same.
@@ -756,7 +757,7 @@ def test_atomic_register_fails_on_wrong_job_owner(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ScoringPersistenceError, match="job lease is not owned"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_atomic_register_fails_on_wrong_pipeline_status(tmp_path: Path) -> None:
@@ -784,7 +785,7 @@ def test_atomic_register_fails_on_wrong_pipeline_status(tmp_path: Path) -> None:
     with pytest.raises(
         ScoringPersistenceError, match="pipeline changed before atomic scoring registration"
     ):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_load_scoring_rejects_corrupted_structured_artifact(
@@ -804,7 +805,7 @@ def test_load_scoring_rejects_corrupted_structured_artifact(
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     structured_path = runtime._data_root / plan.structured_artifact.relative_path
     structured_path.write_bytes(b"corrupted structured content")
@@ -1156,7 +1157,7 @@ def test_r1_promote_does_not_overwrite_existing_final(tmp_path: Path) -> None:
     raw_final.write_bytes(sentinel)
 
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
     # The sentinel must be unchanged — overwrite-capable rename would
     # have replaced it.
@@ -1205,9 +1206,9 @@ def test_r2_same_plan_after_commit_is_idempotent(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    first = committer.commit(plan)
+    first = committer.persist_success(plan.success)
     # Second commit of the SAME plan must be idempotent.
-    second = committer.commit(plan)
+    second = committer.persist_success(plan.success)
 
     assert second.job.job_id == first.job.job_id
     assert second.video.video_id == first.video.video_id
@@ -1229,12 +1230,12 @@ def test_r2_same_plan_with_raw_file_corrupt_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
     raw_final = runtime._data_root / plan.raw_artifact.relative_path
     raw_final.write_bytes(b"tampered raw content")
 
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_same_plan_with_partial_db_graph_rejects(tmp_path: Path) -> None:
@@ -1250,7 +1251,7 @@ def test_r2_same_plan_with_partial_db_graph_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
     # Delete the Judge ProviderCall to simulate a partial graph.
     runtime._repository._connect().execute(
         "DELETE FROM provider_calls WHERE request_hash = :rh",
@@ -1258,7 +1259,7 @@ def test_r2_same_plan_with_partial_db_graph_rejects(tmp_path: Path) -> None:
     ).close()
 
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_idempotent_retry_does_not_rewrite_files(tmp_path: Path) -> None:
@@ -1274,13 +1275,13 @@ def test_r2_idempotent_retry_does_not_rewrite_files(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
     raw_final = runtime._data_root / plan.raw_artifact.relative_path
     structured_final = runtime._data_root / plan.structured_artifact.relative_path
     raw_mtime_before = raw_final.stat().st_mtime_ns
     structured_mtime_before = structured_final.stat().st_mtime_ns
 
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     assert raw_final.stat().st_mtime_ns == raw_mtime_before
     assert structured_final.stat().st_mtime_ns == structured_mtime_before
@@ -1362,7 +1363,7 @@ def test_r4_sqlite_failure_leaves_promoted_finals(tmp_path: Path) -> None:
     runtime._repository._inject_failure = fail_after_promote  # type: ignore[method-assign]
 
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
     # Promoted finals must still exist — no cleanup/retry.
     raw_final = runtime._data_root / plan.raw_artifact.relative_path
@@ -1407,7 +1408,7 @@ def test_r5_temp_write_failure_no_sqlite_registration(tmp_path: Path) -> None:
 
     committer._write_atomic_file = failing_write  # type: ignore[method-assign]
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
     # Restore and verify no DB success.
     committer._write_atomic_file = original_write  # type: ignore[method-assign]
@@ -1439,7 +1440,7 @@ def test_r5_sqlite_transaction_rollback_no_partial_graph(
     runtime._repository._inject_failure = fail_before_job_finish  # type: ignore[method-assign]
 
     with pytest.raises(ScoringPersistenceError):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
     _assert_no_scoring_success(runtime._repository, plan, video_id)
 
@@ -1471,18 +1472,12 @@ def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    with pytest.raises(
-        (IntegrityConflict, ScoringPersistenceError),
-        match="final scoring artifact file does not exist",
-    ):
-        committer._persist_registration(
-            plan=plan,
-            raw_final=runtime._data_root / plan.raw_artifact.relative_path,
-            structured_final=(
-                runtime._data_root / plan.structured_artifact.relative_path
-            ),
-            now=datetime.now(UTC),
-        )
+    import inspect
+
+    # The registrar is not a plan ingress.  Only persist_success creates the
+    # function-local plan after PREWRITE_VALIDATE.
+    assert "plan" not in inspect.signature(committer._persist_registration).parameters
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
 # ===========================================================================
@@ -1572,7 +1567,7 @@ def test_r2_artifact_artifact_id_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     # Mutate the structured artifact's artifact_id; provider_calls reference
     # the raw artifact, so this avoids a foreign-key violation while still
@@ -1585,7 +1580,7 @@ def test_r2_artifact_artifact_id_change_rejects(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ScoringPersistenceError, match="artifact_id mismatch"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
@@ -1599,7 +1594,7 @@ def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_artifact_field(
         runtime._repository,
@@ -1611,7 +1606,7 @@ def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
     with pytest.raises(
         ScoringPersistenceError, match="relative_path mismatch"
     ):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_idempotency_rejects_relative_path_normalization_difference(
@@ -1630,7 +1625,7 @@ def test_idempotency_rejects_relative_path_normalization_difference(
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     original_path = plan.raw_artifact.relative_path
     normalized_equivalent = original_path.replace("/", "/./", 1)
@@ -1644,7 +1639,7 @@ def test_idempotency_rejects_relative_path_normalization_difference(
     )
 
     with pytest.raises(ScoringPersistenceError, match="relative_path mismatch"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
@@ -1658,7 +1653,7 @@ def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_artifact_field(
         runtime._repository,
@@ -1668,7 +1663,7 @@ def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ScoringPersistenceError, match="kind mismatch"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_artifact_provider_metadata_change_rejects(tmp_path: Path) -> None:
@@ -1682,7 +1677,7 @@ def test_r2_artifact_provider_metadata_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_artifact_field(
         runtime._repository,
@@ -1692,7 +1687,7 @@ def test_r2_artifact_provider_metadata_change_rejects(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ScoringPersistenceError, match="provider mismatch"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_provider_call_request_metadata_change_rejects(
@@ -1708,7 +1703,7 @@ def test_r2_provider_call_request_metadata_change_rejects(
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_provider_call_field(
         runtime._repository,
@@ -1718,7 +1713,7 @@ def test_r2_provider_call_request_metadata_change_rejects(
     )
 
     with pytest.raises(ScoringPersistenceError, match="operation mismatch"):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_video_should_summarize_change_rejects(tmp_path: Path) -> None:
@@ -1732,7 +1727,7 @@ def test_r2_video_should_summarize_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_video_field(
         runtime._repository,
@@ -1744,7 +1739,7 @@ def test_r2_video_should_summarize_change_rejects(tmp_path: Path) -> None:
     with pytest.raises(
         ScoringPersistenceError, match="should_summarize mismatch"
     ):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 def test_r2_job_binding_change_rejects(tmp_path: Path) -> None:
@@ -1758,7 +1753,7 @@ def test_r2_job_binding_change_rejects(tmp_path: Path) -> None:
     committer, plan = _committer_and_plan(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
-    committer.commit(plan)
+    committer.persist_success(plan.success)
 
     _mutate_job_field(
         runtime._repository,
@@ -1770,7 +1765,7 @@ def test_r2_job_binding_change_rejects(tmp_path: Path) -> None:
     with pytest.raises(
         ScoringPersistenceError, match="target_stage mismatch"
     ):
-        committer.commit(plan)
+        committer.persist_success(plan.success)
 
 
 # --- R3: Registration capability authority ----------------------------------
@@ -1834,21 +1829,16 @@ def test_m15_registration_before_final_verify_rejected(tmp_path: Path) -> None:
 
     original_register = committer._persist_registration
 
-    def recording_register(*, plan, raw_final, structured_final, now):
+    def recording_register(**kwargs):
         events.append("sqlite_registration")
-        return original_register(
-            plan=plan,
-            raw_final=raw_final,
-            structured_final=structured_final,
-            now=now,
-        )
+        return original_register(**kwargs)
 
     committer._persist_registration = (  # type: ignore[method-assign]
         recording_register
     )
 
     try:
-        committer.commit(plan)
+        committer.persist_success(plan.success)
     finally:
         committer._write_atomic_file = original_write  # type: ignore[method-assign]
         committer._persist_registration = (  # type: ignore[method-assign]
@@ -1918,7 +1908,7 @@ def test_r5_fsync_failure_no_sqlite_registration(tmp_path: Path) -> None:
     os.fsync = failing_fsync
     try:
         with pytest.raises(ScoringPersistenceError, match="fsync"):
-            committer.commit(plan)
+            committer.persist_success(plan.success)
     finally:
         os.fsync = real_fsync
 
@@ -1945,7 +1935,7 @@ def test_r5_promote_failure_no_sqlite_registration(tmp_path: Path) -> None:
     os.link = failing_link
     try:
         with pytest.raises(ScoringPersistenceError, match="promote"):
-            committer.commit(plan)
+            committer.persist_success(plan.success)
     finally:
         os.link = real_link
 
@@ -1985,7 +1975,7 @@ def test_r5_dir_fsync_failure_no_sqlite_registration(tmp_path: Path) -> None:
         with pytest.raises(
             ScoringPersistenceError, match="fsync artifact directory"
         ):
-            committer.commit(plan)
+            committer.persist_success(plan.success)
     finally:
         os.open = real_open
         os.fsync = real_fsync
@@ -2032,7 +2022,7 @@ def test_r5_final_reopen_verify_failure_no_sqlite_registration(
         with pytest.raises(
             ScoringPersistenceError, match="final reopen verify failure"
         ):
-            committer.commit(plan)
+            committer.persist_success(plan.success)
     finally:
         committer._verify_file_hash = original_verify  # type: ignore[method-assign]
 
@@ -2090,7 +2080,7 @@ def test_round10_fake_subclass_cannot_interpose_runtime_entry(tmp_path: Path) ->
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    result = committer.commit(plan)
+    result = committer.persist_success(plan.success)
 
     assert result.job.status is JobStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED
@@ -2145,7 +2135,7 @@ def test_round10_runtime_scoring_stage_remains_the_only_success_path(
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    result = committer.commit(plan)
+    result = committer.persist_success(plan.success)
 
     assert result.job.status is JobStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED
@@ -2280,18 +2270,22 @@ def test_forged_plan_has_no_consumer() -> None:
     assert not hasattr(SQLiteStateRepository, "_persist_scoring_registration")
 
 
-def test_copied_real_plan_fails_to_enter_persistence(tmp_path: Path) -> None:
+def test_forged_plan_cannot_reach_persistence_sink(tmp_path: Path) -> None:
     runtime, _ = _judge_runtime(tmp_path / "project")
-    entry, plan = _committer_and_plan(
-        runtime, job_id="job-r12-copied", video_id="video-r12-copied"
-    )
+    video_id = "video-r13-copied"
+    job_id = "job-r13-copied"
+    _setup_transcript_ready_video(runtime._repository, runtime._data_root, video_id=video_id)
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    entry, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
     copied = object.__new__(type(plan))
     for name in type(plan).__slots__:
         if hasattr(plan, name):
             object.__setattr__(copied, name, getattr(plan, name))
     assert not hasattr(entry._entry, "commit")
+    assert not hasattr(entry._entry, "_persist_plan")
     with pytest.raises(ValueError, match="PhaseFTrustedScoringSuccess"):
         entry._entry.persist_success(copied)  # type: ignore[arg-type]
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
 def test_runtime_entry_requires_prewrite_before_any_write(tmp_path: Path) -> None:
@@ -2315,7 +2309,7 @@ def test_normal_runtime_path_uses_entry_not_complete_stage(tmp_path: Path) -> No
     _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
     entry, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
     runtime._repository.complete_stage = lambda **_: (_ for _ in ()).throw(AssertionError("complete_stage called"))  # type: ignore[method-assign]
-    result = entry.commit(plan)
+    result = entry.persist_success(plan.success)
     assert len(result.artifacts) == 2
     assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED

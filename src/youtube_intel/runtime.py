@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 from typing import Any, Callable
 
 from youtube_intel.analysis import (
@@ -96,17 +97,20 @@ from youtube_intel.scoring import (
     ScoringJobContext,
     TrustedPersistenceEntry,
     _run_primary_trusted_scoring_seam,
-    _ValidatedScoringWritePlan,
     build_scoring_input,
     build_scoring_request_identity,
 )
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
+    ArtifactWrite,
     ConcurrencyConflict,
     IntegrityConflict,
     JobRecord,
+    ProviderCallCompletion,
+    ProviderCallRequest,
     ProviderCallStatus,
+    ScoringSummaryWrite,
     SQLiteStateRepository,
     StageCompletionResult,
     StateStoreError,
@@ -499,11 +503,32 @@ class RuntimeOperations(Operations):
 
         def persist_transaction(
             *,
-            plan: _ValidatedScoringWritePlan,
+            raw_artifact: ArtifactWrite,
+            structured_artifact: ArtifactWrite,
+            raw_envelope_hash: str,
+            structured_hash: str,
+            scoring_call_request: ProviderCallRequest,
+            judge_call_request: ProviderCallRequest,
+            scoring_call_completion: ProviderCallCompletion,
+            judge_call_completion: ProviderCallCompletion,
+            scoring_summary: ScoringSummaryWrite,
+            video_id: str,
             raw_final: Path,
             structured_final: Path,
             now: datetime,
         ) -> StageCompletionResult:
+            plan = SimpleNamespace(
+                raw_artifact=raw_artifact,
+                structured_artifact=structured_artifact,
+                raw_envelope_hash=raw_envelope_hash,
+                structured_hash=structured_hash,
+                scoring_call_request=scoring_call_request,
+                judge_call_request=judge_call_request,
+                scoring_call_completion=scoring_call_completion,
+                judge_call_completion=judge_call_completion,
+                scoring_summary=scoring_summary,
+                video_id=video_id,
+            )
             """Execute the captured, runtime-local SQLite transaction.
 
             This closure is intentionally created only while composing a
@@ -640,13 +665,31 @@ class RuntimeOperations(Operations):
             def _persist_registration(
                 self,
                 *,
-                plan: _ValidatedScoringWritePlan,
+                raw_artifact: ArtifactWrite,
+                structured_artifact: ArtifactWrite,
+                raw_envelope_hash: str,
+                structured_hash: str,
+                scoring_call_request: ProviderCallRequest,
+                judge_call_request: ProviderCallRequest,
+                scoring_call_completion: ProviderCallCompletion,
+                judge_call_completion: ProviderCallCompletion,
+                scoring_summary: ScoringSummaryWrite,
+                video_id: str,
                 raw_final: Path,
                 structured_final: Path,
                 now: datetime,
             ) -> StageCompletionResult:
                 return persist_transaction(
-                    plan=plan,
+                    raw_artifact=raw_artifact,
+                    structured_artifact=structured_artifact,
+                    raw_envelope_hash=raw_envelope_hash,
+                    structured_hash=structured_hash,
+                    scoring_call_request=scoring_call_request,
+                    judge_call_request=judge_call_request,
+                    scoring_call_completion=scoring_call_completion,
+                    judge_call_completion=judge_call_completion,
+                    scoring_summary=scoring_summary,
+                    video_id=video_id,
                     raw_final=raw_final,
                     structured_final=structured_final,
                     now=now,
