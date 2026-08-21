@@ -57,6 +57,7 @@ from youtube_intel.scoring import (
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
+    IntegrityConflict,
     JobStatus,
     JobType,
     ProviderCallStatus,
@@ -593,7 +594,7 @@ def test_commit_raises_when_final_file_already_exists(tmp_path: Path) -> None:
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_bytes(b"stale final artifact")
 
-    with pytest.raises(ScoringPersistenceError, match="already exists"):
+    with pytest.raises(ScoringPersistenceError, match="partial artifact state"):
         committer.commit(plan)
 
 
@@ -690,10 +691,11 @@ def test_atomic_register_is_idempotent_for_filesystem_then_sqlite_retry(
 
     # First call writes files and commits SQLite.
     first = committer.commit(plan)
-    # Second call with the same plan must be rejected at the filesystem layer
-    # because final files already exist.
-    with pytest.raises(ScoringPersistenceError, match="already exists"):
-        committer.commit(plan)
+    # Second call with the same plan must be idempotent — the complete
+    # committed graph matches, so it returns the existing result without
+    # rewriting files or creating duplicate DB rows.
+    second = committer.commit(plan)
+    assert second.job.job_id == first.job.job_id
 
     # The SQLite state remains the same.
     video = runtime._repository.get_video(video_id)
@@ -1085,4 +1087,397 @@ def test_scoring_stage_rejects_bare_score_result_reentry(tmp_path: Path) -> None
         runtime.run_primary_trusted_scoring(
             attempt=bare_result,  # type: ignore[arg-type]
             scoring_input=scoring_input,
+        )
+
+
+# ===========================================================================
+# Phase G Correction Round 1 — RED tests (must fail on current code)
+# ===========================================================================
+
+
+# --- R1: Atomic no-clobber promote -----------------------------------------
+
+
+def test_r1_promote_does_not_overwrite_existing_final(tmp_path: Path) -> None:
+    """R1: promote must atomically refuse to overwrite an existing final.
+
+    Current code uses exists()+os.rename which is a TOCTOU race and
+    POSIX rename can silently overwrite.  This test places a sentinel file
+    at the final path and verifies its bytes survive the failed promote.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r1-overwrite"
+    job_id = "job-r1-overwrite"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    raw_final.parent.mkdir(parents=True, exist_ok=True)
+    sentinel = b"pre-existing sentinel content"
+    raw_final.write_bytes(sentinel)
+
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+    # The sentinel must be unchanged — overwrite-capable rename would
+    # have replaced it.
+    assert raw_final.read_bytes() == sentinel
+
+
+def test_r1_promote_uses_atomic_link_not_rename(tmp_path: Path) -> None:
+    """R1: the promote mechanism must be link-based (atomic no-replace),
+    not rename-based (overwrite-capable).
+
+    We inspect the source to confirm os.link is used for promotion.
+    """
+
+    import inspect
+
+    source = inspect.getsource(TrustedScoringPersistenceCommitter._write_atomic_file)
+    assert "os.link" in source, "promote must use os.link for atomic no-clobber"
+    # os.rename must NOT appear as the promote primitive call.  We check
+    # for the call pattern, not mentions in docstrings/comments.
+    import re
+
+    rename_calls = re.findall(r"^\s*os\.rename\(", source, re.MULTILINE)
+    assert not rename_calls, "promote must not use overwrite-capable os.rename"
+
+
+# --- R2: Strict same-plan idempotency --------------------------------------
+
+
+def test_r2_same_plan_after_commit_is_idempotent(tmp_path: Path) -> None:
+    """R2: committing the exact same plan twice must return the existing
+    committed result, not fail with 'already exists'.
+
+    Current code rejects the second commit because final files exist,
+    but the amendment requires deterministic idempotency when the full
+    committed graph matches.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-idempotent"
+    job_id = "job-r2-idempotent"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    first = committer.commit(plan)
+    # Second commit of the SAME plan must be idempotent.
+    second = committer.commit(plan)
+
+    assert second.job.job_id == first.job.job_id
+    assert second.video.video_id == first.video.video_id
+    assert second.video.score == first.video.score
+    assert len(second.artifacts) == len(first.artifacts)
+    assert len(second.artifacts) == 2
+
+
+def test_r2_same_plan_with_raw_file_corrupt_rejects(tmp_path: Path) -> None:
+    """R2: if final files exist but bytes don't match the plan, reject."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-corrupt"
+    job_id = "job-r2-corrupt"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    raw_final.write_bytes(b"tampered raw content")
+
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+
+def test_r2_same_plan_with_partial_db_graph_rejects(tmp_path: Path) -> None:
+    """R2: if DB graph is partial (only one ProviderCall SUCCEEDED), reject."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-partial"
+    job_id = "job-r2-partial"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+    # Delete the Judge ProviderCall to simulate a partial graph.
+    runtime._repository._connect().execute(
+        "DELETE FROM provider_calls WHERE request_hash = :rh",
+        {"rh": plan.judge_call_request.request_hash},
+    ).close()
+
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+
+def test_r2_idempotent_retry_does_not_rewrite_files(tmp_path: Path) -> None:
+    """R2: idempotent retry must not touch the final files."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r2-no-rewrite"
+    job_id = "job-r2-no-rewrite"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.commit(plan)
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    raw_mtime_before = raw_final.stat().st_mtime_ns
+    structured_mtime_before = structured_final.stat().st_mtime_ns
+
+    committer.commit(plan)
+
+    assert raw_final.stat().st_mtime_ns == raw_mtime_before
+    assert structured_final.stat().st_mtime_ns == structured_mtime_before
+
+
+# --- R3: Direct repository PREWRITE bypass ---------------------------------
+
+
+def test_r3_direct_repository_call_with_ordinary_dtos_rejects(
+    tmp_path: Path,
+) -> None:
+    """R3: calling the repository registration directly with ordinary
+    ArtifactWrite/ProviderCall DTOs and nonexistent files must reject.
+
+    Current code exposes atomic_register_scoring_success as a public
+    method that accepts plain DTOs — this is a PREWRITE bypass.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-bypass"
+    job_id = "job-r3-bypass"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+
+    # The public method must not be callable by ordinary callers.
+    assert not hasattr(
+        runtime._repository, "atomic_register_scoring_success"
+    ), "atomic_register_scoring_success must be private to close PREWRITE bypass"
+
+
+def test_r3_ordinary_capability_substitute_rejects(tmp_path: Path) -> None:
+    """R3: an ordinary caller-created substitute for the internal
+    registration capability must be rejected.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r3-capability"
+    job_id = "job-r3-capability"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    # Attempt to call the internal registrar with a forged capability.
+
+    repo: SQLiteStateRepository = runtime._repository
+    # If the registrar requires a sentinel-bound capability, a plain
+    # call must fail with a type/guard error (not AttributeError from
+    # blindly accessing attributes of an arbitrary object).
+    with pytest.raises((TypeError, ValueError)):
+        repo._atomic_register_scoring_success(
+            registration=object(),  # type: ignore[arg-type]
+            now=datetime.now(UTC),
+        )
+
+
+# --- R4: SQLite-after-promote failure semantics ----------------------------
+
+
+def test_r4_sqlite_failure_leaves_promoted_finals(tmp_path: Path) -> None:
+    """R4: if SQLite fails after files are promoted, the promoted finals
+    must remain (orphan state for Phase H), and no fake success.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r4-sqlite-fail"
+    job_id = "job-r4-sqlite-fail"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    def fail_after_promote(point: str) -> None:
+        if point == "atomic_register.after_artifacts":
+            raise RuntimeError("injected SQLite failure after artifacts")
+
+    runtime._repository._inject_failure = fail_after_promote  # type: ignore[method-assign]
+
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+    # Promoted finals must still exist — no cleanup/retry.
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    assert raw_final.exists(), "promoted raw final must remain as orphan"
+    assert structured_final.exists(), "promoted structured final must remain as orphan"
+    # No fake success: video must NOT be SCORED.
+    video = runtime._repository.get_video(video_id)
+    assert video is not None
+    assert video.pipeline_status is not PipelineStatus.SCORED
+
+
+# --- R5: Failure injection (temp/fsync/promote/dir-fsync/final-verify) -----
+
+
+def test_r5_temp_write_failure_no_sqlite_registration(tmp_path: Path) -> None:
+    """R5: temp write failure must leave no SQLite registration."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-temp-fail"
+    job_id = "job-r5-temp-fail"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    original_write = committer._write_atomic_file
+
+    def failing_write(*, final_path, content, expected_hash, video_id):
+        raise ScoringPersistenceError(
+            __import__("youtube_intel.domain", fromlist=["AppError", "ErrorCode", "ProcessingStage"]).AppError(
+                code=__import__("youtube_intel.domain", fromlist=["ErrorCode"]).ErrorCode.LOCAL_RESOURCE,
+                message="injected temp write failure",
+                retryable=False,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+        )
+
+    committer._write_atomic_file = failing_write  # type: ignore[method-assign]
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+    # Restore and verify no DB success.
+    committer._write_atomic_file = original_write  # type: ignore[method-assign]
+    video = runtime._repository.get_video(video_id)
+    assert video is not None
+    assert video.pipeline_status is not PipelineStatus.SCORED
+
+
+def test_r5_sqlite_transaction_rollback_no_partial_graph(
+    tmp_path: Path,
+) -> None:
+    """R5: SQLite transaction rollback must leave no partial
+    Artifact/ProviderCall/stage graph.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-rollback"
+    job_id = "job-r5-rollback"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    def fail_before_job_finish(point: str) -> None:
+        if point == "atomic_register.after_pipeline":
+            raise RuntimeError("injected failure before job finish")
+
+    runtime._repository._inject_failure = fail_before_job_finish  # type: ignore[method-assign]
+
+    with pytest.raises(ScoringPersistenceError):
+        committer.commit(plan)
+
+    # No partial graph: no Artifact rows, no ProviderCall rows.
+    raw_record = runtime._repository.get_artifact_by_key(plan.raw_artifact.artifact_key)
+    assert raw_record is None, "raw Artifact must not exist after rollback"
+    scoring_call = runtime._repository.get_provider_call(
+        plan.scoring_call_request.request_hash
+    )
+    assert scoring_call is None, "ProviderCall must not exist after rollback"
+
+
+# ---------------------------------------------------------------------------
+# Phase G Correction Round 1 — M14 targeted final-file verification
+# ---------------------------------------------------------------------------
+
+
+def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
+    """M14: the DB registrar must verify promoted finals exist and match
+    the plan hashes before registering any Artifact rows.
+
+    Without this verification, a forged or prematurely minted registration
+    capability could write a DB graph that claims files which were never
+    promoted.
+    """
+
+    from youtube_intel.state import _mint_scoring_registration_capability
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-m14-missing-finals"
+    job_id = "job-m14-missing-finals"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    # Mint a valid registration capability, but do not write the files.
+    registration = _mint_scoring_registration_capability(
+        job_id=committer._context.job_id,
+        owner=committer._context.owner,
+        video_id=plan.video_id,
+        pipeline_version=committer._context.pipeline_version,
+        raw_artifact=plan.raw_artifact,
+        structured_artifact=plan.structured_artifact,
+        scoring_call_request=plan.scoring_call_request,
+        judge_call_request=plan.judge_call_request,
+        scoring_call_completion=plan.scoring_call_completion,
+        judge_call_completion=plan.judge_call_completion,
+        scoring_summary=plan.scoring_summary,
+        raw_final_path=runtime._data_root / plan.raw_artifact.relative_path,
+        structured_final_path=runtime._data_root
+        / plan.structured_artifact.relative_path,
+        raw_envelope_hash=plan.raw_envelope_hash,
+        structured_hash=plan.structured_hash,
+    )
+
+    with pytest.raises(
+        (IntegrityConflict, ScoringPersistenceError),
+        match="final file does not exist|raw final file",
+    ):
+        runtime._repository._atomic_register_scoring_success(
+            registration=registration,
+            now=datetime.now(UTC),
         )

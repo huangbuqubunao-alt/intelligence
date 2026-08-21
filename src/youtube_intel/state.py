@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import NoReturn, cast
 
 from youtube_intel.domain import (
     Availability,
@@ -2618,30 +2618,60 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
-    def atomic_register_scoring_success(
+    def _atomic_register_scoring_success(
         self,
         *,
-        job_id: str,
-        owner: str,
-        video_id: str,
-        pipeline_version: str,
-        raw_artifact: ArtifactWrite,
-        structured_artifact: ArtifactWrite,
-        scoring_call_request: ProviderCallRequest,
-        judge_call_request: ProviderCallRequest,
-        scoring_call_completion: ProviderCallCompletion,
-        judge_call_completion: ProviderCallCompletion,
-        scoring_summary: ScoringSummaryWrite,
+        registration: ScoringRegistrationCapability,
         now: datetime,
         lease_duration: timedelta = timedelta(minutes=5),
     ) -> StageCompletionResult:
         """Atomically register filesystem-committed scoring artifacts and calls.
 
-        This is the single SQLite transaction used by Phase G.  It verifies the
-        owned RUNNING SCORING job, upserts the raw and structured Artifact rows,
-        reserves and immediately completes the scoring and Judge provider calls,
-        advances the video to ``SCORED``, and finishes the job.
+        This is the single SQLite transaction used by Phase G.  It accepts
+        only a plan-bound ``ScoringRegistrationCapability`` minted by the
+        trusted persistence committer; ordinary DTOs are rejected.
+
+        It defensively verifies the promoted final files (existence, length,
+        hash) before starting the SQLite transaction, then verifies the
+        owned RUNNING SCORING job, upserts the raw and structured Artifact
+        rows, reserves and immediately completes the scoring and Judge
+        provider calls, advances the video to ``SCORED``, and finishes the
+        job.
         """
+
+        if type(registration) is not ScoringRegistrationCapability:
+            msg = "registration requires an exact ScoringRegistrationCapability"
+            raise TypeError(msg)
+
+        job_id = registration.job_id
+        owner = registration.owner
+        video_id = registration.video_id
+        pipeline_version = registration.pipeline_version
+        raw_artifact = registration.raw_artifact
+        structured_artifact = registration.structured_artifact
+        scoring_call_request = registration.scoring_call_request
+        judge_call_request = registration.judge_call_request
+        scoring_call_completion = registration.scoring_call_completion
+        judge_call_completion = registration.judge_call_completion
+        scoring_summary = registration.scoring_summary
+
+        # Defensive final-file verification at the DB boundary.
+        raw_final = registration.raw_final_path
+        structured_final = registration.structured_final_path
+        if not raw_final.exists():
+            msg = f"raw final file does not exist at {raw_final}"
+            raise IntegrityConflict(msg)
+        if not structured_final.exists():
+            msg = f"structured final file does not exist at {structured_final}"
+            raise IntegrityConflict(msg)
+        raw_body = raw_final.read_bytes()
+        if hashlib.sha256(raw_body).hexdigest() != registration.raw_envelope_hash:
+            msg = "raw final file hash mismatch at DB registration boundary"
+            raise IntegrityConflict(msg)
+        structured_body = structured_final.read_bytes()
+        if hashlib.sha256(structured_body).hexdigest() != registration.structured_hash:
+            msg = "structured final file hash mismatch at DB registration boundary"
+            raise IntegrityConflict(msg)
 
         if raw_artifact.job_id != job_id or structured_artifact.job_id != job_id:
             msg = "artifacts must reference the completed job"
@@ -2904,3 +2934,202 @@ class SQLiteStateRepository:
             return tuple(candidates)
         finally:
             connection.close()
+
+
+class _ScoringRegistrationSentinel:
+    """Private sentinel; only the committer can mint a registration."""
+
+    __slots__ = ()
+
+
+_SCORING_REGISTRATION_SENTINEL = _ScoringRegistrationSentinel()
+
+
+class ScoringRegistrationCapability:
+    """Opaque, plan-bound capability for Phase G trusted SQLite registration.
+
+    Only ``TrustedScoringPersistenceCommitter`` can mint this via
+    ``_mint_scoring_registration_capability``.  It freezes every
+    Artifact, ProviderCall and summary identity from the validated plan
+    plus the final-file paths and hashes for defensive verification at
+    the DB boundary.  Callers cannot construct it directly.
+    """
+
+    __slots__ = (
+        "_sentinel",
+        "_job_id",
+        "_owner",
+        "_video_id",
+        "_pipeline_version",
+        "_raw_artifact",
+        "_structured_artifact",
+        "_scoring_call_request",
+        "_judge_call_request",
+        "_scoring_call_completion",
+        "_judge_call_completion",
+        "_scoring_summary",
+        "_raw_final_path",
+        "_structured_final_path",
+        "_raw_envelope_hash",
+        "_structured_hash",
+        "_sealed",
+    )
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("ScoringRegistrationCapability cannot be subclassed")
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        job_id: str,
+        owner: str,
+        video_id: str,
+        pipeline_version: str,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        raw_final_path: Path,
+        structured_final_path: Path,
+        raw_envelope_hash: str,
+        structured_hash: str,
+    ) -> None:
+        if sentinel is not _SCORING_REGISTRATION_SENTINEL:
+            msg = "ScoringRegistrationCapability can only be minted by the committer"
+            raise ValueError(msg)
+        self._job_id = job_id
+        self._owner = owner
+        self._video_id = video_id
+        self._pipeline_version = pipeline_version
+        self._raw_artifact = raw_artifact
+        self._structured_artifact = structured_artifact
+        self._scoring_call_request = scoring_call_request
+        self._judge_call_request = judge_call_request
+        self._scoring_call_completion = scoring_call_completion
+        self._judge_call_completion = judge_call_completion
+        self._scoring_summary = scoring_summary
+        self._raw_final_path = raw_final_path
+        self._structured_final_path = structured_final_path
+        self._raw_envelope_hash = raw_envelope_hash
+        self._structured_hash = structured_hash
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("ScoringRegistrationCapability is immutable")
+        object.__setattr__(self, name, value)
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("ScoringRegistrationCapability cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("ScoringRegistrationCapability cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("ScoringRegistrationCapability cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("ScoringRegistrationCapability cannot be serialized")
+
+    @property
+    def job_id(self) -> str:
+        return self._job_id
+
+    @property
+    def owner(self) -> str:
+        return self._owner
+
+    @property
+    def video_id(self) -> str:
+        return self._video_id
+
+    @property
+    def pipeline_version(self) -> str:
+        return self._pipeline_version
+
+    @property
+    def raw_artifact(self) -> ArtifactWrite:
+        return self._raw_artifact
+
+    @property
+    def structured_artifact(self) -> ArtifactWrite:
+        return self._structured_artifact
+
+    @property
+    def scoring_call_request(self) -> ProviderCallRequest:
+        return self._scoring_call_request
+
+    @property
+    def judge_call_request(self) -> ProviderCallRequest:
+        return self._judge_call_request
+
+    @property
+    def scoring_call_completion(self) -> ProviderCallCompletion:
+        return self._scoring_call_completion
+
+    @property
+    def judge_call_completion(self) -> ProviderCallCompletion:
+        return self._judge_call_completion
+
+    @property
+    def scoring_summary(self) -> ScoringSummaryWrite:
+        return self._scoring_summary
+
+    @property
+    def raw_final_path(self) -> Path:
+        return self._raw_final_path
+
+    @property
+    def structured_final_path(self) -> Path:
+        return self._structured_final_path
+
+    @property
+    def raw_envelope_hash(self) -> str:
+        return self._raw_envelope_hash
+
+    @property
+    def structured_hash(self) -> str:
+        return self._structured_hash
+
+
+def _mint_scoring_registration_capability(
+    *,
+    job_id: str,
+    owner: str,
+    video_id: str,
+    pipeline_version: str,
+    raw_artifact: ArtifactWrite,
+    structured_artifact: ArtifactWrite,
+    scoring_call_request: ProviderCallRequest,
+    judge_call_request: ProviderCallRequest,
+    scoring_call_completion: ProviderCallCompletion,
+    judge_call_completion: ProviderCallCompletion,
+    scoring_summary: ScoringSummaryWrite,
+    raw_final_path: Path,
+    structured_final_path: Path,
+    raw_envelope_hash: str,
+    structured_hash: str,
+) -> ScoringRegistrationCapability:
+    return ScoringRegistrationCapability(
+        sentinel=_SCORING_REGISTRATION_SENTINEL,
+        job_id=job_id,
+        owner=owner,
+        video_id=video_id,
+        pipeline_version=pipeline_version,
+        raw_artifact=raw_artifact,
+        structured_artifact=structured_artifact,
+        scoring_call_request=scoring_call_request,
+        judge_call_request=judge_call_request,
+        scoring_call_completion=scoring_call_completion,
+        judge_call_completion=judge_call_completion,
+        scoring_summary=scoring_summary,
+        raw_final_path=raw_final_path,
+        structured_final_path=structured_final_path,
+        raw_envelope_hash=raw_envelope_hash,
+        structured_hash=structured_hash,
+    )

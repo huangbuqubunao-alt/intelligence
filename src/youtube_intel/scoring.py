@@ -23,6 +23,7 @@ from youtube_intel.domain import (
     ContentQualityResult,
     DiagnosticEntry,
     ErrorCode,
+    JobStatus,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
@@ -47,6 +48,11 @@ if TYPE_CHECKING:
         TrustedScoreResult,
         TrustedScoringContext,
     )
+    from youtube_intel.state import (
+        JobRecord,
+        ScoringRegistrationCapability,
+        VideoRecord,
+    )
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
@@ -60,6 +66,7 @@ from youtube_intel.state import (
     ScoringSummaryWrite,
     StageCompletionResult,
     StorageRoot,
+    _mint_scoring_registration_capability,
     build_provider_request_hash,
 )
 
@@ -154,6 +161,10 @@ class _ScoringRepository(Protocol):
 
     def get_provider_call(self, request_hash: str) -> ProviderCallRecord | None: ...
 
+    def get_video(self, video_id: str) -> VideoRecord | None: ...
+
+    def get_job(self, job_id: str) -> JobRecord | None: ...
+
     def upsert_artifact(
         self,
         artifact: ArtifactWrite,
@@ -161,20 +172,10 @@ class _ScoringRepository(Protocol):
         now: datetime,
     ) -> ArtifactRecord: ...
 
-    def atomic_register_scoring_success(
+    def _atomic_register_scoring_success(
         self,
         *,
-        job_id: str,
-        owner: str,
-        video_id: str,
-        pipeline_version: str,
-        raw_artifact: ArtifactWrite,
-        structured_artifact: ArtifactWrite,
-        scoring_call_request: ProviderCallRequest,
-        judge_call_request: ProviderCallRequest,
-        scoring_call_completion: ProviderCallCompletion,
-        judge_call_completion: ProviderCallCompletion,
-        scoring_summary: ScoringSummaryWrite,
+        registration: ScoringRegistrationCapability,
         now: datetime,
         lease_duration: timedelta = ...,
     ) -> StageCompletionResult: ...
@@ -2685,9 +2686,14 @@ class TrustedScoringPersistenceCommitter:
         """Execute the trusted filesystem + SQLite registration protocol.
 
         Ordered durability: tmp exclusive-create -> fsync -> hash/length verify
-        -> no-clobber promote -> parent-directory fsync -> reopen final verify
-        -> single SQLite transaction.  Any failure raises ``ScoringPersistenceError``
-        and leaves no trusted artifact or provider call behind.
+        -> atomic no-clobber link promote -> parent-directory fsync -> reopen
+        final verify -> single SQLite transaction.
+
+        Strict same-plan idempotency: if the complete committed graph
+        (files + Artifact rows + ProviderCalls + video/stage/job) already
+        matches the plan, the existing committed result is returned without
+        rewriting files or creating duplicate rows.  Any partial or
+        mismatched state is fail-closed.
         """
 
         if type(plan) is not ValidatedScoringWritePlan:
@@ -2698,6 +2704,12 @@ class TrustedScoringPersistenceCommitter:
         structured_artifact = plan.structured_artifact
         raw_final = self._data_root / raw_artifact.relative_path
         structured_final = self._data_root / structured_artifact.relative_path
+
+        # Strict same-plan idempotency: check if a complete committed graph
+        # already exists before attempting any write.
+        existing = self._check_committed_graph(plan, raw_final, structured_final)
+        if existing is not None:
+            return existing
 
         self._write_atomic_file(
             final_path=raw_final,
@@ -2712,19 +2724,26 @@ class TrustedScoringPersistenceCommitter:
             video_id=plan.video_id,
         )
 
+        registration = _mint_scoring_registration_capability(
+            job_id=self._context.job_id,
+            owner=self._context.owner,
+            video_id=plan.video_id,
+            pipeline_version=self._context.pipeline_version,
+            raw_artifact=raw_artifact,
+            structured_artifact=structured_artifact,
+            scoring_call_request=plan.scoring_call_request,
+            judge_call_request=plan.judge_call_request,
+            scoring_call_completion=plan.scoring_call_completion,
+            judge_call_completion=plan.judge_call_completion,
+            scoring_summary=plan.scoring_summary,
+            raw_final_path=raw_final,
+            structured_final_path=structured_final,
+            raw_envelope_hash=plan.raw_envelope_hash,
+            structured_hash=plan.structured_hash,
+        )
         try:
-            return self._repository.atomic_register_scoring_success(
-                job_id=self._context.job_id,
-                owner=self._context.owner,
-                video_id=plan.video_id,
-                pipeline_version=self._context.pipeline_version,
-                raw_artifact=raw_artifact,
-                structured_artifact=structured_artifact,
-                scoring_call_request=plan.scoring_call_request,
-                judge_call_request=plan.judge_call_request,
-                scoring_call_completion=plan.scoring_call_completion,
-                judge_call_completion=plan.judge_call_completion,
-                scoring_summary=plan.scoring_summary,
+            return self._repository._atomic_register_scoring_success(
+                registration=registration,
                 now=self._clock(),
             )
         except ScoringPersistenceError:
@@ -2741,6 +2760,224 @@ class TrustedScoringPersistenceCommitter:
                 )
             ) from error
 
+    def _check_committed_graph(
+        self,
+        plan: ValidatedScoringWritePlan,
+        raw_final: Path,
+        structured_final: Path,
+    ) -> StageCompletionResult | None:
+        """Return existing committed result if the full graph matches the plan.
+
+        If files exist, every field must match exactly.  If files exist but
+        any field mismatches, fail-closed (do not attempt to overwrite or
+        repair).  If no files exist, return None (normal first-write path).
+        """
+
+        raw_exists = raw_final.exists()
+        structured_exists = structured_final.exists()
+
+        if not raw_exists and not structured_exists:
+            return None
+
+        # If only one file exists, this is a partial/orphan state — fail-closed.
+        if raw_exists != structured_exists:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=(
+                        f"partial artifact state: raw_exists={raw_exists}, "
+                        f"structured_exists={structured_exists}"
+                    ),
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        # Both files exist — must verify the complete committed graph.
+        # If any part is missing or mismatched, fail-closed.
+        try:
+            raw_body = raw_final.read_bytes()
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to read existing raw final {raw_final}: {error}",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+        try:
+            structured_body = structured_final.read_bytes()
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to read existing structured final {structured_final}: {error}",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+        if hashlib.sha256(raw_body).hexdigest() != plan.raw_envelope_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"existing raw final hash mismatch at {raw_final}",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if hashlib.sha256(structured_body).hexdigest() != plan.structured_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"existing structured final hash mismatch at {structured_final}",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        # Verify the DB graph: Artifacts, ProviderCalls, video/stage/job.
+        repo = self._repository
+        raw_record = repo.get_artifact_by_key(plan.raw_artifact.artifact_key)
+        structured_record = repo.get_artifact_by_key(
+            plan.structured_artifact.artifact_key
+        )
+        if raw_record is None or structured_record is None:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="files exist but Artifact rows are missing",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if raw_record.content_hash != plan.raw_envelope_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing raw Artifact content_hash mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if structured_record.content_hash != plan.structured_hash:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing structured Artifact content_hash mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        scoring_call = repo.get_provider_call(
+            plan.scoring_call_request.request_hash
+        )
+        judge_call = repo.get_provider_call(
+            plan.judge_call_request.request_hash
+        )
+        if scoring_call is None or judge_call is None:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="files exist but ProviderCall rows are missing",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if scoring_call.status is not ProviderCallStatus.SUCCEEDED:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing scoring ProviderCall is not SUCCEEDED",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if judge_call.status is not ProviderCallStatus.SUCCEEDED:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing judge ProviderCall is not SUCCEEDED",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if scoring_call.response_artifact_id != raw_record.artifact_id:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing scoring ProviderCall response_artifact_id mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if judge_call.response_artifact_id != raw_record.artifact_id:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing judge ProviderCall response_artifact_id mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        video = repo.get_video(plan.video_id)
+        if video is None or video.pipeline_status is not PipelineStatus.SCORED:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="files exist but video is not SCORED",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+        if video.score != plan.scoring_summary.score:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="existing video score mismatch",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        job = repo.get_job(self._context.job_id)
+        if job is None or job.status is not JobStatus.SUCCEEDED:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message="files exist but job is not SUCCEEDED",
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            )
+
+        # Complete committed graph matches — return existing result.
+        return StageCompletionResult(
+            job=job,
+            video=video,
+            artifacts=(raw_record, structured_record),
+            provider_call=scoring_call,
+        )
+
     def _write_atomic_file(
         self,
         *,
@@ -2749,21 +2986,25 @@ class TrustedScoringPersistenceCommitter:
         expected_hash: str,
         video_id: str,
     ) -> None:
-        """Write one artifact through the Phase G durability ordering."""
+        """Write one artifact through the Phase G durability ordering.
 
-        if final_path.exists():
-            raise ScoringPersistenceError(
-                AppError(
-                    code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"artifact already exists at {final_path}",
-                    retryable=False,
-                    video_id=video_id,
-                    stage=ProcessingStage.SCORING,
-                )
-            )
+        Atomic no-clobber promote uses ``os.link(tmp, final)`` which
+        atomically fails with ``EEXIST`` if the destination already
+        exists, followed by ``os.unlink(tmp)``.  This eliminates the
+        TOCTOU race that ``exists() + os.rename()`` would introduce and
+        prevents silent overwrites that POSIX ``rename`` permits.
+        """
+
         final_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         tmp_path = final_path.with_name(final_path.name + ".tmp")
-        if tmp_path.exists():
+        # Stale-tmp detection uses O_EXCL so it is itself atomic.
+        try:
+            fd = os.open(
+                tmp_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+        except FileExistsError:
             raise ScoringPersistenceError(
                 AppError(
                     code=ErrorCode.LOCAL_RESOURCE,
@@ -2772,12 +3013,17 @@ class TrustedScoringPersistenceCommitter:
                     video_id=video_id,
                     stage=ProcessingStage.SCORING,
                 )
-            )
-        fd = os.open(
-            tmp_path,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-            0o600,
-        )
+            ) from None
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to create temporary artifact {tmp_path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
         try:
             os.write(fd, content)
             os.fsync(fd)
@@ -2797,18 +3043,23 @@ class TrustedScoringPersistenceCommitter:
         # Verify the temporary file before promotion.
         self._verify_file_hash(tmp_path, content, expected_hash, video_id=video_id)
 
-        if final_path.exists():
+        # Atomic no-clobber promote: os.link atomically creates the hard
+        # link and fails with EEXIST if the destination already exists.
+        # Unlike os.rename, it can never silently overwrite an existing
+        # final.  If this succeeds the final path now references the same
+        # inode as the tmp; we then unlink the tmp name.
+        try:
+            os.link(tmp_path, final_path)
+        except FileExistsError:
             raise ScoringPersistenceError(
                 AppError(
                     code=ErrorCode.LOCAL_RESOURCE,
-                    message=f"artifact appeared concurrently at {final_path}",
+                    message=f"artifact already exists at {final_path}",
                     retryable=False,
                     video_id=video_id,
                     stage=ProcessingStage.SCORING,
                 )
-            )
-        try:
-            os.rename(tmp_path, final_path)
+            ) from None
         except OSError as error:
             raise ScoringPersistenceError(
                 AppError(
@@ -2820,7 +3071,22 @@ class TrustedScoringPersistenceCommitter:
                 )
             ) from error
 
-        # Fsync parent directory so the rename is durable.
+        # The link succeeded; remove the temporary name so only the final
+        # path references the inode.
+        try:
+            os.unlink(tmp_path)
+        except OSError as error:
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=f"failed to unlink temporary {tmp_path}: {error}",
+                    retryable=False,
+                    video_id=video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+        # Fsync parent directory so the link is durable.
         parent_fd = os.open(final_path.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(parent_fd)
