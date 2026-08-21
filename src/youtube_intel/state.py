@@ -14,7 +14,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import NoReturn, cast
+from typing import TYPE_CHECKING, NoReturn, cast
+
+if TYPE_CHECKING:
+    from youtube_intel.scoring import _RegistrationAuthority
 
 from youtube_intel.domain import (
     Availability,
@@ -531,12 +534,37 @@ class SQLiteStateRepository:
         database_path: str | Path,
     ) -> None:
         self._database_path = Path(database_path)
-        # The registration authority is created inside the repository and is
-        # not caller-configurable.  Only the runtime-composed committer that
-        # holds the exact same instance can mint a valid registration.
+        # The registration authority is owned by RuntimeOperations, not by the
+        # repository.  External callers constructing a repository directly get
+        # no authority and therefore cannot produce an accepted registrar
+        # capability.  The runtime binds its authority via the private method
+        # below during composition.
+        self._registration_authority: _RegistrationAuthority | None = None
+
+    def _bind_registration_authority(
+        self,
+        authority: _RegistrationAuthority,
+    ) -> None:
+        """Bind the runtime-owned authority to this repository.
+
+        Called exactly once by ``RuntimeOperations`` composition.  A caller
+        that creates their own ``_RegistrationAuthority`` cannot satisfy the
+        runtime-issued check, so even a self-consistent forged capability
+        bound to an external repository fails closed.
+        """
+
         from youtube_intel.scoring import _RegistrationAuthority
 
-        self._registration_authority = _RegistrationAuthority()
+        if type(authority) is not _RegistrationAuthority:
+            msg = "registration authority must be a _RegistrationAuthority"
+            raise TypeError(msg)
+        if self._registration_authority is not None:
+            msg = "registration authority is already bound to this repository"
+            raise RuntimeError(msg)
+        if not authority._is_runtime_issued:
+            msg = "registration authority was not issued by the runtime"
+            raise IntegrityConflict(msg)
+        self._registration_authority = authority
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
@@ -2665,17 +2693,23 @@ class SQLiteStateRepository:
         scoring_summary = registration.scoring_summary
 
         # Verify the runtime-owned authority proof before looking at files.
-        # The authority object identity is scoped to the runtime-composed
-        # repository and cannot be derived from plan fields, so a caller with
-        # correct DTOs/files but no committer authority cannot forge a valid
-        # registration.
+        # The authority is created and issued by RuntimeOperations, then bound
+        # to this repository.  A direct repository construction has no
+        # authority, and a caller-forged authority is not runtime-issued,
+        # so neither can produce an accepted registrar capability.
         from youtube_intel.scoring import _RegistrationAuthority
 
+        if self._registration_authority is None:
+            msg = "repository has no runtime-bound registration authority"
+            raise IntegrityConflict(msg)
         if type(registration.authority_proof) is not _RegistrationAuthority:
             msg = "registration authority proof is not a _RegistrationAuthority"
             raise IntegrityConflict(msg)
         if registration.authority_proof is not self._registration_authority:
             msg = "registration authority proof mismatch"
+            raise IntegrityConflict(msg)
+        if not registration.authority_proof._is_runtime_issued:
+            msg = "registration authority was not issued by the runtime"
             raise IntegrityConflict(msg)
 
         # Defensive final-file verification at the DB boundary.
@@ -2967,9 +3001,9 @@ class ScoringRegistrationCapability:
     ProviderCall and summary identity from the validated plan plus the
     final-file paths and hashes for defensive verification at the DB
     boundary.  A valid capability must carry the exact
-    ``_RegistrationAuthority`` instance owned by the runtime-composed
-    repository; that authority is created inside the repository and is not
-    caller-configurable.
+    ``_RegistrationAuthority`` instance created and issued by
+    ``RuntimeOperations`` and bound to the runtime-composed repository;
+    the repository itself does not mint authorities.
     """
 
     __slots__ = (

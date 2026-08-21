@@ -2140,13 +2140,12 @@ def test_r5_final_reopen_verify_failure_no_sqlite_registration(
 def test_external_repository_authority_cannot_create_registration_success(
     tmp_path: Path,
 ) -> None:
-    """P1: a caller-created repository with a self-consistent forged
-    capability must fail closed.
+    """P1: a caller-created repository has no registration authority.
 
-    The registration authority is created inside the repository and is not
-    caller-configurable.  Even with correct DTOs, promoted finals and hashes,
-    a capability signed with a caller-forged authority cannot satisfy the
-    registrar's object-identity check.
+    The registration authority is created and issued by RuntimeOperations,
+    not by the repository.  A repository constructed directly by a caller
+    therefore has no authority and rejects every registration attempt,
+    even with correct DTOs, promoted finals and hashes.
     """
 
     runtime, _ = _judge_runtime(tmp_path / "project")
@@ -2170,8 +2169,8 @@ def test_external_repository_authority_cannot_create_registration_success(
     structured_final.parent.mkdir(parents=True, exist_ok=True)
     structured_final.write_bytes(plan.structured_bytes)
 
-    # Caller creates their own repository instance (same DB is irrelevant;
-    # what matters is the authority is created inside the repository).
+    # Caller creates their own repository instance.  It has no authority
+    # because authority is owned by RuntimeOperations, not the repository.
     external_repository = SQLiteStateRepository(
         runtime._repository._database_path
     )
@@ -2198,7 +2197,90 @@ def test_external_repository_authority_cannot_create_registration_success(
     )
 
     with pytest.raises(
-        IntegrityConflict, match="registration authority proof mismatch"
+        IntegrityConflict,
+        match="repository has no runtime-bound registration authority",
+    ):
+        external_repository._atomic_register_scoring_success(
+            registration=forged_capability,
+            now=datetime.now(UTC),
+        )
+
+
+# ===========================================================================
+# Phase G Correction Round 5 — repository is not the authority-minting root
+# ===========================================================================
+
+
+def test_external_repository_cannot_authorize_with_own_authority(
+    tmp_path: Path,
+) -> None:
+    """P1: an external repository cannot mint or bind its own authority.
+
+    RuntimeOperations is the sole authority owner.  A caller-created
+    repository has no authority, cannot bind a caller-created authority
+    (it is not runtime-issued), and cannot register a self-consistent
+    capability even if the caller forcibly attaches their own authority to
+    the repository.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r5-external-own-authority"
+    job_id = "job-r5-external-own-authority"
+    _setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    _setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = _committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+
+    raw_final = runtime._data_root / plan.raw_artifact.relative_path
+    structured_final = runtime._data_root / plan.structured_artifact.relative_path
+    raw_final.parent.mkdir(parents=True, exist_ok=True)
+    raw_final.write_bytes(plan.raw_envelope_bytes)
+    structured_final.parent.mkdir(parents=True, exist_ok=True)
+    structured_final.write_bytes(plan.structured_bytes)
+
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    # A caller-created authority is not runtime-issued, so the repository
+    # refuses to bind it.
+    caller_authority = _RegistrationAuthority()
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration authority was not issued by the runtime",
+    ):
+        external_repository._bind_registration_authority(caller_authority)
+
+    # Simulate an attacker that bypasses the bind check and directly stores
+    # their own authority on the repository.  The registrar still rejects the
+    # capability because the authority is not runtime-issued.
+    external_repository._registration_authority = caller_authority
+    forged_capability = ScoringRegistrationCapability(
+        job_id=committer._context.job_id,
+        owner=committer._context.owner,
+        video_id=plan.video_id,
+        pipeline_version=committer._context.pipeline_version,
+        raw_artifact=plan.raw_artifact,
+        structured_artifact=plan.structured_artifact,
+        scoring_call_request=plan.scoring_call_request,
+        judge_call_request=plan.judge_call_request,
+        scoring_call_completion=plan.scoring_call_completion,
+        judge_call_completion=plan.judge_call_completion,
+        scoring_summary=plan.scoring_summary,
+        raw_final_path=raw_final,
+        structured_final_path=structured_final,
+        raw_envelope_hash=plan.raw_envelope_hash,
+        structured_hash=plan.structured_hash,
+        authority_proof=caller_authority,
+    )
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration authority was not issued by the runtime",
     ):
         external_repository._atomic_register_scoring_success(
             registration=forged_capability,

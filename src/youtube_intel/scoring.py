@@ -80,21 +80,32 @@ _SCORING_OPERATION: Final = "local-scoring"
 class _RegistrationAuthority:
     """Runtime-owned, unforgeable Phase G registration authority.
 
-    Only a ``TrustedScoringPersistenceCommitter`` minted by the runtime is
-    given this object.  The SQLite registrar accepts a registration
-    capability only when its ``authority_proof`` is the exact instance it
-    was configured with.  Because the object identity is runtime-scoped and
-    cannot be derived from plan fields, a caller with correct DTOs, files
-    and hashes cannot forge a valid registration.
+    Only ``RuntimeOperations`` can create and issue this object; it is then
+    bound to exactly one ``SQLiteStateRepository`` and one
+    ``TrustedScoringPersistenceCommitter``.  The SQLite registrar accepts a
+    registration capability only when its ``authority_proof`` is the exact
+    instance it was configured with **and** the instance has been marked as
+    runtime-issued.  Because the object identity and issuance state are
+    runtime-scoped and cannot be derived from plan fields, a caller with
+    correct DTOs, files and hashes cannot forge a valid registration.
     """
 
-    __slots__ = ("_secret",)
+    __slots__ = ("_secret", "_runtime_issued")
 
     def __init__(self) -> None:
         # The secret is not used for cryptographic verification across
         # boundaries; it exists only to make accidental inspection/copying
         # worthless and to keep the authority object non-trivial.
         self._secret = secrets.token_hex(32)
+        self._runtime_issued = False
+
+    def _mark_runtime_issued(self) -> None:
+        """Issued once by RuntimeOperations composition; not public API."""
+        self._runtime_issued = True
+
+    @property
+    def _is_runtime_issued(self) -> bool:
+        return self._runtime_issued
 
     def __copy__(self) -> NoReturn:
         raise TypeError("_RegistrationAuthority cannot be copied")

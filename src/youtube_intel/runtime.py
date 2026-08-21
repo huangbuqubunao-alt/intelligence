@@ -95,6 +95,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
+    _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
     build_scoring_input,
     build_scoring_request_identity,
@@ -252,8 +253,9 @@ def bootstrap_runtime(
 ) -> SQLiteStateRepository:
     """Idempotently create the declared local runtime state.
 
-    The registration authority is owned by the composed repository; callers
-    cannot inject, substitute, or re-create it.
+    The returned repository has no registration authority.  Only
+    ``RuntimeOperations`` creates, issues and binds the runtime-owned
+    ``_RegistrationAuthority`` during its own composition.
     """
 
     root = project_root.resolve(strict=True)
@@ -301,9 +303,13 @@ class RuntimeOperations(Operations):
         self._config = config
         self._root = project_root.resolve(strict=True)
         self._repository = bootstrap_runtime(config, self._root)
-        # The registration authority is owned by the repository and never
-        # leaves the runtime composition boundary.
-        self._registration_authority = self._repository._registration_authority
+        # The registration authority is owned by RuntimeOperations and issued
+        # exactly once per runtime instance.  It is bound to the composed
+        # repository and to every trusted scoring committer; callers cannot
+        # create, substitute, or re-create it.
+        self._registration_authority = _RegistrationAuthority()
+        self._registration_authority._mark_runtime_issued()
+        self._repository._bind_registration_authority(self._registration_authority)
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
