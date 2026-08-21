@@ -2917,3 +2917,101 @@ normal runtime success path.
 `READY FOR PHASE G CORRECTION ROUND 10 INDEPENDENT REVIEW`
 
 Stop here.  Do not begin Phase H before Independent Review.
+
+## Phase G Correction Round 11
+
+- Status: `READY FOR PHASE G CORRECTION ROUND 11 INDEPENDENT REVIEW`
+- Implementation baseline: Round 10 implementation `1d52271`
+- Implementation commit: `b4402ce`
+- Role: Implementer
+
+### Round 10 finding and correction
+
+Round 10 left `SQLiteStateRepository._persist_scoring_registration()` as a
+repository-owned capability admission point.  A caller that could construct a
+valid-looking `ScoringRegistrationCapability` could invoke that method with
+otherwise valid DTOs and final files, producing Artifact rows, successful
+ProviderCalls, a `SCORED` video and a successful job without the Phase F
+aggregate or `PREWRITE_VALIDATE`.
+
+Round 11 removes both that method and `ScoringRegistrationCapability`.
+`SQLiteStateRepository` no longer has a Phase-G scoring-registration entry or
+stores any registration authority, binding, registry, verifier, token or
+issued marker.  The base `TrustedScoringPersistenceCommitter` remains unable
+to register; `RuntimeOperations._trusted_scoring_committer()` creates the
+only execution entry.  Its local subclass captures the runtime-owned
+repository and contains the SQLite transaction closure.  That closure accepts
+only the already prevalidated `ValidatedScoringWritePlan` and promoted final
+paths supplied by the committer's ordered commit flow.
+
+The resulting success path is:
+
+`PhaseFTrustedScoringSuccess -> PREWRITE_VALIDATE -> runtime-local persistence
+entry -> SQLite transaction`.
+
+No authority object or caller-provided registration graph is admitted by the
+repository.  The runtime-local transaction closure preserves final-file
+existence/hash checks, the immediate SQLite transaction, two Artifact rows,
+two ProviderCall completions, stage/job completion, and rollback behavior.
+
+### RED / GREEN evidence
+
+- RED: before removal, the new external-repository regression failed at
+  `assert not hasattr(state_module, "ScoringRegistrationCapability")`; the
+  capability still existed and was accepted by the repository entry.
+- GREEN: after removal and runtime-local entry composition:
+  `uv run --offline pytest -x -q tests/unit/test_task016c_phase_g.py` ->
+  `68 passed`.
+- Cross-boundary regression:
+  `uv run --offline pytest -x -q tests/unit/test_task016c_phase_f.py
+  tests/unit/test_scoring_language.py` -> `142 passed`.
+- Full suite: `uv run --offline pytest -x -q` ->
+  `1283 passed, 1 existing Pydantic serializer warning`.
+
+### Attack and mutation evidence
+
+- External repository: a freshly constructed `SQLiteStateRepository` has no
+  `ScoringRegistrationCapability`, `_persist_scoring_registration`,
+  `_atomic_register_scoring_success`, `_bind_registration_authority` or
+  `_write_scoring_transaction` trusted ingress.  The test also verifies no
+  Artifact, successful ProviderCall, `SCORED` video or successful job exists.
+- Fake subclass: an external `SQLiteStateRepository` subclass cannot provide
+  a transaction hook to the already composed runtime path; normal runtime
+  commit remains successful.
+- Object construction and attribute injection: private-import/object-new
+  attempts cannot recreate the removed authority classes, and injected
+  repository attributes do not add a class-level trusted entry.
+- Mutation: restoring either `ScoringRegistrationCapability` or a repository
+  `_persist_scoring_registration` admission method makes the committed
+  external-ingress tests fail because they assert both symbols are absent.
+  All mutations were reverted before commit.
+
+### Validation gates
+
+| Gate | Result |
+|---|---|
+| `uv lock --check --offline` | PASS |
+| `uv sync --locked --offline` | PASS |
+| Phase G focused | `68 passed` |
+| Phase F + TASK-016B focused | `142 passed` |
+| Full pytest | `1283 passed, 1 existing warning` |
+| `uv run --offline mypy src` | PASS |
+| `uv run --offline ruff check .` | PASS |
+| `uv build --offline` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings only) |
+| `git diff --check` | PASS |
+
+### Scope
+
+- Implementation changed only `src/youtube_intel/scoring.py`,
+  `src/youtube_intel/runtime.py`, `src/youtube_intel/state.py`, and
+  `tests/unit/test_task016c_phase_g.py`.
+- This handoff is the separate evidence commit.
+- No changes to providers, domain/quality contracts, TASK-016B, migrations,
+  dependencies, `uv.lock`, Phase H/I, or external network behavior.
+
+### Implementer conclusion
+
+`READY FOR PHASE G CORRECTION ROUND 11 INDEPENDENT REVIEW`
+
+Stop here. Do not begin Phase H before Independent Review.
