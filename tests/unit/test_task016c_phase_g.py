@@ -1472,11 +1472,9 @@ def test_m14_registration_rejects_missing_final_files(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    import inspect
-
-    # The registrar is not a plan ingress.  Only persist_success creates the
-    # function-local plan after PREWRITE_VALIDATE.
-    assert "plan" not in inspect.signature(committer._persist_registration).parameters
+    # There is no separately callable registrar.  Only persist_success creates
+    # and consumes the function-local plan after PREWRITE_VALIDATE.
+    assert not hasattr(committer._entry, "_persist_registration")
     _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
@@ -1827,23 +1825,20 @@ def test_m15_registration_before_final_verify_rejected(tmp_path: Path) -> None:
 
     committer._write_atomic_file = recording_write  # type: ignore[method-assign]
 
-    original_register = committer._persist_registration
+    original_inject = runtime._repository._inject_failure
 
-    def recording_register(**kwargs):
-        events.append("sqlite_registration")
-        return original_register(**kwargs)
+    def recording_inject(point: str) -> None:
+        if point == "atomic_register.before_artifacts":
+            events.append("sqlite_registration")
+        original_inject(point)
 
-    committer._persist_registration = (  # type: ignore[method-assign]
-        recording_register
-    )
+    runtime._repository._inject_failure = recording_inject  # type: ignore[method-assign]
 
     try:
         committer.persist_success(plan.success)
     finally:
         committer._write_atomic_file = original_write  # type: ignore[method-assign]
-        committer._persist_registration = (  # type: ignore[method-assign]
-            original_register
-        )
+        runtime._repository._inject_failure = original_inject  # type: ignore[method-assign]
 
     fs_indices = [i for i, e in enumerate(events) if e == "filesystem_complete"]
     sql_index = events.index("sqlite_registration")
@@ -2314,3 +2309,43 @@ def test_normal_runtime_path_uses_entry_not_complete_stage(tmp_path: Path) -> No
     assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED
     assert result.job.status is JobStatus.SUCCEEDED
+
+
+# ---------------------------------------------------------------------------
+# Phase G Correction Round 14 — scatter-field sink removal
+# ---------------------------------------------------------------------------
+
+
+def test_forged_scatter_field_persistence_sink_fails(tmp_path: Path) -> None:
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r14-scatter"
+    job_id = "job-r14-scatter"
+    _setup_transcript_ready_video(runtime._repository, runtime._data_root, video_id=video_id)
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    entry, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
+
+    forged_fields = {
+        "raw_artifact": plan.raw_artifact,
+        "structured_artifact": plan.structured_artifact,
+        "raw_envelope_hash": "f" * 64,
+        "structured_hash": plan.structured_hash,
+        "scoring_call_completion": plan.scoring_call_completion,
+        "scoring_summary": plan.scoring_summary,
+    }
+    assert forged_fields["raw_envelope_hash"] != plan.raw_envelope_hash
+    for sink in ("_persist_plan", "_persist_registration", "persist_transaction"):
+        assert not hasattr(entry._entry, sink)
+    _assert_no_scoring_success(runtime._repository, plan, video_id)
+
+
+def test_runtime_entry_exposes_no_scatter_field_persistence_api(tmp_path: Path) -> None:
+    import inspect
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    entry = runtime._trusted_persistence_entry(
+        job_id="job-r14-discovery", owner="test-owner", pipeline_version="runtime-v1"
+    )
+    assert not hasattr(entry, "_persist_plan")
+    assert not hasattr(entry, "_persist_registration")
+    parameters = inspect.signature(entry.persist_success).parameters
+    assert tuple(parameters) == ("success",)
