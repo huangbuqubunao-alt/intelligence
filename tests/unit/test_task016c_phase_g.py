@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -70,6 +71,8 @@ from youtube_intel.state import (
     SQLiteStateRepository,
     StageCompletionResult,
     StorageRoot,
+    _immediate_transaction,
+    format_utc_datetime,
 )
 
 _EN_REASON = (
@@ -2334,7 +2337,8 @@ def test_forged_scatter_field_persistence_sink_fails(tmp_path: Path) -> None:
     }
     assert forged_fields["raw_envelope_hash"] != plan.raw_envelope_hash
     for sink in ("_persist_plan", "_persist_registration", "persist_transaction"):
-        assert not hasattr(entry._entry, sink)
+        with pytest.raises(AttributeError):
+            getattr(entry._entry, sink)(**forged_fields)
     _assert_no_scoring_success(runtime._repository, plan, video_id)
 
 
@@ -2349,3 +2353,147 @@ def test_runtime_entry_exposes_no_scatter_field_persistence_api(tmp_path: Path) 
     assert not hasattr(entry, "_persist_registration")
     parameters = inspect.signature(entry.persist_success).parameters
     assert tuple(parameters) == ("success",)
+
+
+def _restored_scatter_field_sink(
+    repository: SQLiteStateRepository,
+    *,
+    raw_artifact: ArtifactWrite,
+    structured_artifact: ArtifactWrite,
+    scoring_request: object,
+    judge_request: object,
+    scoring_completion: object,
+    judge_completion: object,
+    scoring_summary: object,
+    owner: str,
+    job_id: str,
+    video_id: str,
+    pipeline_version: str,
+    now: datetime,
+) -> None:
+    """Executable Round-13-style scatter sink, retained only as attack fixture."""
+
+    connection = repository._connect()
+    now_text = format_utc_datetime(now)
+    try:
+        with _immediate_transaction(connection):
+            repository._owned_running_job(
+                connection, job_id=job_id, owner=owner, now=now_text
+            )
+            repository._upsert_artifact_in_transaction(connection, raw_artifact, now=now_text)
+            repository._upsert_artifact_in_transaction(
+                connection, structured_artifact, now=now_text
+            )
+            scoring = repository._reserve_provider_call_in_transaction(
+                connection,
+                scoring_request,
+                owner=owner,
+                lease_until=now + timedelta(minutes=5),
+                available_at=now,
+                now=now,
+            )
+            judge = repository._reserve_provider_call_in_transaction(
+                connection,
+                judge_request,
+                owner=owner,
+                lease_until=now + timedelta(minutes=5),
+                available_at=now,
+                now=now,
+            )
+            if scoring.status is ProviderCallStatus.PENDING:
+                repository._complete_provider_call_in_transaction(
+                    connection, scoring_completion, owner=owner, now=now_text
+                )
+            if judge.status is ProviderCallStatus.PENDING:
+                repository._complete_provider_call_in_transaction(
+                    connection, judge_completion, owner=owner, now=now_text
+                )
+            connection.execute(
+                "UPDATE videos SET pipeline_status = :status, score = :score, "
+                "should_summarize = :summary, updated_at = :now "
+                "WHERE video_id = :video_id AND pipeline_status = :expected "
+                "AND pipeline_version = :pipeline_version",
+                {
+                    "status": PipelineStatus.SCORED.value,
+                    "score": scoring_summary.score,
+                    "summary": int(scoring_summary.should_summarize),
+                    "now": now_text,
+                    "video_id": video_id,
+                    "expected": PipelineStatus.TRANSCRIPT_READY.value,
+                    "pipeline_version": pipeline_version,
+                },
+            )
+            repository._finish_job_success_in_transaction(
+                connection, job_id=job_id, owner=owner, now=now_text
+            )
+    finally:
+        connection.close()
+
+
+def test_restored_scatter_field_sink_accepts_forged_graph_mutation(
+    tmp_path: Path,
+) -> None:
+    """Mutation proof: restored scatter sink writes a forged success graph."""
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    video_id = "video-r15-restored"
+    job_id = "job-r15-restored"
+    _setup_transcript_ready_video(runtime._repository, runtime._data_root, video_id=video_id)
+    _setup_scoring_job(runtime._repository, video_id=video_id, job_id=job_id)
+    _, plan = _committer_and_plan(runtime, job_id=job_id, video_id=video_id)
+    raw_bytes = b'{"forged":"raw"}'
+    structured_bytes = b'{"forged":"structured"}'
+    raw = replace(
+        plan.raw_artifact,
+        artifact_id="forged-raw-artifact",
+        artifact_key="forged/scatter/raw",
+        relative_path="forged/scatter/raw.json",
+        content_hash=hashlib.sha256(raw_bytes).hexdigest(),
+    )
+    structured = replace(
+        plan.structured_artifact,
+        artifact_id="forged-structured-artifact",
+        artifact_key="forged/scatter/structured",
+        relative_path="forged/scatter/structured.json",
+        content_hash=hashlib.sha256(structured_bytes).hexdigest(),
+    )
+    raw_path = runtime._data_root / raw.relative_path
+    structured_path = runtime._data_root / structured.relative_path
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_bytes(raw_bytes)
+    structured_path.write_bytes(structured_bytes)
+    scoring_completion = replace(
+        plan.scoring_call_completion, response_artifact_id=raw.artifact_id
+    )
+    judge_completion = replace(
+        plan.judge_call_completion, response_artifact_id=raw.artifact_id
+    )
+
+    _restored_scatter_field_sink(
+        runtime._repository,
+        raw_artifact=raw,
+        structured_artifact=structured,
+        scoring_request=plan.scoring_call_request,
+        judge_request=plan.judge_call_request,
+        scoring_completion=scoring_completion,
+        judge_completion=judge_completion,
+        scoring_summary=replace(plan.scoring_summary, score=9.9),
+        owner="test-owner",
+        job_id=job_id,
+        video_id=video_id,
+        pipeline_version="runtime-v1",
+        now=_NOW,
+    )
+
+    assert runtime._repository.get_artifact_by_key(raw.artifact_key) is not None
+    assert runtime._repository.get_artifact_by_key(structured.artifact_key) is not None
+    assert (
+        runtime._repository.get_provider_call(plan.scoring_call_request.request_hash).status
+        is ProviderCallStatus.SUCCEEDED
+    )
+    assert (
+        runtime._repository.get_provider_call(plan.judge_call_request.request_hash).status
+        is ProviderCallStatus.SUCCEEDED
+    )
+    assert runtime._repository.get_video(video_id).pipeline_status is PipelineStatus.SCORED
+    assert runtime._repository.get_job(job_id).status is JobStatus.SUCCEEDED
