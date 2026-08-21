@@ -11,11 +11,12 @@ import hashlib
 import json
 import os
 import secrets
+import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, NoReturn, Protocol, cast
+from typing import TYPE_CHECKING, Final, NoReturn, Protocol
 
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
@@ -149,18 +150,45 @@ class _RegistrationAuthority:
         raise TypeError("_RegistrationAuthority cannot be serialized")
 
 
+class _RegistrationBindingRegistry:
+    """Runtime-owned registry of valid ``_RegistrationBindingCapability`` identities.
+
+    Only ``RuntimeOperations`` composition can create a registry and register
+    binding capabilities in it.  The registry stores binding capabilities by
+    exact object identity; a caller-forged capability is never in the runtime
+    registry, so it cannot authorize repository binding.
+    """
+
+    __slots__ = ("_bindings",)
+
+    def __new__(cls) -> "_RegistrationBindingRegistry":
+        msg = (
+            "_RegistrationBindingRegistry cannot be instantiated directly; "
+            "it is created only by RuntimeOperations composition"
+        )
+        raise RuntimeError(msg)
+
+    def __init__(self) -> None:
+        self._bindings: weakref.WeakSet[_RegistrationBindingCapability] = weakref.WeakSet()
+
+    def _register(self, binding: _RegistrationBindingCapability) -> None:
+        self._bindings.add(binding)
+
+    def __contains__(self, binding: object) -> bool:
+        return binding in self._bindings
+
+
 class _RegistrationBindingCapability:
     """Runtime-only binding token passed to ``SQLiteStateRepository``.
 
-    This object encapsulates the runtime-created
-    ``_RegistrationAuthority`` and the runtime-owned provenance verifier.
-    ``SQLiteStateRepository`` no longer accepts a caller-supplied verifier
-    callback; it only accepts this binding capability, which can only be
-    minted by ``RuntimeOperations`` composition through
-    ``_mint_registration_binding``.
+    This token carries the runtime-created ``_RegistrationAuthority`` and a
+    reference to the runtime-owned binding registry.  ``SQLiteStateRepository``
+    no longer accepts a caller-supplied verifier, callback, closure or
+    predicate; it only accepts a binding whose identity is registered in the
+    runtime-owned registry.
     """
 
-    __slots__ = ("_authority", "_verify")
+    __slots__ = ("_authority", "_binding_registry", "__weakref__")
 
     def __new__(cls) -> "_RegistrationBindingCapability":
         msg = (
@@ -173,27 +201,57 @@ class _RegistrationBindingCapability:
     def authority(self) -> object:
         return getattr(self, "_authority", None)
 
-    def verify(self, auth: object) -> bool:
-        verifier = cast(Callable[[object], bool] | None, getattr(self, "_verify", None))
-        if verifier is None:
-            return False
-        return bool(verifier(auth))
+    @property
+    def _registry(self) -> object:
+        return getattr(self, "_binding_registry", None)
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("_RegistrationBindingCapability cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("_RegistrationBindingCapability cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("_RegistrationBindingCapability cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("_RegistrationBindingCapability cannot be serialized")
+
+
+def _create_binding_registry() -> _RegistrationBindingRegistry:
+    """Create the runtime-owned binding registry.
+
+    Normal instantiation is disabled, so this factory uses ``object.__new__``
+    and initializes the registry's internal state.  It is called only from
+    ``RuntimeOperations`` composition.
+    """
+
+    registry = object.__new__(_RegistrationBindingRegistry)
+    object.__setattr__(registry, "_bindings", weakref.WeakSet())
+    return registry
 
 
 def _mint_registration_binding(
     authority: _RegistrationAuthority,
-    verify: Callable[[object], bool],
+    registry: _RegistrationBindingRegistry,
 ) -> _RegistrationBindingCapability:
-    """Mint a runtime-owned binding capability.
+    """Mint a runtime-owned binding capability and register its identity.
 
-    Called only from ``RuntimeOperations`` composition.  The verifier is a
-    closure that captures the runtime-local issuance registry; it is never
-    exposed as a separate value and cannot be supplied by external callers.
+    Called only from ``RuntimeOperations`` composition.  The binding is
+    registered by exact identity in the runtime-local registry; no closure,
+    callback or verifier is exposed.
     """
 
+    if type(authority) is not _RegistrationAuthority:
+        msg = "binding authority must be a runtime-minted _RegistrationAuthority"
+        raise TypeError(msg)
+    if type(registry) is not _RegistrationBindingRegistry:
+        msg = "binding registry must be a runtime-owned _RegistrationBindingRegistry"
+        raise TypeError(msg)
     binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(binding, "_authority", authority)
-    object.__setattr__(binding, "_verify", verify)
+    object.__setattr__(binding, "_binding_registry", registry)
+    registry._register(binding)
     return binding
 _RAW_ARTIFACT_PRODUCER_VERSION: Final = "ollama-raw-v2"
 _STRUCTURED_ARTIFACT_PRODUCER_VERSION: Final = "scoring-structured-v2"

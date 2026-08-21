@@ -57,6 +57,7 @@ from youtube_intel.scoring import (
     _mint_phase_f_trusted_scoring_success,
     _RegistrationAuthority,
     _RegistrationBindingCapability,
+    _RegistrationBindingRegistry,
     _RuntimeIssuanceCapability,
     build_primary_scoring_attempt,
     build_scoring_input,
@@ -2275,10 +2276,12 @@ def test_external_repository_cannot_authorize_with_own_authority(
     # fails: the repository only accepts a runtime-minted binding.
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", caller_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2307,7 +2310,7 @@ def test_external_repository_cannot_authorize_with_own_authority(
     )
     with pytest.raises(
         IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        match="repository has no runtime-bound binding capability",
     ):
         external_repository._atomic_register_scoring_success(
             registration=forged_capability,
@@ -2367,10 +2370,12 @@ def test_external_repository_cannot_become_trusted_root(tmp_path: Path) -> None:
     # rejected because the verifier carries no runtime-owned WeakSet.
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", caller_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2428,10 +2433,12 @@ def test_external_mark_bind_capability_register_attack_fails(
 
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", forged_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2472,7 +2479,7 @@ def test_external_mark_bind_capability_register_attack_fails(
     external_repository._registration_authority = forged_authority
     with pytest.raises(
         IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        match="repository has no runtime-bound binding capability",
     ):
         external_repository._atomic_register_scoring_success(
             registration=forged_capability,
@@ -2570,10 +2577,12 @@ def test_object_new_runtime_capability_forgery_fails(tmp_path: Path) -> None:
 
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", forged_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2613,7 +2622,7 @@ def test_object_new_runtime_capability_forgery_fails(tmp_path: Path) -> None:
     external_repository._registration_authority = forged_authority
     with pytest.raises(
         IntegrityConflict,
-        match="registration authority was not issued by the runtime",
+        match="repository has no runtime-bound binding capability",
     ):
         external_repository._atomic_register_scoring_success(
             registration=forged_capability,
@@ -2652,10 +2661,12 @@ def test_external_capability_instance_cannot_become_runtime_authority(
 
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", forged_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2718,10 +2729,12 @@ def test_external_supplied_verifier_cannot_authorize_registration(
     # registry) is also rejected.
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", forged_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
@@ -2758,8 +2771,9 @@ def test_repository_requires_runtime_binding_capability(tmp_path: Path) -> None:
     """P1: SQLiteStateRepository cannot be bound without a runtime-minted token.
 
     The only accepted trust root is a ``_RegistrationBindingCapability``
-    created by ``RuntimeOperations`` composition.  Direct authority, forged
-    binding objects and caller-supplied verifiers all fail closed.
+    created by ``RuntimeOperations`` composition and registered in the
+    runtime-owned binding registry.  Direct authority, forged binding objects
+    and attacker-created registries all fail closed.
     """
 
     runtime, _ = _judge_runtime(tmp_path / "project")
@@ -2768,6 +2782,7 @@ def test_repository_requires_runtime_binding_capability(tmp_path: Path) -> None:
     )
 
     assert external_repository._registration_authority is None
+    assert external_repository._binding_registry is None
 
     forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
     forged_authority = _RegistrationAuthority(forged_capability_instance)
@@ -2779,31 +2794,35 @@ def test_repository_requires_runtime_binding_capability(tmp_path: Path) -> None:
     ):
         external_repository._bind_registration_authority(forged_authority)
 
-    # Forged binding without a runtime registry closure is rejected.
+    # Forged binding with an attacker-created registry is rejected because the
+    # binding identity is not registered in the runtime-owned registry.
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
     forged_binding = object.__new__(_RegistrationBindingCapability)
     object.__setattr__(forged_binding, "_authority", forged_authority)
-    object.__setattr__(forged_binding, "_verify", lambda _auth: True)
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
     with pytest.raises(
         IntegrityConflict,
-        match="registration verifier is not runtime-issued",
+        match="registration binding is not registered in the runtime-owned registry",
     ):
         external_repository._bind_registration_authority(forged_binding)
 
     assert external_repository._registration_authority is None
+    assert external_repository._binding_registry is None
 
 
-def test_runtime_owned_binding_still_succeeds(tmp_path: Path) -> None:
-    """P1: RuntimeOperations composition still succeeds with the binding token.
+def test_runtime_owned_binding_registry_succeeds(tmp_path: Path) -> None:
+    """P1: RuntimeOperations composition still succeeds with the binding registry.
 
     Positive control: the runtime-minted ``_RegistrationBindingCapability``
-    carries the runtime-owned verifier, binds the repository and authorizes
-    the full Phase G cutover (PREWRITE_VALIDATE, filesystem commit, SQLite
-    registration).
+    is registered in the runtime-owned binding registry, binds the repository
+    and authorizes the full Phase G cutover (PREWRITE_VALIDATE, filesystem
+    commit, SQLite registration).
     """
 
     runtime, _ = _judge_runtime(tmp_path / "project")
-    video_id = "video-r8-runtime-binding-success"
-    job_id = "job-r8-runtime-binding-success"
+    video_id = "video-r9-runtime-binding-registry-success"
+    job_id = "job-r9-runtime-binding-registry-success"
     _setup_transcript_ready_video(
         runtime._repository, runtime._data_root, video_id=video_id
     )
@@ -2819,3 +2838,108 @@ def test_runtime_owned_binding_still_succeeds(tmp_path: Path) -> None:
     assert isinstance(result, StageCompletionResult)
     assert result.job.status is JobStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED
+
+
+# ===========================================================================
+# Phase G Correction Round 9 — replace closure provenance with binding registry
+# ===========================================================================
+
+
+def test_external_fake_binding_object_new_fails(tmp_path: Path) -> None:
+    """P1: a forged _RegistrationBindingCapability created via object.__new__
+    cannot bind a repository.
+
+    Even though object.__new__ bypasses the disabled constructor, the forged
+    binding is never registered in the runtime-owned binding registry, so the
+    repository rejects it.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
+    forged_authority = _RegistrationAuthority(forged_capability_instance)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
+
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration binding is not registered in the runtime-owned registry",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
+
+    assert external_repository._registration_authority is None
+    assert external_repository._binding_registry is None
+
+
+def test_attacker_closure_registry_cannot_authorize_binding(
+    tmp_path: Path,
+) -> None:
+    """P1: attacker-controlled closure/WeakSet/registry cannot authorize binding.
+
+    This reproduces the Round 8 attack shape: a forged authority, a forged
+    binding, an attacker-created registry and a captured verifier closure.
+    With closure-based provenance removed, the repository checks only whether
+    the binding identity is in the runtime-owned registry, so the attack fails.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
+    forged_authority = _RegistrationAuthority(forged_capability_instance)
+
+    # Attacker-created registry and closure state (Round 8 attack shape).
+    attacker_registry = object.__new__(_RegistrationBindingRegistry)
+    attacker_registry.__init__()
+
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_binding_registry", attacker_registry)
+
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration binding is not registered in the runtime-owned registry",
+    ):
+        external_repository._bind_registration_authority(forged_binding)
+
+    assert external_repository._registration_authority is None
+    assert external_repository._binding_registry is None
+
+
+def test_external_repository_has_no_binding_registry(tmp_path: Path) -> None:
+    """P1: an external SQLiteStateRepository has no trusted binding registry.
+
+    Direct construction yields a repository with no authority, no binding and
+    no registry, so it cannot create or accept a trusted binding.
+    """
+
+    runtime, _ = _judge_runtime(tmp_path / "project")
+    external_repository = SQLiteStateRepository(
+        runtime._repository._database_path
+    )
+
+    assert external_repository._registration_authority is None
+    assert external_repository._registration_binding is None
+    assert external_repository._binding_registry is None
+
+    forged_capability_instance = object.__new__(_RuntimeIssuanceCapability)
+    forged_authority = _RegistrationAuthority(forged_capability_instance)
+    forged_registry = object.__new__(_RegistrationBindingRegistry)
+    forged_registry.__init__()
+    forged_binding = object.__new__(_RegistrationBindingCapability)
+    object.__setattr__(forged_binding, "_authority", forged_authority)
+    object.__setattr__(forged_binding, "_binding_registry", forged_registry)
+
+    with pytest.raises(
+        IntegrityConflict,
+        match="registration binding is not registered in the runtime-owned registry",
+    ):
+        external_repository._bind_registration_authority(forged_binding)

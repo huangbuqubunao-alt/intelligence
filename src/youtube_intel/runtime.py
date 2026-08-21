@@ -96,6 +96,7 @@ from youtube_intel.scoring import (
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedScoringPersistenceCommitter,
+    _create_binding_registry,
     _mint_registration_binding,
     _RegistrationAuthority,
     _run_primary_trusted_scoring_seam,
@@ -310,24 +311,21 @@ class RuntimeOperations(Operations):
         # exactly once per runtime instance.  The runtime-only issuance
         # capability is created here via object.__new__ so that normal
         # instantiation is impossible for callers; it is never exposed as a
-        # value.  Validity is tracked only in this runtime-local WeakSet; the
-        # repository receives a verifier closure so it can confirm provenance
-        # without relying on type checks that object.__new__ could satisfy.
+        # value.  Validity is tracked only in this runtime-local WeakSet and
+        # the runtime-owned binding registry.  The repository receives a
+        # runtime-minted binding capability; no closure, callback, verifier or
+        # predicate is exposed.
         issuance = object.__new__(_RuntimeIssuanceCapability)
         _valid_issuance_capabilities: weakref.WeakSet[_RuntimeIssuanceCapability] = (
             weakref.WeakSet()
         )
         _valid_issuance_capabilities.add(issuance)
 
-        def _is_runtime_issued_authority(auth: object) -> bool:
-            if type(auth) is not _RegistrationAuthority:
-                return False
-            return auth._issuance_capability in _valid_issuance_capabilities
-
         self._registration_authority = _RegistrationAuthority(issuance)
+        _binding_registry = _create_binding_registry()
         binding = _mint_registration_binding(
             self._registration_authority,
-            _is_runtime_issued_authority,
+            _binding_registry,
         )
         self._repository._bind_registration_authority(binding)
         self._dependencies = dependencies or _production_dependencies(config)
