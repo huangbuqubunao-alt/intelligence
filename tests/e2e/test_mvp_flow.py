@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,7 +17,7 @@ from youtube_intel.analysis import (
     CloudCallBudget,
     RepositoryBackedAnalysisService,
 )
-from youtube_intel.config import CloudSettings, LocalScoringSettings
+from youtube_intel.config import CloudSettings, load_app_config
 from youtube_intel.domain import (
     AnalysisCompleted,
     AnalysisPoint,
@@ -28,8 +29,7 @@ from youtube_intel.domain import (
     PointKind,
     ProcessingStage,
     ProviderCallMetadata,
-    ScoreResult,
-    ScoringDecision,
+    ScoringInput,
     ScoringOutcome,
     SubtitleFormat,
     TranscriptArtifact,
@@ -41,6 +41,10 @@ from youtube_intel.domain import (
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.pipeline import PipelineOrchestrator
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
+from youtube_intel.providers.ollama import (
+    OllamaQualityJudgeProvider,
+    parse_scoring_candidate,
+)
 from youtube_intel.providers.whisper import (
     MlxWhisperAdapter,
     WhisperDecodePolicy,
@@ -48,7 +52,12 @@ from youtube_intel.providers.whisper import (
 )
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.scoring import RepositoryBackedScoringService, ScoringJobContext
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+from youtube_intel.scoring import (
+    PrimaryScoringAttempt,
+    build_primary_scoring_attempt,
+    build_scoring_input,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -68,8 +77,8 @@ from youtube_intel.transcripts import (
 )
 
 NOW = datetime(2100, 1, 1, 8, 0, tzinfo=UTC)
-PIPELINE_VERSION = "acceptance-v1"
-OWNER = "e2e-worker"
+PIPELINE_VERSION = "runtime-v1"
+OWNER = "youtube-intel-runtime"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
 
 
@@ -165,40 +174,78 @@ class _ScoringProvider:
         self._scores = scores
         self.fail_once = fail_once
         self.calls = 0
-        self._raw: str | None = None
-
-    def score(self, scoring_input: object) -> ScoreResult:
+    def primary_attempt(self, scoring_input: ScoringInput) -> PrimaryScoringAttempt:
         self.calls += 1
         if self.fail_once:
             self.fail_once = False
             raise RuntimeError("injected local scoring outage")
-        video_id = getattr(scoring_input, "video").video_id
+        video_id = scoring_input.video.video_id
         score = self._scores[video_id]
-        self._raw = (
-            '{"score":'
-            + str(score)
-            + ',"reason":"This offline fixture explains service-flow recovery behavior.",'
-            '"topics":["product"],"should_summarize":true}'
+        raw = json.dumps(
+            {
+                "model": "qwen3:8b",
+                "response": json.dumps(
+                    {
+                        "score": score,
+                        "reason": "This offline fixture explains service-flow recovery behavior.",
+                        "topics": ["product"],
+                        "should_summarize": True,
+                    },
+                    separators=(",", ":"),
+                ),
+            },
+            separators=(",", ":"),
         )
-        return ScoreResult(
-            schema_version="score-result-v2",
-            score=score,
-            reason="This offline fixture explains service-flow recovery behavior.",
-            topics=("product",),
-            should_summarize=True,
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,
+            candidate=parse_scoring_candidate(raw),
+            final_raw_response=raw,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="scoring-prompt-v2",
-            request_hash=getattr(scoring_input, "request_hash"),
-            output_language=getattr(scoring_input, "output_language"),
+            model_digest="sha256:" + "a" * 64,
+            temperature=0.0,
+            max_output_tokens=1200,
+            max_description_chars=4_000,
         )
 
-    def consume_raw_response(self, *, request_hash: str) -> str:
-        assert request_hash
-        assert self._raw is not None
-        raw = self._raw
-        self._raw = None
-        return raw
+
+class _FakeQualityResponse:
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+
+    def read(self, size: int = -1) -> bytes:
+        del size
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
+
+
+class _FakeQualityTransport:
+    def __init__(self) -> None:
+        tags = {"models": [{"name": "qwen3:8b", "digest": "a" * 64}]}
+        judge = {
+            "response": json.dumps(
+                {
+                    "status": "PASS",
+                    "decision_confidence": "HIGH",
+                    "grounding_confidence": "MEDIUM",
+                    "usefulness_confidence": "MEDIUM",
+                    "signals": ["MINIMAL_CLAIM_PRESENT", "GROUNDING_PRESENT"],
+                    "reason": None,
+                    "evidence_ids": ["title-1"],
+                },
+                separators=(",", ":"),
+            )
+        }
+        self._tags = tags
+        self._judge = judge
+
+    def __call__(self, request: object, timeout: float) -> _FakeQualityResponse:
+        del timeout
+        return _FakeQualityResponse(
+            self._tags if getattr(request, "method") == "GET" else self._judge
+        )
 
 
 class _AnalysisProvider:
@@ -300,11 +347,7 @@ class _OfflineMvpFlow:
     ) -> None:
         self.root = tmp_path
         self._job_prefix = "recovered" if restore else "initial"
-        self.data_root = tmp_path / "data"
         self.vault_root = tmp_path / "vault"
-        (self.vault_root / "Knowledge").mkdir(parents=True, exist_ok=True)
-        self.repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-        self.repository.initialize(now=NOW)
         self.scenarios = {scenario.video_id: scenario for scenario in SCENARIOS}
         self.videos = {scenario.video_id: self._video(scenario) for scenario in SCENARIOS}
         self.transcripts: dict[str, TranscriptReady] = {}
@@ -327,6 +370,9 @@ class _OfflineMvpFlow:
         self.credentials = _CredentialResolver()
         self._note_failure = failure == "note"
         self._cloud_enabled = cloud_enabled
+        self.runtime = self._runtime_operations(cloud_enabled=cloud_enabled)
+        self.repository = self.runtime._repository
+        self.data_root = self.runtime._data_root
         if not restore:
             self._setup_initial_fixture()
         self.orchestrator = PipelineOrchestrator(
@@ -342,11 +388,63 @@ class _OfflineMvpFlow:
             retry_policy=RetryPolicy(base_delay_seconds=1, max_delay_seconds=1, jitter_ratio=0),
             handlers={
                 ProcessingStage.TRANSCRIPT: self._transcript_stage,
-                ProcessingStage.SCORING: self._scoring_stage,
+                ProcessingStage.SCORING: self._runtime_owned_scoring_stage,
                 ProcessingStage.ANALYSIS: self._analysis_stage,
                 ProcessingStage.NOTE_WRITE: self._note_stage,
             },
             clock=lambda: NOW,
+        )
+
+    def _runtime_operations(self, *, cloud_enabled: bool) -> RuntimeOperations:
+        config_root = self.root / "config"
+        config_root.mkdir(parents=True, exist_ok=True)
+        self.vault_root.mkdir(exist_ok=True)
+        (config_root / "channels.yaml").write_text(
+            "channels:\n  - channel_id: UC_OFFLINE\n", encoding="utf-8"
+        )
+        (config_root / "settings.yaml").write_text(
+            f"""\
+general:
+  transcript_languages: [en]
+  output_language: en
+local_scoring:
+  model: qwen3:8b
+  expected_model_digest: sha256:{"a" * 64}
+  temperature: 0.0
+  max_output_tokens: 1200
+  max_transcript_chars: 30000
+  max_description_chars: 4000
+cloud:
+  enabled: {str(cloud_enabled).lower()}
+  model: {"gpt-4.1-mini" if cloud_enabled else "null"}
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {self.vault_root}
+  vault_subdir: Knowledge
+""",
+            encoding="utf-8",
+        )
+        config = load_app_config(
+            channels_path=config_root / "channels.yaml",
+            settings_path=config_root / "settings.yaml",
+        )
+        quality_transport = _FakeQualityTransport()
+        return RuntimeOperations(
+            config=config,
+            project_root=self.root,
+            dependencies=RuntimeDependencies(
+                discovery_source=object(),  # type: ignore[arg-type]
+                metadata_provider=object(),  # type: ignore[arg-type]
+                subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+                scoring_provider_factory=lambda: self.scoring,
+                analysis_provider_factory=lambda: self.analysis,
+                quality_judge_provider_factory=lambda: OllamaQualityJudgeProvider(
+                    settings=config.settings.local_scoring,
+                    transport=quality_transport,
+                ),
+            ),
         )
 
     def _job_id(self) -> str:
@@ -446,7 +544,7 @@ class _OfflineMvpFlow:
     def _persisted_artifact(
         self, video_id: str, kind: ArtifactKind
     ) -> tuple[bytes, str, str, str | None, str | None]:
-        with sqlite3.connect(self.root / "state.sqlite3") as connection:
+        with sqlite3.connect(self.data_root / "state.sqlite") as connection:
             row = connection.execute(
                 """
                 SELECT relative_path, content_hash, storage_root, provider, model
@@ -514,23 +612,29 @@ class _OfflineMvpFlow:
         cached = self.scores.get(video_id)
         if isinstance(cached, ScoringOutcome):
             return cached
-        body, _, _, _, _ = self._persisted_artifact(video_id, ArtifactKind.SCORING_STRUCTURED)
-        result = ScoreResult.model_validate_json(body)
-        final_should_summarize = result.score >= 7.0
-        return ScoringOutcome(
-            result=result,
-            decision=ScoringDecision(
-                threshold=7.0,
-                final_should_summarize=final_should_summarize,
-                model_disagrees=result.should_summarize is not final_should_summarize,
-            ),
-            call=ProviderCallMetadata(
-                provider=result.provider,
-                model=result.model,
-                started_at=NOW,
-                finished_at=NOW,
-            ),
+        return self.runtime._load_scoring(video_id)
+
+    def _runtime_owned_scoring_stage(self, job: object, video: object) -> None:
+        video_id = getattr(video, "video_id")
+        transcript = self._transcript_for(video_id).artifact
+        text = (self.data_root / transcript.text_path).read_text(encoding="utf-8")
+        scoring_input = build_scoring_input(
+            video=self.videos[video_id],
+            transcript_text=text,
+            language=transcript.language,
+            output_language=self.runtime._config.settings.general.output_language,
+            settings=self.runtime._config.settings.local_scoring,
         )
+        success = self.runtime.run_primary_trusted_scoring(
+            attempt=self.scoring.primary_attempt(scoring_input),
+            scoring_input=scoring_input,
+        )
+        self.runtime._trusted_persistence_entry(
+            job_id=getattr(job, "job_id"),
+            owner=OWNER,
+            pipeline_version=PIPELINE_VERSION,
+        ).persist_success(success)
+        self.scores[video_id] = self.runtime._load_scoring(video_id)
 
     def _analysis_for(self, video_id: str) -> object:
         cached = self.analyses.get(video_id)
@@ -546,32 +650,6 @@ class _OfflineMvpFlow:
                 started_at=NOW,
                 finished_at=NOW,
             ),
-        )
-
-    def _scoring_stage(self, job: object, video: object) -> None:
-        video_id = getattr(video, "video_id")
-        transcript = self._transcript_for(video_id).artifact
-        text = (self.data_root / transcript.text_path).read_text(encoding="utf-8")
-        self.scores[video_id] = RepositoryBackedScoringService(
-            provider=self.scoring,
-            settings=LocalScoringSettings(
-                model="qwen3:8b",
-                expected_model_digest="sha256:" + "a" * 64,
-                max_transcript_chars=30_000,
-                max_description_chars=4_000,
-            ),
-            summary_threshold=7.0,
-            repository=self.repository,
-            context=ScoringJobContext(
-                job_id=getattr(job, "job_id"), owner=OWNER, pipeline_version=PIPELINE_VERSION
-            ),
-            artifact_root=self.data_root,
-            clock=lambda: NOW,
-        ).score(
-            video=self.videos[video_id],
-            transcript_text=text,
-            language=transcript.language,
-            output_language="en",
         )
 
     def _analysis_stage(self, job: object, video: object) -> object | None:
@@ -634,7 +712,7 @@ class _OfflineMvpFlow:
         )
 
     def counts(self) -> tuple[int, int, int, int]:
-        with sqlite3.connect(self.root / "state.sqlite3") as connection:
+        with sqlite3.connect(self.data_root / "state.sqlite") as connection:
             return tuple(
                 int(connection.execute(query).fetchone()[0])
                 for query in (
