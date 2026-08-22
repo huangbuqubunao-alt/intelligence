@@ -3206,3 +3206,66 @@ Status: `READY FOR PHASE G CORRECTION ROUND 14 INDEPENDENT REVIEW`.
   dependency, lockfile, or production persistence-architecture changes.
 
 Status: `READY FOR PHASE G CORRECTION ROUND 15 INDEPENDENT REVIEW`.
+
+---
+
+## TASK-016C Legacy E2E Migration-01 — Trusted Scoring Harness Cutover
+
+### Metadata and scope
+
+- Base: `c9c4331` (Phase G accepted-for-handoff head).
+- Implementation commit: `532f312` — `TASK-016C Legacy E2E Migration-01 trusted scoring harness cutover`.
+- Allowed and changed implementation file: `tests/e2e/test_mvp_flow.py` only.
+- Reuse decision: `DIRECT` — the existing `RuntimeOperations`, runtime-owned
+  `TrustedPersistenceEntry`, Phase F seam, Phase G filesystem/SQLite protocol,
+  Ollama quality-judge adapter with deterministic fake transport, and existing
+  offline fixtures. No third-party code or dependency was added.
+
+### Harness migration evidence
+
+- `_OfflineMvpFlow` now constructs a real `RuntimeOperations` from a temporary,
+  deterministic local configuration and uses its owned repository and DATA root.
+  SQLite reads now point to that runtime database (`data/state.sqlite`); no second
+  scoring database is created.
+- The deterministic scoring fake now implements `primary_attempt()` and returns a
+  canonical `PrimaryScoringAttempt`; it no longer returns a bare `ScoreResult` or
+  exposes a legacy raw-response consumption API.
+- The E2E scoring stage is now:
+
+  ```text
+  fake primary_attempt
+    -> RuntimeOperations.run_primary_trusted_scoring
+    -> PhaseFTrustedScoringSuccess
+    -> RuntimeOperations._trusted_persistence_entry(...).persist_success
+    -> PREWRITE_VALIDATE -> filesystem protocol -> atomic SQLite registration
+  ```
+
+- The harness preserves its established mixed subtitle/Whisper transcript
+  fixtures before handing their verified text to the runtime scoring composition.
+  This avoids a provenance mismatch in the runtime's generic subtitle loader
+  while keeping the scoring completion path entirely runtime-owned.
+- `RepositoryBackedScoringService`, `ScoringJobContext`, bare `ScoreResult`
+  scoring output, and legacy scoring `complete_stage()` use were removed from
+  `tests/e2e/test_mvp_flow.py`. The five scenarios, note user-section
+  preservation, cloud-disabled flow, idempotency, and output assertions remain.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `uv run pytest tests/e2e/test_mvp_flow.py -q` | PASS (`3 passed`) |
+| `uv run pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run ruff check tests/e2e/test_mvp_flow.py` | PASS |
+| `git diff --check` | PASS |
+| `uv run pytest -x -q` | BLOCKED at `tests/integration/test_ollama_provider.py::test_successful_language_repair_persists_only_the_valid_repair_response` after `105 passed`: its `_repository_scoring_service()` still constructs `RepositoryBackedScoringService` and expects its forbidden persistence completion to succeed. This is a remaining legacy scoring dependency outside this migration's allowed E2E scope. |
+
+### Scope and conclusion
+
+- Production code changes: **none**.
+- No schema, migration, dependency, lockfile, provider implementation, cache,
+  repair/retry/recovery, Phase H, or real network/Vault/cloud operation was
+  performed.
+- Diff review found only the harness migration before the implementation commit;
+  the handoff commit contains only this evidence.
+
+Status: `READY FOR Legacy E2E Migration-01 Independent Review`.
