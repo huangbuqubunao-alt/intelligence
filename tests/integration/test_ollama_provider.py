@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from youtube_intel.config import LocalScoringSettings
+from youtube_intel.config import LocalScoringSettings, load_app_config
 from youtube_intel.domain import (
     Availability,
     ContentQualityInput,
@@ -19,6 +19,7 @@ from youtube_intel.domain import (
     ContentQualitySignal,
     ContentQualityStatus,
     ErrorCode,
+    JobStatus,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
@@ -26,26 +27,23 @@ from youtube_intel.domain import (
     QualityJudgeOperationInput,
     ScoringEvidence,
     ScoringEvidenceSource,
+    ScoringInput,
     VideoMetadata,
 )
 from youtube_intel.providers.ollama import (
     OllamaProviderError,
     OllamaQualityJudgeProvider,
     OllamaScoringProvider,
+    parse_scoring_candidate,
 )
 from youtube_intel.quality import build_content_quality_input_hash, build_judge_h1_h2
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
-    RepositoryBackedScoringService,
-    ScoringJobContext,
-    ScoringPersistenceError,
+    PrimaryScoringAttempt,
+    build_primary_scoring_attempt,
     build_scoring_input,
 )
-from youtube_intel.state import (
-    ArtifactKind,
-    JobType,
-    ProviderCallStatus,
-    SQLiteStateRepository,
-)
+from youtube_intel.state import ArtifactKind, JobType, ProviderCallStatus
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "scoring"
 PROMPT = Path(__file__).resolve().parents[2] / "prompts" / "scoring.md"
@@ -174,26 +172,116 @@ def _video() -> VideoMetadata:
     )
 
 
-def _repository_scoring_service(
+class _RepairFlowProvider:
+    """Test-only bridge from the legacy repair transport to a trusted attempt.
+
+    The production trusted provider remains PRIMARY-only.  This adapter drives
+    the existing fake transport through its one-shot repair behavior, then
+    passes only the canonical final repair envelope into the trusted runtime
+    path.  No legacy persistence service receives the result.
+    """
+
+    def __init__(self, provider: OllamaScoringProvider) -> None:
+        self._provider = provider
+        self.calls = 0
+        self.final_raw_response: str | None = None
+
+    def primary_attempt(self, scoring_input: ScoringInput) -> PrimaryScoringAttempt:
+        self.calls += 1
+        self._provider.score(scoring_input)
+        raw = self._provider.consume_raw_response(
+            request_hash=scoring_input.request_hash
+        )
+        self.final_raw_response = raw
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,
+            candidate=parse_scoring_candidate(raw),
+            final_raw_response=raw,
+            provider="ollama",
+            model=_settings().model,
+            model_digest=_settings().expected_model_digest,
+            temperature=_settings().temperature,
+            max_output_tokens=_settings().max_output_tokens,
+            max_description_chars=_settings().max_description_chars,
+        )
+
+
+def _trusted_repair_runtime(
     tmp_path: Path,
-    provider: OllamaScoringProvider,
-) -> tuple[SQLiteStateRepository, RepositoryBackedScoringService]:
-    now = datetime(2026, 8, 13, tzinfo=UTC)
-    repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    repository.initialize(now=now)
-    repository.upsert_video_metadata(_video(), pipeline_version="pipeline-v1", now=now)
+    provider: _RepairFlowProvider,
+) -> tuple[RuntimeOperations, str, _FakeTransport]:
+    project = tmp_path / "project"
+    config_root = project / "config"
+    config_root.mkdir(parents=True)
+    vault_root = project / "vault"
+    vault_root.mkdir()
+    (config_root / "channels.yaml").write_text(
+        "channels:\n  - channel_id: UC_OFFLINE\n", encoding="utf-8"
+    )
+    (config_root / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+  output_language: en
+local_scoring:
+  model: {_settings().model}
+  expected_model_digest: {_settings().expected_model_digest}
+  temperature: {_settings().temperature}
+  max_output_tokens: {_settings().max_output_tokens}
+  max_transcript_chars: 30000
+  max_description_chars: {_settings().max_description_chars}
+cloud:
+  enabled: false
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {vault_root}
+  vault_subdir: Knowledge
+""",
+        encoding="utf-8",
+    )
+    config = load_app_config(
+        channels_path=config_root / "channels.yaml",
+        settings_path=config_root / "settings.yaml",
+    )
+    quality_transport = _FakeTransport(
+        [
+            _tags(),
+            _judge_response_payload(
+                status="PASS",
+                signals=["MINIMAL_CLAIM_PRESENT", "GROUNDING_PRESENT"],
+                evidence_ids=["title-1"],
+            ),
+        ]
+    )
+    runtime = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),
+            metadata_provider=object(),
+            subtitle_adapter_factory=lambda: object(),
+            scoring_provider_factory=lambda: provider,
+            analysis_provider_factory=lambda: object(),
+            quality_judge_provider_factory=lambda: _judge_provider(quality_transport),
+        ),
+    )
+    repository = runtime._repository
+    now = datetime.now(UTC)
+    repository.upsert_video_metadata(_video(), pipeline_version="runtime-v1", now=now)
     assert repository.advance_pipeline(
         "video-123",
         expected_status=PipelineStatus.DISCOVERED,
         target_status=PipelineStatus.METADATA_READY,
-        pipeline_version="pipeline-v1",
+        pipeline_version="runtime-v1",
         now=now,
     )
     assert repository.advance_pipeline(
         "video-123",
         expected_status=PipelineStatus.METADATA_READY,
         target_status=PipelineStatus.TRANSCRIPT_READY,
-        pipeline_version="pipeline-v1",
+        pipeline_version="runtime-v1",
         now=now,
     )
     repository.create_job(
@@ -202,7 +290,7 @@ def _repository_scoring_service(
         video_id="video-123",
         job_type=JobType.VIDEO_STAGE,
         target_stage=ProcessingStage.SCORING,
-        pipeline_version="pipeline-v1",
+        pipeline_version="runtime-v1",
         max_attempts=3,
         available_at=now,
         now=now,
@@ -213,20 +301,29 @@ def _repository_scoring_service(
         now=now,
     )
     assert claimed is not None
-    service = RepositoryBackedScoringService(
-        provider=provider,
-        settings=_settings(),
-        summary_threshold=7.0,
-        repository=repository,
-        context=ScoringJobContext(
-            job_id=claimed.job_id,
-            owner="test-worker",
-            pipeline_version="pipeline-v1",
-        ),
-        artifact_root=tmp_path / "artifacts",
-        clock=lambda: now,
-    )
-    return repository, service
+    return runtime, claimed.job_id, quality_transport
+
+
+def _assert_no_trusted_scoring_success(
+    runtime: RuntimeOperations,
+    *,
+    scoring_input: ScoringInput,
+    job_id: str,
+) -> None:
+    repository = runtime._repository
+    assert repository.get_artifact_by_key(
+        f"scoring/{scoring_input.request_hash}/raw"
+    ) is None
+    assert repository.get_artifact_by_key(
+        f"scoring/{scoring_input.request_hash}/structured"
+    ) is None
+    assert repository.get_provider_call(scoring_input.request_hash) is None
+    video = repository.get_video("video-123")
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    job = repository.get_job(job_id)
+    assert job is not None
+    assert job.status is JobStatus.RUNNING
 
 
 def _tags(*, digest: str | None = None) -> dict[str, object]:
@@ -516,37 +613,20 @@ def test_failed_language_repair_never_persists_a_formal_scoring_artifact(
     transport = _FakeTransport(
         [_tags(), _generate(wrong_response), _generate(wrong_response)]
     )
-    repository, service = _repository_scoring_service(
-        tmp_path,
-        _provider(transport),
+    repair_provider = _RepairFlowProvider(_provider(transport))
+    runtime, job_id, quality_transport = _trusted_repair_runtime(
+        tmp_path, repair_provider
     )
+    scoring_input = _input(output_language=output_language)
 
-    with pytest.raises(ScoringPersistenceError) as exc_info:
-        service.score(
-            video=_video(),
-            transcript_text="canonical transcript",
-            language="en",
-            output_language=output_language,
-        )
+    with pytest.raises(OllamaProviderError) as exc_info:
+        repair_provider.primary_attempt(scoring_input)
 
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
-    connection = repository._connect()
-    try:
-        artifact_kinds = tuple(
-            row[0] for row in connection.execute("SELECT kind FROM artifacts")
-        )
-        provider_call = connection.execute(
-            "SELECT status, response_artifact_id FROM provider_calls"
-        ).fetchone()
-    finally:
-        connection.close()
-    assert ArtifactKind.SCORING_RAW.value not in artifact_kinds
-    assert ArtifactKind.SCORING_STRUCTURED.value not in artifact_kinds
-    assert provider_call is not None
-    assert provider_call[0] == ProviderCallStatus.FAILED_RETRYABLE.value
-    assert provider_call[1] is None
-    assert not any(
-        path.is_file() for path in (tmp_path / "artifacts").rglob("*")
+    assert [method for method, _, _ in transport.requests] == ["GET", "POST", "POST"]
+    assert quality_transport.requests == []
+    _assert_no_trusted_scoring_success(
+        runtime, scoring_input=scoring_input, job_id=job_id
     )
 
 
@@ -567,30 +647,73 @@ def test_successful_language_repair_persists_only_the_valid_repair_response(
             _generate(json.dumps({**result_template, "reason": repaired_reason})),
         ]
     )
-    repository, service = _repository_scoring_service(
-        tmp_path,
-        _provider(transport),
+    repair_provider = _RepairFlowProvider(_provider(transport))
+    runtime, job_id, quality_transport = _trusted_repair_runtime(
+        tmp_path, repair_provider
     )
-
-    outcome = service.score(
-        video=_video(),
-        transcript_text="canonical transcript",
-        language="en",
-        output_language="en",
+    scoring_input = _input(transcript_text="canonical transcript")
+    success = runtime.run_primary_trusted_scoring(
+        attempt=repair_provider.primary_attempt(scoring_input),
+        scoring_input=scoring_input,
     )
+    runtime._trusted_persistence_entry(
+        job_id=job_id,
+        owner="test-worker",
+        pipeline_version="runtime-v1",
+    ).persist_success(success)
 
+    repository = runtime._repository
     raw = repository.get_artifact_by_key(
-        f"scoring/{outcome.result.request_hash}/raw"
+        f"scoring/{scoring_input.request_hash}/raw"
     )
     assert raw is not None
     assert raw.kind is ArtifactKind.SCORING_RAW
-    raw_content = (tmp_path / "artifacts" / raw.relative_path).read_text(
-        encoding="utf-8"
+    persisted_response = json.loads(
+        (runtime._data_root / raw.relative_path).read_text(encoding="utf-8")
     )
-    persisted_response = json.loads(raw_content)
-    persisted_result = json.loads(persisted_response["response"])
+    persisted_result = json.loads(persisted_response["provider_raw_response"])["response"]
+    persisted_result = json.loads(persisted_result)
     assert persisted_result["reason"] == repaired_reason
     assert persisted_result["reason"] != primary_reason
+    assert repair_provider.final_raw_response == persisted_response["provider_raw_response"]
+    assert primary_reason not in json.dumps(persisted_response)
+    assert [method for method, _, _ in transport.requests] == ["GET", "POST", "POST"]
+    assert [method for method, _, _ in quality_transport.requests] == ["GET", "POST"]
+    scoring_call = repository.get_provider_call(scoring_input.request_hash)
+    assert scoring_call is not None
+    assert scoring_call.status is ProviderCallStatus.SUCCEEDED
+    assert scoring_call.response_artifact_id == raw.artifact_id
+    structured = repository.get_artifact_by_key(
+        f"scoring/{scoring_input.request_hash}/structured"
+    )
+    assert structured is not None
+    video = repository.get_video("video-123")
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.SCORED
+    job = repository.get_job(job_id)
+    assert job is not None
+    assert job.status is JobStatus.SUCCEEDED
+
+
+def test_primary_provider_failure_does_not_repair_or_persist_in_trusted_flow(
+    tmp_path: Path,
+) -> None:
+    transport = _FakeTransport([_tags(), _IncompleteResponse(b"partial")])
+    repair_provider = _RepairFlowProvider(_provider(transport))
+    runtime, job_id, quality_transport = _trusted_repair_runtime(
+        tmp_path, repair_provider
+    )
+    scoring_input = _input()
+
+    with pytest.raises(OllamaProviderError) as exc_info:
+        repair_provider.primary_attempt(scoring_input)
+
+    assert exc_info.value.error.code is ErrorCode.TRANSIENT_NETWORK
+    assert [method for method, _, _ in transport.requests] == ["GET", "POST"]
+    assert quality_transport.requests == []
+    _assert_no_trusted_scoring_success(
+        runtime, scoring_input=scoring_input, job_id=job_id
+    )
 
 
 def test_official_bare_sha256_digest_shape_matches_frozen_config() -> None:
