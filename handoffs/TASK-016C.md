@@ -3269,3 +3269,80 @@ Status: `READY FOR PHASE G CORRECTION ROUND 15 INDEPENDENT REVIEW`.
   the handoff commit contains only this evidence.
 
 Status: `READY FOR Legacy E2E Migration-01 Independent Review`.
+
+---
+
+## TASK-016C Legacy E2E Migration-02 — Trusted Repair Flow Test Harness Cutover
+
+### Metadata and scope
+
+- Base: `faffe4d` (Phase G accepted; Legacy E2E Migration-01 approved).
+- Implementation commit: `82d6d4b` — `TASK-016C Legacy E2E Migration-02 trusted repair flow cutover`.
+- Allowed and changed implementation file: `tests/integration/test_ollama_provider.py` only.
+- Reuse decision: `DIRECT` — existing `RuntimeOperations`, runtime-owned repository and
+  `TrustedPersistenceEntry`, Phase F aggregate, Phase G PREWRITE_VALIDATE/filesystem/SQLite
+  protocol, existing Ollama fake transport, and existing local Quality Judge fake transport.
+  No third-party code, dependency, schema, migration, provider production code, or lockfile changed.
+
+### Legacy removal and trusted-flow evidence
+
+- Removed this file's `_repository_scoring_service()` and every direct reference to
+  `RepositoryBackedScoringService`, `ScoringJobContext`, `ScoringPersistenceError`, and
+  ad-hoc `SQLiteStateRepository` construction. The harness now creates `RuntimeOperations`,
+  uses `runtime._repository`, and obtains its persistence entry only through
+  `runtime._trusted_persistence_entry(...)`.
+- The test-only `_RepairFlowProvider` executes the existing fake PRIMARY/one-shot-REPAIR
+  transport sequence, consumes only its canonical final repair envelope, and creates a
+  `PrimaryScoringAttempt`. The test then executes:
+
+  ```text
+  fake repair flow -> RuntimeOperations.run_primary_trusted_scoring
+    -> PhaseFTrustedScoringSuccess
+    -> runtime-owned TrustedPersistenceEntry.persist_success
+    -> PREWRITE_VALIDATE -> filesystem -> atomic SQLite registration
+  ```
+
+- No test manually creates a scoring-success Artifact, updates the video to `SCORED`, marks
+  the job `SUCCEEDED`, or calls `complete_stage()` for scoring success.
+
+### Repair-semantics evidence
+
+- `test_successful_language_repair_persists_only_the_valid_repair_response` asserts the
+  exact fake provider sequence `GET, POST, POST`, the repair-only raw envelope, absence of
+  the invalid primary reason from persisted data, Quality Judge `GET, POST`, completed scoring
+  ProviderCall binding to the raw Artifact, structured Artifact registration, and final
+  `SCORED`/`SUCCEEDED` state produced by the trusted entry.
+- `test_failed_language_repair_never_persists_a_formal_scoring_artifact` keeps the invalid
+  primary plus invalid repair sequence and proves no raw/structured Artifact or scoring
+  ProviderCall success is created; video and job remain `TRANSCRIPT_READY`/`RUNNING`.
+- Added `test_primary_provider_failure_does_not_repair_or_persist_in_trusted_flow`: injected
+  primary transport failure stops after `GET, POST`, invokes no Quality Judge, and leaves no
+  trusted persistence output.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `uv run pytest tests/integration/test_ollama_provider.py -q` | PASS (`72 passed`) |
+| `uv run pytest tests/e2e/test_mvp_flow.py -q` | PASS (`3 passed`) |
+| `uv run pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run ruff check tests/integration/test_ollama_provider.py` | PASS |
+| `git diff --check` | PASS |
+| `uv run pytest -x -q` | BLOCKED after `135 passed` at `tests/integration/test_pipeline.py::test_pipeline_completes_high_low_no_subtitle_deferred_and_unavailable_idempotently` |
+
+### Full-suite blocker analysis
+
+- The full-suite failure is not the migrated Ollama repair path. `tests/integration/test_pipeline.py`
+  contains its own generic `_FakeStages` scoring handler that calls legacy `complete_stage()` with
+  `target_status=SCORED` and a scoring summary. Under the Phase G trusted scoring-success guard,
+  that handler leaves the video at `TRANSCRIPT_READY`; its assertion then fails.
+- That fixture is outside this task's explicit allowlist. It was not modified, weakened, skipped,
+  or bypassed. No Phase H repair/retry/recovery work was performed.
+
+### Diff review and conclusion
+
+- Implementation diff is limited to the approved integration harness; handoff diff is evidence only.
+- No dependency, Schema, migration, credential, real network, cloud, Vault, legacy persistence ingress,
+  production code, or Phase H change was made.
+
+Status: `IN_REVIEW — Legacy E2E Migration-02 implementation complete; full suite blocked by the next out-of-scope legacy scoring harness`.
