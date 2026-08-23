@@ -34,17 +34,24 @@ from youtube_intel.domain import (
     PointKind,
     ProviderCallMetadata,
     QualityJudgeOperationInput,
-    ScoreResult,
+    ScoringInput,
     SubtitleFormat,
     TranscriptSourceType,
     VideoMetadata,
 )
 from youtube_intel.providers.ollama import parse_scoring_candidate
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
-from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_attempt
+from youtube_intel.scoring import (
+    PhaseFTrustedScoringSuccess,
+    PrimaryScoringAttempt,
+    ScoringPersistenceError,
+    build_primary_scoring_attempt,
+    build_scoring_input,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
+    IntegrityConflict,
     JobStatus,
     JobType,
     PipelineStatus,
@@ -221,22 +228,6 @@ class _ScoringProvider:
             temperature=0.0,
             max_output_tokens=1200,
             max_description_chars=32,
-        )
-
-    def score(self, scoring_input: object) -> ScoreResult:
-        self.calls += 1
-        self._raw_response = self._raw_envelope()
-        return ScoreResult(
-            schema_version="score-result-v2",
-            score=8.6,
-            reason="受控本地评分覆盖了正式运行时组合。",
-            topics=("product",),
-            should_summarize=True,
-            provider="ollama",
-            model="qwen3:8b",
-            prompt_version="scoring-prompt-v2",
-            request_hash=getattr(scoring_input, "request_hash"),
-            output_language=getattr(scoring_input, "output_language"),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
@@ -446,110 +437,59 @@ def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def _build_scoring_fixture(
-    repository: SQLiteStateRepository,
-    data_root: Path,
+def _trusted_scoring_success(
+    ops: RuntimeOperations,
+    video_id: str,
+) -> tuple[ScoringInput, PhaseFTrustedScoringSuccess]:
+    scoring_input = build_scoring_input(
+        video=VideoMetadata(
+            video_id=video_id,
+            channel_id=CHANNEL_ID,
+            channel_name="Test channel",
+            title=f"Video {video_id}",
+            description="Fixture",
+            source_url=f"https://www.youtube.com/watch?v={video_id}",
+            published_at=NOW,
+            duration_seconds=120,
+            default_language="en",
+            available_languages=("en",),
+            live_status=LiveStatus.NONE,
+            availability=Availability.PUBLIC,
+        ),
+        transcript_text="Trusted scoring fixture transcript evidence.",
+        language="en",
+        output_language=ops._config.settings.general.output_language,
+        settings=ops._config.settings.local_scoring,
+    )
+    provider = ops._dependencies.scoring_provider_factory()
+    success = ops.run_primary_trusted_scoring(
+        attempt=provider.primary_attempt(scoring_input),
+        scoring_input=scoring_input,
+    )
+    assert type(success) is PhaseFTrustedScoringSuccess
+    return scoring_input, success
+
+
+def _persist_trusted_scoring_success(
+    ops: RuntimeOperations,
     video_id: str,
     job_id: str,
-    request_hash: str,
     now: datetime,
-) -> tuple[ArtifactWrite, ArtifactWrite, ScoreResult]:
-    result = ScoreResult(
-        schema_version="score-result-v2",
-        score=8.0,
-        reason="该夹具用于验证评分来源链。",
-        topics=("fixture",),
-        should_summarize=True,
-        provider="ollama",
-        model="qwen3:8b",
-        prompt_version="scoring-prompt-v2",
-        request_hash=request_hash,
-        output_language="zh-CN",
-    )
-    raw_content = _canonical_json({"raw": "fixture response"}).encode("utf-8")
-    raw_hash = hashlib.sha256(raw_content).hexdigest()
-    structured_content = _canonical_json(result.model_dump(mode="json")).encode("utf-8")
-    structured_hash = hashlib.sha256(structured_content).hexdigest()
-
-    raw_relative = f"scoring/{request_hash}/raw.json"
-    structured_relative = f"scoring/{request_hash}/structured.json"
-    (data_root / f"scoring/{request_hash}").mkdir(parents=True, exist_ok=True)
-    (data_root / raw_relative).write_bytes(raw_content)
-    (data_root / structured_relative).write_bytes(structured_content)
-
-    raw = ArtifactWrite(
-        artifact_id=f"scoring-raw-{hashlib.sha256((f'scoring/{request_hash}/raw' + raw_hash).encode()).hexdigest()}",
-        artifact_key=f"scoring/{request_hash}/raw",
-        video_id=video_id,
+) -> tuple[ArtifactWrite, ArtifactWrite, str]:
+    scoring_input, success = _trusted_scoring_success(ops, video_id)
+    entry = ops._trusted_persistence_entry(
         job_id=job_id,
-        kind=ArtifactKind.SCORING_RAW,
-        storage_root=StorageRoot.DATA,
-        relative_path=raw_relative,
-        content_hash=raw_hash,
-        provider="ollama",
-        model="qwen3:8b",
-        producer_version="ollama-raw-v2",
-        retention_class=RetentionClass.RAW_RESPONSE_30D,
-        expires_at=now + timedelta(days=30),
-    )
-    structured = ArtifactWrite(
-        artifact_id=f"scoring-structured-{hashlib.sha256((f'scoring/{request_hash}/structured' + structured_hash).encode()).hexdigest()}",
-        artifact_key=f"scoring/{request_hash}/structured",
-        video_id=video_id,
-        job_id=job_id,
-        kind=ArtifactKind.SCORING_STRUCTURED,
-        storage_root=StorageRoot.DATA,
-        relative_path=structured_relative,
-        content_hash=structured_hash,
-        provider="ollama",
-        model="qwen3:8b",
-        producer_version="scoring-structured-v2",
-        retention_class=RetentionClass.LONG_LIVED,
-        expires_at=None,
-    )
-    return raw, structured, result
-
-
-def _persist_scoring_provenance(
-    repository: SQLiteStateRepository,
-    data_root: Path,
-    video_id: str,
-    job_id: str,
-    request_hash: str,
-    now: datetime,
-) -> tuple[ArtifactWrite, ArtifactWrite, ScoreResult]:
-    request = ProviderCallRequest(
-        operation="local-scoring",
-        normalized_input_hash=request_hash,
-        provider="ollama",
-        model="qwen3:8b",
-        prompt_version="scoring-prompt-v2",
-        schema_version="score-result-v2",
-        deterministic_artifact_key=f"scoring/{request_hash}/raw",
-    )
-    raw, structured, result = _build_scoring_fixture(
-        repository, data_root, video_id, job_id, request.request_hash, now
-    )
-    repository.upsert_artifact(raw, now=now)
-    repository.upsert_artifact(structured, now=now)
-
-    repository.reserve_provider_call(
-        request,
         owner="test-owner",
-        lease_until=now + timedelta(minutes=5),
-        available_at=now,
-        now=now,
+        pipeline_version=PIPELINE_VERSION,
     )
-    repository.complete_provider_call(
-        request_hash=request.request_hash,
-        owner="test-owner",
-        response_artifact_id=raw.artifact_id,
-        input_tokens=None,
-        output_tokens=None,
-        cost_microusd=None,
-        now=now,
+    entry._clock = lambda: now  # type: ignore[method-assign]
+    persisted = entry.persist_success(success)
+    artifacts = {artifact.kind: artifact for artifact in persisted.artifacts}
+    return (
+        artifacts[ArtifactKind.SCORING_RAW],
+        artifacts[ArtifactKind.SCORING_STRUCTURED],
+        scoring_input.request_hash,
     )
-    return raw, structured, result
 
 
 def _setup_scoring_video_and_job(
@@ -603,6 +543,136 @@ def _setup_scoring_video_and_job(
         lease_until=now + timedelta(minutes=5),
         now=now,
         video_id=video_id,
+    )
+
+
+def _assert_no_scoring_success(
+    repository: SQLiteStateRepository, video_id: str, job_id: str
+) -> None:
+    assert repository.latest_artifact(video_id, ArtifactKind.SCORING_RAW) is None
+    assert repository.latest_artifact(video_id, ArtifactKind.SCORING_STRUCTURED) is None
+    connection = repository._connect()
+    try:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE video_id = ?", (video_id,)
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM provider_calls WHERE status = 'SUCCEEDED'"
+            ).fetchone()[0]
+            == 0
+        )
+    finally:
+        connection.close()
+    video = repository.get_video(video_id)
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert video.score is None
+    assert video.should_summarize is None
+    job = repository.get_job(job_id)
+    assert job is not None
+    assert job.status is JobStatus.RUNNING
+
+
+def test_legacy_scoring_complete_stage_fails_closed_without_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = _project(tmp_path)
+    ops = _runtime_ops(project, monkeypatch)
+    job_id = "scoring-job-legacy-attack"
+    _setup_scoring_video_and_job(ops._repository, VIDEO_ID, job_id, NOW)
+
+    with pytest.raises(IntegrityConflict, match="runtime trusted persistence entry"):
+        ops._repository.complete_stage(
+            job_id=job_id,
+            owner="test-owner",
+            video_id=VIDEO_ID,
+            expected_status=PipelineStatus.TRANSCRIPT_READY,
+            target_status=PipelineStatus.SCORED,
+            pipeline_version=PIPELINE_VERSION,
+            artifacts=(),
+            provider_call=None,
+            now=NOW,
+            scoring_summary=ScoringSummaryWrite(score=8.0, should_summarize=True),
+        )
+
+    _assert_no_scoring_success(ops._repository, VIDEO_ID, job_id)
+    assert not tuple((ops._data_root / "scoring").rglob("*.json"))
+
+
+def test_trusted_scoring_failure_has_no_registered_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = _project(tmp_path)
+    ops = _runtime_ops(project, monkeypatch)
+    job_id = "scoring-job-atomic-failure"
+    _setup_scoring_video_and_job(ops._repository, VIDEO_ID, job_id, NOW)
+    _, success = _trusted_scoring_success(ops, VIDEO_ID)
+    entry = ops._trusted_persistence_entry(
+        job_id=job_id,
+        owner="test-owner",
+        pipeline_version=PIPELINE_VERSION,
+    )
+    entry._clock = lambda: NOW  # type: ignore[method-assign]
+
+    def fail_after_pipeline(point: str) -> None:
+        if point == "atomic_register.after_pipeline":
+            raise RuntimeError("injected trusted registration failure")
+
+    ops._repository._inject_failure = fail_after_pipeline  # type: ignore[method-assign]
+    try:
+        with pytest.raises(
+            ScoringPersistenceError, match="injected trusted registration failure"
+        ):
+            entry.persist_success(success)
+    finally:
+        ops._repository._inject_failure = None  # type: ignore[method-assign]
+
+    _assert_no_scoring_success(ops._repository, VIDEO_ID, job_id)
+
+
+def test_trusted_scoring_repeat_has_no_duplicate_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = _project(tmp_path)
+    ops = _runtime_ops(project, monkeypatch)
+    job_id = "scoring-job-idempotent"
+    _setup_scoring_video_and_job(ops._repository, VIDEO_ID, job_id, NOW)
+    scoring_input, success = _trusted_scoring_success(ops, VIDEO_ID)
+    entry = ops._trusted_persistence_entry(
+        job_id=job_id,
+        owner="test-owner",
+        pipeline_version=PIPELINE_VERSION,
+    )
+    entry._clock = lambda: NOW  # type: ignore[method-assign]
+
+    first = entry.persist_success(success)
+    second = entry.persist_success(success)
+
+    assert second == first
+    assert len(first.artifacts) == 2
+    assert {artifact.kind for artifact in first.artifacts} == {
+        ArtifactKind.SCORING_RAW,
+        ArtifactKind.SCORING_STRUCTURED,
+    }
+    assert first.provider_call.status is ProviderCallStatus.SUCCEEDED
+    assert first.video.pipeline_status is PipelineStatus.SCORED
+    assert first.job.status is JobStatus.SUCCEEDED
+    connection = ops._repository._connect()
+    try:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE video_id = ?", (VIDEO_ID,)
+            ).fetchone()[0]
+            == 2
+        )
+        assert (
+            connection.execute("SELECT COUNT(*) FROM provider_calls").fetchone()[0]
+            == 2
+        )
+    finally:
+        connection.close()
+    assert len(tuple((ops._data_root / "scoring").rglob("*.json"))) == 2
+    assert (
+        ops._repository.get_provider_call(scoring_input.request_hash).status
+        is ProviderCallStatus.SUCCEEDED
     )
 
 
@@ -776,26 +846,6 @@ def _setup_analysis_video_and_job(
     )
 
 
-def _complete_scoring_job(
-    repository: SQLiteStateRepository,
-    video_id: str,
-    job_id: str,
-    now: datetime,
-) -> None:
-    repository.complete_stage(
-        job_id=job_id,
-        owner="test-owner",
-        video_id=video_id,
-        expected_status=PipelineStatus.TRANSCRIPT_READY,
-        target_status=PipelineStatus.SCORED,
-        pipeline_version=PIPELINE_VERSION,
-        artifacts=(),
-        provider_call=None,
-        now=now,
-        scoring_summary=ScoringSummaryWrite(score=8.0, should_summarize=True),
-    )
-
-
 def _complete_analysis_job(
     repository: SQLiteStateRepository,
     video_id: str,
@@ -823,14 +873,12 @@ def test_valid_scoring_artifact_is_reused_without_calling_provider(
     project = _project(tmp_path)
     ops = _runtime_ops(project, monkeypatch)
     repository = ops._repository
-    request_hash = "a" * 64
     job_id = "scoring-job-1"
 
     _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
-    raw, structured, result = _persist_scoring_provenance(
-        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    raw, structured, request_hash = _persist_trusted_scoring_success(
+        ops, VIDEO_ID, job_id, NOW
     )
-    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
 
     scoring_provider = _ScoringProvider()
     monkeypatch.setattr(
@@ -840,8 +888,8 @@ def test_valid_scoring_artifact_is_reused_without_calling_provider(
     ops2 = RuntimeOperations(config=_config(project), project_root=project)
 
     outcome = ops2._load_scoring(VIDEO_ID)
-    assert outcome.result.score == 8.0
-    assert outcome.result.request_hash == result.request_hash
+    assert outcome.result.score == 8.6
+    assert outcome.result.request_hash == request_hash
     assert scoring_provider.calls == 0
     provider_call = repository.get_provider_call(outcome.result.request_hash)
     assert provider_call is not None
@@ -1080,17 +1128,15 @@ def test_scoring_provenance_fail_closed(
     project = _project(tmp_path)
     ops = _runtime_ops(project, monkeypatch)
     repository = ops._repository
-    request_hash = "a" * 64
     job_id = "scoring-job-fail"
 
     _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
-    raw, structured, result = _persist_scoring_provenance(
-        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    raw, structured, request_hash = _persist_trusted_scoring_success(
+        ops, VIDEO_ID, job_id, NOW
     )
-    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
 
     _mutate_scoring(
-        mutation, repository, ops._data_root, raw, structured, result.request_hash, VIDEO_ID, job_id, NOW
+        mutation, repository, ops._data_root, raw, structured, request_hash, VIDEO_ID, job_id, NOW
     )
 
     scoring_provider = _ScoringProvider()
@@ -1346,17 +1392,22 @@ def test_scoring_current_config_model_mismatch_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    project = _project_with_models(tmp_path, local_scoring_model="qwen3:8b-current")
+    project = _project_with_models(tmp_path, local_scoring_model="qwen3:8b")
     ops = _runtime_ops(project, monkeypatch)
     repository = ops._repository
-    request_hash = "a" * 64
     job_id = "scoring-job-config"
 
     _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
-    raw, structured, result = _persist_scoring_provenance(
-        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    _persist_trusted_scoring_success(
+        ops, VIDEO_ID, job_id, NOW
     )
-    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
+    settings_path = project / "config" / "settings.yaml"
+    settings_path.write_text(
+        settings_path.read_text(encoding="utf-8").replace(
+            "  model: qwen3:8b\n", "  model: qwen3:8b-current\n"
+        ),
+        encoding="utf-8",
+    )
 
     scoring_provider = _ScoringProvider()
     monkeypatch.setattr(
@@ -1377,14 +1428,12 @@ def test_scoring_valid_recovery_matches_current_config_model(
     project = _project_with_models(tmp_path, local_scoring_model="qwen3:8b")
     ops = _runtime_ops(project, monkeypatch)
     repository = ops._repository
-    request_hash = "a" * 64
     job_id = "scoring-job-config-valid"
 
     _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
-    raw, structured, result = _persist_scoring_provenance(
-        repository, ops._data_root, VIDEO_ID, job_id, request_hash, NOW
+    _persist_trusted_scoring_success(
+        ops, VIDEO_ID, job_id, NOW
     )
-    _complete_scoring_job(repository, VIDEO_ID, job_id, NOW)
 
     scoring_provider = _ScoringProvider()
     monkeypatch.setattr(
@@ -1394,7 +1443,7 @@ def test_scoring_valid_recovery_matches_current_config_model(
     ops2 = RuntimeOperations(config=_config(project), project_root=project)
 
     outcome = ops2._load_scoring(VIDEO_ID)
-    assert outcome.result.score == 8.0
+    assert outcome.result.score == 8.6
     assert outcome.result.model == "qwen3:8b"
     assert scoring_provider.calls == 0
 
