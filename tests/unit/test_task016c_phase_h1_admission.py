@@ -5,11 +5,12 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from youtube_intel.config import LocalScoringSettings
+from youtube_intel.config import LocalScoringSettings, load_app_config
 from youtube_intel.domain import (
     Availability,
     DiscoveryBatch,
@@ -24,7 +25,7 @@ from youtube_intel.domain import (
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.pipeline import PipelineOrchestrator
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.runtime import RuntimeOperations
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import build_scoring_input
 from youtube_intel.scoring_admission import (
     ScoringDispatchAdmission,
@@ -203,6 +204,107 @@ def _primary_context() -> object:
     )
 
 
+def _runtime_for_h1(
+    project: Path, *, scoring_provider_factory: object
+) -> RuntimeOperations:
+    (project / "config").mkdir(parents=True, exist_ok=True)
+    (project / "vault").mkdir(exist_ok=True)
+    (project / "config" / "channels.yaml").write_text(
+        "channels:\n  - channel_id: channel-1\n", encoding="utf-8"
+    )
+    (project / "config" / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+  output_language: en
+local_scoring:
+  model: qwen3:8b
+  expected_model_digest: sha256:{"4" * 64}
+  temperature: 0.0
+  max_output_tokens: 1200
+  max_transcript_chars: 64
+  max_description_chars: 32
+cloud:
+  enabled: false
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {project / "vault"}
+  vault_subdir: YouTube Intel
+""",
+        encoding="utf-8",
+    )
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+    return RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=scoring_provider_factory,  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+
+
+def _active_scoring_job(
+    repository: SQLiteStateRepository, *, owner: str, now: datetime
+) -> JobRecord:
+    repository.save_discovery_batch(
+        DiscoveryBatch(
+            channel_id="channel-1",
+            video_ids=("video-1",),
+            next_cursor=DiscoveryCursor(
+                channel_id="channel-1",
+                last_checked_at=now,
+                latest_published_at=now,
+                latest_video_id="video-1",
+                provider_cursor="cursor-1",
+            ),
+            call=ProviderCallMetadata(provider="fake", started_at=now, finished_at=now),
+        ),
+        expected_cursor=None,
+        expected_revision=0,
+        pipeline_version="runtime-v1",
+        now=now,
+    )
+    repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="runtime-v1",
+        now=now,
+    )
+    repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="runtime-v1",
+        now=now,
+    )
+    repository.create_job(
+        job_id="scoring-job",
+        scope_key="video:video-1:SCORING",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.SCORING,
+        pipeline_version="runtime-v1",
+        max_attempts=3,
+        available_at=now,
+        now=now,
+    )
+    claimed = repository.claim_next_job(
+        owner=owner, lease_until=now + timedelta(minutes=5), now=now
+    )
+    assert claimed is not None
+    return claimed
+
+
 def test_duplicate_primary_admission_is_denied() -> None:
     repository = _Repository()
     gate = _gate(repository)
@@ -216,13 +318,14 @@ def test_duplicate_primary_admission_is_denied() -> None:
 
 def test_duplicate_repair_admission_is_denied() -> None:
     repository = _Repository()
-    gate = _gate(repository)
+    first = _gate(repository)
+    second = _gate(repository)
     identity = _identity(ScoringDispatchRole.REPAIR)
 
-    gate.admit(identity, now=_NOW)
+    first.admit(identity, now=_NOW)
 
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
-        gate.admit(identity, now=_NOW)
+        second.admit(identity, now=_NOW)
 
 
 def test_duplicate_judge_admission_is_denied_without_consuming_other_role() -> None:
@@ -272,18 +375,20 @@ def test_expired_lease_blocks_real_judge_dispatch_before_provider_contact() -> N
 
 def test_duplicate_judge_dispatch_is_rejected_before_a_second_provider_contact() -> None:
     runtime, provider = _judge_runtime()
-    gate = _live_judge_gate(_Repository())
+    repository = _Repository()
+    first = _live_judge_gate(repository)
+    second = _live_judge_gate(repository)
 
     runtime._dispatch_quality_judge(
         operation_input=_judge_operation(),
         content_input=object(),  # type: ignore[arg-type]
-        admission=gate,
+        admission=first,
     )
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
         runtime._dispatch_quality_judge(
             operation_input=_judge_operation(),
             content_input=object(),  # type: ignore[arg-type]
-            admission=gate,
+            admission=second,
         )
 
     assert len(provider.calls) == 1
@@ -291,21 +396,22 @@ def test_duplicate_judge_dispatch_is_rejected_before_a_second_provider_contact()
 
 def test_concurrent_judge_admission_allows_only_one_provider_contact() -> None:
     runtime, provider = _judge_runtime()
-    gate = _live_judge_gate(_Repository())
+    repository = _Repository()
+    admissions = (_live_judge_gate(repository), _live_judge_gate(repository))
 
-    def dispatch() -> str:
+    def dispatch(admission: ScoringDispatchAdmission) -> str:
         try:
             runtime._dispatch_quality_judge(
                 operation_input=_judge_operation(),
                 content_input=object(),  # type: ignore[arg-type]
-                admission=gate,
+                admission=admission,
             )
         except ScoringDispatchDenied:
             return "denied"
         return "dispatched"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = set(executor.map(lambda _value: dispatch(), range(2)))
+        results = set(executor.map(dispatch, admissions))
 
     assert results == {"denied", "dispatched"}
     assert len(provider.calls) == 1
@@ -351,6 +457,64 @@ def test_competing_runtime_cannot_admit_under_another_claimant_lease() -> None:
         results = set(executor.map(attempt, ("runtime-a", "runtime-b")))
 
     assert results == {"admitted", "denied"}
+
+
+def test_separate_admission_instances_share_one_active_lease_budget() -> None:
+    repository = _Repository()
+    first = _gate(repository)
+    second = _gate(repository)
+    identity = _identity(ScoringDispatchRole.PRIMARY)
+
+    def dispatch(admission: ScoringDispatchAdmission) -> str:
+        try:
+            admission.admit(identity, now=_NOW)
+        except ScoringDispatchDenied:
+            return "denied"
+        return "dispatched"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = set(executor.map(dispatch, (first, second)))
+
+    assert results == {"denied", "dispatched"}
+
+
+def test_two_runtime_operations_share_admission_for_one_active_scoring_job(
+    tmp_path: Path,
+) -> None:
+    runtime_a = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    runtime_b = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    runtime_b._runtime_owner = runtime_a._runtime_owner
+    claimed = _active_scoring_job(
+        runtime_a._repository,
+        owner=runtime_a._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    identity = _identity(ScoringDispatchRole.PRIMARY)
+    dispatches: list[str] = []
+    assert (
+        runtime_a._scoring_admission_for(claimed.job_id)
+        is runtime_b._scoring_admission_for(claimed.job_id)
+    )
+
+    def dispatch(runtime: RuntimeOperations) -> str:
+        try:
+            runtime._scoring_admission_for(claimed.job_id).admit(
+                identity, now=datetime.now(UTC)
+            )
+        except ScoringDispatchDenied:
+            return "denied"
+        dispatches.append("provider")
+        return "dispatched"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = set(executor.map(dispatch, (runtime_a, runtime_b)))
+
+    assert results == {"denied", "dispatched"}
+    assert dispatches == ["provider"]
 
 
 def test_repair_identity_is_stable_after_restart() -> None:
@@ -466,21 +630,54 @@ def test_unknown_provider_state_blocks_retry() -> None:
     assert raised.value.error.retryable is False
 
 
-@pytest.mark.parametrize("provider_error", [TimeoutError("timeout"), RuntimeError("lost")])
-def test_provider_failure_after_admission_becomes_unknown_provider_state(
-    provider_error: Exception,
+def test_provider_factory_failure_is_dispatch_denied_before_provider_contact(
+    tmp_path: Path,
 ) -> None:
-    runtime = object.__new__(RuntimeOperations)
-    runtime._dependencies = SimpleNamespace(
-        scoring_provider_factory=lambda: SimpleNamespace(
-            primary_attempt=lambda _input: (_ for _ in ()).throw(provider_error)
-        )
+    factory_calls: list[str] = []
+    runtime = _runtime_for_h1(
+        tmp_path / "project",
+        scoring_provider_factory=lambda: (
+            factory_calls.append("factory"),
+            (_ for _ in ()).throw(RuntimeError("client construction failed")),
+        )[1],
     )
-    gate = _gate(_Repository())
-    gate.admit(_identity(ScoringDispatchRole.PRIMARY), now=_NOW)
+
+    with pytest.raises(ScoringDispatchDenied, match="before external provider contact"):
+        runtime._create_scoring_provider_for_dispatch()
+
+    assert factory_calls == ["factory"]
+
+
+@pytest.mark.parametrize("provider_error", [TimeoutError("timeout"), RuntimeError("lost")])
+def test_provider_timeout_or_interruption_after_call_begins_becomes_unknown_provider_state(
+    provider_error: Exception,
+    tmp_path: Path,
+) -> None:
+    provider_calls: list[str] = []
+    provider = SimpleNamespace(
+        primary_attempt=lambda _input: (
+            provider_calls.append("provider"),
+            (_ for _ in ()).throw(provider_error),
+        )[1]
+    )
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: provider
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    runtime._scoring_admission_for(claimed.job_id).admit(
+        _identity(ScoringDispatchRole.PRIMARY), now=datetime.now(UTC)
+    )
 
     with pytest.raises(UnknownProviderState, match="unknown after external dispatch"):
-        runtime._dispatch_primary_attempt_after_admission(object())  # type: ignore[arg-type]
+        runtime._dispatch_primary_attempt_after_admission(
+            runtime._create_scoring_provider_for_dispatch(), object()  # type: ignore[arg-type]
+        )
+
+    assert provider_calls == ["provider"]
 
 
 def _unknown_state_repository(tmp_path) -> tuple[SQLiteStateRepository, str]:

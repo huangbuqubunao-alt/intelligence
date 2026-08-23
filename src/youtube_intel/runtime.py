@@ -101,7 +101,9 @@ from youtube_intel.scoring import (
     build_scoring_request_identity,
 )
 from youtube_intel.scoring_admission import (
+    ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
+    ScoringDispatchDenied,
     UnknownProviderState,
     build_judge_scoring_dispatch_identity,
     build_primary_scoring_dispatch_identity,
@@ -327,6 +329,16 @@ class RuntimeOperations(Operations):
             self._root, self._config.settings.storage.data_dir
         ).resolve(strict=True)
         self._runtime_owner = f"youtube-intel-runtime:{uuid.uuid4().hex}"
+        self._scoring_admissions = ScoringAdmissionRegistry(self._repository)
+
+    def _scoring_admission_for(self, job_id: str) -> ScoringDispatchAdmission:
+        """Return this runtime's shared admission view for an active scoring job."""
+
+        registry = getattr(self, "_scoring_admissions", None)
+        if registry is None:
+            registry = ScoringAdmissionRegistry(self._repository)
+            self._scoring_admissions = registry
+        return registry.admission_for(job_id=job_id, owner=self._runtime_owner)
 
     def run_primary_trusted_scoring(
         self,
@@ -521,13 +533,22 @@ class RuntimeOperations(Operations):
                 "scoring provider outcome is unknown after external dispatch"
             ) from error
 
+    def _create_scoring_provider_for_dispatch(self) -> Any:
+        """Construct the provider before any external scoring call begins."""
+
+        try:
+            return self._dependencies.scoring_provider_factory()
+        except Exception as error:
+            raise ScoringDispatchDenied(
+                "scoring provider dispatch failed before external provider contact"
+            ) from error
+
     def _dispatch_primary_attempt_after_admission(
-        self, scoring_input: ScoringInput
+        self, provider: Any, scoring_input: ScoringInput
     ) -> PrimaryScoringAttempt:
         """Contact PRIMARY only after its H1 admission has been consumed."""
 
         try:
-            provider = self._dependencies.scoring_provider_factory()
             return cast(PrimaryScoringAttempt, provider.primary_attempt(scoring_input))
         except Exception as error:
             raise UnknownProviderState(
@@ -894,11 +915,9 @@ class RuntimeOperations(Operations):
                 output_language=configured_output_language,
                 settings=self._config.settings.local_scoring,
             )
-            admission = ScoringDispatchAdmission(
-                repository=self._repository,
-                job_id=job.job_id,
-                owner=owner,
-            )
+            admission = self._scoring_admission_for(job.job_id)
+            if type(admission) is not ScoringDispatchAdmission:
+                raise ValueError("runtime scoring admission is invalid")
             admission.admit(
                 build_primary_scoring_dispatch_identity(
                     scoring_input=scoring_input,
@@ -906,7 +925,8 @@ class RuntimeOperations(Operations):
                 ),
                 now=_utcnow(),
             )
-            attempt = self._dispatch_primary_attempt_after_admission(scoring_input)
+            provider = self._create_scoring_provider_for_dispatch()
+            attempt = self._dispatch_primary_attempt_after_admission(provider, scoring_input)
             success = self._run_primary_trusted_scoring(
                 attempt=attempt,
                 scoring_input=scoring_input,

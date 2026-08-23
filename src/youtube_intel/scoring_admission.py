@@ -7,8 +7,9 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from threading import Lock
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from youtube_intel.domain import (
     AppError,
@@ -66,6 +67,101 @@ class _AdmissionRepository(Protocol):
     def get_job(self, job_id: str) -> JobRecord | None: ...
 
     def get_provider_call(self, request_hash: str) -> ProviderCallRecord | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _AdmissionExecutionKey:
+    repository_scope: str
+    job_id: str
+    owner: str
+    attempt_count: int
+
+
+@dataclass(slots=True)
+class _AdmissionExecutionState:
+    consumed_roles: set[ScoringDispatchRole] = field(default_factory=set)
+    lock: Lock = field(default_factory=Lock)
+
+
+_IN_MEMORY_SCOPE_LOCK = Lock()
+_IN_MEMORY_SCOPES: dict[int, tuple[object, str]] = {}
+
+
+def _repository_scope(repository: _AdmissionRepository) -> str:
+    database_path = getattr(repository, "_database_path", None)
+    if isinstance(database_path, Path):
+        return str(database_path.resolve())
+    repository_id = id(repository)
+    with _IN_MEMORY_SCOPE_LOCK:
+        current = _IN_MEMORY_SCOPES.get(repository_id)
+        if current is not None and current[0] is repository:
+            return current[1]
+        scope = f"in-memory:{len(_IN_MEMORY_SCOPES)}"
+        _IN_MEMORY_SCOPES[repository_id] = (repository, scope)
+        return scope
+
+
+class ScoringAdmissionRegistry:
+    """Share one in-memory budget state for an active scoring job attempt."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _states: ClassVar[dict[_AdmissionExecutionKey, _AdmissionExecutionState]] = {}
+    _admissions: ClassVar[dict[_AdmissionExecutionKey, ScoringDispatchAdmission]] = {}
+
+    def __init__(self, repository: _AdmissionRepository) -> None:
+        self._repository = repository
+
+    def admission_for(self, *, job_id: str, owner: str) -> ScoringDispatchAdmission:
+        job = self._repository.get_job(job_id)
+        if job is None:
+            return ScoringDispatchAdmission(
+                repository=self._repository,
+                job_id=job_id,
+                owner=owner,
+            )
+        key = self._key_for(repository=self._repository, job_id=job_id, job=job, owner=owner)
+        with self._lock:
+            return self._admissions.setdefault(
+                key,
+                ScoringDispatchAdmission(
+                    repository=self._repository,
+                    job_id=job_id,
+                    owner=owner,
+                ),
+            )
+
+    @staticmethod
+    def _key_for(
+        *,
+        repository: _AdmissionRepository,
+        job_id: str,
+        job: JobRecord,
+        owner: str,
+    ) -> _AdmissionExecutionKey:
+        return _AdmissionExecutionKey(
+            repository_scope=_repository_scope(repository),
+            job_id=job_id,
+            owner=owner,
+            attempt_count=getattr(job, "attempt_count", 1),
+        )
+
+    @classmethod
+    def state_for(
+        cls,
+        *,
+        repository: _AdmissionRepository,
+        job_id: str,
+        job: JobRecord,
+        owner: str,
+    ) -> _AdmissionExecutionState:
+        key = cls._key_for(
+            repository=repository,
+            job_id=job_id,
+            job=job,
+            owner=owner,
+        )
+        with cls._lock:
+            return cls._states.setdefault(key, _AdmissionExecutionState())
 
 
 def _canonical_hash(payload: dict[str, object]) -> str:
@@ -182,13 +278,11 @@ def build_judge_scoring_dispatch_identity(
 
 @dataclass(slots=True)
 class ScoringDispatchAdmission:
-    """One-shot in-memory admission tied to one uniquely owned SCORING job."""
+    """A view of the shared admission state for one active SCORING execution."""
 
     repository: _AdmissionRepository
     job_id: str
     owner: str
-    _consumed_roles: set[ScoringDispatchRole] = field(default_factory=set, init=False)
-    _lock: Lock = field(default_factory=Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.job_id.strip() or not self.owner.strip():
@@ -197,19 +291,25 @@ class ScoringDispatchAdmission:
     def admit(self, identity: ScoringDispatchIdentity, *, now: datetime) -> None:
         """Consume a role only after durable lease and unknown-state checks."""
 
-        with self._lock:
-            if identity.role in self._consumed_roles:
+        job = self.repository.get_job(self.job_id)
+        if job is None or job.target_stage is not ProcessingStage.SCORING:
+            raise ScoringDispatchDenied("scoring lease is not exclusively active")
+        if (
+            job.status is not JobStatus.RUNNING
+            or job.lease_owner != self.owner
+            or job.lease_until is None
+            or job.lease_until <= now
+        ):
+            raise ScoringDispatchDenied("scoring lease is not exclusively active")
+        state = ScoringAdmissionRegistry.state_for(
+            repository=self.repository,
+            job_id=self.job_id,
+            job=job,
+            owner=self.owner,
+        )
+        with state.lock:
+            if identity.role in state.consumed_roles:
                 raise ScoringDispatchDenied("scoring dispatch role is already consumed")
-            job = self.repository.get_job(self.job_id)
-            if job is None or job.target_stage is not ProcessingStage.SCORING:
-                raise ScoringDispatchDenied("scoring lease is not exclusively active")
-            if (
-                job.status is not JobStatus.RUNNING
-                or job.lease_owner != self.owner
-                or job.lease_until is None
-                or job.lease_until <= now
-            ):
-                raise ScoringDispatchDenied("scoring lease is not exclusively active")
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
-            self._consumed_roles.add(identity.role)
+            state.consumed_roles.add(identity.role)
