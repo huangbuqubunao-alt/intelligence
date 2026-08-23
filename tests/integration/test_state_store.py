@@ -41,6 +41,7 @@ from youtube_intel.scoring import (
     build_primary_scoring_attempt,
     build_scoring_input,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -512,6 +513,11 @@ def _trusted_scoring_job(
     success = runtime.run_primary_trusted_scoring(
         attempt=provider.primary_attempt(scoring_input),
         scoring_input=scoring_input,
+        admission=ScoringDispatchAdmission(
+            repository=repository,
+            job_id=claimed.job_id,
+            owner=claimed.lease_owner or "",
+        ),
     )
     return scoring_input, success, now
 

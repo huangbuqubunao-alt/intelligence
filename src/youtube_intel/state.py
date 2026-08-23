@@ -1660,6 +1660,65 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def finalize_unknown_provider_state(
+        self,
+        job_id: str,
+        *,
+        owner: str,
+        error_message: str,
+        now: datetime,
+    ) -> JobRecord:
+        """Atomically finalize a contacted SCORING provider whose outcome is unknown."""
+
+        now_text = format_utc_datetime(now)
+        safe_message = _safe_error_message(error_message)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = self._owned_running_job(
+                    connection, job_id=job_id, owner=owner, now=now_text
+                )
+                if row["target_stage"] != ProcessingStage.SCORING.value:
+                    msg = "unknown provider state is only valid for scoring"
+                    raise StateStoreError(msg)
+                attempt_changed = connection.execute(
+                    "UPDATE job_attempts SET finished_at = :now, "
+                    "outcome = :outcome, error_code = :error_code, "
+                    "error_message = :error_message "
+                    "WHERE job_id = :job_id AND finished_at IS NULL "
+                    "AND lease_owner = :owner",
+                    {
+                        "now": now_text,
+                        "outcome": JobAttemptOutcome.FAILED_FINAL.value,
+                        "error_code": "UNKNOWN_PROVIDER_STATE",
+                        "error_message": safe_message,
+                        "job_id": job_id,
+                        "owner": owner,
+                    },
+                ).rowcount
+                if attempt_changed != 1:
+                    msg = "active job attempt is missing"
+                    raise StateStoreError(msg)
+                connection.execute(
+                    "UPDATE jobs SET status = :status, lease_owner = NULL, "
+                    "lease_until = NULL, last_error_code = :error_code, "
+                    "last_error_message = :error_message, updated_at = :now, "
+                    "finished_at = :now WHERE job_id = :job_id",
+                    {
+                        "status": JobStatus.FAILED_FINAL.value,
+                        "error_code": "UNKNOWN_PROVIDER_STATE",
+                        "error_message": safe_message,
+                        "now": now_text,
+                        "job_id": job_id,
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM jobs WHERE job_id = :job_id", {"job_id": job_id}
+                ).fetchone()
+                return self._job_from_row(saved)
+        finally:
+            connection.close()
+
     def complete_job(
         self,
         job_id: str,

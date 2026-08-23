@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from youtube_intel.analysis import (
     AnalysisJobContext,
@@ -55,7 +55,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
-from youtube_intel.pipeline import PipelineInterrupted, PipelineOrchestrator
+from youtube_intel.pipeline import PipelineOrchestrator
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.providers.ollama import (
@@ -102,7 +102,7 @@ from youtube_intel.scoring import (
 )
 from youtube_intel.scoring_admission import (
     ScoringDispatchAdmission,
-    ScoringDispatchDenied,
+    UnknownProviderState,
     build_judge_scoring_dispatch_identity,
     build_primary_scoring_dispatch_identity,
 )
@@ -333,11 +333,12 @@ class RuntimeOperations(Operations):
         *,
         attempt: PrimaryScoringAttempt,
         scoring_input: ScoringInput,
+        admission: ScoringDispatchAdmission,
     ) -> PhaseFTrustedScoringSuccess:
         return self._run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
-            admission=None,
+            admission=admission,
         )
 
     def _run_primary_trusted_scoring(
@@ -345,7 +346,7 @@ class RuntimeOperations(Operations):
         *,
         attempt: PrimaryScoringAttempt,
         scoring_input: ScoringInput,
-        admission: ScoringDispatchAdmission | None,
+        admission: ScoringDispatchAdmission,
     ) -> PhaseFTrustedScoringSuccess:
         """Run the Phase F in-memory trusted scoring seam (memory only).
 
@@ -470,14 +471,10 @@ class RuntimeOperations(Operations):
                 "judge_model_digest": self._config.settings.local_scoring.expected_model_digest,
             }
         )
-        if admission is not None:
-            admission.admit(
-                build_judge_scoring_dispatch_identity(quality_operation),
-                now=_utcnow(),
-            )
-        quality_result = self._quality_judge_provider.judge(
-            quality_operation,
+        quality_result = self._dispatch_quality_judge(
+            operation_input=quality_operation,
             content_input=quality_input,
+            admission=admission,
         )
         if quality_result.status.value != "PASS":
             msg = "local quality judge did not PASS the candidate"
@@ -500,6 +497,42 @@ class RuntimeOperations(Operations):
             quality_authority=self._quality_provenance_authority,
             scoring_context=self._trusted_scoring_context,
         )
+
+    def _dispatch_quality_judge(
+        self,
+        *,
+        operation_input: QualityJudgeOperationInput,
+        content_input: ContentQualityInput,
+        admission: ScoringDispatchAdmission,
+    ) -> Any:
+        """Admit the Judge call before its provider can be contacted."""
+
+        admission.admit(
+            build_judge_scoring_dispatch_identity(operation_input),
+            now=_utcnow(),
+        )
+        try:
+            return self._quality_judge_provider.judge(
+                operation_input,
+                content_input=content_input,
+            )
+        except Exception as error:
+            raise UnknownProviderState(
+                "scoring provider outcome is unknown after external dispatch"
+            ) from error
+
+    def _dispatch_primary_attempt_after_admission(
+        self, scoring_input: ScoringInput
+    ) -> PrimaryScoringAttempt:
+        """Contact PRIMARY only after its H1 admission has been consumed."""
+
+        try:
+            provider = self._dependencies.scoring_provider_factory()
+            return cast(PrimaryScoringAttempt, provider.primary_attempt(scoring_input))
+        except Exception as error:
+            raise UnknownProviderState(
+                "scoring provider outcome is unknown after external dispatch"
+            ) from error
 
     def _trusted_persistence_entry(
         self,
@@ -873,28 +906,18 @@ class RuntimeOperations(Operations):
                 ),
                 now=_utcnow(),
             )
-            try:
-                provider = self._dependencies.scoring_provider_factory()
-                attempt = provider.primary_attempt(scoring_input)
-                success = self._run_primary_trusted_scoring(
-                    attempt=attempt,
-                    scoring_input=scoring_input,
-                    admission=admission,
-                )
-                entry = self._trusted_persistence_entry(
-                    job_id=job.job_id,
-                    owner=owner,
-                    pipeline_version=PIPELINE_VERSION,
-                )
-                entry.persist_success(success)
-            except PipelineInterrupted:
-                raise
-            except ScoringDispatchDenied:
-                raise
-            except Exception:
-                raise ScoringDispatchDenied(
-                    "scoring provider outcome is unknown after dispatch admission"
-                ) from None
+            attempt = self._dispatch_primary_attempt_after_admission(scoring_input)
+            success = self._run_primary_trusted_scoring(
+                attempt=attempt,
+                scoring_input=scoring_input,
+                admission=admission,
+            )
+            entry = self._trusted_persistence_entry(
+                job_id=job.job_id,
+                owner=owner,
+                pipeline_version=PIPELINE_VERSION,
+            )
+            entry.persist_success(success)
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:

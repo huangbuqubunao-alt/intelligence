@@ -19,6 +19,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.retry import RetryPolicy
+from youtube_intel.scoring_admission import UnknownProviderState
 from youtube_intel.state import (
     ArtifactWrite,
     JobRecord,
@@ -81,6 +82,15 @@ class PipelineRepository(Protocol):
         error_code: ErrorCode,
         error_message: str,
         retry_at: datetime | None,
+        now: datetime,
+    ) -> JobRecord: ...
+
+    def finalize_unknown_provider_state(
+        self,
+        job_id: str,
+        *,
+        owner: str,
+        error_message: str,
         now: datetime,
     ) -> JobRecord: ...
 
@@ -149,6 +159,14 @@ class PipelineOrchestrator:
             disposition = self._run_stage(job, video, now=now)
         except PipelineInterrupted:
             raise
+        except UnknownProviderState as error:
+            self.repository.finalize_unknown_provider_state(
+                job.job_id,
+                owner=self.owner,
+                error_message=str(error),
+                now=now,
+            )
+            return
         except Exception as error:
             self._fail(job, self._as_app_error(error, job), now=now)
             return

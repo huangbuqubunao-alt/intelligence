@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from threading import Lock
 from typing import Protocol
 
 from youtube_intel.domain import (
@@ -55,6 +56,10 @@ class ScoringDispatchDenied(RuntimeError):
             retryable=False,
             stage=ProcessingStage.SCORING,
         )
+
+
+class UnknownProviderState(RuntimeError):
+    """An external scoring provider may have received the request, but did not settle."""
 
 
 class _AdmissionRepository(Protocol):
@@ -183,6 +188,7 @@ class ScoringDispatchAdmission:
     job_id: str
     owner: str
     _consumed_roles: set[ScoringDispatchRole] = field(default_factory=set, init=False)
+    _lock: Lock = field(default_factory=Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.job_id.strip() or not self.owner.strip():
@@ -191,18 +197,19 @@ class ScoringDispatchAdmission:
     def admit(self, identity: ScoringDispatchIdentity, *, now: datetime) -> None:
         """Consume a role only after durable lease and unknown-state checks."""
 
-        if identity.role in self._consumed_roles:
-            raise ScoringDispatchDenied("scoring dispatch role is already consumed")
-        job = self.repository.get_job(self.job_id)
-        if job is None or job.target_stage is not ProcessingStage.SCORING:
-            raise ScoringDispatchDenied("scoring lease is not exclusively active")
-        if (
-            job.status is not JobStatus.RUNNING
-            or job.lease_owner != self.owner
-            or job.lease_until is None
-            or job.lease_until <= now
-        ):
-            raise ScoringDispatchDenied("scoring lease is not exclusively active")
-        if self.repository.get_provider_call(identity.request_hash) is not None:
-            raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
-        self._consumed_roles.add(identity.role)
+        with self._lock:
+            if identity.role in self._consumed_roles:
+                raise ScoringDispatchDenied("scoring dispatch role is already consumed")
+            job = self.repository.get_job(self.job_id)
+            if job is None or job.target_stage is not ProcessingStage.SCORING:
+                raise ScoringDispatchDenied("scoring lease is not exclusively active")
+            if (
+                job.status is not JobStatus.RUNNING
+                or job.lease_owner != self.owner
+                or job.lease_until is None
+                or job.lease_until <= now
+            ):
+                raise ScoringDispatchDenied("scoring lease is not exclusively active")
+            if self.repository.get_provider_call(identity.request_hash) is not None:
+                raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
+            self._consumed_roles.add(identity.role)

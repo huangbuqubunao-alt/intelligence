@@ -60,6 +60,7 @@ from youtube_intel.scoring import (
     build_scoring_input,
     build_scoring_request_identity,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -81,6 +82,34 @@ _EN_REASON = (
 
 _MODEL = "qwen3:8b"
 _DIGEST = "sha256:" + ("a" * 64)
+
+
+class _AdmissionRepository:
+    def get_job(self, job_id: str) -> object | None:
+        if job_id != "phase-g-admission-job":
+            return None
+        return type(
+            "_AdmissionJob",
+            (),
+            {
+                "target_stage": ProcessingStage.SCORING,
+                "status": JobStatus.RUNNING,
+                "lease_owner": "phase-g-test",
+                "lease_until": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )()
+
+    def get_provider_call(self, request_hash: str) -> None:
+        del request_hash
+        return None
+
+
+def _h1_admission() -> ScoringDispatchAdmission:
+    return ScoringDispatchAdmission(
+        repository=_AdmissionRepository(),  # type: ignore[arg-type]
+        job_id="phase-g-admission-job",
+        owner="phase-g-test",
+    )
 
 
 def _settings() -> LocalScoringSettings:
@@ -327,7 +356,7 @@ def test_runtime_returns_enriched_phase_f_success_aggregate(tmp_path: Path) -> N
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
     assert type(success) is PhaseFTrustedScoringSuccess
@@ -365,7 +394,7 @@ def test_prewrite_validate_creates_plan_without_side_effects(tmp_path: Path) -> 
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
     data_root = tmp_path / "project" / "data"
@@ -568,7 +597,7 @@ def _committer_and_plan(
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     entry = runtime._trusted_persistence_entry(
         job_id=job_id,
@@ -880,7 +909,7 @@ def _unenriched_success(tmp_path: Path) -> tuple[RuntimeOperations, PhaseFTruste
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Re-mint without enrichment to simulate a pre-Phase-G aggregate.
     unenriched = _mint_phase_f_trusted_scoring_success(
@@ -915,7 +944,7 @@ def test_prewrite_validate_rejects_canonical_hash_mismatch(tmp_path: Path) -> No
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     evidence = success._enriched_evidence  # type: ignore[attr-defined]
     mutated = _EnrichedQualityEvidence(
@@ -950,7 +979,7 @@ def test_prewrite_validate_rejects_raw_response_hash_mutation(tmp_path: Path) ->
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Tamper with the primary attempt's raw response hash after minting.
     forged_attempt = PrimaryScoringAttempt(
@@ -979,7 +1008,7 @@ def test_prewrite_validate_rejects_raw_reparse_mutation(tmp_path: Path) -> None:
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Forge a raw response that parses to a different candidate but keep hashes
     # self-consistent so the failure must come from the canonical reparse guard.
@@ -1016,7 +1045,7 @@ def test_prewrite_validate_rejects_candidate_result_binding_mutation(
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Forge a trusted result whose business fields disagree with the candidate.
     forged_result = ScoreResult.model_validate(
@@ -1043,7 +1072,7 @@ def test_prewrite_validate_rejects_runtime_authority_rotation(tmp_path: Path) ->
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Rotate the attempt provider so it no longer matches the runtime context.
     forged_attempt = PrimaryScoringAttempt(
@@ -1074,7 +1103,7 @@ def test_prewrite_validate_rejects_provider_call_request_binding_mutation(
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     committer = runtime._trusted_scoring_committer(
         job_id="job-m8", owner="test-owner", pipeline_version="runtime-v1"
@@ -1126,6 +1155,7 @@ def test_scoring_stage_rejects_bare_score_result_reentry(tmp_path: Path) -> None
         runtime.run_primary_trusted_scoring(
             attempt=bare_result,  # type: ignore[arg-type]
             scoring_input=scoring_input,
+            admission=_h1_admission(),
         )
 
 

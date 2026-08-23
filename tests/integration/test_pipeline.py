@@ -47,6 +47,7 @@ from youtube_intel.scoring import (
     build_primary_scoring_attempt,
     build_scoring_input,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     JobRecord,
@@ -321,6 +322,11 @@ class _PipelineStages:
         success = self.runtime.run_primary_trusted_scoring(
             attempt=provider.primary_attempt(scoring_input),
             scoring_input=scoring_input,
+            admission=ScoringDispatchAdmission(
+                repository=self.runtime._repository,
+                job_id=job.job_id,
+                owner=job.lease_owner or "",
+            ),
         )
         self.runtime._trusted_persistence_entry(
             job_id=job.job_id,
