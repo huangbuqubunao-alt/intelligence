@@ -1,5 +1,84 @@
 # TASK-016C 交接报告
 
+## Legacy Migration-06 — Scoring Unit Harness Trusted Flow Cutover
+
+### Metadata and scope
+
+- Task: `TASK-016C Legacy Migration-06`.
+- Base: `6d95e8f` (Legacy Migration-05 handoff evidence).
+- Implementation commit: `619ddc6` — `TASK-016C Legacy Migration-06 scoring unit trusted flow cutover`.
+- Allowed and changed implementation file: `tests/unit/test_scoring.py` only.
+- Reuse decision: `DIRECT` — reuses the existing `RuntimeOperations`, runtime-owned
+  `TrustedPersistenceEntry`, `PhaseFTrustedScoringSuccess`, Phase G
+  `PREWRITE_VALIDATE`/filesystem/atomic SQLite protocol, offline Ollama Quality
+  Judge fake transport, and existing state-store prerequisite APIs. No external
+  source, dependency, schema, migration, lockfile, production code, network,
+  cloud, or real Vault operation was added.
+
+### Legacy removal and trusted-flow proof
+
+- Removed the legacy success harness: its repository-backed persistence/cache/
+  recovery fixtures and all tests that expected `RepositoryBackedScoringService.score()`
+  to complete the scoring stage. This unit file no longer creates scoring-success
+  Artifacts, successful ProviderCalls, or a `SCORED` video by hand, and has no
+  `complete_stage(..., target_status=SCORED)` call.
+- The only retained direct legacy invocation is the required negative regression:
+  `test_legacy_repository_backed_score_cannot_produce_trusted_scoring_success`.
+  It asserts the retired `.score()` route raises `ScoringPersistenceError`, writes
+  neither scoring Artifact, and leaves the Video at `TRANSCRIPT_READY` and Job
+  `RUNNING`.
+- The trusted-success test executes exactly:
+
+  ```text
+  canonical PrimaryScoringAttempt
+    -> RuntimeOperations.run_primary_trusted_scoring
+    -> PhaseFTrustedScoringSuccess
+    -> RuntimeOperations._trusted_persistence_entry(...).persist_success
+    -> PREWRITE_VALIDATE -> filesystem -> atomic SQLite registration
+  ```
+
+  It verifies raw/structured Artifact hashes and kinds, the scoring ProviderCall
+  request identity/status/raw-artifact binding, and the resulting `SCORED` Video
+  plus `SUCCEEDED` Job.
+- Invalid provider response parsing is rejected before trusted persistence and
+  proves zero scoring Artifacts, zero scoring ProviderCall, a non-`SCORED` Video,
+  and a `RUNNING` Job. Duplicate trusted persistence uses a fixed test clock and
+  proves exactly two scoring artifacts and two provider calls (scoring + quality
+  judge), with no duplicate output.
+- Existing scoring input, sampling, cache, threshold policy-disagreement, and
+  frozen cache-dimension assertions remain. The cache hash test still covers
+  prompt, schema, and operation-version changes.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `./.venv/bin/pytest tests/unit/test_scoring.py -q` | PASS (`9 passed`) |
+| `./.venv/bin/pytest tests/integration/test_task015_p1_fix.py -q` | PASS (`46 passed`) |
+| `./.venv/bin/pytest tests/integration/test_state_store.py -q` | PASS (`36 passed`) |
+| `./.venv/bin/pytest tests/integration/test_pipeline.py -q` | PASS (`15 passed`) |
+| `./.venv/bin/pytest tests/integration/test_ollama_provider.py -q` | PASS (`72 passed`) |
+| `./.venv/bin/pytest tests/e2e/test_mvp_flow.py -q` | PASS (`3 passed`) |
+| `./.venv/bin/pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `./.venv/bin/pytest -x -q` | PASS (`1281 passed, 1 existing warning`) |
+| `./.venv/bin/ruff check tests/unit/test_scoring.py` | PASS |
+| `git diff --check` | PASS |
+
+The shell does not expose a bare `pytest`; the checked-in `.venv` runner above
+is the project environment and is the command actually used for every check.
+
+### Diff review and conclusion
+
+- Implementation diff is limited to the authorized scoring unit harness; this
+  handoff commit contains evidence only.
+- No dependencies, Schema, migrations, credentials, production source, real
+  Vault/cloud operation, retry/recovery/cache implementation, or Phase H work
+  was touched.
+
+Status: `IN_REVIEW — Legacy Migration-06 implementation complete; do not enter Phase H.`
+
+---
+
 ## Legacy Migration-05 — TASK-015 integration trusted-flow cutover
 
 ### 元数据
