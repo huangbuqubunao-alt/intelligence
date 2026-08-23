@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from youtube_intel import state as state_mod
+from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
     Availability,
     DiscoveryBatch,
@@ -23,7 +25,21 @@ from youtube_intel.domain import (
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
+    ScoringInput,
     VideoMetadata,
+)
+from youtube_intel.providers.ollama import (
+    OllamaQualityJudgeProvider,
+    parse_scoring_candidate,
+)
+from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+from youtube_intel.scoring import (
+    PhaseFTrustedScoringSuccess,
+    PrimaryScoringAttempt,
+    ScoringPersistenceError,
+    TrustedPersistenceEntry,
+    build_primary_scoring_attempt,
+    build_scoring_input,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -321,6 +337,218 @@ def _provider_request() -> ProviderCallRequest:
     )
 
 
+class _QualityResponse:
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+
+    def read(self, size: int = -1) -> bytes:
+        del size
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
+
+
+class _QualityTransport:
+    def __call__(self, request: object, timeout: float) -> _QualityResponse:
+        del timeout
+        if getattr(request, "method") == "GET":
+            return _QualityResponse(
+                {"models": [{"name": "qwen3:8b", "digest": "a" * 64}]}
+            )
+        return _QualityResponse(
+            {
+                "response": json.dumps(
+                    {
+                        "status": "PASS",
+                        "decision_confidence": "HIGH",
+                        "grounding_confidence": "MEDIUM",
+                        "usefulness_confidence": "MEDIUM",
+                        "signals": ["MINIMAL_CLAIM_PRESENT", "GROUNDING_PRESENT"],
+                        "reason": None,
+                        "evidence_ids": ["title-1"],
+                    },
+                    separators=(",", ":"),
+                )
+            }
+        )
+
+
+class _TrustedScoringProvider:
+    def primary_attempt(self, scoring_input: ScoringInput) -> PrimaryScoringAttempt:
+        raw = json.dumps(
+            {
+                "model": "qwen3:8b",
+                "response": json.dumps(
+                    {
+                        "score": 7.5,
+                        "reason": (
+                            "This offline fixture explains a concrete product workflow "
+                            "with grounded, practical details."
+                        ),
+                        "topics": ["product"],
+                        "should_summarize": True,
+                    },
+                    separators=(",", ":"),
+                ),
+            },
+            separators=(",", ":"),
+        )
+        return build_primary_scoring_attempt(
+            scoring_input=scoring_input,
+            candidate=parse_scoring_candidate(raw),
+            final_raw_response=raw,
+            provider="ollama",
+            model="qwen3:8b",
+            model_digest="sha256:" + ("a" * 64),
+            temperature=0.0,
+            max_output_tokens=1200,
+            max_description_chars=4000,
+        )
+
+
+def _trusted_scoring_runtime(
+    tmp_path: Path,
+) -> tuple[RuntimeOperations, _TrustedScoringProvider]:
+    project_root = tmp_path / "trusted-runtime"
+    config_root = project_root / "config"
+    config_root.mkdir(parents=True)
+    vault_root = project_root / "vault"
+    vault_root.mkdir()
+    (config_root / "channels.yaml").write_text(
+        "channels:\n  - channel_id: UC_TEST\n", encoding="utf-8"
+    )
+    (config_root / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+  output_language: en
+local_scoring:
+  model: qwen3:8b
+  expected_model_digest: sha256:{"a" * 64}
+  temperature: 0.0
+  max_output_tokens: 1200
+  max_transcript_chars: 30000
+  max_description_chars: 4000
+cloud:
+  enabled: false
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {vault_root}
+  vault_subdir: Knowledge
+""",
+        encoding="utf-8",
+    )
+    config = load_app_config(
+        channels_path=config_root / "channels.yaml",
+        settings_path=config_root / "settings.yaml",
+    )
+    scoring_provider = _TrustedScoringProvider()
+    runtime = RuntimeOperations(
+        config=config,
+        project_root=project_root,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: scoring_provider,
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            quality_judge_provider_factory=lambda: OllamaQualityJudgeProvider(
+                settings=config.settings.local_scoring,
+                transport=_QualityTransport(),
+            ),
+        ),
+    )
+    return runtime, scoring_provider
+
+
+def _trusted_scoring_job(
+    runtime: RuntimeOperations,
+) -> tuple[ScoringInput, PhaseFTrustedScoringSuccess, datetime]:
+    repository = runtime._repository
+    now = datetime.now(UTC)
+    repository.upsert_video_metadata(
+        _metadata(), pipeline_version="pipeline-v1", now=now
+    )
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="pipeline-v1",
+        now=now,
+    )
+    assert repository.advance_pipeline(
+        "video-1",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="pipeline-v1",
+        now=now,
+    )
+    repository.create_job(
+        job_id="scoring-job",
+        scope_key="video:video-1:SCORING",
+        video_id="video-1",
+        job_type=JobType.VIDEO_STAGE,
+        target_stage=ProcessingStage.SCORING,
+        pipeline_version="pipeline-v1",
+        max_attempts=3,
+        available_at=now,
+        now=now,
+    )
+    claimed = repository.claim_next_job(
+        owner="worker-1", lease_until=now + td(minutes=10), now=now
+    )
+    assert claimed is not None
+    scoring_input = build_scoring_input(
+        video=_metadata(),
+        transcript_text="transcript evidence",
+        language="en",
+        output_language=runtime._config.settings.general.output_language,
+        settings=runtime._config.settings.local_scoring,
+    )
+    provider = runtime._dependencies.scoring_provider_factory()
+    success = runtime.run_primary_trusted_scoring(
+        attempt=provider.primary_attempt(scoring_input),
+        scoring_input=scoring_input,
+    )
+    return scoring_input, success, now
+
+
+def _trusted_persistence_entry(
+    runtime: RuntimeOperations, *, now: datetime
+) -> TrustedPersistenceEntry:
+    entry = runtime._trusted_persistence_entry(
+        job_id="scoring-job", owner="worker-1", pipeline_version="pipeline-v1"
+    )
+    entry._clock = lambda: now  # type: ignore[method-assign]
+    return entry
+
+
+def _assert_no_trusted_scoring_success(runtime: RuntimeOperations) -> None:
+    repository = runtime._repository
+    assert repository.get_artifact_by_key("scoring/forged/raw") is None
+    with _raw_connection(runtime._data_root / "state.sqlite") as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE video_id = 'video-1'"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute("SELECT COUNT(*) FROM provider_calls").fetchone()[0] == 0
+        )
+    video = repository.get_video("video-1")
+    assert video is not None
+    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert video.score is None
+    assert video.should_summarize is None
+    job = repository.get_job("scoring-job")
+    assert job is not None
+    assert job.status is JobStatus.RUNNING
+
+
 def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) -> None:
     path = _database_path(tmp_path)
     repository = SQLiteStateRepository(path)
@@ -567,9 +795,6 @@ def test_metadata_upsert_preserves_discovery_and_pipeline_state(tmp_path: Path) 
     for expected, target in (
         (PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY),
         (PipelineStatus.METADATA_READY, PipelineStatus.TRANSCRIPT_READY),
-        (PipelineStatus.TRANSCRIPT_READY, PipelineStatus.SCORED),
-        (PipelineStatus.SCORED, PipelineStatus.LOW_VALUE_READY),
-        (PipelineStatus.LOW_VALUE_READY, PipelineStatus.COMPLETE),
     ):
         assert repository.advance_pipeline(
             "video-1",
@@ -587,7 +812,7 @@ def test_metadata_upsert_preserves_discovery_and_pipeline_state(tmp_path: Path) 
     assert first.available_languages == ("en", "zh")
     assert updated.title == "Renamed title"
     assert updated.discovered_at == discovered.discovered_at
-    assert updated.pipeline_status is PipelineStatus.COMPLETE
+    assert updated.pipeline_status is PipelineStatus.TRANSCRIPT_READY
     assert updated.pipeline_version == "pipeline-v1"
 
 
@@ -1190,92 +1415,73 @@ def test_stage_completion_failure_rolls_back_every_write(
     assert repository.list_job_attempts("stage-job")[0].finished_at is None
 
 
-def test_scoring_stage_requires_summary_and_commits_it_atomically(
+def test_legacy_scoring_completion_without_summary_fails_before_writes(
     tmp_path: Path,
 ) -> None:
-    repository = _repository_with_video(tmp_path)
-    assert repository.advance_pipeline(
-        "video-1",
-        expected_status=PipelineStatus.DISCOVERED,
-        target_status=PipelineStatus.METADATA_READY,
-        pipeline_version="pipeline-v1",
-        now=NOW,
-    )
-    assert repository.advance_pipeline(
-        "video-1",
-        expected_status=PipelineStatus.METADATA_READY,
-        target_status=PipelineStatus.TRANSCRIPT_READY,
-        pipeline_version="pipeline-v1",
-        now=NOW,
-    )
-    repository.create_job(
-        job_id="scoring-job",
-        scope_key="video:video-1:SCORING",
-        video_id="video-1",
-        job_type=JobType.VIDEO_STAGE,
-        target_stage=ProcessingStage.SCORING,
-        pipeline_version="pipeline-v1",
-        max_attempts=3,
-        available_at=NOW,
-        now=NOW,
-    )
-    repository.claim_next_job(
-        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
-    )
-    repository.reserve_provider_call(
-        _provider_request(),
-        owner="worker-1",
-        lease_until=NOW + td(minutes=10),
-        available_at=NOW,
-        now=NOW,
-    )
-    artifact = _artifact(
-        artifact_id="scoring-artifact",
-        artifact_key="video:video-1:scoring-structured:v1",
-        job_id="scoring-job",
-        kind=ArtifactKind.SCORING_STRUCTURED,
-    )
+    runtime, _ = _trusted_scoring_runtime(tmp_path)
+    _trusted_scoring_job(runtime)
+    before_files = set(runtime._data_root.rglob("*"))
 
-    with pytest.raises(IntegrityConflict, match="scoring summary"):
-        repository.complete_stage(
+    with pytest.raises(IntegrityConflict, match="runtime trusted persistence entry"):
+        runtime._repository.complete_stage(
             job_id="scoring-job",
             owner="worker-1",
             video_id="video-1",
             expected_status=PipelineStatus.TRANSCRIPT_READY,
             target_status=PipelineStatus.SCORED,
             pipeline_version="pipeline-v1",
-            artifacts=(artifact,),
+            artifacts=(),
             provider_call=None,
             now=NOW + td(minutes=1),
         )
-    assert repository.get_video("video-1").score is None
-    assert repository.get_job("scoring-job").status is JobStatus.RUNNING
 
-    result = repository.complete_stage(
-        job_id="scoring-job",
-        owner="worker-1",
-        video_id="video-1",
-        expected_status=PipelineStatus.TRANSCRIPT_READY,
-        target_status=PipelineStatus.SCORED,
-        pipeline_version="pipeline-v1",
-        artifacts=(artifact,),
-        provider_call=ProviderCallCompletion(
-            request_hash=REQUEST_HASH,
-            response_artifact_id=artifact.artifact_id,
-            input_tokens=12,
-            output_tokens=4,
-            cost_microusd=50,
-        ),
-        now=NOW + td(minutes=1),
-        scoring_summary=ScoringSummaryWrite(score=7.5, should_summarize=True),
-    )
+    assert set(runtime._data_root.rglob("*")) == before_files
+    _assert_no_trusted_scoring_success(runtime)
+
+
+def test_trusted_scoring_persistence_commits_summary_artifacts_and_calls_atomically(
+    tmp_path: Path,
+) -> None:
+    runtime, _ = _trusted_scoring_runtime(tmp_path)
+    scoring_input, success, now = _trusted_scoring_job(runtime)
+
+    result = _trusted_persistence_entry(runtime, now=now).persist_success(success)
 
     assert result.job.status is JobStatus.SUCCEEDED
     assert result.video.pipeline_status is PipelineStatus.SCORED
     assert result.video.score == 7.5
     assert result.video.should_summarize is True
+    assert {artifact.kind for artifact in result.artifacts} == {
+        ArtifactKind.SCORING_RAW,
+        ArtifactKind.SCORING_STRUCTURED,
+    }
     assert result.provider_call is not None
     assert result.provider_call.status is ProviderCallStatus.SUCCEEDED
+    with _raw_connection(runtime._data_root / "state.sqlite") as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE video_id = 'video-1'"
+            ).fetchone()[0]
+            == 2
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM provider_calls WHERE status = 'SUCCEEDED'"
+            ).fetchone()[0]
+            == 2
+        )
+    assert (
+        runtime._repository.get_artifact_by_key(
+            f"scoring/{scoring_input.request_hash}/raw"
+        )
+        is not None
+    )
+    assert (
+        runtime._repository.get_artifact_by_key(
+            f"scoring/{scoring_input.request_hash}/structured"
+        )
+        is not None
+    )
 
 
 def test_non_scoring_stage_rejects_a_scoring_summary(tmp_path: Path) -> None:
@@ -1302,85 +1508,48 @@ def test_non_scoring_stage_rejects_a_scoring_summary(tmp_path: Path) -> None:
     assert repository.get_job("metadata-job").status is JobStatus.RUNNING
 
 
-def test_scoring_summary_failure_rolls_back_every_stage_write(
+def test_trusted_scoring_sqlite_rollback_has_no_partial_success(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repository = _repository_with_video(tmp_path)
-    assert repository.advance_pipeline(
-        "video-1",
-        expected_status=PipelineStatus.DISCOVERED,
-        target_status=PipelineStatus.METADATA_READY,
-        pipeline_version="pipeline-v1",
-        now=NOW,
-    )
-    assert repository.advance_pipeline(
-        "video-1",
-        expected_status=PipelineStatus.METADATA_READY,
-        target_status=PipelineStatus.TRANSCRIPT_READY,
-        pipeline_version="pipeline-v1",
-        now=NOW,
-    )
-    repository.create_job(
-        job_id="scoring-job",
-        scope_key="video:video-1:SCORING",
-        video_id="video-1",
-        job_type=JobType.VIDEO_STAGE,
-        target_stage=ProcessingStage.SCORING,
-        pipeline_version="pipeline-v1",
-        max_attempts=3,
-        available_at=NOW,
-        now=NOW,
-    )
-    repository.claim_next_job(
-        owner="worker-1", lease_until=NOW + td(minutes=10), now=NOW
-    )
-    repository.reserve_provider_call(
-        _provider_request(),
-        owner="worker-1",
-        lease_until=NOW + td(minutes=10),
-        available_at=NOW,
-        now=NOW,
-    )
-    artifact = _artifact(
-        artifact_id="scoring-artifact",
-        artifact_key="video:video-1:scoring-structured:v1",
-        job_id="scoring-job",
-        kind=ArtifactKind.SCORING_STRUCTURED,
-    )
+    runtime, _ = _trusted_scoring_runtime(tmp_path)
+    _, success, now = _trusted_scoring_job(runtime)
 
-    def fail_after_scoring_summary(point: str) -> None:
-        if point == "stage.after_scoring_summary":
-            raise RuntimeError("injected scoring summary failure")
+    def fail_after_pipeline(point: str) -> None:
+        if point == "atomic_register.after_pipeline":
+            raise RuntimeError("injected trusted registration failure")
 
-    monkeypatch.setattr(repository, "_inject_failure", fail_after_scoring_summary)
-    with pytest.raises(RuntimeError, match="injected scoring summary failure"):
-        repository.complete_stage(
-            job_id="scoring-job",
-            owner="worker-1",
-            video_id="video-1",
-            expected_status=PipelineStatus.TRANSCRIPT_READY,
-            target_status=PipelineStatus.SCORED,
-            pipeline_version="pipeline-v1",
-            artifacts=(artifact,),
-            provider_call=ProviderCallCompletion(
-                request_hash=REQUEST_HASH,
-                response_artifact_id=artifact.artifact_id,
-                input_tokens=12,
-                output_tokens=4,
-                cost_microusd=50,
-            ),
-            now=NOW + td(minutes=1),
-            scoring_summary=ScoringSummaryWrite(score=7.5, should_summarize=True),
+    runtime._repository._inject_failure = fail_after_pipeline  # type: ignore[method-assign]
+    with pytest.raises(
+        ScoringPersistenceError, match="injected trusted registration failure"
+    ):
+        _trusted_persistence_entry(runtime, now=now).persist_success(success)
+
+    _assert_no_trusted_scoring_success(runtime)
+    assert tuple((runtime._data_root / "scoring").rglob("*.json"))
+
+
+def test_trusted_scoring_same_success_is_idempotent_without_duplicate_outputs(
+    tmp_path: Path,
+) -> None:
+    runtime, _ = _trusted_scoring_runtime(tmp_path)
+    _, success, now = _trusted_scoring_job(runtime)
+    entry = _trusted_persistence_entry(runtime, now=now)
+
+    first = entry.persist_success(success)
+    second = entry.persist_success(success)
+
+    assert second == first
+    with _raw_connection(runtime._data_root / "state.sqlite") as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE video_id = 'video-1'"
+            ).fetchone()[0]
+            == 2
         )
-
-    assert repository.get_artifact_by_key(artifact.artifact_key) is None
-    assert repository.get_provider_call(REQUEST_HASH).status is ProviderCallStatus.PENDING
-    video = repository.get_video("video-1")
-    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
-    assert video.score is None
-    assert video.should_summarize is None
-    assert repository.get_job("scoring-job").status is JobStatus.RUNNING
+        assert (
+            connection.execute("SELECT COUNT(*) FROM provider_calls").fetchone()[0] == 2
+        )
+    assert len(tuple((runtime._data_root / "scoring").rglob("*.json"))) == 2
 
 
 def test_artifact_deletion_cas_and_expiry_listing_are_index_only(
