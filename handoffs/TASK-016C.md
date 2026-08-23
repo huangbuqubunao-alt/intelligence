@@ -1,5 +1,61 @@
 # TASK-016C 交接报告
 
+## Phase H1-A Correction Round 1 — Judge admission and unknown provider state
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H1-A Correction Round 1` only.
+- Baseline: `c692681` (`docs: record H1-A admission evidence`).
+- Implementation commit: `1a2873f` — `fix: close H1 judge admission and unknown outcomes`.
+- Status: `READY FOR REVIEW`; stop here. H1-B, H2, H3, repair execution, and recovery work were not started.
+
+### Corrections delivered
+
+- `RuntimeOperations.run_primary_trusted_scoring()` and its private continuation now
+  require a `ScoringDispatchAdmission`; the Judge dispatch seam always admits the
+  PRIMARY/REPAIR Judge identity immediately before provider contact. There is no
+  `admission=None` path.
+- Admission consumption is locked, so one shared runtime gate permits at most one
+  PRIMARY Judge and one REPAIR Judge dispatch (Judge budget `<= 2`), and concurrent
+  reuse fails closed. Existing provider states, including `PENDING`, remain blocking.
+- Post-contact PRIMARY or Judge exceptions are classified as
+  `UnknownProviderState`, not `ScoringDispatchDenied`/`INVALID_RESPONSE`.
+  `PipelineOrchestrator` atomically finalizes the owned SCORING JobAttempt and Job as
+  `FAILED_FINAL` with existing persisted diagnostic code `UNKNOWN_PROVIDER_STATE`.
+  The terminal Job cannot be reclaimed or retried after restart.
+- The existing Phase G trusted persistence entry and `persist_success()` boundary
+  were not modified. No schema migration, scoring ingress, alternate success writer,
+  manual Artifact/ProviderCall success, or repair execution was added.
+
+### Behavioral and mutation evidence
+
+- H1 tests cover no-lease and expired-lease Judge dispatch (provider contact count
+  remains zero), duplicate and concurrent Judge rejection, two-Judge budget
+  exhaustion, PRIMARY/REPAIR and Judge identity stability/non-collision, existing
+  provider-state blocking, contacted-provider timeout/exception classification,
+  atomic terminal unknown persistence/restart/retry blocking, and expired SCORING
+  lease finalization.
+- Mutation proof: temporarily removing the Judge admission call made 5 H1 tests
+  fail (no-lease, expired lease, duplicate, concurrent, and budget). Temporarily
+  restoring the former `ScoringDispatchDenied` mapping made the two timeout/exception
+  unknown-state tests fail. Both mutations were restored before the implementation
+  commit.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest tests/unit/test_task016c_phase_h1_admission.py tests/unit/test_task016c_phase_g.py tests/integration/test_pipeline.py tests/integration/test_state_store.py -q` | PASS (`145 passed`) |
+| `uv run --offline mypy src` | PASS (`29 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+`uv run --offline mypy src tests` was also attempted and reports 760 pre-existing
+strict typing errors across unrelated legacy tests and missing third-party stubs;
+the production-source target required for this implementation is clean.
+
+---
+
 ## Legacy Migration-06 — Scoring Unit Harness Trusted Flow Cutover
 
 ### Metadata and scope
