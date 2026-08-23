@@ -3573,3 +3573,62 @@ Status: `IN_REVIEW — Legacy E2E Migration-02 implementation complete; full sui
   code, dependency, lockfile, real network, cloud, or Vault operation was performed.
 
 Status: `IN_REVIEW — Legacy Migration-03 implementation complete; full suite now exposes the next legacy state-store scoring assertion`.
+
+---
+
+## TASK-016C Phase H1-A — Identity and Lease Admission Only
+
+### Metadata and scope
+
+- Base: `0c9cfb8` (`docs: define H1 lease recovery ordering`).
+- Implementation commit: `db14c60` — `feat: add H1 scoring dispatch admission`.
+- Reuse decision: `DIRECT` — existing canonical scoring request identity,
+  `build_provider_request_hash`, `build_judge_h1_h2`, current Job lease fields,
+  and current ProviderCall read model. No third-party component, dependency,
+  migration, or lockfile change was introduced.
+
+### Delivered H1-A behavior
+
+- Added deterministic runtime identities for PRIMARY, REPAIR (identity only; no
+  repair execution), PRIMARY Judge, and REPAIR Judge. REPAIR canonical input
+  binds the primary identity/raw/failure classification, provider/model/digest,
+  request parameters, and output language; Judge identities retain the frozen
+  H1/H2 builder contract.
+- Added a process-memory `ScoringDispatchAdmission` that consumes each role at
+  most once, re-reads the current `SCORING` job, requires the uniquely owned,
+  unexpired `RUNNING` lease, and denies every existing ProviderCall state before
+  external dispatch. Denials carry a non-retryable safe error.
+- Runtime owners are unique per `RuntimeOperations` instance. PRIMARY is
+  admitted before `primary_attempt`; PRIMARY Judge is admitted immediately
+  before Judge dispatch. Any exception after PRIMARY admission is terminal
+  unknown-provider state; an actual process interruption remains unhandled so
+  the expired-lease recovery path classifies it first.
+- Expired `SCORING` jobs now become terminal `FAILED_FINAL` with the stable
+  `UNKNOWN_PROVIDER_STATE` diagnostic inside the existing reclaim transaction;
+  non-scoring reclamation is unchanged.
+
+### Tests and verification
+
+| Command | Result |
+|---|---|
+| `uv run pytest tests/unit/test_task016c_phase_h1_admission.py` | PASS (`9 passed`) |
+| `uv run pytest tests/unit/test_task016c_phase_g.py` | PASS (`76 passed`) |
+| `uv run pytest tests/integration/test_runtime_composition.py tests/integration/test_state_store.py` | PASS (`43 passed`) |
+| `uv run mypy src` | PASS (`29 source files`) |
+| `uv run ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+Mutation evidence: temporarily removing duplicate-role consumption caused
+`test_duplicate_primary_admission_is_denied` to fail with `DID NOT RAISE
+ScoringDispatchDenied`; the guard was restored and the focused suite passed.
+
+### Boundary review
+
+- `TrustedPersistenceEntry.persist_success()` was not modified.
+- No repository scoring ingress, alternate SQLite success writer, manual
+  Artifact/ProviderCall success, schema/migration, cache recovery, or repair
+  execution was added.
+- H2 and H3 were not started. The sole recovery change is the H1-authorized
+  pre-reclaim terminal classification for expired SCORING leases.
+
+Status: `IN_REVIEW — Phase H1-A implementation and evidence complete`.
