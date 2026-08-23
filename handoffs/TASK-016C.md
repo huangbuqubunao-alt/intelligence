@@ -1,5 +1,67 @@
 # TASK-016C 交接报告
 
+## Legacy Migration-05 — TASK-015 integration trusted-flow cutover
+
+### 元数据
+
+- Task: `TASK-016C Legacy Migration-05`
+- Role: `Implementer`
+- Base commit: `3bb2c4b82e7ca5a0ba515d0f6f947ce69aa56592`
+- Worktree / branch: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer` / `workbuddy/task-016c-content-quality-layer`
+- Reuse decision: `DIRECT` — reuses the accepted Phase F/G runtime-owned
+  `RuntimeOperations.run_primary_trusted_scoring()` and
+  `RuntimeOperations._trusted_persistence_entry().persist_success()` seams;
+  no dependency, source, schema, migration, provider, or filesystem-protocol
+  implementation was added or modified.
+
+### 目标、范围与实现
+
+- 目标：迁移 `tests/integration/test_task015_p1_fix.py` 的 legacy scoring
+  completion harness，保留 TASK-015 的 scoring artifact/provider recovery
+  provenance assertions。
+- 实际修改：删除手工 `ScoreResult`、Artifact、ProviderCall SUCCESS 与
+  `complete_stage(TRANSCRIPT_READY -> SCORED)` fixture construction。新的 helper
+  通过 `RuntimeOperations` 生成 exact `PhaseFTrustedScoringSuccess`，再由
+  runtime-minted `TrustedPersistenceEntry.persist_success()` 执行 PREWRITE、文件
+  protocol 与 atomic SQLite registration。
+- 攻击/回归证据新增：
+  - legacy `complete_stage(...SCORED)` 仅在 dedicated attack test 中调用，断言
+    `IntegrityConflict` fail-closed，并且无 Artifact、ProviderCall SUCCESS、Video
+    `SCORED` 或 Job `SUCCEEDED`；
+  - injected `atomic_register.after_pipeline` failure 后断言没有任何已登记的
+    Artifact/ProviderCall SUCCESS、Video `SCORED` 或 Job `SUCCEEDED`；
+  - 同一 trusted success 重复 persist 后断言恰有两个 scoring artifacts、两个
+    provider calls 与两个 JSON outputs，且第二次结果等于第一次；
+  - 原有 artifact/file/provider/job/config mutation 的 fail-closed recovery
+    coverage 继续使用 trusted-persisted provenance。
+- 明确未做：未修改 `src/youtube_intel/`、schema、migration、dependencies、`uv.lock`
+  或 Phase G tests；未进入 Phase H；未执行网络、真实 Ollama、cloud 或真实 Vault。
+
+### 验收与检查
+
+| 命令 | 结果 | 证据 |
+|---|---|---|
+| `uv run pytest tests/integration/test_task015_p1_fix.py -q` | PASS | `46 passed in 3.10s` |
+| `uv run pytest tests/integration/test_state_store.py -q` | PASS | `36 passed in 1.81s` |
+| `uv run pytest tests/integration/test_pipeline.py -q` | PASS | `15 passed in 2.73s` |
+| `uv run pytest tests/integration/test_ollama_provider.py -q` | PASS | `72 passed in 1.91s` |
+| `uv run pytest tests/e2e/test_mvp_flow.py -q` | PASS | `3 passed in 3.60s` |
+| `uv run pytest tests/unit/test_task016c_phase_g.py -q` | PASS | `76 passed in 3.17s` |
+| `uv run ruff check .` | PASS | all checks passed |
+| `uv run mypy src` | PASS | 28 source files, no issues |
+| `git diff --check` | PASS | no whitespace errors |
+| `uv run pytest -x -q` | BLOCKED | first failure: `tests/unit/test_scoring.py::test_repository_backed_scoring_commits_artifacts_call_summary_and_reuses_verified_result` calls legacy `RepositoryBackedScoringService.score()` and receives `ScoringPersistenceError: local scoring stage completion failed` after Phase G closes legacy completion; `1 failed, 649 passed in 28.71s`. |
+
+### Diff 复核与结论
+
+- 修改文件：`tests/integration/test_task015_p1_fix.py`、本 handoff。
+- 范围外、依赖、Schema、密钥、真实 Vault、云调用或调度红线：均未触及。
+- `pytest -x -q` 的首失败不由本任务 diff 引入（本任务未改 source 或该 unit
+  harness），但它与“当前 full pytest 唯一 blocker 为 TASK-015”的输入状态冲突。
+  迁移该 legacy unit harness 不在本任务允许文件范围内，需主控另行授权。
+- 建议状态：`IN_REVIEW`，TASK-015 migration implementation 已完成；全量绿灯需
+  对上述 scope-conflict 作出 `DECISION NEEDED`。
+
 ## Phase F accepted-equivalent integration 与 Phase G discovery
 
 - Current Phase G baseline：`2f6e30bd4720e76a72783974704e8e975b6f60c0`，tracked worktree clean。
