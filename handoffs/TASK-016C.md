@@ -3346,3 +3346,89 @@ Status: `READY FOR Legacy E2E Migration-01 Independent Review`.
   production code, or Phase H change was made.
 
 Status: `IN_REVIEW — Legacy E2E Migration-02 implementation complete; full suite blocked by the next out-of-scope legacy scoring harness`.
+
+---
+
+## TASK-016C Legacy Migration-03 — Pipeline Trusted Flow Cutover
+
+### Metadata and scope
+
+- Base: `7b69246` (Phase G accepted; Legacy Migrations 01 and 02 approved).
+- Implementation commit: `4dd6d55` — `TASK-016C Legacy Migration-03 pipeline trusted flow cutover`.
+- Allowed and changed implementation file: `tests/integration/test_pipeline.py` only.
+- Reuse decision: `DIRECT` — existing `RuntimeOperations`, its runtime-owned
+  `TrustedPersistenceEntry`, Phase F aggregate, Phase G prewrite/filesystem/SQLite
+  protocol, Ollama quality-judge adapter, state-machine orchestrator, and offline
+  test doubles. No third-party source, production dependency, schema, migration, or
+  lockfile was added or changed.
+
+### Legacy dependency removal and trusted-flow proof
+
+- Removed `_FakeStages`, `ScoringSummaryWrite`, and the scoring branch that passed
+  `target_status=SCORED` to `complete_stage()`. The non-scoring metadata,
+  transcript, analysis, note, unavailable, deferred, interruption, and retry fakes
+  retain their prior state-machine behavior.
+- The replacement `_PipelineStages` creates a canonical `PrimaryScoringAttempt` via
+  the deterministic offline scoring fake, then executes exactly:
+
+  ```text
+  fake primary_attempt
+    -> RuntimeOperations.run_primary_trusted_scoring
+    -> PhaseFTrustedScoringSuccess
+    -> RuntimeOperations._trusted_persistence_entry(...).persist_success
+    -> PREWRITE_VALIDATE -> verified filesystem writes -> atomic SQLite registration
+  ```
+
+- The analysis setup no longer manually advances `TRANSCRIPT_READY -> SCORED` or
+  writes `should_summarize`. It advances only the unchanged pre-scoring states and
+  lets a real planned/claimed scoring job complete through the same trusted entry.
+- Anti-regression assertions require each asserted high/low trusted success to have
+  exactly the raw and structured scoring artifacts, hashes matching the on-disk
+  content, and the two associated `SUCCEEDED` ProviderCalls. Restoring the old fake
+  `complete_stage(...SCORED)` path cannot create that graph, so the pipeline test
+  fails rather than accepting a manual scoring completion.
+
+### Pipeline behavior preservation
+
+- The mixed high-value, low-value, no-subtitle, deferred, and unavailable batch
+  remains covered; high and low flows now additionally prove trusted output.
+- Deferred resume, interruptions before/after call/after persistence, retryable
+  isolation, and high-value analysis/note behavior remain covered. Scoring-stage
+  interruption recovery also asserts one trusted provider attempt and its complete
+  persistence graph.
+- Re-running the batch compares jobs, artifacts, ProviderCalls, stage-call counts,
+  and trusted scoring-provider counts, proving no duplicate scoring output or call.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `uv run pytest tests/integration/test_pipeline.py -q` | PASS (`15 passed`) |
+| `uv run pytest tests/integration/test_ollama_provider.py -q` | PASS (`72 passed`) |
+| `uv run pytest tests/e2e/test_mvp_flow.py -q` | PASS (`3 passed`) |
+| `uv run pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run ruff check tests/integration/test_pipeline.py` | PASS |
+| `git diff --check` | PASS |
+| `uv run pytest -x -q` | BLOCKED after `218 passed` at `tests/integration/test_state_store.py::test_scoring_stage_requires_summary_and_commits_it_atomically` |
+
+### Full-suite blocker analysis
+
+- The Migration-02 blocker in `test_pipeline.py` is removed: this file now passes
+  independently and completes through the Phase G trusted boundary.
+- The next full-suite failure is an out-of-scope legacy state-store assertion. It
+  manually constructs a `TRANSCRIPT_READY` scoring job plus legacy ProviderCall and
+  Artifact, invokes `complete_stage()`, and expects its old `"scoring summary"`
+  `IntegrityConflict` message. The current trusted guard correctly rejects the
+  attempted legacy scoring completion with
+  `"TRANSCRIPT_READY -> SCORED requires the runtime trusted persistence entry"`.
+- No production code, schema, or test assertion outside this task's allowlist was
+  changed to bypass or mask that failure.
+
+### Diff review and conclusion
+
+- Implementation diff is limited to the authorized pipeline integration harness;
+  this handoff commit is evidence only.
+- No Phase H, repair/retry/recovery/cache migration, source/provider production
+  code, dependency, lockfile, real network, cloud, or Vault operation was performed.
+
+Status: `IN_REVIEW — Legacy Migration-03 implementation complete; full suite now exposes the next legacy state-store scoring assertion`.
