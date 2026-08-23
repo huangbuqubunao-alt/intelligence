@@ -50,9 +50,11 @@
 | `uv run --offline ruff check .` | PASS |
 | `git diff --check` | PASS |
 
-`uv run --offline mypy src tests` was also attempted and reports 760 pre-existing
-strict typing errors across unrelated legacy tests and missing third-party stubs;
-the production-source target required for this implementation is clean.
+`uv run --offline mypy src tests` was also attempted and is not a project-green
+gate: it reports 760 strict typing errors across legacy fixtures and missing
+third-party stubs, including unscoped legacy tests that still call the now
+admission-required direct seam. The production-source target required for this
+implementation is clean.
 
 ---
 
