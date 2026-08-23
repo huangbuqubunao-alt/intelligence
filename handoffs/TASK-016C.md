@@ -1,5 +1,59 @@
 # TASK-016C 交接报告
 
+## Phase H1-A Correction Round 2 — shared active-lease admission
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H1-A Correction Round 2` only.
+- Baseline: `49f4409`.
+- Implementation commit: `2fbf94b` — `fix: share H1 admission by active scoring lease`.
+- Status: `READY FOR REVIEW`; H1-B, H2, H3, repair execution, recovery, schema,
+  and Phase G changes were not started.
+
+### Corrections delivered
+
+- `ScoringAdmissionRegistry` now owns a process-local, shared admission object and
+  consumption state for each active execution key: repository scope, Job, owner,
+  and attempt number. Separate `RuntimeOperations` instances using the same active
+  lease receive the same admission object; independently constructed admission views
+  still resolve the same consumption state.
+- PRIMARY, REPAIR, PRIMARY Judge, and REPAIR Judge consumption therefore remains
+  fail-closed across concurrent invocations. The existing lease, ownership, expiry,
+  and provider-state checks still execute before every external call.
+- Provider construction was separated from provider contact. Factory/client
+  construction failures now raise `ScoringDispatchDenied` before contact; only an
+  exception from `primary_attempt()` after that call begins becomes
+  `UnknownProviderState`.
+- `TrustedPersistenceEntry`, `persist_success()`, state schema, and all Phase G
+  files remain unchanged.
+
+### Behavioral and mutation evidence
+
+- H1 tests now use two real `RuntimeOperations` over one SQLite scoring Job, prove
+  that their admission accessor returns the same object, and prove concurrent
+  PRIMARY dispatch permits exactly one provider dispatch. Separate admission
+  instances are likewise blocked; REPAIR and Judge duplicate/concurrent behavior
+  is covered through distinct admission views.
+- Real runtime construction covers factory failure as pre-contact dispatch denial
+  and a provider that records call start then times out/interrupts as
+  `UnknownProviderState`. Existing terminal unknown restart/retry-block evidence
+  remains in the H1 state-machine test.
+- Mutation proof: replacing shared state with a fresh state per admission made 8 H1
+  duplicate/concurrency/budget tests fail. Reclassifying factory failure as
+  `UnknownProviderState` made the pre-contact factory test fail. Both mutations were
+  restored before commit.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest tests/unit/test_task016c_phase_h1_admission.py tests/unit/test_task016c_phase_g.py tests/integration/test_pipeline.py tests/integration/test_state_store.py -q` | PASS (`148 passed`) |
+| `uv run --offline mypy src` | PASS (`29 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+---
+
 ## Phase H1-A Correction Round 1 — Judge admission and unknown provider state
 
 ### Metadata and scope
