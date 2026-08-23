@@ -842,7 +842,8 @@ def test_scoring_stage_uses_trusted_route(tmp_path: Path) -> None:
     names = set(code.co_names)
     # The trusted route must reference the new Phase F->G building blocks.
     assert "build_scoring_input" in names
-    assert "run_primary_trusted_scoring" in names
+    assert "_run_primary_trusted_scoring" in names
+    assert "ScoringDispatchAdmission" in names
     assert "_trusted_persistence_entry" in names
     # The legacy repository-backed service must not be the normal path.
     assert "RepositoryBackedScoringService" not in names

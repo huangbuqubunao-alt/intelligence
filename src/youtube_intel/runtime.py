@@ -9,6 +9,7 @@ import os
 import sqlite3
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
@@ -54,7 +55,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
-from youtube_intel.pipeline import PipelineOrchestrator
+from youtube_intel.pipeline import PipelineInterrupted, PipelineOrchestrator
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.providers.ollama import (
@@ -98,6 +99,12 @@ from youtube_intel.scoring import (
     _run_primary_trusted_scoring_seam,
     build_scoring_input,
     build_scoring_request_identity,
+)
+from youtube_intel.scoring_admission import (
+    ScoringDispatchAdmission,
+    ScoringDispatchDenied,
+    build_judge_scoring_dispatch_identity,
+    build_primary_scoring_dispatch_identity,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -319,12 +326,26 @@ class RuntimeOperations(Operations):
         self._data_root = _safe_project_path(
             self._root, self._config.settings.storage.data_dir
         ).resolve(strict=True)
+        self._runtime_owner = f"youtube-intel-runtime:{uuid.uuid4().hex}"
 
     def run_primary_trusted_scoring(
         self,
         *,
         attempt: PrimaryScoringAttempt,
         scoring_input: ScoringInput,
+    ) -> PhaseFTrustedScoringSuccess:
+        return self._run_primary_trusted_scoring(
+            attempt=attempt,
+            scoring_input=scoring_input,
+            admission=None,
+        )
+
+    def _run_primary_trusted_scoring(
+        self,
+        *,
+        attempt: PrimaryScoringAttempt,
+        scoring_input: ScoringInput,
+        admission: ScoringDispatchAdmission | None,
     ) -> PhaseFTrustedScoringSuccess:
         """Run the Phase F in-memory trusted scoring seam (memory only).
 
@@ -449,6 +470,11 @@ class RuntimeOperations(Operations):
                 "judge_model_digest": self._config.settings.local_scoring.expected_model_digest,
             }
         )
+        if admission is not None:
+            admission.admit(
+                build_judge_scoring_dispatch_identity(quality_operation),
+                now=_utcnow(),
+            )
         quality_result = self._quality_judge_provider.judge(
             quality_operation,
             content_input=quality_input,
@@ -540,7 +566,7 @@ class RuntimeOperations(Operations):
             data_root=self._data_root,
             context=TranscriptJobContext(
                 job_id=job.job_id,
-                owner="youtube-intel-runtime",
+                owner=self._runtime_owner,
                 pipeline_version=PIPELINE_VERSION,
                 refresh_generation=self._repository.transcript_refresh_generation(
                     job.video_id
@@ -764,7 +790,7 @@ class RuntimeOperations(Operations):
         )
 
     def _orchestrator(self) -> PipelineOrchestrator:
-        owner = "youtube-intel-runtime"
+        owner = self._runtime_owner
 
         def metadata_stage(job: JobRecord, _record: VideoRecord) -> None:
             metadata = self._discovery.fetch_and_store_metadata(
@@ -835,18 +861,40 @@ class RuntimeOperations(Operations):
                 output_language=configured_output_language,
                 settings=self._config.settings.local_scoring,
             )
-            provider = self._dependencies.scoring_provider_factory()
-            attempt = provider.primary_attempt(scoring_input)
-            success = self.run_primary_trusted_scoring(
-                attempt=attempt,
-                scoring_input=scoring_input,
-            )
-            entry = self._trusted_persistence_entry(
+            admission = ScoringDispatchAdmission(
+                repository=self._repository,
                 job_id=job.job_id,
                 owner=owner,
-                pipeline_version=PIPELINE_VERSION,
             )
-            entry.persist_success(success)
+            admission.admit(
+                build_primary_scoring_dispatch_identity(
+                    scoring_input=scoring_input,
+                    context=self._trusted_scoring_context,
+                ),
+                now=_utcnow(),
+            )
+            try:
+                provider = self._dependencies.scoring_provider_factory()
+                attempt = provider.primary_attempt(scoring_input)
+                success = self._run_primary_trusted_scoring(
+                    attempt=attempt,
+                    scoring_input=scoring_input,
+                    admission=admission,
+                )
+                entry = self._trusted_persistence_entry(
+                    job_id=job.job_id,
+                    owner=owner,
+                    pipeline_version=PIPELINE_VERSION,
+                )
+                entry.persist_success(success)
+            except PipelineInterrupted:
+                raise
+            except ScoringDispatchDenied:
+                raise
+            except Exception:
+                raise ScoringDispatchDenied(
+                    "scoring provider outcome is unknown after dispatch admission"
+                ) from None
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:

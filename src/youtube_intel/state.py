@@ -1723,13 +1723,25 @@ class SQLiteStateRepository:
                 )
                 recovered: list[JobRecord] = []
                 for row in expired:
-                    retryable = int(row["attempt_count"]) < int(row["max_attempts"])
+                    scoring_unknown = row["target_stage"] == ProcessingStage.SCORING.value
+                    retryable = (
+                        not scoring_unknown
+                        and int(row["attempt_count"]) < int(row["max_attempts"])
+                    )
                     status = (
                         JobStatus.RETRY_PENDING
                         if retryable
                         else JobStatus.FAILED_FINAL
                     )
                     finished_at = None if retryable else now_text
+                    error_code = (
+                        "UNKNOWN_PROVIDER_STATE" if scoring_unknown else "LEASE_EXPIRED"
+                    )
+                    error_message = (
+                        "scoring provider outcome is unknown after lease expiry"
+                        if scoring_unknown
+                        else "job lease expired"
+                    )
                     attempt_changed = connection.execute(
                         "UPDATE job_attempts SET finished_at = :now, "
                         "outcome = :outcome, error_code = :error_code, "
@@ -1737,9 +1749,13 @@ class SQLiteStateRepository:
                         "WHERE job_id = :job_id AND finished_at IS NULL",
                         {
                             "now": now_text,
-                            "outcome": JobAttemptOutcome.LEASE_EXPIRED.value,
-                            "error_code": "LEASE_EXPIRED",
-                            "error_message": "job lease expired",
+                            "outcome": (
+                                JobAttemptOutcome.FAILED_FINAL.value
+                                if scoring_unknown
+                                else JobAttemptOutcome.LEASE_EXPIRED.value
+                            ),
+                            "error_code": error_code,
+                            "error_message": error_message,
                             "job_id": row["job_id"],
                         },
                     ).rowcount
@@ -1755,8 +1771,8 @@ class SQLiteStateRepository:
                         {
                             "status": status.value,
                             "now": now_text,
-                            "error_code": "LEASE_EXPIRED",
-                            "error_message": "job lease expired",
+                            "error_code": error_code,
+                            "error_message": error_message,
                             "finished_at": finished_at,
                             "job_id": row["job_id"],
                         },
