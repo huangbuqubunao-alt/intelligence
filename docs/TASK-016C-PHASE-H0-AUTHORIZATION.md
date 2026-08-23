@@ -37,6 +37,17 @@ reservation. It is consumed before an external attempt and enforces the
 one-shot budget within that runtime only. It must not write a `ProviderCall`,
 Artifact, database row, filesystem object, cache object, or stage result.
 
+Runtime-local admission is necessary but insufficient. Every PRIMARY, REPAIR,
+and Judge dispatch additionally requires all three current-job facts:
+
+- a verified active `SCORING` job lease;
+- ownership of that job's current execution claim; and
+- proof that no competing active claimant owns the same execution.
+
+The job lease and execution claim are the durable cross-runtime coordination
+boundary. They authorize dispatch ownership only; they are not ProviderCall
+success evidence and cannot create a trusted persistence input.
+
 A durable ProviderCall identity exists only when
 `TrustedPersistenceEntry.persist_success()` completes its frozen persistence
 protocol. H1 therefore cannot reintroduce the pre-PREWRITE durable reservation
@@ -47,6 +58,18 @@ lost but the scoring job is classified as `UNKNOWN_PROVIDER_STATE` on recovery
 and becomes terminal/fail-closed. It is never re-dispatched merely because no
 ProviderCall was persisted. This deliberately sacrifices availability to retain
 at-most-once provider behavior.
+
+### Recovery ordering for interrupted SCORING work
+
+Expired or interrupted `SCORING` jobs must be atomically classified and
+finalized fail-closed **before** generic reclaim, retry activation, or another
+runtime can claim them. The recovery transaction compares the expired lease and
+current claim, inspects the frozen job/error and ProviderCall facts, then writes
+the existing terminal job/error representation in one transition.
+
+There is no intermediate reclaimable or retryable state. A generic recovery
+worker that loses this compare-and-finalize race re-reads the terminal or
+already-complete graph and must not claim or dispatch scoring work.
 
 ## 2. Sealed Repair Persistence Bridge
 
@@ -207,6 +230,17 @@ A sent request with a missing response, timeout, or crash during scoring/Judge
 work is unknowable: the provider may have acted. H treats each as terminal
 `UNKNOWN_PROVIDER_STATE`.
 
+`UNKNOWN_PROVIDER_STATE` is a runtime recovery classification, not a new DB
+enum, ProviderCall status, table, field, or schema migration. It is derived
+only from the frozen existing contracts: an interrupted/expired `SCORING` job
+lease and execution claim, its terminal-or-incomplete job/error record, and
+any corresponding ProviderCall state. It is represented through the existing
+non-retryable job/error transition with a stable safe diagnostic.
+
+It never triggers retry, never permits duplicate dispatch, and never becomes
+success. Only an already complete verified trusted persistence graph may be
+reported as idempotent completion; that is not an UNKNOWN-to-success conversion.
+
 - No retry, takeover, cache miss, raw reconstruction, or repair follows.
 - A repair is permitted only after a received, in-memory, eligible PRIMARY
   failure while the same runtime-local budget remains live.
@@ -256,9 +290,10 @@ promotes, or converts files into Artifacts.
 
 ### H1 — local identity, admission, budget, and unknown-state stop
 
-Allowed: runtime-local identity/admission code, scoring-stage unknown-state
-recovery wiring, and focused H1 tests. A narrow job-recovery change is allowed
-only to finalize expired/interrupted SCORING work as unknown before it can retry.
+Allowed: runtime-local identity/admission code, existing job lease/claim and
+unknown-state recovery wiring, and focused H1 tests. A narrow job-recovery
+change is allowed only to atomically finalize expired/interrupted SCORING work
+as unknown before generic reclaim, retry activation, or a new claim.
 
 Forbidden: durable ProviderCall reservation before PREWRITE, changes to
 `TrustedPersistenceEntry`, filesystem/Artifact writes, score/stage success,
@@ -266,7 +301,8 @@ provider repair dispatch, repository writer/API, schema/migration,
 dependencies/lockfiles, and cache behavior.
 
 Acceptance: no pre-PREWRITE durable persistence; PRIMARY <= 1, REPAIR <= 1,
-Judge <= 2 per runtime; every timeout/crash/restart path blocks re-dispatch.
+Judge <= 2 per runtime; every timeout/crash/restart path blocks re-dispatch;
+each dispatch proves an active owned SCORING lease and no competing claimant.
 
 ### H2 — sealed repair trusted flow
 
@@ -301,6 +337,8 @@ non-reproducible repair states quarantine fail closed.
 Approve H1 only if the reviewer confirms:
 
 - H1 has no durable ProviderCall reservation or any other PREWRITE persistence.
+- Every dispatch requires an active owned SCORING lease and no competing active
+  claimant; expired/interrupted SCORING work is finalized before reclaim/retry.
 - `TrustedPersistenceEntry.persist_success()` remains the sole ingress; there
   is no repair API, repository writer, alternate SQLite writer, or scatter
   persistence.
@@ -308,6 +346,8 @@ Approve H1 only if the reviewer confirms:
   Finalizer acceptance, not type/sentinel/registry/caller validation.
 - PRIMARY <= 1, REPAIR <= 1, and Judge <= 2 hold for normal, timeout, crash,
   and restart paths.
+- `UNKNOWN_PROVIDER_STATE` is derived without a schema migration and is never
+  retryable, dispatchable, or successful.
 - Filesystem-only orphan finals are always quarantined.
 
 Request changes if any implementation retries unknown provider state, promotes a
