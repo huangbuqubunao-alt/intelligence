@@ -38,6 +38,16 @@ class ScoringDispatchRole(str, Enum):
     REPAIR_JUDGE = "REPAIR_JUDGE"
 
 
+class PrimaryFailureClass(str, Enum):
+    """Closed, received PRIMARY outcomes that may qualify one future repair."""
+
+    SCHEMA_OR_PARSE_INVALID = "SCHEMA_OR_PARSE_INVALID"
+    LANGUAGE_INVALID = "LANGUAGE_INVALID"
+    DETERMINISTIC_QUALITY_REJECT = "DETERMINISTIC_QUALITY_REJECT"
+    JUDGE_REJECT = "JUDGE_REJECT"
+    JUDGE_UNCERTAIN = "JUDGE_UNCERTAIN"
+
+
 @dataclass(frozen=True, slots=True)
 class ScoringDispatchIdentity:
     """Stable dispatch identity; it is never a durable reservation."""
@@ -82,7 +92,17 @@ class _AdmissionExecutionKey:
 @dataclass(slots=True)
 class _AdmissionExecutionState:
     consumed_roles: set[ScoringDispatchRole] = field(default_factory=set)
+    primary_failure_receipt: _PrimaryFailureReceipt | None = None
     lock: Lock = field(default_factory=Lock)
+
+
+@dataclass(frozen=True, slots=True)
+class _PrimaryFailureReceipt:
+    """Runtime-local evidence of one known, received PRIMARY failure."""
+
+    primary_identity: ScoringDispatchIdentity
+    primary_raw_response_hash: str
+    failure_class: PrimaryFailureClass
 
 
 _IN_MEMORY_SCOPE_LOCK = Lock()
@@ -234,13 +254,7 @@ def build_repair_scoring_dispatch_identity(
 ) -> ScoringDispatchIdentity:
     """Return the stable REPAIR identity without authorizing repair execution."""
 
-    if primary_failure_class not in {
-        "SCHEMA_OR_PARSE_INVALID",
-        "LANGUAGE_INVALID",
-        "DETERMINISTIC_QUALITY_REJECT",
-        "JUDGE_REJECT",
-        "JUDGE_UNCERTAIN",
-    }:
+    if primary_failure_class not in {item.value for item in PrimaryFailureClass}:
         raise ValueError("primary failure class is not eligible for repair")
     operation = "local-scoring-repair-v1"
     normalized_input_hash = _canonical_hash(
@@ -338,3 +352,37 @@ class ScoringDispatchAdmission:
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
+
+    def _record_runtime_primary_failure(
+        self,
+        *,
+        primary_identity: ScoringDispatchIdentity,
+        primary_raw_response_hash: str,
+        failure_class: PrimaryFailureClass,
+        now: datetime,
+    ) -> None:
+        """Store one runtime-derived PRIMARY failure receipt for this execution only."""
+
+        if primary_identity.role is not ScoringDispatchRole.PRIMARY:
+            raise ValueError("primary failure receipt requires a PRIMARY identity")
+        if type(failure_class) is not PrimaryFailureClass:
+            raise ValueError("primary failure class is not eligible for repair")
+        job = self.verify_active_lease(now=now)
+        state = ScoringAdmissionRegistry.state_for(
+            repository=self.repository,
+            job_id=self.job_id,
+            job=job,
+            owner=self.owner,
+        )
+        with state.lock:
+            if ScoringDispatchRole.PRIMARY not in state.consumed_roles:
+                raise ScoringDispatchDenied(
+                    "PRIMARY admission is required before a failure receipt"
+                )
+            if state.primary_failure_receipt is not None:
+                raise ScoringDispatchDenied("PRIMARY failure receipt is already recorded")
+            state.primary_failure_receipt = _PrimaryFailureReceipt(
+                primary_identity=primary_identity,
+                primary_raw_response_hash=primary_raw_response_hash,
+                failure_class=failure_class,
+            )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -24,10 +25,12 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.pipeline import PipelineOrchestrator
+from youtube_intel.providers.ollama import parse_scoring_candidate
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
-from youtube_intel.scoring import build_scoring_input
+from youtube_intel.scoring import build_primary_scoring_attempt, build_scoring_input
 from youtube_intel.scoring_admission import (
+    PrimaryFailureClass,
     ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
@@ -321,6 +324,138 @@ def test_duplicate_primary_admission_is_denied() -> None:
 
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
         gate.admit(identity, now=_NOW)
+
+
+def test_runtime_owned_primary_failure_receipt_requires_dispatched_primary(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    scoring_input = _primary_scoring_input()
+    primary_identity = build_primary_scoring_dispatch_identity(
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        context=runtime._trusted_scoring_context,
+    )
+    raw = json.dumps(
+        {
+            "response": json.dumps(
+                {
+                    "reason": "A complete English explanation.",
+                    "score": 8,
+                    "should_summarize": True,
+                    "topics": ["product"],
+                }
+            )
+        }
+    )
+    attempt = build_primary_scoring_attempt(
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        candidate=parse_scoring_candidate(raw),
+        final_raw_response=raw,
+        provider="ollama",
+        model="qwen3:8b",
+        model_digest="sha256:" + ("4" * 64),
+        temperature=0.0,
+        max_output_tokens=1200,
+        max_description_chars=32,
+    )
+    admission = runtime._scoring_admission_for(claimed.job_id)
+
+    with pytest.raises(ScoringDispatchDenied, match="PRIMARY"):
+        runtime._record_runtime_primary_failure(
+            admission=admission,
+            primary_identity=primary_identity,
+            attempt=attempt,
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
+        )
+
+    admission.admit(primary_identity, now=datetime.now(UTC))
+    runtime._record_runtime_primary_failure(
+        admission=admission,
+        primary_identity=primary_identity,
+        attempt=attempt,
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
+    )
+
+    state = ScoringAdmissionRegistry.state_for(
+        repository=runtime._repository,
+        job_id=claimed.job_id,
+        job=runtime._repository.get_job(claimed.job_id),
+        owner=runtime._runtime_owner,
+    )
+    receipt = state.primary_failure_receipt
+    assert receipt is not None
+    assert receipt.primary_identity == primary_identity
+    assert receipt.primary_raw_response_hash == attempt.raw_response_hash
+    assert receipt.failure_class is PrimaryFailureClass.LANGUAGE_INVALID
+
+
+def test_unknown_provider_state_cannot_be_recorded_as_primary_failure_receipt(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    scoring_input = _primary_scoring_input()
+    primary_identity = build_primary_scoring_dispatch_identity(
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        context=runtime._trusted_scoring_context,
+    )
+    raw = json.dumps(
+        {
+            "response": json.dumps(
+                {
+                    "reason": "A complete English explanation.",
+                    "score": 8,
+                    "should_summarize": True,
+                    "topics": ["product"],
+                }
+            )
+        }
+    )
+    attempt = build_primary_scoring_attempt(
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        candidate=parse_scoring_candidate(raw),
+        final_raw_response=raw,
+        provider="ollama",
+        model="qwen3:8b",
+        model_digest="sha256:" + ("4" * 64),
+        temperature=0.0,
+        max_output_tokens=1200,
+        max_description_chars=32,
+    )
+    admission = runtime._scoring_admission_for(claimed.job_id)
+    admission.admit(primary_identity, now=datetime.now(UTC))
+
+    with pytest.raises(ValueError, match="not eligible"):
+        runtime._record_runtime_primary_failure(
+            admission=admission,
+            primary_identity=primary_identity,
+            attempt=attempt,
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            failure_class="UNKNOWN_PROVIDER_STATE",  # type: ignore[arg-type]
+        )
+
+    state = ScoringAdmissionRegistry.state_for(
+        repository=runtime._repository,
+        job_id=claimed.job_id,
+        job=runtime._repository.get_job(claimed.job_id),
+        owner=runtime._runtime_owner,
+    )
+    assert state.primary_failure_receipt is None
 
 
 def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path) -> None:

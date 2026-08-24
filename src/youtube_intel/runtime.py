@@ -101,9 +101,11 @@ from youtube_intel.scoring import (
     build_scoring_request_identity,
 )
 from youtube_intel.scoring_admission import (
+    PrimaryFailureClass,
     ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
+    ScoringDispatchIdentity,
     UnknownProviderState,
     build_judge_scoring_dispatch_identity,
     build_primary_scoring_dispatch_identity,
@@ -123,6 +125,21 @@ from youtube_intel.transcripts import (
     TranscriptError,
     TranscriptJobContext,
 )
+
+
+class _KnownPrimaryFailure(ValueError):
+    """A received PRIMARY response failed locally and is eligible only in-memory."""
+
+    def __init__(self, failure_class: PrimaryFailureClass) -> None:
+        super().__init__("received PRIMARY response is ineligible for trusted scoring")
+        self.failure_class = failure_class
+        self.error = AppError(
+            code=ErrorCode.INVALID_RESPONSE,
+            message="received PRIMARY response is ineligible for trusted scoring",
+            retryable=False,
+            stage=ProcessingStage.SCORING,
+        )
+
 
 PIPELINE_VERSION = "runtime-v1"
 _MAX_OLLAMA_TAGS_BYTES = 1_000_000
@@ -335,6 +352,47 @@ class RuntimeOperations(Operations):
             self._scoring_admissions = registry
         return registry.admission_for(job_id=job_id, owner=self._runtime_owner)
 
+    def _record_runtime_primary_failure(
+        self,
+        *,
+        admission: ScoringDispatchAdmission,
+        primary_identity: ScoringDispatchIdentity,
+        attempt: PrimaryScoringAttempt,
+        scoring_input: ScoringInput,
+        failure_class: PrimaryFailureClass,
+    ) -> None:
+        """Record only a runtime-dispatched, fully bound PRIMARY failure in memory."""
+
+        if type(admission) is not ScoringDispatchAdmission:
+            raise ValueError("runtime scoring admission is invalid")
+        if type(attempt) is not PrimaryScoringAttempt:
+            raise ValueError("runtime primary failure requires an exact attempt")
+        if type(scoring_input) is not ScoringInput:
+            raise ValueError("runtime primary failure requires an exact scoring input")
+        expected_identity = build_primary_scoring_dispatch_identity(
+            scoring_input=scoring_input,
+            context=self._trusted_scoring_context,
+        )
+        if primary_identity != expected_identity:
+            raise ValueError("runtime primary identity mismatches trusted scoring input")
+        if (
+            attempt.attempt_role != "PRIMARY"
+            or attempt.scoring_request_hash != expected_identity.request_hash
+            or attempt.scoring_input_normalized_hash
+            != expected_identity.normalized_input_hash
+        ):
+            raise ValueError("runtime primary attempt mismatches trusted identity")
+        if hashlib.sha256(attempt.final_raw_response.encode("utf-8")).hexdigest() != (
+            attempt.raw_response_hash
+        ):
+            raise ValueError("runtime primary raw response hash mismatches")
+        admission._record_runtime_primary_failure(
+            primary_identity=expected_identity,
+            primary_raw_response_hash=attempt.raw_response_hash,
+            failure_class=failure_class,
+            now=_utcnow(),
+        )
+
     def run_primary_trusted_scoring(
         self,
         *,
@@ -432,8 +490,7 @@ class RuntimeOperations(Operations):
         if not scoring_reason_matches_output_language(
             attempt.candidate.reason, scoring_input.output_language
         ):
-            msg = "candidate reason does not match output_language"
-            raise ValueError(msg)
+            raise _KnownPrimaryFailure(PrimaryFailureClass.LANGUAGE_INVALID)
 
         # Build the content-quality input from the candidate and scoring input.
         quality_input = ContentQualityInput.model_validate(
@@ -462,8 +519,9 @@ class RuntimeOperations(Operations):
             scoring_request_hash=scoring_input.request_hash,
         )
         if gate_result is not None:
-            msg = "deterministic content quality gate rejected the candidate"
-            raise ValueError(msg)
+            raise _KnownPrimaryFailure(
+                PrimaryFailureClass.DETERMINISTIC_QUALITY_REJECT
+            )
 
         # PRIMARY Local Quality Judge: caller cannot supply a result.
         quality_operation = QualityJudgeOperationInput.model_validate(
@@ -486,8 +544,12 @@ class RuntimeOperations(Operations):
             admission=admission,
         )
         if quality_result.status.value != "PASS":
-            msg = "local quality judge did not PASS the candidate"
-            raise ValueError(msg)
+            failure_class = (
+                PrimaryFailureClass.JUDGE_REJECT
+                if quality_result.status.value == "REJECT"
+                else PrimaryFailureClass.JUDGE_UNCERTAIN
+            )
+            raise _KnownPrimaryFailure(failure_class)
 
         attestation = build_quality_pass_attestation(
             quality_result=quality_result,
@@ -953,20 +1015,28 @@ class RuntimeOperations(Operations):
             admission = self._scoring_admission_for(job.job_id)
             if type(admission) is not ScoringDispatchAdmission:
                 raise ValueError("runtime scoring admission is invalid")
-            admission.admit(
-                build_primary_scoring_dispatch_identity(
-                    scoring_input=scoring_input,
-                    context=self._trusted_scoring_context,
-                ),
-                now=_utcnow(),
+            primary_identity = build_primary_scoring_dispatch_identity(
+                scoring_input=scoring_input,
+                context=self._trusted_scoring_context,
             )
+            admission.admit(primary_identity, now=_utcnow())
             provider = self._create_scoring_provider_for_dispatch()
             attempt = self._dispatch_primary_attempt_after_admission(provider, scoring_input)
-            success = self.run_primary_trusted_scoring(
-                attempt=attempt,
-                scoring_input=scoring_input,
-                job_id=job.job_id,
-            )
+            try:
+                success = self.run_primary_trusted_scoring(
+                    attempt=attempt,
+                    scoring_input=scoring_input,
+                    job_id=job.job_id,
+                )
+            except _KnownPrimaryFailure as error:
+                self._record_runtime_primary_failure(
+                    admission=admission,
+                    primary_identity=primary_identity,
+                    attempt=attempt,
+                    scoring_input=scoring_input,
+                    failure_class=error.failure_class,
+                )
+                raise
             self._persist_trusted_scoring_success(
                 success=success,
                 job=job,
