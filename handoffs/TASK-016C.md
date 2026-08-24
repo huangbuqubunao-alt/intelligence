@@ -1,5 +1,58 @@
 # TASK-016C 交接报告
 
+## Phase H1-B Correction Round 3 — adversarial behavioral evidence
+
+### Metadata and scope
+
+- Task: `TASK-016C H1-B Correction Round 3` only.
+- Direct parent: `b249341`.
+- Test implementation commit: `b07f4e2` —
+  `test(task016c): exercise H1 repair forgery attacks`.
+- Status: `READY FOR REVIEW`; no production design changed. Phase G,
+  `TrustedPersistenceEntry`, `persist_success()`, and H2 repair execution remain
+  untouched.
+
+### Adversarial behavioral evidence
+
+- A test creates the exact private `_AdmissionExecutionState` with
+  `object.__new__`, populates its fields via `object.__setattr__`, installs it at
+  the live runtime execution key, and attempts both REPAIR and REPAIR-Judge
+  dispatch. Both are denied and the Judge provider receives zero calls.
+- A captured exact admission-state object is copied, deep-copied, and pickled /
+  restored after a hostile lock/role replacement. Each restored state is installed
+  at the active runtime key; direct REPAIR and REPAIR-Judge dispatch remain denied
+  and the Judge provider receives zero calls.
+- A real language-invalid PRIMARY trusted-scoring failure is captured, deep-copied
+  and pickled. Its diagnostic metadata is injected into a forged REPAIR identity;
+  direct REPAIR and runtime REPAIR-Judge dispatch remain denied, with zero Judge
+  calls and unchanged Job/Video records.
+- A real post-contact `UNKNOWN_PROVIDER_STATE` is captured. Its diagnostics cannot
+  admit REPAIR or REPAIR Judge: exactly one PRIMARY provider call is recorded, no
+  Judge call occurs, and Job/Video records remain unchanged.
+
+### Reuse and validation
+
+- Reuse decision: `DIRECT` — existing H1 fake providers, temporary SQLite runtime
+  harness, pytest `monkeypatch`, and standard-library `copy`, `pickle`, and
+  `object.__setattr__`; no dependency, schema, registry capability, persistence,
+  network, cloud, or Vault change.
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest tests/unit/test_task016c_phase_h1_admission.py -q` | PASS (`31 passed`) |
+| `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run --offline pytest tests/integration/test_runtime_composition.py -q` | PASS (`7 passed`) |
+| `uv run --offline mypy src` | PASS (`29 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+### Diff review and remaining risk
+
+- The implementation commit changes only the authorized H1 test file; this
+  subsequent commit records evidence only.
+- No production source, schema, dependency, secret, real Vault, provider/network
+  call, Phase G boundary, or H2 capability was changed.
+
 ## Phase H1-B Correction Round 2 — internal-only repair control flow
 
 ### Metadata and scope
