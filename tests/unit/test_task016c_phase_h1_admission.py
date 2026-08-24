@@ -106,6 +106,19 @@ def _live_judge_gate(repository: _Repository) -> ScoringDispatchAdmission:
     return _gate(repository)
 
 
+def _record_eligible_primary_failure(
+    admission: ScoringDispatchAdmission, *, now: datetime = _NOW
+) -> None:
+    primary_identity = _identity(ScoringDispatchRole.PRIMARY, "primary")
+    admission.admit(primary_identity, now=now)
+    admission._record_runtime_primary_failure(
+        primary_identity=primary_identity,
+        primary_raw_response_hash="f" * 64,
+        failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
+        now=now,
+    )
+
+
 def _provider_call(request_hash: str, status: ProviderCallStatus) -> ProviderCallRecord:
     return ProviderCallRecord(
         request_hash=request_hash,
@@ -477,6 +490,7 @@ def test_duplicate_repair_admission_is_denied() -> None:
     second = _gate(repository)
     identity = _identity(ScoringDispatchRole.REPAIR)
 
+    _record_eligible_primary_failure(first)
     first.admit(identity, now=_NOW)
 
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
@@ -493,7 +507,35 @@ def test_duplicate_judge_admission_is_denied_without_consuming_other_role() -> N
 
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
         gate.admit(primary, now=_NOW)
+    _record_eligible_primary_failure(gate)
+    gate.admit(_identity(ScoringDispatchRole.REPAIR, "repair"), now=_NOW)
     gate.admit(repair, now=_NOW)
+
+
+def test_repair_admission_requires_a_runtime_owned_primary_failure_receipt() -> None:
+    repository = _Repository()
+    admission = _gate(repository)
+    repair = _identity(ScoringDispatchRole.REPAIR, "repair")
+
+    with pytest.raises(ScoringDispatchDenied, match="PRIMARY failure receipt"):
+        admission.admit(repair, now=_NOW)
+
+    _record_eligible_primary_failure(admission)
+    admission.admit(repair, now=_NOW)
+
+
+def test_repair_judge_admission_requires_repair_admission() -> None:
+    repository = _Repository()
+    admission = _gate(repository)
+    repair = _identity(ScoringDispatchRole.REPAIR, "repair")
+    repair_judge = _identity(ScoringDispatchRole.REPAIR_JUDGE, "repair-judge")
+
+    with pytest.raises(ScoringDispatchDenied, match="REPAIR admission"):
+        admission.admit(repair_judge, now=_NOW)
+
+    _record_eligible_primary_failure(admission)
+    admission.admit(repair, now=_NOW)
+    admission.admit(repair_judge, now=_NOW)
 
 
 def test_judge_dispatch_without_a_live_lease_is_rejected_before_provider_contact() -> None:
@@ -580,6 +622,10 @@ def test_judge_budget_is_exhausted_after_primary_and_repair_dispatches() -> None
         operation_input=_judge_operation("PRIMARY"),
         content_input=object(),  # type: ignore[arg-type]
         admission=gate,
+    )
+    _record_eligible_primary_failure(gate, now=datetime.now(UTC))
+    gate.admit(
+        _identity(ScoringDispatchRole.REPAIR, "repair"), now=datetime.now(UTC)
     )
     runtime._dispatch_quality_judge(
         operation_input=_judge_operation("REPAIR"),

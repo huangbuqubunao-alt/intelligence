@@ -349,6 +349,20 @@ class ScoringDispatchAdmission:
         with state.lock:
             if identity.role in state.consumed_roles:
                 raise ScoringDispatchDenied("scoring dispatch role is already consumed")
+            if (
+                identity.role is ScoringDispatchRole.REPAIR
+                and state.primary_failure_receipt is None
+            ):
+                raise ScoringDispatchDenied(
+                    "runtime PRIMARY failure receipt is required before REPAIR admission"
+                )
+            if (
+                identity.role is ScoringDispatchRole.REPAIR_JUDGE
+                and ScoringDispatchRole.REPAIR not in state.consumed_roles
+            ):
+                raise ScoringDispatchDenied(
+                    "REPAIR admission is required before REPAIR Judge admission"
+                )
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
