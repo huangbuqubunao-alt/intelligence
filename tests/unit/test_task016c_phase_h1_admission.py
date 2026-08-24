@@ -28,6 +28,7 @@ from youtube_intel.retry import RetryPolicy
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import build_scoring_input
 from youtube_intel.scoring_admission import (
+    ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
     ScoringDispatchIdentity,
@@ -162,7 +163,9 @@ def _judge_operation(role: str = "PRIMARY") -> QualityJudgeOperationInput:
 def _judge_runtime() -> tuple[RuntimeOperations, _JudgeProvider]:
     runtime = object.__new__(RuntimeOperations)
     provider = _JudgeProvider()
-    runtime._quality_judge_provider = provider
+    runtime._dependencies = SimpleNamespace(
+        quality_judge_provider_factory=lambda: provider
+    )
     return runtime, provider
 
 
@@ -205,7 +208,10 @@ def _primary_context() -> object:
 
 
 def _runtime_for_h1(
-    project: Path, *, scoring_provider_factory: object
+    project: Path,
+    *,
+    scoring_provider_factory: object,
+    quality_judge_provider_factory: object | None = None,
 ) -> RuntimeOperations:
     (project / "config").mkdir(parents=True, exist_ok=True)
     (project / "vault").mkdir(exist_ok=True)
@@ -248,6 +254,7 @@ storage:
             subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
             scoring_provider_factory=scoring_provider_factory,  # type: ignore[arg-type]
             analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            quality_judge_provider_factory=quality_judge_provider_factory,  # type: ignore[arg-type]
         ),
     )
 
@@ -478,14 +485,19 @@ def test_separate_admission_instances_share_one_active_lease_budget() -> None:
     assert results == {"denied", "dispatched"}
 
 
-def test_two_runtime_operations_share_admission_for_one_active_scoring_job(
+def test_two_sqlite_runtime_views_share_budget_without_sharing_admission_objects(
     tmp_path: Path,
 ) -> None:
+    provider = _JudgeProvider()
     runtime_a = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: object()
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: provider,
     )
     runtime_b = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: object()
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: provider,
     )
     runtime_b._runtime_owner = runtime_a._runtime_owner
     claimed = _active_scoring_job(
@@ -493,28 +505,32 @@ def test_two_runtime_operations_share_admission_for_one_active_scoring_job(
         owner=runtime_a._runtime_owner,
         now=datetime.now(UTC),
     )
-    identity = _identity(ScoringDispatchRole.PRIMARY)
-    dispatches: list[str] = []
-    assert (
-        runtime_a._scoring_admission_for(claimed.job_id)
-        is runtime_b._scoring_admission_for(claimed.job_id)
-    )
+    admission_a = runtime_a._scoring_admission_for(claimed.job_id)
+    admission_b = runtime_b._scoring_admission_for(claimed.job_id)
+    assert runtime_a._repository is not runtime_b._repository
+    assert admission_a is not admission_b
 
-    def dispatch(runtime: RuntimeOperations) -> str:
+    def dispatch(runtime: RuntimeOperations, admission: ScoringDispatchAdmission) -> str:
         try:
-            runtime._scoring_admission_for(claimed.job_id).admit(
-                identity, now=datetime.now(UTC)
+            runtime._dispatch_quality_judge(
+                operation_input=_judge_operation(),
+                content_input=object(),  # type: ignore[arg-type]
+                admission=admission,
             )
         except ScoringDispatchDenied:
             return "denied"
-        dispatches.append("provider")
         return "dispatched"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = set(executor.map(dispatch, (runtime_a, runtime_b)))
+        results = set(
+            executor.map(
+                lambda pair: dispatch(*pair),
+                ((runtime_a, admission_a), (runtime_b, admission_b)),
+            )
+        )
 
     assert results == {"denied", "dispatched"}
-    assert dispatches == ["provider"]
+    assert len(provider.calls) == 1
 
 
 def test_repair_identity_is_stable_after_restart() -> None:
@@ -648,6 +664,46 @@ def test_provider_factory_failure_is_dispatch_denied_before_provider_contact(
     assert factory_calls == ["factory"]
 
 
+def test_judge_factory_failure_is_denied_without_consuming_admission_budget(
+    tmp_path: Path,
+) -> None:
+    factory_calls: list[str] = []
+    runtime = _runtime_for_h1(
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: (
+            factory_calls.append("factory"),
+            (_ for _ in ()).throw(RuntimeError("judge construction failed")),
+        )[1]
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    admission = runtime._scoring_admission_for(claimed.job_id)
+
+    with pytest.raises(ScoringDispatchDenied, match="before external provider contact"):
+        runtime._dispatch_quality_judge(
+            operation_input=_judge_operation(),
+            content_input=object(),  # type: ignore[arg-type]
+            admission=admission,
+        )
+
+    assert factory_calls == ["factory"]
+    provider = _JudgeProvider()
+    runtime._dependencies = replace(
+        runtime._dependencies,
+        quality_judge_provider_factory=lambda: provider,
+    )
+    runtime._dispatch_quality_judge(
+        operation_input=_judge_operation(),
+        content_input=object(),  # type: ignore[arg-type]
+        admission=admission,
+    )
+    assert len(provider.calls) == 1
+
+
 @pytest.mark.parametrize("provider_error", [TimeoutError("timeout"), RuntimeError("lost")])
 def test_provider_timeout_or_interruption_after_call_begins_becomes_unknown_provider_state(
     provider_error: Exception,
@@ -773,6 +829,11 @@ def test_unknown_provider_state_is_atomically_terminal_and_survives_restart(tmp_
         lease_until=_NOW + timedelta(minutes=6),
         now=_NOW + timedelta(minutes=1),
     ) is None
+    assert not any(
+        key.repository_scope == str((tmp_path / "state.sqlite").resolve())
+        and key.job_id == job_id
+        for key in ScoringAdmissionRegistry._states
+    )
 
 
 def _gate_for_sqlite(

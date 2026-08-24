@@ -189,6 +189,27 @@ class JobRecord:
     finished_at: datetime | None
 
 
+def _release_terminal_scoring_admission(
+    repository: SQLiteStateRepository, job: JobRecord
+) -> None:
+    """Drop H1 runtime-only admission state after a committed scoring terminal."""
+
+    if (
+        job.target_stage is not ProcessingStage.SCORING
+        or job.status not in {JobStatus.SUCCEEDED, JobStatus.FAILED_FINAL}
+    ):
+        return
+    # Keep state persistence independent: this only releases process-local H1 state
+    # after the SQLite transaction has committed.
+    from youtube_intel.scoring_admission import ScoringAdmissionRegistry
+
+    ScoringAdmissionRegistry.release_terminal(
+        repository=repository,
+        job_id=job.job_id,
+        attempt_count=job.attempt_count,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class JobAttemptRecord:
     attempt_id: int
@@ -1606,6 +1627,7 @@ class SQLiteStateRepository:
         now_text = format_utc_datetime(now)
         retry_text = None if retry_at is None else format_utc_datetime(retry_at)
         safe_message = _safe_error_message(error_message)
+        saved_job: JobRecord | None = None
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
@@ -1656,9 +1678,13 @@ class SQLiteStateRepository:
                 saved = connection.execute(
                     "SELECT * FROM jobs WHERE job_id = :job_id", {"job_id": job_id}
                 ).fetchone()
-                return self._job_from_row(saved)
+                saved_job = self._job_from_row(saved)
         finally:
             connection.close()
+        if saved_job is None:
+            raise StateStoreError("failed job could not be read")
+        _release_terminal_scoring_admission(self, saved_job)
+        return saved_job
 
     def finalize_unknown_provider_state(
         self,
@@ -1672,6 +1698,7 @@ class SQLiteStateRepository:
 
         now_text = format_utc_datetime(now)
         safe_message = _safe_error_message(error_message)
+        saved_job: JobRecord | None = None
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
@@ -1715,9 +1742,13 @@ class SQLiteStateRepository:
                 saved = connection.execute(
                     "SELECT * FROM jobs WHERE job_id = :job_id", {"job_id": job_id}
                 ).fetchone()
-                return self._job_from_row(saved)
+                saved_job = self._job_from_row(saved)
         finally:
             connection.close()
+        if saved_job is None:
+            raise StateStoreError("unknown provider state job could not be read")
+        _release_terminal_scoring_admission(self, saved_job)
+        return saved_job
 
     def complete_job(
         self,
@@ -1770,6 +1801,7 @@ class SQLiteStateRepository:
 
     def reclaim_expired_jobs(self, *, now: datetime) -> tuple[JobRecord, ...]:
         now_text = format_utc_datetime(now)
+        saved_jobs: tuple[JobRecord, ...] = ()
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
@@ -1841,9 +1873,12 @@ class SQLiteStateRepository:
                         {"job_id": row["job_id"]},
                     ).fetchone()
                     recovered.append(self._job_from_row(saved))
-                return tuple(recovered)
+                saved_jobs = tuple(recovered)
         finally:
             connection.close()
+        for saved_job in saved_jobs:
+            _release_terminal_scoring_admission(self, saved_job)
+        return saved_jobs
 
     def activate_retry_jobs(self, *, now: datetime) -> tuple[JobRecord, ...]:
         now_text = format_utc_datetime(now)

@@ -7,9 +7,11 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from itertools import count
 from pathlib import Path
 from threading import Lock
 from typing import ClassVar, Protocol
+from weakref import WeakKeyDictionary
 
 from youtube_intel.domain import (
     AppError,
@@ -84,21 +86,24 @@ class _AdmissionExecutionState:
 
 
 _IN_MEMORY_SCOPE_LOCK = Lock()
-_IN_MEMORY_SCOPES: dict[int, tuple[object, str]] = {}
+_IN_MEMORY_SCOPES: WeakKeyDictionary[object, str] = WeakKeyDictionary()
+_IN_MEMORY_SCOPE_SEQUENCE = count()
 
 
 def _repository_scope(repository: _AdmissionRepository) -> str:
     database_path = getattr(repository, "_database_path", None)
     if isinstance(database_path, Path):
         return str(database_path.resolve())
-    repository_id = id(repository)
     with _IN_MEMORY_SCOPE_LOCK:
-        current = _IN_MEMORY_SCOPES.get(repository_id)
-        if current is not None and current[0] is repository:
-            return current[1]
-        scope = f"in-memory:{len(_IN_MEMORY_SCOPES)}"
-        _IN_MEMORY_SCOPES[repository_id] = (repository, scope)
-        return scope
+        try:
+            scope = _IN_MEMORY_SCOPES.get(repository)
+            if scope is None:
+                scope = f"in-memory:{next(_IN_MEMORY_SCOPE_SEQUENCE)}"
+                _IN_MEMORY_SCOPES[repository] = scope
+            return scope
+        except TypeError:
+            # An unweakrefable test double cannot be retained by the registry.
+            return f"in-memory-untracked:{id(repository)}"
 
 
 class ScoringAdmissionRegistry:
@@ -106,7 +111,6 @@ class ScoringAdmissionRegistry:
 
     _lock: ClassVar[Lock] = Lock()
     _states: ClassVar[dict[_AdmissionExecutionKey, _AdmissionExecutionState]] = {}
-    _admissions: ClassVar[dict[_AdmissionExecutionKey, ScoringDispatchAdmission]] = {}
 
     def __init__(self, repository: _AdmissionRepository) -> None:
         self._repository = repository
@@ -119,16 +123,31 @@ class ScoringAdmissionRegistry:
                 job_id=job_id,
                 owner=owner,
             )
-        key = self._key_for(repository=self._repository, job_id=job_id, job=job, owner=owner)
-        with self._lock:
-            return self._admissions.setdefault(
-                key,
-                ScoringDispatchAdmission(
-                    repository=self._repository,
-                    job_id=job_id,
-                    owner=owner,
-                ),
-            )
+        return ScoringDispatchAdmission(
+            repository=self._repository,
+            job_id=job_id,
+            owner=owner,
+        )
+
+    @classmethod
+    def release_terminal(
+        cls,
+        *,
+        repository: _AdmissionRepository,
+        job_id: str,
+        attempt_count: int,
+    ) -> None:
+        """Release shared state only after its job attempt is durably terminal."""
+
+        scope = _repository_scope(repository)
+        with cls._lock:
+            for key in tuple(cls._states):
+                if (
+                    key.repository_scope == scope
+                    and key.job_id == job_id
+                    and key.attempt_count == attempt_count
+                ):
+                    del cls._states[key]
 
     @staticmethod
     def _key_for(
@@ -288,8 +307,8 @@ class ScoringDispatchAdmission:
         if not self.job_id.strip() or not self.owner.strip():
             raise ValueError("scoring admission requires a job id and owner")
 
-    def admit(self, identity: ScoringDispatchIdentity, *, now: datetime) -> None:
-        """Consume a role only after durable lease and unknown-state checks."""
+    def verify_active_lease(self, *, now: datetime) -> JobRecord:
+        """Prove this view still owns the active SCORING lease without consuming budget."""
 
         job = self.repository.get_job(self.job_id)
         if job is None or job.target_stage is not ProcessingStage.SCORING:
@@ -301,6 +320,12 @@ class ScoringDispatchAdmission:
             or job.lease_until <= now
         ):
             raise ScoringDispatchDenied("scoring lease is not exclusively active")
+        return job
+
+    def admit(self, identity: ScoringDispatchIdentity, *, now: datetime) -> None:
+        """Consume a role only after durable lease and unknown-state checks."""
+
+        job = self.verify_active_lease(now=now)
         state = ScoringAdmissionRegistry.state_for(
             repository=self.repository,
             job_id=self.job_id,

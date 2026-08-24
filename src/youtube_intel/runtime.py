@@ -315,11 +315,6 @@ class RuntimeOperations(Operations):
             config.settings.local_scoring
         )
         self._trusted_scoring_context = _build_trusted_scoring_context(config)
-        self._quality_judge_provider = (
-            self._dependencies.quality_judge_provider_factory()
-            if self._dependencies.quality_judge_provider_factory is not None
-            else OllamaQualityJudgeProvider(settings=config.settings.local_scoring)
-        )
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,
@@ -519,18 +514,33 @@ class RuntimeOperations(Operations):
     ) -> Any:
         """Admit the Judge call before its provider can be contacted."""
 
+        admission.verify_active_lease(now=_utcnow())
+        provider = self._create_quality_judge_provider_for_dispatch()
         admission.admit(
             build_judge_scoring_dispatch_identity(operation_input),
             now=_utcnow(),
         )
         try:
-            return self._quality_judge_provider.judge(
+            return provider.judge(
                 operation_input,
                 content_input=content_input,
             )
         except Exception as error:
             raise UnknownProviderState(
                 "scoring provider outcome is unknown after external dispatch"
+            ) from error
+
+    def _create_quality_judge_provider_for_dispatch(self) -> Any:
+        """Construct the Judge client before the admitted external call begins."""
+
+        try:
+            factory = self._dependencies.quality_judge_provider_factory
+            if factory is not None:
+                return factory()
+            return OllamaQualityJudgeProvider(settings=self._config.settings.local_scoring)
+        except Exception as error:
+            raise ScoringDispatchDenied(
+                "quality judge dispatch failed before external provider contact"
             ) from error
 
     def _create_scoring_provider_for_dispatch(self) -> Any:
@@ -938,6 +948,11 @@ class RuntimeOperations(Operations):
                 pipeline_version=PIPELINE_VERSION,
             )
             entry.persist_success(success)
+            ScoringAdmissionRegistry.release_terminal(
+                repository=self._repository,
+                job_id=job.job_id,
+                attempt_count=job.attempt_count,
+            )
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:
