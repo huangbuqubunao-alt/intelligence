@@ -1,5 +1,61 @@
 # TASK-016C 交接报告
 
+## Phase H1-B Correction Round 1 — sealed repair eligibility provenance
+
+### Metadata and scope
+
+- Task: `TASK-016C H1-B Correction Round 1` only.
+- Direct parent: `8784c64`.
+- Implementation commit: `7972ea5` — `fix(task016c): seal repair eligibility provenance`.
+- Status: `READY FOR REVIEW`; Phase G `TrustedPersistenceEntry` is unchanged. H2
+  repair execution, repair persistence, recovery, schema, and all later work were
+  not started.
+
+### Corrections delivered
+
+- Removed `_PrimaryFailureReceipt`, its sentinel, and every caller-supplied
+  `runtime_receipt_authority` path. `ScoringDispatchAdmission.admit()` now rejects
+  all public REPAIR requests fail-closed.
+- A scoring-stage-only, stack-local closure is created immediately after the
+  runtime-owned PRIMARY dispatch returns. It rechecks the exact admission,
+  active lease, consumed PRIMARY role, exact PRIMARY attempt/raw hash, trusted
+  scoring context, and closed eligible failure class before storing the derived
+  REPAIR identity in process-local admission state.
+- `_KnownPrimaryFailure` carries only the closed failure classification; exception
+  paths expose neither a receipt nor a REPAIR identity. A direct public
+  `run_primary_trusted_scoring()` call cannot activate repair eligibility.
+- `UNKNOWN_PROVIDER_STATE` reaches no PRIMARY-failure closure and leaves
+  `repair_identity` absent. The public REPAIR/Judge boundary remains denied.
+
+### Adversarial evidence
+
+- H1 tests prove that the receipt class and sentinel are no longer importable;
+  caller-controlled admission authority is rejected by the constructor; and a
+  `ScoringDispatchIdentity` forged via `object.__new__` plus
+  `object.__setattr__` cannot admit REPAIR.
+- Copy, deepcopy, and pickle restoration of a REPAIR-shaped identity cannot
+  bypass the runtime-owned admission boundary. An UNKNOWN provider result followed
+  by the same forgery remains denied. Exception objects are asserted not to expose
+  `receipt` or `repair_identity`.
+
+### Reuse and validation
+
+- Reuse decision: `DIRECT` — existing Python standard-library closure, copy, and
+  pickle behavior plus the existing H1 admission registry; no dependency, schema,
+  lockfile, persistence, network, or Vault change.
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest tests/unit/test_task016c_phase_h1_admission.py -q` | PASS (`29 passed`) |
+| `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run --offline pytest tests/integration/test_pipeline.py tests/integration/test_state_store.py tests/integration/test_task015_p1_fix.py -q` | PASS (`97 passed`) |
+| `uv run --offline pytest -x -q` | PASS (`1311 passed`, one pre-existing Pydantic serialization warning) |
+| `uv run --offline mypy src` | PASS (`29 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+---
+
 ## Phase H1-A Correction Round 2 — shared active-lease admission
 
 ### Metadata and scope
