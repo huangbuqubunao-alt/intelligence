@@ -325,22 +325,58 @@ the persistence mechanism, not PRIMARY provenance.
 
 ## 6. Required attack matrix and behavioral tests
 
-Each rejection test below must assert all three negative effects in addition to
-the listed error: **zero scoring-provider calls, zero Judge calls, and zero
-writes** (no tmp/final/mkdir, Artifact, ProviderCall, cache, response artifact
-ID, SQLite, score, stage, or job write). A completed exact idempotent graph is
-not a rejection case and must make no external call or new write.
+The test suite must distinguish rejection before dispatch from rejection after a
+legitimate stateful action. “Zero writes” is an absolute assertion only for an
+attack rejected before any legitimate state transition; it must not be applied
+retroactively to a test whose security behavior is an approved terminal
+transition.
+
+### Category A — pre-dispatch rejection attacks
+
+For this category, capture state before the attack and assert: **zero
+scoring-provider calls, zero Judge calls, zero Artifact writes, zero SQLite
+success writes, and no state transition**. “Zero SQLite success writes” covers
+ProviderCall completion, response-artifact ID, score, pipeline stage, and job
+success updates; “no state transition” additionally excludes an attempted
+terminal/retry transition. There may be no tmp/final/mkdir or cache write.
 
 | Test case | Injection / action | Required behavioral result |
 |---|---|---|
-| Forged repair success | Supply a hand-built `PhaseHTrustedRepairSuccess`, a bare result, mapping, JSON restore, or a sealed object with one altered provenance/hash field. | Exact-type or re-derived provenance validation rejects before plan minting; all three zero-I/O assertions hold. |
-| `object.__new__` | Allocate an uninitialized `PhaseHTrustedRepairSuccess` shell, including one populated only through low-level attribute operations. | No runtime-only mint provenance exists; exact-type/seal/provenance checks reject before a provider/Judge call or write. |
-| `setattr` mutation | Attempt to mutate each sealed envelope binding after minting: PRIMARY identity/failure/raw hash, REPAIR raw/provider/identity, Judge evidence, attestation, or final result bytes. | Immutability rejects mutation; if a test bypasses normal mutation, re-derived prewrite validation rejects the changed value with all three zero-I/O assertions. |
-| Copy, deepcopy, pickle | Apply `copy.copy`, `copy.deepcopy`, and pickle round-trip to a legitimate repair success. | Each operation is rejected; no restored object can invoke persistence. If a forged restored shape reaches the entry, it is rejected with all three zero-I/O assertions. |
-| PRIMARY-to-REPAIR substitution | Present PRIMARY aggregate/evidence where a REPAIR aggregate is required, relabel a REPAIR success as PRIMARY, or swap their raw/identity/quality evidence. | Role, envelope, and identity cross-binding reject; REPAIR transport identity can never be treated as PRIMARY provenance. All three zero-I/O assertions hold. |
-| Duplicate REPAIR dispatch | Replay a received PRIMARY failure, call the private branch twice, race two runtime branches, or attempt a second REPAIR Judge. | Existing role state consumes REPAIR/REPAIR_JUDGE once under lock; subsequent dispatch is denied before provider/Judge construction/contact and creates no write. |
-| `UNKNOWN_PROVIDER_STATE` | Simulate timeout, lost response, process crash, lease loss/expiry, restart, or missing durable ProviderCall after a dispatched attempt. | The job is finalized fail-closed as unknown; it never classifies as eligible PRIMARY failure, never enters REPAIR, and has zero subsequent provider/Judge calls and zero success writes. |
-| Persistence bypass | Call a repository method/direct writer, pass a plan/raw bytes/Artifact/ProviderCall/legacy cache data to a persistence boundary, or call any proposed repair-specific method. | No such public path exists. Only `persist_success()` accepts an exact sealed success; all bypass forms reject before a plan/provider/Judge/write. |
+| Forged repair success | Supply a hand-built `PhaseHTrustedRepairSuccess`, a bare result, mapping, JSON restore, or a sealed object with one altered provenance/hash field. | Exact-type or re-derived provenance validation rejects before plan minting and satisfies every Category A assertion. |
+| `object.__new__` | Allocate an uninitialized `PhaseHTrustedRepairSuccess` shell, including one populated only through low-level attribute operations. | No runtime-only mint provenance exists; exact-type/seal/provenance checks reject and satisfy every Category A assertion. |
+| `object.__setattr__` mutation | Attempt to mutate each sealed envelope binding after minting: PRIMARY identity/failure/raw hash, REPAIR raw/provider/identity, Judge evidence, attestation, or final result bytes. | Immutability rejects mutation; if a test bypasses normal mutation, re-derived prewrite validation rejects the changed value and satisfies every Category A assertion. |
+| Copy, deepcopy, pickle restoration | Apply `copy.copy`, `copy.deepcopy`, and pickle round-trip to a legitimate repair success. | Each operation is rejected; no restored object can invoke persistence. A forged restored shape reaching the entry satisfies every Category A assertion. |
+| Fake provenance | Alter a sealed provider/model/digest, REPAIR identity, Judge H1/H2, attestation, primary failure class, or raw/candidate/result binding. | Canonical re-derivation rejects the mismatch before plan minting and satisfies every Category A assertion. |
+| PRIMARY-to-REPAIR substitution | Present PRIMARY aggregate/evidence where a REPAIR aggregate is required, relabel a REPAIR success as PRIMARY, or swap their raw/identity/quality evidence. | Role, envelope, and identity cross-binding reject; REPAIR transport identity can never be treated as PRIMARY provenance. Every Category A assertion holds. |
+| Persistence bypass | Call a repository method/direct writer, pass a plan/raw bytes/Artifact/ProviderCall/legacy cache data to a persistence boundary, or call any proposed repair-specific method. | No such public path exists. Only `persist_success()` accepts an exact sealed success; all bypass forms reject and satisfy every Category A assertion. |
+
+### Category B — stateful rejection attacks
+
+These tests begin after a legitimate dispatch, admission consumption, or
+recovery fact may already exist. Capture a baseline immediately before the
+rejected additional action (the rejection point), then assert: **no additional
+scoring-provider calls, no additional Judge calls, no duplicate success
+persistence, and no duplicate REPAIR/REPAIR_JUDGE consumption**. No new
+Artifact, completed ProviderCall, response-artifact ID, score, stage, or job
+success may be produced beyond that baseline.
+
+The only allowed writes after the rejection point are explicitly defined
+terminal fail-closed transitions. In particular,
+`UNKNOWN_PROVIDER_STATE` may perform its already-approved terminal job/error
+update; it cannot write a success graph, re-enable admission, or authorize a
+new provider/Judge call. No generic retry, reclaim, takeover, or repair
+transition is permitted.
+
+| Test case | Rejection-point setup / action | Required behavioral result |
+|---|---|---|
+| Duplicate REPAIR dispatch | A legitimate REPAIR role has already been consumed; replay the received PRIMARY failure, call the private branch again, or race two branches. | The second dispatch is denied before contact. Relative to the baseline: no additional provider/Judge call, no duplicate REPAIR consumption, and no duplicate success persistence. |
+| Duplicate REPAIR Judge dispatch | A legitimate REPAIR Judge role has already been consumed; request a second REPAIR Judge call. | The second Judge dispatch is denied before contact. Relative to the baseline: no additional Judge/provider call, no duplicate REPAIR_JUDGE consumption, and no duplicate success persistence. |
+| `UNKNOWN_PROVIDER_STATE` handling | Simulate timeout, lost response, process crash, lease loss/expiry, or missing durable ProviderCall after a dispatched attempt. | The job may receive only the approved terminal unknown job/error update. It never classifies as an eligible PRIMARY failure, enters REPAIR, writes a success graph, or makes an additional provider/Judge call. |
+| Restart after consumed identity | Restart after PRIMARY, REPAIR, or either Judge identity was consumed but before a successful trusted commit. | The recovered state is terminal unknown/fail-closed, not restored admission. Relative to the baseline: no additional dispatch, no duplicate role consumption, no duplicate success persistence, and only the explicitly allowed terminal update if still required. |
+
+An exact already-complete G graph remains an idempotent-completion case, not a
+rejection case: it makes no external call and creates no duplicate success
+write.
 
 ## 7. Future implementation scope
 
