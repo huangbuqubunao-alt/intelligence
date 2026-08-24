@@ -40,7 +40,6 @@ from youtube_intel.scoring_admission import (
     UnknownProviderState,
     build_judge_scoring_dispatch_identity,
     build_primary_scoring_dispatch_identity,
-    build_repair_scoring_dispatch_identity,
 )
 from youtube_intel.state import (
     JobRecord,
@@ -351,7 +350,7 @@ def test_duplicate_primary_admission_is_denied() -> None:
         gate.admit(identity, now=_NOW)
 
 
-def test_unknown_provider_state_cannot_create_repair_eligibility(tmp_path: Path) -> None:
+def test_unknown_provider_state_cannot_enter_repair(tmp_path: Path) -> None:
     class _UnknownProvider:
         def primary_attempt(self, scoring_input: object) -> object:
             del scoring_input
@@ -379,18 +378,13 @@ def test_unknown_provider_state_cannot_create_repair_eligibility(tmp_path: Path)
             scoring_input,  # type: ignore[arg-type]
         )
 
-    state = ScoringAdmissionRegistry.state_for(
-        repository=runtime._repository,
-        job_id=claimed.job_id,
-        job=runtime._repository.get_job(claimed.job_id),
-        owner=runtime._runtime_owner,
-    )
-    assert state.repair_identity is None
-    forged_receipt = object.__new__(object)
-    with pytest.raises(AttributeError):
-        object.__setattr__(forged_receipt, "repair_identity", _identity(ScoringDispatchRole.REPAIR))
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
         admission.admit(_identity(ScoringDispatchRole.REPAIR, "unknown"), now=datetime.now(UTC))
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(
+            _identity(ScoringDispatchRole.REPAIR_JUDGE, "unknown-judge"),
+            now=datetime.now(UTC),
+        )
 
 
 def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path) -> None:
@@ -406,11 +400,14 @@ def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path)
         )
 
 
-def test_repair_receipt_mint_path_is_not_importable() -> None:
+def test_caller_obtains_no_repair_continuation_or_factory(tmp_path: Path) -> None:
     import youtube_intel.scoring_admission as admission_module
 
-    assert not hasattr(admission_module, "_PrimaryFailureReceipt")
-    assert not hasattr(admission_module, "_PRIMARY_FAILURE_RECEIPT_SENTINEL")
+    runtime = _runtime_for_h1(tmp_path / "project", scoring_provider_factory=lambda: object())
+
+    assert not hasattr(runtime, "_primary_failure_continuation")
+    assert not hasattr(runtime, "_admit_runtime_repair")
+    assert not hasattr(admission_module, "build_repair_scoring_dispatch_identity")
 
 
 def test_caller_controlled_receipt_authority_is_not_an_admission_parameter() -> None:
@@ -423,27 +420,39 @@ def test_caller_controlled_receipt_authority_is_not_an_admission_parameter() -> 
         )
 
 
-def test_forged_receipt_shell_via_object_new_and_setattr_cannot_admit_repair() -> None:
-    import youtube_intel.scoring_admission as admission_module
-
-    receipt_type = getattr(admission_module, "_PrimaryFailureReceipt", None)
-    assert receipt_type is None
-    expected = _identity(ScoringDispatchRole.REPAIR, "object-new")
-    forged_receipt = object.__new__(ScoringDispatchIdentity)
-    object.__setattr__(forged_receipt, "role", expected.role)
-    object.__setattr__(forged_receipt, "operation", expected.operation)
-    object.__setattr__(forged_receipt, "normalized_input_hash", expected.normalized_input_hash)
-    object.__setattr__(forged_receipt, "request_hash", expected.request_hash)
+def test_fake_continuation_path_is_impossible() -> None:
     admission = _gate(_Repository())
 
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
-        admission.admit(forged_receipt, now=_NOW)
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "fake"), now=_NOW)
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR_JUDGE, "fake-judge"), now=_NOW)
 
 
-def test_copy_deepcopy_and_pickle_cannot_restore_repair_eligibility() -> None:
-    import youtube_intel.scoring_admission as admission_module
+def test_object_setattr_on_admission_state_cannot_enable_repair() -> None:
+    repository = _Repository()
+    admission = _gate(repository)
+    state = ScoringAdmissionRegistry.state_for(
+        repository=repository,
+        job_id="scoring-job",
+        job=repository.job,
+        owner="runtime-a",
+    )
+    with pytest.raises(AttributeError):
+        object.__setattr__(state, "repair_identity", _identity(ScoringDispatchRole.REPAIR))
+    object.__setattr__(
+        state,
+        "consumed_roles",
+        {ScoringDispatchRole.PRIMARY, ScoringDispatchRole.REPAIR},
+    )
 
-    assert getattr(admission_module, "_PrimaryFailureReceipt", None) is None
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "setattr"), now=_NOW)
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR_JUDGE, "setattr-judge"), now=_NOW)
+
+
+def test_copy_deepcopy_and_pickle_cannot_preserve_repair_authority() -> None:
     copied = copy.copy(_identity(ScoringDispatchRole.REPAIR, "copy"))
     restored = pickle.loads(pickle.dumps(copy.deepcopy(copied)))
     assert restored == copied
@@ -501,12 +510,15 @@ def test_exception_paths_do_not_expose_repair_eligibility(tmp_path: Path) -> Non
             job_id=claimed.job_id,
         )
     assert not hasattr(raised.value, "receipt")
+    assert not hasattr(raised.value, "failure_class")
     assert not hasattr(raised.value, "repair_identity")
+    replayed = pickle.loads(pickle.dumps(copy.deepcopy(raised.value)))
 
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
         runtime._scoring_admission_for(claimed.job_id).admit(
             _identity(ScoringDispatchRole.REPAIR, "exception"), now=datetime.now(UTC)
         )
+    assert not hasattr(replayed, "repair_identity")
 
 
 def test_repair_judge_admission_requires_repair_admission() -> None:
@@ -701,31 +713,7 @@ def test_two_sqlite_runtime_views_share_budget_without_sharing_admission_objects
     assert len(provider.calls) == 1
 
 
-def test_repair_identity_is_stable_after_restart() -> None:
-    kwargs = dict(
-        primary_scoring_request_hash="1" * 64,
-        primary_normalized_input_hash="2" * 64,
-        primary_raw_response_hash="3" * 64,
-        primary_failure_class="JUDGE_REJECT",
-        repair_prompt_version="scoring-repair-prompt-v1",
-        repair_schema_version="scoring-result-v1",
-        scoring_provider="ollama",
-        scoring_model="qwen3:8b",
-        scoring_model_digest="sha256:" + ("4" * 64),
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
-        output_language="en",
-    )
-
-    before_restart = build_repair_scoring_dispatch_identity(**kwargs)
-    after_restart = build_repair_scoring_dispatch_identity(**kwargs)
-
-    assert after_restart == before_restart
-    assert before_restart.role is ScoringDispatchRole.REPAIR
-
-
-def test_primary_identity_is_stable_after_restart_and_does_not_collide_with_repair() -> None:
+def test_primary_identity_is_stable_after_restart() -> None:
     scoring_input = _primary_scoring_input()
     context = _primary_context()
     primary_before_restart = build_primary_scoring_dispatch_identity(
@@ -736,25 +724,8 @@ def test_primary_identity_is_stable_after_restart_and_does_not_collide_with_repa
         scoring_input=scoring_input,  # type: ignore[arg-type]
         context=context,  # type: ignore[arg-type]
     )
-    repair = build_repair_scoring_dispatch_identity(
-        primary_scoring_request_hash=primary_before_restart.request_hash,
-        primary_normalized_input_hash=primary_before_restart.normalized_input_hash,
-        primary_raw_response_hash="3" * 64,
-        primary_failure_class="JUDGE_REJECT",
-        repair_prompt_version="scoring-repair-prompt-v1",
-        repair_schema_version="scoring-result-v1",
-        scoring_provider="ollama",
-        scoring_model="qwen3:8b",
-        scoring_model_digest="sha256:" + ("4" * 64),
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
-        output_language="en",
-    )
-
     assert primary_after_restart == primary_before_restart
     assert primary_before_restart.role is ScoringDispatchRole.PRIMARY
-    assert repair.request_hash != primary_before_restart.request_hash
 
 
 def test_judge_identities_are_role_distinct_and_stable_after_restart() -> None:

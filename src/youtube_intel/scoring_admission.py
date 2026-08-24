@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -27,7 +25,6 @@ from youtube_intel.scoring import build_scoring_request_identity
 from youtube_intel.state import (
     JobRecord,
     ProviderCallRecord,
-    build_provider_request_hash,
 )
 
 
@@ -36,16 +33,6 @@ class ScoringDispatchRole(str, Enum):
     REPAIR = "REPAIR"
     PRIMARY_JUDGE = "PRIMARY_JUDGE"
     REPAIR_JUDGE = "REPAIR_JUDGE"
-
-
-class PrimaryFailureClass(str, Enum):
-    """Closed, received PRIMARY outcomes that may qualify one future repair."""
-
-    SCHEMA_OR_PARSE_INVALID = "SCHEMA_OR_PARSE_INVALID"
-    LANGUAGE_INVALID = "LANGUAGE_INVALID"
-    DETERMINISTIC_QUALITY_REJECT = "DETERMINISTIC_QUALITY_REJECT"
-    JUDGE_REJECT = "JUDGE_REJECT"
-    JUDGE_UNCERTAIN = "JUDGE_UNCERTAIN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +79,6 @@ class _AdmissionExecutionKey:
 @dataclass(slots=True)
 class _AdmissionExecutionState:
     consumed_roles: set[ScoringDispatchRole] = field(default_factory=set)
-    repair_identity: ScoringDispatchIdentity | None = None
     lock: Lock = field(default_factory=Lock)
 
 
@@ -194,17 +180,6 @@ class ScoringAdmissionRegistry:
             return cls._states.setdefault(key, _AdmissionExecutionState())
 
 
-def _canonical_hash(payload: dict[str, object]) -> str:
-    canonical = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def build_primary_scoring_dispatch_identity(
     *,
     scoring_input: ScoringInput,
@@ -224,60 +199,6 @@ def build_primary_scoring_dispatch_identity(
         operation=context.scoring_operation,
         normalized_input_hash=identity.normalized_input_hash,
         request_hash=identity.request_hash,
-    )
-
-
-def build_repair_scoring_dispatch_identity(
-    *,
-    primary_scoring_request_hash: str,
-    primary_normalized_input_hash: str,
-    primary_raw_response_hash: str,
-    primary_failure_class: str,
-    repair_prompt_version: str,
-    repair_schema_version: str,
-    scoring_provider: str,
-    scoring_model: str,
-    scoring_model_digest: str,
-    temperature: float,
-    max_output_tokens: int,
-    max_description_chars: int,
-    output_language: str,
-) -> ScoringDispatchIdentity:
-    """Return the stable REPAIR identity without authorizing repair execution."""
-
-    if primary_failure_class not in {item.value for item in PrimaryFailureClass}:
-        raise ValueError("primary failure class is not eligible for repair")
-    operation = "local-scoring-repair-v1"
-    normalized_input_hash = _canonical_hash(
-        {
-            "operation": operation,
-            "primary_scoring_request_hash": primary_scoring_request_hash,
-            "primary_normalized_input_hash": primary_normalized_input_hash,
-            "primary_raw_response_hash": primary_raw_response_hash,
-            "primary_failure_class": primary_failure_class,
-            "repair_prompt_version": repair_prompt_version,
-            "repair_schema_version": repair_schema_version,
-            "scoring_provider": scoring_provider,
-            "scoring_model": scoring_model,
-            "scoring_model_digest": scoring_model_digest,
-            "temperature": temperature,
-            "max_output_tokens": max_output_tokens,
-            "max_description_chars": max_description_chars,
-            "output_language": output_language,
-        }
-    )
-    return ScoringDispatchIdentity(
-        role=ScoringDispatchRole.REPAIR,
-        operation=operation,
-        normalized_input_hash=normalized_input_hash,
-        request_hash=build_provider_request_hash(
-            operation=operation,
-            normalized_input_hash=normalized_input_hash,
-            provider=scoring_provider,
-            model=scoring_model,
-            prompt_version=repair_prompt_version,
-            schema_version=repair_schema_version,
-        ),
     )
 
 
@@ -338,53 +259,13 @@ class ScoringDispatchAdmission:
             owner=self.owner,
         )
         with state.lock:
+            if identity.role in {
+                ScoringDispatchRole.REPAIR,
+                ScoringDispatchRole.REPAIR_JUDGE,
+            }:
+                raise ScoringDispatchDenied("REPAIR admission is runtime-owned")
             if identity.role in state.consumed_roles:
                 raise ScoringDispatchDenied("scoring dispatch role is already consumed")
-            if identity.role is ScoringDispatchRole.REPAIR:
-                raise ScoringDispatchDenied("REPAIR admission is runtime-owned")
-            if (
-                identity.role is ScoringDispatchRole.REPAIR_JUDGE
-                and ScoringDispatchRole.REPAIR not in state.consumed_roles
-            ):
-                raise ScoringDispatchDenied(
-                    "REPAIR admission is required before REPAIR Judge admission"
-                )
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
-
-    def _admit_runtime_repair(
-        self,
-        *,
-        repair_identity: ScoringDispatchIdentity,
-        now: datetime,
-    ) -> None:
-        """Consume the REPAIR role from a runtime-only PRIMARY continuation."""
-
-        if repair_identity.role is not ScoringDispatchRole.REPAIR:
-            raise TypeError("runtime repair admission requires a REPAIR identity")
-        job = self.verify_active_lease(now=now)
-        state = ScoringAdmissionRegistry.state_for(
-            repository=self.repository,
-            job_id=self.job_id,
-            job=job,
-            owner=self.owner,
-        )
-        with state.lock:
-            if ScoringDispatchRole.PRIMARY not in state.consumed_roles:
-                raise ScoringDispatchDenied(
-                    "PRIMARY admission is required before REPAIR admission"
-                )
-            if state.repair_identity is None:
-                raise ScoringDispatchDenied(
-                    "runtime PRIMARY failure is required before REPAIR admission"
-                )
-            if repair_identity != state.repair_identity:
-                raise ScoringDispatchDenied(
-                    "REPAIR identity does not match the runtime PRIMARY failure"
-                )
-            if ScoringDispatchRole.REPAIR in state.consumed_roles:
-                raise ScoringDispatchDenied("scoring dispatch role is already consumed")
-            if self.repository.get_provider_call(repair_identity.request_hash) is not None:
-                raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
-            state.consumed_roles.add(ScoringDispatchRole.REPAIR)
