@@ -58,7 +58,6 @@ from youtube_intel.scoring import (
     build_primary_scoring_attempt,
     build_scoring_input,
 )
-from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -432,7 +431,7 @@ storage:
             settings_path=config_root / "settings.yaml",
         )
         quality_transport = _FakeQualityTransport()
-        return RuntimeOperations(
+        runtime = RuntimeOperations(
             config=config,
             project_root=self.root,
             dependencies=RuntimeDependencies(
@@ -447,6 +446,8 @@ storage:
                 ),
             ),
         )
+        runtime._runtime_owner = OWNER
+        return runtime
 
     def _job_id(self) -> str:
         count = getattr(self, "_job_count", 0) + 1
@@ -629,11 +630,7 @@ storage:
         success = self.runtime.run_primary_trusted_scoring(
             attempt=self.scoring.primary_attempt(scoring_input),
             scoring_input=scoring_input,
-            admission=ScoringDispatchAdmission(
-                repository=self.runtime._repository,
-                job_id=getattr(job, "job_id"),
-                owner=OWNER,
-            ),
+            job_id=getattr(job, "job_id"),
         )
         self.runtime._trusted_persistence_entry(
             job_id=getattr(job, "job_id"),

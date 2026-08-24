@@ -323,6 +323,19 @@ def test_duplicate_primary_admission_is_denied() -> None:
         gate.admit(identity, now=_NOW)
 
 
+def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path) -> None:
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'admission'"):
+        runtime.run_primary_trusted_scoring(
+            attempt=object(),  # type: ignore[arg-type]
+            scoring_input=object(),  # type: ignore[arg-type]
+            admission=_gate(_Repository()),
+        )
+
+
 def test_duplicate_repair_admission_is_denied() -> None:
     repository = _Repository()
     first = _gate(repository)

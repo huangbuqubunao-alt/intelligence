@@ -510,7 +510,7 @@ def _trusted_scoring_job(
         settings=runtime._config.settings.local_scoring,
     )
     provider = runtime._dependencies.scoring_provider_factory()
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=provider.primary_attempt(scoring_input),
         scoring_input=scoring_input,
         admission=ScoringDispatchAdmission(

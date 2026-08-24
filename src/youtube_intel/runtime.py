@@ -340,12 +340,14 @@ class RuntimeOperations(Operations):
         *,
         attempt: PrimaryScoringAttempt,
         scoring_input: ScoringInput,
-        admission: ScoringDispatchAdmission,
+        job_id: str,
     ) -> PhaseFTrustedScoringSuccess:
+        """Run PRIMARY Judge work under this runtime's active SCORING lease."""
+
         return self._run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
-            admission=admission,
+            admission=self._scoring_admission_for(job_id),
         )
 
     def _run_primary_trusted_scoring(
@@ -590,6 +592,29 @@ class RuntimeOperations(Operations):
             ),
             summary_threshold=self._config.settings.thresholds.summary_score,
         )
+
+    def _persist_trusted_scoring_success(
+        self,
+        *,
+        success: PhaseFTrustedScoringSuccess,
+        job: JobRecord,
+        owner: str,
+        pipeline_version: str,
+    ) -> Any:
+        """Commit Phase G success, then release its runtime-only admission state."""
+
+        entry = self._trusted_persistence_entry(
+            job_id=job.job_id,
+            owner=owner,
+            pipeline_version=pipeline_version,
+        )
+        committed = entry.persist_success(success)
+        ScoringAdmissionRegistry.release_terminal(
+            repository=self._repository,
+            job_id=job.job_id,
+            attempt_count=job.attempt_count,
+        )
+        return committed
 
 
     # Private compatibility seam for the already-approved Phase G test suite.
@@ -937,21 +962,16 @@ class RuntimeOperations(Operations):
             )
             provider = self._create_scoring_provider_for_dispatch()
             attempt = self._dispatch_primary_attempt_after_admission(provider, scoring_input)
-            success = self._run_primary_trusted_scoring(
+            success = self.run_primary_trusted_scoring(
                 attempt=attempt,
                 scoring_input=scoring_input,
-                admission=admission,
-            )
-            entry = self._trusted_persistence_entry(
                 job_id=job.job_id,
+            )
+            self._persist_trusted_scoring_success(
+                success=success,
+                job=job,
                 owner=owner,
                 pipeline_version=PIPELINE_VERSION,
-            )
-            entry.persist_success(success)
-            ScoringAdmissionRegistry.release_terminal(
-                repository=self._repository,
-                job_id=job.job_id,
-                attempt_count=job.attempt_count,
             )
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:

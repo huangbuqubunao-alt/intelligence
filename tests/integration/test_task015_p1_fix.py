@@ -491,7 +491,7 @@ def _trusted_scoring_success(
         settings=ops._config.settings.local_scoring,
     )
     provider = ops._dependencies.scoring_provider_factory()
-    success = ops.run_primary_trusted_scoring(
+    success = ops._run_primary_trusted_scoring(
         attempt=provider.primary_attempt(scoring_input),
         scoring_input=scoring_input,
         admission=_h1_admission(),

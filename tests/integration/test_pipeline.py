@@ -319,7 +319,7 @@ class _PipelineStages:
             settings=self.runtime._config.settings.local_scoring,
         )
         provider = self.runtime._dependencies.scoring_provider_factory()
-        success = self.runtime.run_primary_trusted_scoring(
+        success = self.runtime._run_primary_trusted_scoring(
             attempt=provider.primary_attempt(scoring_input),
             scoring_input=scoring_input,
             admission=ScoringDispatchAdmission(

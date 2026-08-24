@@ -43,7 +43,6 @@ from youtube_intel.scoring import (
     build_primary_scoring_attempt,
     build_scoring_input,
 )
-from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import ArtifactKind, JobType, ProviderCallStatus
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "scoring"
@@ -302,6 +301,7 @@ storage:
         now=now,
     )
     assert claimed is not None
+    runtime._runtime_owner = "test-worker"
     return runtime, claimed.job_id, quality_transport
 
 
@@ -656,11 +656,7 @@ def test_successful_language_repair_persists_only_the_valid_repair_response(
     success = runtime.run_primary_trusted_scoring(
         attempt=repair_provider.primary_attempt(scoring_input),
         scoring_input=scoring_input,
-        admission=ScoringDispatchAdmission(
-            repository=runtime._repository,
-            job_id=job_id,
-            owner="test-worker",
-        ),
+        job_id=job_id,
     )
     runtime._trusted_persistence_entry(
         job_id=job_id,

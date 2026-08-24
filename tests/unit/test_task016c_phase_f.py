@@ -863,7 +863,7 @@ def test_primary_flow_reaches_phase_f_trusted_scoring_success(tmp_path: Path) ->
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
@@ -883,7 +883,7 @@ def test_trusted_result_alone_is_not_a_phase_f_success(tmp_path: Path) -> None:
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
@@ -903,7 +903,7 @@ def test_language_failure_blocks_success_aggregate(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -925,7 +925,7 @@ def test_quality_reject_blocks_success_aggregate(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -977,7 +977,7 @@ def test_success_aggregate_is_opaque_immutable_and_non_serializable(
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
@@ -1016,7 +1016,7 @@ def test_primary_flow_has_zero_persistence_and_no_legacy_service(
 
     before = _snapshot(project)
     data_before = _snapshot(project / "data")
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     after = _snapshot(project)
@@ -1213,7 +1213,7 @@ def test_deterministic_gate_blocks_exact_repetition(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -1225,7 +1225,7 @@ def test_deterministic_reject_prevents_judge_call(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -1242,7 +1242,7 @@ def test_judge_non_pass_prevents_trusted_success(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -1257,7 +1257,7 @@ def test_judge_failure_prevents_trusted_success(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(ValueError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
@@ -1274,7 +1274,7 @@ def test_runtime_rejects_quality_authority_param(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(TypeError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
             admission=_h1_admission(),
@@ -1289,7 +1289,7 @@ def test_runtime_rejects_scoring_context_param(tmp_path: Path) -> None:
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     with pytest.raises(TypeError):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
             admission=_h1_admission(),

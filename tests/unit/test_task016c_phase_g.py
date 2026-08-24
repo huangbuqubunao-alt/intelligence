@@ -355,7 +355,7 @@ def test_runtime_returns_enriched_phase_f_success_aggregate(tmp_path: Path) -> N
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
@@ -393,7 +393,7 @@ def test_prewrite_validate_creates_plan_without_side_effects(tmp_path: Path) -> 
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
@@ -596,7 +596,7 @@ def _committer_and_plan(
     scoring_input = _scoring_input(video_id=video_id)
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     entry = runtime._trusted_persistence_entry(
@@ -871,9 +871,9 @@ def test_scoring_stage_uses_trusted_route(tmp_path: Path) -> None:
     names = set(code.co_names)
     # The trusted route must reference the new Phase F->G building blocks.
     assert "build_scoring_input" in names
-    assert "_run_primary_trusted_scoring" in names
+    assert "run_primary_trusted_scoring" in names
     assert "ScoringDispatchAdmission" in names
-    assert "_trusted_persistence_entry" in names
+    assert "_persist_trusted_scoring_success" in names
     # The legacy repository-backed service must not be the normal path.
     assert "RepositoryBackedScoringService" not in names
 
@@ -908,7 +908,7 @@ def _unenriched_success(tmp_path: Path) -> tuple[RuntimeOperations, PhaseFTruste
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Re-mint without enrichment to simulate a pre-Phase-G aggregate.
@@ -943,7 +943,7 @@ def test_prewrite_validate_rejects_canonical_hash_mismatch(tmp_path: Path) -> No
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     evidence = success._enriched_evidence  # type: ignore[attr-defined]
@@ -978,7 +978,7 @@ def test_prewrite_validate_rejects_raw_response_hash_mutation(tmp_path: Path) ->
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Tamper with the primary attempt's raw response hash after minting.
@@ -1007,7 +1007,7 @@ def test_prewrite_validate_rejects_raw_reparse_mutation(tmp_path: Path) -> None:
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Forge a raw response that parses to a different candidate but keep hashes
@@ -1044,7 +1044,7 @@ def test_prewrite_validate_rejects_candidate_result_binding_mutation(
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Forge a trusted result whose business fields disagree with the candidate.
@@ -1071,7 +1071,7 @@ def test_prewrite_validate_rejects_runtime_authority_rotation(tmp_path: Path) ->
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     # Rotate the attempt provider so it no longer matches the runtime context.
@@ -1102,7 +1102,7 @@ def test_prewrite_validate_rejects_provider_call_request_binding_mutation(
     scoring_input = _scoring_input()
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
-    success = runtime.run_primary_trusted_scoring(
+    success = runtime._run_primary_trusted_scoring(
         attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     committer = runtime._trusted_scoring_committer(
@@ -1152,7 +1152,7 @@ def test_scoring_stage_rejects_bare_score_result_reentry(tmp_path: Path) -> None
     with pytest.raises(
         ValueError, match="trusted scoring requires an exact PrimaryScoringAttempt"
     ):
-        runtime.run_primary_trusted_scoring(
+        runtime._run_primary_trusted_scoring(
             attempt=bare_result,  # type: ignore[arg-type]
             scoring_input=scoring_input,
             admission=_h1_admission(),

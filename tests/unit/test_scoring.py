@@ -37,7 +37,12 @@ from youtube_intel.scoring import (
     build_scoring_input,
     sample_transcript,
 )
-from youtube_intel.scoring_admission import ScoringDispatchAdmission
+from youtube_intel.scoring_admission import (
+    ScoringAdmissionRegistry,
+    ScoringDispatchAdmission,
+    ScoringDispatchIdentity,
+    ScoringDispatchRole,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -382,7 +387,7 @@ def _trusted_success(
     runtime: RuntimeOperations, *, video_id: str
 ) -> PhaseFTrustedScoringSuccess:
     scoring_input = _scoring_input(video_id)
-    return runtime.run_primary_trusted_scoring(
+    return runtime._run_primary_trusted_scoring(
         attempt=_primary_attempt(scoring_input, _raw_response(_candidate_fields())),
         scoring_input=scoring_input,
         admission=_h1_admission(),
@@ -663,6 +668,50 @@ def test_trusted_runtime_scoring_persists_artifacts_provider_call_video_and_job(
     assert completion.video.pipeline_status is PipelineStatus.SCORED
     assert completion.video.score == success.trusted_result.result.score
     assert completion.job.status is JobStatus.SUCCEEDED
+
+
+def test_successful_phase_g_commit_releases_runtime_admission_state(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path / "project")
+    video_id, job_id = "registry-release", "registry-release-job"
+    _prepare_scoring_job(runtime, video_id=video_id, job_id=job_id)
+    success = _trusted_success(runtime, video_id=video_id)
+    runtime._runtime_owner = "test-owner"
+    job = runtime._repository.get_job(job_id)
+    assert job is not None
+    runtime._scoring_admission_for(job_id).admit(
+        ScoringDispatchIdentity(
+            role=ScoringDispatchRole.PRIMARY,
+            operation="local-scoring-v1",
+            normalized_input_hash="a" * 64,
+            request_hash="b" * 64,
+        ),
+        now=_NOW,
+    )
+    database_scope = str((tmp_path / "project" / "data" / "state.sqlite").resolve())
+    assert any(
+        key.repository_scope == database_scope and key.job_id == job_id
+        for key in ScoringAdmissionRegistry._states
+    )
+    entry = runtime._trusted_persistence_entry(
+        job_id=job_id, owner="test-owner", pipeline_version="runtime-v1"
+    )
+    entry._clock = lambda: _NOW  # type: ignore[method-assign]
+    runtime._trusted_persistence_entry = lambda **_kwargs: entry  # type: ignore[method-assign]
+
+    completion = runtime._persist_trusted_scoring_success(
+        success=success,
+        job=job,
+        owner="test-owner",
+        pipeline_version="runtime-v1",
+    )
+
+    assert completion.job.status is JobStatus.SUCCEEDED
+    assert not any(
+        key.repository_scope == database_scope and key.job_id == job_id
+        for key in ScoringAdmissionRegistry._states
+    )
 
 
 def test_invalid_scoring_response_rejects_before_trusted_persistence(
