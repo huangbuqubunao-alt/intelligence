@@ -2,7 +2,7 @@
 
 ## Status and decision requested
 
-`PROPOSAL ONLY / IMPLEMENTATION NOT AUTHORIZED`.
+`REQUEST-CHANGES AMENDMENT / IMPLEMENTATION NOT AUTHORIZED`.
 
 This proposal assumes Phase G is accepted and H1-A/H1-B are closed. It
 authorizes neither code, tests, review, merge, network calls, cache recovery,
@@ -12,11 +12,14 @@ repaired without weakening the accepted trusted-persistence chain.
 
 ## 1. Frozen contracts
 
-The only persistence route remains:
+The only persistence entry remains `TrustedPersistenceEntry.persist_success()`.
+It accepts exactly one of the two sealed, memory-only success aggregates:
 
 ```text
 PhaseFTrustedScoringSuccess
-  -> TrustedPersistenceEntry.persist_success()
+  -- PRIMARY --> TrustedPersistenceEntry.persist_success()
+PhaseHTrustedRepairSuccess
+  -- REPAIR  --> TrustedPersistenceEntry.persist_success()
   -> PREWRITE_VALIDATE
   -> filesystem protocol
   -> SQLite atomic registration
@@ -26,6 +29,12 @@ H2 must preserve all of the following.
 
 - `TrustedPersistenceEntry.persist_success()` remains the only persistence
   ingress, only filesystem promoter, and only owner of SQLite registration.
+- Its H2 contract is an exact-type discriminated union:
+  `type(success) is PhaseFTrustedScoringSuccess` or
+  `type(success) is PhaseHTrustedRepairSuccess`. Every other value, including
+  a subclass, mapping, JSON restore, bare `ScoreResult`, bare
+  `TrustedScoreResult`, raw bytes, Artifact, ProviderCall, cache payload, or
+  legacy value is rejected before any field is read.
 - There is no `persist_repair()`, alternate writer, repository repair API,
   repair table, pre-write ProviderCall reservation, manual Artifact creation,
   scatter-field persistence, or alternate SQLite transaction.
@@ -36,7 +45,9 @@ H2 must preserve all of the following.
   continuation exposed to callers, caller repair admission, or repair from
   `UNKNOWN_PROVIDER_STATE`.
 - The PRIMARY-only Phase G path and its exact `PhaseFTrustedScoringSuccess`
-  ingress remain unchanged.
+  validation semantics remain unchanged. Its shared writer, filesystem
+  protocol, SQLite registration, and complete-graph idempotency semantics are
+  also the REPAIR semantics; H2 adds no second persistence boundary.
 
 ## 2. Runtime-only REPAIR orchestration
 
@@ -50,7 +61,8 @@ PRIMARY provider attempt
   -> runtime internal REPAIR branch consumes its one-shot admission
   -> exactly one REPAIR provider attempt
   -> candidate -> schema -> language -> quality judge -> attestation -> finalizer
-  -> internal existing persist_success() bridge
+  -> sealed PhaseHTrustedRepairSuccess
+  -> existing persist_success() bridge
   -> unchanged PREWRITE_VALIDATE -> filesystem -> SQLite atomic registration
 ```
 
@@ -206,23 +218,84 @@ evidence remain evidence that must be revalidated by persistence.
 
 ## 5. Persistence bridge: one entry, one plan, one transaction
 
-H2 must not mint a public `PhaseHTrustedRepairSuccess` (or any other repair
-capability object). Instead, `RuntimeOperations` retains the repair evidence in
-a non-exported lexical continuation for the duration of the same call stack.
-That continuation is neither a DTO nor a transferable credential: it has no
-public factory, field access, serialization, copy/deepcopy/pickle support, or
-caller entry point.
+### 5.1 Sealed second success type
 
-The runtime immediately invokes the existing
-`TrustedPersistenceEntry.persist_success()` path through an H2-private branch
-inside that entry. The public entry remains `persist_success()`; there is no
-`persist_repair()` and no repository-facing repair method. The branch receives
-its REPAIR evidence only from the runtime closure, re-derives all identities,
-and performs the same zero-write validation before it can mint the existing
-opaque `ValidatedScoringWritePlan`.
+Yes. `TrustedPersistenceEntry.persist_success()` accepts the second sealed
+success type `PhaseHTrustedRepairSuccess`; it does not gain a second method or
+alternate repository interface. This is the sole H2 exception to the general
+ban on new capability objects. No receipt, repair token, registry entry,
+admission handle, caller continuation, or further capability type is allowed.
 
-The H2-private verifier must prove, in memory, all of the following before
-delegating to the existing writer/registrar:
+`PhaseHTrustedRepairSuccess` is a private, memory-only aggregate with these
+mandatory properties:
+
+- The constructor is private to the runtime-owned minting closure. It has no
+  caller constructor, `from_*` factory, mapping/JSON factory, or restore path.
+- It is exact type, non-subclassable, immutable after minting, non-copyable,
+  non-deepcopyable, and non-serializable/non-pickleable. Its fields are not a
+  public repair API.
+- It is minted only by the current `RuntimeOperations` composition after the
+  same runtime has received an eligible PRIMARY failure, consumed its private
+  REPAIR admission, completed the complete REPAIR validation pipeline, and
+  received the exact `TrustedScoreResult` from `TrustedScoringFinalizer`.
+- Minting independently re-derives every binding below. A type marker,
+  sentinel, or stored flag is defense in depth only; `persist_success()` must
+  re-derive and verify the provenance before any plan exists.
+- Its lifetime ends at immediate handoff to the runtime-owned persistence
+  entry. It is not retained for retry, crash recovery, cache lookup, or caller
+  use.
+
+### 5.2 Sealed repair envelope and provenance binding
+
+The aggregate seals one repair envelope; it is not assembled from caller
+arguments at persistence time. The envelope contains only runtime-derived,
+immutable values needed for repeat validation:
+
+| Binding | Required sealed value |
+|---|---|
+| PRIMARY identity | Original `primary_scoring_request_hash` and `primary_normalized_input_hash`, each rebuilt with `build_scoring_request_identity()` from the canonical original `ScoringInput`. |
+| PRIMARY failure | Closed runtime-derived `primary_failure_class` and the exact `primary_raw_response_hash`. |
+| REPAIR raw/candidate | Exact bounded strict-UTF-8 repair raw response, `repair_raw_response_hash`, canonical parser-derived candidate, and canonical candidate hash. |
+| REPAIR provider identity | Current runtime scoring provider, model, model digest, output language, temperature, output limit, description limit, repair prompt version, and repair schema version. |
+| REPAIR attempt identity | Canonical REPAIR normalized-input hash and the `build_provider_request_hash()` request hash for `local-scoring-repair-v1`; it is distinct from PRIMARY and both Judge identities. |
+| Quality/Judge evidence | Canonical quality input, complete REPAIR `PASS` result, `QualityJudgeOperationInput(attempt_role=REPAIR)`, Judge H1/H2, and current-authority `QualityPassAttestation`. |
+| Finalized structured value | Exact `TrustedScoreResult` from the Finalizer plus sealed canonical structured-result bytes/hash. |
+
+The envelope's raw persistence bytes must canonically include the PRIMARY
+identity/failure/raw-hash bindings, REPAIR raw hash and provider/attempt
+identity, REPAIR Judge evidence, and attestation. The bytes are one sealed
+input to the existing write plan, rather than new scatter fields or a database
+schema change. REPAIR transport identity never replaces the original PRIMARY
+scoring identity of the score/result or logical scoring artifact namespace.
+
+### 5.3 Shared persistence invariants
+
+`persist_success()` first checks the exact success type before reading any
+property. It then selects the corresponding in-memory verifier:
+
+```text
+exact PhaseFTrustedScoringSuccess
+  -> PRIMARY prewrite verifier
+  -> ValidatedScoringWritePlan
+
+exact PhaseHTrustedRepairSuccess
+  -> REPAIR prewrite verifier
+  -> ValidatedScoringWritePlan
+
+either plan
+  -> unchanged verified filesystem protocol
+  -> unchanged single SQLite atomic registration
+```
+
+Both success types must execute the same `PREWRITE_VALIDATE` phase, the same
+temporary-write/fsync/hash/no-clobber-promote/directory-fsync/final-reopen
+protocol, and the same single SQLite registration transaction. Neither branch
+may reserve or complete a ProviderCall, create an Artifact, set a response
+artifact ID, write a score/stage/job, or touch the filesystem before its
+prewrite verifier produces the common opaque `ValidatedScoringWritePlan`.
+
+The H2 REPAIR verifier must prove, in memory, all of the following before it
+may mint that existing plan:
 
 1. PRIMARY identity, exact PRIMARY raw hash, and eligible runtime-derived
    failure class bind the REPAIR identity.
@@ -235,9 +308,7 @@ delegating to the existing writer/registrar:
    re-verify against the current authority and `attempt_role=REPAIR`.
 5. Canonical raw-envelope and sealed structured-result bytes, hashes, lengths,
    Artifact metadata, and the two ProviderCall requests/completions are rebuilt
-   as one existing write plan. The raw envelope contains the role-distinct
-   provenance and both primary/repair bindings; it is the plan's single
-   canonical record, not new scattered database fields.
+   as one existing write plan.
 
 Only this successfully validated plan enters the already-frozen file protocol
 and the existing single SQLite registration transaction. It creates the same
@@ -252,17 +323,24 @@ attempt role, quality operation, attestation, and two ProviderCall identities
 remain explicitly `REPAIR` throughout validation and persistence. It shares
 the persistence mechanism, not PRIMARY provenance.
 
-## 6. Required attack matrix
+## 6. Required attack matrix and behavioral tests
 
-| Attempt | Required defense and outcome |
-|---|---|
-| Forged repair result | Reject before planning unless the runtime closure re-derives raw-to-candidate binding, full REPAIR PASS/attestation, context, and Finalizer result. A bare `ScoreResult`/`TrustedScoreResult` cannot enter. |
-| Fake repair identity | Recompute canonical REPAIR input and `build_provider_request_hash()`; require role-distinct operation, current provider/model/digest, eligible PRIMARY failure binding, and collision checks. Any supplied identity is ignored/rejected. |
-| Replayed PRIMARY failure | A failure has effect only while the original private stack is live. The consumed PRIMARY/REPAIR role state denies replay; restart becomes `UNKNOWN_PROVIDER_STATE`, never repair. |
-| Duplicate repair call | Consume REPAIR before contact under the existing execution-state lock; re-check active exclusive lease and ProviderCall absence. A second scoring or Judge REPAIR role is denied before contact. |
-| `UNKNOWN_PROVIDER_STATE` abuse | Unknown, timeout, crash, lost response, expired lease, or missing durable call state finalizes fail-closed. It has no eligible failure class, repair path, retry, takeover, or cache interpretation. |
-| `object.__new__`, copy, deepcopy, pickle | No new repair capability exists to forge. Forged shells and copied/restored values cannot enter the lexical runtime branch, re-derive evidence, consume a private admission, or call the H2-private verifier. All public/persisted shapes fail exact-type and provenance checks. |
-| Direct persistence bypass | Only `TrustedPersistenceEntry.persist_success()` reaches PREWRITE, file promotion, and SQLite registration. It rejects caller data, plans, raw bytes, Artifact/ProviderCall records, mappings, JSON, cache, and legacy material; no other writer/API is added. |
+Each rejection test below must assert all three negative effects in addition to
+the listed error: **zero scoring-provider calls, zero Judge calls, and zero
+writes** (no tmp/final/mkdir, Artifact, ProviderCall, cache, response artifact
+ID, SQLite, score, stage, or job write). A completed exact idempotent graph is
+not a rejection case and must make no external call or new write.
+
+| Test case | Injection / action | Required behavioral result |
+|---|---|---|
+| Forged repair success | Supply a hand-built `PhaseHTrustedRepairSuccess`, a bare result, mapping, JSON restore, or a sealed object with one altered provenance/hash field. | Exact-type or re-derived provenance validation rejects before plan minting; all three zero-I/O assertions hold. |
+| `object.__new__` | Allocate an uninitialized `PhaseHTrustedRepairSuccess` shell, including one populated only through low-level attribute operations. | No runtime-only mint provenance exists; exact-type/seal/provenance checks reject before a provider/Judge call or write. |
+| `setattr` mutation | Attempt to mutate each sealed envelope binding after minting: PRIMARY identity/failure/raw hash, REPAIR raw/provider/identity, Judge evidence, attestation, or final result bytes. | Immutability rejects mutation; if a test bypasses normal mutation, re-derived prewrite validation rejects the changed value with all three zero-I/O assertions. |
+| Copy, deepcopy, pickle | Apply `copy.copy`, `copy.deepcopy`, and pickle round-trip to a legitimate repair success. | Each operation is rejected; no restored object can invoke persistence. If a forged restored shape reaches the entry, it is rejected with all three zero-I/O assertions. |
+| PRIMARY-to-REPAIR substitution | Present PRIMARY aggregate/evidence where a REPAIR aggregate is required, relabel a REPAIR success as PRIMARY, or swap their raw/identity/quality evidence. | Role, envelope, and identity cross-binding reject; REPAIR transport identity can never be treated as PRIMARY provenance. All three zero-I/O assertions hold. |
+| Duplicate REPAIR dispatch | Replay a received PRIMARY failure, call the private branch twice, race two runtime branches, or attempt a second REPAIR Judge. | Existing role state consumes REPAIR/REPAIR_JUDGE once under lock; subsequent dispatch is denied before provider/Judge construction/contact and creates no write. |
+| `UNKNOWN_PROVIDER_STATE` | Simulate timeout, lost response, process crash, lease loss/expiry, restart, or missing durable ProviderCall after a dispatched attempt. | The job is finalized fail-closed as unknown; it never classifies as eligible PRIMARY failure, never enters REPAIR, and has zero subsequent provider/Judge calls and zero success writes. |
+| Persistence bypass | Call a repository method/direct writer, pass a plan/raw bytes/Artifact/ProviderCall/legacy cache data to a persistence boundary, or call any proposed repair-specific method. | No such public path exists. Only `persist_success()` accepts an exact sealed success; all bypass forms reject before a plan/provider/Judge/write. |
 
 ## 7. Future implementation scope
 
@@ -277,17 +355,20 @@ smallest implementation required for the design:
 - `src/youtube_intel/providers/ollama.py`: one bounded candidate-only REPAIR
   transport using the existing canonical parser and existing local safety
   rules; no provider-side trust or persistence.
-- `src/youtube_intel/scoring.py`: REPAIR raw/candidate identity reconstruction
-  and the strictly private `persist_success()` verifier/plan branch, reusing
-  the existing writer and atomic registration only.
+- `src/youtube_intel/scoring.py`: the private sealed
+  `PhaseHTrustedRepairSuccess` aggregate/minting guard, REPAIR
+  raw/candidate identity reconstruction, and the strictly private
+  `persist_success()` verifier/plan branch, reusing the existing writer and
+  atomic registration only.
 - `src/youtube_intel/quality.py`: only minimal reuse necessary to build and
   verify the existing REPAIR-role quality operation, attestation, and
   Finalizer inputs; no policy or validator changes.
 - Focused H2 tests plus targeted Phase G/H1 regression tests, and the H2
   handoff evidence.
 
-The following remain forbidden: schema or migration changes; any persistence
-boundary change; Phase G rewrite; new capability objects; public repair APIs;
+The following remain forbidden: schema or migration changes; a new or
+externally observable persistence boundary; Phase G rewrite; any capability
+object beyond the required sealed `PhaseHTrustedRepairSuccess`; public repair APIs;
 receipt/token/registry/continuation exposure; repository repair APIs; new
 writer or SQLite path; manual Artifacts/ProviderCalls; cache/recovery work;
 TASK-016B Language Validator changes; dependencies, lockfiles, configuration,
@@ -304,7 +385,8 @@ can demonstrate that:
 - PRIMARY, REPAIR, PRIMARY Judge, and REPAIR Judge identities are distinct,
   stable, canonical, and correctly bound to provider/model/digest;
 - REPAIR follows the specified validation order and only a finalizer-produced
-  trusted result can reach persistence;
+  trusted result sealed inside `PhaseHTrustedRepairSuccess` can reach
+  persistence;
 - `persist_success()` remains the sole entry and its PREWRITE/filesystem/SQLite
   behavior is unchanged apart from its private evidence verifier;
 - all attack-matrix cases fail closed before external contact or persistence as
