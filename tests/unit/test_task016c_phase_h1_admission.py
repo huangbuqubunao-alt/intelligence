@@ -144,6 +144,38 @@ class _JudgeProvider:
         return object()
 
 
+class _ForgedStateLock:
+    """Pickleable lock-shaped object used only in registry-state attack tests."""
+
+    def __enter__(self) -> _ForgedStateLock:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        del args
+
+
+def _replace_active_admission_state(
+    *,
+    repository: SQLiteStateRepository | _Repository,
+    job: JobRecord,
+    owner: str,
+    replacement: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active_state = ScoringAdmissionRegistry.state_for(
+        repository=repository,
+        job_id=job.job_id,
+        job=job,
+        owner=owner,
+    )
+    key = next(
+        key
+        for key, state in ScoringAdmissionRegistry._states.items()
+        if state is active_state
+    )
+    monkeypatch.setitem(ScoringAdmissionRegistry._states, key, replacement)
+
+
 def _judge_operation(role: str = "PRIMARY") -> QualityJudgeOperationInput:
     return QualityJudgeOperationInput.model_validate(
         {
@@ -352,12 +384,19 @@ def test_duplicate_primary_admission_is_denied() -> None:
 
 def test_unknown_provider_state_cannot_enter_repair(tmp_path: Path) -> None:
     class _UnknownProvider:
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
         def primary_attempt(self, scoring_input: object) -> object:
-            del scoring_input
+            self.calls.append(scoring_input)
             raise TimeoutError("transport interrupted")
 
+    unknown_provider = _UnknownProvider()
+    judge_provider = _JudgeProvider()
     runtime = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: _UnknownProvider()
+        tmp_path / "project",
+        scoring_provider_factory=lambda: unknown_provider,
+        quality_judge_provider_factory=lambda: judge_provider,
     )
     claimed = _active_scoring_job(
         runtime._repository,
@@ -365,6 +404,8 @@ def test_unknown_provider_state_cannot_enter_repair(tmp_path: Path) -> None:
         now=datetime.now(UTC),
     )
     scoring_input = _primary_scoring_input()
+    before_job = runtime._repository.get_job(claimed.job_id)
+    before_video = runtime._repository.get_video("video-1")
     primary_identity = build_primary_scoring_dispatch_identity(
         scoring_input=scoring_input,  # type: ignore[arg-type]
         context=runtime._trusted_scoring_context,
@@ -372,19 +413,33 @@ def test_unknown_provider_state_cannot_enter_repair(tmp_path: Path) -> None:
     admission = runtime._scoring_admission_for(claimed.job_id)
     admission.admit(primary_identity, now=datetime.now(UTC))
 
-    with pytest.raises(UnknownProviderState):
+    with pytest.raises(UnknownProviderState) as raised:
         runtime._dispatch_primary_attempt_after_admission(
             runtime._create_scoring_provider_for_dispatch(),
             scoring_input,  # type: ignore[arg-type]
         )
+    diagnostic_metadata = {"args": raised.value.args}
 
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
-        admission.admit(_identity(ScoringDispatchRole.REPAIR, "unknown"), now=datetime.now(UTC))
-    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
         admission.admit(
-            _identity(ScoringDispatchRole.REPAIR_JUDGE, "unknown-judge"),
+            ScoringDispatchIdentity(
+                role=ScoringDispatchRole.REPAIR,
+                operation=str(diagnostic_metadata),
+                normalized_input_hash="u" * 64,
+                request_hash="u" * 64,
+            ),
             now=datetime.now(UTC),
         )
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        runtime._dispatch_quality_judge(
+            operation_input=_judge_operation("REPAIR"),
+            content_input=object(),  # type: ignore[arg-type]
+            admission=admission,
+        )
+    assert len(unknown_provider.calls) == 1
+    assert judge_provider.calls == []
+    assert runtime._repository.get_job(claimed.job_id) == before_job
+    assert runtime._repository.get_video("video-1") == before_video
 
 
 def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path) -> None:
@@ -452,6 +507,50 @@ def test_object_setattr_on_admission_state_cannot_enable_repair() -> None:
         admission.admit(_identity(ScoringDispatchRole.REPAIR_JUDGE, "setattr-judge"), now=_NOW)
 
 
+def test_object_new_forged_admission_state_cannot_dispatch_repair_or_judge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import youtube_intel.scoring_admission as admission_module
+
+    judge_provider = _JudgeProvider()
+    runtime = _runtime_for_h1(
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: judge_provider,
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    forged_state = object.__new__(admission_module._AdmissionExecutionState)
+    object.__setattr__(
+        forged_state,
+        "consumed_roles",
+        {ScoringDispatchRole.PRIMARY, ScoringDispatchRole.REPAIR},
+    )
+    object.__setattr__(forged_state, "lock", _ForgedStateLock())
+    _replace_active_admission_state(
+        repository=runtime._repository,
+        job=claimed,
+        owner=runtime._runtime_owner,
+        replacement=forged_state,
+        monkeypatch=monkeypatch,
+    )
+    admission = runtime._scoring_admission_for(claimed.job_id)
+
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "object-new"), now=datetime.now(UTC))
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        runtime._dispatch_quality_judge(
+            operation_input=_judge_operation("REPAIR"),
+            content_input=object(),  # type: ignore[arg-type]
+            admission=admission,
+        )
+
+    assert judge_provider.calls == []
+
+
 def test_copy_deepcopy_and_pickle_cannot_preserve_repair_authority() -> None:
     copied = copy.copy(_identity(ScoringDispatchRole.REPAIR, "copy"))
     restored = pickle.loads(pickle.dumps(copy.deepcopy(copied)))
@@ -459,6 +558,63 @@ def test_copy_deepcopy_and_pickle_cannot_preserve_repair_authority() -> None:
 
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
         _gate(_Repository()).admit(restored, now=_NOW)
+
+
+def test_copied_deepcopied_and_pickled_admission_state_cannot_admit_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    judge_provider = _JudgeProvider()
+    runtime = _runtime_for_h1(
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: judge_provider,
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    active_state = ScoringAdmissionRegistry.state_for(
+        repository=runtime._repository,
+        job_id=claimed.job_id,
+        job=claimed,
+        owner=runtime._runtime_owner,
+    )
+    captured_state = copy.copy(active_state)
+    object.__setattr__(
+        captured_state,
+        "consumed_roles",
+        {ScoringDispatchRole.PRIMARY, ScoringDispatchRole.REPAIR},
+    )
+    object.__setattr__(captured_state, "lock", _ForgedStateLock())
+    restored_states = (
+        copy.copy(captured_state),
+        copy.deepcopy(captured_state),
+        pickle.loads(pickle.dumps(captured_state)),
+    )
+    admission = runtime._scoring_admission_for(claimed.job_id)
+
+    for index, restored_state in enumerate(restored_states):
+        _replace_active_admission_state(
+            repository=runtime._repository,
+            job=claimed,
+            owner=runtime._runtime_owner,
+            replacement=restored_state,
+            monkeypatch=monkeypatch,
+        )
+        with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+            admission.admit(
+                _identity(ScoringDispatchRole.REPAIR, f"restored-{index}"),
+                now=datetime.now(UTC),
+            )
+        with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+            runtime._dispatch_quality_judge(
+                operation_input=_judge_operation("REPAIR"),
+                content_input=object(),  # type: ignore[arg-type]
+                admission=admission,
+            )
+
+    assert judge_provider.calls == []
 
 
 def test_public_scoring_cannot_turn_a_caller_attempt_into_repair_eligibility(
@@ -494,8 +650,11 @@ def test_public_scoring_cannot_turn_a_caller_attempt_into_repair_eligibility(
 
 
 def test_exception_paths_do_not_expose_repair_eligibility(tmp_path: Path) -> None:
+    judge_provider = _JudgeProvider()
     runtime = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: object()
+        tmp_path / "project",
+        scoring_provider_factory=lambda: object(),
+        quality_judge_provider_factory=lambda: judge_provider,
     )
     claimed = _active_scoring_job(
         runtime._repository,
@@ -513,12 +672,30 @@ def test_exception_paths_do_not_expose_repair_eligibility(tmp_path: Path) -> Non
     assert not hasattr(raised.value, "failure_class")
     assert not hasattr(raised.value, "repair_identity")
     replayed = pickle.loads(pickle.dumps(copy.deepcopy(raised.value)))
+    diagnostic_metadata = {"args": replayed.args, "error": replayed.error}
+    before_job = runtime._repository.get_job(claimed.job_id)
+    before_video = runtime._repository.get_video("video-1")
 
     with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
         runtime._scoring_admission_for(claimed.job_id).admit(
-            _identity(ScoringDispatchRole.REPAIR, "exception"), now=datetime.now(UTC)
+            ScoringDispatchIdentity(
+                role=ScoringDispatchRole.REPAIR,
+                operation=str(diagnostic_metadata),
+                normalized_input_hash="e" * 64,
+                request_hash="e" * 64,
+            ),
+            now=datetime.now(UTC),
+        )
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        runtime._dispatch_quality_judge(
+            operation_input=_judge_operation("REPAIR"),
+            content_input=object(),  # type: ignore[arg-type]
+            admission=runtime._scoring_admission_for(claimed.job_id),
         )
     assert not hasattr(replayed, "repair_identity")
+    assert judge_provider.calls == []
+    assert runtime._repository.get_job(claimed.job_id) == before_job
+    assert runtime._repository.get_video("video-1") == before_video
 
 
 def test_repair_judge_admission_requires_repair_admission() -> None:
