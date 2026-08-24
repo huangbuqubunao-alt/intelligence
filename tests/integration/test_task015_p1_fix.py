@@ -48,6 +48,7 @@ from youtube_intel.scoring import (
     build_primary_scoring_attempt,
     build_scoring_input,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -73,6 +74,34 @@ NOW = datetime(2026, 8, 12, 8, tzinfo=UTC)
 VIDEO_ID = "2A1IEBFt6Xg"
 SECOND_VIDEO_ID = "5ljV0Vxu00M"
 CHANNEL_ID = "UCsooa4yRKGN_zEE8iknghZA"
+
+
+class _AdmissionRepository:
+    def get_job(self, job_id: str) -> object | None:
+        if job_id != "task015-admission-job":
+            return None
+        return type(
+            "_AdmissionJob",
+            (),
+            {
+                "target_stage": ProcessingStage.SCORING,
+                "status": JobStatus.RUNNING,
+                "lease_owner": "task015-test",
+                "lease_until": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )()
+
+    def get_provider_call(self, request_hash: str) -> None:
+        del request_hash
+        return None
+
+
+def _h1_admission() -> ScoringDispatchAdmission:
+    return ScoringDispatchAdmission(
+        repository=_AdmissionRepository(),  # type: ignore[arg-type]
+        job_id="task015-admission-job",
+        owner="task015-test",
+    )
 PIPELINE_VERSION = "runtime-v1"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
 
@@ -465,6 +494,7 @@ def _trusted_scoring_success(
     success = ops.run_primary_trusted_scoring(
         attempt=provider.primary_attempt(scoring_input),
         scoring_input=scoring_input,
+        admission=_h1_admission(),
     )
     assert type(success) is PhaseFTrustedScoringSuccess
     return scoring_input, success

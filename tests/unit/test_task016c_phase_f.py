@@ -17,7 +17,7 @@ import hashlib
 import inspect
 import json
 import pickle
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -31,7 +31,9 @@ from youtube_intel.domain import (
     ContentQualityResult,
     ContentQualitySignal,
     ContentQualityStatus,
+    JobStatus,
     LiveStatus,
+    ProcessingStage,
     QualityJudgeOperationInput,
     QualityPassAttestation,
     ScoreResult,
@@ -62,6 +64,7 @@ from youtube_intel.scoring import (
     build_scoring_input,
     build_scoring_request_identity,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 
 _EN_REASON = (
     "This response explains a concrete product strategy with useful trade-offs."
@@ -69,6 +72,34 @@ _EN_REASON = (
 
 _MODEL = "qwen3:8b"
 _DIGEST = "sha256:" + ("a" * 64)
+
+
+class _AdmissionRepository:
+    def get_job(self, job_id: str) -> object | None:
+        if job_id != "phase-f-admission-job":
+            return None
+        return type(
+            "_AdmissionJob",
+            (),
+            {
+                "target_stage": ProcessingStage.SCORING,
+                "status": JobStatus.RUNNING,
+                "lease_owner": "phase-f-test",
+                "lease_until": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )()
+
+    def get_provider_call(self, request_hash: str) -> None:
+        del request_hash
+        return None
+
+
+def _h1_admission() -> ScoringDispatchAdmission:
+    return ScoringDispatchAdmission(
+        repository=_AdmissionRepository(),  # type: ignore[arg-type]
+        job_id="phase-f-admission-job",
+        owner="phase-f-test",
+    )
 
 
 def _settings() -> LocalScoringSettings:
@@ -833,7 +864,7 @@ def test_primary_flow_reaches_phase_f_trusted_scoring_success(tmp_path: Path) ->
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
 
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
     assert type(success) is PhaseFTrustedScoringSuccess
@@ -853,7 +884,7 @@ def test_trusted_result_alone_is_not_a_phase_f_success(tmp_path: Path) -> None:
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
     assert not isinstance(success.trusted_result, PhaseFTrustedScoringSuccess)
@@ -873,7 +904,7 @@ def test_language_failure_blocks_success_aggregate(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
 
@@ -895,7 +926,7 @@ def test_quality_reject_blocks_success_aggregate(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
 
@@ -947,7 +978,7 @@ def test_success_aggregate_is_opaque_immutable_and_non_serializable(
     raw = _raw_response(_candidate_fields())
     attempt = _build_attempt(scoring_input=scoring_input, raw=raw)
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
 
     with pytest.raises(ValueError, match="mint"):
@@ -986,7 +1017,7 @@ def test_primary_flow_has_zero_persistence_and_no_legacy_service(
     before = _snapshot(project)
     data_before = _snapshot(project / "data")
     success = runtime.run_primary_trusted_scoring(
-        attempt=attempt, scoring_input=scoring_input
+        attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
     )
     after = _snapshot(project)
     data_after = _snapshot(project / "data")
@@ -1183,7 +1214,7 @@ def test_deterministic_gate_blocks_exact_repetition(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
 
@@ -1195,7 +1226,7 @@ def test_deterministic_reject_prevents_judge_call(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
     assert transport.requests == []
@@ -1212,7 +1243,7 @@ def test_judge_non_pass_prevents_trusted_success(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
 
@@ -1227,7 +1258,7 @@ def test_judge_failure_prevents_trusted_success(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime.run_primary_trusted_scoring(
-            attempt=attempt, scoring_input=scoring_input
+            attempt=attempt, scoring_input=scoring_input, admission=_h1_admission()
         )
 
 
@@ -1246,6 +1277,7 @@ def test_runtime_rejects_quality_authority_param(tmp_path: Path) -> None:
         runtime.run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
+            admission=_h1_admission(),
             quality_authority=runtime._quality_provenance_authority,
         )
 
@@ -1260,6 +1292,7 @@ def test_runtime_rejects_scoring_context_param(tmp_path: Path) -> None:
         runtime.run_primary_trusted_scoring(
             attempt=attempt,
             scoring_input=scoring_input,
+            admission=_h1_admission(),
             scoring_context=runtime._trusted_scoring_context,
         )
 

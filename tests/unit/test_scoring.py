@@ -37,6 +37,7 @@ from youtube_intel.scoring import (
     build_scoring_input,
     sample_transcript,
 )
+from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -51,6 +52,34 @@ _NOW = datetime(2026, 8, 23, 12, tzinfo=UTC)
 _MODEL = "qwen3:8b"
 _DIGEST = "sha256:" + ("a" * 64)
 _TRANSCRIPT = "This transcript contains enough text for a stable sample."
+
+
+class _AdmissionRepository:
+    def get_job(self, job_id: str) -> object | None:
+        if job_id != "scoring-test-admission-job":
+            return None
+        return type(
+            "_AdmissionJob",
+            (),
+            {
+                "target_stage": ProcessingStage.SCORING,
+                "status": JobStatus.RUNNING,
+                "lease_owner": "scoring-test",
+                "lease_until": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )()
+
+    def get_provider_call(self, request_hash: str) -> None:
+        del request_hash
+        return None
+
+
+def _h1_admission() -> ScoringDispatchAdmission:
+    return ScoringDispatchAdmission(
+        repository=_AdmissionRepository(),  # type: ignore[arg-type]
+        job_id="scoring-test-admission-job",
+        owner="scoring-test",
+    )
 
 
 def _settings(
@@ -356,6 +385,7 @@ def _trusted_success(
     return runtime.run_primary_trusted_scoring(
         attempt=_primary_attempt(scoring_input, _raw_response(_candidate_fields())),
         scoring_input=scoring_input,
+        admission=_h1_admission(),
     )
 
 
@@ -606,9 +636,11 @@ def test_trusted_runtime_scoring_persists_artifacts_provider_call_video_and_job(
     video_id, job_id = "trusted-success", "trusted-job"
     _prepare_scoring_job(runtime, video_id=video_id, job_id=job_id)
     success = _trusted_success(runtime, video_id=video_id)
-    completion = runtime._trusted_persistence_entry(
+    entry = runtime._trusted_persistence_entry(
         job_id=job_id, owner="test-owner", pipeline_version="runtime-v1"
-    ).persist_success(success)
+    )
+    entry._clock = lambda: _NOW  # type: ignore[method-assign]
+    completion = entry.persist_success(success)
     raw, structured = completion.artifacts
     assert type(success) is PhaseFTrustedScoringSuccess
     assert raw.kind is ArtifactKind.SCORING_RAW
