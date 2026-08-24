@@ -1,5 +1,70 @@
 # TASK-016C 交接报告
 
+## Phase H1-B Correction Round 2 — internal-only repair control flow
+
+### Metadata and scope
+
+- Task: `TASK-016C H1-B Correction Round 2` only.
+- Direct parent: `bc78cc7`.
+- Implementation commit: `83a9b5f` — `fix(task016c): internalize H1 repair control flow`.
+- Status: `READY FOR REVIEW`; Phase G `TrustedPersistenceEntry` and
+  `persist_success()` are unchanged. H2 repair execution, repair persistence,
+  recovery, schema, and later work were not started.
+
+### Corrections delivered
+
+- Removed the exposed repair identity factory, the runtime continuation factory,
+  the callable runtime repair-admission method, and the admission-level repair
+  admission method.
+- Removed `repair_identity` and failure-class fields from process-local admission
+  state and failure exceptions. The shared state retains only the normal dispatch
+  consumption budget; there is no canonical repair identity for a caller to
+  replace.
+- Public `ScoringDispatchAdmission.admit()` now rejects both `REPAIR` and
+  `REPAIR_JUDGE` before consulting mutable state. A caller can neither forge a
+  continuation nor promote a copied identity, exception, or modified registry
+  state into repair admission.
+- Received PRIMARY failures remain diagnostic-only and fail closed. A future H2
+  implementation must introduce REPAIR only as a runtime-local branch immediately
+  after its own verified PRIMARY dispatch; this correction does not dispatch,
+  persist, retry, or recover repair work.
+
+### RED/GREEN and adversarial evidence
+
+- RED: the H1 suite initially failed on the exposed runtime continuation and on
+  public `REPAIR_JUDGE` paths that consulted mutable state before denial.
+- GREEN: H1 tests prove callers receive no repair continuation/factory, fake
+  continuation paths are denied, `object.__setattr__` cannot add/replace repair
+  authority, exception replay cannot enable repair, copy/deepcopy/pickle does
+  not preserve repair authority, and `UNKNOWN_PROVIDER_STATE` cannot enter
+  REPAIR or REPAIR Judge admission.
+
+### Reuse and validation
+
+- Reuse decision: `DIRECT` — existing standard-library `copy`, `pickle`,
+  `object.__setattr__`, pytest, and the existing H1 shared-admission registry;
+  no dependency, schema, lockfile, persistence, network, cloud, or Vault change.
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest tests/unit/test_task016c_phase_h1_admission.py -q` | PASS (`29 passed`) |
+| `uv run --offline pytest tests/unit/test_task016c_phase_g.py -q` | PASS (`76 passed`) |
+| `uv run --offline pytest tests/integration/test_runtime_composition.py tests/integration/test_state_store.py tests/integration/test_pipeline.py -q` | PASS (`58 passed`) |
+| `uv run --offline pytest -x -q` | PASS (`1311 passed`; one pre-existing Pydantic serializer warning) |
+| `uv run --offline mypy src` | PASS (`29 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+
+### Diff review and remaining risk
+
+- Implementation diff is limited to `runtime.py`, `scoring_admission.py`, and
+  the H1 admission tests; the subsequent handoff commit records evidence only.
+- No dependencies, schema, migration, secrets, real Vault, network/cloud call,
+  Phase G persistence boundary, or H2 implementation was touched.
+- Remaining risk: H2 must implement any future REPAIR dispatch as a single
+  runtime-local control-flow branch, without reintroducing any caller-visible
+  authority, factory, continuation, token, or exception-carried authorization.
+
 ## Phase H1-B Correction Round 1 — sealed repair eligibility provenance
 
 ### Metadata and scope
