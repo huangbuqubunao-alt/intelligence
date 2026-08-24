@@ -92,17 +92,8 @@ class _AdmissionExecutionKey:
 @dataclass(slots=True)
 class _AdmissionExecutionState:
     consumed_roles: set[ScoringDispatchRole] = field(default_factory=set)
-    primary_failure_receipt: _PrimaryFailureReceipt | None = None
+    repair_identity: ScoringDispatchIdentity | None = None
     lock: Lock = field(default_factory=Lock)
-
-
-@dataclass(frozen=True, slots=True)
-class _PrimaryFailureReceipt:
-    """Runtime-local evidence of one known, received PRIMARY failure."""
-
-    primary_identity: ScoringDispatchIdentity
-    primary_raw_response_hash: str
-    failure_class: PrimaryFailureClass
 
 
 _IN_MEMORY_SCOPE_LOCK = Lock()
@@ -349,13 +340,8 @@ class ScoringDispatchAdmission:
         with state.lock:
             if identity.role in state.consumed_roles:
                 raise ScoringDispatchDenied("scoring dispatch role is already consumed")
-            if (
-                identity.role is ScoringDispatchRole.REPAIR
-                and state.primary_failure_receipt is None
-            ):
-                raise ScoringDispatchDenied(
-                    "runtime PRIMARY failure receipt is required before REPAIR admission"
-                )
+            if identity.role is ScoringDispatchRole.REPAIR:
+                raise ScoringDispatchDenied("REPAIR admission is runtime-owned")
             if (
                 identity.role is ScoringDispatchRole.REPAIR_JUDGE
                 and ScoringDispatchRole.REPAIR not in state.consumed_roles
@@ -367,20 +353,16 @@ class ScoringDispatchAdmission:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
 
-    def _record_runtime_primary_failure(
+    def _admit_runtime_repair(
         self,
         *,
-        primary_identity: ScoringDispatchIdentity,
-        primary_raw_response_hash: str,
-        failure_class: PrimaryFailureClass,
+        repair_identity: ScoringDispatchIdentity,
         now: datetime,
     ) -> None:
-        """Store one runtime-derived PRIMARY failure receipt for this execution only."""
+        """Consume the REPAIR role from a runtime-only PRIMARY continuation."""
 
-        if primary_identity.role is not ScoringDispatchRole.PRIMARY:
-            raise ValueError("primary failure receipt requires a PRIMARY identity")
-        if type(failure_class) is not PrimaryFailureClass:
-            raise ValueError("primary failure class is not eligible for repair")
+        if repair_identity.role is not ScoringDispatchRole.REPAIR:
+            raise TypeError("runtime repair admission requires a REPAIR identity")
         job = self.verify_active_lease(now=now)
         state = ScoringAdmissionRegistry.state_for(
             repository=self.repository,
@@ -391,12 +373,18 @@ class ScoringDispatchAdmission:
         with state.lock:
             if ScoringDispatchRole.PRIMARY not in state.consumed_roles:
                 raise ScoringDispatchDenied(
-                    "PRIMARY admission is required before a failure receipt"
+                    "PRIMARY admission is required before REPAIR admission"
                 )
-            if state.primary_failure_receipt is not None:
-                raise ScoringDispatchDenied("PRIMARY failure receipt is already recorded")
-            state.primary_failure_receipt = _PrimaryFailureReceipt(
-                primary_identity=primary_identity,
-                primary_raw_response_hash=primary_raw_response_hash,
-                failure_class=failure_class,
-            )
+            if state.repair_identity is None:
+                raise ScoringDispatchDenied(
+                    "runtime PRIMARY failure is required before REPAIR admission"
+                )
+            if repair_identity != state.repair_identity:
+                raise ScoringDispatchDenied(
+                    "REPAIR identity does not match the runtime PRIMARY failure"
+                )
+            if ScoringDispatchRole.REPAIR in state.consumed_roles:
+                raise ScoringDispatchDenied("scoring dispatch role is already consumed")
+            if self.repository.get_provider_call(repair_identity.request_hash) is not None:
+                raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
+            state.consumed_roles.add(ScoringDispatchRole.REPAIR)

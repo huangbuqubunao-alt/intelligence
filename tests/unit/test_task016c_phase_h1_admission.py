@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import json
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -30,7 +32,6 @@ from youtube_intel.retry import RetryPolicy
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import build_primary_scoring_attempt, build_scoring_input
 from youtube_intel.scoring_admission import (
-    PrimaryFailureClass,
     ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
@@ -50,8 +51,6 @@ from youtube_intel.state import (
 )
 
 _NOW = datetime(2026, 8, 23, 12, 0, tzinfo=UTC)
-
-
 class _Repository:
     def __init__(self, *, owner: str = "runtime-a") -> None:
         self.job = _job(owner=owner)
@@ -104,19 +103,6 @@ def _live_judge_gate(repository: _Repository) -> ScoringDispatchAdmission:
         repository.job, lease_until=datetime.now(UTC) + timedelta(minutes=5)
     )
     return _gate(repository)
-
-
-def _record_eligible_primary_failure(
-    admission: ScoringDispatchAdmission, *, now: datetime = _NOW
-) -> None:
-    primary_identity = _identity(ScoringDispatchRole.PRIMARY, "primary")
-    admission.admit(primary_identity, now=now)
-    admission._record_runtime_primary_failure(
-        primary_identity=primary_identity,
-        primary_raw_response_hash="f" * 64,
-        failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
-        now=now,
-    )
 
 
 def _provider_call(request_hash: str, status: ProviderCallStatus) -> ProviderCallRecord:
@@ -220,6 +206,32 @@ def _primary_context() -> object:
         max_output_tokens=1200,
         max_description_chars=32,
         scoring_operation="local-scoring-v1",
+    )
+
+
+def _language_invalid_primary_attempt(scoring_input: object) -> object:
+    raw = json.dumps(
+        {
+            "response": json.dumps(
+                {
+                    "reason": "这是完整的中文解释。",
+                    "score": 8,
+                    "should_summarize": True,
+                    "topics": ["product"],
+                }
+            )
+        }
+    )
+    return build_primary_scoring_attempt(
+        scoring_input=scoring_input,  # type: ignore[arg-type]
+        candidate=parse_scoring_candidate(raw),
+        final_raw_response=raw,
+        provider="ollama",
+        model="qwen3:8b",
+        model_digest="sha256:" + ("4" * 64),
+        temperature=0.0,
+        max_output_tokens=1200,
+        max_description_chars=32,
     )
 
 
@@ -339,11 +351,14 @@ def test_duplicate_primary_admission_is_denied() -> None:
         gate.admit(identity, now=_NOW)
 
 
-def test_runtime_owned_primary_failure_receipt_requires_dispatched_primary(
-    tmp_path: Path,
-) -> None:
+def test_unknown_provider_state_cannot_create_repair_eligibility(tmp_path: Path) -> None:
+    class _UnknownProvider:
+        def primary_attempt(self, scoring_input: object) -> object:
+            del scoring_input
+            raise TimeoutError("transport interrupted")
+
     runtime = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: object()
+        tmp_path / "project", scoring_provider_factory=lambda: _UnknownProvider()
     )
     claimed = _active_scoring_job(
         runtime._repository,
@@ -355,111 +370,13 @@ def test_runtime_owned_primary_failure_receipt_requires_dispatched_primary(
         scoring_input=scoring_input,  # type: ignore[arg-type]
         context=runtime._trusted_scoring_context,
     )
-    raw = json.dumps(
-        {
-            "response": json.dumps(
-                {
-                    "reason": "A complete English explanation.",
-                    "score": 8,
-                    "should_summarize": True,
-                    "topics": ["product"],
-                }
-            )
-        }
-    )
-    attempt = build_primary_scoring_attempt(
-        scoring_input=scoring_input,  # type: ignore[arg-type]
-        candidate=parse_scoring_candidate(raw),
-        final_raw_response=raw,
-        provider="ollama",
-        model="qwen3:8b",
-        model_digest="sha256:" + ("4" * 64),
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
-    )
-    admission = runtime._scoring_admission_for(claimed.job_id)
-
-    with pytest.raises(ScoringDispatchDenied, match="PRIMARY"):
-        runtime._record_runtime_primary_failure(
-            admission=admission,
-            primary_identity=primary_identity,
-            attempt=attempt,
-            scoring_input=scoring_input,  # type: ignore[arg-type]
-            failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
-        )
-
-    admission.admit(primary_identity, now=datetime.now(UTC))
-    runtime._record_runtime_primary_failure(
-        admission=admission,
-        primary_identity=primary_identity,
-        attempt=attempt,
-        scoring_input=scoring_input,  # type: ignore[arg-type]
-        failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
-    )
-
-    state = ScoringAdmissionRegistry.state_for(
-        repository=runtime._repository,
-        job_id=claimed.job_id,
-        job=runtime._repository.get_job(claimed.job_id),
-        owner=runtime._runtime_owner,
-    )
-    receipt = state.primary_failure_receipt
-    assert receipt is not None
-    assert receipt.primary_identity == primary_identity
-    assert receipt.primary_raw_response_hash == attempt.raw_response_hash
-    assert receipt.failure_class is PrimaryFailureClass.LANGUAGE_INVALID
-
-
-def test_unknown_provider_state_cannot_be_recorded_as_primary_failure_receipt(
-    tmp_path: Path,
-) -> None:
-    runtime = _runtime_for_h1(
-        tmp_path / "project", scoring_provider_factory=lambda: object()
-    )
-    claimed = _active_scoring_job(
-        runtime._repository,
-        owner=runtime._runtime_owner,
-        now=datetime.now(UTC),
-    )
-    scoring_input = _primary_scoring_input()
-    primary_identity = build_primary_scoring_dispatch_identity(
-        scoring_input=scoring_input,  # type: ignore[arg-type]
-        context=runtime._trusted_scoring_context,
-    )
-    raw = json.dumps(
-        {
-            "response": json.dumps(
-                {
-                    "reason": "A complete English explanation.",
-                    "score": 8,
-                    "should_summarize": True,
-                    "topics": ["product"],
-                }
-            )
-        }
-    )
-    attempt = build_primary_scoring_attempt(
-        scoring_input=scoring_input,  # type: ignore[arg-type]
-        candidate=parse_scoring_candidate(raw),
-        final_raw_response=raw,
-        provider="ollama",
-        model="qwen3:8b",
-        model_digest="sha256:" + ("4" * 64),
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
-    )
     admission = runtime._scoring_admission_for(claimed.job_id)
     admission.admit(primary_identity, now=datetime.now(UTC))
 
-    with pytest.raises(ValueError, match="not eligible"):
-        runtime._record_runtime_primary_failure(
-            admission=admission,
-            primary_identity=primary_identity,
-            attempt=attempt,
-            scoring_input=scoring_input,  # type: ignore[arg-type]
-            failure_class="UNKNOWN_PROVIDER_STATE",  # type: ignore[arg-type]
+    with pytest.raises(UnknownProviderState):
+        runtime._dispatch_primary_attempt_after_admission(
+            runtime._create_scoring_provider_for_dispatch(),
+            scoring_input,  # type: ignore[arg-type]
         )
 
     state = ScoringAdmissionRegistry.state_for(
@@ -468,7 +385,12 @@ def test_unknown_provider_state_cannot_be_recorded_as_primary_failure_receipt(
         job=runtime._repository.get_job(claimed.job_id),
         owner=runtime._runtime_owner,
     )
-    assert state.primary_failure_receipt is None
+    assert state.repair_identity is None
+    forged_receipt = object.__new__(object)
+    with pytest.raises(AttributeError):
+        object.__setattr__(forged_receipt, "repair_identity", _identity(ScoringDispatchRole.REPAIR))
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "unknown"), now=datetime.now(UTC))
 
 
 def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path) -> None:
@@ -484,58 +406,119 @@ def test_public_trusted_scoring_rejects_caller_created_admission(tmp_path: Path)
         )
 
 
-def test_duplicate_repair_admission_is_denied() -> None:
-    repository = _Repository()
-    first = _gate(repository)
-    second = _gate(repository)
-    identity = _identity(ScoringDispatchRole.REPAIR)
+def test_repair_receipt_mint_path_is_not_importable() -> None:
+    import youtube_intel.scoring_admission as admission_module
 
-    _record_eligible_primary_failure(first)
-    first.admit(identity, now=_NOW)
-
-    with pytest.raises(ScoringDispatchDenied, match="already consumed"):
-        second.admit(identity, now=_NOW)
+    assert not hasattr(admission_module, "_PrimaryFailureReceipt")
+    assert not hasattr(admission_module, "_PRIMARY_FAILURE_RECEIPT_SENTINEL")
 
 
-def test_duplicate_judge_admission_is_denied_without_consuming_other_role() -> None:
-    repository = _Repository()
-    gate = _gate(repository)
-    primary = _identity(ScoringDispatchRole.PRIMARY_JUDGE, "b")
-    repair = _identity(ScoringDispatchRole.REPAIR_JUDGE, "c")
-
-    gate.admit(primary, now=_NOW)
-
-    with pytest.raises(ScoringDispatchDenied, match="already consumed"):
-        gate.admit(primary, now=_NOW)
-    _record_eligible_primary_failure(gate)
-    gate.admit(_identity(ScoringDispatchRole.REPAIR, "repair"), now=_NOW)
-    gate.admit(repair, now=_NOW)
+def test_caller_controlled_receipt_authority_is_not_an_admission_parameter() -> None:
+    with pytest.raises(TypeError, match="runtime_receipt_authority"):
+        ScoringDispatchAdmission(
+            repository=_Repository(),
+            job_id="scoring-job",
+            owner="runtime-a",
+            runtime_receipt_authority=object(),  # type: ignore[call-arg]
+        )
 
 
-def test_repair_admission_requires_a_runtime_owned_primary_failure_receipt() -> None:
-    repository = _Repository()
-    admission = _gate(repository)
-    repair = _identity(ScoringDispatchRole.REPAIR, "repair")
+def test_forged_receipt_shell_via_object_new_and_setattr_cannot_admit_repair() -> None:
+    import youtube_intel.scoring_admission as admission_module
 
-    with pytest.raises(ScoringDispatchDenied, match="PRIMARY failure receipt"):
-        admission.admit(repair, now=_NOW)
+    receipt_type = getattr(admission_module, "_PrimaryFailureReceipt", None)
+    assert receipt_type is None
+    expected = _identity(ScoringDispatchRole.REPAIR, "object-new")
+    forged_receipt = object.__new__(ScoringDispatchIdentity)
+    object.__setattr__(forged_receipt, "role", expected.role)
+    object.__setattr__(forged_receipt, "operation", expected.operation)
+    object.__setattr__(forged_receipt, "normalized_input_hash", expected.normalized_input_hash)
+    object.__setattr__(forged_receipt, "request_hash", expected.request_hash)
+    admission = _gate(_Repository())
 
-    _record_eligible_primary_failure(admission)
-    admission.admit(repair, now=_NOW)
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(forged_receipt, now=_NOW)
+
+
+def test_copy_deepcopy_and_pickle_cannot_restore_repair_eligibility() -> None:
+    import youtube_intel.scoring_admission as admission_module
+
+    assert getattr(admission_module, "_PrimaryFailureReceipt", None) is None
+    copied = copy.copy(_identity(ScoringDispatchRole.REPAIR, "copy"))
+    restored = pickle.loads(pickle.dumps(copy.deepcopy(copied)))
+    assert restored == copied
+
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        _gate(_Repository()).admit(restored, now=_NOW)
+
+
+def test_public_scoring_cannot_turn_a_caller_attempt_into_repair_eligibility(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    scoring_input = _primary_scoring_input()
+    admission = runtime._scoring_admission_for(claimed.job_id)
+    admission.admit(
+        build_primary_scoring_dispatch_identity(
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            context=runtime._trusted_scoring_context,
+        ),
+        now=datetime.now(UTC),
+    )
+
+    with pytest.raises(ValueError, match="ineligible"):
+        runtime.run_primary_trusted_scoring(
+            attempt=_language_invalid_primary_attempt(scoring_input),  # type: ignore[arg-type]
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            job_id=claimed.job_id,
+        )
+
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "caller"), now=datetime.now(UTC))
+
+
+def test_exception_paths_do_not_expose_repair_eligibility(tmp_path: Path) -> None:
+    runtime = _runtime_for_h1(
+        tmp_path / "project", scoring_provider_factory=lambda: object()
+    )
+    claimed = _active_scoring_job(
+        runtime._repository,
+        owner=runtime._runtime_owner,
+        now=datetime.now(UTC),
+    )
+    scoring_input = _primary_scoring_input()
+    with pytest.raises(ValueError, match="ineligible") as raised:
+        runtime.run_primary_trusted_scoring(
+            attempt=_language_invalid_primary_attempt(scoring_input),  # type: ignore[arg-type]
+            scoring_input=scoring_input,  # type: ignore[arg-type]
+            job_id=claimed.job_id,
+        )
+    assert not hasattr(raised.value, "receipt")
+    assert not hasattr(raised.value, "repair_identity")
+
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        runtime._scoring_admission_for(claimed.job_id).admit(
+            _identity(ScoringDispatchRole.REPAIR, "exception"), now=datetime.now(UTC)
+        )
 
 
 def test_repair_judge_admission_requires_repair_admission() -> None:
     repository = _Repository()
     admission = _gate(repository)
-    repair = _identity(ScoringDispatchRole.REPAIR, "repair")
     repair_judge = _identity(ScoringDispatchRole.REPAIR_JUDGE, "repair-judge")
 
     with pytest.raises(ScoringDispatchDenied, match="REPAIR admission"):
         admission.admit(repair_judge, now=_NOW)
 
-    _record_eligible_primary_failure(admission)
-    admission.admit(repair, now=_NOW)
-    admission.admit(repair_judge, now=_NOW)
+    with pytest.raises(ScoringDispatchDenied, match="runtime-owned"):
+        admission.admit(_identity(ScoringDispatchRole.REPAIR, "repair"), now=_NOW)
 
 
 def test_judge_dispatch_without_a_live_lease_is_rejected_before_provider_contact() -> None:
@@ -614,7 +597,7 @@ def test_concurrent_judge_admission_allows_only_one_provider_contact() -> None:
     assert len(provider.calls) == 1
 
 
-def test_judge_budget_is_exhausted_after_primary_and_repair_dispatches() -> None:
+def test_repair_judge_cannot_bypass_runtime_owned_repair_admission() -> None:
     runtime, provider = _judge_runtime()
     gate = _live_judge_gate(_Repository())
 
@@ -623,23 +606,14 @@ def test_judge_budget_is_exhausted_after_primary_and_repair_dispatches() -> None
         content_input=object(),  # type: ignore[arg-type]
         admission=gate,
     )
-    _record_eligible_primary_failure(gate, now=datetime.now(UTC))
-    gate.admit(
-        _identity(ScoringDispatchRole.REPAIR, "repair"), now=datetime.now(UTC)
-    )
-    runtime._dispatch_quality_judge(
-        operation_input=_judge_operation("REPAIR"),
-        content_input=object(),  # type: ignore[arg-type]
-        admission=gate,
-    )
-    with pytest.raises(ScoringDispatchDenied, match="already consumed"):
+    with pytest.raises(ScoringDispatchDenied, match="REPAIR admission"):
         runtime._dispatch_quality_judge(
-            operation_input=_judge_operation("PRIMARY"),
+            operation_input=_judge_operation("REPAIR"),
             content_input=object(),  # type: ignore[arg-type]
             admission=gate,
         )
 
-    assert len(provider.calls) == 2
+    assert len(provider.calls) == 1
 
 
 def test_competing_runtime_cannot_admit_under_another_claimant_lease() -> None:
