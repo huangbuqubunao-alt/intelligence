@@ -419,8 +419,9 @@ necessary edits to:
   Judge composition primitive, without changing H2-A trust rules or JCS;
 - `src/youtube_intel/providers/ollama.py` — only the existing provider seam's
   one-shot REPAIR transport/raw-capture/shared strict-parser integration;
-- the private in-memory scoring seam only as necessary to mint
-  `PhaseH2BValidatedRepairResult` (not a persistence aggregate);
+- `src/youtube_intel/scoring.py` — only the private in-memory scoring seam
+  necessary to mint `PhaseH2BValidatedRepairResult` (not a persistence
+  aggregate);
 - focused H2-B and H1/H2-A regression tests; and
 - H2-B handoff documentation.
 
