@@ -1,5 +1,164 @@
 # TASK-016C 交接报告
 
+## Phase H2-B — Correction implementation (Round 4 authorization)
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-B` CORRECTION implementation only, per the fully
+  approved Round 4 authorization amendment
+  (`cc7ba59ca143fc08be5ecfbf1ee5401d225cb1a3`). Additive correction of the
+  rejected implementation `c8a6e04` / `5e8f046`; no history rewrite, no
+  reset/rebase/squash/amend, no H2-C, no `PhaseHTrustedRepairSuccess`, no
+  repair persistence.
+- Base HEAD: `cc7ba59` (worktree clean, required ancestry verified).
+- Status: `READY FOR H2-B CORRECTION IMPLEMENTATION INDEPENDENT REVIEW`.
+
+### What was corrected (frozen objectives)
+
+1. Removed the generic caller-controlled identity+callback dispatch authority
+   `ScoringDispatchAdmission._consume_runtime_role_and_dispatch` entirely (no
+   rename, no double-underscore, no wrapper). `scoring_admission.py` is now
+   state/policy enforcement only.
+2. Removed the caller-triggerable authoritative `_h2b_execute_repair(...)`
+   execution seam. No production function that accepts caller-selectable
+   ScoringInput/ScoringDispatchAdmission/PrimaryFailureEvidence can trigger
+   H2-B provider contact; pure classification helpers remain (data only).
+3. Made the actual `RuntimeOperations` PRIMARY execution frame the sole
+   authoritative H2-B owner: the entire provider-contacting REPAIR flow is now
+   a function-local closure `_h2b_repair_continuation` defined and invoked
+   only inside `scoring_stage`, with no class/module attribute exposing it.
+4. Added the repaired-candidate deterministic Content Quality gate to the
+   REPAIR flow (accepted gate reused unchanged, no second algorithm).
+5. Preserved EMPTY_CONTENT runtime reachability semantics: empty/whitespace
+   repaired content fails schema/parse before the gate
+   (`REPAIR_SCHEMA_OR_PARSE_INVALID`, `FAILED_FINAL`, zero Judge); the pure
+   gate's `EMPTY_CONTENT` contract remains as a pure-function regression only.
+6. Added `RepairTrustedScoringFinalizer` in `quality.py` (authorized option B),
+   reusing a private pure finalization core extracted from the PRIMARY
+   finalizer (`_build_trusted_score_result`) and the unchanged frozen sealed
+   serializer from `scoring.py` (called, never modified).
+7. The finalizer independently fresh-revalidates every input (object.__new__/
+   object.__setattr__/model_construct bypasses re-run through strict
+   validation), independently reruns the deterministic gate, replays the Judge
+   raw requiring PASS, re-verifies the attestation against the current
+   authority, and enforces the dual binding.
+8. Successful H2-B now carries the finalizer-produced `TrustedScoreResult`
+   plus exact structured UTF-8 bytes / SHA-256 / length / schema-version
+   metadata.
+9. Expanded `PhaseH2BValidatedRepairResult` accordingly.
+10. Added adversarial RED tests for every corrected boundary.
+
+### Changed files (all within authorized scope)
+
+- `src/youtube_intel/scoring_admission.py` — removed
+  `_consume_runtime_role_and_dispatch` and its `Callable`/`TypeVar` surface.
+  Remaining state-only API: `verify_active_lease`, `admit` (still rejects
+  REPAIR/REPAIR_JUDGE), `consume_repair_role`, `consume_repair_judge_role`
+  (each verifies live lease, frozen role/operation literal, predecessor role,
+  one-shot budget, ProviderCall conflict; accepts no callback; returns None),
+  plus the shared private state mutation `_consume_runtime_role` and the
+  unchanged registry/identity builders.
+- `src/youtube_intel/runtime.py` — `_h2b_execute_repair` removed. The
+  authoritative flow is the lexical `_h2b_repair_continuation(pfe)` closure
+  inside `scoring_stage`: verify PFE against the runtime-owned trusted
+  context → derive RNI/request hash/frozen prompt/payload and payload
+  SHA-256/length → collision guards vs PRIMARY request hash / PRIMARY Judge
+  H2 → `admission.consume_repair_role` → same-frame recompute of identity and
+  payload requiring exact equality → exact REPAIR dispatch → outer seal →
+  inner candidate parse/schema → TASK-016B → derive REPAIR Judge context
+  (accepted gate input) → deterministic gate (reject →
+  `REPAIR_DETERMINISTIC_GATE_REJECT:<reason>` terminal, zero Judge) →
+  collision guard vs REPAIR Judge H2 → `admission.consume_repair_judge_role`
+  → same-frame Judge identity/input revalidation → exact Judge dispatch →
+  strict raw capture → pure replay requiring PASS → REPAIR-bound attestation
+  → `RepairTrustedScoringFinalizer` → sealed structured evidence → untrusted
+  aggregate. Known terminal failures map through the existing
+  `fail_job(INVALID_RESPONSE, <message>, retry_at=None)` exactly once;
+  finalizer failures map to `REPAIR_FINALIZATION_INVALID`. Classification
+  helpers renamed to pure `_h2b_pfe_for_parse_failure` /
+  `_h2b_pfe_for_known_failure` (build + immediately verify PFE; no admission,
+  no provider contact, return data only).
+- `src/youtube_intel/quality.py` — extracted the shared pure core
+  `_build_trusted_score_result` (candidate/result construction + opaque
+  wrapping only; no I/O/persistence/Phase G). PRIMARY
+  `TrustedScoringFinalizer.finalize` retains byte-for-byte behavior via that
+  core. Added `RepairFinalizationInvalid`, `RepairFinalizerOutput`, and
+  `RepairTrustedScoringFinalizer` with the frozen local order: fresh schema
+  revalidation → reconstruct accepted REPAIR gate input → run accepted gate
+  requiring PASS → Judge binding derivation/replay requiring PASS → result
+  cross-binding/provenance checks → fresh attestation verification →
+  RNI/REPAIR request identity + dual-binding provenance → pure core →
+  unchanged frozen sealed serializer.
+- `src/youtube_intel/h2_evidence.py` — aggregate fields added:
+  `repair_normalized_input_bytes`, `quality_input_hash`,
+  `deterministic_gate_status`, `finalizer_trusted_result`,
+  `structured_result_bytes`, `structured_result_sha256`,
+  `structured_result_length`, `structured_result_schema_version`,
+  `structured_result_prompt_version`. No schema/hashing change.
+- Tests: rewrote the admission/executor tests in
+  `test_task016c_phase_h2b_repair_seams.py` /
+  `test_task016c_phase_h2b_repair_flow.py` (no test demonstrates a generic
+  callback authority anymore); extended the PASS-aggregate and forgery tests;
+  added `test_task016c_phase_h2b_correction_authority.py` (authority-surface
+  introspection, forged-PFE-after-genuine-PRIMARY attack, state-only
+  consumption semantics, concurrency winner/loser with zero contact, EMPTY/
+  whitespace/tab-newline schema terminals, CONTROL_CHARACTER_INVALID and
+  EXACT_REPETITION gate terminals with scripted-but-unconsumed Judge PASS,
+  REPAIR_FINALIZATION_INVALID mapping, candidate-equality-vs-provenance
+  distinction, structured-evidence mutation → persistence rejection) and
+  `test_task016c_phase_h2b_correction_finalizer.py` (valid chain →
+  TrustedScoreResult + sealed bytes/hash/length; gate replay rejects despite
+  Judge PASS/attestation; low-level forged EMPTY candidate; model_construct
+  bypass; PRIMARY-hash-as-REPAIR-provenance; wrong REPAIR identity; wrong RNI
+  hash; mutated RNI; PRIMARY-role Judge evidence; non-PASS Judge; forged/
+  mutated attestation; spoofed capabilities; substituted settings; candidate
+  substitution).
+
+### Frozen modules confirmed unchanged (zero diff)
+
+`src/youtube_intel/scoring.py`, `src/youtube_intel/state.py`,
+`src/youtube_intel/pipeline.py`, `src/youtube_intel/providers/ollama.py`,
+`src/youtube_intel/domain.py`, `migrations/`, and all Phase G persistence
+machinery (`TrustedPersistenceEntry`, `persist_success()`, PREWRITE,
+filesystem protocol, SQLite registration, Artifact namespace/idempotency).
+The sealed serializer was called, never modified.
+
+### Stop-boundary confirmation
+
+actual admitted REPAIR: YES; deterministic gate: YES; admitted REPAIR Judge:
+YES; Quality PASS attestation: YES; RepairTrustedScoringFinalizer: YES;
+TrustedScoreResult: YES; sealed structured bytes/hash/length: YES;
+PhaseH2BValidatedRepairResult: YES; PhaseHTrustedRepairSuccess: NO; H2-C: NO;
+repair persistence: NO; Phase G changes: NO. Direct persistence of a valid
+corrected aggregate still rejects with zero side effects.
+
+### Evidence (gate results)
+
+- Focused H2-B suites (flow + seams + both correction files): 99 passed.
+- Full `uv run --offline pytest tests/unit tests/integration`: 1626 passed,
+  1 pre-existing Pydantic serializer warning.
+- `uv run --offline pytest tests/e2e`: 9 passed.
+- `uv run --offline mypy src`: Success, no issues in 31 source files.
+- `uv run --offline ruff check .`: All checks passed.
+- `git diff --check`: clean. `bash scripts/security_scan.sh`: status=clean
+  (pre-existing high-entropy/wheel-license WARNs unchanged).
+- Manual security searches over `src/`/`migrations/`:
+  `_consume_runtime_role_and_dispatch`, `consume_role_and_dispatch`,
+  `admit_and_dispatch`, `consume_repair_dispatch`, `dispatch_after_admission`,
+  `_h2b_execute_repair`, `h2c_finalize`, `persist_repair`,
+  `mint_repair_success`, `verify_h2b_result`, repair receipt/token/registry —
+  none found. `PhaseHTrustedRepairSuccess` appears only in a comment stating
+  it is not minted. `_h2b_repair_continuation` is the lexical closure (not a
+  durable continuation/receipt/capability).
+
+### Remaining concerns
+
+- The REPAIR flow still stashes the untrusted aggregate on the runtime
+  (`_last_h2b_validated_repair_result`) and finalizes the job through the
+  generic non-SUCCEEDED path; without separately authorized H2-C a successful
+  repair cannot persist. This is the frozen H2-B end state.
+- No other open items; all correction objectives were implemented and tested.
+
 ## Phase H2-B — Runtime REPAIR execution (implementation)
 
 ### Metadata and scope
