@@ -1,5 +1,108 @@
 # TASK-016C 交接报告
 
+## Phase H2-A Correction Round 2 — seal H2 judge and repair config bindings
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-A Correction Round 2` only (fix independent-review
+  findings; do NOT start H2-B).
+- Reviewed HEAD: `0c9abc9`; previous correction commit: `f36f12e`.
+- Correction commit: `43ad2dc` — `fix(task016c): seal H2 judge and repair config
+  bindings`.
+- Status: `READY FOR H2-A CORRECTION ROUND 2 INDEPENDENT REVIEW`.
+
+Findings addressed: P1-1 (Judge replay lacked an independent trusted expected
+Judge context; a self-consistent Judge for candidate/request B could be embedded
+in a PFE whose PRIMARY raw/candidate/request are A), P1-2 (trusted RNI builder
+still accepted authoritative REPAIR configuration from the caller), P1-3
+(low-level frozen-field mutation bypass via `object.__setattr__`/`model_construct`).
+
+### How each finding is corrected (all in `src/youtube_intel/h2_evidence.py`)
+
+- **P1-1 — independent trusted Judge context:** added `JudgeTrustedContext`
+  (data-only, immutable expected provenance, built via
+  `build_judge_trusted_context` from trusted runtime inputs, never from a
+  `JudgeEvidence` object). `verify_judge_evidence_replay(evidence,
+  judge_trusted_context)` compares every metadata field, the operation literal,
+  the role, the exact operation input, H1/H2, and the judge-input
+  candidate/request/hash bindings against the trusted context; `evidence.
+  operation_input` and `evidence.judge_input` can no longer authenticate each
+  other. `verify_primary_failure_evidence` for JUDGE_REJECT/JUDGE_UNCERTAIN now
+  requires a trusted Judge context whose candidate hash equals the trusted
+  PRIMARY candidate (parsed from the trusted raw) and whose scoring-request hash
+  equals the trusted PRIMARY scoring request, enforcing complete
+  raw→candidate→request→Judge continuity.
+- **P1-2 — trusted REPAIR config:** added `RepairTrustedConfig` (immutable
+  expected configuration DATA derived from validated `LocalScoringSettings` via
+  `build_repair_trusted_config`). The trusted RNI builder now derives every
+  authoritative REPAIR field (provider/model/digest/prompt/schema/temperature/
+  output/description limits/operation) from it; the builder exposes no
+  model/temperature/limit overrides, so attacker-selected REPAIR configuration is
+  impossible through the trusted path.
+- **P1-3 — fresh exact-model revalidation:** added `_fresh_revalidate_exact`
+  (model_dump → strict `model_validate`). `verify_primary_failure_evidence` and
+  `verify_judge_evidence_replay` freshly revalidate the evidence object at the
+  boundary, defeating `object.__setattr__`/`model_construct`/copy/pickle mutation
+  of frozen fields (e.g. `primary_raw_capture_kind`, `raw_capture_kind`) and
+  nested `operation_input`/`judge_input` mutations. Invalid typed values are
+  rejected by revalidation; valid-but-wrong values are rejected by the
+  trusted-context comparison.
+- Both trusted contexts are plain data only — no token, authority, receipt,
+  admission, sentinel, registry, continuation, or persistence capability; they
+  grant no dispatch and no persistence.
+
+### Behavioral proof (PART 25)
+
+All three reviewer acceptance paths reproduce and reject through real production
+verifier/builder boundaries, in `tests/unit/test_task016c_phase_h2a_correction_r2.py`:
+
+1. PFE A + self-consistent Judge B → REJECT
+   (`test_pfe_a_with_self_consistent_judge_b_rejected`,
+   `test_cross_object_judge_substitution_rejected`).
+2. Valid trusted PFE/context + attacker REPAIR config → trusted RNI builder
+   refuses overrides (`test_rni_builder_refuses_caller_repair_config_overrides`
+   across model/model_digest/temperature/max_output_tokens/max_description_chars/
+   provider/prompt_version/schema_version).
+3. `object.__setattr__`: PFE `primary_raw_capture_kind` and Judge
+   `raw_capture_kind` set to `ATTACKER_KIND` → both production verifiers REJECT
+   (`test_pfe_raw_capture_kind_mutation_rejected`,
+   `test_judge_raw_capture_kind_mutation_rejected`, plus nested mutation and
+   copy/deepcopy/pickle variants).
+
+These are pure pre-plan rejection tests: no provider calls, no Judge calls, no
+filesystem/Artifact/SQLite writes, and no success transition.
+
+### Tests and checks
+
+| Command | Result |
+|---|---|
+| H2-A focused suites (jcs, raw_capture, judge_replay, evidence, correction_r1, correction_r2) | PASS (`232 passed`) |
+| `test_task016c_phase_h1_admission.py` | PASS |
+| `test_task016c_phase_g.py` / `test_task016c_phase_f.py` | PASS |
+| Ollama provider + Judge contract + runtime composition + TASK-016B language | PASS |
+| Full unit + integration offline | PASS (`1515 passed`) |
+| E2E offline | PASS (`9 passed`) |
+| `uv run --offline mypy src` | PASS (`31 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings pre-existing) |
+
+### Boundary confirmation
+
+- Production change is limited to `src/youtube_intel/h2_evidence.py`; the
+  protected modules (`scoring.py`, `state.py`, `runtime.py`,
+  `scoring_admission.py`, `domain.py`, `quality.py`, `migrations/`) and
+  `providers/ollama.py` have zero diff. The approved `h2_jcs.py` is unchanged.
+- REPAIR dispatch remains disabled: no `PhaseHTrustedRepairSuccess`,
+  `persist_repair()`, repair token/registry/receipt/admission, or alternate
+  persistence ingress; `h2_evidence.py` performs no I/O.
+- StrictInt, duplicate-key rejection, and PFE raw hash/length replay behaviors
+  are preserved (their tests still pass).
+
+Status: `READY FOR H2-A CORRECTION ROUND 2 INDEPENDENT REVIEW`.
+
+---
+
 ## Phase H2-A Correction Round 1 — bind H2 evidence to trusted provenance
 
 ### Metadata and scope
