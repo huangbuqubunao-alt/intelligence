@@ -10,7 +10,8 @@ public repair surface. Its purpose is to define the narrow future H2
 implementation boundary by which one eligible, received PRIMARY failure may be
 repaired without weakening the accepted trusted-persistence chain.
 
-This Round 5 amendment, following the Round 4 evidence-contract amendment, is
+This Round 6 amendment, following the Round 5 identity and raw-evidence
+amendment, is
 documentation-only. It does not authorize or modify `src/`, `tests/`,
 schema/migrations, dependencies, or `uv.lock`.
 
@@ -200,9 +201,12 @@ operation and canonical input are the primary collision prevention.
 Every versioned H2 wire object uses **H2 Canonical JSON v1**, exactly RFC 8785
 JSON Canonicalization Scheme (JCS), with no extensions. This is a new,
 version-bound evidence format for the `task016c-*` schemas in this document;
-it does **not** replace or alter the existing PRIMARY
-`build_scoring_request_identity()`, existing Judge H1/H2, or
-`build_provider_request_hash()` serializers and hashes.
+it applies **only** to newly versioned task016c-* H2 evidence/preimage
+objects. It does **not** replace, invoke, or alter the frozen serializers or
+bytes for PRIMARY normalized-input identity, PRIMARY scoring request hash,
+existing Judge H1, existing Judge H2, or the existing Phase G PRIMARY
+ProviderCall identity. H2 objects may carry those already-derived values as
+string fields, but must never recompute any of them under JCS.
 
 H2 Canonical JSON v1 is normative as follows:
 
@@ -218,21 +222,74 @@ H2 Canonical JSON v1 is normative as follows:
   never escaped; all other Unicode scalar values are emitted unescaped.
   The resulting JSON is encoded as strict UTF-8 with no BOM and no Unicode or
   whitespace normalization.
-- `true`, `false`, and `null` are exactly those lower-case tokens. Integers are
-  emitted as their shortest base-10 integer spelling with no leading `+`, no
-  leading zero except `0`, no decimal point, and no exponent.
-- Every floating value is first required to be a finite IEEE-754 binary64
-  value. `NaN`, `+Infinity`, and `-Infinity` are rejected (`allow_nan=false`),
-  not quoted or converted. Nonzero finite values use the RFC 8785/ECMAScript
-  shortest decimal that round-trips to the same binary64 value: plain decimal
-  notation for magnitudes in `[1e-6,1e21)`, otherwise lowercase `e` exponent
-  notation. An exponent has no leading zero and has `+` for a positive exponent
-  and `-` for a negative exponent. `-0.0` canonicalizes to the integer token
-  `0`. No locale setting may affect any spelling.
+- `true`, `false`, and `null` are exactly those lower-case tokens.
+- **Every JSON number**, including one originating in a field with a semantic
+  integer constraint, uses the one and only canonical number formatter: RFC
+  8785 JCS number serialization as required by ECMAScript `NumberToString`
+  semantics (ECMA-262 Section 7.1.12.1, including Note 2). There is no
+  independent integer formatter, decimal-only integer rule, or Python
+  `str(int)` wire rule.
+- The H2 JCS numeric domain is finite IEEE-754 binary64-compatible JSON
+  numbers. `NaN`, `+Infinity`, and `-Infinity` reject; `-0.0` serializes as
+  the token `0`; every other finite value uses the exact RFC 8785/ECMAScript
+  token, including its mandated fixed/exponent boundary, lowercase `e`,
+  positive exponent `+`, and no exponent leading zero. No locale setting,
+  Python `repr`, or Python JSON formatting behavior is authoritative.
+- A typed/schema requirement such as *integer*, *non-negative integer*, exact
+  byte length, or `max_description_chars >= 0` is validated before canonical
+  serialization. It is a semantic constraint, **not** a choice of a second
+  JSON integer formatter. A semantic integer must not be silently rounded to
+  a different binary64 value to obtain wire bytes. If an admitted semantic
+  integer is JCS-serialized in exponent form, that exponent form is canonical:
+  for example, an admitted `1e21` integer has the token `1e+21`. The existing
+  field bounds in this document remain unchanged; this amendment adds no
+  arbitrary practical-integer range.
 
 Pretty-printing, alternate key order, alternate escaping, alternate numeric
 spellings, implementation-specific float formatting, and duplicate semantic
 fields are forbidden.
+
+The Python standard-library call
+`json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)` is
+**not** a normative implementation and is insufficient by itself to establish
+H2 JCS numeric conformance. A future implementation must either use an
+already-approved RFC 8785/JCS-compliant implementation already present in the
+repository/dependency set, or implement the minimal internal JCS canonical
+serializer required by this contract. It may not add a dependency through this
+authorization. In particular, `json.dumps` may participate only if a
+separately proven JCS-compliant number formatter replaces its incompatible
+numeric formatting.
+
+The following number vectors are normative. “Expected UTF-8 JSON token bytes”
+means the literal bytes shown, with no surrounding whitespace or quotation
+marks. They are fixed from RFC 8785 Section 3.2.2.3 and Appendix B's
+ECMAScript-compatible binary64 samples.
+
+| Input/value (finite binary64 unless rejected) | Expected UTF-8 JSON token bytes |
+|---|---|
+| `0` | `0` |
+| `-0.0` | `0` |
+| `1` | `1` |
+| `-1` | `-1` |
+| `1.5` | `1.5` |
+| `1.5e-6` | `0.0000015` |
+| `1e-6` | `0.000001` |
+| `9.999999999999997e-7` | `9.999999999999997e-7` |
+| `1e-7` | `1e-7` |
+| `1e20` | `100000000000000000000` |
+| `1e21` | `1e+21` |
+| `-1e21` | `-1e+21` |
+| source literal `333333333.33333329` (the corresponding binary64 value) | `333333333.3333333` |
+| `NaN` | reject; no serialized bytes |
+| `+Infinity` | reject; no serialized bytes |
+| `-Infinity` | reject; no serialized bytes |
+
+Future H2 serializer tests must assert exact byte equality for every accepted
+vector: `canonical_serialize(value) == exact_expected_utf8_bytes`; parsing the
+output back to an equivalent value is insufficient. Where a verifier receives
+sealed serialized evidence, it must also reject semantically equivalent but
+non-canonical numeric encodings when canonical reserialization does not equal
+the sealed bytes.
 
 For every versioned H2 object, validation is exactly:
 
@@ -246,10 +303,7 @@ Revalidation parses the sealed bytes into the exact typed schema, rejects
 unknown fields and invalid enum values, canonically reserializes it, and
 requires byte-for-byte equality with the sealed bytes before using its hash.
 No `null`/missing-field equivalence, free-form diagnostic text, or lossy
-object-to-dictionary conversion is permitted. A future implementation may use
-an RFC 8785-compliant internal implementation, but may not substitute Python
-`json.dumps`, `Decimal` formatting, `repr`, or another serializer unless its
-output is proven byte-for-byte H2 Canonical JSON v1 for every accepted value.
+object-to-dictionary conversion is permitted.
 Where an H2 field is explicitly an existing PRIMARY/candidate/quality/Judge/
 ProviderCall hash, its preimage remains the named frozen existing builder:
 `build_scoring_request_identity()`, `build_scoring_candidate_hash()`,
@@ -292,6 +346,14 @@ envelope.
 | `parser_evidence` | either exact `ParserFailureEvidence` or exact `NotApplicableEvidence`, never `null` or omitted |
 | `language_evidence` | either exact `LanguageValidationEvidence` or exact `NotApplicableEvidence`, never `null` or omitted |
 | `judge_evidence` | either exact `JudgeEvidence` with role `PRIMARY` or exact `NotApplicableEvidence`, never `null` or omitted |
+
+PREWRITE and every evidence replay independently rederive **both**
+`primary_raw_sha256` and `primary_raw_utf8_length` from the same exact
+authoritative `primary_raw_utf8` strict-UTF-8 bytes. A correct hash does not
+excuse an incorrect byte length, and a correct byte length does not excuse an
+incorrect hash. Both comparisons must pass before any
+`PhaseHTrustedRepairSuccess` can be accepted or minted and before common
+write-plan minting.
 
 `NotApplicableEvidence` is exactly `{"kind":"NOT_APPLICABLE"}`: one string
 field, no others. `CandidateEvidence` is exactly:
@@ -871,6 +933,9 @@ write, terminal/retry transition, or `ValidatedScoringWritePlan` may exist.
 | Unknown `PrimaryFailureEvidence` field | Insert an unrecognized field at any depth of `PrimaryFailureEvidence`. | Exact typed parsing rejects unknown fields before write-plan minting and satisfies every Category A assertion. |
 | Missing `PrimaryFailureEvidence` field | Remove any required top-level or required applicable tagged-evidence field. | Exact typed parsing rejects missing fields before write-plan minting and satisfies every Category A assertion. |
 | Non-canonical equivalent evidence | Supply syntactically valid JSON that parses to the same typed object but differs in key order, separators, whitespace, Unicode representation, or duplicate-key encoding. | Canonical reserialize bytes differ from the seal; reject before write-plan minting and satisfy every Category A assertion. |
+| PRIMARY raw SHA-256 substitution | Begin with otherwise internally valid `PrimaryFailureEvidence`, keep exact `primary_raw_utf8` unchanged, and alter only `primary_raw_sha256` to a different valid-looking lowercase 64-character SHA-256 value. | Recompute SHA-256 from the exact authoritative PRIMARY strict-UTF-8 raw bytes and reject the mismatch before a `PhaseHTrustedRepairSuccess` can be accepted or minted and before common write-plan minting. Assert zero additional provider calls, zero Judge calls, zero filesystem writes, zero Artifact writes, zero SQLite success writes, and no video/job success transition. |
+| PRIMARY raw UTF-8 byte-length substitution | Begin with otherwise internally valid `PrimaryFailureEvidence`, keep exact multibyte `primary_raw_utf8` unchanged, preserve/recompute its correct SHA-256, and alter only `primary_raw_utf8_length`. The fixture must include a non-ASCII multibyte character so its Python character count differs from its strict UTF-8 byte count. | Recompute `primary_raw_utf8.encode("utf-8", errors="strict")`, then `len(bytes)`, and compare it to `primary_raw_utf8_length`; reject the mismatch before common write-plan minting. A correct hash does not excuse this incorrect length. Assert zero additional provider calls, zero Judge calls, zero filesystem writes, zero Artifact writes, zero SQLite success writes, and no video/job success transition. |
+| PRIMARY raw combined substitution | Optionally change PRIMARY raw bytes while retaining stale hash and stale byte length. | This supplemental combined case does not replace either independent raw-field case above. Recompute both fields from the exact authoritative strict-UTF-8 bytes, reject before common write-plan minting, and satisfy every Category A assertion. |
 | H2 canonical-number corpus | Exercise the serializer and every applicable typed H2 field with integer `0`, a positive integer, a negative integer, a finite fraction, a numerically small finite binary64, a numerically large finite binary64, `-0.0`, `NaN`, `+Infinity`, `-Infinity`, and alternate parseable numeric spellings. | For a value admitted by its field, require parse -> typed validation -> H2-canonical reserialize -> exact sealed-byte equality. For a value outside the field's typed range (for example a negative limit), require typed rejection. `-0.0` seal text is only `0`; NaN/infinities reject; every alternate numeric spelling whose canonical bytes differ rejects before write-plan minting and satisfies every Category A assertion. |
 | RepairNormalizedInput shape | Omit a required RNI field, insert an unknown field, or supply a PRIMARY normalized-input object/preimage in place of `RepairNormalizedInput`. | Exact `task016c-repair-normalized-input-v1` typed parse/canonical reserialization and `role="REPAIR"` check reject before write-plan minting and satisfy every Category A assertion. |
 | RepairNormalizedInput PRIMARY bindings | Independently alter `primary_attempt_identity`, `primary_failure_evidence_hash`, `primary_raw_sha256`, PRIMARY request/normalized hash, job/video identity, or `scoring_input`. | Rebuilt PRIMARY identity/evidence and canonical RNI hash fail equality before write-plan minting and satisfy every Category A assertion. |
