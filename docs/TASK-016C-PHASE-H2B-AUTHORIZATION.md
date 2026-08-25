@@ -4,382 +4,308 @@
 
 **Status:** `READY FOR H2-B AUTHORIZATION INDEPENDENT REVIEW`.
 
-This is a design/authorization document only.  It freezes the runtime control
-flow for one received, eligible PRIMARY failure through one REPAIR provider
-attempt and one REPAIR Judge attempt.  It authorizes no implementation in this
-task and does not authorize H2-C, persistence, a schema change, a migration,
-dependency work, a network call, or any public repair API.
+This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
-This document consumes the accepted H2 authorization and H2-A evidence
-foundations.  In the event of a conflict, the frozen H2 authorization controls
-the evidence schema, serializer, identities, and H1 semantics; this document
-controls only the narrower H2-B runtime sequencing and stop boundary.  It does
-not amend `docs/TASK-016C-PHASE-H2-AUTHORIZATION.md`.
+The accepted H2 authorization remains authoritative for H2 evidence schemas, H2 JCS, identities, and H1 semantics. This document freezes the narrower H2-B execution, provider-contact, terminalization, and H2-C handoff contracts. It does not amend `docs/TASK-016C-PHASE-H2-AUTHORIZATION.md`.
 
 ## 1. Frozen H2-B boundary
 
-H2-B activates exactly this memory-only path:
-
 ```text
-eligible PRIMARY failure, actually observed by the runtime
-  -> runtime-owned verification of PRIMARY failure evidence
-  -> one-shot REPAIR admission
-  -> one REPAIR provider contact
-  -> exact REPAIR raw capture
-  -> candidate/schema validation
-  -> TASK-016B language validation
-  -> one REPAIR Judge admission and contact
-  -> H2-A Judge raw replay and PASS verification
-  -> PhaseH2BValidatedRepairResult (memory only)
+actual PRIMARY execution
+  -> runtime observes a closed eligible failure
+  -> constructs and re-verifies PrimaryFailureEvidence (PFE) with H2-A
+  -> derives RepairNormalizedInput (RNI)
+  -> derives exact REPAIR request identity and payload locally
+  -> atomically admits and dispatches REPAIR under that exact identity
+  -> captures and validates REPAIR raw/candidate/language evidence
+  -> derives exact REPAIR Judge identity locally
+  -> atomically admits and dispatches REPAIR_JUDGE under that exact identity
+  -> pure-replays exact Judge raw and requires PASS
+  -> PhaseH2BValidatedRepairResult evidence aggregate only
+  -> STOP H2-B
 ```
 
-It stops there.  In particular, H2-B does **not** mint
-`PhaseHTrustedRepairSuccess`, call `TrustedPersistenceEntry.persist_success()`,
-call `persist_repair()`, register a ProviderCall or an Artifact, produce a
-write plan, promote a file, or make a SQLite success/stage update.  H2-C alone
-may define the subsequent sealed repair-success aggregate and use the existing
-Phase G persistence ingress.
+H2-B never mints `PhaseHTrustedRepairSuccess`; calls neither `TrustedPersistenceEntry.persist_success()` nor `persist_repair()`; and makes no ProviderCall/Artifact registration, filesystem write, write plan, score or stage update, SQLite success registration, cache entry, or recovery marker. H2-C alone may mint the repair persistence authority and use the existing Phase G ingress.
 
-## 2. Sole runtime entry condition
+## 2. Runtime entry and closed eligibility
 
-REPAIR is a private branch in the runtime's actual PRIMARY execution; it is
-not an operation callable with a claimed failure class or evidence object.  At
-the instant the branch decides whether to admit REPAIR, all of the following
-must hold:
+REPAIR is a private branch in `RuntimeOperations`' actual PRIMARY execution; it is not callable with a claimed failure class, PFE, RNI, identity, admission, candidate, raw response, or request payload. The branch may begin only when, in the same live runtime execution:
 
-1. the same `RuntimeOperations` instance owns an active, unexpired `SCORING`
-   lease for the job, proved through the accepted H1 admission state;
-2. that state shows exactly one PRIMARY scoring role has already been consumed;
-3. this runtime has received and classified that PRIMARY outcome in the same
-   live execution (not reconstructed from caller input, a cache, a DB row, or a
-   restart record);
-4. runtime-owned inputs rebuild `PrimaryTrustedContext` with
-   `build_primary_trusted_context(...)`, and
-   `verify_primary_failure_evidence(pfe, trusted_context, validated_settings)`
-   succeeds before eligibility is considered;
-5. the independently replayed class is in the closed eligible set in section
-   3, and is not `UNKNOWN_PROVIDER_STATE`; and
-6. the shared H1 state shows the REPAIR role unused and no existing ProviderCall
-   exists for the newly derived REPAIR request hash.
+1. the runtime owns the active, unexpired `SCORING` lease;
+2. H1 shows PRIMARY consumed exactly once, REPAIR unused, and no conflicting ProviderCall exists for the freshly derived REPAIR request hash;
+3. runtime-owned inputs rebuild `PrimaryTrustedContext`, `verify_primary_failure_evidence(...)` succeeds, and the PFE was produced while classifying the PRIMARY attempt actually dispatched by this runtime;
+4. the replayed `PrimaryFailureClass` is exactly one of `SCHEMA_OR_PARSE_INVALID`, `LANGUAGE_INVALID`, `JUDGE_REJECT`, or `JUDGE_UNCERTAIN`; and
+5. it is not `UNKNOWN_PROVIDER_STATE`, a deterministic-quality rejection, pre-capture/protocol failure, timeout, authority/config mismatch, arbitrary string, or future enum value.
 
-The runtime must derive the candidate PFE only while classifying the PRIMARY
-path it dispatched.  It may pass that private, in-memory state to a private
-helper, but the helper's input is runtime-owned context plus the internally
-created PFE—not `failure_class=...`, an arbitrary `PrimaryFailureEvidence`, an
-admission object, or a caller-created repair input.  Failure of any predicate
-is a fail-closed terminal H2-B result with no REPAIR contact.
+Failure of any predicate is fail-closed before a REPAIR provider contact. It does not let a caller reconstruct repair eligibility from a DB row, cache, restart record, or attacker-created evidence.
 
-## 3. Closed eligibility set
+## 3. Universal external-contact boundary
 
-The exact, and only, H2-B eligible `PrimaryFailureClass` literals are:
+**EXTERNAL CONTACT begins at the first transport invocation that can leave the process and communicate with the configured Ollama endpoint.** The boundary is transport invocation, never an endpoint name. It includes every attempt's first and subsequent HTTP invocation, including `GET /api/tags`, `POST /api/generate`, a health request, model probe, provider preflight, lazy remote initialization, or a future request made by the same provider attempt.
 
-- `SCHEMA_OR_PARSE_INVALID`
-- `LANGUAGE_INVALID`
-- `JUDGE_REJECT`
-- `JUDGE_UNCERTAIN`
+The current Ollama seams prove why this is required: scoring and Judge model verification call `/api/tags` before `/api/generate`. The authorization never describes contact as beginning only at `/api/generate`.
 
-`UNKNOWN_PROVIDER_STATE` is never eligible.  Nor are
-`DETERMINISTIC_QUALITY_REJECT`, a pre-capture parser/protocol error, a timeout,
-an authority/configuration mismatch, an arbitrary string, or a future enum
-value.  This matches the frozen H2 source of truth exactly.  A known candidate
-that the deterministic quality gate rejects is terminal and cannot be
-relabeled as `JUDGE_REJECT`.
+The following are **LOCAL ONLY** if, and only if, inspection of the concrete factory proves that they do not invoke transport:
 
-## 4. H1 admission, identity, and dispatch order
+- Python object construction and local URL/client setup;
+- validation of `LocalScoringSettings`, model/digest shape, loopback URL, and frozen prompt/schema literals;
+- revalidation/serialization of PFE, RNI, identities, Judge inputs, and raw evidence; and
+- deterministic prompt and request-body construction plus strict-UTF-8 hashing.
 
-H2-B reuses the existing H1 `ScoringAdmissionRegistry` execution key, lock,
-lease proof, role budget, `ProviderCall`-existence check, and terminal release
-semantics.  It adds neither a second registry nor a receipt, token,
-continuation, capability, or caller-minted repair identity.
+If the current or future provider factory, constructor, lazy initialization, or configuration check can perform any network I/O, admission must occur before that operation. An implementer may not assume that a factory is local.
 
-The necessary REPAIR/REPAIR_JUDGE consumption operation is a private,
-runtime-only H1 admission method.  It must be callable only by
-`RuntimeOperations`' internal PRIMARY-failure branch; the current public
-`ScoringDispatchAdmission.admit()` continues to reject caller attempts to
-consume either repair role.
+## 4. Admission before contact and same-identity dispatch
 
-The exact REPAIR sequence is:
+For both REPAIR and REPAIR_JUDGE the mandatory sequence is:
 
 ```text
-verified runtime PRIMARY failure
-  -> build_repair_normalized_input(
-       job_id,
-       runtime-owned PrimaryTrustedContext,
-       internally created verified PFE,
-       validated LocalScoringSettings,
-     )
-  -> repair_normalized_input_hash(RNI)
-  -> build_repair_request_hash(RNI)
-  -> local provider-factory/config construction (no contact)
-  -> private H1 REPAIR admission under the shared execution-state lock
-  -> one provider dispatch/contact
+derive complete immutable expected identity and exact request locally
+  -> perform only deterministic local validation/factory work
+  -> atomically consume the relevant H1 role for that same identity
+  -> immediately invoke the provider attempt with those same local values
+  -> first transport may be /api/tags
+  -> later transport may be /api/generate
 ```
 
-Provider construction is deliberately before REPAIR admission: a factory or
-configuration failure is locally known and consumes no slot.  The admission is
-the last authorization check before the first request is sent.  It re-proves
-the active lease while holding the shared H1 state lock, rejects a consumed
-`REPAIR` role or existing request hash, and records `REPAIR` as consumed before
-releasing the lock and contacting the provider.  Once consumed it is never
-unconsumed, including if no useful response follows.
+No `/api/tags`, health request, model probe, remote preflight, or lazy remote initialization may occur before the relevant admission. If a factory can contact the endpoint, it moves after admission and is invoked inside the same private admission-and-dispatch closure.
 
-`RNI.schema_version` remains exactly
-`task016c-repair-normalized-input-v1`; `role` is exactly `REPAIR`; its
-normalized-input hash remains H2 JCS SHA-256; and its provider request hash is
-the frozen role-distinct `build_provider_request_hash()` result for
-`local-scoring-repair-v1`.  Runtime derives every model, digest, temperature,
-limit, role, normalized hash, and request hash from the trusted context,
-validated settings, and verified PFE.  No caller-provided value in any of those
-positions is authoritative.  A PRIMARY scoring identity, PRIMARY Judge H2, or
-REPAIR Judge H2 cannot substitute for the REPAIR scoring identity.
+### REPAIR invariant
 
-If admission rejects, H2-B performs zero provider contacts and returns a
-terminal fail-closed non-success.  If either runtime loses or expires its lease
-before factory completion, admission, or contact, it performs no contact; after
-admission but before contact, it still must re-prove the lease immediately
-before dispatch and fail closed if that proof fails.  An expired/interrupted
-SCORING job is handled by H1's terminal `UNKNOWN_PROVIDER_STATE` recovery path,
-not by a H2-B retry.
-
-## 5. Provider-contact and UNKNOWN boundary
-
-**Provider contact** starts when the implementation invokes the provider method
-that can send the REPAIR request (for Ollama, the request-bearing generate
-operation).  Constructing a factory, deriving identities, validating local
-data, admission rejection, or formatting a request is not contact.
-
-Before contact, a factory/configuration failure, identity/evidence mismatch,
-local parse/validation failure, or admission/lease rejection is a known local
-failure.  It creates no `UNKNOWN_PROVIDER_STATE` merely because no request may
-have been sent, and creates no retry or persistence authority.  It consumes no
-REPAIR slot if it occurs before admission; a post-admission lease proof failure
-leaves the one-shot slot consumed but still makes no contact.
-
-After contact, timeout, connection/read interruption, ambiguous HTTP/provider
-state, process interruption, missing reliable response state, or any failure
-that makes it impossible to determine whether the provider received/acted on
-the request is `UNKNOWN_PROVIDER_STATE`.  It is terminal and fail-closed:
-there is no second REPAIR, Judge, takeover, cache interpretation, or
-persistence.  Only H1's already-authorized terminal job/error update may occur
-where applicable.
-
-## 6. REPAIR raw capture and candidate result categories
-
-REPAIR uses the same *candidate transport* boundary as PRIMARY because the
-frozen parser consumes the full Ollama `/api/generate` HTTP body.  This is not
-an accidental reuse of Judge raw semantics.
+The runtime derives immutable local REPAIR identity `A`, the exact RNI, exact payload bytes, payload SHA-256, prompt string, and provider closure before admission. One private operation consumes `REPAIR` for `A` and immediately invokes that closure with the same lexical values. It may not return an admission token, continuation, or mutable request object to a caller.
 
 ```text
-complete HTTP body, at most 1,000,000 bytes
-  -> strict UTF-8 decode, preserving the exact body text
-  -> strict outer Ollama object and string `response` extraction
-  -> strict UTF-8 re-encode of the full body
-  -> SHA-256 and exact byte length of those full-body bytes
-  -> canonical scoring-candidate parser on that same full body
+derive A + payload A locally
+  -> private admit-and-dispatch(A, closure using exactly A + payload A)
+  -> consume REPAIR for A
+  -> first transport for exactly A + payload A
 ```
 
-The authoritative REPAIR raw is the full decoded HTTP response body—not
-`payload["response"]`, a parsed object, a pretty-printed/re-serialized body,
-or a trimmed value.  It is accepted at exactly 1,000,000 bytes and rejected
-above that bound.  Strict UTF-8 re-encoding must reproduce the raw bytes;
-surrogates fail.  The exact SHA-256 and byte length are calculated from
-`repair_raw_utf8.encode("utf-8", errors="strict")`.  Whitespace, escape
-spelling, and empty model content are preserved exactly; empty content is a
-valid capture and then deterministically fails candidate parsing.
+It is forbidden to consume REPAIR for A and later replace the request, identity, payload, role, RNI, request hash, or closure input to dispatch B. The equality guarantee arises from the same function-local immutable values, not a caller assertion that A equals B.
 
-Duplicate object keys are not last-key-wins authority.  The H2-B transport
-decoder must detect and reject duplicates while extracting the outer Ollama
-envelope and while validating its inner scoring-candidate JSON.  A duplicate
-in the outer envelope prevents a trustworthy `response` extraction and is a
-post-contact `UNKNOWN_PROVIDER_STATE`.  A duplicate in the extracted inner
-candidate has a trustworthy captured body but invalid candidate syntax: it is a
-known REPAIR `SCHEMA_OR_PARSE_INVALID` terminal failure.  The future parser
-change must be a single shared strict parser/replay seam, not a separate REPAIR
-parser or a new identity algorithm.
+### REPAIR_JUDGE invariant
 
-Missing/non-string outer `response`, non-object outer JSON, invalid strict
-UTF-8, oversize/truncated body, or otherwise incomplete outer protocol are
-post-contact UNKNOWN outcomes.  Once the outer protocol is complete, malformed
-inner JSON, non-object inner JSON, extra fields, duplicate inner keys, and
-`ScoringCandidate` schema failure are known REPAIR parse/schema failures.  Each
-has no recursive repair and no persistence.  Thus H2-B terminal categories are
-`PRE_CONTACT_FAILURE`, `UNKNOWN_PROVIDER_STATE`,
-`REPAIR_SCHEMA_OR_PARSE_INVALID`, `REPAIR_LANGUAGE_INVALID`,
-`REPAIR_JUDGE_REJECT`, `REPAIR_JUDGE_UNCERTAIN`,
-`REPAIR_JUDGE_UNKNOWN_PROVIDER_STATE`, and memory-only success.  These labels
-are H2-B control-flow outcomes, not new DB enums or durable schema.
+The same private structure applies to the immutable expected REPAIR Judge identity `J` (`attempt_role=REPAIR`, expected H1, expected H2, exact `QualityJudgeOperationInput`, exact `ContentQualityInput`, and provider closure): consume `REPAIR_JUDGE` for J, then immediately invoke exactly J. PRIMARY Judge identity, REPAIR scoring identity, J1/J2 substitution, later role mutation, or candidate/request substitution is rejected before Judge contact.
 
-## 7. REPAIR language validation
+### H1 implementation shape
 
-After a parser-derived `ScoringCandidate`, H2-B invokes exactly the frozen
-TASK-016B language validator, using the RNI/output-language binding.  It does
-not add a second language algorithm, heuristic, or fallback.
+H1's existing execution key, lease proof, shared lock, role budget, ProviderCall-existence check, and terminal-release semantics remain reused. There is no durable identity registry, DB column, persistent receipt, token, capability object, mutable global mapping, or schema migration.
 
-An `INVALID` language result is `REPAIR_LANGUAGE_INVALID`: terminal,
-non-success, no second REPAIR, no Judge dispatch, and no persistence.  During
-H2-B this result exists only in memory plus any already-authorized H1 terminal
-job/error transition; it creates neither a repair success record nor a new
-artifact.  `UNCERTAIN` is fail-closed under the same terminal local-failure
-rule; only a valid candidate may advance to the quality path.
+`src/youtube_intel/scoring_admission.py` is authorized to change only if a minimal **private** `RuntimeOperations`-only admission-and-dispatch operation is needed to make the above closure structural. Its sole purpose may be to verify the live lease, check the exact derived request hash, consume the role, and invoke the same locally derived closure. It must not persist identities, return a reusable token/receipt/capability, expose public REPAIR admission, or allow caller-provided identity after role consumption. If this can be achieved with the existing private composition, `scoring_admission.py` remains frozen. The existing public `ScoringDispatchAdmission.admit()` continues to reject caller attempts to consume `REPAIR` or `REPAIR_JUDGE`.
 
-## 8. REPAIR Judge sequence and budget
+## 5. Exact REPAIR request construction
 
-For a valid REPAIR candidate, H2-B derives—not accepts—the quality inputs and
-Judge identity from runtime-owned repaired candidate, RNI, trusted runtime
-settings, and the frozen quality authority:
+The legacy `_repair_saved_primary_response()` / `_render_repair_prompt()` is not an authority for H2-B: it derives from incompatible PRIMARY request inputs and has a non-role-distinct legacy repair hash. H2-B must use this one source:
 
 ```text
-runtime-owned repaired candidate + RNI + validated settings
-  -> expected REPAIR ContentQualityInput and QualityJudgeOperationInput
-     (attempt_role = REPAIR)
-  -> build_judge_h1_h2() / expected H1 and H2
-  -> local Judge-factory/config construction (no contact)
-  -> private H1 REPAIR_JUDGE admission
-  -> one Judge provider contact
-  -> H2-A extracted Judge raw capture and pure replay
+runtime-owned trusted PRIMARY state
+  + verified PrimaryFailureEvidence
+  + validated LocalScoringSettings
+  -> build_repair_normalized_input(...)
+  -> exact RepairNormalizedInput (role=REPAIR)
+  -> H2 JCS bytes and RNI SHA-256
+  -> build_provider_request_hash(
+       operation="local-scoring-repair-v1",
+       normalized_input_hash=RNI SHA-256,
+       provider="ollama", model=settings.model,
+       prompt_version="scoring-prompt-v2", schema_version="score-result-v2")
+  -> exact RNI-bound REPAIR prompt and Ollama request payload
 ```
 
-The implementation must use the H2-A trusted composition pattern, extending it
-only with a runtime-owned REPAIR derivation if a small composition primitive is
-missing.  It must not accept a caller-created `JudgeTrustedContext`, Judge
-operation, candidate, request hash, or Judge evidence as authority.  The
-resulting role is exactly `REPAIR`; it cannot reuse PRIMARY H1/H2.
+Every derived value is revalidated before admission. No caller override, legacy request hash, PRIMARY identity, cache value, raw Artifact, or arbitrary prompt fragment is an input.
 
-H1's total Judge budget remains unchanged: PRIMARY may consume
-`PRIMARY_JUDGE` once and REPAIR may consume `REPAIR_JUDGE` once, for at most two
-Judge contacts.  The shared H1 lock prevents duplicate REPAIR Judge consumption
-and H1 requires a consumed REPAIR role before this role can be consumed.  A
-restart, a second runtime, an existing ProviderCall state, an expired lease, or
-a second attempt rejects before a Judge contact.  No hidden third Judge call is
-authorized.
+`RepairNormalizedInput.schema_version` remains exactly
+`task016c-repair-normalized-input-v1`; its role is exactly `REPAIR`; its
+normalized-input hash is H2-JCS SHA-256; and its request hash is the
+role-distinct `local-scoring-repair-v1` result above. PRIMARY scoring identity,
+PRIMARY Judge H2, and REPAIR Judge H2 cannot substitute for this REPAIR identity.
 
-Judge raw is exactly H2-A's boundary: the extracted Ollama `response` string,
-not the full HTTP body; strict UTF-8 bytes; at most 20,000 bytes inclusive;
-exact SHA-256 and byte length; no trimming, normalization, or reserialization.
-Outer protocol/raw capture failures after contact are
-`UNKNOWN_PROVIDER_STATE`, not `UNCERTAIN`.  The pure replay uses the existing
-Judge parser/evidence registry/result promotion; raw semantic invalidity is
-`UNCERTAIN` only when valid captured raw exists.
+### Frozen prompt
 
-Judge outcomes are frozen as follows:
+The prompt version literal is **`scoring-prompt-v2`**. The H2-B template source is the new fixed, private literal `TASK016C_REPAIR_PROMPT_V2`; it is not the legacy helper. It is assembled exactly in this order, with each bracketed value supplied by the trusted inputs above and no caller-supplied addition:
 
-| REPAIR Judge outcome | H2-B action |
+```text
+prompt_version: scoring-prompt-v2
+You are repairing one invalid local-scoring result.
+Return exactly one JSON object and no commentary.
+The object MUST satisfy the supplied score-result-v2 JSON schema.
+The reason field MUST use output language: <RNI.output_language>.
+REPAIR request hash: <derived REPAIR request hash>
+REPAIR normalized input: <H2-JCS exact RNI bytes decoded as strict UTF-8>
+PRIMARY failure evidence: <H2-JCS exact verified PFE bytes decoded as strict UTF-8>
+ORIGINAL scoring input: <H2-JCS exact RNI.scoring_input bytes decoded as strict UTF-8>
+PRIMARY raw body: <exact PFE primary raw body, untrimmed>
+PRIMARY candidate evidence: <H2-JCS exact PFE candidate evidence, or literal null>
+Invalid PRIMARY model content follows:
+<exact extracted invalid PRIMARY model content when PFE has it; otherwise literal null>
+Required JSON schema follows:
+<H2-JCS exact score-result-v2 schema literal>
+```
+
+The fixed text, line breaks, block order, `null` spelling, schema literal, and strict UTF-8 encoding are part of the payload provenance. The primary raw, extracted model content, and candidate block are included only as PFE-derived evidence; they are never reparsed or supplied by the caller. Thus schema/parse and language failures include their applicable invalid raw/candidate evidence, while Judge failures include the PFE's exact Judge evidence. The original scoring input is always included through the validated RNI binding.
+
+### Frozen Ollama payload
+
+The exact outbound `/api/generate` JSON object has no keys other than these:
+
+| Field | Exact value/source |
 |---|---|
-| `PASS` | May mint the memory-only result in section 10 after all H2-A replay and binding checks pass. |
-| `REJECT` | Terminal `REPAIR_JUDGE_REJECT`; no second repair, no persistence. |
-| `UNCERTAIN` | Terminal `REPAIR_JUDGE_UNCERTAIN`; no retry or further action. |
-| `UNKNOWN_PROVIDER_STATE` | Terminal fail-closed; no retry, repair, Judge, or persistence. |
+| `model` | `validated_settings.model`, equal to RNI `repair_model` |
+| `prompt` | exact `TASK016C_REPAIR_PROMPT_V2` result above |
+| `stream` | literal `false` |
+| `format` | frozen `score-result-v2` schema literal, the current accepted `_SCORE_RESULT_FORMAT` object |
+| `think` | literal `false` |
+| `options.temperature` | `validated_settings.temperature`, equal to RNI `temperature` |
+| `options.num_predict` | `validated_settings.max_output_tokens`, equal to RNI `max_output_tokens` |
 
-## 9. Runtime seam and non-public surface
+The body is `json.dumps` of precisely that object with `ensure_ascii=False`, `separators=(",", ":")`, then strict UTF-8 encoded. It uses the existing `Content-Type: application/json`, `Accept: application/json`, and `POST` transport metadata. `max_description_chars` is already bound by RNI and the original scoring input/prompt evidence; it is not an outbound generation key. There are no caller headers, options, generation keys, schema substitutions, or prompt fragments.
 
-The future branch belongs in `RuntimeOperations` immediately after the
-runtime's actual PRIMARY outcome classification and before the current
-PRIMARY-success-only finalizer/persistence continuation.  Concretely, it
-replaces the private `_KnownPrimaryFailure` escape at the producer-owned
-PRIMARY control-flow point with a private classifier that either returns the
-normal PRIMARY path, produces a verified eligible PFE and calls the private
-H2-B branch, or terminates fail-closed.  `run_primary_trusted_scoring()` remains
-PRIMARY-only and may not become a caller-controlled `repair(...)` overload.
+Before admission, the runtime calculates the SHA-256 and byte length of those exact payload bytes and binds them to the private dispatch values and H2-B aggregate. Immediately before transport it recomputes the body from the same trusted values and requires byte-for-byte equality, hash equality, and identity equality. It is forbidden to hash payload A and send/mutate payload B.
 
-An internal helper may accept one opaque runtime-owned execution-state object
-containing the lease-bound admission view, job id, rebuilt trusted PRIMARY
-context, internally generated PFE, and validated settings.  It must not accept
-arbitrary PFE/RNI/model/limits/role/hash/admission arguments from a public API.
-There will be no public `repair`, `retry`, `dispatch_repair`, repair factory,
-receipt, token, continuation, registry handle, repair authority, or
-caller-supplied admission state.
+## 6. External-contact outcome classification
 
-## 10. In-memory success and H2-C handoff
+Once a role is consumed and **any** external transport invocation begins, ambiguous outcome is `UNKNOWN_PROVIDER_STATE`: `/api/tags` timeout, connection reset, interrupted response, ambiguous exception after send/start, cancellation after invocation, incomplete external response, `/api/generate` timeout or interruption, or any outcome whose exact external state cannot be established. There is no retry of that REPAIR role and no second provider attempt.
 
-H2-B's only success value is an exact, immutable,
-non-serializable/private-mint intermediate named
-`PhaseH2BValidatedRepairResult`.  It is data plus sealed in-memory provenance,
-not a persistence capability.  It must contain, or seal bindings to:
-
-- the `TrustedScoreResult` produced only by the existing finalizer from the
-  repaired candidate;
-- exact `RepairNormalizedInput`, its H2 JCS normalized-input hash, and the
-  role-distinct REPAIR scoring request hash;
-- the independently verified `PrimaryFailureEvidence` and its hash;
-- the exact REPAIR full-body raw string, strict UTF-8 byte length/SHA-256, and
-  same-parser derived candidate/hash;
-- the REPAIR `JudgeEvidence`, whose role is `REPAIR`, expected H1/H2, raw
-  binding, pure-replayed result, and status are all `PASS`; and
-- enough sealed runtime provenance to rederive all of the preceding bindings
-  against the current trusted context/settings.
-
-It must reject copy/deepcopy/pickle/JSON restoration and cannot be accepted by
-`TrustedPersistenceEntry`, directly or by structural resemblance.  It confers
-no file, Artifact, ProviderCall, SQLite, job-success, stage-success, cache, or
-write-plan authority.
-
-H2-C receives only this object.  Its narrow task is:
+In particular:
 
 ```text
-PhaseH2BValidatedRepairResult
-  -> construct and independently revalidate PhaseHTrustedRepairSuccess
-  -> existing TrustedPersistenceEntry.persist_success()
-  -> existing Phase G PREWRITE/write-plan/filesystem/SQLite mechanics
+REPAIR admission -> /api/tags succeeds -> /api/generate ambiguous/fails
+  => UNKNOWN_PROVIDER_STATE, terminal, no second REPAIR
+
+REPAIR_JUDGE admission -> /api/tags succeeds -> Judge /api/generate ambiguous
+  => UNKNOWN_PROVIDER_STATE, terminal, no second Judge
 ```
 
-H2-C must not re-decide eligibility, alter model/config trust, dispatch a
-provider or Judge, replay a repair budget decision, or invent an identity rule.
+Pre-contact local rejection (including identity/payload mismatch, factory failure proven local, invalid trusted inputs, admission denial, or lease loss) has zero `/api/tags`, zero `/api/generate`, and zero Judge transport. A post-admission pre-contact lease proof failure consumes its one-shot role but still makes no contact.
 
-## 11. Concurrency and restart contract
+### Judge UNKNOWN versus UNCERTAIN
 
-### Concurrent runtimes
+H2-B must not use the live `OllamaQualityJudgeProvider.judge()` legacy behavior that collapses provider/preflight/transport failures to `UNCERTAIN`. For REPAIR_JUDGE:
 
-Attack case: runtime A and B observe the same eligible received PRIMARY failure
-for a shared active `SCORING` job/lease.  The H1 lease proof and shared
-execution-state lock permit exactly one runtime to consume `REPAIR` for the
-derived request hash.  The winner alone may contact the provider.  The loser
-finds a non-owned/expired lease, an already-consumed role, or an existing
-request-hash state and fails closed before contact.  A future RED test must run
-both branches concurrently and assert exactly one REPAIR provider contact, at
-most one REPAIR Judge contact, one REPAIR role consumption, zero persistence,
-and zero contact by the losing branch.
+- if transport/provider state occurred but valid exact Judge model-content raw was not established, the result is `UNKNOWN_PROVIDER_STATE`;
+- only after a successful external response has yielded valid exact Judge raw evidence may the pure H2-A verifier deterministically return `UNCERTAIN`. That semantic result is `REPAIR_JUDGE_UNCERTAIN`.
 
-### Restart and crash matrix
+A minimal provider-seam change is explicitly authorized to expose this distinction to the runtime. It must preserve raw evidence and does not authorize another Judge algorithm, policy, parser, or fallback.
 
-Admission state, PFE, RNI, raw capture, Judge evidence, and
-`PhaseH2BValidatedRepairResult` are memory-only and are never restored.  The
-following table freezes H2-B behavior; `H3` owns any later recovery work.
+## 7. REPAIR raw, candidate, language, and Judge flow
 
-| Event | Consumed H1 budget | Provider state / H2-B result | Retry and owner |
+REPAIR uses the PRIMARY candidate transport boundary: full `/api/generate` HTTP body, at most 1,000,000 bytes, strict UTF-8, strict outer Ollama object and `response` extraction, strict re-encode, full-body SHA-256/byte length, then the shared strict raw-to-`ScoringCandidate` parser. No trimmed, pretty-printed, reserialized, or `payload["response"]` substitute is raw authority. Outer duplicate key/protocol/raw capture failure after contact is UNKNOWN; malformed inner candidate JSON, duplicate inner key, extra field, or candidate schema failure after a trustworthy outer capture is known `REPAIR_SCHEMA_OR_PARSE_INVALID`.
+
+After a valid candidate, run exactly the TASK-016B language validator bound to the RNI output language. `INVALID` and `UNCERTAIN` are known terminal `REPAIR_LANGUAGE_INVALID` outcomes; neither dispatches a Judge.
+
+For a valid language result, derive—not accept—from trusted candidate, RNI, validated settings, and current quality authority:
+
+```text
+ContentQualityInput + QualityJudgeOperationInput(attempt_role=REPAIR)
+  -> expected REPAIR Judge H1 and H2
+  -> local-only Judge construction if proven local
+  -> atomic REPAIR_JUDGE admission + same-J dispatch
+  -> possibly /api/tags then possibly /api/generate
+  -> H2-A exact raw capture and pure replay
+```
+
+H1's budget is unchanged: at most one `PRIMARY_JUDGE` and one `REPAIR_JUDGE`. Judge raw is H2-A's extracted `response` string, strict UTF-8, at most 20,000 bytes inclusive, exact SHA-256/length, and never normalized or reserialized. `PASS` may produce the evidence aggregate; `REJECT` is known `REPAIR_JUDGE_REJECT`; pure semantic `UNCERTAIN` is known `REPAIR_JUDGE_UNCERTAIN`; any contact ambiguity is UNKNOWN.
+
+## 8. Terminal routes and exact error mapping
+
+Known H2-B failures must use the existing non-retryable repository route:
+
+```text
+PipelineRepository.fail_job(
+  job_id, owner=runtime_owner,
+  error_code=ErrorCode.INVALID_RESPONSE,
+  error_message=<fixed mapping below>,
+  retry_at=None, now=utc_now)
+  -> SQLiteStateRepository.fail_job(...)
+  -> JobStatus.FAILED_FINAL
+```
+
+`retry_at=None` is mandatory. The existing route writes the job attempt and job with `FAILED_FINAL`, clears the lease, and releases terminal H1 admission; the generic reclaim/retry path cannot revive `FAILED_FINAL`. No new ErrorCode enum or job state is authorized. The exact persisted error mapping is:
+
+| H2-B outcome | `last_error_code` | fixed safe `last_error_message` | Follow-up |
 |---|---|---|---|
-| A. Crash before REPAIR provider contact | None if before admission; `REPAIR` if after admission but before contact | No provider contact is known; the live H2-B result is lost. A consumed admission is not restored. | No H2-B retry. Later restart follows H1 terminal unknown/fail-closed handling; H3 owns any separately authorized recovery. |
-| B. Crash after REPAIR contact before response classification | `REPAIR` | Unknown provider state. | No retry, Judge, or persistence; H1 terminal unknown path only. |
-| C. Crash after valid REPAIR response before Judge | `REPAIR`; no `REPAIR_JUDGE` if not admitted | Response may be valid but all proof is volatile; restart cannot safely reuse it. | No retry or reuse; terminal unknown/fail-closed on restart; H3 only. |
-| D. Crash after REPAIR Judge contact | `REPAIR` and `REPAIR_JUDGE` | Unknown Judge provider state. | No retry, further Judge, or persistence; H1 terminal unknown path only. |
-| E. Crash after Judge PASS before H2-C/persistence | `REPAIR` and `REPAIR_JUDGE` | Validated result was only memory; it is lost and cannot become success from a restart. | No H2-B retry or persistence; H1 terminal unknown/fail-closed handling, H3 only if later authorized. |
+| `REPAIR_SCHEMA_OR_PARSE_INVALID` | `INVALID_RESPONSE` | `REPAIR_SCHEMA_OR_PARSE_INVALID` | no Judge, no second REPAIR, no persistence |
+| `REPAIR_LANGUAGE_INVALID` | `INVALID_RESPONSE` | `REPAIR_LANGUAGE_INVALID` | no Judge, no second REPAIR, no persistence |
+| `REPAIR_JUDGE_REJECT` | `INVALID_RESPONSE` | `REPAIR_JUDGE_REJECT` | no second Judge/REPAIR, no persistence |
+| `REPAIR_JUDGE_UNCERTAIN` | `INVALID_RESPONSE` | `REPAIR_JUDGE_UNCERTAIN` | no second Judge/REPAIR, no persistence |
 
-An existing complete verified Phase G/H2-C graph, if H2-C later creates one, is
-handled solely by existing idempotent-completion verification and makes no
-provider or Judge contact.  H2-B creates no durable schema or recovery marker.
+`UNKNOWN_PROVIDER_STATE` is distinct. It must use the existing H1-owned `PipelineRepository.finalize_unknown_provider_state(...)`, which stores `UNKNOWN_PROVIDER_STATE` and `JobStatus.FAILED_FINAL`; it must never pass through the known-failure mapping. Both classes are terminal and non-retryable, but retain their different provenance semantics.
+
+## 9. PhaseH2BValidatedRepairResult: evidence, not authority
+
+`PhaseH2BValidatedRepairResult` is an **IN-MEMORY EVIDENCE AGGREGATE ONLY**. It is untrusted input to H2-C. Its type, private construction, frozen dataclass shape, intended non-serialization, exact schema, immutability, or non-copyability may be useful implementation hygiene, but none confers trust or persistence authority. H2-C must assume an attacker can construct, mutate, copy, deepcopy, or deserialize an equivalent aggregate.
+
+It must carry sufficient evidence for independent replay, at least:
+
+- PRIMARY rederivable trusted input/provenance, `PrimaryFailureEvidence`, failure class, PRIMARY raw/candidate/request bindings and hashes;
+- exact RNI, its H2-JCS bytes/hash, REPAIR request hash, exact request payload bytes or exact payload provenance plus payload SHA-256/length;
+- exact REPAIR outer raw body, strict UTF-8 SHA-256/length, extracted model content, reparsed `ScoringCandidate`, and candidate hash;
+- TASK-016B language result and evidence;
+- exact REPAIR Judge operation input, role `REPAIR`, expected H1, expected H2, `JudgeEvidence`, exact Judge raw content/hash/length, and final `PASS`; and
+- finalizer-produced `TrustedScoreResult`, its sealed structured bytes/hash/length, and exact model/digest/prompt/schema/policy/settings provenance required to replay all bindings against current runtime authority.
+
+A score-only result is insufficient. H2-B may not define or mint `PhaseHTrustedRepairSuccess`, and direct passage of even a valid H2-B aggregate to `TrustedPersistenceEntry.persist_success(...)` must reject before any read or side effect.
+
+## 10. H2-C independent replay obligation
+
+H2-C makes no new policy choice about eligible failure classes: that closed policy remains frozen. It **must**, however, independently prove that the untrusted evidence satisfies that frozen policy. Before minting `PhaseHTrustedRepairSuccess`, H2-C must:
+
+1. fresh-revalidate the aggregate and every nested schema;
+2. rederive `PrimaryTrustedContext` from runtime-owned trusted `ScoringInput`/settings;
+3. replay the PFE;
+4. re-prove PRIMARY failure eligibility under the closed policy;
+5. rederive RNI from trusted runtime inputs and verified PFE;
+6. reserialize RNI under H2 JCS and recompute its hash;
+7. rederive the REPAIR provider request hash;
+8. rederive the exact REPAIR payload/provenance, payload bytes/hash/length;
+9. verify sealed REPAIR outer raw: strict UTF-8, duplicate-key rule, byte length, SHA-256, and outer protocol extraction;
+10. replay the inner REPAIR candidate parser/schema validation;
+11. recompute candidate hash;
+12. rederive the finalizer-produced `TrustedScoreResult` and its sealed structured bytes/hash/length from the trusted candidate/context;
+13. rerun TASK-016B language validation and match its evidence/result;
+14. derive expected REPAIR Judge context from trusted candidate/request/settings;
+15. rederive Judge H1;
+16. rederive Judge H2;
+17. verify Judge raw strict UTF-8, bounds, hash, and length;
+18. pure-replay Judge raw;
+19. require Judge result exactly `PASS`;
+20. verify all PRIMARY -> REPAIR -> Judge cross-bindings; and
+21. verify current runtime settings/provenance equal the sealed evidence.
+
+Only after every check passes may H2-C mint `PhaseHTrustedRepairSuccess`, then use the sole frozen route:
+
+```text
+PhaseHTrustedRepairSuccess
+  -> TrustedPersistenceEntry.persist_success()
+  -> Phase G PREWRITE_VALIDATE
+  -> shared filesystem protocol
+  -> SQLite atomic registration
+```
+
+H2-C may bind H2-B admission/budget metadata as evidence where authorized, but may not trust it merely because the object came from H2-B or has the expected Python type. It may not dispatch a provider/Judge, invent an identity rule, or use `persist_repair`, an alternate writer, SQLite path, or Artifact namespace.
+
+## 11. Concurrency, restart, and crash contract
+
+H1's shared lock and lease proof permit one concurrent runtime to execute the private REPAIR closure. The losing runtime cannot use the winner's consumed role to dispatch a different identity; it rejects before contact. There is at most one REPAIR contact and one REPAIR Judge contact, and H2-B makes no persistence write.
+
+Admission/PFE/RNI/raw/Judge evidence/H2-B aggregate are memory-only and never restored. H1's existing interrupted-SCORING recovery finalizes interrupted work as `UNKNOWN_PROVIDER_STATE` before generic reclaim/retry. The matrix is:
+
+| Event | Required result |
+|---|---|
+| Crash before any external contact | no unauthorized retry beyond frozen lease/admission semantics; no contact replay |
+| Crash after `/api/tags` or `/api/generate` | H1 UNKNOWN fail-closed terminalization; no REPAIR/Judge retry |
+| Valid REPAIR response then crash before Judge | no REPAIR redispatch or evidence reuse; UNKNOWN fail-closed recovery |
+| Judge transport started then crash | UNKNOWN fail-closed; no second Judge |
+| Judge PASS then crash before H2-C | no automatic REPAIR/Judge redispatch and no H2-B persistence |
 
 ## 12. Side-effect accounting
 
-For every pre-dispatch rejection—invalid/forged PFE, caller-created RNI,
-identity/config override, factory failure, admission failure, lease failure,
-or local validation failure—assert:
+Pre-contact rejection means zero `/api/tags`, zero `/api/generate`, zero Judge transport, zero filesystem/Artifact writes, and zero SQLite success writes.
 
-- zero additional scoring-provider contacts;
-- zero additional Judge contacts;
-- zero filesystem writes;
-- zero Artifact writes; and
-- zero SQLite success writes.
+Post-contact UNKNOWN means no additional transport retry, no second REPAIR or Judge, no success persistence, and only the existing H1 UNKNOWN terminal job/error update. Known REPAIR terminal failure means no provider/Judge call beyond the completed legitimate baseline, the exact non-retryable `FAILED_FINAL` transition above, and no persistence.
 
-For stateful rejections after a baseline (for example a consumed role, a lost
-lease after admission, a duplicate dispatch, or an UNKNOWN response), assert
-relative to that baseline: no additional unauthorized provider contact, no
-duplicate role consumption, no duplicate Judge contact, and no persistence.
-`UNKNOWN_PROVIDER_STATE` may perform only the existing H1 terminal job/error
-update where already authorized; it never writes a success graph.
+## 13. Required future RED behavioral and attack matrix
 
-## 13. Future RED behavioral matrix
-
-The future H2-B implementation must add focused RED tests for all of the
-following, preserving the accounting in section 12:
+The implementation must preserve these prior 22 cases:
 
 1. caller invokes REPAIR without an actual PRIMARY failure;
 2. forged otherwise eligible PFE;
@@ -401,48 +327,54 @@ following, preserving the accounting in section 12:
 18. REPAIR Judge `UNCERTAIN`;
 19. REPAIR Judge `UNKNOWN_PROVIDER_STATE`;
 20. a second REPAIR attempt after every possible repair failure;
-21. direct passage of `PhaseH2BValidatedRepairResult` to
-    `TrustedPersistenceEntry`; and
-22. every attempted REPAIR persistence/write/ProviderCall/Artifact registration
-    before H2-C.
+21. direct passage of `PhaseH2BValidatedRepairResult` to `TrustedPersistenceEntry`; and
+22. every attempted REPAIR persistence/write/ProviderCall/Artifact registration before H2-C.
 
-## 14. Future implementation allowance and prohibitions
+It must additionally include explicit RED tests for:
 
-A separate H2-B implementation authorization may allow only the smallest
-necessary edits to:
+1. REPAIR `/api/tags` before admission: forbidden/fails implementation.
+2. Admission denied: zero `/api/tags` and `/api/generate` calls.
+3. REPAIR `/api/tags` timeout after admission: UNKNOWN, no generate retry or second REPAIR.
+4. REPAIR `/api/tags` success then `/api/generate` timeout: UNKNOWN, no second REPAIR.
+5. REPAIR_JUDGE `/api/tags` timeout: UNKNOWN, not `JUDGE_UNCERTAIN`, no second Judge.
+6. REPAIR_JUDGE `/api/tags` success then `/api/generate` timeout: UNKNOWN, not `JUDGE_UNCERTAIN`.
+7. derived REPAIR A then attempted dispatch B: reject before contact.
+8. consumed REPAIR then mutable request/identity mutation: impossible or reject before contact.
+9. PRIMARY identity substituted as REPAIR, or correct RNI with altered final provider request hash: reject before contact.
+10. concurrent loser attempts to use winner's consumed slot for another identity: reject before contact.
+11. Judge J1 admission then J2 dispatch; PRIMARY Judge identity as REPAIR Judge; changed role after admission; changed candidate/request after Judge admission: each rejects before Judge contact.
+12. hash payload A then send/mutate payload B: reject before external contact.
+13. REPAIR parse failure: `FAILED_FINAL`, non-retryable, no Judge/no second REPAIR/no persistence; generic retry/reclaim cannot revive it.
+14. REPAIR language failure: `FAILED_FINAL`, no Judge/no second REPAIR/no persistence; generic retry/reclaim cannot revive it.
+15. REPAIR Judge REJECT and separately UNCERTAIN: `FAILED_FINAL`, no second Judge/no second REPAIR/no persistence; generic retry/reclaim cannot revive.
+16. `object.__new__` forged aggregate; `object.__setattr__` mutation of PRIMARY request hash, PFE, RNI/request hash, REPAIR raw/hash/length, candidate/hash, language evidence, Judge H1/H2/raw/hash/length/result PASS.
+17. forged/mutated `copy.copy`, `copy.deepcopy`, and pickle/serialization reconstructed aggregates.
+18. a semantically self-consistent attacker aggregate B against runtime trusted context A.
 
-- `src/youtube_intel/runtime.py` — private PRIMARY-failure branch and private
-  REPAIR/REPAIR Judge dispatch orchestration;
-- `src/youtube_intel/scoring_admission.py` — only a non-public,
-  runtime-guarded use of the existing H1 state for REPAIR/REPAIR_JUDGE;
-- `src/youtube_intel/h2_evidence.py` — only a missing runtime-owned REPAIR
-  Judge composition primitive, without changing H2-A trust rules or JCS;
-- `src/youtube_intel/providers/ollama.py` — only the existing provider seam's
-  one-shot REPAIR transport/raw-capture/shared strict-parser integration;
-- `src/youtube_intel/scoring.py` — only the private in-memory scoring seam
-  necessary to mint `PhaseH2BValidatedRepairResult` (not a persistence
-  aggregate);
-- focused H2-B and H1/H2-A regression tests; and
-- H2-B handoff documentation.
+For every case in 16–18, H2-C replay rejects before `PhaseHTrustedRepairSuccess` minting or persistence. Direct H2-B aggregate persistence rejects even for a fully valid aggregate.
 
-The following are not authorized: Phase G persistence machinery; state schema
-or migrations; repository write APIs; Artifact/ProviderCall registration;
-filesystem write-plan changes; `h2_jcs.py`; existing identity algorithms;
-TASK-016B language algorithm; public runtime repair APIs; `PhaseHTrustedRepairSuccess`;
-`persist_success(REPAIR)`; `persist_repair()`; cache/recovery/H3 work;
-dependencies, lockfiles, configuration, real provider/model/network/Vault use.
+## 14. Narrow future implementation scope
 
-## 15. Completion boundary
+Only a separate H2-B implementation authorization may allow the minimum edits:
+
+- `runtime.py`: private PRIMARY-failure branch and the private lexical admission-and-dispatch closures;
+- `scoring_admission.py`: only the conditional private operation described in section 4;
+- `providers/ollama.py`: only admission-before-first-transport integration, `/api/tags`/`/api/generate` outcome exposure, raw preservation, UNKNOWN vs semantic UNCERTAIN split, and RNI-bound REPAIR request construction;
+- `h2_evidence.py`: non-persistence `PhaseH2BValidatedRepairResult` schema and pure evidence helpers only; and
+- focused H2-B/H1/H2-A/H2-C future tests and handoff documentation.
+
+`scoring.py` is frozen for H2-B. In particular, no H2-B change may touch `TrustedPersistenceEntry`, `persist_success()`, PREWRITE verification, artifact write plans, filesystem writers, SQLite registration, or Phase G idempotency. There is no broad provider refactor, second Judge algorithm, identity algorithm change, H2 JCS change, TASK-016B language change, public repair API, schema or migration, dependency/config/lockfile change, cache/recovery/H3 work, real provider/model/network/Vault use, or H2-C implementation.
+
+## 15. Completion boundary and discretion audit
+
+An H2-B implementation agent has no discretion over whether `/api/tags` is contact; admission timing; ambiguity classification; Judge UNKNOWN versus UNCERTAIN; A-to-A or J-to-J binding; request/prompt/payload construction; retryability or terminal state; aggregate trust; H2-C replay; or low-level aggregate forgery rejection. Any required behavior not frozen here is a `DECISION NEEDED`, not an implementation choice.
 
 | Capability | H2-B status |
 |---|---|
-| REPAIR runtime control flow | Yes |
-| Single REPAIR provider dispatch | Yes |
-| REPAIR Judge | Yes |
-| Validated in-memory repair result | Yes |
-| REPAIR persistence | No |
-| `PhaseHTrustedRepairSuccess` persistence activation | No |
-| H2-C required | Yes |
+| REPAIR runtime control flow and one provider attempt | Authorized only by a later implementation task |
+| REPAIR Judge and evidence aggregate | Authorized only by a later implementation task |
+| Known/UNKNOWN terminal job route | Frozen here |
+| `PhaseHTrustedRepairSuccess` and persistence | H2-C only; not H2-B |
+| H2-B implementation in this task | Not authorized |
 
-Until a future implementation and independent review satisfy this document,
-H2-B remains design-only.
+Until a future implementation and independent review satisfy this authorization, H2-B remains design-only.
