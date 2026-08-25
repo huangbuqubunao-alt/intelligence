@@ -1,5 +1,101 @@
 # TASK-016C 交接报告
 
+## Phase H2-A — Evidence Foundations implementation
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-A Evidence Foundations` only.
+- Frozen authorization baseline: `611d899` (in ancestry; branch clean at start).
+- Authorization contract: `docs/TASK-016C-PHASE-H2-AUTHORIZATION.md`.
+- Implementer: 千问办公 (implementation-only executor).
+- Worktree/branch: `task-016c-content-quality-layer` /
+  `workbuddy/task-016c-content-quality-layer`.
+- Implementation commit: `9de5e69` — `feat(task016c): add H2 evidence foundations`.
+- Status: `READY FOR H2-A INDEPENDENT REVIEW`.
+
+Delivered exactly the 8 H2-A foundations; full H2 / H2-B not started:
+
+- `src/youtube_intel/h2_jcs.py` — dependency-free RFC 8785 / JCS serializer:
+  exact ECMAScript `NumberToString` number formatting (normative vectors as exact
+  UTF-8 bytes), UTF-16 code-unit key ordering, RFC 8785 string escaping, strict
+  UTF-8 output, duplicate-key/non-finite/non-canonical rejection, and canonical
+  SHA-256 primitives. Isolated from the frozen `_canonical_json` serializers.
+- `src/youtube_intel/h2_evidence.py` — typed `task016c-*` evidence schemas
+  (`RepairNormalizedInput`, `PrimaryFailureEvidence`, `CandidateEvidence`,
+  `ParserFailureEvidence`, `LanguageValidationEvidence`, `JudgeEvidence`,
+  `NotApplicableEvidence`), the closed failure-class combination matrix, the
+  canonical `typed -> JCS -> SHA-256` and `sealed -> parse -> validate ->
+  reserialize -> byte-equality -> hash` primitives, and parser/language/judge
+  replay foundations. Evidence objects are data only, never authority.
+- `src/youtube_intel/providers/ollama.py` — private PRIMARY/Judge received-raw
+  seals (`seal_primary_raw_capture`, `seal_judge_raw_capture`) applying the frozen
+  strict-UTF-8 and 1,000,000-byte / 20,000-byte bounds; the closed parser
+  diagnostic mapper `diagnose_scoring_parse_failure` mirroring the exact
+  `parse_scoring_candidate` fail-closed order; and a factored pure Judge
+  raw-to-result verifier `verify_judge_model_content` shared by the live adapter
+  and H2 replay (behavior-preserving delegation).
+
+### What was explicitly NOT done
+
+- No REPAIR provider dispatch, REPAIR_JUDGE dispatch, public REPAIR admission,
+  `persist_repair()`, repair repository API, repair token/registry/receipt/
+  continuation/factory, or caller-supplied repair authority.
+- No alternate persistence writer, SQLite transaction, Artifact namespace,
+  database/schema migration, or broad provider refactor.
+- No change to the Phase G filesystem persistence protocol or SQLite registration
+  semantics, and no change to PRIMARY normalized-input/request hashes, Judge
+  H1/H2, or the Phase G PRIMARY ProviderCall identity.
+- `PhaseHTrustedRepairSuccess` was NOT defined; no active REPAIR persistence path
+  exists. REPAIR remains fail-closed and unreachable.
+
+### Verification evidence
+
+| Command | Result |
+|---|---|
+| `uv run --offline pytest` (4 H2-A focused files) | PASS (`142 passed`) |
+| `uv run --offline pytest tests/unit tests/integration` | PASS (`1425 passed`) |
+| `uv run --offline pytest tests/e2e` | PASS (`9 passed`) |
+| Phase G (`test_task016c_phase_g.py`) | PASS |
+| H1 admission (`test_task016c_phase_h1_admission.py`) | PASS |
+| TASK-016B language (`test_scoring_language.py`) | PASS |
+| Judge contract + Ollama provider + runtime | PASS |
+| `uv run --offline mypy src` | PASS (`31 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings are pre-existing test constants) |
+
+Normative JCS number vectors all assert exact UTF-8 byte equality; `NaN`/`+Inf`/
+`-Inf` reject; `-0.0` serializes as `0`. Existing-identity non-regression tests
+prove PRIMARY normalized-input/request hashes and Judge H1/H2 still use the frozen
+serializer and differ from H2 JCS where the number domain distinguishes them.
+
+### Diff review and boundary
+
+- Modified: `src/youtube_intel/providers/ollama.py` (+325 / -53). The deletions are
+  only the Judge parse/build method bodies relocated to module-level functions so
+  the live path and replay share one deterministic implementation; live behavior is
+  preserved (judge contract suite green). `parse_scoring_candidate` and the PRIMARY
+  scoring path are byte-for-byte unchanged.
+- Added: `src/youtube_intel/h2_jcs.py`, `src/youtube_intel/h2_evidence.py`, and four
+  H2-A test files. No generated files or formatting noise.
+- Frozen modules `scoring.py`, `quality.py`, `state.py`, `domain.py`, `runtime.py`,
+  `scoring_admission.py`, and `migrations/` have zero diff.
+- No dependency, lockfile, schema/migration, secret, real Vault, cloud, or
+  launchd change.
+
+### Remaining risk
+
+- `verify_language_evidence_replay` retains a defense-in-depth
+  `validator_contract` equality check that is unreachable through normal typed
+  construction (the `Literal` already rejects unknown contracts); it only guards
+  against low-level forgery.
+- The PRIMARY/Judge raw seals are pure foundations; they are not yet wired into the
+  live runtime failure path (that wiring is H2-B and remains unauthorized).
+
+Status: `READY FOR H2-A INDEPENDENT REVIEW`.
+
+---
+
 ## Phase H1-B Correction Round 3 — adversarial behavioral evidence
 
 ### Metadata and scope
