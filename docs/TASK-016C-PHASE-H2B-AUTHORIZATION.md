@@ -27,6 +27,11 @@ actual PRIMARY execution
 
 H2-B never mints `PhaseHTrustedRepairSuccess`; calls neither `TrustedPersistenceEntry.persist_success()` nor `persist_repair()`; and makes no ProviderCall/Artifact registration, filesystem write, write plan, score or stage update, SQLite success registration, cache entry, or recovery marker. H2-C alone may mint the repair persistence authority and use the existing Phase G ingress.
 
+H2-C is not a general verifier endpoint over `PhaseH2BValidatedRepairResult`.
+It is entered only as the immediate private, runtime-owned continuation of an
+already-admitted H2-B PASS branch. There is no caller break between H2-B PASS
+and H2-C invocation.
+
 ## 2. Runtime entry and closed eligibility
 
 REPAIR is a private branch in `RuntimeOperations`' actual PRIMARY execution; it is not callable with a claimed failure class, PFE, RNI, identity, admission, candidate, raw response, or request payload. The branch may begin only when, in the same live runtime execution:
@@ -230,6 +235,59 @@ PipelineRepository.fail_job(
 
 `UNKNOWN_PROVIDER_STATE` is distinct. It must use the existing H1-owned `PipelineRepository.finalize_unknown_provider_state(...)`, which stores `UNKNOWN_PROVIDER_STATE` and `JobStatus.FAILED_FINAL`; it must never pass through the known-failure mapping. Both classes are terminal and non-retryable, but retain their different provenance semantics.
 
+### Known-terminal orchestration disposition
+
+The existing `PipelineOrchestrator._execute()` runs `_run_stage(...)`, then
+currently requires the saved job to be `SUCCEEDED`; otherwise it calls generic
+`_fail()`. H2-B known terminal failure has already used `fail_job(...,
+retry_at=None)`, so that existing post-handler check would otherwise attempt a
+second failure transition.
+
+H2-B must reuse the existing `StageDisposition.TERMINAL` as the exact
+ordinary control-flow disposition **`TERMINAL_ALREADY_HANDLED`**; it does not
+introduce a new enum, authority, identity capability, persistence callback, or
+admission proof. Initially only the runtime/H2-B known-failure path may emit
+that existing disposition.
+
+For every known H2-B failure—REPAIR schema/parse invalid, language invalid,
+Judge REJECT, or Judge UNCERTAIN—the exact flow is:
+
+```text
+detect deterministic known failure
+  -> PipelineRepository.fail_job(..., ErrorCode.INVALID_RESPONSE,
+       exact frozen message, retry_at=None)
+  -> verify returned/current job is JobStatus.FAILED_FINAL
+  -> return StageDisposition.TERMINAL  (TERMINAL_ALREADY_HANDLED)
+  -> PipelineOrchestrator._execute() verifies FAILED_FINAL and returns
+  -> no generic _fail(), retry, second REPAIR/Judge, persistence, or second state mutation
+```
+
+The minimal `PipelineOrchestrator._execute()` integration point is immediately
+after `_run_stage(...)` returns and before its current `SUCCEEDED` check:
+
+```text
+if disposition is StageDisposition.TERMINAL:
+    saved_job = repository.get_job(job.job_id)
+    if saved_job exists and saved_job.status is FAILED_FINAL:
+        return
+    existing generic _fail(invalid-job error) path
+    return
+```
+
+The state read is a required, side-effect-free defensive check. A fake or
+unrelated `TERMINAL` disposition therefore never suppresses generic failure
+unless the repository already records `FAILED_FINAL`. The disposition itself
+is not authority and grants neither persistence nor REPAIR capability.
+
+UNKNOWN remains separate. The current `_execute()` `except
+UnknownProviderState` path calls `finalize_unknown_provider_state(...)` and
+returns without generic `_fail()`; H2-B must preserve that H1-owned behavior
+rather than relabel UNKNOWN as `INVALID_RESPONSE` or return the known-terminal
+disposition. If a crash occurs after known `fail_job(..., retry_at=None)`
+commits but before the disposition returns, the durable job is already
+`FAILED_FINAL`, is not reclaimed/retried on restart, and the disposition has
+no durable meaning.
+
 ## 9. PhaseH2BValidatedRepairResult: evidence, not authority
 
 `PhaseH2BValidatedRepairResult` is an **IN-MEMORY EVIDENCE AGGREGATE ONLY**. It is untrusted input to H2-C. Its type, private construction, frozen dataclass shape, intended non-serialization, exact schema, immutability, or non-copyability may be useful implementation hygiene, but none confers trust or persistence authority. H2-C must assume an attacker can construct, mutate, copy, deepcopy, or deserialize an equivalent aggregate.
@@ -245,7 +303,58 @@ It must carry sufficient evidence for independent replay, at least:
 
 A score-only result is insufficient. H2-B may not define or mint `PhaseHTrustedRepairSuccess`, and direct passage of even a valid H2-B aggregate to `TrustedPersistenceEntry.persist_success(...)` must reject before any read or side effect.
 
+Possession of this aggregate provides no route to invoke H2-C. In particular,
+there is no public or caller-independently reachable
+`h2c_finalize(result)`, `finalize_repair(result)`,
+`mint_phase_h_success(result)`, `persist_validated_repair(result)`,
+`verify_h2b_result(result)`, or equivalent aggregate-ingress API capable of
+minting persistence authority.
+
 ## 10. H2-C independent replay obligation
+
+### Runtime-only continuation and trusted inputs
+
+H2-C is entered only from the same runtime-owned lexical/control-flow chain
+that has just consumed H1 REPAIR, dispatched the exact REPAIR identity, obtained
+a valid REPAIR candidate/language result, consumed H1 REPAIR_JUDGE, dispatched
+the exact Judge identity, and pure-replayed Judge PASS:
+
+```text
+actual runtime PRIMARY failure
+  -> H1 REPAIR admission -> exact REPAIR dispatch -> valid REPAIR response
+  -> candidate/schema PASS -> TASK-016B PASS
+  -> H1 REPAIR_JUDGE admission -> exact Judge dispatch -> valid Judge raw/PASS
+  -> construct untrusted H2-B evidence aggregate
+  -> immediate private runtime continuation
+  -> H2-C independent replay -> PhaseHTrustedRepairSuccess
+  -> existing TrustedPersistenceEntry.persist_success()
+```
+
+Conceptually, one private runtime method performs this chain and invokes an
+internal `_h2c_revalidate_and_mint(...)` before returning to any caller. The
+exact helper shape may differ, but it cannot be independently reachable by
+caller code through an aggregate parameter. This is achieved by eliminating
+caller ingress, not by a repair execution token, receipt, nonce, sentinel,
+registry entry, object identity, secret closure capability, or serialized
+admission claim.
+
+H2-C receives directly from that same runtime frame: runtime-owned
+`ScoringInput`/PRIMARY source state, validated `LocalScoringSettings`, the
+trusted job/lease execution context required by the current runtime, and the
+untrusted H2-B aggregate. It must derive trusted context/settings from those
+runtime inputs, never from aggregate fields.
+
+Two independent truths are mandatory:
+
+1. **Control-flow authenticity:** H2-C is reachable only after the actual
+   already-consumed H1 REPAIR and REPAIR_JUDGE operations in this runtime path.
+2. **Evidence authenticity:** H2-C treats the aggregate as untrusted and
+   independently replays every security-significant claim.
+
+The aggregate cannot prove actual H1 admission/execution from its evidence
+fields, admission flags, role strings, request hashes, timestamps, Python type,
+private minting, token/receipt, or serialized claims. Control-flow placement,
+not aggregate material, supplies execution provenance.
 
 H2-C makes no new policy choice about eligible failure classes: that closed policy remains frozen. It **must**, however, independently prove that the untrusted evidence satisfies that frozen policy. Before minting `PhaseHTrustedRepairSuccess`, H2-C must:
 
@@ -282,6 +391,13 @@ PhaseHTrustedRepairSuccess
 ```
 
 H2-C may bind H2-B admission/budget metadata as evidence where authorized, but may not trust it merely because the object came from H2-B or has the expected Python type. It may not dispatch a provider/Judge, invent an identity rule, or use `persist_repair`, an alternate writer, SQLite path, or Artifact namespace.
+
+H2-C remains separately reviewed and authorized. Its future architecture must
+be a private runtime composition continuation, with at most a pure replay helper
+in an H2 evidence/finalization module and, only if separately authorized,
+`scoring.py` support for `PhaseHTrustedRepairSuccess` / its accepted
+persistence type. It is not a repository-level service accepting arbitrary
+aggregate input.
 
 ## 11. Concurrency, restart, and crash contract
 
@@ -353,28 +469,64 @@ It must additionally include explicit RED tests for:
 
 For every case in 16–18, H2-C replay rejects before `PhaseHTrustedRepairSuccess` minting or persistence. Direct H2-B aggregate persistence rejects even for a fully valid aggregate.
 
+The amendment additionally requires:
+
+19. a fully self-consistent offline aggregate with valid-looking PRIMARY/PFE,
+    RNI/hash, REPAIR request/raw/candidate, language evidence, and REPAIR Judge
+    H1/H2/raw/PASS, but without actual runtime H1 REPAIR/REPAIR_JUDGE flow:
+    no caller-facing ingress exists and it cannot mint;
+20. aggregate mutation/replacement inside a legitimate H2-B PASS continuation:
+    H2-C's 21 replay checks reject;
+21. each known H2-B terminal failure: `fail_job` exactly once,
+    `FAILED_FINAL`, zero extra outer `_fail()`, no duplicate error/state
+    transition;
+22. an ordinary unrelated handler failure: existing generic `_fail()`
+    behavior remains unchanged;
+23. UNKNOWN: existing dedicated UNKNOWN handling and zero generic second
+    `_fail()`;
+24. crash after `FAILED_FINAL` write before disposition return: restart does
+    not reclaim or retry; and
+25. fake `StageDisposition.TERMINAL` with a non-terminal job: the required
+    repository-state check fails and existing generic failure behavior is not
+    suppressed.
+
 ## 14. Narrow future implementation scope
 
 Only a separate H2-B implementation authorization may allow the minimum edits:
 
 - `runtime.py`: private PRIMARY-failure branch and the private lexical admission-and-dispatch closures;
+- `pipeline.py`: only recognize the existing `StageDisposition.TERMINAL`
+  from the H2-B known-terminal path, verify `FAILED_FINAL`, and stop before a
+  duplicate generic `_fail()`; all unrelated handler/outcome behavior remains
+  unchanged;
 - `scoring_admission.py`: only the conditional private operation described in section 4;
 - `providers/ollama.py`: only admission-before-first-transport integration, `/api/tags`/`/api/generate` outcome exposure, raw preservation, UNKNOWN vs semantic UNCERTAIN split, and RNI-bound REPAIR request construction;
 - `h2_evidence.py`: non-persistence `PhaseH2BValidatedRepairResult` schema and pure evidence helpers only; and
 - focused H2-B/H1/H2-A/H2-C future tests and handoff documentation.
 
-`scoring.py` is frozen for H2-B. In particular, no H2-B change may touch `TrustedPersistenceEntry`, `persist_success()`, PREWRITE verification, artifact write plans, filesystem writers, SQLite registration, or Phase G idempotency. There is no broad provider refactor, second Judge algorithm, identity algorithm change, H2 JCS change, TASK-016B language change, public repair API, schema or migration, dependency/config/lockfile change, cache/recovery/H3 work, real provider/model/network/Vault use, or H2-C implementation.
+`scoring.py`, `state.py`, migrations, and Phase G persistence machinery are
+frozen for H2-B. In particular, no H2-B change may touch
+`TrustedPersistenceEntry`, `persist_success()`, PREWRITE verification,
+artifact write plans, filesystem writers, SQLite registration, or Phase G
+idempotency. There is no broad pipeline state-machine redesign, retry-policy
+refactor, unrelated stage change, new DB state/retry semantics, broad provider
+refactor, second Judge algorithm, identity algorithm change, H2 JCS change,
+TASK-016B language change, public repair API, schema or migration,
+dependency/config/lockfile change, cache/recovery/H3 work, real
+provider/model/network/Vault use, or H2-C implementation.
 
 ## 15. Completion boundary and discretion audit
 
-An H2-B implementation agent has no discretion over whether `/api/tags` is contact; admission timing; ambiguity classification; Judge UNKNOWN versus UNCERTAIN; A-to-A or J-to-J binding; request/prompt/payload construction; retryability or terminal state; aggregate trust; H2-C replay; or low-level aggregate forgery rejection. Any required behavior not frozen here is a `DECISION NEEDED`, not an implementation choice.
+An H2-B implementation agent has no discretion over whether `/api/tags` is contact; admission timing; ambiguity classification; Judge UNKNOWN versus UNCERTAIN; A-to-A or J-to-J binding; request/prompt/payload construction; retryability or terminal state; whether H2-C accepts arbitrary aggregate input; whether replay-valid evidence proves H1 admission; H2-C's direct trusted inputs; mandatory replay; the already-terminal pipeline disposition; terminal-state verification before suppression; aggregate trust; H2-C replay; or low-level aggregate forgery rejection. Any required behavior not frozen here is a `DECISION NEEDED`, not an implementation choice.
 
 | Capability | H2-B status |
 |---|---|
 | REPAIR runtime control flow and one provider attempt | Authorized only by a later implementation task |
 | REPAIR Judge and evidence aggregate | Authorized only by a later implementation task |
 | Known/UNKNOWN terminal job route | Frozen here |
-| `PhaseHTrustedRepairSuccess` and persistence | H2-C only; not H2-B |
+| H2-B owns | actual admitted REPAIR and REPAIR_JUDGE execution, plus construction of untrusted evidence |
+| H2-C owns | immediate private runtime continuation, 21-step replay, `PhaseHTrustedRepairSuccess`, and existing Phase G `persist_success()` ingress |
+| H2-C does not own | arbitrary aggregate ingress, inferred H1 admission, provider/Judge replay, or new eligibility/config policy |
 | H2-B implementation in this task | Not authorized |
 
 Until a future implementation and independent review satisfy this authorization, H2-B remains design-only.
