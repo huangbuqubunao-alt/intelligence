@@ -35,8 +35,10 @@ from youtube_intel.domain import (
     ContentQualityInput,
     ContentQualityResult,
     ContentQualityStatus,
+    QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
     ScoringCandidate,
+    ScoringEvidenceSource,
     ScoringInput,
     ScoringLanguageValidation,
     detect_scoring_language_violation,
@@ -89,6 +91,7 @@ __all__ = [
     "build_repair_request_hash",
     "build_repair_trusted_config",
     "canonical_primary_scoring_input_hash",
+    "derive_primary_judge_trusted_context",
     "h2_canonical_bytes",
     "h2_canonical_sha256",
     "repair_normalized_input_hash",
@@ -271,13 +274,18 @@ def build_judge_trusted_context(
     prompt_version: str,
     operation_schema_version: str,
 ) -> JudgeTrustedContext:
-    """Derive the expected trusted Judge context from trusted runtime inputs.
+    """Assemble a ``JudgeTrustedContext`` data object from supplied values.
 
-    The context is built from the trusted ``judge_input`` (itself derived from the
-    trusted candidate and scoring request) and the trusted provider/model/config
-    provenance; it is never derived from a ``JudgeEvidence`` object and never
-    trusts caller-provided duplicate metadata.  The frozen Judge policy/prompt/
-    schema/operation literals are enforced against the existing frozen constants.
+    LOW-LEVEL DATA-TYPE BUILDER — NOT THE AUTHORITATIVE COMPOSITION PATH.  This
+    helper only constructs the data object from the values it is given; it does
+    not itself establish trust.  The authoritative PRIMARY composition is
+    ``derive_primary_judge_trusted_context``, which derives every expected value
+    from already-trusted runtime inputs (the trusted PRIMARY context, the trusted
+    candidate, and the validated settings) and is what the authoritative PFE/RNI
+    verifiers use.  An externally built ``JudgeTrustedContext`` cannot be passed to
+    those authoritative verifiers and therefore cannot establish trust on its own.
+    The frozen Judge policy/prompt/schema/operation literals and provider are
+    enforced here against the existing frozen constants.
     """
 
     if role not in ("PRIMARY", "REPAIR"):
@@ -331,6 +339,120 @@ def build_judge_trusted_context(
         expected_h1=expected_h1,
         expected_h2=expected_h2,
     )
+
+
+def _build_quality_input(
+    *,
+    scoring_input: ScoringInput,
+    candidate: ScoringCandidate,
+    candidate_hash: str,
+) -> ContentQualityInput:
+    """Deterministically build the content-quality input from trusted inputs.
+
+    This mirrors the canonical runtime construction: the candidate supplies the
+    reason/topics, the scoring input supplies the request hash, output language,
+    and the title evidence excerpt.  No caller-provided judge input is accepted.
+    """
+
+    return ContentQualityInput.model_validate(
+        {
+            "scoring_request_hash": scoring_input.request_hash,
+            "candidate_hash": candidate_hash,
+            "output_language": scoring_input.output_language,
+            "reason": candidate.reason,
+            "topics": list(candidate.topics),
+            "evidence_registry": [
+                {
+                    "evidence_id": "title-1",
+                    "source": ScoringEvidenceSource.TITLE.value,
+                    "excerpt": scoring_input.video.title,
+                }
+            ],
+        }
+    )
+
+
+def derive_primary_judge_trusted_context(
+    *,
+    primary_trusted_context: PrimaryTrustedContext,
+    trusted_candidate: ScoringCandidate,
+    validated_settings: LocalScoringSettings,
+) -> tuple[JudgeTrustedContext, ContentQualityInput]:
+    """Derive the expected PRIMARY Judge context from already-trusted inputs.
+
+    This is the runtime-owned, deterministic composition boundary.  It derives
+    the judge input, candidate/scoring-request/quality-input hashes, provider/
+    model/digest, frozen policy/prompt/schema/operation literals, and expected
+    H1/H2 from the trusted PRIMARY context, the trusted candidate (re-derived
+    from the trusted PRIMARY raw), and the validated runtime settings.  It never
+    accepts an independent caller override for any expected Judge value, and it
+    never trusts a caller-supplied ``JudgeTrustedContext``.
+
+    The Judge provider/model/digest are taken from the validated settings (the
+    canonical runtime configuration source) and must agree with the trusted
+    PRIMARY context; a mismatch indicates inconsistent runtime state and rejects.
+    """
+
+    if type(primary_trusted_context) is not PrimaryTrustedContext:
+        msg = "primary_trusted_context must be an exact PrimaryTrustedContext"
+        raise ValueError(msg)
+    if type(trusted_candidate) is not ScoringCandidate:
+        msg = "trusted_candidate must be an exact ScoringCandidate"
+        raise ValueError(msg)
+    if type(validated_settings) is not LocalScoringSettings:
+        msg = "validated_settings must be an exact validated LocalScoringSettings"
+        raise ValueError(msg)
+
+    provider = _QUALITY_JUDGE_PROVIDER
+    model = validated_settings.model
+    model_digest = validated_settings.expected_model_digest
+    if model != primary_trusted_context.model:
+        msg = "validated settings model mismatches the trusted PRIMARY context"
+        raise ValueError(msg)
+    if model_digest != primary_trusted_context.model_digest:
+        msg = "validated settings model digest mismatches the trusted PRIMARY context"
+        raise ValueError(msg)
+
+    scoring_input = primary_trusted_context.scoring_input
+    candidate_hash = build_scoring_candidate_hash(trusted_candidate)
+    judge_input = _build_quality_input(
+        scoring_input=scoring_input,
+        candidate=trusted_candidate,
+        candidate_hash=candidate_hash,
+    )
+    quality_input_hash = build_content_quality_input_hash(judge_input)
+    operation_input = QualityJudgeOperationInput.model_validate(
+        {
+            "scoring_request_hash": scoring_input.request_hash,
+            "attempt_role": QualityJudgeAttemptRole.PRIMARY.value,
+            "candidate_hash": candidate_hash,
+            "quality_input_hash": quality_input_hash,
+            "policy_version": _QUALITY_POLICY_VERSION,
+            "prompt_version": _QUALITY_PROMPT_VERSION,
+            "schema_version": _QUALITY_SCHEMA_VERSION,
+            "judge_provider": provider,
+            "judge_model": model,
+            "judge_model_digest": model_digest,
+        }
+    )
+    expected_h1, expected_h2 = build_judge_h1_h2(operation_input)
+    ctx = JudgeTrustedContext(
+        role="PRIMARY",
+        candidate_hash=candidate_hash,
+        scoring_request_hash=scoring_input.request_hash,
+        quality_input_hash=quality_input_hash,
+        provider=provider,
+        model=model,
+        model_digest=model_digest,
+        policy_version=_QUALITY_POLICY_VERSION,
+        prompt_version=_QUALITY_PROMPT_VERSION,
+        operation_schema_version=_QUALITY_SCHEMA_VERSION,
+        operation=_QUALITY_JUDGE_OPERATION,
+        operation_input=operation_input,
+        expected_h1=expected_h1,
+        expected_h2=expected_h2,
+    )
+    return ctx, judge_input
 
 
 @dataclass(frozen=True, slots=True)
@@ -651,35 +773,42 @@ class RepairNormalizedInput(BaseModel):
 def build_repair_normalized_input(
     *,
     job_id: str,
-    trusted_primary_context: PrimaryTrustedContext,
+    primary_trusted_context: PrimaryTrustedContext,
     failure_evidence: PrimaryFailureEvidence,
-    trusted_repair_config: RepairTrustedConfig,
+    validated_settings: LocalScoringSettings,
 ) -> RepairNormalizedInput:
     """Build the exact typed REPAIR normalized-input object from trusted inputs.
 
-    This is the trusted builder.  It first verifies the sealed PRIMARY failure
-    evidence against the expected trusted PRIMARY context (failing closed on any
-    forgery), then derives every authoritative binding — PRIMARY attempt
-    identity, PRIMARY request/normalized-input hashes, PRIMARY failure-evidence
-    hash, PRIMARY raw hash, and scoring-input provenance — from the trusted
-    context and the verified evidence, and every authoritative REPAIR
-    configuration field from the trusted ``RepairTrustedConfig``.  The caller
-    cannot independently supply the REPAIR model/digest/temperature/limits or the
-    PRIMARY bindings, so neither a forged PFE nor attacker-selected REPAIR config
-    can yield a trustworthy RNI.  Creating a ``RepairNormalizedInput`` is still
-    data, not authority.
+    This is the authoritative trusted composition path.  Its security root is the
+    already-validated runtime/settings state, not any caller-constructed config or
+    context object.  It verifies the sealed PRIMARY failure evidence against the
+    trusted PRIMARY context and the validated settings (deriving the expected
+    PRIMARY Judge context internally for Judge-based failures), derives the
+    ``RepairTrustedConfig`` from the validated settings itself, and then derives
+    every authoritative binding — PRIMARY attempt identity, PRIMARY
+    request/normalized-input hashes, PRIMARY failure-evidence hash, PRIMARY raw
+    hash, scoring-input provenance, and every REPAIR configuration field — from
+    those trusted inputs.  The caller cannot independently supply the REPAIR
+    model/digest/temperature/limits, the PRIMARY bindings, or a Judge context, so
+    neither a forged PFE nor an attacker-selected ``RepairTrustedConfig`` can yield
+    a trustworthy RNI.  Creating a ``RepairNormalizedInput`` is still data, not
+    authority.
     """
 
-    if type(trusted_primary_context) is not PrimaryTrustedContext:
-        msg = "trusted_primary_context must be an exact PrimaryTrustedContext"
+    if type(primary_trusted_context) is not PrimaryTrustedContext:
+        msg = "primary_trusted_context must be an exact PrimaryTrustedContext"
         raise ValueError(msg)
-    if type(trusted_repair_config) is not RepairTrustedConfig:
-        msg = "trusted_repair_config must be an exact RepairTrustedConfig"
+    if type(validated_settings) is not LocalScoringSettings:
+        msg = "validated_settings must be an exact validated LocalScoringSettings"
         raise ValueError(msg)
-    scoring_input = trusted_primary_context.scoring_input
+    scoring_input = primary_trusted_context.scoring_input
     # Fail closed if the evidence does not independently re-prove the failure
-    # under the trusted expected context.
-    verify_primary_failure_evidence(failure_evidence, trusted_primary_context)
+    # under the trusted PRIMARY context and validated settings.
+    verify_primary_failure_evidence(
+        failure_evidence, primary_trusted_context, validated_settings
+    )
+    # Derive the authoritative REPAIR configuration from the validated settings.
+    trusted_repair_config = build_repair_trusted_config(validated_settings)
     return RepairNormalizedInput(
         schema_version=REPAIR_NORMALIZED_INPUT_SCHEMA,
         role="REPAIR",
@@ -689,8 +818,8 @@ def build_repair_normalized_input(
         scoring_input=scoring_input,
         scoring_input_sha256=h2_canonical_sha256(scoring_input),
         primary_attempt_identity=_PRIMARY_ATTEMPT_IDENTITY,
-        primary_request_hash=trusted_primary_context.request_hash,
-        primary_normalized_input_hash=trusted_primary_context.normalized_input_hash,
+        primary_request_hash=primary_trusted_context.request_hash,
+        primary_normalized_input_hash=primary_trusted_context.normalized_input_hash,
         primary_failure_class=failure_evidence.failure_class,
         primary_failure_evidence_hash=build_primary_failure_evidence_hash(failure_evidence),
         primary_raw_sha256=failure_evidence.primary_raw_sha256,
@@ -943,25 +1072,28 @@ def _bind_candidate_to_raw(
 def verify_primary_failure_evidence(
     evidence: PrimaryFailureEvidence,
     trusted_context: PrimaryTrustedContext,
-    *,
-    judge_trusted_context: JudgeTrustedContext | None = None,
+    validated_settings: LocalScoringSettings,
 ) -> None:
-    """Verify sealed PRIMARY failure evidence against a trusted expected context.
+    """Verify sealed PRIMARY failure evidence against trusted runtime inputs.
 
     Verification never succeeds merely because the evidence is self-consistent.
     Every authoritative PRIMARY provenance binding is compared against the
     trusted context; the raw hash and byte length are independently re-derived
     from the authoritative raw; the raw must pass the authorized capture gate;
     and the class-specific evidence must independently re-prove the claimed
-    failure.  For Judge-based failures a trusted ``JudgeTrustedContext`` is
-    required and must bind the exact PRIMARY candidate and PRIMARY scoring
-    request; the Judge evidence is then replayed against that trusted context.
-    Raises ``ValueError`` on any mismatch.
+    failure.  For Judge-based failures the expected PRIMARY Judge context is
+    DERIVED internally from the trusted context, the trusted candidate (re-parsed
+    from the trusted raw), and the validated runtime settings; no caller-supplied
+    ``JudgeTrustedContext`` is accepted as authority.  Raises ``ValueError`` on any
+    mismatch.
     """
 
     evidence = _fresh_revalidate_exact(PrimaryFailureEvidence, evidence)
     if type(trusted_context) is not PrimaryTrustedContext:
         msg = "trusted_context must be an exact PrimaryTrustedContext"
+        raise ValueError(msg)
+    if type(validated_settings) is not LocalScoringSettings:
+        msg = "validated_settings must be an exact validated LocalScoringSettings"
         raise ValueError(msg)
 
     _verify_pfe_provenance(evidence, trusted_context)
@@ -1029,31 +1161,14 @@ def verify_primary_failure_evidence(
             raise ValueError(msg)
         # Establish the exact PRIMARY candidate from the trusted raw parse path.
         candidate = _bind_candidate_to_raw(evidence, candidate_evidence)
-        if judge_trusted_context is None:
-            msg = "Judge-based PRIMARY failure requires a trusted Judge context"
-            raise ValueError(msg)
-        if type(judge_trusted_context) is not JudgeTrustedContext:
-            msg = "judge_trusted_context must be an exact JudgeTrustedContext"
-            raise ValueError(msg)
-        # Complete candidate/request continuity: the trusted Judge context must be
-        # derived from THIS PRIMARY candidate and THIS PRIMARY scoring request.
-        expected_candidate_hash = build_scoring_candidate_hash(candidate)
-        if judge_trusted_context.candidate_hash != expected_candidate_hash:
-            msg = (
-                "judge_trusted_context candidate_hash does not match the trusted "
-                "PRIMARY candidate"
-            )
-            raise ValueError(msg)
-        if judge_trusted_context.scoring_request_hash != trusted_context.request_hash:
-            msg = (
-                "judge_trusted_context scoring_request_hash does not match the "
-                "trusted PRIMARY scoring request"
-            )
-            raise ValueError(msg)
-        if judge_trusted_context.role != "PRIMARY":
-            msg = "PRIMARY Judge failure requires a PRIMARY-role Judge context"
-            raise ValueError(msg)
-        verify_judge_evidence_replay(judge, judge_trusted_context)
+        # Derive the expected PRIMARY Judge context internally from already
+        # trusted runtime inputs; no caller-supplied Judge context is consumed.
+        derived_judge_ctx, _ = derive_primary_judge_trusted_context(
+            primary_trusted_context=trusted_context,
+            trusted_candidate=candidate,
+            validated_settings=validated_settings,
+        )
+        verify_judge_evidence_replay(judge, derived_judge_ctx)
         return
 
     msg = f"unknown failure_class {failure_class!r}"
@@ -1064,17 +1179,24 @@ def verify_judge_evidence_replay(
     evidence: JudgeEvidence,
     judge_trusted_context: JudgeTrustedContext,
 ) -> None:
-    """Independently verify one sealed ``JudgeEvidence`` against a trusted context.
+    """Replay one sealed ``JudgeEvidence`` against an expected Judge context.
 
-    Success requires comparison against the independently derived
-    ``JudgeTrustedContext``; ``evidence.operation_input`` and ``evidence.judge_input``
-    can never authenticate each other on their own.  The evidence is first freshly
+    LOW-LEVEL DATA-LEVEL REPLAY PRIMITIVE — NOT A SECURITY INGRESS.  This
+    function deterministically compares the evidence against an expected
+    ``JudgeTrustedContext`` and replays the raw.  Callers cannot use its result
+    alone to establish PRIMARY repair eligibility: the authoritative PFE/RNI
+    composition path (``verify_primary_failure_evidence`` /
+    ``build_repair_normalized_input``) derives its ``JudgeTrustedContext``
+    internally from trusted runtime inputs and never accepts a caller-supplied
+    one.  Success requires comparison against the expected context;
+    ``evidence.operation_input`` and ``evidence.judge_input`` can never
+    authenticate each other on their own.  The evidence is first freshly
     revalidated (defeating low-level mutation), every metadata field and the
-    operation literal/role must equal the trusted expected metadata, the operation
-    input must equal the trusted expected operation input, H1/H2 must equal the
-    trusted expected H1/H2, the judge-input candidate/request/hash must equal the
-    trusted bindings, the raw hash/length are rederived, and the derived result is
-    replayed.  Raises ``ValueError`` on any mismatch.
+    operation literal/role must equal the expected metadata, the operation input
+    must equal the expected operation input, H1/H2 must equal the expected H1/H2,
+    the judge-input candidate/request/hash must equal the expected bindings, the
+    raw hash/length are rederived, and the derived result is replayed.  Raises
+    ``ValueError`` on any mismatch.
     """
 
     if type(judge_trusted_context) is not JudgeTrustedContext:

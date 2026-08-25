@@ -49,7 +49,6 @@ from youtube_intel.h2_evidence import (
     build_primary_trusted_context,
     build_repair_normalized_input,
     build_repair_request_hash,
-    build_repair_trusted_config,
     canonical_primary_scoring_input_hash,
     h2_canonical_bytes,
     h2_canonical_sha256,
@@ -236,12 +235,11 @@ def _build_rni(*, scoring_input=None, trusted_context=None, failure_evidence=Non
     si = scoring_input if scoring_input is not None else _scoring_input()
     ctx = trusted_context if trusted_context is not None else _trusted_context(si)
     pfe = failure_evidence if failure_evidence is not None else _schema_invalid_pfe(ctx, si)
-    cfg = build_repair_trusted_config(settings if settings is not None else _settings())
     return build_repair_normalized_input(
         job_id="job-h2a",
-        trusted_primary_context=ctx,
+        primary_trusted_context=ctx,
         failure_evidence=pfe,
-        trusted_repair_config=cfg,
+        validated_settings=settings if settings is not None else _settings(),
     )
 
 
@@ -599,7 +597,7 @@ def test_rni_derived_hash_mismatch_is_rejected() -> None:
         {**valid.model_dump(mode="python"), "primary_request_hash": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged, ctx)
+        verify_primary_failure_evidence(forged, ctx, _settings())
 
 
 # ---------------------------------------------------------------------------
@@ -615,7 +613,7 @@ def test_primary_raw_sha256_substitution_rejected() -> None:
         {**pfe.model_dump(mode="python"), "primary_raw_sha256": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged, ctx)
+        verify_primary_failure_evidence(forged, ctx, _settings())
 
 
 def test_primary_raw_utf8_length_substitution_rejected_multibyte() -> None:
@@ -654,14 +652,14 @@ def test_primary_raw_utf8_length_substitution_rejected_multibyte() -> None:
         judge_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe, ctx)
+        verify_primary_failure_evidence(pfe, ctx, _settings())
 
 
 def test_primary_failure_evidence_valid_verifies() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    verify_primary_failure_evidence(pfe, ctx)
+    verify_primary_failure_evidence(pfe, ctx, _settings())
     assert build_primary_failure_evidence_hash(pfe) == h2_canonical_sha256(pfe)
 
 

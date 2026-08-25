@@ -36,7 +36,6 @@ from youtube_intel.domain import (
     VideoMetadata,
 )
 from youtube_intel.h2_evidence import (
-    CandidateEvidence,
     JudgeTrustedContext,
     NotApplicableEvidence,
     PrimaryFailureClass,
@@ -352,103 +351,11 @@ def test_judge_trusted_context_is_data_only() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PART 7 / 17 — PFE Judge-based failure binds Judge to PRIMARY candidate/request
-# ---------------------------------------------------------------------------
-
-
-def _judge_based_pfe(ctx, si, judge_evidence, *, failure_class, candidate_hash):
-    raw = _valid_candidate_raw()
-    from youtube_intel.providers.ollama import parse_scoring_candidate
-
-    candidate = parse_scoring_candidate(raw)
-    return PrimaryFailureEvidence(
-        schema_version="task016c-primary-failure-evidence-v1",
-        primary_attempt_identity="local-scoring",
-        primary_request_hash=ctx.request_hash,
-        primary_normalized_input_hash=ctx.normalized_input_hash,
-        primary_provider=ctx.provider,
-        primary_model=ctx.model,
-        primary_model_digest=ctx.model_digest,
-        primary_prompt_version=ctx.prompt_version,
-        primary_schema_version=ctx.schema_version,
-        primary_output_language=ctx.output_language,
-        primary_temperature=ctx.temperature,
-        primary_max_output_tokens=ctx.max_output_tokens,
-        primary_max_description_chars=ctx.max_description_chars,
-        primary_scoring_input=si,
-        primary_scoring_input_sha256=canonical_primary_scoring_input_hash(si),
-        primary_raw_capture_kind="OLLAMA_GENERATE_HTTP_BODY_V1",
-        primary_raw_utf8=raw,
-        primary_raw_utf8_length=len(raw.encode("utf-8")),
-        primary_raw_sha256=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
-        failure_class=failure_class,
-        primary_candidate=CandidateEvidence(
-            schema_version="task016c-candidate-evidence-v1",
-            kind="CANDIDATE",
-            candidate=candidate,
-            candidate_sha256=build_scoring_candidate_hash(candidate),
-        ),
-        parser_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
-        language_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
-        judge_evidence=judge_evidence,
-    )
-
-
-def test_pfe_a_with_self_consistent_judge_b_rejected() -> None:
-    si = _scoring_input()
-    ctx = _trusted_context(si)
-    from youtube_intel.providers.ollama import parse_scoring_candidate
-
-    candidate_a = parse_scoring_candidate(_valid_candidate_raw())
-    candidate_hash_a = build_scoring_candidate_hash(candidate_a)
-    # Trusted Judge context for A.
-    judge_a, judge_ctx_a, _, _ = _self_consistent_judge(
-        candidate_hash_a, ctx.request_hash, status="REJECT"
-    )
-    # Self-consistent Judge B for a different candidate/request.
-    judge_b, _, _, _ = _self_consistent_judge(_HASH_C, _HASH_D, status="REJECT")
-    pfe = _judge_based_pfe(
-        ctx, si, judge_b,
-        failure_class=PrimaryFailureClass.JUDGE_REJECT,
-        candidate_hash=candidate_hash_a,
-    )
-    with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe, ctx, judge_trusted_context=judge_ctx_a)
-
-
-def test_pfe_judge_failure_with_matching_judge_context_verifies() -> None:
-    si = _scoring_input()
-    ctx = _trusted_context(si)
-    from youtube_intel.providers.ollama import parse_scoring_candidate
-
-    candidate_a = parse_scoring_candidate(_valid_candidate_raw())
-    candidate_hash_a = build_scoring_candidate_hash(candidate_a)
-    judge_a, judge_ctx_a, _, _ = _self_consistent_judge(
-        candidate_hash_a, ctx.request_hash, status="REJECT"
-    )
-    pfe = _judge_based_pfe(
-        ctx, si, judge_a,
-        failure_class=PrimaryFailureClass.JUDGE_REJECT,
-        candidate_hash=candidate_hash_a,
-    )
-    verify_primary_failure_evidence(pfe, ctx, judge_trusted_context=judge_ctx_a)
-
-
-def test_pfe_judge_failure_requires_judge_trusted_context() -> None:
-    si = _scoring_input()
-    ctx = _trusted_context(si)
-    from youtube_intel.providers.ollama import parse_scoring_candidate
-
-    candidate_a = parse_scoring_candidate(_valid_candidate_raw())
-    candidate_hash_a = build_scoring_candidate_hash(candidate_a)
-    judge_a, _, _, _ = _self_consistent_judge(candidate_hash_a, ctx.request_hash, status="REJECT")
-    pfe = _judge_based_pfe(
-        ctx, si, judge_a,
-        failure_class=PrimaryFailureClass.JUDGE_REJECT,
-        candidate_hash=candidate_hash_a,
-    )
-    with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe, ctx)  # no judge_trusted_context
+# NOTE: The Round-2 PFE + caller-supplied JudgeTrustedContext tests were removed.
+# With the Round-3 trust model the authoritative verifier derives the expected
+# Judge context internally from trusted runtime inputs and accepts no caller-
+# supplied JudgeTrustedContext.  Equivalent (and stronger) coverage now lives in
+# test_task016c_phase_h2a_correction_r3.py.
 
 
 # ---------------------------------------------------------------------------
@@ -468,51 +375,51 @@ def test_repair_trusted_config_derives_from_settings() -> None:
     assert cfg.max_description_chars == settings.max_description_chars
 
 
-def test_rni_builder_derives_repair_config_from_trusted_config() -> None:
+def test_rni_builder_derives_repair_config_from_validated_settings() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    cfg = build_repair_trusted_config(_settings(temperature=0.5, max_output_tokens=999))
+    settings = _settings(temperature=0.5, max_output_tokens=999)
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        trusted_primary_context=ctx,
+        primary_trusted_context=ctx,
         failure_evidence=pfe,
-        trusted_repair_config=cfg,
+        validated_settings=settings,
     )
-    assert rni.repair_model == cfg.model
-    assert rni.repair_model_digest == cfg.model_digest
-    assert rni.temperature == cfg.temperature
-    assert rni.max_output_tokens == cfg.max_output_tokens
-    assert rni.max_description_chars == cfg.max_description_chars
-    assert rni.repair_provider == cfg.provider
+    assert rni.repair_model == settings.model
+    assert rni.repair_model_digest == settings.expected_model_digest
+    assert rni.temperature == settings.temperature
+    assert rni.max_output_tokens == settings.max_output_tokens
+    assert rni.max_description_chars == settings.max_description_chars
+    assert rni.repair_provider == "ollama"
 
 
 @pytest.mark.parametrize(
     "override_kwarg",
     ["model", "repair_model", "model_digest", "temperature",
      "max_output_tokens", "max_description_chars", "provider",
-     "prompt_version", "schema_version"],
+     "prompt_version", "schema_version", "trusted_repair_config",
+     "judge_trusted_context"],
 )
 def test_rni_builder_refuses_caller_repair_config_overrides(override_kwarg: str) -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    cfg = build_repair_trusted_config(_settings())
     with pytest.raises(TypeError):
         build_repair_normalized_input(
             job_id="job-h2a",
-            trusted_primary_context=ctx,
+            primary_trusted_context=ctx,
             failure_evidence=pfe,
-            trusted_repair_config=cfg,
+            validated_settings=_settings(),
             **{override_kwarg: "attacker-value"},
         )
 
 
-def test_rni_builder_rejects_attacker_config_object_values() -> None:
-    # Even if an attacker assembles a RepairTrustedConfig with attacker values,
-    # it is not the trusted runtime config; the builder derives from the object it
-    # is given, so the honest path always passes the runtime-built config. This
-    # test documents that the RNI mirrors the supplied config exactly.
+def test_attacker_repair_trusted_config_cannot_influence_trusted_rni() -> None:
+    # Round-3 trust model: the authoritative RNI builder no longer accepts a
+    # RepairTrustedConfig at all; it derives the config internally from the
+    # validated settings. A directly constructed attacker RepairTrustedConfig
+    # therefore cannot be supplied and cannot influence the trusted RNI.
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
@@ -527,16 +434,24 @@ def test_rni_builder_rejects_attacker_config_object_values() -> None:
         max_description_chars=0,
         operation="local-scoring-repair-v1",
     )
+    # Supplying the attacker config is impossible (no such parameter).
+    with pytest.raises(TypeError):
+        build_repair_normalized_input(
+            job_id="job-h2a",
+            primary_trusted_context=ctx,
+            failure_evidence=pfe,
+            validated_settings=_settings(),
+            trusted_repair_config=attacker_cfg,  # type: ignore[call-arg]
+        )
+    # The honest path reflects only the validated settings, never the attacker object.
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        trusted_primary_context=ctx,
+        primary_trusted_context=ctx,
         failure_evidence=pfe,
-        trusted_repair_config=attacker_cfg,
+        validated_settings=_settings(),
     )
-    # The RNI is bound to the (attacker) config it was handed; trust is established
-    # by the runtime only ever supplying the validated settings-derived config. The
-    # builder itself never invents or overrides these values.
-    assert rni.repair_model == attacker_cfg.model
+    assert rni.repair_model == _settings().model
+    assert rni.repair_model != attacker_cfg.model
 
 
 # ---------------------------------------------------------------------------
@@ -548,10 +463,10 @@ def test_pfe_raw_capture_kind_mutation_rejected() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    verify_primary_failure_evidence(pfe, ctx)  # sanity: valid before mutation
+    verify_primary_failure_evidence(pfe, ctx, _settings())  # sanity: valid before mutation
     object.__setattr__(pfe, "primary_raw_capture_kind", "ATTACKER_KIND")
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe, ctx)
+        verify_primary_failure_evidence(pfe, ctx, _settings())
 
 
 def test_judge_raw_capture_kind_mutation_rejected() -> None:
@@ -602,7 +517,7 @@ def test_pfe_deepcopy_then_mutation_rejected() -> None:
     cloned = copy.deepcopy(pfe)
     object.__setattr__(cloned, "primary_raw_capture_kind", "ATTACKER_KIND")
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(cloned, ctx)
+        verify_primary_failure_evidence(cloned, ctx, _settings())
 
 
 def test_judge_pickle_roundtrip_mutation_rejected() -> None:
@@ -626,4 +541,4 @@ def test_pfe_pickle_roundtrip_still_verifies_when_unmutated() -> None:
     restored = pickle.loads(pickle.dumps(pfe))
     # Trust is re-derived on every verification; an unmutated restored object still
     # verifies because its content matches the trusted context.
-    verify_primary_failure_evidence(restored, ctx)
+    verify_primary_failure_evidence(restored, ctx, _settings())

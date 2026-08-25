@@ -45,7 +45,6 @@ from youtube_intel.h2_evidence import (
     build_judge_trusted_context,
     build_primary_trusted_context,
     build_repair_normalized_input,
-    build_repair_trusted_config,
     canonical_primary_scoring_input_hash,
     replay_primary_parser_failure,
     verify_judge_evidence_replay,
@@ -267,7 +266,7 @@ def test_eligible_schema_or_parse_invalid_control_case() -> None:
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
     assert pfe.parser_evidence.diagnostic_code in H2_ELIGIBLE_PARSER_CODES
-    verify_primary_failure_evidence(pfe, ctx)
+    verify_primary_failure_evidence(pfe, ctx, _settings())
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +320,7 @@ def test_duplicate_key_raw_cannot_verify_as_pfe() -> None:
         judge_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe, ctx)
+        verify_primary_failure_evidence(pfe, ctx, _settings())
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +348,7 @@ def test_pfe_provenance_forgery_rejected(field: str, value: object) -> None:
     ctx = _trusted_context(si)
     forged = _forge_pfe(ctx, si, field, value)
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged, ctx)
+        verify_primary_failure_evidence(forged, ctx, _settings())
 
 
 def test_pfe_attempt_identity_forgery_rejected_at_construction() -> None:
@@ -376,7 +375,7 @@ def test_pfe_scoring_input_substitution_rejected() -> None:
     other_input = _scoring_input(output_language="zh-CN")
     forged = _forge_pfe(ctx, si, "primary_scoring_input", other_input)
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged, ctx)
+        verify_primary_failure_evidence(forged, ctx, _settings())
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +388,7 @@ def test_primary_scoring_input_sha256_forgery_rejected() -> None:
     ctx = _trusted_context(si)
     forged = _forge_pfe(ctx, si, "primary_scoring_input_sha256", _HASH_D)
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged, ctx)
+        verify_primary_failure_evidence(forged, ctx, _settings())
 
 
 def test_primary_scoring_input_sha256_uses_frozen_serializer_not_jcs() -> None:
@@ -416,13 +415,12 @@ def test_rni_builder_rejects_forged_pfe() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     forged_pfe = _forge_pfe(ctx, si, "primary_request_hash", _HASH_D)
-    cfg = build_repair_trusted_config(_settings())
     with pytest.raises(ValueError):
         build_repair_normalized_input(
             job_id="job-h2a",
-            trusted_primary_context=ctx,
+            primary_trusted_context=ctx,
             failure_evidence=forged_pfe,
-            trusted_repair_config=cfg,
+            validated_settings=_settings(),
         )
 
 
@@ -432,13 +430,12 @@ def test_rni_builder_rejects_mismatched_scoring_input() -> None:
     pfe = _schema_invalid_pfe(ctx, si)
     other_input = _scoring_input(output_language="zh-CN")
     other_ctx = _trusted_context(other_input)
-    cfg = build_repair_trusted_config(_settings())
     with pytest.raises(ValueError):
         build_repair_normalized_input(
             job_id="job-h2a",
-            trusted_primary_context=other_ctx,
+            primary_trusted_context=other_ctx,
             failure_evidence=pfe,
-            trusted_repair_config=cfg,
+            validated_settings=_settings(),
         )
 
 
@@ -446,20 +443,20 @@ def test_rni_builder_derives_authoritative_bindings() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    cfg = build_repair_trusted_config(_settings())
+    settings = _settings()
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        trusted_primary_context=ctx,
+        primary_trusted_context=ctx,
         failure_evidence=pfe,
-        trusted_repair_config=cfg,
+        validated_settings=settings,
     )
     assert rni.primary_request_hash == ctx.request_hash
     assert rni.primary_normalized_input_hash == ctx.normalized_input_hash
     assert rni.primary_attempt_identity == "local-scoring"
     assert rni.primary_failure_class is pfe.failure_class
     assert rni.primary_raw_sha256 == pfe.primary_raw_sha256
-    assert rni.repair_model == cfg.model
-    assert rni.repair_model_digest == cfg.model_digest
+    assert rni.repair_model == settings.model
+    assert rni.repair_model_digest == settings.expected_model_digest
 
 
 # ---------------------------------------------------------------------------
@@ -663,12 +660,11 @@ def _valid_rni_payload() -> dict:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
-    cfg = build_repair_trusted_config(_settings())
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        trusted_primary_context=ctx,
+        primary_trusted_context=ctx,
         failure_evidence=pfe,
-        trusted_repair_config=cfg,
+        validated_settings=_settings(),
     )
     return rni.model_dump(mode="json")
 
