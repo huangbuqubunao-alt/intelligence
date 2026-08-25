@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from itertools import count
 from pathlib import Path
 from threading import Lock
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, TypeVar
 from weakref import WeakKeyDictionary
 
 from youtube_intel.domain import (
@@ -33,6 +34,9 @@ class ScoringDispatchRole(str, Enum):
     REPAIR = "REPAIR"
     PRIMARY_JUDGE = "PRIMARY_JUDGE"
     REPAIR_JUDGE = "REPAIR_JUDGE"
+
+
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,3 +273,56 @@ class ScoringDispatchAdmission:
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
+
+    def _consume_runtime_role_and_dispatch(
+        self,
+        identity: ScoringDispatchIdentity,
+        dispatch: Callable[[], _T],
+        *,
+        now: datetime,
+    ) -> _T:
+        """PRIVATE runtime-owned atomic admit-and-dispatch for REPAIR roles.
+
+        This is not a public admission API.  It persists no identity, returns
+        no token/receipt/capability/continuation, and accepts no caller-
+        provided identity after role consumption: the runtime builds the
+        ``dispatch`` closure over exactly the same immutable local values that
+        produced ``identity``, so consuming role A and dispatching B is
+        structurally impossible on the production path.  The unchanged H1
+        machinery is reused: live lease proof, shared execution-state lock,
+        one-shot role budget, predecessor-role requirement, and the
+        ProviderCall-existence check for the exact derived request hash.
+        """
+
+        if identity.role is ScoringDispatchRole.REPAIR:
+            predecessor = ScoringDispatchRole.PRIMARY
+            required_operation = "local-scoring-repair-v1"
+        elif identity.role is ScoringDispatchRole.REPAIR_JUDGE:
+            predecessor = ScoringDispatchRole.REPAIR
+            required_operation = "local-content-quality-v1"
+        else:
+            raise ScoringDispatchDenied(
+                "runtime admit-and-dispatch supports only REPAIR roles"
+            )
+        if identity.operation != required_operation:
+            raise ScoringDispatchDenied(
+                "REPAIR dispatch identity operation is not the frozen literal"
+            )
+        job = self.verify_active_lease(now=now)
+        state = ScoringAdmissionRegistry.state_for(
+            repository=self.repository,
+            job_id=self.job_id,
+            job=job,
+            owner=self.owner,
+        )
+        with state.lock:
+            if predecessor not in state.consumed_roles:
+                raise ScoringDispatchDenied(
+                    f"REPAIR admission requires the consumed {predecessor.value} role"
+                )
+            if identity.role in state.consumed_roles:
+                raise ScoringDispatchDenied("scoring dispatch role is already consumed")
+            if self.repository.get_provider_call(identity.request_hash) is not None:
+                raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
+            state.consumed_roles.add(identity.role)
+        return dispatch()

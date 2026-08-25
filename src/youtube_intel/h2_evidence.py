@@ -37,6 +37,7 @@ from youtube_intel.domain import (
     ContentQualityStatus,
     QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
+    QualityPassAttestation,
     ScoringCandidate,
     ScoringEvidenceSource,
     ScoringInput,
@@ -78,6 +79,7 @@ __all__ = [
     "LanguageValidationEvidence",
     "NotApplicableEvidence",
     "ParserFailureEvidence",
+    "PhaseH2BValidatedRepairResult",
     "PrimaryFailureClass",
     "PrimaryFailureEvidence",
     "PrimaryTrustedContext",
@@ -92,6 +94,7 @@ __all__ = [
     "build_repair_trusted_config",
     "canonical_primary_scoring_input_hash",
     "derive_primary_judge_trusted_context",
+    "derive_repair_judge_trusted_context",
     "h2_canonical_bytes",
     "h2_canonical_sha256",
     "repair_normalized_input_hash",
@@ -440,6 +443,97 @@ def derive_primary_judge_trusted_context(
         role="PRIMARY",
         candidate_hash=candidate_hash,
         scoring_request_hash=scoring_input.request_hash,
+        quality_input_hash=quality_input_hash,
+        provider=provider,
+        model=model,
+        model_digest=model_digest,
+        policy_version=_QUALITY_POLICY_VERSION,
+        prompt_version=_QUALITY_PROMPT_VERSION,
+        operation_schema_version=_QUALITY_SCHEMA_VERSION,
+        operation=_QUALITY_JUDGE_OPERATION,
+        operation_input=operation_input,
+        expected_h1=expected_h1,
+        expected_h2=expected_h2,
+    )
+    return ctx, judge_input
+
+
+def derive_repair_judge_trusted_context(
+    *,
+    repair_request_hash: str,
+    trusted_candidate: ScoringCandidate,
+    scoring_input: ScoringInput,
+    validated_settings: LocalScoringSettings,
+) -> tuple[JudgeTrustedContext, ContentQualityInput]:
+    """Derive the expected REPAIR Judge context from already-trusted inputs.
+
+    REPAIR analog of ``derive_primary_judge_trusted_context``.  Every expected
+    value is derived internally from the trusted repaired candidate, the
+    original trusted scoring input, the validated runtime settings, and the
+    frozen Judge policy/prompt/schema/operation literals; no caller-supplied
+    ``JudgeTrustedContext`` is accepted.  The Judge input/operation
+    ``scoring_request_hash`` is exactly the role-distinct REPAIR request hash
+    (``local-scoring-repair-v1``) per the frozen RepairQualityEvidence binding;
+    the PRIMARY scoring request hash cannot occupy any REPAIR Judge binding.
+    """
+
+    if type(trusted_candidate) is not ScoringCandidate:
+        msg = "trusted_candidate must be an exact ScoringCandidate"
+        raise ValueError(msg)
+    if type(scoring_input) is not ScoringInput:
+        msg = "scoring_input must be an exact validated ScoringInput"
+        raise ValueError(msg)
+    if type(validated_settings) is not LocalScoringSettings:
+        msg = "validated_settings must be an exact validated LocalScoringSettings"
+        raise ValueError(msg)
+    if (
+        not isinstance(repair_request_hash, str)
+        or len(repair_request_hash) != 64
+        or any(character not in "0123456789abcdef" for character in repair_request_hash)
+    ):
+        msg = "repair_request_hash must be a lowercase 64-character SHA-256 hex value"
+        raise ValueError(msg)
+
+    provider = _QUALITY_JUDGE_PROVIDER
+    model = validated_settings.model
+    model_digest = validated_settings.expected_model_digest
+    candidate_hash = build_scoring_candidate_hash(trusted_candidate)
+    judge_input = ContentQualityInput.model_validate(
+        {
+            "scoring_request_hash": repair_request_hash,
+            "candidate_hash": candidate_hash,
+            "output_language": scoring_input.output_language,
+            "reason": trusted_candidate.reason,
+            "topics": list(trusted_candidate.topics),
+            "evidence_registry": [
+                {
+                    "evidence_id": "title-1",
+                    "source": ScoringEvidenceSource.TITLE.value,
+                    "excerpt": scoring_input.video.title,
+                }
+            ],
+        }
+    )
+    quality_input_hash = build_content_quality_input_hash(judge_input)
+    operation_input = QualityJudgeOperationInput.model_validate(
+        {
+            "scoring_request_hash": repair_request_hash,
+            "attempt_role": QualityJudgeAttemptRole.REPAIR.value,
+            "candidate_hash": candidate_hash,
+            "quality_input_hash": quality_input_hash,
+            "policy_version": _QUALITY_POLICY_VERSION,
+            "prompt_version": _QUALITY_PROMPT_VERSION,
+            "schema_version": _QUALITY_SCHEMA_VERSION,
+            "judge_provider": provider,
+            "judge_model": model,
+            "judge_model_digest": model_digest,
+        }
+    )
+    expected_h1, expected_h2 = build_judge_h1_h2(operation_input)
+    ctx = JudgeTrustedContext(
+        role="REPAIR",
+        candidate_hash=candidate_hash,
+        scoring_request_hash=repair_request_hash,
         quality_input_hash=quality_input_hash,
         provider=provider,
         model=model,
@@ -1332,3 +1426,69 @@ def build_judge_evidence(
         raw_sha256=capture.sha256,
         derived_result=derived_result,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class PhaseH2BValidatedRepairResult:
+    """IN-MEMORY EVIDENCE AGGREGATE ONLY — the untrusted H2-B output.
+
+    This is the untrusted evidence aggregate produced by an actual admitted
+    H2-B REPAIR/Judge PASS control flow.  It is untrusted input to a future
+    H2-C independent replay.  Its type, frozen shape, private construction,
+    immutability, or non-serialization confers NO trust, NO persistence
+    authority, NO repair capability, and NO H2-C ingress.  Passing even a
+    fully valid aggregate to ``TrustedPersistenceEntry.persist_success(...)``
+    rejects, and H2-C (when separately authorized) must independently replay
+    every security-significant claim rather than trust any field here.
+    """
+
+    # PRIMARY rederivable trusted input/provenance and failure evidence.
+    primary_trusted_context: PrimaryTrustedContext
+    primary_failure_evidence: PrimaryFailureEvidence
+    failure_class: PrimaryFailureClass
+
+    # Exact REPAIR normalized input and its canonical/request identity.
+    repair_normalized_input: RepairNormalizedInput
+    rni_hash: str
+    repair_request_hash: str
+
+    # Exact outbound REPAIR request/payload provenance.
+    repair_prompt: str
+    repair_payload_bytes: bytes
+    repair_payload_sha256: str
+    repair_payload_length: int
+
+    # Authoritative REPAIR outer raw, extracted model content, and candidate.
+    repair_raw_utf8: str
+    repair_raw_sha256: str
+    repair_raw_length: int
+    repair_model_content: str
+    repaired_candidate: ScoringCandidate
+    repaired_candidate_hash: str
+
+    # TASK-016B language evidence/result.
+    language_evidence: LanguageValidationEvidence
+
+    # REPAIR Judge identity, evidence, raw, and final PASS result.
+    judge_operation_input: QualityJudgeOperationInput
+    judge_input: ContentQualityInput
+    judge_h1: str
+    judge_h2: str
+    judge_evidence: JudgeEvidence
+    judge_raw_utf8: str
+    judge_raw_sha256: str
+    judge_raw_length: int
+    judge_result: ContentQualityResult
+    attestation: QualityPassAttestation
+
+    # Runtime/config provenance required by the frozen H2-C replay contract.
+    model: str
+    model_digest: str
+    prompt_version: str
+    schema_version: str
+    policy_version: str
+    quality_prompt_version: str
+    quality_schema_version: str
+    temperature: float
+    max_output_tokens: int
+    max_description_chars: int

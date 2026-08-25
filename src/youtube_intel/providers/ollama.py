@@ -34,7 +34,7 @@ from youtube_intel.domain import (
     ScoringOutputLanguage,
     scoring_reason_matches_output_language,
 )
-from youtube_intel.h2_jcs import jcs_loads_strict
+from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
 from youtube_intel.scoring import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -360,6 +360,91 @@ def diagnose_scoring_parse_failure(raw_response_text: str) -> ParserDiagnosticCo
     return None
 
 
+# ---------------------------------------------------------------------------
+# TASK-016C Phase H2-B — frozen REPAIR prompt and payload contract
+# ---------------------------------------------------------------------------
+
+
+def render_task016c_repair_prompt_v2(
+    *,
+    output_language: str,
+    repair_request_hash: str,
+    rni_jcs_utf8: str,
+    pfe_jcs_utf8: str,
+    scoring_input_jcs_utf8: str,
+    primary_raw_utf8: str,
+    candidate_evidence_jcs_utf8: str | None,
+    extracted_model_content: str | None,
+) -> str:
+    """Assemble the frozen ``TASK016C_REPAIR_PROMPT_V2`` text.
+
+    The fixed text, line breaks, block order, ``null`` spelling, schema
+    literal, and strict UTF-8 encoding are part of the payload provenance
+    frozen by the H2-B authorization.  Every dynamic block is supplied by
+    trusted runtime-derived evidence (H2-JCS RNI/PFE/scoring-input bytes, the
+    verified PFE raw body, the PFE candidate evidence, the extracted invalid
+    PRIMARY model content, and the frozen ``score-result-v2`` schema literal);
+    no caller-supplied prefix, suffix, or system fragment is ever appended.
+    """
+
+    return "\n".join(
+        [
+            "prompt_version: scoring-prompt-v2",
+            "You are repairing one invalid local-scoring result.",
+            "Return exactly one JSON object and no commentary.",
+            "The object MUST satisfy the supplied score-result-v2 JSON schema.",
+            f"The reason field MUST use output language: {output_language}.",
+            f"REPAIR request hash: {repair_request_hash}",
+            f"REPAIR normalized input: {rni_jcs_utf8}",
+            f"PRIMARY failure evidence: {pfe_jcs_utf8}",
+            f"ORIGINAL scoring input: {scoring_input_jcs_utf8}",
+            f"PRIMARY raw body: {primary_raw_utf8}",
+            "PRIMARY candidate evidence: "
+            + (
+                candidate_evidence_jcs_utf8
+                if candidate_evidence_jcs_utf8 is not None
+                else "null"
+            ),
+            "Invalid PRIMARY model content follows:",
+            extracted_model_content if extracted_model_content is not None else "null",
+            "Required JSON schema follows:",
+            jcs_serialize(_SCORE_RESULT_FORMAT).decode("utf-8"),
+        ]
+    )
+
+
+def build_task016c_repair_generate_body(
+    *,
+    model: str,
+    prompt: str,
+    temperature: float,
+    max_output_tokens: int,
+) -> bytes:
+    """Serialize the exact frozen ``/api/generate`` REPAIR payload object.
+
+    The outbound JSON object has no keys other than ``model``, ``prompt``,
+    ``stream``, ``format``, ``think``, and ``options.temperature`` /
+    ``options.num_predict``; the body is its compact ``ensure_ascii=False``
+    serialization, strict UTF-8 encoded.
+    """
+
+    return json.dumps(
+        {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "format": _SCORE_RESULT_FORMAT,
+            "think": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_output_tokens,
+            },
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
 def _default_transport(request: urllib.request.Request, timeout: float) -> _Response:
     return cast(_Response, urllib.request.urlopen(request, timeout=timeout))  # noqa: S310
 
@@ -406,6 +491,7 @@ class OllamaScoringProvider:
         self._transport = transport
         self._last_raw_response: str | None = None
         self._last_request_hash: str | None = None
+        self._primary_parse_failure_capture: PrimaryRawCapture | None = None
 
     def primary_attempt(self, scoring_input: ScoringInput) -> PrimaryScoringAttempt:
         """Return the candidate-only PRIMARY continuation without any repair.
@@ -414,17 +500,32 @@ class OllamaScoringProvider:
         and one deterministic generate (POST /api/generate).  The attempt binds
         the full bounded raw response body, the canonical parsed candidate, and
         the request identity; it never falls back to a repair request.
+
+        Before the inner candidate parse, the exact outer body is sealed as
+        received-raw evidence.  When the shared parser then deterministically
+        fails, the sealed capture remains consumable by the runtime's H2-B
+        eligibility classification; ambiguous outer bodies are never promoted.
         """
 
+        self._primary_parse_failure_capture = None
         video_id = scoring_input.video.video_id
         self._verify_expected_model(video_id)
         generated = self._generate(
             prompt=self._render_primary_prompt(scoring_input),
             video_id=video_id,
         )
+        try:
+            capture = seal_primary_raw_capture(
+                generated.raw_response.encode("utf-8", errors="strict")
+            )
+        except (UnicodeEncodeError, ValueError):
+            capture = None
+        self._primary_parse_failure_capture = capture
+        candidate = parse_scoring_candidate(generated.raw_response)
+        self._primary_parse_failure_capture = None
         return build_primary_scoring_attempt(
             scoring_input=scoring_input,
-            candidate=parse_scoring_candidate(generated.raw_response),
+            candidate=candidate,
             final_raw_response=generated.raw_response,
             provider=_PROVIDER_NAME,
             model=self._settings.model,
@@ -432,6 +533,60 @@ class OllamaScoringProvider:
             temperature=self._settings.temperature,
             max_output_tokens=self._settings.max_output_tokens,
             max_description_chars=self._settings.max_description_chars,
+        )
+
+    def consume_primary_parse_failure_capture(self) -> PrimaryRawCapture | None:
+        """Return the sealed PRIMARY raw capture once after an inner parse failure.
+
+        The capture is only present when the provider completed a trustworthy
+        outer capture and the shared parser then deterministically failed; it
+        is data for the runtime's H2-B classification, never authority.
+        """
+
+        capture = self._primary_parse_failure_capture
+        self._primary_parse_failure_capture = None
+        return capture
+
+    def dispatch_exact_repair_generate(
+        self,
+        *,
+        body: bytes,
+        body_sha256: str,
+        body_length: int,
+    ) -> bytes:
+        """Dispatch the exactly derived REPAIR payload after H1 REPAIR admission.
+
+        The outbound payload identity is re-verified locally before any
+        transport: a hash/length mismatch is a pre-contact denial, never an
+        external attempt and never an UNKNOWN mapping.  The model preflight
+        (GET /api/tags) is the first external contact; POST /api/generate then
+        sends exactly ``body``.  The exact outer response body bytes are
+        returned for the runtime's authoritative capture; any transport
+        ambiguity propagates for the runtime's UNKNOWN_PROVIDER_STATE mapping.
+        """
+
+        from youtube_intel.scoring_admission import ScoringDispatchDenied
+
+        if (
+            not isinstance(body, (bytes, bytearray))
+            or len(body) != body_length
+            or hashlib.sha256(bytes(body)).hexdigest() != body_sha256
+        ):
+            raise ScoringDispatchDenied(
+                "REPAIR outbound payload mismatches the derived request identity"
+            )
+        self._verify_expected_model(video_id="repair")
+        return self._request_raw_body(
+            urllib.request.Request(
+                self._endpoint(_GENERATE_PATH),
+                data=bytes(body),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            ),
+            video_id="repair",
         )
 
     def score(self, scoring_input: ScoringInput) -> ScoreResult:
@@ -720,12 +875,20 @@ class OllamaScoringProvider:
             raise _InvalidModelResponse
         return _GeneratedResponse(response_text=response, raw_response=raw_response)
 
-    def _request_json(
+    def _request_raw_body(
         self,
         request: urllib.request.Request,
         *,
         video_id: str,
-    ) -> tuple[object, str]:
+    ) -> bytes:
+        """Perform one bounded transport read without interpreting the body.
+
+        Transport and read mechanics are exactly the shared legacy behavior;
+        any ambiguity raises the adapter error for the caller's mapping.  The
+        bounded body is returned uninterpreted so an authorized seam can
+        promote it to authoritative received-raw evidence.
+        """
+
         response: _Response | None = None
         failure_code: ErrorCode | None = None
         failure_message = ""
@@ -804,6 +967,15 @@ class OllamaScoringProvider:
                 retryable=True,
                 video_id=video_id,
             )
+        return body
+
+    def _request_json(
+        self,
+        request: urllib.request.Request,
+        *,
+        video_id: str,
+    ) -> tuple[object, str]:
+        body = self._request_raw_body(request, video_id=video_id)
         try:
             decoded = body.decode("utf-8")
             return json.loads(decoded), decoded
@@ -1184,6 +1356,21 @@ class OllamaQualityJudgeProvider:
     ) -> None:
         self._settings = settings
         self._transport = transport
+        self._last_extracted_judge_model_content: str | None = None
+
+    def consume_extracted_judge_model_content(self) -> str | None:
+        """Return the exact extracted Judge model content once, when obtained.
+
+        Legacy ``judge()`` preserves this exact ``response`` string whenever a
+        successful external response established it, so the runtime can promote
+        it to PRIMARY Judge raw evidence.  Transport/protocol failures leave it
+        unset: no trustworthy raw was obtained, so the semantic result stays
+        fail-closed UNCERTAIN and no H2 Judge evidence can be sealed.
+        """
+
+        raw = self._last_extracted_judge_model_content
+        self._last_extracted_judge_model_content = None
+        return raw
 
     def judge(
         self,
@@ -1200,6 +1387,7 @@ class OllamaQualityJudgeProvider:
 
         from youtube_intel.quality import _revalidated_fields
 
+        self._last_extracted_judge_model_content = None
         try:
             trusted_operation = _revalidated_fields(
                 QualityJudgeOperationInput,
@@ -1282,10 +1470,144 @@ class OllamaQualityJudgeProvider:
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
+        # A successful external response established trustworthy extracted raw.
+        self._last_extracted_judge_model_content = response.response_text
         return verify_judge_model_content(
             response.response_text,
             operation_input=trusted_operation,
             content_input=trusted_content,
+        )
+
+    def judge_exact_model_content(
+        self,
+        operation_input: QualityJudgeOperationInput,
+        *,
+        content_input: ContentQualityInput,
+        expected_identity: object,
+    ) -> str:
+        """Strict H2-B REPAIR Judge seam exposing the UNKNOWN/UNCERTAIN split.
+
+        Unlike ``judge()``, this seam never collapses a provider, preflight, or
+        transport failure into a semantic ``UNCERTAIN``.  It performs the same
+        trusted-binding, loopback, and content-identity validation, then the
+        model preflight (GET /api/tags) and one deterministic generate
+        (POST /api/generate), and returns the exact extracted Judge
+        model-content string on success.  Any transport, interruption, or outer
+        ambiguity raises so the runtime maps it to UNKNOWN_PROVIDER_STATE; only
+        a completed external response that yields valid exact raw may later
+        produce a semantic UNCERTAIN through the pure H2-A replay.
+
+        The ``expected_identity`` must match the freshly derived REPAIR_JUDGE
+        identity for ``operation_input``; a substitution is a pre-contact
+        denial.
+        """
+
+        from youtube_intel.quality import _revalidated_fields
+        from youtube_intel.scoring_admission import (
+            ScoringDispatchDenied,
+            ScoringDispatchRole,
+        )
+
+        try:
+            trusted_operation = _revalidated_fields(
+                QualityJudgeOperationInput, operation_input
+            )
+            trusted_content = _revalidated_fields(ContentQualityInput, content_input)
+        except Exception as exc:
+            raise ScoringDispatchDenied(
+                "REPAIR Judge inputs are not exact validated contracts"
+            ) from exc
+
+        from youtube_intel.quality import build_judge_h1_h2
+
+        expected_h1, expected_h2 = build_judge_h1_h2(trusted_operation)
+        identity_role = getattr(expected_identity, "role", None)
+        identity_normalized = getattr(expected_identity, "normalized_input_hash", None)
+        identity_request = getattr(expected_identity, "request_hash", None)
+        if (
+            identity_role is not ScoringDispatchRole.REPAIR_JUDGE
+            or identity_normalized != expected_h1
+            or identity_request != expected_h2
+        ):
+            raise ScoringDispatchDenied(
+                "REPAIR Judge identity does not match the derived operation"
+            )
+
+        if not self._validate_trusted_binding(trusted_operation):
+            raise ScoringDispatchDenied(
+                "REPAIR Judge operation mismatches the trusted local configuration"
+            )
+        if not self._validate_loopback_settings():
+            raise ScoringDispatchDenied(
+                "REPAIR Judge endpoint is not a validated loopback URL"
+            )
+        if not self._validate_content_input_identity(
+            trusted_operation, trusted_content
+        ):
+            raise ScoringDispatchDenied(
+                "REPAIR Judge content input does not bind the operation identity"
+            )
+
+        # External contact begins here.  Every ambiguity propagates upward so
+        # the runtime maps it to UNKNOWN_PROVIDER_STATE, never UNCERTAIN.
+        self._verify_expected_model_strict()
+        response = self._generate(
+            trusted_operation,
+            content_input=trusted_content,
+        )
+        return response.response_text
+
+    def _verify_expected_model_strict(self) -> None:
+        """Model preflight that propagates any failure instead of returning False.
+
+        Used only by the strict REPAIR Judge seam.  A missing model or a
+        transport/protocol failure must surface so the runtime treats the
+        already-contacted attempt as UNKNOWN_PROVIDER_STATE.
+        """
+
+        request = urllib.request.Request(
+            self._endpoint(_TAGS_PATH),
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        payload, _ = self._request_json(request, video_id="quality-judge")
+        if not isinstance(payload, Mapping):
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama model preflight returned an invalid response",
+                retryable=True,
+                video_id="quality-judge",
+            )
+        models = payload.get("models")
+        if not isinstance(models, list):
+            raise _safe_error(
+                ErrorCode.INVALID_RESPONSE,
+                "Ollama model preflight returned an invalid response",
+                retryable=True,
+                video_id="quality-judge",
+            )
+        for item in models:
+            if not isinstance(item, Mapping):
+                continue
+            name = item.get("name")
+            digest = item.get("digest")
+            normalized_digest = (
+                f"sha256:{digest}"
+                if isinstance(digest, str)
+                and len(digest) == 64
+                and all(character in "0123456789abcdef" for character in digest)
+                else digest
+            )
+            if (
+                name == self._settings.model
+                and normalized_digest == self._settings.expected_model_digest
+            ):
+                return
+        raise _safe_error(
+            ErrorCode.CONFIG_INVALID,
+            "configured Ollama model is missing or has an unexpected digest",
+            retryable=False,
+            video_id="quality-judge",
         )
 
     def _validate_trusted_binding(

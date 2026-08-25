@@ -33,6 +33,7 @@ from youtube_intel.domain import (
     AppError,
     ChannelRef,
     ContentQualityInput,
+    ContentQualityStatus,
     ErrorCode,
     JobStatus,
     MetadataProvider,
@@ -42,6 +43,7 @@ from youtube_intel.domain import (
     QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
     ScoreResult,
+    ScoringCandidate,
     ScoringDecision,
     ScoringEvidenceSource,
     ScoringInput,
@@ -53,14 +55,41 @@ from youtube_intel.domain import (
     scoring_reason_matches_output_language,
     validate_score_result_json,
 )
+from youtube_intel.h2_evidence import (
+    H2_ELIGIBLE_PARSER_CODES,
+    CandidateEvidence,
+    NotApplicableEvidence,
+    PhaseH2BValidatedRepairResult,
+    PrimaryFailureClass,
+    PrimaryFailureEvidence,
+    PrimaryTrustedContext,
+    build_judge_evidence,
+    build_primary_trusted_context,
+    build_repair_normalized_input,
+    build_repair_request_hash,
+    derive_repair_judge_trusted_context,
+    h2_canonical_bytes,
+    repair_normalized_input_hash,
+    replay_language_validation,
+    replay_primary_parser_failure,
+    verify_primary_failure_evidence,
+)
+from youtube_intel.h2_jcs import jcs_loads_strict
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
-from youtube_intel.pipeline import PipelineOrchestrator
+from youtube_intel.pipeline import PipelineOrchestrator, StageDisposition
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
     OllamaScoringProvider,
+    PrimaryRawCapture,
+    build_task016c_repair_generate_body,
+    parse_scoring_candidate,
+    render_task016c_repair_prompt_v2,
+    seal_judge_raw_capture,
+    seal_primary_raw_capture,
+    verify_judge_model_content,
 )
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
@@ -81,6 +110,7 @@ from youtube_intel.quality import (
     _mint_trusted_scoring_context,
     build_content_quality_input_hash,
     build_quality_pass_attestation,
+    build_scoring_candidate_hash,
 )
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
@@ -104,6 +134,8 @@ from youtube_intel.scoring_admission import (
     ScoringAdmissionRegistry,
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
+    ScoringDispatchIdentity,
+    ScoringDispatchRole,
     UnknownProviderState,
     build_judge_scoring_dispatch_identity,
     build_primary_scoring_dispatch_identity,
@@ -341,6 +373,14 @@ class RuntimeOperations(Operations):
         ).resolve(strict=True)
         self._runtime_owner = f"youtube-intel-runtime:{uuid.uuid4().hex}"
         self._scoring_admissions = ScoringAdmissionRegistry(self._repository)
+        # H2-B is memory-only: the untrusted evidence aggregate (when a REPAIR
+        # Judge PASS occurs) and the exact PRIMARY Judge raw evidence used to
+        # classify an eligible Judge failure.  Neither is persisted or restored.
+        self._last_h2b_validated_repair_result: PhaseH2BValidatedRepairResult | None = None
+        self._last_primary_judge_raw: str | None = None
+        self._last_primary_judge_operation: QualityJudgeOperationInput | None = None
+        self._last_primary_judge_input: ContentQualityInput | None = None
+        self._last_primary_judge_result: Any = None
 
     def _scoring_admission_for(self, job_id: str) -> ScoringDispatchAdmission:
         """Return this runtime's shared admission view for an active scoring job."""
@@ -499,6 +539,11 @@ class RuntimeOperations(Operations):
             content_input=quality_input,
             admission=admission,
         )
+        # Runtime-owned evidence for the H2-B eligibility classification of an
+        # eligible PRIMARY Judge failure; memory-only, never restored.
+        self._last_primary_judge_operation = quality_operation
+        self._last_primary_judge_input = quality_input
+        self._last_primary_judge_result = quality_result
         if quality_result.status.value != "PASS":
             raise _KnownPrimaryFailure()
 
@@ -536,7 +581,7 @@ class RuntimeOperations(Operations):
             now=_utcnow(),
         )
         try:
-            return provider.judge(
+            result = provider.judge(
                 operation_input,
                 content_input=content_input,
             )
@@ -544,6 +589,14 @@ class RuntimeOperations(Operations):
             raise UnknownProviderState(
                 "scoring provider outcome is unknown after external dispatch"
             ) from error
+        # Preserve the exact Judge raw model content, when the provider
+        # established trustworthy raw, as runtime-owned evidence for the H2-B
+        # eligibility classification of an eligible PRIMARY Judge failure.
+        self._last_primary_judge_raw = None
+        consume_raw = getattr(provider, "consume_extracted_judge_model_content", None)
+        if callable(consume_raw):
+            self._last_primary_judge_raw = consume_raw()
+        return result
 
     def _create_quality_judge_provider_for_dispatch(self) -> Any:
         """Construct the Judge client before the admitted external call begins."""
@@ -579,6 +632,549 @@ class RuntimeOperations(Operations):
             raise UnknownProviderState(
                 "scoring provider outcome is unknown after external dispatch"
             ) from error
+
+    # ------------------------------------------------------------------
+    # TASK-016C Phase H2-B — runtime REPAIR control flow.
+    #
+    # These methods are PRIVATE and runtime-owned.  REPAIR eligibility arises
+    # only inside the actual PRIMARY failure branch of the scoring stage; there
+    # is no caller-facing repair entry point, no repair token/receipt/registry,
+    # and no persistence.  H2-B stops at an untrusted in-memory evidence
+    # aggregate (or a known-terminal FAILED_FINAL job); it never mints a trusted
+    # repair success and never persists.  H2-C is not implemented here.
+    # ------------------------------------------------------------------
+
+    def _h2b_local_scoring(self) -> LocalScoringSettings:
+        return self._config.settings.local_scoring
+
+    def _h2b_primary_trusted_context(
+        self, scoring_input: ScoringInput
+    ) -> PrimaryTrustedContext:
+        settings = self._h2b_local_scoring()
+        return build_primary_trusted_context(
+            scoring_input=scoring_input,
+            model=settings.model,
+            model_digest=settings.expected_model_digest,
+            temperature=settings.temperature,
+            max_output_tokens=settings.max_output_tokens,
+            max_description_chars=settings.max_description_chars,
+        )
+
+    def _h2b_eligible_parse_failure_capture(
+        self, provider: Any
+    ) -> PrimaryRawCapture | None:
+        """Return a closed-class parse-failure raw capture, if one was produced.
+
+        Only a post-capture deterministic parser failure is repair-eligible; the
+        shared parser's diagnostic code must fall in the frozen H2-eligible set.
+        Any other outcome (including UNKNOWN/ambiguous) yields ``None``.
+        """
+
+        from youtube_intel.providers.ollama import diagnose_scoring_parse_failure
+
+        consume = getattr(provider, "consume_primary_parse_failure_capture", None)
+        if not callable(consume):
+            return None
+        capture = consume()
+        if type(capture) is not PrimaryRawCapture:
+            return None
+        code = diagnose_scoring_parse_failure(capture.utf8)
+        if code is None or code not in H2_ELIGIBLE_PARSER_CODES:
+            return None
+        return capture
+
+    def _h2b_pfe_base(
+        self,
+        *,
+        trusted_context: PrimaryTrustedContext,
+        scoring_input: ScoringInput,
+        raw_utf8: str,
+        failure_class: PrimaryFailureClass,
+    ) -> dict[str, object]:
+        """Return the shared PRIMARY provenance/raw fields of a PFE payload."""
+
+        raw_bytes = raw_utf8.encode("utf-8", errors="strict")
+        return {
+            "schema_version": "task016c-primary-failure-evidence-v1",
+            "primary_attempt_identity": "local-scoring",
+            "primary_request_hash": trusted_context.request_hash,
+            "primary_normalized_input_hash": trusted_context.normalized_input_hash,
+            "primary_provider": trusted_context.provider,
+            "primary_model": trusted_context.model,
+            "primary_model_digest": trusted_context.model_digest,
+            "primary_prompt_version": trusted_context.prompt_version,
+            "primary_schema_version": trusted_context.schema_version,
+            "primary_output_language": trusted_context.output_language,
+            "primary_temperature": trusted_context.temperature,
+            "primary_max_output_tokens": trusted_context.max_output_tokens,
+            "primary_max_description_chars": trusted_context.max_description_chars,
+            "primary_scoring_input": scoring_input,
+            "primary_scoring_input_sha256": trusted_context.scoring_input_sha256,
+            "primary_raw_capture_kind": "OLLAMA_GENERATE_HTTP_BODY_V1",
+            "primary_raw_utf8": raw_utf8,
+            "primary_raw_utf8_length": len(raw_bytes),
+            "primary_raw_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+            "failure_class": failure_class,
+        }
+
+    @staticmethod
+    def _h2b_candidate_evidence(attempt: PrimaryScoringAttempt) -> CandidateEvidence:
+        return CandidateEvidence(
+            schema_version="task016c-candidate-evidence-v1",
+            kind="CANDIDATE",
+            candidate=attempt.candidate,
+            candidate_sha256=build_scoring_candidate_hash(attempt.candidate),
+        )
+
+    @staticmethod
+    def _h2b_not_applicable() -> NotApplicableEvidence:
+        return NotApplicableEvidence(kind="NOT_APPLICABLE")
+
+    def _h2b_repair_for_parse_failure(
+        self,
+        *,
+        job_id: str,
+        scoring_input: ScoringInput,
+        admission: ScoringDispatchAdmission,
+        capture: PrimaryRawCapture,
+    ) -> StageDisposition | None:
+        """Enter the H2-B REPAIR branch for an eligible SCHEMA_OR_PARSE failure."""
+
+        parser_evidence = replay_primary_parser_failure(capture.utf8)
+        if parser_evidence is None:
+            return None
+        trusted_context = self._h2b_primary_trusted_context(scoring_input)
+        base = self._h2b_pfe_base(
+            trusted_context=trusted_context,
+            scoring_input=scoring_input,
+            raw_utf8=capture.utf8,
+            failure_class=PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID,
+        )
+        pfe = PrimaryFailureEvidence.model_validate(
+            {
+                **base,
+                "primary_candidate": self._h2b_not_applicable(),
+                "parser_evidence": parser_evidence,
+                "language_evidence": self._h2b_not_applicable(),
+                "judge_evidence": self._h2b_not_applicable(),
+            }
+        )
+        return self._h2b_execute_repair(
+            job_id=job_id,
+            scoring_input=scoring_input,
+            admission=admission,
+            pfe=pfe,
+        )
+
+    def _h2b_repair_for_known_failure(
+        self,
+        *,
+        job_id: str,
+        scoring_input: ScoringInput,
+        attempt: PrimaryScoringAttempt,
+        admission: ScoringDispatchAdmission,
+    ) -> StageDisposition | None:
+        """Classify a closed eligible PRIMARY failure and enter the REPAIR branch.
+
+        Returns ``None`` when the failure is not repair-eligible (so the caller
+        re-raises the original known failure), a ``TERMINAL`` disposition for a
+        known H2-B terminal failure, or ``None`` after a REPAIR Judge PASS with
+        the untrusted aggregate held on the runtime.
+        """
+
+        trusted_context = self._h2b_primary_trusted_context(scoring_input)
+        candidate = attempt.candidate
+        language_ev = replay_language_validation(
+            candidate=candidate,
+            output_language=scoring_input.output_language,
+        )
+        if language_ev.result != "VALID":
+            if language_ev.result != "INVALID":
+                return None
+            base = self._h2b_pfe_base(
+                trusted_context=trusted_context,
+                scoring_input=scoring_input,
+                raw_utf8=attempt.final_raw_response,
+                failure_class=PrimaryFailureClass.LANGUAGE_INVALID,
+            )
+            pfe = PrimaryFailureEvidence.model_validate(
+                {
+                    **base,
+                    "primary_candidate": self._h2b_candidate_evidence(attempt),
+                    "parser_evidence": self._h2b_not_applicable(),
+                    "language_evidence": language_ev,
+                    "judge_evidence": self._h2b_not_applicable(),
+                }
+            )
+            return self._h2b_execute_repair(
+                job_id=job_id,
+                scoring_input=scoring_input,
+                admission=admission,
+                pfe=pfe,
+            )
+
+        # Deterministic-quality rejection is never repair-eligible.
+        candidate_hash = build_scoring_candidate_hash(candidate)
+        quality_input = self._h2b_quality_input(
+            scoring_input=scoring_input,
+            candidate=candidate,
+            candidate_hash=candidate_hash,
+        )
+        quality_input_hash = build_content_quality_input_hash(quality_input)
+        gate_result = DeterministicContentQualityGate().evaluate(
+            content=candidate.reason,
+            candidate_hash=candidate_hash,
+            quality_input_hash=quality_input_hash,
+            scoring_request_hash=scoring_input.request_hash,
+        )
+        if gate_result is not None:
+            return None
+
+        # Judge-based failures require trustworthy Judge raw from the actual
+        # PRIMARY Judge dispatch; without it the failure is not repair-eligible.
+        judge_raw = self._last_primary_judge_raw
+        judge_operation = self._last_primary_judge_operation
+        judge_input = self._last_primary_judge_input
+        if judge_raw is None or judge_operation is None or judge_input is None:
+            return None
+        try:
+            judge_evidence = build_judge_evidence(
+                role="PRIMARY",
+                operation_input=judge_operation,
+                judge_input=judge_input,
+                raw_utf8=judge_raw,
+                model=self._h2b_local_scoring().model,
+                model_digest=self._h2b_local_scoring().expected_model_digest,
+                policy_version=_QUALITY_POLICY_VERSION,
+                prompt_version=_QUALITY_PROMPT_VERSION,
+                operation_schema_version=_QUALITY_SCHEMA_VERSION,
+            )
+        except ValueError:
+            return None
+        status = judge_evidence.derived_result.status
+        if status is ContentQualityStatus.REJECT:
+            failure_class = PrimaryFailureClass.JUDGE_REJECT
+        elif status is ContentQualityStatus.UNCERTAIN:
+            failure_class = PrimaryFailureClass.JUDGE_UNCERTAIN
+        else:
+            return None
+        base = self._h2b_pfe_base(
+            trusted_context=trusted_context,
+            scoring_input=scoring_input,
+            raw_utf8=attempt.final_raw_response,
+            failure_class=failure_class,
+        )
+        pfe = PrimaryFailureEvidence.model_validate(
+            {
+                **base,
+                "primary_candidate": self._h2b_candidate_evidence(attempt),
+                "parser_evidence": self._h2b_not_applicable(),
+                "language_evidence": self._h2b_not_applicable(),
+                "judge_evidence": judge_evidence,
+            }
+        )
+        return self._h2b_execute_repair(
+            job_id=job_id,
+            scoring_input=scoring_input,
+            admission=admission,
+            pfe=pfe,
+        )
+
+    def _h2b_quality_input(
+        self,
+        *,
+        scoring_input: ScoringInput,
+        candidate: ScoringCandidate,
+        candidate_hash: str,
+    ) -> ContentQualityInput:
+        return ContentQualityInput.model_validate(
+            {
+                "scoring_request_hash": scoring_input.request_hash,
+                "candidate_hash": candidate_hash,
+                "output_language": scoring_input.output_language,
+                "reason": candidate.reason,
+                "topics": list(candidate.topics),
+                "evidence_registry": [
+                    {
+                        "evidence_id": "title-1",
+                        "source": ScoringEvidenceSource.TITLE.value,
+                        "excerpt": scoring_input.video.title,
+                    }
+                ],
+            }
+        )
+
+    def _h2b_known_terminal_failure(
+        self, *, job_id: str, detail: str
+    ) -> StageDisposition:
+        """Finalize a known H2-B failure as a non-retryable FAILED_FINAL job."""
+
+        self._repository.fail_job(
+            job_id,
+            owner=self._runtime_owner,
+            error_code=ErrorCode.INVALID_RESPONSE,
+            error_message=detail,
+            retry_at=None,
+            now=_utcnow(),
+        )
+        confirmed = self._repository.get_job(job_id)
+        if confirmed is None or confirmed.status is not JobStatus.FAILED_FINAL:
+            raise UnknownProviderState(
+                "known H2-B terminal failure could not be finalized"
+            )
+        return StageDisposition.TERMINAL
+
+    @staticmethod
+    def _h2b_extract_model_content(raw_utf8: str) -> str | None:
+        try:
+            payload = jcs_loads_strict(raw_utf8)
+        except ValueError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        response = payload.get("response")
+        if not isinstance(response, str):
+            return None
+        return response
+
+    def _h2b_execute_repair(
+        self,
+        *,
+        job_id: str,
+        scoring_input: ScoringInput,
+        admission: ScoringDispatchAdmission,
+        pfe: PrimaryFailureEvidence,
+    ) -> StageDisposition | None:
+        """Run the frozen H2-B REPAIR flow for one verified eligible failure."""
+
+        settings = self._h2b_local_scoring()
+        trusted_context = self._h2b_primary_trusted_context(scoring_input)
+
+        # Verify the sealed evidence against the trusted context before any
+        # REPAIR identity is derived (fail closed, before REPAIR contact).
+        verify_primary_failure_evidence(pfe, trusted_context, settings)
+
+        # Derive the exact RNI and REPAIR request identity from trusted inputs.
+        rni = build_repair_normalized_input(
+            job_id=job_id,
+            primary_trusted_context=trusted_context,
+            failure_evidence=pfe,
+            validated_settings=settings,
+        )
+        rni_hash = repair_normalized_input_hash(rni)
+        repair_request_hash = build_repair_request_hash(rni)
+
+        # Construct the exact frozen REPAIR prompt and Ollama payload.  Every
+        # field derives from RNI / verified PFE / trusted context / validated
+        # settings / frozen constants; there are no caller fragments.
+        rni_bytes = h2_canonical_bytes(rni)
+        pfe_bytes = h2_canonical_bytes(pfe)
+        scoring_input_bytes = h2_canonical_bytes(rni.scoring_input)
+        candidate_evidence_text: str | None = None
+        if isinstance(pfe.primary_candidate, CandidateEvidence):
+            candidate_evidence_text = h2_canonical_bytes(
+                pfe.primary_candidate
+            ).decode("utf-8")
+        extracted_content = self._h2b_extract_model_content(pfe.primary_raw_utf8)
+        prompt = render_task016c_repair_prompt_v2(
+            output_language=rni.output_language,
+            repair_request_hash=repair_request_hash,
+            rni_jcs_utf8=rni_bytes.decode("utf-8"),
+            pfe_jcs_utf8=pfe_bytes.decode("utf-8"),
+            scoring_input_jcs_utf8=scoring_input_bytes.decode("utf-8"),
+            primary_raw_utf8=pfe.primary_raw_utf8,
+            candidate_evidence_jcs_utf8=candidate_evidence_text,
+            extracted_model_content=extracted_content,
+        )
+        body = build_task016c_repair_generate_body(
+            model=rni.repair_model,
+            prompt=prompt,
+            temperature=rni.temperature,
+            max_output_tokens=rni.max_output_tokens,
+        )
+        body_sha256 = hashlib.sha256(body).hexdigest()
+        body_length = len(body)
+
+        repair_identity = ScoringDispatchIdentity(
+            role=ScoringDispatchRole.REPAIR,
+            operation="local-scoring-repair-v1",
+            normalized_input_hash=rni_hash,
+            request_hash=repair_request_hash,
+        )
+        provider = self._create_scoring_provider_for_dispatch()
+
+        def _dispatch() -> bytes:
+            return cast(
+                bytes,
+                provider.dispatch_exact_repair_generate(
+                    body=body,
+                    body_sha256=body_sha256,
+                    body_length=body_length,
+                ),
+            )
+
+        # Atomically admit REPAIR and dispatch the SAME derived identity/payload.
+        try:
+            raw_body = admission._consume_runtime_role_and_dispatch(
+                repair_identity, _dispatch, now=_utcnow()
+            )
+        except ScoringDispatchDenied:
+            raise
+        except Exception as error:
+            raise UnknownProviderState(
+                "REPAIR provider outcome is unknown after external dispatch"
+            ) from error
+
+        # Authoritative outer capture: strict UTF-8, bounded, full-body hash, and
+        # strict outer protocol.  Ambiguity after contact is UNKNOWN.
+        try:
+            outer_capture = seal_primary_raw_capture(raw_body)
+        except ValueError as error:
+            raise UnknownProviderState(
+                "REPAIR outer provider protocol is ambiguous after contact"
+            ) from error
+
+        # Inner repaired candidate parse/schema: known deterministic terminal.
+        try:
+            repaired_candidate = parse_scoring_candidate(outer_capture.utf8)
+        except ValueError:
+            return self._h2b_known_terminal_failure(
+                job_id=job_id, detail="REPAIR_SCHEMA_OR_PARSE_INVALID"
+            )
+
+        # TASK-016B language validation of the repaired candidate.
+        repair_language_ev = replay_language_validation(
+            candidate=repaired_candidate,
+            output_language=rni.output_language,
+        )
+        if repair_language_ev.result != "VALID":
+            return self._h2b_known_terminal_failure(
+                job_id=job_id, detail="REPAIR_LANGUAGE_INVALID"
+            )
+
+        # Derive (not accept) the exact REPAIR Judge context/identity.
+        judge_ctx, judge_input = derive_repair_judge_trusted_context(
+            repair_request_hash=repair_request_hash,
+            trusted_candidate=repaired_candidate,
+            scoring_input=scoring_input,
+            validated_settings=settings,
+        )
+        judge_identity = ScoringDispatchIdentity(
+            role=ScoringDispatchRole.REPAIR_JUDGE,
+            operation="local-content-quality-v1",
+            normalized_input_hash=judge_ctx.expected_h1,
+            request_hash=judge_ctx.expected_h2,
+        )
+        judge_provider = self._create_quality_judge_provider_for_dispatch()
+
+        def _dispatch_judge() -> str:
+            return cast(
+                str,
+                judge_provider.judge_exact_model_content(
+                    judge_ctx.operation_input,
+                    content_input=judge_input,
+                    expected_identity=judge_identity,
+                ),
+            )
+
+        # Atomically admit REPAIR_JUDGE and dispatch the SAME derived identity.
+        try:
+            judge_raw = admission._consume_runtime_role_and_dispatch(
+                judge_identity, _dispatch_judge, now=_utcnow()
+            )
+        except ScoringDispatchDenied:
+            raise
+        except Exception as error:
+            raise UnknownProviderState(
+                "REPAIR Judge outcome is unknown after external dispatch"
+            ) from error
+
+        # Judge raw must be a trustworthy captured model content; ambiguity after
+        # contact is UNKNOWN, never semantic UNCERTAIN.
+        try:
+            judge_capture = seal_judge_raw_capture(judge_raw)
+        except ValueError as error:
+            raise UnknownProviderState(
+                "REPAIR Judge raw is ambiguous after external contact"
+            ) from error
+
+        # Pure replay of the exact Judge raw against the derived identity.
+        judge_result = verify_judge_model_content(
+            judge_raw,
+            operation_input=judge_ctx.operation_input,
+            content_input=judge_input,
+        )
+        if judge_result.status is ContentQualityStatus.REJECT:
+            return self._h2b_known_terminal_failure(
+                job_id=job_id, detail="REPAIR_JUDGE_REJECT"
+            )
+        if judge_result.status is not ContentQualityStatus.PASS:
+            return self._h2b_known_terminal_failure(
+                job_id=job_id, detail="REPAIR_JUDGE_UNCERTAIN"
+            )
+
+        judge_evidence = build_judge_evidence(
+            role="REPAIR",
+            operation_input=judge_ctx.operation_input,
+            judge_input=judge_input,
+            raw_utf8=judge_raw,
+            model=settings.model,
+            model_digest=settings.expected_model_digest,
+            policy_version=_QUALITY_POLICY_VERSION,
+            prompt_version=_QUALITY_PROMPT_VERSION,
+            operation_schema_version=_QUALITY_SCHEMA_VERSION,
+        )
+        attestation = build_quality_pass_attestation(
+            quality_result=judge_result,
+            operation_input=judge_ctx.operation_input,
+            quality_input=judge_input,
+            authority=self._quality_provenance_authority,
+        )
+
+        # Construct the UNTRUSTED in-memory evidence aggregate.  This confers no
+        # trust, persistence authority, or H2-C ingress; H2-B stops here.
+        aggregate = PhaseH2BValidatedRepairResult(
+            primary_trusted_context=trusted_context,
+            primary_failure_evidence=pfe,
+            failure_class=pfe.failure_class,
+            repair_normalized_input=rni,
+            rni_hash=rni_hash,
+            repair_request_hash=repair_request_hash,
+            repair_prompt=prompt,
+            repair_payload_bytes=body,
+            repair_payload_sha256=body_sha256,
+            repair_payload_length=body_length,
+            repair_raw_utf8=outer_capture.utf8,
+            repair_raw_sha256=outer_capture.sha256,
+            repair_raw_length=outer_capture.byte_length,
+            repair_model_content=self._h2b_extract_model_content(outer_capture.utf8)
+            or "",
+            repaired_candidate=repaired_candidate,
+            repaired_candidate_hash=build_scoring_candidate_hash(repaired_candidate),
+            language_evidence=repair_language_ev,
+            judge_operation_input=judge_ctx.operation_input,
+            judge_input=judge_input,
+            judge_h1=judge_ctx.expected_h1,
+            judge_h2=judge_ctx.expected_h2,
+            judge_evidence=judge_evidence,
+            judge_raw_utf8=judge_capture.utf8,
+            judge_raw_sha256=judge_capture.sha256,
+            judge_raw_length=judge_capture.byte_length,
+            judge_result=judge_result,
+            attestation=attestation,
+            model=settings.model,
+            model_digest=settings.expected_model_digest,
+            prompt_version="scoring-prompt-v2",
+            schema_version="score-result-v2",
+            policy_version=_QUALITY_POLICY_VERSION,
+            quality_prompt_version=_QUALITY_PROMPT_VERSION,
+            quality_schema_version=_QUALITY_SCHEMA_VERSION,
+            temperature=settings.temperature,
+            max_output_tokens=settings.max_output_tokens,
+            max_description_chars=settings.max_description_chars,
+        )
+        self._last_h2b_validated_repair_result = aggregate
+        return None
 
     def _trusted_persistence_entry(
         self,
@@ -943,7 +1539,9 @@ class RuntimeOperations(Operations):
                     )
                 )
 
-        def scoring_stage(job: JobRecord, record: VideoRecord) -> None:
+        def scoring_stage(
+            job: JobRecord, record: VideoRecord
+        ) -> StageDisposition | None:
             video = self._video_metadata(record)
             transcript = self._load_transcript(job, video).artifact
             artifact = self._repository.latest_artifact(
@@ -972,18 +1570,50 @@ class RuntimeOperations(Operations):
             )
             admission.admit(primary_identity, now=_utcnow())
             provider = self._create_scoring_provider_for_dispatch()
-            attempt = self._dispatch_primary_attempt_after_admission(provider, scoring_input)
-            success = self.run_primary_trusted_scoring(
-                attempt=attempt,
-                scoring_input=scoring_input,
-                job_id=job.job_id,
-            )
+            try:
+                attempt = self._dispatch_primary_attempt_after_admission(
+                    provider, scoring_input
+                )
+            except UnknownProviderState:
+                capture = self._h2b_eligible_parse_failure_capture(provider)
+                if capture is None:
+                    raise
+                repair_outcome = self._h2b_repair_for_parse_failure(
+                    job_id=job.job_id,
+                    scoring_input=scoring_input,
+                    admission=admission,
+                    capture=capture,
+                )
+                if repair_outcome is None:
+                    raise
+                if repair_outcome is StageDisposition.TERMINAL:
+                    return StageDisposition.TERMINAL
+                return None
+            try:
+                success = self.run_primary_trusted_scoring(
+                    attempt=attempt,
+                    scoring_input=scoring_input,
+                    job_id=job.job_id,
+                )
+            except _KnownPrimaryFailure:
+                repair_outcome = self._h2b_repair_for_known_failure(
+                    job_id=job.job_id,
+                    scoring_input=scoring_input,
+                    attempt=attempt,
+                    admission=admission,
+                )
+                if repair_outcome is None:
+                    raise
+                if repair_outcome is StageDisposition.TERMINAL:
+                    return StageDisposition.TERMINAL
+                return None
             self._persist_trusted_scoring_success(
                 success=success,
                 job=job,
                 owner=owner,
                 pipeline_version=PIPELINE_VERSION,
             )
+            return None
 
         def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:

@@ -170,6 +170,21 @@ class PipelineOrchestrator:
         except Exception as error:
             self._fail(job, self._as_app_error(error, job), now=now)
             return
+        if disposition is StageDisposition.TERMINAL:
+            # The H2-B known-terminal path has already committed a non-retryable
+            # FAILED_FINAL transition.  Verify it through a side-effect-free
+            # repository read-back before suppressing the generic failure; a
+            # fake or unrelated TERMINAL never suppresses generic failure unless
+            # the repository already records FAILED_FINAL.  The disposition is
+            # ordinary orchestration information and grants no authority.
+            saved_terminal = self.repository.get_job(job.job_id)
+            if (
+                saved_terminal is not None
+                and saved_terminal.status is JobStatus.FAILED_FINAL
+            ):
+                return
+            self._fail(job, self._invalid_job_error(job), now=now)
+            return
         saved_job = self.repository.get_job(job.job_id)
         if saved_job is None or saved_job.status is not JobStatus.SUCCEEDED:
             self._fail(job, self._invalid_job_error(job), now=now)
