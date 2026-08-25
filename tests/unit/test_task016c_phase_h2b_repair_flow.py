@@ -411,8 +411,8 @@ def test_forged_eligible_pfe_cannot_start_repair_without_actual_primary(
 
     transport = _FakeTransport([_tags(), _tags()])
     runtime = _runtime(tmp_path, transport)
-    # Build the evidence against the runtime's own trusted context so it passes
-    # PFE verification and actually reaches the H1 admission guard.
+    # Build self-consistent eligible evidence against the runtime's own trusted
+    # context: even a PFE that independently verifies cannot start a repair.
     scoring_input = support._scoring_input()
     ctx = build_primary_trusted_context(
         scoring_input=scoring_input,
@@ -429,17 +429,35 @@ def test_forged_eligible_pfe_cannot_start_repair_without_actual_primary(
         owner=runtime._runtime_owner,
     )
 
-    # No actual PRIMARY execution consumed the PRIMARY role in this runtime, so
-    # the runtime-owned REPAIR admission is denied before any provider contact.
+    # The rejected authoritative executor shape is gone: there is no
+    # caller-facing H2-B ingress that accepts a PFE and contacts a provider.
+    assert not hasattr(runtime, "_h2b_execute_repair")
+    # Caller REPAIR admission stays denied.
     with pytest.raises(ScoringDispatchDenied):
-        runtime._h2b_execute_repair(
-            job_id="scoring-job",
-            scoring_input=scoring_input,
-            admission=admission,
-            pfe=pfe,
+        admission.admit(
+            ScoringDispatchIdentity(
+                role=ScoringDispatchRole.REPAIR,
+                operation="local-scoring-repair-v1",
+                normalized_input_hash="a" * 64,
+                request_hash="a" * 64,
+            ),
+            now=datetime.now(UTC),
+        )
+    # No actual PRIMARY execution consumed the PRIMARY role in this runtime, so
+    # even the state-only REPAIR consumption is denied before any contact.
+    with pytest.raises(ScoringDispatchDenied):
+        admission.consume_repair_role(
+            ScoringDispatchIdentity(
+                role=ScoringDispatchRole.REPAIR,
+                operation="local-scoring-repair-v1",
+                normalized_input_hash="a" * 64,
+                request_hash="a" * 64,
+            ),
+            now=datetime.now(UTC),
         )
 
     assert transport.requests == []
+    del pfe
 
 
 def test_unknown_primary_failure_is_not_relabeled_into_repair_eligibility(
@@ -470,14 +488,23 @@ def test_repair_role_consumption_requires_active_lease_and_primary_role(
     admission = runtime._scoring_admission_for("missing-job")
 
     with pytest.raises(ScoringDispatchDenied):
-        admission._consume_runtime_role_and_dispatch(
+        admission.consume_repair_role(
             ScoringDispatchIdentity(
                 role=ScoringDispatchRole.REPAIR,
                 operation="local-scoring-repair-v1",
                 normalized_input_hash="a" * 64,
                 request_hash="a" * 64,
             ),
-            lambda: pytest.fail("dispatch must not run"),
+            now=datetime.now(UTC),
+        )
+    with pytest.raises(ScoringDispatchDenied):
+        admission.consume_repair_judge_role(
+            ScoringDispatchIdentity(
+                role=ScoringDispatchRole.REPAIR_JUDGE,
+                operation="local-content-quality-v1",
+                normalized_input_hash="b" * 64,
+                request_hash="b" * 64,
+            ),
             now=datetime.now(UTC),
         )
 
@@ -546,6 +573,36 @@ def test_repair_pass_produces_untrusted_aggregate_without_persistence(
     job = _scoring_job(runtime)
     assert job.status is JobStatus.FAILED_FINAL
     assert not hasattr(scoring_module, "PhaseHTrustedRepairSuccess")
+
+    # Corrected H2-B: deterministic gate PASS evidence plus finalizer-produced
+    # TrustedScoreResult and sealed structured bytes/hash/length.
+    from youtube_intel.quality import (
+        TrustedScoreResult,
+        build_content_quality_input_hash,
+    )
+    from youtube_intel.scoring import _sealed_trusted_score_result_serializer
+
+    assert aggregate.deterministic_gate_status == "PASS"
+    assert aggregate.quality_input_hash == build_content_quality_input_hash(
+        aggregate.judge_input
+    )
+    assert aggregate.judge_input.scoring_request_hash == aggregate.repair_request_hash
+    trusted_result = aggregate.finalizer_trusted_result
+    assert type(trusted_result) is TrustedScoreResult
+    # Dual binding: the semantic score keeps the PRIMARY request hash while the
+    # REPAIR transport provenance stays separate and intact.
+    assert (
+        trusted_result.result.request_hash
+        == aggregate.primary_trusted_context.request_hash
+    )
+    assert trusted_result.result.request_hash != aggregate.repair_request_hash
+    assert aggregate.structured_result_bytes == _sealed_trusted_score_result_serializer(
+        trusted_result
+    )
+    assert aggregate.structured_result_sha256 == hashlib.sha256(
+        aggregate.structured_result_bytes
+    ).hexdigest()
+    assert aggregate.structured_result_length == len(aggregate.structured_result_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -898,15 +955,17 @@ def test_no_second_repair_after_known_repair_failure(
     admission = runtime._scoring_admission_for(job.job_id)
     before = len(transport.requests)
 
+    # The one-shot REPAIR role is already consumed and the terminal job owns no
+    # active lease; the state-only consumption denies any second REPAIR, and no
+    # dispatch authority exists anywhere regardless.
     with pytest.raises(ScoringDispatchDenied):
-        admission._consume_runtime_role_and_dispatch(
+        admission.consume_repair_role(
             ScoringDispatchIdentity(
                 role=ScoringDispatchRole.REPAIR,
                 operation="local-scoring-repair-v1",
                 normalized_input_hash="a" * 64,
                 request_hash="a" * 64,
             ),
-            lambda: pytest.fail("second REPAIR must not dispatch"),
             now=datetime.now(UTC),
         )
 
@@ -939,15 +998,17 @@ def test_no_second_repair_after_judge_failure(
     admission = runtime._scoring_admission_for(job.job_id)
     before = len(transport.requests)
 
+    # The one-shot REPAIR role is already consumed and the terminal job owns no
+    # active lease; the state-only consumption denies any second REPAIR, and no
+    # dispatch authority exists anywhere regardless.
     with pytest.raises(ScoringDispatchDenied):
-        admission._consume_runtime_role_and_dispatch(
+        admission.consume_repair_role(
             ScoringDispatchIdentity(
                 role=ScoringDispatchRole.REPAIR,
                 operation="local-scoring-repair-v1",
                 normalized_input_hash="a" * 64,
                 request_hash="a" * 64,
             ),
-            lambda: pytest.fail("second REPAIR must not dispatch"),
             now=datetime.now(UTC),
         )
 
@@ -971,15 +1032,17 @@ def test_no_second_repair_after_unknown_provider_state(tmp_path: Path) -> None:
     admission = runtime._scoring_admission_for(job.job_id)
     before = len(transport.requests)
 
+    # The one-shot REPAIR role is already consumed and the terminal job owns no
+    # active lease; the state-only consumption denies any second REPAIR, and no
+    # dispatch authority exists anywhere regardless.
     with pytest.raises(ScoringDispatchDenied):
-        admission._consume_runtime_role_and_dispatch(
+        admission.consume_repair_role(
             ScoringDispatchIdentity(
                 role=ScoringDispatchRole.REPAIR,
                 operation="local-scoring-repair-v1",
                 normalized_input_hash="a" * 64,
                 request_hash="a" * 64,
             ),
-            lambda: pytest.fail("second REPAIR must not dispatch"),
             now=datetime.now(UTC),
         )
 
@@ -1002,15 +1065,16 @@ def test_no_second_repair_judge_after_judge_consumed(tmp_path: Path) -> None:
     admission = runtime._scoring_admission_for(job.job_id)
     before = len(transport.requests)
 
+    # The one-shot REPAIR_JUDGE role is already consumed; the state-only
+    # consumption denies a second Judge, and no dispatch authority exists.
     with pytest.raises(ScoringDispatchDenied):
-        admission._consume_runtime_role_and_dispatch(
+        admission.consume_repair_judge_role(
             ScoringDispatchIdentity(
                 role=ScoringDispatchRole.REPAIR_JUDGE,
                 operation="local-content-quality-v1",
                 normalized_input_hash="b" * 64,
                 request_hash="b" * 64,
             ),
-            lambda: pytest.fail("second Judge must not dispatch"),
             now=datetime.now(UTC),
         )
 
@@ -1083,29 +1147,29 @@ def test_concurrent_repair_attempts_contact_the_provider_exactly_once(
         now=NOW,
     )
 
-    contacts: list[str] = []
-
     def attempt() -> str:
         try:
-            runtime._scoring_admission_for(claimed.job_id)._consume_runtime_role_and_dispatch(
+            runtime._scoring_admission_for(claimed.job_id).consume_repair_role(
                 ScoringDispatchIdentity(
                     role=ScoringDispatchRole.REPAIR,
                     operation="local-scoring-repair-v1",
                     normalized_input_hash="c" * 64,
                     request_hash="c" * 64,
                 ),
-                lambda: contacts.append("contact"),
                 now=NOW,
             )
         except ScoringDispatchDenied:
             return "denied"
-        return "dispatched"
+        return "consumed"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = set(executor.map(lambda _: attempt(), (0, 1)))
 
-    assert results == {"denied", "dispatched"}
-    assert contacts == ["contact"]
+    # Exactly one concurrent consumer wins the one-shot REPAIR role; the loser
+    # is denied before any contact, and the state-only operation never grants
+    # dispatch authority, so zero external transport occurs.
+    assert results == {"denied", "consumed"}
+    assert transport.requests == []
 
 
 # ---------------------------------------------------------------------------
@@ -1341,9 +1405,17 @@ def test_forged_h2b_results_cannot_gain_persistence_authority(tmp_path: Path) ->
     forged_new = object.__new__(PhaseH2BValidatedRepairResult)
     mutated = copy.copy(aggregate)
     object.__setattr__(mutated, "repair_request_hash", "f" * 64)
-    deep = copy.deepcopy(aggregate)
-    pickled = pickle.loads(pickle.dumps(aggregate))
+    structured_mutated = copy.copy(aggregate)
+    object.__setattr__(structured_mutated, "structured_result_sha256", "e" * 64)
 
-    for candidate in (forged_new, mutated, deep, pickled):
+    for candidate in (forged_new, mutated, structured_mutated):
         with pytest.raises((ValueError, TypeError, AttributeError)):
             entry.persist_success(candidate)  # type: ignore[arg-type]
+
+    # The finalizer-produced TrustedScoreResult is non-copyable and
+    # non-serializable, so deep-copy/pickle restoration of the aggregate fails
+    # closed before any forged restored shape can even reach persistence.
+    with pytest.raises(TypeError):
+        copy.deepcopy(aggregate)
+    with pytest.raises(TypeError):
+        pickle.dumps(aggregate)

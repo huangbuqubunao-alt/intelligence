@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from itertools import count
 from pathlib import Path
 from threading import Lock
-from typing import ClassVar, Protocol, TypeVar
+from typing import ClassVar, Protocol
 from weakref import WeakKeyDictionary
 
 from youtube_intel.domain import (
@@ -34,9 +33,6 @@ class ScoringDispatchRole(str, Enum):
     REPAIR = "REPAIR"
     PRIMARY_JUDGE = "PRIMARY_JUDGE"
     REPAIR_JUDGE = "REPAIR_JUDGE"
-
-
-_T = TypeVar("_T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,40 +270,64 @@ class ScoringDispatchAdmission:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
 
-    def _consume_runtime_role_and_dispatch(
-        self,
-        identity: ScoringDispatchIdentity,
-        dispatch: Callable[[], _T],
-        *,
-        now: datetime,
-    ) -> _T:
-        """PRIVATE runtime-owned atomic admit-and-dispatch for REPAIR roles.
+    def consume_repair_role(
+        self, identity: ScoringDispatchIdentity, *, now: datetime
+    ) -> None:
+        """Consume the one-shot REPAIR role after the frozen state checks.
 
-        This is not a public admission API.  It persists no identity, returns
-        no token/receipt/capability/continuation, and accepts no caller-
-        provided identity after role consumption: the runtime builds the
-        ``dispatch`` closure over exactly the same immutable local values that
-        produced ``identity``, so consuming role A and dispatching B is
-        structurally impossible on the production path.  The unchanged H1
-        machinery is reused: live lease proof, shared execution-state lock,
-        one-shot role budget, predecessor-role requirement, and the
-        ProviderCall-existence check for the exact derived request hash.
+        STATE ONLY.  This operation verifies the live lease, the frozen REPAIR
+        role/operation literals, the consumed-PRIMARY predecessor requirement,
+        the one-shot role budget, and the ProviderCall-existence check for the
+        exact derived request hash, then records the consumption.  It accepts
+        no callback/closure, executes no caller code, contacts no provider,
+        persists no identity, and returns no token/receipt/capability/
+        continuation/admitted identity.  Dispatch is structurally separate and
+        owned by the runtime frame that derived the identity.
         """
 
-        if identity.role is ScoringDispatchRole.REPAIR:
-            predecessor = ScoringDispatchRole.PRIMARY
-            required_operation = "local-scoring-repair-v1"
-        elif identity.role is ScoringDispatchRole.REPAIR_JUDGE:
-            predecessor = ScoringDispatchRole.REPAIR
-            required_operation = "local-content-quality-v1"
-        else:
+        if identity.role is not ScoringDispatchRole.REPAIR:
+            raise ScoringDispatchDenied("REPAIR role consumption requires the REPAIR role")
+        if identity.operation != "local-scoring-repair-v1":
             raise ScoringDispatchDenied(
-                "runtime admit-and-dispatch supports only REPAIR roles"
+                "REPAIR consumption identity operation is not the frozen literal"
             )
-        if identity.operation != required_operation:
+        self._consume_runtime_role(
+            identity, predecessor=ScoringDispatchRole.PRIMARY, now=now
+        )
+
+    def consume_repair_judge_role(
+        self, identity: ScoringDispatchIdentity, *, now: datetime
+    ) -> None:
+        """Consume the one-shot REPAIR_JUDGE role after the frozen state checks.
+
+        STATE ONLY, with the same restricted contract as
+        ``consume_repair_role``: frozen REPAIR_JUDGE role/operation literals,
+        consumed-REPAIR predecessor requirement, live lease proof, one-shot
+        budget, and the ProviderCall-existence check.  No callback parameter,
+        no return value, no dispatch authority.
+        """
+
+        if identity.role is not ScoringDispatchRole.REPAIR_JUDGE:
             raise ScoringDispatchDenied(
-                "REPAIR dispatch identity operation is not the frozen literal"
+                "REPAIR_JUDGE role consumption requires the REPAIR_JUDGE role"
             )
+        if identity.operation != "local-content-quality-v1":
+            raise ScoringDispatchDenied(
+                "REPAIR_JUDGE consumption identity operation is not the frozen literal"
+            )
+        self._consume_runtime_role(
+            identity, predecessor=ScoringDispatchRole.REPAIR, now=now
+        )
+
+    def _consume_runtime_role(
+        self,
+        identity: ScoringDispatchIdentity,
+        *,
+        predecessor: ScoringDispatchRole,
+        now: datetime,
+    ) -> None:
+        """Record one runtime-owned role consumption under the shared lock."""
+
         job = self.verify_active_lease(now=now)
         state = ScoringAdmissionRegistry.state_for(
             repository=self.repository,
@@ -325,4 +345,3 @@ class ScoringDispatchAdmission:
             if self.repository.get_provider_call(identity.request_hash) is not None:
                 raise ScoringDispatchDenied("existing provider state blocks scoring dispatch")
             state.consumed_roles.add(identity.role)
-        return dispatch()

@@ -9,7 +9,8 @@ Covers the narrow provider/admission/evidence seams authorized by
   ``/api/tags`` before ``/api/generate``, exact raw return);
 - the PRIMARY parse-failure raw capture seam;
 - the strict REPAIR Judge seam (UNKNOWN vs semantic UNCERTAIN split);
-- the private atomic role-consumption-and-dispatch admission composition;
+- the state-only REPAIR role-consumption admission operations (no callback
+  dispatch authority);
 - the REPAIR Judge trusted-context derivation helper.
 
 Runtime end-to-end behavior lives in ``test_task016c_phase_h2b_repair_flow.py``.
@@ -524,13 +525,11 @@ def test_primary_judge_identity_substituted_into_repair_judge_is_rejected() -> N
 
     assert transport.requests == []
 
-    # The private admission operation also refuses non-REPAIR roles.
+    # The state-only REPAIR role consumption also refuses non-REPAIR roles.
     repository = _Repository()
     _consume_primary(repository)
-    with pytest.raises(ScoringDispatchDenied, match="REPAIR roles"):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            primary_identity, lambda: "dispatched", now=_NOW
-        )
+    with pytest.raises(ScoringDispatchDenied):
+        _gate(repository).consume_repair_role(primary_identity, now=_NOW)
 
 
 def test_judge_exact_seam_binding_mismatch_rejects_before_contact() -> None:
@@ -591,7 +590,7 @@ def test_legacy_judge_transport_failure_stashes_no_raw() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Private atomic role-consumption-and-dispatch composition
+# State-only REPAIR role consumption (no callback dispatch authority)
 # ---------------------------------------------------------------------------
 
 
@@ -661,7 +660,40 @@ def _consume_primary(repository: _Repository) -> None:
     )
 
 
-def test_private_dispatch_rejects_non_repair_roles() -> None:
+def test_admission_has_no_callback_dispatch_authority() -> None:
+    import inspect
+    import types
+    from collections.abc import Callable
+
+    forbidden = (
+        "_consume_runtime_role_and_dispatch",
+        "consume_runtime_role_and_dispatch",
+        "admit_and_dispatch",
+        "consume_repair_and_dispatch",
+        "consume_repair_dispatch",
+        "dispatch_after_admission",
+        "admit_then_run",
+        "consume_role_and_dispatch",
+    )
+    for name in forbidden:
+        assert not hasattr(ScoringDispatchAdmission, name), name
+
+    # No retained operation accepts executable work: a leading underscore is
+    # not a boundary, so the semantic surface itself must be absent.
+    for name in dir(ScoringDispatchAdmission):
+        if name.startswith("__"):
+            continue
+        attribute = getattr(ScoringDispatchAdmission, name)
+        if not isinstance(attribute, types.FunctionType):
+            continue
+        for parameter in inspect.signature(attribute).parameters.values():
+            origin = getattr(parameter.annotation, "__origin__", None)
+            assert origin is not Callable and parameter.annotation is not Callable, (
+                f"ScoringDispatchAdmission.{name} accepts executable work"
+            )
+
+
+def test_state_only_consumption_rejects_non_repair_roles() -> None:
     repository = _Repository()
     _consume_primary(repository)
     primary_identity = ScoringDispatchIdentity(
@@ -671,42 +703,28 @@ def test_private_dispatch_rejects_non_repair_roles() -> None:
         request_hash="q" * 64,
     )
 
-    with pytest.raises(ScoringDispatchDenied, match="REPAIR roles"):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            primary_identity, lambda: "dispatched", now=_NOW
-        )
+    with pytest.raises(ScoringDispatchDenied):
+        _gate(repository).consume_repair_role(primary_identity, now=_NOW)
+    with pytest.raises(ScoringDispatchDenied):
+        _gate(repository).consume_repair_judge_role(primary_identity, now=_NOW)
 
 
-def test_private_dispatch_repair_requires_consumed_primary() -> None:
+def test_state_only_repair_consumption_requires_consumed_primary() -> None:
     repository = _Repository()
-    dispatched: list[str] = []
 
     with pytest.raises(ScoringDispatchDenied, match="PRIMARY"):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            _repair_identity(),
-            lambda: dispatched.append("x"),
-            now=_NOW,
-        )
-
-    assert dispatched == []
+        _gate(repository).consume_repair_role(_repair_identity(), now=_NOW)
 
 
-def test_private_dispatch_repair_judge_requires_consumed_repair() -> None:
+def test_state_only_repair_judge_consumption_requires_consumed_repair() -> None:
     repository = _Repository()
     _consume_primary(repository)
-    dispatched: list[str] = []
 
     with pytest.raises(ScoringDispatchDenied, match="REPAIR"):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            _repair_judge_identity(),
-            lambda: dispatched.append("x"),
-            now=_NOW,
-        )
-
-    assert dispatched == []
+        _gate(repository).consume_repair_judge_role(_repair_judge_identity(), now=_NOW)
 
 
-def test_private_dispatch_rejects_wrong_operation_literal() -> None:
+def test_state_only_consumption_rejects_wrong_operation_literal() -> None:
     repository = _Repository()
     _consume_primary(repository)
     wrong_operation = ScoringDispatchIdentity(
@@ -717,49 +735,46 @@ def test_private_dispatch_rejects_wrong_operation_literal() -> None:
     )
 
     with pytest.raises(ScoringDispatchDenied):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            wrong_operation, lambda: "dispatched", now=_NOW
-        )
+        _gate(repository).consume_repair_role(wrong_operation, now=_NOW)
+    _gate(repository).consume_repair_role(_repair_identity(), now=_NOW)
+    wrong_judge_operation = ScoringDispatchIdentity(
+        role=ScoringDispatchRole.REPAIR_JUDGE,
+        operation="local-scoring-repair-v1",
+        normalized_input_hash="j" * 64,
+        request_hash="j" * 64,
+    )
+    with pytest.raises(ScoringDispatchDenied):
+        _gate(repository).consume_repair_judge_role(wrong_judge_operation, now=_NOW)
 
 
-def test_private_dispatch_duplicate_repair_role_is_rejected() -> None:
+def test_state_only_duplicate_repair_role_is_rejected() -> None:
     repository = _Repository()
     _consume_primary(repository)
     gate = _gate(repository)
-    first = gate._consume_runtime_role_and_dispatch(
-        _repair_identity(), lambda: "first", now=_NOW
-    )
-    assert first == "first"
+    assert gate.consume_repair_role(_repair_identity(), now=_NOW) is None
 
     with pytest.raises(ScoringDispatchDenied, match="already consumed"):
-        gate._consume_runtime_role_and_dispatch(
-            _repair_identity("b"), lambda: "second", now=_NOW
-        )
+        gate.consume_repair_role(_repair_identity("b"), now=_NOW)
 
 
-def test_private_dispatch_existing_provider_call_blocks_repair() -> None:
+def test_state_only_existing_provider_call_blocks_repair() -> None:
     repository = _Repository()
     _consume_primary(repository)
     identity = _repair_identity()
     repository.calls[identity.request_hash] = object()
 
     with pytest.raises(ScoringDispatchDenied, match="existing provider state"):
-        _gate(repository)._consume_runtime_role_and_dispatch(
-            identity, lambda: "dispatched", now=_NOW
-        )
+        _gate(repository).consume_repair_role(identity, now=_NOW)
 
 
-def test_private_dispatch_lost_lease_is_rejected_before_dispatch() -> None:
+def test_state_only_lost_lease_is_rejected() -> None:
     repository = _Repository()
     _consume_primary(repository)
-    dispatched: list[str] = []
 
     with pytest.raises(ScoringDispatchDenied, match="lease"):
-        _gate(repository, owner="other-runtime")._consume_runtime_role_and_dispatch(
-            _repair_identity(), lambda: dispatched.append("x"), now=_NOW
+        _gate(repository, owner="other-runtime").consume_repair_role(
+            _repair_identity(), now=_NOW
         )
-
-    assert dispatched == []
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,7 @@ from youtube_intel.providers.ollama import (
     verify_judge_model_content,
 )
 from youtube_intel.quality import (
+    TrustedScoreResult,
     build_content_quality_input_hash,
     build_judge_h1_h2,
     build_scoring_candidate_hash,
@@ -1449,6 +1450,7 @@ class PhaseH2BValidatedRepairResult:
 
     # Exact REPAIR normalized input and its canonical/request identity.
     repair_normalized_input: RepairNormalizedInput
+    repair_normalized_input_bytes: bytes
     rni_hash: str
     repair_request_hash: str
 
@@ -1469,6 +1471,15 @@ class PhaseH2BValidatedRepairResult:
     # TASK-016B language evidence/result.
     language_evidence: LanguageValidationEvidence
 
+    # Deterministic Content Quality gate PASS evidence/provenance.  The gate
+    # input is the exact REPAIR ContentQualityInput (``judge_input``) bound to
+    # the REPAIR request hash; these fields carry the hash and the successful
+    # gate status sufficient for an independent gate replay.  No successful
+    # REPAIR path ever carries an EMPTY_CONTENT gate result: empty/whitespace
+    # content fails schema/parse before the gate.
+    quality_input_hash: str
+    deterministic_gate_status: str
+
     # REPAIR Judge identity, evidence, raw, and final PASS result.
     judge_operation_input: QualityJudgeOperationInput
     judge_input: ContentQualityInput
@@ -1480,6 +1491,18 @@ class PhaseH2BValidatedRepairResult:
     judge_raw_length: int
     judge_result: ContentQualityResult
     attestation: QualityPassAttestation
+
+    # REPAIR-aware finalization evidence: the finalizer-produced trusted result
+    # plus the exact sealed structured bytes/hash/length and the schema/version
+    # metadata needed to reproduce them.  Even the finalizer-produced part
+    # confers no trust on the aggregate as a whole: it remains untrusted
+    # evidence data and not a persistence capability.
+    finalizer_trusted_result: TrustedScoreResult
+    structured_result_bytes: bytes
+    structured_result_sha256: str
+    structured_result_length: int
+    structured_result_schema_version: str
+    structured_result_prompt_version: str
 
     # Runtime/config provenance required by the frozen H2-C replay contract.
     model: str

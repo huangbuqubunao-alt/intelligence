@@ -12,10 +12,12 @@ import hashlib
 import json
 import unicodedata
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Final, NoReturn, TypeVar
 
 from pydantic import BaseModel
 
+from youtube_intel.config import LocalScoringSettings
 from youtube_intel.domain import (
     ContentQualityConfidence,
     ContentQualityDecisionSource,
@@ -23,6 +25,7 @@ from youtube_intel.domain import (
     ContentQualityResult,
     ContentQualityStatus,
     DeterministicGateReason,
+    QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
     QualityPassAttestation,
     ScoreResult,
@@ -1102,22 +1105,365 @@ class TrustedScoringFinalizer:
         if verified_attestation.scoring_request_hash != identity.request_hash:
             raise ValueError("quality attestation mismatches canonical scoring identity")
 
-        result = ScoreResult.model_validate(
-            {
-                "schema_version": scoring_context.scoring_schema_version,
-                "score": validated_candidate.score,
-                "reason": validated_candidate.reason,
-                "topics": validated_candidate.topics,
-                "should_summarize": validated_candidate.should_summarize,
-                "dimensions": validated_candidate.dimensions,
-                "provider": scoring_context.scoring_provider,
-                "model": scoring_context.scoring_model,
-                "prompt_version": scoring_context.scoring_prompt_version,
-                "request_hash": identity.request_hash,
-                "output_language": scoring_context.output_language,
-            }
+        return _build_trusted_score_result(
+            validated_candidate=validated_candidate,
+            request_hash=identity.request_hash,
+            scoring_context=scoring_context,
         )
-        return TrustedScoreResult(
-            sentinel=_TRUSTED_SCORE_RESULT_SENTINEL,
-            result=result,
+
+
+def _build_trusted_score_result(
+    *,
+    validated_candidate: ScoringCandidate,
+    request_hash: str,
+    scoring_context: TrustedScoringContext,
+) -> TrustedScoreResult:
+    """Shared pure finalization core: one candidate -> one opaque trusted result.
+
+    This is the narrow pure core extracted from the PRIMARY finalizer and
+    reused by ``RepairTrustedScoringFinalizer``.  It performs only the
+    deterministic final-score construction and opaque wrapping: no provider
+    contact, no DB access, no Artifact creation, no ProviderCall creation, no
+    persistence, and no Phase G behavior.  The semantic ``request_hash`` is
+    supplied by the caller's verified identity binding (the PRIMARY scoring
+    request hash for both the PRIMARY and REPAIR flows).
+    """
+
+    result = ScoreResult.model_validate(
+        {
+            "schema_version": scoring_context.scoring_schema_version,
+            "score": validated_candidate.score,
+            "reason": validated_candidate.reason,
+            "topics": validated_candidate.topics,
+            "should_summarize": validated_candidate.should_summarize,
+            "dimensions": validated_candidate.dimensions,
+            "provider": scoring_context.scoring_provider,
+            "model": scoring_context.scoring_model,
+            "prompt_version": scoring_context.scoring_prompt_version,
+            "request_hash": request_hash,
+            "output_language": scoring_context.output_language,
+        }
+    )
+    return TrustedScoreResult(
+        sentinel=_TRUSTED_SCORE_RESULT_SENTINEL,
+        result=result,
+    )
+
+
+class RepairFinalizationInvalid(ValueError):
+    """A deterministic local REPAIR finalization predicate failed.
+
+    Pure adversarial invocations may raise this exact local finalization
+    exception; inside the actual H2-B runtime control flow it maps to the
+    known-terminal ``REPAIR_FINALIZATION_INVALID`` route.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class RepairFinalizerOutput:
+    """The side-effect-free output of one REPAIR-aware finalization."""
+
+    trusted_result: TrustedScoreResult
+    structured_bytes: bytes
+    structured_sha256: str
+    structured_length: int
+
+
+class RepairTrustedScoringFinalizer:
+    """The separate REPAIR-aware trusted finalization boundary (quality.py only).
+
+    This finalizer is an independent trust boundary from the runtime gate/Judge
+    results: it fresh-revalidates every input (low-level ``object.__new__`` /
+    ``object.__setattr__`` / ``model_construct`` bypasses are re-run through
+    strict validation), independently reruns the accepted deterministic Content
+    Quality gate against the reconstructed REPAIR gate input, replays the exact
+    REPAIR Judge raw and requires PASS, re-verifies the attestation against the
+    current runtime-owned authority, and validates the RNI/REPAIR request
+    identity plus the dual binding (the semantic score stays bound to the
+    PRIMARY scoring request hash while REPAIR provenance is verified
+    separately).  Only then does it produce the exact ``TrustedScoreResult``
+    through the shared pure core and seal the structured bytes through the
+    unchanged frozen exact-type serializer.
+
+    It is side-effect free: no provider contact, no persistence, no H2-C
+    ingress.  The PRIMARY ``TrustedScoringFinalizer`` retains its PRIMARY-only
+    contract unchanged.
+    """
+
+    def finalize(
+        self,
+        *,
+        candidate: ScoringCandidate | Mapping[str, object] | str | bytes | bytearray,
+        scoring_input: ScoringInput | Mapping[str, object] | str | bytes | bytearray,
+        repair_normalized_input: object,
+        rni_hash: str,
+        repair_request_hash: str,
+        quality_input: (
+            ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_result: (
+            ContentQualityResult | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_operation: (
+            QualityJudgeOperationInput
+            | Mapping[str, object]
+            | str
+            | bytes
+            | bytearray
+        ),
+        judge_evidence: object,
+        attestation: (
+            QualityPassAttestation | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+        validated_settings: LocalScoringSettings,
+    ) -> RepairFinalizerOutput:
+        """Produce trusted REPAIR output only if every independent check passes."""
+
+        try:
+            return self._finalize(
+                candidate=candidate,
+                scoring_input=scoring_input,
+                repair_normalized_input=repair_normalized_input,
+                rni_hash=rni_hash,
+                repair_request_hash=repair_request_hash,
+                quality_input=quality_input,
+                quality_result=quality_result,
+                quality_operation=quality_operation,
+                judge_evidence=judge_evidence,
+                attestation=attestation,
+                quality_authority=quality_authority,
+                scoring_context=scoring_context,
+                validated_settings=validated_settings,
+            )
+        except RepairFinalizationInvalid:
+            raise
+        except (ValueError, TypeError, AttributeError) as error:
+            # Any deterministic local validation anomaly — including reads of
+            # low-level forged capability shells — fails closed as a local
+            # finalization rejection.
+            raise RepairFinalizationInvalid(
+                f"REPAIR finalization rejected: {error}"
+            ) from error
+
+    def _finalize(
+        self,
+        *,
+        candidate: ScoringCandidate | Mapping[str, object] | str | bytes | bytearray,
+        scoring_input: ScoringInput | Mapping[str, object] | str | bytes | bytearray,
+        repair_normalized_input: object,
+        rni_hash: str,
+        repair_request_hash: str,
+        quality_input: (
+            ContentQualityInput | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_result: (
+            ContentQualityResult | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_operation: (
+            QualityJudgeOperationInput
+            | Mapping[str, object]
+            | str
+            | bytes
+            | bytearray
+        ),
+        judge_evidence: object,
+        attestation: (
+            QualityPassAttestation | Mapping[str, object] | str | bytes | bytearray
+        ),
+        quality_authority: QualityProvenanceAuthority,
+        scoring_context: TrustedScoringContext,
+        validated_settings: LocalScoringSettings,
+    ) -> RepairFinalizerOutput:
+        # Deferred imports: h2_evidence imports quality at module level.
+        from youtube_intel.h2_evidence import (
+            JudgeEvidence,
+            RepairNormalizedInput,
+            derive_repair_judge_trusted_context,
+            repair_normalized_input_hash,
+            verify_judge_evidence_replay,
+        )
+
+        # Capabilities are checked before any capability property is read.
+        _require_exact_capability(quality_authority, QualityProvenanceAuthority)
+        _require_exact_capability(scoring_context, TrustedScoringContext)
+        if type(validated_settings) is not LocalScoringSettings:
+            raise ValueError(
+                "validated_settings must be an exact validated LocalScoringSettings"
+            )
+
+        # 1. Fresh schema revalidation of every input.  Frozen construction is
+        # never trusted: object.__new__/object.__setattr__/model_construct
+        # instances are re-run through the exact strict validators.
+        validated_candidate = _reconstruct(ScoringCandidate, candidate)
+        validated_input = _reconstruct(ScoringInput, scoring_input)
+        validated_quality_input = _reconstruct(ContentQualityInput, quality_input)
+        validated_quality_result = _reconstruct(ContentQualityResult, quality_result)
+        validated_operation = _reconstruct(QualityJudgeOperationInput, quality_operation)
+        if type(repair_normalized_input) is not RepairNormalizedInput:
+            raise ValueError(
+                "repair_normalized_input must be an exact RepairNormalizedInput"
+            )
+        validated_rni = RepairNormalizedInput.model_validate(
+            repair_normalized_input.model_dump(mode="json")
+        )
+        if type(judge_evidence) is not JudgeEvidence:
+            raise ValueError("judge_evidence must be an exact JudgeEvidence")
+        validated_judge_evidence = JudgeEvidence.model_validate(
+            judge_evidence.model_dump(mode="json")
+        )
+
+        # 2. Reconstruct the accepted REPAIR deterministic-gate input with the
+        # same accepted construction/normalization as runtime H2-B, then run the
+        # accepted gate and require PASS.  No runtime gate result, stored flag,
+        # Judge PASS, attestation, or caller reason is consulted.
+        derived_ctx, derived_judge_input = derive_repair_judge_trusted_context(
+            repair_request_hash=repair_request_hash,
+            trusted_candidate=validated_candidate,
+            scoring_input=validated_input,
+            validated_settings=validated_settings,
+        )
+        if derived_judge_input != validated_quality_input:
+            raise ValueError(
+                "REPAIR quality input mismatches the accepted reconstruction"
+            )
+        if derived_ctx.operation_input != validated_operation:
+            raise ValueError(
+                "REPAIR Judge operation mismatches the accepted reconstruction"
+            )
+        if validated_operation.attempt_role is not QualityJudgeAttemptRole.REPAIR:
+            raise ValueError("REPAIR Judge operation attempt_role must be REPAIR")
+        candidate_hash = build_scoring_candidate_hash(validated_candidate)
+        quality_input_hash = build_content_quality_input_hash(validated_quality_input)
+        gate_reject = DeterministicContentQualityGate().evaluate(
+            content=validated_candidate.reason,
+            candidate_hash=candidate_hash,
+            quality_input_hash=quality_input_hash,
+            scoring_request_hash=repair_request_hash,
+        )
+        if gate_reject is not None:
+            gate_reason = gate_reject.reason
+            reason_literal = (
+                gate_reason.value if gate_reason is not None else "UNKNOWN"
+            )
+            raise ValueError(
+                f"REPAIR deterministic gate replay rejected: {reason_literal}"
+            )
+
+        # 3. Derive/revalidate the exact expected REPAIR Judge bindings and
+        # replay the Judge raw; require PASS.  No caller JudgeTrustedContext
+        # authority is accepted.
+        verify_judge_evidence_replay(validated_judge_evidence, derived_ctx)
+        if validated_judge_evidence.derived_result.status is not ContentQualityStatus.PASS:
+            raise ValueError("REPAIR Judge replay must produce PASS")
+        if validated_quality_result != validated_judge_evidence.derived_result:
+            raise ValueError(
+                "REPAIR quality result mismatches the sealed Judge evidence"
+            )
+        if validated_quality_result.status is not ContentQualityStatus.PASS:
+            raise ValueError("REPAIR quality result must be PASS")
+        if repair_request_hash == derived_ctx.expected_h2:
+            raise ValueError(
+                "REPAIR request hash collides with the REPAIR Judge identity"
+            )
+
+        # 4. Freshly verify the QualityPassAttestation against the current
+        # runtime-owned authority and the REPAIR bindings; no type-only trust.
+        _verify_pass_eligibility(validated_quality_result, validated_quality_input)
+        _verify_cross_bindings(
+            validated_quality_result, validated_operation, validated_quality_input
+        )
+        _verify_trusted_provenance(
+            validated_quality_result, validated_operation, quality_authority
+        )
+        if validated_quality_result.scoring_request_hash != repair_request_hash:
+            raise ValueError("REPAIR quality result must bind the REPAIR request hash")
+        verified_attestation = verify_quality_pass_attestation(
+            attestation,
+            quality_result=validated_quality_result,
+            operation_input=validated_operation,
+            quality_input=validated_quality_input,
+            authority=quality_authority,
+        )
+        if verified_attestation.scoring_request_hash != repair_request_hash:
+            raise ValueError("REPAIR attestation must bind the REPAIR request hash")
+        if verified_attestation.attempt_role is not QualityJudgeAttemptRole.REPAIR:
+            raise ValueError("REPAIR attestation attempt_role must be REPAIR")
+
+        # 5. RNI/REPAIR request identity and the dual-binding provenance.
+        _verify_scoring_context(
+            context=scoring_context,
+            authority=quality_authority,
+            scoring_input=validated_input,
+        )
+        identity = build_scoring_request_identity(
+            scoring_input=validated_input,
+            model=scoring_context.scoring_model,
+            temperature=scoring_context.temperature,
+            max_output_tokens=scoring_context.max_output_tokens,
+            max_description_chars=scoring_context.max_description_chars,
+        )
+        if identity.request_hash != validated_input.request_hash:
+            raise ValueError("scoring request hash mismatches canonical PRIMARY identity")
+        if repair_request_hash == identity.request_hash:
+            raise ValueError(
+                "REPAIR request hash must differ from the PRIMARY scoring request hash"
+            )
+        recomputed_rni_hash = repair_normalized_input_hash(validated_rni)
+        if recomputed_rni_hash != rni_hash:
+            raise ValueError("supplied RNI hash mismatches the canonical RNI identity")
+        recomputed_request_hash = build_provider_request_hash(
+            operation="local-scoring-repair-v1",
+            normalized_input_hash=recomputed_rni_hash,
+            provider=validated_rni.repair_provider,
+            model=validated_rni.repair_model,
+            prompt_version=validated_rni.repair_prompt_version,
+            schema_version=validated_rni.repair_schema_version,
+        )
+        if recomputed_request_hash != repair_request_hash:
+            raise ValueError("REPAIR request hash mismatches the canonical RNI identity")
+        if validated_rni.primary_request_hash != identity.request_hash:
+            raise ValueError("RNI primary_request_hash mismatches the PRIMARY identity")
+        if validated_rni.primary_normalized_input_hash != identity.normalized_input_hash:
+            raise ValueError(
+                "RNI primary_normalized_input_hash mismatches the PRIMARY identity"
+            )
+        if validated_rni.scoring_input != validated_input:
+            raise ValueError("RNI scoring_input mismatches the original scoring input")
+        if validated_rni.video_id != validated_input.video.video_id:
+            raise ValueError("RNI video_id mismatches the original scoring input")
+        if validated_rni.repair_model != validated_settings.model:
+            raise ValueError("RNI repair_model mismatches the validated settings")
+        if validated_rni.repair_model_digest != validated_settings.expected_model_digest:
+            raise ValueError("RNI repair_model_digest mismatches the validated settings")
+        if validated_rni.temperature != validated_settings.temperature:
+            raise ValueError("RNI temperature mismatches the validated settings")
+        if validated_rni.max_output_tokens != validated_settings.max_output_tokens:
+            raise ValueError("RNI max_output_tokens mismatches the validated settings")
+        if validated_rni.max_description_chars != validated_settings.max_description_chars:
+            raise ValueError(
+                "RNI max_description_chars mismatches the validated settings"
+            )
+        if validated_rni.output_language != validated_input.output_language:
+            raise ValueError("RNI output_language mismatches the original scoring input")
+
+        # 6. Shared pure finalization core: the semantic score stays bound to
+        # the PRIMARY scoring request hash.
+        trusted_result = _build_trusted_score_result(
+            validated_candidate=validated_candidate,
+            request_hash=identity.request_hash,
+            scoring_context=scoring_context,
+        )
+
+        # 7. The unchanged frozen exact-type sealed serializer produces the
+        # structured bytes; H2-B records the exact bytes, hash, and length.
+        from youtube_intel.scoring import _sealed_trusted_score_result_serializer
+
+        structured_bytes = _sealed_trusted_score_result_serializer(trusted_result)
+        return RepairFinalizerOutput(
+            trusted_result=trusted_result,
+            structured_bytes=structured_bytes,
+            structured_sha256=hashlib.sha256(structured_bytes).hexdigest(),
+            structured_length=len(structured_bytes),
         )
