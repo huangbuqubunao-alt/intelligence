@@ -2,7 +2,7 @@
 
 ## Status, scope, and precedence
 
-**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 3 INDEPENDENT REVIEW`.
+**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 4 INDEPENDENT REVIEW`.
 
 This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
@@ -844,3 +844,192 @@ PRIMARY-to-PFE continuity point; gate applicability/order/failure mapping;
 no Judge after a gate reject; H2-B finalizer ownership and dual identity
 binding; exact structured evidence; and the mandatory H2-C gate/finalizer
 replay.  Any unresolved item is `DECISION NEEDED`.
+
+## 23. Round 4: EMPTY_CONTENT reachability and finalizer gate replay
+
+This Round 4 amendment supersedes conflicting Round 3 gate reachability,
+terminal-reason, aggregate, H2-C, finalizer, and RED-test wording in sections
+19--22.  It changes neither the frozen parent ordering nor the Round 3
+authority, dual-binding, scope, or persistence prohibitions.
+
+The parent requires this order:
+
+```text
+REPAIR outer protocol capture
+  -> inner candidate parse/schema
+  -> TASK-016B language
+  -> deterministic Content Quality gate
+  -> REPAIR Judge
+```
+
+The accepted `ScoringCandidate` schema requires a non-empty `reason` and
+rejects a `reason` that becomes empty after strip.  Consequently, under that
+frozen schema and order, extracted REPAIR content that is empty or
+whitespace-only cannot become a valid `ScoringCandidate` which reaches the
+post-schema deterministic gate.  H2-B must not change the schema, reorder the
+gate before schema, or manufacture a partly invalid candidate to manufacture a
+gate test.
+
+`EMPTY_CONTENT` remains a closed classification of the accepted pure TASK-016C
+`DeterministicContentQualityGate`, alongside `CONTROL_CHARACTER_INVALID` and
+`EXACT_REPETITION`.  It is not removed or weakened.  It is instead
+**unreachable as a post-schema H2-B REPAIR runtime gate-terminal reason** under
+the current accepted candidate schema.
+
+## 24. Exact empty-content and reachable-gate terminal rules
+
+An outer-valid REPAIR response whose inner candidate has empty or
+whitespace-only required textual content follows the already frozen candidate
+parse/schema path, not the gate path:
+
+```text
+outer capture succeeds
+  -> parse/ScoringCandidate schema rejects empty or stripped-whitespace content
+  -> REPAIR_SCHEMA_OR_PARSE_INVALID
+  -> PipelineRepository.fail_job(
+       ErrorCode.INVALID_RESPONSE,
+       error_message="REPAIR_SCHEMA_OR_PARSE_INVALID",
+       retry_at=None)
+  -> FAILED_FINAL -> StageDisposition.TERMINAL
+  -> no duplicate _fail(), deterministic-gate progression, Judge contact,
+     second REPAIR, or persistence
+```
+
+This uses the existing H2-B schema/parse mapping verbatim; no EMPTY-specific
+persistent error code or detail is authorized.
+
+The only reachable deterministic-gate terminal reasons in the valid,
+post-schema H2-B REPAIR path are exactly:
+
+```text
+CONTROL_CHARACTER_INVALID
+EXACT_REPETITION
+```
+
+For either reachable reason the exact mapping remains:
+
+```text
+ErrorCode.INVALID_RESPONSE
+error_message="REPAIR_DETERMINISTIC_GATE_REJECT:<reason>"
+retry_at=None
+  -> FAILED_FINAL -> StageDisposition.TERMINAL
+  -> no duplicate _fail(), zero REPAIR Judge contact, no second REPAIR,
+     no persistence
+```
+
+`<reason>` in this runtime mapping is therefore only one of the two literals
+above.  The general pure gate can still return `EMPTY_CONTENT`; its unit
+contract is not a claim that all its outcomes are reachable after every
+caller’s preceding schema.
+
+## 25. Aggregate and H2-C reachability semantics
+
+A successful `PhaseH2BValidatedRepairResult` carries evidence that the repaired
+candidate passed schema, TASK-016B, and the deterministic gate.  It carries no
+successful-path or terminal-success representation of an `EMPTY_CONTENT` gate
+result.  Failed H2-B paths construct no such aggregate.
+
+H2-C first replays REPAIR candidate parsing/schema.  An empty/whitespace
+required field fails that schema replay, invalidates the alleged successful
+aggregate, and rejects immediately.  Only after schema replay succeeds does it
+rerun TASK-016B and the deterministic gate.  A successful aggregate requires
+that gate replay to PASS; H2-C must not expect or accept a successful aggregate
+with a post-schema `EMPTY_CONTENT` gate result.
+
+## 26. RepairTrustedScoringFinalizer independently requires gate PASS
+
+`RepairTrustedScoringFinalizer` is an independent trust boundary.  It must not
+trust a runtime assertion that the gate passed, a stored gate result, Judge
+PASS, or `QualityPassAttestation` as a substitute for its own gate replay.
+Before it validates the attestation or produces `TrustedScoreResult`, it must
+freshly reconstruct the candidate/input/provenance and use the **same accepted
+REPAIR `ContentQualityInput` construction and normalization as Runtime H2-B**:
+the repaired candidate reason, exact candidate hash, exact quality-input hash,
+and REPAIR request hash (`attempt_role=REPAIR`).  No caller-supplied gate
+result, reason, precomputed hash, or REPAIR-only normalization is authority.
+
+The finalizer’s local order is exactly:
+
+```text
+fresh schema revalidation of candidate/input/provenance
+  -> reconstruct accepted REPAIR deterministic-gate input
+  -> run accepted deterministic gate and require PASS
+  -> derive/revalidate REPAIR Judge bindings and replay/require Judge PASS
+  -> revalidate QualityPassAttestation
+  -> validate RNI/REPAIR request identity and dual-binding provenance
+  -> shared pure finalization core -> TrustedScoreResult
+  -> unchanged exact-type serializer -> structured bytes/hash/length
+```
+
+No finalizer output is permitted before gate PASS.  The attestation proves the
+Judge PASS binding; it does not prove or replace deterministic-gate PASS.
+
+For a schema-valid direct finalizer input, any gate result other than PASS,
+including `CONTROL_CHARACTER_INVALID` or `EXACT_REPETITION`, rejects
+finalization even if the caller supplies valid-looking REPAIR Judge PASS,
+attestation, RNI, and request provenance.  It produces no `TrustedScoreResult`,
+sealed structured bytes, or H2-B aggregate component.
+
+For a low-level forged/bypassed candidate whose reason is empty or whitespace,
+the required fresh schema revalidation rejects it before gate input exists.
+That is the frozen-order finalizer defense and is mapped as a local
+finalization rejection; a test must not assert the impossible claim that a
+freshly schema-valid finalizer candidate then obtains post-schema
+`EMPTY_CONTENT`.  The pure-gate regression separately proves that direct gate
+input containing empty content returns `EMPTY_CONTENT`.  This preserves both
+schema integrity and the general gate contract without weakening either.
+
+If a finalizer gate replay or any other local finalization predicate rejects
+inside actual H2-B runtime control flow, the runtime maps it exactly to
+`REPAIR_FINALIZATION_INVALID`, `ErrorCode.INVALID_RESPONSE`, `retry_at=None`,
+`FAILED_FINAL`, and `StageDisposition.TERMINAL`, with no duplicate `_fail()`,
+second REPAIR/Judge, persistence, or `UNKNOWN_PROVIDER_STATE`.  A pure
+adversarial unit invocation may raise the exact local finalization exception;
+it has no job-state side effect.
+
+H2-C intentionally has two gate defenses: its evidence-graph replay reruns
+the gate after schema/language, and its REPAIR-aware finalizer replay itself
+requires gate PASS.  Neither may be optimized away.
+
+## 27. Round 4 required future RED matrix and reconciliation
+
+The future correction must include these distinct cases:
+
+1. empty REPAIR content on the production path -> schema/parse invalid,
+   `FAILED_FINAL`, zero gate-to-Judge progression, zero Judge;
+2. whitespace-only REPAIR content -> the same schema/parse terminal path;
+3. schema-valid `CONTROL_CHARACTER_INVALID` -> deterministic-gate terminal,
+   `FAILED_FINAL`, zero Judge;
+4. schema-valid `EXACT_REPETITION` -> the same deterministic-gate terminal;
+5. gate PASS -> may proceed to Judge;
+6. direct pure-gate empty-content input valid for the pure gate’s own contract
+   -> `EMPTY_CONTENT`;
+7. direct finalizer with a schema-valid gate-invalid candidate plus forged or
+   valid-looking Judge PASS/attestation -> gate replay rejects, no trusted or
+   sealed result;
+8. direct finalizer `CONTROL_CHARACTER_INVALID` and `EXACT_REPETITION` cases
+   -> reject even with valid-looking Judge PASS/attestation;
+9. low-level/model-constructed empty finalizer input -> fresh schema
+   revalidation rejects, no trusted or sealed result; and
+10. valid schema/language/gate/Judge/attestation chain -> may produce the
+    `TrustedScoreResult` and sealed evidence.
+
+Parent compatibility was rechecked.  The parent requires schema -> language
+-> deterministic gate -> Judge and says the gate may reject before Judge; it
+does not mandate that `EMPTY_CONTENT` be observable as a post-schema REPAIR
+runtime gate error.  It also does not prohibit redundant finalizer-side gate
+verification.  Therefore no parent authorization amendment is required.
+
+The Round 3 dual binding is unchanged: the semantic score remains bound to the
+PRIMARY request hash, while RNI, REPAIR request/payload/raw/candidate/Judge/
+attestation/finalizer provenance and aggregate/H2-C replay bind REPAIR.  The
+RuntimeOperations-only branch, no callback admission authority, no PFE ingress,
+state-only admission correction, A-to-A/J-to-J checks, `quality.py`-only
+finalizer scope, frozen `scoring.py`, and all Phase G/H2-C/persistence
+prohibitions are unchanged.
+
+After this amendment an implementation agent has no discretion over whether
+EMPTY_CONTENT is schema or runtime-gate failure, whether schema/gate order may
+change, the empty-content mapping, the reachable post-schema reasons, whether
+the finalizer reruns the gate, whether Judge/attestation rescues a gate failure,
+or the H2-C EMPTY replay rule.  Any different requirement is `DECISION NEEDED`.
