@@ -36,6 +36,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.h2_evidence import (
     JudgeEvidence,
+    JudgeTrustedContext,
     LanguageValidationEvidence,
     NotApplicableEvidence,
     ParserFailureEvidence,
@@ -43,10 +44,12 @@ from youtube_intel.h2_evidence import (
     PrimaryFailureEvidence,
     RepairNormalizedInput,
     build_judge_evidence,
+    build_judge_trusted_context,
     build_primary_failure_evidence_hash,
     build_primary_trusted_context,
     build_repair_normalized_input,
     build_repair_request_hash,
+    build_repair_trusted_config,
     canonical_primary_scoring_input_hash,
     h2_canonical_bytes,
     h2_canonical_sha256,
@@ -229,23 +232,17 @@ def _schema_invalid_pfe(ctx=None, scoring_input=None, *, raw: str | None = None)
     )
 
 
-def _build_rni(*, scoring_input=None, trusted_context=None, failure_evidence=None, **overrides):
+def _build_rni(*, scoring_input=None, trusted_context=None, failure_evidence=None, settings=None):
     si = scoring_input if scoring_input is not None else _scoring_input()
     ctx = trusted_context if trusted_context is not None else _trusted_context(si)
     pfe = failure_evidence if failure_evidence is not None else _schema_invalid_pfe(ctx, si)
-    kwargs = {
-        "job_id": "job-h2a",
-        "scoring_input": si,
-        "trusted_context": ctx,
-        "failure_evidence": pfe,
-        "repair_model": _MODEL,
-        "repair_model_digest": _DIGEST,
-        "temperature": 0.0,
-        "max_output_tokens": 1200,
-        "max_description_chars": 32,
-    }
-    kwargs.update(overrides)
-    return build_repair_normalized_input(**kwargs)
+    cfg = build_repair_trusted_config(settings if settings is not None else _settings())
+    return build_repair_normalized_input(
+        job_id="job-h2a",
+        trusted_primary_context=ctx,
+        failure_evidence=pfe,
+        trusted_repair_config=cfg,
+    )
 
 
 def _valid_rni():
@@ -286,7 +283,17 @@ def _judge_materials(*, attempt_role=QualityJudgeAttemptRole.PRIMARY, raw_status
         }
     )
     raw = _judge_raw_for_status(raw_status)
-    return operation, content, raw
+    judge_ctx = build_judge_trusted_context(
+        role=attempt_role.value,
+        judge_input=content,
+        provider="ollama",
+        model=_MODEL,
+        model_digest=_JUDGE_DIGEST,
+        policy_version="content-quality-policy-v1",
+        prompt_version="content-quality-prompt-v1",
+        operation_schema_version="content-quality-result-v1",
+    )
+    return operation, content, raw, judge_ctx
 
 
 def _judge_raw_for_status(status: str) -> str:
@@ -327,12 +334,14 @@ def _valid_judge_evidence(
     *,
     role: str = "PRIMARY",
     raw_status: str = "PASS",
-) -> JudgeEvidence:
+) -> tuple[JudgeEvidence, JudgeTrustedContext]:
     attempt_role = (
         QualityJudgeAttemptRole.PRIMARY if role == "PRIMARY" else QualityJudgeAttemptRole.REPAIR
     )
-    operation, content, raw = _judge_materials(attempt_role=attempt_role, raw_status=raw_status)
-    return build_judge_evidence(
+    operation, content, raw, judge_ctx = _judge_materials(
+        attempt_role=attempt_role, raw_status=raw_status
+    )
+    evidence = build_judge_evidence(
         role=role,
         operation_input=operation,
         judge_input=content,
@@ -343,6 +352,7 @@ def _valid_judge_evidence(
         prompt_version="content-quality-prompt-v1",
         operation_schema_version="content-quality-result-v1",
     )
+    return evidence, judge_ctx
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +428,7 @@ def test_primary_request_hash_builder_is_unchanged() -> None:
 
 
 def test_judge_h1_h2_use_frozen_serializer_not_jcs() -> None:
-    operation, _, _ = _judge_materials()
+    operation, _, _, _ = _judge_materials()
     h1, h2 = build_judge_h1_h2(operation)
     frozen = json.dumps(
         operation.model_dump(mode="json"),
@@ -785,16 +795,16 @@ def test_language_unknown_result_rejected_at_construction() -> None:
 
 
 def test_judge_evidence_valid_verifies() -> None:
-    evidence = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
+    evidence, judge_ctx = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
     assert evidence.derived_result.status is ContentQualityStatus.PASS
-    verify_judge_evidence_replay(evidence)
+    verify_judge_evidence_replay(evidence, judge_ctx)
 
 
 def test_judge_evidence_reject_and_uncertain_replay() -> None:
     for status in ("REJECT", "UNCERTAIN"):
-        evidence = _valid_judge_evidence(role="PRIMARY", raw_status=status)
+        evidence, judge_ctx = _valid_judge_evidence(role="PRIMARY", raw_status=status)
         assert evidence.derived_result.status is ContentQualityStatus(status)
-        verify_judge_evidence_replay(evidence)
+        verify_judge_evidence_replay(evidence, judge_ctx)
 
 
 @pytest.mark.parametrize(
@@ -807,7 +817,7 @@ def test_judge_evidence_reject_and_uncertain_replay() -> None:
     ],
 )
 def test_judge_label_mismatch_raw_replay_rejected(sealed_status: str, raw_status: str) -> None:
-    operation, content, raw = _judge_materials(raw_status=raw_status)
+    operation, content, raw, judge_ctx = _judge_materials(raw_status=raw_status)
     forged_result = verify_judge_model_content(
         _judge_raw_for_status(sealed_status),
         operation_input=operation,
@@ -838,73 +848,73 @@ def test_judge_label_mismatch_raw_replay_rejected(sealed_status: str, raw_status
         derived_result=forged_result,
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(evidence)
+        verify_judge_evidence_replay(evidence, judge_ctx)
 
 
 def test_judge_forged_h1_rejected() -> None:
-    evidence = _valid_judge_evidence()
+    evidence, judge_ctx = _valid_judge_evidence()
     forged = JudgeEvidence.model_validate(
         {**evidence.model_dump(mode="python"), "judge_h1": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_judge_forged_h2_rejected() -> None:
-    evidence = _valid_judge_evidence()
+    evidence, judge_ctx = _valid_judge_evidence()
     forged = JudgeEvidence.model_validate(
         {**evidence.model_dump(mode="python"), "judge_h2": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_judge_raw_hash_mismatch_rejected() -> None:
-    evidence = _valid_judge_evidence()
+    evidence, judge_ctx = _valid_judge_evidence()
     forged = JudgeEvidence.model_validate(
         {**evidence.model_dump(mode="python"), "raw_sha256": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_judge_raw_byte_length_mismatch_rejected() -> None:
-    evidence = _valid_judge_evidence()
+    evidence, judge_ctx = _valid_judge_evidence()
     forged = JudgeEvidence.model_validate(
         {**evidence.model_dump(mode="python"), "raw_utf8_length": evidence.raw_utf8_length + 1}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_primary_role_evidence_substituted_into_repair_rejected() -> None:
-    primary_evidence = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
+    primary_evidence, judge_ctx = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
     relabelled = JudgeEvidence.model_validate(
         {**primary_evidence.model_dump(mode="python"), "role": "REPAIR"}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(relabelled)
+        verify_judge_evidence_replay(relabelled, judge_ctx)
 
 
 def test_repair_role_evidence_substituted_into_primary_rejected() -> None:
-    repair_evidence = _valid_judge_evidence(role="REPAIR", raw_status="PASS")
+    repair_evidence, repair_ctx = _valid_judge_evidence(role="REPAIR", raw_status="PASS")
     relabelled = JudgeEvidence.model_validate(
         {**repair_evidence.model_dump(mode="python"), "role": "PRIMARY"}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(relabelled)
+        verify_judge_evidence_replay(relabelled, repair_ctx)
 
 
 def test_repair_role_evidence_is_role_distinct_identity() -> None:
-    primary = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
-    repair = _valid_judge_evidence(role="REPAIR", raw_status="PASS")
+    primary, _ = _valid_judge_evidence(role="PRIMARY", raw_status="PASS")
+    repair, repair_ctx = _valid_judge_evidence(role="REPAIR", raw_status="PASS")
     assert primary.judge_h1 != repair.judge_h1
     assert primary.judge_h2 != repair.judge_h2
-    verify_judge_evidence_replay(repair)
+    verify_judge_evidence_replay(repair, repair_ctx)
 
 
 def test_judge_evidence_sealed_round_trip() -> None:
-    evidence = _valid_judge_evidence()
+    evidence, _ = _valid_judge_evidence()
     sealed = h2_canonical_bytes(evidence)
     restored, digest = verify_h2_sealed_bytes(sealed, JudgeEvidence)
     assert restored == evidence

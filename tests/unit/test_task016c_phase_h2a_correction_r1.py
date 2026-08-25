@@ -42,8 +42,10 @@ from youtube_intel.h2_evidence import (
     PrimaryFailureEvidence,
     RepairNormalizedInput,
     build_judge_evidence,
+    build_judge_trusted_context,
     build_primary_trusted_context,
     build_repair_normalized_input,
+    build_repair_trusted_config,
     canonical_primary_scoring_input_hash,
     replay_primary_parser_failure,
     verify_judge_evidence_replay,
@@ -414,17 +416,13 @@ def test_rni_builder_rejects_forged_pfe() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     forged_pfe = _forge_pfe(ctx, si, "primary_request_hash", _HASH_D)
+    cfg = build_repair_trusted_config(_settings())
     with pytest.raises(ValueError):
         build_repair_normalized_input(
             job_id="job-h2a",
-            scoring_input=si,
-            trusted_context=ctx,
+            trusted_primary_context=ctx,
             failure_evidence=forged_pfe,
-            repair_model=_MODEL,
-            repair_model_digest=_DIGEST,
-            temperature=0.0,
-            max_output_tokens=1200,
-            max_description_chars=32,
+            trusted_repair_config=cfg,
         )
 
 
@@ -433,17 +431,14 @@ def test_rni_builder_rejects_mismatched_scoring_input() -> None:
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
     other_input = _scoring_input(output_language="zh-CN")
+    other_ctx = _trusted_context(other_input)
+    cfg = build_repair_trusted_config(_settings())
     with pytest.raises(ValueError):
         build_repair_normalized_input(
             job_id="job-h2a",
-            scoring_input=other_input,
-            trusted_context=ctx,
+            trusted_primary_context=other_ctx,
             failure_evidence=pfe,
-            repair_model=_MODEL,
-            repair_model_digest=_DIGEST,
-            temperature=0.0,
-            max_output_tokens=1200,
-            max_description_chars=32,
+            trusted_repair_config=cfg,
         )
 
 
@@ -451,22 +446,20 @@ def test_rni_builder_derives_authoritative_bindings() -> None:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
+    cfg = build_repair_trusted_config(_settings())
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        scoring_input=si,
-        trusted_context=ctx,
+        trusted_primary_context=ctx,
         failure_evidence=pfe,
-        repair_model=_MODEL,
-        repair_model_digest=_DIGEST,
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
+        trusted_repair_config=cfg,
     )
     assert rni.primary_request_hash == ctx.request_hash
     assert rni.primary_normalized_input_hash == ctx.normalized_input_hash
     assert rni.primary_attempt_identity == "local-scoring"
     assert rni.primary_failure_class is pfe.failure_class
     assert rni.primary_raw_sha256 == pfe.primary_raw_sha256
+    assert rni.repair_model == cfg.model
+    assert rni.repair_model_digest == cfg.model_digest
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +512,17 @@ def _judge_fixture(raw_status: str = "PASS"):
         prompt_version="content-quality-prompt-v1",
         operation_schema_version="content-quality-result-v1",
     )
-    return operation, content, evidence
+    judge_ctx = build_judge_trusted_context(
+        role="PRIMARY",
+        judge_input=content,
+        provider="ollama",
+        model=_MODEL,
+        model_digest=_JUDGE_DIGEST,
+        policy_version="content-quality-policy-v1",
+        prompt_version="content-quality-prompt-v1",
+        operation_schema_version="content-quality-result-v1",
+    )
+    return operation, content, evidence, judge_ctx
 
 
 def _judge_raw_for_status(status: str) -> str:
@@ -568,16 +571,16 @@ def _judge_raw_for_status(status: str) -> str:
     ],
 )
 def test_judge_metadata_forgery_rejected(field: str, value: str) -> None:
-    _, _, evidence = _judge_fixture()
+    _, _, evidence, judge_ctx = _judge_fixture()
     forged = JudgeEvidence.model_validate(
         {**evidence.model_dump(mode="python"), field: value}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_judge_operation_input_changed_metadata_original_rejected() -> None:
-    operation, content, evidence = _judge_fixture()
+    operation, content, evidence, judge_ctx = _judge_fixture()
     # Change operation_input's judge_model while evidence.model stays original.
     new_operation = QualityJudgeOperationInput.model_validate(
         {**operation.model_dump(mode="python"), "judge_model": "other-model:1b"}
@@ -586,7 +589,7 @@ def test_judge_operation_input_changed_metadata_original_rejected() -> None:
         {**evidence.model_dump(mode="python"), "operation_input": new_operation.model_dump(mode="python")}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -595,7 +598,7 @@ def test_judge_operation_input_changed_metadata_original_rejected() -> None:
 
 
 def test_judge_candidate_hash_substitution_rejected() -> None:
-    operation, content, evidence = _judge_fixture()
+    operation, content, evidence, judge_ctx = _judge_fixture()
     # operation_input claims a different candidate_hash than judge_input carries.
     new_operation = QualityJudgeOperationInput.model_validate(
         {**operation.model_dump(mode="python"), "candidate_hash": _HASH_C}
@@ -604,11 +607,11 @@ def test_judge_candidate_hash_substitution_rejected() -> None:
         {**evidence.model_dump(mode="python"), "operation_input": new_operation.model_dump(mode="python")}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_judge_scoring_request_hash_substitution_rejected() -> None:
-    operation, content, evidence = _judge_fixture()
+    operation, content, evidence, judge_ctx = _judge_fixture()
     new_operation = QualityJudgeOperationInput.model_validate(
         {**operation.model_dump(mode="python"), "scoring_request_hash": _HASH_C}
     )
@@ -616,11 +619,11 @@ def test_judge_scoring_request_hash_substitution_rejected() -> None:
         {**evidence.model_dump(mode="python"), "operation_input": new_operation.model_dump(mode="python")}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 def test_primary_judge_evidence_on_repair_operation_rejected() -> None:
-    _, content, evidence = _judge_fixture()
+    _, content, evidence, judge_ctx = _judge_fixture()
     repair_operation = QualityJudgeOperationInput.model_validate(
         {
             "scoring_request_hash": _HASH_B,
@@ -639,7 +642,7 @@ def test_primary_judge_evidence_on_repair_operation_rejected() -> None:
         {**evidence.model_dump(mode="python"), "operation_input": repair_operation.model_dump(mode="python")}
     )
     with pytest.raises(ValueError):
-        verify_judge_evidence_replay(forged)
+        verify_judge_evidence_replay(forged, judge_ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -660,16 +663,12 @@ def _valid_rni_payload() -> dict:
     si = _scoring_input()
     ctx = _trusted_context(si)
     pfe = _schema_invalid_pfe(ctx, si)
+    cfg = build_repair_trusted_config(_settings())
     rni = build_repair_normalized_input(
         job_id="job-h2a",
-        scoring_input=si,
-        trusted_context=ctx,
+        trusted_primary_context=ctx,
         failure_evidence=pfe,
-        repair_model=_MODEL,
-        repair_model_digest=_DIGEST,
-        temperature=0.0,
-        max_output_tokens=1200,
-        max_description_chars=32,
+        trusted_repair_config=cfg,
     )
     return rni.model_dump(mode="json")
 
@@ -686,7 +685,7 @@ def test_pfe_raw_length_exact_integer_rejects_non_integer_json(bad_value: object
 
 @pytest.mark.parametrize("bad_value", [True, False, 1.0, 0.0, "1"])
 def test_judge_raw_length_exact_integer_rejects_non_integer_json(bad_value: object) -> None:
-    _, _, evidence = _judge_fixture()
+    _, _, evidence, _ = _judge_fixture()
     payload = {**evidence.model_dump(mode="json"), "raw_utf8_length": bad_value}
     with pytest.raises(ValueError):
         JudgeEvidence.model_validate_json(json.dumps(payload))
