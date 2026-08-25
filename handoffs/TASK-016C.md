@@ -1,5 +1,233 @@
 # TASK-016C 交接报告
 
+## Phase H2-B — Runtime REPAIR execution (implementation)
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-B` implementation only (runtime REPAIR control
+  flow; H2-C NOT implemented, NOT authorized).
+- Base HEAD: `4f8bb56` (H2-B authorization closure); implementation commit:
+  `c8a6e04`.
+- Authorization document: `docs/TASK-016C-PHASE-H2B-AUTHORIZATION.md`.
+- Status: `READY FOR H2-B IMPLEMENTATION INDEPENDENT REVIEW`.
+
+### What was implemented
+
+Actual runtime REPAIR execution for one actually received eligible PRIMARY
+failure, stopping at the untrusted `PhaseH2BValidatedRepairResult` evidence
+aggregate. REPAIR persistence, `PhaseHTrustedRepairSuccess`, and H2-C remain
+unimplemented.
+
+Changed production files (all within the authorized scope):
+
+- `src/youtube_intel/runtime.py` — private H2-B branch inside the scoring
+  stage's actual PRIMARY execution:
+  - `scoring_stage` observes an eligible PRIMARY failure (post-capture parse
+    failure via the sealed provider capture; language/gate/judge failures via
+    deterministic replay of the frozen checks) and enters the REPAIR branch;
+    ineligible failures re-raise the original error unchanged.
+  - `_h2b_execute_repair(...)` derives RNI + exact `local-scoring-repair-v1`
+    request hash from `build_repair_normalized_input` /
+    `build_repair_request_hash`, assembles the frozen `TASK016C_REPAIR_PROMPT_V2`
+    prompt and the exact frozen Ollama payload, computes payload SHA-256/length,
+    and atomically admits+dispatches REPAIR; then seals the authoritative
+    REPAIR outer raw (`seal_primary_raw_capture`), parses the repaired
+    candidate through the shared parser, runs the TASK-016B validator, derives
+    the REPAIR Judge context via `derive_repair_judge_trusted_context`, and
+    atomically admits+dispatches REPAIR_JUDGE; pure-replays the exact Judge raw
+    requiring PASS before constructing the aggregate.
+  - Known terminal failures (`REPAIR_SCHEMA_OR_PARSE_INVALID`,
+    `REPAIR_LANGUAGE_INVALID`, `REPAIR_JUDGE_REJECT`,
+    `REPAIR_JUDGE_UNCERTAIN`) use `fail_job(..., ErrorCode.INVALID_RESPONSE,
+    retry_at=None)` exactly once, confirm `FAILED_FINAL`, and return
+    `StageDisposition.TERMINAL` (TERMINAL_ALREADY_HANDLED).
+  - All post-contact ambiguity raises `UnknownProviderState` (existing H1
+    route); pre-contact denials stay `ScoringDispatchDenied`.
+  - H2-B PASS stashes the aggregate on the runtime
+    (`_last_h2b_validated_repair_result`); no persistence occurs and the job
+    is finalized by the existing generic non-SUCCEEDED path.
+- `src/youtube_intel/pipeline.py` — narrow `_execute()` branch: when the
+  disposition is `StageDisposition.TERMINAL`, read the job back via
+  `get_job()`; only a durably `FAILED_FINAL` job suppresses the duplicate
+  generic `_fail()`; any other state preserves the existing generic failure
+  behavior (fake-TERMINAL defense). No other behavior changed.
+- `src/youtube_intel/providers/ollama.py`:
+  - frozen `render_task016c_repair_prompt_v2(...)` (exact block order/text,
+    literal `null` fallbacks, `score-result-v2` schema block via H2 JCS) and
+    `build_task016c_repair_generate_body(...)` (exactly `model`, `prompt`,
+    `stream=false`, `format`, `think=false`, `options.temperature`,
+    `options.num_predict`; compact `ensure_ascii=False` serialization).
+  - `OllamaScoringProvider.dispatch_exact_repair_generate(...)`: local payload
+    hash/length equality re-check before any transport, `/api/tags` model
+    preflight first, then POST of the exact derived body; returns the exact
+    outer response body bytes uninterpreted.
+  - `OllamaScoringProvider.primary_attempt(...)` now seals the exact
+    `/api/generate` body as a `PrimaryRawCapture` before the inner parse and
+    exposes it once via `consume_primary_parse_failure_capture()` for the
+    runtime's eligibility classification; success behavior unchanged
+    (ambiguous outer bodies never promote).
+  - `_request_json` factored into behavior-identical `_request_raw_body`
+    (bounded transport/read mechanics) + JSON interpretation.
+  - `OllamaQualityJudgeProvider.judge_exact_model_content(...)`: strict H2-B
+    REPAIR Judge seam — locally-proven rejections (invalid inputs, binding/
+    loopback/identity mismatches, including J1/J2 and PRIMARY-Judge identity
+    substitution) deny before contact; `/api/tags` then `/api/generate`
+    transport ambiguities propagate (runtime maps to UNKNOWN), never
+    collapsing into semantic UNCERTAIN.
+  - legacy `judge()` preserves the exact extracted model content once
+    (`consume_extracted_judge_model_content()`) so PRIMARY Judge raw can back
+    eligible JUDGE_REJECT/JUDGE_UNCERTAIN PFE; legacy behavior otherwise
+    unchanged.
+- `src/youtube_intel/scoring_admission.py` — the single authorized minimal
+  change: private `ScoringDispatchAdmission._consume_runtime_role_and_dispatch(
+  identity, dispatch, *, now)`. REPAIR/REPAIR_JUDGE only; frozen operation
+  literals enforced; live lease proof; shared execution-state lock; one-shot
+  role budget with predecessor requirement (REPAIR requires consumed PRIMARY;
+  REPAIR_JUDGE requires consumed REPAIR); ProviderCall-existence check for the
+  exact derived request hash; then immediate dispatch of the caller closure.
+  No identity persistence, token, receipt, continuation, registry, or public
+  REPAIR admission. Public `admit()` is unchanged and still rejects REPAIR/
+  REPAIR_JUDGE.
+- `src/youtube_intel/h2_evidence.py` — pure additions only:
+  `derive_repair_judge_trusted_context(...)` (REPAIR analog of the PRIMARY
+  derivation; Judge input/operation `scoring_request_hash` is exactly the
+  role-distinct REPAIR request hash per the frozen RepairQualityEvidence
+  binding; no caller JudgeTrustedContext accepted) and the frozen dataclass
+  `PhaseH2BValidatedRepairResult` (evidence-only aggregate).
+
+Frozen modules confirmed unchanged (zero diff): `scoring.py`, `state.py`,
+`quality.py`, `domain.py`, migrations, Phase G persistence machinery
+(`TrustedPersistenceEntry`, `persist_success()`, PREWRITE, filesystem
+persistence, SQLite registration, Artifact namespace/idempotency).
+
+### Runtime H2-B entry seam and eligibility
+
+Entry exists only inside the actual PRIMARY execution branch of
+`scoring_stage` after the runtime's own admitted PRIMARY attempt. Closed
+eligible classes: `SCHEMA_OR_PARSE_INVALID` (post-capture parser codes only,
+via `H2_ELIGIBLE_PARSER_CODES`), `LANGUAGE_INVALID` (validator result exactly
+INVALID), `JUDGE_REJECT`, `JUDGE_UNCERTAIN` (requires trustworthy PRIMARY
+Judge raw from the actual dispatch). Not eligible: UNKNOWN_PROVIDER_STATE,
+deterministic-gate rejections, pre-capture/protocol failures, timeouts,
+authority/config mismatches. PFE is re-verified against the runtime-derived
+`PrimaryTrustedContext` + validated settings before any REPAIR identity is
+derived. There is no public `repair(...)`/`run_repair(...)`/`dispatch_repair(
+...)` API; the private methods take only runtime-owned execution state.
+
+### Admission-to-dispatch atomicity and identity binding
+
+REPAIR and REPAIR_JUDGE each derive their complete immutable identity and
+payload locally, construct the provider (proven-local constructors) and then
+invoke the private atomic composition: consume role under the shared lock and
+immediately run the closure built over the same function-local values. There
+is no token/receipt/continuation and no caller return between consume and
+dispatch, so admit-A/dispatch-B is structurally impossible. Defense in depth:
+the REPAIR provider seam re-verifies payload SHA-256/length immediately before
+transport; the strict Judge seam re-derives H1/H2 from fresh-revalidated
+operation input and requires the expected identity. `/api/tags` is treated as
+external contact: admission always precedes it (denied -> zero `/api/tags`,
+zero `/api/generate`).
+
+### Outcome classification
+
+- REPAIR `/api/tags` or `/api/generate` timeout/reset/interruption, malformed/
+  duplicate-key/non-object outer body, missing/non-string `response` ->
+  `UNKNOWN_PROVIDER_STATE` via the existing H1 `finalize_unknown_provider_state`
+  route; no retry, no second REPAIR.
+- Inner repaired-candidate parse/schema failure -> known terminal
+  `REPAIR_SCHEMA_OR_PARSE_INVALID`; language INVALID/UNCERTAIN ->
+  `REPAIR_LANGUAGE_INVALID` (no Judge in both cases).
+- REPAIR Judge: transport/protocol ambiguity -> UNKNOWN (never UNCERTAIN);
+  semantic REJECT -> `REPAIR_JUDGE_REJECT`; semantic UNCERTAIN ->
+  `REPAIR_JUDGE_UNCERTAIN`; PASS -> aggregate.
+- Known terminals: `fail_job(INVALID_RESPONSE, <exact message>, retry_at=None)`
+  exactly once -> `FAILED_FINAL`; pipeline TERMINAL read-back suppresses the
+  duplicate generic `_fail()`; one job attempt row; crash-after-finalize stays
+  terminal on restart (disposition is process-local).
+
+### Aggregate and persistence rejection
+
+`PhaseH2BValidatedRepairResult` is an untrusted in-memory evidence aggregate:
+PRIMARY provenance/PFE/failure class; exact RNI + JCS hash + REPAIR request
+hash; exact outbound prompt/payload bytes + SHA-256/length; authoritative
+REPAIR outer raw + hash/length + extracted model content; repaired candidate +
+hash; TASK-016B language evidence; REPAIR Judge operation input, role REPAIR,
+H1/H2, `JudgeEvidence`, exact Judge raw + hash/length, PASS result; PASS
+attestation; model/digest/prompt/schema/policy/settings provenance. It is NOT
+a persistence authority: `TrustedPersistenceEntry.persist_success(...)`
+rejects it (exact-type Phase G ingress), including `object.__new__` forged,
+`object.__setattr__` mutated, `copy`/`deepcopy`, and pickle-round-tripped
+variants. No `persist_repair`, no REPAIR ProviderCall/Artifact/SQLite writes,
+no H2-C ingress API (`h2c_finalize`/`finalize_repair`/`mint_repair_success`/
+`persist_validated_repair`/`verify_h2b_result` all absent).
+
+### Contractual observation (flagged for reviewer/orchestrator)
+
+Authorization §9 lists a "finalizer-produced `TrustedScoreResult`, its sealed
+structured bytes/hash/length" among the aggregate's minimum contents. H2-B
+does NOT carry a `TrustedScoreResult`: the existing `TrustedScoringFinalizer`
+is frozen to the PRIMARY scoring-request binding (its cross-bindings require
+`scoring_request_hash == PRIMARY identity`), while the frozen REPAIR quality
+binding requires the role-distinct REPAIR request hash; minting one for REPAIR
+within H2-B would require modifying `quality.py` (outside the authorized H2-B
+file scope) or inventing minting authority. The aggregate instead carries the
+complete finalizer-input evidence set (repaired candidate, original
+ScoringInput, REPAIR quality input/result/operation, PASS attestation,
+settings provenance), and H2-C's own mandatory replay obligation (step 12:
+"rederive the finalizer-produced TrustedScoreResult ... from the trusted
+candidate/context") establishes that value independently. Flagging for the
+orchestrator: if carrying the finalizer result inside the H2-B aggregate is
+required, that needs a scope/authorization amendment (finalizer support for
+the REPAIR binding).
+
+Second observation: the parent H2 authorization §4 mentions the deterministic
+quality gate before the REPAIR Judge; the H2-B authorization's frozen flow and
+closed error map (the normative H2-B execution contract) contain no gate step
+and no gate-rejection outcome, and the H2-C replay checklist (21 steps)
+likewise omits it. The implementation follows the H2-B normative flow; the
+gate remains enforced for PRIMARY.
+
+### Tests and checks
+
+New RED-first suites (all failing before implementation):
+
+- `tests/unit/test_task016c_phase_h2b_repair_seams.py` (27 tests): frozen
+  prompt/payload contract; exact-body dispatch with hash/length equality;
+  tags-before-generate ordering; PRIMARY parse-failure capture; strict Judge
+  seam UNKNOWN-vs-UNCERTAIN split; identity substitution denials; private
+  atomic admission composition (role/lease/predecessor/duplicate/provider-call
+  guards); REPAIR Judge trusted-context derivation.
+- `tests/unit/test_task016c_phase_h2b_repair_flow.py` (33 tests): production
+  runtime + SQLite + real Ollama adapters with scripted transport — entry
+  authority (forged PFE, UNKNOWN relabel, no-PRIMARY denial, lease denial),
+  PASS aggregate flow (exact payload send-equality, zero persistence),
+  transport UNKNOWN outcomes (tags/generate timeouts, malformed/duplicate-key
+  outer), known terminal flows (schema/language/judge REJECT/UNCERTAIN) with
+  fail_job-once and no Judge contact, PRIMARY language/judge-failure repair
+  paths, pipeline TERMINAL read-back + fake-TERMINAL defense + unrelated
+  failure regression + crash-after-finalize, Phase G direct persistence
+  rejection including low-level forgery, concurrency, duplicates, and
+  no-recursive-repair after every failure kind.
+
+| Command | Result |
+| --- | --- |
+| `uv run --offline pytest tests/unit/test_task016c_phase_h2b_repair_seams.py tests/unit/test_task016c_phase_h2b_repair_flow.py` | 60 passed |
+| `uv run --offline pytest tests/unit tests/integration` | 1587 passed |
+| `uv run --offline pytest tests/e2e` | 9 passed |
+| `uv run --offline mypy src` | clean (31 files) |
+| `uv run --offline ruff check .` | clean |
+| `git diff --check` | clean |
+| `bash scripts/security_scan.sh` | status=clean |
+| H2-A focused suites | passed |
+| H1 admission suite | passed |
+| Phase G / Phase F / finalizer / quality suites | passed |
+| Ollama provider / pipeline / runtime composition integration | passed |
+
+Security searches (all zero in `src/`): `PhaseHTrustedRepairSuccess`,
+`persist_repair`, `h2c_finalize`/`finalize_repair`/`mint_repair_success`/
+`persist_validated_repair`/`verify_h2b_result`, repair receipt/token/
+continuation/registry, new migrations, new artifact kinds, new SQLite writers.
+
 ## Phase H2-A Correction Round 3 — derive H2 trust from runtime inputs
 
 ### Metadata and scope
