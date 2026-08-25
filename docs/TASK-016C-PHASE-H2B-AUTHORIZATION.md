@@ -2,7 +2,7 @@
 
 ## Status, scope, and precedence
 
-**Status:** `READY FOR H2-B AUTHORIZATION INDEPENDENT REVIEW`.
+**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 3 INDEPENDENT REVIEW`.
 
 This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
@@ -530,3 +530,317 @@ An H2-B implementation agent has no discretion over whether `/api/tags` is conta
 | H2-B implementation in this task | Not authorized |
 
 Until a future implementation and independent review satisfy this authorization, H2-B remains design-only.
+
+## 16. Round 3 normative reconciliation and precedence
+
+This Round 3 amendment is control-plane only.  It supersedes every conflicting
+H2-B statement in sections 1, 2, 4, 7, 8, 9, 10, 13, 14, and 15.  In
+particular, the previous references to a private
+``admit-and-dispatch(A, closure)`` shape are withdrawn; a leading underscore
+does not make an authority boundary.  The frozen parent H2 authorization is
+unchanged.
+
+The parent requires both items that the prior H2-B text/implementation failed
+to make operative:
+
+| Parent requirement | Round 3 reconciliation | Required order |
+|---|---|---|
+| deterministic Content Quality gate | H2-B reuses the accepted TASK-016C gate, with no REPAIR-specific algorithm or normalization | schema -> language -> deterministic gate -> REPAIR Judge |
+| trusted finalization and structured value | H2-B performs a REPAIR-aware, side-effect-free finalization before it constructs its evidence aggregate | Judge PASS -> Quality PASS attestation -> finalizer -> aggregate |
+
+These are H2-B requirements, not optional H2-C work.  The parent remains
+consistent because a REPAIR-aware finalizer must prove the REPAIR transport
+identity while the semantic score remains a score for the original PRIMARY
+scoring request.  Thus `TrustedScoreResult.result.request_hash` and its sealed
+structured score bytes retain the parent-required PRIMARY scoring request hash;
+the separately sealed finalization binding proves the exact REPAIR request hash.
+Using the PRIMARY hash in the *REPAIR binding* is forbidden.  This is not a
+parent amendment and must not be misread as permission to relabel REPAIR as
+PRIMARY.
+
+## 17. RuntimeOperations-only authority and actual-PRIMARY continuity
+
+The sole authoritative H2-B home is the existing `RuntimeOperations` SCORING
+stage function that performs the actual PRIMARY attempt.  That one lexical
+runtime branch owns, in order: PRIMARY dispatch and received result capture;
+PFE construction and immediate verification; eligibility; RNI/request/payload
+derivation; REPAIR role consumption and dispatch; REPAIR raw/candidate/language
+validation; deterministic gate; REPAIR_JUDGE role consumption and dispatch;
+Judge replay; attestation; REPAIR-aware finalization; and aggregate
+construction.  It stops at H2-B.  It does not invoke H2-C or persistence.
+
+The corrected implementation must structurally nest/combine the repair branch
+with the actual PRIMARY result-handling branch.  It must remove the
+authoritative helper shape equivalent to:
+
+```text
+_h2b_execute_repair(scoring_input, admission, primary_failure_evidence)
+```
+
+whenever those values can independently be supplied by another caller.  A
+private spelling does not change this rule.  Pure PFE/RNI/raw/evidence parsing
+and replay helpers may remain independently callable because they grant no
+provider contact.
+
+The only eligible continuity is:
+
+```text
+actual PRIMARY dispatch under this runtime's active lease
+  -> runtime captures that attempt's exact result/failure
+  -> runtime locally constructs PFE from that captured attempt
+  -> runtime immediately verifies PFE against the same runtime-owned
+     PrimaryTrustedContext and settings
+  -> eligible failure only -> same branch enters H2-B
+```
+
+`PrimaryFailureEvidence` remains forgeable data for replay; it is never an H2-B
+entry capability.  In particular, after a genuine PRIMARY consumption an
+attacker may build internally self-consistent eligible PFE B, but there is no
+caller-facing H2-B ingress through which B can cause REPAIR.  This must reject
+before contact even though PRIMARY really was consumed.
+
+## 18. Admission is state checking only; no callback dispatch authority
+
+`ScoringDispatchAdmission` remains an internal H1 policy/state checker.  It
+may only check/mutate live lease ownership, predecessor ordering, duplicate
+rejection, ProviderCall conflict, and one-shot role budget.  Its REPAIR-role
+operation, if needed, has no callback/closure parameter and returns `None`.
+It may not contact a provider, execute caller code, return a repair capability,
+continuation, token, receipt, or arbitrary admitted identity.
+
+The corrected implementation must **remove**
+`ScoringDispatchAdmission._consume_runtime_role_and_dispatch` and every
+equivalent production API.  It must not rename it, make it double-underscore,
+or retain it for tests.  The following surfaces are expressly forbidden,
+whether public or underscore-prefixed:
+
+```text
+consume_runtime_role_and_dispatch(role, identity, callback)
+admit_and_dispatch(identity, closure)
+consume_repair(identity, continuation)
+dispatch_after_admission(identity, caller_callback)
+```
+
+More generally, no production primitive may accept both a caller-selected
+identity and executable work to run after admission.  Direct import of a
+private method is an attack to defend against, not a privacy boundary.
+
+Within the RuntimeOperations branch, the narrow allowed shape is equivalent
+to the following; the values are lexical, runtime-owned values, not parameters
+to a general dispatcher:
+
+```text
+repair_request = derive_from_actual_primary_state(...)
+repair_identity = derive(repair_request)
+admission.consume_repair_role(runtime-owned job/lease/predecessor state,
+                              repair_identity)
+recompute exact identity and payload from the same runtime-owned values
+require identity, payload bytes, payload SHA-256, and payload length equal
+dispatch the already-derived repair_request immediately
+```
+
+`consume_repair_role` and the matching Judge operation are only names for the
+permitted state-mutating check; an implementation may use a differently named
+non-dispatch method with the same restricted contract.  They must require the
+frozen role/operation/predecessor (`REPAIR` after `PRIMARY`, `REPAIR_JUDGE`
+after `REPAIR`) and may inspect the internally derived identity to perform the
+existing ProviderCall conflict check.  They must not save that identity as a
+durable registry or return it to a caller.
+
+Immediately before first transport, the runtime recomputes the identity from
+the exact RNI/request/payload and requires equality with the pre-admission
+local identity, exact strict-UTF-8 payload bytes, SHA-256, and byte length.  A
+post-admission request or payload change rejects before contact; there is no
+second admission.  The identical rule applies to the REPAIR Judge: runtime
+derives the repaired candidate, REPAIR request identity, expected Judge input,
+H1, H2, and exact Judge outbound request; consumes `REPAIR_JUDGE`; recomputes
+and confirms the same local Judge identity/request; then contacts the provider.
+
+## 19. REPAIR deterministic Content Quality gate
+
+After trustworthy REPAIR outer capture, canonical candidate schema parsing,
+and TASK-016B language `VALID`, H2-B must construct exactly the accepted
+`ContentQualityInput`/candidate binding used by the existing REPAIR Judge
+context (`attempt_role=REPAIR`, REPAIR scoring request hash).  It then invokes
+the accepted `DeterministicContentQualityGate` unchanged, with the candidate
+reason and the exact candidate hash, quality-input hash, and REPAIR request
+hash from that construction.  No REPAIR-only trim, normalization, evidence
+registry, heuristic, entity/acronym judgment, or second gate is authorized.
+
+The complete H2-B validation chain is now exactly:
+
+```text
+actual runtime PRIMARY failure
+  -> verified eligible PFE
+  -> derive RNI / exact REPAIR request
+  -> consume H1 REPAIR -> same-identity REPAIR dispatch
+  -> REPAIR outer raw capture -> candidate schema parse -> TASK-016B language PASS
+  -> TASK-016C deterministic Content Quality gate PASS
+  -> derive REPAIR Judge context
+  -> consume H1 REPAIR_JUDGE -> same-identity Judge dispatch
+  -> valid Judge raw -> pure replay PASS -> Quality PASS attestation
+  -> REPAIR-aware trusted finalization -> TrustedScoreResult
+  -> sealed structured bytes/hash/length -> PhaseH2BValidatedRepairResult
+  -> STOP H2-B
+```
+
+The closed deterministic reject classes are exactly `EMPTY_CONTENT`,
+`CONTROL_CHARACTER_INVALID`, and `EXACT_REPETITION`.  A rejection is a known,
+local H2-B terminal failure: no REPAIR Judge `/api/tags` or `/api/generate`, no
+second REPAIR, no persistence, and no outer duplicate `_fail()`.
+
+Its exact repository mapping is:
+
+```text
+PipelineRepository.fail_job(
+  job_id, owner=runtime_owner,
+  error_code=ErrorCode.INVALID_RESPONSE,
+  error_message="REPAIR_DETERMINISTIC_GATE_REJECT:<reason>",
+  retry_at=None, now=utc_now)
+-> JobStatus.FAILED_FINAL
+-> StageDisposition.TERMINAL (TERMINAL_ALREADY_HANDLED)
+```
+
+`<reason>` is exactly one of `EMPTY_CONTENT`, `CONTROL_CHARACTER_INVALID`, or
+`EXACT_REPETITION`, with no whitespace, prose, dynamic provider text, or other
+literal.  The section 8 terminal-state read and no-duplicate-`_fail()` rule
+applies unchanged.  This is not `UNKNOWN_PROVIDER_STATE`, because no ambiguous
+Judge contact occurred.  Deterministic failures in finalization use the same
+known-terminal route with exact message `REPAIR_FINALIZATION_INVALID`.
+
+H2-C must independently rerun this exact gate against the replayed repaired
+candidate and reconstructed REPAIR `ContentQualityInput` before a Judge PASS
+is relevant.  A replay-valid Judge PASS, attestation, or finalizer output
+attached to any of the three deterministic rejects is rejected.
+
+## 20. REPAIR-aware finalization contract and exact scope
+
+The authorized implementation choice is **B: a narrowly separate
+`RepairTrustedScoringFinalizer` in `src/youtube_intel/quality.py`**, reusing a
+private pure candidate-validation/final-score construction core extracted from
+the current `TrustedScoringFinalizer`.  The existing PRIMARY
+`TrustedScoringFinalizer.finalize()` must retain byte-for-byte equivalent
+behavior and its PRIMARY-only public contract.  The repair finalizer is
+side-effect-free and has no persistence or H2-C ingress.
+
+It must consume only runtime-derived/replayed values: repaired exact
+`ScoringCandidate`; original validated `ScoringInput`; original
+`TrustedScoringContext`/validated `LocalScoringSettings`; role literal
+`REPAIR`; exact RNI plus JCS bytes/hash; exact REPAIR provider request hash;
+REPAIR `ContentQualityInput`, `ContentQualityResult(PASS)`, and
+`QualityJudgeOperationInput(attempt_role=REPAIR)`; current
+`QualityProvenanceAuthority`; verified `QualityPassAttestation`; and the
+existing output limits/schema constraints.  It must rederive all values before
+using the supplied data.
+
+The finalizer must require all of these bindings:
+
+1. exact `role == REPAIR`, RNI schema/operation, RNI JCS bytes/hash, and
+   `build_provider_request_hash(...) == repair_request_hash`;
+2. repaired candidate hash equals the Quality input/result/Judge/attestation
+   candidate bindings;
+3. Quality input, result, Judge operation, H1/H2, and attestation all bind the
+   exact REPAIR request hash and `attempt_role=REPAIR`;
+4. attestation is rebuilt/verified with the current runtime-owned authority;
+   a caller-created or substituted attestation cannot self-authenticate; and
+5. original scoring input/context rebuild the parent-required PRIMARY scoring
+   identity, which remains the semantic `ScoreResult.request_hash`.
+
+The repair request hash must never be replaced by the PRIMARY request hash in
+items 1--4.  Conversely, its presence does not permit changing the semantic
+score request hash in item 5.  This dual binding is the exact reconciliation:
+REPAIR provenance controls the repair finalization evidence, while the score
+continues to belong to the original PRIMARY job.
+
+The finalizer produces an exact `TrustedScoreResult`, then the unchanged
+exact-type sealed serializer produces canonical structured UTF-8 bytes.  H2-B
+records those exact bytes, `SHA-256(bytes)` in lowercase hexadecimal, and
+`len(bytes)`.  It also records the existing structured schema/version metadata
+needed to reproduce the bytes.  No reserialization of a mapping, bare
+`ScoreResult`, or aggregate-supplied byte sequence is permitted.
+
+`quality.py` is the only allowed home for the new repair finalizer and its
+pure shared core.  Its deterministic gate and existing attestation semantics
+remain otherwise frozen.  `scoring.py` remains frozen, including
+`TrustedPersistenceEntry`, `persist_success`, PREWRITE, write plans,
+filesystem/SQLite logic, Phase G ProviderCall/Artifact logic, and the existing
+sealed serializer.  H2-B may call that existing pure exact-type serializer to
+obtain the parent-required sealed bytes, but may not modify it or use it as an
+H2-C/persistence entry.  No new `scoring.py` change is authorized.
+
+Explicit P0 prohibitions are: wrapping a repaired candidate in
+`PhaseFTrustedScoringSuccess`; substituting the PRIMARY request hash for the
+REPAIR binding; relabeling REPAIR as PRIMARY; calling the PRIMARY finalizer by
+lying about role or quality context; creating a fake PRIMARY `ProviderCall`
+identity; and minting a persistence-ready success aggregate in H2-B.
+
+Local mismatch, malformed structured sealed bytes, structured hash/length
+mismatch, failed sealing verification, candidate/finalizer binding mismatch,
+attestation mismatch, or request-hash mismatch fails closed as
+`REPAIR_FINALIZATION_INVALID`: no second REPAIR/Judge, no persistence, and the
+known-terminal `FAILED_FINAL` route exactly once.  `UNKNOWN_PROVIDER_STATE`
+remains reserved for an actual ambiguous external contact.
+
+## 21. Amended PhaseH2BValidatedRepairResult and H2-C replay
+
+`PhaseH2BValidatedRepairResult` remains untrusted evidence data and not a
+persistence capability.  Its minimum replay-complete contents are:
+
+- PRIMARY provenance, exact verified PFE/failure class, raw/candidate/request
+  bindings, and all settings needed to reconstruct `PrimaryTrustedContext`;
+- RNI, H2-JCS bytes/hash, REPAIR request hash, exact prompt/payload and strict
+  UTF-8 payload SHA-256/length;
+- REPAIR outer raw/hash/length, extracted content, candidate and candidate hash;
+- TASK-016B evidence/result; exact deterministic-gate input/provenance and
+  PASS evidence sufficient to rerun it;
+- REPAIR Judge input/context, role, H1/H2, raw/hash/length, `PASS`, and exact
+  Quality PASS attestation/bindings;
+- repair-finalizer input provenance including both REPAIR transport and PRIMARY
+  semantic identity rules, `TrustedScoreResult`, sealed structured UTF-8 bytes,
+  structured SHA-256, structured byte length, and schema/version metadata; and
+- model/digest/prompt/schema/policy/options/settings required for every replay.
+
+H2-C must, with no provider calls and only from the immediate runtime-owned
+continuation, replay: PRIMARY and eligibility; RNI/request/payload; REPAIR
+raw/candidate; TASK-016B; deterministic gate PASS; REPAIR Judge H1/H2/raw
+PASS; Quality PASS attestation; REPAIR-aware finalization including both
+identity bindings; exact `TrustedScoreResult` equality; byte-for-byte
+structured equality; structured SHA-256 equality; structured byte-length
+equality; and every cross-binding.  Only then may the separately authorized
+H2-C code mint `PhaseHTrustedRepairSuccess`.  Neither a perfect
+`TrustedScoreResult`, sealed bytes, nor an aggregate provides an H2-C ingress.
+
+## 22. Required correction tests and final discretion audit
+
+The future correction must remove tests that demonstrate a generic admission
+callback (for example, calling `_consume_runtime_role_and_dispatch` and
+expecting a callback result).  It must not test that `_` means private.
+Instead, it must exercise the actual RuntimeOperations path and include these
+RED attacks in addition to the existing matrix:
+
+1. after actual PRIMARY consumption, an obtained admission object cannot
+   dispatch arbitrary REPAIR work, caller identity plus closure, or a
+   REPAIR_JUDGE callback; no such API exists;
+2. after genuine PRIMARY consumption, forged self-consistent PFE B cannot
+   trigger H2-B; no caller-facing executor exists;
+3. repaired `EMPTY_CONTENT`, `CONTROL_CHARACTER_INVALID`, and
+   `EXACT_REPETITION` each terminalize with the frozen message, make zero Judge
+   calls, and reach `FAILED_FINAL`; semantic/forged Judge PASS cannot rescue;
+4. a gate-pass repaired candidate may proceed to the REPAIR Judge;
+5. valid gate PASS/Judge PASS/REPAIR finalization yields an aggregate containing
+   `TrustedScoreResult` and sealed bytes/hash/length;
+6. PRIMARY request hash in a REPAIR finalizer binding, a different REPAIR
+   request identity, or forged Quality PASS attestation each reject;
+7. mutated structured bytes, hash, or length; malformed sealed bytes; and
+   `object.__new__`/`object.__setattr__` result mutation cannot become future
+   persistence authority; and
+8. each finalizer local failure terminalizes once with no duplicate outer
+   failure route.
+
+Before implementation review, the correction executor must be able to answer
+without discretion: no underscore/private authority boundary; no caller
+identity-plus-callback dispatch; no caller PFE ingress; the exact
+PRIMARY-to-PFE continuity point; gate applicability/order/failure mapping;
+no Judge after a gate reject; H2-B finalizer ownership and dual identity
+binding; exact structured evidence; and the mandatory H2-C gate/finalizer
+replay.  Any unresolved item is `DECISION NEEDED`.
