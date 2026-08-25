@@ -220,7 +220,7 @@ Provider-neutral `AnalysisContent` 只包含上述业务字段；模型不能生
 
 跳过原因固定为 `CLOUD_DISABLED`、`CREDENTIAL_UNAVAILABLE`、
 `BUDGET_EXHAUSTED`、`INPUT_TOO_LARGE`、`PROVIDER_REFUSAL`；它们是业务结果，不
-扩展 ADR-002 的八个 ErrorCode。
+扩展 ADR-002 的统一 ErrorCode taxonomy。
 
 ## 7. 三层状态模型
 
@@ -466,6 +466,7 @@ Artifact、Provider call、Pipeline 和 Job；关闭/缓存/超限/预算/缺凭
 | `CONFIG_INVALID` | 路径、阈值、Provider 配置错误 | 本次运行失败，处理前退出 |
 | `PERMISSION_DENIED` | Vault 不可写 | 不盲目重试，提示人工处理 |
 | `LOCAL_RESOURCE` | 磁盘不足、内存不足 | 停止领取新任务并告警 |
+| `CAPABILITY_UNAVAILABLE` | 当前安装/分阶段构建有意未包含继续完成已验证操作所需的能力；不是 Provider、配置、内容或本地资源故障 | 终态，不自动或手动重试；不停止领取无关新任务、不发基础设施资源告警；操作员升级/启用获批能力，或接受该分阶段构建的终态 |
 
 错误日志必须包含 `run_id`、`job_id`、`video_id`、阶段、错误码和安全化消息。
 

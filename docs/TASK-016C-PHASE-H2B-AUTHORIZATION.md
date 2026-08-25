@@ -2,7 +2,7 @@
 
 ## Status, scope, and precedence
 
-**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 5 INDEPENDENT REVIEW`.
+**Status:** `READY FOR TRANSITIONAL DISPOSITION POLICY INDEPENDENT REVIEW`.
 
 This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
@@ -1227,3 +1227,150 @@ state-only admission plus direct transport counts as H2-B, the valid-PASS code/
 detail/status/disposition, whether generic `_fail()` is acceptable, where H2-C
 inserts, whether H2-C revives a terminal job, or whether an aggregate may be
 retained.  Any alternative is `DECISION NEEDED`.
+
+## 33. Transitional disposition error-policy clarification
+
+This section supersedes the Round 5 use of `ErrorCode.LOCAL_RESOURCE` for
+H2-B-only PASS.  Round 5's provider composition boundary, lexical aggregate
+lifetime, `TERMINAL` handling, and future H2-C insertion point remain approved.
+
+The event `H2B_PASS_AWAITING_H2C` means exactly that the live runtime has
+completed actual PRIMARY/PFE/eligible REPAIR, repaired-candidate schema,
+TASK-016B, deterministic gate, REPAIR_JUDGE, Judge PASS, attestation,
+REPAIR-aware finalization, trusted result sealing, and local
+`PhaseH2BValidatedRepairResult` construction; but the current staged build has
+no authorized H2-C continuation, no `PhaseHTrustedRepairSuccess`, and no REPAIR
+success persistence.  It is not a provider, parse, language, quality, Judge,
+finalizer, UNKNOWN, disk, memory, or other local-resource failure.
+
+### Error taxonomy decision
+
+The complete pre-clarification ErrorCode set is:
+`TRANSIENT_NETWORK`, `RATE_LIMITED`, `PROVIDER_UNAVAILABLE`,
+`INVALID_RESPONSE`, `CONTENT_UNAVAILABLE`, `CONFIG_INVALID`,
+`PERMISSION_DENIED`, and `LOCAL_RESOURCE`.  None truthfully means “a validated
+operation cannot continue because this installed/staged build intentionally
+lacks its required next continuation.”  In particular, `LOCAL_RESOURCE` stays
+reserved for genuine disk/memory/resource exhaustion and its stop-work/alert
+policy; it must not be stretched to this event.
+
+The authoritative system taxonomy therefore adds the generic durable member
+**`ErrorCode.CAPABILITY_UNAVAILABLE`**.  Its exact meaning is: *the current
+installed or staged implementation intentionally does not support a required
+next continuation of an otherwise validated operation, and retrying the same
+build cannot resolve that absence*.  It does not mean transient outage,
+resource exhaustion, provider failure, malformed response, UNKNOWN, or an
+ordinary user/configuration error.  Its first use is H2-B/H2-C staging, but its
+meaning is not task-specific.
+
+The future source addition is exactly one member,
+`CAPABILITY_UNAVAILABLE = "CAPABILITY_UNAVAILABLE"`, to
+`src/youtube_intel/domain.py:ErrorCode`; no other domain behavior is authorized
+by this clarification.  `jobs.last_error_code` and `job_attempts.error_code`
+are persisted as unconstrained `TEXT`, with no ErrorCode SQL `CHECK` list;
+read models already expose strings.  Old rows remain readable and the new value
+serializes through the existing string path.  No database/schema migration,
+serialization-version change, or generated-client change is required.
+
+### Exact current staged disposition
+
+The one and only H2-B-only full-PASS transition is:
+
+```text
+aggregate = PhaseH2BValidatedRepairResult(...)  # lexical local only
+  -> PipelineRepository.fail_job(
+       job_id, owner=runtime_owner,
+       error_code=ErrorCode.CAPABILITY_UNAVAILABLE,
+       error_message="H2B_PASS_AWAITING_H2C",
+       retry_at=None, now=utc_now)
+  -> JobStatus.FAILED_FINAL
+  -> return StageDisposition.TERMINAL
+  -> PipelineOrchestrator reads FAILED_FINAL and returns
+  -> exactly one fail_job; zero generic _fail(); no success persistence
+```
+
+`FAILED_FINAL` describes the current job execution in this staged build, not a
+failure of H2-B validation.  The code and exact detail together say that the
+next authorized capability is unavailable.  No `SUCCEEDED_PENDING_H2C`,
+`H2B_SUCCEEDED`, `WAITING_H2C`, or new `JobStatus` is authorized.
+
+Operator/CLI/reporting meaning is exactly: “H2-B validation completed, but this
+build does not include the H2-C continuation required to persist repaired
+success.”  The existing error-code plus safe-detail reporting is sufficient;
+no CLI/reporting redesign is authorized.  This code does not trigger the
+`LOCAL_RESOURCE` infrastructure-outage alert or stop unrelated new work.  The
+operator response is to upgrade/enable the authorized continuation or accept
+the staged-build terminal outcome; it is not “free disk/memory” or “retry
+later.”
+
+### Retry and recovery exclusion
+
+`RuntimeOperations.retry()` currently selects eligible `FAILED_FINAL` video
+jobs and invokes `rerun_job`.  It must exclude a job before `rerun_job` and
+before `process()` whenever:
+
+```text
+job.status is FAILED_FINAL
+and job.last_error_code == ErrorCode.CAPABILITY_UNAVAILABLE.value
+```
+
+The ErrorCode predicate alone is authoritative; the detail remains the frozen
+diagnostic literal and is not a retry gate.  Thus a forged/mutated detail on a
+CAPABILITY_UNAVAILABLE job cannot regain retry eligibility, while a matching
+detail on any other ErrorCode cannot acquire transitional semantics.
+
+For `retry(video=<only such video>, ...)`, the exact existing result is no new
+job/no claim/no transport and `CommandOutcome(safe_message="No final failed
+video job is available to retry.")`.  For an unfiltered retry containing other
+eligible terminal jobs, this job is skipped while those unrelated jobs retain
+their current behavior.  Repeated calls have the same result.  This is a narrow
+filter in `RuntimeOperations.retry()`, not a general retry redesign.
+
+Automatic paths already do not reclaim `FAILED_FINAL`; the transitional code
+adds no automatic recovery, scheduler retry, startup retry, lease recovery, or
+orchestrator retry.  H1 PRIMARY/REPAIR/REPAIR_JUDGE consumption from the
+completed attempt cannot be bypassed by a fresh retry job.  Terminal admission
+release remains cleanup only, never renewed dispatch authority.
+
+### Future H2-C and historical records
+
+The final architecture is unchanged:
+
+```text
+live H2-B aggregate
+  -> immediate lexical H2-C continuation -> replay
+  -> PhaseHTrustedRepairSuccess -> persist_success()
+```
+
+It executes instead of the transitional `fail_job`.  After a software upgrade,
+old `FAILED_FINAL/CAPABILITY_UNAVAILABLE/H2B_PASS_AWAITING_H2C` records remain
+terminal: H2-C operates only on a live same-runtime lexical aggregate and never
+resurrects a terminal job.  Any future user reprocessing must be a separately
+authorized explicit new operation/job.  The discarded lexical aggregate is not
+persisted, and neither the terminal code/detail nor the terminal record proves
+PFE, REPAIR, Judge, finalizer, H1 admission, or H2-C authority.
+
+### Required future tests and implementation scope
+
+The correction must prove: full valid H2-B PASS produces only
+`CAPABILITY_UNAVAILABLE` + `H2B_PASS_AWAITING_H2C` + `retry_at=None` +
+`FAILED_FINAL` + `TERMINAL`, calls `fail_job` once, suppresses generic `_fail`,
+and persists no success; every schema, language, gate, Judge REJECT/UNCERTAIN,
+finalizer, and UNKNOWN failure uses its own frozen route, never this code;
+manual direct/repeated retry produces no new job, claim, PRIMARY, REPAIR,
+REPAIR_JUDGE, or transport; restart/recovery makes no retry; and unrelated
+eligible/manual retry behavior is unchanged.
+
+The only future production scope newly authorized by this clarification is:
+
+- `src/youtube_intel/domain.py`: add exactly the one `ErrorCode` member above;
+- `src/youtube_intel/runtime.py`: use the exact transitional terminal mapping
+  and exclude `CAPABILITY_UNAVAILABLE` jobs in `RuntimeOperations.retry()`
+  before `rerun_job`/`process()`; and
+- the already authorized H2-B correction files (`runtime.py`,
+  `providers/ollama.py`, `scoring_admission.py`) plus focused tests/docs.
+
+`scoring.py`, Phase G, `state.py`, migrations, and parent H2 final architecture
+remain frozen.  No parent H2 amendment is required: it already requires the
+final immediate H2-C continuation and does not forbid the temporary explicit
+fail-closed branch while H2-C is unauthorized.
