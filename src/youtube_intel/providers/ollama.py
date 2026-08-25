@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from enum import Enum
 from http.client import IncompleteRead
 from typing import Final, NoReturn, Protocol, cast
 
@@ -173,6 +175,184 @@ def parse_scoring_candidate(raw_response_text: str) -> ScoringCandidate:
     except ValueError:
         msg = "model response does not satisfy the scoring candidate contract"
         raise ValueError(msg) from None
+
+
+class ParserDiagnosticCode(str, Enum):
+    """Closed H2 parser-replay diagnostic codes.
+
+    These codes are a minimal, deterministic taxonomy over the exact current
+    ``parse_scoring_candidate`` fail-closed behavior.  They never carry an
+    exception message, traceback, field value, or arbitrary text; the shared
+    parser's behavior is the only authority.
+    """
+
+    RAW_UTF8_INVALID = "RAW_UTF8_INVALID"
+    RAW_BYTES_LIMIT_EXCEEDED = "RAW_BYTES_LIMIT_EXCEEDED"
+    OUTER_JSON_INVALID = "OUTER_JSON_INVALID"
+    OUTER_TOP_LEVEL_TYPE_INVALID = "OUTER_TOP_LEVEL_TYPE_INVALID"
+    MODEL_RESPONSE_MISSING = "MODEL_RESPONSE_MISSING"
+    MODEL_RESPONSE_TYPE_INVALID = "MODEL_RESPONSE_TYPE_INVALID"
+    MODEL_RESPONSE_LENGTH_EXCEEDED = "MODEL_RESPONSE_LENGTH_EXCEEDED"
+    MODEL_JSON_INVALID = "MODEL_JSON_INVALID"
+    MODEL_TOP_LEVEL_TYPE_INVALID = "MODEL_TOP_LEVEL_TYPE_INVALID"
+    MODEL_FIELD_SET_INVALID = "MODEL_FIELD_SET_INVALID"
+    CANDIDATE_SCHEMA_INVALID = "CANDIDATE_SCHEMA_INVALID"
+
+
+# H2 Judge raw trust bound, in strict-UTF-8 bytes.  This deliberately differs in
+# semantics (bytes, after extraction) from ``_MAX_MODEL_RESPONSE_CHARS`` (a
+# transport/resource character guard); it is the H2 evidence bound only.
+_JUDGE_RAW_MAX_BYTES: Final = 20_000
+
+
+@dataclass(frozen=True, slots=True)
+class PrimaryRawCapture:
+    """A trustworthy received PRIMARY raw body promoted to H2 evidence.
+
+    ``utf8`` is the exact decoded ``/api/generate`` HTTP body with no trimming,
+    normalization, or escape replacement.  ``byte_length`` and ``sha256`` are
+    respectively the length and SHA-256 of ``utf8.encode("utf-8", "strict")``
+    and are independently re-derived by any verifier.
+    """
+
+    utf8: str
+    byte_length: int
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class JudgeRawCapture:
+    """Trustworthy extracted Judge model-content raw promoted to H2 evidence.
+
+    ``utf8`` is the exact extracted ``response`` string with no trimming or
+    normalization.  ``byte_length`` and ``sha256`` are derived from the strict
+    UTF-8 encoding of ``utf8`` and bounded by ``_JUDGE_RAW_MAX_BYTES``.
+    """
+
+    utf8: str
+    byte_length: int
+    sha256: str
+
+
+def seal_primary_raw_capture(body: bytes) -> PrimaryRawCapture:
+    """Promote a bounded strict-UTF-8, protocol-complete PRIMARY body to raw evidence.
+
+    This is the private received-raw outcome seam.  It proves only provider
+    protocol completion (bounded body, strict UTF-8, outer JSON object, string
+    ``response``); it performs no scoring JSON/schema interpretation.  Any
+    failure fails closed with ``ValueError`` — the caller maps that to the H1
+    ``UNKNOWN_PROVIDER_STATE`` path, never to a manufactured schema failure.
+    """
+
+    if not isinstance(body, (bytes, bytearray)):
+        msg = "PRIMARY raw body must be bytes"
+        raise ValueError(msg)
+    raw = bytes(body)
+    if len(raw) > _MAX_RESPONSE_BYTES:
+        msg = "PRIMARY raw body exceeded the bounded raw response size limit"
+        raise ValueError(msg)
+    try:
+        decoded = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        msg = "PRIMARY raw body is not strict UTF-8"
+        raise ValueError(msg) from exc
+    try:
+        payload: object = json.loads(decoded)
+    except json.JSONDecodeError as exc:
+        msg = "PRIMARY raw body outer provider JSON is invalid"
+        raise ValueError(msg) from exc
+    if not isinstance(payload, Mapping):
+        msg = "PRIMARY raw body outer provider value is not an object"
+        raise ValueError(msg)
+    response = payload.get("response")
+    if not isinstance(response, str):
+        msg = "PRIMARY raw body has no string model response"
+        raise ValueError(msg)
+    # Post-extraction strict UTF-8 re-encoding promotes the decoded body to
+    # authoritative received-raw evidence.
+    try:
+        authoritative = decoded.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        msg = "PRIMARY raw body failed strict UTF-8 re-encoding"
+        raise ValueError(msg) from exc
+    return PrimaryRawCapture(
+        utf8=decoded,
+        byte_length=len(authoritative),
+        sha256=hashlib.sha256(authoritative).hexdigest(),
+    )
+
+
+def seal_judge_raw_capture(extracted_response: str) -> JudgeRawCapture:
+    """Promote exact extracted Judge model content to bounded raw evidence.
+
+    The content is encoded with ``errors="strict"`` and bounded to exactly
+    ``_JUDGE_RAW_MAX_BYTES`` (equality accepted, larger rejected).  Encoding
+    failure or over-limit fails closed with ``ValueError``; the caller maps that
+    to H1 ``UNKNOWN_PROVIDER_STATE`` and must never label it ``JUDGE_UNCERTAIN``.
+    """
+
+    if not isinstance(extracted_response, str):
+        msg = "Judge raw content must be a string"
+        raise ValueError(msg)
+    try:
+        authoritative = extracted_response.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        msg = "Judge raw content failed strict UTF-8 encoding"
+        raise ValueError(msg) from exc
+    if len(authoritative) > _JUDGE_RAW_MAX_BYTES:
+        msg = "Judge raw content exceeded the 20,000-byte evidence bound"
+        raise ValueError(msg)
+    return JudgeRawCapture(
+        utf8=extracted_response,
+        byte_length=len(authoritative),
+        sha256=hashlib.sha256(authoritative).hexdigest(),
+    )
+
+
+def diagnose_scoring_parse_failure(raw_response_text: str) -> ParserDiagnosticCode | None:
+    """Return the closed parser diagnostic code, or ``None`` on a successful parse.
+
+    This is a minimal pure wrapper over the current shared
+    ``parse_scoring_candidate`` behavior: it reproduces that function's exact
+    fail-closed order and success/failure outcome, but emits the granular
+    ``ParserDiagnosticCode`` instead of raising a generic error.  Exception
+    messages are never authority; only these codes are.
+    """
+
+    try:
+        raw_bytes = raw_response_text.encode("utf-8")
+    except UnicodeEncodeError:
+        return ParserDiagnosticCode.RAW_UTF8_INVALID
+    if len(raw_bytes) > _MAX_RESPONSE_BYTES:
+        return ParserDiagnosticCode.RAW_BYTES_LIMIT_EXCEEDED
+
+    try:
+        payload: object = json.loads(raw_response_text)
+    except json.JSONDecodeError:
+        return ParserDiagnosticCode.OUTER_JSON_INVALID
+    if not isinstance(payload, Mapping):
+        return ParserDiagnosticCode.OUTER_TOP_LEVEL_TYPE_INVALID
+    if "response" not in payload:
+        return ParserDiagnosticCode.MODEL_RESPONSE_MISSING
+    response = payload["response"]
+    if not isinstance(response, str):
+        return ParserDiagnosticCode.MODEL_RESPONSE_TYPE_INVALID
+    if len(response) > _MAX_MODEL_RESPONSE_CHARS:
+        return ParserDiagnosticCode.MODEL_RESPONSE_LENGTH_EXCEEDED
+
+    try:
+        parsed: object = json.loads(response)
+    except json.JSONDecodeError:
+        return ParserDiagnosticCode.MODEL_JSON_INVALID
+    if not isinstance(parsed, dict):
+        return ParserDiagnosticCode.MODEL_TOP_LEVEL_TYPE_INVALID
+    if not set(parsed).issubset(_MODEL_RESULT_FIELDS):
+        return ParserDiagnosticCode.MODEL_FIELD_SET_INVALID
+    try:
+        ScoringCandidate.model_validate(parsed)
+    except ValueError:
+        return ParserDiagnosticCode.CANDIDATE_SCHEMA_INVALID
+    return None
 
 
 def _default_transport(request: urllib.request.Request, timeout: float) -> _Response:
@@ -846,6 +1026,139 @@ _QUALITY_JUDGE_PROMPT: Final[str] = (
 )
 
 
+def _parse_judge_response_text(
+    response_text: str,
+    *,
+    evidence_registry: tuple[ScoringEvidence, ...],
+) -> ContentQualityJudgeResponse:
+    """Parse exact Judge model content into the strict response contract.
+
+    Module-level factoring of the Judge parse rules so the live adapter and the
+    H2 pure replay verifier share one deterministic implementation.  Raises on
+    any JSON, schema, or evidence-identity violation; never trusts the content.
+    """
+
+    parsed: object = json.loads(response_text)
+    if not isinstance(parsed, dict):
+        raise _InvalidModelResponse
+    if not set(parsed).issubset(_QUALITY_JUDGE_RESULT_FIELDS):
+        raise _InvalidModelResponse
+    judge_response = ContentQualityJudgeResponse.model_validate(parsed)
+    valid_ids = {item.evidence_id for item in evidence_registry}
+    for eid in judge_response.evidence_ids:
+        if eid not in valid_ids:
+            raise _InvalidModelResponse
+    return judge_response
+
+
+def _build_judge_result_from_response(
+    operation_input: QualityJudgeOperationInput,
+    judge_response: ContentQualityJudgeResponse,
+) -> ContentQualityResult:
+    """Promote a validated Judge response to a trusted local-Judge result.
+
+    Module-level factoring of the existing promotion rules; provenance comes only
+    from the validated ``operation_input``.
+    """
+
+    return ContentQualityResult.model_validate(
+        {
+            "schema_version": _QUALITY_SCHEMA_VERSION,
+            "policy_version": _QUALITY_POLICY_VERSION,
+            "prompt_version": _QUALITY_PROMPT_VERSION,
+            "status": judge_response.status,
+            "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+            "decision_confidence": judge_response.decision_confidence,
+            "grounding_confidence": judge_response.grounding_confidence,
+            "usefulness_confidence": judge_response.usefulness_confidence,
+            "signals": judge_response.signals,
+            "reason": judge_response.reason,
+            "evidence_ids": judge_response.evidence_ids,
+            "candidate_hash": operation_input.candidate_hash,
+            "quality_input_hash": operation_input.quality_input_hash,
+            "scoring_request_hash": operation_input.scoring_request_hash,
+            "judge_provider": operation_input.judge_provider,
+            "judge_model": operation_input.judge_model,
+            "judge_model_digest": operation_input.judge_model_digest,
+        }
+    )
+
+
+def _build_uncertain_result_for_operation(
+    operation_input: QualityJudgeOperationInput,
+    *,
+    reason: ContentQualityReason,
+) -> ContentQualityResult:
+    """Build a fail-closed UNCERTAIN result from validated operation provenance.
+
+    Unlike the settings-backed live builder, this pure variant derives the Judge
+    provider/model/digest exclusively from the validated ``operation_input`` so it
+    is deterministic and free of mutable runtime state.
+    """
+
+    expected_signal = ContentQualitySignal(reason.value)
+    return ContentQualityResult.model_validate(
+        {
+            "schema_version": _QUALITY_SCHEMA_VERSION,
+            "policy_version": _QUALITY_POLICY_VERSION,
+            "prompt_version": _QUALITY_PROMPT_VERSION,
+            "status": ContentQualityStatus.UNCERTAIN,
+            "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
+            "decision_confidence": ContentQualityConfidence.LOW,
+            "grounding_confidence": ContentQualityConfidence.LOW,
+            "usefulness_confidence": ContentQualityConfidence.LOW,
+            "signals": (expected_signal,),
+            "reason": reason,
+            "evidence_ids": (),
+            "candidate_hash": operation_input.candidate_hash,
+            "quality_input_hash": operation_input.quality_input_hash,
+            "scoring_request_hash": operation_input.scoring_request_hash,
+            "judge_provider": operation_input.judge_provider,
+            "judge_model": operation_input.judge_model,
+            "judge_model_digest": operation_input.judge_model_digest,
+        }
+    )
+
+
+def verify_judge_model_content(
+    raw_utf8: str,
+    *,
+    operation_input: QualityJudgeOperationInput,
+    content_input: ContentQualityInput,
+) -> ContentQualityResult:
+    """Pure internal verifier mapping exact Judge raw content to a result.
+
+    Conceptual H2 contract:
+
+    ``verify_judge_model_content(raw_utf8, operation_input, content_input)``
+    ``-> ContentQualityResult(status in PASS|REJECT|UNCERTAIN)``.
+
+    The verifier is deterministic and performs no provider call, filesystem
+    write, SQLite write, cache action, or mutable-runtime-authority lookup.  It
+    uses the existing Judge JSON/schema/evidence-registry parse rules and result
+    promotion rules.  Captured content that cannot parse/validate under those
+    rules yields the existing local-Judge ``UNCERTAIN`` result with
+    ``JUDGE_INVALID_RESPONSE``: raw content was obtained, so this is semantic.
+    Transport/no-content outcomes are outside this verifier.
+    """
+
+    from youtube_intel.quality import _revalidated_fields
+
+    trusted_operation = _revalidated_fields(QualityJudgeOperationInput, operation_input)
+    trusted_content = _revalidated_fields(ContentQualityInput, content_input)
+    try:
+        judge_response = _parse_judge_response_text(
+            raw_utf8,
+            evidence_registry=trusted_content.evidence_registry,
+        )
+        return _build_judge_result_from_response(trusted_operation, judge_response)
+    except Exception:
+        return _build_uncertain_result_for_operation(
+            trusted_operation,
+            reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
+        )
+
+
 class OllamaQualityJudgeProvider:
     """Loopback-only local Judge adapter for the content-quality layer.
 
@@ -964,27 +1277,11 @@ class OllamaQualityJudgeProvider:
                 reason=ContentQualityReason.JUDGE_UNAVAILABLE,
             )
 
-        try:
-            judge_response = self._parse_judge_response(
-                response.response_text,
-                evidence_registry=trusted_content.evidence_registry,
-            )
-        except Exception:
-            return self._build_uncertain_result(
-                trusted_operation,
-                reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
-            )
-
-        try:
-            return self._build_result_from_response(
-                trusted_operation,
-                judge_response,
-            )
-        except Exception:
-            return self._build_uncertain_result(
-                trusted_operation,
-                reason=ContentQualityReason.JUDGE_INVALID_RESPONSE,
-            )
+        return verify_judge_model_content(
+            response.response_text,
+            operation_input=trusted_operation,
+            content_input=trusted_content,
+        )
 
     def _validate_trusted_binding(
         self,
@@ -1253,44 +1550,19 @@ class OllamaQualityJudgeProvider:
         *,
         evidence_registry: tuple[ScoringEvidence, ...],
     ) -> ContentQualityJudgeResponse:
-        parsed: object = json.loads(response_text)
-        if not isinstance(parsed, dict):
-            raise _InvalidModelResponse
-        if not set(parsed).issubset(_QUALITY_JUDGE_RESULT_FIELDS):
-            raise _InvalidModelResponse
-        judge_response = ContentQualityJudgeResponse.model_validate(parsed)
-        valid_ids = {item.evidence_id for item in evidence_registry}
-        for eid in judge_response.evidence_ids:
-            if eid not in valid_ids:
-                raise _InvalidModelResponse
-        return judge_response
+        del self
+        return _parse_judge_response_text(
+            response_text,
+            evidence_registry=evidence_registry,
+        )
 
     def _build_result_from_response(
         self,
         operation_input: QualityJudgeOperationInput,
         judge_response: ContentQualityJudgeResponse,
     ) -> ContentQualityResult:
-        return ContentQualityResult.model_validate(
-            {
-                "schema_version": _QUALITY_SCHEMA_VERSION,
-                "policy_version": _QUALITY_POLICY_VERSION,
-                "prompt_version": _QUALITY_PROMPT_VERSION,
-                "status": judge_response.status,
-                "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE,
-                "decision_confidence": judge_response.decision_confidence,
-                "grounding_confidence": judge_response.grounding_confidence,
-                "usefulness_confidence": judge_response.usefulness_confidence,
-                "signals": judge_response.signals,
-                "reason": judge_response.reason,
-                "evidence_ids": judge_response.evidence_ids,
-                "candidate_hash": operation_input.candidate_hash,
-                "quality_input_hash": operation_input.quality_input_hash,
-                "scoring_request_hash": operation_input.scoring_request_hash,
-                "judge_provider": operation_input.judge_provider,
-                "judge_model": operation_input.judge_model,
-                "judge_model_digest": operation_input.judge_model_digest,
-            }
-        )
+        del self
+        return _build_judge_result_from_response(operation_input, judge_response)
 
     def _build_uncertain_result(
         self,
