@@ -5,8 +5,8 @@
 `READY FOR PHASE H2 AUTHORIZATION INDEPENDENT REVIEW`.
 
 This proposal assumes Phase G is accepted and H1-A/H1-B are closed. It
-authorizes neither code, tests, review, merge, network calls, cache recovery,
-nor a public repair surface. Its purpose is to define the narrow future H2
+authorizes neither code, tests, merge, network calls, cache recovery, nor a
+public repair surface. Its purpose is to define the narrow future H2
 implementation boundary by which one eligible, received PRIMARY failure may be
 repaired without weakening the accepted trusted-persistence chain.
 
@@ -76,8 +76,7 @@ live call stack:
    active, exclusively owned SCORING lease.
 2. Its response was received and a runtime-local classifier produced one of
    the closed eligible failures: `SCHEMA_OR_PARSE_INVALID`,
-   `LANGUAGE_INVALID`, `DETERMINISTIC_QUALITY_REJECT`, `JUDGE_REJECT`, or
-   `JUDGE_UNCERTAIN`.
+   `LANGUAGE_INVALID`, `JUDGE_REJECT`, or `JUDGE_UNCERTAIN`.
 3. The existing H1 runtime-local admission state shows that PRIMARY was
    consumed, REPAIR has not been consumed, and no current ProviderCall exists
    for either derived REPAIR identity.
@@ -151,54 +150,239 @@ request hash equals the PRIMARY scoring request hash, PRIMARY Judge H2, or
 REPAIR Judge H2. This is a defense-in-depth collision guard; the distinct
 operation and canonical input are the primary collision prevention.
 
-### Sealed PRIMARY failure evidence
+### Canonical H2 evidence serialization
 
-`PhaseHTrustedRepairSuccess` must seal an exact, canonical
-`PrimaryFailureEvidence` structure with
-`failure_evidence_schema = "primary-scoring-failure-evidence-v1"`. Its
-canonical JSON SHA-256 is `primary_failure_evidence_hash`, which is both
-sealed in the repair success and included in the canonical REPAIR request
-identity above. A caller-supplied `primary_failure_class` has no authority by
-itself.
+Every H2 evidence object uses the project canonical JSON rule already used by
+trusted scoring and Judge identities: strict UTF-8 encoding; lexicographically
+sorted object keys; compact separators `,` and `:`; `ensure_ascii=false`; JSON
+integers/booleans/null only in their exact JSON representation; and no
+NaN/Infinity. Duplicate semantic fields are forbidden because each typed schema
+has one field name for each meaning and rejects unknown fields. Pretty-printing,
+whitespace normalization, implementation-specific float formatting, alternate
+key order, and duplicate JSON keys are forbidden.
+The H2 wire decoder must reject a duplicate object key before typed validation;
+it must not apply a last-key-wins conversion.
 
-Every `PrimaryFailureEvidence` contains, at minimum:
+For every versioned H2 object, validation is exactly:
 
-- the exact bounded strict-UTF-8 PRIMARY raw response string and its exact
-  UTF-8 bytes semantics;
-- `primary_raw_response_hash = SHA256(primary_raw_response.encode("utf-8"))`;
-- canonical original `ScoringInput` bytes/hash plus the PRIMARY normalized and
-  request identities rebuilt with `build_scoring_request_identity()`;
-- current PRIMARY scoring provenance: operation, provider, model, model
-  digest, prompt version, schema version, output language, temperature,
-  maximum output tokens, and maximum description characters;
-- the canonical parsed/validated PRIMARY `ScoringCandidate` and candidate hash
-  when parsing succeeded; otherwise an explicit absent-candidate marker;
-- one closed eligible failure class and its class-specific canonical evidence;
-  and
-- the current quality-authority provenance whenever the failure passed the
-  PRIMARY quality/Judge boundary.
+```text
+exact typed schema with unknown fields rejected
+  -> canonical JSON bytes (strict UTF-8)
+  -> SHA-256 lowercase hexadecimal
+```
 
-`PREWRITE_VALIDATE` reconstructs the original scoring input from sealed bytes,
-rebuilds its PRIMARY identity against the current runtime context, recomputes
-the raw hash, and checks every sealed provenance value before it evaluates the
-failure class. A missing, non-canonical, malformed, rotated, or
-non-reproducible evidence field makes the failure ineligible; it cannot reach
-REPAIR or a write plan.
+Revalidation parses the sealed bytes into the exact typed schema, rejects
+unknown fields and invalid enum values, canonically reserializes it, and
+requires byte-for-byte equality with the sealed bytes before using its hash.
+No `null`/missing-field equivalence, free-form diagnostic text, or lossy
+object-to-dictionary conversion is permitted.
 
-The eligible classes and their re-proof requirements are frozen as follows.
+### `PrimaryFailureEvidence` exact wire schema
 
-| Eligible class | Sealed class-specific evidence | Required independent PREWRITE proof |
-|---|---|---|
-| `SCHEMA_OR_PARSE_INVALID` | `parser_contract = "scoring-candidate-parser-v1"`; canonical failure mode `JSON_DECODE`, `ENVELOPE_INVALID`, or `CANDIDATE_SCHEMA_INVALID`; canonical parser diagnostic code; no candidate. | Run the one canonical PRIMARY parser/schema validator against the exact sealed PRIMARY raw response. It must fail with the same authorized failure mode and diagnostic code. A successful parse, a different failure mode, or reliance on the stored enum rejects. |
-| `LANGUAGE_INVALID` | Exact canonical PRIMARY candidate/hash; canonical language-validator input/result; definitive validator failure code. | Reparse the PRIMARY raw response, require the sealed candidate/hash, then rerun the frozen TASK-016B language validator against the rebuilt candidate/input. It must yield the same definitive invalid result/code. A pass, uncertainty, candidate mismatch, or enum-only proof rejects. |
-| `DETERMINISTIC_QUALITY_REJECT` | Exact canonical PRIMARY candidate/hash; canonical quality input/hash; deterministic-gate result and reject reason; no Judge evidence. | Reparse and validate the candidate, rebuild the quality input, and rerun the frozen deterministic gate. Its canonical reject result/reason must exactly equal the sealed evidence. A non-reject or a Judge-derived substitute rejects. |
-| `JUDGE_REJECT` | Exact canonical PRIMARY candidate/hash and quality input/hash; PRIMARY `QualityJudgeOperationInput(attempt_role=PRIMARY)`; Judge H1/H2; exact bounded PRIMARY Judge raw response; canonical parsed `ContentQualityResult(REJECT)`; current quality authority provenance. | Rebuild the PRIMARY operation and H1/H2, require current authority/config equality, reparse/validate the sealed Judge response through the frozen Judge-result contract, and require the resulting canonical `REJECT` evidence to equal the seal. Mismatched response, H1/H2, operation, authority, or non-reject rejects. |
-| `JUDGE_UNCERTAIN` | The same PRIMARY Judge operation/H1/H2/raw-response/authority evidence as `JUDGE_REJECT`, with canonical parsed `ContentQualityResult(UNCERTAIN)` and its exact uncertainty reason/code. | Rebuild the PRIMARY operation and H1/H2 and reparse/validate the sealed Judge response under the frozen contract. It must independently yield the exact sealed `UNCERTAIN` result/reason/code. Any non-uncertain, mismatch, or unavailable proof rejects. |
+`PrimaryFailureEvidence` is the complete typed wire contract below. Its object
+has exactly these fields and no others; every field is required. Its schema
+literal is `"task016c-primary-failure-evidence-v1"` and its canonical SHA-256
+is `primary_failure_evidence_hash` in the REPAIR identity and composite
+envelope.
 
-`UNKNOWN_PROVIDER_STATE`, transport failure, timeout, process loss, authority
-rotation, lease loss, and any class without the complete reproducible evidence
-above are not eligible failure classes. They remain H1 fail-closed states and
-never acquire a REPAIR identity.
+| Field | Exact JSON type and rule |
+|---|---|
+| `schema_version` | string, exactly `"task016c-primary-failure-evidence-v1"` |
+| `primary_attempt_identity` | non-empty string, exactly `"local-scoring"` |
+| `primary_request_hash` | lowercase 64-character SHA-256 hexadecimal string |
+| `primary_normalized_input_hash` | lowercase 64-character SHA-256 hexadecimal string |
+| `primary_provider` | non-empty string, exactly the current scoring provider |
+| `primary_model` | non-empty string, exactly the current scoring model |
+| `primary_model_digest` | string matching `sha256:` plus 64 lowercase hexadecimal characters |
+| `primary_prompt_version` | non-empty string, exactly the current scoring prompt version |
+| `primary_schema_version` | non-empty string, exactly the current scoring schema version |
+| `primary_output_language` | string enum `"zh-CN"` or `"en"` |
+| `primary_temperature` | finite JSON number, exactly the current scoring temperature |
+| `primary_max_output_tokens` | positive JSON integer, exactly the current limit |
+| `primary_max_description_chars` | positive JSON integer, exactly the current limit |
+| `primary_scoring_input` | object conforming exactly to existing validated `ScoringInput`; it is canonical JSON nested as an object, with its own model validation and unknown-field rejection |
+| `primary_scoring_input_sha256` | lowercase 64-character SHA-256 of canonical `primary_scoring_input` bytes |
+| `primary_raw_utf8` | string containing the exact bounded PRIMARY provider HTTP body after successful strict UTF-8 decode; no trim, normalization, or reserialization |
+| `primary_raw_utf8_length` | JSON integer `0..1000000`, exactly `len(primary_raw_utf8.encode("utf-8"))` |
+| `primary_raw_sha256` | lowercase 64-character SHA-256 of the exact PRIMARY UTF-8 bytes |
+| `failure_class` | closed eligible enum defined below |
+| `primary_candidate` | either exact `CandidateEvidence` or exact `NotApplicableEvidence`, never `null` or omitted |
+| `parser_evidence` | either exact `ParserFailureEvidence` or exact `NotApplicableEvidence`, never `null` or omitted |
+| `language_evidence` | either exact `LanguageValidationEvidence` or exact `NotApplicableEvidence`, never `null` or omitted |
+| `judge_evidence` | either exact `JudgeEvidence` with role `PRIMARY` or exact `NotApplicableEvidence`, never `null` or omitted |
+
+`NotApplicableEvidence` is exactly `{"kind":"NOT_APPLICABLE"}`: one string
+field, no others. `CandidateEvidence` is exactly:
+
+```text
+{
+  "schema_version": "task016c-candidate-evidence-v1",
+  "kind": "CANDIDATE",
+  "candidate": <exact validated ScoringCandidate object>,
+  "candidate_sha256": <lowercase 64-char SHA-256 of canonical candidate bytes>
+}
+```
+
+Its `candidate` object must revalidate as the existing exact
+`ScoringCandidate` schema and its hash must equal canonical reserialization.
+
+The only permitted `failure_class` literals are
+`SCHEMA_OR_PARSE_INVALID`, `LANGUAGE_INVALID`, `JUDGE_REJECT`, and
+`JUDGE_UNCERTAIN`. `DETERMINISTIC_QUALITY_REJECT`,
+`UNKNOWN_PROVIDER_STATE`, arbitrary strings, and future values are not H2
+REPAIR-eligible. An unknown class or an incorrect applicable/non-applicable
+combination fails closed:
+
+| `failure_class` | `primary_candidate` | `parser_evidence` | `language_evidence` | `judge_evidence` |
+|---|---|---|---|---|
+| `SCHEMA_OR_PARSE_INVALID` | `NOT_APPLICABLE` | `PARSER_FAILURE` | `NOT_APPLICABLE` | `NOT_APPLICABLE` |
+| `LANGUAGE_INVALID` | `CANDIDATE` | `NOT_APPLICABLE` | `LANGUAGE_VALIDATION` | `NOT_APPLICABLE` |
+| `JUDGE_REJECT` | `CANDIDATE` | `NOT_APPLICABLE` | `NOT_APPLICABLE` | `JUDGE_EVIDENCE(role=PRIMARY,result=REJECT)` |
+| `JUDGE_UNCERTAIN` | `CANDIDATE` | `NOT_APPLICABLE` | `NOT_APPLICABLE` | `JUDGE_EVIDENCE(role=PRIMARY,result=UNCERTAIN)` |
+
+### Parser and language evidence
+
+`ParserFailureEvidence` has exactly four fields:
+`schema_version` (exactly `"task016c-parser-failure-evidence-v1"`), `kind`
+(exactly `"PARSER_FAILURE"`), `raw_sha256` (lowercase 64-character hash), and
+`diagnostic_code` (the closed enum below). It contains no exception message,
+traceback, field value, or arbitrary text.
+
+The diagnostic mapper is a minimal pure wrapper over the current shared
+`parse_scoring_candidate()` behavior. It must use these exact codes and no
+others:
+
+| Current parser path | `diagnostic_code` |
+|---|---|
+| exact raw string cannot strict-UTF-8 encode | `RAW_UTF8_INVALID` |
+| exact raw UTF-8 bytes exceed 1,000,000 | `RAW_BYTES_LIMIT_EXCEEDED` |
+| outer provider body `json.loads` fails | `OUTER_JSON_INVALID` |
+| outer parsed value is not a JSON object | `OUTER_TOP_LEVEL_TYPE_INVALID` |
+| outer object has no `response` key | `MODEL_RESPONSE_MISSING` |
+| outer `response` is not a string | `MODEL_RESPONSE_TYPE_INVALID` |
+| model `response` exceeds 20,000 characters | `MODEL_RESPONSE_LENGTH_EXCEEDED` |
+| model response `json.loads` fails | `MODEL_JSON_INVALID` |
+| model JSON is not an object | `MODEL_TOP_LEVEL_TYPE_INVALID` |
+| model object contains a key outside the current scoring field set | `MODEL_FIELD_SET_INVALID` |
+| exact `ScoringCandidate` schema validation fails | `CANDIDATE_SCHEMA_INVALID` |
+
+For `SCHEMA_OR_PARSE_INVALID`, PREWRITE runs that same parser and mapper on
+`primary_raw_utf8`, requires failure, and requires the exact sealed diagnostic
+object, including `parser_evidence.raw_sha256 == primary_raw_sha256`. Parser
+success or any different code rejects. Stored exception text cannot be
+authority because it is neither sealed nor accepted.
+
+`RAW_UTF8_INVALID` and `RAW_BYTES_LIMIT_EXCEEDED` are part of the complete
+current-parser taxonomy, but cannot form an H2 repair-eligible sealed failure:
+the former has no strict-UTF-8 string that can enter canonical evidence and the
+latter exceeds the required bounded `primary_raw_utf8` field. They therefore
+fail closed as unknown/ineligible before `PrimaryFailureEvidence` minting. The
+remaining listed codes are eligible only when every applicable evidence field
+and replay check above can be sealed and reproduced exactly.
+
+`LanguageValidationEvidence` has exactly six fields:
+`schema_version` (exactly `"task016c-language-validation-evidence-v1"`),
+`kind` (exactly `"LANGUAGE_VALIDATION"`), `candidate_sha256` (lowercase
+64-character hash), `output_language` (enum `"zh-CN"|"en"`),
+`validator_contract` (exactly `"task016b-scoring-language-validator-v1"`),
+and `result` (enum `"VALID"|"INVALID"|"UNCERTAIN"`). The frozen TASK-016B
+validator emits no finer deterministic reason code; this exact `result` is its
+only diagnostic authority. For `LANGUAGE_INVALID`, `result` must be `INVALID`.
+
+PREWRITE reparses the primary raw, requires the sealed candidate/hash, calls
+the existing `detect_scoring_language_violation(reason, output_language)`,
+and builds the same typed evidence. It must byte-for-byte equal the seal. A
+`VALID` or `UNCERTAIN` result, a candidate/hash mismatch, or a replacement
+language algorithm rejects.
+
+### Judge raw, outcome split, and `JudgeEvidence`
+
+For H2, Judge raw evidence is **only** the exact extracted Ollama model-content
+string from the successful generate response object's `response` field. It is
+not the full HTTP body. Capture happens only after loopback transport completed,
+the bounded HTTP body strictly UTF-8 decoded, the outer Ollama body parsed as a
+JSON object, and that object contained a string `response` field no longer than
+20,000 characters. The captured model-content string preserves every character,
+including surrounding whitespace; it is never trimmed, normalized, or JSON
+reserialized. Empty content is the empty string with UTF-8 byte length zero and
+the SHA-256 of empty bytes; it deterministically becomes a semantic
+`UNCERTAIN` only if the pure verifier below does so.
+
+`UNKNOWN_PROVIDER_STATE` is not a Judge semantic result. Timeout after provider
+contact, connection/read/process interruption, HTTP/provider protocol failure,
+missing body/content, failed strict UTF-8/outer-JSON extraction, or any state
+where exact model-content raw evidence cannot be sealed is H1
+`UNKNOWN_PROVIDER_STATE` after dispatch (or a pre-contact fail-closed denial
+before dispatch). None may be labeled `JUDGE_UNCERTAIN` or used for REPAIR.
+
+`JudgeEvidence` is one exact schema for both roles. It has exactly these fields
+and no others; every field is required:
+
+| Field | Exact JSON type and rule |
+|---|---|
+| `evidence_schema_version` | string, exactly `"task016c-judge-evidence-v1"` |
+| `role` | string enum `"PRIMARY"` or `"REPAIR"` |
+| `judge_h1` | lowercase 64-character SHA-256 hex |
+| `judge_h2` | lowercase 64-character SHA-256 hex |
+| `provider` | non-empty string, exactly `"ollama"` |
+| `model` | non-empty string, exactly the current Judge model |
+| `model_digest` | string matching `sha256:` plus 64 lowercase hexadecimal characters |
+| `policy_version` | non-empty string, exactly the current Judge policy version |
+| `prompt_version` | non-empty string, exactly the current Judge prompt version |
+| `operation_schema_version` | non-empty string, exactly the current Judge operation/result schema version; this name deliberately differs from `evidence_schema_version` |
+| `operation` | string, exactly `"local-content-quality-v1"` |
+| `operation_input` | object conforming exactly to existing `QualityJudgeOperationInput`, including the same `attempt_role` as `role` |
+| `judge_input` | object conforming exactly to existing `ContentQualityInput` |
+| `judge_input_sha256` | lowercase 64-character canonical hash of `judge_input` |
+| `raw_capture_kind` | string, exactly `"EXTRACTED_OLLAMA_RESPONSE_TEXT_V1"` |
+| `raw_utf8` | exact extracted model-content string; empty string is allowed and never omitted |
+| `raw_utf8_length` | JSON integer `0..20000`, exactly `len(raw_utf8.encode("utf-8"))` |
+| `raw_sha256` | lowercase 64-character SHA-256 of exact `raw_utf8` bytes |
+| `derived_result` | object conforming exactly to existing `ContentQualityResult` with `decision_source=LOCAL_JUDGE` |
+
+The pure internal verifier to be introduced by a future H2 implementation has
+this conceptual contract:
+
+```text
+verify_judge_model_content(
+  raw_utf8: str,
+  operation_input: exact QualityJudgeOperationInput,
+  content_input: exact ContentQualityInput
+) -> exact ContentQualityResult(status in PASS|REJECT|UNCERTAIN)
+```
+
+It is deterministic and performs no provider call, filesystem write, SQLite
+write, cache action, or mutable-runtime-authority lookup. It uses the existing
+`_parse_judge_response()` JSON/schema/evidence-registry rules and existing
+`_build_result_from_response()` promotion rules, factored without changing
+their semantics. A captured model-content string that cannot parse/validate
+under those rules produces the existing local-Judge `UNCERTAIN` result with
+`JUDGE_INVALID_RESPONSE`; raw content was obtained, so this is semantic and may
+be represented. Transport/no-content outcomes are outside the verifier and are
+always `UNKNOWN_PROVIDER_STATE`/ineligible.
+
+During PREWRITE, `JudgeEvidence` is parsed as its exact schema, canonicalized
+back to identical bytes, and verified as follows: rebuild Judge H1 from the
+exact `operation_input`; rebuild H2 through `build_provider_request_hash()`;
+require provider/model/digest/prompt/operation-schema/operation/input bindings
+to equal current frozen provenance; recompute the canonical `judge_input`
+hash; require `operation_input.quality_input_hash == judge_input_sha256` and
+the existing frozen quality cross-bindings (matching scoring request hash,
+candidate hash, output language, candidate reason/topics, and evidence
+registry); recompute raw length/hash; call the pure verifier; and require its
+exact canonical `ContentQualityResult` to equal `derived_result`.
+`JUDGE_REJECT` requires `role=PRIMARY`,
+`operation_input.scoring_request_hash == primary_request_hash`,
+`operation_input.candidate_hash == primary_candidate.candidate_sha256`, and
+result status `REJECT`; `JUDGE_UNCERTAIN` requires the same PRIMARY bindings
+and result status `UNCERTAIN`. A stored enum alone is never authority.
+
+The same `JudgeEvidence` schema and replay steps apply to REPAIR, but the role
+is exactly `REPAIR`, `operation_input.attempt_role=REPAIR`, and the derived
+result must be `PASS` before attestation/finalization. PRIMARY Judge evidence
+cannot substitute for REPAIR Judge evidence, nor vice versa, even when raw
+content/model/result match: role changes the operation input, H1, H2, and
+canonical evidence bytes.
 
 ### Provider/model binding and one-shot budget
 
@@ -320,27 +504,70 @@ values needed for repeat validation:
 | Quality/Judge evidence | Canonical quality input, complete REPAIR `PASS` result, `QualityJudgeOperationInput(attempt_role=REPAIR)`, Judge H1/H2, and current-authority `QualityPassAttestation`. |
 | Finalized structured value | Exact `TrustedScoreResult` from the Finalizer plus sealed canonical structured-result bytes/hash/length. |
 
-The composite envelope has these top-level canonical fields, with no omitted
-or caller-supplied side channel:
+The exact typed `RepairCompositeEnvelope` has exactly these six required
+top-level fields and no others:
 
-```text
-envelope_schema = "trusted-scoring-repair-envelope-v1"
-primary_failure_evidence
-repair_attempt = {
-  raw_response, raw_response_hash, candidate, candidate_hash,
-  normalized_input_hash, request_hash,
-  operation = "local-scoring-repair-v1",
-  provider, model, model_digest, prompt_version, schema_version,
-  output_language, temperature, max_output_tokens, max_description_chars
-}
-repair_quality = {
-  input, input_hash, result = PASS, operation(attempt_role=REPAIR),
-  judge_h1, judge_h2, judge_raw_response, authority_provenance,
-  attestation
-}
-trusted_result_binding = { structured_result_bytes, structured_result_hash,
-                           structured_result_length }
-```
+| Field | Exact JSON type and rule |
+|---|---|
+| `envelope_schema` | string, exactly `"trusted-scoring-repair-envelope-v1"` |
+| `primary_failure_evidence` | exact `PrimaryFailureEvidence` described in Section 3 |
+| `repair_provider_evidence` | exact `RepairProviderEvidence` below |
+| `repair_candidate_evidence` | exact `RepairCandidateValidationEvidence` below |
+| `repair_quality_evidence` | exact `RepairQualityEvidence` below |
+| `finalizer_binding` | exact `FinalizerBinding` below |
+
+`RepairProviderEvidence` has exactly 13 required fields:
+`schema_version`=`"task016c-repair-provider-evidence-v1"`,
+`operation`=`"local-scoring-repair-v1"`, `normalized_input_hash` and
+`request_hash` (each lowercase 64-character hash), `provider` and `model`
+(non-empty strings), `model_digest` (`sha256:` plus 64 lowercase hex),
+`prompt_version` and `operation_schema_version` (non-empty strings),
+`output_language` (`"zh-CN"|"en"`), `temperature` (finite JSON number),
+`max_output_tokens` and `max_description_chars` (positive JSON integers), and
+`raw_utf8`/`raw_utf8_length`/`raw_sha256` would be ambiguous duplicates and are
+therefore prohibited here: they exist only in `repair_candidate_evidence`.
+
+`RepairCandidateValidationEvidence` has exactly eight required fields:
+`schema_version`=`"task016c-repair-candidate-evidence-v1"`,
+`parser_contract`=`"scoring-candidate-parser-v1"`,
+`raw_utf8` (exact bounded strict-UTF-8 REPAIR provider HTTP body),
+`raw_utf8_length` (integer `0..1000000` equal to its UTF-8 byte length),
+`raw_sha256` (lowercase 64-character hash), `candidate` (exact existing
+`ScoringCandidate` object), `candidate_sha256` (canonical candidate hash), and
+`validation_status`=`"VALID"`. No repair failure or `NOT_APPLICABLE` form is
+allowed in a successful repair envelope.
+
+`RepairQualityEvidence` has exactly seven required fields:
+`schema_version`=`"task016c-repair-quality-evidence-v1"`, `quality_input`
+(exact existing `ContentQualityInput` object), `quality_input_sha256`
+(canonical hash), `judge_evidence` (exact `JudgeEvidence` with
+`role="REPAIR"` and `derived_result.status="PASS"`), `quality_result` (the
+same exact `ContentQualityResult(PASS)` as `judge_evidence.derived_result`),
+`quality_result_sha256` (canonical hash), and `attestation` (exact existing
+`QualityPassAttestation` object). All cross-bindings must be exact; no field is
+nullable, optional, or replaceable with `NotApplicableEvidence`. In
+particular, PREWRITE applies the frozen quality cross-binding verifier with
+`judge_evidence.operation_input.scoring_request_hash ==
+repair_provider_evidence.request_hash`, candidate hashes equal to
+`repair_candidate_evidence.candidate_sha256`, and quality-input hash equal to
+the canonical `quality_input`; it then verifies the matching PASS result hash
+and attestation. No PRIMARY scoring request/candidate/Judge identity may occupy
+any of those REPAIR bindings.
+
+`FinalizerBinding` has exactly six required fields:
+`schema_version`=`"task016c-finalizer-binding-v1"`, `trusted_score_result`
+(the existing finalizer-produced business object serialized only inside this
+sealed binding, never accepted or exposed as a bare `ScoreResult`),
+`trusted_score_result_sha256` (canonical hash), `structured_utf8` (sealed
+structured-result canonical JSON string), `structured_utf8_length` (integer
+equal to its strict UTF-8 byte length), and `structured_utf8_sha256`
+(lowercase 64-character hash). `structured_utf8` must be the sealed serializer
+output for the exact finalizer result; it is never caller-provided.
+
+Every nested object above follows Section 3 canonical serialization and exact
+typed reserialize-equality. Their names, schema literals, required fields,
+absence semantics, and unknown-field behavior are therefore frozen rather than
+left to an implementer.
 
 The exact PRIMARY raw response and all classification-specific evidence live
 inside `primary_failure_evidence`; this is what lets PREWRITE independently
@@ -471,7 +698,7 @@ transition.
 
 For this category, the rejection occurs before write-plan minting. Capture the
 baseline before the attack and assert the absolute post-baseline effects:
-**zero additional scoring-provider calls, zero Judge calls, zero filesystem
+**zero additional scoring-provider calls, zero additional Judge calls, zero filesystem
 writes, zero Artifact writes, zero SQLite success writes, and no video/job
 success transition**. Filesystem writes include tmp/final/mkdir/promote/
 directory-fsync activity. SQLite success writes include ProviderCall completion,
@@ -490,6 +717,24 @@ write, terminal/retry transition, or `ValidatedScoringWritePlan` may exist.
 | Substitute REPAIR identity into PRIMARY branch | Feed REPAIR operation/request fields to exact `PhaseFTrustedScoringSuccess` validation. | The unchanged PRIMARY branch rejects cross-role material before write-plan minting and satisfies every Category A assertion. |
 | Forge composite envelope schema/version or hashes | Alter `trusted-scoring-repair-envelope-v1`, raw bytes/hash/length, structured bytes/hash/length, or failure-evidence hash. | Canonical envelope/plan validation rejects before write-plan minting and satisfies every Category A assertion. |
 | Direct persistence with forged repair success | Call `persist_success()` with a hand-built, low-level, or otherwise forged `PhaseHTrustedRepairSuccess`. | Exact type, runtime mint, seal, PRIMARY failure proof, and REPAIR chain validation reject before write-plan minting and satisfy every Category A assertion. |
+| Unknown `PrimaryFailureEvidence` field | Insert an unrecognized field at any depth of `PrimaryFailureEvidence`. | Exact typed parsing rejects unknown fields before write-plan minting and satisfies every Category A assertion. |
+| Missing `PrimaryFailureEvidence` field | Remove any required top-level or required applicable tagged-evidence field. | Exact typed parsing rejects missing fields before write-plan minting and satisfies every Category A assertion. |
+| Non-canonical equivalent evidence | Supply syntactically valid JSON that parses to the same typed object but differs in key order, separators, whitespace, Unicode representation, or duplicate-key encoding. | Canonical reserialize bytes differ from the seal; reject before write-plan minting and satisfy every Category A assertion. |
+| Forged parser diagnostic | Seal a parser diagnostic code inconsistent with the exact PRIMARY raw response. | The pure current-parser mapper produces a different code (or succeeds); reject before write-plan minting and satisfy every Category A assertion. |
+| Free-form parser exception authority | Replace typed parser evidence with free-form exception text or add such text as a purported authority field. | Schema rejects the field/form; no exception text is parsed as authority, and every Category A assertion holds. |
+| LANGUAGE evidence where validator passes | Seal `LANGUAGE_INVALID` while `detect_scoring_language_violation` returns `VALID`. | Typed language replay disproves the evidence; reject before write-plan minting and satisfy every Category A assertion. |
+| Candidate/evidence hash mismatch | Change a PRIMARY or REPAIR candidate, candidate hash, raw binding, or language evidence candidate hash independently. | Canonical candidate/hash cross-binding fails before write-plan minting and satisfies every Category A assertion. |
+| `JUDGE_REJECT` raw replays to PASS | Seal `JUDGE_REJECT` but supply captured Judge model content that pure replay maps to `PASS`. | Pure Judge verifier/result equality fails before write-plan minting and satisfies every Category A assertion. |
+| `JUDGE_REJECT` raw replays to UNCERTAIN | Seal `JUDGE_REJECT` but supply captured Judge model content that pure replay maps to `UNCERTAIN`. | Pure Judge verifier/result equality fails before write-plan minting and satisfies every Category A assertion. |
+| `JUDGE_UNCERTAIN` raw replays to REJECT or PASS | Seal `JUDGE_UNCERTAIN` but supply model content that pure replay maps to `REJECT` or `PASS`. | Pure Judge verifier/result equality fails before write-plan minting and satisfies every Category A assertion. |
+| Forged Judge H1 | Alter H1 while retaining the operation input and other Judge evidence. | H1 recomputation fails before write-plan minting and satisfies every Category A assertion. |
+| Forged Judge H2 | Alter H2 while retaining the operation input/H1 and other Judge evidence. | H2 recomputation through `build_provider_request_hash()` fails before write-plan minting and satisfies every Category A assertion. |
+| Judge raw bytes/hash/length mismatch | Alter captured Judge content, UTF-8 byte length, or SHA-256 independently. | Strict UTF-8 length/hash verification fails before write-plan minting and satisfies every Category A assertion. |
+| PRIMARY Judge evidence in REPAIR role | Substitute `JudgeEvidence(role=PRIMARY)` for the required REPAIR Judge evidence. | Role/operation/H1/H2/input binding fails before write-plan minting and satisfies every Category A assertion. |
+| REPAIR Judge evidence in PRIMARY role | Substitute `JudgeEvidence(role=REPAIR)` for PRIMARY failure evidence. | Role/operation/H1/H2/input binding fails before write-plan minting and satisfies every Category A assertion. |
+| Transport/no-response as `JUDGE_UNCERTAIN` | Supply timeout, interruption, protocol/no-content state, or absent captured model content with a claimed `JUDGE_UNCERTAIN`. | No full `JudgeEvidence` exists; classify H1 unknown/ineligible and satisfy every Category A assertion. |
+| Composite unknown nested field | Insert an unrecognized field in any `RepairCompositeEnvelope` nested evidence object. | Exact nested schema parsing rejects before write-plan minting and satisfies every Category A assertion. |
+| Composite canonical reserialize mismatch | Supply a parseable composite envelope whose canonical reserialization differs byte-for-byte from sealed bytes. | Exact reserialize-equality rejects before write-plan minting and satisfies every Category A assertion. |
 | `object.__new__` | Allocate an uninitialized `PhaseHTrustedRepairSuccess` shell, including one populated only through low-level attribute operations. | No runtime-only mint provenance exists; exact-type/seal/provenance checks reject and satisfy every Category A assertion. |
 | `object.__setattr__` mutation | Attempt to mutate each sealed envelope binding after minting: PRIMARY identity/failure/raw hash, REPAIR raw/provider/identity, Judge evidence, attestation, or final result bytes. | Immutability rejects mutation; if a test bypasses normal mutation, re-derived prewrite validation rejects the changed value and satisfies every Category A assertion. |
 | Copy, deepcopy, pickle restoration | Apply `copy.copy`, `copy.deepcopy`, and pickle round-trip to a legitimate repair success. | Each operation is rejected; no restored object can invoke persistence. A forged restored shape reaching the entry satisfies every Category A assertion. |
@@ -536,16 +781,23 @@ smallest implementation required for the design:
   state for runtime-owned REPAIR/REPAIR_JUDGE consumption; no receipt, token,
   registry, or caller admission API.
 - `src/youtube_intel/providers/ollama.py`: one bounded candidate-only REPAIR
-  transport using the existing canonical parser and existing local safety
-  rules; no provider-side trust or persistence.
+  transport using the existing canonical parser/local safety rules, plus the
+  narrow Judge-seam change required to capture exact successful extracted model
+  content before interpretation and factor the existing Judge JSON/schema/
+  evidence-registry parsing and result promotion into the pure replay verifier.
+  It may retain that evidence only in the internal runtime flow; it may not add
+  a public raw-response API, new provider, network protocol, second Judge
+  implementation, cache, or persistence behavior.
 - `src/youtube_intel/scoring.py`: the private sealed
   `PhaseHTrustedRepairSuccess` aggregate/minting guard, REPAIR
-  raw/candidate identity reconstruction, and the strictly private
+  raw/candidate identity reconstruction, the versioned evidence wire-schema
+  validation/canonical serialization helpers, and the strictly private
   `persist_success()` verifier/plan branch, reusing the existing writer and
   atomic registration only.
-- `src/youtube_intel/quality.py`: only minimal reuse necessary to build and
-  verify the existing REPAIR-role quality operation, attestation, and
-  Finalizer inputs; no policy or validator changes.
+- `src/youtube_intel/quality.py`: only minimal typed evidence construction/
+  replay support needed to build and verify existing PRIMARY/REPAIR Judge
+  operation identities, content-quality inputs/results, attestation, and
+  Finalizer inputs; no policy or TASK-016B validator change.
 - Focused H2 tests plus targeted Phase G/H1 regression tests, and the H2
   handoff evidence.
 
@@ -554,8 +806,9 @@ externally observable persistence boundary; Phase G rewrite; any capability
 object beyond the required sealed `PhaseHTrustedRepairSuccess`; public repair APIs;
 receipt/token/registry/continuation exposure; repository repair APIs; new
 writer or SQLite path; manual Artifacts/ProviderCalls; cache/recovery work;
-TASK-016B Language Validator changes; dependencies, lockfiles, configuration,
-Cloud, real network/model/Vault/credential use; and any repair eligibility from
+`src/youtube_intel/domain.py` contract changes; TASK-016B Language Validator
+changes; dependencies, lockfiles, configuration, Cloud, real
+network/model/Vault/credential use; and any repair eligibility from
 `UNKNOWN_PROVIDER_STATE`.
 
 ## 8. Acceptance conditions for a later H2 authorization
