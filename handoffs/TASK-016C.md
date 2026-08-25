@@ -1,5 +1,112 @@
 # TASK-016C 交接报告
 
+## Phase H2-A Correction Round 3 — derive H2 trust from runtime inputs
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-A Correction Round 3` only (runtime-owned trust
+  composition; do NOT start H2-B).
+- Reviewed HEAD: `4934c7a`; previous correction commit: `43ad2dc`.
+- Correction commit: `c58396b` — `fix(task016c): derive H2 trust from runtime
+  inputs`.
+- Status: `READY FOR H2-A CORRECTION ROUND 3 INDEPENDENT REVIEW`.
+
+Findings addressed: P1-1 (a caller-supplied `JudgeTrustedContext` could act as
+authority), P1-2 (a directly constructed `RepairTrustedConfig` could establish RNI
+trust), P1-3 (Judge-based PFE could not enter the trusted RNI builder without an
+invented Judge-context binding).
+
+### Corrected trust model
+
+The foundation now uses: ALREADY TRUSTED RUNTIME INPUTS -> RUNTIME-OWNED
+DETERMINISTIC COMPOSITION -> EXPECTED DATA -> EVIDENCE REPLAY. No authoritative
+verifier/builder establishes trust merely because a caller supplied a
+`JudgeTrustedContext` or `RepairTrustedConfig` instance. All changes are in
+`src/youtube_intel/h2_evidence.py`.
+
+- **P1-1 — independent trusted Judge context:** added
+  `derive_primary_judge_trusted_context(*, primary_trusted_context,
+  trusted_candidate, validated_settings) -> (JudgeTrustedContext, judge_input)`.
+  It derives the judge input, candidate/scoring-request/quality-input hashes,
+  provider/model/digest (from the validated `LocalScoringSettings`, checked
+  against the trusted PRIMARY context), frozen policy/prompt/schema/operation
+  literals, and expected H1/H2 — with no caller override for any expected value.
+  `verify_primary_failure_evidence(evidence, trusted_context, validated_settings)`
+  now derives the expected Judge context internally for JUDGE_REJECT/
+  JUDGE_UNCERTAIN and no longer accepts a caller-supplied `JudgeTrustedContext`.
+- **P1-2 — RepairTrustedConfig not a security root:**
+  `build_repair_normalized_input(*, job_id, primary_trusted_context,
+  failure_evidence, validated_settings)` derives the `RepairTrustedConfig`
+  internally via `build_repair_trusted_config(validated_settings)`; it exposes no
+  REPAIR config parameter, so an attacker-constructed `RepairTrustedConfig`
+  cannot be supplied or influence the trusted RNI.
+- **P1-3 — Judge-based PFE enters the RNI builder:** the trusted RNI builder
+  handles all four eligible classes (SCHEMA_OR_PARSE_INVALID, LANGUAGE_INVALID,
+  JUDGE_REJECT, JUDGE_UNCERTAIN) using the frozen contracts; for Judge-based
+  failures it re-verifies the PFE, re-derives the trusted PRIMARY candidate, and
+  derives the expected PRIMARY Judge context internally. H2-B need not invent a
+  caller-selected Judge context.
+- `verify_judge_evidence_replay` and `build_judge_trusted_context` are documented
+  as low-level data-level primitives, not security ingresses; the authoritative
+  PFE/RNI composition derives its expected data internally.
+
+### Behavioral proof (PART 26)
+
+All three reviewer attacks reject through real production composition/verifier
+paths, in `tests/unit/test_task016c_phase_h2a_correction_r3.py` (and one in
+correction_r2):
+
+1. PRIMARY A + attacker model/digest Judge B + attacker self-consistent Judge
+   context B -> authoritative PFE verification REJECTS
+   (`test_pfe_rejects_self_consistent_judge_b_for_primary_a`); the verifier
+   accepts no `judge_trusted_context` parameter
+   (`test_attacker_judge_trusted_context_cannot_be_injected`,
+   `test_pfe_authoritative_verifier_has_no_judge_context_parameter`).
+2. Valid PFE/context A + directly constructed RepairTrustedConfig B -> trusted
+   RNI composition MUST NOT emit B configuration
+   (`test_rni_builder_rejects_direct_repair_trusted_config_argument`,
+   `test_attacker_repair_trusted_config_cannot_influence_trusted_rni`,
+   `test_trusted_rni_always_reflects_validated_settings`).
+3. Valid JUDGE_REJECT / JUDGE_UNCERTAIN PFE -> trusted RNI composition succeeds
+   using the internally derived expected Judge context, without the caller
+   supplying a JudgeTrustedContext (`test_judge_reject_pfe_enters_trusted_rni_builder`,
+   `test_judge_uncertain_pfe_enters_trusted_rni_builder`).
+
+For attacks 1 and 2: no provider calls, no Judge calls, no filesystem/Artifact/
+SQLite writes, and no success transition (pure pre-plan rejection).
+
+### Tests and checks
+
+| Command | Result |
+|---|---|
+| H2-A focused suites (jcs, raw_capture, judge_replay, evidence, correction_r1/r2/r3) | PASS (`244 passed`) |
+| `test_task016c_phase_h1_admission.py` | PASS |
+| `test_task016c_phase_g.py` | PASS |
+| Ollama provider + Judge contract + runtime composition + TASK-016B language | PASS |
+| Full unit + integration offline | PASS (`1527 passed`) |
+| E2E offline | PASS (`9 passed`) |
+| `uv run --offline mypy src` | PASS (`31 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings pre-existing) |
+
+### Boundary confirmation
+
+- Production change is limited to `src/youtube_intel/h2_evidence.py`;
+  `scoring.py`, `state.py`, `runtime.py`, `scoring_admission.py`, `domain.py`,
+  `quality.py`, `migrations/`, `providers/ollama.py`, and `h2_jcs.py` have zero
+  diff.
+- REPAIR dispatch remains disabled: no `PhaseHTrustedRepairSuccess`,
+  `persist_repair()`, REPAIR/REPAIR_JUDGE dispatch, repair persistence branch,
+  public repair API, or repair token/receipt/registry/continuation.
+- No hidden registry/sentinel/nonce/token/closure/global-state trust mechanism;
+  trust is derived from existing validated runtime inputs at the authoritative
+  composition boundary.
+
+Status: `READY FOR H2-A CORRECTION ROUND 3 INDEPENDENT REVIEW`.
+
+---
+
 ## Phase H2-A Correction Round 2 — seal H2 judge and repair config bindings
 
 ### Metadata and scope
