@@ -44,8 +44,10 @@ from youtube_intel.h2_evidence import (
     RepairNormalizedInput,
     build_judge_evidence,
     build_primary_failure_evidence_hash,
+    build_primary_trusted_context,
     build_repair_normalized_input,
     build_repair_request_hash,
+    canonical_primary_scoring_input_hash,
     h2_canonical_bytes,
     h2_canonical_sha256,
     repair_normalized_input_hash,
@@ -150,25 +152,16 @@ def _candidate(*, reason: str = _EN_REASON, score: float = 8.0) -> ScoringCandid
     )
 
 
-def _valid_rni(**overrides):
-    scoring_input = _scoring_input()
-    identity = _identity(scoring_input)
-    kwargs = {
-        "job_id": "job-h2a",
-        "scoring_input": scoring_input,
-        "primary_request_hash": identity.request_hash,
-        "primary_normalized_input_hash": identity.normalized_input_hash,
-        "primary_failure_class": PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID,
-        "primary_failure_evidence_hash": _HASH_B,
-        "primary_raw_sha256": _HASH_C,
-        "repair_model": _MODEL,
-        "repair_model_digest": _DIGEST,
-        "temperature": 0.0,
-        "max_output_tokens": 1200,
-        "max_description_chars": 32,
-    }
-    kwargs.update(overrides)
-    return build_repair_normalized_input(**kwargs)
+def _trusted_context(scoring_input=None):
+    si = scoring_input if scoring_input is not None else _scoring_input()
+    return build_primary_trusted_context(
+        scoring_input=si,
+        model=_MODEL,
+        model_digest=_DIGEST,
+        temperature=0.0,
+        max_output_tokens=1200,
+        max_description_chars=32,
+    )
 
 
 def _schema_invalid_raw() -> str:
@@ -202,38 +195,61 @@ def _multibyte_raw() -> str:
     return seal_primary_raw_capture(body).utf8
 
 
-def _schema_invalid_pfe() -> PrimaryFailureEvidence:
-    scoring_input = _scoring_input()
-    identity = _identity(scoring_input)
-    raw = _schema_invalid_raw()
-    parser_ev = replay_primary_parser_failure(raw)
+def _schema_invalid_pfe(ctx=None, scoring_input=None, *, raw: str | None = None) -> PrimaryFailureEvidence:
+    si = scoring_input if scoring_input is not None else _scoring_input()
+    ctx = ctx if ctx is not None else _trusted_context(si)
+    raw_body = raw if raw is not None else _schema_invalid_raw()
+    parser_ev = replay_primary_parser_failure(raw_body)
     assert parser_ev is not None
     return PrimaryFailureEvidence(
         schema_version="task016c-primary-failure-evidence-v1",
         primary_attempt_identity="local-scoring",
-        primary_request_hash=identity.request_hash,
-        primary_normalized_input_hash=identity.normalized_input_hash,
-        primary_provider="ollama",
-        primary_model=_MODEL,
-        primary_model_digest=_DIGEST,
-        primary_prompt_version=PROMPT_VERSION,
-        primary_schema_version=SCHEMA_VERSION,
-        primary_output_language="en",
-        primary_temperature=0.0,
-        primary_max_output_tokens=1200,
-        primary_max_description_chars=32,
-        primary_scoring_input=scoring_input,
-        primary_scoring_input_sha256=h2_canonical_sha256(scoring_input),
+        primary_request_hash=ctx.request_hash,
+        primary_normalized_input_hash=ctx.normalized_input_hash,
+        primary_provider=ctx.provider,
+        primary_model=ctx.model,
+        primary_model_digest=ctx.model_digest,
+        primary_prompt_version=ctx.prompt_version,
+        primary_schema_version=ctx.schema_version,
+        primary_output_language=ctx.output_language,
+        primary_temperature=ctx.temperature,
+        primary_max_output_tokens=ctx.max_output_tokens,
+        primary_max_description_chars=ctx.max_description_chars,
+        primary_scoring_input=si,
+        primary_scoring_input_sha256=canonical_primary_scoring_input_hash(si),
         primary_raw_capture_kind="OLLAMA_GENERATE_HTTP_BODY_V1",
-        primary_raw_utf8=raw,
-        primary_raw_utf8_length=len(raw.encode("utf-8")),
-        primary_raw_sha256=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+        primary_raw_utf8=raw_body,
+        primary_raw_utf8_length=len(raw_body.encode("utf-8")),
+        primary_raw_sha256=hashlib.sha256(raw_body.encode("utf-8")).hexdigest(),
         failure_class=PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID,
         primary_candidate=NotApplicableEvidence(kind="NOT_APPLICABLE"),
         parser_evidence=parser_ev,
         language_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
         judge_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
     )
+
+
+def _build_rni(*, scoring_input=None, trusted_context=None, failure_evidence=None, **overrides):
+    si = scoring_input if scoring_input is not None else _scoring_input()
+    ctx = trusted_context if trusted_context is not None else _trusted_context(si)
+    pfe = failure_evidence if failure_evidence is not None else _schema_invalid_pfe(ctx, si)
+    kwargs = {
+        "job_id": "job-h2a",
+        "scoring_input": si,
+        "trusted_context": ctx,
+        "failure_evidence": pfe,
+        "repair_model": _MODEL,
+        "repair_model_digest": _DIGEST,
+        "temperature": 0.0,
+        "max_output_tokens": 1200,
+        "max_description_chars": 32,
+    }
+    kwargs.update(overrides)
+    return build_repair_normalized_input(**kwargs)
+
+
+def _valid_rni():
+    return _build_rni()
 
 
 def _judge_materials(*, attempt_role=QualityJudgeAttemptRole.PRIMARY, raw_status: str = "PASS"):
@@ -479,12 +495,16 @@ def test_rni_wrong_schema_version_rejects() -> None:
 
 
 def test_rni_negative_max_description_chars_rejects() -> None:
+    payload = _valid_rni().model_dump(mode="json")
+    payload["max_description_chars"] = -1
     with pytest.raises(ValueError):
-        _valid_rni(max_description_chars=-1)
+        RepairNormalizedInput.model_validate(payload)
 
 
 def test_rni_max_description_chars_zero_is_a_value() -> None:
-    rni = _valid_rni(max_description_chars=0)
+    payload = _valid_rni().model_dump(mode="json")
+    payload["max_description_chars"] = 0
+    rni = RepairNormalizedInput.model_validate(payload)
     assert rni.max_description_chars == 0
     canonical = h2_canonical_bytes(rni)
     assert b'"max_description_chars":0' in canonical
@@ -518,20 +538,24 @@ def test_rni_frozen_literal_substitution_rejects(field_name: str, bad_value: str
 )
 def test_rni_primary_binding_change_changes_hash(override: dict) -> None:
     base = _valid_rni()
-    changed = _valid_rni(**override)
+    payload = base.model_dump(mode="json")
+    payload.update(override)
+    changed = RepairNormalizedInput.model_validate(payload)
     assert repair_normalized_input_hash(base) != repair_normalized_input_hash(changed)
 
 
 def test_rni_provider_model_change_changes_hash() -> None:
     base = _valid_rni()
-    changed = _valid_rni(repair_model="other-model:1b")
+    payload = base.model_dump(mode="json")
+    payload["repair_model"] = "other-model:1b"
+    changed = RepairNormalizedInput.model_validate(payload)
     assert repair_normalized_input_hash(base) != repair_normalized_input_hash(changed)
 
 
 def test_rni_scoring_input_change_changes_hash() -> None:
     base = _valid_rni()
     other_input = _scoring_input(output_language="zh-CN")
-    changed = _valid_rni(scoring_input=other_input)
+    changed = _build_rni(scoring_input=other_input)
     assert repair_normalized_input_hash(base) != repair_normalized_input_hash(changed)
 
 
@@ -556,9 +580,16 @@ def test_rni_sealed_canonical_round_trip() -> None:
 
 
 def test_rni_derived_hash_mismatch_is_rejected() -> None:
-    rni = _valid_rni()
-    claimed = "0" * 64
-    assert claimed != repair_normalized_input_hash(rni)
+    # A forged PRIMARY request hash inside the PFE is rejected by the real
+    # verifier under the trusted context, so it can never seed a trusted RNI.
+    si = _scoring_input()
+    ctx = _trusted_context(si)
+    valid = _schema_invalid_pfe(ctx, si)
+    forged = PrimaryFailureEvidence.model_validate(
+        {**valid.model_dump(mode="python"), "primary_request_hash": _HASH_D}
+    )
+    with pytest.raises(ValueError):
+        verify_primary_failure_evidence(forged, ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -567,17 +598,19 @@ def test_rni_derived_hash_mismatch_is_rejected() -> None:
 
 
 def test_primary_raw_sha256_substitution_rejected() -> None:
-    pfe = _schema_invalid_pfe()
+    si = _scoring_input()
+    ctx = _trusted_context(si)
+    pfe = _schema_invalid_pfe(ctx, si)
     forged = PrimaryFailureEvidence.model_validate(
         {**pfe.model_dump(mode="python"), "primary_raw_sha256": _HASH_D}
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(forged)
+        verify_primary_failure_evidence(forged, ctx)
 
 
 def test_primary_raw_utf8_length_substitution_rejected_multibyte() -> None:
     scoring_input = _scoring_input()
-    identity = _identity(scoring_input)
+    ctx = _trusted_context(scoring_input)
     raw = _multibyte_raw()
     raw_bytes = raw.encode("utf-8")
     assert len(raw) != len(raw_bytes)  # multibyte fixture requirement
@@ -586,19 +619,19 @@ def test_primary_raw_utf8_length_substitution_rejected_multibyte() -> None:
     pfe = PrimaryFailureEvidence(
         schema_version="task016c-primary-failure-evidence-v1",
         primary_attempt_identity="local-scoring",
-        primary_request_hash=identity.request_hash,
-        primary_normalized_input_hash=identity.normalized_input_hash,
-        primary_provider="ollama",
-        primary_model=_MODEL,
-        primary_model_digest=_DIGEST,
-        primary_prompt_version=PROMPT_VERSION,
-        primary_schema_version=SCHEMA_VERSION,
-        primary_output_language="en",
-        primary_temperature=0.0,
-        primary_max_output_tokens=1200,
-        primary_max_description_chars=32,
+        primary_request_hash=ctx.request_hash,
+        primary_normalized_input_hash=ctx.normalized_input_hash,
+        primary_provider=ctx.provider,
+        primary_model=ctx.model,
+        primary_model_digest=ctx.model_digest,
+        primary_prompt_version=ctx.prompt_version,
+        primary_schema_version=ctx.schema_version,
+        primary_output_language=ctx.output_language,
+        primary_temperature=ctx.temperature,
+        primary_max_output_tokens=ctx.max_output_tokens,
+        primary_max_description_chars=ctx.max_description_chars,
         primary_scoring_input=scoring_input,
-        primary_scoring_input_sha256=h2_canonical_sha256(scoring_input),
+        primary_scoring_input_sha256=canonical_primary_scoring_input_hash(scoring_input),
         primary_raw_capture_kind="OLLAMA_GENERATE_HTTP_BODY_V1",
         primary_raw_utf8=raw,
         # Correct hash but wrong (character-count) byte length.
@@ -611,12 +644,14 @@ def test_primary_raw_utf8_length_substitution_rejected_multibyte() -> None:
         judge_evidence=NotApplicableEvidence(kind="NOT_APPLICABLE"),
     )
     with pytest.raises(ValueError):
-        verify_primary_failure_evidence(pfe)
+        verify_primary_failure_evidence(pfe, ctx)
 
 
 def test_primary_failure_evidence_valid_verifies() -> None:
-    pfe = _schema_invalid_pfe()
-    verify_primary_failure_evidence(pfe)
+    si = _scoring_input()
+    ctx = _trusted_context(si)
+    pfe = _schema_invalid_pfe(ctx, si)
+    verify_primary_failure_evidence(pfe, ctx)
     assert build_primary_failure_evidence_hash(pfe) == h2_canonical_sha256(pfe)
 
 

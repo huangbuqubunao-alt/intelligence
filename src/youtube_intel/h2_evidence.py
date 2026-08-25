@@ -23,10 +23,11 @@ H2 Canonical JSON v1.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from enum import Enum
 from typing import Final, Literal, NoReturn, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from youtube_intel.domain import (
     ContentQualityDecisionSource,
@@ -43,7 +44,9 @@ from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize, jcs_sha256
 from youtube_intel.providers.ollama import (
     ParserDiagnosticCode,
     diagnose_scoring_parse_failure,
+    parse_scoring_candidate,
     seal_judge_raw_capture,
+    seal_primary_raw_capture,
     verify_judge_model_content,
 )
 from youtube_intel.quality import (
@@ -51,20 +54,31 @@ from youtube_intel.quality import (
     build_judge_h1_h2,
     build_scoring_candidate_hash,
 )
+from youtube_intel.scoring import (
+    PROMPT_VERSION,
+    SCHEMA_VERSION,
+    _canonical_json_bytes,
+    build_scoring_request_identity,
+)
 from youtube_intel.state import build_provider_request_hash
 
 __all__ = [
     "CandidateEvidence",
+    "H2_ELIGIBLE_PARSER_CODES",
     "JudgeEvidence",
     "LanguageValidationEvidence",
     "NotApplicableEvidence",
     "ParserFailureEvidence",
     "PrimaryFailureClass",
     "PrimaryFailureEvidence",
+    "PrimaryTrustedContext",
     "RepairNormalizedInput",
+    "build_judge_evidence",
     "build_primary_failure_evidence_hash",
+    "build_primary_trusted_context",
     "build_repair_normalized_input",
     "build_repair_request_hash",
+    "canonical_primary_scoring_input_hash",
     "h2_canonical_bytes",
     "h2_canonical_sha256",
     "repair_normalized_input_hash",
@@ -72,6 +86,9 @@ __all__ = [
     "replay_primary_parser_failure",
     "verify_h2_sealed_bytes",
     "verify_judge_evidence_replay",
+    "verify_language_evidence_replay",
+    "verify_parser_evidence_replay",
+    "verify_primary_failure_evidence",
 ]
 
 _H2_FROZEN: Final = ConfigDict(extra="forbid", frozen=True)
@@ -103,6 +120,107 @@ class PrimaryFailureClass(str, Enum):
     LANGUAGE_INVALID = "LANGUAGE_INVALID"
     JUDGE_REJECT = "JUDGE_REJECT"
     JUDGE_UNCERTAIN = "JUDGE_UNCERTAIN"
+
+
+# Parser diagnostic codes that may form H2 repair-eligible SCHEMA_OR_PARSE_INVALID
+# evidence.  These all occur only AFTER the received-raw seam has proved a
+# trustworthy, protocol-complete provider/model-content capture.  The pre-capture
+# codes (RAW_UTF8_INVALID, RAW_BYTES_LIMIT_EXCEEDED, OUTER_JSON_INVALID,
+# OUTER_TOP_LEVEL_TYPE_INVALID, MODEL_RESPONSE_MISSING,
+# MODEL_RESPONSE_TYPE_INVALID) are deliberately excluded: each fails before that
+# seam succeeds and stays on UNKNOWN_PROVIDER_STATE semantics.
+H2_ELIGIBLE_PARSER_CODES: Final[frozenset[ParserDiagnosticCode]] = frozenset(
+    {
+        ParserDiagnosticCode.MODEL_RESPONSE_LENGTH_EXCEEDED,
+        ParserDiagnosticCode.MODEL_JSON_INVALID,
+        ParserDiagnosticCode.MODEL_TOP_LEVEL_TYPE_INVALID,
+        ParserDiagnosticCode.MODEL_FIELD_SET_INVALID,
+        ParserDiagnosticCode.CANDIDATE_SCHEMA_INVALID,
+    }
+)
+
+
+def canonical_primary_scoring_input_hash(scoring_input: ScoringInput) -> str:
+    """Hash the PRIMARY scoring input with the frozen PRIMARY identity serializer.
+
+    The PRIMARY scoring input is PRIMARY identity material: it is canonically
+    serialized with the existing frozen ``_canonical_json_bytes`` (a
+    ``json.dumps`` sort-keys serializer) and is never reserialized under H2 JCS.
+    """
+
+    return hashlib.sha256(
+        _canonical_json_bytes(scoring_input.model_dump(mode="json"))
+    ).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class PrimaryTrustedContext:
+    """Immutable expected PRIMARY provenance used for deterministic verification.
+
+    This is plain expected input/provenance data derived from the validated
+    scoring input and the frozen PRIMARY identity builders.  It is not a
+    capability, token, sentinel, receipt, or registry entry: it grants no REPAIR
+    admission, no dispatch, and no persistence.  It is only compared against
+    sealed evidence.
+    """
+
+    scoring_input: ScoringInput
+    request_hash: str
+    normalized_input_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    prompt_version: str
+    schema_version: str
+    output_language: str
+    temperature: float
+    max_output_tokens: int
+    max_description_chars: int
+    scoring_input_sha256: str
+
+
+def build_primary_trusted_context(
+    *,
+    scoring_input: ScoringInput,
+    model: str,
+    model_digest: str,
+    temperature: float,
+    max_output_tokens: int,
+    max_description_chars: int,
+) -> PrimaryTrustedContext:
+    """Derive the expected trusted PRIMARY context from validated scoring material.
+
+    The PRIMARY request/normalized-input hashes are rebuilt through the unchanged
+    ``build_scoring_request_identity``; the scoring-input hash uses the frozen
+    PRIMARY identity serializer.  No H2 JCS is applied to PRIMARY identity
+    material.
+    """
+
+    if type(scoring_input) is not ScoringInput:
+        msg = "scoring_input must be an exact validated ScoringInput"
+        raise ValueError(msg)
+    identity = build_scoring_request_identity(
+        scoring_input=scoring_input,
+        model=model,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        max_description_chars=max_description_chars,
+    )
+    return PrimaryTrustedContext(
+        scoring_input=scoring_input,
+        request_hash=identity.request_hash,
+        normalized_input_hash=identity.normalized_input_hash,
+        provider="ollama",
+        model=model,
+        model_digest=model_digest,
+        prompt_version=PROMPT_VERSION,
+        schema_version=SCHEMA_VERSION,
+        output_language=scoring_input.output_language,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        max_description_chars=max_description_chars,
+        scoring_input_sha256=canonical_primary_scoring_input_hash(scoring_input),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +323,7 @@ class JudgeEvidence(BaseModel):
     judge_input_sha256: str = Field(pattern=_SHA256_HEX)
     raw_capture_kind: Literal["EXTRACTED_OLLAMA_RESPONSE_TEXT_V1"]
     raw_utf8: str
-    raw_utf8_length: int = Field(ge=0, le=20_000)
+    raw_utf8_length: StrictInt = Field(ge=0, le=20_000)
     raw_sha256: str = Field(pattern=_SHA256_HEX)
     derived_result: ContentQualityResult
 
@@ -237,13 +355,13 @@ class PrimaryFailureEvidence(BaseModel):
     primary_schema_version: str = Field(min_length=1)
     primary_output_language: Literal["zh-CN", "en"]
     primary_temperature: float = Field(ge=0, le=2, allow_inf_nan=False)
-    primary_max_output_tokens: int = Field(gt=0)
-    primary_max_description_chars: int = Field(ge=0)
+    primary_max_output_tokens: StrictInt = Field(gt=0)
+    primary_max_description_chars: StrictInt = Field(ge=0)
     primary_scoring_input: ScoringInput
     primary_scoring_input_sha256: str = Field(pattern=_SHA256_HEX)
     primary_raw_capture_kind: Literal["OLLAMA_GENERATE_HTTP_BODY_V1"]
     primary_raw_utf8: str
-    primary_raw_utf8_length: int = Field(ge=0, le=1_000_000)
+    primary_raw_utf8_length: StrictInt = Field(ge=0, le=1_000_000)
     primary_raw_sha256: str = Field(pattern=_SHA256_HEX)
     failure_class: PrimaryFailureClass
     primary_candidate: CandidateEvidence | NotApplicableEvidence
@@ -279,6 +397,10 @@ def _validate_failure_class_combination(evidence: PrimaryFailureEvidence) -> Non
             _reject("language_evidence must be NOT_APPLICABLE")
         if not isinstance(judge, NotApplicableEvidence):
             _reject("judge_evidence must be NOT_APPLICABLE")
+        if parser.diagnostic_code not in H2_ELIGIBLE_PARSER_CODES:
+            _reject(
+                "parser_evidence diagnostic_code is not an H2-eligible post-capture code"
+            )
         return
 
     if failure_class is PrimaryFailureClass.LANGUAGE_INVALID:
@@ -350,33 +472,43 @@ class RepairNormalizedInput(BaseModel):
     repair_schema_version: Literal["score-result-v2"]
     output_language: Literal["zh-CN", "en"]
     temperature: float = Field(ge=0, le=2, allow_inf_nan=False)
-    max_output_tokens: int = Field(gt=0)
-    max_description_chars: int = Field(ge=0)
+    max_output_tokens: StrictInt = Field(gt=0)
+    max_description_chars: StrictInt = Field(ge=0)
 
 
 def build_repair_normalized_input(
     *,
     job_id: str,
     scoring_input: ScoringInput,
-    primary_request_hash: str,
-    primary_normalized_input_hash: str,
-    primary_failure_class: PrimaryFailureClass,
-    primary_failure_evidence_hash: str,
-    primary_raw_sha256: str,
+    trusted_context: PrimaryTrustedContext,
+    failure_evidence: PrimaryFailureEvidence,
     repair_model: str,
     repair_model_digest: str,
     temperature: float,
     max_output_tokens: int,
     max_description_chars: int,
 ) -> RepairNormalizedInput:
-    """Build the exact typed REPAIR normalized-input object.
+    """Build the exact typed REPAIR normalized-input object from trusted inputs.
 
-    The caller supplies the already-derived frozen PRIMARY identity hashes and
-    the sealed PRIMARY failure bindings; this builder never recomputes those
-    under H2 Canonical JSON.  It only derives the H2-canonical
-    ``scoring_input_sha256`` from the embedded validated input.
+    This is the trusted builder.  It first verifies the sealed PRIMARY failure
+    evidence against the expected trusted PRIMARY context (failing closed on any
+    forgery), then derives every authoritative binding — PRIMARY attempt
+    identity, PRIMARY request/normalized-input hashes, PRIMARY failure-evidence
+    hash, PRIMARY raw hash, and scoring-input provenance — from the trusted
+    context and the verified evidence.  The caller cannot independently supply
+    those authoritative fields, so a forged PFE cannot yield a trustworthy RNI.
+    Creating a ``RepairNormalizedInput`` is still data, not authority.
     """
 
+    if type(scoring_input) is not ScoringInput:
+        msg = "scoring_input must be an exact validated ScoringInput"
+        raise ValueError(msg)
+    if scoring_input != trusted_context.scoring_input:
+        msg = "scoring_input does not match the trusted PRIMARY context"
+        raise ValueError(msg)
+    # Fail closed if the evidence does not independently re-prove the failure
+    # under the trusted expected context.
+    verify_primary_failure_evidence(failure_evidence, trusted_context)
     return RepairNormalizedInput(
         schema_version=REPAIR_NORMALIZED_INPUT_SCHEMA,
         role="REPAIR",
@@ -386,11 +518,11 @@ def build_repair_normalized_input(
         scoring_input=scoring_input,
         scoring_input_sha256=h2_canonical_sha256(scoring_input),
         primary_attempt_identity=_PRIMARY_ATTEMPT_IDENTITY,
-        primary_request_hash=primary_request_hash,
-        primary_normalized_input_hash=primary_normalized_input_hash,
-        primary_failure_class=primary_failure_class,
-        primary_failure_evidence_hash=primary_failure_evidence_hash,
-        primary_raw_sha256=primary_raw_sha256,
+        primary_request_hash=trusted_context.request_hash,
+        primary_normalized_input_hash=trusted_context.normalized_input_hash,
+        primary_failure_class=failure_evidence.failure_class,
+        primary_failure_evidence_hash=build_primary_failure_evidence_hash(failure_evidence),
+        primary_raw_sha256=failure_evidence.primary_raw_sha256,
         repair_provider="ollama",
         repair_model=repair_model,
         repair_model_digest=repair_model_digest,
@@ -541,15 +673,117 @@ def _rederive_raw_binding(raw_utf8: str) -> tuple[int, str]:
     return len(authoritative), hashlib.sha256(authoritative).hexdigest()
 
 
-def verify_primary_failure_evidence(evidence: PrimaryFailureEvidence) -> None:
-    """Independently re-derive the PRIMARY raw bindings and replay the failure.
+def _verify_pfe_provenance(
+    evidence: PrimaryFailureEvidence,
+    trusted_context: PrimaryTrustedContext,
+) -> None:
+    """Bind every PRIMARY provenance field to the trusted expected context.
 
-    Both ``primary_raw_sha256`` and ``primary_raw_utf8_length`` are recomputed
-    from the exact authoritative ``primary_raw_utf8`` strict-UTF-8 bytes; a
-    correct hash does not excuse an incorrect length and vice versa.  The
-    class-specific evidence is then replayed and must independently re-prove the
-    claimed failure class.  Raises ``ValueError`` on any mismatch.
+    None of these fields is trusted merely because it appears inside the
+    evidence object; each must equal the independently derived trusted value.
     """
+
+    scalar_bindings = (
+        (evidence.primary_attempt_identity, _PRIMARY_ATTEMPT_IDENTITY, "primary_attempt_identity"),
+        (evidence.primary_request_hash, trusted_context.request_hash, "primary_request_hash"),
+        (
+            evidence.primary_normalized_input_hash,
+            trusted_context.normalized_input_hash,
+            "primary_normalized_input_hash",
+        ),
+        (evidence.primary_provider, trusted_context.provider, "primary_provider"),
+        (evidence.primary_model, trusted_context.model, "primary_model"),
+        (evidence.primary_model_digest, trusted_context.model_digest, "primary_model_digest"),
+        (evidence.primary_prompt_version, trusted_context.prompt_version, "primary_prompt_version"),
+        (evidence.primary_schema_version, trusted_context.schema_version, "primary_schema_version"),
+        (
+            evidence.primary_output_language,
+            trusted_context.output_language,
+            "primary_output_language",
+        ),
+        (evidence.primary_temperature, trusted_context.temperature, "primary_temperature"),
+        (
+            evidence.primary_max_output_tokens,
+            trusted_context.max_output_tokens,
+            "primary_max_output_tokens",
+        ),
+        (
+            evidence.primary_max_description_chars,
+            trusted_context.max_description_chars,
+            "primary_max_description_chars",
+        ),
+    )
+    for actual, expected, field_name in scalar_bindings:
+        if actual != expected:
+            msg = f"{field_name} does not match the trusted PRIMARY context"
+            raise ValueError(msg)
+    if evidence.primary_scoring_input != trusted_context.scoring_input:
+        msg = "primary_scoring_input does not match the trusted PRIMARY scoring input"
+        raise ValueError(msg)
+    if evidence.primary_scoring_input_sha256 != trusted_context.scoring_input_sha256:
+        msg = (
+            "primary_scoring_input_sha256 does not match the frozen-serializer "
+            "hash rederived from the trusted PRIMARY scoring input"
+        )
+        raise ValueError(msg)
+
+
+def _require_capturable_raw(evidence: PrimaryFailureEvidence) -> None:
+    """Require the raw body to satisfy the authorized PRIMARY received-raw seam.
+
+    This re-proves provider protocol completion: bounded body, strict UTF-8,
+    outer JSON object with duplicate keys rejected, and a string ``response``.
+    Any body that fails this gate never became trustworthy received raw evidence
+    and stays on UNKNOWN_PROVIDER_STATE semantics; it cannot back eligible
+    SCHEMA_OR_PARSE_INVALID (or any other) evidence.
+    """
+
+    try:
+        seal_primary_raw_capture(evidence.primary_raw_utf8.encode("utf-8", errors="strict"))
+    except ValueError as exc:
+        msg = (
+            "primary_raw_utf8 does not represent a capturable, protocol-complete "
+            "PRIMARY raw body"
+        )
+        raise ValueError(msg) from exc
+
+
+def _bind_candidate_to_raw(
+    evidence: PrimaryFailureEvidence,
+    candidate_evidence: CandidateEvidence,
+) -> ScoringCandidate:
+    """Require the embedded candidate to equal the canonical parse of the raw."""
+
+    candidate = candidate_evidence.candidate
+    try:
+        parsed = parse_scoring_candidate(evidence.primary_raw_utf8)
+    except ValueError as exc:
+        msg = "primary_raw_utf8 does not parse to a scoring candidate"
+        raise ValueError(msg) from exc
+    if parsed != candidate:
+        msg = "embedded candidate does not match the canonical parse of primary_raw_utf8"
+        raise ValueError(msg)
+    if build_scoring_candidate_hash(candidate) != candidate_evidence.candidate_sha256:
+        msg = "candidate_sha256 does not match the canonical candidate"
+        raise ValueError(msg)
+    return candidate
+
+
+def verify_primary_failure_evidence(
+    evidence: PrimaryFailureEvidence,
+    trusted_context: PrimaryTrustedContext,
+) -> None:
+    """Verify sealed PRIMARY failure evidence against a trusted expected context.
+
+    Verification never succeeds merely because the evidence is self-consistent.
+    Every authoritative PRIMARY provenance binding is compared against the
+    trusted context; the raw hash and byte length are independently re-derived
+    from the authoritative raw; the raw must pass the authorized capture gate;
+    and the class-specific evidence must independently re-prove the claimed
+    failure.  Raises ``ValueError`` on any mismatch.
+    """
+
+    _verify_pfe_provenance(evidence, trusted_context)
 
     try:
         byte_length, raw_sha = _rederive_raw_binding(evidence.primary_raw_utf8)
@@ -563,11 +797,19 @@ def verify_primary_failure_evidence(evidence: PrimaryFailureEvidence) -> None:
         msg = "primary_raw_sha256 does not match the strict-UTF-8 bytes"
         raise ValueError(msg)
 
+    _require_capturable_raw(evidence)
+
     failure_class = evidence.failure_class
     if failure_class is PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID:
         parser = evidence.parser_evidence
         if type(parser) is not ParserFailureEvidence:
             msg = "SCHEMA_OR_PARSE_INVALID requires PARSER_FAILURE evidence"
+            raise ValueError(msg)
+        if parser.diagnostic_code not in H2_ELIGIBLE_PARSER_CODES:
+            msg = (
+                "parser diagnostic_code is not an H2-eligible post-capture code; "
+                "pre-capture failures stay UNKNOWN_PROVIDER_STATE"
+            )
             raise ValueError(msg)
         if parser.raw_sha256 != evidence.primary_raw_sha256:
             msg = "parser_evidence raw_sha256 must equal primary_raw_sha256"
@@ -584,10 +826,7 @@ def verify_primary_failure_evidence(evidence: PrimaryFailureEvidence) -> None:
         if type(candidate_evidence) is not CandidateEvidence:
             msg = "LANGUAGE_INVALID requires CANDIDATE evidence"
             raise ValueError(msg)
-        candidate = candidate_evidence.candidate
-        if build_scoring_candidate_hash(candidate) != candidate_evidence.candidate_sha256:
-            msg = "candidate_sha256 does not match the canonical candidate"
-            raise ValueError(msg)
+        candidate = _bind_candidate_to_raw(evidence, candidate_evidence)
         verify_language_evidence_replay(
             language,
             candidate=candidate,
@@ -607,11 +846,7 @@ def verify_primary_failure_evidence(evidence: PrimaryFailureEvidence) -> None:
         if type(candidate_evidence) is not CandidateEvidence:
             msg = "JUDGE failure requires CANDIDATE evidence"
             raise ValueError(msg)
-        if build_scoring_candidate_hash(
-            candidate_evidence.candidate
-        ) != candidate_evidence.candidate_sha256:
-            msg = "candidate_sha256 does not match the canonical candidate"
-            raise ValueError(msg)
+        _bind_candidate_to_raw(evidence, candidate_evidence)
         verify_judge_evidence_replay(judge)
         return
 
@@ -642,6 +877,37 @@ def verify_judge_evidence_replay(evidence: JudgeEvidence) -> None:
 
     if operation_input.attempt_role.value != evidence.role:
         msg = "JudgeEvidence role does not match operation_input.attempt_role"
+        raise ValueError(msg)
+
+    # Bind every metadata field to the exact operation input.  Duplicated values
+    # in the evidence are never trusted independently of operation_input.
+    metadata_bindings = (
+        (evidence.provider, operation_input.judge_provider, "provider"),
+        (evidence.model, operation_input.judge_model, "model"),
+        (evidence.model_digest, operation_input.judge_model_digest, "model_digest"),
+        (evidence.policy_version, operation_input.policy_version, "policy_version"),
+        (evidence.prompt_version, operation_input.prompt_version, "prompt_version"),
+        (
+            evidence.operation_schema_version,
+            operation_input.schema_version,
+            "operation_schema_version",
+        ),
+    )
+    for actual, expected, field_name in metadata_bindings:
+        if actual != expected:
+            msg = f"JudgeEvidence {field_name} does not match the operation input"
+            raise ValueError(msg)
+    if evidence.operation != "local-content-quality-v1":
+        msg = "JudgeEvidence operation must be local-content-quality-v1"
+        raise ValueError(msg)
+
+    # Bind the Judge operation/input to the exact candidate and scoring request it
+    # claims to judge.
+    if operation_input.candidate_hash != judge_input.candidate_hash:
+        msg = "JudgeEvidence operation_input.candidate_hash mismatches judge_input"
+        raise ValueError(msg)
+    if operation_input.scoring_request_hash != judge_input.scoring_request_hash:
+        msg = "JudgeEvidence operation_input.scoring_request_hash mismatches judge_input"
         raise ValueError(msg)
 
     expected_input_hash = build_content_quality_input_hash(judge_input)

@@ -34,6 +34,7 @@ from youtube_intel.domain import (
     ScoringOutputLanguage,
     scoring_reason_matches_output_language,
 )
+from youtube_intel.h2_jcs import jcs_loads_strict
 from youtube_intel.scoring import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -238,10 +239,12 @@ def seal_primary_raw_capture(body: bytes) -> PrimaryRawCapture:
     """Promote a bounded strict-UTF-8, protocol-complete PRIMARY body to raw evidence.
 
     This is the private received-raw outcome seam.  It proves only provider
-    protocol completion (bounded body, strict UTF-8, outer JSON object, string
-    ``response``); it performs no scoring JSON/schema interpretation.  Any
-    failure fails closed with ``ValueError`` — the caller maps that to the H1
-    ``UNKNOWN_PROVIDER_STATE`` path, never to a manufactured schema failure.
+    protocol completion (bounded body, strict UTF-8, outer JSON object with
+    duplicate keys rejected, string ``response``); it performs no scoring
+    JSON/schema interpretation.  An ambiguous outer body (for example a duplicated
+    ``response`` key) is never promoted.  Any failure fails closed with
+    ``ValueError`` — the caller maps that to the H1 ``UNKNOWN_PROVIDER_STATE``
+    path, never to a manufactured schema failure.
     """
 
     if not isinstance(body, (bytes, bytearray)):
@@ -256,10 +259,12 @@ def seal_primary_raw_capture(body: bytes) -> PrimaryRawCapture:
     except UnicodeDecodeError as exc:
         msg = "PRIMARY raw body is not strict UTF-8"
         raise ValueError(msg) from exc
+    # Strict outer parse: duplicate object keys (and non-finite constants) are
+    # rejected rather than resolved by last-key-wins semantics.
     try:
-        payload: object = json.loads(decoded)
-    except json.JSONDecodeError as exc:
-        msg = "PRIMARY raw body outer provider JSON is invalid"
+        payload: object = jcs_loads_strict(decoded)
+    except ValueError as exc:
+        msg = "PRIMARY raw body outer provider JSON is invalid or ambiguous"
         raise ValueError(msg) from exc
     if not isinstance(payload, Mapping):
         msg = "PRIMARY raw body outer provider value is not an object"
