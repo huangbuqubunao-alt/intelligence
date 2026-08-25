@@ -2,7 +2,7 @@
 
 ## Status, scope, and precedence
 
-**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 4 INDEPENDENT REVIEW`.
+**Status:** `REOPENED AFTER IMPLEMENTATION REVIEW — READY FOR H2-B AUTHORIZATION AMENDMENT ROUND 5 INDEPENDENT REVIEW`.
 
 This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
@@ -1033,3 +1033,197 @@ EMPTY_CONTENT is schema or runtime-gate failure, whether schema/gate order may
 change, the empty-content mapping, the reachable post-schema reasons, whether
 the finalizer reruns the gate, whether Judge/attestation rescues a gate failure,
 or the H2-C EMPTY replay rule.  Any different requirement is `DECISION NEEDED`.
+
+## 28. Round 5: provider composition, interim PASS, and aggregate lifetime
+
+This Round 5 amendment supersedes conflicting provider-dispatch, H2-B PASS,
+aggregate-lifetime, RED-test, scope, and completion-language in sections 1--27.
+All Round 4 schema/language/gate/finalizer/dual-binding requirements remain
+unchanged.
+
+The protected property is deliberately narrow: only the actual
+`RuntimeOperations` H2-B lexical control flow may produce an execution that the
+project recognizes as an admitted `REPAIR` or `REPAIR_JUDGE` attempt and carries
+into H2-B evidence.  The project does **not** claim that arbitrary Python code
+cannot send repair-looking traffic to Ollama.  Such traffic, even if byte-for-
+byte identical, is not authoritative H2-B execution.
+
+## 29. Provider boundary: role-neutral transport only
+
+The corrected implementation must remove
+`OllamaScoringProvider.dispatch_exact_repair_generate(...)` and every
+independently callable semantic equivalent, including `dispatch_repair`,
+`execute_repair`, `run_exact_repair`, `repair_generate`,
+`send_admitted_repair`, or a provider-level authorized REPAIR_JUDGE dispatch.
+Renaming, underscore prefixes, double underscores, undocumented methods, hidden
+imports, or private class names do not satisfy this requirement.
+
+Provider code may retain or factor a **role-neutral transport** primitive for
+model preflight (`/api/tags`), `/api/generate`, HTTP transport, payload
+byte/hash/length integrity checks, exact raw-body capture, strict UTF-8,
+raw-size bounds, and strict outer-protocol parsing.  Its arguments may be the
+URL/client, model, exact body bytes, expected body SHA-256, expected byte
+length, and raw-size bounds.  Those are transport-integrity inputs only.
+
+That primitive must not accept, establish, or return `PrimaryFailureEvidence`,
+REPAIR/REPAIR_JUDGE role state or proof, admission state, RuntimeOperations
+ownership, an `authorized_repair` boolean, a continuation/callback, or any
+object asserting an admitted/runtime-owned/authorized repair or Judge attempt.
+It performs I/O and returns raw transport/protocol data only.  Provider code
+does not mint semantic H2-B evidence.
+
+The only authoritative composition is therefore:
+
+```text
+actual RuntimeOperations PRIMARY frame
+  -> actual PRIMARY dispatch/outcome -> runtime-produced PFE
+  -> immediate PFE replay against the same trusted context/settings
+  -> frozen eligibility -> RNI / REPAIR identity / exact payload derivation
+  -> state-only H1 REPAIR consumption
+  -> same-frame A-to-A identity and payload/hash/length recheck
+  -> role-neutral transport (including /api/tags as first contact)
+  -> raw capture and all remaining H2-B validation in that same frame
+```
+
+`RuntimeOperations`, not the provider, assigns the semantic meaning that the
+returned raw data belongs to the admitted REPAIR attempt.  The Judge has the
+same rule: runtime derives the repaired candidate, REPAIR request hash, Judge
+operation input/H1/H2/body; consumes state-only `REPAIR_JUDGE`; rechecks the
+same J-to-J values; uses role-neutral transport; and only runtime interprets
+the raw data as the admitted REPAIR_JUDGE result.
+
+`ScoringDispatchAdmission.consume_repair_role(...)` and
+`consume_repair_judge_role(...)` remain state-only H1 checks/mutations if
+needed.  Successful consumption alone authorizes no provider operation.  A
+role, identity, payload, hash, request hash, PFE, or consumed-state observation
+cannot prove that a later network call is the consumed attempt; only the lexical
+RuntimeOperations composition can do so.  This restores no callback,
+capability, or continuation structure.
+
+Direct role-neutral transport may technically send attacker-selected bytes.
+Likewise a caller may manually obtain a repair-looking raw response and pass it
+to pure parsers or evidence builders.  Neither action creates a RuntimeOperations
+H2-B continuation, Judge/attestation/finalizer progression, aggregate, or
+persistence authority; there is no caller-facing raw-to-authoritative-H2-B
+ingress.
+
+## 30. Exact H2-B-only PASS transitional disposition
+
+H2-B may complete every validation predicate—valid REPAIR, language PASS, gate
+PASS, Judge PASS, attestation, REPAIR-aware finalization, sealed
+`TrustedScoreResult`, and a local `PhaseH2BValidatedRepairResult`—while H2-C
+remains intentionally unauthorized.  The H2-B-only build must then explicitly
+fail closed rather than return `None`/`CONTINUE` and fall into generic pipeline
+incompatible-state handling.
+
+The exact existing ErrorCode is **`ErrorCode.LOCAL_RESOURCE`**.  Here it means
+the required local, authorized H2-C continuation is not present in this staged
+build; it does not describe a provider ambiguity, invalid candidate, language,
+gate, Judge, or finalizer failure.  The exact safe detail is:
+
+```text
+H2B_PASS_AWAITING_H2C
+```
+
+The exact current H2-B-only flow is:
+
+```text
+aggregate = PhaseH2BValidatedRepairResult(...)  # local only
+  -> PipelineRepository.fail_job(
+       job_id, owner=runtime_owner,
+       error_code=ErrorCode.LOCAL_RESOURCE,
+       error_message="H2B_PASS_AWAITING_H2C",
+       retry_at=None, now=utc_now)
+  -> JobStatus.FAILED_FINAL
+  -> return StageDisposition.TERMINAL
+  -> PipelineOrchestrator confirms FAILED_FINAL and returns
+  -> exactly one fail_job; no generic _fail(), retry, success persistence,
+     score artifact, or JobStatus.SUCCEEDED
+```
+
+This state means H2-B validation succeeded but the present software phase lacks
+the authorized H2-C persistence continuation.  It is deliberately
+non-retryable; it does not mean REPAIR failed.  The exact detail is the only
+diagnostic distinction and must not be replaced by
+`"claimed job is incompatible with the persisted pipeline state"`, which is
+forbidden as H2-B PASS policy.
+
+No normal claim/recovery/retry after this `retry_at=None`/`FAILED_FINAL`
+transition may dispatch PRIMARY, REPAIR, REPAIR_JUDGE, or any transport.  The
+H1 roles PRIMARY, REPAIR, and REPAIR_JUDGE have already been consumed as
+applicable; terminal release must not reset or make that budget reusable.
+
+## 31. Future H2-C insertion and lexical-only aggregate lifetime
+
+The exact future replacement point is immediately after local aggregate
+construction in the same RuntimeOperations frame:
+
+```text
+CURRENT H2-B ONLY:
+  aggregate -> terminalize LOCAL_RESOURCE/H2B_PASS_AWAITING_H2C -> TERMINAL
+
+FUTURE H2-C:
+  aggregate + same runtime-owned trusted inputs
+    -> immediate private H2-C continuation -> independent replay
+    -> PhaseHTrustedRepairSuccess -> persist_success()
+```
+
+H2-C executes **instead of**, never after, the interim terminalization.  It
+never revives a `FAILED_FINAL` job.  This amendment creates no `h2c_callback`,
+post-repair hook, finalization callback, continuation function, success
+handler, or other placeholder.
+
+The aggregate is a lexical local value only.  The corrected implementation must
+remove any `RuntimeOperations` attribute/property/getter/container, module
+global, registry, cache, or similarly retained value equivalent to
+`_h2b_validated_repair_result`, `last_h2b_result`, `h2b_result`, or
+`repair_result`.  It must not rename the storage.  In the current staged build,
+the aggregate is constructed, used solely to establish the H2-B completion
+point, the explicit transitional terminalization occurs, and the frame exits;
+the aggregate becomes unreachable.  In the final architecture it is passed
+only directly to the immediate private H2-C continuation and remains untrusted
+evidence subject to independent replay.  Lexical lifetime confers no trust and
+does not create a caller submission route.
+
+## 32. Round 5 required attack matrix, scope, and compatibility
+
+Future correction tests must use the real `OllamaScoringProvider` with fake
+transport, not merely `hasattr`/signature assertions.  After legitimate PRIMARY
+and state-only REPAIR consumption, an attempted former semantic provider
+dispatch must be impossible because no such API exists.  Directly calling the
+remaining role-neutral transport with attacker payload A may record transport,
+but must establish no RuntimeOperations PFE/RNI execution chain, Judge,
+attestation, finalizer, aggregate, or persistence.  Repeat the attack for
+REPAIR_JUDGE.  A manually obtained valid-looking raw response likewise has no
+authoritative runtime ingress.
+
+The matrix must additionally prove a full legitimate H2-B PASS causes exactly
+one `fail_job` with `ErrorCode.LOCAL_RESOURCE`,
+`H2B_PASS_AWAITING_H2C`, and `retry_at=None`; leaves the job
+`FAILED_FINAL`; returns `StageDisposition.TERMINAL`; makes zero generic
+`_fail()` calls and zero success persistence; exposes no aggregate on the
+RuntimeOperations instance, globals, or caches; and cannot be claimed,
+recovered, or retried into new PRIMARY/REPAIR/Judge transport.  It must retain
+the exact H1 consumption accounting.
+
+Future narrow correction scope is `runtime.py`, `providers/ollama.py`, and
+`scoring_admission.py`, plus focused tests and handoff documentation.
+`quality.py` and `h2_evidence.py` may receive only a tiny removal-of-retained-
+aggregate reference cleanup if needed; neither finalizer nor aggregate schema
+may be redesigned.  `pipeline.py` should remain unchanged and reuse its
+confirmed `TERMINAL`/`FAILED_FINAL` handling.  `scoring.py`, `state.py`,
+migrations, and all Phase G persistence remain frozen.
+
+Parent compatibility was rechecked.  The parent requires the final H2
+architecture to perform immediate runtime-owned H2-C continuation before its
+sole persistence path; it does not prohibit this temporary, explicit,
+non-retryable phase-gating terminal while H2-C is unauthorized.  The interim
+terminal is not the final architecture and activates no persistence.  No parent
+authorization clarification is required.
+
+After this amendment, no correction executor may decide whether semantic
+provider dispatch remains, whether raw transport proves authority, whether
+state-only admission plus direct transport counts as H2-B, the valid-PASS code/
+detail/status/disposition, whether generic `_fail()` is acceptable, where H2-C
+inserts, whether H2-C revives a terminal job, or whether an aggregate may be
+retained.  Any alternative is `DECISION NEEDED`.
