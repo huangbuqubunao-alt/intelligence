@@ -1,5 +1,106 @@
 # TASK-016C 交接报告
 
+## Phase H2-A Correction Round 1 — bind H2 evidence to trusted provenance
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-A Correction Round 1` only (fix independent-review
+  findings; do NOT start H2-B).
+- Reviewed HEAD: `c391d36`; H2-A implementation commit: `9de5e69`.
+- Correction commit: `f36f12e` — `fix(task016c): bind H2 evidence to trusted
+  provenance`.
+- Status: `READY FOR H2-A CORRECTION ROUND 1 INDEPENDENT REVIEW`.
+
+Findings addressed: P1-1 (protocol-invalid PRIMARY evidence treated as
+SCHEMA_OR_PARSE_INVALID), P1-2 (JudgeEvidence metadata not bound to
+operation_input), P1-3 (PrimaryFailureEvidence provenance not bound to a trusted
+context), P2-4 (coercive integer typing), P2-5 (last-key-wins outer JSON capture).
+
+### How each finding is corrected
+
+- **P1-1 / P2-5 (protocol-invalid + duplicate-key raw):** the PRIMARY capture gate
+  `seal_primary_raw_capture` now parses the outer body with the existing strict
+  decoder `jcs_loads_strict`, rejecting duplicate object keys (and non-finite
+  constants). SCHEMA_OR_PARSE_INVALID eligibility requires both a post-capture
+  parser code (new `H2_ELIGIBLE_PARSER_CODES`) and a capturable raw body. Raw such
+  as `{bad`, `{"response":7}`, `[1]`, or `{"response":7,"response":"second"}`
+  never promotes and cannot back eligible evidence; it stays on
+  UNKNOWN_PROVIDER_STATE semantics.
+- **P1-3 (trusted PRIMARY context):** `verify_primary_failure_evidence` now
+  requires an immutable `PrimaryTrustedContext` (`build_primary_trusted_context`)
+  and independently compares/rederives every PRIMARY provenance binding (attempt
+  identity, request/normalized-input hash, provider/model/digest, prompt/schema,
+  output language, temperature, output/description limits, scoring input, and
+  `primary_scoring_input_sha256`) against it. Self-consistent but forged evidence
+  no longer verifies.
+- **primary_scoring_input_sha256 rederivation:** computed with the frozen PRIMARY
+  identity serializer (`canonical_primary_scoring_input_hash` via
+  `_canonical_json_bytes`), never H2 JCS.
+- **P1-2 (Judge metadata binding):** `verify_judge_evidence_replay` binds
+  provider/model/digest/policy/prompt/operation-schema and the operation literal
+  to `operation_input`, and ties `candidate_hash`/`scoring_request_hash` between
+  the operation input and the judge input. Detached or forged metadata, or a
+  PRIMARY/REPAIR role mismatch against the operation input, is rejected.
+- **P2-4 (strict integers):** exact integer fields (`max_output_tokens`,
+  `max_description_chars`, `primary_max_output_tokens`,
+  `primary_max_description_chars`, `primary_raw_utf8_length`, `raw_utf8_length`)
+  use `StrictInt`, rejecting `true`/`false`/`1.0`/`0.0`/`"1"` in sealed JSON.
+- **RNI trusted derivation:** `build_repair_normalized_input` is a trusted
+  builder that verifies the PFE against the trusted context and derives the
+  authoritative PRIMARY bindings from trusted/verified inputs, so a forged PFE
+  cannot seed a trustworthy RNI. A low-level typed constructor remains for
+  parsing/tests and is clearly distinct from the trusted builder.
+
+### Candidate/request/input cross-binding (PART 12)
+
+Judge evidence is tied to the exact candidate/scoring operation it claims to
+judge: candidate-hash substitution, scoring-request-hash substitution, and
+PRIMARY-Judge-evidence-on-REPAIR-operation (and converse) all reject via
+`verify_judge_evidence_replay`.
+
+### Behavioral proof (PART 20)
+
+All 15 original reviewer attacks now reject through real production paths, covered
+by `tests/unit/test_task016c_phase_h2a_correction_r1.py` (60 tests):
+protocol-invalid `{bad` / `{"response":7}` / `[1]`; outer duplicate
+`{"response":7,"response":"second"}`; forged Judge provider/model/digest/policy/
+prompt/schema; forged PRIMARY request hash / scoring-input hash / provider/model/
+config; boolean and `1.0` in exact integer fields. Because H2-A has no
+persistence/dispatch path, these are pure rejection tests with zero provider/Judge
+calls, zero filesystem/Artifact/SQLite writes, and no success transition.
+
+### Tests and checks
+
+| Command | Result |
+|---|---|
+| H2-A focused suites (jcs, raw_capture, judge_replay, evidence, correction_r1) | PASS (`202 passed`) |
+| `test_task016c_phase_h1_admission.py` | PASS |
+| `test_task016c_phase_g.py` / `test_task016c_phase_f.py` | PASS |
+| Ollama provider + Judge contract + runtime composition + TASK-016B language | PASS |
+| Full unit + integration offline | PASS (`1485 passed`) |
+| E2E offline | PASS (`9 passed`) |
+| `uv run --offline mypy src` | PASS (`31 source files`) |
+| `uv run --offline ruff check .` | PASS |
+| `git diff --check` | PASS |
+| `bash scripts/security_scan.sh` | `status=clean` (warnings pre-existing) |
+
+### Boundary confirmation
+
+- REPAIR dispatch remains disabled: no `PhaseHTrustedRepairSuccess`,
+  `persist_repair()`, repair token/registry/receipt/admission, or alternate
+  persistence ingress exists; H1 public REPAIR paths remain fail-closed; no
+  provider/Judge dispatch was added (`h2_evidence.py` / `h2_jcs.py` perform no
+  I/O).
+- Phase G production files unchanged: `scoring.py`, `state.py`, `runtime.py`,
+  `scoring_admission.py`, `domain.py`, `quality.py`, and `migrations/` have zero
+  diff. The approved `h2_jcs.py` is unchanged.
+- `src/youtube_intel/providers/ollama.py` change is limited to the PRIMARY
+  outer-protocol capture rejecting duplicate keys (+ the strict-decoder import).
+
+Status: `READY FOR H2-A CORRECTION ROUND 1 INDEPENDENT REVIEW`.
+
+---
+
 ## Phase H2-A — Evidence Foundations implementation
 
 ### Metadata and scope
