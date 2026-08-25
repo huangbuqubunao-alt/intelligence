@@ -2,7 +2,7 @@
 
 ## Status, scope, and precedence
 
-**Status:** `READY FOR TRANSITIONAL DISPOSITION POLICY INDEPENDENT REVIEW`.
+**Status:** `READY FOR TRANSITIONAL DISPOSITION POLICY SCOPE-COMPLETION INDEPENDENT REVIEW`.
 
 This is a documentation-only authorization amendment. It authorizes no implementation in this task and does not authorize H2-C, persistence, schema or migration work, dependency work, a real network call, or a public REPAIR API. It amends only the H2-B runtime control-flow contract for one actually received eligible PRIMARY failure, one REPAIR scoring provider attempt, and one REPAIR Judge provider attempt.
 
@@ -1198,7 +1198,7 @@ REPAIR_JUDGE.  A manually obtained valid-looking raw response likewise has no
 authoritative runtime ingress.
 
 The matrix must additionally prove a full legitimate H2-B PASS causes exactly
-one `fail_job` with `ErrorCode.LOCAL_RESOURCE`,
+one `fail_job` with `ErrorCode.CAPABILITY_UNAVAILABLE`,
 `H2B_PASS_AWAITING_H2C`, and `retry_at=None`; leaves the job
 `FAILED_FINAL`; returns `StageDisposition.TERMINAL`; makes zero generic
 `_fail()` calls and zero success persistence; exposes no aggregate on the
@@ -1374,3 +1374,174 @@ The only future production scope newly authorized by this clarification is:
 remain frozen.  No parent H2 amendment is required: it already requires the
 final immediate H2-C continuation and does not forbid the temporary explicit
 fail-closed branch while H2-C is unauthorized.
+
+## 34. CAPABILITY_UNAVAILABLE exhaustive-consumer scope completion
+
+This section completes, but does not alter, §33's approved generic
+`ErrorCode.CAPABILITY_UNAVAILABLE` policy.  Its H2-B-only use remains only the
+complete valid-PASS terminal:
+
+```text
+error_code = ErrorCode.CAPABILITY_UNAVAILABLE
+error_message = "H2B_PASS_AWAITING_H2C"
+retry_at = None
+JobStatus = FAILED_FINAL
+StageDisposition = TERMINAL
+fail_job count = exactly one
+```
+
+The code means that the installed/staged build intentionally lacks the next
+required continuation of an otherwise validated operation, so retrying the
+same build cannot resolve it.  It is never disk/memory/resource exhaustion,
+resource outage, provider/network failure, invalid content, or a reason to
+stop taking unrelated new work.  `LOCAL_RESOURCE` retains every one of its
+frozen resource semantics and existing mappings unchanged.
+
+### Exhaustive production ErrorCode-consumer audit
+
+The audit searched all production `ErrorCode` references, including enum
+definition/serialization, typed error carriers, exact-code comparisons,
+dictionary/set/tuple consumers, `if`/`elif` chains, persisted-code parsing,
+retry selection, safe error boundaries, CLI/reporting, and operational
+surfaces.  It classifies each consumer pattern as follows:
+
+| Production consumer(s) | Classification | CAPABILITY_UNAVAILABLE consequence |
+| --- | --- | --- |
+| `domain.py:ErrorCode` | C — already authorized by §33 | Add exactly `CAPABILITY_UNAVAILABLE = "CAPABILITY_UNAVAILABLE"`; no other domain change. |
+| `runtime.py` H2-B full-PASS terminal and `RuntimeOperations.retry()` selection | C — already authorized by §33 | Emit the exact staged terminal only for full H2-B PASS and exclude by code before `rerun_job`/`process()`. |
+| `providers/subtitles.py:_safe_boundary_error()` | C — newly authorized here | Extend its intentionally exhaustive safe-message dictionary with the exact entry below. |
+| `transcripts.py:_adapter_boundary_error()` | C — newly authorized here | Add the explicit branch below; it must not reach the current `LOCAL_RESOURCE` fallback. |
+| `analysis.py`, `discovery.py`, `pipeline.py`, `scoring.py`, `scoring_admission.py`, `state.py`, `providers/cloud_llm.py`, `providers/ollama.py`, `providers/whisper.py`, `providers/youtube.py`, and `public_subtitle_smoke.py` | A | Each occurrence is a specific error producer, typed carrier, pass-through, or deliberately narrow equality check; none enumerates the whole taxonomy or reclassifies an unrecognized member. No CAPABILITY_UNAVAILABLE edit is required. |
+| `providers/obsidian.py:_filesystem_error_code()` and `_failure()` | B | These intentionally classify only filesystem failures and mark only their local filesystem code paths retryable. CAPABILITY_UNAVAILABLE is neither a filesystem input nor a new member of that local retry set. |
+| `transcripts.py:_recorded_terminal_result()` and `_existing_provider_outcome()` persisted-code parsing | B | The first deliberately recognizes only its three cached subtitle outcomes; the second safely round-trips any valid enum string and otherwise rejects an invalid stored string. Neither maps a new code to LOCAL_RESOURCE. |
+| CLI/reporting, serialization, alerting, recovery, claim, lease, startup, and scheduler paths | B | No additional production ErrorCode exhaustive mapping/closed set exists there. Existing generic code/detail reporting and `FAILED_FINAL` handling remain safe; §33 supplies the sole retry-selection exception. |
+
+No production category-C consumer exists beyond the already-authorized
+`domain.py`/`runtime.py` work and the two newly authorized safe boundaries.
+Therefore no additional ErrorCode-consumer scope is required.  This conclusion
+does not thaw unrelated source behavior.
+
+### Exact safe-boundary mappings
+
+`providers/subtitles.py:_safe_boundary_error()` must retain its exhaustive
+dictionary and add exactly:
+
+```python
+ErrorCode.CAPABILITY_UNAVAILABLE: f"{subject} required capability unavailable in this build"
+```
+
+The resulting `TranscriptError` preserves the code and existing sanitized
+boundary metadata flow, does not expose arbitrary caller detail, does not say
+local resource/network/provider/invalid content, and must not invent a retry
+implication.  It must not replace the dictionary with a broad fallback:
+`messages[error.code]` remains total for every ErrorCode after the enum member
+is added.  The existing `LOCAL_RESOURCE` entry remains exactly
+`f"{subject} local resource failed"`.
+
+`transcripts.py:_adapter_boundary_error()` must add an explicit
+`ErrorCode.CAPABILITY_UNAVAILABLE` branch before the local-resource `else`,
+with exactly:
+
+```python
+detail = "required capability unavailable in this build"
+```
+
+Its resulting safe message is exactly
+`f"subtitle adapter required capability unavailable in this build during {operation}"`.
+It preserves the function's existing sanitized error metadata behavior, does
+not make the code retryable, and performs no job-state, retry, or H2-B
+authority action.  The existing `LOCAL_RESOURCE` fall-through message remains
+exactly `"subtitle adapter local resource failed during {operation}"` for that
+code and no other code.
+
+Both files are representation/error-boundary consumers only.  Their permitted
+diff is solely the exact CAPABILITY_UNAVAILABLE classification above: no retry
+job creation, retry scheduling, `retry_at` override, status mutation, H2-B
+ingress, or unrelated mapping refactor is authorized.  Neither generic boundary
+message may hard-code `H2B_PASS_AWAITING_H2C`; that is diagnostic detail, not
+generic taxonomy.
+
+### Retry predicate and staged-record invariants
+
+The only retry exclusion remains the §33 code-only predicate:
+
+```python
+if failed_job.last_error_code == ErrorCode.CAPABILITY_UNAVAILABLE.value:
+    exclude_from_manual_retry_candidate_selection
+```
+
+It must not inspect `last_error_detail`/`last_error_message`, require both code
+and detail, or match `"H2B_PASS_AWAITING_H2C"` directly.  Thus a
+`FAILED_FINAL/CAPABILITY_UNAVAILABLE` job remains excluded even when its detail
+is changed to `"ATTACKER_CHANGED_DETAIL"`; a different ErrorCode carrying the
+same H2-B detail follows that other code's existing retry policy and cannot
+spoof the exclusion.  When it is the only otherwise-final failed video job,
+the exact existing outcome remains
+`CommandOutcome(safe_message="No final failed video job is available to retry.")`.
+With a mixed set, this code is skipped and an unrelated ordinary eligible
+`FAILED_FINAL` job retains normal retry/rerun behavior.  Automatic recovery,
+claim, retry activation, lease recovery, startup recovery, and orchestration
+continue not to reclaim any `FAILED_FINAL` job.
+
+The code-based exclusion prevents a completed H2-B staged terminal from
+creating a fresh job that would obtain new PRIMARY, REPAIR, or REPAIR_JUDGE
+budget.  It neither adds admission metadata nor makes the terminal record an
+H2-C capability.  The H2-B aggregate stays lexical-only; historical terminal
+records remain terminal after an H2-C upgrade, and H2-C never resurrects or
+replays them.
+
+### Required correction tests and final implementation scope
+
+Future correction tests must retain the exact full-set contract in
+`tests/unit/test_contracts.py::test_error_codes_and_structured_app_error` and
+change it from the eight prior values to the exact nine-value set containing
+`CAPABILITY_UNAVAILABLE`; it must not be weakened to subset containment.
+
+The focused regression matrix additionally requires:
+
+1. `_safe_boundary_error()` accepts CAPABILITY_UNAVAILABLE without `KeyError`,
+   produces exactly `f"{subject} required capability unavailable in this build"`,
+   has no retry implication, and leaves every previous exhaustive mapping,
+   especially LOCAL_RESOURCE, unchanged.
+2. `_adapter_boundary_error()` produces exactly `"subtitle adapter required
+   capability unavailable in this build during {operation}"`, never the local
+   resource wording; its LOCAL_RESOURCE mapping is unchanged.
+3. Full valid H2-B PASS, and only that full PASS, emits
+   CAPABILITY_UNAVAILABLE + `H2B_PASS_AWAITING_H2C` + `retry_at=None` + one
+   `fail_job` + `FAILED_FINAL` + `TERMINAL`, with no generic `_fail` or
+   persistence.  Every actual H2-B failure retains its frozen distinct route.
+4. Retry rejects CAPABILITY_UNAVAILABLE with both the exact and an altered
+   detail, repeatedly creates no job/claim/PRIMARY/REPAIR/REPAIR_JUDGE/
+   transport, and returns the exact no-candidate outcome when it is alone.
+   A different ErrorCode with `H2B_PASS_AWAITING_H2C` follows its actual
+   existing policy; a mixed transitional/ordinary-failure set still retries
+   the ordinary eligible job.
+5. The Round 5 real-provider/fake-transport REPAIR and REPAIR_JUDGE
+   composition attacks remain mandatory, including the rule that raw transport
+   or raw-response injection cannot establish H2-B semantic provenance.
+
+The final authorized production scope is exactly:
+
+- `src/youtube_intel/domain.py` — one ErrorCode member only;
+- `src/youtube_intel/runtime.py` — the approved staged terminal and its narrow
+  code-only manual-retry exclusion;
+- `src/youtube_intel/providers/ollama.py` and
+  `src/youtube_intel/scoring_admission.py` — only the already-approved Round 5
+  provider-composition/admission corrections;
+- `src/youtube_intel/providers/subtitles.py` — only the exact exhaustive safe
+  boundary entry above; and
+- `src/youtube_intel/transcripts.py` — only the exact explicit adapter branch
+  above.
+
+Focused tests and handoff documentation are allowed.  `h2_evidence.py` and
+`quality.py` may receive only the already-approved narrow aggregate-exposure
+cleanup, with no schema/finalizer redesign.  `scoring.py`, `state.py`,
+`pipeline.py`, migrations, and Phase G persistence remain frozen.  No database,
+schema, storage, serialization-version, or migration change is required:
+`jobs.last_error_code` and `job_attempts.error_code` remain unconstrained
+`TEXT`.
+
+After this scope completion, an implementation executor has no discretion
+about the two boundary mappings, the exact ErrorCode set test, code-versus-
+detail retry behavior, or further exhaustive consumer scope.  Any contrary
+consumer discovered must stop for `ADDITIONAL ERRORCODE CONSUMER SCOPE REQUIRED`.
