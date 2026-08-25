@@ -2,13 +2,16 @@
 
 ## Status and decision requested
 
-`REQUEST-CHANGES AMENDMENT / IMPLEMENTATION NOT AUTHORIZED`.
+`READY FOR PHASE H2 AUTHORIZATION INDEPENDENT REVIEW`.
 
 This proposal assumes Phase G is accepted and H1-A/H1-B are closed. It
 authorizes neither code, tests, review, merge, network calls, cache recovery,
 nor a public repair surface. Its purpose is to define the narrow future H2
 implementation boundary by which one eligible, received PRIMARY failure may be
 repaired without weakening the accepted trusted-persistence chain.
+
+This Round 3 amendment is documentation-only. It does not authorize or modify
+`src/`, `tests/`, schema/migrations, dependencies, or `uv.lock`.
 
 ## 1. Frozen contracts
 
@@ -111,6 +114,7 @@ operation = "local-scoring-repair-v1"
 primary_scoring_request_hash
 primary_normalized_input_hash
 primary_raw_response_hash
+primary_failure_evidence_hash
 primary_failure_class
 repair_prompt_version
 repair_schema_version
@@ -146,6 +150,55 @@ Before dispatch and again before persistence, H2 must reject if any REPAIR
 request hash equals the PRIMARY scoring request hash, PRIMARY Judge H2, or
 REPAIR Judge H2. This is a defense-in-depth collision guard; the distinct
 operation and canonical input are the primary collision prevention.
+
+### Sealed PRIMARY failure evidence
+
+`PhaseHTrustedRepairSuccess` must seal an exact, canonical
+`PrimaryFailureEvidence` structure with
+`failure_evidence_schema = "primary-scoring-failure-evidence-v1"`. Its
+canonical JSON SHA-256 is `primary_failure_evidence_hash`, which is both
+sealed in the repair success and included in the canonical REPAIR request
+identity above. A caller-supplied `primary_failure_class` has no authority by
+itself.
+
+Every `PrimaryFailureEvidence` contains, at minimum:
+
+- the exact bounded strict-UTF-8 PRIMARY raw response string and its exact
+  UTF-8 bytes semantics;
+- `primary_raw_response_hash = SHA256(primary_raw_response.encode("utf-8"))`;
+- canonical original `ScoringInput` bytes/hash plus the PRIMARY normalized and
+  request identities rebuilt with `build_scoring_request_identity()`;
+- current PRIMARY scoring provenance: operation, provider, model, model
+  digest, prompt version, schema version, output language, temperature,
+  maximum output tokens, and maximum description characters;
+- the canonical parsed/validated PRIMARY `ScoringCandidate` and candidate hash
+  when parsing succeeded; otherwise an explicit absent-candidate marker;
+- one closed eligible failure class and its class-specific canonical evidence;
+  and
+- the current quality-authority provenance whenever the failure passed the
+  PRIMARY quality/Judge boundary.
+
+`PREWRITE_VALIDATE` reconstructs the original scoring input from sealed bytes,
+rebuilds its PRIMARY identity against the current runtime context, recomputes
+the raw hash, and checks every sealed provenance value before it evaluates the
+failure class. A missing, non-canonical, malformed, rotated, or
+non-reproducible evidence field makes the failure ineligible; it cannot reach
+REPAIR or a write plan.
+
+The eligible classes and their re-proof requirements are frozen as follows.
+
+| Eligible class | Sealed class-specific evidence | Required independent PREWRITE proof |
+|---|---|---|
+| `SCHEMA_OR_PARSE_INVALID` | `parser_contract = "scoring-candidate-parser-v1"`; canonical failure mode `JSON_DECODE`, `ENVELOPE_INVALID`, or `CANDIDATE_SCHEMA_INVALID`; canonical parser diagnostic code; no candidate. | Run the one canonical PRIMARY parser/schema validator against the exact sealed PRIMARY raw response. It must fail with the same authorized failure mode and diagnostic code. A successful parse, a different failure mode, or reliance on the stored enum rejects. |
+| `LANGUAGE_INVALID` | Exact canonical PRIMARY candidate/hash; canonical language-validator input/result; definitive validator failure code. | Reparse the PRIMARY raw response, require the sealed candidate/hash, then rerun the frozen TASK-016B language validator against the rebuilt candidate/input. It must yield the same definitive invalid result/code. A pass, uncertainty, candidate mismatch, or enum-only proof rejects. |
+| `DETERMINISTIC_QUALITY_REJECT` | Exact canonical PRIMARY candidate/hash; canonical quality input/hash; deterministic-gate result and reject reason; no Judge evidence. | Reparse and validate the candidate, rebuild the quality input, and rerun the frozen deterministic gate. Its canonical reject result/reason must exactly equal the sealed evidence. A non-reject or a Judge-derived substitute rejects. |
+| `JUDGE_REJECT` | Exact canonical PRIMARY candidate/hash and quality input/hash; PRIMARY `QualityJudgeOperationInput(attempt_role=PRIMARY)`; Judge H1/H2; exact bounded PRIMARY Judge raw response; canonical parsed `ContentQualityResult(REJECT)`; current quality authority provenance. | Rebuild the PRIMARY operation and H1/H2, require current authority/config equality, reparse/validate the sealed Judge response through the frozen Judge-result contract, and require the resulting canonical `REJECT` evidence to equal the seal. Mismatched response, H1/H2, operation, authority, or non-reject rejects. |
+| `JUDGE_UNCERTAIN` | The same PRIMARY Judge operation/H1/H2/raw-response/authority evidence as `JUDGE_REJECT`, with canonical parsed `ContentQualityResult(UNCERTAIN)` and its exact uncertainty reason/code. | Rebuild the PRIMARY operation and H1/H2 and reparse/validate the sealed Judge response under the frozen contract. It must independently yield the exact sealed `UNCERTAIN` result/reason/code. Any non-uncertain, mismatch, or unavailable proof rejects. |
+
+`UNKNOWN_PROVIDER_STATE`, transport failure, timeout, process loss, authority
+rotation, lease loss, and any class without the complete reproducible evidence
+above are not eligible failure classes. They remain H1 fail-closed states and
+never acquire a REPAIR identity.
 
 ### Provider/model binding and one-shot budget
 
@@ -247,26 +300,54 @@ mandatory properties:
 
 ### 5.2 Sealed repair envelope and provenance binding
 
-The aggregate seals one repair envelope; it is not assembled from caller
-arguments at persistence time. The envelope contains only runtime-derived,
-immutable values needed for repeat validation:
+The aggregate seals one composite repair envelope; it is not assembled from
+caller arguments at persistence time. The envelope is canonical JSON with the
+exact literal `envelope_schema = "trusted-scoring-repair-envelope-v1"`. Its
+canonical bytes, SHA-256, and length are the final `SCORING_RAW` artifact
+content, hash, and length for a successful REPAIR. It is neither the invalid
+PRIMARY raw response alone nor the REPAIR raw response alone.
+
+The aggregate and composite envelope contain only runtime-derived, immutable
+values needed for repeat validation:
 
 | Binding | Required sealed value |
 |---|---|
-| PRIMARY identity | Original `primary_scoring_request_hash` and `primary_normalized_input_hash`, each rebuilt with `build_scoring_request_identity()` from the canonical original `ScoringInput`. |
-| PRIMARY failure | Closed runtime-derived `primary_failure_class` and the exact `primary_raw_response_hash`. |
+| PRIMARY identity | Canonical original `ScoringInput` bytes/hash, original `primary_scoring_request_hash`, and `primary_normalized_input_hash`, each rebuilt with `build_scoring_request_identity()`. |
+| PRIMARY failure | Complete canonical `PrimaryFailureEvidence`, including the exact PRIMARY raw response, raw hash, class, `primary_failure_evidence_hash`, candidate/hash when present, class-specific evidence, and PRIMARY scoring/quality provenance. |
 | REPAIR raw/candidate | Exact bounded strict-UTF-8 repair raw response, `repair_raw_response_hash`, canonical parser-derived candidate, and canonical candidate hash. |
 | REPAIR provider identity | Current runtime scoring provider, model, model digest, output language, temperature, output limit, description limit, repair prompt version, and repair schema version. |
 | REPAIR attempt identity | Canonical REPAIR normalized-input hash and the `build_provider_request_hash()` request hash for `local-scoring-repair-v1`; it is distinct from PRIMARY and both Judge identities. |
 | Quality/Judge evidence | Canonical quality input, complete REPAIR `PASS` result, `QualityJudgeOperationInput(attempt_role=REPAIR)`, Judge H1/H2, and current-authority `QualityPassAttestation`. |
-| Finalized structured value | Exact `TrustedScoreResult` from the Finalizer plus sealed canonical structured-result bytes/hash. |
+| Finalized structured value | Exact `TrustedScoreResult` from the Finalizer plus sealed canonical structured-result bytes/hash/length. |
 
-The envelope's raw persistence bytes must canonically include the PRIMARY
-identity/failure/raw-hash bindings, REPAIR raw hash and provider/attempt
-identity, REPAIR Judge evidence, and attestation. The bytes are one sealed
-input to the existing write plan, rather than new scatter fields or a database
-schema change. REPAIR transport identity never replaces the original PRIMARY
-scoring identity of the score/result or logical scoring artifact namespace.
+The composite envelope has these top-level canonical fields, with no omitted
+or caller-supplied side channel:
+
+```text
+envelope_schema = "trusted-scoring-repair-envelope-v1"
+primary_failure_evidence
+repair_attempt = {
+  raw_response, raw_response_hash, candidate, candidate_hash,
+  normalized_input_hash, request_hash,
+  operation = "local-scoring-repair-v1",
+  provider, model, model_digest, prompt_version, schema_version,
+  output_language, temperature, max_output_tokens, max_description_chars
+}
+repair_quality = {
+  input, input_hash, result = PASS, operation(attempt_role=REPAIR),
+  judge_h1, judge_h2, judge_raw_response, authority_provenance,
+  attestation
+}
+trusted_result_binding = { structured_result_bytes, structured_result_hash,
+                           structured_result_length }
+```
+
+The exact PRIMARY raw response and all classification-specific evidence live
+inside `primary_failure_evidence`; this is what lets PREWRITE independently
+prove that the repair was eligible. REPAIR transport identity never replaces
+the original PRIMARY scoring identity of the score/result or logical scoring
+artifact namespace. The envelope is one sealed plan input, rather than new
+scatter fields or a database schema change.
 
 ### 5.3 Shared persistence invariants
 
@@ -287,6 +368,10 @@ either plan
   -> unchanged single SQLite atomic registration
 ```
 
+After H2, the only allowed exact inputs are
+`PhaseFTrustedScoringSuccess` and `PhaseHTrustedRepairSuccess`; there is no
+third success type, compatibility adapter, or caller-selected verifier.
+
 Both success types must execute the same `PREWRITE_VALIDATE` phase, the same
 temporary-write/fsync/hash/no-clobber-promote/directory-fsync/final-reopen
 protocol, and the same single SQLite registration transaction. Neither branch
@@ -297,8 +382,10 @@ prewrite verifier produces the common opaque `ValidatedScoringWritePlan`.
 The H2 REPAIR verifier must prove, in memory, all of the following before it
 may mint that existing plan:
 
-1. PRIMARY identity, exact PRIMARY raw hash, and eligible runtime-derived
-   failure class bind the REPAIR identity.
+1. The complete `PrimaryFailureEvidence` re-proves the eligible failure under
+   the exact class-specific procedure in Section 3; its raw, canonical input,
+   identity, candidate, quality/Judge evidence, provenance, and
+   `primary_failure_evidence_hash` bind the REPAIR identity.
 2. REPAIR raw response re-parses through the same canonical parser; its raw
    and candidate hashes bind the finalizer-produced trusted result.
 3. Original scoring identity and current provider/model/digest/context bind
@@ -310,13 +397,62 @@ may mint that existing plan:
    Artifact metadata, and the two ProviderCall requests/completions are rebuilt
    as one existing write plan.
 
-Only this successfully validated plan enters the already-frozen file protocol
-and the existing single SQLite registration transaction. It creates the same
-two Artifact records, two completed ProviderCalls, scoring summary, stage, and
-job transition as the G path; it uses the REPAIR scoring and REPAIR Judge
-ProviderCall identities while retaining the PRIMARY scoring identity for the
-score/result and logical artifact namespace. No third call, third Artifact,
-new writer, alternate SQLite path, or pre-PREWRITE state is permitted.
+### 5.4 REPAIR-to-write-plan mapping
+
+The REPAIR verifier constructs the same private `_ValidatedScoringWritePlan`
+shape used by Phase G. The following mapping is frozen.
+
+| Plan field | REPAIR-derived value |
+|---|---|
+| `video_id`, `job_id`, pipeline scope, score summary | The original runtime-owned scoring job/video/context; the summary is the finalizer-produced score evaluated against the current runtime threshold. |
+| Result namespace | Original PRIMARY scoring request hash. The final result remains the one score for that original job/video; no second logical score-result namespace exists. |
+| `SCORING_RAW` key/path | Exactly the Phase G PRIMARY namespace: key `scoring/<primary_scoring_request_hash>/raw`, relative path `scoring/<primary_scoring_request_hash>/raw.json`. Its bytes/hash/length are the composite envelope defined in Section 5.2. |
+| `SCORING_STRUCTURED` key/path | Exactly the Phase G PRIMARY namespace: key `scoring/<primary_scoring_request_hash>/structured`, relative path `scoring/<primary_scoring_request_hash>/structured.json`. Its bytes/hash/length are the sealed Finalizer structured result. |
+| Raw Artifact metadata | `SCORING_RAW`, original video/job, `DATA`, the exact raw key/path above, composite-envelope hash, REPAIR provider/model, `producer_version="scoring-raw-content-quality-repair-v1"`, raw-response 30-day retention, and the existing 30-day expiry calculation. |
+| Structured Artifact metadata | `SCORING_STRUCTURED`, original video/job, `DATA`, the exact structured key/path above, sealed structured hash, REPAIR provider/model, `producer_version="scoring-structured-content-quality-repair-v1"`, long-lived retention, and no expiry. |
+| Artifact IDs | `scoring-raw-` + SHA-256 of `raw_key + raw_envelope_hash`; `scoring-structured-` + SHA-256 of `structured_key + structured_hash`. |
+| Scoring ProviderCall request/completion | Request fields are only the sealed REPAIR identity: `operation="local-scoring-repair-v1"`, REPAIR normalized-input hash, REPAIR provider/model, repair prompt/schema versions, and deterministic artifact key=`raw_key`. Its request hash is recomputed with `build_provider_request_hash()`. Completion is `SUCCEEDED` in the existing transaction and binds `response_artifact_id` to the raw Artifact ID. No PRIMARY scoring ProviderCall is created for the failed PRIMARY attempt. |
+| Judge ProviderCall request/completion | Request fields are the sealed REPAIR Judge identity: operation=`local-content-quality-v1`, normalized input=REPAIR Judge H1, request hash=REPAIR Judge H2, and provider/model/prompt/schema from the current quality authority; deterministic artifact key=`raw_key`. Completion is `SUCCEEDED` in the existing transaction and binds the same raw Artifact ID. It differs from PRIMARY Judge only because the sealed operation has `attempt_role=REPAIR`, producing distinct H1/H2. |
+
+The existing PRIMARY branch is semantically unchanged: it continues to derive
+its scoring ProviderCall from `operation="local-scoring"` and the existing
+PRIMARY request identity. This amendment narrowly authorizes the H2-private
+REPAIR verifier to derive its scoring ProviderCall from the sealed
+`local-scoring-repair-v1` identity instead. No caller supplies either branch's
+ProviderCall fields.
+
+After either branch mints `_ValidatedScoringWritePlan`, the filesystem and
+SQLite code is identical and type-agnostic. There is no role-specific
+filesystem writer, no role-specific SQLite transaction, `persist_repair()`,
+repository repair API, or change to PREWRITE ordering/no-clobber promotion/
+single registration transaction.
+
+### 5.5 Complete-graph idempotency equality
+
+For REPAIR, `persist_success()` may return an existing committed graph only
+when the entire graph equals the newly derived REPAIR plan. Equality includes:
+
+- exact composite raw-envelope bytes, hash, length, and
+  `trusted-scoring-repair-envelope-v1` schema literal;
+- sealed structured bytes, hash, and length;
+- both Artifact IDs, keys, kinds, paths, content hashes, storage root, video,
+  job, provider/model, producer version, retention, and expiry metadata;
+- scoring ProviderCall request hash, operation, normalized hash, provider,
+  model, prompt/schema, `SUCCEEDED` status, and raw response-artifact binding;
+- REPAIR Judge ProviderCall H1/H2, operation, provider/model/prompt/schema,
+  `SUCCEEDED` status, and raw response-artifact binding;
+- final video score/`should_summarize`, pipeline state, and job identity/type,
+  target stage, pipeline version, and terminal status; and
+- all PRIMARY failure evidence represented by the composite envelope, including
+  its hash, class-specific canonical evidence, and exact PRIMARY raw bytes.
+
+A PRIMARY-committed graph can never equal a REPAIR plan merely because the
+score fields match: its raw-envelope schema/content, scoring ProviderCall
+operation/identity, and producer metadata differ. Two REPAIR plans with
+different PRIMARY failure evidence can never compare equal because the sealed
+failure-evidence hash changes the REPAIR request identity and composite raw
+envelope. Any partial, legacy, pending, failed, missing, mismatched, or
+cross-role graph fails closed without a new provider/Judge call or write.
 
 This is not fake-primary conversion: the repair raw evidence, failure binding,
 attempt role, quality operation, attestation, and two ProviderCall identities
@@ -333,20 +469,31 @@ transition.
 
 ### Category A — pre-dispatch rejection attacks
 
-For this category, capture state before the attack and assert: **zero
-scoring-provider calls, zero Judge calls, zero Artifact writes, zero SQLite
-success writes, and no state transition**. “Zero SQLite success writes” covers
-ProviderCall completion, response-artifact ID, score, pipeline stage, and job
-success updates; “no state transition” additionally excludes an attempted
-terminal/retry transition. There may be no tmp/final/mkdir or cache write.
+For this category, the rejection occurs before write-plan minting. Capture the
+baseline before the attack and assert the absolute post-baseline effects:
+**zero additional scoring-provider calls, zero Judge calls, zero filesystem
+writes, zero Artifact writes, zero SQLite success writes, and no video/job
+success transition**. Filesystem writes include tmp/final/mkdir/promote/
+directory-fsync activity. SQLite success writes include ProviderCall completion,
+response-artifact ID, score, pipeline-stage, and job-success updates. No cache
+write, terminal/retry transition, or `ValidatedScoringWritePlan` may exist.
 
 | Test case | Injection / action | Required behavioral result |
 |---|---|---|
-| Forged repair success | Supply a hand-built `PhaseHTrustedRepairSuccess`, a bare result, mapping, JSON restore, or a sealed object with one altered provenance/hash field. | Exact-type or re-derived provenance validation rejects before plan minting and satisfies every Category A assertion. |
+| Forge `SCHEMA_OR_PARSE_INVALID` | Seal that class while the exact PRIMARY raw response parses and schema-validates successfully. | PRIMARY reparse disproves the class; reject before write-plan minting and satisfy every Category A assertion. |
+| Forge `LANGUAGE_INVALID` | Seal language-invalid evidence while the canonical PRIMARY candidate passes the frozen language validator. | PRIMARY reparse plus language revalidation disproves the class; reject before write-plan minting and satisfy every Category A assertion. |
+| Forge `JUDGE_REJECT` | Supply mismatched PRIMARY Judge H1/H2, Judge raw response/result, operation, or current authority for a claimed reject. | Rebuilt PRIMARY Judge identity/evidence fails equality; reject before write-plan minting and satisfy every Category A assertion. |
+| Forge `JUDGE_UNCERTAIN` | Supply PRIMARY Judge evidence that does not independently re-derive the exact `UNCERTAIN` result/reason/code. | Rebuilt Judge evidence disproves uncertainty; reject before write-plan minting and satisfy every Category A assertion. |
+| Mix PRIMARY raw A with failure evidence B | Combine one exact PRIMARY raw response with candidate/quality/Judge/class-specific evidence derived from another. | Raw reparse, hash, candidate, and evidence cross-bindings reject before write-plan minting and satisfy every Category A assertion. |
+| Mix PRIMARY identity A with REPAIR success B | Combine a repair success/envelope with a different original scoring input or PRIMARY request identity. | Rebuilt identity and failure-evidence hash mismatch reject before write-plan minting and satisfy every Category A assertion. |
+| Substitute PRIMARY ProviderCall identity into REPAIR plan | Force `local-scoring`/PRIMARY request fields where the sealed REPAIR scoring ProviderCall fields are required. | Exact REPAIR request identity recomputation rejects before write-plan minting and satisfies every Category A assertion. |
+| Substitute REPAIR identity into PRIMARY branch | Feed REPAIR operation/request fields to exact `PhaseFTrustedScoringSuccess` validation. | The unchanged PRIMARY branch rejects cross-role material before write-plan minting and satisfies every Category A assertion. |
+| Forge composite envelope schema/version or hashes | Alter `trusted-scoring-repair-envelope-v1`, raw bytes/hash/length, structured bytes/hash/length, or failure-evidence hash. | Canonical envelope/plan validation rejects before write-plan minting and satisfies every Category A assertion. |
+| Direct persistence with forged repair success | Call `persist_success()` with a hand-built, low-level, or otherwise forged `PhaseHTrustedRepairSuccess`. | Exact type, runtime mint, seal, PRIMARY failure proof, and REPAIR chain validation reject before write-plan minting and satisfy every Category A assertion. |
 | `object.__new__` | Allocate an uninitialized `PhaseHTrustedRepairSuccess` shell, including one populated only through low-level attribute operations. | No runtime-only mint provenance exists; exact-type/seal/provenance checks reject and satisfy every Category A assertion. |
 | `object.__setattr__` mutation | Attempt to mutate each sealed envelope binding after minting: PRIMARY identity/failure/raw hash, REPAIR raw/provider/identity, Judge evidence, attestation, or final result bytes. | Immutability rejects mutation; if a test bypasses normal mutation, re-derived prewrite validation rejects the changed value and satisfies every Category A assertion. |
 | Copy, deepcopy, pickle restoration | Apply `copy.copy`, `copy.deepcopy`, and pickle round-trip to a legitimate repair success. | Each operation is rejected; no restored object can invoke persistence. A forged restored shape reaching the entry satisfies every Category A assertion. |
-| Fake provenance | Alter a sealed provider/model/digest, REPAIR identity, Judge H1/H2, attestation, primary failure class, or raw/candidate/result binding. | Canonical re-derivation rejects the mismatch before plan minting and satisfies every Category A assertion. |
+| Fake provenance | Alter a sealed provider/model/digest, REPAIR identity, Judge H1/H2, attestation, primary failure class/evidence, or raw/candidate/result binding. | Canonical re-derivation rejects the mismatch before write-plan minting and satisfies every Category A assertion. |
 | PRIMARY-to-REPAIR substitution | Present PRIMARY aggregate/evidence where a REPAIR aggregate is required, relabel a REPAIR success as PRIMARY, or swap their raw/identity/quality evidence. | Role, envelope, and identity cross-binding reject; REPAIR transport identity can never be treated as PRIMARY provenance. Every Category A assertion holds. |
 | Persistence bypass | Call a repository method/direct writer, pass a plan/raw bytes/Artifact/ProviderCall/legacy cache data to a persistence boundary, or call any proposed repair-specific method. | No such public path exists. Only `persist_success()` accepts an exact sealed success; all bypass forms reject and satisfy every Category A assertion. |
 
@@ -413,21 +560,29 @@ Cloud, real network/model/Vault/credential use; and any repair eligibility from
 
 ## 8. Acceptance conditions for a later H2 authorization
 
-A future H2 implementation may be considered only if its independent review
-can demonstrate that:
+An H2 implementation may be authorized only after an independent review can
+demonstrate that:
 
 - exactly one eligible received PRIMARY failure yields at most one REPAIR
   provider call and one REPAIR Judge call;
+- every eligible PRIMARY failure class is independently reproducible from its
+  sealed exact raw/candidate/quality/Judge/provenance evidence, rather than a
+  stored enum, and every non-reproducible case fails closed;
 - PRIMARY, REPAIR, PRIMARY Judge, and REPAIR Judge identities are distinct,
   stable, canonical, and correctly bound to provider/model/digest;
 - REPAIR follows the specified validation order and only a finalizer-produced
   trusted result sealed inside `PhaseHTrustedRepairSuccess` can reach
   persistence;
 - `persist_success()` remains the sole entry and its PREWRITE/filesystem/SQLite
-  behavior is unchanged apart from its private evidence verifier;
-- all attack-matrix cases fail closed before external contact or persistence as
-  applicable; and
+  behavior is unchanged apart from the exact-type private verifier and common
+  plan mapping defined here;
+- REPAIR uses the exact original PRIMARY result/artifact namespace, the sealed
+  REPAIR scoring/REPAIR Judge ProviderCall identities, and complete-graph
+  equality defined here; and
+- all Category A/B attack-matrix evidence meets its specified zero-I/O or
+  rejection-point-relative accounting; and
 - all crash, timeout, lease-loss, and restart paths preserve the H1
   `UNKNOWN_PROVIDER_STATE` no-repair rule.
 
-Until then, H2 remains design-only.
+Until an independent review accepts this authorization, H2 remains design-only
+and no H2 implementation is authorized.
