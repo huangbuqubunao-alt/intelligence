@@ -819,6 +819,8 @@ def _adapter_boundary_error(
         detail = "provider unavailable"
     elif error.code is ErrorCode.INVALID_RESPONSE:
         detail = "response invalid"
+    elif error.code is ErrorCode.CAPABILITY_UNAVAILABLE:
+        detail = "required capability unavailable in this build"
     else:
         detail = "local resource failed"
     retry_after = error.retry_after_seconds

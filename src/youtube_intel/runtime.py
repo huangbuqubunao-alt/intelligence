@@ -87,6 +87,7 @@ from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
     OllamaScoringProvider,
     PrimaryRawCapture,
+    build_quality_judge_generate_body,
     build_task016c_repair_generate_body,
     parse_scoring_candidate,
     render_task016c_repair_prompt_v2,
@@ -377,10 +378,13 @@ class RuntimeOperations(Operations):
         ).resolve(strict=True)
         self._runtime_owner = f"youtube-intel-runtime:{uuid.uuid4().hex}"
         self._scoring_admissions = ScoringAdmissionRegistry(self._repository)
-        # H2-B is memory-only: the untrusted evidence aggregate (when a REPAIR
-        # Judge PASS occurs) and the exact PRIMARY Judge raw evidence used to
-        # classify an eligible Judge failure.  Neither is persisted or restored.
-        self._last_h2b_validated_repair_result: PhaseH2BValidatedRepairResult | None = None
+        # H2-B is memory-only: the PRIMARY Judge raw evidence used to classify
+        # an eligible Judge failure is retained for classification within the
+        # live execution.  The H2-B aggregate is never retained: it is a
+        # lexical local of the scoring frame, and the current staged build
+        # terminalizes an H2-B-only PASS with CAPABILITY_UNAVAILABLE /
+        # H2B_PASS_AWAITING_H2C (a future separately authorized H2-C will
+        # replace that terminalization with the immediate lexical handoff).
         self._last_primary_judge_raw: str | None = None
         self._last_primary_judge_operation: QualityJudgeOperationInput | None = None
         self._last_primary_judge_input: ContentQualityInput | None = None
@@ -1482,9 +1486,11 @@ class RuntimeOperations(Operations):
                         "REPAIR identity or payload changed after admission"
                     )
 
+                # Role-neutral transport: the runtime frame alone interprets
+                # the returned raw bytes as this admitted REPAIR attempt.
                 repair_provider = self._create_scoring_provider_for_dispatch()
                 try:
-                    raw_body = repair_provider.dispatch_exact_repair_generate(
+                    raw_body = repair_provider.dispatch_exact_generate(
                         body=body, body_sha256=body_sha256, body_length=body_length
                     )
                 except ScoringDispatchDenied:
@@ -1566,33 +1572,54 @@ class RuntimeOperations(Operations):
                     normalized_input_hash=judge_ctx.expected_h1,
                     request_hash=judge_ctx.expected_h2,
                 )
+                # Derive the exact Judge payload locally; its integrity binding
+                # is the payload-level J-to-J guarantee.
+                judge_body = build_quality_judge_generate_body(
+                    operation_input=judge_ctx.operation_input,
+                    content_input=judge_input,
+                    model=settings.model,
+                    max_output_tokens=settings.max_output_tokens,
+                )
+                judge_body_sha256 = hashlib.sha256(judge_body).hexdigest()
+                judge_body_length = len(judge_body)
                 # State-only H1 REPAIR_JUDGE consumption (no callback authority).
                 admission.consume_repair_judge_role(judge_identity, now=_utcnow())
 
-                # Revalidate the same local Judge identity/input in the same
-                # frame before Judge contact.
+                # Revalidate the same local Judge identity/input/payload in the
+                # same frame before Judge contact.
                 judge_ctx_re, judge_input_re = derive_repair_judge_trusted_context(
                     repair_request_hash=repair_request_hash,
                     trusted_candidate=repaired_candidate,
                     scoring_input=scoring_input,
                     validated_settings=settings,
                 )
+                judge_body_re = build_quality_judge_generate_body(
+                    operation_input=judge_ctx_re.operation_input,
+                    content_input=judge_input_re,
+                    model=settings.model,
+                    max_output_tokens=settings.max_output_tokens,
+                )
                 if (
                     judge_ctx_re.expected_h1 != judge_ctx.expected_h1
                     or judge_ctx_re.expected_h2 != judge_ctx.expected_h2
                     or judge_ctx_re.operation_input != judge_ctx.operation_input
                     or judge_input_re != judge_input
+                    or judge_body_re != judge_body
+                    or hashlib.sha256(judge_body_re).hexdigest() != judge_body_sha256
+                    or len(judge_body_re) != judge_body_length
                 ):
                     raise ScoringDispatchDenied(
                         "REPAIR Judge identity changed after admission"
                     )
 
+                # Role-neutral transport: the runtime frame alone interprets
+                # the returned raw bytes as this admitted REPAIR_JUDGE attempt.
                 judge_provider = self._create_quality_judge_provider_for_dispatch()
                 try:
-                    judge_raw = judge_provider.judge_exact_model_content(
-                        judge_ctx.operation_input,
-                        content_input=judge_input,
-                        expected_identity=judge_identity,
+                    judge_outer = judge_provider.dispatch_exact_generate(
+                        body=judge_body,
+                        body_sha256=judge_body_sha256,
+                        body_length=judge_body_length,
                     )
                 except ScoringDispatchDenied:
                     raise
@@ -1601,8 +1628,25 @@ class RuntimeOperations(Operations):
                         "REPAIR Judge outcome is unknown after external dispatch"
                     ) from error
 
+                # Authoritative outer capture and strict model-content
+                # extraction: any ambiguity after contact is UNKNOWN, never
+                # semantic UNCERTAIN.
+                try:
+                    seal_primary_raw_capture(judge_outer)
+                except ValueError as error:
+                    raise UnknownProviderState(
+                        "REPAIR Judge outer provider protocol is ambiguous after contact"
+                    ) from error
+                judge_raw = self._h2b_extract_model_content(
+                    judge_outer.decode("utf-8")
+                )
+                if judge_raw is None:
+                    raise UnknownProviderState(
+                        "REPAIR Judge model content is ambiguous after contact"
+                    )
+
                 # Judge raw must be a trustworthy captured model content;
-                # ambiguity after contact is UNKNOWN, never semantic UNCERTAIN.
+                # strict UTF-8/byte-bound failure after contact is UNKNOWN.
                 try:
                     judge_capture = seal_judge_raw_capture(judge_raw)
                 except ValueError as error:
@@ -1667,9 +1711,10 @@ class RuntimeOperations(Operations):
                         job_id=job.job_id, detail="REPAIR_FINALIZATION_INVALID"
                     )
 
-                # Construct the UNTRUSTED in-memory evidence aggregate.  This
-                # confers no trust, persistence authority, or H2-C ingress;
-                # H2-B stops here.
+                # Construct the UNTRUSTED in-memory evidence aggregate as a
+                # lexical local value only.  This confers no trust, persistence
+                # authority, or H2-C ingress; the frame terminalizes and exits,
+                # and the aggregate becomes unreachable.
                 aggregate = PhaseH2BValidatedRepairResult(
                     primary_trusted_context=trusted_context,
                     primary_failure_evidence=pfe,
@@ -1725,8 +1770,29 @@ class RuntimeOperations(Operations):
                     max_output_tokens=settings.max_output_tokens,
                     max_description_chars=settings.max_description_chars,
                 )
-                self._last_h2b_validated_repair_result = aggregate
-                return None
+                # The aggregate is a lexical local H2-B completion point only:
+                # it is never retained on the runtime, in globals, or in any
+                # cache/registry.  The current staged build has no authorized
+                # H2-C continuation, so the complete valid PASS terminalizes
+                # explicitly and non-retryably with CAPABILITY_UNAVAILABLE /
+                # H2B_PASS_AWAITING_H2C.  A future separately authorized H2-C
+                # will replace exactly this terminalization with the immediate
+                # lexical handoff; no hook/placeholder exists now.
+                self._repository.fail_job(
+                    job.job_id,
+                    owner=self._runtime_owner,
+                    error_code=ErrorCode.CAPABILITY_UNAVAILABLE,
+                    error_message="H2B_PASS_AWAITING_H2C",
+                    retry_at=None,
+                    now=_utcnow(),
+                )
+                confirmed = self._repository.get_job(job.job_id)
+                if confirmed is None or confirmed.status is not JobStatus.FAILED_FINAL:
+                    raise UnknownProviderState(
+                        "H2-B staged terminalization could not be finalized"
+                    )
+                del aggregate
+                return StageDisposition.TERMINAL
 
             admission.admit(primary_identity, now=_utcnow())
             provider = self._create_scoring_provider_for_dispatch()
@@ -1959,6 +2025,10 @@ class RuntimeOperations(Operations):
             for job in jobs
             if (
                 job.status is JobStatus.FAILED_FINAL
+                # CAPABILITY_UNAVAILABLE terminals are excluded by code alone
+                # (never by detail) before rerun_job/process: the staged build
+                # lacks the required continuation, so retrying cannot resolve it.
+                and job.last_error_code != ErrorCode.CAPABILITY_UNAVAILABLE.value
                 and job.video_id is not None
                 and (video is None or job.video_id == video)
                 and (

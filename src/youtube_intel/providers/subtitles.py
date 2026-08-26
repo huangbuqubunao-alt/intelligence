@@ -467,6 +467,9 @@ def _safe_boundary_error(
         ErrorCode.PROVIDER_UNAVAILABLE: f"{subject} provider unavailable",
         ErrorCode.INVALID_RESPONSE: f"{subject} response is invalid",
         ErrorCode.LOCAL_RESOURCE: f"{subject} local resource failed",
+        ErrorCode.CAPABILITY_UNAVAILABLE: (
+            f"{subject} required capability unavailable in this build"
+        ),
     }
     return _error(
         error.code,

@@ -21,7 +21,6 @@ Frozen correction objectives (Round 4 authorization):
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import inspect
 import sys
@@ -35,12 +34,8 @@ from typing import Any
 import pytest
 
 from youtube_intel.domain import JobStatus
-from youtube_intel.quality import (
-    RepairFinalizationInvalid,
-    TrustedScoreResult,
-    build_content_quality_input_hash,
-)
-from youtube_intel.scoring import _sealed_trusted_score_result_serializer
+from youtube_intel.h2_evidence import PhaseH2BValidatedRepairResult
+from youtube_intel.quality import RepairFinalizationInvalid
 from youtube_intel.scoring_admission import (
     ScoringDispatchAdmission,
     ScoringDispatchDenied,
@@ -332,7 +327,7 @@ def test_forged_pfe_after_genuine_primary_cannot_trigger_repair(tmp_path: Path) 
     assert job.status is JobStatus.FAILED_FINAL
     assert transport.tags_calls == 1
     assert transport.generate_calls == 1
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
     # Attacker constructs a self-consistent eligible PFE B unrelated to the
     # actual PRIMARY evidence, then attempts to use it to trigger repair.
@@ -366,7 +361,7 @@ def test_forged_pfe_after_genuine_primary_cannot_trigger_repair(tmp_path: Path) 
     # Zero REPAIR external transport was caused by B.
     assert transport.tags_calls == 1
     assert transport.generate_calls == 1
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def _load_h2a_support() -> Any:
@@ -419,7 +414,7 @@ def test_empty_repaired_content_is_schema_terminal_with_zero_judge(
     assert job.last_error_message == "REPAIR_SCHEMA_OR_PARSE_INVALID"
     assert transport.tags_calls == 2
     assert transport.generate_calls == 2  # zero Judge transport
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
 
 
@@ -461,13 +456,13 @@ def test_gate_reject_is_terminal_with_zero_judge_even_with_scripted_pass(
     assert job.last_error_message == expected_message
     assert transport.tags_calls == 2
     assert transport.generate_calls == 2  # zero REPAIR Judge contact
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
     # The scripted Judge transport entries were never invoked.
     assert len(transport._responses) == 2
 
 
-def test_gate_pass_repair_reaches_judge_with_finalized_trusted_evidence(
+def test_gate_pass_repair_reaches_judge_and_terminalizes_capability(
     tmp_path: Path,
 ) -> None:
     transport = _FLOW._FakeTransport(
@@ -481,46 +476,19 @@ def test_gate_pass_repair_reaches_judge_with_finalized_trusted_evidence(
 
     _FLOW._run_process(runtime)
 
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert aggregate is not None
+    # Gate PASS proceeds to the REPAIR Judge, and the H2-B-only full PASS
+    # terminalizes with the staged capability disposition exactly once.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
-
-    # Deterministic gate PASS evidence.
-    assert aggregate.deterministic_gate_status == "PASS"
-    assert aggregate.quality_input_hash == build_content_quality_input_hash(
-        aggregate.judge_input
-    )
-    assert aggregate.judge_input.scoring_request_hash == aggregate.repair_request_hash
-
-    # Finalizer-produced TrustedScoreResult with the dual binding.
-    trusted_result = aggregate.finalizer_trusted_result
-    assert type(trusted_result) is TrustedScoreResult
-    primary_context = aggregate.primary_trusted_context
-    assert trusted_result.result.request_hash == primary_context.request_hash
-    assert trusted_result.result.request_hash != aggregate.repair_request_hash
-    assert trusted_result.result.score == aggregate.repaired_candidate.score
-
-    # Sealed structured bytes/hash/length are exact and reproducible.
-    assert aggregate.structured_result_length == len(aggregate.structured_result_bytes)
-    assert aggregate.structured_result_sha256 == hashlib.sha256(
-        aggregate.structured_result_bytes
-    ).hexdigest()
-    assert aggregate.structured_result_bytes == _sealed_trusted_score_result_serializer(
-        trusted_result
-    )
-    assert aggregate.structured_result_schema_version == (
-        trusted_result.result.schema_version
-    )
-    assert aggregate.structured_result_prompt_version == (
-        trusted_result.result.prompt_version
-    )
-    # The RNI canonical bytes are bound alongside the hash.
-    from youtube_intel.h2_evidence import h2_canonical_bytes
-
-    assert aggregate.repair_normalized_input_bytes == h2_canonical_bytes(
-        aggregate.repair_normalized_input
-    )
+    job = _FLOW._scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
+    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
+    # The aggregate is lexical-only; the runtime exposes nothing.
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    for value in vars(runtime).values():
+        assert type(value) is not PhaseH2BValidatedRepairResult
 
 
 def test_finalizer_failure_maps_to_repair_finalization_invalid_once(
@@ -552,7 +520,7 @@ def test_finalizer_failure_maps_to_repair_finalization_invalid_once(
     assert job.last_error_code != "UNKNOWN_PROVIDER_STATE"
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3  # no second REPAIR/Judge
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     # fail_job exactly once: a single attempt row, no duplicate generic _fail.
     attempts = runtime._repository.list_job_attempts(job.job_id)
     assert len(attempts) == 1
@@ -565,33 +533,80 @@ def test_finalizer_failure_maps_to_repair_finalization_invalid_once(
 
 
 def test_identical_repaired_candidates_keep_distinct_provenance(tmp_path: Path) -> None:
-    def run(primary_inner: str) -> Any:
-        transport = _FLOW._FakeTransport(
-            _FLOW._repair_script(
-                primary_inner=primary_inner,
-                repair_inner=_FLOW._valid_candidate(),
-                judge_status="PASS",
-            )
+    import importlib.util
+
+    from youtube_intel.config import LocalScoringSettings
+    from youtube_intel.domain import ScoringCandidate
+    from youtube_intel.h2_evidence import (
+        build_repair_normalized_input,
+        build_repair_request_hash,
+        derive_repair_judge_trusted_context,
+        repair_normalized_input_hash,
+    )
+
+    support_path = Path(__file__).with_name("test_task016c_phase_h2a_evidence.py")
+    specification = importlib.util.spec_from_file_location(
+        "_authority_h2a_support_distinct", support_path
+    )
+    assert specification is not None and specification.loader is not None
+    support = importlib.util.module_from_spec(specification)
+    import sys as _sys
+
+    _sys.modules[specification.name] = support
+    specification.loader.exec_module(support)
+
+    del tmp_path
+    scoring_input = support._scoring_input()
+    settings = LocalScoringSettings(
+        model="qwen3:8b",
+        expected_model_digest="sha256:" + "a" * 64,
+        temperature=0.0,
+        max_output_tokens=1200,
+        max_transcript_chars=64,
+        max_description_chars=32,
+    )
+    ctx = support._trusted_context(scoring_input)
+    candidate = ScoringCandidate.model_validate(
+        {"score": 8, "reason": support._EN_REASON, "topics": ["product"], "should_summarize": True}
+    )
+
+    def derive(primary_raw: str) -> dict[str, object]:
+        pfe = support._schema_invalid_pfe(ctx, scoring_input, raw=primary_raw)
+        rni = build_repair_normalized_input(
+            job_id="provenance-job",
+            primary_trusted_context=ctx,
+            failure_evidence=pfe,
+            validated_settings=settings,
         )
-        runtime = _FLOW._runtime(tmp_path / primary_inner.replace("{", "o"), transport)
-        _FLOW._run_process(runtime)
-        aggregate = runtime._last_h2b_validated_repair_result
-        assert aggregate is not None
-        return aggregate
+        rni_hash = repair_normalized_input_hash(rni)
+        repair_request_hash = build_repair_request_hash(rni)
+        judge_ctx, judge_input = derive_repair_judge_trusted_context(
+            repair_request_hash=repair_request_hash,
+            trusted_candidate=candidate,
+            scoring_input=scoring_input,
+            validated_settings=settings,
+        )
+        return {
+            "pfe": pfe,
+            "rni_hash": rni_hash,
+            "repair_request_hash": repair_request_hash,
+            "judge_h1": judge_ctx.expected_h1,
+            "judge_h2": judge_ctx.expected_h2,
+            "judge_input": judge_input,
+        }
 
-    first = run("{not-json")
-    second = run("[1,2]")
+    first = derive(support._schema_invalid_raw())
+    second = derive(support._multibyte_raw())
 
-    assert first.repaired_candidate == second.repaired_candidate
-    assert first.repaired_candidate_hash == second.repaired_candidate_hash
-    # Different PRIMARY failure evidence changes the RNI and every REPAIR
-    # transport/Judge identity, so the evidence graphs remain distinct.
-    assert first.primary_failure_evidence != second.primary_failure_evidence
-    assert first.repair_request_hash != second.repair_request_hash
-    assert first.rni_hash != second.rni_hash
-    assert first.judge_h1 != second.judge_h1
-    assert first.judge_h2 != second.judge_h2
-    assert first.repair_payload_bytes != second.repair_payload_bytes
+    # Identical repaired candidate, but different PRIMARY failure evidence
+    # changes the RNI and every REPAIR transport/Judge identity: candidate
+    # equality does not imply provenance equality.
+    assert first["judge_input"].candidate_hash == second["judge_input"].candidate_hash
+    assert first["pfe"] != second["pfe"]
+    assert first["rni_hash"] != second["rni_hash"]
+    assert first["repair_request_hash"] != second["repair_request_hash"]
+    assert first["judge_h1"] != second["judge_h1"]
+    assert first["judge_h2"] != second["judge_h2"]
 
 
 # ---------------------------------------------------------------------------
@@ -602,17 +617,7 @@ def test_identical_repaired_candidates_keep_distinct_provenance(tmp_path: Path) 
 def test_mutated_structured_evidence_cannot_gain_persistence_authority(
     tmp_path: Path,
 ) -> None:
-    transport = _FLOW._FakeTransport(
-        _FLOW._repair_script(
-            primary_inner="{not-json",
-            repair_inner=_FLOW._valid_candidate(),
-            judge_status="PASS",
-        )
-    )
-    runtime = _FLOW._runtime(tmp_path, transport)
-    _FLOW._run_process(runtime)
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert aggregate is not None
+    runtime, aggregate = _FLOW._constructed_aggregate(tmp_path)
     entry = runtime._trusted_persistence_entry(
         job_id="scoring-job", owner=runtime._runtime_owner, pipeline_version="runtime-v1"
     )

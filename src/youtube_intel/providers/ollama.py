@@ -547,22 +547,28 @@ class OllamaScoringProvider:
         self._primary_parse_failure_capture = None
         return capture
 
-    def dispatch_exact_repair_generate(
+    def dispatch_exact_generate(
         self,
         *,
         body: bytes,
         body_sha256: str,
         body_length: int,
     ) -> bytes:
-        """Dispatch the exactly derived REPAIR payload after H1 REPAIR admission.
+        """Role-neutral exact-payload ``/api/generate`` transport.
 
-        The outbound payload identity is re-verified locally before any
-        transport: a hash/length mismatch is a pre-contact denial, never an
-        external attempt and never an UNKNOWN mapping.  The model preflight
-        (GET /api/tags) is the first external contact; POST /api/generate then
-        sends exactly ``body``.  The exact outer response body bytes are
-        returned for the runtime's authoritative capture; any transport
-        ambiguity propagates for the runtime's UNKNOWN_PROVIDER_STATE mapping.
+        Performs the model preflight (GET /api/tags) and one POST of exactly
+        ``body`` to /api/generate, returning the exact outer response body
+        bytes uninterpreted.  Outbound payload integrity (byte length and
+        SHA-256) is re-verified locally before any transport; a mismatch is a
+        pre-contact denial, never an external attempt and never an UNKNOWN
+        mapping.  Transport ambiguities propagate for the caller's outcome
+        classification.
+
+        This primitive is role-neutral I/O only: it accepts no failure
+        evidence, admission object, role state or proof, runtime-ownership
+        flag, or callback, and it establishes no semantic PRIMARY/REPAIR/Judge
+        meaning.  Authoritative semantic interpretation of the returned raw
+        bytes belongs exclusively to the caller frame that derived the payload.
         """
 
         from youtube_intel.scoring_admission import ScoringDispatchDenied
@@ -573,9 +579,9 @@ class OllamaScoringProvider:
             or hashlib.sha256(bytes(body)).hexdigest() != body_sha256
         ):
             raise ScoringDispatchDenied(
-                "REPAIR outbound payload mismatches the derived request identity"
+                "outbound payload mismatches the supplied integrity binding"
             )
-        self._verify_expected_model(video_id="repair")
+        self._verify_expected_model(video_id="exact-generate")
         return self._request_raw_body(
             urllib.request.Request(
                 self._endpoint(_GENERATE_PATH),
@@ -586,7 +592,7 @@ class OllamaScoringProvider:
                 },
                 method="POST",
             ),
-            video_id="repair",
+            video_id="exact-generate",
         )
 
     def score(self, scoring_input: ScoringInput) -> ScoreResult:
@@ -1203,6 +1209,61 @@ _QUALITY_JUDGE_PROMPT: Final[str] = (
 )
 
 
+def build_quality_judge_generate_body(
+    *,
+    operation_input: QualityJudgeOperationInput,
+    content_input: ContentQualityInput,
+    model: str,
+    max_output_tokens: int,
+) -> bytes:
+    """Serialize the exact frozen quality-judge ``/api/generate`` payload.
+
+    Pure, role-neutral payload construction.  The outbound JSON object has no
+    keys other than ``model``, ``prompt``, ``stream``, ``format``, ``think``,
+    and ``options.temperature`` / ``options.num_predict`` (temperature frozen
+    at ``0.0``); the prompt is the frozen judge prompt followed by the compact
+    sorted JSON identity/content block.  The construction is byte-for-byte the
+    legacy adapter payload: it establishes no REPAIR/PRIMARY role meaning and
+    grants no authority; semantic interpretation belongs to the caller frame.
+    """
+
+    from youtube_intel.quality import build_judge_h1_h2
+
+    h1, _ = build_judge_h1_h2(operation_input)
+    payload: dict[str, object] = {
+        "judge_identity": h1,
+        "quality_input_hash": operation_input.quality_input_hash,
+        "language": content_input.output_language,
+        "candidate_reason": content_input.reason,
+        "candidate_topics": content_input.topics,
+        "evidence_registry": [
+            {"id": item.evidence_id, "excerpt": item.excerpt}
+            for item in content_input.evidence_registry
+        ],
+    }
+    prompt = _QUALITY_JUDGE_PROMPT + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return json.dumps(
+        {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "format": _QUALITY_JUDGE_FORMAT,
+            "think": False,
+            "options": {
+                "temperature": 0.0,
+                "num_predict": max_output_tokens,
+            },
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
 def _parse_judge_response_text(
     response_text: str,
     *,
@@ -1478,90 +1539,65 @@ class OllamaQualityJudgeProvider:
             content_input=trusted_content,
         )
 
-    def judge_exact_model_content(
+    def dispatch_exact_generate(
         self,
-        operation_input: QualityJudgeOperationInput,
         *,
-        content_input: ContentQualityInput,
-        expected_identity: object,
-    ) -> str:
-        """Strict H2-B REPAIR Judge seam exposing the UNKNOWN/UNCERTAIN split.
+        body: bytes,
+        body_sha256: str,
+        body_length: int,
+    ) -> bytes:
+        """Role-neutral exact-payload ``/api/generate`` transport.
 
-        Unlike ``judge()``, this seam never collapses a provider, preflight, or
-        transport failure into a semantic ``UNCERTAIN``.  It performs the same
-        trusted-binding, loopback, and content-identity validation, then the
-        model preflight (GET /api/tags) and one deterministic generate
-        (POST /api/generate), and returns the exact extracted Judge
-        model-content string on success.  Any transport, interruption, or outer
-        ambiguity raises so the runtime maps it to UNKNOWN_PROVIDER_STATE; only
-        a completed external response that yields valid exact raw may later
-        produce a semantic UNCERTAIN through the pure H2-A replay.
+        Re-validates the loopback endpoint and the outbound payload integrity
+        (byte length and SHA-256) locally before any contact — a mismatch is a
+        pre-contact denial, never an external attempt — then performs the model
+        preflight (GET /api/tags) and one POST of exactly ``body`` to
+        /api/generate, returning the exact outer response body bytes
+        uninterpreted.  Transport ambiguities propagate for the caller's
+        outcome classification; this primitive never collapses them into a
+        semantic Judge result.
 
-        The ``expected_identity`` must match the freshly derived REPAIR_JUDGE
-        identity for ``operation_input``; a substitution is a pre-contact
-        denial.
+        This primitive is role-neutral I/O only: it accepts no failure
+        evidence, admission object, role state or proof, runtime-ownership
+        flag, or callback, and it establishes no semantic REPAIR_JUDGE (or any
+        other role) meaning.  Authoritative semantic interpretation of the
+        returned raw bytes belongs exclusively to the caller frame that derived
+        the payload.
         """
 
-        from youtube_intel.quality import _revalidated_fields
-        from youtube_intel.scoring_admission import (
-            ScoringDispatchDenied,
-            ScoringDispatchRole,
-        )
+        from youtube_intel.scoring_admission import ScoringDispatchDenied
 
-        try:
-            trusted_operation = _revalidated_fields(
-                QualityJudgeOperationInput, operation_input
-            )
-            trusted_content = _revalidated_fields(ContentQualityInput, content_input)
-        except Exception as exc:
-            raise ScoringDispatchDenied(
-                "REPAIR Judge inputs are not exact validated contracts"
-            ) from exc
-
-        from youtube_intel.quality import build_judge_h1_h2
-
-        expected_h1, expected_h2 = build_judge_h1_h2(trusted_operation)
-        identity_role = getattr(expected_identity, "role", None)
-        identity_normalized = getattr(expected_identity, "normalized_input_hash", None)
-        identity_request = getattr(expected_identity, "request_hash", None)
         if (
-            identity_role is not ScoringDispatchRole.REPAIR_JUDGE
-            or identity_normalized != expected_h1
-            or identity_request != expected_h2
+            not isinstance(body, (bytes, bytearray))
+            or len(body) != body_length
+            or hashlib.sha256(bytes(body)).hexdigest() != body_sha256
         ):
             raise ScoringDispatchDenied(
-                "REPAIR Judge identity does not match the derived operation"
-            )
-
-        if not self._validate_trusted_binding(trusted_operation):
-            raise ScoringDispatchDenied(
-                "REPAIR Judge operation mismatches the trusted local configuration"
+                "outbound payload mismatches the supplied integrity binding"
             )
         if not self._validate_loopback_settings():
             raise ScoringDispatchDenied(
-                "REPAIR Judge endpoint is not a validated loopback URL"
+                "judge endpoint is not a validated loopback URL"
             )
-        if not self._validate_content_input_identity(
-            trusted_operation, trusted_content
-        ):
-            raise ScoringDispatchDenied(
-                "REPAIR Judge content input does not bind the operation identity"
-            )
-
-        # External contact begins here.  Every ambiguity propagates upward so
-        # the runtime maps it to UNKNOWN_PROVIDER_STATE, never UNCERTAIN.
         self._verify_expected_model_strict()
-        response = self._generate(
-            trusted_operation,
-            content_input=trusted_content,
+        return self._request_raw_body(
+            urllib.request.Request(
+                self._endpoint(_GENERATE_PATH),
+                data=bytes(body),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            ),
+            video_id="quality-judge",
         )
-        return response.response_text
 
     def _verify_expected_model_strict(self) -> None:
         """Model preflight that propagates any failure instead of returning False.
 
-        Used only by the strict REPAIR Judge seam.  A missing model or a
-        transport/protocol failure must surface so the runtime treats the
+        Used by the role-neutral exact-payload transport.  A missing model or a
+        transport/protocol failure must surface so the caller treats the
         already-contacted attempt as UNKNOWN_PROVIDER_STATE.
         """
 
@@ -1691,41 +1727,12 @@ class OllamaQualityJudgeProvider:
         *,
         content_input: ContentQualityInput,
     ) -> _GeneratedResponse:
-        from youtube_intel.quality import build_judge_h1_h2
-
-        h1, _ = build_judge_h1_h2(operation_input)
-        payload: dict[str, object] = {
-            "judge_identity": h1,
-            "quality_input_hash": operation_input.quality_input_hash,
-            "language": content_input.output_language,
-            "candidate_reason": content_input.reason,
-            "candidate_topics": content_input.topics,
-            "evidence_registry": [
-                {"id": item.evidence_id, "excerpt": item.excerpt}
-                for item in content_input.evidence_registry
-            ],
-        }
-        prompt = _QUALITY_JUDGE_PROMPT + json.dumps(
-            payload,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
+        body = build_quality_judge_generate_body(
+            operation_input=operation_input,
+            content_input=content_input,
+            model=self._settings.model,
+            max_output_tokens=self._settings.max_output_tokens,
         )
-        body = json.dumps(
-            {
-                "model": self._settings.model,
-                "prompt": prompt,
-                "stream": False,
-                "format": _QUALITY_JUDGE_FORMAT,
-                "think": False,
-                "options": {
-                    "temperature": 0.0,
-                    "num_predict": self._settings.max_output_tokens,
-                },
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode("utf-8")
         try:
             response_payload, raw_response = self._request_json(
                 urllib.request.Request(
@@ -1747,12 +1754,14 @@ class OllamaQualityJudgeProvider:
             raise _InvalidModelResponse
         return _GeneratedResponse(response_text=response, raw_response=raw_response)
 
-    def _request_json(
+    def _request_raw_body(
         self,
         request: urllib.request.Request,
         *,
         video_id: str,
-    ) -> tuple[object, str]:
+    ) -> bytes:
+        """Bounded transport/read mechanics returning the exact raw body."""
+
         response: _Response | None = None
         failure_code: ErrorCode | None = None
         failure_message = ""
@@ -1831,6 +1840,15 @@ class OllamaQualityJudgeProvider:
                 retryable=True,
                 video_id=video_id,
             )
+        return body
+
+    def _request_json(
+        self,
+        request: urllib.request.Request,
+        *,
+        video_id: str,
+    ) -> tuple[object, str]:
+        body = self._request_raw_body(request, video_id=video_id)
         try:
             decoded = body.decode("utf-8")
             return json.loads(decoded), decoded

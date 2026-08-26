@@ -5,10 +5,11 @@ Covers the narrow provider/admission/evidence seams authorized by
 
 - the frozen ``TASK016C_REPAIR_PROMPT_V2`` template and the exact outbound
   Ollama REPAIR payload contract;
-- the exact-payload REPAIR dispatch seam (payload hash/length equality,
-  ``/api/tags`` before ``/api/generate``, exact raw return);
+- the role-neutral exact-payload ``/api/generate`` transport primitive
+  (payload hash/length integrity, ``/api/tags`` before ``/api/generate``,
+  exact raw-body return; no semantic REPAIR/REPAIR_JUDGE meaning);
 - the PRIMARY parse-failure raw capture seam;
-- the strict REPAIR Judge seam (UNKNOWN vs semantic UNCERTAIN split);
+- the role-neutral Judge transport and frozen judge payload builder;
 - the state-only REPAIR role-consumption admission operations (no callback
   dispatch authority);
 - the REPAIR Judge trusted-context derivation helper.
@@ -267,7 +268,7 @@ def test_repair_generate_body_preserves_non_ascii_prompt_bytes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Exact-payload REPAIR dispatch seam
+# Role-neutral exact-payload /api/generate transport
 # ---------------------------------------------------------------------------
 
 
@@ -277,13 +278,13 @@ def _scoring_provider(transport: _FakeTransport) -> OllamaScoringProvider:
     )
 
 
-def test_repair_dispatch_rejects_payload_hash_mismatch_before_any_transport() -> None:
+def test_role_neutral_generate_rejects_payload_hash_mismatch_before_any_transport() -> None:
     transport = _FakeTransport([_tags_payload(), {"response": "{}"}])
     provider = _scoring_provider(transport)
     body = b'{"prompt":"x"}'
 
     with pytest.raises(ScoringDispatchDenied, match="payload"):
-        provider.dispatch_exact_repair_generate(
+        provider.dispatch_exact_generate(
             body=body,
             body_sha256="f" * 64,
             body_length=len(body),
@@ -292,13 +293,13 @@ def test_repair_dispatch_rejects_payload_hash_mismatch_before_any_transport() ->
     assert transport.requests == []
 
 
-def test_repair_dispatch_rejects_payload_length_mismatch_before_any_transport() -> None:
+def test_role_neutral_generate_rejects_payload_length_mismatch_before_any_transport() -> None:
     transport = _FakeTransport([_tags_payload()])
     provider = _scoring_provider(transport)
     body = b'{"prompt":"x"}'
 
     with pytest.raises(ScoringDispatchDenied, match="payload"):
-        provider.dispatch_exact_repair_generate(
+        provider.dispatch_exact_generate(
             body=body,
             body_sha256=hashlib.sha256(body).hexdigest(),
             body_length=len(body) + 1,
@@ -307,7 +308,7 @@ def test_repair_dispatch_rejects_payload_length_mismatch_before_any_transport() 
     assert transport.requests == []
 
 
-def test_repair_dispatch_sends_exact_body_after_tags_preflight() -> None:
+def test_role_neutral_generate_sends_exact_body_after_tags_preflight() -> None:
     repair_raw = _generate_body(_valid_candidate_inner())
     transport = _FakeTransport([_tags_payload(), repair_raw])
     provider = _scoring_provider(transport)
@@ -318,7 +319,7 @@ def test_repair_dispatch_sends_exact_body_after_tags_preflight() -> None:
         max_output_tokens=1200,
     )
 
-    returned = provider.dispatch_exact_repair_generate(
+    returned = provider.dispatch_exact_generate(
         body=body,
         body_sha256=hashlib.sha256(body).hexdigest(),
         body_length=len(body),
@@ -331,13 +332,13 @@ def test_repair_dispatch_sends_exact_body_after_tags_preflight() -> None:
     assert transport.requests[1][2] == body
 
 
-def test_repair_dispatch_tags_timeout_propagates_for_unknown_mapping() -> None:
+def test_role_neutral_generate_tags_timeout_propagates_for_unknown_mapping() -> None:
     transport = _FakeTransport([TimeoutError("tags timeout")])
     provider = _scoring_provider(transport)
     body = b'{"prompt":"x"}'
 
     with pytest.raises(OllamaProviderError):
-        provider.dispatch_exact_repair_generate(
+        provider.dispatch_exact_generate(
             body=body,
             body_sha256=hashlib.sha256(body).hexdigest(),
             body_length=len(body),
@@ -345,6 +346,25 @@ def test_repair_dispatch_tags_timeout_propagates_for_unknown_mapping() -> None:
 
     assert transport.tags_calls == 1
     assert transport.generate_calls == 0
+
+
+def test_semantic_repair_and_judge_provider_apis_do_not_exist() -> None:
+    for name in (
+        "dispatch_exact_repair_generate",
+        "dispatch_repair",
+        "execute_repair",
+        "run_exact_repair",
+        "repair_generate",
+        "send_admitted_repair",
+    ):
+        assert not hasattr(OllamaScoringProvider, name), name
+    for name in (
+        "judge_exact_model_content",
+        "dispatch_repair_judge",
+        "execute_repair_judge",
+        "send_admitted_repair_judge",
+    ):
+        assert not hasattr(OllamaQualityJudgeProvider, name), name
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +415,7 @@ def test_primary_attempt_duplicate_outer_response_key_stays_uncapturable() -> No
 
 
 # ---------------------------------------------------------------------------
-# Strict REPAIR Judge seam (UNKNOWN vs semantic UNCERTAIN)
+# Role-neutral Judge transport and frozen judge payload builder
 # ---------------------------------------------------------------------------
 
 
@@ -437,74 +457,94 @@ def _judge_provider(transport: _FakeTransport) -> OllamaQualityJudgeProvider:
     return OllamaQualityJudgeProvider(settings=_settings(), transport=transport)
 
 
-def test_judge_exact_seam_returns_extracted_model_content_on_success() -> None:
+def test_role_neutral_judge_transport_returns_exact_outer_body() -> None:
+    from youtube_intel.providers.ollama import build_quality_judge_generate_body
+
     operation, content = _judge_materials()
-    h1, h2 = build_judge_h1_h2(operation)
-    identity = ScoringDispatchIdentity(
-        role=ScoringDispatchRole.REPAIR_JUDGE,
-        operation="local-content-quality-v1",
-        normalized_input_hash=h1,
-        request_hash=h2,
-    )
     judge_raw = json.dumps({"status": "PASS"})
-    transport = _FakeTransport(
-        [_tags_payload(), _generate_body(judge_raw)]
-    )
+    outer = _generate_body(judge_raw)
+    transport = _FakeTransport([_tags_payload(), outer])
     provider = _judge_provider(transport)
-
-    extracted = provider.judge_exact_model_content(
-        operation, content_input=content, expected_identity=identity
+    body = build_quality_judge_generate_body(
+        operation_input=operation,
+        content_input=content,
+        model=_MODEL,
+        max_output_tokens=1200,
     )
 
-    assert extracted == judge_raw
+    returned = provider.dispatch_exact_generate(
+        body=body,
+        body_sha256=hashlib.sha256(body).hexdigest(),
+        body_length=len(body),
+    )
+
+    # Role-neutral transport returns the exact outer bytes uninterpreted; the
+    # runtime frame alone assigns any semantic meaning.
+    assert returned == outer
     assert [method for method, _, _ in transport.requests] == ["GET", "POST"]
 
 
-def test_judge_exact_seam_transport_timeout_raises_not_uncertain() -> None:
-    operation, content = _judge_materials()
-    h1, h2 = build_judge_h1_h2(operation)
-    identity = ScoringDispatchIdentity(
-        role=ScoringDispatchRole.REPAIR_JUDGE,
-        operation="local-content-quality-v1",
-        normalized_input_hash=h1,
-        request_hash=h2,
-    )
+def test_role_neutral_judge_transport_timeout_propagates_not_uncertain() -> None:
     transport = _FakeTransport([TimeoutError("judge tags timeout")])
     provider = _judge_provider(transport)
+    body = b'{"prompt":"judge"}'
 
+    # Ambiguity propagates as a provider error for the runtime's UNKNOWN
+    # mapping; a role-neutral transport can never collapse it into a semantic
+    # Judge result.
     with pytest.raises(OllamaProviderError):
-        provider.judge_exact_model_content(
-            operation, content_input=content, expected_identity=identity
+        provider.dispatch_exact_generate(
+            body=body,
+            body_sha256=hashlib.sha256(body).hexdigest(),
+            body_length=len(body),
         )
 
     assert transport.tags_calls == 1
     assert transport.generate_calls == 0
 
 
-def test_judge_exact_seam_identity_mismatch_rejects_before_contact() -> None:
-    operation, content = _judge_materials()
-    wrong_identity = ScoringDispatchIdentity(
-        role=ScoringDispatchRole.REPAIR_JUDGE,
-        operation="local-content-quality-v1",
-        normalized_input_hash="c" * 64,
-        request_hash="d" * 64,
-    )
+def test_role_neutral_judge_transport_rejects_payload_mismatch_before_contact() -> None:
     transport = _FakeTransport([_tags_payload()])
     provider = _judge_provider(transport)
+    body = b'{"prompt":"judge"}'
 
-    with pytest.raises(ScoringDispatchDenied, match="identity"):
-        provider.judge_exact_model_content(
-            operation, content_input=content, expected_identity=wrong_identity
+    with pytest.raises(ScoringDispatchDenied, match="payload"):
+        provider.dispatch_exact_generate(
+            body=body,
+            body_sha256="f" * 64,
+            body_length=len(body),
         )
 
     assert transport.requests == []
 
 
-def test_primary_judge_identity_substituted_into_repair_judge_is_rejected() -> None:
+def test_judge_payload_builder_uses_exactly_the_frozen_fields() -> None:
+    from youtube_intel.providers.ollama import build_quality_judge_generate_body
+
+    operation, content = _judge_materials()
+    body = build_quality_judge_generate_body(
+        operation_input=operation,
+        content_input=content,
+        model=_MODEL,
+        max_output_tokens=1200,
+    )
+    payload = json.loads(body.decode("utf-8"))
+    assert set(payload) == {"model", "prompt", "stream", "format", "think", "options"}
+    assert payload["model"] == _MODEL
+    assert payload["stream"] is False
+    assert payload["think"] is False
+    assert payload["options"] == {"temperature": 0.0, "num_predict": 1200}
+    h1, _ = build_judge_h1_h2(operation)
+    assert h1 in payload["prompt"]
+    assert operation.quality_input_hash in payload["prompt"]
+    assert content.reason in payload["prompt"]
+
+
+def test_primary_judge_identity_is_refused_by_state_only_repair_consumption() -> None:
     from youtube_intel.domain import QualityJudgeAttemptRole
     from youtube_intel.scoring_admission import build_judge_scoring_dispatch_identity
 
-    operation, content = _judge_materials()
+    operation, _content = _judge_materials()
     primary_operation = QualityJudgeOperationInput.model_validate(
         {
             **operation.model_dump(mode="json"),
@@ -513,46 +553,16 @@ def test_primary_judge_identity_substituted_into_repair_judge_is_rejected() -> N
     )
     primary_identity = build_judge_scoring_dispatch_identity(primary_operation)
     assert primary_identity.role is ScoringDispatchRole.PRIMARY_JUDGE
-    transport = _FakeTransport([_tags_payload()])
-    provider = _judge_provider(transport)
 
-    # The strict seam rejects the PRIMARY Judge identity for a REPAIR operation
-    # before any external contact.
-    with pytest.raises(ScoringDispatchDenied, match="identity"):
-        provider.judge_exact_model_content(
-            operation, content_input=content, expected_identity=primary_identity
-        )
-
-    assert transport.requests == []
-
-    # The state-only REPAIR role consumption also refuses non-REPAIR roles.
+    # The state-only REPAIR role consumption refuses non-REPAIR roles, and the
+    # provider exposes no semantic REPAIR_JUDGE dispatch API at all.
     repository = _Repository()
     _consume_primary(repository)
     with pytest.raises(ScoringDispatchDenied):
         _gate(repository).consume_repair_role(primary_identity, now=_NOW)
-
-
-def test_judge_exact_seam_binding_mismatch_rejects_before_contact() -> None:
-    operation, content = _judge_materials()
-    forged = QualityJudgeOperationInput.model_validate(
-        {**operation.model_dump(mode="json"), "judge_model": "other-model:1b"}
-    )
-    h1, h2 = build_judge_h1_h2(forged)
-    identity = ScoringDispatchIdentity(
-        role=ScoringDispatchRole.REPAIR_JUDGE,
-        operation="local-content-quality-v1",
-        normalized_input_hash=h1,
-        request_hash=h2,
-    )
-    transport = _FakeTransport([_tags_payload()])
-    provider = _judge_provider(transport)
-
     with pytest.raises(ScoringDispatchDenied):
-        provider.judge_exact_model_content(
-            forged, content_input=content, expected_identity=identity
-        )
-
-    assert transport.requests == []
+        _gate(repository).consume_repair_judge_role(primary_identity, now=_NOW)
+    assert not hasattr(OllamaQualityJudgeProvider, "judge_exact_model_content")
 
 
 def test_legacy_judge_stash_exposes_exact_raw_for_primary_evidence() -> None:

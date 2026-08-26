@@ -1889,7 +1889,8 @@ def test_cross_module_io_objects() -> None:
 
 def test_error_codes_and_structured_app_error() -> None:
     codes = {c.value for c in ErrorCode}
-    # Exact set from System Design §12 — no unapproved extras.
+    # Exact set from System Design §12 plus the approved staged-build capability
+    # member — no unapproved extras.  The assertion stays an exact set check.
     assert codes == {
         "TRANSIENT_NETWORK",
         "RATE_LIMITED",
@@ -1899,6 +1900,7 @@ def test_error_codes_and_structured_app_error() -> None:
         "CONFIG_INVALID",
         "PERMISSION_DENIED",
         "LOCAL_RESOURCE",
+        "CAPABILITY_UNAVAILABLE",
     }
     assert "INVALID_TRANSITION" not in codes
     err = AppError(

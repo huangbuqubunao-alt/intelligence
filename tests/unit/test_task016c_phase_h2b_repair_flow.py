@@ -26,10 +26,12 @@ import copy
 import hashlib
 import json
 import pickle
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -39,7 +41,6 @@ from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
     Availability,
     ChannelRef,
-    ContentQualityStatus,
     DiscoveryBatch,
     DiscoveryCursor,
     JobStatus,
@@ -53,9 +54,6 @@ from youtube_intel.domain import (
 )
 from youtube_intel.h2_evidence import (
     PhaseH2BValidatedRepairResult,
-    PrimaryFailureClass,
-    build_repair_request_hash,
-    repair_normalized_input_hash,
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.pipeline import (
@@ -67,7 +65,6 @@ from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
     OllamaScoringProvider,
 )
-from youtube_intel.quality import build_judge_h1_h2
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring_admission import (
@@ -514,7 +511,7 @@ def test_repair_role_consumption_requires_active_lease_and_primary_role(
 # ---------------------------------------------------------------------------
 
 
-def test_repair_pass_produces_untrusted_aggregate_without_persistence(
+def test_repair_pass_terminalizes_capability_unavailable_without_persistence(
     tmp_path: Path,
 ) -> None:
     transport = _FakeTransport(
@@ -528,81 +525,39 @@ def test_repair_pass_produces_untrusted_aggregate_without_persistence(
 
     _run_process(runtime)
 
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert type(aggregate) is PhaseH2BValidatedRepairResult
     # Exactly one admitted REPAIR and one admitted REPAIR_JUDGE contact.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
-    # The aggregate binds the exact REPAIR identity and raw evidence.
-    rni = aggregate.repair_normalized_input
-    assert aggregate.repair_request_hash == build_repair_request_hash(rni)
-    assert aggregate.rni_hash == repair_normalized_input_hash(rni)
-    assert aggregate.repair_payload_sha256 == hashlib.sha256(
-        aggregate.repair_payload_bytes
-    ).hexdigest()
-    assert aggregate.repair_payload_length == len(aggregate.repair_payload_bytes)
-    assert aggregate.repair_raw_sha256 == hashlib.sha256(
-        aggregate.repair_raw_utf8.encode("utf-8")
-    ).hexdigest()
-    assert aggregate.repair_raw_length == len(aggregate.repair_raw_utf8.encode("utf-8"))
-    assert aggregate.failure_class is PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID
-    assert aggregate.language_evidence.result == "VALID"
-    assert aggregate.judge_evidence.role == "REPAIR"
-    assert aggregate.judge_result.status is ContentQualityStatus.PASS
-    h1, h2 = build_judge_h1_h2(aggregate.judge_operation_input)
-    assert (aggregate.judge_h1, aggregate.judge_h2) == (h1, h2)
-    payload = json.loads(aggregate.repair_payload_bytes.decode("utf-8"))
-    assert aggregate.repair_prompt == payload["prompt"]
-    # The repaired candidate parses from the exact REPAIR raw, and the exact
-    # outbound REPAIR body is the payload whose identity was derived.
-    generate_bodies = [
-        data for _, url, data in transport.requests if url.endswith("/api/generate")
-    ]
-    assert generate_bodies[1] == aggregate.repair_payload_bytes
 
-    # H2-B performs no persistence of any kind.
+    # H2-B-only PASS is an explicit staged terminal, never a SUCCEEDED job and
+    # never persistence: CAPABILITY_UNAVAILABLE + H2B_PASS_AWAITING_H2C with
+    # retry_at=None -> FAILED_FINAL -> TERMINAL, fail_job exactly once.
+    job = _scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
+    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    attempts = runtime._repository.list_job_attempts(job.job_id)
+    assert len(attempts) == 1
+    assert attempts[0].error_code == "CAPABILITY_UNAVAILABLE"
+    assert attempts[0].error_message == "H2B_PASS_AWAITING_H2C"
+
     repository = runtime._repository
-    assert repository.get_provider_call(aggregate.repair_request_hash) is None
     assert (
         repository.latest_artifact(VIDEO_ID, ArtifactKind.SCORING_STRUCTURED) is None
     )
     video = repository.get_video(VIDEO_ID)
     assert video is not None
     assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
-    # Without H2-C the job cannot succeed: the existing generic path finalizes it.
-    job = _scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
     assert not hasattr(scoring_module, "PhaseHTrustedRepairSuccess")
 
-    # Corrected H2-B: deterministic gate PASS evidence plus finalizer-produced
-    # TrustedScoreResult and sealed structured bytes/hash/length.
-    from youtube_intel.quality import (
-        TrustedScoreResult,
-        build_content_quality_input_hash,
-    )
-    from youtube_intel.scoring import _sealed_trusted_score_result_serializer
-
-    assert aggregate.deterministic_gate_status == "PASS"
-    assert aggregate.quality_input_hash == build_content_quality_input_hash(
-        aggregate.judge_input
-    )
-    assert aggregate.judge_input.scoring_request_hash == aggregate.repair_request_hash
-    trusted_result = aggregate.finalizer_trusted_result
-    assert type(trusted_result) is TrustedScoreResult
-    # Dual binding: the semantic score keeps the PRIMARY request hash while the
-    # REPAIR transport provenance stays separate and intact.
-    assert (
-        trusted_result.result.request_hash
-        == aggregate.primary_trusted_context.request_hash
-    )
-    assert trusted_result.result.request_hash != aggregate.repair_request_hash
-    assert aggregate.structured_result_bytes == _sealed_trusted_score_result_serializer(
-        trusted_result
-    )
-    assert aggregate.structured_result_sha256 == hashlib.sha256(
-        aggregate.structured_result_bytes
-    ).hexdigest()
-    assert aggregate.structured_result_length == len(aggregate.structured_result_bytes)
+    # The aggregate is lexical-only: nothing is retained on the runtime, in
+    # module globals, or in any cache/registry.
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    for value in vars(runtime).values():
+        assert type(value) is not PhaseH2BValidatedRepairResult
+        if isinstance(value, (dict, list, tuple, set, frozenset)):
+            for contained in value:
+                assert type(contained) is not PhaseH2BValidatedRepairResult
 
 
 # ---------------------------------------------------------------------------
@@ -626,7 +581,7 @@ def test_repair_tags_timeout_is_unknown_provider_state(tmp_path: Path) -> None:
     assert job.last_error_code == "UNKNOWN_PROVIDER_STATE"
     assert transport.tags_calls == 2
     assert transport.generate_calls == 1  # only PRIMARY generate
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     # No second REPAIR and no success persistence.
     assert runtime._repository.get_video(VIDEO_ID).pipeline_status is (
         PipelineStatus.TRANSCRIPT_READY
@@ -649,7 +604,7 @@ def test_repair_generate_timeout_is_unknown_provider_state(tmp_path: Path) -> No
     assert job.last_error_code == "UNKNOWN_PROVIDER_STATE"
     assert transport.tags_calls == 2
     assert transport.generate_calls == 2
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_repair_malformed_outer_body_is_unknown_not_known_failure(
@@ -705,7 +660,7 @@ def test_repair_schema_failure_is_terminal_without_judge(tmp_path: Path) -> None
     assert job.last_error_message == "REPAIR_SCHEMA_OR_PARSE_INVALID"
     assert transport.tags_calls == 2
     assert transport.generate_calls == 2  # no Judge transport at all
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     # fail_job exactly once: one job attempt row, no duplicate generic failure.
     attempts = runtime._repository.list_job_attempts(job.job_id)
     assert len(attempts) == 1
@@ -731,7 +686,7 @@ def test_repair_language_failure_is_terminal_without_judge(tmp_path: Path) -> No
     assert job.last_error_message == "REPAIR_LANGUAGE_INVALID"
     assert transport.tags_calls == 2
     assert transport.generate_calls == 2
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 # ---------------------------------------------------------------------------
@@ -756,7 +711,7 @@ def test_repair_judge_reject_is_terminal(tmp_path: Path) -> None:
     assert job.last_error_message == "REPAIR_JUDGE_REJECT"
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
 
 
@@ -776,7 +731,7 @@ def test_repair_judge_uncertain_is_terminal_not_unknown(tmp_path: Path) -> None:
     assert job.status is JobStatus.FAILED_FINAL
     assert job.last_error_code == "INVALID_RESPONSE"
     assert job.last_error_message == "REPAIR_JUDGE_UNCERTAIN"
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_repair_judge_tags_timeout_is_unknown_not_uncertain(tmp_path: Path) -> None:
@@ -797,7 +752,7 @@ def test_repair_judge_tags_timeout_is_unknown_not_uncertain(tmp_path: Path) -> N
     assert job.last_error_message != "REPAIR_JUDGE_UNCERTAIN"
     assert transport.tags_calls == 3
     assert transport.generate_calls == 2  # judge generate never ran
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_repair_judge_generate_timeout_is_unknown_not_uncertain(tmp_path: Path) -> None:
@@ -838,11 +793,16 @@ def test_language_invalid_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     _run_process(runtime)
 
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert type(aggregate) is PhaseH2BValidatedRepairResult
-    assert aggregate.failure_class is PrimaryFailureClass.LANGUAGE_INVALID
+    # The LANGUAGE_INVALID failure is repaired through the full admitted flow;
+    # the H2-B-only build terminalizes with the staged capability disposition.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
+    job = _scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
+    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_judge_reject_primary_failure_is_repaired(tmp_path: Path) -> None:
@@ -865,16 +825,13 @@ def test_judge_reject_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     _run_process(runtime)
 
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert type(aggregate) is PhaseH2BValidatedRepairResult
-    assert aggregate.failure_class is PrimaryFailureClass.JUDGE_REJECT
-    assert aggregate.primary_failure_evidence.judge_evidence.role == "PRIMARY"
-    assert (
-        aggregate.primary_failure_evidence.judge_evidence.derived_result.status
-        is ContentQualityStatus.REJECT
-    )
     assert transport.tags_calls == 4
     assert transport.generate_calls == 4
+    job = _scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
+    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_judge_uncertain_primary_failure_is_repaired(tmp_path: Path) -> None:
@@ -897,9 +854,11 @@ def test_judge_uncertain_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     _run_process(runtime)
 
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert type(aggregate) is PhaseH2BValidatedRepairResult
-    assert aggregate.failure_class is PrimaryFailureClass.JUDGE_UNCERTAIN
+    job = _scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
+    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
 
 
 def test_primary_judge_transport_failure_is_not_repair_eligible(tmp_path: Path) -> None:
@@ -919,7 +878,7 @@ def test_primary_judge_transport_failure_is_not_repair_eligible(tmp_path: Path) 
     # trustworthy Judge raw the failure is not repair-eligible, so the original
     # known-failure route finalizes the job (no REPAIR contact).
     assert job.last_error_code == "INVALID_RESPONSE"
-    assert runtime._last_h2b_validated_repair_result is None
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
     assert transport.tags_calls == 2
     assert transport.generate_calls == 1
 
@@ -1365,39 +1324,107 @@ def test_crash_after_failed_final_keeps_job_terminal_on_restart(tmp_path: Path) 
 # ---------------------------------------------------------------------------
 
 
-def _valid_aggregate(
-    tmp_path: Path,
-) -> tuple[RuntimeOperations, PhaseH2BValidatedRepairResult]:
-    transport = _FakeTransport(
-        _repair_script(
-            primary_inner="{not-json",
-            repair_inner=_valid_candidate(),
-            judge_status="PASS",
-        )
+def _constructed_aggregate(tmp_path: Path) -> tuple[RuntimeOperations, Any]:
+    """Build a valid-shaped aggregate via the pure finalizer chain.
+
+    The runtime no longer retains the lexical aggregate, so persistence-
+    rejection coverage constructs the evidence data directly (data, never
+    authority) and hands it to the frozen persistence entry.
+    """
+
+    import importlib.util
+
+    from youtube_intel.h2_evidence import h2_canonical_bytes, replay_language_validation
+
+    support_path = Path(__file__).with_name(
+        "test_task016c_phase_h2b_correction_finalizer.py"
     )
-    runtime = _runtime(tmp_path / "aggregate", transport)
-    _run_process(runtime)
-    aggregate = runtime._last_h2b_validated_repair_result
-    assert type(aggregate) is PhaseH2BValidatedRepairResult
+    specification = importlib.util.spec_from_file_location(
+        "_flow_finalizer_support", support_path
+    )
+    assert specification is not None and specification.loader is not None
+    support = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = support
+    specification.loader.exec_module(support)
+
+    chain = support._valid_chain()
+    output = support._finalize(chain)
+
+    payload_bytes = b'{"prompt":"x"}'
+    raw_utf8 = chain["pfe"].primary_raw_utf8
+    judge_raw = chain["judge_raw"]
+    aggregate = PhaseH2BValidatedRepairResult(
+        primary_trusted_context=chain["trusted_context"],
+        primary_failure_evidence=chain["pfe"],
+        failure_class=chain["pfe"].failure_class,
+        repair_normalized_input=chain["rni"],
+        repair_normalized_input_bytes=h2_canonical_bytes(chain["rni"]),
+        rni_hash=chain["rni_hash"],
+        repair_request_hash=chain["repair_request_hash"],
+        repair_prompt="prompt_version: scoring-prompt-v2\nconstructed",
+        repair_payload_bytes=payload_bytes,
+        repair_payload_sha256=hashlib.sha256(payload_bytes).hexdigest(),
+        repair_payload_length=len(payload_bytes),
+        repair_raw_utf8=raw_utf8,
+        repair_raw_sha256=chain["pfe"].primary_raw_sha256,
+        repair_raw_length=chain["pfe"].primary_raw_utf8_length,
+        repair_model_content="{not-json",
+        repaired_candidate=chain["candidate"],
+        repaired_candidate_hash=chain["judge_input"].candidate_hash,
+        language_evidence=replay_language_validation(
+            candidate=chain["candidate"], output_language="en"
+        ),
+        quality_input_hash=chain["judge_ctx"].quality_input_hash,
+        deterministic_gate_status="PASS",
+        judge_operation_input=chain["judge_ctx"].operation_input,
+        judge_input=chain["judge_input"],
+        judge_h1=chain["judge_ctx"].expected_h1,
+        judge_h2=chain["judge_ctx"].expected_h2,
+        judge_evidence=chain["judge_evidence"],
+        judge_raw_utf8=judge_raw,
+        judge_raw_sha256=hashlib.sha256(judge_raw.encode("utf-8")).hexdigest(),
+        judge_raw_length=len(judge_raw.encode("utf-8")),
+        judge_result=chain["judge_result"],
+        attestation=chain["attestation"],
+        finalizer_trusted_result=output.trusted_result,
+        structured_result_bytes=output.structured_bytes,
+        structured_result_sha256=output.structured_sha256,
+        structured_result_length=output.structured_length,
+        structured_result_schema_version=output.trusted_result.result.schema_version,
+        structured_result_prompt_version=output.trusted_result.result.prompt_version,
+        model=chain["settings"].model,
+        model_digest=chain["settings"].expected_model_digest,
+        prompt_version="scoring-prompt-v2",
+        schema_version="score-result-v2",
+        policy_version="content-quality-policy-v1",
+        quality_prompt_version="content-quality-prompt-v1",
+        quality_schema_version="content-quality-result-v1",
+        temperature=chain["settings"].temperature,
+        max_output_tokens=chain["settings"].max_output_tokens,
+        max_description_chars=chain["settings"].max_description_chars,
+    )
+    runtime = _runtime(tmp_path / "aggregate", _FakeTransport([]))
     return runtime, aggregate
 
 
 def test_valid_h2b_result_cannot_persist_directly(tmp_path: Path) -> None:
-    runtime, aggregate = _valid_aggregate(tmp_path)
+    runtime, aggregate = _constructed_aggregate(tmp_path)
     entry = runtime._trusted_persistence_entry(
         job_id="scoring-job", owner=runtime._runtime_owner, pipeline_version="runtime-v1"
     )
-    before_video = runtime._repository.get_video(VIDEO_ID)
 
     with pytest.raises(ValueError):
         entry.persist_success(aggregate)  # type: ignore[arg-type]
 
-    assert runtime._repository.get_video(VIDEO_ID) == before_video
+    assert (
+        runtime._repository.latest_artifact(VIDEO_ID, ArtifactKind.SCORING_STRUCTURED)
+        is None
+    )
     assert runtime._repository.get_provider_call(aggregate.repair_request_hash) is None
 
 
 def test_forged_h2b_results_cannot_gain_persistence_authority(tmp_path: Path) -> None:
-    runtime, aggregate = _valid_aggregate(tmp_path)
+    runtime, aggregate = _constructed_aggregate(tmp_path)
     entry = runtime._trusted_persistence_entry(
         job_id="scoring-job", owner=runtime._runtime_owner, pipeline_version="runtime-v1"
     )
