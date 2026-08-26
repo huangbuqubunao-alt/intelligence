@@ -1,8 +1,8 @@
-# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 5
+# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 6
 
 ## Status, scope, and supersession
 
-Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 5
+Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 6
 INDEPENDENT REVIEW**.
 
 This is documentation-only control-plane authorization. It authorizes neither
@@ -15,8 +15,11 @@ Reuse decision: **DIRECT** — retain the SQLite repository, `jobs`, `videos`,
 `get_artifact_by_key`, and standard-library SQLite support. No dependency is
 added.
 
-Round 5 supersedes only Round 4's generic-reclaim tuple and unknown-generation
-terminal wording. It retains Round 4's supersession of Round 3's reclaim
+Round 6 supersedes only Round 5's unknown-generation diagnostic detail: it is
+the closed `H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID` reason, not a
+second top-level diagnostic family. It retains Round 5's supersession of Round
+4's generic-reclaim tuple and unknown-generation terminal wording, Round 4's
+supersession of Round 3's reclaim
 return-value and generation-branch wording, Round 3's supersession of Round 2's over-broad pre-v2
 interrupted/unleased recovery wording, Round 2's supersession of the rejected Round 1
 NULL-generation/cutover and separate-connection CAS-read-back clauses, and
@@ -683,7 +686,7 @@ At the post-H2-B-PASS generation decision point, the exact branch table is:
 |---|---|---|---|
 | NULL | known pre-lineage | no | `CAPABILITY_UNAVAILABLE`, `H2B_PASS_AWAITING_H2C`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL` |
 | `task016c-scoring-lineage-v1` | supported | may proceed to the v1 H2-C entry boundary | no generation-only terminal |
-| any other non-NULL value | invalid lineage generation | no | `TRUST_INTEGRITY_INVALID`, `H2C_SCORING_LINEAGE_VERSION_INVALID`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL` |
+| any other non-NULL value | invalid lineage generation | no | `TRUST_INTEGRITY_INVALID`, `H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL` |
 
 The invalid-generation terminalization uses exactly one owner-authoritative
 active-job `fail_job` through the existing H2-C integrity-failure mechanism.
@@ -705,3 +708,47 @@ requirements remain unchanged.
 The executor has no discretion over generic tuple content, non-SCORING reclaim
 description, invalid-generation terminal fields, H2-C exclusion, or stale-owner
 handling. Any deviation is **DECISION NEEDED**.
+
+## 15. Round 6 — closed unknown-generation diagnostic
+
+At the generation decision point immediately after validated H2-B PASS, an
+unknown generation means exactly `scoring_lineage_version IS NOT NULL AND
+scoring_lineage_version != "task016c-scoring-lineage-v1"`. It is an
+H2-C pre-entry trust-integrity incompatibility: the persisted SCORING Job claims
+a non-NULL generation not recognized by the authorized scoring-lineage
+contract. It is neither a schema-migration failure, capability absence,
+provider/Judge failure, language failure, nor stale lease.
+
+Its complete terminal mapping is one owner-authoritative `fail_job` with
+`ErrorCode.TRUST_INTEGRITY_INVALID`, detail exactly
+`H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID`, `retry_at=None`,
+`FAILED_FINAL`, and `StageDisposition.TERMINAL`. The primary H2-C authorization
+defines `H2C_REPLAY_INVALID:<REASON>` as the one closed diagnostic family for
+both replay reasons and explicitly authorized pre-entry H2-C trust-integrity
+reasons. `SCORING_LINEAGE_VERSION_INVALID` is its sole authorized pre-entry
+reason; no arbitrary `H2C_*` detail or implementation-defined reason is
+permitted. The former unqualified
+`H2C_SCORING_LINEAGE_VERSION_INVALID` detail is unauthorized and must not be
+emitted.
+
+The runtime must still hold the valid owner/lease required by the frozen active
+integrity-failure path before terminalizing. If that authority is lost, it takes
+the existing `H2CStaleScoringLease`/stale-interrupted path and performs no
+stale `fail_job`. This branch never enters H2-C, never falls back to legacy,
+and performs no post-decision REPAIR or REPAIR_JUDGE admission, H2-C replay,
+provider/Judge work, repair persistence, or repair-lineage persistence. The
+validated preceding H2-B PASS remains H2-B work.
+
+The generation table is therefore closed: NULL is the unchanged pre-lineage
+`CAPABILITY_UNAVAILABLE` / `H2B_PASS_AWAITING_H2C` terminal; v1 has no
+generation-only error and may proceed to the H2-C entry boundary; every other
+non-NULL value takes the exact Round 6 integrity terminal above. Future tests
+must assert the exact qualified detail, closed reason-set membership, absence
+of the old unqualified detail and arbitrary unknown reasons, and the existing
+lost-owner no-stale-`fail_job` behavior. NULL and v1 generation tests remain
+unchanged.
+
+Round 6 changes no reclaim tuple, H1 reclaim, tx-local/CAS, migration/schema,
+rerun, cross-job, reporting, or Phase-I decision. The executor has no
+discretion over diagnostic family, reason literal, closed-set membership, or
+the pre-entry meaning of this reason. Any deviation is **DECISION NEEDED**.

@@ -492,15 +492,23 @@ RNI_MISMATCH, REPAIR_REQUEST_MISMATCH, REPAIR_PAYLOAD_MISMATCH,
 REPAIR_RAW_INVALID, CANDIDATE_MISMATCH, LANGUAGE_INVALID,
 DETERMINISTIC_GATE_INVALID, JUDGE_EVIDENCE_INVALID, ATTESTATION_INVALID,
 FINALIZER_INVALID, TRUSTED_RESULT_MISMATCH, STRUCTURED_RESULT_MISMATCH,
-SETTINGS_MISMATCH, PROVENANCE_MISMATCH, ENVELOPE_OVERSIZE
+SETTINGS_MISMATCH, PROVENANCE_MISMATCH, ENVELOPE_OVERSIZE,
+SETTINGS_BOUND_EXCEEDED, SCORING_LINEAGE_VERSION_INVALID
 ```
 
-Each is only `H2C_REPLAY_INVALID:<REASON>`. Settings mismatch is exactly trust
-code plus `H2C_REPLAY_INVALID:SETTINGS_MISMATCH`; replay failures use one
-owner-authoritative `fail_job`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL`.
-Trust code remains excluded if detail changes; ordinary retry-eligible code
-with this prefix remains ordinarily eligible. `CAPABILITY_UNAVAILABLE` remains
-build-without-H2-C only; historical rows remain terminal/manual-retry-excluded.
+Each is only `H2C_REPLAY_INVALID:<REASON>`; the family and its reason set are
+closed, not an implementation-defined `H2C_*` namespace. Despite the
+established `REPLAY` name, this sole family covers both replay invalidity and
+explicitly authorized H2-C pre-entry trust-integrity checks. Its only pre-entry
+reason is `SCORING_LINEAGE_VERSION_INVALID`: after validated H2-B PASS, a
+persisted non-NULL scoring-lineage version other than
+`task016c-scoring-lineage-v1` is invalid before H2-C entry. Settings mismatch
+is exactly trust code plus `H2C_REPLAY_INVALID:SETTINGS_MISMATCH`; replay and
+authorized pre-entry integrity failures use one owner-authoritative `fail_job`,
+`retry_at=None`, `FAILED_FINAL`, `TERMINAL`. Trust code remains excluded if
+detail changes; ordinary retry-eligible code with this prefix remains
+ordinarily eligible. `CAPABILITY_UNAVAILABLE` remains build-without-H2-C only;
+historical rows remain terminal/manual-retry-excluded.
 
 Exact new safe mappings:
 
@@ -1226,5 +1234,5 @@ no PRIMARY, performs no H2-B/H2-C continuation, and writes no lineage fields.
 After H2-B PASS, the generation decision point admits only v1 toward the H2-C
 entry gate; live NULL generation takes the capability terminal, while an unknown
 non-NULL generation owner-authoritatively terminalizes
-`TRUST_INTEGRITY_INVALID` with `H2C_SCORING_LINEAGE_VERSION_INVALID`, and neither
-enters H2-C.
+`TRUST_INTEGRITY_INVALID` with
+`H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID`, and neither enters H2-C.
