@@ -2,10 +2,11 @@
 
 ## Status, authority, and scope
 
-Status: **READY FOR H2-C AUTHORIZATION INDEPENDENT REVIEW**.  This is a design
-and implementation authorization only.  It authorizes no implementation in
-this commit, no provider or Judge contact, no Phase G redesign, no schema or
-migration, no cache/recovery work, and no merge/push/tag/rebase/reset.
+Status: **READY FOR H2-C AUTHORIZATION AMENDMENT ROUND 1 INDEPENDENT REVIEW**.
+This is a design and implementation authorization only.  It authorizes no
+implementation in this commit, no provider or Judge contact, no Phase G
+redesign, no schema or migration, no cache/recovery work, and no
+merge/push/tag/rebase/reset.
 
 It is subordinate to the accepted H2/H2-B contracts, in particular the H2-B
 Round 5 lexical aggregate lifetime and the final accepted implementation
@@ -359,3 +360,353 @@ reconstruction, network prohibition, PFE/RNI/raw/Judge/finalizer replay,
 aggregate authority, trusted-success fields, exact Phase G union, ProviderCall
 provenance, schema requirement, error detail, manual retry, crash behavior, or
 historical CAPABILITY records.  Any proposed deviation is `DECISION NEEDED`.
+
+## 12. Round 1 amendment — three separate predicates
+
+This section supersedes the authority, retry, settings, reader, envelope-size,
+lease-ordering, implementation-scope, and security-discretion wording above
+where it conflicts.  It does **not** reopen the lexical H2-C entry, aggregate
+as data, 23-step replay, zero-network rule, P/R binding, gate/Judge/finalizer
+replay, or historical CAPABILITY policy.
+
+Three predicates are distinct and all are required before REPAIR persistence:
+
+1. **Data integrity**: fields, hashes, envelope, and structured bytes are
+   internally consistent.
+2. **Semantic validity**: the 23-step H2-C replay derives the expected graph.
+3. **Execution authority**: this invocation is the actual live
+   `RuntimeOperations.scoring_stage` lexical H2-C continuation for the current
+   owned SCORING job.
+
+A self-consistent `PhaseHTrustedRepairSuccess` can at most prove the first two.
+It cannot prove the third merely by existing.  Exact type is necessary only to
+select a closed data-verifier branch; it is not persistence authority.  The
+same is true of private construction, frozen shape, hashes, envelope equality,
+secret-looking names, object identity, and subclass rejection.
+
+## 13. Exact runtime-bound repair-persistence authority
+
+`PhaseHTrustedRepairSuccess` remains data only.  `persist_success(success)`
+remains the one common Phase G writer, but its REPAIR exact-type branch is
+permitted only from a live lexical invocation verified as follows:
+
+```text
+RuntimeOperations._orchestrator.<locals>.scoring_stage
+  -> its non-exported immediate H2-C continuation
+  -> RuntimeOperations private repair-success handoff
+  -> TrustedPersistenceEntry.persist_success(PhaseHTrustedRepairSuccess)
+```
+
+The handoff and the REPAIR branch must use a non-caller-supplied **active-frame
+guard**.  It verifies the currently executing, non-exported H2-C continuation
+frame by exact Python code-object identity and its live frame-owned
+`RuntimeOperations`, `job`, runtime `owner`, `pipeline_version`, and current
+`ScoringJobContext` values.  Those values must match the entry's runtime-owned
+repository/data-root context and the owned running SCORING job.  The guard is a
+control-flow assertion, not a value passed by the success object, a parameter,
+token, receipt, callback, registry, nonce, sentinel, or returned closure.
+
+The precise implementation shape is fixed:
+
+- the continuation is defined and invoked only inside the existing
+  `scoring_stage` local function immediately after H2-C replay/mint;
+- the exact continuation code object is captured only by the private
+  RuntimeOperations/TrustedPersistenceEntry composition needed to verify the
+  live caller frame; it is neither exported nor accepted from a caller;
+- `persist_success(PhaseHTrustedRepairSuccess)` requires that active-frame
+  proof before reading repair fields or minting a plan; and
+- a direct call, including one through a private import or a manually created
+  `TrustedPersistenceEntry`, has no matching currently executing lexical frame
+  and rejects before filesystem side effects.
+
+This is mechanically observable: the legitimate lexical route has the exact
+active continuation frame; a direct call with byte-for-byte equal data does
+not.  The threat model covers object construction, mutation, copying,
+serialization, subclasses, and private imports—not arbitrary replacement of
+the running interpreter, repository, or code object, which would also defeat
+all in-process repository controls.
+
+No `RepairPersistenceToken`, permit, receipt, registry, callback, returned
+continuation, sentinel, or caller-submittable runtime context is authorized.
+The existing H1 registry remains admission state only and is not the H2-C
+persistence authority.
+
+### Phase F compatibility and explicit pre-existing assumption
+
+`PhaseFTrustedScoringSuccess` and its accepted Phase G route remain unchanged.
+The Phase F branch continues to rely on the accepted Phase G assumption that a
+runtime-created `TrustedPersistenceEntry` is invoked by the normal runtime
+path, plus exact prewrite integrity/semantic verification.  Under this expanded
+object-forgery threat model, a fully self-consistent forged Phase F success may
+have the same direct-call concern.  This is a **PHASE G PRE-EXISTING AUTHORITY
+ASSUMPTION**, not silently cured by H2-C and not reopened here.  H2-C is more
+strict because its no-aggregate-ingress contract expressly requires the
+legitimate-versus-same-data distinction.  No claim is made that H2-C retrofits
+or weakens PRIMARY authority.
+
+## 14. Replay-failure taxonomy and code-only retry policy
+
+`ErrorCode.INVALID_RESPONSE` is not semantically correct for a local trusted
+replay/provenance or settings failure, and `CAPABILITY_UNAVAILABLE` remains
+reserved for a build lacking the H2-C continuation.  Add exactly one durable,
+system-level code:
+
+```text
+ErrorCode.TRUST_INTEGRITY_INVALID = "TRUST_INTEGRITY_INVALID"
+```
+
+Meaning: trusted local replay, provenance, or integrity verification failed
+after external attempts; re-running must not acquire another attempt budget.
+It is terminal, non-retryable manually or automatically, does not produce an
+infrastructure alert, and does not stop unrelated work.  Operators must treat
+it as a fail-closed trust-boundary incident.  It is distinct from provider/model
+`INVALID_RESPONSE`, intentionally missing capability, and local-resource
+exhaustion.
+
+Every semantic replay/provenance/settings failure uses one `fail_job` with
+`TRUST_INTEGRITY_INVALID`, `retry_at=None`, `FAILED_FINAL`, and `TERMINAL`.
+The closed `H2C_REPLAY_INVALID:<REASON>` list remains diagnostic only:
+
+`PRIMARY_EVIDENCE_MISMATCH`, `PFE_INVALID`, `FAILURE_CLASS_INELIGIBLE`,
+`RNI_MISMATCH`, `REPAIR_REQUEST_MISMATCH`, `REPAIR_PAYLOAD_MISMATCH`,
+`REPAIR_RAW_INVALID`, `CANDIDATE_MISMATCH`, `LANGUAGE_INVALID`,
+`DETERMINISTIC_GATE_INVALID`, `JUDGE_EVIDENCE_INVALID`, `ATTESTATION_INVALID`,
+`FINALIZER_INVALID`, `TRUSTED_RESULT_MISMATCH`,
+`STRUCTURED_RESULT_MISMATCH`, `SETTINGS_MISMATCH`, and
+`PROVENANCE_MISMATCH`.
+
+The only retry exclusion is:
+
+```text
+failed_job.last_error_code == ErrorCode.TRUST_INTEGRITY_INVALID.value
+```
+
+Message/detail/prefix never controls retry, persistence, H1 budget, or
+recovery.  A trust-integrity row remains excluded after any altered/truncated
+detail; an `INVALID_RESPONSE` (or any other ordinarily eligible code) remains
+eligible even with a verbatim H2-C diagnostic prefix.  Existing code-only
+`CAPABILITY_UNAVAILABLE` exclusion is unchanged.
+
+Lease/owner invalidity is not response or replay evidence.  Before mint and at
+the repair prewrite ownership check, a stale runtime raises the existing
+`ScoringDispatchDenied` and writes no terminal state belonging to a possibly
+new owner.  If an already-dispatched job subsequently reaches H1 interruption
+or lease recovery, its existing `UNKNOWN_PROVIDER_STATE` path remains the
+owner-authoritative terminal mapping.  `SETTINGS_MISMATCH` is a semantic
+replay failure and therefore uses `TRUST_INTEGRITY_INVALID` with its closed
+diagnostic detail.
+
+Adding this tenth error code requires the exhaustive consumer work to be
+authorized together: `domain.py`, `docs/SYSTEM_DESIGN.md`,
+`providers/subtitles.py`, `transcripts.py`, and the exact-ten ErrorCode
+contract in `tests/unit/test_contracts.py`.  The two known exhaustive safe
+boundary mappings must add exactly
+`f"{subject} trusted integrity verification failed"`; no other producer is to
+be reclassified.  A full production ErrorCode search is required before
+implementation.
+
+## 15. Semantic settings provenance
+
+Python identity is irrelevant.  The current validated `LocalScoringSettings`
+is the runtime source and H2-C compares a new typed, versioned
+`H2CSettingsProvenance(schema_version="task016c-h2c-settings-provenance-v1")`
+serialized by existing H2 JCS with SHA-256.  The untrusted H2-B aggregate and
+the PhaseH data carrier each hold the exact bytes/hash; H2-C and REPAIR
+PREWRITE freshly derive and require byte/hash equality.  This provenance is
+not a seventh `RepairCompositeEnvelope` field: the parent envelope remains its
+frozen six-field schema.
+
+Accordingly, the Round 1 exact `PhaseHTrustedRepairSuccess` field list is the
+section-6 list plus `settings_provenance_bytes` and
+`settings_provenance_sha256`.  Its entry constructor receives the current
+validated `LocalScoringSettings` only from
+`RuntimeOperations._trusted_persistence_entry`; it accepts no caller settings
+argument and applies settings provenance only to the REPAIR branch.
+
+Its exact fields are:
+
+```text
+local_scoring.provider = "ollama"
+local_scoring.base_url
+local_scoring.model
+local_scoring.expected_model_digest
+local_scoring.temperature
+local_scoring.max_output_tokens
+local_scoring.max_transcript_chars
+local_scoring.max_description_chars
+scoring_operation = "local-scoring"
+scoring_prompt_version = "scoring-prompt-v2"
+scoring_schema_version = "score-result-v2"
+repair_operation = "local-scoring-repair-v1"
+repair_prompt_version = "scoring-prompt-v2"
+repair_schema_version = "score-result-v2"
+repair_stream = false
+repair_format = exact frozen scoring schema object
+repair_think = false
+judge_operation = "local-content-quality-v1"
+judge_provider = "ollama"
+judge_model
+judge_model_digest
+quality_policy_version = "content-quality-policy-v1"
+quality_prompt_version = "content-quality-prompt-v1"
+quality_schema_version = "content-quality-result-v1"
+language_validator_contract = "task016b-scoring-language-validator-v1"
+```
+
+`judge_model` and `judge_model_digest` are the runtime-derived values used by
+the current quality authority, not caller inputs.  `num_predict` is exactly
+`local_scoring.max_output_tokens`; temperature, format, think, provider
+endpoint identity, every prompt/schema/operation literal, policy/version, and
+language-validation contract are therefore all bound.  Mutation of any listed
+field yields `TRUST_INTEGRITY_INVALID` plus
+`H2C_REPLAY_INVALID:SETTINGS_MISMATCH`, with zero network and persistence.
+
+## 16. Versioned repaired producer and reader compatibility
+
+Current `_validate_scoring_provenance()` accepts only legacy/PRIMARY producer
+versions, looks up `get_provider_call(P)`, requires operation `local-scoring`,
+and verifies `scoring/<P>/raw` at at most 1,000,000 bytes.  A truthful repaired
+graph cannot satisfy that PRIMARY-call requirement.
+
+Add exact repaired producer versions:
+
+```text
+raw producer:        "scoring-raw-content-quality-repair-v1"
+structured producer: "scoring-structured-content-quality-repair-v1"
+envelope schema:     "trusted-scoring-repair-envelope-v1"
+```
+
+The parent H2 `RepairCompositeEnvelope` remains the exact six-field schema in
+its stated order, serialized with frozen H2 JCS: `envelope_schema`,
+`primary_failure_evidence`, `repair_provider_evidence`,
+`repair_candidate_evidence`, `repair_quality_evidence`, and
+`finalizer_binding`.  Raw values are exact strict-UTF-8 Python strings emitted
+as JCS JSON strings; they are not base64, separately escaped application
+strings, or arbitrary alternate encodings.
+
+Reader dispatch is by exact structured/raw producer version only—never file
+shape, field presence, or size:
+
+- legacy/PRIMARY versions retain the existing P-keyed lookup and 1,000,000-byte
+  raw-envelope bound unchanged;
+- the repaired structured version requires the paired repaired raw producer,
+  validates the composite envelope, retrieves scoring ProviderCall `R` from
+  `repair_provider_evidence.request_hash`, retrieves Judge ProviderCall `J`
+  from replayed REPAIR Judge H2, and validates both as `SUCCEEDED`, truthful,
+  and bound to the same raw Artifact;
+- it derives `P` from the finalizer `TrustedScoreResult` and requires the
+  structured key/path to remain `scoring/<P>/structured` and raw key/path
+  `scoring/<P>/raw`; P is semantic identity only and is never a successful
+  PRIMARY ProviderCall lookup; and
+- unknown, mixed, or mismatched producer versions fail closed.
+
+The repaired graph has exactly two successful ProviderCall rows: `(R,
+local-scoring-repair-v1, actual repair provider/model, RNI hash, repair
+prompt/schema, raw Artifact ID)` and `(J, local-content-quality-v1, actual
+Judge provider/model, Judge H1, quality prompt/schema, same raw Artifact ID)`.
+There is no synthetic PRIMARY success call.  Failed PRIMARY provenance survives
+only in the composite envelope: `P`, PRIMARY normalized hash, complete PFE,
+failure class, strict PRIMARY raw/hash/length, applicable candidate/hash,
+parser/language/Judge evidence/raw/H1/H2, and all PRIMARY provider/settings
+bindings.
+
+`SCORING_RAW` is semantically compatible: current Phase G already persists the
+versioned `scoring-raw-envelope-v1`, not a bare literal provider body.  The
+new repaired composite is another exact producer-versioned scoring-provenance
+envelope; no ArtifactKind or migration is required.  The scoring provenance
+reader is the only production `SCORING_RAW` consumer requiring this new branch;
+other readers do not treat it as a generic cache value.
+
+## 17. Composite-envelope bound and artifact behavior
+
+The repaired canonical envelope maximum is exactly **16,777,216 bytes**
+(16 MiB).  It is a protocol admission cap, checked after canonical H2 JCS
+serialization and before any plan/filesystem action.  It is required because
+current metadata models alone do not impose a finite aggregate bound.
+
+The derivation reserves worst-case JCS string expansion of six bytes per input
+byte: PRIMARY outer raw `6 × 1,000,000`, REPAIR outer raw `6 × 1,000,000`, one
+applicable PRIMARY Judge raw `6 × 20,000`, and REPAIR Judge raw `6 × 20,000`.
+That is 12,240,000 bytes.  The exact remaining 4,537,216 bytes is the frozen
+budget for all canonical non-raw evidence, duplicate candidate/input material,
+hashes, keys, literals, punctuation, and any escaped metadata.  The total cap
+is therefore provable at serialization time even if an otherwise valid source
+model contains long metadata: over-budget evidence rejects rather than being
+silently concatenated.
+
+Writer and repaired reader accept only `<= 16,777,216`; `16,777,217` rejects.
+Legacy producer versions retain their existing 1,000,000-byte raw-artifact
+limit.  Required tests cover max-1/max/max+1 and each PRIMARY raw, REPAIR raw,
+and Judge raw component maximum without unbounded concatenation.  Structured
+bytes remain the exact finalizer output and retain their existing compatible
+reader/serialization contract.
+
+Complete-graph idempotency remains exact: a PRIMARY graph for P cannot equal a
+repair graph `(P,R,J)` even with the same result, and repair R1 cannot equal R2
+when provenance differs.  Paths are keyed by P (`scoring/<P>/raw` and
+`scoring/<P>/structured`); raw/structured artifact IDs include their actual
+envelope/structured hashes; ProviderCall identities are R and J respectively.
+This is producer-version compatibility only, not cache reuse, cache trust,
+recovery, cross-job lookup, historical H2-C resumption, or Phase I.
+
+## 18. Repair PREWRITE authority and lease order
+
+Only the REPAIR branch gains the new pre-filesystem recheck; PRIMARY Phase G
+ordering remains frozen.  Exact REPAIR ordering is:
+
+1. active-frame execution-authority guard;
+2. exact repair data type/shape check;
+3. composite envelope version/JCS/hash/length replay;
+4. `TrustedScoreResult` and sealed structured replay;
+5. complete P/R/J cross-binding and semantic-settings-provenance replay;
+6. repository-owned `job_id`/owner/current RUNNING-SCORING active-lease check;
+7. existing exact idempotency/no-clobber graph check;
+8. existing temporary write, fsync, hash/length check, promotion, directory
+   fsync, and final reopen verification;
+9. existing final ownership/SQLite transaction recheck;
+10. existing Artifact and two truthful ProviderCall registration; and
+11. existing successful scoring transition.
+
+Step 6 reads repository state using entry context, never success-object
+job/owner claims.  It narrows known-stale writes and also corroborates (but
+does not replace) active-frame authority.  If invalid before step 8, reject
+with zero filesystem side effects.  A lease can still change after step 6:
+the final SQLite check rejects, cannot mark success, and any promoted file is
+an unindexed, non-authoritative orphan.  No-clobber prevents overwrite and
+existing Phase G orphan/recovery semantics apply.  No new recovery writer is
+authorized.
+
+## 19. Mandatory Round 1 future tests and scope
+
+Future tests must prove: legitimate lexical persistence succeeds; a fully
+self-consistent `object.__new__`/`object.__setattr__` repair success, copy, or
+pickle restoration invoked directly rejects before filesystem; wrong job/owner,
+expired lease, subclass/wrong type, and H2-B aggregate reject; and Phase F is
+unchanged.  They must distinguish the same bytes inside and outside the live
+H2-C frame.
+
+They must also prove code-only retry behavior for altered trust-code details,
+ordinary codes with exact/any H2-C detail prefix, legacy P reader behavior,
+repaired R/J reader lookup, bad/missing/colliding P/R/J, unknown producer,
+truthful two-row ProviderCall graph, max-1/max/max+1 envelope, representative
+settings-category mutation, invalid-before-write zero files, post-precheck
+lease race zero DB success/non-authoritative orphan, and valid lease success.
+
+Production scope now includes `runtime.py` (lexical guard, repair handoff,
+reader producer dispatch), `h2_evidence.py` (settings provenance and envelope
+replay), `quality.py` (only pure reconstruction support), `scoring.py` (data
+carrier including settings provenance, REPAIR PREWRITE, bound, producer
+versions, common plan), `domain.py`
+(one ErrorCode), `providers/subtitles.py` and `transcripts.py` (exhaustive
+safe mappings).  `docs/SYSTEM_DESIGN.md` and exact-ten contract tests are
+required in the later implementation authorization.  `state.py`, migrations,
+provider transport behavior, TASK-016B, and Phase I remain frozen.
+
+## 20. Round 1 security-discretion audit
+
+No executor may choose what proves execution authority, how a forged exact
+success rejects, whether a capability is used, replay error taxonomy/retry,
+settings field set/provenance, producer versions, P/R/J reader semantics,
+encoding/size, artifact semantics, unknown-version behavior, lease ordering,
+residual race behavior, ErrorCode consumers, or Phase F effect.  Any deviation
+is `DECISION NEEDED`.
