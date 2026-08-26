@@ -884,3 +884,267 @@ validation above; they add no cache, repository writer, or alternate trust path.
 remaining choice over graph fields/key/path, v2 schema/version handling,
 settings-bound reason, stale-owner propagation, reader validation, or orphan
 availability. Any deviation is `DECISION NEEDED`.
+
+## 13. Round 4 amendment — sealed artifact commitments, durable selection, and directory safety
+
+This amendment supersedes the conflicting H2-C portions of §12.1 and §12.6.
+It does **not** alter a parent H2 contract or a legacy/PRIMARY producer. It
+first freezes the otherwise-required repair graph and filesystem rules, then
+records the decisive state-schema audit. That audit is a blocking result: the
+existing schema has no durable authoritative-repaired-graph relation. H2-C
+implementation remains unauthorized.
+
+### 13.1 `RepairPersistenceGraphIdentity` v2 and sealed artifact commitments
+
+`task016c-repair-persistence-graph-v1` remains the Round 3 historical design
+record; no H2-C producer may emit it. A live H2-C REPAIR producer must use this
+exact non-null, `extra="forbid"` typed value:
+
+```text
+RepairPersistenceGraphIdentityV2
+
+schema_version: Literal["task016c-repair-persistence-graph-v2"]
+primary_request_hash: Sha256LowerHex                         # P
+repair_request_hash: Sha256LowerHex                          # R
+repair_judge_request_hash: Sha256LowerHex                    # J / Judge H2
+settings_provenance_sha256: Sha256LowerHex
+repair_envelope_sha256: Sha256LowerHex                       # E
+structured_result_sha256: Sha256LowerHex                     # S
+raw_producer_version: Literal["scoring-raw-content-quality-repair-v1"]
+structured_producer_version: Literal["scoring-structured-content-quality-repair-v1"]
+envelope_schema: Literal["trusted-scoring-repair-envelope-v1"]
+repair_provider_evidence_schema: Literal["task016c-repair-provider-evidence-v2"]
+quality_policy_version: Literal["content-quality-policy-v1"]
+quality_prompt_version: Literal["content-quality-prompt-v1"]
+quality_schema_version: Literal["content-quality-result-v1"]
+```
+
+`Sha256LowerHex` means exactly 64 lowercase ASCII hexadecimal characters. No
+field is nullable and no field may be defaulted, inferred, or supplied by an
+artifact path. The value uses H2 Canonical JSON v1 / RFC 8785 JCS strict UTF-8
+bytes; its SHA-256 lowercase hexadecimal digest is `G`:
+
+```text
+envelope_bytes = H2-JCS(complete RepairCompositeEnvelope), strict UTF-8
+E = SHA256(envelope_bytes)
+
+structured_bytes = exact sealed RepairTrustedScoringFinalizer output
+S = SHA256(structured_bytes)
+
+identity = RepairPersistenceGraphIdentityV2(..., E, S, ...)
+G = SHA256(H2-JCS(identity), strict UTF-8)
+```
+
+The sequence is mandatory: (1) finish the local 23-step replay and finalizer,
+(2) obtain the exact sealed structured bytes and S, (3) reconstruct all repair
+evidence, (4) build the complete six-field `RepairCompositeEnvelope`, (5)
+canonicalize it and obtain E, (6) construct the v2 identity, (7) obtain G, and
+only then (8) derive Artifact keys and filesystem paths. The envelope contains
+neither G nor an artifact key/path nor identity bytes/digest; the sealed
+structured result also contains none of them. Hence neither E nor S requires G
+and this construction has no circular dependency.
+
+The repaired raw Artifact content hash is exactly E; its bytes are exactly
+`envelope_bytes`. The repaired structured Artifact content hash is exactly S;
+its bytes are exactly `structured_bytes`. Therefore every serialized field of
+the persisted envelope, including exact REPAIR outer raw and exact REPAIR Judge
+raw, is committed by E, and both persisted Artifact byte streams are committed
+by G. With the SHA-256 collision-resistance assumption:
+
+```text
+different envelope bytes -> different E -> different G
+different structured bytes -> different S -> different G
+same E and S -> the only permitted same-G byte pair
+```
+
+Thus same P/R/J/settings/policy may still have different captured valid raw
+bytes, but the different envelope bytes produce distinct G-specific paths.
+Same G with unequal envelope or structured bytes is corruption, an
+implementation inconsistency, forged metadata, or a SHA-256 collision: fail
+closed; never overwrite, adopt, register, or select it.
+
+### 13.2 Exact repaired keys, Artifact mapping, and registration invariant
+
+P and G are fixed lower-hex SHA-256 components only. A v2 REPAIR graph has
+exactly these keys and paths:
+
+```text
+raw artifact_key:           scoring/<P>/repair/<G>/raw
+raw relative_path:          scoring/<P>/repair/<G>/raw.json
+structured artifact_key:    scoring/<P>/repair/<G>/structured
+structured relative_path:   scoring/<P>/repair/<G>/structured.json
+```
+
+The legacy PRIMARY family is unchanged exactly:
+`scoring/<P>/raw(.json)` and `scoring/<P>/structured(.json)`. No REPAIR
+producer may write a P-only final path. Phase G's existing Artifact ID rule
+continues to apply to the G-based keys: raw ID is
+`scoring-raw-` + `SHA256(raw_artifact_key + E)` and structured ID is
+`scoring-structured-` + `SHA256(structured_artifact_key + S)`.
+
+ProviderCall identity is independent of G: the truthful REPAIR call has
+request hash R and operation `local-scoring-repair-v1`; the truthful REPAIR
+Judge call has request hash J and operation `local-content-quality-v1`. Both
+bind the one G-specific raw Artifact ID. G is never substituted for R or J.
+
+For one successful H2-C **scoring job**, the intended complete registration is
+exactly one G-specific `SCORING_RAW` Artifact, one G-specific
+`SCORING_STRUCTURED` Artifact, one R ProviderCall, one J ProviderCall, and one
+`TRANSCRIPT_READY -> SCORED`/job-success transaction. A same-G, complete,
+already-registered graph follows Phase G's existing no-write idempotent result
+path. A different G after that same job is not a second success: repair
+PREWRITE must observe that the job is no longer this worker's active RUNNING
+SCORING lease and take the already-frozen `H2CStaleScoringLease` no-mutation
+path before filesystem work. Unregistered G directories are merely material
+and may coexist; they are never authoritative.
+
+The Artifact schema audit is positive only for physical coexistence:
+`artifacts.artifact_key` is the sole relevant unique key, so same P may hold
+multiple G-specific raw/structured records with distinct keys. It does not
+provide an authoritative selection relation; §13.4 records that separate
+blocking conclusion. No migration is authorized by this positive coexistence
+fact.
+
+### 13.3 Repair-only nested-directory and no-clobber contract
+
+When and only when the authoritative-selection blocker in §13.4 is resolved by
+separate authorization, a REPAIR write must use this repair-only directory
+algorithm before the existing Phase G temporary-file/no-clobber protocol. It
+does not weaken Phase F's existing P-only directory behavior.
+
+Starting from the configured DATA artifact root, open and retain an anchored
+directory descriptor using `os.open` with
+`O_RDONLY | O_DIRECTORY | O_NOFOLLOW`. On the supported V1 macOS/Linux
+platforms, absence of any required no-follow/dir-fd primitive is a
+`LOCAL_RESOURCE` fail-closed condition; there is no insecure pathname
+fallback. Every pre-existing component is first `lstat`-verified and then
+opened through its parent descriptor: it must be a directory, must not be a
+symlink, and must not be a FIFO, socket, device, or any other special file.
+
+The components are processed one level at a time in this exact order:
+
+```text
+DATA root -> scoring -> <P> -> repair -> <G>
+```
+
+For a missing component, call `os.mkdir(component, 0o700, dir_fd=parent_fd)`.
+On `FileExistsError`, re-`lstat` and re-open the resulting component under the
+same parent descriptor; it must meet the exact safe-directory rule. After each
+successful new directory creation, (a) `fsync(parent_fd)`, (b) open the child
+with the no-follow directory flags, and (c) `fsync(child_fd)` before creating a
+descendant. Existing safe ancestors are not recreated but are still checked.
+P and G are validated fixed lower-hex values before use, and `repair` and
+`scoring` are literals; no evidence/provider/model string is a path component.
+
+Within the verified G descriptor, final names are literal `raw.json` and
+`structured.json`. Create each corresponding literal temporary name with
+`O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW`, mode `0o600`, relative to that
+descriptor; write, `fsync`, and exact hash/length-verify the temporary file.
+Use the existing atomic no-clobber link promotion into the G descriptor. After
+each successful promotion `fsync(G_fd)`, remove the temporary name, `fsync(G_fd)`
+again, reopen the final through `O_NOFOLLOW`, require a regular file, and
+recheck exact length and hash. An existing final is never overwritten: it must
+be a regular non-symlink whose exact expected bytes/hash/length are verified
+for the already-frozen identical-orphan adoption rule, or the write fails
+closed. SQLite ownership/transaction verification remains the only authority
+that registers a materialized file.
+
+Same-G writers may race at `mkdir` and final promotion but must converge only
+on the same verified descriptors and exact bytes; SQLite ownership/transaction
+selects whether a success is authoritative. Different-G writers may share the
+safe `<P>/repair` ancestor but receive distinct G descriptors and never block
+one another. A symlink or special-file fixture at DATA-root descendants
+`scoring`, P, `repair`, G, a temporary name, or a final name fails closed with
+no traversal outside DATA. Directory creation and descriptor handling are
+repair-only; the final file promotion/fsync/no-clobber semantics remain the
+Phase G contract.
+
+For an exact graph, raw-only, structured-only, paired, and corrupt orphan cases
+retain the Round 2 outcome. Exact orphan adoption requires a fresh current
+owner/lease PREWRITE check and exact E/S bytes. R1-orphan followed by an exact
+R1/E1/S1 graph adopts at G1; an R2/J2/settings2/raw-variant graph has G2 and
+uses different paths, so it neither removes, overwrites, nor is blocked by G1.
+Orphans remain non-authoritative and no cleanup is required for correctness.
+
+### 13.4 Authoritative repaired-graph selection audit — BLOCKER
+
+**H2-C AUTHORITATIVE GRAPH SELECTION SCHEMA BLOCKER**
+
+The frozen V1 schema can persist G-specific Artifact rows but cannot durably
+state which one is the authoritative repaired graph for a video after the
+SCORING job has completed. The exact audit result is:
+
+| Required relation | Actual V1 durable state | Why it is insufficient |
+|---|---|---|
+| video/job -> authoritative structured Artifact or G | `artifacts.job_id` points from each Artifact to a Job | Neither `videos` nor `jobs` points back to one scoring Artifact/G; more than one historical scoring Artifact/job may exist for a video. |
+| runtime repaired-score starting point | `RuntimeOperations._load_scoring(video_id)` calls `latest_artifact(video_id, SCORING_STRUCTURED)` | `latest_artifact` orders by `created_at DESC, artifact_id DESC`; this is explicitly forbidden for repaired producers. |
+| weekly-report starting point | `SQLiteStateRepository.list_weekly_candidates` calls `_latest_weekly_artifact` | That query also orders by artifact creation time; `WeeklyReportService` receives only the selected structured Artifact. |
+| exact matching raw lookup after G is known | `get_artifact_by_key(artifact_key)` | This existing exact lookup is sufficient only *after* an authoritative P/G has been selected. It cannot select G. |
+
+`videos.score`, `videos.should_summarize`, pipeline status, timestamps, and a
+Job's `scope_key` are not an Artifact/G reference. In particular,
+`videos.updated_at` is later changed by downstream stages and cannot be
+repurposed as an identity. An added read-only query over the present tables
+cannot create the missing relation: it would either return several valid rows
+or select one by ordering/heuristic. Both are prohibited.
+
+Consequently, no repaired runtime reader or reporting reader is authorized to
+start from “latest”, `MAX`, creation time, artifact ID, lexicographic G, a
+directory scan, or a first matching P. No `reporting.py` raw-read branch, no
+shared repaired-artifact verifier, and no `state.py` selection API is
+authorized in this task. The existing `get_artifact_by_key` remains unchanged;
+there is no `state.py` thaw merely to disguise the absent selector.
+
+The minimum later decision must introduce a durable, transactionally maintained
+authoritative relation (for example an explicit successful-scoring Artifact/G
+reference owned by the video/job state) and define its exact update/read
+semantics. That is a schema/state-contract change, remains frozen here, and
+requires separate review and authorization. It must then specify a reader that
+starts from that exact registered structured Artifact, derives
+`scoring/<P>/repair/<G>/raw`, uses `get_artifact_by_key` for the matching raw,
+requires raw hash E and structured hash S, rebuilds v2 identity/G, and looks up
+only ProviderCalls R and J by exact request hash. It must fail closed on a
+missing, duplicate, conflicting, unknown-producer, wrong-key/path, wrong E/S,
+or wrong-G graph. No directory scan or latest-order fallback may be introduced.
+
+Because this selection relation is absent, the Round 3 claim that a repaired
+reader can begin from an “existing repository-selected structured Artifact” is
+not an implementation authorization. It is superseded by this blocker. The
+legacy PRIMARY reader and reporting path remain unchanged; no repair producer
+may be enabled until the blocker is resolved.
+
+### 13.5 Required post-blocker verification matrix and discretion closure
+
+After separate authoritative-selection authorization, future RED/acceptance
+tests must cover all of the following before H2-C can be implemented:
+
+1. same P/R/J/settings but differing valid REPAIR outer raw, differing valid
+   Judge raw, or any other envelope field changes E and G; differing structured
+   bytes change S and G; identical envelope/structured bytes retain E/S/G; the
+   builder has no circular dependency;
+2. legacy PRIMARY paths remain unchanged; same complete graph has the same
+   paths; changed R, J, settings, E, or S changes G/path; same-G unequal bytes
+   reject; R1 orphan does not block G2 and exact G1 orphan adopts;
+3. exact same registered G returns the existing Phase G idempotent result with
+   no writes; a distinct G for an already-successful job performs no second
+   registration or success transition; unregistered G material is never
+   selected;
+4. the reader starts from the new DB-authoritative structured-Artifact/G
+   relation, never latest ordering; it derives raw key from P/G, fetches raw by
+   exact key, validates E/S and recomputed G, and rejects missing/wrong/duplicate
+   raw or R/J ProviderCalls, wrong producer, path, hash, or graph;
+5. reporting receives the same exact repository read accessor as the runtime
+   and validates the matching raw graph; it performs neither hidden filesystem
+   discovery nor cache/retry/resume/cross-job selection; legacy reporting stays
+   unchanged;
+6. P/repair/G creation is one-level/dir-fd/no-follow safe; safe existing
+   directories work; a symlink or special file at every component or final file
+   rejects; parent/child directory `fsync` order is observed; same-G and
+   different-G races are safe; and
+7. no migration is attempted in this task. The authoritative relation is
+   separately reviewed before any state/schema or implementation work begins.
+
+No implementation executor may choose a selector, a reporting accessor, a
+shared verifier input shape, or a state API while this blocker stands. The
+security-discretion audit is therefore closed by **stopping**, not by assigning
+that discretion to the implementation executor.
