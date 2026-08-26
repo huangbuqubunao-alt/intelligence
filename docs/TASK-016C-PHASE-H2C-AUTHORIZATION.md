@@ -139,6 +139,14 @@ uses this trusted-success boundary. H2-C neither cures nor silently worsens
 that assumption; it applies it to the closed union while retaining the stronger
 H2-C no-aggregate-ingress controls.
 
+The frozen parent H2 direct-forged-success test wording is reconciled as
+follows: it continues to require rejection of an aggregate, wrong type,
+subclass, malformed, inconsistent, or pre-mint forged repair-success value.
+To the extent it could be read to require rejection of a fully self-consistent
+exact trusted-success value directly submitted inside the same process, this
+Round 3 system-level Phase G assumption controls. The parent document is not
+retroactively edited; no implementation may claim both properties.
+
 **Final authority sentence:** An attacker with identical repair-success data
 cannot obtain repaired-success persistence within this authorization's
 protected boundary because only the live runtime may mint trusted success;
@@ -255,9 +263,10 @@ strict UTF-8, duplicate-key rejection, and canonical-reserialize equality are
 the parent-frozen representation. Raw captures are strict UTF-8 strings as JCS
 JSON strings—not base64 or another application encoding.
 
-Shared artifacts remain `scoring/<P>/raw` and `scoring/<P>/structured`. Exact
-raw bytes are the repaired composite envelope; structured bytes are replayed
-finalizer bytes and must never be reserialized. REPAIR creates exactly two
+Legacy/PRIMARY shared artifacts remain `scoring/<P>/raw` and
+`scoring/<P>/structured`; the repair graph paths are superseded by section
+12.1. Exact raw bytes are the repaired composite envelope; structured bytes are
+replayed finalizer bytes and must never be reserialized. REPAIR creates exactly two
 truthful successful ProviderCall rows: R with `operation="local-scoring-repair-v1"`,
 repair provider/model, RNI hash, repair prompt/schema and raw Artifact ID; and
 J with `operation="local-content-quality-v1"`, actual Judge provider/model,
@@ -400,9 +409,9 @@ producers preserve P-keyed successful `local-scoring` lookup and 1,000,000-byte
 raw bound. Unknown, mixed, or repaired producer paired with legacy-shaped raw
 rejects fail closed.
 
-For repaired structured data the reader validates `scoring/<P>/structured`,
-loads paired repaired `scoring/<P>/raw`, parses/re-canonicalizes the envelope,
-derives P from `TrustedScoreResult`, reads R only from
+For repaired structured data, section 12.1's G-derived path procedure applies:
+after it validates the claimed P/G grammar and recomputes G from the raw
+envelope, the reader derives P from `TrustedScoreResult`, reads R only from
 `repair_provider_evidence.request_hash`, reads J only from replayed REPAIR
 Judge H2 in `repair_quality_evidence`, loads exactly those two successful
 ProviderCalls, validates operation/provider/model/input/prompt/schema/raw
@@ -577,3 +586,301 @@ Any deviation is `DECISION NEEDED`.
 Before implementation an independent reviewer must accept the material Phase G
 threat-model clarification, settings/envelope contracts, repair-only orphan
 adoption, and code-only error policy. H2-C implementation remains unauthorized.
+
+## 12. Round 3 amendments — graph identity, evidence v2, and stale lease
+
+This section supersedes only conflicting Round 2 persistence-path, nested
+`RepairProviderEvidence`, settings-bound, stale-lease, reader, orphan, and
+implementation-scope wording. It does not reopen any accepted Round 2 decision.
+
+### 12.1 Repair persistence graph identity and physical paths
+
+P remains the PRIMARY semantic scoring identity and may remain the top-level
+directory namespace. It is not a complete REPAIR persistence identity. The
+physical repair graph must distinguish a PRIMARY graph from a REPAIR graph and
+must distinguish any two repair graphs with a different R, REPAIR Judge H2, or
+settings provenance hash, even if P and the semantic `TrustedScoreResult` are
+identical.
+
+The exact typed graph identity is:
+
+```text
+RepairPersistenceGraphIdentity, extra="forbid"
+
+schema_version: Literal["task016c-repair-persistence-graph-v1"]
+primary_request_hash: lowercase 64-character SHA-256 P
+repair_request_hash: lowercase 64-character SHA-256 R
+repair_judge_request_hash: lowercase 64-character SHA-256 J
+settings_provenance_sha256: lowercase 64-character SHA-256
+raw_producer_version: Literal["scoring-raw-content-quality-repair-v1"]
+structured_producer_version: Literal["scoring-structured-content-quality-repair-v1"]
+envelope_schema: Literal["trusted-scoring-repair-envelope-v1"]
+repair_provider_evidence_schema: Literal["task016c-repair-provider-evidence-v2"]
+quality_policy_version: Literal["content-quality-policy-v1"]
+quality_prompt_version: Literal["content-quality-prompt-v1"]
+quality_schema_version: Literal["content-quality-result-v1"]
+```
+
+All fields are non-null. The key is exactly:
+
+```text
+typed RepairPersistenceGraphIdentity
+  -> H2 Canonical JSON v1 / RFC 8785 JCS strict UTF-8 bytes
+  -> SHA-256 lower hexadecimal = G
+```
+
+`G` is a fixed 64-character lowercase SHA-256 value. The exact REPAIR keys and
+relative paths are:
+
+```text
+raw artifact_key:           scoring/<P>/repair/<G>/raw
+raw relative_path:          scoring/<P>/repair/<G>/raw.json
+structured artifact_key:    scoring/<P>/repair/<G>/structured
+structured relative_path:   scoring/<P>/repair/<G>/structured.json
+```
+
+`P` and `G` are only fixed lower-hex hashes; no caller path fragment,
+provider/model name, separator, `..`, or evidence string can influence a path.
+Phase F and every legacy/PRIMARY path remain exactly
+`scoring/<P>/raw(.json)` and `scoring/<P>/structured(.json)`.
+
+ProviderCall identity remains R and J; G is persistence identity only and is
+never substituted into a ProviderCall request hash. The REPAIR raw ProviderCall
+uses the G-based raw `artifact_key` as its deterministic artifact key, and both
+truthful REPAIR ProviderCalls bind to that raw Artifact ID. The corresponding
+Artifact IDs retain Phase G's existing `sha256(artifact_key + content_hash)`
+derivation, now over the G-based keys.
+
+The SQLite audit is positive: `artifacts.artifact_key` is the sole relevant
+unique key (`001_initial.sql`), while `video_id`, `kind`, P, relative path,
+content hash, and producer version have no uniqueness constraint that would
+prevent distinct keys. Therefore the same P may have multiple repair raw and
+structured Artifact records with different G values, and no migration is
+required. A DB row's exact `artifact_key`, `relative_path`, producer version,
+content hash, and Artifact ID must equal the expected P/G plan; any mismatch
+fails closed.
+
+The invariants are exact:
+
+```text
+same P/R/J/settings/producers/envelope schema/v2/quality versions
+  -> same G, paths, and bytes -> same-plan idempotency
+
+same P and (different R or J or settings provenance hash)
+  -> different G -> different raw and structured paths
+```
+
+This relies on SHA-256 collision resistance. If an implementation ever observes
+the same G for non-equal typed graph-identity bytes, it must fail closed and
+must not write, adopt, or register either graph.
+
+Same G with differing bytes is hash collision, implementation corruption, or a
+graph inconsistency: fail closed and never overwrite. This is the physical-path
+realization of the already accepted parent complete-graph idempotency rule; it
+does not weaken parent H2 semantics.
+
+The runtime repaired reader starts from the existing repository-selected
+structured Artifact record, selects the repaired 33,554,432-byte bound before
+reading it, validates its repaired producer and the exact
+`scoring/<P>/repair/<G>/structured` grammar, then uses that claimed fixed-hex G
+only to load `scoring/<P>/repair/<G>/raw` from the repository under the same
+repaired bound. It parses the sealed raw envelope, obtains P/R/J/settings/version
+commitments and the two truthful ProviderCalls, rebuilds the typed identity,
+recomputes G, and requires both Artifact DB keys and paths to equal the
+recomputed values before accepting either file. It must not scan `scoring/<P>`
+or choose a filesystem "latest" directory. Legacy producer dispatch remains
+P-only and retains its 1,000,000-byte bound; producer version plus the distinct
+path family prevents a REPAIR artifact from being interpreted as legacy.
+
+`reporting.py` is also a current production structured-score reader. It must
+gain a narrow repaired-producer branch so a repaired successful score remains
+usable by weekly reporting: select the repaired bound, validate the P/G
+structured-path grammar, read only the matching G raw path (never scan), parse
+the repaired envelope, recompute G, and require equality before using the
+existing sealed `ScoreResult`. Full ProviderCall graph validation remains the
+runtime scoring-provenance reader's trust responsibility; the reporting branch
+must not claim to replace it.
+
+Consequently, an R1 orphan later retried as the exact R1 graph has the same G1
+and remains adoptable. A legitimate R2/J2/settings2 graph has G2 distinct from
+G1 and proceeds at its own paths without deleting, overwriting, or being blocked
+by the R1 orphan.
+
+### 12.2 Complete `RepairProviderEvidence` v2
+
+For clarity, the accepted parent v1 has exactly these 14 non-null fields, under
+H2 JCS strict typed/canonical reserialize equality:
+
+| v1 field | Exact type / rule / bound |
+|---|---|
+| `schema_version` | literal `"task016c-repair-provider-evidence-v1"` |
+| `operation` | literal `"local-scoring-repair-v1"` |
+| `normalized_input` | exact non-null `RepairNormalizedInput`; its canonical bytes are subject to the H2-C repair-provider component limit |
+| `normalized_input_hash` | non-null lowercase 64-character SHA-256 of canonical RNI |
+| `request_hash` | non-null lowercase 64-character six-dimensional provider request hash |
+| `provider` | non-empty string, bounded by the repair-provider canonical subtree admission cap |
+| `model` | non-empty string, bounded by that same cap |
+| `model_digest` | non-null `sha256:` plus 64 lowercase hex characters |
+| `prompt_version` | non-empty string, bounded by that same cap |
+| `operation_schema_version` | non-empty string, bounded by that same cap |
+| `output_language` | non-null enum `"zh-CN" | "en"` |
+| `temperature` | non-null finite IEEE-754 binary64 JSON number |
+| `max_output_tokens` | non-null positive JSON integer |
+| `max_description_chars` | non-null non-negative JSON integer; zero is explicit, never absent/default/null |
+
+`RepairProviderEvidence` v2 is an exact, `extra="forbid"`, non-null schema
+with these **16** fields:
+
+| v2 field | Exact type / rule / bound |
+|---|---|
+| `schema_version` | literal `"task016c-repair-provider-evidence-v2"` |
+| `operation` | literal `"local-scoring-repair-v1"` |
+| `normalized_input` | exact `RepairNormalizedInput`, non-null; its canonical bytes `<= 393216` and all enclosing material remains within the 8,388,608-byte repair-provider subtree cap |
+| `normalized_input_hash` | lowercase 64-character SHA-256, non-null, exact RNI canonical hash |
+| `request_hash` | lowercase 64-character SHA-256, non-null, exact REPAIR provider request hash R |
+| `provider` | non-empty string, non-null, within repair-provider subtree cap |
+| `model` | non-empty string, non-null, within repair-provider subtree cap |
+| `model_digest` | non-null `sha256:` plus 64 lowercase hex characters |
+| `prompt_version` | non-empty string, non-null, within repair-provider subtree cap |
+| `operation_schema_version` | non-empty string, non-null, within repair-provider subtree cap |
+| `output_language` | non-null enum `"zh-CN" | "en"` |
+| `temperature` | non-null finite IEEE-754 binary64 JSON number |
+| `max_output_tokens` | non-null positive JSON integer |
+| `max_description_chars` | non-null non-negative JSON integer, zero explicit |
+| `settings_provenance` | non-null exact `H2CSettingsProvenance`, `extra="forbid"`, canonical bytes `<= 8192` |
+| `settings_provenance_sha256` | non-null lowercase 64-character SHA-256 |
+
+Every v2 field is serialized as part of its containing typed envelope through
+H2 JCS strict UTF-8; no alternate serializer, absent/null equivalence, or
+unknown field is permitted. Its inherited RNI/provider/model/digest/prompt/
+schema/language/temperature/output/description cross-bindings remain exactly
+the accepted v1 rules. It additionally requires:
+
+```text
+SHA256(H2-JCS(settings_provenance)) == settings_provenance_sha256
+```
+
+The sole durable settings source is
+`repair_provider_evidence.settings_provenance` and
+`repair_provider_evidence.settings_provenance_sha256`; no duplicate settings
+copy is authoritative. G binds this exact v2 hash.
+
+v1 remains the unmodified H2-B evidence contract. Round 3 amends only the
+H2-C persisted repaired-success representation: a live H2-C repaired producer
+requires v2; a repaired v1 or unknown evidence version rejects fail closed.
+Pre-H2-C/H2-B material continues to use and interpret v1 exactly as frozen.
+
+### 12.3 Settings admission ceiling disposition
+
+`max_transcript_chars <= 131072` is an H2-C persistence admission rule, not a
+general configuration error. The inclusive boundary is exact: 131071 and
+131072 are allowed; 131073 and above are rejected before mint, envelope
+construction, network, filesystem, or persistence.
+
+The mapping is exactly one owner-authoritative:
+
+```text
+PipelineRepository.fail_job(
+  job_id, owner=runtime_owner,
+  error_code=ErrorCode.TRUST_INTEGRITY_INVALID,
+  error_message="H2C_REPLAY_INVALID:SETTINGS_BOUND_EXCEEDED",
+  retry_at=None)
+-> FAILED_FINAL -> StageDisposition.TERMINAL
+```
+
+`SETTINGS_BOUND_EXCEEDED` is added to the closed diagnostic set and is
+diagnostic only; retry remains code-only. The same reason covers every other
+explicit H2-C settings admission limit that current general configuration can
+otherwise exceed: `max_output_tokens <= 2147483647` and canonical settings
+provenance bytes `<= 8192`. Existing configuration bounds already cover
+temperature, description length, output language, and digest syntax. Any
+non-settings evidence-component/root-size excess remains
+`H2C_REPLAY_INVALID:ENVELOPE_OVERSIZE`.
+
+### 12.4 Narrow stale-lease propagation
+
+The current pipeline catches `ScoringDispatchDenied` through generic
+`except Exception` and calls `_fail`; that is not safe for the specific H2-C
+pre-persistence loss of ownership. It cannot catch all
+`ScoringDispatchDenied`: current uses also mean provider construction failed
+before contact, identity collision, post-admission payload/Judge drift, role
+misuse, duplicate role, ProviderCall conflict, and existing H1 lease/admission
+denial. Those retain their established generic pipeline behavior.
+
+Authorize one narrow internal exception in `scoring.py`:
+`H2CStaleScoringLease`. It is raised **only** when the repair PREWRITE
+repository-owned check proves this runtime is no longer the active owner of the
+current RUNNING SCORING job. It carries no caller capability and is not used for
+any evidence/replay mismatch or any existing `ScoringDispatchDenied` source.
+
+`pipeline.py` is authorized to import and catch exactly
+`H2CStaleScoringLease` before generic `Exception`. The handler performs one
+side-effect-free `repository.get_job(job.job_id)` read and has this exact path:
+
+| Current durable job state | Pipeline action |
+|---|---|
+| missing | return from `_execute`; no disposition, no mutation |
+| `RUNNING` with a different owner or expired/non-active lease | return from `_execute`; no disposition, no mutation |
+| `FAILED_FINAL` | return from `_execute`; no duplicate terminal |
+| `SUCCEEDED` | return from `_execute`; no mutation |
+| any other state, or RUNNING still actively owned by this worker | raise `PipelineInterrupted`; no generic `_fail` |
+
+No `fail_job`, generic `_fail`, retry, REPAIR/Judge dispatch, or persistence is
+performed by the stale runtime. The owner-authoritative H0/H1 recovery process
+remains responsible for a still-running expired/abandoned job; a state already
+terminalized is merely observed. This is a safe no-op, not a new
+`StageDisposition`; the pipeline `_execute` returns before disposition handling.
+
+### 12.5 Repair orphan reconciliation and required tests
+
+For a single exact G, Round 2 raw-only exact, structured-only exact, paired
+exact, mismatching, and corrupt orphan rules remain unchanged. A verified exact
+orphan is material only and can never establish success without the current
+lease and SQLite transaction. An old R1 orphan may remain indefinitely: it is
+not registered, cannot be read as a registered artifact, cannot establish
+success, and G separation means it cannot block R2. Cleanup is not required for
+correctness and remains out of scope.
+
+Required additions to the future test matrix are:
+
+1. legacy PRIMARY P-only paths unchanged;
+2. same P/R/J/settings gives the same G/path;
+3. same P with changed R, changed J, or changed settings hash gives a distinct G/path;
+4. exact R1 orphan adopts for R1; R1 orphan does not block R2; mismatching G1 file fails closed; no traversal;
+5. exact v2 accepts; missing/altered inherited field, missing/mutated settings,
+   settings-hash mismatch, null, extra, repaired v1 downgrade, and unknown
+   version reject;
+6. 131071/131072 accept; 131073 yields exact trust code/detail with zero
+   network/files/persistence; altered diagnostic detail does not affect retry;
+7. H2-C stale prewrite creates zero files and invokes neither `fail_job` nor
+   generic `_fail`; changed-owner RUNNING, `FAILED_FINAL`, and `SUCCEEDED` all
+   safely return; valid owner proceeds; all existing non-H2-C
+   `ScoringDispatchDenied` tests remain correct; and
+8. DB permits same-P R1/R2 G-based artifact records; reader recomputes G,
+   rejects wrong DB key/path/G, and never scans directories.
+
+### 12.6 Round 3 implementation scope and discretion closure
+
+The authorized future production scope is unchanged except for the required
+narrow pipeline propagation handling:
+
+```text
+src/youtube_intel/runtime.py
+src/youtube_intel/h2_evidence.py
+src/youtube_intel/quality.py
+src/youtube_intel/scoring.py
+src/youtube_intel/domain.py
+src/youtube_intel/providers/subtitles.py
+src/youtube_intel/transcripts.py
+src/youtube_intel/pipeline.py
+src/youtube_intel/reporting.py
+```
+
+`pipeline.py` changes are limited to the exact
+`H2CStaleScoringLease` pre-generic handler and read-only state table above.
+`reporting.py` changes are limited to the repaired producer P/G path/envelope
+validation above; they add no cache, repository writer, or alternate trust path.
+`state.py` and migrations remain frozen. The implementation executor has no
+remaining choice over graph fields/key/path, v2 schema/version handling,
+settings-bound reason, stale-owner propagation, reader validation, or orphan
+availability. Any deviation is `DECISION NEEDED`.

@@ -479,6 +479,20 @@ Artifact、Provider call、Pipeline 和 Job；关闭/缓存/超限/预算/缺凭
 
 V1 重试配置默认值为：`max_attempts=3`、`base_delay_seconds=2`、`max_delay_seconds=60`、`jitter_ratio=0.2`。`max_attempts` 为正整数，延迟为正数，基础延迟不得大于最大延迟，抖动范围为 `0..1`。通用 HTTP、本地模型和云模型默认超时分别为 `30`、`300`、`120` 秒，均必须为正数。`RATE_LIMITED` 返回有效 `Retry-After` 时以它为准，不受本地指数退避上限截断。
 
+### 12.1 可信成功持久化边界
+
+Phase G 的可信成功持久化边界假定：能够持有并直接提交完整、自洽、精确的
+`PhaseFTrustedScoringSuccess` 或 `PhaseHTrustedRepairSuccess` 的调用者，已经处于
+可信 Phase G 边界内。系统不声称可在同一进程内抵抗任意直接构造并提交完整、自洽、
+精确可信成功值的攻击；精确类型、冻结对象、私有构造或哈希一致性本身都不是该类调用的
+额外执行能力。
+
+该假定严格止于可信成功 mint 边界。此前的 Provider raw、candidate、aggregate、
+`PrimaryFailureEvidence`、`RepairNormalizedInput`、Judge evidence、attestation 和
+repair evidence 都是非可信输入，仍必须经过各自完整的类型、canonical bytes、hash、
+provenance 和运行时上下文验证。该规则对 Phase F 和 Phase H 完全对称，不授权任何
+untrusted-data 直接进入 Phase G writer。
+
 ## 13. 文件与 Obsidian 设计
 
 ```text
