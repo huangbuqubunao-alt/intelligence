@@ -3,7 +3,7 @@
 ## Status and boundary
 
 Status: **SUPERSEDED FOR DOWNSTREAM LINEAGE BY
-`TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` Round 1; its graph/key
+`TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` Round 2; its graph/key
 facts remain normative where not superseded.**
 
 This is a control-plane schema/state authorization only. It resolves the
@@ -24,7 +24,9 @@ lineage authorization above; it remains the record of the initial blocker audit
 and its P/G exact-key rationale. In particular, Round 1 selects one Video
 first-success pointer, an immutable job-local exact structured-key pointer, a
 creation-time lineage-version discriminator, and a partial-unique Job-key
-index. It authorizes neither scoring rerun nor cross-job Artifact convergence.
+index. Round 2 additionally freezes migration-cutover generation and
+transaction-local CAS diagnosis. It authorizes neither scoring rerun nor
+cross-job Artifact convergence.
 
 ## 1. Audit result
 

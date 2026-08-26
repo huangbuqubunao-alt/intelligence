@@ -329,11 +329,11 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `created_at`, `updated_at` | 审计时间 |
 | `authoritative_scoring_artifact_key` | 仅在另行批准的 H2-C lineage migration 生效后使用；PRIMARY 或 REPAIR_H2C 成功 SCORING Job 指向其精确 structured Artifact key，pre-lineage legacy PRIMARY 为 NULL；不得用时间排序替代该关系；非 NULL 值以 partial UNIQUE index 限制为至多一个 Job |
 | `scoring_success_provenance` | H2-C lineage 仅允许 `PRIMARY` 或 `REPAIR_H2C`；lineage-v1 成功 Job 必须非 NULL 且与 exact artifact key 匹配。NULL 仅为历史/pre-success/failed 合法状态；v1 成功的 NULL 是损坏，必须失败关闭 |
-| `scoring_lineage_version` | 新建 SCORING Job 由 repository 在创建时写入不可变的 `task016c-scoring-lineage-v1`；非 SCORING 和迁移前历史行是 NULL；未知非 NULL 版本必须失败关闭，不能降级 legacy |
+| `scoring_lineage_version` | 新建 SCORING Job 由 repository 在创建时写入不可变的 `task016c-scoring-lineage-v1`；迁移前的所有 Job（包括 RUNNING/可恢复 SCORING）为不可升级的 pre-lineage NULL，非 SCORING 也为 NULL；未知非 NULL 版本必须失败关闭，不能降级 legacy |
 
 部分唯一索引 `scope_key + pipeline_version` 覆盖视频和 `video_id IS NULL` 的全局任务，保证同一逻辑范围最多一个未完成 Job。
 
-H2-C 的 authoritative scoring lineage 使用 Video→Job→Artifact：消费者以 `video_id` 读取 `authoritative_scoring_job_id`，再读取该成功 SCORING Job 的 exact structured Artifact key；不得通过时间、目录或 P 值选择 repaired graph。H2-C 只授权初始成功的 Video `NULL -> Job` CAS，不授权 SCORING 重跑、J1→J2 替换或下游失效；同一中断 Job 的恢复仍按既有 H0/H1 规则。新 SCORING Job 创建时写入 immutable lineage-v1；PRIMARY 或 REPAIR_H2C 成功时，以该版本、provenance、Job/Video pointers、Artifact rows、ProviderCall rows、视频阶段更新和 Job `SUCCEEDED` 在同一 SQLite transaction 中提交；commit 前文件孤儿没有权威性。H1 全局 ProviderCall admission 与 Artifact 的 Job 所有权禁止跨 Job 同 G/Artifact sharing，Job artifact pointer 的 partial UNIQUE index 是额外机械保障。Reporting 仅消费 scoring read layer 返回的已验证值；Phase I cache/recovery 不在此规则内。
+H2-C 的 authoritative scoring lineage 使用 Video→Job→Artifact：消费者以 `video_id` 读取 `authoritative_scoring_job_id`，再读取该成功 SCORING Job 的 exact structured Artifact key；不得通过时间、目录或 P 值选择 repaired graph。H2-C 只授权初始成功的 Video `NULL -> Job` CAS，不授权 SCORING 重跑、J1→J2 替换或下游失效；同一中断 Job 的恢复仍按既有 H0/H1 规则。迁移前的同一可恢复 SCORING Job 保持 pre-lineage NULL generation，可走既有 PRIMARY/H2-B 规则但不得进入 H2-C，绝不在恢复时升级 v1。新 SCORING Job 创建时写入 immutable lineage-v1；PRIMARY 或 REPAIR_H2C 成功时，以该版本、provenance、Job/Video pointers、Artifact rows、ProviderCall rows、视频阶段更新和 Job `SUCCEEDED` 在同一 SQLite transaction 中提交；commit 前文件孤儿没有权威性。失败 CAS 的诊断必须在同一 `BEGIN IMMEDIATE` connection 上读取 Job/Video 并先分类、后 rollback、再重验租约。H1 全局 ProviderCall admission 与 Artifact 的 Job 所有权禁止跨 Job 同 G/Artifact sharing，Job artifact pointer 的 partial UNIQUE index 是额外机械保障。Reporting 仅消费 scoring read layer 返回的已验证值；Phase I cache/recovery 不在此规则内。
 
 ### 8.4 `job_attempts`
 

@@ -1,8 +1,8 @@
-# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 1
+# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 2
 
 ## Status, scope, and supersession
 
-Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 1
+Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 2
 INDEPENDENT REVIEW**.
 
 This is documentation-only control-plane authorization. It authorizes neither
@@ -15,10 +15,11 @@ Reuse decision: **DIRECT** — retain the SQLite repository, `jobs`, `videos`,
 `get_artifact_by_key`, and standard-library SQLite support. No dependency is
 added.
 
-This Round 1 document supersedes the rejected Round 0 lineage decisions in
-this file: rerun/predecessor CAS, cross-job same-G convergence, non-unique Job
-artifact pointers, repair-only future lineage, and its corresponding migration
-shape/tests. It also supersedes inconsistent portions of
+Round 2 supersedes the rejected Round 1 NULL-generation/cutover and
+separate-connection CAS-read-back clauses. It retains Round 1's supersession of
+the rejected Round 0 rerun/predecessor CAS, cross-job same-G convergence,
+non-unique Job artifact pointers, repair-only future lineage, and corresponding
+migration shape/tests. It also supersedes inconsistent portions of
 `TASK-016C-PHASE-H2C-AUTHORITATIVE-G-SCHEMA-AUTHORIZATION.md` and
 `TASK-016C-PHASE-H2C-AUTHORIZATION.md` as stated below. Frozen H1, H2, H2-B,
 P/R/J/E/S/G, Artifact ownership, ProviderCall identity, filesystem, stale-lease,
@@ -113,16 +114,17 @@ The repository derives it at Job creation solely from a `VIDEO_STAGE` Job with
 `target_stage == SCORING`; callers cannot submit a version. Every post-migration
 SCORING Job receives v1 at insertion. ANALYSIS, NOTE, WEEKLY, and all other
 non-SCORING Jobs receive NULL. A created SCORING Job's value never changes.
-Migration leaves all existing rows NULL, meaning only that the row predates the
-lineage contract. A non-NULL unknown version fails closed; it never receives a
-legacy fallback.
+Migration leaves all existing rows NULL, meaning PRE-LINEAGE GENERATION whether
+the historical Job is terminal or nonterminal; §11 freezes its recovery rules.
+A non-NULL unknown version fails closed; it never receives a legacy fallback.
 
 `scoring_success_provenance` has exactly two post-migration success literals:
 `PRIMARY` and `REPAIR_H2C`. It is not set at Job creation. The legal matrix is:
 
 | Job category | lineage version | provenance / artifact pointer | Video pointer | Reader result |
 |---|---|---|---|---|
-| historical successful PRIMARY | NULL | NULL / NULL | may be NULL | legacy branch allowed |
+| pre-lineage successful PRIMARY | NULL | NULL / NULL | may be NULL | legacy branch allowed |
+| pre-lineage RUNNING/recoverable SCORING | NULL | NULL / NULL | NULL | H0/H1 same-Job recovery; no H2-C |
 | new RUNNING SCORING | v1 | NULL / NULL | NULL | normal pre-success |
 | new FAILED or FAILED_FINAL SCORING | v1 | NULL / NULL | NULL | no scoring result |
 | new successful PRIMARY | v1 | `PRIMARY` / `scoring/<P>/structured` | equals Job | valid lineage |
@@ -208,8 +210,8 @@ An active RUNNING Job that already contains either value is an invariant error,
 not an alternate write. A differing key or provenance is
 `H2CAuthoritativeGraphConflict`.
 
-After a zero-row Job CAS, read `get_job(job_id)` once in the transaction and
-classify in this exact order:
+Round 2 §11.3 supersedes the following initial Job zero-row ordering with the
+private same-connection tx-reader and complete field validation:
 
 1. missing Job → raise `PipelineInterrupted`, no `fail_job`;
 2. owner/lease no longer valid → `H2CStaleScoringLease`, frozen no-mutation
@@ -224,7 +226,8 @@ classify in this exact order:
 7. active owned NULL/NULL after a zero row → active integrity failure, detail
    `H2C_JOB_LINEAGE_CAS_UNEXPECTED`.
 
-After a zero-row Video CAS, read the exact Video and classify in this order:
+Round 2 §11.3 likewise supersedes this initial Video zero-row ordering with the
+private same-connection tx-reader and complete field validation:
 
 1. missing Video → raise `PipelineInterrupted`, no `fail_job`;
 2. lost Job owner/lease → `H2CStaleScoringLease`;
@@ -291,7 +294,7 @@ E/S validation, R/J exact request-hash lookup, and G recomputation from the
 frozen identity. No latest, scan, P-only lookup, cache, or heuristic is allowed.
 
 For a Video with no authority pointer, the compatibility branch may use the
-existing legacy PRIMARY selection behavior only to identify a historical
+existing legacy PRIMARY selection behavior only to identify a pre-lineage
 candidate; before parsing it, the selected producing SCORING Job must be read
 and must have `scoring_lineage_version IS NULL`. A v1/unknown/malformed row
 rejects rather than falling through. Thus classification is version-first once
@@ -365,3 +368,187 @@ cross-job sharing, generation/version literal, legacy discrimination, PRIMARY
 bookkeeping, pointer CAS/read-back, terminal details, migration filename/v2
 consumers, index uniqueness, reader root, reporting interface, or Phase-I
 boundary. Any departure is **DECISION NEEDED**.
+
+## 11. Round 2 — migration cutover and transaction-local CAS diagnosis
+
+### 11.1 Pre-lineage generation is a lifetime property
+
+At the v1→v2 migration, every existing row retains
+`scoring_lineage_version IS NULL`. NULL means **PRE-LINEAGE GENERATION**, not
+merely a completed historical legacy result. Migration performs no data UPDATE,
+and no historical Job may be changed to
+`task016c-scoring-lineage-v1` later. The v1 marker is assigned only by
+post-migration SCORING Job creation and remains immutable.
+
+The complete cutover matrix is:
+
+| Pre-v2 SCORING durable state | Post-migration classification and rule |
+|---|---|
+| SUCCEEDED PRIMARY | NULL version/provenance/key; valid pre-lineage legacy success and legacy reader candidate. |
+| FAILED_FINAL or other terminal | NULL version/provenance/key; remains terminal under existing recovery rules. |
+| RUNNING with valid lease | NULL version/provenance/key; same-Job H0/H1 recovery remains available, never H2-C. |
+| nonterminal, unleased/interrupted/recoverable | NULL version/provenance/key; same-Job H0/H1 owner-authoritative recovery remains available, never H2-C. |
+| malformed or unknown historical state | NULL version is not an upgrade capability; existing recovery fails closed. |
+
+If a recovered pre-v2 Job completes through already-authorized PRIMARY, it uses
+the pre-lineage Phase-F/Phase-G persistence contract: P-only Artifact behavior
+and existing ProviderCalls, with no provenance, Job Artifact pointer, Video
+pointer, or version mutation. Its later SUCCEEDED row remains a valid
+pre-lineage legacy reader candidate. Existing H0/H1 failure behavior likewise
+writes no lineage fields.
+
+H2-C requires the current Job's version to equal exactly
+`task016c-scoring-lineage-v1` before the H2-B PASS lexical continuation enters
+any H2-C work. NULL therefore never enters H2-C; no migration-time, recovery-
+time, or caller opt-in upgrade exists. A NULL pre-v2 Job that reaches an H2-B
+PASS requiring H2-C retains the frozen build-without-H2-C terminal route:
+`ErrorCode.CAPABILITY_UNAVAILABLE`, detail `H2B_PASS_AWAITING_H2C`,
+`retry_at=None`, exactly one `fail_job`, `FAILED_FINAL`, and
+`StageDisposition.TERMINAL`. It performs no H2-C replay, persistence, or
+additional external contact; any REPAIR/REPAIR_JUDGE admission and contact was
+already consumed inside the frozen H2-B PASS path. An unknown non-NULL version
+is fail closed and also cannot enter H2-C.
+
+This supersedes any earlier phrase that equated every NULL-version row with an
+already-completed historical success. New v2 SCORING Jobs still receive v1 at
+creation and must satisfy all v1 lineage rules.
+
+### 11.2 Exact transaction-local readers
+
+`get_job()` and `get_video()` open new connections and are expressly forbidden
+between a failed lineage CAS and its classification. Future `state.py` adds
+only these private repository helpers, which reuse the existing row decoders:
+
+```python
+def _read_job_in_transaction(
+    self, connection: sqlite3.Connection, job_id: str
+) -> JobRecord | None:
+    row = connection.execute(
+        "SELECT * FROM jobs WHERE job_id = :job_id", {"job_id": job_id}
+    ).fetchone()
+    return None if row is None else self._job_from_row(row)
+
+def _read_video_in_transaction(
+    self, connection: sqlite3.Connection, video_id: str
+) -> VideoRecord | None:
+    row = connection.execute(
+        "SELECT * FROM videos WHERE video_id = :video_id", {"video_id": video_id}
+    ).fetchone()
+    return None if row is None else self._video_from_row(row)
+```
+
+They are private, read-only state helpers, not caller-facing trust/selection
+APIs. They use the exact `sqlite3.Connection` whose `BEGIN IMMEDIATE`
+transaction executed the CAS, have no side effects, and observe that coherent
+transactional snapshot. No new connection or public repository surface is
+authorized.
+
+The Job tx-read must validate, before pointer/provenance classification:
+`job_id`; `job_type == VIDEO_STAGE`; `target_stage == SCORING`; exact
+`video_id`; exact `pipeline_version`; exact expected generation (v1 for the
+new lineage path; NULL only when handling the explicitly pre-lineage path);
+`status`; `lease_owner`; `lease_until` under frozen H0/H1 time semantics;
+`authoritative_scoring_artifact_key`; and `scoring_success_provenance`.
+The Video tx-read must validate `video_id`, `pipeline_status`, exact
+`pipeline_version`, and `authoritative_scoring_job_id`, plus
+`job.video_id == video.video_id`. No additional Video immutable field is part
+of the Phase-G transition contract.
+
+### 11.3 CAS predicates and exact zero-row classification
+
+The v1 Job CAS additionally binds all validated immutable lineage identity
+fields so a zero row has a closed diagnosis:
+
+```sql
+UPDATE jobs
+SET authoritative_scoring_artifact_key = :key,
+    scoring_success_provenance = :provenance
+WHERE job_id = :job_id
+  AND job_type = 'VIDEO_STAGE'
+  AND target_stage = 'SCORING'
+  AND video_id = :video_id
+  AND pipeline_version = :pipeline_version
+  AND scoring_lineage_version = 'task016c-scoring-lineage-v1'
+  AND status = 'RUNNING'
+  AND lease_owner = :owner
+  AND lease_until > :now
+  AND authoritative_scoring_artifact_key IS NULL
+  AND scoring_success_provenance IS NULL;
+```
+
+After a zero-row Job CAS, read the Job exactly once with
+`_read_job_in_transaction` and classify in this order:
+
+1. missing → `PipelineInterrupted`;
+2. malformed/mismatched immutable identity (`job_type`, stage, video,
+   pipeline version, generation) → if still RUNNING and validly owned, rollback
+   then terminalize `TRUST_INTEGRITY_INVALID` with
+   `H2C_JOB_LINEAGE_CAS_UNEXPECTED`; otherwise use stale lease or
+   `PipelineInterrupted` as the now-observed state requires;
+3. if still RUNNING but owner/lease is invalid → `H2CStaleScoringLease`;
+4. SUCCEEDED with exact intended pointer/provenance and complete Job/Video/
+   Artifact/ProviderCall graph → idempotent success;
+5. SUCCEEDED with any pointer/provenance/graph mismatch →
+   `H2CAuthoritativeGraphConflict`, no mutation;
+6. FAILED_FINAL → no persistence; existing terminal return/interrupt behavior;
+7. expected active RUNNING with non-NULL differing pointer or provenance →
+   active graph conflict, terminal detail `H2C_AUTHORITATIVE_GRAPH_CONFLICT`;
+8. expected active RUNNING with exact-but-prepopulated pointer/provenance →
+   `H2C_JOB_LINEAGE_CAS_UNEXPECTED`, unless it was already classified as the
+   complete SUCCEEDED idempotent case;
+9. expected active RUNNING with NULL pointer/provenance → identify the failed
+   identity/status/owner/lease predicate from the tx row and route to that
+   preceding exact classification; and
+10. any other observed state → `PipelineInterrupted`, unless it remains an
+    active-owned invariant failure, which terminalizes with the same Job
+    unexpected detail.
+
+The Video CAS remains exactly its first-success predicate from §5. After its
+zero row, read the Video exactly once through
+`_read_video_in_transaction`, reuse the tx-local Job row for lease/identity,
+and classify in this order:
+
+1. missing Video → `PipelineInterrupted`;
+2. invalid current Job owner/lease → `H2CStaleScoringLease`;
+3. pipeline-version mismatch → if the Job is still validly owned v1 RUNNING,
+   rollback then terminalize `TRUST_INTEGRITY_INVALID` with
+   `H2C_VIDEO_LINEAGE_CAS_UNEXPECTED`; otherwise stale/interrupted according
+   to the tx Job state;
+4. non-`TRANSCRIPT_READY` status → only `SCORED` plus current Job pointer,
+   SUCCEEDED Job, and complete graph is idempotent; every other active-owned
+   case terminalizes with `H2C_VIDEO_LINEAGE_CAS_UNEXPECTED`, otherwise stale/
+   interrupted;
+5. current Job pointer plus complete committed graph → idempotent success;
+6. non-NULL pointer to another Job → active-owned terminal
+   `TRUST_INTEGRITY_INVALID`, detail `H2C_VIDEO_LINEAGE_CAS_CONFLICT`;
+7. NULL pointer, `TRANSCRIPT_READY`, and exact pipeline version with a zero row
+   means no CAS predicate remains: terminalize the active-owned integrity
+   failure with `H2C_VIDEO_LINEAGE_CAS_UNEXPECTED`.
+
+### 11.4 Rollback, reader, version, and test closure
+
+Both classifications occur while the original `BEGIN IMMEDIATE` remains active.
+For an active-owned integrity finding, classify with tx-local reads, roll back,
+then re-prove owner/lease through authoritative repository state. Only if that
+re-proof succeeds may one separate `fail_job` write
+`TRUST_INTEGRITY_INVALID`, `retry_at=None`, `FAILED_FINAL`, and the frozen
+detail; if it fails, raise/return `H2CStaleScoringLease` with no `fail_job`.
+`fail_job` is never called inside the rolled-back persistence transaction.
+
+The pointerless legacy compatibility path must load the selected Artifact's
+`job_id`, then its Job, and require `target_stage == SCORING` and a NULL
+generation. Thus both completed historical and recovered-pre-v2 PRIMARY
+successes are intentionally readable; a new v1 result or corruption cannot
+downgrade. Migration 002 still performs no historical row rewrite and advances
+`user_version` to 2; Round 1's `_database_check` v2 policy is unchanged.
+
+Future tests add: every cutover state in §11.1; no historical version upgrade;
+pre-v2 PRIMARY recovery/read; pre-v2 H2-B PASS exact capability terminal; new
+v2 creation; same-connection/no-public-reader Job and Video diagnosis; every
+listed immutable/lease/status/pointer/provenance predicate; classification
+before rollback; rollback before `fail_job`; post-rollback re-proof; and no
+legacy downgrade for v1 corruption. The future file set is unchanged, with
+`state.py` explicitly including the two private readers and tx-local diagnostics.
+
+These cutover, reader, ordering, and diagnostic-detail decisions are closed.
+Any deviation is **DECISION NEEDED**.

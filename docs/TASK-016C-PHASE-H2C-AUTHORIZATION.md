@@ -1178,8 +1178,9 @@ cross-job same-G convergence. H1 global ProviderCall admission and existing
 Artifact `job_id` ownership remain frozen and make such convergence unavailable.
 
 Every new post-migration SCORING Job is marked
-`task016c-scoring-lineage-v1` at creation; only a NULL-marked historical Job
-may use the legacy branch. New PRIMARY and REPAIR_H2C successes atomically
+`task016c-scoring-lineage-v1` at creation; only a NULL-marked pre-lineage Job
+(including a recovered pre-v2 PRIMARY success) may use the legacy branch. New
+PRIMARY and REPAIR_H2C successes atomically
 record provenance, exact structured key, and the Video pointer. The one future
 migration is `002_add_scoring_lineage.sql`, advances schema version to 2, and
 uses a partial-unique Job artifact-pointer index. Shared Phase-G completion
@@ -1191,3 +1192,21 @@ reporting repository/raw-graph selector is authorized. Round 1 also freezes
 CAS read-back classification and `TRUST_INTEGRITY_INVALID` terminal details for
 active-owned lineage conflicts. All other H2-C graph/replay/filesystem and
 stale-lease contracts remain unchanged.
+
+### 13.8 Round 2 cutover and transaction-local read-back amendment
+
+Round 2 clarifies that a NULL `scoring_lineage_version` is the immutable
+pre-lineage generation for every migrated Job, including nonterminal SCORING
+Jobs. Same-Job H0/H1 recovery remains available under the old PRIMARY contract,
+but no pre-lineage Job may enter H2-C or be upgraded to v1. A pre-lineage H2-B
+PASS that would require H2-C retains the frozen
+`CAPABILITY_UNAVAILABLE` / `H2B_PASS_AWAITING_H2C` / `FAILED_FINAL` terminal
+route. Newly created post-migration SCORING Jobs alone receive v1.
+
+All failed Job/Video lineage CAS diagnosis must use private state readers on
+the same `BEGIN IMMEDIATE` connection, validate the frozen identity/lease/
+pointer fields before classification, classify before rollback, then re-prove
+the lease before any separate terminal `fail_job`. Public `get_job()` and
+`get_video()` are not permitted as these diagnostic reads. Round 2's exact
+orders and details in the lineage authorization supersede Round 1's generic
+separate-read wording.
