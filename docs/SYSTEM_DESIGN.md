@@ -456,6 +456,12 @@ Artifact、Provider call、Pipeline 和 Job；关闭/缓存/超限/预算/缺凭
 
 ## 12. 错误分类与重试
 
+统一 `ErrorCode` 枚举的精确十个成员为：`TRANSIENT_NETWORK`、`RATE_LIMITED`、
+`PROVIDER_UNAVAILABLE`、`INVALID_RESPONSE`、`CONTENT_UNAVAILABLE`、
+`CONFIG_INVALID`、`PERMISSION_DENIED`、`LOCAL_RESOURCE`、
+`CAPABILITY_UNAVAILABLE` 和 `TRUST_INTEGRITY_INVALID`。任何生产端穷尽映射都必须
+显式处理全部十个成员；不得把未知成员静默降级为 `LOCAL_RESOURCE`。
+
 | 类别 | 示例 | 默认行为 |
 |---|---|---|
 | `TRANSIENT_NETWORK` | 超时、临时连接失败 | 指数退避 + 抖动，最多 3 次 |
