@@ -1218,7 +1218,9 @@ The exact H1 reclaim predicate is `RUNNING AND lease_until <= now`; RUNNING
 rows are schema-required to have an owner and lease. This predicate writes the
 existing terminal `UNKNOWN_PROVIDER_STATE` diagnostic, exact message
 `scoring provider outcome is unknown after lease expiry`, and `FAILED_FINAL`.
-It is not a `fail_job`/`StageDisposition` route: reclaim returns the saved
-terminal JobRecord. It dispatches no PRIMARY, performs no H2-B/H2-C
-continuation, and writes no lineage fields. The v1 gate is reached only by a
-live, unexpired pre-lineage execution that reaches H2-B PASS.
+It is not a `fail_job`/`StageDisposition` route: after commit reclaim returns
+`tuple[JobRecord, ...]`, with one saved terminal record per reclaimed row (or
+`()` for none). It dispatches no PRIMARY, performs no H2-B/H2-C continuation,
+and writes no lineage fields. After H2-B PASS, the generation decision point
+admits only v1 toward the H2-C entry gate; live NULL generation takes the
+capability terminal and never enters H2-C.
