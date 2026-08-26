@@ -1179,8 +1179,8 @@ Artifact `job_id` ownership remain frozen and make such convergence unavailable.
 
 Every new post-migration SCORING Job is marked
 `task016c-scoring-lineage-v1` at creation; only a NULL-marked pre-lineage Job
-(including a recovered pre-v2 PRIMARY success) may use the legacy branch. New
-PRIMARY and REPAIR_H2C successes atomically
+(including a pre-v2 live-active Job that later completes PRIMARY) may use the
+legacy branch. New PRIMARY and REPAIR_H2C successes atomically
 record provenance, exact structured key, and the Video pointer. The one future
 migration is `002_add_scoring_lineage.sql`, advances schema version to 2, and
 uses a partial-unique Job artifact-pointer index. Shared Phase-G completion
@@ -1197,9 +1197,10 @@ stale-lease contracts remain unchanged.
 
 Round 2 clarifies that a NULL `scoring_lineage_version` is the immutable
 pre-lineage generation for every migrated Job, including nonterminal SCORING
-Jobs. Same-Job H0/H1 recovery remains available under the old PRIMARY contract,
-but no pre-lineage Job may enter H2-C or be upgraded to v1. A pre-lineage H2-B
-PASS that would require H2-C retains the frozen
+Jobs. Only a still-owned, unexpired RUNNING Job may continue its already-live
+old PRIMARY execution; expired-SCORING reclaim is the existing H1 terminal
+recovery, not a resumption. No pre-lineage Job may enter H2-C or be upgraded to
+v1. A live pre-lineage H2-B PASS that would require H2-C retains the frozen
 `CAPABILITY_UNAVAILABLE` / `H2B_PASS_AWAITING_H2C` / `FAILED_FINAL` terminal
 route. Newly created post-migration SCORING Jobs alone receive v1.
 
@@ -1210,3 +1211,14 @@ the lease before any separate terminal `fail_job`. Public `get_job()` and
 `get_video()` are not permitted as these diagnostic reads. Round 2's exact
 orders and details in the lineage authorization supersede Round 1's generic
 separate-read wording.
+
+### 13.9 Round 3 expired-SCORING recovery correction
+
+The exact H1 reclaim predicate is `RUNNING AND lease_until <= now`; RUNNING
+rows are schema-required to have an owner and lease. This predicate writes the
+existing terminal `UNKNOWN_PROVIDER_STATE` diagnostic, exact message
+`scoring provider outcome is unknown after lease expiry`, and `FAILED_FINAL`.
+It is not a `fail_job`/`StageDisposition` route: reclaim returns the saved
+terminal JobRecord. It dispatches no PRIMARY, performs no H2-B/H2-C
+continuation, and writes no lineage fields. The v1 gate is reached only by a
+live, unexpired pre-lineage execution that reaches H2-B PASS.

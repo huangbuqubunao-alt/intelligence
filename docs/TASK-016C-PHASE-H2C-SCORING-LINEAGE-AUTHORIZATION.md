@@ -1,8 +1,8 @@
-# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 2
+# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 3
 
 ## Status, scope, and supersession
 
-Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 2
+Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 3
 INDEPENDENT REVIEW**.
 
 This is documentation-only control-plane authorization. It authorizes neither
@@ -15,8 +15,10 @@ Reuse decision: **DIRECT** — retain the SQLite repository, `jobs`, `videos`,
 `get_artifact_by_key`, and standard-library SQLite support. No dependency is
 added.
 
-Round 2 supersedes the rejected Round 1 NULL-generation/cutover and
-separate-connection CAS-read-back clauses. It retains Round 1's supersession of
+Round 3 supersedes only Round 2's over-broad pre-v2 interrupted/unleased
+recovery wording. It retains Round 2's supersession of the rejected Round 1
+NULL-generation/cutover and separate-connection CAS-read-back clauses, and
+Round 1's supersession of
 the rejected Round 0 rerun/predecessor CAS, cross-job same-G convergence,
 non-unique Job artifact pointers, repair-only future lineage, and corresponding
 migration shape/tests. It also supersedes inconsistent portions of
@@ -124,7 +126,8 @@ A non-NULL unknown version fails closed; it never receives a legacy fallback.
 | Job category | lineage version | provenance / artifact pointer | Video pointer | Reader result |
 |---|---|---|---|---|
 | pre-lineage successful PRIMARY | NULL | NULL / NULL | may be NULL | legacy branch allowed |
-| pre-lineage RUNNING/recoverable SCORING | NULL | NULL / NULL | NULL | H0/H1 same-Job recovery; no H2-C |
+| pre-lineage live-active SCORING | NULL | NULL / NULL | NULL | may continue under its still-valid lease; no H2-C |
+| pre-lineage expired SCORING recovery | NULL | NULL / NULL | NULL | H1 terminal `UNKNOWN_PROVIDER_STATE`; no scoring continuation |
 | new RUNNING SCORING | v1 | NULL / NULL | NULL | normal pre-success |
 | new FAILED or FAILED_FINAL SCORING | v1 | NULL / NULL | NULL | no scoring result |
 | new successful PRIMARY | v1 | `PRIMARY` / `scoring/<P>/structured` | equals Job | valid lineage |
@@ -386,22 +389,23 @@ The complete cutover matrix is:
 |---|---|
 | SUCCEEDED PRIMARY | NULL version/provenance/key; valid pre-lineage legacy success and legacy reader candidate. |
 | FAILED_FINAL or other terminal | NULL version/provenance/key; remains terminal under existing recovery rules. |
-| RUNNING with valid lease | NULL version/provenance/key; same-Job H0/H1 recovery remains available, never H2-C. |
-| nonterminal, unleased/interrupted/recoverable | NULL version/provenance/key; same-Job H0/H1 owner-authoritative recovery remains available, never H2-C. |
+| live-active RUNNING with valid owner and `lease_until > now` | NULL version/provenance/key; **LIVE CONTINUATION** of existing execution is allowed, never H2-C. |
+| H1 expired-SCORING predicate: `RUNNING AND lease_until <= now` | NULL version/provenance/key; **EXPIRED/INTERRUPTED H1 RECOVERY** terminalizes it, never H2-C. |
 | malformed or unknown historical state | NULL version is not an upgrade capability; existing recovery fails closed. |
 
-If a recovered pre-v2 Job completes through already-authorized PRIMARY, it uses
-the pre-lineage Phase-F/Phase-G persistence contract: P-only Artifact behavior
-and existing ProviderCalls, with no provenance, Job Artifact pointer, Video
-pointer, or version mutation. Its later SUCCEEDED row remains a valid
-pre-lineage legacy reader candidate. Existing H0/H1 failure behavior likewise
-writes no lineage fields.
+If a pre-v2 live-active Job continues under its still-valid lease and completes
+through already-authorized PRIMARY, it uses the pre-lineage Phase-F/Phase-G
+persistence contract: P-only Artifact behavior and existing ProviderCalls, with
+no provenance, Job Artifact pointer, Video pointer, or version mutation. Its
+later SUCCEEDED row remains a valid pre-lineage legacy reader candidate. An H1
+expired-SCORING recovery writes no lineage fields and cannot complete PRIMARY.
 
 H2-C requires the current Job's version to equal exactly
 `task016c-scoring-lineage-v1` before the H2-B PASS lexical continuation enters
 any H2-C work. NULL therefore never enters H2-C; no migration-time, recovery-
-time, or caller opt-in upgrade exists. A NULL pre-v2 Job that reaches an H2-B
-PASS requiring H2-C retains the frozen build-without-H2-C terminal route:
+time, or caller opt-in upgrade exists. A NULL **live-active** pre-v2 Job that
+reaches an H2-B PASS requiring H2-C retains the frozen build-without-H2-C
+terminal route:
 `ErrorCode.CAPABILITY_UNAVAILABLE`, detail `H2B_PASS_AWAITING_H2C`,
 `retry_at=None`, exactly one `fail_job`, `FAILED_FINAL`, and
 `StageDisposition.TERMINAL`. It performs no H2-C replay, persistence, or
@@ -537,14 +541,16 @@ detail; if it fails, raise/return `H2CStaleScoringLease` with no `fail_job`.
 
 The pointerless legacy compatibility path must load the selected Artifact's
 `job_id`, then its Job, and require `target_stage == SCORING` and a NULL
-generation. Thus both completed historical and recovered-pre-v2 PRIMARY
-successes are intentionally readable; a new v1 result or corruption cannot
+generation. Thus both completed historical and pre-v2 live-active Jobs that
+later complete PRIMARY are intentionally readable; an H1 expired-SCORING
+terminal recovery has no scoring result. A new v1 result or corruption cannot
 downgrade. Migration 002 still performs no historical row rewrite and advances
 `user_version` to 2; Round 1's `_database_check` v2 policy is unchanged.
 
 Future tests add: every cutover state in §11.1; no historical version upgrade;
-pre-v2 PRIMARY recovery/read; pre-v2 H2-B PASS exact capability terminal; new
-v2 creation; same-connection/no-public-reader Job and Video diagnosis; every
+pre-v2 live-active PRIMARY continuation/read; pre-v2 live-active H2-B PASS
+exact capability terminal; expired-SCORING H1 terminal recovery; new v2
+creation; same-connection/no-public-reader Job and Video diagnosis; every
 listed immutable/lease/status/pointer/provenance predicate; classification
 before rollback; rollback before `fail_job`; post-rollback re-proof; and no
 legacy downgrade for v1 corruption. The future file set is unchanged, with
@@ -552,3 +558,58 @@ legacy downgrade for v1 corruption. The future file set is unchanged, with
 
 These cutover, reader, ordering, and diagnostic-detail decisions are closed.
 Any deviation is **DECISION NEEDED**.
+
+## 12. Round 3 — live continuation versus expired H1 recovery
+
+Round 3 supersedes only the over-broad recovery wording in §3 and §11.1–11.4.
+It makes no change to the Round-2 schema, generation, CAS, transaction-local
+reader, reader-selection, reporting, or Phase-I decisions.
+
+**LIVE CONTINUATION** is a pre-v2 SCORING Job that remains `RUNNING`, has its
+current runtime owner, and has `lease_until > now` under frozen H1 semantics.
+It is continuation of already-running execution, not lease-expiry recovery. It
+retains NULL generation forever. It may complete PRIMARY through the legacy
+Phase-F/Phase-G path; if its H2-B PASS would require H2-C, it instead uses the
+already-frozen `CAPABILITY_UNAVAILABLE` / `H2B_PASS_AWAITING_H2C` /
+`retry_at=None` / one `fail_job` / `FAILED_FINAL` /
+`StageDisposition.TERMINAL` path. H2-C remains unavailable.
+
+**EXPIRED/INTERRUPTED H1 RECOVERY** has the exact existing reclaim predicate:
+
+```text
+jobs.status == RUNNING AND jobs.lease_until <= now
+```
+
+This is the complete frozen predicate for the terminal recovery discussed here.
+The schema itself requires every RUNNING Job to have non-NULL `lease_owner` and
+`lease_until`; therefore “unleased RUNNING” is not a second normal H1 category.
+Owner mismatch, missing Job, or a still-unexpired lease are governed by their
+existing H1/claim paths and are not broadened by this lineage authorization.
+
+For an expired SCORING Job, `reclaim_expired_jobs()` performs the existing H1
+terminal recovery in its reclaim transaction: it records
+`UNKNOWN_PROVIDER_STATE`, exact message
+`scoring provider outcome is unknown after lease expiry`, JobAttempt outcome
+`FAILED_FINAL`, Job status `FAILED_FINAL`, `available_at=now`, clears owner and
+lease, and sets `finished_at=now`. It has no `retry_at` parameter or value; it
+does not call `fail_job`, so its `fail_job` count is zero, and it returns the
+saved terminal JobRecord rather than a `StageDisposition`. It releases the
+terminal H1 admission after commit.
+
+This terminal recovery is not executable continuation: it dispatches no
+PRIMARY, performs no H2-B continuation, reaches no H2-C generation gate, and
+consumes no REPAIR or REPAIR_JUDGE admission. It writes no lineage version,
+provenance, Job Artifact pointer, or Video lineage; its generation remains NULL
+forever. Consequently it cannot produce a scoring success or a legacy reader
+candidate.
+
+Required cutover tests distinguish: live-valid-lease continuation without v1;
+its legacy PRIMARY success; its H2-B capability terminal; the exact expired
+predicate and UNKNOWN_PROVIDER_STATE terminal record; no PRIMARY/H2-B/H2-C/
+lineage mutation after expiry; and focused owner-mismatch/unexpired-lease claim
+tests retaining their existing H1 classifications. All Round-2 transaction-local
+Job/Video CAS tests remain unchanged.
+
+The executor has no discretion over live continuation, expired recovery,
+their separating predicate, or their success/terminal outcomes. Any deviation
+is **DECISION NEEDED**.
