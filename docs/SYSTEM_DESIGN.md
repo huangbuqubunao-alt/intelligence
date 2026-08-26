@@ -326,8 +326,11 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `available_at`, `lease_until` | 退避和崩溃恢复 |
 | `last_error_code`, `last_error_message` | 诊断信息 |
 | `created_at`, `updated_at` | 审计时间 |
+| `authoritative_scoring_artifact_key` | 仅在另行批准的 H2-C repair persistence migration 生效后使用；成功 repair SCORING Job 指向其唯一的精确 structured Artifact key，未成功和 legacy PRIMARY 为 NULL；不得用时间排序替代该关系 |
 
 部分唯一索引 `scope_key + pipeline_version` 覆盖视频和 `video_id IS NULL` 的全局任务，保证同一逻辑范围最多一个未完成 Job。
+
+H2-C 的 authoritative repair graph 是 Job 级的历史关系，不在 `videos` 建立“当前/latest repair”指针。读取 repaired score 必须先获得精确成功 `job_id`，再按该 Job 的 exact structured Artifact key 读取；周报只消费已验证结果，不能通过 `video_id`、Artifact 创建时间、目录扫描或 P 值选择 repaired graph。该关系、Artifact rows、ProviderCall rows、视频阶段更新和 Job `SUCCEEDED` 必须在同一 SQLite transaction 中提交；commit 前的文件孤儿没有权威性。Phase I cache/recovery/cross-job reuse 不在此规则内。
 
 ### 8.4 `job_attempts`
 

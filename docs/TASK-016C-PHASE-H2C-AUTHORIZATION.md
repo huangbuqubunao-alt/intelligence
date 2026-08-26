@@ -1070,6 +1070,11 @@ Orphans remain non-authoritative and no cleanup is required for correctness.
 
 **H2-C AUTHORITATIVE GRAPH SELECTION SCHEMA BLOCKER**
 
+The blocker-resolution decision is recorded separately in
+`docs/TASK-016C-PHASE-H2C-AUTHORITATIVE-G-SCHEMA-AUTHORIZATION.md`. It selects
+a repair-only, job-owned exact structured-Artifact-key relation, but grants no
+implementation authority until independent review accepts that document.
+
 The frozen V1 schema can persist G-specific Artifact rows but cannot durably
 state which one is the authoritative repaired graph for a video after the
 SCORING job has completed. The exact audit result is:
