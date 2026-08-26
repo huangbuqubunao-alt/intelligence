@@ -109,6 +109,7 @@ EXPECTED_COLUMNS = {
         "discovered_at",
         "updated_at",
         "completed_at",
+        "authoritative_scoring_job_id",
     ),
     "channel_cursors": (
         "channel_id",
@@ -139,6 +140,9 @@ EXPECTED_COLUMNS = {
         "created_at",
         "updated_at",
         "finished_at",
+        "authoritative_scoring_artifact_key",
+        "scoring_success_provenance",
+        "scoring_lineage_version",
     ),
     "job_attempts": (
         "attempt_id",
@@ -564,12 +568,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "001_initial.sql")
+        .joinpath("migrations", "002_add_scoring_lineage.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 1
-    assert first.name == "001_initial.sql"
+    assert first.version == 2
+    assert first.name == "002_add_scoring_lineage.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -584,7 +588,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 1
+    assert migration_count == 2
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -638,6 +642,8 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "uq_job_attempts_active",
         "uq_job_attempts_number",
         "uq_jobs_active_scope_pipeline",
+        "uq_jobs_authoritative_scoring_artifact_key",
+        "uq_videos_authoritative_scoring_job_id",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

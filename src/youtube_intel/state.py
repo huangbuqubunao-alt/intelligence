@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import Final, cast
 
 from youtube_intel.domain import (
     Availability,
@@ -28,6 +28,11 @@ from youtube_intel.domain import (
     VideoMetadata,
     transition_pipeline,
 )
+
+#: The sole post-migration scoring lineage generation (schema v2).  Every
+#: post-migration SCORING Job receives exactly this literal at creation; the
+#: repository derives it internally and callers cannot submit a version.
+SCORING_LINEAGE_VERSION_V1: Final = "task016c-scoring-lineage-v1"
 
 
 class StateStoreError(Exception):
@@ -166,6 +171,7 @@ class VideoRecord:
     discovered_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    authoritative_scoring_job_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +193,9 @@ class JobRecord:
     created_at: datetime
     updated_at: datetime
     finished_at: datetime | None
+    authoritative_scoring_artifact_key: str | None = None
+    scoring_success_provenance: str | None = None
+    scoring_lineage_version: str | None = None
 
 
 def _release_terminal_scoring_admission(
@@ -599,20 +608,23 @@ class SQLiteStateRepository:
         )
 
     def _load_migrations(self) -> tuple[_Migration, ...]:
-        name = "001_initial.sql"
-        sql_bytes = (
-            resources.files("youtube_intel")
-            .joinpath("migrations", name)
-            .read_bytes()
-        )
-        return (
-            _Migration(
-                version=1,
-                name=name,
-                sql=sql_bytes.decode("utf-8"),
-                checksum=hashlib.sha256(sql_bytes).hexdigest(),
-            ),
-        )
+        names = ("001_initial.sql", "002_add_scoring_lineage.sql")
+        migrations: list[_Migration] = []
+        for version, name in enumerate(names, start=1):
+            sql_bytes = (
+                resources.files("youtube_intel")
+                .joinpath("migrations", name)
+                .read_bytes()
+            )
+            migrations.append(
+                _Migration(
+                    version=version,
+                    name=name,
+                    sql=sql_bytes.decode("utf-8"),
+                    checksum=hashlib.sha256(sql_bytes).hexdigest(),
+                )
+            )
+        return tuple(migrations)
 
     @staticmethod
     def _history_rows(connection: sqlite3.Connection) -> tuple[sqlite3.Row, ...]:
@@ -791,6 +803,7 @@ class SQLiteStateRepository:
             discovered_at=_parse_utc_datetime(str(row["discovered_at"])),
             updated_at=_parse_utc_datetime(str(row["updated_at"])),
             completed_at=SQLiteStateRepository._optional_datetime(row["completed_at"]),
+            authoritative_scoring_job_id=row["authoritative_scoring_job_id"],
         )
 
     @staticmethod
@@ -813,6 +826,11 @@ class SQLiteStateRepository:
             created_at=_parse_utc_datetime(str(row["created_at"])),
             updated_at=_parse_utc_datetime(str(row["updated_at"])),
             finished_at=SQLiteStateRepository._optional_datetime(row["finished_at"]),
+            authoritative_scoring_artifact_key=row[
+                "authoritative_scoring_artifact_key"
+            ],
+            scoring_success_provenance=row["scoring_success_provenance"],
+            scoring_lineage_version=row["scoring_lineage_version"],
         )
 
     @staticmethod
@@ -1364,14 +1382,23 @@ class SQLiteStateRepository:
         available_at: str,
         now: str,
     ) -> None:
+        # The repository alone derives the lineage generation at creation:
+        # only a VIDEO_STAGE SCORING Job receives the v1 marker, every other
+        # Job stays NULL (pre-lineage generation), and the value is immutable.
+        scoring_lineage_version = (
+            SCORING_LINEAGE_VERSION_V1
+            if job_type is JobType.VIDEO_STAGE
+            and target_stage is ProcessingStage.SCORING
+            else None
+        )
         connection.execute(
             "INSERT INTO jobs "
             "(job_id, scope_key, video_id, job_type, target_stage, "
             "pipeline_version, status, attempt_count, max_attempts, "
-            "available_at, created_at, updated_at) "
+            "available_at, scoring_lineage_version, created_at, updated_at) "
             "VALUES (:job_id, :scope_key, :video_id, :job_type, :target_stage, "
             ":pipeline_version, :status, 0, :max_attempts, :available_at, "
-            ":created_at, :updated_at)",
+            ":scoring_lineage_version, :created_at, :updated_at)",
             {
                 "job_id": job_id,
                 "scope_key": scope_key,
@@ -1382,6 +1409,7 @@ class SQLiteStateRepository:
                 "status": JobStatus.PENDING.value,
                 "max_attempts": max_attempts,
                 "available_at": available_at,
+                "scoring_lineage_version": scoring_lineage_version,
                 "created_at": now,
                 "updated_at": now,
             },
@@ -1446,6 +1474,37 @@ class SQLiteStateRepository:
             return None if row is None else self._job_from_row(row)
         finally:
             connection.close()
+
+    def _read_job_in_transaction(
+        self, connection: sqlite3.Connection, job_id: str
+    ) -> JobRecord | None:
+        """Read one Job on the exact connection of an open BEGIN IMMEDIATE.
+
+        Private read-only CAS-diagnosis helper: it reuses the transaction's
+        connection and canonical row decoder, performs no commit/rollback and
+        has no side effects.  Public ``get_job`` is forbidden between a failed
+        lineage CAS and its classification.
+        """
+
+        row = connection.execute(
+            "SELECT * FROM jobs WHERE job_id = :job_id", {"job_id": job_id}
+        ).fetchone()
+        return None if row is None else self._job_from_row(row)
+
+    def _read_video_in_transaction(
+        self, connection: sqlite3.Connection, video_id: str
+    ) -> VideoRecord | None:
+        """Read one Video on the exact connection of an open BEGIN IMMEDIATE.
+
+        Private read-only CAS-diagnosis helper with the same contract as
+        ``_read_job_in_transaction``.
+        """
+
+        row = connection.execute(
+            "SELECT * FROM videos WHERE video_id = :video_id",
+            {"video_id": video_id},
+        ).fetchone()
+        return None if row is None else self._video_from_row(row)
 
     def list_job_attempts(self, job_id: str) -> tuple[JobAttemptRecord, ...]:
         connection = self._connect()
