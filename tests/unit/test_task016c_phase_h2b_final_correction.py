@@ -440,21 +440,19 @@ def test_full_h2b_pass_terminalizes_capability_unavailable_once(tmp_path: Path) 
 
     _FLOW._run_process(runtime)
 
-    job = _FLOW._scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
-    # fail_job exactly once; zero generic _fail.
+    # The validated H2-B PASS enters H2-C on a v1-generation Job and
+    # persists the complete REPAIR_H2C lineage graph exactly once.
+    job = _FLOW._assert_h2c_repair_success(runtime)
     attempts = runtime._repository.list_job_attempts(job.job_id)
     assert len(attempts) == 1
-    assert attempts[0].error_code == "CAPABILITY_UNAVAILABLE"
-    assert attempts[0].error_message == "H2B_PASS_AWAITING_H2C"
-    # The legitimate admitted path made exactly one REPAIR and one Judge contact.
+    assert attempts[0].outcome.value == "SUCCEEDED"
+    # The legitimate admitted path made exactly one REPAIR and one Judge
+    # contact; the H2-C replay adds zero network contact.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
     # H1 consumption accounting: the flow made exactly one admitted REPAIR and
     # one admitted REPAIR_JUDGE contact (each transport requires the prior
-    # state-only consumption), and the terminal transition released the shared
+    # state-only consumption), and the success transition released the shared
     # admission state as cleanup — without renewing any dispatch authority.
     from youtube_intel import scoring_admission as scoring_admission_module
 
@@ -465,16 +463,6 @@ def test_full_h2b_pass_terminalizes_capability_unavailable_once(tmp_path: Path) 
         if key.repository_scope == scope and key.job_id == job.job_id
     ]
     assert matching == []
-    # No success persistence of any kind.
-    assert (
-        runtime._repository.latest_artifact(
-            _FLOW.VIDEO_ID, ArtifactKind.SCORING_STRUCTURED
-        )
-        is None
-    )
-    video = runtime._repository.get_video(_FLOW.VIDEO_ID)
-    assert video is not None
-    assert video.pipeline_status is _FLOW.PipelineStatus.TRANSCRIPT_READY
 
 
 def test_successful_h2b_exposes_no_aggregate_anywhere(tmp_path: Path) -> None:
@@ -508,27 +496,31 @@ def test_transitional_terminal_cannot_be_claimed_recovered_or_retried(
     )
     runtime = _FLOW._runtime(tmp_path, transport)
     _FLOW._run_process(runtime)
-    job = _FLOW._scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
+    # The H2-C success is final: no scoring rerun, no claim, no resurrection.
+    job = _FLOW._assert_h2c_repair_success(runtime)
+    assert job.status is JobStatus.SUCCEEDED
     baseline_requests = len(transport.requests)
     before_jobs = len(
         runtime._repository.list_failed_video_jobs()
     )
 
-    # No claim/recovery path resurrects the terminal job.
+    # No claim/recovery path resurrects a scoring job for the scored video.
     assert (
         runtime._repository.claim_next_job(
             owner="other-runtime",
             lease_until=_FLOW.NOW + NOW_DELAY,
             now=_FLOW.NOW + timedelta(minutes=1),
+            video_id=_FLOW.VIDEO_ID,
         )
         is None
     )
-    # Manual retry finds no candidate and dispatches nothing.
+    # Manual retry finds no final failed candidate and dispatches nothing.
     outcome = runtime.retry(video=None, failed_only=False)
     assert outcome.safe_message == "No final failed video job is available to retry."
     assert len(transport.requests) == baseline_requests
     assert len(runtime._repository.list_failed_video_jobs()) == before_jobs
+    # The authoritative pointer is immutable: still this exact job.
+    assert _FLOW._scoring_job(runtime).job_id == job.job_id
 
 
 # ---------------------------------------------------------------------------

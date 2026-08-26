@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, cast
+from typing import Any, Callable, NoReturn, cast
 
 from youtube_intel.analysis import (
     AnalysisJobContext,
@@ -65,7 +65,12 @@ from youtube_intel.h2_evidence import (
     PrimaryFailureClass,
     PrimaryFailureEvidence,
     PrimaryTrustedContext,
+    RepairCandidateEvidence,
+    RepairFinalizerBinding,
     RepairNormalizedInput,
+    RepairProviderEvidence,
+    RepairQualityEvidence,
+    build_h2c_settings_provenance,
     build_judge_evidence,
     build_primary_trusted_context,
     build_repair_normalized_input,
@@ -75,6 +80,7 @@ from youtube_intel.h2_evidence import (
     repair_normalized_input_hash,
     replay_language_validation,
     replay_primary_parser_failure,
+    verify_judge_evidence_replay,
     verify_primary_failure_evidence,
 )
 from youtube_intel.h2_jcs import jcs_loads_strict
@@ -109,13 +115,16 @@ from youtube_intel.quality import (
     _TRUSTED_SCORING_CONTEXT_SENTINEL,
     DeterministicContentQualityGate,
     QualityProvenanceAuthority,
+    RepairFinalizationInvalid,
     RepairTrustedScoringFinalizer,
+    TrustedScoreResult,
     TrustedScoringContext,
     _mint_quality_provenance_authority,
     _mint_trusted_scoring_context,
     build_content_quality_input_hash,
     build_quality_pass_attestation,
     build_scoring_candidate_hash,
+    verify_quality_pass_attestation,
 )
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
@@ -127,11 +136,17 @@ from youtube_intel.scoring import (
     _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
     PROMPT_VERSION,
     SCHEMA_VERSION,
+    H2CStaleScoringLease,
     PhaseFTrustedScoringSuccess,
+    PhaseHTrustedRepairSuccess,
     PrimaryScoringAttempt,
     ScoringJobContext,
     TrustedPersistenceEntry,
+    _H2CEnvelopeOversize,
+    _H2CLineageTerminalHandled,
+    _mint_phase_h_trusted_repair_success,
     _run_primary_trusted_scoring_seam,
+    build_repair_composite_envelope,
     build_scoring_input,
     build_scoring_request_identity,
 )
@@ -146,9 +161,11 @@ from youtube_intel.scoring_admission import (
     build_primary_scoring_dispatch_identity,
 )
 from youtube_intel.state import (
+    SCORING_LINEAGE_VERSION_V1,
     ArtifactKind,
     ArtifactRecord,
     JobRecord,
+    LeaseConflict,
     ProviderCallStatus,
     SQLiteStateRepository,
     StorageRoot,
@@ -175,6 +192,23 @@ class _KnownPrimaryFailure(ValueError):
             retryable=False,
             stage=ProcessingStage.SCORING,
         )
+
+
+class _H2CReplayInvalid(Exception):
+    """One closed H2-C replay/pre-entry integrity predicate failed.
+
+    Carries exactly one approved reason literal from the closed
+    ``H2C_REPLAY_INVALID:<REASON>`` set; the continuation maps it to one
+    owner-authoritative ``TRUST_INTEGRITY_INVALID`` terminal.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class _H2CSettingsBoundExceeded(Exception):
+    """Current settings exceed an H2-C persistence admission ceiling."""
 
 
 PIPELINE_VERSION = "runtime-v1"
@@ -1772,27 +1806,546 @@ class RuntimeOperations(Operations):
                 )
                 # The aggregate is a lexical local H2-B completion point only:
                 # it is never retained on the runtime, in globals, or in any
-                # cache/registry.  The current staged build has no authorized
-                # H2-C continuation, so the complete valid PASS terminalizes
-                # explicitly and non-retryably with CAPABILITY_UNAVAILABLE /
-                # H2B_PASS_AWAITING_H2C.  A future separately authorized H2-C
-                # will replace exactly this terminalization with the immediate
-                # lexical handoff; no hook/placeholder exists now.
-                self._repository.fail_job(
-                    job.job_id,
-                    owner=self._runtime_owner,
-                    error_code=ErrorCode.CAPABILITY_UNAVAILABLE,
-                    error_message="H2B_PASS_AWAITING_H2C",
-                    retry_at=None,
-                    now=_utcnow(),
-                )
-                confirmed = self._repository.get_job(job.job_id)
-                if confirmed is None or confirmed.status is not JobStatus.FAILED_FINAL:
-                    raise UnknownProviderState(
-                        "H2-B staged terminalization could not be finalized"
+                # cache/registry.  It is untrusted input to the H2-C replay.
+
+                def _h2c_replay_continuation() -> PhaseHTrustedRepairSuccess:
+                    """The approved 23-step no-network H2-C replay.
+
+                    Defined and invoked only inside this actual SCORING frame,
+                    immediately after the local H2-B aggregate.  Every
+                    security-significant claim is re-derived from the trusted
+                    roots of this frame (job/owner/lease, original
+                    ScoringInput, rebuilt PRIMARY context, validated settings,
+                    runtime quality authority) and compared against the
+                    untrusted aggregate; pure checks are rerun from the
+                    aggregate's sealed captures.  Zero /api/tags, zero
+                    /api/generate, zero provider-factory, and zero Judge
+                    network contact.  Only after all 23 checks does it mint
+                    the PhaseHTrustedRepairSuccess data.
+                    """
+
+                    def _invalid(reason: str) -> NoReturn:
+                        raise _H2CReplayInvalid(reason)
+
+                    # 1. Current job/owner/active lease.
+                    current = self._repository.get_job(job.job_id)
+                    now = _utcnow()
+                    if (
+                        current is None
+                        or current.status is not JobStatus.RUNNING
+                        or current.lease_owner != self._runtime_owner
+                        or current.lease_until is None
+                        or current.lease_until <= now
+                    ):
+                        raise H2CStaleScoringLease(
+                            "H2-C replay lost the active scoring lease"
+                        )
+
+                    # 2. Rebuild the PRIMARY trusted context from the original
+                    #    input and settings.
+                    replayed_context = build_primary_trusted_context(
+                        scoring_input=scoring_input,
+                        model=settings.model,
+                        model_digest=settings.expected_model_digest,
+                        temperature=settings.temperature,
+                        max_output_tokens=settings.max_output_tokens,
+                        max_description_chars=settings.max_description_chars,
                     )
-                del aggregate
-                return StageDisposition.TERMINAL
+                    if replayed_context != aggregate.primary_trusted_context:
+                        _invalid("PRIMARY_EVIDENCE_MISMATCH")
+
+                    # 3. Strictly reconstruct and verify the PRIMARY failure
+                    #    evidence against the rebuilt context/settings.
+                    replayed_pfe = PrimaryFailureEvidence.model_validate(
+                        aggregate.primary_failure_evidence.model_dump(mode="json")
+                    )
+                    try:
+                        verify_primary_failure_evidence(
+                            replayed_pfe, replayed_context, settings
+                        )
+                    except ValueError:
+                        _invalid("PFE_INVALID")
+
+                    # 4. Eligible exact failure class only (UNKNOWN rejects).
+                    if (
+                        replayed_pfe.failure_class is not aggregate.failure_class
+                        or replayed_pfe.failure_class
+                        not in {
+                            PrimaryFailureClass.SCHEMA_OR_PARSE_INVALID,
+                            PrimaryFailureClass.LANGUAGE_INVALID,
+                            PrimaryFailureClass.JUDGE_REJECT,
+                            PrimaryFailureClass.JUDGE_UNCERTAIN,
+                        }
+                    ):
+                        _invalid("FAILURE_CLASS_INELIGIBLE")
+                    if replayed_pfe != pfe:
+                        _invalid("PRIMARY_EVIDENCE_MISMATCH")
+
+                    # 5-7. Rebuild RNI, recompute exact H2-JCS bytes and hash.
+                    replayed_rni = build_repair_normalized_input(
+                        job_id=job.job_id,
+                        primary_trusted_context=replayed_context,
+                        failure_evidence=replayed_pfe,
+                        validated_settings=settings,
+                    )
+                    if replayed_rni != aggregate.repair_normalized_input:
+                        _invalid("RNI_MISMATCH")
+                    if h2_canonical_bytes(replayed_rni) != aggregate.repair_normalized_input_bytes:
+                        _invalid("RNI_MISMATCH")
+                    replayed_rni_hash = repair_normalized_input_hash(replayed_rni)
+                    if replayed_rni_hash != aggregate.rni_hash:
+                        _invalid("RNI_MISMATCH")
+
+                    # 8-10. Recompute REPAIR request hash, prompt, and exact
+                    #       payload; compare bytes/hash/length.
+                    replayed_request_hash = build_repair_request_hash(replayed_rni)
+                    if replayed_request_hash != aggregate.repair_request_hash:
+                        _invalid("REPAIR_REQUEST_MISMATCH")
+                    replayed_prompt = render_task016c_repair_prompt_v2(
+                        output_language=replayed_rni.output_language,
+                        repair_request_hash=replayed_request_hash,
+                        rni_jcs_utf8=h2_canonical_bytes(replayed_rni).decode("utf-8"),
+                        pfe_jcs_utf8=h2_canonical_bytes(replayed_pfe).decode("utf-8"),
+                        scoring_input_jcs_utf8=h2_canonical_bytes(
+                            replayed_rni.scoring_input
+                        ).decode("utf-8"),
+                        primary_raw_utf8=replayed_pfe.primary_raw_utf8,
+                        candidate_evidence_jcs_utf8=(
+                            h2_canonical_bytes(
+                                replayed_pfe.primary_candidate
+                            ).decode("utf-8")
+                            if isinstance(
+                                replayed_pfe.primary_candidate, CandidateEvidence
+                            )
+                            else None
+                        ),
+                        extracted_model_content=self._h2b_extract_model_content(
+                            replayed_pfe.primary_raw_utf8
+                        ),
+                    )
+                    if replayed_prompt != aggregate.repair_prompt:
+                        _invalid("REPAIR_PAYLOAD_MISMATCH")
+                    replayed_body = build_task016c_repair_generate_body(
+                        model=replayed_rni.repair_model,
+                        prompt=replayed_prompt,
+                        temperature=replayed_rni.temperature,
+                        max_output_tokens=replayed_rni.max_output_tokens,
+                    )
+                    if (
+                        replayed_body != aggregate.repair_payload_bytes
+                        or hashlib.sha256(replayed_body).hexdigest()
+                        != aggregate.repair_payload_sha256
+                        or len(replayed_body) != aggregate.repair_payload_length
+                    ):
+                        _invalid("REPAIR_PAYLOAD_MISMATCH")
+
+                    # 11. Replay strict REPAIR raw/hash/length/protocol.
+                    try:
+                        replayed_capture = seal_primary_raw_capture(
+                            aggregate.repair_raw_utf8.encode("utf-8")
+                        )
+                    except ValueError:
+                        _invalid("REPAIR_RAW_INVALID")
+                    if (
+                        replayed_capture.utf8 != aggregate.repair_raw_utf8
+                        or replayed_capture.sha256 != aggregate.repair_raw_sha256
+                        or replayed_capture.byte_length != aggregate.repair_raw_length
+                    ):
+                        _invalid("REPAIR_RAW_INVALID")
+                    if (
+                        self._h2b_extract_model_content(aggregate.repair_raw_utf8)
+                        != aggregate.repair_model_content
+                    ):
+                        _invalid("REPAIR_RAW_INVALID")
+
+                    # 12. Parse candidate again; compare candidate/hash.
+                    try:
+                        replayed_candidate = parse_scoring_candidate(
+                            aggregate.repair_raw_utf8
+                        )
+                    except ValueError:
+                        _invalid("CANDIDATE_MISMATCH")
+                    if replayed_candidate != aggregate.repaired_candidate:
+                        _invalid("CANDIDATE_MISMATCH")
+                    if (
+                        build_scoring_candidate_hash(replayed_candidate)
+                        != aggregate.repaired_candidate_hash
+                    ):
+                        _invalid("CANDIDATE_MISMATCH")
+
+                    # 13. Rerun TASK-016B only; require exact VALID evidence.
+                    replayed_language = replay_language_validation(
+                        candidate=replayed_candidate,
+                        output_language=replayed_rni.output_language,
+                    )
+                    if (
+                        replayed_language.result != "VALID"
+                        or replayed_language != aggregate.language_evidence
+                    ):
+                        _invalid("LANGUAGE_INVALID")
+
+                    # 14. Reconstruct quality input; rerun deterministic gate.
+                    replayed_judge_ctx, replayed_judge_input = (
+                        derive_repair_judge_trusted_context(
+                            repair_request_hash=replayed_request_hash,
+                            trusted_candidate=replayed_candidate,
+                            scoring_input=scoring_input,
+                            validated_settings=settings,
+                        )
+                    )
+                    if replayed_judge_input != aggregate.judge_input:
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+                    if (
+                        build_content_quality_input_hash(replayed_judge_input)
+                        != aggregate.quality_input_hash
+                    ):
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+                    gate_reject = DeterministicContentQualityGate().evaluate(
+                        content=replayed_candidate.reason,
+                        candidate_hash=aggregate.repaired_candidate_hash,
+                        quality_input_hash=aggregate.quality_input_hash,
+                        scoring_request_hash=replayed_request_hash,
+                    )
+                    if (
+                        gate_reject is not None
+                        or aggregate.deterministic_gate_status != "PASS"
+                    ):
+                        _invalid("DETERMINISTIC_GATE_INVALID")
+
+                    # 15-16. Rebuild REPAIR Judge context; recompute H1/H2.
+                    if (
+                        replayed_judge_ctx.expected_h1 != aggregate.judge_h1
+                        or replayed_judge_ctx.expected_h2 != aggregate.judge_h2
+                        or replayed_judge_ctx.operation_input
+                        != aggregate.judge_operation_input
+                    ):
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+
+                    # 17. Replay strict Judge raw; pure-verify PASS.
+                    replayed_judge_result = verify_judge_model_content(
+                        aggregate.judge_raw_utf8,
+                        operation_input=replayed_judge_ctx.operation_input,
+                        content_input=replayed_judge_input,
+                    )
+                    if (
+                        replayed_judge_result.status is not ContentQualityStatus.PASS
+                        or replayed_judge_result != aggregate.judge_result
+                    ):
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+                    try:
+                        replayed_judge_capture = seal_judge_raw_capture(
+                            aggregate.judge_raw_utf8
+                        )
+                    except ValueError:
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+                    if (
+                        replayed_judge_capture.utf8 != aggregate.judge_raw_utf8
+                        or replayed_judge_capture.sha256
+                        != aggregate.judge_raw_sha256
+                        or replayed_judge_capture.byte_length
+                        != aggregate.judge_raw_length
+                    ):
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+                    try:
+                        verify_judge_evidence_replay(
+                            aggregate.judge_evidence, replayed_judge_ctx
+                        )
+                    except ValueError:
+                        _invalid("JUDGE_EVIDENCE_INVALID")
+
+                    # 18. Revalidate the exact REPAIR attestation.
+                    try:
+                        verify_quality_pass_attestation(
+                            aggregate.attestation,
+                            quality_result=replayed_judge_result,
+                            operation_input=replayed_judge_ctx.operation_input,
+                            quality_input=replayed_judge_input,
+                            authority=self._quality_provenance_authority,
+                        )
+                    except ValueError:
+                        _invalid("ATTESTATION_INVALID")
+
+                    # 19-21. Independent finalizer; exact trusted-result and
+                    #        sealed structured bytes equality.
+                    try:
+                        replayed_finalization = RepairTrustedScoringFinalizer().finalize(
+                            candidate=replayed_candidate,
+                            scoring_input=scoring_input,
+                            repair_normalized_input=replayed_rni,
+                            rni_hash=replayed_rni_hash,
+                            repair_request_hash=replayed_request_hash,
+                            quality_input=replayed_judge_input,
+                            quality_result=replayed_judge_result,
+                            quality_operation=replayed_judge_ctx.operation_input,
+                            judge_evidence=aggregate.judge_evidence,
+                            attestation=aggregate.attestation,
+                            quality_authority=self._quality_provenance_authority,
+                            scoring_context=self._trusted_scoring_context,
+                            validated_settings=settings,
+                        )
+                    except (ValueError, TypeError, RepairFinalizationInvalid):
+                        _invalid("FINALIZER_INVALID")
+                    if (
+                        type(aggregate.finalizer_trusted_result)
+                        is not TrustedScoreResult
+                        or aggregate.finalizer_trusted_result.result
+                        != replayed_finalization.trusted_result.result
+                    ):
+                        _invalid("TRUSTED_RESULT_MISMATCH")
+                    if (
+                        replayed_finalization.structured_bytes
+                        != aggregate.structured_result_bytes
+                        or replayed_finalization.structured_sha256
+                        != aggregate.structured_result_sha256
+                        or replayed_finalization.structured_length
+                        != aggregate.structured_result_length
+                        or replayed_finalization.trusted_result.result.schema_version
+                        != aggregate.structured_result_schema_version
+                        or replayed_finalization.trusted_result.result.prompt_version
+                        != aggregate.structured_result_prompt_version
+                    ):
+                        _invalid("STRUCTURED_RESULT_MISMATCH")
+
+                    # 22. Recheck settings and complete cross-bindings.
+                    if (
+                        settings.max_transcript_chars > 131_072
+                        or settings.max_output_tokens > 2_147_483_647
+                    ):
+                        raise _H2CSettingsBoundExceeded()
+                    settings_provenance = build_h2c_settings_provenance(
+                        validated_settings=settings,
+                        output_language=scoring_input.output_language,
+                        summary_score_threshold=(
+                            self._config.settings.thresholds.summary_score
+                        ),
+                    )
+                    from youtube_intel.h2_jcs import jcs_serialize as _jcs_serialize
+
+                    settings_provenance_sha256 = hashlib.sha256(
+                        _jcs_serialize(settings_provenance.model_dump(mode="json"))
+                    ).hexdigest()
+                    if len(
+                        _jcs_serialize(settings_provenance.model_dump(mode="json"))
+                    ) > 8_192:
+                        raise _H2CSettingsBoundExceeded()
+                    provider_evidence = RepairProviderEvidence.model_validate(
+                        {
+                            "schema_version": "task016c-repair-provider-evidence-v2",
+                            "operation": replayed_rni.operation,
+                            "normalized_input": replayed_rni.model_dump(mode="json"),
+                            "normalized_input_hash": replayed_rni_hash,
+                            "request_hash": replayed_request_hash,
+                            "provider": replayed_rni.repair_provider,
+                            "model": replayed_rni.repair_model,
+                            "model_digest": replayed_rni.repair_model_digest,
+                            "prompt_version": replayed_rni.repair_prompt_version,
+                            "operation_schema_version": (
+                                replayed_rni.repair_schema_version
+                            ),
+                            "output_language": replayed_rni.output_language,
+                            "temperature": replayed_rni.temperature,
+                            "max_output_tokens": replayed_rni.max_output_tokens,
+                            "max_description_chars": (
+                                replayed_rni.max_description_chars
+                            ),
+                            "settings_provenance": settings_provenance.model_dump(
+                                mode="json"
+                            ),
+                            "settings_provenance_sha256": (
+                                settings_provenance_sha256
+                            ),
+                        }
+                    )
+                    candidate_evidence = RepairCandidateEvidence.model_validate(
+                        {
+                            "schema_version": (
+                                "task016c-repair-candidate-evidence-v1"
+                            ),
+                            "repair_raw_utf8": aggregate.repair_raw_utf8,
+                            "repair_raw_sha256": aggregate.repair_raw_sha256,
+                            "repair_raw_length": aggregate.repair_raw_length,
+                            "repair_model_content": aggregate.repair_model_content,
+                            "candidate": replayed_candidate.model_dump(mode="json"),
+                            "candidate_sha256": aggregate.repaired_candidate_hash,
+                            "language_evidence": replayed_language.model_dump(
+                                mode="json"
+                            ),
+                        }
+                    )
+                    quality_evidence = RepairQualityEvidence.model_validate(
+                        {
+                            "schema_version": "task016c-repair-quality-evidence-v1",
+                            "quality_input": replayed_judge_input.model_dump(
+                                mode="json"
+                            ),
+                            "quality_input_hash": aggregate.quality_input_hash,
+                            "deterministic_gate_status": "PASS",
+                            "judge_operation_input": (
+                                replayed_judge_ctx.operation_input.model_dump(
+                                    mode="json"
+                                )
+                            ),
+                            "judge_h1": replayed_judge_ctx.expected_h1,
+                            "judge_h2": replayed_judge_ctx.expected_h2,
+                            "judge_raw_utf8": aggregate.judge_raw_utf8,
+                            "judge_raw_sha256": aggregate.judge_raw_sha256,
+                            "judge_raw_length": aggregate.judge_raw_length,
+                            "judge_evidence": aggregate.judge_evidence.model_dump(
+                                mode="json"
+                            ),
+                            "quality_result": replayed_judge_result.model_dump(
+                                mode="json"
+                            ),
+                            "attestation": aggregate.attestation.model_dump(
+                                mode="json"
+                            ),
+                        }
+                    )
+                    finalizer_binding = RepairFinalizerBinding.model_validate(
+                        {
+                            "schema_version": (
+                                "task016c-repair-finalizer-binding-v1"
+                            ),
+                            "trusted_result": (
+                                replayed_finalization.trusted_result.result.model_dump(
+                                    mode="json"
+                                )
+                            ),
+                            "structured_result_sha256": (
+                                replayed_finalization.structured_sha256
+                            ),
+                            "structured_result_length": (
+                                replayed_finalization.structured_length
+                            ),
+                            "structured_result_schema_version": SCHEMA_VERSION,
+                            "structured_result_prompt_version": PROMPT_VERSION,
+                            "primary_request_hash": replayed_context.request_hash,
+                            "repair_request_hash": replayed_request_hash,
+                            "repair_judge_request_hash": (
+                                replayed_judge_ctx.expected_h2
+                            ),
+                        }
+                    )
+
+                    # 23. Build the envelope and mint the trusted success data.
+                    envelope, envelope_bytes, _, _ = build_repair_composite_envelope(
+                        primary_failure_evidence=replayed_pfe,
+                        repair_provider_evidence=provider_evidence,
+                        repair_candidate_evidence=candidate_evidence,
+                        repair_quality_evidence=quality_evidence,
+                        finalizer_binding=finalizer_binding,
+                    )
+                    return _mint_phase_h_trusted_repair_success(
+                        job_id=job.job_id,
+                        owner=self._runtime_owner,
+                        pipeline_version=PIPELINE_VERSION,
+                        primary_request_hash=replayed_context.request_hash,
+                        primary_normalized_input_hash=(
+                            replayed_context.normalized_input_hash
+                        ),
+                        scoring_input_sha256=replayed_context.scoring_input_sha256,
+                        envelope=envelope,
+                        envelope_bytes=envelope_bytes,
+                        trusted_result=replayed_finalization.trusted_result,
+                        structured_bytes=replayed_finalization.structured_bytes,
+                    )
+
+                def _h2c_integrity_terminal(detail: str) -> StageDisposition:
+                    """One owner-authoritative trust-integrity fail_job."""
+
+                    try:
+                        self._repository.fail_job(
+                            job.job_id,
+                            owner=self._runtime_owner,
+                            error_code=ErrorCode.TRUST_INTEGRITY_INVALID,
+                            error_message=detail,
+                            retry_at=None,
+                            now=_utcnow(),
+                        )
+                    except LeaseConflict as error:
+                        raise H2CStaleScoringLease(
+                            "lease lost during H2-C integrity terminalization"
+                        ) from error
+                    confirmed = self._repository.get_job(job.job_id)
+                    if (
+                        confirmed is None
+                        or confirmed.status is not JobStatus.FAILED_FINAL
+                    ):
+                        raise UnknownProviderState(
+                            "H2-C integrity terminalization could not be finalized"
+                        )
+                    return StageDisposition.TERMINAL
+
+                # --- Generation decision point (after validated H2-B PASS). ---
+                decision_job = self._repository.get_job(job.job_id)
+                generation = (
+                    None
+                    if decision_job is None
+                    else decision_job.scoring_lineage_version
+                )
+                if generation is None:
+                    # Known pre-lineage: the frozen compatibility terminal.  No
+                    # H2-C entry, admission, replay, provider/Judge work, or
+                    # repair persistence.
+                    self._repository.fail_job(
+                        job.job_id,
+                        owner=self._runtime_owner,
+                        error_code=ErrorCode.CAPABILITY_UNAVAILABLE,
+                        error_message="H2B_PASS_AWAITING_H2C",
+                        retry_at=None,
+                        now=_utcnow(),
+                    )
+                    confirmed = self._repository.get_job(job.job_id)
+                    if (
+                        confirmed is None
+                        or confirmed.status is not JobStatus.FAILED_FINAL
+                    ):
+                        raise UnknownProviderState(
+                            "H2-B staged terminalization could not be finalized"
+                        )
+                    return StageDisposition.TERMINAL
+                if generation != SCORING_LINEAGE_VERSION_V1:
+                    # Unknown non-NULL generation: closed pre-entry integrity
+                    # terminal; never H2-C entry and never legacy fallback.
+                    return _h2c_integrity_terminal(
+                        "H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID"
+                    )
+
+                # v1 generation: the only branch that may enter H2-C.
+                try:
+                    repair_success = _h2c_replay_continuation()
+                except _H2CSettingsBoundExceeded:
+                    return _h2c_integrity_terminal(
+                        "H2C_REPLAY_INVALID:SETTINGS_BOUND_EXCEEDED"
+                    )
+                except _H2CEnvelopeOversize:
+                    return _h2c_integrity_terminal(
+                        "H2C_REPLAY_INVALID:ENVELOPE_OVERSIZE"
+                    )
+                except _H2CReplayInvalid as replay_invalid:
+                    return _h2c_integrity_terminal(
+                        "H2C_REPLAY_INVALID:" + replay_invalid.reason
+                    )
+
+                entry = self._trusted_persistence_entry(
+                    job_id=job.job_id,
+                    owner=self._runtime_owner,
+                    pipeline_version=PIPELINE_VERSION,
+                )
+                try:
+                    committed = entry.persist_success(repair_success)
+                except _H2CLineageTerminalHandled:
+                    return StageDisposition.TERMINAL
+                if committed.job.status is not JobStatus.SUCCEEDED:
+                    raise UnknownProviderState(
+                        "H2-C repair persistence could not be finalized"
+                    )
+                ScoringAdmissionRegistry.release_terminal(
+                    repository=self._repository,
+                    job_id=job.job_id,
+                    attempt_count=job.attempt_count,
+                )
+                return None
 
             admission.admit(primary_identity, now=_utcnow())
             provider = self._create_scoring_provider_for_dispatch()
@@ -2029,6 +2582,11 @@ class RuntimeOperations(Operations):
                 # (never by detail) before rerun_job/process: the staged build
                 # lacks the required continuation, so retrying cannot resolve it.
                 and job.last_error_code != ErrorCode.CAPABILITY_UNAVAILABLE.value
+                # TRUST_INTEGRITY_INVALID terminals are non-retryable
+                # automatically and manually; the sole exclusion predicate is
+                # the error code alone (never the diagnostic detail).
+                and job.last_error_code
+                != ErrorCode.TRUST_INTEGRITY_INVALID.value
                 and job.video_id is not None
                 and (video is None or job.video_id == video)
                 and (

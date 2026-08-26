@@ -364,6 +364,80 @@ def _repair_script(
     return script
 
 
+def _assert_h2c_repair_success(runtime: RuntimeOperations) -> JobRecord:
+    """Assert the complete committed H2-C repair lineage graph."""
+
+    job = _scoring_job(runtime)
+    assert job.status is JobStatus.SUCCEEDED
+    assert job.scoring_lineage_version == "task016c-scoring-lineage-v1"
+    assert job.scoring_success_provenance == "REPAIR_H2C"
+    structured_key = job.authoritative_scoring_artifact_key
+    assert structured_key is not None
+    p, g = scoring_module.parse_repair_structured_key(structured_key)
+    raw_key = f"scoring/{p}/repair/{g}/raw"
+    assert structured_key == f"scoring/{p}/repair/{g}/structured"
+
+    repository = runtime._repository
+    structured = repository.get_artifact_by_key(structured_key)
+    raw = repository.get_artifact_by_key(raw_key)
+    assert structured is not None and raw is not None
+    assert structured.kind is ArtifactKind.SCORING_STRUCTURED
+    assert raw.kind is ArtifactKind.SCORING_RAW
+    assert structured.producer_version == (
+        "scoring-structured-content-quality-repair-v1"
+    )
+    assert raw.producer_version == "scoring-raw-content-quality-repair-v1"
+    assert structured.relative_path == f"scoring/{p}/repair/{g}/structured.json"
+    assert raw.relative_path == f"scoring/{p}/repair/{g}/raw.json"
+    assert structured.job_id == job.job_id and raw.job_id == job.job_id
+    assert structured.video_id == VIDEO_ID and raw.video_id == VIDEO_ID
+
+    structured_body = (runtime._data_root / structured.relative_path).read_bytes()
+    raw_body = (runtime._data_root / raw.relative_path).read_bytes()
+    assert hashlib.sha256(structured_body).hexdigest() == structured.content_hash
+    assert hashlib.sha256(raw_body).hexdigest() == raw.content_hash
+
+    # The raw bytes are the repair envelope; R and J are committed truthfully.
+    from youtube_intel.h2_jcs import jcs_loads_strict
+
+    envelope = jcs_loads_strict(raw_body)
+    assert isinstance(envelope, dict)
+    assert envelope["envelope_schema"] == "trusted-scoring-repair-envelope-v1"
+    r_hash = envelope["repair_provider_evidence"]["request_hash"]
+    j_hash = envelope["repair_quality_evidence"]["judge_h2"]
+    assert envelope["finalizer_binding"]["primary_request_hash"] == p
+    repair_call = repository.get_provider_call(r_hash)
+    judge_call = repository.get_provider_call(j_hash)
+    assert repair_call is not None and judge_call is not None
+    assert repair_call.operation == "local-scoring-repair-v1"
+    assert judge_call.operation == "local-content-quality-v1"
+    assert repair_call.response_artifact_id == raw.artifact_id
+    assert judge_call.response_artifact_id == raw.artifact_id
+    # No successful PRIMARY ProviderCall was synthesized for the repair.
+    primary_call = repository.get_provider_call(
+        envelope["finalizer_binding"]["primary_request_hash"]
+    )
+    assert primary_call is None or primary_call.status.value != "SUCCEEDED"
+
+    video = repository.get_video(VIDEO_ID)
+    assert video is not None
+    # The full drain legitimately continues past SCORED (analysis skip, note
+    # write); the authoritative pointer and score survive every later stage.
+    assert video.pipeline_status in {
+        PipelineStatus.SCORED,
+        PipelineStatus.ANALYSIS_READY,
+        PipelineStatus.NOTE_WRITTEN,
+        PipelineStatus.COMPLETE,
+    }
+    assert video.authoritative_scoring_job_id == job.job_id
+    assert video.score is not None
+    assert video.should_summarize is not None
+    # The authoritative pointer is never the legacy P-only structured key.
+    assert structured_key != f"scoring/{p}/structured"
+    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    return job
+
+
 # ---------------------------------------------------------------------------
 # ENTRY / AUTHORITY
 # ---------------------------------------------------------------------------
@@ -385,8 +459,21 @@ def test_no_public_repair_entry_or_h2c_api_exists(tmp_path: Path) -> None:
         "_primary_failure_continuation",
     ):
         assert not hasattr(runtime, forbidden), forbidden
-    assert not hasattr(scoring_module, "PhaseHTrustedRepairSuccess")
+    # The approved H2-C carrier exists in scoring.py as an opaque data carrier
+    # only: no public mint/factory/capability and no runtime ingress.
+    assert hasattr(scoring_module, "PhaseHTrustedRepairSuccess")
     assert not hasattr(h2_evidence_module, "PhaseHTrustedRepairSuccess")
+    for forbidden_seam in (
+        "h2c_finalize",
+        "finalize_repair",
+        "verify_h2b_result",
+        "mint_repair_success",
+        "persist_validated_repair",
+        "repair_writer",
+        "repair_repository_success",
+    ):
+        assert not hasattr(scoring_module, forbidden_seam), forbidden_seam
+        assert not hasattr(runtime, forbidden_seam), forbidden_seam
 
 
 def test_forged_eligible_pfe_cannot_start_repair_without_actual_primary(
@@ -511,7 +598,7 @@ def test_repair_role_consumption_requires_active_lease_and_primary_role(
 # ---------------------------------------------------------------------------
 
 
-def test_repair_pass_terminalizes_capability_unavailable_without_persistence(
+def test_repair_pass_enters_h2c_and_persists_repair_lineage(
     tmp_path: Path,
 ) -> None:
     transport = _FakeTransport(
@@ -525,30 +612,18 @@ def test_repair_pass_terminalizes_capability_unavailable_without_persistence(
 
     _run_process(runtime)
 
-    # Exactly one admitted REPAIR and one admitted REPAIR_JUDGE contact.
+    # Exactly one admitted REPAIR and one admitted REPAIR_JUDGE contact.  The
+    # H2-C replay adds zero network contact.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
 
-    # H2-B-only PASS is an explicit staged terminal, never a SUCCEEDED job and
-    # never persistence: CAPABILITY_UNAVAILABLE + H2B_PASS_AWAITING_H2C with
-    # retry_at=None -> FAILED_FINAL -> TERMINAL, fail_job exactly once.
-    job = _scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    # A validated H2-B PASS on a v1-generation Job enters H2-C: the 23-step
+    # no-network replay mints the trusted repair success and Phase G persists
+    # the complete REPAIR_H2C lineage graph atomically.
+    job = _assert_h2c_repair_success(runtime)
     attempts = runtime._repository.list_job_attempts(job.job_id)
     assert len(attempts) == 1
-    assert attempts[0].error_code == "CAPABILITY_UNAVAILABLE"
-    assert attempts[0].error_message == "H2B_PASS_AWAITING_H2C"
-
-    repository = runtime._repository
-    assert (
-        repository.latest_artifact(VIDEO_ID, ArtifactKind.SCORING_STRUCTURED) is None
-    )
-    video = repository.get_video(VIDEO_ID)
-    assert video is not None
-    assert video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
-    assert not hasattr(scoring_module, "PhaseHTrustedRepairSuccess")
+    assert attempts[0].outcome.value == "SUCCEEDED"
 
     # The aggregate is lexical-only: nothing is retained on the runtime, in
     # module globals, or in any cache/registry.
@@ -793,16 +868,11 @@ def test_language_invalid_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     _run_process(runtime)
 
-    # The LANGUAGE_INVALID failure is repaired through the full admitted flow;
-    # the H2-B-only build terminalizes with the staged capability disposition.
+    # The LANGUAGE_INVALID failure is repaired through the full admitted flow
+    # and the validated H2-B PASS persists through H2-C.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
-    job = _scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
-    assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
-    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    _assert_h2c_repair_success(runtime)
 
 
 def test_judge_reject_primary_failure_is_repaired(tmp_path: Path) -> None:
@@ -827,11 +897,7 @@ def test_judge_reject_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     assert transport.tags_calls == 4
     assert transport.generate_calls == 4
-    job = _scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
-    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    _assert_h2c_repair_success(runtime)
 
 
 def test_judge_uncertain_primary_failure_is_repaired(tmp_path: Path) -> None:
@@ -854,11 +920,7 @@ def test_judge_uncertain_primary_failure_is_repaired(tmp_path: Path) -> None:
 
     _run_process(runtime)
 
-    job = _scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
-    assert not hasattr(runtime, "_last_h2b_validated_repair_result")
+    _assert_h2c_repair_success(runtime)
 
 
 def test_primary_judge_transport_failure_is_not_repair_eligible(tmp_path: Path) -> None:

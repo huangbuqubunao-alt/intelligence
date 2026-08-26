@@ -49,12 +49,14 @@ from youtube_intel.quality import (
 )
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
+    H2CAuthoritativeGraphConflict,
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
     ScoringJobContext,
     ScoringPersistenceError,
     TrustedPersistenceEntry,
     _EnrichedQualityEvidence,
+    _H2CLineageTerminalHandled,
     _mint_phase_f_trusted_scoring_success,
     build_primary_scoring_attempt,
     build_scoring_input,
@@ -814,10 +816,16 @@ def test_atomic_register_fails_on_wrong_pipeline_status(tmp_path: Path) -> None:
         runtime, job_id=job_id, video_id=video_id, owner="test-owner"
     )
 
-    with pytest.raises(
-        ScoringPersistenceError, match="pipeline changed before atomic scoring registration"
-    ):
+    # Under the approved lineage CAS, an active-owned SCORING job whose video
+    # is no longer TRANSCRIPT_READY is an integrity failure: exactly one
+    # fail_job with TRUST_INTEGRITY_INVALID and the frozen diagnostic, then
+    # the internal terminal-handled signal (never a success, never generic).
+    with pytest.raises(_H2CLineageTerminalHandled):
         committer.persist_success(plan.success)
+    terminal_job = runtime._repository.get_job(job_id)
+    assert terminal_job.status is JobStatus.FAILED_FINAL
+    assert terminal_job.last_error_code == ErrorCode.TRUST_INTEGRITY_INVALID.value
+    assert terminal_job.last_error_message == "H2C_VIDEO_LINEAGE_CAS_UNEXPECTED"
 
 
 def test_load_scoring_rejects_corrupted_structured_artifact(
@@ -1268,7 +1276,7 @@ def test_r2_same_plan_with_raw_file_corrupt_rejects(tmp_path: Path) -> None:
     raw_final = runtime._data_root / plan.raw_artifact.relative_path
     raw_final.write_bytes(b"tampered raw content")
 
-    with pytest.raises(ScoringPersistenceError):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1292,7 +1300,7 @@ def test_r2_same_plan_with_partial_db_graph_rejects(tmp_path: Path) -> None:
         {"rh": plan.judge_call_request.request_hash},
     ).close()
 
-    with pytest.raises(ScoringPersistenceError):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1611,7 +1619,7 @@ def test_r2_artifact_artifact_id_change_rejects(tmp_path: Path) -> None:
         "forged-artifact-id",
     )
 
-    with pytest.raises(ScoringPersistenceError, match="artifact_id mismatch"):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1635,9 +1643,7 @@ def test_r2_artifact_relative_path_change_rejects(tmp_path: Path) -> None:
         "scoring/forged/raw.json",
     )
 
-    with pytest.raises(
-        ScoringPersistenceError, match="relative_path mismatch"
-    ):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1670,7 +1676,7 @@ def test_idempotency_rejects_relative_path_normalization_difference(
         normalized_equivalent,
     )
 
-    with pytest.raises(ScoringPersistenceError, match="relative_path mismatch"):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1694,7 +1700,7 @@ def test_r2_artifact_kind_change_rejects(tmp_path: Path) -> None:
         ArtifactKind.SUBTITLE_SOURCE.value,
     )
 
-    with pytest.raises(ScoringPersistenceError, match="kind mismatch"):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1718,7 +1724,7 @@ def test_r2_artifact_provider_metadata_change_rejects(tmp_path: Path) -> None:
         "forged-provider",
     )
 
-    with pytest.raises(ScoringPersistenceError, match="provider mismatch"):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1744,7 +1750,7 @@ def test_r2_provider_call_request_metadata_change_rejects(
         "forged-operation",
     )
 
-    with pytest.raises(ScoringPersistenceError, match="operation mismatch"):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1768,9 +1774,7 @@ def test_r2_video_should_summarize_change_rejects(tmp_path: Path) -> None:
         0 if plan.scoring_summary.should_summarize else 1,
     )
 
-    with pytest.raises(
-        ScoringPersistenceError, match="should_summarize mismatch"
-    ):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 
@@ -1794,9 +1798,7 @@ def test_r2_job_binding_change_rejects(tmp_path: Path) -> None:
         ProcessingStage.TRANSCRIPT.value,
     )
 
-    with pytest.raises(
-        ScoringPersistenceError, match="target_stage mismatch"
-    ):
+    with pytest.raises(H2CAuthoritativeGraphConflict):
         committer.persist_success(plan.success)
 
 

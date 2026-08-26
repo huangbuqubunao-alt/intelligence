@@ -1890,7 +1890,8 @@ def test_cross_module_io_objects() -> None:
 def test_error_codes_and_structured_app_error() -> None:
     codes = {c.value for c in ErrorCode}
     # Exact set from System Design §12 plus the approved staged-build capability
-    # member — no unapproved extras.  The assertion stays an exact set check.
+    # member and the approved H2-C trust-integrity member — the final taxonomy is
+    # exactly ten codes, no unapproved extras.  The assertion stays an exact set.
     assert codes == {
         "TRANSIENT_NETWORK",
         "RATE_LIMITED",
@@ -1901,6 +1902,7 @@ def test_error_codes_and_structured_app_error() -> None:
         "PERMISSION_DENIED",
         "LOCAL_RESOURCE",
         "CAPABILITY_UNAVAILABLE",
+        "TRUST_INTEGRITY_INVALID",
     }
     assert "INVALID_TRANSITION" not in codes
     err = AppError(

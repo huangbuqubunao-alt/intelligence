@@ -821,6 +821,8 @@ def _adapter_boundary_error(
         detail = "response invalid"
     elif error.code is ErrorCode.CAPABILITY_UNAVAILABLE:
         detail = "required capability unavailable in this build"
+    elif error.code is ErrorCode.TRUST_INTEGRITY_INVALID:
+        detail = "trust integrity verification failed"
     else:
         detail = "local resource failed"
     retry_after = error.retry_after_seconds

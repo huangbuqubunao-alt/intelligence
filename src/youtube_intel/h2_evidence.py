@@ -29,7 +29,10 @@ from typing import Final, Literal, NoReturn, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
-from youtube_intel.config import LocalScoringSettings
+from youtube_intel.config import (
+    LocalScoringSettings,
+    _validate_loopback_http_base_url,
+)
 from youtube_intel.domain import (
     ContentQualityDecisionSource,
     ContentQualityInput,
@@ -38,6 +41,7 @@ from youtube_intel.domain import (
     QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
     QualityPassAttestation,
+    ScoreResult,
     ScoringCandidate,
     ScoringEvidenceSource,
     ScoringInput,
@@ -51,6 +55,7 @@ from youtube_intel.providers.ollama import (
     _QUALITY_POLICY_VERSION,
     _QUALITY_PROMPT_VERSION,
     _QUALITY_SCHEMA_VERSION,
+    _SCORE_RESULT_FORMAT,
     ParserDiagnosticCode,
     diagnose_scoring_parse_failure,
     parse_scoring_candidate,
@@ -74,6 +79,7 @@ from youtube_intel.state import build_provider_request_hash
 
 __all__ = [
     "CandidateEvidence",
+    "H2CSettingsProvenance",
     "H2_ELIGIBLE_PARSER_CODES",
     "JudgeEvidence",
     "JudgeTrustedContext",
@@ -84,8 +90,15 @@ __all__ = [
     "PrimaryFailureClass",
     "PrimaryFailureEvidence",
     "PrimaryTrustedContext",
+    "RepairCandidateEvidence",
+    "RepairCompositeEnvelope",
+    "RepairFinalizerBinding",
     "RepairNormalizedInput",
+    "RepairPersistenceGraphIdentityV2",
+    "RepairProviderEvidence",
+    "RepairQualityEvidence",
     "RepairTrustedConfig",
+    "build_h2c_settings_provenance",
     "build_judge_evidence",
     "build_judge_trusted_context",
     "build_primary_failure_evidence_hash",
@@ -99,6 +112,7 @@ __all__ = [
     "h2_canonical_bytes",
     "h2_canonical_sha256",
     "repair_normalized_input_hash",
+    "repair_persistence_graph_hash",
     "replay_language_validation",
     "replay_primary_parser_failure",
     "verify_h2_sealed_bytes",
@@ -1515,3 +1529,285 @@ class PhaseH2BValidatedRepairResult:
     temperature: float
     max_output_tokens: int
     max_description_chars: int
+
+
+# ---------------------------------------------------------------------------
+# TASK-016C Phase H2-C — typed repair persistence evidence (data only)
+# ---------------------------------------------------------------------------
+#
+# These are the closed H2-C envelope/evidence schemas frozen by the approved
+# H2-C authorization amendments.  They are typed data contracts for the repair
+# persistence graph; they grant no trust, authority, or capability by
+# themselves.  The runtime replay re-derives every security-significant value
+# from trusted roots and compares it against these representations.
+
+H2C_SETTINGS_PROVENANCE_SCHEMA: Final = "task016c-h2c-settings-provenance-v1"
+REPAIR_PROVIDER_EVIDENCE_SCHEMA_V2: Final = "task016c-repair-provider-evidence-v2"
+REPAIR_CANDIDATE_EVIDENCE_SCHEMA: Final = "task016c-repair-candidate-evidence-v1"
+REPAIR_QUALITY_EVIDENCE_SCHEMA: Final = "task016c-repair-quality-evidence-v1"
+REPAIR_FINALIZER_BINDING_SCHEMA: Final = "task016c-repair-finalizer-binding-v1"
+REPAIR_COMPOSITE_ENVELOPE_SCHEMA: Final = "trusted-scoring-repair-envelope-v1"
+REPAIR_PERSISTENCE_GRAPH_SCHEMA_V2: Final = "task016c-repair-persistence-graph-v2"
+REPAIR_RAW_PRODUCER_VERSION: Final = "scoring-raw-content-quality-repair-v1"
+REPAIR_STRUCTURED_PRODUCER_VERSION: Final = (
+    "scoring-structured-content-quality-repair-v1"
+)
+
+#: H2-C persistence admission ceilings (repair-only; nothing is truncated).
+H2C_MAX_TRANSCRIPT_CHARS: Final = 131_072
+H2C_MAX_OUTPUT_TOKENS: Final = 2_147_483_647
+H2C_SETTINGS_PROVENANCE_MAX_BYTES: Final = 8_192
+H2C_ENVELOPE_MAX_BYTES: Final = 33_554_432
+
+
+class H2CSettingsProvenance(BaseModel):
+    """Exact semantic settings provenance bound into every repaired envelope.
+
+    Every identity-bearing current setting is bound verbatim: no trim, case,
+    Unicode, URL, or default substitution happens during construction, and no
+    field is nullable or defaulted.  The canonical provenance identity is the
+    H2 JCS strict-UTF-8 serialization hashed with SHA-256.
+    """
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-h2c-settings-provenance-v1"]
+    scoring_provider: Literal["ollama"]
+    scoring_base_url: str = Field(min_length=1)
+    scoring_model: str = Field(min_length=1)
+    scoring_model_digest: str = Field(pattern=_MODEL_DIGEST)
+    temperature: float = Field(ge=0, le=2, allow_inf_nan=False)
+    max_output_tokens: StrictInt = Field(ge=1, le=2_147_483_647)
+    max_transcript_chars: StrictInt = Field(ge=3, le=131_072)
+    max_description_chars: StrictInt = Field(ge=0, le=20_000)
+    output_language: Literal["zh-CN", "en"]
+    summary_score_threshold: float = Field(ge=0, le=10, allow_inf_nan=False)
+    scoring_operation: Literal["local-scoring"]
+    scoring_prompt_version: Literal["scoring-prompt-v2"]
+    scoring_schema_version: Literal["score-result-v2"]
+    repair_operation: Literal["local-scoring-repair-v1"]
+    repair_prompt_version: Literal["scoring-prompt-v2"]
+    repair_schema_version: Literal["score-result-v2"]
+    repair_stream: Literal[False]
+    repair_think: Literal[False]
+    repair_format_schema_sha256: str = Field(pattern=_SHA256_HEX)
+    repair_num_predict: StrictInt = Field(ge=1, le=2_147_483_647)
+    judge_operation: Literal["local-content-quality-v1"]
+    judge_provider: Literal["ollama"]
+    judge_base_url: str = Field(min_length=1)
+    judge_model: str = Field(min_length=1)
+    judge_model_digest: str = Field(pattern=_MODEL_DIGEST)
+    quality_policy_version: Literal["content-quality-policy-v1"]
+    quality_prompt_version: Literal["content-quality-prompt-v1"]
+    quality_schema_version: Literal["content-quality-result-v1"]
+    language_validator_contract: Literal["task016b-scoring-language-validator-v1"]
+
+    @model_validator(mode="after")
+    def _h2c_settings_provenance_bindings(self) -> "H2CSettingsProvenance":
+        _validate_loopback_http_base_url(
+            self.scoring_base_url, field_name="scoring_base_url"
+        )
+        _validate_loopback_http_base_url(
+            self.judge_base_url, field_name="judge_base_url"
+        )
+        if self.judge_base_url != self.scoring_base_url:
+            msg = "judge_base_url must equal scoring_base_url exactly"
+            raise ValueError(msg)
+        if self.scoring_model != self.scoring_model.strip():
+            msg = "scoring_model must be a trimmed non-empty identifier"
+            raise ValueError(msg)
+        if self.judge_model != self.judge_model.strip():
+            msg = "judge_model must be a trimmed non-empty identifier"
+            raise ValueError(msg)
+        if self.repair_num_predict != self.max_output_tokens:
+            msg = "repair_num_predict must equal max_output_tokens exactly"
+            raise ValueError(msg)
+        return self
+
+
+def build_h2c_settings_provenance(
+    *,
+    validated_settings: LocalScoringSettings,
+    output_language: str,
+    summary_score_threshold: float,
+) -> H2CSettingsProvenance:
+    """Derive the exact current-settings provenance from validated config roots.
+
+    No caller-supplied provenance field is accepted: every value is taken from
+    the validated runtime settings and the frozen literal contract.  The repair
+    format schema hash is the SHA-256 of the frozen score-result-v2 schema's
+    H2 JCS bytes.
+    """
+
+    if type(validated_settings) is not LocalScoringSettings:
+        msg = "validated_settings must be an exact validated LocalScoringSettings"
+        raise ValueError(msg)
+    return H2CSettingsProvenance.model_validate(
+        {
+            "schema_version": H2C_SETTINGS_PROVENANCE_SCHEMA,
+            "scoring_provider": "ollama",
+            "scoring_base_url": validated_settings.base_url,
+            "scoring_model": validated_settings.model,
+            "scoring_model_digest": validated_settings.expected_model_digest,
+            "temperature": validated_settings.temperature,
+            "max_output_tokens": validated_settings.max_output_tokens,
+            "max_transcript_chars": validated_settings.max_transcript_chars,
+            "max_description_chars": validated_settings.max_description_chars,
+            "output_language": output_language,
+            "summary_score_threshold": summary_score_threshold,
+            "scoring_operation": _PRIMARY_ATTEMPT_IDENTITY,
+            "scoring_prompt_version": PROMPT_VERSION,
+            "scoring_schema_version": SCHEMA_VERSION,
+            "repair_operation": _REPAIR_OPERATION,
+            "repair_prompt_version": PROMPT_VERSION,
+            "repair_schema_version": SCHEMA_VERSION,
+            "repair_stream": False,
+            "repair_think": False,
+            "repair_format_schema_sha256": hashlib.sha256(
+                jcs_serialize(_SCORE_RESULT_FORMAT)
+            ).hexdigest(),
+            "repair_num_predict": validated_settings.max_output_tokens,
+            "judge_operation": _QUALITY_JUDGE_OPERATION,
+            "judge_provider": _QUALITY_JUDGE_PROVIDER,
+            "judge_base_url": validated_settings.base_url,
+            "judge_model": validated_settings.model,
+            "judge_model_digest": validated_settings.expected_model_digest,
+            "quality_policy_version": _QUALITY_POLICY_VERSION,
+            "quality_prompt_version": _QUALITY_PROMPT_VERSION,
+            "quality_schema_version": _QUALITY_SCHEMA_VERSION,
+            "language_validator_contract": _LANGUAGE_VALIDATOR_CONTRACT,
+        }
+    )
+
+
+class RepairProviderEvidence(BaseModel):
+    """The exact 16-field v2 repair provider evidence nested in the envelope.
+
+    v2 is required for every live H2-C repaired producer; the parent H2-B v1
+    contract is unmodified and never emitted by H2-C.  The durable settings
+    source is ``settings_provenance`` plus ``settings_provenance_sha256``, and
+    the complete graph identity G binds that exact hash.
+    """
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-repair-provider-evidence-v2"]
+    operation: Literal["local-scoring-repair-v1"]
+    normalized_input: RepairNormalizedInput
+    normalized_input_hash: str = Field(pattern=_SHA256_HEX)
+    request_hash: str = Field(pattern=_SHA256_HEX)
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    model_digest: str = Field(pattern=_MODEL_DIGEST)
+    prompt_version: str = Field(min_length=1)
+    operation_schema_version: str = Field(min_length=1)
+    output_language: Literal["zh-CN", "en"]
+    temperature: float = Field(allow_inf_nan=False)
+    max_output_tokens: StrictInt = Field(gt=0)
+    max_description_chars: StrictInt = Field(ge=0)
+    settings_provenance: H2CSettingsProvenance
+    settings_provenance_sha256: str = Field(pattern=_SHA256_HEX)
+
+
+class RepairCandidateEvidence(BaseModel):
+    """REPAIR raw, extracted content, candidate/hash, and language evidence."""
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-repair-candidate-evidence-v1"]
+    repair_raw_utf8: str
+    repair_raw_sha256: str = Field(pattern=_SHA256_HEX)
+    # The 1,000,000-byte ceiling is enforced by the bounded envelope admission
+    # (H2C_REPLAY_INVALID:ENVELOPE_OVERSIZE), not by this typed field.
+    repair_raw_length: StrictInt = Field(ge=0)
+    repair_model_content: str
+    candidate: ScoringCandidate
+    candidate_sha256: str = Field(pattern=_SHA256_HEX)
+    language_evidence: LanguageValidationEvidence
+
+
+class RepairQualityEvidence(BaseModel):
+    """Quality input/gate, Judge input/H1/H2/raw/evidence, and attestation."""
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-repair-quality-evidence-v1"]
+    quality_input: ContentQualityInput
+    quality_input_hash: str = Field(pattern=_SHA256_HEX)
+    deterministic_gate_status: Literal["PASS"]
+    judge_operation_input: QualityJudgeOperationInput
+    judge_h1: str = Field(pattern=_SHA256_HEX)
+    judge_h2: str = Field(pattern=_SHA256_HEX)
+    judge_raw_utf8: str
+    judge_raw_sha256: str = Field(pattern=_SHA256_HEX)
+    # The 20,000-byte ceiling is enforced by the bounded envelope admission.
+    judge_raw_length: StrictInt = Field(ge=0)
+    judge_evidence: JudgeEvidence
+    quality_result: ContentQualityResult
+    attestation: QualityPassAttestation
+
+
+class RepairFinalizerBinding(BaseModel):
+    """Trusted result, structured binding, and the P/R/J commitment."""
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-repair-finalizer-binding-v1"]
+    trusted_result: ScoreResult
+    structured_result_sha256: str = Field(pattern=_SHA256_HEX)
+    structured_result_length: StrictInt = Field(ge=0)
+    structured_result_schema_version: Literal["score-result-v2"]
+    structured_result_prompt_version: Literal["scoring-prompt-v2"]
+    primary_request_hash: str = Field(pattern=_SHA256_HEX)
+    repair_request_hash: str = Field(pattern=_SHA256_HEX)
+    repair_judge_request_hash: str = Field(pattern=_SHA256_HEX)
+
+
+class RepairCompositeEnvelope(BaseModel):
+    """The root H2-JCS repair envelope with exactly six ordered logical fields.
+
+    Raw captures are strict UTF-8 strings carried as JCS JSON strings (never
+    base64).  The envelope contains neither G nor an artifact key/path nor
+    graph identity bytes/digest, so neither E nor S requires G.
+    """
+
+    model_config = _H2_FROZEN
+    envelope_schema: Literal["trusted-scoring-repair-envelope-v1"]
+    primary_failure_evidence: PrimaryFailureEvidence
+    repair_provider_evidence: RepairProviderEvidence
+    repair_candidate_evidence: RepairCandidateEvidence
+    repair_quality_evidence: RepairQualityEvidence
+    finalizer_binding: RepairFinalizerBinding
+
+
+class RepairPersistenceGraphIdentityV2(BaseModel):
+    """The exact complete-graph persistence identity (v2) whose JCS hash is G.
+
+    All fields are non-null, literal-bound, and none is defaulted, inferred, or
+    supplied by an artifact path.  The Round 3 historical
+    ``task016c-repair-persistence-graph-v1`` design is never emitted.
+    """
+
+    model_config = _H2_FROZEN
+    schema_version: Literal["task016c-repair-persistence-graph-v2"]
+    primary_request_hash: str = Field(pattern=_SHA256_HEX)
+    repair_request_hash: str = Field(pattern=_SHA256_HEX)
+    repair_judge_request_hash: str = Field(pattern=_SHA256_HEX)
+    settings_provenance_sha256: str = Field(pattern=_SHA256_HEX)
+    repair_envelope_sha256: str = Field(pattern=_SHA256_HEX)
+    structured_result_sha256: str = Field(pattern=_SHA256_HEX)
+    raw_producer_version: Literal["scoring-raw-content-quality-repair-v1"]
+    structured_producer_version: Literal[
+        "scoring-structured-content-quality-repair-v1"
+    ]
+    envelope_schema: Literal["trusted-scoring-repair-envelope-v1"]
+    repair_provider_evidence_schema: Literal["task016c-repair-provider-evidence-v2"]
+    quality_policy_version: Literal["content-quality-policy-v1"]
+    quality_prompt_version: Literal["content-quality-prompt-v1"]
+    quality_schema_version: Literal["content-quality-result-v1"]
+
+
+def repair_persistence_graph_hash(
+    identity: RepairPersistenceGraphIdentityV2,
+) -> str:
+    """Return G: the SHA-256 of the identity's H2 JCS strict UTF-8 bytes."""
+
+    if type(identity) is not RepairPersistenceGraphIdentityV2:
+        msg = "identity must be an exact RepairPersistenceGraphIdentityV2"
+        raise ValueError(msg)
+    return jcs_sha256(identity.model_dump(mode="json"))

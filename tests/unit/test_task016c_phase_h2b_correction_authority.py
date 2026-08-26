@@ -476,14 +476,11 @@ def test_gate_pass_repair_reaches_judge_and_terminalizes_capability(
 
     _FLOW._run_process(runtime)
 
-    # Gate PASS proceeds to the REPAIR Judge, and the H2-B-only full PASS
-    # terminalizes with the staged capability disposition exactly once.
+    # Gate PASS proceeds to the REPAIR Judge; the validated full PASS enters
+    # H2-C and persists the complete repair lineage graph exactly once.
     assert transport.tags_calls == 3
     assert transport.generate_calls == 3
-    job = _FLOW._scoring_job(runtime)
-    assert job.status is JobStatus.FAILED_FINAL
-    assert job.last_error_code == "CAPABILITY_UNAVAILABLE"
-    assert job.last_error_message == "H2B_PASS_AWAITING_H2C"
+    job = _FLOW._assert_h2c_repair_success(runtime)
     assert len(runtime._repository.list_job_attempts(job.job_id)) == 1
     # The aggregate is lexical-only; the runtime exposes nothing.
     assert not hasattr(runtime, "_last_h2b_validated_repair_result")

@@ -19,6 +19,10 @@ from youtube_intel.domain import (
 )
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.retry import RetryPolicy
+from youtube_intel.scoring import (
+    H2CAuthoritativeGraphConflict,
+    H2CStaleScoringLease,
+)
 from youtube_intel.scoring_admission import UnknownProviderState
 from youtube_intel.state import (
     ArtifactWrite,
@@ -159,6 +163,11 @@ class PipelineOrchestrator:
             disposition = self._run_stage(job, video, now=now)
         except PipelineInterrupted:
             raise
+        except (H2CStaleScoringLease, H2CAuthoritativeGraphConflict):
+            # Frozen H2-C no-mutation handling: one side-effect-free read-back
+            # decides the safe return.  Never fail_job, never generic _fail.
+            self._h2c_no_mutation_return(job, now=now)
+            return
         except UnknownProviderState as error:
             self.repository.finalize_unknown_provider_state(
                 job.job_id,
@@ -253,6 +262,29 @@ class PipelineOrchestrator:
         if result is None:
             return StageDisposition.CONTINUE
         return result
+
+    def _h2c_no_mutation_return(self, job: JobRecord, *, now: datetime) -> None:
+        """Side-effect-free disposition for H2-C stale-lease/graph-conflict.
+
+        Exactly one read-only ``get_job`` decides the safe return: a missing
+        row, a RUNNING row owned by a different worker or with an
+        expired/non-active lease, a FAILED_FINAL row, or a SUCCEEDED row all
+        return without any mutation.  Any other observed state (including a
+        RUNNING row still actively owned by this worker) is an interruption.
+        """
+
+        saved = self.repository.get_job(job.job_id)
+        if saved is None:
+            return
+        if saved.status in {JobStatus.FAILED_FINAL, JobStatus.SUCCEEDED}:
+            return
+        if saved.status is JobStatus.RUNNING:
+            lease_active = (
+                saved.lease_until is not None and saved.lease_until > now
+            )
+            if saved.lease_owner != self.owner or not lease_active:
+                return
+        raise PipelineInterrupted()
 
     def _fail(self, job: JobRecord, error: AppError, *, now: datetime) -> None:
         self.repository.fail_job(

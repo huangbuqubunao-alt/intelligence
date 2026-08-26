@@ -470,6 +470,9 @@ def _safe_boundary_error(
         ErrorCode.CAPABILITY_UNAVAILABLE: (
             f"{subject} required capability unavailable in this build"
         ),
+        ErrorCode.TRUST_INTEGRITY_INVALID: (
+            f"{subject} trust integrity verification failed"
+        ),
     }
     return _error(
         error.code,

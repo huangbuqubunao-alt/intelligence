@@ -14,6 +14,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Final, NoReturn, Protocol, cast
@@ -55,12 +56,14 @@ if TYPE_CHECKING:
         VideoRecord,
     )
 from youtube_intel.state import (
+    SCORING_LINEAGE_VERSION_V1,
     ArtifactKind,
     ArtifactRecord,
     ArtifactWrite,
     ConcurrencyConflict,
     IntegrityConflict,
     JobType,
+    LeaseConflict,
     ProviderCallCompletion,
     ProviderCallRecord,
     ProviderCallRequest,
@@ -2696,6 +2699,27 @@ class TrustedPersistenceEntry:
         )
 
     def persist_success(
+        self, success: PhaseFTrustedScoringSuccess | PhaseHTrustedRepairSuccess
+    ) -> StageCompletionResult:
+        """Sole Phase G trusted-success data ingress (exact closed union).
+
+        ``type(success) is PhaseFTrustedScoringSuccess`` takes the existing
+        PRIMARY verifier; ``type(success) is PhaseHTrustedRepairSuccess``
+        takes the H2-C REPAIR verifier; anything else rejects before field
+        access.  Exact type is necessary for dispatch but is not authority.
+        """
+
+        if type(success) is PhaseFTrustedScoringSuccess:
+            return self._persist_primary_success(success)
+        if type(success) is PhaseHTrustedRepairSuccess:
+            return self._persist_repair_success(success)
+        msg = (
+            "Phase G ingress requires an exact PhaseFTrustedScoringSuccess or "
+            f"PhaseHTrustedRepairSuccess; got {type(success).__name__}"
+        )
+        raise ValueError(msg)
+
+    def _persist_primary_success(
         self, success: PhaseFTrustedScoringSuccess
     ) -> StageCompletionResult:
         """Execute the trusted filesystem + SQLite registration protocol.
@@ -2718,6 +2742,37 @@ class TrustedPersistenceEntry:
         structured_artifact = plan.structured_artifact
         raw_final = self._data_root / raw_artifact.relative_path
         structured_final = self._data_root / structured_artifact.relative_path
+
+        lineage_ctx = _H2CLineageCasContext(
+            job_id=self._context.job_id,
+            owner=self._context.owner,
+            video_id=plan.video_id,
+            pipeline_version=self._context.pipeline_version,
+            raw_key=raw_artifact.artifact_key,
+            structured_key=structured_artifact.artifact_key,
+            provenance="PRIMARY",
+        )
+        # Phase G lineage precheck: the authoritative pointer state is inspected
+        # before any filesystem effect.  Pre-v2 NULL-generation jobs keep the
+        # frozen P-only behavior with no lineage writes.
+        existing_lineage = self._lineage_pointer_precheck(
+            ctx=lineage_ctx,
+            raw_artifact=plan.raw_artifact,
+            structured_artifact=plan.structured_artifact,
+            raw_envelope_hash=plan.raw_envelope_hash,
+            raw_envelope_length=plan.raw_envelope_length,
+            structured_hash=plan.structured_hash,
+            structured_length=plan.structured_length,
+            scoring_call_request=plan.scoring_call_request,
+            judge_call_request=plan.judge_call_request,
+            scoring_call_completion=plan.scoring_call_completion,
+            judge_call_completion=plan.judge_call_completion,
+            scoring_summary=plan.scoring_summary,
+            raw_final=raw_final,
+            structured_final=structured_final,
+        )
+        if existing_lineage is not None:
+            return existing_lineage
 
         # Strict same-plan idempotency: check if a complete committed graph
         # already exists before attempting any write.
@@ -2819,6 +2874,13 @@ class TrustedPersistenceEntry:
                                 now=now_text,
                             )
                         repository._inject_failure("atomic_register.after_provider_calls")
+                        self._apply_lineage_cas_in_transaction(
+                            connection,
+                            repository,
+                            ctx=lineage_ctx,
+                            job_row=job_row,
+                            now_text=now_text,
+                        )
                         changed = connection.execute(
                             "UPDATE videos SET pipeline_status = :target_status, "
                             "score = :score, should_summarize = :should_summarize, "
@@ -2865,11 +2927,43 @@ class TrustedPersistenceEntry:
                     raise IntegrityConflict(
                         "atomic scoring registration violates repository integrity"
                     ) from error
+                except _H2CLineageCasZeroRow as zero:
+                    # The BEGIN IMMEDIATE transaction is already rolled back by
+                    # the exception; classification used tx-local reads before
+                    # the rollback, and the terminal fail_job (when authorized)
+                    # happens only after a fresh lease re-proof.
+                    return self._dispatch_lineage_cas_finding(
+                        zero,
+                        ctx=lineage_ctx,
+                        raw_artifact=plan.raw_artifact,
+                        structured_artifact=plan.structured_artifact,
+                        raw_envelope_hash=plan.raw_envelope_hash,
+                        raw_envelope_length=plan.raw_envelope_length,
+                        structured_hash=plan.structured_hash,
+                        structured_length=plan.structured_length,
+                        scoring_call_request=plan.scoring_call_request,
+                        judge_call_request=plan.judge_call_request,
+                        scoring_call_completion=plan.scoring_call_completion,
+                        judge_call_completion=plan.judge_call_completion,
+                        scoring_summary=plan.scoring_summary,
+                        raw_final=raw_final,
+                        structured_final=structured_final,
+                    )
             finally:
                 connection.close()
         except ScoringPersistenceError:
             raise
+        except (
+            H2CStaleScoringLease,
+            H2CAuthoritativeGraphConflict,
+            _H2CLineageTerminalHandled,
+        ):
+            raise
         except Exception as error:
+            from youtube_intel.pipeline import PipelineInterrupted
+
+            if isinstance(error, PipelineInterrupted):
+                raise
             msg = f"atomic scoring registration failed: {error}"
             raise ScoringPersistenceError(
                 AppError(
@@ -3441,11 +3535,2079 @@ class TrustedPersistenceEntry:
                 )
             )
 
+    # ------------------------------------------------------------------
+    # TASK-016C Phase H2-C lineage CAS and REPAIR persistence
+    # ------------------------------------------------------------------
+
+    def _apply_lineage_cas_in_transaction(
+        self,
+        connection: sqlite3.Connection,
+        repository: Any,
+        *,
+        ctx: _H2CLineageCasContext,
+        job_row: sqlite3.Row,
+        now_text: str,
+    ) -> None:
+        """Run the Job pointer/provenance CAS then the Video first-success CAS.
+
+        Pre-v2 NULL-generation jobs keep the frozen behavior with no lineage
+        writes.  A zero-row CAS raises the classified carrier exception after
+        tx-local read-back; the surrounding transaction rolls it back.
+        """
+
+        generation = job_row["scoring_lineage_version"]
+        if generation is None:
+            return
+        if generation != SCORING_LINEAGE_VERSION_V1:
+            raise _H2CLineageCasZeroRow(
+                _H2CLineageCasFinding.TERMINAL_JOB_UNEXPECTED, is_video_cas=False
+            )
+        job_changed = connection.execute(
+            "UPDATE jobs SET "
+            "authoritative_scoring_artifact_key = :key, "
+            "scoring_success_provenance = :provenance, updated_at = :now "
+            "WHERE job_id = :job_id AND job_type = 'VIDEO_STAGE' "
+            "AND target_stage = 'SCORING' AND video_id = :video_id "
+            "AND pipeline_version = :pipeline_version "
+            "AND scoring_lineage_version = :generation "
+            "AND status = 'RUNNING' AND lease_owner = :owner "
+            "AND lease_until > :now "
+            "AND authoritative_scoring_artifact_key IS NULL "
+            "AND scoring_success_provenance IS NULL",
+            {
+                "key": ctx.structured_key,
+                "provenance": ctx.provenance,
+                "now": now_text,
+                "job_id": ctx.job_id,
+                "video_id": ctx.video_id,
+                "pipeline_version": ctx.pipeline_version,
+                "generation": SCORING_LINEAGE_VERSION_V1,
+                "owner": ctx.owner,
+            },
+        ).rowcount
+        if job_changed != 1:
+            finding = self._classify_job_lineage_cas_zero_row(
+                connection, repository, ctx=ctx, now_text=now_text
+            )
+            raise _H2CLineageCasZeroRow(finding, is_video_cas=False)
+        video_changed = connection.execute(
+            "UPDATE videos SET authoritative_scoring_job_id = :job_id "
+            "WHERE video_id = :video_id "
+            "AND authoritative_scoring_job_id IS NULL "
+            "AND pipeline_status = :expected_status "
+            "AND pipeline_version = :pipeline_version",
+            {
+                "job_id": ctx.job_id,
+                "video_id": ctx.video_id,
+                "expected_status": PipelineStatus.TRANSCRIPT_READY.value,
+                "pipeline_version": ctx.pipeline_version,
+            },
+        ).rowcount
+        if video_changed != 1:
+            finding = self._classify_video_lineage_cas_zero_row(
+                connection, repository, ctx=ctx, now_text=now_text
+            )
+            raise _H2CLineageCasZeroRow(finding, is_video_cas=True)
+
+    @staticmethod
+    def _owned_active_now(job: Any, owner: str, now: datetime) -> bool:
+        return (
+            job is not None
+            and job.status is JobStatus.RUNNING
+            and job.lease_owner == owner
+            and job.lease_until is not None
+            and job.lease_until > now
+        )
+
+    def _classify_job_lineage_cas_zero_row(
+        self,
+        connection: sqlite3.Connection,
+        repository: Any,
+        *,
+        ctx: _H2CLineageCasContext,
+        now_text: str,
+    ) -> _H2CLineageCasFinding:
+        """Classify one zero-row Job lineage CAS on the same transaction."""
+
+        now = datetime.fromisoformat(now_text.replace("Z", "+00:00"))
+        job = repository._read_job_in_transaction(connection, ctx.job_id)
+        if job is None:
+            return _H2CLineageCasFinding.MISSING_JOB
+        owned = self._owned_active_now(job, ctx.owner, now)
+        identity_ok = (
+            job.job_type is JobType.VIDEO_STAGE
+            and job.target_stage is ProcessingStage.SCORING
+            and job.video_id == ctx.video_id
+            and job.pipeline_version == ctx.pipeline_version
+        )
+        generation_ok = job.scoring_lineage_version == SCORING_LINEAGE_VERSION_V1
+        if not identity_ok or not generation_ok:
+            if job.status is JobStatus.RUNNING and owned:
+                return _H2CLineageCasFinding.TERMINAL_JOB_UNEXPECTED
+            if job.status is JobStatus.RUNNING:
+                return _H2CLineageCasFinding.STALE_LEASE
+            if job.status is JobStatus.FAILED_FINAL:
+                return _H2CLineageCasFinding.STALE_LEASE
+            return _H2CLineageCasFinding.INTERRUPTED
+        if job.status is JobStatus.RUNNING and not owned:
+            return _H2CLineageCasFinding.STALE_LEASE
+        if job.status is JobStatus.SUCCEEDED:
+            if (
+                job.authoritative_scoring_artifact_key == ctx.structured_key
+                and job.scoring_success_provenance == ctx.provenance
+            ):
+                return _H2CLineageCasFinding.IDEMPOTENT
+            return _H2CLineageCasFinding.COMMITTED_CONFLICT
+        if job.status is JobStatus.FAILED_FINAL:
+            return _H2CLineageCasFinding.STALE_LEASE
+        # Active owned RUNNING with a failed predicate or prepopulated pointer.
+        if (
+            job.authoritative_scoring_artifact_key is not None
+            or job.scoring_success_provenance is not None
+        ):
+            if (
+                job.authoritative_scoring_artifact_key == ctx.structured_key
+                and job.scoring_success_provenance == ctx.provenance
+            ):
+                return _H2CLineageCasFinding.TERMINAL_JOB_UNEXPECTED
+            return _H2CLineageCasFinding.TERMINAL_GRAPH_CONFLICT
+        if job.status is not JobStatus.RUNNING:
+            return _H2CLineageCasFinding.INTERRUPTED
+        return _H2CLineageCasFinding.TERMINAL_JOB_UNEXPECTED
+
+    def _classify_video_lineage_cas_zero_row(
+        self,
+        connection: sqlite3.Connection,
+        repository: Any,
+        *,
+        ctx: _H2CLineageCasContext,
+        now_text: str,
+    ) -> _H2CLineageCasFinding:
+        """Classify one zero-row Video lineage CAS on the same transaction."""
+
+        now = datetime.fromisoformat(now_text.replace("Z", "+00:00"))
+        video = repository._read_video_in_transaction(connection, ctx.video_id)
+        if video is None:
+            return _H2CLineageCasFinding.MISSING_VIDEO
+        job = repository._read_job_in_transaction(connection, ctx.job_id)
+        if job is None:
+            return _H2CLineageCasFinding.MISSING_JOB
+        if not self._owned_active_now(job, ctx.owner, now):
+            return _H2CLineageCasFinding.STALE_LEASE
+        if video.pipeline_version != ctx.pipeline_version:
+            return _H2CLineageCasFinding.TERMINAL_VIDEO_UNEXPECTED
+        if video.pipeline_status is not PipelineStatus.TRANSCRIPT_READY:
+            return _H2CLineageCasFinding.TERMINAL_VIDEO_UNEXPECTED
+        if video.authoritative_scoring_job_id == ctx.job_id:
+            return _H2CLineageCasFinding.TERMINAL_VIDEO_UNEXPECTED
+        if video.authoritative_scoring_job_id is not None:
+            return _H2CLineageCasFinding.TERMINAL_VIDEO_CONFLICT
+        return _H2CLineageCasFinding.TERMINAL_VIDEO_UNEXPECTED
+
+    def _terminalize_lineage_integrity(
+        self, ctx: _H2CLineageCasContext, *, detail: str
+    ) -> NoReturn:
+        """Re-prove the lease, then write exactly one integrity fail_job.
+
+        Never called inside the failed persistence transaction.  If the lease
+        re-proof fails, the stale no-mutation path is taken instead.
+        """
+
+        repository = cast(Any, self._repository)
+        now = self._clock()
+        job = repository.get_job(ctx.job_id)
+        if not self._owned_active_now(job, ctx.owner, now):
+            raise H2CStaleScoringLease(
+                "lease lost before lineage integrity terminalization"
+            )
+        try:
+            repository.fail_job(
+                ctx.job_id,
+                owner=ctx.owner,
+                error_code=ErrorCode.TRUST_INTEGRITY_INVALID,
+                error_message=detail,
+                retry_at=None,
+                now=now,
+            )
+        except LeaseConflict as error:
+            raise H2CStaleScoringLease(
+                "lease lost during lineage integrity terminalization"
+            ) from error
+        confirmed = repository.get_job(ctx.job_id)
+        if confirmed is None or confirmed.status is not JobStatus.FAILED_FINAL:
+            from youtube_intel.scoring_admission import UnknownProviderState
+
+            raise UnknownProviderState(
+                "lineage integrity terminalization could not be finalized"
+            )
+        raise _H2CLineageTerminalHandled(detail)
+
+    def _build_committed_lineage_result(
+        self,
+        *,
+        ctx: _H2CLineageCasContext,
+        scoring_call_request: ProviderCallRequest,
+    ) -> StageCompletionResult:
+        repository = cast(Any, self._repository)
+        job = repository.get_job(ctx.job_id)
+        video = repository.get_video(ctx.video_id)
+        raw_record = repository.get_artifact_by_key(ctx.raw_key)
+        structured_record = repository.get_artifact_by_key(ctx.structured_key)
+        scoring_call = repository.get_provider_call(
+            scoring_call_request.request_hash
+        )
+        if (
+            job is None
+            or video is None
+            or raw_record is None
+            or structured_record is None
+            or scoring_call is None
+            or job.status is not JobStatus.SUCCEEDED
+            or job.authoritative_scoring_artifact_key != ctx.structured_key
+            or job.scoring_success_provenance != ctx.provenance
+            or video.authoritative_scoring_job_id != ctx.job_id
+        ):
+            raise H2CAuthoritativeGraphConflict(
+                "idempotent committed lineage graph could not be verified"
+            )
+        return StageCompletionResult(
+            job=job,
+            video=video,
+            artifacts=(raw_record, structured_record),
+            provider_call=scoring_call,
+        )
+
+    def _dispatch_lineage_cas_finding(
+        self,
+        zero: _H2CLineageCasZeroRow,
+        *,
+        ctx: _H2CLineageCasContext,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        raw_envelope_hash: str,
+        raw_envelope_length: int,
+        structured_hash: str,
+        structured_length: int,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        raw_final: Path,
+        structured_final: Path,
+    ) -> StageCompletionResult:
+        """Act on a classified zero-row lineage CAS after rollback."""
+
+        finding = zero.finding
+        if finding in {
+            _H2CLineageCasFinding.MISSING_JOB,
+            _H2CLineageCasFinding.MISSING_VIDEO,
+        }:
+            from youtube_intel.pipeline import PipelineInterrupted
+
+            raise PipelineInterrupted(
+                "lineage CAS observed a missing job or video row"
+            )
+        if finding is _H2CLineageCasFinding.STALE_LEASE:
+            raise H2CStaleScoringLease("lineage CAS lost the active lease")
+        if finding is _H2CLineageCasFinding.COMMITTED_CONFLICT:
+            raise H2CAuthoritativeGraphConflict(
+                "committed authoritative graph conflicts with the trusted plan"
+            )
+        if finding is _H2CLineageCasFinding.IDEMPOTENT:
+            if not self._committed_lineage_graph_matches(
+                ctx=ctx,
+                raw_artifact=raw_artifact,
+                structured_artifact=structured_artifact,
+                raw_envelope_hash=raw_envelope_hash,
+                raw_envelope_length=raw_envelope_length,
+                structured_hash=structured_hash,
+                structured_length=structured_length,
+                scoring_call_request=scoring_call_request,
+                judge_call_request=judge_call_request,
+                scoring_call_completion=scoring_call_completion,
+                judge_call_completion=judge_call_completion,
+                scoring_summary=scoring_summary,
+                raw_final=raw_final,
+                structured_final=structured_final,
+            ):
+                raise H2CAuthoritativeGraphConflict(
+                    "idempotent lineage graph is incomplete after read-back"
+                )
+            return self._build_committed_lineage_result(
+                ctx=ctx, scoring_call_request=scoring_call_request
+            )
+        detail = _H2C_LINEAGE_TERMINAL_DETAILS[finding]
+        self._terminalize_lineage_integrity(ctx, detail=detail)
+
+    def _committed_lineage_graph_matches(
+        self,
+        *,
+        ctx: _H2CLineageCasContext,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        raw_envelope_hash: str,
+        raw_envelope_length: int,
+        structured_hash: str,
+        structured_length: int,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        raw_final: Path,
+        structured_final: Path,
+    ) -> bool:
+        """Return True only if the complete committed lineage graph matches."""
+
+        repository = cast(Any, self._repository)
+        try:
+            job = repository.get_job(ctx.job_id)
+            video = repository.get_video(ctx.video_id)
+            if (
+                job is None
+                or video is None
+                or job.status is not JobStatus.SUCCEEDED
+                or job.job_type is not JobType.VIDEO_STAGE
+                or job.target_stage is not ProcessingStage.SCORING
+                or job.video_id != ctx.video_id
+                or job.pipeline_version != ctx.pipeline_version
+                or job.authoritative_scoring_artifact_key != ctx.structured_key
+                or job.scoring_success_provenance != ctx.provenance
+                or video.authoritative_scoring_job_id != ctx.job_id
+                or video.pipeline_status is not PipelineStatus.SCORED
+                or video.score != scoring_summary.score
+                or video.should_summarize != scoring_summary.should_summarize
+            ):
+                return False
+            if not raw_final.exists() or not structured_final.exists():
+                return False
+            raw_body = raw_final.read_bytes()
+            structured_body = structured_final.read_bytes()
+            if (
+                len(raw_body) != raw_envelope_length
+                or hashlib.sha256(raw_body).hexdigest() != raw_envelope_hash
+                or len(structured_body) != structured_length
+                or hashlib.sha256(structured_body).hexdigest() != structured_hash
+            ):
+                return False
+            raw_record = repository.get_artifact_by_key(raw_artifact.artifact_key)
+            structured_record = repository.get_artifact_by_key(
+                structured_artifact.artifact_key
+            )
+            if raw_record is None or structured_record is None:
+                return False
+            self._verify_artifact_record(
+                record=raw_record,
+                expected=raw_artifact,
+                expected_final=raw_final,
+                video_id=ctx.video_id,
+            )
+            self._verify_artifact_record(
+                record=structured_record,
+                expected=structured_artifact,
+                expected_final=structured_final,
+                video_id=ctx.video_id,
+            )
+            scoring_call = repository.get_provider_call(
+                scoring_call_request.request_hash
+            )
+            judge_call = repository.get_provider_call(
+                judge_call_request.request_hash
+            )
+            if scoring_call is None or judge_call is None:
+                return False
+            self._verify_provider_call_record(
+                record=scoring_call,
+                request=scoring_call_request,
+                completion=scoring_call_completion,
+                raw_artifact_id=raw_artifact.artifact_id,
+                video_id=ctx.video_id,
+            )
+            self._verify_provider_call_record(
+                record=judge_call,
+                request=judge_call_request,
+                completion=judge_call_completion,
+                raw_artifact_id=raw_artifact.artifact_id,
+                video_id=ctx.video_id,
+            )
+            return True
+        except (ScoringPersistenceError, OSError, ValueError):
+            return False
+
+    def _lineage_pointer_precheck(
+        self,
+        *,
+        ctx: _H2CLineageCasContext,
+        raw_artifact: ArtifactWrite,
+        structured_artifact: ArtifactWrite,
+        raw_envelope_hash: str,
+        raw_envelope_length: int,
+        structured_hash: str,
+        structured_length: int,
+        scoring_call_request: ProviderCallRequest,
+        judge_call_request: ProviderCallRequest,
+        scoring_call_completion: ProviderCallCompletion,
+        judge_call_completion: ProviderCallCompletion,
+        scoring_summary: ScoringSummaryWrite,
+        raw_final: Path,
+        structured_final: Path,
+    ) -> StageCompletionResult | None:
+        """Inspect the durable pointer state before any filesystem effect.
+
+        NULL-generation jobs retain the frozen legacy behavior (None).  A
+        complete committed v1 graph returns the idempotent result.  Conflicts
+        fail closed exactly as the transaction-local classification would.
+        """
+
+        from youtube_intel.pipeline import PipelineInterrupted
+
+        repository = cast(Any, self._repository)
+        job = repository.get_job(ctx.job_id)
+        if job is None:
+            raise PipelineInterrupted("persistence job row is missing")
+        generation = job.scoring_lineage_version
+        if generation is None:
+            return None
+        if generation != SCORING_LINEAGE_VERSION_V1:
+            self._terminalize_lineage_integrity(
+                ctx, detail="H2C_JOB_LINEAGE_CAS_UNEXPECTED"
+            )
+        stored_key = job.authoritative_scoring_artifact_key
+        stored_provenance = job.scoring_success_provenance
+        if stored_key is None and stored_provenance is None:
+            return None
+        if job.status is JobStatus.SUCCEEDED:
+            if (
+                stored_key == ctx.structured_key
+                and stored_provenance == ctx.provenance
+                and self._committed_lineage_graph_matches(
+                    ctx=ctx,
+                    raw_artifact=raw_artifact,
+                    structured_artifact=structured_artifact,
+                    raw_envelope_hash=raw_envelope_hash,
+                    raw_envelope_length=raw_envelope_length,
+                    structured_hash=structured_hash,
+                    structured_length=structured_length,
+                    scoring_call_request=scoring_call_request,
+                    judge_call_request=judge_call_request,
+                    scoring_call_completion=scoring_call_completion,
+                    judge_call_completion=judge_call_completion,
+                    scoring_summary=scoring_summary,
+                    raw_final=raw_final,
+                    structured_final=structured_final,
+                )
+            ):
+                return self._build_committed_lineage_result(
+                    ctx=ctx, scoring_call_request=scoring_call_request
+                )
+            raise H2CAuthoritativeGraphConflict(
+                "committed authoritative graph differs from the trusted plan"
+            )
+        now = self._clock()
+        if job.status is JobStatus.RUNNING and self._owned_active_now(
+            job, ctx.owner, now
+        ):
+            if (
+                stored_key == ctx.structured_key
+                and stored_provenance == ctx.provenance
+            ):
+                self._terminalize_lineage_integrity(
+                    ctx, detail="H2C_JOB_LINEAGE_CAS_UNEXPECTED"
+                )
+            self._terminalize_lineage_integrity(
+                ctx, detail="H2C_AUTHORITATIVE_GRAPH_CONFLICT"
+            )
+        if job.status is JobStatus.RUNNING or job.status is JobStatus.FAILED_FINAL:
+            raise H2CStaleScoringLease(
+                "authoritative pointer exists without an owned active lease"
+            )
+        raise PipelineInterrupted("authoritative pointer state is inconsistent")
+
+    # ------------------------------------------------------------------
+    # REPAIR (H2-C) persistence
+    # ------------------------------------------------------------------
+
+    def _repair_persistence_error(
+        self, message: str, video_id: str
+    ) -> ScoringPersistenceError:
+        return ScoringPersistenceError(
+            AppError(
+                code=ErrorCode.LOCAL_RESOURCE,
+                message=message,
+                retryable=False,
+                video_id=video_id,
+                stage=ProcessingStage.SCORING,
+            )
+        )
+
+    def _open_repair_graph_directory(self, *, p: str, g: str, video_id: str) -> int:
+        """Open the verified ``DATA/scoring/<P>/repair/<G>`` descriptor.
+
+        Descriptor-anchored, no-follow, no-special-file, one level at a time.
+        Newly created levels fsync parent and child before a descendant is
+        created.  Absence of a required primitive is a LOCAL_RESOURCE
+        fail-closed condition; there is no insecure pathname fallback.
+        """
+
+        if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+            raise self._repair_persistence_error(
+                "platform lacks the repair directory safety primitives",
+                video_id,
+            )
+        _validate_lower_hex(p, field_name="primary_request_hash")
+        _validate_lower_hex(g, field_name="graph_hash")
+        dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        fds: list[int] = []
+        try:
+            root_fd = os.open(self._data_root, dir_flags)
+            fds.append(root_fd)
+            for component in ("scoring", p, "repair", g):
+                current_fd = fds[-1]
+                try:
+                    child_fd = os.open(component, dir_flags, dir_fd=current_fd)
+                except FileNotFoundError:
+                    try:
+                        os.mkdir(component, 0o700, dir_fd=current_fd)
+                    except FileExistsError:
+                        child_fd = os.open(component, dir_flags, dir_fd=current_fd)
+                    else:
+                        os.fsync(current_fd)
+                        child_fd = os.open(component, dir_flags, dir_fd=current_fd)
+                        os.fsync(child_fd)
+                fds.append(child_fd)
+            return fds.pop()
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"repair graph directory is unsafe or unavailable: {error}",
+                video_id,
+            ) from error
+        finally:
+            for fd in fds:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+
+    @staticmethod
+    def _repair_orphan_state(
+        g_fd: int, name: str, expected_content: bytes, expected_hash: str
+    ) -> str:
+        """Classify one G-level final as missing, exact orphan, or conflict."""
+
+        try:
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return "conflict"
+        try:
+            stats = os.fstat(fd)
+            import stat as stat_module
+
+            if not stat_module.S_ISREG(stats.st_mode):
+                return "conflict"
+            body = b""
+            while True:
+                chunk = os.read(fd, 1 << 20)
+                if not chunk:
+                    break
+                body += chunk
+                if len(body) > len(expected_content) + 1:
+                    return "conflict"
+            if (
+                len(body) != len(expected_content)
+                or hashlib.sha256(body).hexdigest() != expected_hash
+            ):
+                return "conflict"
+            return "exact"
+        except OSError:
+            return "conflict"
+        finally:
+            os.close(fd)
+
+    def _write_repair_final_in_directory(
+        self,
+        g_fd: int,
+        *,
+        name: str,
+        content: bytes,
+        expected_hash: str,
+        video_id: str,
+    ) -> None:
+        """Write one G-level final through the Phase G durability ordering.
+
+        Temporary exclusive create relative to the G descriptor, fsync,
+        hash/length verify, atomic no-clobber link promotion, fsync(G),
+        unlink temporary, fsync(G), reopen no-follow verify.  An existing
+        final is never overwritten: only exact expected bytes are accepted.
+        """
+
+        tmp_name = name + ".tmp"
+        try:
+            fd = os.open(
+                tmp_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=g_fd,
+            )
+        except FileExistsError:
+            raise self._repair_persistence_error(
+                f"stale temporary repair artifact at {name}", video_id
+            ) from None
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to create temporary repair artifact {name}: {error}",
+                video_id,
+            ) from error
+        try:
+            os.write(fd, content)
+            os.fsync(fd)
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to write temporary repair artifact {name}: {error}",
+                video_id,
+            ) from error
+        finally:
+            os.close(fd)
+
+        verify_fd = os.open(tmp_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+        try:
+            tmp_body = b""
+            while True:
+                chunk = os.read(verify_fd, 1 << 20)
+                if not chunk:
+                    break
+                tmp_body += chunk
+        finally:
+            os.close(verify_fd)
+        if (
+            len(tmp_body) != len(content)
+            or hashlib.sha256(tmp_body).hexdigest() != expected_hash
+        ):
+            raise self._repair_persistence_error(
+                f"temporary repair artifact {name} failed verification",
+                video_id,
+            )
+
+        try:
+            os.link(tmp_name, name, src_dir_fd=g_fd, dst_dir_fd=g_fd)
+        except FileExistsError:
+            state = self._repair_orphan_state(g_fd, name, content, expected_hash)
+            if state != "exact":
+                raise self._repair_persistence_error(
+                    f"repair artifact already exists at {name}", video_id
+                ) from None
+            os.unlink(tmp_name, dir_fd=g_fd)
+            os.fsync(g_fd)
+            return
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to promote repair artifact {name}: {error}", video_id
+            ) from error
+
+        try:
+            os.unlink(tmp_name, dir_fd=g_fd)
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to unlink temporary repair artifact {name}: {error}",
+                video_id,
+            ) from error
+        os.fsync(g_fd)
+
+        final_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+        try:
+            import stat as stat_module
+
+            if not stat_module.S_ISREG(os.fstat(final_fd).st_mode):
+                raise self._repair_persistence_error(
+                    f"promoted repair artifact {name} is not a regular file",
+                    video_id,
+                )
+            final_body = b""
+            while True:
+                chunk = os.read(final_fd, 1 << 20)
+                if not chunk:
+                    break
+                final_body += chunk
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to reopen repair artifact {name}: {error}", video_id
+            ) from error
+        finally:
+            os.close(final_fd)
+        if (
+            len(final_body) != len(content)
+            or hashlib.sha256(final_body).hexdigest() != expected_hash
+        ):
+            raise self._repair_persistence_error(
+                f"promoted repair artifact {name} failed verification",
+                video_id,
+            )
+
+    def _materialize_repair_files(self, plan: Any) -> None:
+        """Adopt exact orphans or write the missing G-based finals."""
+
+        g_fd = self._open_repair_graph_directory(
+            p=plan.primary_request_hash,
+            g=plan.graph_hash,
+            video_id=plan.video_id,
+        )
+        try:
+            raw_state = self._repair_orphan_state(
+                g_fd, "raw.json", plan.envelope_bytes, plan.envelope_hash
+            )
+            structured_state = self._repair_orphan_state(
+                g_fd,
+                "structured.json",
+                plan.structured_bytes,
+                plan.structured_hash,
+            )
+            if raw_state == "conflict" or structured_state == "conflict":
+                raise self._repair_persistence_error(
+                    "existing repair graph material conflicts with the plan",
+                    plan.video_id,
+                )
+            if raw_state == "missing":
+                self._write_repair_final_in_directory(
+                    g_fd,
+                    name="raw.json",
+                    content=plan.envelope_bytes,
+                    expected_hash=plan.envelope_hash,
+                    video_id=plan.video_id,
+                )
+            if structured_state == "missing":
+                self._write_repair_final_in_directory(
+                    g_fd,
+                    name="structured.json",
+                    content=plan.structured_bytes,
+                    expected_hash=plan.structured_hash,
+                    video_id=plan.video_id,
+                )
+        finally:
+            os.close(g_fd)
+
+    def _prewrite_validate_repair(
+        self, success: PhaseHTrustedRepairSuccess
+    ) -> _ValidatedRepairWritePlan:
+        """Zero-write validation of an exact H2-C repair success -> plan.
+
+        Replays the composite version/JCS/hash/length/admission bounds, the
+        trusted result and sealed structured bytes, and every P/R/J/settings
+        cross-binding entirely in memory.  No file, directory, Artifact,
+        ProviderCall, stage, or response identity is created here.
+        """
+
+        from youtube_intel.h2_evidence import (
+            REPAIR_RAW_PRODUCER_VERSION,
+            REPAIR_STRUCTURED_PRODUCER_VERSION,
+            RepairCompositeEnvelope,
+            build_repair_request_hash,
+            repair_normalized_input_hash,
+            repair_persistence_graph_hash,
+        )
+        from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
+        from youtube_intel.providers.ollama import parse_scoring_candidate
+        from youtube_intel.quality import (
+            TrustedScoreResult,
+            build_judge_h1_h2,
+            build_scoring_candidate_hash,
+        )
+
+        # 1. Runtime context binding: the carrier belongs to this entry.
+        if success.job_id != self._context.job_id:
+            msg = "repair success job_id mismatches the persistence context"
+            raise ValueError(msg)
+        if success.owner != self._context.owner:
+            msg = "repair success owner mismatches the persistence context"
+            raise ValueError(msg)
+        if success.pipeline_version != self._context.pipeline_version:
+            msg = "repair success pipeline version mismatches the context"
+            raise ValueError(msg)
+
+        trusted_result = success.trusted_result
+        if type(trusted_result) is not TrustedScoreResult:
+            msg = "trusted result must be an exact TrustedScoreResult"
+            raise ValueError(msg)
+
+        # 2. Composite envelope replay: strict parse, typed validation,
+        #    canonical reserialize equality, hash/length, admission bounds.
+        envelope_bytes = success.repair_composite_envelope_bytes
+        try:
+            decoded = jcs_loads_strict(envelope_bytes)
+            envelope = RepairCompositeEnvelope.model_validate(decoded)
+        except ValueError as error:
+            raise ValueError(f"repair envelope is invalid: {error}") from error
+        if jcs_serialize(envelope.model_dump(mode="json")) != envelope_bytes:
+            msg = "repair envelope bytes are not canonical H2 JCS"
+            raise ValueError(msg)
+        envelope_hash = hashlib.sha256(envelope_bytes).hexdigest()
+        if envelope_hash != success.repair_composite_envelope_sha256:
+            msg = "repair envelope hash mismatches the sealed commitment"
+            raise ValueError(msg)
+        if len(envelope_bytes) != success.repair_composite_envelope_length:
+            msg = "repair envelope length mismatches the sealed commitment"
+            raise ValueError(msg)
+        verify_repair_envelope_admission(envelope)
+
+        pfe = envelope.primary_failure_evidence
+        provider_evidence = envelope.repair_provider_evidence
+        candidate_evidence = envelope.repair_candidate_evidence
+        quality_evidence = envelope.repair_quality_evidence
+        binding = envelope.finalizer_binding
+
+        # 3. Sealed structured replay through the unchanged sealed serializer.
+        structured_bytes = _sealed_trusted_score_result_serializer(trusted_result)
+        if structured_bytes != success.structured_bytes:
+            msg = "structured bytes do not match the sealed serializer output"
+            raise ValueError(msg)
+        structured_hash = hashlib.sha256(structured_bytes).hexdigest()
+        if structured_hash != success.structured_sha256:
+            msg = "structured hash mismatches the sealed commitment"
+            raise ValueError(msg)
+        if len(structured_bytes) != success.structured_length:
+            msg = "structured length mismatches the sealed commitment"
+            raise ValueError(msg)
+        if binding.structured_result_sha256 != structured_hash:
+            msg = "finalizer binding structured hash mismatches the seal"
+            raise ValueError(msg)
+        if binding.structured_result_length != len(structured_bytes):
+            msg = "finalizer binding structured length mismatches the seal"
+            raise ValueError(msg)
+
+        # 4. P/R/J/settings-provenance cross-binding.
+        p = success.primary_request_hash
+        if p != trusted_result.result.request_hash:
+            msg = "trusted result request_hash mismatches the PRIMARY identity"
+            raise ValueError(msg)
+        if p != binding.primary_request_hash:
+            msg = "finalizer binding P commitment mismatches"
+            raise ValueError(msg)
+        if p != pfe.primary_request_hash or p != provider_evidence.normalized_input.primary_request_hash:
+            msg = "PRIMARY request hash mismatches across the envelope"
+            raise ValueError(msg)
+        if success.primary_normalized_input_hash != pfe.primary_normalized_input_hash:
+            msg = "PRIMARY normalized input hash mismatches the PFE"
+            raise ValueError(msg)
+        if success.scoring_input_sha256 != pfe.primary_scoring_input_sha256:
+            msg = "scoring input hash mismatches the PFE"
+            raise ValueError(msg)
+        rni = provider_evidence.normalized_input
+        if rni.scoring_input != pfe.primary_scoring_input:
+            msg = "RNI scoring input mismatches the PFE scoring input"
+            raise ValueError(msg)
+        recomputed_rni_hash = repair_normalized_input_hash(rni)
+        if recomputed_rni_hash != provider_evidence.normalized_input_hash:
+            msg = "RNI canonical hash mismatches the provider evidence"
+            raise ValueError(msg)
+        recomputed_r = build_repair_request_hash(rni)
+        if recomputed_r != provider_evidence.request_hash:
+            msg = "REPAIR request hash mismatches the canonical RNI identity"
+            raise ValueError(msg)
+        if recomputed_r != binding.repair_request_hash:
+            msg = "finalizer binding R commitment mismatches"
+            raise ValueError(msg)
+        if provider_evidence.provider != rni.repair_provider:
+            msg = "repair provider mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.model != rni.repair_model:
+            msg = "repair model mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.model_digest != rni.repair_model_digest:
+            msg = "repair model digest mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.prompt_version != rni.repair_prompt_version:
+            msg = "repair prompt version mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.operation_schema_version != rni.repair_schema_version:
+            msg = "repair schema version mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.output_language != rni.output_language:
+            msg = "repair output language mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.temperature != rni.temperature:
+            msg = "repair temperature mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.max_output_tokens != rni.max_output_tokens:
+            msg = "repair max_output_tokens mismatches the RNI"
+            raise ValueError(msg)
+        if provider_evidence.max_description_chars != rni.max_description_chars:
+            msg = "repair max_description_chars mismatches the RNI"
+            raise ValueError(msg)
+
+        settings_bytes = jcs_serialize(
+            provider_evidence.settings_provenance.model_dump(mode="json")
+        )
+        settings_hash = hashlib.sha256(settings_bytes).hexdigest()
+        if settings_hash != provider_evidence.settings_provenance_sha256:
+            msg = "settings provenance hash mismatches its canonical bytes"
+            raise ValueError(msg)
+
+        candidate = candidate_evidence.candidate
+        reparsed = parse_scoring_candidate(candidate_evidence.repair_raw_utf8)
+        if reparsed != candidate:
+            msg = "repair candidate mismatches the canonical raw parse"
+            raise ValueError(msg)
+        candidate_hash = build_scoring_candidate_hash(candidate)
+        if candidate_hash != candidate_evidence.candidate_sha256:
+            msg = "repair candidate hash mismatches the evidence"
+            raise ValueError(msg)
+        repair_raw_bytes = candidate_evidence.repair_raw_utf8.encode("utf-8")
+        if hashlib.sha256(repair_raw_bytes).hexdigest() != candidate_evidence.repair_raw_sha256:
+            msg = "repair raw hash mismatches the evidence"
+            raise ValueError(msg)
+        if len(repair_raw_bytes) != candidate_evidence.repair_raw_length:
+            msg = "repair raw length mismatches the evidence"
+            raise ValueError(msg)
+        if candidate_evidence.language_evidence.result != "VALID":
+            msg = "repair language evidence must be VALID"
+            raise ValueError(msg)
+        if candidate_evidence.language_evidence.candidate_sha256 != candidate_hash:
+            msg = "language evidence candidate hash mismatches"
+            raise ValueError(msg)
+        result = trusted_result.result
+        if (
+            result.score != candidate.score
+            or result.reason != candidate.reason
+            or result.topics != candidate.topics
+            or result.should_summarize != candidate.should_summarize
+            or result.dimensions != candidate.dimensions
+        ):
+            msg = "trusted result business fields mismatch the repair candidate"
+            raise ValueError(msg)
+        if binding.trusted_result != result:
+            msg = "finalizer binding trusted result mismatches the seal"
+            raise ValueError(msg)
+
+        if quality_evidence.deterministic_gate_status != "PASS":
+            msg = "repair deterministic gate status must be PASS"
+            raise ValueError(msg)
+        if quality_evidence.quality_result.status.value != "PASS":
+            msg = "repair quality result must be PASS"
+            raise ValueError(msg)
+        if quality_evidence.quality_input.candidate_hash != candidate_hash:
+            msg = "repair quality input candidate hash mismatches"
+            raise ValueError(msg)
+        from youtube_intel.quality import (
+            build_content_quality_input_hash,
+            build_content_quality_result_hash,
+        )
+
+        if build_content_quality_input_hash(
+            quality_evidence.quality_input
+        ) != quality_evidence.quality_input_hash:
+            msg = "repair quality input hash mismatches"
+            raise ValueError(msg)
+        authority = self._quality_authority
+        judge_h1, judge_h2 = build_judge_h1_h2(quality_evidence.judge_operation_input)
+        if judge_h1 != quality_evidence.judge_h1 or judge_h2 != quality_evidence.judge_h2:
+            msg = "repair Judge H1/H2 mismatch the canonical derivation"
+            raise ValueError(msg)
+        if quality_evidence.judge_evidence.role != "REPAIR":
+            msg = "repair Judge evidence role must be REPAIR"
+            raise ValueError(msg)
+        if quality_evidence.judge_evidence.judge_h2 != judge_h2:
+            msg = "repair Judge evidence H2 mismatches"
+            raise ValueError(msg)
+        if quality_evidence.judge_evidence.model != authority.judge_model:
+            msg = "repair Judge model mismatches the runtime authority"
+            raise ValueError(msg)
+        if quality_evidence.judge_evidence.provider != authority.judge_provider:
+            msg = "repair Judge provider mismatches the runtime authority"
+            raise ValueError(msg)
+        judge_raw_bytes = quality_evidence.judge_raw_utf8.encode("utf-8")
+        if hashlib.sha256(judge_raw_bytes).hexdigest() != quality_evidence.judge_raw_sha256:
+            msg = "repair Judge raw hash mismatches the evidence"
+            raise ValueError(msg)
+        if len(judge_raw_bytes) != quality_evidence.judge_raw_length:
+            msg = "repair Judge raw length mismatches the evidence"
+            raise ValueError(msg)
+        attestation = quality_evidence.attestation
+        if attestation.judge_request_hash != judge_h2:
+            msg = "repair attestation Judge request hash mismatches"
+            raise ValueError(msg)
+        if attestation.scoring_request_hash != recomputed_r:
+            msg = "repair attestation must bind the REPAIR request hash"
+            raise ValueError(msg)
+        if attestation.quality_result_hash != build_content_quality_result_hash(
+            quality_evidence.quality_result
+        ):
+            msg = "repair attestation quality result hash mismatches"
+            raise ValueError(msg)
+
+        # 5. Complete graph identity v2 and the G-based persistence plan.
+        graph_identity = build_repair_persistence_graph_identity(
+            primary_request_hash=p,
+            repair_request_hash=recomputed_r,
+            repair_judge_request_hash=judge_h2,
+            settings_provenance_sha256=settings_hash,
+            repair_envelope_sha256=envelope_hash,
+            structured_result_sha256=structured_hash,
+        )
+        graph_hash = repair_persistence_graph_hash(graph_identity)
+        (
+            raw_key,
+            raw_relative_path,
+            structured_key,
+            structured_relative_path,
+        ) = build_repair_artifact_keys(primary_request_hash=p, graph_hash=graph_hash)
+
+        video_id = rni.video_id
+        now = self._clock()
+        raw_artifact = ArtifactWrite(
+            artifact_id=f"scoring-raw-{_sha256_text(raw_key + envelope_hash)}",
+            artifact_key=raw_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.SCORING_RAW,
+            storage_root=StorageRoot.DATA,
+            relative_path=raw_relative_path,
+            content_hash=envelope_hash,
+            provider=provider_evidence.provider,
+            model=provider_evidence.model,
+            producer_version=REPAIR_RAW_PRODUCER_VERSION,
+            retention_class=RetentionClass.RAW_RESPONSE_30D,
+            expires_at=now + _G_ARTIFACT_RETENTION,
+        )
+        structured_artifact = ArtifactWrite(
+            artifact_id=(
+                "scoring-structured-" + _sha256_text(structured_key + structured_hash)
+            ),
+            artifact_key=structured_key,
+            video_id=video_id,
+            job_id=self._context.job_id,
+            kind=ArtifactKind.SCORING_STRUCTURED,
+            storage_root=StorageRoot.DATA,
+            relative_path=structured_relative_path,
+            content_hash=structured_hash,
+            provider=result.provider,
+            model=result.model,
+            producer_version=REPAIR_STRUCTURED_PRODUCER_VERSION,
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        )
+
+        repair_call_request = ProviderCallRequest(
+            operation=rni.operation,
+            normalized_input_hash=recomputed_rni_hash,
+            provider=rni.repair_provider,
+            model=rni.repair_model,
+            prompt_version=rni.repair_prompt_version,
+            schema_version=rni.repair_schema_version,
+            deterministic_artifact_key=raw_key,
+        )
+        if repair_call_request.request_hash != recomputed_r:
+            msg = "repair ProviderCall request_hash mismatches R"
+            raise ValueError(msg)
+        judge_call_request = ProviderCallRequest(
+            operation=authority.judge_operation,
+            normalized_input_hash=judge_h1,
+            provider=authority.judge_provider,
+            model=authority.judge_model,
+            prompt_version=authority.quality_prompt_version,
+            schema_version=authority.quality_schema_version,
+            deterministic_artifact_key=raw_key,
+        )
+        if judge_call_request.request_hash != judge_h2:
+            msg = "judge ProviderCall request_hash mismatches J"
+            raise ValueError(msg)
+
+        return _ValidatedRepairWritePlan(
+            success=success,
+            envelope=envelope,
+            envelope_bytes=envelope_bytes,
+            envelope_hash=envelope_hash,
+            envelope_length=len(envelope_bytes),
+            structured_bytes=structured_bytes,
+            structured_hash=structured_hash,
+            structured_length=len(structured_bytes),
+            primary_request_hash=p,
+            repair_request_hash=recomputed_r,
+            judge_request_hash=judge_h2,
+            settings_provenance_sha256=settings_hash,
+            graph_identity=graph_identity,
+            graph_hash=graph_hash,
+            raw_artifact=raw_artifact,
+            structured_artifact=structured_artifact,
+            repair_call_request=repair_call_request,
+            judge_call_request=judge_call_request,
+            repair_call_completion=ProviderCallCompletion(
+                request_hash=recomputed_r,
+                response_artifact_id=raw_artifact.artifact_id,
+                input_tokens=None,
+                output_tokens=None,
+                cost_microusd=None,
+            ),
+            judge_call_completion=ProviderCallCompletion(
+                request_hash=judge_h2,
+                response_artifact_id=raw_artifact.artifact_id,
+                input_tokens=None,
+                output_tokens=None,
+                cost_microusd=None,
+            ),
+            scoring_summary=ScoringSummaryWrite(
+                score=result.score,
+                should_summarize=result.score >= self._summary_threshold,
+            ),
+            video_id=video_id,
+        )
+
+    def _repair_owned_job_precheck(self, ctx: _H2CLineageCasContext) -> None:
+        """PREWRITE repository-owned current job/lease/identity check.
+
+        The active-lease proof applies to fresh registration (a RUNNING job).
+        An already-SUCCEEDED committed job proceeds to the pointer precheck,
+        which classifies same-graph idempotency and committed conflicts.  A
+        stale runtime raises ``H2CStaleScoringLease``, performs no
+        ``fail_job``, makes zero filesystem changes, records no error code or
+        detail, and leaves retry/status unchanged.
+        """
+
+        from youtube_intel.pipeline import PipelineInterrupted
+
+        repository = cast(Any, self._repository)
+        job = repository.get_job(ctx.job_id)
+        if job is None:
+            raise PipelineInterrupted("repair persistence job row is missing")
+        if job.status is JobStatus.RUNNING:
+            now = self._clock()
+            if not self._owned_active_now(job, ctx.owner, now):
+                raise H2CStaleScoringLease(
+                    "repair persistence lost the active scoring lease"
+                )
+            if (
+                job.job_type is not JobType.VIDEO_STAGE
+                or job.target_stage is not ProcessingStage.SCORING
+                or job.video_id != ctx.video_id
+                or job.pipeline_version != ctx.pipeline_version
+                or job.scoring_lineage_version != SCORING_LINEAGE_VERSION_V1
+            ):
+                self._terminalize_lineage_integrity(
+                    ctx, detail="H2C_JOB_LINEAGE_CAS_UNEXPECTED"
+                )
+
+    def _persist_repair_success(
+        self, success: PhaseHTrustedRepairSuccess
+    ) -> StageCompletionResult:
+        """Execute the trusted REPAIR filesystem + SQLite registration."""
+
+        plan = self._prewrite_validate_repair(success)
+        ctx = _H2CLineageCasContext(
+            job_id=self._context.job_id,
+            owner=self._context.owner,
+            video_id=plan.video_id,
+            pipeline_version=self._context.pipeline_version,
+            raw_key=plan.raw_artifact.artifact_key,
+            structured_key=plan.structured_artifact.artifact_key,
+            provenance="REPAIR_H2C",
+        )
+        self._repair_owned_job_precheck(ctx)
+        existing_lineage = self._lineage_pointer_precheck(
+            ctx=ctx,
+            raw_artifact=plan.raw_artifact,
+            structured_artifact=plan.structured_artifact,
+            raw_envelope_hash=plan.envelope_hash,
+            raw_envelope_length=plan.envelope_length,
+            structured_hash=plan.structured_hash,
+            structured_length=plan.structured_length,
+            scoring_call_request=plan.repair_call_request,
+            judge_call_request=plan.judge_call_request,
+            scoring_call_completion=plan.repair_call_completion,
+            judge_call_completion=plan.judge_call_completion,
+            scoring_summary=plan.scoring_summary,
+            raw_final=self._data_root / plan.raw_artifact.relative_path,
+            structured_final=self._data_root / plan.structured_artifact.relative_path,
+        )
+        if existing_lineage is not None:
+            return existing_lineage
+
+        self._materialize_repair_files(plan)
+
+        try:
+            now = self._clock()
+            now_text = format_utc_datetime(now)
+            lease_until = now + timedelta(minutes=5)
+            repository = cast(Any, self._repository)
+            connection = repository._connect()
+            try:
+                try:
+                    with _immediate_transaction(connection):
+                        job_row = repository._owned_running_job(
+                            connection,
+                            job_id=self._context.job_id,
+                            owner=self._context.owner,
+                            now=now_text,
+                        )
+                        if (
+                            job_row["video_id"] != plan.video_id
+                            or job_row["pipeline_version"]
+                            != self._context.pipeline_version
+                        ):
+                            raise ConcurrencyConflict(
+                                "job scope does not match repair registration"
+                            )
+                        if job_row["target_stage"] != ProcessingStage.SCORING.value:
+                            raise ConcurrencyConflict(
+                                "repair job target stage is not SCORING"
+                            )
+                        raw_record = repository._upsert_artifact_in_transaction(
+                            connection, plan.raw_artifact, now=now_text
+                        )
+                        structured_record = repository._upsert_artifact_in_transaction(
+                            connection, plan.structured_artifact, now=now_text
+                        )
+                        repair_record = repository._reserve_provider_call_in_transaction(
+                            connection,
+                            plan.repair_call_request,
+                            owner=self._context.owner,
+                            lease_until=lease_until,
+                            available_at=now,
+                            now=now,
+                        )
+                        judge_record = repository._reserve_provider_call_in_transaction(
+                            connection,
+                            plan.judge_call_request,
+                            owner=self._context.owner,
+                            lease_until=lease_until,
+                            available_at=now,
+                            now=now,
+                        )
+                        if repair_record.status is ProviderCallStatus.PENDING:
+                            repair_record = repository._complete_provider_call_in_transaction(
+                                connection,
+                                plan.repair_call_completion,
+                                owner=self._context.owner,
+                                now=now_text,
+                            )
+                        if judge_record.status is ProviderCallStatus.PENDING:
+                            judge_record = repository._complete_provider_call_in_transaction(
+                                connection,
+                                plan.judge_call_completion,
+                                owner=self._context.owner,
+                                now=now_text,
+                            )
+                        self._apply_lineage_cas_in_transaction(
+                            connection,
+                            repository,
+                            ctx=ctx,
+                            job_row=job_row,
+                            now_text=now_text,
+                        )
+                        changed = connection.execute(
+                            "UPDATE videos SET pipeline_status = :target_status, "
+                            "score = :score, should_summarize = :should_summarize, "
+                            "updated_at = :now, completed_at = NULL "
+                            "WHERE video_id = :video_id "
+                            "AND pipeline_status = :expected_status "
+                            "AND pipeline_version = :pipeline_version",
+                            {
+                                "target_status": PipelineStatus.SCORED.value,
+                                "score": plan.scoring_summary.score,
+                                "should_summarize": int(
+                                    plan.scoring_summary.should_summarize
+                                ),
+                                "now": now_text,
+                                "video_id": plan.video_id,
+                                "expected_status": PipelineStatus.TRANSCRIPT_READY.value,
+                                "pipeline_version": self._context.pipeline_version,
+                            },
+                        ).rowcount
+                        if changed != 1:
+                            raise ConcurrencyConflict(
+                                "pipeline changed before repair registration"
+                            )
+                        job = repository._finish_job_success_in_transaction(
+                            connection,
+                            job_id=self._context.job_id,
+                            owner=self._context.owner,
+                            now=now_text,
+                        )
+                        video_row = connection.execute(
+                            "SELECT * FROM videos WHERE video_id = :video_id",
+                            {"video_id": plan.video_id},
+                        ).fetchone()
+                        if video_row is None:
+                            raise StateStoreError("completed video could not be read")
+                        return StageCompletionResult(
+                            job=job,
+                            video=repository._video_from_row(video_row),
+                            artifacts=(raw_record, structured_record),
+                            provider_call=repair_record,
+                        )
+                except sqlite3.IntegrityError as error:
+                    raise IntegrityConflict(
+                        "atomic repair registration violates repository integrity"
+                    ) from error
+                except _H2CLineageCasZeroRow as zero:
+                    return self._dispatch_lineage_cas_finding(
+                        zero,
+                        ctx=ctx,
+                        raw_artifact=plan.raw_artifact,
+                        structured_artifact=plan.structured_artifact,
+                        raw_envelope_hash=plan.envelope_hash,
+                        raw_envelope_length=plan.envelope_length,
+                        structured_hash=plan.structured_hash,
+                        structured_length=plan.structured_length,
+                        scoring_call_request=plan.repair_call_request,
+                        judge_call_request=plan.judge_call_request,
+                        scoring_call_completion=plan.repair_call_completion,
+                        judge_call_completion=plan.judge_call_completion,
+                        scoring_summary=plan.scoring_summary,
+                        raw_final=self._data_root / plan.raw_artifact.relative_path,
+                        structured_final=(
+                            self._data_root / plan.structured_artifact.relative_path
+                        ),
+                    )
+            finally:
+                connection.close()
+        except ScoringPersistenceError:
+            raise
+        except (
+            H2CStaleScoringLease,
+            H2CAuthoritativeGraphConflict,
+            _H2CLineageTerminalHandled,
+        ):
+            raise
+        except Exception as error:
+            from youtube_intel.pipeline import PipelineInterrupted
+
+            if isinstance(error, PipelineInterrupted):
+                raise
+            msg = f"atomic repair registration failed: {error}"
+            raise ScoringPersistenceError(
+                AppError(
+                    code=ErrorCode.LOCAL_RESOURCE,
+                    message=msg,
+                    retryable=False,
+                    video_id=plan.video_id,
+                    stage=ProcessingStage.SCORING,
+                )
+            ) from error
+
+
+# ---------------------------------------------------------------------------
+# TASK-016C Phase H2-C: trusted repair persistence data layer
+# ---------------------------------------------------------------------------
+#
+# The H2-C persistence boundary is the runtime-internal continuation of one
+# actual SCORING execution frame.  Nothing below accepts caller-provided
+# trust, Judge context, repair graph identity, provider evidence, artifact
+# paths, success provenance, or authoritative pointers: every value is
+# derived inside the trusted runtime replay or re-verified here.
+
+
+class H2CStaleScoringLease(Exception):
+    """The runtime is no longer the active owner of the current SCORING job.
+
+    Raised only by the H2-C lease/ownership proofs (PREWRITE repository-owned
+    check, lineage CAS diagnosis, generation-decision authority).  It carries
+    no capability and is never used for evidence/replay mismatches or any
+    existing ``ScoringDispatchDenied`` source.  The stale runtime performs no
+    ``fail_job`` and no mutation.
+    """
+
+
+class H2CAuthoritativeGraphConflict(IntegrityConflict):
+    """A committed authoritative graph differs from the planned complete graph.
+
+    Fail-closed: no second graph registration, pointer update, state
+    transition, or file overwrite.  The stable diagnostic code is carried for
+    the trusted persistence boundary mapping.
+    """
+
+    stable_code = "H2C_AUTHORITATIVE_GRAPH_CONFLICT"
+
+    def __init__(self, message: str = "authoritative graph conflict") -> None:
+        super().__init__(message)
+
+
+class _H2CLineageTerminalHandled(Exception):
+    """Internal: one owner-authoritative integrity fail_job already committed.
+
+    Raised by the trusted persistence boundary after a rollback + lease
+    re-proof + exactly one ``fail_job`` whose FAILED_FINAL read-back was
+    confirmed.  The runtime maps it to ``StageDisposition.TERMINAL``; it never
+    escapes to generic failure handling.
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
+class _H2CEnvelopeOversize(ValueError):
+    """A repair envelope component exceeded its bounded admission ceiling."""
+
+
+class _H2CLineageCasFinding(str, Enum):
+    """Closed classification outcomes for a zero-row lineage CAS."""
+
+    IDEMPOTENT = "IDEMPOTENT"
+    COMMITTED_CONFLICT = "COMMITTED_CONFLICT"
+    STALE_LEASE = "STALE_LEASE"
+    MISSING_JOB = "MISSING_JOB"
+    MISSING_VIDEO = "MISSING_VIDEO"
+    TERMINAL_JOB_UNEXPECTED = "TERMINAL_JOB_UNEXPECTED"
+    TERMINAL_GRAPH_CONFLICT = "TERMINAL_GRAPH_CONFLICT"
+    TERMINAL_VIDEO_UNEXPECTED = "TERMINAL_VIDEO_UNEXPECTED"
+    TERMINAL_VIDEO_CONFLICT = "TERMINAL_VIDEO_CONFLICT"
+    INTERRUPTED = "INTERRUPTED"
+
+
+#: The exact frozen terminal detail for each active-owned integrity finding.
+_H2C_LINEAGE_TERMINAL_DETAILS: Final[dict[_H2CLineageCasFinding, str]] = {
+    _H2CLineageCasFinding.TERMINAL_JOB_UNEXPECTED: (
+        "H2C_JOB_LINEAGE_CAS_UNEXPECTED"
+    ),
+    _H2CLineageCasFinding.TERMINAL_GRAPH_CONFLICT: (
+        "H2C_AUTHORITATIVE_GRAPH_CONFLICT"
+    ),
+    _H2CLineageCasFinding.TERMINAL_VIDEO_UNEXPECTED: (
+        "H2C_VIDEO_LINEAGE_CAS_UNEXPECTED"
+    ),
+    _H2CLineageCasFinding.TERMINAL_VIDEO_CONFLICT: (
+        "H2C_VIDEO_LINEAGE_CAS_CONFLICT"
+    ),
+}
+
+
+class _H2CLineageCasZeroRow(Exception):
+    """Carrier: a lineage CAS matched zero rows; the finding is classified."""
+
+    def __init__(
+        self,
+        finding: _H2CLineageCasFinding,
+        *,
+        is_video_cas: bool,
+    ) -> None:
+        super().__init__(finding.value)
+        self.finding = finding
+        self.is_video_cas = is_video_cas
+
+
+@dataclass(frozen=True, slots=True)
+class _H2CLineageCasContext:
+    """Identity/provenance inputs of one lineage pointer CAS."""
+
+    job_id: str
+    owner: str
+    video_id: str
+    pipeline_version: str
+    raw_key: str
+    structured_key: str
+    provenance: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedRepairWritePlan:
+    """Zero-write REPAIR PREWRITE output freezing every persistence input.
+
+    Internal to ``TrustedPersistenceEntry._persist_repair_success``: it fixes
+    the envelope/structured bytes, E/S/G commitments, G-based artifact
+    identity, the two truthful ProviderCall identities, and the summary.  It
+    is not a DTO, cache identity, authority, or persistence record.
+    """
+
+    success: Any
+    envelope: Any
+    envelope_bytes: bytes
+    envelope_hash: str
+    envelope_length: int
+    structured_bytes: bytes
+    structured_hash: str
+    structured_length: int
+    primary_request_hash: str
+    repair_request_hash: str
+    judge_request_hash: str
+    settings_provenance_sha256: str
+    graph_identity: Any
+    graph_hash: str
+    raw_artifact: ArtifactWrite
+    structured_artifact: ArtifactWrite
+    repair_call_request: ProviderCallRequest
+    judge_call_request: ProviderCallRequest
+    repair_call_completion: ProviderCallCompletion
+    judge_call_completion: ProviderCallCompletion
+    scoring_summary: ScoringSummaryWrite
+    video_id: str
+
+
+#: Closed H2-C trust-integrity diagnostics.  Every detail is exactly one
+#: ``H2C_REPLAY_INVALID:<REASON>`` literal from the approved closed set; no
+#: arbitrary formatted reasons are permitted.
+H2C_REPLAY_INVALID_PREFIX: Final = "H2C_REPLAY_INVALID:"
+H2C_REPLAY_INVALID_REASONS: Final[frozenset[str]] = frozenset(
+    {
+        "PRIMARY_EVIDENCE_MISMATCH",
+        "PFE_INVALID",
+        "FAILURE_CLASS_INELIGIBLE",
+        "RNI_MISMATCH",
+        "REPAIR_REQUEST_MISMATCH",
+        "REPAIR_PAYLOAD_MISMATCH",
+        "REPAIR_RAW_INVALID",
+        "CANDIDATE_MISMATCH",
+        "LANGUAGE_INVALID",
+        "DETERMINISTIC_GATE_INVALID",
+        "JUDGE_EVIDENCE_INVALID",
+        "ATTESTATION_INVALID",
+        "FINALIZER_INVALID",
+        "TRUSTED_RESULT_MISMATCH",
+        "STRUCTURED_RESULT_MISMATCH",
+        "SETTINGS_MISMATCH",
+        "PROVENANCE_MISMATCH",
+        "ENVELOPE_OVERSIZE",
+        "SETTINGS_BOUND_EXCEEDED",
+        "SCORING_LINEAGE_VERSION_INVALID",
+    }
+)
+
+
+def h2c_replay_invalid_detail(reason: str) -> str:
+    """Return the exact qualified diagnostic for one closed reason literal."""
+
+    if reason not in H2C_REPLAY_INVALID_REASONS:
+        msg = f"H2C diagnostic reason is not in the closed set: {reason!r}"
+        raise ValueError(msg)
+    return H2C_REPLAY_INVALID_PREFIX + reason
+
+
+_H2C_SHA256_HEX_LENGTH: Final = 64
+
+
+def _validate_lower_hex(value: str, *, field_name: str) -> None:
+    if (
+        len(value) != _H2C_SHA256_HEX_LENGTH
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        msg = f"{field_name} must be a lowercase 64-character SHA-256 value"
+        raise ValueError(msg)
+
+
+def build_repair_persistence_graph_identity(
+    *,
+    primary_request_hash: str,
+    repair_request_hash: str,
+    repair_judge_request_hash: str,
+    settings_provenance_sha256: str,
+    repair_envelope_sha256: str,
+    structured_result_sha256: str,
+) -> Any:
+    """Construct the exact v2 complete-graph identity from verified commitments.
+
+    The frozen producer/schema/policy literals are filled internally; no caller
+    supplies a producer, schema, or policy variant.  The result is the sole
+    input to ``G = SHA256(H2-JCS(identity))``.
+    """
+
+    from youtube_intel.h2_evidence import (
+        REPAIR_COMPOSITE_ENVELOPE_SCHEMA,
+        REPAIR_PERSISTENCE_GRAPH_SCHEMA_V2,
+        REPAIR_PROVIDER_EVIDENCE_SCHEMA_V2,
+        REPAIR_RAW_PRODUCER_VERSION,
+        REPAIR_STRUCTURED_PRODUCER_VERSION,
+        RepairPersistenceGraphIdentityV2,
+    )
+    from youtube_intel.providers.ollama import (
+        _QUALITY_POLICY_VERSION,
+        _QUALITY_PROMPT_VERSION,
+        _QUALITY_SCHEMA_VERSION,
+    )
+
+    return RepairPersistenceGraphIdentityV2.model_validate(
+        {
+            "schema_version": REPAIR_PERSISTENCE_GRAPH_SCHEMA_V2,
+            "primary_request_hash": primary_request_hash,
+            "repair_request_hash": repair_request_hash,
+            "repair_judge_request_hash": repair_judge_request_hash,
+            "settings_provenance_sha256": settings_provenance_sha256,
+            "repair_envelope_sha256": repair_envelope_sha256,
+            "structured_result_sha256": structured_result_sha256,
+            "raw_producer_version": REPAIR_RAW_PRODUCER_VERSION,
+            "structured_producer_version": REPAIR_STRUCTURED_PRODUCER_VERSION,
+            "envelope_schema": REPAIR_COMPOSITE_ENVELOPE_SCHEMA,
+            "repair_provider_evidence_schema": REPAIR_PROVIDER_EVIDENCE_SCHEMA_V2,
+            "quality_policy_version": _QUALITY_POLICY_VERSION,
+            "quality_prompt_version": _QUALITY_PROMPT_VERSION,
+            "quality_schema_version": _QUALITY_SCHEMA_VERSION,
+        }
+    )
+
+
+def build_repair_artifact_keys(
+    *,
+    primary_request_hash: str,
+    graph_hash: str,
+) -> tuple[str, str, str, str]:
+    """Derive the exact G-based repair keys and relative paths.
+
+    Returns ``(raw_key, raw_relative_path, structured_key,
+    structured_relative_path)``.  P and G are fixed lower-hex SHA-256
+    components only; nothing else can influence a path.
+    """
+
+    _validate_lower_hex(primary_request_hash, field_name="primary_request_hash")
+    _validate_lower_hex(graph_hash, field_name="graph_hash")
+    raw_key = f"scoring/{primary_request_hash}/repair/{graph_hash}/raw"
+    structured_key = f"scoring/{primary_request_hash}/repair/{graph_hash}/structured"
+    return (
+        raw_key,
+        raw_key + ".json",
+        structured_key,
+        structured_key + ".json",
+    )
+
+
+def _parse_repair_key_components(key: str, *, suffix: str) -> tuple[str, str]:
+    parts = key.split("/")
+    if (
+        len(parts) != 5
+        or parts[0] != "scoring"
+        or parts[2] != "repair"
+        or parts[4] != suffix
+    ):
+        msg = f"repair artifact key grammar is invalid: {key!r}"
+        raise ValueError(msg)
+    primary_request_hash = parts[1]
+    graph_hash = parts[3]
+    _validate_lower_hex(primary_request_hash, field_name="primary_request_hash")
+    _validate_lower_hex(graph_hash, field_name="graph_hash")
+    return primary_request_hash, graph_hash
+
+
+def parse_repair_raw_key(key: str) -> tuple[str, str]:
+    """Parse ``scoring/<P>/repair/<G>/raw`` into ``(P, G)`` fail-closed."""
+
+    return _parse_repair_key_components(key, suffix="raw")
+
+
+def parse_repair_structured_key(key: str) -> tuple[str, str]:
+    """Parse ``scoring/<P>/repair/<G>/structured`` into ``(P, G)`` fail-closed."""
+
+    return _parse_repair_key_components(key, suffix="structured")
+
+
+def parse_repair_raw_relative_path(path: str) -> tuple[str, str]:
+    """Parse ``scoring/<P>/repair/<G>/raw.json`` into ``(P, G)`` fail-closed."""
+
+    return _parse_repair_key_components(path, suffix="raw.json")
+
+
+def parse_repair_structured_relative_path(path: str) -> tuple[str, str]:
+    """Parse ``scoring/<P>/repair/<G>/structured.json`` into ``(P, G)``."""
+
+    return _parse_repair_key_components(path, suffix="structured.json")
+
+
+# Bounded repair-envelope admission ceilings (§6).  Every variable-size value
+# is bounded by its containing canonical subtree; the narrower explicit row
+# wins.  Nothing is truncated or abbreviated to fit.
+_H2C_PRIMARY_FAILURE_SUBTREE_MAX: Final = 8_388_608
+_H2C_REPAIR_PROVIDER_SUBTREE_MAX: Final = 8_388_608
+_H2C_REPAIR_CANDIDATE_SUBTREE_MAX: Final = 7_340_032
+_H2C_REPAIR_QUALITY_SUBTREE_MAX: Final = 8_388_608
+_H2C_FINALIZER_BINDING_SUBTREE_MAX: Final = 1_044_480
+_H2C_ENVELOPE_ROOT_MAX: Final = 33_554_432
+_H2C_RNI_BYTES_MAX: Final = 393_216
+_H2C_SETTINGS_PROVENANCE_BYTES_MAX: Final = 8_192
+_H2C_REPAIR_PRIMARY_RAW_MAX: Final = 1_000_000
+_H2C_REPAIR_JUDGE_RAW_MAX: Final = 20_000
+_H2C_REPAIR_OUTER_RAW_MAX: Final = 1_000_000
+_H2C_CANDIDATE_CONTENT_COLLECTIVE_MAX: Final = 1_340_032
+
+
+def verify_repair_envelope_admission(envelope: Any) -> None:
+    """Enforce the closed repair-only serialized-component limits.
+
+    Serialize each typed subtree with H2 JCS and enforce its cap, then
+    root-serialize and enforce the exact 33,554,432-byte total.  Oversize is
+    not truncation or retry; it maps to ``H2C_REPLAY_INVALID:ENVELOPE_OVERSIZE``
+    with zero network, filesystem, or persistence.
+    """
+
+    from youtube_intel.h2_jcs import jcs_serialize
+
+    def _subtree_bytes(value: object) -> bytes:
+        return jcs_serialize(value)
+
+    primary_bytes = _subtree_bytes(
+        envelope.primary_failure_evidence.model_dump(mode="json")
+    )
+    if len(primary_bytes) > _H2C_PRIMARY_FAILURE_SUBTREE_MAX:
+        raise _H2CEnvelopeOversize("primary_failure_evidence subtree exceeds its cap")
+    primary_raw_length = len(
+        envelope.primary_failure_evidence.primary_raw_utf8.encode("utf-8")
+    )
+    if primary_raw_length > _H2C_REPAIR_PRIMARY_RAW_MAX:
+        raise _H2CEnvelopeOversize("PRIMARY outer raw exceeds its cap")
+
+    provider_bytes = _subtree_bytes(
+        envelope.repair_provider_evidence.model_dump(mode="json")
+    )
+    if len(provider_bytes) > _H2C_REPAIR_PROVIDER_SUBTREE_MAX:
+        raise _H2CEnvelopeOversize("repair_provider_evidence subtree exceeds its cap")
+    rni_bytes = jcs_serialize(
+        envelope.repair_provider_evidence.normalized_input.model_dump(mode="json")
+    )
+    if len(rni_bytes) > _H2C_RNI_BYTES_MAX:
+        raise _H2CEnvelopeOversize("RNI canonical bytes exceed their cap")
+    settings_bytes = jcs_serialize(
+        envelope.repair_provider_evidence.settings_provenance.model_dump(mode="json")
+    )
+    if len(settings_bytes) > _H2C_SETTINGS_PROVENANCE_BYTES_MAX:
+        raise _H2CEnvelopeOversize("settings provenance bytes exceed their cap")
+
+    candidate_bytes = _subtree_bytes(
+        envelope.repair_candidate_evidence.model_dump(mode="json")
+    )
+    if len(candidate_bytes) > _H2C_REPAIR_CANDIDATE_SUBTREE_MAX:
+        raise _H2CEnvelopeOversize("repair_candidate_evidence subtree exceeds its cap")
+    repair_raw_length = len(
+        envelope.repair_candidate_evidence.repair_raw_utf8.encode("utf-8")
+    )
+    if repair_raw_length > _H2C_REPAIR_OUTER_RAW_MAX:
+        raise _H2CEnvelopeOversize("REPAIR outer raw exceeds its cap")
+    content_collective = _subtree_bytes(
+        [
+            envelope.repair_candidate_evidence.repair_model_content,
+            envelope.repair_candidate_evidence.candidate.model_dump(mode="json"),
+            envelope.repair_candidate_evidence.language_evidence.model_dump(
+                mode="json"
+            ),
+        ]
+    )
+    if len(content_collective) > _H2C_CANDIDATE_CONTENT_COLLECTIVE_MAX:
+        raise _H2CEnvelopeOversize("extracted candidate content exceeds its cap")
+
+    quality_bytes = _subtree_bytes(
+        envelope.repair_quality_evidence.model_dump(mode="json")
+    )
+    if len(quality_bytes) > _H2C_REPAIR_QUALITY_SUBTREE_MAX:
+        raise _H2CEnvelopeOversize("repair_quality_evidence subtree exceeds its cap")
+    judge_raw_length = len(
+        envelope.repair_quality_evidence.judge_raw_utf8.encode("utf-8")
+    )
+    if judge_raw_length > _H2C_REPAIR_JUDGE_RAW_MAX:
+        raise _H2CEnvelopeOversize("REPAIR Judge raw exceeds its cap")
+
+    binding_bytes = _subtree_bytes(envelope.finalizer_binding.model_dump(mode="json"))
+    if len(binding_bytes) > _H2C_FINALIZER_BINDING_SUBTREE_MAX:
+        raise _H2CEnvelopeOversize("finalizer_binding subtree exceeds its cap")
+
+    root_bytes = jcs_serialize(envelope.model_dump(mode="json"))
+    if len(root_bytes) > _H2C_ENVELOPE_ROOT_MAX:
+        raise _H2CEnvelopeOversize("repair envelope root exceeds the total cap")
+
+
+def build_repair_composite_envelope(
+    *,
+    primary_failure_evidence: Any,
+    repair_provider_evidence: Any,
+    repair_candidate_evidence: Any,
+    repair_quality_evidence: Any,
+    finalizer_binding: Any,
+) -> tuple[Any, bytes, str, int]:
+    """Assemble the six-field root envelope and its canonical E commitment.
+
+    Returns ``(envelope, envelope_bytes, envelope_sha256, envelope_length)``.
+    The envelope contains neither G nor an artifact key/path nor identity
+    bytes/digest, so neither E nor S requires G and the construction has no
+    circular dependency.
+    """
+
+    from youtube_intel.h2_evidence import RepairCompositeEnvelope
+    from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
+
+    envelope = RepairCompositeEnvelope.model_validate(
+        {
+            "envelope_schema": "trusted-scoring-repair-envelope-v1",
+            "primary_failure_evidence": primary_failure_evidence.model_dump(
+                mode="json"
+            ),
+            "repair_provider_evidence": repair_provider_evidence.model_dump(
+                mode="json"
+            ),
+            "repair_candidate_evidence": repair_candidate_evidence.model_dump(
+                mode="json"
+            ),
+            "repair_quality_evidence": repair_quality_evidence.model_dump(
+                mode="json"
+            ),
+            "finalizer_binding": finalizer_binding.model_dump(mode="json"),
+        }
+    )
+    verify_repair_envelope_admission(envelope)
+    envelope_bytes = jcs_serialize(envelope.model_dump(mode="json"))
+    # Canonical reserialize equality through the strict decoder proves the
+    # bytes are the exact H2 JCS representation of the typed envelope.
+    if jcs_serialize(jcs_loads_strict(envelope_bytes)) != envelope_bytes:
+        msg = "repair envelope bytes are not canonical H2 JCS"
+        raise ValueError(msg)
+    return (
+        envelope,
+        envelope_bytes,
+        hashlib.sha256(envelope_bytes).hexdigest(),
+        len(envelope_bytes),
+    )
+
+
+class _PhaseHTrustedRepairSuccessSentinel:
+    """Private sentinel; only the H2-C seam can mint the repair aggregate."""
+
+    __slots__ = ()
+
+
+_PHASE_H_TRUSTED_REPAIR_SUCCESS_SENTINEL = _PhaseHTrustedRepairSuccessSentinel()
+
+
+class PhaseHTrustedRepairSuccess:
+    """Opaque memory-only H2-C trusted repair success carrier.
+
+    The carrier is a narrow immutable data carrier with no persistence
+    behavior and no public mint/factory.  It is not a capability.  It seals
+    the exact approved persistence inputs: runtime job/owner/pipeline
+    identity, the PRIMARY semantic hash, the sealed envelope bytes with E,
+    the exact finalizer ``TrustedScoreResult`` and sealed structured bytes
+    with S, and the prompt/schema version literals.  The parsed envelope is
+    retained only as a redundant in-memory verifier input; the sealed bytes
+    are authoritative.
+    """
+
+    __slots__ = (
+        "_job_id",
+        "_owner",
+        "_pipeline_version",
+        "_primary_request_hash",
+        "_primary_normalized_input_hash",
+        "_scoring_input_sha256",
+        "_repair_composite_envelope_bytes",
+        "_repair_composite_envelope_sha256",
+        "_repair_composite_envelope_length",
+        "_trusted_result",
+        "_structured_bytes",
+        "_structured_sha256",
+        "_structured_length",
+        "_prompt_version",
+        "_schema_version",
+        "_envelope",
+        "_sealed",
+    )
+
+    def __init_subclass__(cls, **kwargs: object) -> NoReturn:
+        del cls, kwargs
+        raise TypeError("PhaseHTrustedRepairSuccess cannot be subclassed")
+
+    def __init__(
+        self,
+        *,
+        sentinel: object,
+        job_id: str,
+        owner: str,
+        pipeline_version: str,
+        primary_request_hash: str,
+        primary_normalized_input_hash: str,
+        scoring_input_sha256: str,
+        repair_composite_envelope_bytes: bytes,
+        repair_composite_envelope_sha256: str,
+        repair_composite_envelope_length: int,
+        trusted_result: Any,
+        structured_bytes: bytes,
+        structured_sha256: str,
+        structured_length: int,
+        prompt_version: str,
+        schema_version: str,
+        envelope: Any,
+    ) -> None:
+        if sentinel is not _PHASE_H_TRUSTED_REPAIR_SUCCESS_SENTINEL:
+            msg = (
+                "PhaseHTrustedRepairSuccess can only be minted by the trusted "
+                "H2-C seam"
+            )
+            raise ValueError(msg)
+        self._job_id = job_id
+        self._owner = owner
+        self._pipeline_version = pipeline_version
+        self._primary_request_hash = primary_request_hash
+        self._primary_normalized_input_hash = primary_normalized_input_hash
+        self._scoring_input_sha256 = scoring_input_sha256
+        self._repair_composite_envelope_bytes = repair_composite_envelope_bytes
+        self._repair_composite_envelope_sha256 = repair_composite_envelope_sha256
+        self._repair_composite_envelope_length = repair_composite_envelope_length
+        self._trusted_result = trusted_result
+        self._structured_bytes = structured_bytes
+        self._structured_sha256 = structured_sha256
+        self._structured_length = structured_length
+        self._prompt_version = prompt_version
+        self._schema_version = schema_version
+        self._envelope = envelope
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise TypeError("PhaseHTrustedRepairSuccess is immutable")
+        object.__setattr__(self, name, value)
+
+    @property
+    def job_id(self) -> str:
+        return self._job_id
+
+    @property
+    def owner(self) -> str:
+        return self._owner
+
+    @property
+    def pipeline_version(self) -> str:
+        return self._pipeline_version
+
+    @property
+    def primary_request_hash(self) -> str:
+        return self._primary_request_hash
+
+    @property
+    def primary_normalized_input_hash(self) -> str:
+        return self._primary_normalized_input_hash
+
+    @property
+    def scoring_input_sha256(self) -> str:
+        return self._scoring_input_sha256
+
+    @property
+    def repair_composite_envelope_bytes(self) -> bytes:
+        return self._repair_composite_envelope_bytes
+
+    @property
+    def repair_composite_envelope_sha256(self) -> str:
+        return self._repair_composite_envelope_sha256
+
+    @property
+    def repair_composite_envelope_length(self) -> int:
+        return self._repair_composite_envelope_length
+
+    @property
+    def trusted_result(self) -> Any:
+        return self._trusted_result
+
+    @property
+    def structured_bytes(self) -> bytes:
+        return self._structured_bytes
+
+    @property
+    def structured_sha256(self) -> str:
+        return self._structured_sha256
+
+    @property
+    def structured_length(self) -> int:
+        return self._structured_length
+
+    @property
+    def prompt_version(self) -> str:
+        return self._prompt_version
+
+    @property
+    def schema_version(self) -> str:
+        return self._schema_version
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("PhaseHTrustedRepairSuccess cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> NoReturn:
+        raise TypeError("PhaseHTrustedRepairSuccess cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("PhaseHTrustedRepairSuccess cannot be serialized")
+
+    def __reduce_ex__(self, protocol: object) -> NoReturn:
+        raise TypeError("PhaseHTrustedRepairSuccess cannot be serialized")
+
+
+def _mint_phase_h_trusted_repair_success(
+    *,
+    job_id: str,
+    owner: str,
+    pipeline_version: str,
+    primary_request_hash: str,
+    primary_normalized_input_hash: str,
+    scoring_input_sha256: str,
+    envelope: Any,
+    envelope_bytes: bytes,
+    trusted_result: Any,
+    structured_bytes: bytes,
+) -> PhaseHTrustedRepairSuccess:
+    """Seal the only H2-C trusted repair success carrier (private seam mint).
+
+    The mint re-verifies the sealed data self-consistency before sealing:
+    envelope hash/length equality, structured hash/length equality, the
+    P commitment binding between the trusted result and the finalizer
+    binding, and the prompt/schema literals.  It confers no authority by
+    itself: only the actual lexical H2-C replay may call it.
+    """
+
+    from youtube_intel.quality import TrustedScoreResult
+
+    if type(trusted_result) is not TrustedScoreResult:
+        msg = (
+            "trusted result must be an exact TrustedScoreResult; "
+            f"got {type(trusted_result).__name__}"
+        )
+        raise ValueError(msg)
+    if not job_id.strip() or not owner.strip() or not pipeline_version.strip():
+        msg = "job identity fields must be non-empty"
+        raise ValueError(msg)
+    _validate_lower_hex(primary_request_hash, field_name="primary_request_hash")
+    _validate_lower_hex(
+        primary_normalized_input_hash, field_name="primary_normalized_input_hash"
+    )
+    _validate_lower_hex(scoring_input_sha256, field_name="scoring_input_sha256")
+
+    envelope_sha256 = hashlib.sha256(envelope_bytes).hexdigest()
+    envelope_length = len(envelope_bytes)
+    structured_sha256 = hashlib.sha256(structured_bytes).hexdigest()
+    structured_length = len(structured_bytes)
+
+    binding = envelope.finalizer_binding
+    if binding.primary_request_hash != primary_request_hash:
+        msg = "finalizer binding primary_request_hash mismatches the P commitment"
+        raise ValueError(msg)
+    if binding.trusted_result != trusted_result.result:
+        msg = "finalizer binding trusted result mismatches the sealed result"
+        raise ValueError(msg)
+    if binding.structured_result_sha256 != structured_sha256:
+        msg = "finalizer binding structured hash mismatches the sealed bytes"
+        raise ValueError(msg)
+    if binding.structured_result_length != structured_length:
+        msg = "finalizer binding structured length mismatches the sealed bytes"
+        raise ValueError(msg)
+    if trusted_result.result.request_hash != primary_request_hash:
+        msg = "trusted result request_hash mismatches the PRIMARY semantic hash"
+        raise ValueError(msg)
+
+    return PhaseHTrustedRepairSuccess(
+        sentinel=_PHASE_H_TRUSTED_REPAIR_SUCCESS_SENTINEL,
+        job_id=job_id,
+        owner=owner,
+        pipeline_version=pipeline_version,
+        primary_request_hash=primary_request_hash,
+        primary_normalized_input_hash=primary_normalized_input_hash,
+        scoring_input_sha256=scoring_input_sha256,
+        repair_composite_envelope_bytes=envelope_bytes,
+        repair_composite_envelope_sha256=envelope_sha256,
+        repair_composite_envelope_length=envelope_length,
+        trusted_result=trusted_result,
+        structured_bytes=structured_bytes,
+        structured_sha256=structured_sha256,
+        structured_length=structured_length,
+        prompt_version=PROMPT_VERSION,
+        schema_version=SCHEMA_VERSION,
+        envelope=envelope,
+    )
+
 
 __all__ = [
+    "H2CAuthoritativeGraphConflict",
+    "H2CStaleScoringLease",
     "InMemoryScoringCache",
     "PROMPT_VERSION",
     "PhaseFTrustedScoringSuccess",
+    "PhaseHTrustedRepairSuccess",
     "PrimaryScoringAttempt",
     "RepositoryBackedScoringService",
     "SAMPLING_VERSION",
@@ -3456,6 +5618,15 @@ __all__ = [
     "ScoringService",
     "TrustedPersistenceEntry",
     "build_primary_scoring_attempt",
+    "build_repair_artifact_keys",
+    "build_repair_composite_envelope",
+    "build_repair_persistence_graph_identity",
     "build_scoring_input",
+    "h2c_replay_invalid_detail",
+    "parse_repair_raw_key",
+    "parse_repair_raw_relative_path",
+    "parse_repair_structured_key",
+    "parse_repair_structured_relative_path",
     "sample_transcript",
+    "verify_repair_envelope_admission",
 ]
