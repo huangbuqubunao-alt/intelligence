@@ -1,8 +1,8 @@
-# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 4
+# TASK-016C Phase H2-C — Authoritative Scoring Lineage Authorization, Round 5
 
 ## Status, scope, and supersession
 
-Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 4
+Status: **READY FOR H2-C AUTHORITATIVE SCORING LINEAGE AMENDMENT ROUND 5
 INDEPENDENT REVIEW**.
 
 This is documentation-only control-plane authorization. It authorizes neither
@@ -15,8 +15,9 @@ Reuse decision: **DIRECT** — retain the SQLite repository, `jobs`, `videos`,
 `get_artifact_by_key`, and standard-library SQLite support. No dependency is
 added.
 
-Round 4 supersedes only Round 3's reclaim return-value and generation-branch
-wording. It retains Round 3's supersession of Round 2's over-broad pre-v2
+Round 5 supersedes only Round 4's generic-reclaim tuple and unknown-generation
+terminal wording. It retains Round 4's supersession of Round 3's reclaim
+return-value and generation-branch wording, Round 3's supersession of Round 2's over-broad pre-v2
 interrupted/unleased recovery wording, Round 2's supersession of the rejected Round 1
 NULL-generation/cutover and separate-connection CAS-read-back clauses, and
 Round 1's supersession of
@@ -404,7 +405,7 @@ expired-SCORING recovery writes no lineage fields and cannot complete PRIMARY.
 After H2-B PASS, runtime reaches the **generation decision point** before the
 v1-only H2-C entry gate: exact v1 may continue toward H2-C; NULL is
 pre-lineage and takes the compatibility terminal; an unknown non-NULL version
-fails closed. NULL therefore never enters H2-C; no migration-time, recovery-
+terminalizes as §14 freezes. NULL therefore never enters H2-C; no migration-time, recovery-
 time, or caller opt-in upgrade exists. A NULL **live-active** pre-v2 Job at
 that decision point takes the frozen build-without-H2-C terminal route:
 `ErrorCode.CAPABILITY_UNAVAILABLE`, detail `H2B_PASS_AWAITING_H2C`,
@@ -412,7 +413,7 @@ that decision point takes the frozen build-without-H2-C terminal route:
 `StageDisposition.TERMINAL`. It performs no H2-C replay, persistence, or
 additional external contact; any REPAIR/REPAIR_JUDGE admission and contact was
 already consumed inside the frozen H2-B PASS path. An unknown non-NULL version
-is fail closed and also cannot enter H2-C.
+uses the §14 integrity terminal and also cannot enter H2-C.
 
 This supersedes any earlier phrase that equated every NULL-version row with an
 already-completed historical success. New v2 SCORING Jobs still receive v1 at
@@ -593,11 +594,14 @@ terminal recovery in its reclaim transaction: it records
 `scoring provider outcome is unknown after lease expiry`, JobAttempt outcome
 `FAILED_FINAL`, Job status `FAILED_FINAL`, `available_at=now`, clears owner and
 lease, and sets `finished_at=now`. It has no `retry_at` parameter or value and
-does not call `fail_job`, so its `fail_job` count is zero. After the reclaim
-transaction commits, it returns `tuple[JobRecord, ...]`: one saved durable
-terminal JobRecord for each row reclaimed by that call, or `()` when no rows
-are reclaimed; it never returns a `StageDisposition`, single JobRecord,
-iterator, or mutable row. It releases terminal H1 admission after commit.
+does not call `fail_job`, so its `fail_job` count is zero. The generic method
+returns after the reclaim transaction commits a `tuple[JobRecord, ...]` with
+one saved durable post-reclaim JobRecord for every expired RUNNING row selected
+by that invocation, or `()` when none are selected; it never returns a
+`StageDisposition`, single JobRecord, iterator, or mutable row. Only the
+SCORING element has the terminal semantics in this paragraph; non-SCORING
+elements retain their existing reclaim behavior. It releases terminal H1
+admission after commit for terminal scoring elements.
 
 This terminal recovery is not executable continuation: it dispatches no
 PRIMARY, performs no H2-B continuation, reaches no generation decision point,
@@ -637,7 +641,7 @@ H2-B validated PASS
   -> generation decision point
      -> version == task016c-scoring-lineage-v1: may enter v1-only H2-C entry gate
      -> version IS NULL: pre-lineage compatibility terminal; no H2-C entry
-     -> other non-NULL version: fail closed; no H2-C entry or legacy fallback
+     -> other non-NULL version: TRUST_INTEGRITY_INVALID terminal; no H2-C entry or legacy fallback
 ```
 
 For a live NULL-generation Job, the decision point deterministically executes
@@ -650,7 +654,7 @@ may reach that entry gate. Unknown non-NULL generation fails closed under the
 existing lineage-version policy; it is not treated as the NULL capability path.
 
 Future tests add only: exact tuple type; one/multiple/zero reclaimed rows;
-records reflecting post-commit terminal state; no `StageDisposition`; NULL at
+records reflecting post-commit state; no `StageDisposition`; NULL at
 the decision point with no H2-C entry and the exact capability terminal; v1
 entry eligibility; and unknown-version fail-closed/no-entry behavior. All
 Round-3 tests remain unchanged.
@@ -658,3 +662,46 @@ Round-3 tests remain unchanged.
 The executor has no discretion over tuple timing/cardinality, generation
 classification location, generation allowed to enter H2-C, NULL terminal path,
 or unknown-version behavior. Any deviation is **DECISION NEEDED**.
+
+## 14. Round 5 — generic reclaim tuple and invalid-generation terminal
+
+Round 5 changes no reclaim query, ordering, commit timing, SCORING reclaim
+branch, NULL-generation branch, or prior CAS/schema decision. The general
+`reclaim_expired_jobs()` tuple contains exactly one committed post-reclaim
+`JobRecord` for each expired RUNNING row selected by its existing query, in
+`lease_until, created_at, job_id` order. It is heterogeneous: a reclaimed
+SCORING row has the frozen `UNKNOWN_PROVIDER_STATE` / `FAILED_FINAL` state,
+while a non-SCORING row preserves its existing reclaim outcome (including
+`RETRY_PENDING` / `LEASE_EXPIRED` where current state rules apply). The generic
+tuple must never be described as only terminal, SCORING, UNKNOWN, or
+FAILED_FINAL records. Zero/one/N reclaimed rows return `()`, a one-element
+tuple, or N ordered elements respectively, after commit.
+
+At the post-H2-B-PASS generation decision point, the exact branch table is:
+
+| `scoring_lineage_version` | Classification | H2-C entry | Terminal result |
+|---|---|---|---|
+| NULL | known pre-lineage | no | `CAPABILITY_UNAVAILABLE`, `H2B_PASS_AWAITING_H2C`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL` |
+| `task016c-scoring-lineage-v1` | supported | may proceed to the v1 H2-C entry boundary | no generation-only terminal |
+| any other non-NULL value | invalid lineage generation | no | `TRUST_INTEGRITY_INVALID`, `H2C_SCORING_LINEAGE_VERSION_INVALID`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL` |
+
+The invalid-generation terminalization uses exactly one owner-authoritative
+active-job `fail_job` through the existing H2-C integrity-failure mechanism.
+It requires the current runtime's still-valid owner/lease. If that proof is
+lost, it follows the already-frozen `H2CStaleScoringLease`/stale-interrupted
+path with no stale mutation. Invalid generation has no legacy fallback, H2-C
+entry, REPAIR admission, REPAIR_JUDGE admission, H2-C replay/provider/Judge
+work, repair persistence, or repair-lineage persistence. The validated H2-B
+PASS that precedes this decision remains H2-B work; it is not retroactively
+classified as H2-C activity.
+
+Future tests add: one mixed reclaim call containing expired SCORING and
+non-SCORING rows, ordered tuple contents and committed states, plus the
+SCORING/non-SCORING distinction; an unknown non-NULL generation after validated
+H2-B PASS with the exact integrity terminal and no H2-C/legacy/repair effects;
+and a lost-owner/lease variant proving no stale `fail_job`. All earlier test
+requirements remain unchanged.
+
+The executor has no discretion over generic tuple content, non-SCORING reclaim
+description, invalid-generation terminal fields, H2-C exclusion, or stale-owner
+handling. Any deviation is **DECISION NEEDED**.

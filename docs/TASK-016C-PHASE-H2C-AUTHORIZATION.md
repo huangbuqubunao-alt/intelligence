@@ -1219,8 +1219,12 @@ rows are schema-required to have an owner and lease. This predicate writes the
 existing terminal `UNKNOWN_PROVIDER_STATE` diagnostic, exact message
 `scoring provider outcome is unknown after lease expiry`, and `FAILED_FINAL`.
 It is not a `fail_job`/`StageDisposition` route: after commit reclaim returns
-`tuple[JobRecord, ...]`, with one saved terminal record per reclaimed row (or
-`()` for none). It dispatches no PRIMARY, performs no H2-B/H2-C continuation,
-and writes no lineage fields. After H2-B PASS, the generation decision point
-admits only v1 toward the H2-C entry gate; live NULL generation takes the
-capability terminal and never enters H2-C.
+`tuple[JobRecord, ...]`, with one saved post-reclaim record per expired RUNNING
+row (or `()` for none). Only its SCORING elements have the terminal UNKNOWN
+semantics; non-SCORING elements retain existing reclaim behavior. It dispatches
+no PRIMARY, performs no H2-B/H2-C continuation, and writes no lineage fields.
+After H2-B PASS, the generation decision point admits only v1 toward the H2-C
+entry gate; live NULL generation takes the capability terminal, while an unknown
+non-NULL generation owner-authoritatively terminalizes
+`TRUST_INTEGRITY_INVALID` with `H2C_SCORING_LINEAGE_VERSION_INVALID`, and neither
+enters H2-C.
