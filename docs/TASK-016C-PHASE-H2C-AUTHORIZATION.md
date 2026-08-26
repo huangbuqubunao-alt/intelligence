@@ -1156,13 +1156,38 @@ that discretion to the implementation executor.
 
 ### 13.6 Lineage and reporting supersession
 
-`docs/TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` supersedes only
+Round 1 of `docs/TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` supersedes only
 the repaired downstream-selection and reporting contract: the
 repository-selected-reader premise in §12.1, the repaired reporting raw-graph
 branch in §12.1, and §13.5 items 4–5. The final design starts at the durable
 Video-to-scoring-Job relation, uses the Job-to-structured-Artifact relation,
-and returns a pre-verified `VerifiedScoringRead` to reporting. It also defines
-the repair discriminator, rerun/CAS, cross-job convergence, and graph-conflict
-state semantics. Legacy PRIMARY behavior and all frozen H2-C graph/replay,
+and returns a pre-verified `VerifiedScoringRead` to reporting. Round 1 replaces
+its earlier repair discriminator, rerun/CAS, cross-job-convergence, and
+graph-conflict wording. Legacy PRIMARY behavior and all frozen H2-C graph/replay,
 filesystem, P/R/J/E/S/G, and stale-lease rules remain unchanged except where
 that document explicitly resolves their selector dependency.
+
+### 13.7 Round 1 lineage amendment
+
+Round 1 replaces the rejected Round 0 rerun/predecessor, cross-job-convergence,
+and non-unique-pointer clauses. The final authority chain is Video → exact
+initial successful SCORING Job → exact structured Artifact key. It permits only
+`Video.authoritative_scoring_job_id` `NULL -> current Job`; it does not
+authorize a SCORING rerun, J1→J2 replacement, downstream invalidation, or
+cross-job same-G convergence. H1 global ProviderCall admission and existing
+Artifact `job_id` ownership remain frozen and make such convergence unavailable.
+
+Every new post-migration SCORING Job is marked
+`task016c-scoring-lineage-v1` at creation; only a NULL-marked historical Job
+may use the legacy branch. New PRIMARY and REPAIR_H2C successes atomically
+record provenance, exact structured key, and the Video pointer. The one future
+migration is `002_add_scoring_lineage.sql`, advances schema version to 2, and
+uses a partial-unique Job artifact-pointer index. Shared Phase-G completion
+gains only this additive lineage bookkeeping for new PRIMARY Jobs; frozen
+PRIMARY request, bytes, ProviderCall, and Artifact semantics remain unchanged.
+
+The final reporting interface remains pre-verified `VerifiedScoringRead`; no
+reporting repository/raw-graph selector is authorized. Round 1 also freezes
+CAS read-back classification and `TRUST_INTEGRITY_INVALID` terminal details for
+active-owned lineage conflicts. All other H2-C graph/replay/filesystem and
+stale-lease contracts remain unchanged.

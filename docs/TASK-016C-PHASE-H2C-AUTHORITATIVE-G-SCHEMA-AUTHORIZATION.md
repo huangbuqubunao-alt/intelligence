@@ -3,8 +3,8 @@
 ## Status and boundary
 
 Status: **SUPERSEDED FOR DOWNSTREAM LINEAGE BY
-`TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md`; its graph/key facts
-remain normative where not superseded.**
+`TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` Round 1; its graph/key
+facts remain normative where not superseded.**
 
 This is a control-plane schema/state authorization only. It resolves the
 authoritative-graph-selection blocker recorded in
@@ -21,7 +21,10 @@ This document is subordinate to the frozen H2/H2-B parent contracts and the
 Round-4 H2-C facts. Its job-local selector, migration shape, cross-job policy,
 reader root, reporting path, and conflict semantics are superseded by the
 lineage authorization above; it remains the record of the initial blocker audit
-and its P/G exact-key rationale.
+and its P/G exact-key rationale. In particular, Round 1 selects one Video
+first-success pointer, an immutable job-local exact structured-key pointer, a
+creation-time lineage-version discriminator, and a partial-unique Job-key
+index. It authorizes neither scoring rerun nor cross-job Artifact convergence.
 
 ## 1. Audit result
 
