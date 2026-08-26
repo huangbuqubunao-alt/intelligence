@@ -1153,3 +1153,16 @@ No implementation executor may choose a selector, a reporting accessor, a
 shared verifier input shape, or a state API while this blocker stands. The
 security-discretion audit is therefore closed by **stopping**, not by assigning
 that discretion to the implementation executor.
+
+### 13.6 Lineage and reporting supersession
+
+`docs/TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md` supersedes only
+the repaired downstream-selection and reporting contract: the
+repository-selected-reader premise in §12.1, the repaired reporting raw-graph
+branch in §12.1, and §13.5 items 4–5. The final design starts at the durable
+Video-to-scoring-Job relation, uses the Job-to-structured-Artifact relation,
+and returns a pre-verified `VerifiedScoringRead` to reporting. It also defines
+the repair discriminator, rerun/CAS, cross-job convergence, and graph-conflict
+state semantics. Legacy PRIMARY behavior and all frozen H2-C graph/replay,
+filesystem, P/R/J/E/S/G, and stale-lease rules remain unchanged except where
+that document explicitly resolves their selector dependency.

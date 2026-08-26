@@ -306,6 +306,7 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `pipeline_status` | 最近成功的 `PipelineStatus`；失败尝试见 `jobs` |
 | `pipeline_version` | 当前业务进度所属 Pipeline 版本 |
 | `score`, `should_summarize` | 评分摘要 |
+| `authoritative_scoring_job_id` | 仅在另行批准的 H2-C lineage migration 生效后使用；当前权威评分 Job（PRIMARY 或 REPAIR_H2C）的精确 FK；pre-lineage legacy PRIMARY 为 NULL，禁止以时间排序替代 |
 | `discovered_at`, `updated_at`, `completed_at` | 审计时间 |
 
 ### 8.2 `channel_cursors`
@@ -326,11 +327,13 @@ V1.0 中的 `tasks` 与 `retry_queue` 合并为统一 `jobs`，避免两个队�
 | `available_at`, `lease_until` | 退避和崩溃恢复 |
 | `last_error_code`, `last_error_message` | 诊断信息 |
 | `created_at`, `updated_at` | 审计时间 |
-| `authoritative_scoring_artifact_key` | 仅在另行批准的 H2-C repair persistence migration 生效后使用；成功 repair SCORING Job 指向其唯一的精确 structured Artifact key，未成功和 legacy PRIMARY 为 NULL；不得用时间排序替代该关系 |
+| `authoritative_scoring_artifact_key` | 仅在另行批准的 H2-C lineage migration 生效后使用；PRIMARY 或 REPAIR_H2C 成功 SCORING Job 指向其精确 structured Artifact key，pre-lineage legacy PRIMARY 为 NULL；不得用时间排序替代该关系 |
+| `scoring_success_provenance` | H2-C lineage 仅允许 `PRIMARY` 或 `REPAIR_H2C`；NULL 仅为 pre-lineage legacy provenance。任一非 NULL provenance 与 NULL artifact key 是损坏 lineage，必须失败关闭 |
+| `expected_authoritative_scoring_job_id` | 仅 SCORING Job 创建时在同一 repository transaction 快照 Video 当时的权威评分 Job；用于成功时 CAS，禁止调用方提供或非 SCORING 使用 |
 
 部分唯一索引 `scope_key + pipeline_version` 覆盖视频和 `video_id IS NULL` 的全局任务，保证同一逻辑范围最多一个未完成 Job。
 
-H2-C 的 authoritative repair graph 是 Job 级的历史关系，不在 `videos` 建立“当前/latest repair”指针。读取 repaired score 必须先获得精确成功 `job_id`，再按该 Job 的 exact structured Artifact key 读取；周报只消费已验证结果，不能通过 `video_id`、Artifact 创建时间、目录扫描或 P 值选择 repaired graph。该关系、Artifact rows、ProviderCall rows、视频阶段更新和 Job `SUCCEEDED` 必须在同一 SQLite transaction 中提交；commit 前的文件孤儿没有权威性。Phase I cache/recovery/cross-job reuse 不在此规则内。
+H2-C 的 authoritative scoring lineage 使用 Video→Job→Artifact：消费者以 `video_id` 读取 `authoritative_scoring_job_id`，再读取该成功 SCORING Job 的 exact structured Artifact key；不得通过时间、目录或 P 值选择 repaired graph。SCORING Job 创建时快照 Video 前驱，PRIMARY 或 REPAIR_H2C 成功时以 CAS 更新 Video 指针；旧 Job 不变，失败/陈旧竞争者不得移动 Video 权威性。Job/Video pointers、PRIMARY/REPAIR_H2C provenance、Artifact rows、ProviderCall rows、视频阶段更新和 Job `SUCCEEDED` 必须在同一 SQLite transaction 中提交；commit 前文件孤儿没有权威性。Reporting 仅消费 scoring read layer 返回的已验证值。独立全流程得到相同 G 可共享不可变 Artifact，但不得用其跳过执行；Phase I cache/recovery 不在此规则内。
 
 ### 8.4 `job_attempts`
 

@@ -2,8 +2,9 @@
 
 ## Status and boundary
 
-Status: **READY FOR H2-C AUTHORITATIVE GRAPH SELECTION SCHEMA INDEPENDENT
-REVIEW**.
+Status: **SUPERSEDED FOR DOWNSTREAM LINEAGE BY
+`TASK-016C-PHASE-H2C-SCORING-LINEAGE-AUTHORIZATION.md`; its graph/key facts
+remain normative where not superseded.**
 
 This is a control-plane schema/state authorization only. It resolves the
 authoritative-graph-selection blocker recorded in
@@ -17,8 +18,10 @@ Reuse decision: **DIRECT** — retain the approved SQLite state store,
 `get_artifact_by_key`; add no dependency or third-party component.
 
 This document is subordinate to the frozen H2/H2-B parent contracts and the
-Round-4 H2-C facts. Where it specifies the durable selector, it supersedes the
-unresolved-selector wording in H2-C §13.4 only.
+Round-4 H2-C facts. Its job-local selector, migration shape, cross-job policy,
+reader root, reporting path, and conflict semantics are superseded by the
+lineage authorization above; it remains the record of the initial blocker audit
+and its P/G exact-key rationale.
 
 ## 1. Audit result
 
