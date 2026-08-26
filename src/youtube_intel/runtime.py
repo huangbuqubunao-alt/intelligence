@@ -43,9 +43,7 @@ from youtube_intel.domain import (
     ProviderCallMetadata,
     QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
-    ScoreResult,
     ScoringCandidate,
-    ScoringDecision,
     ScoringEvidenceSource,
     ScoringInput,
     ScoringOutcome,
@@ -54,7 +52,6 @@ from youtube_intel.domain import (
     TranscriptReady,
     VideoMetadata,
     scoring_reason_matches_output_language,
-    validate_score_result_json,
 )
 from youtube_intel.h2_evidence import (
     H2_ELIGIBLE_PARSER_CODES,
@@ -129,13 +126,10 @@ from youtube_intel.quality import (
 from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.scoring import (
-    _G_RAW_ARTIFACT_PRODUCER_VERSION,
-    _G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
-    _RAW_ARTIFACT_PRODUCER_VERSION,
     _SCORING_OPERATION,
-    _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
     PROMPT_VERSION,
     SCHEMA_VERSION,
+    AuthoritativeScoringReader,
     H2CStaleScoringLease,
     PhaseFTrustedScoringSuccess,
     PhaseHTrustedRepairSuccess,
@@ -1110,82 +1104,6 @@ class RuntimeOperations(Operations):
             raise ValueError("persisted artifact hash is invalid")
         return body
 
-    def _validate_scoring_provenance(
-        self, artifact: ArtifactRecord, result: ScoreResult, video_id: str
-    ) -> None:
-        """Fail-closed provenance check before Runtime reuses a persisted score."""
-
-        accepted_structured_producers = {
-            _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
-            _G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
-        }
-        if (
-            artifact.video_id != video_id
-            or artifact.kind is not ArtifactKind.SCORING_STRUCTURED
-            or artifact.artifact_key != f"scoring/{result.request_hash}/structured"
-            or artifact.producer_version not in accepted_structured_producers
-            or artifact.provider != "ollama"
-            or artifact.provider != result.provider
-            or artifact.model is None
-            or artifact.model != result.model
-            or not artifact.job_id
-        ):
-            raise ValueError("persisted scoring artifact identity is invalid")
-        job = self._repository.get_job(artifact.job_id)
-        if (
-            job is None
-            or job.video_id != video_id
-            or job.target_stage is not ProcessingStage.SCORING
-            or job.pipeline_version != PIPELINE_VERSION
-            or job.status is not JobStatus.SUCCEEDED
-        ):
-            raise ValueError("persisted scoring job provenance is invalid")
-        provider_call = self._repository.get_provider_call(result.request_hash)
-        accepted_result_schema_versions = {SCHEMA_VERSION, _SCORING_SCHEMA_VERSION}
-        accepted_result_prompt_versions = {PROMPT_VERSION, _SCORING_PROMPT_VERSION}
-        if (
-            provider_call is None
-            or provider_call.status is not ProviderCallStatus.SUCCEEDED
-            or provider_call.operation != "local-scoring"
-            or provider_call.provider != "ollama"
-            or provider_call.provider != result.provider
-            or provider_call.model != result.model
-            or provider_call.prompt_version != PROMPT_VERSION
-            or provider_call.schema_version != SCHEMA_VERSION
-            or provider_call.request_hash != result.request_hash
-            or not provider_call.response_artifact_id
-            or result.schema_version not in accepted_result_schema_versions
-            or result.prompt_version not in accepted_result_prompt_versions
-        ):
-            raise ValueError("persisted scoring provider call provenance is invalid")
-        raw = self._repository.get_artifact_by_key(
-            f"scoring/{result.request_hash}/raw"
-        )
-        accepted_raw_producers = {
-            _RAW_ARTIFACT_PRODUCER_VERSION,
-            _G_RAW_ARTIFACT_PRODUCER_VERSION,
-        }
-        if (
-            raw is None
-            or raw.artifact_id != provider_call.response_artifact_id
-            or raw.kind is not ArtifactKind.SCORING_RAW
-            or raw.video_id != video_id
-            or raw.job_id != artifact.job_id
-            or raw.provider != result.provider
-            or raw.provider != artifact.provider
-            or raw.model != result.model
-            or raw.model != artifact.model
-            or raw.producer_version not in accepted_raw_producers
-        ):
-            raise ValueError("persisted scoring raw artifact provenance is invalid")
-        if result.model != self._config.settings.local_scoring.model:
-            raise ValueError("persisted scoring model does not match current configuration")
-        if result.output_language != self._config.settings.general.output_language:
-            raise ValueError(
-                "persisted scoring output language does not match current configuration"
-            )
-        self._verified_artifact(raw, max_bytes=1_000_000)
-
     def _validate_analysis_provenance(
         self, artifact: ArtifactRecord, result: AnalysisResult, video_id: str
     ) -> None:
@@ -1250,29 +1168,18 @@ class RuntimeOperations(Operations):
             raise ValueError("persisted analysis provider does not match current configuration")
         self._verified_artifact(raw, max_bytes=1_000_000)
 
+    def _scoring_reader(self) -> AuthoritativeScoringReader:
+        return AuthoritativeScoringReader(
+            repository=self._repository,
+            data_root=self._data_root,
+            summary_threshold=self._config.settings.thresholds.summary_score,
+            pipeline_version=PIPELINE_VERSION,
+            current_model=self._config.settings.local_scoring.model,
+            current_output_language=self._config.settings.general.output_language,
+        )
+
     def _load_scoring(self, video_id: str) -> ScoringOutcome:
-        artifact = self._repository.latest_artifact(video_id, ArtifactKind.SCORING_STRUCTURED)
-        if artifact is None:
-            raise ValueError("persisted score is unavailable")
-        result = validate_score_result_json(
-            self._verified_artifact(artifact, max_bytes=1_000_000)
-        )
-        self._validate_scoring_provenance(artifact, result, video_id)
-        decision = result.score >= self._config.settings.thresholds.summary_score
-        return ScoringOutcome(
-            result=result,
-            decision=ScoringDecision(
-                threshold=self._config.settings.thresholds.summary_score,
-                final_should_summarize=decision,
-                model_disagrees=result.should_summarize is not decision,
-            ),
-            call=ProviderCallMetadata(
-                provider=result.provider,
-                model=result.model,
-                started_at=artifact.created_at,
-                finished_at=artifact.created_at,
-            ),
-        )
+        return self._scoring_reader().read(video_id).scoring_outcome
 
     def _load_analysis(self, video_id: str) -> AnalysisOutcome:
         if not self._config.settings.cloud.enabled:
@@ -2623,6 +2530,7 @@ class RuntimeOperations(Operations):
             artifact_root=self._data_root,
             timezone=self._config.settings.general.timezone,
             top_n=self._config.settings.weekly.top_n,
+            scoring_reader=self._scoring_reader().read,
         ).generate(now=_utcnow())
         return CommandOutcome(
             attempted=1,

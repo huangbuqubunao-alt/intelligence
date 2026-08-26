@@ -463,3 +463,133 @@ def test_retry_excludes_trust_integrity_invalid_by_code_alone(
         "No final failed video job is available to retry."
     )
     assert runtime2._repository.get_job(job2.job_id).status is JobStatus.FAILED_FINAL
+
+
+# ---------------------------------------------------------------------------
+# Authoritative scoring reader
+# ---------------------------------------------------------------------------
+
+
+from youtube_intel.scoring import AuthoritativeScoringReader  # noqa: E402
+
+
+def _reader(repository: SQLiteStateRepository, tmp_path: Path) -> AuthoritativeScoringReader:
+    return AuthoritativeScoringReader(
+        repository=repository,
+        data_root=tmp_path / "data",
+        summary_threshold=7.0,
+        pipeline_version=_PIPELINE_VERSION,
+        current_model=_MODEL,
+        current_output_language="en",
+    )
+
+
+def test_reader_returns_verified_repair_read(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    entry.persist_success(_repair_success())
+
+    read = _reader(repository, tmp_path).read(_VIDEO_ID)
+
+    assert read.video_id == _VIDEO_ID
+    assert read.scoring_job_id == "h2c-persist-job"
+    assert read.scoring_success_provenance == "REPAIR_H2C"
+    assert read.scoring_outcome.result.score == 8
+    assert read.scoring_outcome.decision.final_should_summarize is True
+
+
+def test_reader_legacy_pointerless_read_requires_null_generation(
+    tmp_path: Path,
+) -> None:
+    phase_g = _load_module("test_task016c_phase_g")
+    runtime, _ = phase_g._judge_runtime(tmp_path / "project")
+    video_id = "video-reader-legacy"
+    job_id = "job-reader-legacy"
+    phase_g._setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    phase_g._setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    # Simulate a pre-v2 live job: NULL generation, then PRIMARY success.
+    connection = runtime._repository._connect()
+    try:
+        connection.execute(
+            "UPDATE jobs SET scoring_lineage_version = NULL WHERE job_id = ?",
+            (job_id,),
+        )
+    finally:
+        connection.close()
+    committer, plan = phase_g._committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.persist_success(plan.success)
+
+    read = runtime._scoring_reader().read(video_id)
+
+    assert read.scoring_job_id == job_id
+    assert read.scoring_success_provenance is None
+    assert read.scoring_outcome.result.request_hash == (
+        plan.scoring_call_request.request_hash
+    )
+
+
+def test_reader_rejects_v1_downgrade_through_legacy_branch(
+    tmp_path: Path,
+) -> None:
+    # Persist a v1 PRIMARY success, then remove the Video pointer so only the
+    # legacy (latest-artifact) selection could reach it; the reader must fail
+    # closed rather than downgrade a v1 result through the legacy path.
+    phase_g = _load_module("test_task016c_phase_g")
+    runtime, _ = phase_g._judge_runtime(tmp_path / "project")
+    video_id = "video-reader-nodowngrade"
+    job_id = "job-reader-nodowngrade"
+    phase_g._setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    phase_g._setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    committer, plan = phase_g._committer_and_plan(
+        runtime, job_id=job_id, video_id=video_id, owner="test-owner"
+    )
+    committer.persist_success(plan.success)
+    connection = runtime._repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET authoritative_scoring_job_id = NULL "
+            "WHERE video_id = ?",
+            (video_id,),
+        )
+    finally:
+        connection.close()
+
+    with pytest.raises(ValueError):
+        runtime._scoring_reader().read(video_id)
+
+
+def test_reader_rejects_pointer_with_null_generation(tmp_path: Path) -> None:
+    # A non-NULL Video pointer whose Job has a NULL lineage version is
+    # malformed and fails closed (no legacy fallback).
+    phase_g = _load_module("test_task016c_phase_g")
+    runtime, _ = phase_g._judge_runtime(tmp_path / "project")
+    video_id = "video-reader-nullgen"
+    job_id = "job-reader-nullgen"
+    phase_g._setup_transcript_ready_video(
+        runtime._repository, runtime._data_root, video_id=video_id
+    )
+    phase_g._setup_scoring_job(
+        runtime._repository, video_id=video_id, job_id=job_id
+    )
+    connection = runtime._repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET authoritative_scoring_job_id = ? WHERE video_id = ?",
+            (job_id, video_id),
+        )
+    finally:
+        connection.close()
+
+    with pytest.raises(ValueError):
+        runtime._scoring_reader().read(video_id)

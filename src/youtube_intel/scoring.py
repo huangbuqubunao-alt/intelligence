@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Final, NoReturn, Protocol, cast
 
@@ -5601,7 +5601,329 @@ def _mint_phase_h_trusted_repair_success(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedScoringRead:
+    """The single conceptual interface returned by the trusted scoring reader.
+
+    Downstream callers (analysis, note, weekly, reporting) consume this
+    pre-verified value and must not reconstruct scoring authority or apply a
+    "latest scoring artifact" heuristic for v1 lineage.
+    """
+
+    scoring_outcome: ScoringOutcome
+    video_id: str
+    scoring_job_id: str
+    scoring_success_provenance: str | None
+
+
+class AuthoritativeScoringReader:
+    """The sole trusted scoring selector/verifier.
+
+    For a Video with a non-NULL authoritative pointer, the exact Job is fetched
+    and classified FIRST on ``scoring_lineage_version``: v1 takes the exact
+    lineage branch; NULL/unknown is malformed for a pointer and fails closed.
+    For a pointerless Video, only the legacy compatibility branch may run, and
+    the selected producing SCORING Job must be NULL-generation, so a v1 result
+    can never downgrade through the legacy path.
+    """
+
+    def __init__(
+        self,
+        *,
+        repository: Any,
+        data_root: Path,
+        summary_threshold: float,
+        pipeline_version: str,
+        current_model: str,
+        current_output_language: str,
+    ) -> None:
+        if not 0 <= summary_threshold <= 10:
+            msg = "summary_threshold must be in 0..10"
+            raise ValueError(msg)
+        self._repository = repository
+        self._data_root = data_root
+        self._summary_threshold = summary_threshold
+        self._pipeline_version = pipeline_version
+        self._current_model = current_model
+        self._current_output_language = current_output_language
+
+    def read(self, video_id: str) -> VerifiedScoringRead:
+        video = self._repository.get_video(video_id)
+        if video is None:
+            raise ValueError("video does not exist")
+        pointer = video.authoritative_scoring_job_id
+        if pointer is not None:
+            return self._read_lineage(video_id, pointer)
+        return self._read_legacy(video_id)
+
+    # -- helpers ------------------------------------------------------------
+
+    def _read_artifact_bytes(self, record: ArtifactRecord, *, max_bytes: int) -> bytes:
+        if (
+            record.storage_root is not StorageRoot.DATA
+            or record.deleted_at is not None
+            or not record.relative_path
+        ):
+            raise ValueError("persisted artifact index is invalid")
+        relative = PurePosixPath(record.relative_path)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in record.relative_path:
+            raise ValueError("persisted artifact path is unsafe")
+        path = self._data_root.joinpath(*relative.parts)
+        current = path
+        while current != self._data_root:
+            if current.is_symlink():
+                raise ValueError("persisted artifact path is unsafe")
+            current = current.parent
+        body = path.read_bytes()
+        if len(body) > max_bytes or hashlib.sha256(body).hexdigest() != record.content_hash:
+            raise ValueError("persisted artifact hash is invalid")
+        return body
+
+    def _outcome(self, result: ScoreResult, artifact: ArtifactRecord) -> ScoringOutcome:
+        decision = result.score >= self._summary_threshold
+        return ScoringOutcome(
+            result=result,
+            decision=ScoringDecision(
+                threshold=self._summary_threshold,
+                final_should_summarize=decision,
+                model_disagrees=result.should_summarize is not decision,
+            ),
+            call=ProviderCallMetadata(
+                provider=result.provider,
+                model=result.model,
+                started_at=artifact.created_at,
+                finished_at=artifact.created_at,
+            ),
+        )
+
+    # -- v1 lineage branch --------------------------------------------------
+
+    def _read_lineage(self, video_id: str, job_id: str) -> VerifiedScoringRead:
+        job = self._repository.get_job(job_id)
+        if (
+            job is None
+            or job.video_id != video_id
+            or job.job_type is not JobType.VIDEO_STAGE
+            or job.target_stage is not ProcessingStage.SCORING
+            or job.pipeline_version != self._pipeline_version
+            or job.status is not JobStatus.SUCCEEDED
+        ):
+            raise ValueError("authoritative scoring job is invalid")
+        # Classify FIRST on lineage version: a pointer with a NULL or unknown
+        # generation is malformed and fails closed (no legacy fallback).
+        if job.scoring_lineage_version != SCORING_LINEAGE_VERSION_V1:
+            raise ValueError("authoritative scoring job lineage is invalid")
+        provenance = job.scoring_success_provenance
+        structured_key = job.authoritative_scoring_artifact_key
+        if provenance not in {"PRIMARY", "REPAIR_H2C"} or not structured_key:
+            raise ValueError("authoritative scoring job provenance is invalid")
+        structured = self._repository.get_artifact_by_key(structured_key)
+        if (
+            structured is None
+            or structured.kind is not ArtifactKind.SCORING_STRUCTURED
+            or structured.storage_root is not StorageRoot.DATA
+            or structured.deleted_at is not None
+            or structured.video_id != video_id
+            or structured.job_id != job_id
+            or structured.artifact_key != structured_key
+        ):
+            raise ValueError("authoritative structured artifact is invalid")
+        if provenance == "REPAIR_H2C":
+            result = self._verify_repair_structured(structured, video_id, job_id)
+        else:
+            result = self._verify_primary_structured(structured, video_id, job_id)
+        return VerifiedScoringRead(
+            scoring_outcome=self._outcome(result, structured),
+            video_id=video_id,
+            scoring_job_id=job_id,
+            scoring_success_provenance=provenance,
+        )
+
+    def _verify_primary_structured(
+        self, structured: ArtifactRecord, video_id: str, job_id: str
+    ) -> ScoreResult:
+        from youtube_intel.quality import (
+            _SCORING_PROMPT_VERSION,
+            _SCORING_SCHEMA_VERSION,
+        )
+
+        result = validate_score_result_json(
+            self._read_artifact_bytes(structured, max_bytes=1_000_000)
+        )
+        if (
+            structured.producer_version
+            not in {
+                _STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+                _G_STRUCTURED_ARTIFACT_PRODUCER_VERSION,
+            }
+            or structured.artifact_key != f"scoring/{result.request_hash}/structured"
+            or structured.provider != "ollama"
+            or structured.provider != result.provider
+            or structured.model is None
+            or structured.model != result.model
+        ):
+            raise ValueError("primary structured artifact identity is invalid")
+        job = self._repository.get_job(job_id)
+        if (
+            job is None
+            or job.video_id != video_id
+            or job.target_stage is not ProcessingStage.SCORING
+            or job.pipeline_version != self._pipeline_version
+            or job.status is not JobStatus.SUCCEEDED
+        ):
+            raise ValueError("primary scoring job provenance is invalid")
+        provider_call = self._repository.get_provider_call(result.request_hash)
+        if (
+            provider_call is None
+            or provider_call.status is not ProviderCallStatus.SUCCEEDED
+            or provider_call.operation != "local-scoring"
+            or provider_call.provider != "ollama"
+            or provider_call.provider != result.provider
+            or provider_call.model != result.model
+            or provider_call.prompt_version != PROMPT_VERSION
+            or provider_call.schema_version != SCHEMA_VERSION
+            or provider_call.request_hash != result.request_hash
+            or not provider_call.response_artifact_id
+            or result.schema_version not in {SCHEMA_VERSION, _SCORING_SCHEMA_VERSION}
+            or result.prompt_version not in {PROMPT_VERSION, _SCORING_PROMPT_VERSION}
+        ):
+            raise ValueError("primary provider call provenance is invalid")
+        raw = self._repository.get_artifact_by_key(
+            f"scoring/{result.request_hash}/raw"
+        )
+        if (
+            raw is None
+            or raw.artifact_id != provider_call.response_artifact_id
+            or raw.kind is not ArtifactKind.SCORING_RAW
+            or raw.video_id != video_id
+            or raw.job_id != job_id
+            or raw.provider != result.provider
+            or raw.provider != structured.provider
+            or raw.model != result.model
+            or raw.model != structured.model
+            or raw.producer_version
+            not in {
+                _RAW_ARTIFACT_PRODUCER_VERSION,
+                _G_RAW_ARTIFACT_PRODUCER_VERSION,
+            }
+        ):
+            raise ValueError("primary raw artifact provenance is invalid")
+        self._read_artifact_bytes(raw, max_bytes=1_000_000)
+        self._check_current_config(result)
+        return result
+
+    def _verify_repair_structured(
+        self, structured: ArtifactRecord, video_id: str, job_id: str
+    ) -> ScoreResult:
+        from youtube_intel.h2_evidence import (
+            RepairCompositeEnvelope,
+            repair_persistence_graph_hash,
+        )
+        from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
+
+        if structured.producer_version != "scoring-structured-content-quality-repair-v1":
+            raise ValueError("repair structured producer is invalid")
+        p, g = parse_repair_structured_key(structured.artifact_key)
+        if structured.relative_path != f"scoring/{p}/repair/{g}/structured.json":
+            raise ValueError("repair structured path is invalid")
+        result = validate_score_result_json(
+            self._read_artifact_bytes(structured, max_bytes=1_000_000)
+        )
+        if result.request_hash != p:
+            raise ValueError("repair structured result mismatches P")
+        raw_key = f"scoring/{p}/repair/{g}/raw"
+        raw = self._repository.get_artifact_by_key(raw_key)
+        if (
+            raw is None
+            or raw.kind is not ArtifactKind.SCORING_RAW
+            or raw.video_id != video_id
+            or raw.job_id != job_id
+            or raw.relative_path != f"scoring/{p}/repair/{g}/raw.json"
+            or raw.producer_version != "scoring-raw-content-quality-repair-v1"
+        ):
+            raise ValueError("repair raw artifact is invalid")
+        raw_body = self._read_artifact_bytes(raw, max_bytes=_H2C_ENVELOPE_ROOT_MAX)
+        envelope_hash = hashlib.sha256(raw_body).hexdigest()
+        if envelope_hash != raw.content_hash:
+            raise ValueError("repair raw envelope hash is invalid")
+        envelope = RepairCompositeEnvelope.model_validate(jcs_loads_strict(raw_body))
+        if jcs_serialize(envelope.model_dump(mode="json")) != raw_body:
+            raise ValueError("repair raw envelope is not canonical")
+        provider_evidence = envelope.repair_provider_evidence
+        quality_evidence = envelope.repair_quality_evidence
+        r = provider_evidence.request_hash
+        j = quality_evidence.judge_h2
+        settings_hash = hashlib.sha256(
+            jcs_serialize(provider_evidence.settings_provenance.model_dump(mode="json"))
+        ).hexdigest()
+        if settings_hash != provider_evidence.settings_provenance_sha256:
+            raise ValueError("repair settings provenance hash is invalid")
+        identity = build_repair_persistence_graph_identity(
+            primary_request_hash=p,
+            repair_request_hash=r,
+            repair_judge_request_hash=j,
+            settings_provenance_sha256=settings_hash,
+            repair_envelope_sha256=envelope_hash,
+            structured_result_sha256=structured.content_hash,
+        )
+        if repair_persistence_graph_hash(identity) != g:
+            raise ValueError("repair graph identity G is invalid")
+        repair_call = self._repository.get_provider_call(r)
+        judge_call = self._repository.get_provider_call(j)
+        if (
+            repair_call is None
+            or repair_call.status is not ProviderCallStatus.SUCCEEDED
+            or repair_call.operation != "local-scoring-repair-v1"
+            or repair_call.response_artifact_id != raw.artifact_id
+            or judge_call is None
+            or judge_call.status is not ProviderCallStatus.SUCCEEDED
+            or judge_call.operation != "local-content-quality-v1"
+            or judge_call.response_artifact_id != raw.artifact_id
+        ):
+            raise ValueError("repair provider call provenance is invalid")
+        self._check_current_config(result)
+        return result
+
+    def _check_current_config(self, result: ScoreResult) -> None:
+        if result.model != self._current_model:
+            raise ValueError(
+                "persisted scoring model does not match current configuration"
+            )
+        if result.output_language != self._current_output_language:
+            raise ValueError(
+                "persisted scoring output language does not match current configuration"
+            )
+
+    # -- legacy pointerless branch ------------------------------------------
+
+    def _read_legacy(self, video_id: str) -> VerifiedScoringRead:
+        artifact = self._repository.latest_artifact(
+            video_id, ArtifactKind.SCORING_STRUCTURED
+        )
+        if artifact is None:
+            raise ValueError("persisted score is unavailable")
+        # The selected producing SCORING Job must be pre-lineage (NULL
+        # generation); a v1/unknown result can never downgrade to legacy.
+        if not artifact.job_id:
+            raise ValueError("legacy scoring artifact has no producing job")
+        job = self._repository.get_job(artifact.job_id)
+        if (
+            job is None
+            or job.target_stage is not ProcessingStage.SCORING
+            or job.scoring_lineage_version is not None
+        ):
+            raise ValueError("legacy scoring selection is invalid")
+        result = self._verify_primary_structured(artifact, video_id, artifact.job_id)
+        return VerifiedScoringRead(
+            scoring_outcome=self._outcome(result, artifact),
+            video_id=video_id,
+            scoring_job_id=artifact.job_id,
+            scoring_success_provenance=None,
+        )
+
+
 __all__ = [
+    "AuthoritativeScoringReader",
     "H2CAuthoritativeGraphConflict",
     "H2CStaleScoringLease",
     "InMemoryScoringCache",
@@ -5617,6 +5939,7 @@ __all__ = [
     "ScoringPersistenceError",
     "ScoringService",
     "TrustedPersistenceEntry",
+    "VerifiedScoringRead",
     "build_primary_scoring_attempt",
     "build_repair_artifact_keys",
     "build_repair_composite_envelope",

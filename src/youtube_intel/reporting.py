@@ -6,6 +6,7 @@ import hashlib
 import os
 import stat
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from importlib import resources
@@ -97,6 +98,7 @@ class WeeklyReportService:
         artifact_root: Path,
         timezone: str,
         top_n: int,
+        scoring_reader: Callable[[str], Any] | None = None,
     ) -> None:
         if top_n < 1:
             msg = "top_n must be positive"
@@ -106,6 +108,7 @@ class WeeklyReportService:
         self._artifact_root = artifact_root
         self._timezone = timezone
         self._top_n = top_n
+        self._scoring_reader = scoring_reader
 
     def generate(self, *, now: datetime) -> GeneratedWeeklyReport:
         period = week_period_for(now, timezone=self._timezone)
@@ -136,7 +139,12 @@ class WeeklyReportService:
     ) -> tuple[WeeklyReportItem, AnalysisResult | None]:
         try:
             video = _video_metadata(candidate.video)
-            score = _verified_score(self._artifact_root, candidate.score_artifact, video.video_id)
+            if self._scoring_reader is not None:
+                score = self._scoring_reader(video.video_id).scoring_outcome.result
+            else:
+                score = _verified_score(
+                    self._artifact_root, candidate.score_artifact, video.video_id
+                )
             analysis = (
                 None
                 if candidate.analysis_artifact is None
