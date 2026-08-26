@@ -1,5 +1,139 @@
 # TASK-016C 交接报告
 
+## Phase H2-B — Final correction implementation (Round 5 + capability policy)
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-B` FINAL additive correction, per the approved
+  Round 5 provider semantic-boundary authorization
+  (`d0af25a`), the approved `CAPABILITY_UNAVAILABLE` staged-terminal policy
+  (`4639f33`), and the approved exhaustive consumer scope completion
+  (`a674370`). Base HEAD: `a674370` (worktree clean, required ancestry
+  verified). Additive only; rejected/corrected lineage `c8a6e04` /
+  `5e8f046` / `787a682` / `288602d` retained unchanged; no history rewrite.
+- Status: `READY FOR H2-B FINAL CORRECTION IMPLEMENTATION INDEPENDENT REVIEW`.
+- H2-C: NOT implemented, NOT authorized. No `PhaseHTrustedRepairSuccess`, no
+  REPAIR persistence, no merge/push/tag.
+
+### What was corrected (approved objectives)
+
+1. Removed the independently callable semantic REPAIR provider API
+   (`OllamaScoringProvider.dispatch_exact_repair_generate`) — no rename, no
+   wrapper. Replaced by the role-neutral `dispatch_exact_generate(body,
+   body_sha256, body_length) -> bytes` (payload integrity check, `/api/tags`
+   preflight, exact POST, raw outer bytes returned uninterpreted; accepts no
+   PFE/admission/role/flag/callback and establishes no role meaning).
+2. Removed the independently callable semantic REPAIR_JUDGE provider API
+   (`OllamaQualityJudgeProvider.judge_exact_model_content`) — replaced by the
+   same role-neutral `dispatch_exact_generate` on the judge provider (loopback
+   revalidation, payload integrity, strict tags preflight, raw outer bytes),
+   plus the pure frozen payload builder `build_quality_judge_generate_body`
+   (byte-for-byte the legacy judge payload; `_generate` refactored onto it).
+   The judge provider's `_request_json` factored into behavior-identical
+   `_request_raw_body` + JSON interpretation.
+3. RuntimeOperations remains the sole semantic H2-B boundary: the lexical
+   `scoring_stage` closure consumes state-only roles, revalidates identity and
+   payload (now including the Judge payload — payload-level J-to-J), invokes
+   role-neutral transport, and alone interprets the returned raw as the
+   admitted REPAIR / REPAIR_JUDGE attempt (strict outer capture + model
+   content extraction at the runtime frame; ambiguity → UNKNOWN).
+4. Removed RuntimeOperations aggregate retention
+   (`_last_h2b_validated_repair_result` deleted; no getter/dict/cache/registry/
+   module global). The aggregate is constructed as a lexical local only.
+5. Exact H2-B-only PASS transitional terminalization: after complete valid
+   H2-B success and local aggregate construction,
+   `fail_job(ErrorCode.CAPABILITY_UNAVAILABLE, "H2B_PASS_AWAITING_H2C",
+   retry_at=None)` → `FAILED_FINAL` → `StageDisposition.TERMINAL`, exactly one
+   `fail_job`, zero generic `_fail`, zero persistence, no SUCCEEDED job. The
+   aggregate is then discarded with the frame; a future separately authorized
+   H2-C will replace exactly this terminalization (no hook/placeholder added).
+6. `RuntimeOperations.retry()` excludes CAPABILITY_UNAVAILABLE jobs by the
+   ErrorCode predicate alone (never detail) before `rerun_job`/`process()`.
+7. `ErrorCode.CAPABILITY_UNAVAILABLE = "CAPABILITY_UNAVAILABLE"` added to
+   `domain.py` (exactly one member; no other domain change; no migration —
+   error codes persist as unconstrained TEXT).
+8. Exhaustive ErrorCode consumers completed: `subtitles.py
+   _safe_boundary_error()` dict entry `f"{subject} required capability
+   unavailable in this build"`; `transcripts.py _adapter_boundary_error()`
+   explicit branch `detail = "required capability unavailable in this build"`
+   before the LOCAL_RESOURCE else. All existing mappings unchanged.
+9. Contract test updated to the exact nine-code set (still an exact set
+   assertion).
+
+### Changed files (authorized scope only)
+
+- `src/youtube_intel/domain.py` — one ErrorCode member.
+- `src/youtube_intel/runtime.py` — role-neutral dispatch call sites, Judge
+  payload derivation + payload-level J-to-J revalidation, runtime-side Judge
+  outer capture/extraction, aggregate retention removal, transitional
+  terminalization, retry exclusion.
+- `src/youtube_intel/providers/ollama.py` — semantic APIs removed; role-neutral
+  transport on both providers; judge payload builder; `_request_raw_body`
+  factoring.
+- `src/youtube_intel/providers/subtitles.py` — one exhaustive mapping entry.
+- `src/youtube_intel/transcripts.py` — one explicit branch.
+- Tests: new `tests/unit/test_task016c_phase_h2b_final_correction.py`
+  (provider composition attacks with REAL providers + fake transport, manual
+  raw-injection attacks, transitional PASS semantics, retry exclusion incl.
+  altered-detail/same-detail-different-code/mixed/repeated/only-candidate,
+  aggregate exposure scans, constructed-aggregate persistence rejection,
+  subtitle/transcript boundary tests); updated seams (role-neutral transport
+  tests, semantic-API absence), flow (transitional PASS assertions,
+  lexical-aggregate persistence coverage), authority (lexical aggregate), and
+  contract (nine codes) test files.
+
+### Frozen files confirmed unchanged (zero diff)
+
+`src/youtube_intel/scoring.py`, `src/youtube_intel/state.py`,
+`src/youtube_intel/pipeline.py`, `migrations/`, Phase G persistence,
+`scoring_admission.py` / `quality.py` / `h2_evidence.py` (unchanged this
+round; their Round 4 correction state is retained).
+
+### Stop-boundary confirmation
+
+Role-neutral transport: YES. RuntimeOperations sole semantic boundary: YES.
+State-only admission: YES. Lexical-only aggregate: YES. Transitional PASS
+(CAPABILITY_UNAVAILABLE + H2B_PASS_AWAITING_H2C + retry_at=None + FAILED_FINAL
++ TERMINAL, fail_job once): YES. Retry exclusion by code only: YES. Nine-code
+exact set: YES. PhaseHTrustedRepairSuccess: NO. H2-C: NO. REPAIR persistence:
+NO. SUCCEEDED job for H2-B PASS: NO. h2c_callback/post_repair_hook: NO.
+
+### Evidence (gate results)
+
+- Focused H2-B suites (flow + seams + correction authority/finalizer + final
+  correction + contracts): 208 passed.
+- Full `uv run --offline pytest tests/unit tests/integration`: 1646 passed,
+  1 pre-existing Pydantic serializer warning.
+- `uv run --offline pytest tests/e2e`: 9 passed.
+- `uv run --offline mypy src`: Success, no issues in 31 source files.
+- `uv run --offline ruff check .`: All checks passed.
+- `git diff --check`: clean. `bash scripts/security_scan.sh`: status=clean
+  (pre-existing wheel-license WARN unchanged).
+- Manual source searches: `dispatch_exact_repair_generate`,
+  `judge_exact_model_content`, `dispatch_repair`, `execute_repair`,
+  `run_exact_repair`, `send_admitted_repair`, `_h2b_validated_repair_result`,
+  `last_h2b_result`, `h2b_result`, `h2c_callback`, `post_repair_hook`,
+  `h2c_finalize`, `persist_repair`, `finalize_repair`, `mint_repair_success`,
+  `verify_h2b_result` — none found. `repair_generate` matches only the pure
+  frozen payload serializer `build_task016c_repair_generate_body` (data
+  construction; no transport/admission/role semantics).
+  `PhaseHTrustedRepairSuccess` appears only in a comment stating it is not
+  minted.
+- Exhaustive ErrorCode consumer audit: only the two authorized boundary
+  consumers enumerate the taxonomy; both now map CAPABILITY_UNAVAILABLE
+  safely. All other occurrences are specific producers/narrow equality checks
+  (no KeyError, no LOCAL_RESOURCE misclassification); `obsidian.py`
+  filesystem classifier is unaffected (CAPABILITY_UNAVAILABLE is not a
+  filesystem input).
+
+### Remaining concerns
+
+- The staged terminal `CAPABILITY_UNAVAILABLE` + `H2B_PASS_AWAITING_H2C` is
+  intentionally final for this build: historical FAILED_FINAL records remain
+  terminal after any future H2-C upgrade (H2-C operates only on a live
+  same-runtime lexical aggregate; no resurrection code exists now).
+- No other open items; all approved objectives implemented and tested.
+
 ## Phase H2-B — Correction implementation (Round 4 authorization)
 
 ### Metadata and scope
