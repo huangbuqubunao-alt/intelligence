@@ -1,5 +1,164 @@
 # TASK-016C 交接报告
 
+## Phase H2-C — Trusted repair execution and authoritative scoring lineage (implementation)
+
+### Metadata and scope
+
+- Task: `TASK-016C Phase H2-C` implementation per the fully approved final
+  authorization (amendment `59bcf28`), the Round-6 authoritative scoring
+  lineage authorization, and the authoritative-G schema authorization.
+- Base HEAD: `59bcf28` (worktree clean, required ancestry verified).
+- Implementation base SHA: `59bcf28`; final HEAD SHA: `ddd0a3c`.
+- Status: `READY FOR H2-C IMPLEMENTATION INDEPENDENT REVIEW`.
+- Phase I: NOT implemented. No scoring rerun, no cross-job graph sharing, no
+  cache/recovery, no merge/push/tag/rebase/reset/squash.
+
+### Implementation commits
+
+1. `e5031e8` feat(task016c): add scoring lineage schema v2
+2. `ef3df66` feat(task016c): implement H2-C repair execution and lineage persistence
+3. `e1488c9` feat(task016c): add authoritative scoring readers
+4. `ddd0a3c` test(task016c): close H2-C generation decision and replay matrix
+
+### Changed production files
+
+- `src/youtube_intel/migrations/002_add_scoring_lineage.sql` (new)
+- `src/youtube_intel/state.py`
+- `src/youtube_intel/scoring.py`
+- `src/youtube_intel/runtime.py`
+- `src/youtube_intel/pipeline.py`
+- `src/youtube_intel/reporting.py`
+- `src/youtube_intel/h2_evidence.py`
+- `src/youtube_intel/domain.py`
+- `src/youtube_intel/providers/subtitles.py`
+- `src/youtube_intel/transcripts.py`
+
+Unchanged (frozen): `scoring_admission.py` (H1 guard), `quality.py`, `jobs.py`,
+Phase G `TrustedPersistenceEntry.persist_success` PRIMARY internals (additive
+lineage bookkeeping only), legacy `scoring/<P>/raw(.json)` /
+`scoring/<P>/structured(.json)` PRIMARY paths.
+
+### SCHEMA (migration 002)
+
+- Applied via the ordered loader (`001` then `002`); final `PRAGMA user_version`
+  = 2; history rows `(1, 001_initial.sql)`, `(2, 002_add_scoring_lineage.sql)`.
+- Added exactly four nullable columns:
+  `videos.authoritative_scoring_job_id -> jobs(job_id) ON DELETE RESTRICT`,
+  `jobs.authoritative_scoring_artifact_key -> artifacts(artifact_key) ON DELETE
+  RESTRICT`, `jobs.scoring_success_provenance` CHECK `('PRIMARY','REPAIR_H2C')`,
+  `jobs.scoring_lineage_version` CHECK `(NULL | 'task016c-scoring-lineage-v1')`.
+- Two partial UNIQUE indexes: `uq_jobs_authoritative_scoring_artifact_key`,
+  `uq_videos_authoritative_scoring_job_id`.
+- No historical backfill; migrated rows stay NULL (pre-lineage generation).
+  Unsupported schema versions fail closed; doctor `_database_check` accepts
+  exactly version 2.
+
+### GENERATION
+
+- Repository derives `scoring_lineage_version` at `create_job` (VIDEO_STAGE +
+  SCORING → `task016c-scoring-lineage-v1`, else NULL); caller cannot submit or
+  change it (no parameter; immutable after creation).
+- Post-H2-B-PASS generation decision point: NULL → frozen
+  `CAPABILITY_UNAVAILABLE`/`H2B_PASS_AWAITING_H2C` terminal; v1 → H2-C entry;
+  unknown non-NULL → `TRUST_INTEGRITY_INVALID` +
+  `H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID` terminal. The schema
+  CHECK admits only NULL/v1 at write time, so the unknown state is defensive and
+  tested via read-time override.
+
+### H2-C
+
+- Entry point: lexical continuation inside the actual SCORING frame,
+  immediately after the local H2-B aggregate (runtime-only; no caller ingress).
+- Trust roots: current job/owner/active lease, original `ScoringInput`, rebuilt
+  `PrimaryTrustedContext`, validated settings, runtime quality authority, and
+  the untrusted aggregate.
+- Eligible failure classes: `SCHEMA_OR_PARSE_INVALID`, `LANGUAGE_INVALID`,
+  `JUDGE_REJECT`, `JUDGE_UNCERTAIN` (UNKNOWN/other reject).
+- 23-step no-network replay re-derives every security-significant value and
+  mints `PhaseHTrustedRepairSuccess`; zero `/api/tags`, `/api/generate`,
+  provider-factory, or Judge network contact.
+- Settings provenance `H2CSettingsProvenance` (30 fields) + admission ceilings
+  (`max_transcript_chars <= 131072`, `max_output_tokens <= 2147483647`,
+  provenance bytes `<= 8192`) → `SETTINGS_BOUND_EXCEEDED`.
+- REPAIR/REPAIR_JUDGE admission precedes dispatch (unchanged H1 state-only
+  consumption); provider evidence and Judge evidence exact.
+
+### GRAPH
+
+- `RepairPersistenceGraphIdentityV2` (14 fields, `task016c-repair-persistence-
+  graph-v2`); `G = SHA256(H2-JCS(identity))`.
+- `E = SHA256(envelope_bytes)`, `S = SHA256(structured_bytes)`; neither depends
+  on G (no circularity). Envelope carries neither G nor artifact key/path.
+- G-based paths: `scoring/<P>/repair/<G>/raw(.json)` and
+  `scoring/<P>/repair/<G>/structured(.json)`; no P-only repair alias.
+
+### FILESYSTEM
+
+- Descriptor-anchored nested directory creation (`scoring/<P>/repair/<G>`),
+  no-follow/no-special-file, fsync parent+child, no-clobber link promotion,
+  exact-orphan adoption, symlink/FIFO rejection, reopen hash/length verify.
+
+### LINEAGE
+
+- v1 PRIMARY success: additive `PRIMARY` provenance + structured-key pointer +
+  Video pointer (atomic, same transaction); pre-v2 NULL-generation PRIMARY
+  writes no lineage fields.
+- Repair success: `REPAIR_H2C` provenance + G-based structured-key pointer +
+  Video pointer.
+- Job/Video lineage CAS with tx-local zero-row classification
+  (`_read_job_in_transaction`/`_read_video_in_transaction`), rollback before
+  fail_job, lease re-proof, exactly-one fail_job terminalization, and same-graph
+  idempotency. Pre-commit orphans invisible; post-commit complete graph visible.
+
+### READERS
+
+- `VerifiedScoringRead` + `AuthoritativeScoringReader` (sole scoring
+  selector/verifier). Non-NULL pointer → v1 lineage branch (PRIMARY or
+  REPAIR_H2C with full P/R/J/E/S/G verification); pointerless → legacy branch
+  requiring a NULL-generation SCORING job (no v1 downgrade).
+- `_load_scoring` delegates to the reader; independent
+  `_validate_scoring_provenance` reconstruction removed; weekly consumes
+  `VerifiedScoringRead` via injected reader.
+
+### ERRORS
+
+- Final `ErrorCode` count: exactly ten (added `TRUST_INTEGRITY_INVALID`).
+- Closed `H2C_REPLAY_INVALID:<REASON>` set (20 reasons);
+  `h2c_replay_invalid_detail` rejects arbitrary/unqualified reasons.
+- Retry exclusion is code-only for `TRUST_INTEGRITY_INVALID` and
+  `CAPABILITY_UNAVAILABLE`.
+
+### NON-SCOPE confirmation
+
+- `scoring_admission.py` unchanged (zero diff). No scoring rerun
+  (`TRANSCRIPT_READY -> SCORED` only, no second SCORING job for a scored
+  video). No cross-job same-G sharing (unique Job-key index + Artifact
+  ownership). Phase I absent (no cache/recovery/resume).
+
+### Evidence (gate results)
+
+- Full `uv run --offline pytest tests/unit tests/integration tests/e2e`:
+  1714 passed, 1 pre-existing Pydantic serializer warning.
+- Focused H2-C suites: schema (19), data layer (18), persistence boundary (16),
+  runtime decision/replay (6).
+- `uv run --offline mypy src`: Success, no issues in 31 source files.
+- `uv run --offline ruff check .`: All checks passed.
+- `git diff --check`: clean. `bash scripts/security_scan.sh`: status=clean
+  (pre-existing high-entropy/wheel-license WARNs unchanged).
+- Coherently updated frozen tests whose committed-graph semantics are now
+  lineage-aware: Phase G R2 corruption/idempotency (→
+  `H2CAuthoritativeGraphConflict`), H2-B flow/correction full-PASS tests (→
+  H2-C success or pre-lineage capability terminal).
+
+### Remaining concerns
+
+- The unknown non-NULL generation branch is defensive: the schema CHECK admits
+  only NULL/v1 at write time, so it is exercised via read-time override.
+- `AuthoritativeScoringReader` PRIMARY verification matches the frozen
+  `_validate_scoring_provenance` strictness (producer/provider/model/prompt/
+  schema/raw/config checks).
+- No other open items; all approved H2-C objectives implemented and tested.
+
 ## Phase H2-B — Final correction implementation (Round 5 + capability policy)
 
 ### Metadata and scope
