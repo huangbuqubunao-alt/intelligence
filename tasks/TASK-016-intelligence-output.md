@@ -17,10 +17,15 @@
 - Amendment R2 records that formal candidate-token/no-truncation proof is a
   prerequisite design blocker; it does not authorize a benchmark or any
   implementation work.
-- **LOCAL DEEP ANALYSIS DESIGN AMENDMENT IS BLOCKED** pending the separately
-  authorized exact-token/no-truncation proof; implementation remains
-  unauthorized. This status
-  update does not assign, start, rename, or supersede TASK-016D/E/F.
+- `TASK-016-LOCAL-DEEP-ANALYSIS-CONTEXT-PROOF-AUTHORIZATION` now selects a
+  raw, application-rendered, no-provider-format request architecture and an
+  exact pinned-tokenizer mechanism. Exact tokenizer artifact acquisition,
+  immutable hashes, tokenizer/model pairing, runtime-version proof, feasibility,
+  and implementation authorization remain separate gates.
+- **LOCAL DEEP ANALYSIS CONTEXT PROOF ARCHITECTURE READY**; **TOKENIZER
+  ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL**;
+  implementation remains unauthorized. This status update does not assign,
+  start, rename, or supersede TASK-016D/E/F.
 
 ## 产品目标
 

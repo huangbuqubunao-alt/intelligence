@@ -1,8 +1,10 @@
 # TASK-016-LOCAL-DEEP-ANALYSIS — Local Deep Analysis Authorization, Amendment R2
 
-Status: **DESIGN AMENDMENT BLOCKED — FORMAL CONTEXT / NO-TRUNCATION PROOF MISSING — IMPLEMENTATION UNAUTHORIZED**
+Status: **CONTEXT PROOF ARCHITECTURE READY — TOKENIZER ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL — IMPLEMENTATION UNAUTHORIZED**
 
 This document supersedes conflicting Local Deep Analysis clauses from R1. It is docs-only design: it authorizes no provider code, test change, migration, benchmark, Ollama contact, model download, persistence, cache, TASK-016D/E/F, or change to frozen TASK-016B/C.
+
+The byte-only context clauses in sections 4, 6, 7, 8, and 11 are superseded solely for context proof by [TASK-016-LOCAL-DEEP-ANALYSIS-CONTEXT-PROOF-AUTHORIZATION.md](TASK-016-LOCAL-DEEP-ANALYSIS-CONTEXT-PROOF-AUTHORIZATION.md). That authorization selects raw application-owned rendering and no provider `format`, makes bytes resource bounds rather than context authority, and introduces pending exact-tokenizer acquisition/pairing gates. All non-context validation, Evidence Registry, A1, error, retry, locality, trust, and TASK-016D boundary decisions remain in force unless the context-proof authorization expressly changes their versioned settings/provenance treatment.
 
 ## 1. Preserved decisions
 
@@ -66,7 +68,9 @@ A2 = build_provider_request_hash(
 
 A2 is the frozen existing six-field helper; A1 != A2 is expected.
 
-## 4. Canonical schema bytes and exact prompt substitutions
+## 4. Canonical schema bytes and exact prompt substitutions — superseded for future raw context-proof requests
+
+The `knowledge-prompt-v2`/provider-`format` flow below is retained only as the historical R2 contract. Future Local Deep Analysis context-proof work must use `knowledge-prompt-v3-raw` and omit `format` under the context-proof authorization; it must not mix the two renderings.
 
 The literal in section 5 is KNOWLEDGE_CONTENT_SCHEMA_CANONICAL_JSON. It is the sole normative JSON value: lexicographically sorted object keys, array ordering exactly as displayed, no insignificant whitespace, strict UTF-8, and JSON escaping emitted by canonical_json. Define SCHEMA_BYTES = UTF8(KNOWLEDGE_CONTENT_SCHEMA_CANONICAL_JSON), exactly 2,429 bytes.
 
@@ -117,7 +121,9 @@ The graph decision is KG2: knowledge_graph contains non-claim model labels only,
 
 Optional arrays normalize to empty tuples. The deterministic validator also enforces existing point-kind rules, semantic uniqueness, output-language policy, C0/C1/NUL/U+200B/U+FEFF rejection, no repeated point text across fields, all Evidence Registry grounding, and prompt-injection echo rejection. Raw provider JSON never becomes trusted. No Judge is authorized.
 
-## 6. Exact serialized-body predicate and truthful prefix semantics
+## 6. Exact serialized-body predicate and truthful prefix semantics — byte portions superseded as context authority
+
+The byte measurements below remain independent resource/transport limits. They must not be used to decide whether a future raw request fits `num_ctx`; that decision is now the exact complete-candidate token predicate.
 
 T1 is an application byte bound, not a Qwen-token proof. Frozen values are:
 
@@ -164,7 +170,7 @@ coverage_complete       = (selected_evidence_units == total_evidence_units)
 
 The model cannot choose these values. They bind downstream truthfulness and provenance.
 
-## 7. Exact SemVer and A3
+## 7. Exact SemVer and A3 — A3 V1 is superseded by a future versioned successor for context-proof settings
 
 The source value from /api/version is accepted only if it matches this ASCII grammar with no leading/trailing/internal whitespace and no leading v:
 
@@ -193,7 +199,7 @@ LocalDeepAnalysisSettingsProvenanceV1 contains both fields:
 
 A3 = SHA256(canonical_json(LocalDeepAnalysisSettingsProvenanceV1)). A1 is semantic input, A2 provider request, and A3 settings/runtime contract identity.
 
-## 8. Exact local provenance and TASK-016D handoff
+## 8. Exact local provenance and TASK-016D handoff — future context-proof provenance additions are governed by the context-proof authorization
 
 KnowledgeProvenanceV2LocalBinding is application-created after complete validation. Its exact canonical shape is:
 
@@ -237,12 +243,12 @@ Future scope remains analysis.py, providers/ollama.py, runtime.py, config.py, an
 
 The entire R1 TDD/security matrix remains required. R2 additionally requires: A1 scoring_request_hash comes only from scoring_outcome.result.request_hash; both PRIMARY and REPAIR_H2C; schema canonical-key ordering; byte-identical schema in format/prompt; all three substitutions and no unresolved placeholder; UTF-8 full-body measurement and JSON-escaping expansion; exact-boundary, one-unit-over, first-rejection-stop, and zero-evidence failure; coverage_complete true/false; KG2 graph-label validation; valid/invalid prerelease, build metadata, and leading-v cases; A3 observed-version binding; provenance canonicalization/hash; serializable versus runtime-only 016D boundary; exact benchmark environment capture; max-size structured output; and the no-truncation evidence rule.
 
-## 11. Blocking condition and final status
+## 11. Superseded blocking condition and final status
 
-Ollama’s documented response can report prompt_eval_count, but without an approved exact candidate tokenizer or another provider-observable expected-token proof, it cannot establish that the full maximum request was not silently truncated. A successful response and prompt_eval_count alone are insufficient. The feasibility gate may truthfully record that the maximum T1 byte envelope was accepted and produced validated output; it must not call that a formal no-truncation proof.
+The former byte-only blocker is resolved architecturally, not operationally: exact artifact acquisition, hashes, tokenizer/model pairing, an approved exact Ollama raw-profile version, feasibility, final model/runtime freeze, and implementation authorization remain pending. `prompt_eval_count`, successful generation, sentinels, and byte envelopes remain insufficient as standalone no-truncation proof.
 
-A later authorization must provide one of: an approved exact qwen3-compatible tokenizer/accounting algorithm; or an authoritative provider mechanism that compares the expected full prompt token count with the evaluated count. Until then, formal context/no-truncation safety is unresolved and provider implementation is blocked.
+**LOCAL DEEP ANALYSIS CONTEXT PROOF ARCHITECTURE READY**
 
-**LOCAL DEEP ANALYSIS DESIGN AMENDMENT BLOCKED**
+**TOKENIZER ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**
