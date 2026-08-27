@@ -175,6 +175,9 @@ state-machine paths.
 
 ## Phase I — Cache Hardening / Recovery / Reuse Boundary Design Draft
 
+**SUPERSEDED BY PHASE I DESIGN AMENDMENT ROUND 1 BELOW.** Historical record
+only; its durable-reuse statements are not normative.
+
 ### Status and scope
 
 **PHASE I DESIGN DRAFTED — IMPLEMENTATION STILL UNAUTHORIZED.**
@@ -191,6 +194,28 @@ state-machine paths.
   test change, reopen H1/H2-A/H2-B/H2-C/Phase G, or authorize scoring rerun.
 
 **READY FOR PHASE I DESIGN / AUTHORIZATION INDEPENDENT REVIEW**
+
+**PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED**
+
+## Phase I — Design Amendment Round 1 (durable-reuse proposal superseded)
+
+**DESIGN AMENDMENT DRAFTED — IMPLEMENTATION REMAINS UNAUTHORIZED.**
+
+- The durable-reuse design recorded by `7018c83` is **SUPERSEDED** after
+  independent review: no durable pre-Phase-G same-Job graph exists, global
+  ProviderCalls cannot prove Job ownership, and durable hits conflict with H1
+  admission and fresh-runtime ownership.
+- Final selection is **I-B hardening-only**. Current H2-B/H2-C/Phase G is a
+  one-pass lexical flow with no meaningful duplicate deterministic consumer or
+  duplicate network dispatch to optimize. Phase I must not invent a cache.
+- In-frame evidence is limited to the same `RuntimeOperations.scoring_stage`
+  invocation, active lexical frame, Job, owner, and valid lease. It permits no
+  durable, restart, cross-process, cross-job, PRIMARY, expired-SCORING,
+  terminal, ProviderCall, Artifact, orphan, or G reuse.
+- H1/H2-A/H2-B/H2-C/Phase G/lineage/reader remain frozen; no migration 003,
+  ErrorCode, scoring-admission, Phase G ordering, or persistence change.
+
+**READY FOR PHASE I DESIGN / AUTHORIZATION AMENDMENT ROUND 1 INDEPENDENT REVIEW**
 
 **PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED**
 
