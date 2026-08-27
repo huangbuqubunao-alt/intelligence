@@ -1,5 +1,114 @@
 # TASK-016C 交接报告
 
+## Phase H2-C — Implementation Correction Round 2 (two remaining P1 findings)
+
+### Metadata and scope
+
+- Task: fix ONLY the two independently reviewed remaining P1 findings on the
+  H2-C implementation (Correction Round 2 base `a46fa75`; original
+  implementation base `59bcf28`).
+- Correction Round 2 base SHA: `a46fa75`; final HEAD SHA: `a70a2e9`.
+- Status: `READY FOR H2-C IMPLEMENTATION CORRECTION ROUND 2 INDEPENDENT REVIEW`.
+- P0 findings: NONE. All Correction Round 1 PASS areas preserved (closed-detail
+  enforcement, final-name FIFO/special-file rejection, weekly authoritative
+  reader, 20-reason closed set, schema v2, ErrorCode count). No H1/H2-A/H2-B,
+  schema/migration, scoring rerun, cross-job sharing, or Phase I changes.
+
+### Correction commits
+
+1. `4b1ccd1` fix(task016c): harden repair temp verification against special files
+2. `a70a2e9` fix(task016c): rederive repair request roots in authoritative reads
+
+### Changed production files
+
+- `src/youtube_intel/scoring.py` (both fixes)
+
+### Changed test files
+
+- `tests/integration/test_task016c_phase_h2c_persistence.py` (both fixes)
+
+### FIX 1 — temporary verification reopen FIFO race
+
+- Old vulnerable reopen: after write/fsync/close of the deterministic `.tmp`
+  name, the verification reopen used `os.open(..., O_RDONLY | O_NOFOLLOW)`
+  without `O_NONBLOCK` and without an immediate regular-file check; a
+  close->reopen replacement with a FIFO could block.
+- Corrected open flags: descriptor-relative `O_RDONLY | O_NOFOLLOW |
+  O_NONBLOCK`; the nonblocking open cannot block on a FIFO.
+- Descriptor anchoring: the reopen remains `dir_fd`-anchored to the validated
+  repair G directory (no path-string reopening); directory traversal and
+  no-clobber/orphan-adoption unchanged.
+- Immediate fstat: `fstat(opened_fd)` is required to be `S_ISREG` BEFORE any
+  read/hash/content verification; FIFO/socket/device/directory/symlink are
+  rejected fail-closed through the existing filesystem-integrity error path
+  (no new ErrorCode/detail), with descriptor cleanup preserved.
+- Tests: deterministic `os.open`-hook replacement-race coverage (no timing
+  sleeps) for the raw and structured temporary names with FIFO/symlink/
+  directory replacements, run under a bounded worker proving no hang and no
+  leftover blocked thread, plus a normal temporary verification success
+  regression; the final-name FIFO regressions and orphan-adoption/no-clobber
+  behaviors remain green.
+
+### FIX 2 — repair reader must rederive request roots
+
+- Exact sealed REPAIR semantic input used: the sealed `normalized_input`
+  (RepairNormalizedInput) embedded in the repair provider evidence.
+- Exact REPAIR normalized-input canonicalization: H2 JCS canonical bytes via
+  `repair_normalized_input_hash(normalized_input)`.
+- Exact rederived normalized-input hash compared to the persisted
+  `normalized_input_hash` claim (mismatch fails closed).
+- Exact REPAIR request-hash rederivation: `build_provider_request_hash` from
+  the rederived root + sealed operation/provider/model/prompt/schema; compared
+  to the persisted `request_hash` claim.
+- Exact sealed Judge semantic input: the sealed `judge_operation_input`
+  (QualityJudgeOperationInput) embedded in the repair quality evidence.
+- Exact Judge H1 canonicalization and rederivation: `build_judge_h1_h2(
+  judge_operation_input)`; rederived H1 compared to the persisted `judge_h1`
+  claims (quality-evidence and judge-evidence copies) and rederived H2
+  compared to the persisted `judge_h2` claim.
+- Exact REPAIR_JUDGE request-hash rederivation: from the rederived Judge H1
+  via `build_judge_h1_h2`'s H2; the persisted ProviderCall is compared to the
+  rederived R/J.
+- R/J downstream relationship: G identity and the persisted REPAIR/
+  REPAIR_JUDGE ProviderCall checks use the rederived R/J, keeping the chain
+  sealed inputs -> derived roots -> request identities -> R/J -> E/S/G acyclic.
+- Persisted roots are claims, not trust anchors; no network is used (pure
+  canonicalization/hash).
+
+### FIX 2 corruption tests
+
+- Corrupted sealed repair normalized-input (semantic) with unchanged stored
+  roots -> fail closed (confirmed RED without the fix).
+- Corrupted stored repair normalized-input-root claim -> fail closed.
+- Corrupted stored Judge H1 claim -> fail closed.
+- Corrupted sealed Judge operation input (semantic) with unchanged stored H1
+  -> fail closed (confirmed RED without the fix).
+- Existing Round 1 ProviderCall corruption tests (REPAIR and REPAIR_JUDGE
+  provider/model/prompt/schema/request/response) and the valid REPAIR_H2C
+  authoritative read all remain green.
+
+### Preservation confirmation
+
+- Closed-detail correction (Fix 1, Round 1) still PASS; final-name FIFO
+  correction still PASS; weekly authority correction still PASS.
+- Schema unchanged (migrations `001`,`002`; no `003`); `scoring_admission.py`
+  unchanged; ErrorCode/detail set unchanged; no rerun; no cross-job sharing;
+  Phase I absent.
+
+### Gates
+
+- H2-C focused suites (schema/data-layer/persistence/runtime/weekly): 97 passed.
+- Full `pytest tests/unit tests/integration tests/e2e`: 1752 passed, 1
+  pre-existing Pydantic serializer warning.
+- `mypy src`: Success, no issues in 31 source files. `ruff check .`: All checks
+  passed. `git diff --check`: clean. `scripts/security_scan.sh`: status=clean
+  (pre-existing high-entropy/wheel-license WARNs unchanged).
+
+### Remaining concerns
+
+- None blocking; both remaining P1 findings fixed with focused RED tests first
+  and no review-PASS area regressed.
+
 ## Phase H2-C — Implementation Correction Round 1 (four P1 findings)
 
 ### Metadata and scope
