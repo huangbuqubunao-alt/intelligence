@@ -10,8 +10,10 @@
 
 ## Local Deep Analysis design status
 
-- `TASK-016-LOCAL-DEEP-ANALYSIS` design drafted in
-  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-AUTHORIZATION.md`.
+- `TASK-016-LOCAL-DEEP-ANALYSIS` design amended in
+  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-AUTHORIZATION.md`; the candidate model /
+  runtime gate is separately recorded in
+  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-M1PRO-FEASIBILITY-AUTHORIZATION.md`.
 - **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.** This status
   update does not assign, start, rename, or supersede TASK-016D/E/F.
 
