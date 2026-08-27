@@ -1,8 +1,8 @@
 # TASK-016-LOCAL-DEEP-ANALYSIS — Exact Context-Proof Authorization
 
-Status: **TOKENIZER ARTIFACT / HASH FREEZE COMPLETE — LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE PENDING — IMPLEMENTATION UNAUTHORIZED**
+Status: **TOKENIZER ARTIFACT / HASH FREEZE COMPLETE — LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE PASSED FOR OLLAMA 0.32.1 ONLY — IMPLEMENTATION UNAUTHORIZED**
 
-This document is normative only for pre-dispatch Local Deep Analysis context proof. It supersedes the byte-envelope clauses identified in the parent authorization; it does not approve a model, Ollama version, dependency, artifact acquisition, benchmark, implementation, persistence, or any TASK-016D/E/F work.
+This document is normative only for pre-dispatch Local Deep Analysis context proof. It supersedes the byte-envelope clauses identified in the parent authorization; its controlled parity evidence approves only the recorded exact Ollama version for the subsequent M1 Pro feasibility gate. It does not approve a model freeze, dependency, artifact acquisition, implementation, persistence, or any TASK-016D/E/F work.
 
 ## 1. Security property and selected architecture
 
@@ -181,6 +181,89 @@ TASK-016B and TASK-016C remain frozen and unchanged.
 
 **LOCAL DEEP ANALYSIS TOKENIZER ARTIFACT / HASH FREEZE COMPLETE**
 
-**LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE REMAINS PENDING**
+## 10. Controlled local Ollama tokenizer / raw-profile parity evidence
+
+On the controlled loopback endpoint `http://127.0.0.1:11434`, a temporary
+stdlib transport first required exactly `http` / `127.0.0.1` / `11434`, with no
+credentials, query, fragment, DNS name, or alternate port, and installed a
+redirect handler that rejects every 3xx response. The documented endpoints
+`/api/version`, `/api/tags`, `/api/show` (`verbose:true`), and the minimal
+`/api/generate` probes all returned HTTP 200 without a redirect.
+
+`/api/version` returned raw JSON `{"version":"0.32.1"}`. `0.32.1` exactly
+matches the frozen strict SemVer grammar and is the sole
+`TESTED_OLLAMA_VERSION`; no range is approved. `/api/tags` had exactly one
+`name == "qwen3:8b"` entry. Its documented bare digest payload was
+`500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`;
+prefixing that complete 256-bit SHA-256 payload with its documented algorithm
+designator gives exact equality with the normative digest
+`sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`.
+
+`/api/show` reported family/architecture `qwen3`, GGUF format, `Q4_K_M`
+quantization, 8.2B parameter label (8,190,735,360 parameters), model context
+length 40,960, and the installed non-raw Qwen template. It exposed
+`tokenizer.ggml.pre=qwen2`, `add_bos_token=false`, all 151,643 base vocabulary
+entries, 151,387 merges, and the 26 pinned added-token spellings. Exact local
+comparison against the frozen `tokenizer.json` found: base-vocabulary sequence
+SHA-256 `02c4d9161602518670e40cd484607bc12d482c5eed73eefe53dbffee2379c23a`
+equal on both sides; merge sequence SHA-256
+`24fa2ae2a398e50784a1fff678482094af4f63e6783d35686726abacda8dc371`
+equal after the documented GGUF pair-to-space representation; and all 14
+declared special spellings/IDs equal at 151643–151656. The metadata does not
+publish the pinned `tokenizer.json` hash or every Hugging Face tokenizer
+normalizer/pre-tokenizer serialization detail. Pairing is therefore **B —
+STRONGLY EVIDENCED BUT NOT CRYPTOGRAPHICALLY PROVEN**, not category A.
+
+The isolated Python 3.12 evidence environment loaded only the frozen
+`tokenizers==0.22.2` wheel with the authorized SHA-256
+`1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001`, and
+the frozen `tokenizer.json` hash
+`aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`.
+Each fixture was rendered with the exact application-owned raw-prompt shape,
+encoded with `add_special_tokens=false`, and compared with provider
+`prompt_eval_count`. Every generate body had exactly `model`, `prompt`, `raw`,
+`stream`, `think`, and `options`; it omitted `format`, schema/JSON mode,
+system/template/context/messages/tools. It used `raw=true`, `stream=false`,
+`think=false`, `temperature=0`, `seed=0`, `num_ctx=16384`, and the listed
+small `num_predict` value.
+
+| Safe fixture | Prompt SHA-256 | Local IDs / `prompt_eval_count` | Token-ID SHA-256 |
+| --- | --- | ---: | --- |
+| ASCII-only short | `6ca7b38f0b771de38413bf73fe12c2b5f99ecde9e2e71b94bcbe432b92e599c6` | 189 / 189 | `38fa468086b26405f691fa5337a488b5d2a1b16553a31028c9fb398244d3c524` |
+| Chinese | `90065f3aead00225d32519ac332584caf232a6ab88fc9179f731cda870dde89a` | 189 / 189 | `8146d278b66073c1ddc77ef9f3cad5d2c6df6ecd736bd4489e7614198dfb7692` |
+| Mixed Chinese/English | `55355edbcdc5dc70ea0cdacc319cfeee7f06e4a51f77db750800beb08c4f401f` | 198 / 198 | `be7aaead1ce3448e56dfb84d8eb0d88dbfaee06544dd9145f2c7f1863017b6c3` |
+| Emoji | `e84d5b7d73a9bc3da1d92d644d469e0a5f61dc1d3c6188503381a6c488f44a4e` | 190 / 190 | `6884a2fb265519f01213b494bff1529b4e04950880df08aa4efdd46442542016` |
+| Newlines | `4e8424c9c66a36149ab6dc87b2daa60d674e8dc2f04ec4ab4384b2c868b57e0e` | 193 / 193 | `7a9288feedd0fd18079f214e39b01abd290e975d0e48592563c78f19456fd778` |
+| JSON-heavy | `26e30f86bd297a8cc96169b02d4542774448d8808ec5f698106039b31b1911e2` | 214 / 214 | `0e86804c422d7e54d1422942868095075392d303f4da8f8726d7da7f734ed1e8` |
+| Local Deep Analysis delimiters | `aacebfd5343f7262bec9befb8aa4aa636ffb0ef4cdb61b764929bafe175a2420` | 199 / 199 | `92157e37178db5d4fbd7a4fbdd57c1cb4417c1aa3ac47e29beff92640fb7ed3b` |
+| Canonical KnowledgeContent schema | `ffdd924be73b9cc7688fcab05206834c03916d8c79dd1f76374753c264163157` | 869 / 869 | `cd36e57bb232da4136f98acc730254dc084e54ce010ec28b1a5b8f3c514bfed9` |
+| Representative Evidence Registry | `e93999f8d385a79f342cad1842d301094aa8cfe15be09a67a427e44c90c66507` | 928 / 928 | `f7cd0298d01d56bc9845a387ea5b06b5498d9f18216b2e1f31fb3902f0f22d8e` |
+
+All nine safe fixtures completed with `done=true`, `done_reason="length"`, and
+no `thinking` field or `<think>` response content. The JSON-style probes began
+structured JSON responses; this gate makes no output-quality claim. Thus the
+tested model accepts the frozen `think`, seed, temperature, raw, stream, and
+`num_ctx=16384` fields without an apparent parameter rejection. This is only a
+micro-probe, not a max-context or performance result.
+
+The tenth, local-only adversarial fixture containing
+`<|im_start|><|im_end|><|endoftext|>` encoded declared special IDs
+151644, 151645, and 151643 (170 tokens; prompt SHA-256
+`79868a70151dd28c373bf7d54949f52302197f58c244d5739c7c5adc9f083539`). It
+was rejected before dispatch, confirming the frozen declared-special-ID policy.
+
+A raw/non-raw control with the same 175-token locally encoded prompt produced
+`prompt_eval_count=175` with `raw=true` and 191 with normal templated mode.
+Together with the nine exact raw parity results, this records **RAW PROFILE
+TOKENIZATION PARITY OBSERVED** and supports the limited verdict that this exact
+Ollama/model raw/no-format profile added no provider-observable prompt tokens
+to these below-context prompts. It does not itself prove no truncation or a
+general property of another version, model, or oversized request.
+
+Temporary scripts, isolated environment, and raw envelopes remain untracked at
+`/tmp/task016-ollama-raw-parity/`; no model/tokenizer artifact was committed,
+and no model download or pull occurred.
+
+**LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE PASSED FOR OLLAMA 0.32.1 ONLY**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**

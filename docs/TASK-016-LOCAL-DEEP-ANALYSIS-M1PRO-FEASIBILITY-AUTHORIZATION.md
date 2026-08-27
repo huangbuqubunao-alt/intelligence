@@ -1,8 +1,11 @@
-# TASK-016-LOCAL-DEEP-ANALYSIS — M1 Pro Feasibility Authorization, Amendment R2
+# TASK-016-LOCAL-DEEP-ANALYSIS — M1 Pro Feasibility Authorization, Amendment R3
 
-Status: **FUTURE BENCHMARK ONLY — NOT PROVIDER IMPLEMENTATION AUTHORIZATION**
+Status: **EXACT RAW-PROFILE BENCHMARK MAY PROCEED — NOT PROVIDER IMPLEMENTATION AUTHORIZATION**
 
-This authorizes only a later separately approved local benchmark/smoke. It authorizes no production code, test/migration change, model download, model fallback, remote service, telemetry, persistence/cache work, or TASK-016D/E/F.
+This authorizes only the controlled local M1 Pro benchmark/smoke under the exact
+profile recorded below. It authorizes no production code, test/migration change,
+model download, model fallback, remote service, telemetry, persistence/cache
+work, or TASK-016D/E/F.
 
 ## 1. Exact candidate and environment record
 
@@ -26,7 +29,28 @@ No remote service, parallel generation, or secret-bearing corpus is permitted.
 
 ## 2. Exact requests and corpus
 
-Use the context-proof authorization’s hash-verified `tokenizers==0.22.2`, exact `TokenizerIdentityV1`, exact canonical SCHEMA_BYTES, exact prompt template/substitution rules, selected Evidence Registry, temperature=0, seed=0, stream=false, think=false, `raw=true`, omitted `format`, no system/template/context/messages field, `num_ctx=16384`, `num_predict=2048`, and 300-second generation timeout. First prove the exact installed Ollama version, raw/no-format behavior, local qwen3 digest, and local tokenizer pairing as far as the runtime mechanically exposes. Run short, medium, and a complete-token-predicate-passing maximum request; each must record its prompt/token-proof hashes and measured request/prompt/schema bytes. Corpus cases include dense ASCII, Han, and multibyte Unicode evidence and contain no personal secrets.
+Use the context-proof authorization’s hash-verified `tokenizers==0.22.2`, exact
+`TokenizerIdentityV1`
+`598d4c936d655112f7323d71d5653ba4cfa490b82c403d76f789cc22eee2060f`,
+exact canonical SCHEMA_BYTES, and exact `knowledge-prompt-v3-raw`
+application-rendering/substitution rules. The frozen runtime profile is Ollama
+**0.32.1 only**, model tag `qwen3:8b`, digest
+`sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`,
+`raw=true`, omitted `format`, `stream=false`, `think=false`, `temperature=0`,
+`seed=0`, `num_ctx=16384`, and `num_predict=2048`. It must use the exact
+pre-dispatch complete-candidate token count, require `input_tokens <= 14336`,
+perform full-candidate recount during prefix selection, and perform a final
+pre-dispatch recount of the exact application-rendered prompt. No runtime
+version range is approved.
+
+The local parity gate established exact local/provider token-count equality for
+nine structurally different below-context raw fixtures and found a 175-versus-
+191 raw/non-raw control difference. Its mechanically available local
+tokenizer/model pairing classification is **strongly evidenced but not
+cryptographically proven**. Run short, medium, and a complete-token-predicate-
+passing maximum request; each must record its prompt/token-proof hashes and
+measured request/prompt/schema bytes. Corpus cases include dense ASCII, Han,
+and multibyte Unicode evidence and contain no personal secrets.
 
 ## 3. Required measurements
 
@@ -56,6 +80,6 @@ A passing Ollama version authorizes only that exact canonical version string aft
 
 ## Final statement
 
-**LOCAL DEEP ANALYSIS FEASIBILITY BENCHMARK REMAINS UNAUTHORIZED UNTIL SEPARATELY APPROVED**
+**LOCAL DEEP ANALYSIS M1 PRO FEASIBILITY GATE MAY PROCEED FOR THE FROZEN 0.32.1 RAW PROFILE ONLY**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**

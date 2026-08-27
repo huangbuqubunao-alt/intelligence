@@ -24,9 +24,13 @@
   raw-profile/runtime-version proof, feasibility, and implementation remain
   separate gates.
 - **LOCAL DEEP ANALYSIS TOKENIZER ARTIFACT / HASH FREEZE COMPLETE**; **LOCAL
-  OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE REMAINS PENDING**; implementation
-  remains unauthorized. This status update does not assign, start, rename, or
-  supersede TASK-016D/E/F.
+  OLLAMA TOKENIZER / RAW-PROFILE PARITY PASSED** for exact Ollama `0.32.1`,
+  exact `qwen3:8b` digest
+  `sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`,
+  and the raw/no-format profile only. The M1 Pro feasibility gate may proceed;
+  qwen3:8b remains a candidate pending that gate, and implementation remains
+  unauthorized. This status update does not assign, start, rename, or
+  supersede TASK-016D/E/F; TASK-016B and TASK-016C remain closed.
 
 ## 产品目标
 
