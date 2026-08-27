@@ -973,7 +973,7 @@ def test_temp_regular_verification_still_succeeds(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _forge_tampered_repair_graph(repository, tmp_path, tamper) -> None:
+def _forge_tampered_repair_graph(repository, tmp_path, tamper, forge_calls=None) -> None:
     """Persist a self-consistent forged repair graph with a tampered envelope.
 
     ``tamper`` mutates the parsed envelope dict in place.  The helper
@@ -983,6 +983,12 @@ def _forge_tampered_repair_graph(repository, tmp_path, tamper) -> None:
     structured artifact.  The persisted root CLAIMS (normalized_input_hash,
     request_hash, judge_h1/h2) are whatever the tamper leaves them as, so a test
     can make them inconsistent with the sealed semantic inputs.
+
+    If the tamper changes the REPAIR/JUDGE request-hash claims, the persisted
+    ProviderCall rows are re-keyed accordingly.  ``forge_calls``, when given,
+    is invoked as ``forge_calls(connection, r, j, raw_artifact_id)`` to forge
+    the persisted ProviderCall fields consistently with the forged envelope
+    metadata; otherwise the rows are only rebound to the forged raw artifact.
     """
 
     from youtube_intel.h2_evidence import repair_persistence_graph_hash
@@ -1006,6 +1012,9 @@ def _forge_tampered_repair_graph(repository, tmp_path, tamper) -> None:
     s_hash = hashlib.sha256(structured_bytes).hexdigest()
     original_raw = repository.get_artifact_by_key(raw_key)
 
+    original_envelope = jcs_loads_strict(raw_bytes)
+    original_r = original_envelope["repair_provider_evidence"]["request_hash"]
+    original_j = original_envelope["repair_quality_evidence"]["judge_h2"]
     envelope = jcs_loads_strict(raw_bytes)
     tamper(envelope)
     tampered_bytes = jcs_serialize(envelope)
@@ -1075,19 +1084,38 @@ def _forge_tampered_repair_graph(repository, tmp_path, tamper) -> None:
             "WHERE job_id = 'h2c-persist-job'",
             {"key": new_structured_key},
         )
-        # Rebind the persisted REPAIR / REPAIR_JUDGE ProviderCall rows to the
-        # forged raw artifact so the forged graph is internally consistent.
+        # Re-key the persisted ProviderCall rows if the tamper changed the
+        # request-hash claims, so the reader's lookup by the forged claims
+        # resolves to the forged rows.
+        if r != original_r:
+            connection.execute(
+                "UPDATE provider_calls SET request_hash = :new "
+                "WHERE request_hash = :old",
+                {"new": r, "old": original_r},
+            )
+        if j != original_j:
+            connection.execute(
+                "UPDATE provider_calls SET request_hash = :new "
+                "WHERE request_hash = :old",
+                {"new": j, "old": original_j},
+            )
         new_raw_artifact_id = f"repair-raw-{new_g}"
-        connection.execute(
-            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
-            "WHERE request_hash = :request_hash",
-            {"artifact_id": new_raw_artifact_id, "request_hash": r},
-        )
-        connection.execute(
-            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
-            "WHERE request_hash = :request_hash",
-            {"artifact_id": new_raw_artifact_id, "request_hash": j},
-        )
+        if forge_calls is not None:
+            forge_calls(connection, r, j, new_raw_artifact_id)
+        else:
+            # Rebind the persisted REPAIR / REPAIR_JUDGE ProviderCall rows to
+            # the forged raw artifact so the forged graph is internally
+            # consistent.
+            connection.execute(
+                "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+                "WHERE request_hash = :request_hash",
+                {"artifact_id": new_raw_artifact_id, "request_hash": r},
+            )
+            connection.execute(
+                "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+                "WHERE request_hash = :request_hash",
+                {"artifact_id": new_raw_artifact_id, "request_hash": j},
+            )
     finally:
         connection.close()
 
@@ -1148,5 +1176,138 @@ def test_corrupted_sealed_judge_input_with_unchanged_h1_fails_closed(
     repository = _setup_repository(tmp_path)
     _forge_tampered_repair_graph(repository, tmp_path, tamper)
 
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 3 — self-consistent forgery RED tests
+# ---------------------------------------------------------------------------
+
+
+def _forge_repair_metadata_field(tmp_path, field, forged_value):
+    """Forge one RepairProviderEvidence identity field self-consistently.
+
+    The sealed normalized_input is unchanged; the evidence metadata and the
+    persisted REPAIR ProviderCall are forged together with a request hash
+    recomputed consistently around the forged value.
+    """
+
+    from youtube_intel.state import build_provider_request_hash
+
+    def tamper(envelope):
+        pe = envelope["repair_provider_evidence"]
+        pe[field] = forged_value
+        pe["request_hash"] = build_provider_request_hash(
+            operation=pe["operation"],
+            normalized_input_hash=pe["normalized_input_hash"],
+            provider=pe["provider"],
+            model=pe["model"],
+            prompt_version=pe["prompt_version"],
+            schema_version=pe["operation_schema_version"],
+        )
+
+    def forge_calls(connection, r, j, raw_artifact_id):
+        column = {
+            "provider": "provider",
+            "model": "model",
+            "prompt_version": "prompt_version",
+            "operation_schema_version": "schema_version",
+        }[field]
+        connection.execute(
+            f"UPDATE provider_calls SET {column} = :value, "
+            "response_artifact_id = :artifact_id WHERE request_hash = :r",
+            {"value": forged_value, "artifact_id": raw_artifact_id, "r": r},
+        )
+        connection.execute(
+            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+            "WHERE request_hash = :j",
+            {"artifact_id": raw_artifact_id, "j": j},
+        )
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper, forge_calls)
+    return repository
+
+
+@pytest.mark.parametrize(
+    "field,forged_value",
+    [
+        ("model", "forged-repair-model"),
+        ("provider", "forged-repair-provider"),
+        ("prompt_version", "forged-prompt-v9"),
+        ("operation_schema_version", "forged-schema-v9"),
+    ],
+)
+def test_forged_repair_evidence_metadata_fails_closed(
+    tmp_path: Path, field, forged_value
+) -> None:
+    repository = _forge_repair_metadata_field(tmp_path, field, forged_value)
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def _forge_judge_metadata_field(tmp_path, field, forged_value):
+    """Forge one JudgeEvidence identity field self-consistently.
+
+    The sealed judge_operation_input is unchanged; the JudgeEvidence metadata
+    and the persisted REPAIR_JUDGE ProviderCall are forged together.  The
+    judge_h2 claim remains the valid derived value, so only the sealed-semantic
+    cross-binding can reject.
+    """
+
+    def tamper(envelope):
+        envelope["repair_quality_evidence"]["judge_evidence"][field] = forged_value
+
+    def forge_calls(connection, r, j, raw_artifact_id):
+        column = {
+            "provider": "provider",
+            "model": "model",
+            "prompt_version": "prompt_version",
+            "operation_schema_version": "schema_version",
+        }[field]
+        connection.execute(
+            f"UPDATE provider_calls SET {column} = :value, "
+            "response_artifact_id = :artifact_id WHERE request_hash = :j",
+            {"value": forged_value, "artifact_id": raw_artifact_id, "j": j},
+        )
+        connection.execute(
+            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+            "WHERE request_hash = :r",
+            {"artifact_id": raw_artifact_id, "r": r},
+        )
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper, forge_calls)
+    return repository
+
+
+@pytest.mark.parametrize(
+    "field,forged_value",
+    [
+        ("model", "forged-judge-model"),
+        ("provider", "forged-judge-provider"),
+        ("prompt_version", "forged-judge-prompt-v9"),
+        ("operation_schema_version", "forged-judge-schema-v9"),
+    ],
+)
+def test_forged_judge_evidence_metadata_fails_closed(
+    tmp_path: Path, field, forged_value
+) -> None:
+    repository = _forge_judge_metadata_field(tmp_path, field, forged_value)
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def test_forged_judge_evidence_h2_claim_fails_closed(tmp_path: Path) -> None:
+    # Forge only JudgeEvidence.judge_h2; everything else (including the
+    # quality-evidence judge_h2 claim and the sealed operation input) stays
+    # valid, so only the derived-H2 vs JudgeEvidence.judge_h2 comparison can
+    # reject.
+    def tamper(envelope):
+        envelope["repair_quality_evidence"]["judge_evidence"]["judge_h2"] = "f" * 64
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper)
     with pytest.raises(ValueError):
         _reader(repository, tmp_path).read(_VIDEO_ID)

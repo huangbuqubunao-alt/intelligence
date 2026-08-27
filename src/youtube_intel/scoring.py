@@ -5909,31 +5909,91 @@ class AuthoritativeScoringReader:
         if settings_hash != provider_evidence.settings_provenance_sha256:
             raise ValueError("repair settings provenance hash is invalid")
         # Independently rederive the request roots from the sealed semantic
-        # inputs.  Persisted roots are claims to verify, not trust anchors.
-        derived_repair_root = repair_normalized_input_hash(
-            provider_evidence.normalized_input
-        )
+        # inputs.  Persisted roots and every duplicated evidence metadata field
+        # are claims to verify, not trust anchors.
+        sealed_rni = provider_evidence.normalized_input
+        derived_repair_root = repair_normalized_input_hash(sealed_rni)
         if derived_repair_root != provider_evidence.normalized_input_hash:
             raise ValueError("repair normalized input root is invalid")
+        # Cross-bind every RepairProviderEvidence identity claim against the
+        # sealed RepairNormalizedInput before any builder use.
+        if provider_evidence.operation != sealed_rni.operation:
+            raise ValueError("repair evidence operation mismatches sealed input")
+        if provider_evidence.provider != sealed_rni.repair_provider:
+            raise ValueError("repair evidence provider mismatches sealed input")
+        if provider_evidence.model != sealed_rni.repair_model:
+            raise ValueError("repair evidence model mismatches sealed input")
+        if provider_evidence.model_digest != sealed_rni.repair_model_digest:
+            raise ValueError("repair evidence model digest mismatches sealed input")
+        if provider_evidence.prompt_version != sealed_rni.repair_prompt_version:
+            raise ValueError(
+                "repair evidence prompt version mismatches sealed input"
+            )
+        if (
+            provider_evidence.operation_schema_version
+            != sealed_rni.repair_schema_version
+        ):
+            raise ValueError(
+                "repair evidence schema version mismatches sealed input"
+            )
+        if provider_evidence.output_language != sealed_rni.output_language:
+            raise ValueError(
+                "repair evidence output language mismatches sealed input"
+            )
+        if provider_evidence.temperature != sealed_rni.temperature:
+            raise ValueError("repair evidence temperature mismatches sealed input")
+        if provider_evidence.max_output_tokens != sealed_rni.max_output_tokens:
+            raise ValueError(
+                "repair evidence max_output_tokens mismatches sealed input"
+            )
+        if (
+            provider_evidence.max_description_chars
+            != sealed_rni.max_description_chars
+        ):
+            raise ValueError(
+                "repair evidence max_description_chars mismatches sealed input"
+            )
+        # Rebuild the REPAIR request identity solely from sealed/derived values.
         derived_r = build_provider_request_hash(
-            operation=provider_evidence.operation,
+            operation=sealed_rni.operation,
             normalized_input_hash=derived_repair_root,
-            provider=provider_evidence.provider,
-            model=provider_evidence.model,
-            prompt_version=provider_evidence.prompt_version,
-            schema_version=provider_evidence.operation_schema_version,
+            provider=sealed_rni.repair_provider,
+            model=sealed_rni.repair_model,
+            prompt_version=sealed_rni.repair_prompt_version,
+            schema_version=sealed_rni.repair_schema_version,
         )
         if derived_r != provider_evidence.request_hash:
             raise ValueError("repair request identity is invalid")
-        derived_judge_h1, derived_judge_h2 = build_judge_h1_h2(
-            quality_evidence.judge_operation_input
-        )
+        # Judge chain: the sealed QualityJudgeOperationInput is the sole
+        # semantic root; both sealed copies must agree and every JudgeEvidence
+        # identity claim must match it.
+        sealed_judge_input = quality_evidence.judge_operation_input
+        judge_evidence = quality_evidence.judge_evidence
+        if judge_evidence.operation_input != sealed_judge_input:
+            raise ValueError("judge evidence operation input mismatches sealed input")
+        derived_judge_h1, derived_judge_h2 = build_judge_h1_h2(sealed_judge_input)
         if derived_judge_h1 != quality_evidence.judge_h1:
             raise ValueError("repair judge operation root is invalid")
-        if derived_judge_h1 != quality_evidence.judge_evidence.judge_h1:
+        if derived_judge_h1 != judge_evidence.judge_h1:
             raise ValueError("repair judge evidence root is invalid")
         if derived_judge_h2 != quality_evidence.judge_h2:
             raise ValueError("repair judge request identity is invalid")
+        if derived_judge_h2 != judge_evidence.judge_h2:
+            raise ValueError("repair judge evidence request identity is invalid")
+        if judge_evidence.operation != "local-content-quality-v1":
+            raise ValueError("judge evidence operation is invalid")
+        if judge_evidence.provider != sealed_judge_input.judge_provider:
+            raise ValueError("judge evidence provider mismatches sealed input")
+        if judge_evidence.model != sealed_judge_input.judge_model:
+            raise ValueError("judge evidence model mismatches sealed input")
+        if judge_evidence.model_digest != sealed_judge_input.judge_model_digest:
+            raise ValueError("judge evidence model digest mismatches sealed input")
+        if judge_evidence.policy_version != sealed_judge_input.policy_version:
+            raise ValueError("judge evidence policy version mismatches sealed input")
+        if judge_evidence.prompt_version != sealed_judge_input.prompt_version:
+            raise ValueError("judge evidence prompt version mismatches sealed input")
+        if judge_evidence.operation_schema_version != sealed_judge_input.schema_version:
+            raise ValueError("judge evidence schema version mismatches sealed input")
         r = derived_r
         j = derived_judge_h2
         identity = build_repair_persistence_graph_identity(
@@ -5950,32 +6010,27 @@ class AuthoritativeScoringReader:
         judge_call = self._repository.get_provider_call(j)
         if repair_call is None or judge_call is None:
             raise ValueError("repair provider calls are missing")
-        # Re-prove every persisted identity-bearing ProviderCall field against
-        # the sealed envelope evidence and the rederived roots; the provenance
-        # flag and the R/J hashes alone are not trusted.
+        # Compare the persisted ProviderCalls against the sealed-derived truth
+        # (never against unproven evidence metadata).
         if (
             repair_call.status is not ProviderCallStatus.SUCCEEDED
-            or repair_call.operation != provider_evidence.operation
-            or repair_call.provider != provider_evidence.provider
-            or repair_call.model != provider_evidence.model
-            or repair_call.prompt_version != provider_evidence.prompt_version
-            or repair_call.schema_version
-            != provider_evidence.operation_schema_version
-            or repair_call.request_hash != r
-            or repair_call.request_hash != provider_evidence.request_hash
+            or repair_call.operation != sealed_rni.operation
+            or repair_call.provider != sealed_rni.repair_provider
+            or repair_call.model != sealed_rni.repair_model
+            or repair_call.prompt_version != sealed_rni.repair_prompt_version
+            or repair_call.schema_version != sealed_rni.repair_schema_version
+            or repair_call.request_hash != derived_r
             or repair_call.response_artifact_id != raw.artifact_id
         ):
             raise ValueError("repair provider call identity is invalid")
         if (
             judge_call.status is not ProviderCallStatus.SUCCEEDED
-            or judge_call.operation != quality_evidence.judge_evidence.operation
-            or judge_call.provider != quality_evidence.judge_evidence.provider
-            or judge_call.model != quality_evidence.judge_evidence.model
-            or judge_call.prompt_version
-            != quality_evidence.judge_evidence.prompt_version
-            or judge_call.schema_version
-            != quality_evidence.judge_evidence.operation_schema_version
-            or judge_call.request_hash != j
+            or judge_call.operation != "local-content-quality-v1"
+            or judge_call.provider != sealed_judge_input.judge_provider
+            or judge_call.model != sealed_judge_input.judge_model
+            or judge_call.prompt_version != sealed_judge_input.prompt_version
+            or judge_call.schema_version != sealed_judge_input.schema_version
+            or judge_call.request_hash != derived_judge_h2
             or judge_call.request_hash != quality_evidence.judge_h2
             or judge_call.response_artifact_id != raw.artifact_id
         ):
