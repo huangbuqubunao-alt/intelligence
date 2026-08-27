@@ -311,3 +311,11 @@ for any such work.
 **TASK-016C IMPLEMENTATION PHASES COMPLETE**
 
 **READY FOR TASK-016C FINAL INTEGRATION / RELEASE READINESS REVIEW**
+
+## 13. Final integration freeze
+
+The final independent integration result is recorded in
+[`TASK-016C-FINAL-FREEZE.md`](TASK-016C-FINAL-FREEZE.md). Phase I remains
+**CLOSED — HARDENING AUDIT / NO-OP** within a **TASK-016C COMPLETE** and
+**TASK-016C FROZEN** record. This reference adds no implementation authority:
+**MERGE NOT YET AUTHORIZED**.

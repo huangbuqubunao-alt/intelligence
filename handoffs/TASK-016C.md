@@ -345,6 +345,21 @@ authorization. This closeout authorizes none of it.
 
 **READY FOR TASK-016C FINAL INTEGRATION / RELEASE READINESS REVIEW**
 
+## TASK-016C — Final Integration Freeze
+
+The final independent integration review is recorded in
+[`docs/TASK-016C-FINAL-FREEZE.md`](../docs/TASK-016C-FINAL-FREEZE.md). It
+concludes **TASK-016C FINAL INTEGRATION REVIEW APPROVED**, **TASK-016C RELEASE
+READINESS APPROVED**, and **NO TASK-016C P0/P1 REMAINS**. The final state is
+**TASK-016C COMPLETE**, **TASK-016C FROZEN**, and **MERGE NOT YET AUTHORIZED**.
+
+The freeze preserves H1, H2-A, H2-B, H2-C, Phase G with authorized lineage
+bookkeeping, and Phase I as hardening-only/no-op. It authorizes no durable
+cache/recovery, scoring rerun, migration 003, authority-boundary bypass, or
+Phase G ordering change. Broader repository public-distribution release
+remains NO-GO under `docs/RELEASE_BLOCKERS.md`; those non-TASK-016C blockers do
+not block this freeze.
+
 ## Phase H2-C — Implementation Correction Round 3 (two P0 trust-chain breaks)
 
 ### Metadata and scope
