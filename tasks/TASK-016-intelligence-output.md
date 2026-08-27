@@ -14,7 +14,12 @@
   `docs/TASK-016-LOCAL-DEEP-ANALYSIS-AUTHORIZATION.md`; the candidate model /
   runtime gate is separately recorded in
   `docs/TASK-016-LOCAL-DEEP-ANALYSIS-M1PRO-FEASIBILITY-AUTHORIZATION.md`.
-- **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.** This status
+- Amendment R2 records that formal candidate-token/no-truncation proof is a
+  prerequisite design blocker; it does not authorize a benchmark or any
+  implementation work.
+- **LOCAL DEEP ANALYSIS DESIGN AMENDMENT IS BLOCKED** pending the separately
+  authorized exact-token/no-truncation proof; implementation remains
+  unauthorized. This status
   update does not assign, start, rename, or supersede TASK-016D/E/F.
 
 ## 产品目标

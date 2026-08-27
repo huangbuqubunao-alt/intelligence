@@ -1,25 +1,61 @@
-# TASK-016-LOCAL-DEEP-ANALYSIS — M1 Pro Feasibility Authorization
+# TASK-016-LOCAL-DEEP-ANALYSIS — M1 Pro Feasibility Authorization, Amendment R2
 
 Status: **FUTURE BENCHMARK ONLY — NOT PROVIDER IMPLEMENTATION AUTHORIZATION**
 
-This permits a later, separately approved, local benchmark/smoke only. It does not permit production code, migrations, a model fallback, cloud calls, telemetry, persistence, cache work, or TASK-016D/E/F.
+This authorizes only a later separately approved local benchmark/smoke. It authorizes no production code, test/migration change, model download, model fallback, remote service, telemetry, persistence/cache work, or TASK-016D/E/F.
 
-## Candidate and prerequisites
+## 1. Exact candidate and environment record
 
-The target is one Apple M1 Pro machine class with one local Ollama process and no parallel generation. Its only candidate is qwen3:8b with full manifest digest sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41. The runner must manually prove that exact tag/digest before testing; it must not pull, alter, or substitute a model. Record the strict normalized Ollama SemVer and use the loopback-only API contract in the main authorization.
+The only candidate is qwen3:8b with exact tag qwen3:8b and full digest sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41. The runner manually proves the unique exact local tag/digest before testing; it must not pull, alter, or substitute a model.
 
-## Required request and corpus
+The benchmark report must record these observed environment facts:
 
-Use exactly the frozen endpoint, POST /api/generate, JSON-schema format, temperature=0, seed=0, stream=false, think=false, num_ctx=16384, num_predict=2048, 300-second deadline, and no tools. Run short, medium, and maximum-envelope prompts where composed prompt plus format schema equals 12,288 UTF-8 bytes. Include dense ASCII, Han, and multi-byte Unicode evidence. Inputs must contain no personal secrets and may not invoke cloud or remote services.
+| Field | Required report value |
+|---|---|
+| Mac model identifier | exact system model identifier when available; otherwise explicit unavailable |
+| chip | Apple M1 Pro; any other chip is FAIL |
+| total unified memory | exact detected bytes/GiB and detection source |
+| macOS | exact version and build |
+| Ollama | exact accepted canonical SemVer source string |
+| model | exact tag and full digest |
+| free/available memory before run | exact value and collection method when mechanically available; otherwise explicit unavailable |
+| runtime launch mode | exact command/service mode, process count, and confirmation of one local generation worker |
+| endpoint | exactly http://127.0.0.1:11434 |
 
-## Measurements and pass/fail
+No remote service, parallel generation, or secret-bearing corpus is permitted.
 
-Record runtime version, tag/digest proof, model-load success, peak/observed memory when mechanically available, prompt acceptance, wall-clock duration, response bytes, done value, and strict KnowledgeContent schema plus deterministic semantic/grounding outcome.
+## 2. Exact requests and corpus
 
-PASS requires all:
+Use the main authorization’s exact canonical SCHEMA_BYTES, exact prompt template/substitution rules, exact structured-output object, selected Evidence Registry, temperature=0, seed=0, stream=false, think=false, num_ctx=16384, num_predict=2048, and 300-second generation timeout. Run short, medium, and maximum accepted-T1-byte-envelope cases; each must use a fully serialized request and its measured request/prompt/schema bytes. Corpus cases include dense ASCII, Han, and multibyte Unicode evidence and contain no personal secrets.
 
-1. no OOM, process death, or provider-side context truncation at maximum envelope;
-2. short, medium, and maximum inputs each finish within 300 seconds with a completed response that passes strict schema and deterministic validation; and
-3. think=false, structured format, seed, and stream=false work together for this exact model/runtime pair without extra output or transport-contract violation.
+## 3. Required measurements
 
-The PRD has no latency SLO, so none is guessed. Any failure, missing evidence, wrong digest, or incompatibility is a **MODEL SELECTION BLOCKER**. It authorizes no fallback. A pass alone does not authorize provider implementation: a later design amendment must freeze the exact accepted Ollama SemVer set/range and record the evidence.
+For every run record wall-clock duration using a monotonic clock immediately before the single generation transport call and immediately after completed response read; record duration in milliseconds. Record HTTP status, bounded raw envelope bytes, done, prompt_eval_count when the documented response includes it, eval_count, strict envelope parse, strict generated JSON parse, KnowledgeContent schema validation, point grounding against supplied registry, KG2 label validation, and coverage fields.
+
+Record model-load success. Record peak/observed memory and collection method whenever approved tooling can observe it; absence of a reliable peak metric must be reported as unavailable, not invented.
+
+## 4. Objective pass/fail
+
+A benchmark case PASS requires all of:
+
+1. the exact preflight version/tags/digest proof succeeds;
+2. model load succeeds, no OOM, no model/runtime process termination, and no kernel/system memory-failure symptom attributable to the run is observed;
+3. the complete maximum accepted request completes within 300 seconds by the monotonic-clock method;
+4. HTTP success, valid Ollama envelope, strict generated JSON, exact KnowledgeContent schema, deterministic point grounding, and KG2 graph-label validation all pass; and
+5. think=false, stream=false, seed=0, and schema-format behavior occur together without extra content or transport-contract violation.
+
+The PRD sets no lower latency SLO; no arbitrary threshold is added. Any failure, missing required evidence, wrong model identity, or unsupported environment is a **MODEL SELECTION BLOCKER**. There is no fallback model.
+
+## 5. No-truncation rule and version approval
+
+The benchmark must not claim formal no-truncation merely because a response succeeds or prompt_eval_count is present. prompt_eval_count records provider-observed evaluated prompt tokens but, without an approved exact expected-token counter, cannot prove no input was discarded. The only permissible statement without that proof is: the maximum accepted T1 byte-envelope request was accepted and produced validated output under the recorded exact runtime/model.
+
+Formal no-truncation/context safety remains an implementation-authorization blocker until a later authorization supplies an exact qwen3-compatible tokenizer/accounting proof or an authoritative provider observable that compares expected full-prompt tokens with evaluated tokens.
+
+A passing Ollama version authorizes only that exact canonical version string after explicit follow-up approval. One passing version never authorizes a range; a broader range needs separate compatibility evidence. qwen3:8b becomes a frozen implementation model only after exact tag/digest, at least one explicitly approved exact Ollama version, required M1 Pro environment, all benchmark PASS conditions, and the separate formal no-truncation proof are present. Otherwise it remains a MODEL SELECTION BLOCKER.
+
+## Final statement
+
+**LOCAL DEEP ANALYSIS FEASIBILITY BENCHMARK REMAINS UNAUTHORIZED UNTIL SEPARATELY APPROVED**
+
+**LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**
