@@ -8,6 +8,13 @@
   SQLite Repository、Artifact/ProviderCall、Obsidian 安全渲染、Weekly Service 与锁定
   依赖；不新增生产依赖。
 
+## Local Deep Analysis design status
+
+- `TASK-016-LOCAL-DEEP-ANALYSIS` design drafted in
+  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-AUTHORIZATION.md`.
+- **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.** This status
+  update does not assign, start, rename, or supersede TASK-016D/E/F.
+
 ## 产品目标
 
 Cloud 关闭时仍为高价值视频生成完整、可信、默认中文的知识笔记；Hybrid 仅为高价值
