@@ -4190,14 +4190,43 @@ class TrustedPersistenceEntry:
         finally:
             os.close(fd)
 
-        verify_fd = os.open(tmp_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+        import stat as stat_module
+
+        # Race-safe verification reopen of the deterministic temporary name.
+        # O_NOFOLLOW keeps symlink protection; O_NONBLOCK guarantees the open
+        # cannot block even if the name was replaced with a FIFO between the
+        # close above and this reopen.  The authoritative type decision comes
+        # from fstat(opened_fd) immediately after the open, BEFORE any read,
+        # hash, or content verification.
         try:
+            verify_fd = os.open(
+                tmp_name,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=g_fd,
+            )
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to reopen temporary repair artifact {name} for "
+                f"verification: {error}",
+                video_id,
+            ) from error
+        try:
+            if not stat_module.S_ISREG(os.fstat(verify_fd).st_mode):
+                raise self._repair_persistence_error(
+                    f"temporary repair artifact {name} is not a regular file",
+                    video_id,
+                )
             tmp_body = b""
             while True:
                 chunk = os.read(verify_fd, 1 << 20)
                 if not chunk:
                     break
                 tmp_body += chunk
+        except OSError as error:
+            raise self._repair_persistence_error(
+                f"failed to verify temporary repair artifact {name}: {error}",
+                video_id,
+            ) from error
         finally:
             os.close(verify_fd)
         if (

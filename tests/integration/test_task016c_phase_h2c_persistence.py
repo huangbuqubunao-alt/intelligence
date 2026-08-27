@@ -811,3 +811,158 @@ def test_uncorrupted_repair_read_still_succeeds(tmp_path: Path) -> None:
 
     assert read.scoring_success_provenance == "REPAIR_H2C"
     assert read.scoring_outcome.result.score == 8
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 2 — Fix 1: temporary verification reopen special-file race
+# ---------------------------------------------------------------------------
+
+
+def _install_tmp_replacement_hook(
+    monkeypatch, tmp_abs_path: Path, make_special
+) -> None:
+    """Swap the deterministic .tmp name for a special file at verification reopen.
+
+    The hook intercepts ``os.open`` and, on the first O_RDONLY open of the
+    ``.tmp`` name (the verification reopen after write/close), replaces the
+    legitimate regular temporary file with a special file and delegates to the
+    real ``os.open``.  This reproduces the close->reopen replacement race
+    deterministically (no timing sleeps).
+    """
+
+    real_open = os.open
+    state = {"swapped": False}
+
+    def hooked_open(path, flags, *args, **kwargs):
+        if (
+            not state["swapped"]
+            and isinstance(path, str)
+            and path.endswith(".tmp")
+            and (flags & os.O_ACCMODE) == os.O_RDONLY
+        ):
+            state["swapped"] = True
+            os.unlink(tmp_abs_path)
+            make_special(tmp_abs_path)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", hooked_open)
+
+
+def _setup_materialize(entry, success):
+    plan, raw_path, structured_path = _repair_plan_paths(entry, success)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    return plan, raw_path, structured_path
+
+
+def test_temp_raw_fifo_replacement_before_verification_fails_closed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _setup_materialize(entry, success)
+    tmp_abs = raw_path.parent / (raw_path.name + ".tmp")
+    _install_tmp_replacement_hook(monkeypatch, tmp_abs, os.mkfifo)
+
+    try:
+        with pytest.raises(ScoringPersistenceError):
+            _run_bounded(lambda: entry._materialize_repair_files(plan), timeout=8)
+    finally:
+        if tmp_abs.exists() or tmp_abs.is_fifo():
+            tmp_abs.unlink()
+    # The malicious replacement must not have been published.
+    assert not raw_path.exists()
+    assert repository.get_job("h2c-persist-job").status is JobStatus.RUNNING
+
+
+def test_temp_structured_fifo_replacement_before_verification_fails_closed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, structured_path = _setup_materialize(entry, success)
+    # Let raw publish normally; only race the structured temp.
+    entry._write_repair_final_in_directory(
+        _open_g_fd(entry, plan),
+        name=raw_path.name,
+        content=plan.envelope_bytes,
+        expected_hash=plan.envelope_hash,
+        video_id=_VIDEO_ID,
+    )
+    tmp_abs = structured_path.parent / (structured_path.name + ".tmp")
+    _install_tmp_replacement_hook(monkeypatch, tmp_abs, os.mkfifo)
+
+    try:
+        with pytest.raises(ScoringPersistenceError):
+            _run_bounded(
+                lambda: entry._write_repair_final_in_directory(
+                    _open_g_fd(entry, plan),
+                    name=structured_path.name,
+                    content=plan.structured_bytes,
+                    expected_hash=plan.structured_hash,
+                    video_id=_VIDEO_ID,
+                ),
+                timeout=8,
+            )
+    finally:
+        if tmp_abs.exists() or tmp_abs.is_fifo():
+            tmp_abs.unlink()
+    assert not structured_path.exists()
+
+
+def _open_g_fd(entry, plan) -> int:
+    return entry._open_repair_graph_directory(
+        p=plan.primary_request_hash, g=plan.graph_hash, video_id=_VIDEO_ID
+    )
+
+
+def test_temp_symlink_replacement_before_verification_fails_closed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _setup_materialize(entry, success)
+    tmp_abs = raw_path.parent / (raw_path.name + ".tmp")
+    target = raw_path.parent / "symlink-target"
+    target.write_bytes(b"malicious")
+    _install_tmp_replacement_hook(
+        monkeypatch, tmp_abs, lambda p: os.symlink(target, p)
+    )
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry._materialize_repair_files(plan))
+    assert not raw_path.exists()
+
+
+def test_temp_directory_replacement_before_verification_fails_closed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _setup_materialize(entry, success)
+    tmp_abs = raw_path.parent / (raw_path.name + ".tmp")
+    _install_tmp_replacement_hook(monkeypatch, tmp_abs, os.mkdir)
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry._materialize_repair_files(plan))
+    assert not raw_path.exists()
+
+
+def test_temp_regular_verification_still_succeeds(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, structured_path = _repair_plan_paths(entry, success)
+
+    _run_bounded(lambda: entry._materialize_repair_files(plan))
+
+    assert raw_path.read_bytes() == plan.envelope_bytes
+    assert structured_path.read_bytes() == plan.structured_bytes
