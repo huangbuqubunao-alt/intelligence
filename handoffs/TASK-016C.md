@@ -1,5 +1,178 @@
 # TASK-016C 交接报告
 
+## Phase H2-C — Final Closeout / Freeze
+
+### Status and authority
+
+**IMPLEMENTED — INDEPENDENTLY REVIEWED — APPROVED — CLOSED.**
+
+- Authorization base: `59bcf282a7e6208eb8395ecc4cc9a3fdbf6d6011`.
+- Final independently approved implementation HEAD: `2ae44b7`.
+- This closeout records the approved implementation state; it does not rewrite,
+  squash, or replace the historical authorization or REQUEST CHANGES evidence.
+- The authoritative implementation chain is, in order:
+
+  1. Original implementation: `e5031e8`, `ef3df66`, `e1488c9`, `ddd0a3c`,
+     `02f397f`.
+  2. Correction Round 1: `39f3a8f`, `7ed55ee`, `0395d09`, `6cb84e9`,
+     `a46fa75`.
+  3. Correction Round 2: `4b1ccd1`, `a70a2e9`, `1477fb0`.
+  4. Correction Round 3: `1572142`, `2ae44b7`.
+
+### Final independent-review evidence
+
+- Persistence review suite: **53 passed**.
+- Broader regression suite: **328 passed**.
+- Full suite: **1761 passed**; one pre-existing Pydantic serializer warning
+  remains.
+- `uv run mypy src`: **PASS**, 31 source files, no issues.
+- Ruff: **PASS**.
+- `git diff --check`: **PASS**.
+- Security scan: **PASS / clean status**; existing WARN-only findings remain.
+- Independent adversarial reproductions both rejected the attack:
+  self-consistent forged REPAIR model graph **REJECTED**; self-consistent forged
+  Judge model graph **REJECTED**.
+
+### Frozen H2-C trust and generation contracts
+
+Untrusted REPAIR/Judge data never becomes trusted merely because its graph is
+structurally self-consistent. Persisted evidence fields are claims, never trust
+roots. The frozen trust direction is:
+
+```text
+sealed semantic inputs
+  -> canonical deterministic derivation
+  -> derived request/hash identities
+  -> validation of duplicated evidence claims
+  -> validation of persisted ProviderCall identities
+  -> verified R/J
+  -> verified E/S
+  -> RepairPersistenceGraphIdentityV2
+  -> verified G
+  -> trusted persistence/read
+```
+
+For a new post-v2 `SCORING` job,
+`scoring_lineage_version = task016c-scoring-lineage-v1`; non-`SCORING` jobs and
+historical/pre-v2 jobs retain `NULL`. This value is repository-derived and
+immutable: no caller controls the generation.
+
+After validated H2-B PASS:
+
+| Generation | Frozen outcome |
+|---|---|
+| `NULL` | `CAPABILITY_UNAVAILABLE`, `H2B_PASS_AWAITING_H2C`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL`; no H2-C entry. |
+| v1 | May enter H2-C. |
+| Unknown non-`NULL` | `TRUST_INTEGRITY_INVALID`, exact detail `H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID`, `retry_at=None`, `FAILED_FINAL`, `TERMINAL`; no H2-C entry. |
+
+### Frozen repair admission and sealed-semantics verification
+
+- `REPAIR` and `REPAIR_JUDGE` remain runtime-internal admissions. There is no
+  caller repair receipt, token, or authority.
+- Eligible failures remain the exact frozen closed set; `UNKNOWN` remains
+  ineligible. H1 admission semantics and `scoring_admission.py` remain frozen.
+- REPAIR verification is exactly: sealed `RepairNormalizedInput` -> derived
+  normalized-input hash -> cross-check `RepairProviderEvidence` metadata ->
+  derive the REPAIR `ProviderCall` request identity solely from sealed values ->
+  verify the persisted `ProviderCall` -> verify R.
+- JUDGE verification is exactly: sealed `QualityJudgeOperationInput` -> derive
+  Judge H1/H2 -> cross-check every `JudgeEvidence` H1/H2/metadata claim ->
+  derive the `REPAIR_JUDGE` `ProviderCall` identity from sealed values -> verify
+  the persisted `ProviderCall` -> verify J.
+- No evidence metadata may bootstrap its own authority.
+
+### Frozen graph, filesystem, and lineage contracts
+
+`RepairPersistenceGraphIdentityV2` is frozen. Its commitments are exactly:
+
+```text
+E = SHA256(exact H2-JCS RepairCompositeEnvelope bytes)
+S = SHA256(exact finalizer structured bytes)
+G = SHA256(H2-JCS(RepairPersistenceGraphIdentityV2))
+```
+
+There is no circular G/path/key dependency. Repair physical identity is bound to
+the job P and graph G:
+
+```text
+scoring/<P>/repair/<G>/raw.json
+scoring/<P>/repair/<G>/structured.json
+```
+
+or the exact already-implemented authorized suffix form. There is no P-only
+repair authoritative alias, no cross-job same-G sharing, and no scoring rerun.
+
+The reviewed filesystem contract covers both final artifact names and
+deterministic temporary-name reopen: descriptor-anchored nested directory
+handling, `O_NOFOLLOW` where required, `O_NONBLOCK` for attacker-influenced
+artifact-verification reopens, immediate `fstat`, regular-file requirement
+before read/hash, FIFO/symlink/directory/special-file rejection, no-clobber
+publication, exact orphan adoption, hash/content revalidation, and required
+`fsync` durability.
+
+Schema remains `user_version=2` through `002_add_scoring_lineage.sql`. The
+final lineage fields are:
+
+- `videos.authoritative_scoring_job_id`
+- `jobs.authoritative_scoring_artifact_key`
+- `jobs.scoring_success_provenance`
+- `jobs.scoring_lineage_version`
+
+For v1 PRIMARY, provenance is `PRIMARY`; for H2-C repair it is `REPAIR_H2C`.
+Authority is selected only as `Video -> authoritative scoring Job ->
+authoritative structured Artifact`. No J1 -> J2 pointer replacement and no
+cross-job graph sharing are authorized.
+
+### Frozen reader and diagnostic contracts
+
+`AuthoritativeScoringReader` / `VerifiedScoringRead` is the authority boundary.
+For v1 there is no latest-artifact fallback. Pointerless legacy compatibility is
+decided only inside that reader; v1 cannot downgrade into legacy. Analysis,
+note, weekly, and reporting consumers must not independently select scoring
+authority, and `WeeklyReportService` must not restore an optional
+latest-artifact authority fallback.
+
+The final `ErrorCode` set remains exactly ten. The
+`TRUST_INTEGRITY_INVALID` H2-C detail family is closed: arbitrary
+`H2C_REPLAY_INVALID:<anything>` values are not authorized. The authorized
+unknown-generation reason remains `SCORING_LINEAGE_VERSION_INVALID`, with exact
+detail `H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID`. Retry behavior
+remains `ErrorCode`-based.
+
+### Closed boundaries and next-phase gate
+
+- H1 is **CLOSED**.
+- H2-A is **CLOSED**.
+- H2-B is **CLOSED**.
+- H2-C is **CLOSED**.
+- Phase G is **CLOSED WITH AUTHORIZED LINEAGE BOOKKEEPING**. It remains
+  accepted/frozen; the already-landed lineage bookkeeping extension is not a
+  general reopening, and PRIMARY semantics remain frozen apart from that
+  extension.
+- Phase I remains **UNAUTHORIZED**. No Phase I design is approved.
+
+Until separately authorized, do not implement cache hardening, cache recovery,
+repair cache, cross-job reuse, scoring rerun, retry resurrection, or new
+state-machine paths.
+
+**H2-C CLOSEOUT RECORDED**
+
+**H2-C IMPLEMENTATION FROZEN**
+
+**H1 CLOSED**
+
+**H2-A CLOSED**
+
+**H2-B CLOSED**
+
+**H2-C CLOSED**
+
+**PHASE G CLOSED WITH AUTHORIZED LINEAGE BOOKKEEPING**
+
+**PHASE I REMAINS UNAUTHORIZED**
+
+**READY FOR PHASE I DESIGN / AUTHORIZATION**
+
 ## Phase H2-C — Implementation Correction Round 3 (two P0 trust-chain breaks)
 
 ### Metadata and scope
