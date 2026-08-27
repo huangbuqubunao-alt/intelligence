@@ -16,10 +16,14 @@ from youtube_intel.domain import (
     EvidenceSource,
     LiveStatus,
     PointKind,
+    ProviderCallMetadata,
     ScoreResult,
+    ScoringDecision,
+    ScoringOutcome,
 )
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.reporting import WeeklyReportService
+from youtube_intel.scoring import VerifiedScoringRead
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
@@ -177,6 +181,46 @@ def _artifact(
     )
 
 
+def _scoring_reader(
+    candidates: tuple[WeeklyCandidateRecord, ...], artifact_root: Path
+):
+    """VerifiedScoringRead stub for post-verification formatting tests.
+
+    These tests exercise weekly rendering/top-n/upsert behavior, not scoring
+    authority, so the reader resolves each candidate's pre-verified fixture
+    score exactly as the authoritative reader would hand it back.
+    """
+
+    threshold = 7.0
+    by_video = {candidate.video.video_id: candidate for candidate in candidates}
+
+    def read(video_id: str) -> VerifiedScoringRead:
+        candidate = by_video[video_id]
+        body = (artifact_root / candidate.score_artifact.relative_path).read_bytes()
+        result = ScoreResult.model_validate_json(body)
+        final = result.score >= threshold
+        decision = ScoringDecision(
+            threshold=threshold,
+            final_should_summarize=final,
+            model_disagrees=(result.should_summarize != final),
+        )
+        call = ProviderCallMetadata(
+            provider=result.provider,
+            started_at=NOW,
+            finished_at=NOW,
+            model=result.model,
+        )
+        outcome = ScoringOutcome(result=result, decision=decision, call=call)
+        return VerifiedScoringRead(
+            scoring_outcome=outcome,
+            video_id=video_id,
+            scoring_job_id="job-1",
+            scoring_success_provenance=None,
+        )
+
+    return read
+
+
 def _service(
     tmp_path: Path, candidates: tuple[WeeklyCandidateRecord, ...], *, top_n: int = 1
 ) -> tuple[WeeklyReportService, _Repository, Path]:
@@ -191,8 +235,16 @@ def _service(
         vault_root=vault_root, vault_subdir="Knowledge", repository=repository,
         context=NoteWriteContext(job_id="unused-job", owner="test", pipeline_version="pipeline-v1"),
     )
+    artifact_root = tmp_path / "artifacts"
     return (
-        WeeklyReportService(repository=repository, sink=sink, artifact_root=tmp_path / "artifacts", timezone="Asia/Shanghai", top_n=top_n),
+        WeeklyReportService(
+            repository=repository,
+            sink=sink,
+            artifact_root=artifact_root,
+            timezone="Asia/Shanghai",
+            top_n=top_n,
+            scoring_reader=_scoring_reader(candidates, artifact_root),
+        ),
         repository,
         vault_root,
     )

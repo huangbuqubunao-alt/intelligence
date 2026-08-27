@@ -54,6 +54,7 @@ from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
+    AuthoritativeScoringReader,
     PrimaryScoringAttempt,
     build_primary_scoring_attempt,
     build_scoring_input,
@@ -701,6 +702,15 @@ storage:
 
     def weekly_service(self, *, fail_once: bool = False) -> WeeklyReportService:
         repository = _FailingReportRepository(self.repository, fail_once=fail_once)
+        settings = self.runtime._config.settings
+        reader = AuthoritativeScoringReader(
+            repository=self.repository,
+            data_root=self.data_root,
+            summary_threshold=settings.thresholds.summary_score,
+            pipeline_version=PIPELINE_VERSION,
+            current_model=settings.local_scoring.model,
+            current_output_language=settings.general.output_language,
+        )
         return WeeklyReportService(
             repository=repository,
             sink=ObsidianNoteSink(
@@ -712,6 +722,7 @@ storage:
             artifact_root=self.data_root,
             timezone="Asia/Shanghai",
             top_n=10,
+            scoring_reader=reader.read,
         )
 
     def counts(self) -> tuple[int, int, int, int]:

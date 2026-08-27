@@ -23,7 +23,6 @@ from youtube_intel.domain import (
     LiveStatus,
     NoteKind,
     NoteRef,
-    ScoreResult,
     VideoMetadata,
     WeeklyReportInput,
     WeeklyReportItem,
@@ -98,7 +97,7 @@ class WeeklyReportService:
         artifact_root: Path,
         timezone: str,
         top_n: int,
-        scoring_reader: Callable[[str], Any] | None = None,
+        scoring_reader: Callable[[str], Any],
     ) -> None:
         if top_n < 1:
             msg = "top_n must be positive"
@@ -108,6 +107,10 @@ class WeeklyReportService:
         self._artifact_root = artifact_root
         self._timezone = timezone
         self._top_n = top_n
+        # Scoring authority flows exclusively through the authoritative
+        # reader (VerifiedScoringRead).  Weekly reporting never selects or
+        # trusts a "latest scoring artifact"; legacy compatibility lives
+        # inside the reader itself.
         self._scoring_reader = scoring_reader
 
     def generate(self, *, now: datetime) -> GeneratedWeeklyReport:
@@ -139,12 +142,7 @@ class WeeklyReportService:
     ) -> tuple[WeeklyReportItem, AnalysisResult | None]:
         try:
             video = _video_metadata(candidate.video)
-            if self._scoring_reader is not None:
-                score = self._scoring_reader(video.video_id).scoring_outcome.result
-            else:
-                score = _verified_score(
-                    self._artifact_root, candidate.score_artifact, video.video_id
-                )
+            score = self._scoring_reader(video.video_id).scoring_outcome.result
             analysis = (
                 None
                 if candidate.analysis_artifact is None
@@ -346,19 +344,6 @@ def _normalized_text(value: str) -> str:
     if not normalized:
         raise WeeklyReportValidationError("weekly analysis text is invalid")
     return normalized
-
-
-def _verified_score(root: Path, artifact: Any, video_id: str) -> ScoreResult:
-    content = _verified_data_artifact(root, artifact, video_id, ArtifactKind.SCORING_STRUCTURED)
-    result = ScoreResult.model_validate_json(content)
-    if (
-        artifact.artifact_key != f"scoring/{result.request_hash}/structured"
-        or artifact.relative_path != f"scoring/{result.request_hash}/structured.json"
-        or artifact.provider != result.provider
-        or artifact.model != result.model
-    ):
-        raise ValueError("scoring artifact provenance is invalid")
-    return result
 
 
 def _verified_analysis(root: Path, artifact: Any, video_id: str) -> AnalysisResult:
