@@ -1,6 +1,6 @@
 # TASK-016-LOCAL-DEEP-ANALYSIS — Exact Context-Proof Authorization
 
-Status: **CONTEXT PROOF ARCHITECTURE READY — TOKENIZER ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL — IMPLEMENTATION UNAUTHORIZED**
+Status: **TOKENIZER ARTIFACT / HASH FREEZE COMPLETE — LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE PENDING — IMPLEMENTATION UNAUTHORIZED**
 
 This document is normative only for pre-dispatch Local Deep Analysis context proof. It supersedes the byte-envelope clauses identified in the parent authorization; it does not approve a model, Ollama version, dependency, artifact acquisition, benchmark, implementation, persistence, or any TASK-016D/E/F work.
 
@@ -53,26 +53,28 @@ The application owns a single raw instruction prompt, not a chat-template invoca
 
 ## 3. Pinned exact tokenizer and artifacts
 
-The future tokenizer engine is the direct Hugging Face **`tokenizers`** engine loading a local `Tokenizer` from one pinned `tokenizer.json`; `transformers`, `AutoTokenizer`, Hugging Face Hub, `from_pretrained`, and any remote/cache resolution are prohibited on the production path. The engine package version and its distribution SHA-256 are not yet frozen and must be fixed by the acquisition gate below. A generic tiktoken encoding is not authorized.
+The frozen engine is direct Hugging Face **`tokenizers==0.22.2`** loading a local `Tokenizer` from one pinned `tokenizer.json`; `transformers`, `AutoTokenizer`, Hugging Face Hub, `from_pretrained`, and any remote/cache resolution are prohibited on the production path. The selected Apple-Silicon distribution is `tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl`, SHA-256 `1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001`. Its CPython stable-ABI tag is compatible with the project’s Python 3.12 baseline; PyPI declares Python `>=3.9`. A generic tiktoken encoding is not authorized.
 
 The required artifact set is deliberately minimal:
 
 | Artifact | Runtime role | Acquisition evidence | Status |
 | --- | --- | --- | --- |
-| `tokenizer.json` | Required: complete tokenizer model, normalizer, pre-tokenizer, decoder, added/special tokens. | SHA-256, immutable upstream revision, and byte-for-byte source evidence. | Pending acquisition/hash freeze. |
-| `tokenizer_config.json` | Not loaded for tokenization. | Confirms Qwen tokenizer class and special-token/template metadata used to construct the parity test. | Pending acquisition/hash freeze. |
+| `tokenizer.json` | **Runtime-required**: complete tokenizer model, normalizer, pre-tokenizer, decoder, added/special tokens. | 11,422,654 bytes; SHA-256 `aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`; upstream LFS SHA-256 agrees. | Frozen. |
+| `tokenizer_config.json` | **Parity-evidence-only**; never loaded on the production tokenization path. | 9,732 bytes; SHA-256 `d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101`. | Frozen. |
 
-`vocab.json`, `merges.txt`, `special_tokens_map.json`, generation configuration, and a model chat template are not runtime inputs. The model template is intentionally not used.
+`vocab.json`, `merges.txt`, `special_tokens_map.json`, `added_tokens.json`, generation configuration, and a model chat template are **not required** runtime inputs. The model template is intentionally not used. The first two are fully embedded in `tokenizer.json`; `tokenizer_config.json` supplies the only needed parity metadata.
 
-The source shall be an immutable revision of `Qwen/Qwen3-8B`, not a mutable branch or a same-family substitute. The acquisition gate must record the upstream revision, both artifact SHA-256 values, `tokenizers` package version and distribution SHA-256, and an authoritative pairing attestation that the loaded artifact's complete vocabulary, merge behavior, added-token IDs, and special-token IDs are the tokenizer used by the installed `qwen3:8b` model whose full digest is `sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`. Matching a Qwen family name, mutable upstream `main`, or a sample encoding is insufficient.
+The immutable upstream source is [`Qwen/Qwen3-8B`](https://huggingface.co/Qwen/Qwen3-8B) revision `895c8d171bc03c30e113cd7a28c02494b5e068b7`: [`tokenizer.json`](https://huggingface.co/Qwen/Qwen3-8B/resolve/895c8d171bc03c30e113cd7a28c02494b5e068b7/tokenizer.json) and [`tokenizer_config.json`](https://huggingface.co/Qwen/Qwen3-8B/resolve/895c8d171bc03c30e113cd7a28c02494b5e068b7/tokenizer_config.json). Hugging Face’s revision tree records `tokenizer.json` as blob `cd71f61a15a522601badb3dc960d800d9cb3766c`, LFS SHA-256 equal to the frozen hash, and `tokenizer_config.json` as blob `417d038a63fa3de29cfde265caedae14d1a58d92`. This proves the **upstream Qwen3-8B pairing** only. It does not prove the installed Ollama blob uses these artifacts; matching the family name, mutable `main`, or a sample encoding remains insufficient. **LOCAL OLLAMA TOKENIZER PAIRING REQUIRES RUNTIME PARITY GATE.**
 
 The application canonicalizes this object using the existing H2 canonical JSON rule (UTF-8, sorted object keys, compact separators, `allow_nan=false`) and defines `TokenizerIdentityHash = SHA256(canonical_bytes)`:
 
 ```json
-{"engine_distribution_sha256":"<64-lowercase-hex>","engine_package":"tokenizers","engine_version":"<exact-PEP-440-version>","model_digest":"sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41","model_tag":"qwen3:8b","raw_mode":true,"schema":"local-deep-analysis-tokenizer-identity-v1","special_token_ids_sha256":"<64-lowercase-hex>","template_policy":"application-raw-instruction-v1","template_sha256":"<64-lowercase-hex>","tokenizer_config_sha256":"<64-lowercase-hex>","tokenizer_json_sha256":"<64-lowercase-hex>","upstream_repository":"Qwen/Qwen3-8B","upstream_revision":"<immutable-revision>"}
+{"engine_distribution_filename":"tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl","engine_distribution_sha256":"1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001","engine_name":"tokenizers","engine_package":"tokenizers","engine_version":"0.22.2","identity_version":"local-deep-analysis-tokenizer-identity-v1","model_digest":"sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41","model_tag":"qwen3:8b","raw_encoding_policy_id":"tokenizers-encode-add-special-tokens-false-v1","raw_mode":true,"special_token_ids_sha256":"1861af33333bd0c566cef477b444cb157b4d4f54ea20db5d8819e7db08583b81","special_token_policy_id":"reject-declared-special-token-ids-v1","template_policy":"application-raw-instruction-v1","template_sha256":"ee7fa47d69db4cb878244947eb095e5ec4cc9f3e106de8be6a94c54b592bade7","tokenizer_config_sha256":"d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101","tokenizer_json_sha256":"aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4","tokenizer_json_size":11422654,"upstream_repository":"Qwen/Qwen3-8B","upstream_revision":"895c8d171bc03c30e113cd7a28c02494b5e068b7"}
 ```
 
-`template_sha256` hashes the exact `knowledge-prompt-v3-raw` template bytes above. `special_token_ids_sha256` hashes the canonical JSON array of all tokenizer-declared special token IDs in ascending unsigned-integer order. Placeholders are not values implementers may choose: the separate acquisition authorization must replace each with an exact value before this contract can be approved.
+`template_sha256` hashes the exact 740-byte `knowledge-prompt-v3-raw` template bytes above. `special_token_ids_sha256` hashes the canonical JSON array `[151643,151644,151645,151646,151647,151648,151649,151650,151651,151652,151653,151654,151655,151656]`. `TOKENIZER_IDENTITY_HASH = SHA256(canonical JSON(LocalDeepAnalysisTokenizerIdentityV1)) = 598d4c936d655112f7323d71d5653ba4cfa490b82c403d76f789cc22eee2060f`.
+
+Inspection evidence: `tokenizer.json` is BPE with 151,643 base-vocabulary entries, 151,387 merges, NFC normalization, Split+ByteLevel pre-tokenization, ByteLevel decoder/post-processor, and 26 added tokens. Its 14 declared special tokens are the IDs in the canonical array above: `<|endoftext|>`, `<|im_start|>`, `<|im_end|>`, object-ref start/end, box start/end, quad start/end, vision start/end, vision pad, image pad, and video pad. The 12 non-special added tokens include tool-call, FIM, repo/file, tool-response, and think markers. `tokenizer_config.json` declares `Qwen2Tokenizer`, `add_bos_token=false`, no BOS token, EOS `<|im_end|>`, `model_max_length=131072`, the 13 additional special tokens, and a chat template. The template is parity evidence only and must never run under `raw=true`.
 
 ## 4. Exact tokenization and special-token policy
 
@@ -93,6 +95,25 @@ prompt_sha256: SHA256(MODEL_VISIBLE_PROMPT_BYTES)
 The engine must expose/verify the tokenizer's declared special-token IDs. A candidate is rejected before dispatch if any resulting token ID equals a declared special-token ID. This guards both accidental engine behavior and transcript strings intended to resemble Qwen control text. `PROMPT_SAFE_OPERATION_INPUT_BYTES` framing is an independent defense; neither defense substitutes for the other.
 
 Any loading, UTF-8, artifact hash, engine-version, pairing, special-token metadata, or encoding failure is a pre-dispatch configuration failure. There is no fallback tokenizer and no network retry.
+
+### 4.1 Direct raw-text parity evidence
+
+In an isolated Python 3.12 environment, `tokenizers==0.22.2` loaded the pinned `tokenizer.json` by `Tokenizer.from_file`. `Qwen2TokenizerFast` from `transformers==4.57.1` was constructed only from that same `tokenizer.json` plus the frozen `tokenizer_config.json` fields. With `add_special_tokens=False`, all 10 fixtures had exact token-ID sequence equality. The compact fixture record is `name: count / SHA256(UTF-8 fixture) / SHA256(comma-joined IDs)`:
+
+| Fixture | Exact ID result |
+| --- | --- |
+| ASCII | 11 / `d3c6a28b400709068bf1f43a4bbfb99d3a96140a45b950803e27fdbeb10105c1` / `be2ec4e5355fe7f138a6a895b9f1fbffe7a8d2830713e61692f4522bd0a18287` |
+| Chinese | 13 / `ebc44e7d16e6b91516805a8e7d5b5a0082172dbcc52a88fd38e3f10852dda662` / `b521aad2555730e553d2f6b16656bd2eea05a9151934513f341e9b522e99695b` |
+| mixed | 15 / `12fe4a841d4edb023db659306e7082f2637fcc164e30da7f6595239c4abed386` / `ac1af58eef5f0e867c477a8347ef2b29c2d3dd91111d5d781d2f7501729cec32` |
+| emoji | 12 / `5f4d2698f043ea6904193363eaea404358749a7705f0efe051909b7377711c6c` / `7ea002b150e7a440e0547984ff7ba399a850d84269aeeb93f8d7de9fa7f3e2cb` |
+| newline | 6 / `2dbcfc29c73837d807fe5439ca113b8032cf11b5214b6fa0424d54ea9219b614` / `acb7aa25c1fc7a79100d6602769c6efb1c4008fd3c5d92b7c4672768ebd970d5` |
+| JSON | 15 / `d19a60af286350b3e0a51533d5642a29473b468a23fa3b7aa99598f6655c80a5` / `c8766834a75542601b6f3553cdf0b616ab85bd5ddd040e4cab89a98317f62464` |
+| backslashes/quotes | 9 / `03ba3a8d4e7752c2d2fe6f26ebc2006891744ba9cdbce87159712a236bdee262` / `a9dc9fb10e003292b41e3dfac03f7557388dbde804cd1b1cf661ad839ee158ab` |
+| special-looking literals | 9 / `fe0fa659d7f3d63c7d7e4979e2deb713aff13dfd5f2d410ee643a0a431fba830` / `5ca6d968c68009b41ded1c482956ed95d0e1e11e53680628745201a68755f563` |
+| very long | 100001 / `3b4c6cb94666d41da407731979952c36d10e98a2f5503d198ea64a008d97c514` / `ce453146171138373fead7b0293bf35e531a5b096705f5c1e389bdeb1ebdcf6d` |
+| prompt delimiters | 21 / `5f4f7520207fa89206fd5d4331be326fa24d3d743574cff9dd7c05137d5dcbe8` / `d9baf2b4521c8cfbd27cd6a8615a773c0b97fd5fb264c3e8d60e80d6ba460d40` |
+
+`Tokenizer.encode("plain", add_special_tokens=True)` and `False` both produced `[20772]`: no automatic BOS/EOS/template insertion occurs for ordinary raw text. This does **not** make special-looking input harmless: both modes encode literal `<|im_start|>`, `<|im_end|>`, and `<|endoftext|>` to 151644, 151645, and 151643 respectively. The future runtime must invoke `Tokenizer.encode(text, add_special_tokens=False)` and then reject every result containing any declared special ID; it may not rely on spelling sanitization or the flag alone.
 
 ## 5. Context predicate, reserve, and complete-candidate recount
 
@@ -128,13 +149,15 @@ Future application-created `KnowledgeProvenanceV2LocalBinding` must additionally
 
 ## 7. Offline acquisition, distribution, license, and gates
 
-Production runtime may load only artifacts from an approved local path after hash verification. It must not download, call Hugging Face, resolve a latest revision, use a cache as authority, or substitute an artifact. Artifacts are **not authorized to be bundled** by this document. A separate operator/acquisition authorization must approve obtaining the exact immutable upstream files, validating their hashes and pairing, and determine redistribution/NOTICE obligations. The `tokenizers` project is Apache-2.0; Qwen tokenizer/model artifact license and public redistribution rights remain release evidence to verify rather than assumed authorization.
+Production runtime may load only artifacts from an explicit configured/project-owned operator-approved path after hash verification. It must not download, call Hugging Face, resolve a latest revision, use a cache as authority, or substitute an artifact; a Hugging Face cache is never authoritative. Artifacts are **not authorized to be bundled** by this document. Local development/owner setup may acquire these exact files under explicit authorization; public distribution remains blocked pending release/NOTICE review.
+
+The `tokenizers` source tag [`v0.22.2 LICENSE`](https://github.com/huggingface/tokenizers/blob/v0.22.2/LICENSE) is Apache-2.0. The Qwen model repository identifies its license as Apache-2.0 and includes the Apache 2.0 `LICENSE` copyright notice for Alibaba Cloud. The tokenizer files appear to be repository model artifacts governed by that license, but this evidence is not a final distribution/NOTICE conclusion; TASK-014’s public-release gate remains the authority for redistribution and notices.
 
 The selected mechanism introduces a new production dependency/artifact surface. Its later authorization must pin the engine package/version/distribution hash and establish offline Apple Silicon behavior; this document does not modify `pyproject.toml` or `uv.lock`.
 
 The M1 Pro feasibility authorization must be amended before use. Its maximum request must use this exact raw/no-format architecture, the hash-verified tokenizer and template, a complete-token predicate-passing maximum prefix, the selected exact model digest, and a separately exact-approved Ollama version. The benchmark must record prompt/token proof hashes and test JSON/schema/grounding validation. It must not use the superseded hidden-transform request.
 
-`qwen3:8b` remains a candidate pending tokenizer acquisition/parity, exact Ollama-version behavior, M1 Pro feasibility, model freeze, and independent implementation authorization. No fallback model is authorized.
+`qwen3:8b` remains a candidate pending local Ollama tokenizer pairing, exact Ollama-version raw-profile behavior, M1 Pro feasibility, model freeze, and independent implementation authorization. No fallback model is authorized. Ollama’s documented `/api/show` can later return template, parameters, license, details, and `model_info` (with verbose metadata); its documentation does not promise a cryptographic identity tying an installed model digest to this Hugging Face `tokenizer.json`. The later runtime parity gate must query only the approved local installation and prove as much as the runtime mechanically exposes; otherwise it fails closed.
 
 ## 8. Future TDD/security matrix
 
@@ -150,14 +173,14 @@ Future implementation tests must cover at least:
 
 ## 9. Required next authorizations
 
-1. A tokenizer artifact acquisition and hash-freeze authorization, including engine package pin, immutable upstream revision, artifact hashes, and exact model/tokenizer pairing proof.
-2. An amendment freezing the resulting `TokenizerIdentity`, A3 successor, provenance fields, and exact approved Ollama runtime-version set after raw-profile verification.
+1. **Complete:** tokenizer artifact/hash freeze, engine pin, immutable upstream revision, upstream raw-text parity, and `TokenizerIdentityV1`.
+2. A local Ollama runtime parity gate: exact installed `qwen3:8b` digest, mechanically available tokenizer pairing evidence, and exact raw/no-format profile behavior for one exact Ollama version.
 3. The amended M1 Pro feasibility gate, then final model/runtime freeze, then a separate Local Deep Analysis implementation authorization.
 
 TASK-016B and TASK-016C remain frozen and unchanged.
 
-**CONTEXT PROOF ARCHITECTURE READY**
+**LOCAL DEEP ANALYSIS TOKENIZER ARTIFACT / HASH FREEZE COMPLETE**
 
-**TOKENIZER ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL**
+**LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE REMAINS PENDING**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**

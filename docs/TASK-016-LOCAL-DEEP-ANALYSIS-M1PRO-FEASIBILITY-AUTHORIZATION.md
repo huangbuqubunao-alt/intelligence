@@ -26,7 +26,7 @@ No remote service, parallel generation, or secret-bearing corpus is permitted.
 
 ## 2. Exact requests and corpus
 
-Use the main authorization’s exact canonical SCHEMA_BYTES, exact prompt template/substitution rules, exact structured-output object, selected Evidence Registry, temperature=0, seed=0, stream=false, think=false, num_ctx=16384, num_predict=2048, and 300-second generation timeout. Run short, medium, and maximum accepted-T1-byte-envelope cases; each must use a fully serialized request and its measured request/prompt/schema bytes. Corpus cases include dense ASCII, Han, and multibyte Unicode evidence and contain no personal secrets.
+Use the context-proof authorization’s hash-verified `tokenizers==0.22.2`, exact `TokenizerIdentityV1`, exact canonical SCHEMA_BYTES, exact prompt template/substitution rules, selected Evidence Registry, temperature=0, seed=0, stream=false, think=false, `raw=true`, omitted `format`, no system/template/context/messages field, `num_ctx=16384`, `num_predict=2048`, and 300-second generation timeout. First prove the exact installed Ollama version, raw/no-format behavior, local qwen3 digest, and local tokenizer pairing as far as the runtime mechanically exposes. Run short, medium, and a complete-token-predicate-passing maximum request; each must record its prompt/token-proof hashes and measured request/prompt/schema bytes. Corpus cases include dense ASCII, Han, and multibyte Unicode evidence and contain no personal secrets.
 
 ## 3. Required measurements
 
@@ -42,7 +42,7 @@ A benchmark case PASS requires all of:
 2. model load succeeds, no OOM, no model/runtime process termination, and no kernel/system memory-failure symptom attributable to the run is observed;
 3. the complete maximum accepted request completes within 300 seconds by the monotonic-clock method;
 4. HTTP success, valid Ollama envelope, strict generated JSON, exact KnowledgeContent schema, deterministic point grounding, and KG2 graph-label validation all pass; and
-5. think=false, stream=false, seed=0, and schema-format behavior occur together without extra content or transport-contract violation.
+5. think=false, stream=false, seed=0, raw=true, omitted format, and the application-owned prompt occur together without extra content or transport-contract violation.
 
 The PRD sets no lower latency SLO; no arbitrary threshold is added. Any failure, missing required evidence, wrong model identity, or unsupported environment is a **MODEL SELECTION BLOCKER**. There is no fallback model.
 
