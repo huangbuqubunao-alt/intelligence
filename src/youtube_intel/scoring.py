@@ -5867,9 +5867,11 @@ class AuthoritativeScoringReader:
     ) -> ScoreResult:
         from youtube_intel.h2_evidence import (
             RepairCompositeEnvelope,
+            repair_normalized_input_hash,
             repair_persistence_graph_hash,
         )
         from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
+        from youtube_intel.quality import build_judge_h1_h2
 
         if structured.producer_version != "scoring-structured-content-quality-repair-v1":
             raise ValueError("repair structured producer is invalid")
@@ -5901,13 +5903,39 @@ class AuthoritativeScoringReader:
             raise ValueError("repair raw envelope is not canonical")
         provider_evidence = envelope.repair_provider_evidence
         quality_evidence = envelope.repair_quality_evidence
-        r = provider_evidence.request_hash
-        j = quality_evidence.judge_h2
         settings_hash = hashlib.sha256(
             jcs_serialize(provider_evidence.settings_provenance.model_dump(mode="json"))
         ).hexdigest()
         if settings_hash != provider_evidence.settings_provenance_sha256:
             raise ValueError("repair settings provenance hash is invalid")
+        # Independently rederive the request roots from the sealed semantic
+        # inputs.  Persisted roots are claims to verify, not trust anchors.
+        derived_repair_root = repair_normalized_input_hash(
+            provider_evidence.normalized_input
+        )
+        if derived_repair_root != provider_evidence.normalized_input_hash:
+            raise ValueError("repair normalized input root is invalid")
+        derived_r = build_provider_request_hash(
+            operation=provider_evidence.operation,
+            normalized_input_hash=derived_repair_root,
+            provider=provider_evidence.provider,
+            model=provider_evidence.model,
+            prompt_version=provider_evidence.prompt_version,
+            schema_version=provider_evidence.operation_schema_version,
+        )
+        if derived_r != provider_evidence.request_hash:
+            raise ValueError("repair request identity is invalid")
+        derived_judge_h1, derived_judge_h2 = build_judge_h1_h2(
+            quality_evidence.judge_operation_input
+        )
+        if derived_judge_h1 != quality_evidence.judge_h1:
+            raise ValueError("repair judge operation root is invalid")
+        if derived_judge_h1 != quality_evidence.judge_evidence.judge_h1:
+            raise ValueError("repair judge evidence root is invalid")
+        if derived_judge_h2 != quality_evidence.judge_h2:
+            raise ValueError("repair judge request identity is invalid")
+        r = derived_r
+        j = derived_judge_h2
         identity = build_repair_persistence_graph_identity(
             primary_request_hash=p,
             repair_request_hash=r,
@@ -5923,8 +5951,8 @@ class AuthoritativeScoringReader:
         if repair_call is None or judge_call is None:
             raise ValueError("repair provider calls are missing")
         # Re-prove every persisted identity-bearing ProviderCall field against
-        # the sealed envelope evidence; the provenance flag and the R/J hashes
-        # alone are not trusted.
+        # the sealed envelope evidence and the rederived roots; the provenance
+        # flag and the R/J hashes alone are not trusted.
         if (
             repair_call.status is not ProviderCallStatus.SUCCEEDED
             or repair_call.operation != provider_evidence.operation
@@ -5935,15 +5963,6 @@ class AuthoritativeScoringReader:
             != provider_evidence.operation_schema_version
             or repair_call.request_hash != r
             or repair_call.request_hash != provider_evidence.request_hash
-            or build_provider_request_hash(
-                operation=provider_evidence.operation,
-                normalized_input_hash=provider_evidence.normalized_input_hash,
-                provider=provider_evidence.provider,
-                model=provider_evidence.model,
-                prompt_version=provider_evidence.prompt_version,
-                schema_version=provider_evidence.operation_schema_version,
-            )
-            != r
             or repair_call.response_artifact_id != raw.artifact_id
         ):
             raise ValueError("repair provider call identity is invalid")
@@ -5958,17 +5977,6 @@ class AuthoritativeScoringReader:
             != quality_evidence.judge_evidence.operation_schema_version
             or judge_call.request_hash != j
             or judge_call.request_hash != quality_evidence.judge_h2
-            or build_provider_request_hash(
-                operation=quality_evidence.judge_evidence.operation,
-                normalized_input_hash=quality_evidence.judge_h1,
-                provider=quality_evidence.judge_evidence.provider,
-                model=quality_evidence.judge_evidence.model,
-                prompt_version=quality_evidence.judge_evidence.prompt_version,
-                schema_version=(
-                    quality_evidence.judge_evidence.operation_schema_version
-                ),
-            )
-            != j
             or judge_call.response_artifact_id != raw.artifact_id
         ):
             raise ValueError("repair judge provider call identity is invalid")

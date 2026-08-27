@@ -966,3 +966,187 @@ def test_temp_regular_verification_still_succeeds(tmp_path: Path) -> None:
 
     assert raw_path.read_bytes() == plan.envelope_bytes
     assert structured_path.read_bytes() == plan.structured_bytes
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 2 — Fix 2: reader must rederive request roots
+# ---------------------------------------------------------------------------
+
+
+def _forge_tampered_repair_graph(repository, tmp_path, tamper) -> None:
+    """Persist a self-consistent forged repair graph with a tampered envelope.
+
+    ``tamper`` mutates the parsed envelope dict in place.  The helper
+    re-canonicalizes the tampered envelope, recomputes E and G so the forged
+    artifacts are internally consistent (canonical + E + G all agree), persists
+    them under the new G, and points the authoritative Job pointer at the forged
+    structured artifact.  The persisted root CLAIMS (normalized_input_hash,
+    request_hash, judge_h1/h2) are whatever the tamper leaves them as, so a test
+    can make them inconsistent with the sealed semantic inputs.
+    """
+
+    from youtube_intel.h2_evidence import repair_persistence_graph_hash
+    from youtube_intel.h2_jcs import jcs_loads_strict, jcs_serialize
+    from youtube_intel.scoring import (
+        build_repair_persistence_graph_identity,
+        parse_repair_structured_key,
+    )
+    from youtube_intel.state import ArtifactWrite, RetentionClass, StorageRoot
+
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    entry.persist_success(_repair_success())
+    job = repository.get_job("h2c-persist-job")
+    structured_key = job.authoritative_scoring_artifact_key
+    raw_key = structured_key.removesuffix("/structured") + "/raw"
+    data_root = tmp_path / "data"
+    raw_bytes = (data_root / f"{raw_key}.json").read_bytes()
+    structured_bytes = (data_root / f"{structured_key}.json").read_bytes()
+    p, _old_g = parse_repair_structured_key(structured_key)
+    s_hash = hashlib.sha256(structured_bytes).hexdigest()
+    original_raw = repository.get_artifact_by_key(raw_key)
+
+    envelope = jcs_loads_strict(raw_bytes)
+    tamper(envelope)
+    tampered_bytes = jcs_serialize(envelope)
+    new_e = hashlib.sha256(tampered_bytes).hexdigest()
+
+    r = envelope["repair_provider_evidence"]["request_hash"]
+    j = envelope["repair_quality_evidence"]["judge_h2"]
+    settings_hash = hashlib.sha256(
+        jcs_serialize(envelope["repair_provider_evidence"]["settings_provenance"])
+    ).hexdigest()
+    identity = build_repair_persistence_graph_identity(
+        primary_request_hash=p,
+        repair_request_hash=r,
+        repair_judge_request_hash=j,
+        settings_provenance_sha256=settings_hash,
+        repair_envelope_sha256=new_e,
+        structured_result_sha256=s_hash,
+    )
+    new_g = repair_persistence_graph_hash(identity)
+
+    new_raw_key = f"scoring/{p}/repair/{new_g}/raw"
+    new_structured_key = f"scoring/{p}/repair/{new_g}/structured"
+    now = datetime(2026, 8, 26, 9, tzinfo=UTC)
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id=f"repair-raw-{new_g}",
+            artifact_key=new_raw_key,
+            video_id=_VIDEO_ID,
+            job_id="h2c-persist-job",
+            kind=ArtifactKind.SCORING_RAW,
+            storage_root=StorageRoot.DATA,
+            relative_path=f"{new_raw_key}.json",
+            content_hash=new_e,
+            provider=original_raw.provider,
+            model=original_raw.model,
+            producer_version="scoring-raw-content-quality-repair-v1",
+            retention_class=RetentionClass.RAW_RESPONSE_30D,
+            expires_at=original_raw.expires_at,
+        ),
+        now=now,
+    )
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id=f"repair-structured-{new_g}",
+            artifact_key=new_structured_key,
+            video_id=_VIDEO_ID,
+            job_id="h2c-persist-job",
+            kind=ArtifactKind.SCORING_STRUCTURED,
+            storage_root=StorageRoot.DATA,
+            relative_path=f"{new_structured_key}.json",
+            content_hash=s_hash,
+            provider=original_raw.provider,
+            model=original_raw.model,
+            producer_version="scoring-structured-content-quality-repair-v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=now,
+    )
+    (data_root / f"{new_raw_key}.json").parent.mkdir(parents=True, exist_ok=True)
+    (data_root / f"{new_raw_key}.json").write_bytes(tampered_bytes)
+    (data_root / f"{new_structured_key}.json").write_bytes(structured_bytes)
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE jobs SET authoritative_scoring_artifact_key = :key "
+            "WHERE job_id = 'h2c-persist-job'",
+            {"key": new_structured_key},
+        )
+        # Rebind the persisted REPAIR / REPAIR_JUDGE ProviderCall rows to the
+        # forged raw artifact so the forged graph is internally consistent.
+        new_raw_artifact_id = f"repair-raw-{new_g}"
+        connection.execute(
+            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+            "WHERE request_hash = :request_hash",
+            {"artifact_id": new_raw_artifact_id, "request_hash": r},
+        )
+        connection.execute(
+            "UPDATE provider_calls SET response_artifact_id = :artifact_id "
+            "WHERE request_hash = :request_hash",
+            {"artifact_id": new_raw_artifact_id, "request_hash": j},
+        )
+    finally:
+        connection.close()
+
+
+def test_corrupted_sealed_repair_input_with_unchanged_root_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # Tamper the sealed normalized_input (semantic) but leave the persisted
+    # normalized-input-root CLAIM unchanged; the rederived root must differ.
+    def tamper(envelope):
+        envelope["repair_provider_evidence"]["normalized_input"][
+            "max_description_chars"
+        ] = 9999
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def test_corrupted_stored_repair_root_claim_fails_closed(tmp_path: Path) -> None:
+    # Tamper only the persisted normalized-input-root claim; the sealed
+    # normalized_input is unchanged, so the rederived root mismatches the claim.
+    def tamper(envelope):
+        envelope["repair_provider_evidence"]["normalized_input_hash"] = "b" * 64
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def test_corrupted_stored_judge_h1_claim_fails_closed(tmp_path: Path) -> None:
+    # Tamper only the persisted Judge H1 claim; the sealed Judge operation input
+    # is unchanged, so the rederived H1 mismatches the claim.
+    def tamper(envelope):
+        envelope["repair_quality_evidence"]["judge_h1"] = "c" * 64
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def test_corrupted_sealed_judge_input_with_unchanged_h1_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # Tamper the sealed Judge operation input (semantic) but leave the persisted
+    # H1 CLAIM unchanged; the rederived H1 must differ.
+    def tamper(envelope):
+        envelope["repair_quality_evidence"]["judge_operation_input"][
+            "candidate_hash"
+        ] = "d" * 64
+
+    repository = _setup_repository(tmp_path)
+    _forge_tampered_repair_graph(repository, tmp_path, tamper)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
