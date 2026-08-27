@@ -27,9 +27,12 @@
   OLLAMA TOKENIZER / RAW-PROFILE PARITY PASSED** for exact Ollama `0.32.1`,
   exact `qwen3:8b` digest
   `sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`,
-  and the raw/no-format profile only. The M1 Pro feasibility gate may proceed;
-  qwen3:8b remains a candidate pending that gate, and implementation remains
-  unauthorized. This status update does not assign, start, rename, or
+  and the raw/no-format profile only. The M1 Pro feasibility gate was then run;
+  qwen3:8b has now failed the controlled M1 Pro raw/no-format structured-output
+  gate: its required SHORT response had exact prompt-token parity but emitted
+  Markdown/prose after JSON, so strict JSON/schema/grounding cannot pass. It is
+  a `MODEL SELECTION BLOCKER`; no fallback is authorized and implementation
+  remains unauthorized. This status update does not assign, start, rename, or
   supersede TASK-016D/E/F; TASK-016B and TASK-016C remain closed.
 
 ## 产品目标

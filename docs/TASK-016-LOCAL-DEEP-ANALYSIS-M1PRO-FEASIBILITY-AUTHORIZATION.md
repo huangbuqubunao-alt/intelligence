@@ -1,6 +1,6 @@
 # TASK-016-LOCAL-DEEP-ANALYSIS — M1 Pro Feasibility Authorization, Amendment R3
 
-Status: **EXACT RAW-PROFILE BENCHMARK MAY PROCEED — NOT PROVIDER IMPLEMENTATION AUTHORIZATION**
+Status: **MODEL SELECTION BLOCKER — qwen3:8b RAW / NO-FORMAT PROFILE NOT IMPLEMENTATION-READY**
 
 This authorizes only the controlled local M1 Pro benchmark/smoke under the exact
 profile recorded below. It authorizes no production code, test/migration change,
@@ -78,8 +78,73 @@ Formal no-truncation/context safety remains an implementation-authorization bloc
 
 A passing Ollama version authorizes only that exact canonical version string after explicit follow-up approval. One passing version never authorizes a range; a broader range needs separate compatibility evidence. qwen3:8b becomes a frozen implementation model only after exact tag/digest, at least one explicitly approved exact Ollama version, required M1 Pro environment, all benchmark PASS conditions, and the separate formal no-truncation proof are present. Otherwise it remains a MODEL SELECTION BLOCKER.
 
+## 6. Controlled M1 Pro feasibility execution — 2026-08-27
+
+The controlled benchmark contacted only `http://127.0.0.1:11434`; it did not
+pull/download a model, contact a remote endpoint, or modify production code,
+tests, migrations, dependencies, or model artifacts. Environment capture:
+
+| Field | Observed evidence |
+| --- | --- |
+| Mac | `MacBookPro18,3` / `MKGQ3CH/A`; Apple M1 Pro; 10 cores (8 performance, 2 efficiency) |
+| Unified memory | 16 GB / `17179869184` bytes (`system_profiler` / `sysctl hw.memsize`) |
+| macOS | 26.3.1, build `25D2128` |
+| Python evidence runtime | Python 3.12.13, isolated `tokenizers==0.22.2` |
+| Ollama | exact `0.32.1` |
+| Model | exact `qwen3:8b`, digest `sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`; `qwen3` / GGUF / `Q4_K_M` / 8.2B; model metadata context 40,960 |
+| TokenizerIdentityV1 | `598d4c936d655112f7323d71d5653ba4cfa490b82c403d76f789cc22eee2060f` |
+| Runtime mode | local Ollama service plus one `llama-server` generation worker; battery power observed, 58% and discharging |
+| Memory before first harness attempt | `vm_stat`: 16,384-byte pages; free 293,949 pages = 4,816,060,416 bytes; inactive + speculative = 9,138,274,304 bytes. This is an observation, not a peak-RSS guarantee. |
+
+Preflight re-proved the exact loopback endpoint, Ollama version, unique exact
+tag/digest, family/quantization, frozen tokenizer artifact hash, and the raw
+body shape (`model`, `prompt`, `raw`, `stream`, `think`, `options` only; no
+`format`). It loaded the pinned tokenizer with automatic special-token insertion
+disabled and re-rendered/re-hashed/re-tokenized immediately before dispatch.
+
+The deadline-controlled required SHORT trial was a valid application-owned
+`knowledge-prompt-v3-raw` request with a one-item Evidence Registry:
+
+| Metric | Observed value |
+| --- | --- |
+| Input tokens / Ollama `prompt_eval_count` | `1303 / 1303` (exact parity) |
+| Prompt SHA-256 | `d994897d8e3c33f591d196de656409aabbfc081463fa888eb28c5b0552607e30` |
+| Token-ID SHA-256 | `203bd2dd8a95e7f24f8f0714cdba4c93b2dd81be08edc2c2b1510d742e266792` |
+| Prompt / request bytes | `4205 / 4849` |
+| Monotonic wall-clock | `99128.194875` ms |
+| Envelope | HTTP 200; `done=true`; `done_reason=length`; `eval_count=2048`; no `<think>` marker |
+| JSON / schema / grounding | **FAIL**: response began with JSON but then contained Markdown fences and repeated Chinese prose; strict whole-response JSON parse therefore failed, so closed-schema and grounding validation could not pass. |
+
+This is one structurally invalid required run. It is sufficient to violate the
+mandatory 100% structural-validity threshold. The remaining SHORT repeat and
+all MEDIUM/MAX generations were deliberately not dispatched: repeating a
+profile that already fails a mandatory non-recoverable gate cannot establish
+implementation eligibility, and this authorization permits no fallback or
+profile change.
+
+For diagnostic preparation only (not dispatched benchmark evidence), the
+deterministic application renderer produced MEDIUM `3829` tokens and a
+32-selected-of-64 MAX partial prefix of `8905` tokens (`5431` below the
+`14336` ceiling), with stable final recount hashes. The latter preserved
+`coverage_complete=false`, but its 32,380-byte prompt / 33,520-byte serialized
+body exceeded the still-frozen 8,192 / 32,768 independent resource bounds and
+was not an authorized dispatch. No near-ceiling context-parity or
+no-silent-context-loss claim is made.
+
+No OOM, Ollama crash, model-worker crash, or system termination was observed.
+The live model worker was observed around 6.8 GiB RSS and memory compression /
+swap counters increased under load; this is a stability/performance observation
+only, not a precise peak-memory measurement. Transport and token-count parity
+passed for the sole dispatched trial, but structured-output reliability,
+strict JSON, schema, and grounding did not.
+
+**MODEL SELECTION BLOCKER: qwen3:8b at the exact digest and Ollama 0.32.1 raw /
+no-format profile is not implementation-ready.**
+
 ## Final statement
 
-**LOCAL DEEP ANALYSIS M1 PRO FEASIBILITY GATE MAY PROCEED FOR THE FROZEN 0.32.1 RAW PROFILE ONLY**
+**LOCAL DEEP ANALYSIS M1 PRO FEASIBILITY GATE FAILED**
+
+**MODEL SELECTION BLOCKER**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**

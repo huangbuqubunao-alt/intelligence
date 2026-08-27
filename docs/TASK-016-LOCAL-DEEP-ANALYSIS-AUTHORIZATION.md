@@ -249,6 +249,14 @@ The former byte-only blocker is resolved architecturally, not operationally: exa
 
 **LOCAL DEEP ANALYSIS CONTEXT PROOF ARCHITECTURE READY**
 
-**TOKENIZER ARTIFACT ACQUISITION / HASH FREEZE REQUIRED BEFORE CONTEXT PROOF APPROVAL**
+**TOKENIZER ARTIFACT / HASH FREEZE COMPLETE; M1 PRO MODEL FEASIBILITY FAILED**
+
+The controlled exact-profile M1 Pro gate recorded a mandatory SHORT
+raw/no-format response that was transport-successful and token-count-parity
+correct but not strict JSON (Markdown/prose contamination followed the JSON
+object). Therefore qwen3:8b exact digest on Ollama 0.32.1 is a **MODEL
+SELECTION BLOCKER** for Local Deep Analysis. All implementation, TASK-016D/E/F,
+and model/profile substitution remain unauthorized; TASK-016B and TASK-016C
+remain frozen and unchanged.
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**

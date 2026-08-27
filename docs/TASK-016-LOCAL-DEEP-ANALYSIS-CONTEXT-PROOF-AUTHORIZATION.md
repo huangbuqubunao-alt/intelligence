@@ -266,4 +266,16 @@ and no model download or pull occurred.
 
 **LOCAL OLLAMA TOKENIZER / RAW-PROFILE PARITY GATE PASSED FOR OLLAMA 0.32.1 ONLY**
 
+## 11. M1 Pro feasibility outcome
+
+The subsequent controlled M1 Pro gate re-proved exact local tokenizer/Ollama
+input-count parity for its dispatched SHORT request (`1303 == 1303`), but the
+raw/no-format model response failed strict whole-response JSON: after a JSON
+object it emitted Markdown fences and additional prose, ending at the complete
+`num_predict=2048` length. This violates the required closed
+KnowledgeContent/schema/grounding gate. The model/runtime remains a **MODEL
+SELECTION BLOCKER**; the pre-dispatch token proof remains design evidence only
+and does not authorize implementation, a context-contract freeze, or a
+no-silent-context-loss conclusion at maximum input.
+
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED**
