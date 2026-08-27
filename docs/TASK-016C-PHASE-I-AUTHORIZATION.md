@@ -2,7 +2,7 @@
 
 ## Status, supersession, and decision
 
-Status: **DESIGN AMENDMENT ROUND 1 — READY FOR INDEPENDENT REVIEW. PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED.**
+Status: **APPROVED · AUDITED · NO-OP DETERMINATION · CLOSED.**
 
 This document supersedes the complete durable-reuse proposal in commit `7018c83`. Its durable ProviderCall, Artifact, raw-response, Judge, and pre-persistence complete-graph reuse clauses are **SUPERSEDED** and no longer normative. This is docs only: no production, tests, migration, dependency, provider, merge, push, tag, rebase, or squash is authorized.
 
@@ -164,4 +164,150 @@ src`; 42. `uv run ruff check .`; 43. security scan; 44. `git diff --check`.
 
 H1, H2-A, H2-B, H2-C, Phase G, lineage, no-rerun, no-cross-job, and the authoritative-reader boundary are preserved exactly. No durable provider/Judge/graph reuse, process recovery, PRIMARY reuse, terminal resurrection, schema change, or ErrorCode is authorized.
 
-**PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED.**
+The original design proposal (`7018c83d6703cd03ef6f56ad206cf211f1d4db55`)
+was independently reviewed as **REQUEST CHANGES**: a durable pre-persistence
+reuse state was mechanically unavailable because schema-v2 cannot prove the
+same-job condition without reopening frozen persistence/admission semantics.
+Amendment Round 1 (`79b25729cf33ada554db3701f270e0b48d388661`) selected
+**OPTION I-B — HARDENING ONLY** and was independently reviewed as **REQUEST
+CHANGES** because it inaccurately claimed immediate pre-trusted-success-mint
+lease re-proof. Amendment Round 2 (`52a7e4236337f39df199c51ef2badcf4274dd065`)
+corrected that boundary and was independently **APPROVED**.
+
+## 12. Final Phase I closeout and freeze
+
+### Decision
+
+**PHASE I IS IMPLEMENTED AS A HARDENING AUDIT / NO-OP.** It was not skipped:
+the audit investigated cache, recovery, and reuse hardening against the
+approved I-B contract and found that the current architecture already meets
+that contract. Zero production change is therefore the correct implementation
+outcome.
+
+| Item | Final decision |
+|---|---|
+| Phase I mode | **I-B — HARDENING ONLY / NO-OP** |
+| Production changes | None |
+| Test changes | None |
+| Schema changes / migration 003 | None / unauthorized and not required |
+| New ErrorCode | None |
+| Semantic cache | Not implemented, not authorized, not required |
+| Durable cache or recovery | Not authorized |
+
+### Audited execution and admission model
+
+The confirmed execution is one H2-B validated continuation, one REPAIR
+admission/dispatch/validation, one REPAIR_JUDGE admission/Judge
+dispatch/validation, one H2-C replay, one freshly minted trusted repair
+success, and one `Phase G persist_success`. There is no meaningful duplicate
+semantic or network work, so no memo/cache layer is justified.
+
+REPAIR and REPAIR_JUDGE admission remain unchanged. Existing ProviderCalls
+continue to block admission exactly under frozen `scoring_admission.py`.
+There is no cache-specific admission, bypass, historical reuse, or second
+admission semantics; `scoring_admission.py` remains frozen.
+
+`ProviderCall` remains the dispatch/evidence ledger, not cache authority. No
+cache-hit ProviderCall, historical semantic reuse, network-skip marker,
+duplicate ProviderCall semantics, or persistence column exists. One actual
+dispatch retains the frozen audit trail.
+
+### Reuse, trust, crash, and lease boundaries
+
+All of the following are frozen **NO**: durable Provider, Judge, or graph
+reuse; ProviderCall-as-cache-hit; Artifact cache authority; filesystem-orphan
+reuse; G-only reuse; cross-process, new-`RuntimeOperations`, process-restart,
+cross-job, same-G cross-job, or request-hash cross-job reuse; expired-SCORING
+recovery; terminal Job resurrection; and PRIMARY semantic reuse.
+
+Trusted-success objects remain freshly runtime-minted, exact-type gated,
+lexically passed, non-serialized as authority, and non-reconstructed from
+durable state. Phase I added no trusted-object lifecycle.
+
+At H2-C replay entry, the existing Job/owner/lease proof exists. An immediate
+pre-trusted-success-mint re-proof does **not** exist, and Phase I neither
+requires nor authorizes one. Existing integrity-terminalization authority and
+stale handling are unchanged. Phase G's owner/lease proof before
+mutation/persistence exists and remains frozen. Any future immediate pre-mint
+lease hardening requires a concrete defect, separate H2-C authorization,
+independent review, focused TDD, and regression proof.
+
+| Crash point | Frozen disposition |
+|---|---|
+| Before REPAIR completes | In-memory state lost; no Phase I recovery. |
+| After REPAIR before Judge | In-memory state lost; no durable Phase I reuse. |
+| After Judge | In-memory state lost; no durable Phase I reuse. |
+| After graph derivation before Phase G | In-memory graph lost; files/orphans are non-authoritative; no Phase I recovery. |
+| During Phase G | Existing frozen Phase G behavior only. |
+| After Phase G commit | Existing committed/read/idempotency semantics only. |
+
+### Frozen authority, persistence, lineage, and filesystem boundaries
+
+Phase G remains closed. Phase I introduced no early Artifact registration,
+early ProviderCall persistence, pre-Phase-G durable evidence table, second
+persistence seam, atomic-ordering change, or lineage change. Existing
+PREWRITE_VALIDATE, filesystem no-clobber, SQLite transaction, lineage
+bookkeeping, Job/Video CAS, and rollback/re-proof remain frozen.
+
+The audit found no reachable bypass of descriptor anchoring, `O_NOFOLLOW`,
+`O_NONBLOCK` where required, immediate `fstat`, regular-file requirement, FIFO
+rejection, symlink rejection, special-file rejection, no-clobber, or orphan
+handling. Phase I added no filesystem path.
+
+`AuthoritativeScoringReader` is unchanged and remains the persisted scoring
+authority boundary. No latest-artifact shortcut, weekly authority bypass,
+analysis/note/reporting cache authority, or Phase I read cache was added;
+`VerifiedScoringRead` remains the frozen downstream authority.
+
+Schema remains `user_version = 2`; scoring lineage remains
+`task016c-scoring-lineage-v1`. Legacy NULL behavior, fail-closed unknown
+generation behavior, and Video -> Job -> Artifact authority remain frozen. No
+migration 003 exists.
+
+### Independent hardening-audit evidence
+
+These checks were run by the independent hardening audit; this documentation
+closeout did not rerun them:
+
+| Audit check | Result |
+|---|---|
+| Focused tests | 278 passed |
+| Full pytest | 1761 passed; 1 pre-existing Pydantic serializer warning |
+| mypy | PASS; 31 source files; no issues |
+| Ruff | PASS |
+| Security scan | PASS / `status=clean`; existing WARN-only findings remain |
+| `git diff --check` | PASS |
+| Worktree | Clean |
+
+Self-consistent H2-C forgery defenses remained PASS, including forged
+`RepairProviderEvidence` plus matching ProviderCall, forged `JudgeEvidence`
+plus matching ProviderCall, forged `judge_h2`, and provider/model/prompt/schema
+mutations. The audit found no production defect, meaningful test gap, or
+missing Phase I regression test.
+
+### Closed status and future change gate
+
+**H1 CLOSED. H2-A CLOSED. H2-B CLOSED. H2-C CLOSED. Phase G CLOSED WITH
+PREVIOUSLY AUTHORIZED LINEAGE BOOKKEEPING. Phase I CLOSED — HARDENING AUDIT /
+NO-OP.** No semantic cache/recovery phase remains pending under TASK-016C.
+
+Any future durable cache; Provider/Judge response reuse; process-restart,
+cross-process, cross-job, same-G, or expired-SCORING reuse/recovery; terminal
+resurrection; PRIMARY reuse; persistent cache state; migration 003; admission,
+ProviderCall, lineage, `AuthoritativeScoringReader`, or Phase G ordering change
+requires a **new explicit authorization**. This closeout is not authorization
+for any such work.
+
+**PHASE I CLOSEOUT RECORDED**
+
+**PHASE I HARDENING AUDIT FROZEN**
+
+**PHASE I NO-OP DETERMINATION FROZEN**
+
+**NO PRODUCTION CHANGE REQUIRED**
+
+**NO TEST CHANGE REQUIRED**
+
+**TASK-016C IMPLEMENTATION PHASES COMPLETE**
+
+**READY FOR TASK-016C FINAL INTEGRATION / RELEASE READINESS REVIEW**
