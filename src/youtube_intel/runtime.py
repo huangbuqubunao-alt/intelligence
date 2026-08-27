@@ -127,6 +127,7 @@ from youtube_intel.reporting import WeeklyReportService
 from youtube_intel.retry import RetryPolicy
 from youtube_intel.scoring import (
     _SCORING_OPERATION,
+    H2C_REPLAY_INVALID_REASONS,
     PROMPT_VERSION,
     SCHEMA_VERSION,
     AuthoritativeScoringReader,
@@ -143,6 +144,7 @@ from youtube_intel.scoring import (
     build_repair_composite_envelope,
     build_scoring_input,
     build_scoring_request_identity,
+    h2c_replay_invalid_detail,
 )
 from youtube_intel.scoring_admission import (
     ScoringAdmissionRegistry,
@@ -193,10 +195,15 @@ class _H2CReplayInvalid(Exception):
 
     Carries exactly one approved reason literal from the closed
     ``H2C_REPLAY_INVALID:<REASON>`` set; the continuation maps it to one
-    owner-authoritative ``TRUST_INTEGRITY_INVALID`` terminal.
+    owner-authoritative ``TRUST_INTEGRITY_INVALID`` terminal.  Construction
+    itself enforces the closed set: an arbitrary reason is rejected before
+    any terminal emission can occur.
     """
 
     def __init__(self, reason: str) -> None:
+        if reason not in H2C_REPLAY_INVALID_REASONS:
+            msg = f"H2-C replay reason is not in the closed set: {reason!r}"
+            raise ValueError(msg)
         super().__init__(reason)
         self.reason = reason
 
@@ -2215,7 +2222,7 @@ class RuntimeOperations(Operations):
                     # Unknown non-NULL generation: closed pre-entry integrity
                     # terminal; never H2-C entry and never legacy fallback.
                     return _h2c_integrity_terminal(
-                        "H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID"
+                        h2c_replay_invalid_detail("SCORING_LINEAGE_VERSION_INVALID")
                     )
 
                 # v1 generation: the only branch that may enter H2-C.
@@ -2223,15 +2230,15 @@ class RuntimeOperations(Operations):
                     repair_success = _h2c_replay_continuation()
                 except _H2CSettingsBoundExceeded:
                     return _h2c_integrity_terminal(
-                        "H2C_REPLAY_INVALID:SETTINGS_BOUND_EXCEEDED"
+                        h2c_replay_invalid_detail("SETTINGS_BOUND_EXCEEDED")
                     )
                 except _H2CEnvelopeOversize:
                     return _h2c_integrity_terminal(
-                        "H2C_REPLAY_INVALID:ENVELOPE_OVERSIZE"
+                        h2c_replay_invalid_detail("ENVELOPE_OVERSIZE")
                     )
                 except _H2CReplayInvalid as replay_invalid:
                     return _h2c_integrity_terminal(
-                        "H2C_REPLAY_INVALID:" + replay_invalid.reason
+                        h2c_replay_invalid_detail(replay_invalid.reason)
                     )
 
                 entry = self._trusted_persistence_entry(

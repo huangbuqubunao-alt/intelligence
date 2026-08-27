@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import youtube_intel.runtime as runtime_module
 from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.state import SCORING_LINEAGE_VERSION_V1
@@ -270,3 +272,103 @@ def test_settings_bound_exceeded_terminalizes(tmp_path: Path) -> None:
     assert job.authoritative_scoring_artifact_key is None
     video = runtime._repository.get_video(flow.VIDEO_ID)
     assert video.authoritative_scoring_job_id is None
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 1 — Fix 1: closed H2C_REPLAY_INVALID detail enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_replay_invalid_constructor_enforces_closed_reason_set() -> None:
+    from youtube_intel.runtime import _H2CReplayInvalid
+    from youtube_intel.scoring import H2C_REPLAY_INVALID_REASONS
+
+    # Every authorized reason is accepted.
+    for reason in sorted(H2C_REPLAY_INVALID_REASONS):
+        assert _H2CReplayInvalid(reason).reason == reason
+    # Arbitrary reasons are rejected before any terminal emission.
+    for bad in (
+        "ARBITRARY_REASON",
+        "SCORING_LINEAGE_VERSION_INVALID:extra",
+        "H2C_SCORING_LINEAGE_VERSION_INVALID",
+        "",
+        "PRIMARY_EVIDENCE_MISMATCH and more",
+    ):
+        with pytest.raises(ValueError):
+            _H2CReplayInvalid(bad)
+
+
+def test_every_authorized_reason_produces_exact_qualified_detail() -> None:
+    from youtube_intel.scoring import (
+        H2C_REPLAY_INVALID_REASONS,
+        h2c_replay_invalid_detail,
+    )
+
+    for reason in sorted(H2C_REPLAY_INVALID_REASONS):
+        assert h2c_replay_invalid_detail(reason) == f"H2C_REPLAY_INVALID:{reason}"
+
+
+def test_unknown_generation_live_path_emits_through_closed_helper(
+    tmp_path: Path,
+) -> None:
+    flow = _load_flow()
+    transport = flow._FakeTransport(_repair_pass_script(flow))
+    runtime = flow._runtime(tmp_path, transport)
+    _patch_read_generation(runtime, "task016c-scoring-lineage-v9")
+
+    calls: list[str] = []
+    original = runtime_module.h2c_replay_invalid_detail
+
+    def recorder(reason: str) -> str:
+        calls.append(reason)
+        return original(reason)
+
+    runtime_module.h2c_replay_invalid_detail = recorder
+    try:
+        flow._run_process(runtime)
+    finally:
+        runtime_module.h2c_replay_invalid_detail = original
+
+    # The live production terminal path must route through the closed helper.
+    assert calls == ["SCORING_LINEAGE_VERSION_INVALID"]
+    job = flow._scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "TRUST_INTEGRITY_INVALID"
+    assert (
+        job.last_error_message
+        == "H2C_REPLAY_INVALID:SCORING_LINEAGE_VERSION_INVALID"
+    )
+    assert job.last_error_message != "H2C_SCORING_LINEAGE_VERSION_INVALID"
+
+
+def test_live_replay_tamper_emits_through_closed_helper(tmp_path: Path) -> None:
+    flow = _load_flow()
+    transport = flow._FakeTransport(_repair_pass_script(flow))
+    runtime = flow._runtime(tmp_path, transport)
+
+    def _exploding_replay(*args: Any, **kwargs: Any) -> None:
+        raise ValueError("injected attestation tamper")
+
+    calls: list[str] = []
+    original_helper = runtime_module.h2c_replay_invalid_detail
+    original_attestation = runtime_module.verify_quality_pass_attestation
+
+    def recorder(reason: str) -> str:
+        calls.append(reason)
+        return original_helper(reason)
+
+    runtime_module.verify_quality_pass_attestation = _exploding_replay
+    runtime_module.h2c_replay_invalid_detail = recorder
+    try:
+        flow._run_process(runtime)
+    finally:
+        runtime_module.verify_quality_pass_attestation = original_attestation
+        runtime_module.h2c_replay_invalid_detail = original_helper
+
+    # The live replay terminal path cannot bypass the closed helper and never
+    # formats an arbitrary suffix.
+    assert calls == ["ATTESTATION_INVALID"]
+    job = flow._scoring_job(runtime)
+    assert job.status is JobStatus.FAILED_FINAL
+    assert job.last_error_code == "TRUST_INTEGRITY_INVALID"
+    assert job.last_error_message == "H2C_REPLAY_INVALID:ATTESTATION_INVALID"
