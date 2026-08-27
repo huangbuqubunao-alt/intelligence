@@ -84,7 +84,11 @@ ProviderCall auditability is unchanged: one admission, one actual dispatch, one 
 
 A new instance, process restart, or later invocation is outside the domain even where Job ID matches, an old lease has not expired, or files remain. No proof crosses those boundaries.
 
-Current owner/lease proof is frozen and required before the first external dispatch. If a future I-B invariant consolidation contains an actual same-frame duplicate-dispatch guard, it must re-prove immediately before suppressing that duplicate. Existing re-proof remains required immediately before: (1) fresh trusted-success minting, (2) integrity terminalization, and (3) Phase G persistence. Each point requires the same SCORING `RUNNING` Job, same owner, and lease valid at current time. Lost lease uses frozen stale/interrupted handling: no stale `fail_job`, Phase G mutation, or reuse.
+At frozen H2-C replay entry, the runtime proves the current SCORING `RUNNING` Job, same owner, and lease valid at current time. The subsequent replay and trusted-success mint occur in that same lexical execution. **There is no separate immediate pre-mint lease re-proof in current H2-C, and I-B does not require or authorize one.**
+
+Existing H2-C integrity terminalization retains its own frozen stale-owner/lease handling; it is not a new global check. Frozen Phase G independently proves/re-proves current owner/lease authority before persistence or mutation. If a future I-B invariant consolidation ever contains an actual same-frame duplicate-dispatch guard, its authority requirements must be explicitly authorized then; no current duplicate-suppression seam exists.
+
+If a future audit demonstrates a concrete security defect between replay-entry proof and trusted-success mint, an immediate pre-mint re-proof requires separate explicit H2-C hardening authorization, independent review, focused TDD, and regression evidence. It is not pre-authorized here.
 
 ## 6. Value inventory and I-B rationale
 
@@ -135,8 +139,10 @@ Future production scope is **none by default**. If a concrete same-frame duplica
 RED-first work must preserve existing tests. For I-B, tests prove absence of new reuse seams rather than inventing a cache:
 
 1. same runtime instance; 2. same `scoring_stage` invocation; 3. same Job;
-4. same owner; 5. valid lease; 6. lease lost before any duplicate guard; 7.
-lease lost before trusted-success mint; 8. lease lost before Phase G; 9. new
+4. same owner; 5. H2-C replay entry requires its existing valid owner/lease
+proof; 6. existing integrity-terminalization stale-owner behavior is unchanged;
+7. Phase G still re-proves owner/lease before mutation; 8. no Phase I code adds
+an immediate pre-mint lease check; 9. new
 `RuntimeOperations` cannot reuse; 10. process restart cannot reuse; 11.
 different Job cannot reuse; 12. expired SCORING cannot reuse; 13. `FAILED_FINAL`
 cannot reuse; 14. `SUCCEEDED` does not re-enter Phase I; 15. no durable

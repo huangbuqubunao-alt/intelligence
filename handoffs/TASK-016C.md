@@ -219,6 +219,23 @@ only; its durable-reuse statements are not normative.
 
 **PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED**
 
+## Phase I — Design Amendment Round 2 (lease-proof boundary correction)
+
+**DESIGN AMENDMENT DRAFTED — IMPLEMENTATION REMAINS UNAUTHORIZED.**
+
+- Current H2-C proves current Job/owner/lease at replay entry, then performs
+  replay and trusted-success minting in the same lexical execution. There is
+  **no immediate pre-mint lease re-proof** in the frozen implementation.
+- I-B hardening-only neither requires nor authorizes adding that check. Existing
+  integrity-terminalization stale handling and Phase G's independent
+  owner/lease proof before persistence/mutation remain exactly frozen.
+- Any future pre-mint lease hardening needs a concrete finding, separate H2-C
+  authorization, independent review, focused TDD, and regression evidence.
+
+**READY FOR PHASE I DESIGN / AUTHORIZATION AMENDMENT ROUND 2 INDEPENDENT REVIEW**
+
+**PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED**
+
 ## Phase H2-C — Implementation Correction Round 3 (two P0 trust-chain breaks)
 
 ### Metadata and scope
