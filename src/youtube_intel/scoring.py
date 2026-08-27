@@ -4093,19 +4093,38 @@ class TrustedPersistenceEntry:
     def _repair_orphan_state(
         g_fd: int, name: str, expected_content: bytes, expected_hash: str
     ) -> str:
-        """Classify one G-level final as missing, exact orphan, or conflict."""
+        """Classify one G-level final as missing, exact orphan, or conflict.
+
+        Inspection is descriptor-anchored, no-follow, and race-safe against
+        FIFO/special final names: the type is checked with
+        ``stat(..., follow_symlinks=False)`` before any read open, and the
+        open itself uses ``O_NOFOLLOW | O_NONBLOCK`` plus an fstat
+        regular-file confirmation, so no code path can block opening a FIFO
+        even if the name is replaced between the stat and the open.
+        """
+
+        import stat as stat_module
 
         try:
-            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+            stats = os.stat(name, dir_fd=g_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return "conflict"
+        if not stat_module.S_ISREG(stats.st_mode):
+            return "conflict"
+        try:
+            fd = os.open(
+                name,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=g_fd,
+            )
         except FileNotFoundError:
             return "missing"
         except OSError:
             return "conflict"
         try:
-            stats = os.fstat(fd)
-            import stat as stat_module
-
-            if not stat_module.S_ISREG(stats.st_mode):
+            if not stat_module.S_ISREG(os.fstat(fd).st_mode):
                 return "conflict"
             body = b""
             while True:
@@ -4215,7 +4234,9 @@ class TrustedPersistenceEntry:
             ) from error
         os.fsync(g_fd)
 
-        final_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=g_fd)
+        final_fd = os.open(
+            name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=g_fd
+        )
         try:
             import stat as stat_module
 

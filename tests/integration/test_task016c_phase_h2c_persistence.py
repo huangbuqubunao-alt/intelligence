@@ -593,3 +593,132 @@ def test_reader_rejects_pointer_with_null_generation(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         runtime._scoring_reader().read(video_id)
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 1 — Fix 2: final-name FIFO / special-file safe inspection
+# ---------------------------------------------------------------------------
+
+
+def _repair_plan_paths(entry, success):
+    plan = entry._prewrite_validate_repair(success)
+    data_root = entry._data_root
+    raw_path = data_root / plan.raw_artifact.relative_path
+    structured_path = data_root / plan.structured_artifact.relative_path
+    return plan, raw_path, structured_path
+
+
+def _run_bounded(fn, *, timeout: float = 20.0):
+    """Run fn in a daemon thread; fail the test if it blocks past timeout.
+
+    A blocking ``open`` on a FIFO final would hang the worker thread, so a
+    live thread after the join proves a blocking open path (no sleeps).
+    """
+
+    import threading
+
+    result: dict = {}
+
+    def target() -> None:
+        try:
+            result["value"] = fn()
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = exc
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise AssertionError(
+            "repair persistence blocked on a special file (possible blocking open)"
+        )
+    if "error" in result:
+        raise result["error"]
+    return result.get("value")
+
+
+def test_final_raw_fifo_rejects_without_blocking(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _repair_plan_paths(entry, success)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(raw_path)
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry.persist_success(success))
+    assert repository.get_job("h2c-persist-job").status is JobStatus.RUNNING
+
+
+def test_final_structured_fifo_rejects_without_blocking(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, _, structured_path = _repair_plan_paths(entry, success)
+    structured_path.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(structured_path)
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry.persist_success(success))
+    assert repository.get_job("h2c-persist-job").status is JobStatus.RUNNING
+
+
+def test_final_name_symlink_rejected(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _repair_plan_paths(entry, success)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    target = raw_path.parent / "elsewhere-target"
+    target.write_bytes(b"not the repair envelope")
+    os.symlink(target, raw_path)
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry.persist_success(success))
+
+
+def test_final_name_directory_rejected(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _repair_plan_paths(entry, success)
+    raw_path.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry.persist_success(success))
+
+
+def test_exact_orphan_adoption_still_works_with_safe_inspection(
+    tmp_path: Path,
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _repair_plan_paths(entry, success)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(plan.envelope_bytes)
+
+    _run_bounded(lambda: entry.persist_success(success))
+
+    job = repository.get_job("h2c-persist-job")
+    assert job.status is JobStatus.SUCCEEDED
+    assert raw_path.read_bytes() == plan.envelope_bytes
+
+
+def test_conflicting_regular_final_still_conflicts(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    success = _repair_success()
+    plan, raw_path, _ = _repair_plan_paths(entry, success)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(b"conflicting regular bytes")
+
+    with pytest.raises(ScoringPersistenceError):
+        _run_bounded(lambda: entry.persist_success(success))
+    assert repository.get_job("h2c-persist-job").status is JobStatus.RUNNING
