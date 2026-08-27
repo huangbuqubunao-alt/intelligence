@@ -1,5 +1,124 @@
 # TASK-016C 交接报告
 
+## Phase H2-C — Implementation Correction Round 1 (four P1 findings)
+
+### Metadata and scope
+
+- Task: fix ONLY the four independently reviewed P1 findings on the approved
+  H2-C implementation (reviewed HEAD `02f397f`, authorization base `59bcf28`).
+- Correction base SHA: `02f397f`; final HEAD SHA: `6cb84e9`.
+- Status: `READY FOR H2-C IMPLEMENTATION CORRECTION ROUND 1 INDEPENDENT REVIEW`.
+- P0 findings: NONE. All review-PASS areas preserved; no H1/H2-A/H2-B/schema
+  semantics reopened; no scoring rerun, cross-job sharing, Phase I, or
+  ErrorCode/detail-policy expansion.
+
+### Correction commits
+
+1. `39f3a8f` fix(task016c): enforce closed H2-C replay diagnostics
+2. `7ed55ee` fix(task016c): reject final repair special files safely
+3. `0395d09` fix(task016c): bind repair provider calls in authoritative reads
+4. `6cb84e9` fix(task016c): require verified scoring reads for weekly reports
+
+### Changed production files
+
+- `src/youtube_intel/runtime.py` (Fix 1)
+- `src/youtube_intel/scoring.py` (Fix 2, Fix 3)
+- `src/youtube_intel/reporting.py` (Fix 4)
+
+### Changed test files
+
+- `tests/unit/test_task016c_phase_h2c_runtime.py` (Fix 1)
+- `tests/integration/test_task016c_phase_h2c_persistence.py` (Fix 2, Fix 3)
+- `tests/integration/test_task016c_phase_h2c_weekly.py` (new; Fix 4)
+- `tests/integration/test_weekly_report.py` (Fix 4 wiring)
+- `tests/e2e/test_mvp_flow.py` (Fix 4 wiring)
+
+### FIX 1 — closed H2C_REPLAY_INVALID details
+
+- Previous bypass: `_H2CReplayInvalid` accepted any string and runtime
+  formatted `"H2C_REPLAY_INVALID:" + reason` directly.
+- Final mechanism: `_H2CReplayInvalid.__init__` validates the reason against
+  the approved closed `H2C_REPLAY_INVALID_REASONS` set (arbitrary reason raises
+  before any terminal emission), and every emission path routes through the
+  single `h2c_replay_invalid_detail(reason)` helper (unknown-generation,
+  settings-bound, envelope-oversize, and replay-invalid terminals).
+- Reason set unchanged (20 reasons incl. `SCORING_LINEAGE_VERSION_INVALID`).
+- Tests: constructor closed-set rejection; every reason -> exact qualified
+  detail; two LIVE production terminal-path tests proving emission through the
+  closed helper and that the old unqualified detail is never emitted.
+
+### FIX 2 — final-name FIFO / special-file safe inspection
+
+- Previous blocking mechanism: `_repair_orphan_state` opened `raw.json` /
+  `structured.json` with `O_RDONLY | O_NOFOLLOW` before fstat; opening a FIFO
+  could block (O_NOFOLLOW does not prevent FIFO blocking).
+- Final strategy: descriptor-relative `stat(..., follow_symlinks=False)` type
+  check BEFORE any read open, then `O_NOFOLLOW | O_NONBLOCK` open + fstat
+  regular-file confirmation. Race-safe: a name swapped between stat and open
+  cannot block and cannot pass as a regular file.
+- Post-publication reopen in `_write_repair_final_in_directory` also uses
+  `O_NOFOLLOW | O_NONBLOCK` + fstat regular-file check.
+- Symlink protection (O_NOFOLLOW) and no-clobber/orphan-adoption unchanged.
+- Tests: final-name raw FIFO and structured FIFO rejected quickly via a bounded
+  daemon-thread guard (fails if a blocking open occurs); final-name symlink and
+  directory rejected; exact-orphan adoption, conflicting regular-file, and
+  no-clobber publication regressions all hold.
+
+### FIX 3 — repair ProviderCall identity revalidation
+
+- Reader now re-proves persisted REPAIR / REPAIR_JUDGE ProviderCalls against
+  the sealed envelope evidence (not merely status/operation/response artifact).
+- REPAIR fields validated: status, operation, provider, model, prompt_version,
+  operation_schema_version, request_hash == sealed R + recomputed
+  build_provider_request_hash binding normalized_input_hash (RNI hash),
+  response_artifact_id == raw artifact id.
+- REPAIR_JUDGE fields validated: status, operation, provider, model,
+  prompt_version, operation_schema_version, request_hash == sealed J +
+  recomputed build_provider_request_hash binding Judge H1, response_artifact_id.
+- Tests: twelve one-field-at-a-time corruption cases (REPAIR and REPAIR_JUDGE x
+  provider/model/prompt_version/schema_version/request_hash/response_artifact)
+  each fail the authoritative read closed; valid repair-read happy path holds.
+
+### FIX 4 — weekly must not own scoring authority
+
+- Removed/constrained fallback: `scoring_reader` is now a required
+  WeeklyReportService argument; the `_verified_score` latest-artifact
+  authority helper is deleted; `_verified_item` resolves every weekly score
+  only via the reader's VerifiedScoringRead.
+- Legacy NULL-pointer compatibility lives inside
+  `AuthoritativeScoringReader._read_legacy`, not in weekly.
+- Production wiring: `runtime.weekly` injects the authoritative reader.
+- Tests: construction without a reader raises TypeError; corrupted latest
+  artifact cannot influence weekly when the reader resolves the pointer
+  artifact; v1 PRIMARY, v1 REPAIR_H2C, and legacy NULL-pointer weekly all
+  succeed through VerifiedScoringRead; production wiring provides a callable
+  reader. test_weekly_report.py formatting tests inject a VerifiedScoringRead
+  stub (post-verification rendering); e2e harness passes a real reader.
+
+### Regressions and gates
+
+- H1 admission, H2-B repair flow/correction, Phase G, H2-C focused
+  (schema/data-layer/persistence/runtime), state-store, pipeline, and
+  reporting/weekly suites all pass.
+- Full `pytest tests/unit tests/integration tests/e2e`: 1743 passed, 1
+  pre-existing Pydantic serializer warning.
+- `mypy src`: Success, no issues in 31 source files. `ruff check .`: All checks
+  passed. `git diff --check`: clean. `scripts/security_scan.sh`: status=clean
+  (pre-existing high-entropy/wheel-license WARNs unchanged).
+
+### Non-scope confirmation
+
+- `scoring_admission.py` diff: EMPTY (unchanged).
+- No schema change (migrations remain `001`, `002`; no `003`).
+- No ErrorCode/detail-policy expansion (ErrorCode still exactly ten; reason set
+  unchanged).
+- No scoring rerun, no cross-job graph sharing, Phase I still absent.
+
+### Remaining concerns
+
+- None blocking; all four P1 findings fixed with focused RED tests first and no
+  review-PASS area regressed.
+
 ## Phase H2-C — Trusted repair execution and authoritative scoring lineage (implementation)
 
 ### Metadata and scope
