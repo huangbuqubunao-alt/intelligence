@@ -34,6 +34,13 @@
   a `MODEL SELECTION BLOCKER`; no fallback is authorized and implementation
   remains unauthorized. This status update does not assign, start, rename, or
   supersede TASK-016D/E/F; TASK-016B and TASK-016C remain closed.
+- Model-selection round 2 is recorded in
+  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-MODEL-SELECTION-R2.md`. It rejects only
+  the evidenced `qwen3:8b` digest / Ollama 0.32.1 raw/no-format profile,
+  selects `qwen2.5:7b` as the one next candidate, and requires separate model
+  acquisition, tokenizer freeze/parity, byte-bound reconciliation, and M1 Pro
+  feasibility gates. It makes no provider/context-contract change and keeps
+  implementation unauthorized; TASK-016B and TASK-016C remain closed.
 
 ## 产品目标
 
