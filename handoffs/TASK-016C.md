@@ -1,5 +1,113 @@
 # TASK-016C 交接报告
 
+## Phase H2-C — Implementation Correction Round 3 (two P0 trust-chain breaks)
+
+### Metadata and scope
+
+- Task: fix ONLY the two P0 authoritative-reader trust-chain findings
+  (Correction Round 3 base `1477fb0`).
+- Correction Round 3 base SHA: `1477fb0`; final fix SHA: `1572142`.
+- Status: `READY FOR H2-C IMPLEMENTATION CORRECTION ROUND 3 INDEPENDENT REVIEW`.
+- P0 findings fixed: P0-1 (REPAIR request identity derived partly from mutable
+  RepairProviderEvidence metadata), P0-2 (incomplete REPAIR_JUDGE binding).
+  All PASS areas preserved; no H1/H2-A/H2-B, schema/migration, ErrorCode,
+  filesystem, weekly-authority, scoring-rerun, cross-job, or Phase I changes.
+
+### Correction commits
+
+1. `1572142` fix(task016c): bind repair and judge identity to sealed semantics
+
+### Changed files
+
+- Production: `src/youtube_intel/scoring.py`
+- Tests: `tests/integration/test_task016c_phase_h2c_persistence.py`
+
+### P0-1 — REPAIR trust chain (sealed RepairNormalizedInput is truth)
+
+- Sealed fields used as truth: `RepairNormalizedInput.operation`,
+  `repair_provider`, `repair_model`, `repair_model_digest`,
+  `repair_prompt_version`, `repair_schema_version`, `output_language`,
+  `temperature`, `max_output_tokens`, `max_description_chars`.
+- Derived normalized-input root: `repair_normalized_input_hash(sealed_rni)`,
+  compared to the persisted `normalized_input_hash` claim.
+- Cross-checked duplicated RepairProviderEvidence claims: operation, provider,
+  model, model_digest, prompt_version, operation_schema_version,
+  output_language, temperature, max_output_tokens, max_description_chars —
+  each must equal the sealed RNI value before any builder use.
+- Derived REPAIR ProviderCall identity: `build_provider_request_hash(operation,
+  normalized_input_hash=derived_root, provider, model, prompt_version,
+  schema_version)` with every field from the sealed RNI; compared to the
+  persisted `request_hash` claim.
+- Persisted REPAIR ProviderCall comparison: status/operation/provider/model/
+  prompt_version/schema_version/request_hash/response_artifact_id all compared
+  against the sealed-derived truth.
+- R chain: sealed RNI -> derived root -> derived request identity -> verified
+  evidence claims -> verified persisted ProviderCall -> R.
+- Forgery tests (each confirmed RED pre-fix, GREEN post-fix): forged
+  evidence model / provider / prompt_version / schema_version with
+  consistently recomputed request hash + matching persisted ProviderCall +
+  re-bound downstream graph. (operation is a Literal on both RNI and evidence,
+  so no distinct forgery exists for it.)
+
+### P0-2 — JUDGE trust chain (sealed QualityJudgeOperationInput is truth)
+
+- Sealed semantic root: `quality_evidence.judge_operation_input`; the two
+  sealed operation-input copies (quality-evidence and judge-evidence) are
+  required equal.
+- Derived Judge H1 and H2 via `build_judge_h1_h2(sealed_judge_input)`.
+- judge_h1 comparisons: derived H1 vs `quality_evidence.judge_h1` and vs
+  `judge_evidence.judge_h1`.
+- judge_h2 comparisons: derived H2 vs `quality_evidence.judge_h2` AND vs
+  `judge_evidence.judge_h2` (the previously missing check).
+- Duplicated JudgeEvidence metadata cross-checks against the sealed operation
+  input: operation, provider, model, model_digest, policy_version,
+  prompt_version, operation_schema_version.
+- Derived REPAIR_JUDGE ProviderCall identity: the derived H2 (which binds the
+  sealed judge provider/model/prompt/schema); persisted REPAIR_JUDGE
+  ProviderCall compared against the sealed-derived identity.
+- J chain: sealed operation input -> derived H1/H2 -> verified JudgeEvidence
+  claims -> derived REPAIR_JUDGE identity -> verified persisted ProviderCall
+  -> J -> fed into G.
+- Forgery tests (RED pre-fix, GREEN post-fix): forged JudgeEvidence.judge_h2
+  claim; forged JudgeEvidence model / provider / prompt_version /
+  schema_version each with matching persisted REPAIR_JUDGE ProviderCall and
+  re-bound downstream graph.
+
+### GRAPH / circular trust
+
+- Final chain: sealed semantics -> R/J -> E/S/G. G inputs are p (verified vs
+  result.request_hash), derived R, derived J, recomputed settings hash,
+  recomputed E, sealed structured content hash — all verified values.
+- Confirmed no code path uses evidence metadata as request-hash builder input
+  or trusts judge_h2 without derived-H2 comparison.
+
+### Preservation confirmation
+
+- Temp-file O_NONBLOCK fix, final-name FIFO fix, closed-detail fix, weekly
+  required reader, schema v2, generation, H1/H2-A/H2-B, repair eligibility,
+  admission ordering, 23-step replay, settings provenance,
+  RepairPersistenceGraphIdentityV2 / E/S/G / G paths, filesystem no-clobber,
+  lineage persistence, Job/Video CAS, legacy reader, analysis/note/weekly/
+  reporting authority, retry policy, state machine, no rerun, no cross-job,
+  Phase I absent — all unchanged and green.
+
+### Gates
+
+- Pre-fix RED proof: pre-fix production reader accepts all nine forgeries
+  (verified directly).
+- Post-fix GREEN: all nine forgery tests fail closed; full persistence suite
+  53 passed.
+- Full `pytest tests/unit tests/integration tests/e2e`: 1761 passed, 1
+  pre-existing Pydantic serializer warning.
+- `mypy src`: Success, no issues in 31 source files. `ruff check .`: All
+  checks passed. `git diff --check`: clean. `scripts/security_scan.sh`:
+  status=clean (pre-existing WARNs unchanged).
+
+### Remaining concerns
+
+- None blocking; both P0 trust-chain breaks fixed with self-consistent forgery
+  RED tests first and no PASS area regressed.
+
 ## Phase H2-C — Implementation Correction Round 2 (two remaining P1 findings)
 
 ### Metadata and scope
