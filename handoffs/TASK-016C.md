@@ -173,6 +173,27 @@ state-machine paths.
 
 **READY FOR PHASE I DESIGN / AUTHORIZATION**
 
+## Phase I — Cache Hardening / Recovery / Reuse Boundary Design Draft
+
+### Status and scope
+
+**PHASE I DESIGN DRAFTED — IMPLEMENTATION STILL UNAUTHORIZED.**
+
+- Design commit base: `cf72e5dcc47eb7db75be53f3c1e637c8db4145fa`.
+- Canonical draft: `docs/TASK-016C-PHASE-I-AUTHORIZATION.md`.
+- Selected minimum scope: live, same-job, fully revalidated REPAIR/Judge and
+  pre-persistence complete-H2-C-graph evidence reuse only; no PRIMARY cache
+  redesign or cross-job cache.
+- Frozen decisions: no cross-job reuse, expired-SCORING recovery, terminal Job
+  resurrection, migration 003, new ErrorCode, lineage schema change, Phase G
+  semantic change, or authoritative-reader bypass.
+- This record is a design-status update only. It does not approve a source or
+  test change, reopen H1/H2-A/H2-B/H2-C/Phase G, or authorize scoring rerun.
+
+**READY FOR PHASE I DESIGN / AUTHORIZATION INDEPENDENT REVIEW**
+
+**PHASE I IMPLEMENTATION REMAINS UNAUTHORIZED**
+
 ## Phase H2-C — Implementation Correction Round 3 (two P0 trust-chain breaks)
 
 ### Metadata and scope
