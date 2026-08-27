@@ -5891,17 +5891,58 @@ class AuthoritativeScoringReader:
             raise ValueError("repair graph identity G is invalid")
         repair_call = self._repository.get_provider_call(r)
         judge_call = self._repository.get_provider_call(j)
+        if repair_call is None or judge_call is None:
+            raise ValueError("repair provider calls are missing")
+        # Re-prove every persisted identity-bearing ProviderCall field against
+        # the sealed envelope evidence; the provenance flag and the R/J hashes
+        # alone are not trusted.
         if (
-            repair_call is None
-            or repair_call.status is not ProviderCallStatus.SUCCEEDED
-            or repair_call.operation != "local-scoring-repair-v1"
+            repair_call.status is not ProviderCallStatus.SUCCEEDED
+            or repair_call.operation != provider_evidence.operation
+            or repair_call.provider != provider_evidence.provider
+            or repair_call.model != provider_evidence.model
+            or repair_call.prompt_version != provider_evidence.prompt_version
+            or repair_call.schema_version
+            != provider_evidence.operation_schema_version
+            or repair_call.request_hash != r
+            or repair_call.request_hash != provider_evidence.request_hash
+            or build_provider_request_hash(
+                operation=provider_evidence.operation,
+                normalized_input_hash=provider_evidence.normalized_input_hash,
+                provider=provider_evidence.provider,
+                model=provider_evidence.model,
+                prompt_version=provider_evidence.prompt_version,
+                schema_version=provider_evidence.operation_schema_version,
+            )
+            != r
             or repair_call.response_artifact_id != raw.artifact_id
-            or judge_call is None
-            or judge_call.status is not ProviderCallStatus.SUCCEEDED
-            or judge_call.operation != "local-content-quality-v1"
+        ):
+            raise ValueError("repair provider call identity is invalid")
+        if (
+            judge_call.status is not ProviderCallStatus.SUCCEEDED
+            or judge_call.operation != quality_evidence.judge_evidence.operation
+            or judge_call.provider != quality_evidence.judge_evidence.provider
+            or judge_call.model != quality_evidence.judge_evidence.model
+            or judge_call.prompt_version
+            != quality_evidence.judge_evidence.prompt_version
+            or judge_call.schema_version
+            != quality_evidence.judge_evidence.operation_schema_version
+            or judge_call.request_hash != j
+            or judge_call.request_hash != quality_evidence.judge_h2
+            or build_provider_request_hash(
+                operation=quality_evidence.judge_evidence.operation,
+                normalized_input_hash=quality_evidence.judge_h1,
+                provider=quality_evidence.judge_evidence.provider,
+                model=quality_evidence.judge_evidence.model,
+                prompt_version=quality_evidence.judge_evidence.prompt_version,
+                schema_version=(
+                    quality_evidence.judge_evidence.operation_schema_version
+                ),
+            )
+            != j
             or judge_call.response_artifact_id != raw.artifact_id
         ):
-            raise ValueError("repair provider call provenance is invalid")
+            raise ValueError("repair judge provider call identity is invalid")
         self._check_current_config(result)
         return result
 

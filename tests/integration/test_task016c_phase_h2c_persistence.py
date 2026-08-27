@@ -722,3 +722,92 @@ def test_conflicting_regular_final_still_conflicts(tmp_path: Path) -> None:
     with pytest.raises(ScoringPersistenceError):
         _run_bounded(lambda: entry.persist_success(success))
     assert repository.get_job("h2c-persist-job").status is JobStatus.RUNNING
+
+
+# ---------------------------------------------------------------------------
+# Correction Round 1 — Fix 3: repair ProviderCall identity revalidation
+# ---------------------------------------------------------------------------
+
+
+def _persisted_repair_graph(repository, tmp_path):
+    """Persist one repair graph and return the sealed R/J request hashes."""
+
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    entry.persist_success(_repair_success())
+    job = repository.get_job("h2c-persist-job")
+    structured_key = job.authoritative_scoring_artifact_key
+    raw_key = structured_key.removesuffix("/structured") + "/raw"
+    from youtube_intel.h2_jcs import jcs_loads_strict
+
+    raw_body = (tmp_path / "data" / f"{raw_key}.json").read_bytes()
+    envelope = jcs_loads_strict(raw_body)
+    r_hash = envelope["repair_provider_evidence"]["request_hash"]
+    j_hash = envelope["repair_quality_evidence"]["judge_h2"]
+    return r_hash, j_hash
+
+
+def _corrupt_provider_call(repository, request_hash: str, column: str, value) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            f"UPDATE provider_calls SET {column} = :value "
+            "WHERE request_hash = :request_hash",
+            {"value": value, "request_hash": request_hash},
+        )
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [
+        ("provider", "forged-provider"),
+        ("model", "forged-model"),
+        ("prompt_version", "forged-prompt-v9"),
+        ("schema_version", "forged-schema-v9"),
+        ("request_hash", "e" * 64),
+        ("response_artifact_id", None),
+    ],
+)
+def test_repair_provider_call_corruption_fails_closed(
+    tmp_path: Path, column: str, value
+) -> None:
+    repository = _setup_repository(tmp_path)
+    r_hash, _ = _persisted_repair_graph(repository, tmp_path)
+    _corrupt_provider_call(repository, r_hash, column, value)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [
+        ("provider", "forged-provider"),
+        ("model", "forged-model"),
+        ("prompt_version", "forged-prompt-v9"),
+        ("schema_version", "forged-schema-v9"),
+        ("request_hash", "f" * 64),
+        ("response_artifact_id", None),
+    ],
+)
+def test_repair_judge_provider_call_corruption_fails_closed(
+    tmp_path: Path, column: str, value
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _, j_hash = _persisted_repair_graph(repository, tmp_path)
+    _corrupt_provider_call(repository, j_hash, column, value)
+
+    with pytest.raises(ValueError):
+        _reader(repository, tmp_path).read(_VIDEO_ID)
+
+
+def test_uncorrupted_repair_read_still_succeeds(tmp_path: Path) -> None:
+    repository = _setup_repository(tmp_path)
+    _persisted_repair_graph(repository, tmp_path)
+
+    read = _reader(repository, tmp_path).read(_VIDEO_ID)
+
+    assert read.scoring_success_provenance == "REPAIR_H2C"
+    assert read.scoring_outcome.result.score == 8
