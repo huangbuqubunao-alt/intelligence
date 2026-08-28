@@ -1,6 +1,6 @@
 # TASK-016 — Qwen2.5:7B strict-JSON / M1 Pro feasibility gate
 
-Status: **STOPPED AT TINY — TOKENIZER PREFLIGHT UNBLOCKED; TINY TRANSPORT OUTCOME UNAVAILABLE**
+Status: **FAILED — DECISIVE TINY STRICT-JSON FAILURE**
 
 ## Scope and baseline
 
@@ -129,18 +129,60 @@ raw model response, HTTP status, `prompt_eval_count`, wall-clock completion,
 strict JSON parse, schema result, grounding result, or KG2 result is available
 as evidence.
 
-This is an **unknown transport outcome**, not a valid PASS and not an evidenced
-model structural failure.  It must not be retried under this gate's one-attempt
-tiny rule.  SHORT, MEDIUM, and MAX were not dispatched.
+This is an **UNVERIFIED TRANSPORT / EVIDENCE CAPTURE OUTCOME**, not a valid PASS
+and not an evidenced model structural failure.  It was excluded from quality
+scoring and was not averaged with any later result.  SHORT, MEDIUM, and MAX
+were not dispatched.
 
-## Required decision to resume
+## Narrow tiny outcome-recovery authorization and decisive redispatch — 2026-08-28
 
-A new, narrow decision is required before another tiny request can be sent.  It
-must resolve how a completed response is captured and attestable without
-changing the model, tokenizer identity, raw profile, prompt, byte limits, or
-benchmark sequence.  A replacement tiny request would otherwise be an
-unauthorized retry of an unknown outcome.
+After the unverified first outcome, a narrow authorization permitted exactly one
+additional tiny dispatch solely to recover a durable transport/response result.
+It did not authorize prompt/profile changes, a retry loop, output repair, or a
+second redispatch.  The recovery execution began from
+`main@29d43c43f3b10b365599946875f699995e0ec0b4` and reused the same tiny
+request exactly: body SHA-256
+`a584b8370bf64085ef070a9bb7b3b99fa23d0292178009ab4898665accca92c2`, prompt
+SHA-256 `60ae04fc0a264f386147b7862ebea37be42ecbeaca4c0c4cbb9392770a684621`,
+token count `1,235`, and token-ID SHA-256
+`a0699e646aaa351b0cce06da44d39a296de93433e6c197c7fe214bc5ddc5b8ff`.
 
-**QWEN2.5 STRICT-JSON / M1 PRO FEASIBILITY REMAINS UNDETERMINED.**
+Before dispatch, the same temporary `tokenizers==0.22.2` Python 3.12.11
+environment, all frozen tokenizer artifact hashes, `TokenizerIdentityV2`,
+Ollama `0.32.1`, and the exact unique `qwen2.5:7b` digest were reverified.
+The request passed its byte, input-token, and special-token-ID gates.
+
+The one decisive request used a durable local capture directory under `/tmp`.
+It flushed the exact request body, preflight metrics, status, response headers,
+complete envelope body, transport timing, stderr, and client exit code before
+evaluation.  Those raw local-only evidence files are not repository artifacts.
+
+| Transport field | Decisive observed value |
+| --- | --- |
+| Redispatch count | `1` |
+| HTTP status / client exit code | `200 OK` / `0` |
+| Envelope bytes / complete parse | `3,031` / yes |
+| `done` / `done_reason` | `true` / `stop` |
+| Wall-clock transport duration | `32,407.2365` ms |
+| Ollama `prompt_eval_count` / application count | `1,235` / `1,235` (**PASS**) |
+| `eval_count` | `618` |
+| Exact model response bytes / SHA-256 | `2,528` / `02be6baa4c6bfe8aaace037c377f66840b7c6e5b7b8855221f87b911f36020d3` |
+
+The raw Ollama `response` field was decoded as strict UTF-8 and supplied
+unchanged to the strict whole-document JSON parser.  It failed with
+`JSONDecodeError: Extra data: line 40 column 3 (char 988)`.  No fence stripping,
+trailing-text removal, first-object extraction, regex repair, second-model
+repair, or retry was attempted.  Because strict JSON is a prerequisite, schema,
+domain, grounding, KG2, and output-language validation were not evaluated.
+
+**DECISIVE TINY: 1/1 FAIL — STRUCTURED OUTPUT.**
+
+The previous outcome remains unverified and is not counted as a model failure;
+the single fully captured recovery dispatch is the decisive failure.  SHORT,
+MEDIUM, and MAX remain not run.
+
+**QWEN2.5:7B IS REJECTED FOR THE CURRENT FROZEN RAW / NO-FORMAT PROFILE.**
+
+**MODEL SELECTION ROUND 3 REQUIRED.**
 
 **LOCAL DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.**
