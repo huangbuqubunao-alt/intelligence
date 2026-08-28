@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted — Correction R1; design only; no provider implementation is authorized.
+Accepted — Correction R2; focused independent review is required before
+implementation; design only; no provider implementation is authorized.
 
 ## Date
 
@@ -17,7 +18,7 @@ Older local/hybrid descriptions include Ollama and raw-profile assumptions that 
 ## Decision
 
 Adopt the provider-neutral Deep Analysis contract in
-`TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md`, Correction R1.
+`TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md`, Correction R2.
 
 - Provider kinds are LOCAL, CLOUD_FREE, and CLOUD_USER_KEY.
 - Provider output is always untrusted. Only the application pipeline may mint TrustedDeepAnalysisSuccess.
@@ -29,9 +30,12 @@ Adopt the provider-neutral Deep Analysis contract in
   credential execution profile. Cache identity binds A1, A2, A3, and validation
   policy.
 - Dispatch is application-owned and privacy-bounded: adapters receive only the
-  allowlisted authorized payload projection. There is no silent local-to-cloud
-  or free-to-paid fallback; the only automatic edge allowed by Correction R1 is
-  an explicitly authorized pre-dispatch, proven-no-send availability edge.
+  allowlisted authorized payload projection. Any fallback plan is a
+  pre-dispatch-validated finite DAG with one explicit start node, unique
+  semantic provider/model/profile nodes, authorized scope/consent edges, and
+  deterministic failure-class matching. Cycles, re-entry, ambiguous matches,
+  implicit retries, and silent local-to-cloud or free-to-paid escalation are
+  invalid/fail-closed; attempts are bounded by unique authorized nodes.
 - Analysis consumes scoring only through VerifiedScoringRead. Its request binding is VerifiedScoringRead.scoring_outcome.result.request_hash. Scoring provenance remains only PRIMARY or REPAIR_H2C.
 - Provider/model/profile-aware identities are required. A floating cloud alias
   is explicitly non-reproducible and cache-ineligible. Credentials and their
@@ -40,12 +44,16 @@ Adopt the provider-neutral Deep Analysis contract in
 - SDK/HTTP hidden retries are prohibited. The full application
   validator/finalizer pipeline, not an adapter, cache DTO, or caller, is the
   only mint authority for `TrustedDeepAnalysisSuccess`.
+- Fallback policy identity and the complete ordered attempt history are required
+  audit/016D provenance, but not A1/A2/A3 or a cache-key dimension. A cached
+  success remains bound to its exact successful A1/A2/A3, validation policy,
+  provider/model/profile, scope/consent, and fresh revalidation.
 
 ## Consequences
 
 Local adapters may retain exact digest, tokenizer, raw-profile, and context proof without imposing them on cloud adapters. Cloud remains behind a provider-specific qualification/authorization gate covering identity, context authority, payload disclosure, credential redaction, failure mapping, and validation/provenance compatibility.
 
-Correction R1 globally supersedes, for Deep Analysis only, ADR-023 Decision
+Correction R2 globally supersedes, for Deep Analysis only, ADR-023 Decision
 3/4/5/12 and Consequences, the old ADR-008 cloud-analysis request/retry/cache
 clauses, and `SYSTEM_DESIGN.md` §12 generic retry/format-repair behavior. The
 amendment's supersession matrix classifies old Ollama/raw/format and exact local

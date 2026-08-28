@@ -1,8 +1,8 @@
-# TASK-016 — Deep Analysis Provider-Neutral Contract Amendment, Correction R1
+# TASK-016 — Deep Analysis Provider-Neutral Contract Amendment, Correction R2
 
-Status: **ACCEPTED DESIGN / IMPLEMENTATION NOT AUTHORIZED**
+Status: **ACCEPTED DESIGN / INDEPENDENT REVIEW REQUIRED / IMPLEMENTATION NOT AUTHORIZED**
 Date: 2026-08-29
-Correction basis: `docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-INDEPENDENT-REVIEW.md`
+Correction basis: `docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-SECOND-INDEPENDENT-REVIEW.md`
 Durable decision: [ADR-027](decisions/ADR-027-provider-neutral-deep-analysis-contract.md)
 
 ## 1. Scope, authority, and terms
@@ -224,7 +224,7 @@ The generation profile records requested/actual supported semantic settings and
 its identity enters A2/A3. Unsupported requested settings fail before contact;
 a request hash is not a generation determinism promise.
 
-## 7. Consent and directed fallback policy
+## 7. Consent and finite directed fallback policy
 
 All cloud authorization is explicit and fail-closed. A consent record is
 immutable for a dispatch and is identified by `PayloadConsentIdentityV1`.
@@ -233,29 +233,141 @@ immutable for a dispatch and is identified by `PayloadConsentIdentityV1`.
 | --- | --- | --- | --- | --- |
 | `local_only` | Forbidden | One named qualified LOCAL profile; scope is `SELECTED_EVIDENCE_ONLY` unless an independently valid local full-transcript policy exists | No fallback | `PROVIDER_UNAVAILABLE` or other local result; never cloud |
 | `cloud_explicit` | Allowed only after this run has an explicit named-provider/scope consent | Exactly one named qualified cloud provider, exact model constraint, credential execution profile, and scope | No fallback | Missing explicit consent is `AUTH_REQUIRED`, zero dispatch |
-| `cloud_pre_authorized` | Allowed only by a matching prior authorization record | Each named allowlist entry binds provider ID/kind, model constraints, credential execution-profile identity, payload scope, and allowed directed edges | Default no edge; only named edges below | Valid prior authorization may operate headlessly; otherwise `AUTH_REQUIRED` |
-| `per_run_cloud_approval` | Allowed only after a non-expired run-specific affirmative decision | Decision binds named provider/kind, model constraint, scope, credential execution profile, and any one named fallback edge | No automatic fallback; a new per-run decision is required | `AUTH_REQUIRED`, zero dispatch |
+| `cloud_pre_authorized` | Allowed only by a matching prior authorization record | Each named allowlist entry binds provider ID/kind, model constraints, credential execution-profile identity, payload scope, and the finite plan's allowed directed edges | Default no edge; only named edges below | Valid prior authorization may operate headlessly; otherwise `AUTH_REQUIRED` |
+| `per_run_cloud_approval` | Allowed only after a non-expired run-specific affirmative decision | Decision binds named provider/kind, model constraint, scope, credential execution profile, and any one named fallback edge | Only the exact approved edge; each destination cloud attempt still needs its own current approval | `AUTH_REQUIRED`, zero dispatch; never wait, skip ahead, or choose another edge |
 
 `cloud_pre_authorized` is not a Boolean. Its prior record MUST contain issuer,
 record version/identity, eligible named providers/provider kinds, allowed model
 constraints, allowed payload scopes, credential execution-profile identities,
-explicit directed fallback edges, whether new semantic attempts are allowed,
-and expiry/revocation policy. An empty, duplicate, or multiple-current provider
-selection is `PRE_DISPATCH/PROVIDER_UNAVAILABLE`; a missing credential is
-`AUTH_REQUIRED`; neither selects another provider.
+the complete finite fallback plan below, whether new semantic attempts are
+allowed, and expiry/revocation policy. An empty, duplicate, or multiple-current
+provider selection is `PRE_DISPATCH/PROVIDER_UNAVAILABLE`; a missing credential
+is `AUTH_REQUIRED`; neither selects another provider.
 
-Fallback is an explicit directed graph. Default graph: **no edges**. An edge
-`from_profile -> to_profile` is valid only if its immutable policy authorizes
-that exact edge, the destination is currently qualified/eligible, the same
-payload scope is authorized for both profiles, and the destination has its own
-matching consent identity. In V1 an edge may automatically advance only after
-`PRE_DISPATCH/PROVIDER_UNAVAILABLE`, proven before any request byte is sent.
-Every other class, including `TIMEOUT`, `RATE_LIMITED`, `QUOTA_EXCEEDED`,
-`STRUCTURED_OUTPUT_INVALID`, `SCHEMA_INVALID`, `GROUNDING_INVALID`, and
-`PROVENANCE_INVALID`, is `STOP`; it cannot silently create a new provider or
-semantic attempt. A human may later issue a new explicit authorization, which
-is a new semantic attempt with a new A3/provenance record. Each attempted
-profile is separately recorded.
+### 7.1 Canonical finite plan and node identity
+
+The effective fallback policy for one Deep Analysis semantic operation MUST be
+one `DeepAnalysisFallbackPolicyV1`: a finite directed acyclic graph (DAG) with
+exactly one explicit `start_node_identity`. `auto`, `best available`, `first
+healthy`, multiple roots, and runtime root selection are invalid. The default
+plan contains one explicit start node and zero edges. It is not valid to infer
+an edge from a failure, a mode, a provider kind, or health observation.
+
+A node is identified only by
+`DeepAnalysisFallbackNodeIdentityV1 = SHA256(DACS-1({schema_version,
+provider_id, provider_kind, adapter_identity, endpoint_deployment_profile_identity,
+model_selection_identity, credential_execution_profile_identity,
+structured_output_profile_identity, generation_profile_identity,
+context_authority_identity, qualified_capability_profile_identity,
+payload_scope}))`. Each component is required and is the immutable identity
+selected for that target; `model_selection_identity` includes the exact model
+ID, identity class, and required resolved-revision/digest policy. Provider kind
+alone, a display/config-node name, or a credential secret/reference is never a
+node identity. Two declared nodes with the same node identity are a duplicate
+semantic execution target and make the policy invalid, even if they have
+different configuration names or graph paths.
+
+`DeepAnalysisFallbackPolicyIdentityV1` is SHA256 of DACS-1 over the policy
+schema version, explicit start-node identity, canonical node array, and
+canonical edge array. The node array is sorted ascending by node identity. The
+edge array is sorted by source-node identity, the ascending DACS-1 failure-class
+array, destination-node identity, and edge identity. Edge failure classes are a
+non-empty sorted set without duplicates; duplicate edges are forbidden. This
+canonicalization is independent of configuration-file order.
+
+### 7.2 Edge authority, deterministic matching, and validation
+
+`DeepAnalysisFallbackEdgeV1` has a stable `edge_identity` and binds exactly:
+source node, destination node, non-empty allowed frozen failure-class set,
+source and destination payload scopes, payload-scope authorization identity,
+cloud-consent authorization identity for every cloud destination, and the
+required destination credential execution-profile identity. A plan MUST NOT
+contain two outgoing edges from the same source whose allowed failure-class sets
+overlap. "Any failure" is invalid unless a future version defines that exact
+closed set; V1 has no such wildcard.
+
+Before the first Deep Analysis provider dispatch, the application MUST validate
+the entire effective plan, not merely the start node. Validation MUST prove:
+
+1. exactly one start node exists and is in the node set;
+2. every node and referenced provider/profile exists, is unique by
+   `DeepAnalysisFallbackNodeIdentityV1`, and is qualified/eligible;
+3. every edge references existing distinct nodes, is explicitly authorized, and
+   has authorized payload-scope, cloud-consent, and credential-profile
+   transitions;
+4. each source's failure-class edge sets are pairwise disjoint;
+5. the graph is finite and acyclic, including no self-loop, two-node loop, or
+   longer cycle; and
+6. every reachable finite path has a terminal exhaustion state.
+
+Failure of any validation is the exact pre-dispatch failure
+`PRE_DISPATCH/INVALID_FALLBACK_POLICY`. It permits **no provider dispatch**.
+Cycles such as `A -> B -> A`, `A -> A`, and `A -> B -> C -> B`, a duplicate
+semantic node, an ambiguous edge, invalid reference, or illegal scope/consent
+transition are therefore invalid configuration, never a runtime recovery case.
+
+For a node failure, first classify it by §10's frozen precedence, then inspect
+only outgoing edges from that node. Select the one matching authorized edge;
+zero matches is terminal exhaustion; more than one match is
+`PRE_DISPATCH/INVALID_FALLBACK_POLICY` and fails closed without destination
+dispatch. No runtime preference, health ranking, skip-ahead, or alternate-edge
+selection is permitted. A failure itself creates neither an edge nor expanded
+privacy, consent, credential, cloud, or payload authority. In particular,
+`TIMEOUT`, `QUOTA_EXCEEDED`, `GROUNDING_INVALID`, and every other failure may
+advance only through an already validated edge matching that exact class.
+
+### 7.3 Runtime bound, authorization boundary, and terminal outcomes
+
+One `SemanticAttemptV1` selects one fallback node and one intended model
+generation under its resulting A1/A2/A3. During an operation, a fallback node
+MUST be selected at most once. If any runtime condition would revisit a
+selected node, it MUST fail closed without dispatch as
+`PRE_DISPATCH/INVALID_FALLBACK_POLICY`; a different incoming edge does not
+make re-entry valid. The maximum number of semantic provider attempts is less
+than or equal to the number of unique authorized fallback nodes. No generic
+`max_retries`, implicit retry loop, or extra attempt outside that bound exists.
+Transport attempts remain governed only by §8 and do not select a new node.
+
+The canonical terminal operation outcomes are:
+
+- `SUCCESS`: the sole finalizer minted `TrustedDeepAnalysisSuccess`.
+- `TERMINAL_FAILURE`: the current node's classified failure has no authorized
+  matching outgoing edge; it retains that final failure class.
+- `FALLBACK_PLAN_EXHAUSTED`: the terminal-failure condition after one or more
+  validated fallback advances has consumed the finite reachable authorized
+  path; it retains the final node and failure class.
+- `PRE_DISPATCH/INVALID_FALLBACK_POLICY`: the plan failed validation, became
+  ambiguous, or would re-enter a node; no violating destination is dispatched.
+
+If a cloud edge under `per_run_cloud_approval` is reached without a currently
+available interactive affirmative approval for that exact destination, it ends
+as `TERMINAL_FAILURE/AUTH_REQUIRED` (or `FALLBACK_PLAN_EXHAUSTED/AUTH_REQUIRED`
+after a prior advance). It MUST NOT wait indefinitely, dispatch the cloud
+provider, skip to another node, or choose another edge. A human-issued new
+authorization begins a new semantic operation; it is not a retry or extension
+of this plan.
+
+### 7.4 Fallback attempt provenance and cache boundary
+
+Every selected node, including one that fails before sending bytes, creates a
+bounded ordered attempt record containing: ordinal starting at one; fallback
+node identity; provider/model/profile identities; the triggering prior failure
+class (null only for the start node); edge and authorization identities (null
+only for the start node); payload scope; consent identity; A1/A2/A3; every
+transport attempt; and result or classified failure. The final trusted success
+MUST retain the complete ordered history for 016D persistence and fresh
+provenance validation. The policy identity is required dispatch provenance,
+016D persistence, and configuration audit material; it is not an A1/A2/A3
+field.
+
+Fallback path history is observational for cache-key purposes and MUST NOT by
+itself create a cache collision or a cache hit. A cached
+`TrustedDeepAnalysisSuccess` still requires the exact successful A1/A2/A3,
+validation-policy identity, provider/model/profile, consent/scope binding, and
+fresh revalidation required by §11. `DeepAnalysisFallbackPolicyIdentityV1` and
+prior failed-attempt history are not cache-key fields, so a policy ordering
+change alone does not fragment a cache; they remain audit evidence and never
+authorize reuse or a new dispatch.
 
 ## 8. Dispatch, retries, and idempotency
 
@@ -379,7 +491,8 @@ entry is a cache miss/failure, never a trusted hit. These protected artifacts
 are not logs and are inaccessible to adapters except through a newly built
 authorized projection.
 
-Persisted audit data additionally includes A1/A2/A3/cache IDs; provider kind,
+Persisted audit data additionally includes A1/A2/A3/cache IDs and
+`DeepAnalysisFallbackPolicyIdentityV1`; provider kind,
 ID, adapter/SDK version; endpoint/deployment and credential execution-profile
 identities; model ID/class/revision/digest; mode/dialect; payload scope and
 consent identity/policy; prompt/schema/generation/context/validation identities;
@@ -425,6 +538,7 @@ of these acceptance gates:
 | 14 | complete attempt/provenance/payload/response identity persistence support |
 | 15 | cache eligibility proof, including floating-alias exclusion and revalidation artifacts |
 | 16 | privacy, retention, and logging-redaction audit with no secret or unauthorized payload disclosure |
+| 17 | whole-plan pre-dispatch validation fixture proving canonical policy identity, unique semantic nodes, one explicit start node, acyclicity, pairwise-disjoint edge matching, finite exhaustion, per-run headless failure, and bounded ordered attempt provenance |
 
 The acceptance predicate is all-or-nothing: each required field is immutable,
 versioned, reproducible from cited fixtures/documentation, and independently
@@ -462,6 +576,16 @@ unchanged.
 | H. Wrong VerifiedScoringRead request hash | Early dispatch/final provenance `PROVENANCE_INVALID`; no mint. |
 | I. Valid tool result with wrong provider/model identity | Early dispatch binding `PROVENANCE_INVALID`; tool arguments are never semantically parsed as trusted. |
 | J. Credential switch changes deployment | Credential execution-profile/A3/cache mismatch; cache MISS and fresh explicit eligibility/consent check. |
+| K. `LOCAL -> CLOUD_FREE -> LOCAL` | `PRE_DISPATCH/INVALID_FALLBACK_POLICY`; zero dispatch. |
+| L. `LOCAL -> LOCAL` | `PRE_DISPATCH/INVALID_FALLBACK_POLICY`; zero dispatch. |
+| M. `LOCAL -> CLOUD_FREE -> CLOUD_USER_KEY` with all edge authorizations | Valid finite DAG; each matching edge selects at most one new semantic attempt. |
+| N. Two `CLOUD_FREE` edges match `QUOTA_EXCEEDED` | `PRE_DISPATCH/INVALID_FALLBACK_POLICY`; no runtime preference or dispatch. |
+| O. `LOCAL` fails `TIMEOUT`, only `PROVIDER_UNAVAILABLE` edge exists | `TERMINAL_FAILURE/TIMEOUT`; no fallback. |
+| P. `CLOUD_FREE` quota edge targets paid cloud without paid consent | `PRE_DISPATCH/INVALID_FALLBACK_POLICY` before first dispatch; no paid dispatch. |
+| Q. Same provider/model/profile appears under two config names | Duplicate semantic node; `PRE_DISPATCH/INVALID_FALLBACK_POLICY`. |
+| R. Per-run approval is unavailable when a cloud edge is reached headlessly | `TERMINAL_FAILURE/AUTH_REQUIRED` (or exhausted equivalent); no wait, skip, or cloud dispatch. |
+| S. `GROUNDING_INVALID` has one explicit matching edge | Exactly one new semantic attempt, with edge/trigger/ordinal provenance; no repair or hidden retry. |
+| T. All reachable nodes fail with no matching terminal edge | `FALLBACK_PLAN_EXHAUSTED`; no loop or additional attempt. |
 
 ## 15. Independent-review closure
 
@@ -476,12 +600,14 @@ unchanged.
 | P1-6 | P1 | Failure mapping/precedence ambiguous | Stage order, delivery certainty, adapter mapping requirements | §10 | FIXED |
 | P1-7 | P1 | Older retry/fallback rules conflict | Explicit global Deep Analysis supersession matrix | §13 | FIXED |
 | P1-8 | P1 | Capability/qualification gate incomplete | Immutable evidence-backed qualification record and acceptance predicate | §§5, 12 | FIXED |
+| R2-P1-1 | P1 | Directed fallback graph could cycle or re-enter without a finite bound | Canonical DAG, pre-dispatch whole-plan validation, unique semantic node identity, deterministic edge matching, terminal outcomes, and ordered attempt provenance | §7 | FIXED |
 | P2-1 | P2 | Structured response hash ambiguous | Mode-specific lossless/canonical payload identity | §9 | FIXED |
 | P2-2 | P2 | Capability versus trust unclear | Declared vs qualified capability separation | §§5, 12 | FIXED |
 | P2-3 | P2 | Local loopback wording missing | Local loopback restriction retained in qualified profile / supersession scope | §§8, 13 | CLARIFIED AS NON-BLOCKING |
 
 P0 unresolved: **0**.
 P1 implementation-critical unresolved: **0**.
+New implementation-critical P1 unresolved after Correction R2: **0**.
 
 **DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.**
 **TASK-016B REMAINS CLOSED.**

@@ -9,7 +9,7 @@
 - Base branch/commit: `main@1d8caf39630b1af4fe47212121cf9fc9b9694ab4`
 - Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-main-integration`
 - Branch: `main`
-- Head commit: pending provider-neutral contract correction R1 evidence commit
+- Head commit: pending provider-neutral contract correction R2 evidence commit
 - Started: 2026-08-28
 - Reported: 2026-08-29
 
@@ -21,6 +21,9 @@
 - Correction R1 实际修改：仅更新 provider-neutral contract amendment、ADR-027、System
   Design、ADR-023/PRD/PROJECT_STATUS supersession notices、TASK-016 task card 与本
   报告，关闭独立审查的 P0-1、P1-1 至 P1-8 及低风险 P2；未修改独立审查报告。
+- Correction R2 实际修改：仅更新 provider-neutral contract amendment、ADR-027、System
+  Design、TASK-016 task card 与本报告，关闭第二次独立审查唯一新增 P1（fallback graph
+  termination）；未修改审查报告或任何实现文件。
 - 明确未做：未修改 `src/`、`tests/`、migration、`pyproject.toml`、`uv.lock`、配置、真实 Vault 或任务状态；未重测或新测模型；未调用云 Provider/创建 API key；未实现 TASK-016D/E/F；未 push、merge、tag、rebase 或修复模型输出。
 
 ## 验收证据
@@ -36,6 +39,7 @@
 | Provider architecture review | PASS | Selects provider-neutral local/cloud peers, retains local optional mode, permits only explicit cloud dispatch, and preserves the untrusted-output validation/mint boundary. |
 | Provider-neutral contract amendment | PASS | Freezes provider kinds/capabilities, A1/A2/A3 identities, explicit payload consent, provider/model-aware cache semantics, no-repair/no-silent-fallback policy, validation order, and TrustedDeepAnalysisSuccess; no adapter or credential path is implemented. |
 | Provider-neutral contract Correction R1 | PASS | P0 unresolved=0 and implementation-critical P1 unresolved=0: A2 hashes the exact DACS-1 provider-semantic projection; cache/payload/consent/credential/floating/retry/context/persistence/qualification boundaries are explicit and fail-closed. |
+| Provider-neutral contract Correction R2 | PASS | Every effective plan is an explicit finite DAG validated before dispatch; duplicate semantic targets, cycles, ambiguous matching, re-entry, unbounded attempts, failure-created permission, and unavailable headless per-run approval fail closed. Ordered node/edge/trigger/consent/A1/A2/A3/result provenance is retained; cache stays bound to the successful A1/A2/A3 and validation policy. |
 
 ## 检查结果
 
@@ -50,10 +54,11 @@
 | Contract consistency review | PASS | Checked local-only assumptions, schema-as-trust, credential leakage, repair/retry ambiguity, cache collisions, scoring request binding, floating identity, tokenizer portability, and supersession hierarchy. |
 | `git diff --check` and untracked-document checks | PASS | No whitespace errors in tracked or newly added contract/ADR documents. |
 | Correction R1 adversarial contract review | PASS | Tested A2/cache collisions, payload widening, silent cloud/fallback, credential leakage, floating aliases, hidden SDK retry, context admission, scoring binding, forged mint, native-schema bypass, and supersession conflicts against deterministic outcomes. |
+| Correction R2 fallback adversarial review | PASS | Checked self/two/long cycles, duplicate semantic nodes, no start-node ambiguity, matching-edge overlap, no-match termination, unauthorized paid escalation, validation-failure edge provenance, finite exhaustion, and headless per-run approval against fail-closed outcomes. |
 
 ## Diff 复核
 
-- 修改文件：资格证据 Markdown、provider architecture review、provider-neutral contract amendment/ADR、System Design/task-card contract pointers 与本交接报告；Correction R1 仅触及相关 docs/task/handoff 文件，并补充 ADR-023/PRD/PROJECT_STATUS 的窄范围 supersession notice。
+- 修改文件：资格证据 Markdown、provider architecture review、provider-neutral contract amendment/ADR、System Design/task-card contract pointers 与本交接报告；Correction R1 仅触及相关 docs/task/handoff 文件，并补充 ADR-023/PRD/PROJECT_STATUS 的窄范围 supersession notice；Correction R2 仅触及 contract/ADR/System Design/task card/handoff 的 fallback-termination 语义。
 - 是否存在任务范围外修改：否。
 - 是否存在生成文件或格式化噪声：否。
 - 是否触及依赖、Schema、密钥、真实 Vault、云调用或调度红线：否。临时 tokenizer/capture files remain under `/tmp`; one local model acquisition was explicitly authorized by the protocol and was not added to the repository.
@@ -62,11 +67,11 @@
 
 - 已解决失败：无；本任务记录机械门禁结果，而非修复模型行为。
 - 跳过检查及原因：无代码改动，未运行不相关的 product test/type/lint suite。
-- 剩余风险：C1/C3 are tokenizer-proof blocks; C4 is an acquisition block under the one-pull rule. These are protocol outcomes, not model-quality findings. Exact reference-adapter selection/qualification, cloud data/key/terms approval, persistence/cache implementation, and real provider/model activity remain future gates. Correction R1 leaves no unresolved implementation-critical provider-neutral contract question.
+- 剩余风险：C1/C3 are tokenizer-proof blocks; C4 is an acquisition block under the one-pull rule. These are protocol outcomes, not model-quality findings. Exact reference-adapter selection/qualification, cloud data/key/terms approval, persistence/cache implementation, and real provider/model activity remain future gates. Correction R2 leaves no unresolved implementation-critical provider-neutral contract question.
 - `DECISION NEEDED`：None.
 
 ## 实现者结论
 
 - 建议状态：`IN_REVIEW`
-- Commit SHA：pending provider-neutral contract correction R1 evidence commit
+- Commit SHA：pending provider-neutral contract correction R2 evidence commit
 - 复现/验证说明：qualification matrix and captured evidence remain in `docs/TASK-016-LOCAL-DEEP-ANALYSIS-DETERMINISTIC-MODEL-QUALIFICATION.md`; architectural decision is in `docs/TASK-016-LOCAL-DEEP-ANALYSIS-PROVIDER-ARCHITECTURE-REVIEW.md`; the implementation-ready contract and next gate are in `docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md` and ADR-027.

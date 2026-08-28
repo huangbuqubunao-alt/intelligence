@@ -28,11 +28,16 @@
 ## 2026-08-28 provider-neutral contract amendment
 
 - [TASK-016 Deep Analysis Provider-Neutral Contract Amendment](../docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
-  Correction R1 and ADR-027 freeze the corrected provider-neutral contract. The
+  Correction R2 and ADR-027 freeze the corrected provider-neutral contract. The
   canonical subsystem is `Deep Analysis`; local, optional free cloud, and
   user-key cloud are explicit peers and provider output remains untrusted.
-- Correction R1 closes the independent review's P0 and implementation-critical
-  P1 findings: A2 is the DACS-1 hash of the exact provider-semantic request
+- Correction R1 closed the independent review's P0 and eight original
+  implementation-critical P1 findings. Correction R2 closes the second
+  review's sole new P1: every fallback plan is a pre-dispatch-validated finite
+  DAG with an explicit start node, duplicate semantic-node rejection,
+  deterministic failure-class edge matching, no re-entry, bounded attempts,
+  fail-closed headless approval, and complete ordered provenance. A2 remains
+  the DACS-1 hash of the exact provider-semantic request
   projection; cache binds A1/A2/A3/validation policy; payload is an
   application-owned allowlisted projection; consent/fallback, credentials,
   floating models, context, retry, response identity, 016D evidence retention,

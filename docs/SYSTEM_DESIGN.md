@@ -717,7 +717,7 @@ authority 与 validation policy。浮动 cloud alias 若经显式允许可 dispa
 non-reproducible 且不可 cache reuse。TASK-016B/C 的 scoring admission、repair、lineage、
 Phase G 和 `AuthoritativeScoringReader` 语义不受本节改变。
 
-Correction R1 additionally freezes DACS-1 exact canonical serialization and
+Correction R2 additionally freezes DACS-1 exact canonical serialization and
 `A2 = SHA256(DeepAnalysisRequestProjectionV1)`: A2 includes exact final
 provider-visible role/text, authorized payload, structured mode/schema/tool
 projection, and semantic generation settings; A3 includes the non-secret
@@ -725,6 +725,13 @@ credential execution/deployment profile. The cache identity binds A1/A2/A3 and
 validation policy. Adapters receive only the application-built authorized
 payload projection, never unrestricted transcript authority. Floating models
 are cross-run cache-ineligible; SDK hidden retries are prohibited; and only the
-complete validator/finalizer can mint `TrustedDeepAnalysisSuccess`. For all
-provider, consent, fallback, persistence, response-identity, and qualification
-details, Correction R1 is normative.
+complete validator/finalizer can mint `TrustedDeepAnalysisSuccess`. Fallback is
+only a pre-dispatch-validated finite DAG: it has one explicit start node,
+unique provider/model/profile node identities, authorized scope/consent edges,
+deterministic failure-class matching, no revisit, and at most one semantic
+attempt per unique authorized node. Cycles, ambiguous edges, unavailable
+headless per-run cloud approval, and any invalid policy fail closed without a
+destination dispatch. Full ordered fallback attempt provenance is retained for
+016D; policy identity and history do not replace the exact successful A1/A2/A3
+cache binding. For all provider, consent, fallback, persistence,
+response-identity, and qualification details, Correction R2 is normative.
