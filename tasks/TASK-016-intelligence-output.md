@@ -8,6 +8,23 @@
   SQLite Repository、Artifact/ProviderCall、Obsidian 安全渲染、Weekly Service 与锁定
   依赖；不新增生产依赖。
 
+## 2026-08-28 provider architecture review
+
+- The deterministic qualification record concludes `QUALIFIED_LOCAL_MODEL=NONE`:
+  no candidate qualified under the fixed protocol. It does not claim that all
+  local models are incapable.
+- `docs/TASK-016-LOCAL-DEEP-ANALYSIS-PROVIDER-ARCHITECTURE-REVIEW.md` selects a
+  provider-neutral architecture in which local, optional free cloud, and
+  user-key paid cloud are peers behind one untrusted-output validation and
+  provenance contract. Local-only is no longer a hard delivery requirement;
+  local mode remains supported and cloud dispatch remains explicit,
+  privacy-bounded, and never an automatic fallback.
+- This is an architecture decision only. It authorizes no provider code,
+  credentials, network/model activity, persistence/cache work, or TASK-016D/E/F
+  implementation. The next implementation gate is an approved provider-neutral
+  TASK-016 contract amendment that reconciles this decision with the existing
+  milestone sequencing.
+
 ## Local Deep Analysis design status
 
 - `TASK-016-LOCAL-DEEP-ANALYSIS` design amended in
@@ -57,19 +74,26 @@ Cloud 关闭时仍为高价值视频生成完整、可信、默认中文的知�
 
 ## 里程碑与顺序
 
-### M1：Local-only 可用产品
+### Superseded sequencing note
+
+The following Local-only M1 / Hybrid M2 sequencing is historical planning.
+It must not authorize implementation after the 2026-08-28 provider architecture
+review. A provider-neutral contract amendment is required before replacing it
+with a new ordered implementation plan.
+
+### Historical M1：Local-only 可用产品
 
 `016A -> 016B -> 016C -> 016D -> 016E -> 016F`
 
 每个任务必须独立审查并整合。前一任务未 `DONE` 时不得分配下一项。`016F` 整合后必须
 停下，由产品负责人验收 Local-only 真实输出。
 
-### M2：Hybrid / Cloud
+### Historical M2：Hybrid / Cloud
 
 - `016G`：Hybrid/Cloud Router、预算、fallback 与严格 Cloud 语义。
 - 只有 M1 获产品验收后才可建立正式任务卡与实施授权。
 
-### M3：跨模式验收
+### Historical M3：跨模式验收
 
 - `016H`：Local/Hybrid/Cloud E2E、迁移兼容、真实 smoke 与运维证据。
 - 真实网络、Key、付费调用及发送范围必须逐项另行批准。
