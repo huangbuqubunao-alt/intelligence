@@ -1,266 +1,488 @@
-# TASK-016 — Deep Analysis Provider-Neutral Contract Amendment
+# TASK-016 — Deep Analysis Provider-Neutral Contract Amendment, Correction R1
 
 Status: **ACCEPTED DESIGN / IMPLEMENTATION NOT AUTHORIZED**
-Date: 2026-08-28
-Decision basis: [provider architecture review](TASK-016-LOCAL-DEEP-ANALYSIS-PROVIDER-ARCHITECTURE-REVIEW.md), Option C.
-Durable decision: [ADR-027](decisions/ADR-027-provider-neutral-deep-analysis-contract.md).
+Date: 2026-08-29
+Correction basis: `docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-INDEPENDENT-REVIEW.md`
+Durable decision: [ADR-027](decisions/ADR-027-provider-neutral-deep-analysis-contract.md)
 
-## 1. Scope and terminology
+## 1. Scope, authority, and terms
 
-This is the exact implementation contract for the provider-neutral Deep Analysis layer. It authorizes no source change, provider adapter, credential, network call, persistence/cache work, or TASK-016D/E/F work.
+This is the authoritative provider-neutral Deep Analysis contract. It corrects
+the reviewed amendment; it authorizes no code, provider, credential, network,
+model, persistence/cache, or TASK-016D/E/F work. `Deep Analysis` is the one
+canonical subsystem name. `LOCAL`, `CLOUD_FREE`, and `CLOUD_USER_KEY` are
+provider kinds, not trust levels.
 
-The canonical subsystem name is **Deep Analysis**. Local Deep Analysis is historical local-profile/qualification terminology, not the subsystem or trusted-success name. Canonical future names are:
+Provider output, including provider JSON mode, JSON Schema, and tool/function
+arguments, is untrusted. The application owns canonical input, payload
+authorization, request construction, validation, provenance, cache admission,
+and the sole `TrustedDeepAnalysisSuccess` mint. An adapter is a dispatch and
+documented-envelope-extraction component; it has no authority to widen
+provider-visible content or mint trusted data.
 
-| Concern | Canonical name | Owner / trust |
-| --- | --- | --- |
-| provider interface | DeepAnalysisProvider | adapter boundary; cannot mint success |
-| pre-contact request | DeepAnalysisDispatchEnvelopeV1 | application-created |
-| provider result | UntrustedDeepAnalysisResponseV1 | untrusted observation |
-| model business candidate | KnowledgeContent | untrusted until all validation passes |
-| validated knowledge | KnowledgeResult | application-created |
-| runtime mint | TrustedDeepAnalysisSuccess | provider-neutral trusted success |
+`VerifiedScoringRead.scoring_outcome.result.request_hash` is the only scoring
+request identity accepted by Deep Analysis. `scoring_success_provenance` is
+only `PRIMARY | REPAIR_H2C` classification and is never a request identity.
 
-No persisted/public interface is silently renamed. A future local-only compatibility path, if needed, is explicit and one-way; it must not let a historical local trusted type impersonate a provider-neutral success.
+## 2. Canonical serialization: DACS-1
 
-TASK-016B and TASK-016C remain closed. Their scoring admission, repair, lineage, Phase G, and AuthoritativeScoringReader semantics do not change. The sole scoring ingress is AuthoritativeScoringReader to VerifiedScoringRead. The trusted scoring request identity is exactly VerifiedScoringRead.scoring_outcome.result.request_hash. scoring_success_provenance remains only PRIMARY or REPAIR_H2C; it is never a request hash or substitute identity.
+Every identity below is `SHA256` over UTF-8 bytes produced by
+`DeepAnalysisCanonicalSerializationV1` (**DACS-1**). DACS-1 is JSON Canonical
+Serialization (RFC 8785 / JCS) with these mandatory contract rules, which are
+also the complete implementation requirements:
 
-## 2. Provider model
+- The top-level value is a JSON object with a required `schema_version` field.
+  Object member names sort recursively by Unicode UTF-16 code-unit order;
+  duplicate keys are forbidden.
+- Emit no insignificant whitespace. Encode as UTF-8. Strings use JSON escaping
+  exactly as JCS: quote and reverse-solidus are escaped, control code points
+  U+0000--U+001F use the shortest JSON escape, and all other Unicode scalar
+  values are emitted literally; invalid UTF-8, surrogate code points, and
+  non-finite numbers are forbidden.
+- JSON booleans are exactly `true` and `false`; null is exactly `null`. An
+  omitted field is absent, never interchangeable with a field whose value is
+  null. Required-empty values (`""`, `[]`, `{}`) are likewise distinct.
+- Arrays preserve declared order. Any order-insensitive collection must first
+  be deterministically sorted by its documented semantic key; no serializer may
+  reorder a semantic sequence such as messages, Evidence Registry items, tools,
+  or fallback edges.
+- Numbers use RFC 8785 ECMAScript-number serialization. Values outside that
+  interoperable finite domain are invalid. A provider setting for which numeric
+  lexical form itself is semantic is represented instead by a required string
+  field containing the exact provider-visible lexical token.
+- DACS-1 does not normalize, trim, fold case, alter line endings, or otherwise
+  rewrite a provider-visible string. Earlier canonical-input construction may
+  have a separately versioned transcript normalization rule, but the rendered
+  request text and provider-native string values are hashed byte-for-byte after
+  rendering. Thus NFC/NFD or LF/CRLF differences that reach the provider do not
+  collide.
 
-The core contract contains no vendor/commercial names.
+Each structure below rejects unknown fields unless its named version explicitly
+adds them. SHA256 digests are lowercase hexadecimal over the DACS-1 UTF-8
+bytes. A different serializer, schema version, omitted/null shape, array order,
+or provider-visible character sequence is a different identity.
 
-| provider_kind | Meaning |
+## 3. Canonical input and authorized payload boundary
+
+`CanonicalDeepAnalysisInputV1` is immutable DACS-1 data. Its A1 identity is
+`A1 = SHA256(DACS-1(CanonicalDeepAnalysisInputV1))`. It includes operation and
+input schema versions; exact prompt-relevant video metadata identity; canonical
+transcript identity/language/normalization version; selected Evidence Registry
+identity and canonical selected items; selection/coverage policy; the exact
+VerifiedScoringRead request hash and scoring-provenance class; requested output
+language; KnowledgeContent schema version; prompt version; and operation
+version. Timestamps, credentials, provider request IDs, diagnostics, and
+transport observations are not A1 fields.
+
+The application MUST construct `AuthorizedProviderPayloadProjectionV1` from
+that canonical input before choosing an adapter. It contains only:
+
+1. `payload_schema_version`, `payload_scope`, and `output_language`;
+2. allowed immutable prompt metadata: `video_title`, `channel_name`,
+   `published_at`, `duration_seconds`, `source_language`, and the bounded
+   public description already included by the current prompt version;
+3. the exact selected Evidence Registry items, in Registry order, each with
+   only `evidence_id`, `source`, and exact `excerpt`; and
+4. if and only if `payload_scope=FULL_TRANSCRIPT`, the exact canonical
+   transcript text plus its content hash and normalization version.
+
+No other field is allowed: no transcript path, Vault/user content, unselected
+excerpt, diagnostics, internal IDs/hashes, scoring result/reason/dimensions,
+credential identifier, or free-form adapter metadata. Every transcript-derived
+provider byte therefore comes from a selected Registry item, except the single
+explicit `FULL_TRANSCRIPT` field.
+
+The only V1 scopes are `SELECTED_EVIDENCE_ONLY` and `FULL_TRANSCRIPT`.
+`SELECTED_EVIDENCE_ONLY` is the default. `FULL_TRANSCRIPT` requires all of:
+`coverage_complete=true`; a named-provider exact-run consent decision; an
+authorization record allowing that scope; and a current prompt projection that
+uses it. `cloud_allowed=true` is never sufficient.
+
+The adapter interface receives exactly `(AuthorizedProviderPayloadProjectionV1,
+DeepAnalysisRequestProjectionV1, non_secret_execution_material)`. It MUST NOT
+receive a transcript object, transcript repository, artifact path, Vault
+handle, or callback capable of recovering broader content. If an unavoidable
+transport runtime owns broader storage, its contract still MUST make sending
+any content outside the exact projection impossible and auditable; absence of
+that capability proof makes the adapter ineligible. The application derives
+the cloud payload mechanically from this projection, never from adapter input.
+
+`PayloadConsentIdentityV1 = SHA256(DACS-1({schema_version, consent_mode,
+authorization_record_identity, named_provider_id, provider_kind, payload_scope,
+allowed_model_constraint, fallback_edge_identity_or_null, exact_run_nonce_or_null}))`.
+It is semantic provenance. Scope and this identity enter A2, A3, trusted
+provenance, persistence, and cache identity through A2/A3; no output made with
+`FULL_TRANSCRIPT` can collide with `SELECTED_EVIDENCE_ONLY`.
+
+## 4. Exact provider-semantic request projection (A2)
+
+`DeepAnalysisRequestProjectionV1` is the complete canonical identity of what
+can change provider behavior or output. The application renders it once from
+the authorized payload, DACS-1 serializes it, context-checks that same exact
+projection, then re-renders and re-hashes immediately before transport. Any
+difference fails closed before contact.
+
+`A2 = SHA256(DACS-1(DeepAnalysisRequestProjectionV1))`. Required fields are:
+
+- `schema_version`, `operation`, `A1`, `payload_consent_identity`, exact
+  `payload_scope`, and the exact `authorized_payload` object;
+- `provider_visible_messages`: an ordered list of `{role, content}` with each
+  final rendered text string exactly as sent; a raw single-prompt profile uses
+  one `{role: "user", content: ...}` entry and no invented role;
+- `provider_visible_request_shape`: the selected provider API semantic form,
+  including role structure, input/message placement, and provider-native
+  request fields that affect model-visible behavior;
+- `structured_output`: selected mode, dialect ID/version, structured-output
+  mode/settings, exact schema object or null, and exact ordered tool/function
+  definitions plus selection/choice mode or null;
+- `generation_semantics`: exact requested output cap, stop sequences, seed,
+  temperature/top-p/top-k/reasoning or similar model-behavior settings, and
+  every provider-visible semantic setting. Unsupported/omitted settings are
+  represented as omitted; requested null is represented as null; and
+- `prompt_identity`, `KnowledgeContent schema identity`, `output_language`,
+  and `payload_projection_version`.
+
+Transport-only fields are excluded from A2: credentials and references,
+authorization headers, provider request/trace IDs, wall-clock timestamps,
+timeouts, retry counters, TCP/TLS details, logging switches, and SDK user-agent
+formatting. They cannot change the semantic request. Endpoint/deployment/model
+execution choice belongs to A3, except a provider-native endpoint field that is
+visible to the model or changes semantic decoding, which belongs in both the
+provider-visible request shape and its A3 endpoint profile.
+
+### 4.1 Mode-specific A2 coverage
+
+| Mode | A2 must include, in addition to common fields |
 | --- | --- |
-| LOCAL | Endpoint meets local endpoint policy. |
-| CLOUD_FREE | Optional free/no-spend route. It may still require account/key. |
-| CLOUD_USER_KEY | Explicit user-key cloud route. |
+| `RAW_JSON_PROMPT` | exact rendered prompt/message bytes, exact role structure, exact requested JSON instructions embedded in text, and generation semantics. `structured_output.schema` and tools are null. |
+| `PROVIDER_JSON_MODE` | RAW fields plus exact provider JSON-mode switch/object and all provider-native JSON response settings. |
+| `PROVIDER_JSON_SCHEMA` | JSON-mode fields plus the exact DACS-1 JSON Schema payload, dialect/version, schema name/strictness and all structured-output settings sent to the API. |
+| `TOOL_STRUCTURED_RETURN` | exact messages plus every exact ordered tool/function declaration (name, description, parameters/schema and metadata), tool choice/selection mode, parallel/call limits, and the provider-native structured-return settings. |
 
-Each dispatch has all three distinct fields:
+An adapter may not substitute an SDK default, add a system instruction, alter a
+schema/tool description, or choose a different provider request shape after A2
+construction. Such a change requires a new A2. A dispatch-body hash remains an
+audit-integrity field only; it is not a replacement for A2.
 
-| Field | Meaning |
+## 5. A3 execution identity, credential profile, and model policy
+
+`DeepAnalysisExecutionProfileV1` is DACS-1 and
+`A3 = SHA256(DACS-1(DeepAnalysisExecutionProfileV1))`. It binds A2 plus
+provider kind/ID, adapter identity/version and SDK/HTTP-client version;
+provider endpoint/deployment profile; selected model ID; model identity class;
+resolved immutable revision/digest when available; qualified capability-profile
+identity; context-authority identity; generation-profile identity; idempotency
+support profile; and `CredentialExecutionProfileIdentityV1`.
+
+`CredentialExecutionProfileIdentityV1` is an opaque, non-secret DACS-1 hash of
+the safe provider account/project/organization scope (when safe to record),
+region, endpoint/deployment binding, and provider-side execution-policy profile
+that can route or materially alter the result. It changes when any such
+semantic execution attribute changes. It never contains an API key, token,
+secret, authorization header, credential reference/name, or a reversible secret
+derivative. Secret rotation alone does not change it; a change that routes to a
+different deployment or project does. A3, cache eligibility, and provenance
+therefore change without exposing credentials.
+
+Credential secret bytes, tokens, headers, credential references, and secret
+derivatives are excluded from every identity/hash, cache key/value, log,
+provenance record, raw-envelope record, and error. Only the non-secret opaque
+execution-profile identity is retained where this section requires it.
+
+Model identity is exactly one of `IMMUTABLE`, `VERSIONED`, or `FLOATING`.
+`IMMUTABLE` has a stable digest/snapshot; `VERSIONED` has a provider-stable
+revision/deployment identity; `FLOATING` is an alias without such a binding.
+For `FLOATING`, cross-run cache reuse is disabled. A dispatch is allowed only
+under explicit policy and records `reproducibility=NOT_GUARANTEED`; a response-
+echoed stable revision may be recorded but cannot retrospectively turn the
+attempt into an immutable cached result. Immutable/versioned cache eligibility
+also requires the exact resolved identity in A3.
+
+Declared capability describes an API surface, for example
+`supports_json_schema=true`; it is never a trust assertion. A qualified
+capability is a declared capability backed by an accepted
+`ProviderQualificationRecordV1` test/evidence set for the exact adapter,
+SDK, endpoint/deployment, model policy, and selected profile. Capabilities can
+admit dispatch mechanics only. Every result still traverses all validators.
+
+## 6. Context admission and generation profile
+
+The application computes `ContextBudgetDecisionV1` over the final A2
+projection before contact. It binds A2, model/context identity, context window,
+input count or conservative bound, structured-output overhead budget,
+tool/schema overhead budget, requested output budget, and pass/fail. No
+post-response usage value can establish pre-dispatch safety.
+
+| Authority | Safe admission predicate |
 | --- | --- |
-| provider_kind | privacy, endpoint, and consent class |
-| provider_id | stable opaque application ID for one adapter/provider integration; never URL, secret, or model |
-| adapter_version | application translation/extraction/capability contract version |
+| `EXACT_LOCAL_TOKENIZER` | A frozen exact tokenizer/model mapping counts the final provider-semantic projection. `input_tokens + structured_output_overhead + tool_schema_overhead + requested_output_tokens <= documented_context_window`. |
+| `PROVIDER_DOCUMENTED_TOKENIZER` | An accepted qualification record identifies stable provider documentation, exact model-to-tokenizer mapping, version, and an offline/pre-dispatch count mechanism or provably equivalent upper bound. The same full inequality applies. A vague provider estimate is not authority. |
+| `CONSERVATIVE_PROVIDER_CONTRACT` | Accepted provider documentation supplies a stable context window and a versioned, safe upper bound for exact messages/payload plus explicit upper allowances for provider framing, structured-output metadata, and tool/schema metadata. The same inequality applies using bounds. If any overhead cannot be bounded, the profile is ineligible. |
 
-## 3. DeepAnalysisProviderCapabilitiesV1
+`PROVIDER_REPORTED_USAGE` is corroboration only. It is never an authority kind.
+The generation profile records requested/actual supported semantic settings and
+its identity enters A2/A3. Unsupported requested settings fail before contact;
+a request hash is not a generation determinism promise.
 
-Every field is mandatory to declare; false or unavailable is explicit. Mandatory below means mandatory record field, not universally true.
+## 7. Consent and directed fallback policy
 
-| Field/type | Meaning | Required force | Unsupported result |
-| --- | --- | --- | --- |
-| capabilities_schema_version: str | record format | normative | provider ineligible |
-| supported_structured_output_modes: set | executable modes without downgrade | normative | CAPABILITY_UNSUPPORTED |
-| supports_strict_json: bool | can request one JSON document; not trust | advisory | raw prompt may remain eligible |
-| supports_json_schema: bool | accepts declared schema/profile | required when schema mode | schema mode unavailable |
-| supports_tools: bool | accepts declared no-side-effect tool return | required when tool mode | tool mode unavailable |
-| supports_seed: bool | accepts seed | advisory | record unsupported |
-| supports_temperature: bool | accepts explicit temperature | required when requested | profile ineligible |
-| supports_temperature_zero: bool | accepts exactly zero | advisory | cannot claim zero |
-| supports_stream_false: bool | bounded non-stream response | eligibility required | provider ineligible |
-| supports_usage_reporting: bool | reports usage | advisory | usage unavailable |
-| supports_input_token_reporting: bool | reports input usage | advisory | no reconciliation |
-| supports_model_revision_identity: bool | exposes immutable revision/digest | required for reproducible cache reuse | mutable-alias rule |
-| supports_deterministic_request: bool | app can deterministically construct request; no generation promise | eligibility required | provider ineligible |
-| supports_offline: bool | dispatch without network | required only for offline claim | cannot satisfy offline config |
-| supports_local_only: bool | meets local endpoint policy | required for LOCAL | not selectable as local |
-| supports_timeout_control: bool | controls connect/whole-request deadlines | eligibility required | provider ineligible |
-| context_authority_kind: enum | context proof kind in §10 | eligibility required | provider/request ineligible |
-| max_context_tokens: positive int or unavailable | advertised total context | required for token authorities | safe conservative contract required |
-| max_output_tokens: positive int or unavailable | safely requestable output cap | normative | profile ineligible |
-| schema_dialect_id: str or unavailable | exact schema/tool dialect | required in schema/tool modes | mode unavailable |
-| raw_response_limit_bytes: positive int | bounded envelope/payload capture | eligibility required | provider ineligible |
-| failure_mapping_version: str | §15 mapping version | eligibility required | provider ineligible |
+All cloud authorization is explicit and fail-closed. A consent record is
+immutable for a dispatch and is identified by `PayloadConsentIdentityV1`.
 
-Capabilities are qualification evidence, not a provider claim that trusts output.
+| Mode | Cloud dispatch | Provider/payload authority | Fallback | Headless outcome |
+| --- | --- | --- | --- | --- |
+| `local_only` | Forbidden | One named qualified LOCAL profile; scope is `SELECTED_EVIDENCE_ONLY` unless an independently valid local full-transcript policy exists | No fallback | `PROVIDER_UNAVAILABLE` or other local result; never cloud |
+| `cloud_explicit` | Allowed only after this run has an explicit named-provider/scope consent | Exactly one named qualified cloud provider, exact model constraint, credential execution profile, and scope | No fallback | Missing explicit consent is `AUTH_REQUIRED`, zero dispatch |
+| `cloud_pre_authorized` | Allowed only by a matching prior authorization record | Each named allowlist entry binds provider ID/kind, model constraints, credential execution-profile identity, payload scope, and allowed directed edges | Default no edge; only named edges below | Valid prior authorization may operate headlessly; otherwise `AUTH_REQUIRED` |
+| `per_run_cloud_approval` | Allowed only after a non-expired run-specific affirmative decision | Decision binds named provider/kind, model constraint, scope, credential execution profile, and any one named fallback edge | No automatic fallback; a new per-run decision is required | `AUTH_REQUIRED`, zero dispatch |
 
-## 4. Minimum eligibility
+`cloud_pre_authorized` is not a Boolean. Its prior record MUST contain issuer,
+record version/identity, eligible named providers/provider kinds, allowed model
+constraints, allowed payload scopes, credential execution-profile identities,
+explicit directed fallback edges, whether new semantic attempts are allowed,
+and expiry/revocation policy. An empty, duplicate, or multiple-current provider
+selection is `PRE_DISPATCH/PROVIDER_UNAVAILABLE`; a missing credential is
+`AUTH_REQUIRED`; neither selects another provider.
 
-Before any dispatch the selected adapter/profile MUST: have complete capabilities and provider identity; have known model ID and identity classification; use one selected structured mode without downgrade; retain documented complete response bytes and bounded raw envelope bytes; construct the request deterministically; support stream=false and bounded timeouts; have an accepted exact-projection context decision; map failures explicitly; pass endpoint/TLS-or-loopback, consent, credential-reference, and data-minimization checks before contact; and feed only the §13 validator/mint path.
+Fallback is an explicit directed graph. Default graph: **no edges**. An edge
+`from_profile -> to_profile` is valid only if its immutable policy authorizes
+that exact edge, the destination is currently qualified/eligible, the same
+payload scope is authorized for both profiles, and the destination has its own
+matching consent identity. In V1 an edge may automatically advance only after
+`PRE_DISPATCH/PROVIDER_UNAVAILABLE`, proven before any request byte is sent.
+Every other class, including `TIMEOUT`, `RATE_LIMITED`, `QUOTA_EXCEEDED`,
+`STRUCTURED_OUTPUT_INVALID`, `SCHEMA_INVALID`, `GROUNDING_INVALID`, and
+`PROVENANCE_INVALID`, is `STOP`; it cannot silently create a new provider or
+semantic attempt. A human may later issue a new explicit authorization, which
+is a new semantic attempt with a new A3/provenance record. Each attempted
+profile is separately recorded.
 
-Native schema/tools, seed, temperature zero, usage reporting, exact local tokenizer proof, and immutable cloud revision are not universal prerequisites. A capability needed by the selected profile fails closed before contact.
+## 8. Dispatch, retries, and idempotency
 
-## 5. Structured output modes
+One `SemanticAttemptV1` is one intended model generation under one A1/A2/A3.
+It may contain `TransportAttemptV1` only if the application proves the provider
+did not accept/process the request: DNS resolution failure before connection,
+TCP connect failure, or TLS negotiation failure before an HTTP request. These
+are recorded individually.
 
-| Mode | Constraint and allowed extraction | Schema sent | Still mandatory |
-| --- | --- | --- | --- |
-| RAW_JSON_PROMPT | prompt requests one JSON document; read documented complete response field | prompt description only | all validation |
-| PROVIDER_JSON_MODE | provider JSON-output switch; read documented complete response field | not necessarily | all validation |
-| PROVIDER_JSON_SCHEMA | provider constrains decoding to declared schema dialect | yes | all validation |
-| TOOL_STRUCTURED_RETURN | declared no-side-effect tool/function arguments; read documented complete arguments and execute no tool | where supported | all validation |
+Timeout after body send, connection reset after upload, HTTP 5xx, HTTP 429,
+and any incomplete/ambiguous delivery are unknown-delivery terminal results:
+no resend and no automatic fallback. A provider response or any validation/
+quality/trust failure also ends the semantic attempt. These rules distinguish
+idempotent transport replay from a new quality attempt.
 
-Selecting a documented complete provider envelope field is normal transport extraction, not repair. The adapter preserves original bounded envelope and payload bytes. An SDK that exposes only a lossy parsed object is ineligible for V1.
+SDK/HTTP automatic retries MUST be disabled. An adapter is ineligible if it
+cannot disable them or externally surface every attempted send. The only
+exception requires an accepted provider qualification proof of provider-side
+idempotent deduplication, an A3-bound idempotency support profile, and complete
+per-send provenance. Where supported, the non-secret idempotency key is
+`SHA256(UTF8("deep-analysis-idempotency-v1\\0" + A2 + "\\0" + A3))`; it is a
+transport key, not cache identity and not permission for quality retry.
 
-Prohibited: fence stripping, first JSON/object extraction, trailing-prose truncation, regex/syntax repair, automatic missing-brace/quote/field synthesis, second-LLM repair, and hidden retry-until-valid. The complete extracted payload is accepted or rejected.
+## 9. Response identity, validation, and mint ownership
 
-## 6. CanonicalDeepAnalysisInputV1
+`UntrustedDeepAnalysisResponseV1` retains bounded raw provider-envelope bytes
+and their hash separately from the semantic payload hash. It has the expected
+dispatch hash, response metadata, every transport attempt, provider request ID
+if available, and delivery certainty. It contains no secret.
 
-This immutable application object is canonical JCS UTF-8: sorted keys, no insignificant whitespace, finite values, no implicit defaults. A1 is SHA256 of exact canonical bytes.
+`ProviderEnvelopeIdentity` is SHA256 of exact captured envelope bytes where
+available. `ValidatedPayloadIdentity` is mode-specific:
 
-All fields are semantic A1 fields:
+- text-bearing `RAW_JSON_PROMPT`, `PROVIDER_JSON_MODE`, and
+  `PROVIDER_JSON_SCHEMA`: SHA256 of the exact complete UTF-8 payload bytes as
+  extracted from the documented envelope field, without mutation;
+- provider-decoded structured object: SHA256 of DACS-1 canonical JSON only if
+  qualification proves the SDK object is lossless for that documented field;
+  otherwise the adapter is ineligible; and
+- `TOOL_STRUCTURED_RETURN`: SHA256 of DACS-1 canonical JSON of the exact
+  selected tool-arguments object, after qualification proves tool selection and
+  argument extraction are documented and lossless. The tool name/call choice is
+  envelope provenance, not an incidental SDK-format hash.
 
-- schema_version = canonical-deep-analysis-input-v1; operation = deep-analysis-v1; analysis_operation_version;
-- video_content_identity: video_id and metadata_content_hash for exactly prompt-relevant metadata;
-- authoritative_transcript_identity: transcript_content_hash, transcript_language, normalization_version;
-- selected_evidence_registry: registry schema/hash/items, selected_evidence_count, total_evidence_count, coverage_complete;
-- verified_scoring_request_hash;
-- scoring_success_provenance: PRIMARY or REPAIR_H2C only;
-- output_language, KnowledgeContent schema version, prompt version, and evidence-selection policy version.
+Validation order is normative:
 
-verified_scoring_request_hash MUST equal VerifiedScoringRead.scoring_outcome.result.request_hash. A scoring result/reason/dimension is not input unless a future prompt version explicitly adds it and therefore changes A1. Timestamps, endpoint URL, credential reference, provider request ID, transport attempt count, host facts, and diagnostics are not A1 fields.
+1. bounded transport and documented-envelope capture;
+2. **early dispatch binding**: dispatch hash and expected provider, adapter,
+   endpoint/deployment, model/resolved revision, structured mode, A1/A2/A3 and
+   scoring request identity must match the response metadata/evidence available
+   before semantic parsing;
+3. complete documented payload extraction, strict whole-document UTF-8 JSON
+   parse, canonical schema/domain validation, Registry grounding, KG2, and
+   output-language validation; and
+4. **final provenance completeness**: payload consent/scope, all attempt
+   history, response identities, validation policy, qualified profile, and
+   required immutable revalidation artifacts must bind before mint.
 
-## 7. Evidence Registry and minimization
+No repair, fence stripping, first-object extraction, truncation, synthesis,
+second model, hidden quality retry, alternate provider, cache trust shortcut,
+or public/raw-data constructor is permitted. Only the complete application
+validator/finalizer pipeline can mint `TrustedDeepAnalysisSuccess`; raw adapter
+code, DTO/cache deserialization, and callers cannot fabricate it.
 
-Transcript authority remains the verified canonical runtime transcript. Caller, provider, latest-artifact lookup, and cloud response cannot provide replacement text, path, slice, or evidence.
+## 10. Failure taxonomy and deterministic precedence
 
-Retained V1 Registry construction:
+Adapters map provider observations through an accepted, versioned mapping table
+that records delivery certainty, bounded provider code, HTTP status, and
+envelope state. Provider code/message is observational and redacted; it never
+overrides this precedence:
 
-1. Split canonical LF-terminated text by LF; remove only final mandatory empty item and blank/whitespace-only lines.
-2. Preserve remaining lines exactly; split any line longer than 256 Unicode code points into consecutive non-overlapping exact slices.
-3. Enumerate source order and select the deterministic prefix admitted by context/payload policy. IDs ev-0001 through ev-0032 match ^ev-[0-9]{4}$ and remain positional even for duplicate text.
-4. Each application-created item has evidence_id, source=transcript_sample, exact excerpt, transcript source_content_hash, and no timestamp except a separately verified stable mapping.
+1. `PRE_DISPATCH`: authorization, qualification, credential-reference,
+   configuration, selection, or context admission failures. No bytes sent.
+2. `TRANSPORT`: no complete provider response. Proven-no-send is
+   `NETWORK_FAILURE`; ambiguous or post-send timeout/reset is `TIMEOUT` with
+   `delivery=UNKNOWN` and is terminal.
+3. `PROVIDER_ACCOUNT` / `PROVIDER_MODEL`: a complete documented provider error
+   response maps `AUTH_INVALID`, `QUOTA_EXCEEDED`, `RATE_LIMITED`,
+   `MODEL_UNAVAILABLE`, or `PROVIDER_UNAVAILABLE`. For HTTP 429, an accepted
+   quota indicator wins over rate-limit; HTTP 401/403 maps `AUTH_INVALID` only
+   after credential was supplied, otherwise stage 1 `AUTH_REQUIRED`. A 5xx
+   with no complete response remains stage 2 unknown delivery.
+4. `RESPONSE_ENVELOPE`: a received response that is not the qualified documented
+   envelope or exceeds capture bounds.
+5. `PROVENANCE`: early identity/dispatch mismatch, including valid tool
+   arguments reporting the wrong provider/model/deployment.
+6. `STRUCTURED_OUTPUT`, `SCHEMA`, `DOMAIN`, `GROUNDING`, `KG2`, then
+   `LANGUAGE`, in exactly that order.
+7. `PROVENANCE`: final provenance-completeness mismatch. `UNKNOWN` is last and
+   includes a bounded safe diagnostic.
 
-Maximum selected entries remains 32 for V1. total_evidence_count counts the deterministic pre-selection universe; selected_evidence_count counts items. coverage_complete means every eligible slice was selected; it says nothing about output grounding/completeness. RegistryHash is SHA256 of canonical JSON object {schema, video_id, transcript_content_hash, items}; items are source order. Unknown, wrong-case, malformed, duplicate, unselected, or missing-required references fail grounding.
+The first applicable stage wins. Thus a schema-valid fabricated citation is
+`GROUNDING_INVALID`; a payload with both malformed envelope and semantic text
+is `RESPONSE_ENVELOPE`; and a model mismatch is `PROVENANCE_INVALID` before
+tool/JSON semantics are considered.
 
-Provider payload contains only selected Registry items and authorized prompt material. Cloud default excludes full transcript, transcript path, Vault/user content, diagnostics, internal request hashes, API-key identifiers, scoring reason/dimensions/result, and channel/video identity.
+## 11. Cache identity and revalidation
 
-Full transcript MAY be sent only if coverage_complete is true, named provider and exact run explicitly authorize FULL_TRANSCRIPT, policy/version plus projection hash bind A2/A3/provenance, and the prompt needs it. cloud_allowed=true alone is never that authority.
+`DeepAnalysisCacheIdentityV1 = SHA256(DACS-1({schema_version, A1, A2, A3,
+validation_policy_identity}))`. `validation_policy_identity` includes every
+validator/schema/domain/grounding/KG2/language/provenance policy version. No
+provider request ID, timestamp, latency, usage, secret, or observational field
+is part of the key.
 
-## 8. A1/A2/A3 request identity
+By construction a cache MISS results from different selected evidence (A1/A2),
+prompt bytes/roles (A2), schema/tool schema or structured mode (A2), provider,
+model/revision, deployment/endpoint or credential execution profile (A3),
+generation profile (A2/A3), output language/payload scope (A1/A2), floating
+model use (cache ineligible), or validation policy. Cache lookup must also
+verify the complete persisted record; matching hashes alone never mint trust.
 
-All identities are versioned canonical JCS UTF-8 SHA256 values with validated fields.
+016D must persist, in a protected app-only revalidation retention class valid
+for no longer than the cache entry, the exact DACS-1 bytes or immutable
+content-addressed references to: canonical input; selected Registry including
+exact excerpts; authorized payload projection; rendered messages; schema/tool
+objects; semantic request projection; context decision; and all validation
+artifacts needed to re-run grounding/KG2/language/provenance. It must retain
+the source/transcript authority needed by a `FULL_TRANSCRIPT` entry. If any
+artifact is unavailable, altered, unauthorized, or fails its content hash, the
+entry is a cache miss/failure, never a trusted hit. These protected artifacts
+are not logs and are inaccessible to adapters except through a newly built
+authorized projection.
 
-| Identity | Canonical fields | Reuse invalidated by |
-| --- | --- | --- |
-| A1 CanonicalDeepAnalysisInputIdentityV1 | exact canonical input | semantic input, selection, scoring request/class, language, content/prompt/operation version |
-| A2 DeepAnalysisRequestIdentityV1 | schema version, A1, prompt/content-schema versions, output mode/dialect, payload policy/scope/projection hash, requested max output | prompt/schema/payload/mode/output change |
-| A3 DeepAnalysisExecutionProfileIdentityV1 | schema version, A2, provider kind/ID/adapter version/endpoint class, model ID/revision/class, capability hash, context-authority identity, generation-profile identity | provider/model/profile/context/generation change |
-| DeepAnalysisCacheIdentityV1 | schema version, A2, A3, validation-policy version | any request/execution/validation change |
+Persisted audit data additionally includes A1/A2/A3/cache IDs; provider kind,
+ID, adapter/SDK version; endpoint/deployment and credential execution-profile
+identities; model ID/class/revision/digest; mode/dialect; payload scope and
+consent identity/policy; prompt/schema/generation/context/validation identities;
+VerifiedScoringRead request hash and scoring-success provenance; Evidence
+Registry identity; envelope/payload hashes and the trusted KnowledgeContent
+identity/hash; qualified capability identity; response extraction identity; and
+full bounded attempt/failure history. No secret, credential reference, raw authorization data, or
+unredacted provider error is persisted. A cache read freshly revalidates all
+retained evidence and only then uses the sole mint pipeline.
 
-Provider request ID, timestamp, latency, status, and usage are observational and never cache key.
+## 12. Provider qualification gate
 
-## 9. Dispatch envelope and model identity
+Before a candidate may dispatch, an approver must accept immutable
+`ProviderQualificationRecordV1`. It includes provider identity; adapter/API and
+SDK/client identity/pin; model identity policy and resolved-identity behavior;
+selected structured mode/dialect; golden request/response fixtures proving A2
+construction and lossless extraction; A3 endpoint/deployment and credential
+execution-profile evidence; declared-versus-qualified capability evidence;
+context authority proof including schema/tool overhead; consent/payload-scope
+compatibility; bounded failure mapping; SDK retry-disable or idempotency proof;
+response extraction semantics; strict validator/mint compatibility; provenance
+and 016D persistence support; cache eligibility; and privacy/logging/redaction
+audit evidence.
 
-DeepAnalysisDispatchEnvelopeV1 is created and hashed before transport. It includes schema version, A1/A2/A3; provider kind/ID/adapter version/endpoint class; model ID/revision/class; structured mode/dialect; prompt/schema; canonical input/evidence/scoring-request hashes; scoring provenance class; settings/context authority and accepted budget decision; timeout policy/values; payload policy/scope/consent; and request-body hash. Requested timestamp/trace IDs are observability only. It contains no credential or credential reference in hashed form.
+The record has one required, independently reviewable evidence item for each
+of these acceptance gates:
 
-| Identity profile | Minimum | Cache/reproducibility |
-| --- | --- | --- |
-| LOCAL | model ID and exact digest/revision when exposed; adapter/runtime proof | exact revision/digest required; TokenizerIdentity/RawProfileIdentity may strengthen A3 |
-| cloud snapshot/deployment | model ID plus snapshot/revision/deployment ID | cache allowed with immutable identity |
-| floating cloud alias | MUTABLE_ALIAS plus response-echoed identity if available | dispatch only under explicit allow_mutable_model_alias=true; non-reproducible and cache reuse prohibited |
-
-Unknown requested model identity is ineligible. A floating alias is never called immutable.
-
-## 10. Context authority and generation profile
-
-| ContextAuthorityKind | Safe pre-dispatch predicate |
+| # | Qualification proof |
 | --- | --- |
-| EXACT_LOCAL_TOKENIZER | frozen tokenizer counts exact final projection; input + requested output + reserve <= max context |
-| PROVIDER_DOCUMENTED_TOKENIZER | approved documented tokenizer/mapping counts exact projection and same predicate |
-| CONSERVATIVE_PROVIDER_CONTRACT | versioned provider contract proves conservative upper bound for exact projection plus output/framing reserve; explicitly not exact token count |
-| PROVIDER_REPORTED_USAGE | post-response corroboration only; never safe pre-dispatch authority by itself |
+| 1 | immutable provider kind/ID and legal endpoint identity |
+| 2 | adapter/API surface and SDK/client version/configuration identity |
+| 3 | `IMMUTABLE`/`VERSIONED`/`FLOATING` model-identity policy and response-echo behavior |
+| 4 | exactly one selected structured-output mode and dialect |
+| 5 | golden request fixture proving exact A2 projection/render/hash construction |
+| 6 | exact A3 endpoint/deployment, model, and execution-profile fixture |
+| 7 | safe pre-dispatch context-authority proof including hidden provider overhead |
+| 8 | non-secret credential execution-profile identity/redaction proof |
+| 9 | consent and payload-scope compatibility, including selected-only authority |
+| 10 | bounded provider-observation to failure-taxonomy mapping |
+| 11 | SDK/HTTP retry-disable evidence, or qualified idempotency/retry observability proof |
+| 12 | documented complete/lossless response and tool-argument extraction fixture |
+| 13 | strict JSON/schema/domain/grounding/KG2/language validator compatibility |
+| 14 | complete attempt/provenance/payload/response identity persistence support |
+| 15 | cache eligibility proof, including floating-alias exclusion and revalidation artifacts |
+| 16 | privacy, retention, and logging-redaction audit with no secret or unauthorized payload disclosure |
 
-ContextBudgetDecisionV1 binds authority/version, exact projection hash, advertised bounds, calculated count/conservative bound, output/framing reserve, and pass/fail. Application re-renders, re-hashes, and rechecks before contact; it never truncates after decision. No safe accepted authority is pre-dispatch CONTEXT_BUDGET_EXCEEDED or CAPABILITY_UNSUPPORTED.
+The acceptance predicate is all-or-nothing: each required field is immutable,
+versioned, reproducible from cited fixtures/documentation, and independently
+verified for the exact selected profile. A provider self-attestation, marketing
+claim, undocumented estimate, lossy SDK object, hidden retry, or missing proof
+makes that capability declared-only and the profile ineligible. This protocol
+is the complete next-step gate and requires no reopening of core architecture.
 
-GenerationSettingsProfileV1 records requested and actual seed, temperature, output cap, stream flag, allowed settings, and determinism_claim: REQUEST_DETERMINISTIC, GENERATION_NOT_GUARANTEED, or stronger supported claim. Unsupported features are explicit; a hashable request is not deterministic generation.
+## 13. Supersession matrix
 
-## 11. Timeout, transport, and retry
+This correction is globally authoritative for **Deep Analysis** and leaves
+TASK-016B/C scoring/repair/lineage/Phase G and non-Deep-Analysis subsystems
+unchanged.
 
-V1 permits one semantic generation attempt. It requires stream=false, positive bounded connect and complete-request timeout, bounded reads, and redirects disabled. Cloud requires HTTPS normal certificate/hostname verification and no proxy/redirect substitution. Local permits HTTP only for explicitly verified loopback address/port and never a resolved remote host.
-
-Transport retry is allowed only when no request bytes were sent, or provider idempotency derived from A3 contractually deduplicates. It uses the same envelope/profile and records transport_attempt_count. It is forbidden after payload receipt, unknown-delivery timeout, provider response, validation failure, quota/rate limit, or quality failure. It is not a quality retry or fallback.
-
-## 12. UntrustedDeepAnalysisResponseV1
-
-It captures schema version, dispatch-envelope hash, provider envelope format/version, raw provider envelope bytes/text with SHA256/length, raw complete structured payload bytes/text with SHA256/length, transport/HTTP status, finish/done reason, provider request ID if available, reported provider/model/revision if available, usage/timing metadata, and transport_attempt_count.
-
-It remains untrusted despite authenticated transport or provider schema success. Raw retention/persistence mechanics are deferred to 016D.
-
-## 13. Security-significant validation order
-
-1. transport and documented envelope validity, including byte limit;
-2. provider/model/adapter identity consistency with dispatch;
-3. complete documented structured-payload extraction, with no mutation;
-4. strict whole-document UTF-8 JSON parse;
-5. canonical KnowledgeContent schema validation, including unknown-field rejection;
-6. domain validation;
-7. Evidence Registry grounding against exact selected registry;
-8. Knowledge Graph V2 validation;
-9. normative output-language validation;
-10. canonical-input/request/scoring-request/provenance/payload-scope/identity/validation-policy binding validation;
-11. mint TrustedDeepAnalysisSuccess.
-
-Order is normative because each stage establishes the next input. No trusted success exists before all mandatory validators pass. Failure stops: no repair, alternate provider, persistence, or cache hit.
-
-## 14. TrustedDeepAnalysisSuccess
-
-Future exact-type/private-mint data has:
-
-- trusted semantic data: validated KnowledgeResult (validated KnowledgeContent plus application-owned selected Registry), A1/canonical-input hash, Registry hash, exact verified scoring request hash, and separate scoring-success provenance class;
-- bound provenance/observability: provider kind/ID/adapter version, model identity/class/revision, endpoint class, mode/dialect, prompt/schema/operation versions, A1/A2/A3/cache identities, settings profile, context decision, payload scope/consent, validation policy/version/result, response envelope/payload/content hashes, and bounded usage/timing/request-ID metadata.
-
-It cannot be reconstructed from raw output, DTO, cache record, or caller mapping. Persistence remains untrusted evidence until revalidated and freshly minted.
-
-## 15. Failure taxonomy
-
-| Category | Classes |
+| Earlier statement | Disposition |
 | --- | --- |
-| pre-dispatch/policy | PROVIDER_UNAVAILABLE, AUTH_REQUIRED, MODEL_UNAVAILABLE, CAPABILITY_UNSUPPORTED, CONTEXT_BUDGET_EXCEEDED |
-| transport | NETWORK_FAILURE, TIMEOUT, PROVIDER_UNAVAILABLE |
-| provider/account | AUTH_INVALID, QUOTA_EXCEEDED, RATE_LIMITED, MODEL_UNAVAILABLE, PROVIDER_ENVELOPE_INVALID |
-| output/validation | STRUCTURED_OUTPUT_INVALID, SCHEMA_INVALID, DOMAIN_INVALID, GROUNDING_INVALID, KG2_INVALID, OUTPUT_LANGUAGE_INVALID |
-| trust | PROVENANCE_INVALID |
-| residual | UNKNOWN with bounded original diagnostic |
+| ADR-023 Decision 3/4/5/12 and Consequences: Local-only mandatory / Hybrid cloud-to-local fallback | **SUPERSEDED GLOBALLY FOR DEEP ANALYSIS** by §§3--8. Local remains an explicit profile, not a delivery prerequisite. |
+| `SYSTEM_DESIGN.md` §11.1 Ollama/raw/format settings | **RETAINED FOR LOCAL SCORING PROFILE ONLY**; not a Deep Analysis global requirement. |
+| `SYSTEM_DESIGN.md` §11.2 and ADR-008 A-03--A-13 old OpenAI AnalysisPayload, retry, cache, and provider assumptions | **SUPERSEDED GLOBALLY FOR DEEP ANALYSIS**; retained as **HISTORICAL EVIDENCE ONLY** for the old OpenAI design and any separate non-Deep-Analysis scoring rules. |
+| `SYSTEM_DESIGN.md` §12 generic three retries and Ollama format repair | **SUPERSEDED GLOBALLY FOR DEEP ANALYSIS**; retained for existing scoring/other jobs only. |
+| `TrustedLocalDeepAnalysisSuccess`, local A1/A2/A3 names | **SUPERSEDED GLOBALLY FOR DEEP ANALYSIS** by provider-neutral identities and `TrustedDeepAnalysisSuccess`. |
+| exact local tokenizer / raw=true / omitted format / Ollama loopback details in local qualification records | **RETAINED FOR LOCAL PROFILE ONLY** and historical qualification evidence; never cloud/global Deep Analysis requirements. |
 
-AUTH_REQUIRED means no approved credential reference before contact; AUTH_INVALID means provider rejected supplied credential. PROVIDER_ENVELOPE_INVALID is an undocumented/mismatched envelope; STRUCTURED_OUTPUT_INVALID includes strict parse failure. Future application error mapping must preserve class.
+## 14. Adversarial outcome matrix
 
-## 16. Fallback, configuration, credentials, and logs
-
-Default: **NO SILENT PROVIDER FALLBACK**. Local failure never sends data to cloud; free failure never sends data to paid cloud. New provider/model selection means a new A3.
-
-| Configuration mode | Behavior |
+| Scenario | Deterministic safe outcome |
 | --- | --- |
-| local_only | one named local provider; no cloud or fallback |
-| cloud_explicit | one named cloud provider with explicit payload scope/consent; no fallback |
-| cloud_pre_authorized | ordered named cloud allowlist, each with payload policy/credential reference; may select next listed cloud after classified failure, never local-to-cloud |
-| per_run_cloud_approval | stop before cloud dispatch for affirmative run-specific provider/payload choice |
+| A. `local_only` and local unavailable | `PROVIDER_UNAVAILABLE`; zero cloud dispatch and no fallback. |
+| B. `cloud_pre_authorized` free quota exhausted | `QUOTA_EXCEEDED`; STOP. No paid/local advance and every attempted send remains recorded. |
+| C. Schema-valid fabricated evidence | `GROUNDING_INVALID`; no mint, retry, fallback, cache write, or repair. |
+| D. Floating alias silently updates | Attempt records `FLOATING` / non-reproducible; cross-run cache disabled. |
+| E. SDK hidden retry after timeout | Adapter is ineligible; no dispatch authorization. |
+| F. Adapter has transcript but scope is selected-only | Interface/qualification violation; adapter ineligible and no dispatch. |
+| G. Cached X output under current Y provider/model configuration | A3/cache mismatch; cache MISS. |
+| H. Wrong VerifiedScoringRead request hash | Early dispatch/final provenance `PROVENANCE_INVALID`; no mint. |
+| I. Valid tool result with wrong provider/model identity | Early dispatch binding `PROVENANCE_INVALID`; tool arguments are never semantically parsed as trusted. |
+| J. Credential switch changes deployment | Credential execution-profile/A3/cache mismatch; cache MISS and fresh explicit eligibility/consent check. |
 
-There is no ambiguous provider=auto. cloud_allowed alone is neither provider selection nor full-transcript permission. Configuration includes selected provider, permitted model/profile override, fallback policy, payload permission, and credential reference.
+## 15. Independent-review closure
 
-Credentials are indirect future environment/keychain/secret-config references. They never enter A1/A2/A3, request/body hashes, cache keys, logs, provenance, raw envelope persistence, or exception text. CLOUD_USER_KEY requires explicit user-supplied credential. CLOUD_FREE uses the same boundary when it needs a key/account.
+| Finding ID | Severity | Original issue | Correction | Normative location | Status |
+| --- | --- | --- | --- | --- | --- |
+| P0-1 | P0 | A2/cache omitted exact semantic projection | Complete DACS-1 request projection and cache binding | §§2, 4, 11 | FIXED |
+| P1-1 | P1 | Adapter could widen transcript payload | Application-owned allowlisted projection; no adapter transcript authority | §3 | FIXED |
+| P1-2 | P1 | Deployment/account semantic identity absent | Non-secret credential execution profile in A3/cache/provenance | §5, §11 | FIXED |
+| P1-3 | P1 | SDK retries hidden | Retry disable/surface requirement and idempotency exception | §8, §12 | FIXED |
+| P1-4 | P1 | Consent/fallback matrix ambiguous | Exact modes, preauthorization record, directed graph, terminal classes | §7 | FIXED |
+| P1-5 | P1 | Hashes insufficient for cache revalidation | Protected exact/recoverable revalidation artifacts and fail-closed cache read | §11 | FIXED |
+| P1-6 | P1 | Failure mapping/precedence ambiguous | Stage order, delivery certainty, adapter mapping requirements | §10 | FIXED |
+| P1-7 | P1 | Older retry/fallback rules conflict | Explicit global Deep Analysis supersession matrix | §13 | FIXED |
+| P1-8 | P1 | Capability/qualification gate incomplete | Immutable evidence-backed qualification record and acceptance predicate | §§5, 12 | FIXED |
+| P2-1 | P2 | Structured response hash ambiguous | Mode-specific lossless/canonical payload identity | §9 | FIXED |
+| P2-2 | P2 | Capability versus trust unclear | Declared vs qualified capability separation | §§5, 12 | FIXED |
+| P2-3 | P2 | Local loopback wording missing | Local loopback restriction retained in qualified profile / supersession scope | §§8, 13 | CLARIFIED AS NON-BLOCKING |
 
-Default logs may include provider/model IDs, hashes, payload-scope label, timing, bounded usage, validation result, and failure class. They must not include keys, credentials, authorization headers, full cloud request/transcript/excerpts, raw output, Vault/user content, or unredacted provider errors. Debug raw evidence is a future access-controlled bounded-retention policy and disabled by default.
+P0 unresolved: **0**.
+P1 implementation-critical unresolved: **0**.
 
-## 17. 016D handoff, local compatibility, and cloud gate
-
-016D must persist provider kind/ID/adapter/endpoint; model ID/revision or mutable alias classification; mode/dialect; capability/context/settings/payload/validation identities; A1/A2/A3/cache identity; canonical input/Registry/payload-projection hashes and consent; exact verified scoring request hash plus separate provenance class; response envelope/raw/validated-content hashes; and bounded usage/timing/request-ID observations.
-
-The cache key is DeepAnalysisCacheIdentityV1; provider request ID is excluded. Cache reads verify all provenance/content bindings and revalidate before a fresh mint.
-
-Local may add exact digest, TokenizerIdentity, RawProfileIdentity, raw/no-format profile, runtime version, and exact token parity as stronger proof. Cloud need not acquire Hugging Face tokenizer artifacts or emulate Ollama. Historical raw=true, omitted format, Ollama endpoint/version, and num_ctx are local profile facts, not global requirements.
-
-Gemma/Llama remain **DEFERRED LOCAL COMPATIBILITY CANDIDATES**. Their current tokenizer blockers are neither cloud choices nor output-quality failures; no test/acquisition is authorized.
-
-Before a first cloud reference provider is authorized, it must prove provider/adapter/model identity; selected mode/dialect and complete raw capture; safe context authority; credential/redaction and data/retention policy; minimal/full payload consent; failure/timeout/no-fallback mapping; full validation/mint compatibility; and all 016D provenance fields without leakage.
-
-## 18. Implementation order and hierarchy
-
-Later order:
-
-1. P0 independent contract and ADR review, no code.
-2. P1 provider-neutral types, serializers, capabilities, identities, failures, offline contract tests.
-3. P2 dispatch/eligibility/payload/context/untrusted-response/full validation pipeline with fakes, no real provider.
-4. P3 separately qualified and authorized one reference adapter.
-5. P4 runtime integration from VerifiedScoringRead to TrustedDeepAnalysisSuccess.
-6. P5 TASK-016D provider-aware persistence/cache verification.
-7. P6 TASK-016E Note V2.
-8. P7 TASK-016F Weekly V2.
-
-This amendment and ADR-027 supersede historical Local Deep Analysis statements only for provider architecture/selection, structured-output mode, context authority, request/provenance/cache identity, and local-only assumptions. They retain strict whole-document parse, application-owned Registry, domain/grounding/KG2 validation, and no trust before mint.
-
-TrustedLocalDeepAnalysisSuccess and local A1/A2/A3 are superseded conceptual names. TokenizerIdentity and RawProfileIdentity are retained as optional local strengthening evidence. Gemma/Llama are deferred. The PRD retains product scope. TASK-016B/C documents retain priority for scoring admission, repair, lineage, Phase G, and AuthoritativeScoringReader.
-
-**No implementation-critical trust question remains unresolved.**
-
-**LOCAL DEEP ANALYSIS / DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.**
+**DEEP ANALYSIS IMPLEMENTATION REMAINS UNAUTHORIZED.**
 **TASK-016B REMAINS CLOSED.**
 **TASK-016C REMAINS CLOSED.**

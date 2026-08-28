@@ -28,9 +28,15 @@
 ## 2026-08-28 provider-neutral contract amendment
 
 - [TASK-016 Deep Analysis Provider-Neutral Contract Amendment](../docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
-  and ADR-027 freeze the implementation-ready contract. The canonical subsystem
-  is `Deep Analysis`; local, optional free cloud, and user-key cloud are
-  explicit peers and provider output remains untrusted.
+  Correction R1 and ADR-027 freeze the corrected provider-neutral contract. The
+  canonical subsystem is `Deep Analysis`; local, optional free cloud, and
+  user-key cloud are explicit peers and provider output remains untrusted.
+- Correction R1 closes the independent review's P0 and implementation-critical
+  P1 findings: A2 is the DACS-1 hash of the exact provider-semantic request
+  projection; cache binds A1/A2/A3/validation policy; payload is an
+  application-owned allowlisted projection; consent/fallback, credentials,
+  floating models, context, retry, response identity, 016D evidence retention,
+  and qualification are fail-closed. It remains contract-only.
 - Provider-native JSON schema is an output constraint only. The amendment
   prohibits application-side repair, first-JSON/fence extraction, hidden
   quality retries, and silent provider fallback. It preserves the authoritative
@@ -38,8 +44,10 @@
   `VerifiedScoringRead.scoring_outcome.result.request_hash`, never to
   `scoring_success_provenance`.
 - Historical M1/M2/M3 sequencing below is superseded for Deep Analysis by P0–P7:
-  independent review; provider-neutral contracts; dispatch/validation boundary;
-  one separately qualified adapter; runtime integration; 016D; 016E; 016F.
+  independent review; corrected provider-neutral contracts; dispatch/validation
+  boundary; one separately qualified adapter; runtime integration; 016D; 016E;
+  016F. The historic Hybrid fallback and generic retry language is superseded
+  for Deep Analysis only; it does not authorize any provider selection.
   This remains design-only. TASK-016B and TASK-016C remain closed.
 
 ## Local Deep Analysis design status

@@ -1,7 +1,7 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-08-12
-- 当前阶段：TASK-016 — Local-only 第一验收里程碑
+- 更新时间：2026-08-29
+- 当前阶段：TASK-016 — Provider-Neutral Deep Analysis contract correction R1；implementation unauthorized
 - 主控状态：ACTIVE
 - TASK-016C Phase D、E 与 F 均已 `APPROVED`。Phase F accepted source
   `c0268a… -> df920cc… -> 931674e…` 已经用户授权以 conflict-free、线性、tree/content-equivalent 的
@@ -15,7 +15,10 @@
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。
-- 产品负责人已批准 ADR-023 与 TASK-016，并要求以 Local-only 为第一验收里程碑。
+- ADR-023 的 Local-only-first delivery gate and Hybrid fallback are superseded
+  globally for Deep Analysis by ADR-027 / TASK-016 Correction R1. Local remains
+  an explicit profile; provider implementation, cloud calls, and TASK-016D/E/F
+  remain unauthorized.
   TASK-016A Review 1 evidence `6a564b1…` 为 REJECT：非有限 Evidence 时间值会在 JSON
   序列化时破坏可信成对时间戳；Correction 1 已关闭该问题。Review 2 evidence
   `2ea0025…` 再次 REJECT：模型侧 Content 可自建 Evidence Registry，违反应用拥有证据、

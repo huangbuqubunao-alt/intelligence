@@ -277,7 +277,7 @@ uv、依赖白名单和锁文件方向已在 `TASK-000` 批准；实际安装、
 | DEC-08 | 低价值只存 SQLite/产物索引，不写 Obsidian；空周报照常生成 | TASK-009/011 |
 | DEC-09 | 总结阈值 7.0，周报 Top 10，均可配置并校验 | TASK-007/011 |
 | DEC-10 | 5 个离线场景；OpenAI 官方频道最新 2 条真实冒烟，YC 备用 | TASK-013 |
-| DEC-11 | Cloud OFF 不等于 Analysis OFF；Local/Hybrid/Cloud 均先本地评分，高价值视频使用统一 Knowledge V2，先验收 Local-only | TASK-016；ADR-023 |
+| DEC-11 | Cloud OFF 不等于 Analysis OFF；Local/Hybrid/Cloud 均先本地评分，高价值视频使用统一 Knowledge V2；Local-only-first 前置门禁已由 ADR-027 / TASK-016 Correction R1 对 Deep Analysis 全局 supersede | TASK-016；ADR-023；ADR-027 |
 
 ## 16. 变更规则
 
@@ -289,9 +289,12 @@ uv、依赖白名单和锁文件方向已在 `TASK-000` 批准；实际安装、
 ## 17. TASK-016 Intelligence Output 扩展
 
 - `local-only`、`hybrid`、`cloud` 均先本地快速评分；低价值视频不执行昂贵分析。
-- Cloud 仅是质量升级选项。高价值视频在 Local-only 下也必须生成完整知识结果与笔记。
+- Cloud 仅是显式、隐私受限的可选 Provider；Local 模式保留，但 Local-only 不再是
+  Deep Analysis 交付的全局前置条件（ADR-027 / TASK-016 Correction R1）。
 - Hybrid 为推荐模式，但新安装与升级不得自动启用外发或付费调用。
 - 所有用户可见 AI 叙述遵守 `general.output_language`；默认 `zh-CN`。
 - Local/Cloud 共享 Knowledge V2；无可靠机会时明确表达不足，禁止为了填字段而幻觉。
 - Weekly V2 使用已验证 Structured Knowledge 做跨视频综合，不默认发送全文 Transcript。
-- 先完成并单独验收 Local-only 里程碑，再授权 Hybrid/Cloud 实现。
+- Historical Local-only-first sequencing is superseded globally for Deep
+  Analysis by the provider-neutral P0--P7 gate in ADR-027 / TASK-016
+  Correction R1; no provider implementation is thereby authorized.

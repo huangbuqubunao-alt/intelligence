@@ -422,6 +422,15 @@ H2-C 的 authoritative scoring lineage 使用 Video→Job→Artifact：消费者
 
 ### 11.2 云端分析
 
+> **Deep Analysis supersession notice (Correction R1).** The following legacy
+> OpenAI-specific AnalysisPayload, retry, cache, and provider text is retained
+> only as historical evidence for the former design. It is **superseded
+> globally for Deep Analysis** by
+> `TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md` Correction R1
+> and ADR-027. It does not authorize an adapter, cloud call, credential, or
+> implementation. Existing non-Deep-Analysis/scoring rules retain their own
+> scope.
+
 云端分析按 ADR-008 A-01 至 A-17 执行。固定副作用顺序是：验证高价值与上游
 provenance、处理关闭、本地采样/token 预算、缓存、run 预算，最后才解析密钥并预留
 Provider call。
@@ -461,6 +470,13 @@ OpenAI SDK 禁止在主进程导入。TASK-008 的 Adapter 必须通过绝对 Py
 Artifact、Provider call、Pipeline 和 Job；关闭/缓存/超限/预算/缺凭据均零调用。
 
 ## 12. 错误分类与重试
+
+> **Deep Analysis supersession notice (Correction R1).** This generic retry
+> table, its three-attempt defaults, and the Ollama scoring format-repair rule
+> are **superseded globally for Deep Analysis**. Deep Analysis instead uses the
+> provider-neutral semantic/transport-attempt and terminal failure rules in
+> Correction R1 §§7--10. This notice does not change existing scoring or other
+> job retry behavior.
 
 统一 `ErrorCode` 枚举的精确十个成员为：`TRANSIENT_NETWORK`、`RATE_LIMITED`、
 `PROVIDER_UNAVAILABLE`、`INVALID_RESPONSE`、`CONTENT_UNAVAILABLE`、
@@ -700,3 +716,15 @@ structured-output mode、prompt/schema、payload scope/projection、settings/pro
 authority 与 validation policy。浮动 cloud alias 若经显式允许可 dispatch，但必须标为
 non-reproducible 且不可 cache reuse。TASK-016B/C 的 scoring admission、repair、lineage、
 Phase G 和 `AuthoritativeScoringReader` 语义不受本节改变。
+
+Correction R1 additionally freezes DACS-1 exact canonical serialization and
+`A2 = SHA256(DeepAnalysisRequestProjectionV1)`: A2 includes exact final
+provider-visible role/text, authorized payload, structured mode/schema/tool
+projection, and semantic generation settings; A3 includes the non-secret
+credential execution/deployment profile. The cache identity binds A1/A2/A3 and
+validation policy. Adapters receive only the application-built authorized
+payload projection, never unrestricted transcript authority. Floating models
+are cross-run cache-ineligible; SDK hidden retries are prohibited; and only the
+complete validator/finalizer can mint `TrustedDeepAnalysisSuccess`. For all
+provider, consent, fallback, persistence, response-identity, and qualification
+details, Correction R1 is normative.

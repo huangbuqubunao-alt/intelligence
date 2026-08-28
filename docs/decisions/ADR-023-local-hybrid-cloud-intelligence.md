@@ -4,6 +4,15 @@
 
 Accepted
 
+> **Deep Analysis supersession (2026-08-29).** ADR-027 and TASK-016 Deep
+> Analysis Provider-Neutral Contract Amendment, Correction R1, supersede this
+> ADR globally for Deep Analysis provider architecture, the Local-only-first
+> delivery gate, and its Hybrid/cloud-to-local fallback rule. The retained
+> Local-only/Ollama, raw-profile, and exact-tokenizer statements are local
+> profile or historical evidence only. This ADR continues to govern the
+> preserved application-owned Evidence Registry, no-empty-success intent, and
+> non-Deep-Analysis historical context; it does not reopen TASK-016B/C.
+
 ## Date
 
 2026-08-12
