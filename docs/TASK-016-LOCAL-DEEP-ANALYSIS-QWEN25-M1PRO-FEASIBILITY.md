@@ -1,6 +1,6 @@
 # TASK-016 — Qwen2.5:7B strict-JSON / M1 Pro feasibility gate
 
-Status: **BLOCKED BEFORE TINY DISPATCH — FROZEN TOKENIZER EXECUTION ENGINE UNAVAILABLE**
+Status: **STOPPED AT TINY — TOKENIZER PREFLIGHT UNBLOCKED; TINY TRANSPORT OUTCOME UNAVAILABLE**
 
 ## Scope and baseline
 
@@ -50,7 +50,7 @@ weights and was not modified:
 | Runtime process observation | One `ollama serve` process was present; no `llama-server` worker existed before any generation request. |
 | Memory observation | At collection, 16,384-byte pages: free `478,625,792` bytes; inactive `5,825,183,744` bytes; speculative `135,905,280` bytes; their sum was `6,439,714,816` bytes.  This is not a peak-RSS measurement. |
 
-## Pre-dispatch blocker
+## Original pre-dispatch blocker
 
 The raw-profile gate requires the pre-dispatch exact token-ID sequence and
 count for the complete rendered candidate, using the frozen direct engine
@@ -71,20 +71,75 @@ not a substitute for the required token proof.  Without the exact tokenizer
 engine, byte-only construction cannot truthfully reconcile a dispatchable
 candidate, so no new tiny/SHORT/MEDIUM/MAX corpus or prompt was invented.
 
-No `POST /api/generate` request was sent.  Therefore no model was loaded, no
-strict-JSON result exists, and no SHORT, MEDIUM, or MAX attempt was made.  This
-is not a model failure and not a retryable benchmark case; it is a
-pre-dispatch evidence-environment blocker.
+No `POST /api/generate` request was sent during this first attempt.  Therefore
+no model was loaded, no strict-JSON result existed, and no SHORT, MEDIUM, or
+MAX attempt was made.  This was not a model failure; it was a pre-dispatch
+evidence-environment blocker.
+
+## Temporary tokenizer environment restoration — 2026-08-28
+
+The exact frozen runtime was restored under `/tmp` only; no project, global,
+or persistent dependency state was modified.
+
+| Field | Verified value |
+| --- | --- |
+| Frozen wheel | `tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl` |
+| Wheel source | Exact `tokenizers==0.22.2` PyPI release artifact only |
+| Wheel bytes / SHA-256 | `2,981,472` / `1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001` |
+| Verified wheel location | `/tmp/task016-qwen25-feasibility-tokenizer/tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl` |
+| Active temporary environment | `/tmp/task016-qwen25-feasibility-venv-py312` |
+| Active Python | `/tmp/task016-qwen25-feasibility-venv-py312/bin/python`, Python `3.12.11` |
+| Installed distribution | `tokenizers==0.22.2`, installed only from the verified local wheel with `--no-deps --no-index` |
+
+The retained artifact directory was re-hashed against the four frozen values.
+The direct `Tokenizer.from_file(tokenizer.json)` path then passed the frozen
+ASCII, Chinese, and JSON fixture count/token-ID hashes.  It encoded `plain`
+as `[20772]` with both `add_special_tokens=False` and `True`, demonstrating no
+automatic BOS/EOS insertion for that ordinary input.  The literal special
+fixture encoded as `[151643, 220, 151644, 220, 151645, 220, 151654]`; it
+therefore mechanically supports mandatory pre-dispatch rejection of IDs
+`151643..151656` and was not sent to Ollama.
+
+The exact 1,768-byte canonical `TokenizerIdentityV2` JSON was re-parsed,
+canonicalized, and SHA-256 re-computed as
+`037a4818fa3fd530f5f9f7754faf6af1f92be77964b8271dac8ebb17ddf2d53d`.
+
+**QWEN2.5 FEASIBILITY TOKENIZER PREFLIGHT UNBLOCKED.**
+
+## Tiny strict-JSON smoke — stopped without a verifiable result
+
+The one frozen tiny candidate was constructed from the exact
+`knowledge-prompt-v3-raw` template and the exact canonical 2,429-byte schema.
+It passed all pre-dispatch checks:
+
+| Metric | Value |
+| --- | --- |
+| Prompt bytes / SHA-256 | `4,181` / `60ae04fc0a264f386147b7862ebea37be42ecbeaca4c0c4cbb9392770a684621` |
+| Complete raw request bytes / SHA-256 | `4,827` / `a584b8370bf64085ef070a9bb7b3b99fa23d0292178009ab4898665accca92c2` |
+| Schema bytes / SHA-256 | `2,429` / `3fdb078b85611a1b4c68e5276362dbee405bf98eaa8093cc8438c8e7e1a42015` |
+| Exact tokenizer input tokens | `1,235` |
+| Token-ID SHA-256 | `a0699e646aaa351b0cce06da44d39a296de93433e6c197c7fe214bc5ddc5b8ff` |
+| Limits | `1,235 <= 14,336`; `4,181 <= 8,192`; `2,429 <= 4,096`; `4,827 <= 32,768`; no special ID |
+
+Exactly one local `POST /api/generate` was initiated with the frozen
+raw/no-format profile after those checks.  The process hosting the one request
+returned no captured stdout/stderr after 30 seconds; a subsequent process check
+found neither the runner nor a `llama-server` worker.  No response envelope,
+raw model response, HTTP status, `prompt_eval_count`, wall-clock completion,
+strict JSON parse, schema result, grounding result, or KG2 result is available
+as evidence.
+
+This is an **unknown transport outcome**, not a valid PASS and not an evidenced
+model structural failure.  It must not be retried under this gate's one-attempt
+tiny rule.  SHORT, MEDIUM, and MAX were not dispatched.
 
 ## Required decision to resume
 
-A narrowly scoped authorization must make the already-frozen
-`tokenizers==0.22.2` Apple-Silicon distribution available for local,
-hash-verified, non-network use, or must provide an equally exact approved
-tokenizer execution environment.  It must not change the model, tokenizer
-identity, raw profile, prompt, byte limits, or benchmark sequence.  Once that
-prerequisite exists, the next permitted action remains exactly one tiny
-strict-JSON smoke; only a pass may advance to SHORT 2/2.
+A new, narrow decision is required before another tiny request can be sent.  It
+must resolve how a completed response is captured and attestable without
+changing the model, tokenizer identity, raw profile, prompt, byte limits, or
+benchmark sequence.  A replacement tiny request would otherwise be an
+unauthorized retry of an unknown outcome.
 
 **QWEN2.5 STRICT-JSON / M1 PRO FEASIBILITY REMAINS UNDETERMINED.**
 
