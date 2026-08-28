@@ -25,6 +25,23 @@
   TASK-016 contract amendment that reconciles this decision with the existing
   milestone sequencing.
 
+## 2026-08-28 provider-neutral contract amendment
+
+- [TASK-016 Deep Analysis Provider-Neutral Contract Amendment](../docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
+  and ADR-027 freeze the implementation-ready contract. The canonical subsystem
+  is `Deep Analysis`; local, optional free cloud, and user-key cloud are
+  explicit peers and provider output remains untrusted.
+- Provider-native JSON schema is an output constraint only. The amendment
+  prohibits application-side repair, first-JSON/fence extraction, hidden
+  quality retries, and silent provider fallback. It preserves the authoritative
+  scoring ingress and binds exactly to
+  `VerifiedScoringRead.scoring_outcome.result.request_hash`, never to
+  `scoring_success_provenance`.
+- Historical M1/M2/M3 sequencing below is superseded for Deep Analysis by P0–P7:
+  independent review; provider-neutral contracts; dispatch/validation boundary;
+  one separately qualified adapter; runtime integration; 016D; 016E; 016F.
+  This remains design-only. TASK-016B and TASK-016C remain closed.
+
 ## Local Deep Analysis design status
 
 - `TASK-016-LOCAL-DEEP-ANALYSIS` design amended in

@@ -673,19 +673,30 @@ Cookie/账号登录、remote components、ffmpeg、媒体下载、写入真实 V
 
 ## 19. Intelligence V2 架构
 
-ADR-023 在不新增 Pipeline 状态或 SQLite migration 的前提下，把 `ANALYSIS_READY` 的
-产品语义收紧为“存在当前配置下经过验证的 Structured Knowledge”。Cloud disabled 不再
-产生空分析成功结果。
+`ANALYSIS_READY` 的产品语义仍是“存在当前配置下经过验证的 Structured Knowledge”；
+Cloud disabled 不能产生空分析成功。Deep Analysis 的权威 provider 架构现为
+[TASK-016 Provider-Neutral Contract Amendment](TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
+与 ADR-027：`LOCAL`、`CLOUD_FREE`、`CLOUD_USER_KEY` 是显式选择的 peers，不存在
+含糊 auto 或静默 local→cloud / free→paid fallback。
 
-所有视频先由 Local Scoring 决定阈值；高价值视频再由 Deep Analysis Router 按
-`local-only | hybrid | cloud` 选择 Provider。Local 与 Cloud 返回同一 Knowledge V2，
-Renderer、Weekly、Artifact 与 cache 不感知具体 Provider，只消费可信 provenance。
+高价值判定仍由冻结 scoring 语义产生；Deep Analysis 只能经
+`AuthoritativeScoringReader -> VerifiedScoringRead` 消费权威结果，并准确绑定
+`VerifiedScoringRead.scoring_outcome.result.request_hash`。
+`scoring_success_provenance` 仅为 `PRIMARY | REPAIR_H2C` 分类，绝不能充当 request identity。
 
-Evidence Registry 由应用从当前 canonical Transcript 建立，模型只能返回 Registry 中的
-ID；excerpt 与可选 timestamp 由应用补全。无法从 timed subtitle 稳定映射时必须省略时间，
-不得使用模型生成的时间戳。Weekly V2 默认只读取已验证 Structured Knowledge 与其证据
-引用，不读取 Obsidian 用户区或发送本周全部 Transcript。
+Provider 返回的 JSON、schema-constrained JSON 或 tool arguments 始终不可信。应用必须按
+transport/envelope → identity → complete-payload extraction → strict JSON → schema/domain →
+Evidence Registry grounding → KG2 → language → provenance 的顺序验证，才可 mint
+`TrustedDeepAnalysisSuccess`。Provider-native schema 是允许的输出约束，不是信任边界；
+fence stripping、first-JSON extraction、应用修复和隐藏 retry 均禁止。
 
-request/execution identity 必须包含 provider、model/digest、requested/executed mode、
-output language、Prompt/Schema/sampling/privacy version 与 Transcript/input hash。任何
-配置切换都不得绕过 TASK-015 的 provider/model/current-config binding。
+Evidence Registry 由应用从 current canonical Transcript 建立，模型只能返回被明确选中的
+Registry ID。Cloud 默认只接收明确授权的 selected evidence slices，不能因 cloud-enabled
+而发送完整 Transcript、Vault/user content 或 scoring result；full transcript 需要
+`coverage_complete`、named-provider/run 的显式 `FULL_TRANSCRIPT` consent 和 provenance binding。
+
+request/execution/cache identity 必须包含 canonical input、provider/adapter/model identity、
+structured-output mode、prompt/schema、payload scope/projection、settings/profile、context
+authority 与 validation policy。浮动 cloud alias 若经显式允许可 dispatch，但必须标为
+non-reproducible 且不可 cache reuse。TASK-016B/C 的 scoring admission、repair、lineage、
+Phase G 和 `AuthoritativeScoringReader` 语义不受本节改变。
