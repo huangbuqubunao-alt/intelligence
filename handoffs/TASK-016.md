@@ -75,3 +75,33 @@
 - 建议状态：`IN_REVIEW`
 - Commit SHA：pending provider-neutral contract correction R2 evidence commit
 - 复现/验证说明：qualification matrix and captured evidence remain in `docs/TASK-016-LOCAL-DEEP-ANALYSIS-DETERMINISTIC-MODEL-QUALIFICATION.md`; architectural decision is in `docs/TASK-016-LOCAL-DEEP-ANALYSIS-PROVIDER-ARCHITECTURE-REVIEW.md`; the implementation-ready contract and next gate are in `docs/TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md` and ADR-027.
+
+## P0 foundational contracts implementation supplement — 2026-08-29
+
+- Scope: added `src/youtube_intel/deep_analysis_contracts.py` and focused unit
+  coverage in `tests/unit/test_deep_analysis_contracts.py`. This is pure domain
+  representation/canonicalization only; no provider adapter, network, Ollama,
+  cloud dispatch, credential storage/loading, cache storage, 016D, 016E, or
+  016F code was added.
+- Reuse decision: `DIRECT` — uses the repository's dependency-free RFC 8785
+  serialization algorithm (`h2_jcs`) for DACS-1 encoding, while preserving the
+  separate DACS-1 top-level-version and Deep Analysis domain constraints. No
+  dependency was added or changed.
+- Trust boundary: A1 construction accepts scoring authority only through exact
+  `VerifiedScoringRead`; it derives
+  `scoring_outcome.result.request_hash` and independently validates
+  `PRIMARY | REPAIR_H2C` provenance. It never substitutes provenance for the
+  request hash. Trusted success is opaque/sentinel-guarded and has no public
+  mint or raw-response conversion path.
+- Evidence: focused P0 contracts `22 passed`; TASK-016C regression selection
+  `180 passed`; full pytest `1804 passed` (one pre-existing Pydantic warning);
+  Ruff `PASS`; new module mypy `PASS`; `git diff --check` `PASS`.
+  Repository-wide `mypy .` remains a pre-existing baseline failure (1023 errors
+  across unmodified tests; first observed at `tests/unit/test_analysis_policy.py:100`).
+- Adversarial coverage: unknown enums, secret-shaped credential fields,
+  raw/missing scoring binding, bad provenance, A1/A2/A3/cache mutations,
+  floating-model cache exclusion, self/two/long fallback cycles, duplicate
+  semantic nodes, ambiguous edges, response identities, and direct trusted
+  success fabrication.
+- Implementation conclusion: recommend `IN_REVIEW`; no contract contradiction
+  found. Commit SHA: pending this implementation commit.

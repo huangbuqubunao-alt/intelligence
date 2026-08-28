@@ -136,3 +136,15 @@ with a new ordered implementation plan.
 - Evidence、cache、model/mode/current-config provenance fail-closed。
 - 不修改 SQLite Schema；不新增依赖。
 - 不包含 UI、发布或 TASK-015 Remaining P2。
+
+## 2026-08-29 P0 foundational-contract implementation slice
+
+- Provider-neutral foundational contracts have been implemented in the isolated
+  `deep_analysis_contracts` domain module: DACS-1 identities; A1/A2/A3; payload
+  consent and scope; non-secret credential execution identity; fallback DAG and
+  cache identities; and untrusted/trusted response boundary types.
+- This slice contains no adapter, provider selection, transport, credential
+  storage/loading, cache/persistence, validation pipeline, or TASK-016D/E/F
+  code. `TASK-016B` and `TASK-016C` semantics remain unchanged.
+- The implementation is awaiting independent review; this note does not change
+  task lifecycle state or authorize any subsequent implementation slice.
