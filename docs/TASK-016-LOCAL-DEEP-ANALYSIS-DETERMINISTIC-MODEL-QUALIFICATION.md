@@ -1,6 +1,6 @@
 # TASK-016 — Deterministic Local Deep Analysis model qualification
 
-Status: **IN PROGRESS — C3 acquisition in progress**
+Status: **COMPLETE — ALL PREDEFINED CANDIDATES EXHAUSTED**
 
 This record executes the user-supplied candidate order and mandatory gates as a
 mechanical conformance protocol. It is not a model recommendation, comparison,
@@ -27,8 +27,8 @@ retested.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | C1 | `gemma3:4b` | `sha256:a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a` | already installed | blocked | not run | not run | not run | not run | not run | `TOKENIZER IDENTITY BLOCKED` | `ACQUISITION/PROOF BLOCKED` |
 | C2 | `phi4-mini:latest` | `sha256:78fad5d182a7c33065e153a5f8ba210754207ba9d91973f57dffa7f487363753` | already installed | pass | pass (3/3) | fail | not run | not run | not run | `REJECTED — STRUCTURED OUTPUT` | `REJECTED — STRUCTURED OUTPUT` |
-| C3 | `llama3.1:8b` | pending acquisition | one direct no-proxy pull in progress | pending | pending | pending | not run | not run | not run | pending | pending |
-| C4 | `mistral:7b-instruct-v0.3` | not yet inspected | not started | not started | not run | not run | not run | not run | not run | pending | pending |
+| C3 | `llama3.1:8b` | `sha256:46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e` | pass: one direct no-proxy pull | blocked | not run | not run | not run | not run | not run | `TOKENIZER IDENTITY BLOCKED` | `ACQUISITION/PROOF BLOCKED` |
+| C4 | listed `mistral:7b-instruct-v0.3`; official corresponding tag `mistral:v0.3` | unavailable (not acquired) | blocked: listed-tag pull returned manifest-not-found; no second pull permitted | not run | not run | not run | not run | not run | not run | `ACQUISITION BLOCKED` | `ACQUISITION BLOCKED` |
 
 ## C1 — `gemma3:4b`
 
@@ -118,7 +118,55 @@ schema/domain/grounding/KG2 pass could be claimed after the structural parse
 failure, and no retry or repair was issued. C2 is mechanically classified
 `REJECTED — STRUCTURED OUTPUT`.
 
-## Interim state
+## C3 — `llama3.1:8b`
 
-No candidate has reached Phase B. `QUALIFIED_LOCAL_MODEL` is not yet assigned:
-C3 acquisition is the active fixed-order step.
+The one permitted direct, no-proxy acquisition completed with this local
+identity:
+
+| Field | Observed value |
+| --- | --- |
+| Size | `4,920,753,328` bytes |
+| Architecture/family | `llama` |
+| Parameter count | `8,030,261,312` (`8.0B` reported label) |
+| Quantization / format | `Q4_K_M` / `gguf` |
+| Reported context | `131072` |
+| Local special-token metadata | `bos_token_id=128000`, `eos_token_id=128009`; add-BOS/add-EOS booleans not reported |
+
+The authoritative upstream repository is
+[`meta-llama/Llama-3.1-8B-Instruct`](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/tree/main),
+revision `0e9e39f249a16976918f6564b8830bc894c89659`. Its metadata reports
+`gated: manual`. Without completing that external access action, the required
+immutable tokenizer artifact, SHA-256, direct engine validation, and declared
+special-token proof cannot be established. A2 therefore blocks C3; no raw
+parity or TINY generation was dispatched.
+
+## C4 — `mistral:7b-instruct-v0.3`
+
+The exact listed tag was absent. Its sole permitted direct, no-proxy pull
+returned this transport/application result before any model data was acquired:
+
+```text
+Error: pull model manifest: file does not exist
+```
+
+The official Ollama library identifies `mistral:v0.3` as the corresponding
+Mistral 7B v0.3 Instruct tag (and identifies
+`mistral:7b-instruct-v0.3-q4_K_M` as the matching Q4_K_M variant). The
+protocol permits only one explicit pull for a missing candidate. Since that
+one command was consumed by the unavailable listed tag, no corrected-tag pull
+was issued. C4 is mechanically classified `ACQUISITION BLOCKED`; no identity,
+tokenizer, parity, or generation gate is claimed.
+
+## Final mechanical state
+
+No candidate reached Phase B. The fixed candidate sequence is exhausted.
+
+```text
+QUALIFIED_LOCAL_MODEL=NONE
+```
+
+No repository product implementation, test, dependency, migration,
+configuration, cache, or task-state file was changed. The authorized C3 model
+artifact was acquired only in the local Ollama model store; temporary
+evidence/capture material remains under `/tmp`, and no model response was
+repaired or redispatched.
