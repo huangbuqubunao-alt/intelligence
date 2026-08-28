@@ -1,6 +1,6 @@
 # TASK-016 — Local Deep Analysis model selection, round 2
 
-Status: **DESIGN / CANDIDATE SELECTION ONLY — ACQUISITION AND IMPLEMENTATION UNAUTHORIZED**
+Status: **CANDIDATE ACQUIRED — TOKENIZER/PARITY, FEASIBILITY, AND IMPLEMENTATION REMAIN UNAUTHORIZED**
 
 This docs-only record follows `main@aeed45994b7752845d626b0bb9244a37ab341d84`.
 It selects one next candidate for a future, separately authorized, single-model
@@ -119,10 +119,20 @@ necessary, **PROVIDER FORMAT REINTRODUCTION WOULD REQUIRE CONTEXT-PROOF AMENDMEN
 
 ## 6. Next authorization and gate sequence
 
-**MODEL ACQUISITION AUTHORIZATION: YES.** `qwen2.5:7b` is not established as
-installed and no digest is frozen here. A later authorization must name only
-that exact tag/source, prohibit fallback or other models, require disk/resource
-check, full digest capture, and license evidence.
+### Acquisition outcome (2026-08-28)
+
+The separately authorized acquisition of only `qwen2.5:7b` passed. Its frozen
+local identity is Ollama `0.32.1`, tag `qwen2.5:7b`, digest
+`sha256:845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e`.
+The complete evidence record is
+[Qwen2.5 model acquisition](TASK-016-LOCAL-DEEP-ANALYSIS-QWEN25-MODEL-ACQUISITION.md).
+This does not approve tokenizer reuse/parity, raw-profile parity, feasibility,
+or implementation.
+
+**MODEL ACQUISITION: COMPLETE.** The later single-model authorization named only
+this exact tag/source, prohibited fallback, and captured disk/resource, full
+digest, and license evidence. Its outcome is frozen above and in the acquisition
+record; no further model acquisition is authorized by this document.
 
 **TOKENIZER ACQUISITION: YES.** Qwen3 artifacts cannot be reused. Freeze exact
 Qwen2.5 tokenizer revision/artifact hashes, offline engine/distribution

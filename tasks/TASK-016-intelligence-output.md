@@ -41,6 +41,14 @@
   acquisition, tokenizer freeze/parity, byte-bound reconciliation, and M1 Pro
   feasibility gates. It makes no provider/context-contract change and keeps
   implementation unauthorized; TASK-016B and TASK-016C remain closed.
+- The separately authorized acquisition of `qwen2.5:7b` has passed and freezes
+  local Ollama `0.32.1` digest
+  `sha256:845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e`.
+  The acquisition record is
+  `docs/TASK-016-LOCAL-DEEP-ANALYSIS-QWEN25-MODEL-ACQUISITION.md`.
+  Qwen2.5 tokenizer artifact/parity, raw-profile parity, byte-bound
+  reconciliation, and M1 Pro feasibility remain separate required gates;
+  implementation remains unauthorized.
 
 ## 产品目标
 
