@@ -105,3 +105,31 @@
   success fabrication.
 - Implementation conclusion: recommend `IN_REVIEW`; no contract contradiction
   found. Commit SHA: pending this implementation commit.
+
+## P0 foundational-contract strict-mypy regression correction — 2026-08-29
+
+- Scope: test-typing correction only in `tests/unit/test_deep_analysis_contracts.py`.
+  No production file changed. Reuse decision: `DIRECT` — existing Python and
+  Pydantic contract types only; no dependency, adapter, credential, cache, or
+  TASK-016D/E/F implementation.
+- Base/original implementation commit: `5f320988a701bc2294b02010ba2967432ffdf2c7`.
+  Parent repository-wide mypy baseline: `1019 errors / 44 files`. Initial
+  implementation state: `1024 errors / 45 files`; five errors were introduced
+  solely by this contract test and all five are now corrected.
+- Corrections: the secret-field rejection remains a `model_validate` negative
+  case; the payload evidence, provider messages, and structured output are now
+  created with their concrete contract types; the `model_copy(update=...)`
+  negative case uses a type-safe empty update mapping. Assertions and trust
+  semantics are unchanged.
+- Validation: focused test-file mypy `PASS` with `MYPYPATH=src`; changed
+  production module mypy `PASS`; normative `uv run mypy src` `PASS`; repository
+  mypy `1019 errors / 44 files`, with zero errors in this test file and only
+  the pre-existing baseline remaining. Focused contracts: `22 passed`; full
+  pytest: `1804 passed, 1 warning`; Ruff: `PASS`; `git diff --check`: `PASS`.
+- Trust/security diff review: no A2, cache-collision, fallback-DAG,
+  TrustedDeepAnalysisSuccess, or scoring-request-hash assertion was weakened;
+  no `Any`, cast, type-ignore, credential material, provider code, or
+  TASK-016B/C semantic change was introduced.
+- Implementation qualification: `QUALIFIED`. This correction authorizes no
+  provider adapter or credential implementation. Commit SHA: pending this
+  correction commit; no push or tag.

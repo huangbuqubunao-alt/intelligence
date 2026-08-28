@@ -22,6 +22,7 @@ from youtube_intel.deep_analysis_contracts import (
     DeepAnalysisFallbackEdgeV1,
     DeepAnalysisFallbackNodeV1,
     DeepAnalysisFallbackPolicyV1,
+    DeepAnalysisMessageV1,
     DeepAnalysisModelIdentityClass,
     DeepAnalysisModelIdentityV1,
     DeepAnalysisPayloadScope,
@@ -29,9 +30,11 @@ from youtube_intel.deep_analysis_contracts import (
     DeepAnalysisProviderKind,
     DeepAnalysisRequestProjectionV1,
     DeepAnalysisStructuredOutputMode,
+    DeepAnalysisStructuredOutputV1,
     DeepAnalysisValidationPolicyIdentityV1,
     PayloadConsentIdentityV1,
     PayloadConsentMode,
+    SelectedEvidenceProjectionV1,
     TrustedDeepAnalysisSuccess,
     UntrustedDeepAnalysisResponseV1,
     build_cache_decision,
@@ -102,14 +105,16 @@ def test_model_identity_and_credential_contract_fail_closed() -> None:
             resolved_revision="sha256:" + "a" * 64,
         )
     with pytest.raises(Exception):
-        CredentialExecutionProfileIdentityV1(
-            schema_version="credential-execution-profile-v1",
-            provider_id="provider-a",
-            project_identity="project-a",
-            region="region-a",
-            endpoint_deployment_identity="deployment-a",
-            execution_policy_identity="policy-a",
-            api_key="do-not-accept",
+        CredentialExecutionProfileIdentityV1.model_validate(
+            {
+                "schema_version": "credential-execution-profile-v1",
+                "provider_id": "provider-a",
+                "project_identity": "project-a",
+                "region": "region-a",
+                "endpoint_deployment_identity": "deployment-a",
+                "execution_policy_identity": "policy-a",
+                "api_key": "do-not-accept",
+            }
         )
 
 
@@ -226,7 +231,12 @@ def _request_and_execution() -> tuple[CanonicalDeepAnalysisInputV1, DeepAnalysis
         duration_seconds=42,
         source_language="en",
         selected_evidence=(
-            {"schema_version": "selected-evidence-projection-v1", "evidence_id": "e1", "source": "transcript_sample", "excerpt": "exact excerpt"},
+            SelectedEvidenceProjectionV1(
+                schema_version="selected-evidence-projection-v1",
+                evidence_id="e1",
+                source="transcript_sample",
+                excerpt="exact excerpt",
+            ),
         ),
     )
     request = DeepAnalysisRequestProjectionV1(
@@ -237,18 +247,31 @@ def _request_and_execution() -> tuple[CanonicalDeepAnalysisInputV1, DeepAnalysis
         payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
         authorized_payload=payload,
         provider_visible_messages=(
-            {"schema_version": "deep-analysis-message-v1", "role": "system", "content": "produce Chinese JSON"},
-            {"schema_version": "deep-analysis-message-v1", "role": "user", "content": "exact excerpt"},
+            DeepAnalysisMessageV1(
+                schema_version="deep-analysis-message-v1",
+                role="system",
+                content="produce Chinese JSON",
+            ),
+            DeepAnalysisMessageV1(
+                schema_version="deep-analysis-message-v1",
+                role="user",
+                content="exact excerpt",
+            ),
         ),
         provider_visible_request_shape={"messages": "chat", "input_field": "messages"},
-        structured_output={
-            "schema_version": "deep-analysis-structured-output-v1",
-            "mode": DeepAnalysisStructuredOutputMode.PROVIDER_JSON_SCHEMA,
-            "dialect_id": "json-schema",
-            "dialect_version": "2020-12",
-            "settings": {"strict": True},
-            "schema": {"type": "object", "properties": {"summary": {"type": "string"}}},
-        },
+        structured_output=DeepAnalysisStructuredOutputV1.model_validate(
+            {
+                "schema_version": "deep-analysis-structured-output-v1",
+                "mode": DeepAnalysisStructuredOutputMode.PROVIDER_JSON_SCHEMA,
+                "dialect_id": "json-schema",
+                "dialect_version": "2020-12",
+                "settings": {"strict": True},
+                "schema": {
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                },
+            }
+        ),
         generation_semantics={"temperature": 0.0, "max_output_tokens": 800},
         prompt_identity="knowledge-prompt-v3",
         knowledge_content_schema_identity="knowledge-result-v2",
@@ -291,7 +314,7 @@ def test_a1_binds_verified_request_hash_not_scoring_provenance() -> None:
     )
     assert changed.a1_identity != canonical.a1_identity
     with pytest.raises(ValueError, match="model_copy"):
-        canonical.model_copy(update={"output_language": "en"})
+        canonical.model_copy(update={})
 
 
 @pytest.mark.parametrize(

@@ -146,5 +146,9 @@ with a new ordered implementation plan.
 - This slice contains no adapter, provider selection, transport, credential
   storage/loading, cache/persistence, validation pipeline, or TASK-016D/E/F
   code. `TASK-016B` and `TASK-016C` semantics remain unchanged.
-- The implementation is awaiting independent review; this note does not change
-  task lifecycle state or authorize any subsequent implementation slice.
+- FOUNDATIONAL CONTRACTS IMPLEMENTATION QUALIFIED: the five strict-mypy errors
+  introduced by the focused contract test were corrected without production
+  changes. The source-level normative mypy gate, focused contracts, full test
+  suite, and Ruff pass; repository-wide mypy is back to its `1019 errors / 44
+  files` pre-existing baseline only. This qualification does not authorize a
+  provider, credential implementation, or TASK-016D/E/F.
