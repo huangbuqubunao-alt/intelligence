@@ -80,6 +80,7 @@ REQUEST_HASH = build_provider_request_hash(
 EXPECTED_TABLES = {
     "artifacts",
     "channel_cursors",
+    "deep_analysis_persisted_results",
     "job_attempts",
     "jobs",
     "provider_calls",
@@ -568,12 +569,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "002_add_scoring_lineage.sql")
+        .joinpath("migrations", "003_add_deep_analysis_persistence.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 2
-    assert first.name == "002_add_scoring_lineage.sql"
+    assert first.version == 3
+    assert first.name == "003_add_deep_analysis_persistence.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -588,7 +589,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 2
+    assert migration_count == 3
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -644,6 +645,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "uq_jobs_active_scope_pipeline",
         "uq_jobs_authoritative_scoring_artifact_key",
         "uq_videos_authoritative_scoring_job_id",
+        "uq_deep_analysis_persisted_cache_identity",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

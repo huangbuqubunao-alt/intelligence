@@ -19,14 +19,18 @@ from youtube_intel.deep_analysis_contracts import (
     AuthorizedProviderPayloadProjectionV1,
     CanonicalDeepAnalysisInputV1,
     ContextBudgetProfileV1,
+    DeepAnalysisCacheDecisionV1,
+    DeepAnalysisCacheIdentityV1,
     DeepAnalysisDispatchEnvelopeV1,
     DeepAnalysisExecutionProfileV1,
     DeepAnalysisFailureCode,
     DeepAnalysisFailureStage,
     DeepAnalysisFailureV1,
+    DeepAnalysisFallbackAttemptProvenanceV1,
     DeepAnalysisPayloadScope,
     DeepAnalysisRequestProjectionV1,
     DeepAnalysisStructuredOutputMode,
+    DeepAnalysisValidationPolicyIdentityV1,
     PayloadConsentIdentityV1,
     SelectedEvidenceProjectionV1,
     TrustedDeepAnalysisSuccess,
@@ -156,7 +160,7 @@ class _PayloadAdmission:
 class _PreparedAdmission:
     envelope: DeepAnalysisDispatchEnvelopeV1
     evidence_registry: EvidenceRegistry
-    validation_policy_identity: str
+    validation_policy: DeepAnalysisValidationPolicyIdentityV1
 
 
 @dataclass(frozen=True)
@@ -164,11 +168,30 @@ class _TrustedAdmission:
     content_identity: str
     cache_identity: str
     provenance_identity: str
+    persisted_material: "_PersistedSuccessMaterial"
+
+
+@dataclass(frozen=True)
+class _PersistedSuccessMaterial:
+    """Runtime-only source material for a verified persistence write.
+
+    It lives beside the process-local admission, never on the public opaque
+    success object and never becomes a persisted admission token.
+    """
+
+    envelope: DeepAnalysisDispatchEnvelopeV1
+    evidence_registry: EvidenceRegistry
+    response: UntrustedDeepAnalysisResponseV1
+    content: KnowledgeContent
+    validation_policy: DeepAnalysisValidationPolicyIdentityV1
+    cache_decision: DeepAnalysisCacheDecisionV1
+    attempt_history: tuple[DeepAnalysisFallbackAttemptProvenanceV1, ...]
 
 
 def _make_success_admission_authority() -> tuple[
     Callable[[TrustedDeepAnalysisSuccess, _TrustedAdmission], None],
     Callable[[object], bool],
+    Callable[[object], _PersistedSuccessMaterial | None],
 ]:
     """Keep live successful-admission state out of a mutable module registry."""
 
@@ -195,10 +218,28 @@ def _make_success_admission_authority() -> tuple[
             and getattr(value, "_sealed", False)
         )
 
-    return record, verify
+    def capture(value: object) -> _PersistedSuccessMaterial | None:
+        if not verify(value):
+            return None
+        return admissions[cast(TrustedDeepAnalysisSuccess, value)].persisted_material
+
+    return record, verify, capture
 
 
-_record_finalized_success, _verify_finalized_success = _make_success_admission_authority()
+_record_finalized_success, _verify_finalized_success, _capture_finalized_success = _make_success_admission_authority()
+
+
+DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY = DeepAnalysisValidationPolicyIdentityV1(
+    schema_version="deep-analysis-validation-policy-identity-v1",
+    strict_json_policy_version="strict-json-v1",
+    schema_policy_version="knowledge-schema-v1",
+    domain_policy_version="knowledge-domain-v1",
+    grounding_policy_version="evidence-registry-grounding-v1",
+    kg2_policy_version="knowledge-graph-v2",
+    language_policy_version="scoring-language-v1",
+    provenance_policy_version="deep-analysis-provenance-v1",
+)
+DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY = DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY.identity
 
 
 class DeepAnalysisRuntime:
@@ -207,11 +248,12 @@ class DeepAnalysisRuntime:
     def __init__(
         self,
         *,
-        validation_policy_identity: str = "deep-analysis-validation-policy-v1",
+        validation_policy: DeepAnalysisValidationPolicyIdentityV1 = DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY,
     ) -> None:
-        if not validation_policy_identity.strip():
-            raise ValueError("validation_policy_identity must be non-empty")
-        self._validation_policy_identity = validation_policy_identity
+        if type(validation_policy) is not DeepAnalysisValidationPolicyIdentityV1:
+            raise ValueError("validation policy must use DeepAnalysisValidationPolicyIdentityV1")
+        self._validation_policy = validation_policy
+        self._validation_policy_identity = validation_policy.identity
         self._admitted_inputs: WeakKeyDictionary[
             VerifiedDeepAnalysisInput, CanonicalDeepAnalysisInputV1
         ] = WeakKeyDictionary()
@@ -394,12 +436,16 @@ class DeepAnalysisRuntime:
         self._prepared_dispatches[prepared] = _PreparedAdmission(
             envelope=envelope,
             evidence_registry=payload_admission.evidence_registry,
-            validation_policy_identity=self._validation_policy_identity,
+            validation_policy=self._validation_policy,
         )
         return prepared
 
     def validation_finalizer(self) -> DeepAnalysisValidationFinalizer:
         return DeepAnalysisValidationFinalizer(self)
+
+    @property
+    def validation_policy_identity(self) -> str:
+        return self._validation_policy_identity
 
     def _prepared_admission(self, value: object) -> _PreparedAdmission | None:
         if type(value) is not PreparedDeepAnalysisDispatch:
@@ -455,8 +501,23 @@ class DeepAnalysisValidationFinalizer:
         if not _final_provenance_matches(admission, metadata, response):
             return _failure(DeepAnalysisFailureStage.PROVENANCE, DeepAnalysisFailureCode.PROVENANCE_INVALID)
         success = object.__new__(TrustedDeepAnalysisSuccess)
-        cache_identity = dacs1_sha256({
-            "schema_version": "deep-analysis-runtime-cache-binding-v1",
+        cache_decision = DeepAnalysisCacheDecisionV1(
+            schema_version="deep-analysis-cache-decision-v1",
+            eligibility=envelope.execution_profile.model_selection.cache_eligibility,
+            cache_identity=(
+                DeepAnalysisCacheIdentityV1(
+                    schema_version="deep-analysis-cache-identity-v1",
+                    a1_identity=envelope.a1_identity,
+                    a2_identity=envelope.a2_identity,
+                    a3_identity=envelope.a3_identity,
+                    validation_policy_identity=admission.validation_policy.identity,
+                )
+                if envelope.execution_profile.model_selection.cache_eligibility.value == "ELIGIBLE"
+                else None
+            ),
+        )
+        cache_identity = cache_decision.cache_identity.identity if cache_decision.cache_identity else dacs1_sha256({
+            "schema_version": "deep-analysis-ineligible-audit-identity-v1",
             "A1": envelope.a1_identity,
             "A2": envelope.a2_identity,
             "A3": envelope.a3_identity,
@@ -477,14 +538,49 @@ class DeepAnalysisValidationFinalizer:
             "payload_consent_identity": envelope.payload_consent.identity,
             "provider_envelope_identity": response.provider_envelope_identity,
             "payload_identity": response.structured_payload_identity,
-            "validation_policy_identity": admission.validation_policy_identity,
+            "validation_policy_identity": admission.validation_policy.identity,
             "content_identity": content_identity,
         }))
         object.__setattr__(success, "_sealed", True)
+        attempt = DeepAnalysisFallbackAttemptProvenanceV1(
+            schema_version="deep-analysis-fallback-attempt-provenance-v1",
+            ordinal=1,
+            fallback_node_identity=dacs1_sha256({
+                "schema_version": "deep-analysis-fallback-node-identity-v1",
+                "provider_id": envelope.execution_profile.provider_id,
+                "provider_kind": envelope.execution_profile.provider_kind.value,
+                "adapter_identity": envelope.execution_profile.adapter_identity,
+                "endpoint_deployment_profile_identity": envelope.execution_profile.endpoint_deployment_profile_identity,
+                "model_selection_identity": envelope.execution_profile.model_selection.identity,
+                "credential_execution_profile_identity": envelope.execution_profile.credential_execution_profile.identity,
+                "structured_output_profile_identity": envelope.execution_profile.structured_output_profile_identity,
+                "generation_profile_identity": envelope.execution_profile.generation_profile_identity,
+                "context_authority_identity": envelope.execution_profile.context_authority_identity,
+                "qualified_capability_profile_identity": envelope.execution_profile.qualified_capability_profile_identity,
+                "payload_scope": envelope.request_projection.payload_scope.value,
+            }),
+            provider_id=envelope.execution_profile.provider_id,
+            model_selection_identity=envelope.execution_profile.model_selection.identity,
+            payload_scope=envelope.request_projection.payload_scope,
+            consent_identity=envelope.payload_consent.identity,
+            a1_identity=envelope.a1_identity,
+            a2_identity=envelope.a2_identity,
+            a3_identity=envelope.a3_identity,
+            transport_result_identity=response.provider_envelope_identity,
+        )
         _record_success(success, _TrustedAdmission(
             content_identity=content_identity,
             cache_identity=cache_identity,
             provenance_identity=success.provenance_identity,
+            persisted_material=_PersistedSuccessMaterial(
+                envelope=envelope,
+                evidence_registry=admission.evidence_registry,
+                response=response,
+                content=content,
+                validation_policy=admission.validation_policy,
+                cache_decision=cache_decision,
+                attempt_history=(attempt,),
+            ),
         ))
         return DeepAnalysisValidationResult(success=success)
 
@@ -492,6 +588,20 @@ class DeepAnalysisValidationFinalizer:
 # The successful-admission writer is captured only by the finalizer method.
 # Public verification has no caller-importable registration/mint seam.
 del _record_finalized_success
+
+
+def _capture_trusted_success_for_persistence(
+    value: object,
+) -> _PersistedSuccessMaterial | None:
+    """Return runtime-held audit material only for a live admitted success.
+
+    This function is deliberately not a mint or registration seam: fabricated,
+    copied, reconstructed, and expired objects return ``None``.  The material
+    contains no admission capability and must be persisted only by 016D's
+    transactional repository boundary.
+    """
+
+    return _capture_finalized_success(value)
 
 
 def _failure(stage: DeepAnalysisFailureStage, code: DeepAnalysisFailureCode) -> DeepAnalysisValidationResult:
@@ -609,7 +719,7 @@ def _final_provenance_matches(
     return (
         bool(response.provider_envelope_identity)
         and bool(response.structured_payload_identity)
-        and metadata.validation_policy_identity == admission.validation_policy_identity
+        and metadata.validation_policy_identity == admission.validation_policy.identity
         and _matches_early_dispatch_binding(envelope, response, metadata)
     )
 

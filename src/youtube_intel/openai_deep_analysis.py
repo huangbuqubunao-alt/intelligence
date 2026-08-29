@@ -36,6 +36,7 @@ from youtube_intel.deep_analysis_contracts import (
     UntrustedDeepAnalysisResponseV1,
 )
 from youtube_intel.deep_analysis_runtime import (
+    DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     DeepAnalysisResponseMetadataV1,
     PreparedDeepAnalysisDispatch,
 )
@@ -381,7 +382,7 @@ def _response_metadata(prepared: PreparedDeepAnalysisDispatch, response: Mapping
         a2_identity=envelope.a2_identity,
         a3_identity=envelope.a3_identity,
         scoring_request_hash=envelope.canonical_input.scoring_request_hash,
-        validation_policy_identity="deep-analysis-validation-policy-v1",
+        validation_policy_identity=DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     )
 
 

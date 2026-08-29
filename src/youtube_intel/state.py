@@ -608,7 +608,11 @@ class SQLiteStateRepository:
         )
 
     def _load_migrations(self) -> tuple[_Migration, ...]:
-        names = ("001_initial.sql", "002_add_scoring_lineage.sql")
+        names = (
+            "001_initial.sql",
+            "002_add_scoring_lineage.sql",
+            "003_add_deep_analysis_persistence.sql",
+        )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
             sql_bytes = (

@@ -30,6 +30,7 @@ from youtube_intel.deep_analysis_contracts import (
     verify_trusted_deep_analysis_success,
 )
 from youtube_intel.deep_analysis_runtime import (
+    DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     DeepAnalysisRuntime,
     DeepAnalysisValidationResult,
     PreparedDeepAnalysisDispatch,
@@ -349,7 +350,7 @@ def _response(
         "a2_identity": envelope.a2_identity,
         "a3_identity": envelope.a3_identity,
         "scoring_request_hash": envelope.canonical_input.scoring_request_hash,
-        "validation_policy_identity": "deep-analysis-validation-policy-v1",
+        "validation_policy_identity": DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     }
     if mode is DeepAnalysisStructuredOutputMode.TOOL_STRUCTURED_RETURN:
         metadata["tool_name"] = "return_knowledge"
