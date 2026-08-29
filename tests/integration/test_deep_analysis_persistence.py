@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from youtube_intel.deep_analysis_contracts import (
     DeepAnalysisPayloadScope,
     PayloadConsentIdentityV1,
     PayloadConsentMode,
+    TrustedDeepAnalysisSuccess,
     verify_trusted_deep_analysis_success,
 )
 from youtube_intel.deep_analysis_persistence import (
@@ -43,7 +45,7 @@ from youtube_intel.state import SQLiteStateRepository
 NOW = datetime(2026, 8, 30, tzinfo=UTC)
 
 
-def _trusted_success() -> object:
+def _trusted_success() -> TrustedDeepAnalysisSuccess:
     read = VerifiedScoringRead(
         scoring_outcome=ScoringOutcome(
             result=ScoreResult(
@@ -155,6 +157,7 @@ def test_runtime_verified_success_persists_and_reloads_by_exact_cache_identity(
     store = DeepAnalysisPersistenceStore(repository)
 
     persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
+    assert persisted.cache_identity is not None
 
     assert persisted.cache_identity == success.cache_identity
     assert store.lookup_deep_analysis_cache(cache_identity=success.cache_identity) == persisted
@@ -175,7 +178,7 @@ def test_forged_or_reconstructed_success_cannot_write_authoritative_row(tmp_path
             success=forged, now=NOW
         )
 
-    connection = repository._connect()  # type: ignore[attr-defined]
+    connection = repository._connect()
     try:
         assert connection.execute("SELECT COUNT(*) FROM deep_analysis_persisted_results").fetchone()[0] == 0
     finally:
@@ -186,7 +189,7 @@ def test_forged_or_reconstructed_success_cannot_write_authoritative_row(tmp_path
     "column",
     (
         "a1_identity", "a2_identity", "a3_identity", "cache_identity", "knowledge_content_json",
-        "content_identity", "provider_id", "scoring_request_hash", "scoring_success_provenance",
+        "content_identity", "provenance_identity", "provider_id", "scoring_request_hash", "scoring_success_provenance",
         "evidence_registry_identity", "validation_policy_identity", "payload_scope",
     ),
 )
@@ -196,7 +199,8 @@ def test_tampered_row_is_never_returned_as_exact_cache_hit(tmp_path: Path, colum
     success = _trusted_success()
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
-    connection = repository._connect()  # type: ignore[attr-defined]
+    assert persisted.cache_identity is not None
+    connection = repository._connect()
     try:
         value = "b" * 64 if column != "scoring_success_provenance" else "REPAIR_H2C"
         if column == "knowledge_content_json":
@@ -217,12 +221,57 @@ def test_secret_and_unselected_transcript_are_absent_from_persisted_record(tmp_p
     repository.initialize(now=NOW)
     success = _trusted_success()
     DeepAnalysisPersistenceStore(repository).persist_trusted_deep_analysis_success(success=success, now=NOW)
-    connection = repository._connect()  # type: ignore[attr-defined]
+    connection = repository._connect()
     try:
         row = connection.execute("SELECT * FROM deep_analysis_persisted_results").fetchone()
         assert row is not None
         serialized = " ".join(str(row[name]) for name in row.keys() if name != "structured_payload_bytes")
         assert "sk-task016-DO-NOT-PERSIST" not in serialized
         assert "unselected full transcript" not in serialized
+    finally:
+        connection.close()
+
+
+def test_cache_eligibility_must_match_the_persisted_model_identity_class(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    success = _trusted_success()
+    store = DeepAnalysisPersistenceStore(repository)
+    persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE deep_analysis_persisted_results SET cache_eligibility = 'INELIGIBLE_FLOATING_MODEL', "
+            "cache_identity = NULL"
+        )
+    finally:
+        connection.close()
+
+    assert store.read_persisted_deep_analysis_result(result_identity=persisted.result_identity) is None
+
+
+def test_same_cache_identity_with_different_content_is_rejected_by_sqlite(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    success = _trusted_success()
+    store = DeepAnalysisPersistenceStore(repository)
+    persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
+    connection = repository._connect()
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO deep_analysis_persisted_results "
+                "SELECT ?, cache_identity, cache_eligibility, a1_identity, a2_identity, a3_identity, "
+                "validation_policy_identity, validation_policy_json, provider_kind, provider_id, adapter_identity, "
+                "adapter_version, endpoint_deployment_profile_identity, model_id, model_identity_class, "
+                "model_resolved_revision, payload_scope, scoring_request_hash, scoring_success_provenance, "
+                "evidence_registry_identity, ?, provider_envelope_identity, structured_payload_identity, ?, "
+                "canonical_input_json, evidence_registry_json, authorized_payload_json, request_projection_json, "
+                "execution_profile_json, payload_consent_json, context_budget_json, response_metadata_json, "
+                "knowledge_content_json, fallback_attempts_json, fallback_policy_identity, timeout_profile_identity, "
+                "response_envelope_bytes, structured_payload_kind, structured_payload_bytes, created_at, validated_at "
+                "FROM deep_analysis_persisted_results WHERE result_identity = ?",
+                ("b" * 64, "c" * 64, "d" * 64, persisted.result_identity),
+            )
     finally:
         connection.close()

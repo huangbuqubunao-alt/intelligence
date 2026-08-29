@@ -290,6 +290,26 @@ class DeepAnalysisPersistenceStore:
             raise DeepAnalysisPersistenceError("KnowledgeContent validation failed")
         if response.provider_envelope_identity != row["provider_envelope_identity"] or response.structured_payload_identity != row["structured_payload_identity"]:
             raise DeepAnalysisPersistenceError("response identity failed")
+        expected_provenance_identity = dacs1_sha256({
+            "schema_version": "trusted-deep-analysis-provenance-v1",
+            "A1": canonical.a1_identity,
+            "A2": request.a2_identity,
+            "A3": execution.a3_identity,
+            "scoring_request_hash": canonical.scoring_request_hash,
+            "scoring_success_provenance": canonical.scoring_success_provenance,
+            "evidence_registry_identity": canonical.evidence_registry_identity,
+            "payload_scope": request.payload_scope.value,
+            "payload_consent_identity": consent.identity,
+            "provider_envelope_identity": response.provider_envelope_identity,
+            "payload_identity": response.structured_payload_identity,
+            "validation_policy_identity": policy.identity,
+            "content_identity": content_identity,
+        })
+        if (
+            row["provenance_identity"] != expected_provenance_identity
+            or row["result_identity"] != expected_provenance_identity
+        ):
+            raise DeepAnalysisPersistenceError("persisted provenance identity failed")
         if len(attempts) != 1 or any((attempts[0].a1_identity != canonical.a1_identity, attempts[0].a2_identity != request.a2_identity, attempts[0].a3_identity != execution.a3_identity)):
             raise DeepAnalysisPersistenceError("attempt provenance failed")
         cache = DeepAnalysisCacheIdentityV1(schema_version="deep-analysis-cache-identity-v1", a1_identity=canonical.a1_identity, a2_identity=request.a2_identity, a3_identity=execution.a3_identity, validation_policy_identity=policy_identity)
