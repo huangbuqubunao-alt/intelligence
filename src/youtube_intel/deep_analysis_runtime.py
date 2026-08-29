@@ -130,6 +130,7 @@ class DeepAnalysisResponseMetadataV1(BaseModel):
     a2_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
     a3_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
     scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    validation_policy_identity: str = Field(min_length=1, pattern=r"\S")
     tool_name: str | None = None
 
 
@@ -155,12 +156,14 @@ class _PayloadAdmission:
 class _PreparedAdmission:
     envelope: DeepAnalysisDispatchEnvelopeV1
     evidence_registry: EvidenceRegistry
+    validation_policy_identity: str
 
 
 @dataclass(frozen=True)
 class _TrustedAdmission:
     content_identity: str
     cache_identity: str
+    provenance_identity: str
 
 
 def _make_success_admission_authority() -> tuple[
@@ -188,6 +191,7 @@ def _make_success_admission_authority() -> tuple[
         return (
             value.content_identity == admission.content_identity
             and value.cache_identity == admission.cache_identity
+            and value.provenance_identity == admission.provenance_identity
             and getattr(value, "_sealed", False)
         )
 
@@ -200,7 +204,14 @@ _record_finalized_success, _verify_finalized_success = _make_success_admission_a
 class DeepAnalysisRuntime:
     """Owns the in-memory authority boundary for one Deep Analysis runtime."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        validation_policy_identity: str = "deep-analysis-validation-policy-v1",
+    ) -> None:
+        if not validation_policy_identity.strip():
+            raise ValueError("validation_policy_identity must be non-empty")
+        self._validation_policy_identity = validation_policy_identity
         self._admitted_inputs: WeakKeyDictionary[
             VerifiedDeepAnalysisInput, CanonicalDeepAnalysisInputV1
         ] = WeakKeyDictionary()
@@ -381,7 +392,9 @@ class DeepAnalysisRuntime:
         object.__setattr__(prepared, "_envelope", envelope)
         object.__setattr__(prepared, "_sealed", True)
         self._prepared_dispatches[prepared] = _PreparedAdmission(
-            envelope=envelope, evidence_registry=payload_admission.evidence_registry
+            envelope=envelope,
+            evidence_registry=payload_admission.evidence_registry,
+            validation_policy_identity=self._validation_policy_identity,
         )
         return prepared
 
@@ -438,7 +451,7 @@ class DeepAnalysisValidationFinalizer:
             "schema_version": "trusted-deep-analysis-content-v1",
             "content": content.model_dump(mode="json"),
         })
-        if not _final_provenance_matches(envelope, metadata, response):
+        if not _final_provenance_matches(admission, metadata, response):
             return _failure(DeepAnalysisFailureStage.PROVENANCE, DeepAnalysisFailureCode.PROVENANCE_INVALID)
         success = object.__new__(TrustedDeepAnalysisSuccess)
         cache_identity = dacs1_sha256({
@@ -451,9 +464,26 @@ class DeepAnalysisValidationFinalizer:
         })
         object.__setattr__(success, "_content_identity", content_identity)
         object.__setattr__(success, "_cache_identity", cache_identity)
+        object.__setattr__(success, "_provenance_identity", dacs1_sha256({
+            "schema_version": "trusted-deep-analysis-provenance-v1",
+            "A1": envelope.a1_identity,
+            "A2": envelope.a2_identity,
+            "A3": envelope.a3_identity,
+            "scoring_request_hash": envelope.canonical_input.scoring_request_hash,
+            "scoring_success_provenance": envelope.canonical_input.scoring_success_provenance,
+            "evidence_registry_identity": envelope.canonical_input.evidence_registry_identity,
+            "payload_scope": envelope.request_projection.payload_scope.value,
+            "payload_consent_identity": envelope.payload_consent.identity,
+            "provider_envelope_identity": response.provider_envelope_identity,
+            "payload_identity": response.structured_payload_identity,
+            "validation_policy_identity": admission.validation_policy_identity,
+            "content_identity": content_identity,
+        }))
         object.__setattr__(success, "_sealed", True)
         _record_finalized_success(success, _TrustedAdmission(
-            content_identity=content_identity, cache_identity=cache_identity
+            content_identity=content_identity,
+            cache_identity=cache_identity,
+            provenance_identity=success.provenance_identity,
         ))
         return DeepAnalysisValidationResult(success=success)
 
@@ -565,11 +595,17 @@ def _language_valid(content: KnowledgeContent, output_language: str) -> bool:
 
 
 def _final_provenance_matches(
-    envelope: DeepAnalysisDispatchEnvelopeV1,
+    admission: _PreparedAdmission,
     metadata: DeepAnalysisResponseMetadataV1,
     response: UntrustedDeepAnalysisResponseV1,
 ) -> bool:
-    return response.provider_envelope_identity == response.provider_envelope_identity and _matches_early_dispatch_binding(envelope, response, metadata)
+    envelope = admission.envelope
+    return (
+        bool(response.provider_envelope_identity)
+        and bool(response.structured_payload_identity)
+        and metadata.validation_policy_identity == admission.validation_policy_identity
+        and _matches_early_dispatch_binding(envelope, response, metadata)
+    )
 
 
 def _verify_trusted_deep_analysis_success(value: object) -> bool:

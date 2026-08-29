@@ -348,6 +348,7 @@ def _response(
         "a2_identity": envelope.a2_identity,
         "a3_identity": envelope.a3_identity,
         "scoring_request_hash": envelope.canonical_input.scoring_request_hash,
+        "validation_policy_identity": "deep-analysis-validation-policy-v1",
     }
     if mode is DeepAnalysisStructuredOutputMode.TOOL_STRUCTURED_RETURN:
         metadata["tool_name"] = "return_knowledge"
@@ -464,5 +465,17 @@ def test_scoring_provenance_mismatch_and_success_fabrication_fail_closed() -> No
     fabricated = object.__new__(TrustedDeepAnalysisSuccess)
     object.__setattr__(fabricated, "_content_identity", result.success.content_identity)
     object.__setattr__(fabricated, "_cache_identity", result.success.cache_identity)
+    object.__setattr__(fabricated, "_provenance_identity", result.success.provenance_identity)
     object.__setattr__(fabricated, "_sealed", True)
     assert not verify_trusted_deep_analysis_success(fabricated)
+
+
+def test_final_validation_policy_identity_is_provenance_not_a_response_claim() -> None:
+    runtime, prepared = _prepared_dispatch()
+    wrong_policy = _with_metadata(
+        _response(prepared), validation_policy_identity="other-policy-v1"
+    )
+
+    assert _failure_code(runtime.validation_finalizer().finalize(
+        prepared_dispatch=prepared, response=wrong_policy
+    )) is DeepAnalysisFailureCode.PROVENANCE_INVALID

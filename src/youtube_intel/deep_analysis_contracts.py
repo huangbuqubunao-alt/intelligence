@@ -909,9 +909,16 @@ class TrustedDeepAnalysisSuccess:
     runtime admission authority; semantic object shape is never authority.
     """
 
-    __slots__ = ("_content_identity", "_cache_identity", "_sealed", "__weakref__")
+    __slots__ = (
+        "_content_identity",
+        "_cache_identity",
+        "_provenance_identity",
+        "_sealed",
+        "__weakref__",
+    )
     _content_identity: str
     _cache_identity: str
+    _provenance_identity: str
     _sealed: bool
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
@@ -935,6 +942,10 @@ class TrustedDeepAnalysisSuccess:
     @property
     def cache_identity(self) -> str:
         return self._cache_identity
+
+    @property
+    def provenance_identity(self) -> str:
+        return self._provenance_identity
 
     def __copy__(self) -> NoReturn:
         raise TypeError("TrustedDeepAnalysisSuccess cannot be copied")
