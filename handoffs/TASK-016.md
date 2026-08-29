@@ -213,7 +213,9 @@
   strict no-repair JSON parsing, schema/grounding/KG2/language/provenance
   validation, and finalizer-owned process-local success admission.
 - Closed-loop review found one implementation-critical provenance-policy gap;
-  it was regression-tested and corrected. Final review: `APPROVE`, P0 `0`,
+  it was regression-tested and corrected. A final P0 review also removed the
+  module-importable admission writer; only the finalizer retains it. Final
+  review: `APPROVE`, P0 `0`,
   implementation-critical P1 `0`.
 - Evidence: focused contracts `57 passed`; full pytest `1839 passed, 1 existing
   warning`; targeted mypy and `uv run mypy src` PASS; Ruff and diff check PASS;

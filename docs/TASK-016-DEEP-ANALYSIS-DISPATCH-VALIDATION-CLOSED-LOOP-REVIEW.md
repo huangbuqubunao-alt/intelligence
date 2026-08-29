@@ -7,6 +7,7 @@ Status: **APPROVE**
 - Starting HEAD: `32ba2e8e4daabdbe7a784e3ed4e4b0a5bd94b74a` on clean `main`.
 - Implementation: `bad6d01991fd9d775f72957a0cb0a3baced66afa`.
 - Correction R1: `4d1abfe99109aceb80276ebd4d3eeb2ec90a0b14`.
+- Correction R2: `455212a5c35292550e902199af3e4d7a189d2cba`.
 - Reuse decision: **DIRECT** — existing DACS-1 contracts, `VerifiedScoringRead`,
   `KnowledgeContent`, `EvidenceRegistry`, `KnowledgeGraph`, and the frozen
   TASK-016B language detector. No dependency was changed.
@@ -16,7 +17,8 @@ Status: **APPROVE**
 | Round | Findings | Resolution |
 | --- | --- | --- |
 | Initial implementation review | P0: 0. P1: final provenance did not bind the runtime validation-policy identity. | Added a regression test and bound the identity into final provenance and the admitted success provenance identity. |
-| Correction review | P0: 0. Implementation-critical P1: 0. | APPROVE. |
+| Correction review | P0: the module exposed a private-but-importable successful-admission writer. | Captured the writer only in the finalizer method; its regression test confirms no module registration/mint seam. |
+| Final correction review | P0: 0. Implementation-critical P1: 0. | APPROVE. |
 
 ## Trust attack matrix
 
@@ -34,7 +36,7 @@ Status: **APPROVE**
 
 ## Validation evidence
 
-- Focused dispatch plus foundational contracts: `57 passed`.
+- Focused dispatch plus foundational contracts: `58 passed`.
 - Full pytest: `1839 passed, 1 existing warning`.
 - Targeted test/module mypy: PASS.
 - `uv run mypy src`: PASS.
