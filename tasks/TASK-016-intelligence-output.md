@@ -211,3 +211,30 @@ with a new ordered implementation plan.
 - No concrete provider adapter, transport/network code, credential storage, or
   TASK-016D/E/F work was added. The next logical gate is one qualified
   reference-provider adapter, not persistence/cache work.
+
+## 2026-08-30 OpenAI reference-provider adapter qualification
+
+- The first concrete provider adapter is the qualified OpenAI Responses adapter:
+  `CLOUD_USER_KEY` provider ID `openai`, adapter
+  `openai-deep-analysis-responses` v1, and versioned model snapshot
+  `gpt-5.4-mini-2026-03-17`. OpenAI is a reference provider, not the sole or
+  globally mandatory provider.
+- The adapter accepts only a prepared provider-neutral dispatch and returns only
+  an untrusted response. Strict application schema/domain/grounding/KG2/language/
+  provenance validation and the trusted success mint remain finalizer-owned.
+- The frozen profile uses Responses `POST /v1/responses`, strict provider JSON
+  Schema as an output constraint only, selected evidence only, conservative
+  400k context admission, 30-second bounded timeout, and SDK retries disabled.
+  It has no provider/model fallback and persists no credentials.
+- Fake-transport adapter tests, finalizer integration, fabricated-evidence,
+  secret-leak, request-ID identity, retry, timeout, and transcript-minimization
+  attacks pass. Full pytest is `1854 passed, 1 warning`; source mypy and Ruff
+  pass; repository mypy remains exactly its `1019 errors / 44 files` baseline.
+- No approved temporary OpenAI credential was present, therefore live
+  qualification is mechanically `LIVE CREDENTIAL BLOCKED`; no request was sent
+  and no secret was persisted. This does not block the qualified offline adapter
+  gate because current official API evidence and complete fake-boundary tests
+  establish the mandatory mechanical provider properties.
+- Final review is `APPROVE`, P0 `0`, implementation-critical P1 `0`. The next
+  gate is TASK-016D provider-aware Deep Analysis persistence/cache provenance;
+  TASK-016B/C remain closed and TASK-016E/F remain unauthorized.

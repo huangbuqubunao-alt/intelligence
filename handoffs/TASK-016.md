@@ -222,3 +222,42 @@
   repo-wide mypy remains historical `1019 errors / 44 files` with no new errors.
 - No adapter, network, credential storage/loading, persistence/cache, database,
   TASK-016D/E/F, push, tag, rebase, or squash. TASK-016B/C preserved.
+
+## OpenAI reference-provider qualification / adapter — 2026-08-30
+
+- Starting baseline: `main@6831159097e0a3a135442926d850d7d244d97d45` (clean).
+  Implementation commit: `953202c597e7a2ef9e855c4abd299167b897b0fc`.
+- Scope: a single isolated `OpenAIDeepAnalysisProviderAdapter`, a frozen
+  OpenAI Responses profile builder, focused fake-transport tests, qualification
+  evidence, closed-loop review, and the narrow TASK-016 status update. No
+  existing TASK-016B/C semantic code changed.
+- Reuse decision: `DIRECT` — existing locked `openai==2.46.0`, existing
+  provider-neutral contracts/runtime finalizer, Pydantic `KnowledgeContent`
+  schema, and standard-library child-process transport. No dependency, lockfile,
+  schema, config, Vault, or secret-store change occurred. Official OpenAI
+  Responses/model documentation was rechecked on 2026-08-30; sources are in
+  `docs/TASK-016-DEEP-ANALYSIS-OPENAI-REFERENCE-PROVIDER-QUALIFICATION.md`.
+- Frozen profile: `CLOUD_USER_KEY/openai`, adapter
+  `openai-deep-analysis-responses` v1, Responses `POST /v1/responses`,
+  `gpt-5.4-mini-2026-03-17` `VERSIONED` snapshot, strict JSON Schema,
+  400k conservative context with 16,384 schema reserve/4,096 output ceiling,
+  30 seconds, `max_retries=0`, selected evidence only, and non-secret A3
+  credential execution identity.
+- Trust: adapter produces `UntrustedDeepAnalysisResponseV1` only. It extracts
+  only Responses `output_text`; it cannot mint trust, repair output, select a
+  provider/model, or bypass the runtime finalizer. Fabricated evidence fails
+  finalizer grounding and model echo mismatch fails provenance.
+- Privacy/cache: sentinel API key never enters request identity, A3, response,
+  exceptions, or representation. Request ID and usage remain observational and
+  are excluded from semantic response/cache identity. No credential is stored.
+- Live gate: `OPENAI_API_KEY` was absent from the approved temporary runtime
+  mechanism. LIVE-1/LIVE-2 were not attempted; status `LIVE CREDENTIAL BLOCKED`.
+  No credential was requested, logged, written, or sent.
+- Checks: adapter/contract/runtime focused selection `72 passed`; source mypy
+  PASS; full pytest `1854 passed, 1 existing warning`; Ruff PASS; diff check
+  PASS; repository mypy is exact non-regression baseline `1019 errors / 44
+  files`. Review document result: `APPROVE`, P0 `0`, implementation-critical
+  P1 `0`, review round `1`.
+- Scope confirmation: no second provider, fallback runtime, credential storage,
+  TASK-016D/E/F, push, tag, rebase, or squash. Next authorized gate is
+  TASK-016D only.
