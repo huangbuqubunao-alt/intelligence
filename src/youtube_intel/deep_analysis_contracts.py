@@ -8,7 +8,6 @@ objects, canonical identities, and fail-closed fallback-policy validation.
 from __future__ import annotations
 
 import hashlib
-import weakref
 from collections.abc import Mapping, Sequence
 from enum import Enum
 from types import MappingProxyType
@@ -902,34 +901,27 @@ class UntrustedDeepAnalysisResponseV1(_ContractModel):
         return validated_payload_identity(mode=self.structured_output_mode, payload=self.structured_payload)
 
 
-class _TrustedDeepAnalysisSuccessSentinel:
-    __slots__ = ()
-
-
-_TRUSTED_DEEP_ANALYSIS_SUCCESS_SENTINEL = _TrustedDeepAnalysisSuccessSentinel()
-
-
 class TrustedDeepAnalysisSuccess:
     """Opaque finalizer output; callers and adapters cannot mint it directly.
 
-    The P0 module intentionally provides no public mint function.  The next
-    authorized validator/finalizer slice owns the private mint seam.
+    This foundational slice intentionally has no successful admission path.
+    The next authorized validator/finalizer slice must introduce and own its
+    runtime admission authority; semantic object shape is never authority.
     """
 
     __slots__ = ("_content_identity", "_cache_identity", "_sealed", "__weakref__")
+    _content_identity: str
+    _cache_identity: str
+    _sealed: bool
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
         del cls, kwargs
         raise TypeError("TrustedDeepAnalysisSuccess cannot be subclassed")
 
-    def __init__(self, *, content_identity: str, cache_identity: str, sentinel: object) -> None:
-        if sentinel is not _TRUSTED_DEEP_ANALYSIS_SUCCESS_SENTINEL:
-            raise ValueError("TrustedDeepAnalysisSuccess can only be minted by the finalizer")
-        if len(content_identity) != 64 or len(cache_identity) != 64:
-            raise ValueError("trusted success identities must be SHA-256 hex")
-        self._content_identity = content_identity
-        self._cache_identity = cache_identity
-        self._sealed = True
+    def __init__(self) -> None:
+        raise TypeError(
+            "TrustedDeepAnalysisSuccess does not mint values in the foundational contract slice"
+        )
 
     def __setattr__(self, name: str, value: object) -> None:
         if getattr(self, "_sealed", False):
@@ -957,83 +949,15 @@ class TrustedDeepAnalysisSuccess:
         raise TypeError("TrustedDeepAnalysisSuccess cannot be serialized")
 
 
-# Admission state is deliberately process-local and keyed by object identity.
-# It is not persisted and object field equality is never used as authority.
-_AUTHORITATIVE_INPUT_ADMISSIONS: dict[
-    int, tuple[weakref.ReferenceType[CanonicalDeepAnalysisInputV1], str, str]
-] = {}
-_TRUSTED_SUCCESS_ADMISSIONS: dict[
-    int, tuple[weakref.ReferenceType[TrustedDeepAnalysisSuccess], str, str, str]
-] = {}
+def verify_trusted_deep_analysis_success(value: object) -> bool:
+    """Fail closed until the authorized validator/finalizer owns admission.
 
-
-def _admit_authoritative_input_for_finalizer(
-    canonical_input: CanonicalDeepAnalysisInputV1,
-) -> None:
-    """Internal finalizer seam that records a verified-scoring admission.
-
-    The future complete validator/finalizer owns this seam. It is intentionally
-    not exported: callers can calculate A1 but cannot make copied fields pass
-    consumer verification without a runtime-owned admission record.
+    Keeping verification public preserves the consumer contract without
+    allowing this foundational slice to manufacture a trusted success.
     """
 
-    _AUTHORITATIVE_INPUT_ADMISSIONS[id(canonical_input)] = (
-        weakref.ref(canonical_input),
-        canonical_input.a1_identity,
-        canonical_input.scoring_request_hash,
-    )
-
-
-def verify_authoritative_deep_analysis_input(value: object) -> bool:
-    """Return whether this exact object has process-local verified admission."""
-
-    if type(value) is not CanonicalDeepAnalysisInputV1:
-        return False
-    admission = _AUTHORITATIVE_INPUT_ADMISSIONS.get(id(value))
-    if admission is None or admission[0]() is not value:
-        return False
-    try:
-        return admission[1] == value.a1_identity and admission[2] == value.scoring_request_hash
-    except (AttributeError, TypeError, ValueError):
-        return False
-
-
-def _mint_trusted_deep_analysis_success_for_finalizer(
-    *,
-    canonical_input: CanonicalDeepAnalysisInputV1,
-    content_identity: str,
-    cache_identity: str,
-) -> TrustedDeepAnalysisSuccess:
-    """Internal finalizer seam; no raw response or caller-owned object mints trust."""
-
-    if not verify_authoritative_deep_analysis_input(canonical_input):
-        raise ValueError("trusted success requires an admitted authoritative input")
-    success = TrustedDeepAnalysisSuccess(
-        content_identity=content_identity,
-        cache_identity=cache_identity,
-        sentinel=_TRUSTED_DEEP_ANALYSIS_SUCCESS_SENTINEL,
-    )
-    _TRUSTED_SUCCESS_ADMISSIONS[id(success)] = (
-        weakref.ref(success),
-        success.content_identity,
-        success.cache_identity,
-        canonical_input.a1_identity,
-    )
-    return success
-
-
-def verify_trusted_deep_analysis_success(value: object) -> bool:
-    """Verify process-local finalizer admission before any trusted consumption."""
-
-    if type(value) is not TrustedDeepAnalysisSuccess:
-        return False
-    admission = _TRUSTED_SUCCESS_ADMISSIONS.get(id(value))
-    if admission is None or admission[0]() is not value:
-        return False
-    try:
-        return admission[1] == value.content_identity and admission[2] == value.cache_identity
-    except (AttributeError, TypeError, ValueError):
-        return False
+    del value
+    return False
 
 
 __all__ = [
@@ -1078,6 +1002,5 @@ __all__ = [
     "provider_envelope_identity",
     "select_fallback_edge",
     "validated_payload_identity",
-    "verify_authoritative_deep_analysis_input",
     "verify_trusted_deep_analysis_success",
 ]

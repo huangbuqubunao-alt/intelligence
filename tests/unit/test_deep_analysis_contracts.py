@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import copy
+import gc
 import pickle
 from datetime import UTC, datetime
 
 import pytest
 
+import youtube_intel.deep_analysis_contracts as deep_analysis_contracts
 from youtube_intel.deep_analysis_contracts import (
     AuthorizedProviderPayloadProjectionV1,
     CacheEligibility,
@@ -39,13 +41,10 @@ from youtube_intel.deep_analysis_contracts import (
     SelectedEvidenceProjectionV1,
     TrustedDeepAnalysisSuccess,
     UntrustedDeepAnalysisResponseV1,
-    _admit_authoritative_input_for_finalizer,
-    _mint_trusted_deep_analysis_success_for_finalizer,
     build_cache_decision,
     canonical_dacs1_bytes,
     select_fallback_edge,
     validated_payload_identity,
-    verify_authoritative_deep_analysis_input,
     verify_trusted_deep_analysis_success,
 )
 from youtube_intel.domain import (
@@ -149,8 +148,8 @@ def test_fallback_policy_rejects_cycles_and_ambiguous_edges() -> None:
 
 
 def test_trusted_success_cannot_be_directly_fabricated() -> None:
-    with pytest.raises(ValueError, match="only be minted"):
-        TrustedDeepAnalysisSuccess(content_identity="a" * 64, cache_identity="b" * 64, sentinel=object())
+    with pytest.raises(TypeError, match="does not mint"):
+        TrustedDeepAnalysisSuccess()
 
 
 def _verified_read(request_hash: str = "c" * 64) -> VerifiedScoringRead:
@@ -513,36 +512,58 @@ def test_declared_capability_is_not_qualified_or_trusted_output() -> None:
     assert not capabilities.is_qualified
 
 
-def test_runtime_owned_admission_not_instance_shape_confers_trust() -> None:
-    canonical = _canonical_input()
-    assert not verify_authoritative_deep_analysis_input(canonical)
-    with pytest.raises(ValueError, match="admitted"):
-        _mint_trusted_deep_analysis_success_for_finalizer(
-            canonical_input=canonical,
-            content_identity="a" * 64,
-            cache_identity="b" * 64,
-        )
-
-    _admit_authoritative_input_for_finalizer(canonical)
-    trusted = _mint_trusted_deep_analysis_success_for_finalizer(
-        canonical_input=canonical,
-        content_identity="a" * 64,
-        cache_identity="b" * 64,
+def test_foundational_trust_surface_is_verify_only() -> None:
+    forbidden_names = {
+        "_admit_authoritative_input_for_finalizer",
+        "_mint_trusted_deep_analysis_success_for_finalizer",
+        "_AUTHORITATIVE_INPUT_ADMISSIONS",
+        "_TRUSTED_SUCCESS_ADMISSIONS",
+    }
+    module_names = set(vars(deep_analysis_contracts))
+    assert forbidden_names.isdisjoint(module_names)
+    assert "verify_trusted_deep_analysis_success" in deep_analysis_contracts.__all__
+    assert not any(
+        callable(value) and (name.startswith("_admit_") or name.startswith("_mint_"))
+        for name, value in vars(deep_analysis_contracts).items()
     )
-    assert verify_authoritative_deep_analysis_input(canonical)
-    assert verify_trusted_deep_analysis_success(trusted)
 
+
+def test_fabricated_success_and_lookalike_scoring_identity_cannot_confer_trust() -> None:
+    canonical = _canonical_input()
+    fake = object.__new__(TrustedDeepAnalysisSuccess)
+    object.__setattr__(fake, "_content_identity", "a" * 64)
+    object.__setattr__(fake, "_cache_identity", "b" * 64)
+    object.__setattr__(fake, "_sealed", True)
+    assert not verify_trusted_deep_analysis_success(fake)
+
+    unchecked = CanonicalDeepAnalysisInputV1.model_construct(
+        **{**canonical.__dict__, "scoring_request_hash": "f" * 64}
+    )
+    assert unchecked.a1_identity != canonical.a1_identity
+    assert canonical.scoring_success_provenance == "PRIMARY"
+    assert not verify_trusted_deep_analysis_success(fake)
+
+
+def test_copy_reconstruction_and_object_identity_reuse_remain_untrusted() -> None:
     fake = object.__new__(TrustedDeepAnalysisSuccess)
     object.__setattr__(fake, "_content_identity", "a" * 64)
     object.__setattr__(fake, "_cache_identity", "b" * 64)
     object.__setattr__(fake, "_sealed", True)
     assert not verify_trusted_deep_analysis_success(fake)
     with pytest.raises(TypeError):
-        copy.copy(trusted)
+        copy.copy(fake)
     with pytest.raises(TypeError):
-        pickle.dumps(trusted)
-    object.__setattr__(trusted, "_content_identity", "c" * 64)
-    assert not verify_trusted_deep_analysis_success(trusted)
+        copy.deepcopy(fake)
+    with pytest.raises(TypeError):
+        pickle.dumps(fake)
+
+    del fake
+    gc.collect()
+    reconstructed = object.__new__(TrustedDeepAnalysisSuccess)
+    object.__setattr__(reconstructed, "_content_identity", "a" * 64)
+    object.__setattr__(reconstructed, "_cache_identity", "b" * 64)
+    object.__setattr__(reconstructed, "_sealed", True)
+    assert not verify_trusted_deep_analysis_success(reconstructed)
 
 
 def test_unchecked_a1_lookalikes_remain_unadmitted() -> None:
@@ -551,8 +572,8 @@ def test_unchecked_a1_lookalikes_remain_unadmitted() -> None:
         **{**canonical.__dict__, "scoring_request_hash": "f" * 64}
     )
     assert constructed.a1_identity != canonical.a1_identity
-    assert not verify_authoritative_deep_analysis_input(constructed)
-    assert not verify_authoritative_deep_analysis_input(canonical.model_copy())
+    assert constructed.scoring_request_hash == "f" * 64
+    assert canonical.model_copy().a1_identity == canonical.a1_identity
 
 
 @pytest.mark.parametrize(
