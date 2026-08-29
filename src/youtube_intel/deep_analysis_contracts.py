@@ -950,14 +950,15 @@ class TrustedDeepAnalysisSuccess:
 
 
 def verify_trusted_deep_analysis_success(value: object) -> bool:
-    """Fail closed until the authorized validator/finalizer owns admission.
+    """Verify the runtime-owned finalizer admission without minting anything."""
 
-    Keeping verification public preserves the consumer contract without
-    allowing this foundational slice to manufacture a trusted success.
-    """
+    # Lazy import preserves the foundational module's provider-neutral domain
+    # dependency direction while delegating ownership to the authorized runtime.
+    from youtube_intel.deep_analysis_runtime import (
+        _verify_trusted_deep_analysis_success,
+    )
 
-    del value
-    return False
+    return _verify_trusted_deep_analysis_success(value)
 
 
 __all__ = [
