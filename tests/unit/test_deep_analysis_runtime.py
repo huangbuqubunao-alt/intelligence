@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+import youtube_intel.deep_analysis_runtime as deep_analysis_runtime
 from youtube_intel.deep_analysis_contracts import (
     CanonicalDeepAnalysisInputV1,
     ContextBudgetProfileV1,
@@ -479,3 +480,9 @@ def test_final_validation_policy_identity_is_provenance_not_a_response_claim() -
     assert _failure_code(runtime.validation_finalizer().finalize(
         prepared_dispatch=prepared, response=wrong_policy
     )) is DeepAnalysisFailureCode.PROVENANCE_INVALID
+
+
+def test_runtime_module_exposes_no_success_registration_or_generic_mint() -> None:
+    names = set(vars(deep_analysis_runtime))
+    assert "_record_finalized_success" not in names
+    assert not any(name in names for name in {"mint_success", "register_success"})

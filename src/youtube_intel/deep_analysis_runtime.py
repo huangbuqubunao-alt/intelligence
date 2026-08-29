@@ -418,6 +418,7 @@ class DeepAnalysisValidationFinalizer:
         *,
         prepared_dispatch: object,
         response: object,
+        _record_success: Callable[[TrustedDeepAnalysisSuccess, _TrustedAdmission], None] = _record_finalized_success,
     ) -> DeepAnalysisValidationResult:
         admission = self._runtime._prepared_admission(prepared_dispatch)
         if admission is None:
@@ -480,12 +481,17 @@ class DeepAnalysisValidationFinalizer:
             "content_identity": content_identity,
         }))
         object.__setattr__(success, "_sealed", True)
-        _record_finalized_success(success, _TrustedAdmission(
+        _record_success(success, _TrustedAdmission(
             content_identity=content_identity,
             cache_identity=cache_identity,
             provenance_identity=success.provenance_identity,
         ))
         return DeepAnalysisValidationResult(success=success)
+
+
+# The successful-admission writer is captured only by the finalizer method.
+# Public verification has no caller-importable registration/mint seam.
+del _record_finalized_success
 
 
 def _failure(stage: DeepAnalysisFailureStage, code: DeepAnalysisFailureCode) -> DeepAnalysisValidationResult:
