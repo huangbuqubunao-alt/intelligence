@@ -133,3 +133,39 @@
 - Implementation qualification: `QUALIFIED`. This correction authorizes no
   provider adapter or credential implementation. Commit SHA: pending this
   correction commit; no push or tag.
+
+## Foundational-contract implementation correction R1 — 2026-08-30
+
+- Base/review commit: `b66ed1dc9e2375e528dc05d507aaf1dfb13acda6`.
+  Scope: `deep_analysis_contracts.py`, its focused unit tests, this task card,
+  and this handoff only. Reuse decision: `DIRECT` — Python standard-library
+  process-local state and existing Pydantic contracts; no new dependency.
+
+| Finding | Severity | Correction | Test | Status |
+|---|---|---|---|---|
+| Trusted success authority | P0 | Runtime-owned, identity-keyed admission registry and consumer verification; object shape is insufficient. | `object.__new__`/`object.__setattr__` lookalike and post-mint mutation fail verification; admitted finalizer seam succeeds. | CLOSED |
+| A1 ownership | P0 | A1 remains computable identity; only exact runtime admission makes an input authoritative for finalization. | Caller-created, `model_construct`, and copied inputs are unadmitted and cannot mint success. | CLOSED |
+| Credential execution identity | P0 | Replaced raw routing strings with provider ID plus opaque SHA-256 execution-profile identity; errors hide input. | Extra secret fields and removed generic fields reject; repr/dump expose no credential material. | CLOSED |
+| Consent/fallback contradiction | P0 | Envelope binds consent provider/kind/model/context/prompt/schema; policy binds edge scopes and destination credential identity to nodes. | Provider mismatch and destination scope/credential mismatches reject. | CLOSED |
+| A2 mode invariants | P1 | Explicit RAW/JSON/JSON-SCHEMA/TOOL required/forbidden matrix; RAW requires one user message. | Four valid minima plus missing/cross-mode negatives and tool definition/choice A2 changes. | CLOSED |
+| Failure taxonomy pair | P1 | Replaced one-stage-per-code map with an allowed stage/code pair matrix. | `PRE_DISPATCH/PROVIDER_UNAVAILABLE` constructs; invalid pairs still reject. | CLOSED |
+
+- Threat model: normal constructors, validation/construct/copy paths,
+  deserialization, caller hashes/objects, adapter output, and forged values are
+  in scope. Arbitrary native-memory corruption, interpreter replacement, and
+  unrestricted same-process reflection are not claimed preventable; nevertheless
+  a manufactured value has no trusted authority without live process-local
+  admission verification.
+- Identity rebaseline: A3, fallback-node, fallback-policy, and cache golden
+  values changed only because the prior credential model retained raw fields in
+  contradiction to the accepted non-secret contract. DACS-1 and A1/A2 are
+  unchanged; this is pre-release and TASK-016D persistence is not implemented.
+- Evidence: focused contracts `41 passed`; target test mypy `PASS` with
+  `MYPYPATH=src`; production module and normative `uv run mypy src` `PASS`;
+  full pytest `1823 passed, 1 warning`; Ruff and `git diff --check` `PASS`;
+  repository mypy `1019 errors / 44 files`, zero in the TASK-016 file.
+  Unresolved P0: `0`; unresolved implementation-critical P1: `0`.
+- Scope confirmation: no provider adapter, HTTP/network activity, credential
+  storage/loading, cache persistence, database/migration, TASK-016D/E/F, or
+  TASK-016B/C code. Recommendation: `IN_REVIEW` for a second independent code
+  review. Commit SHA: pending this correction commit; push/tag: no.

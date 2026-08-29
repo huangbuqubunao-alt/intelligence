@@ -152,3 +152,28 @@ with a new ordered implementation plan.
   suite, and Ruff pass; repository-wide mypy is back to its `1019 errors / 44
   files` pre-existing baseline only. This qualification does not authorize a
   provider, credential implementation, or TASK-016D/E/F.
+
+## 2026-08-30 foundational-contract implementation correction R1
+
+- The independent code review at `b66ed1d…` found four P0 and two P1 defects in
+  the foundational implementation. Correction R1 closes all six: trusted
+  consumption now requires process-local, runtime-owned admission verification,
+  rather than `TrustedDeepAnalysisSuccess` instance shape; A1 hashes remain
+  identities rather than authority tokens; the A2 mode matrix, credential
+  identity, dispatch/fallback cross-bindings, and failure pair matrix are
+  fail-closed.
+- Process-local admission is deliberately not persisted and does not claim to
+  defeat arbitrary interpreter/memory compromise. It mechanically rejects
+  `object.__new__`, `object.__setattr__`, model-constructed, copied, or
+  caller-created lookalikes at consumption time unless exact runtime-owned
+  admission state exists. Persistence/revalidation remains TASK-016D scope.
+- The credential execution contract now accepts only an opaque SHA-256 profile
+  identity plus provider ID; raw account, organization, deployment, policy,
+  credential-reference, and secret fields are structurally absent. This changes
+  pre-release A3/node/cache golden values without changing DACS-1 or A1/A2;
+  no trusted provenance has been persisted because 016D is unauthorized.
+- Validation: focused contracts `41 passed`; full pytest `1823 passed, 1
+  warning`; target test mypy, module/source mypy, Ruff, and `git diff --check`
+  pass; repository mypy remains its `1019 errors / 44 files` historical
+  baseline with zero errors in this test file. This correction still authorizes
+  no provider adapter, credential storage/loading, or TASK-016D/E/F.

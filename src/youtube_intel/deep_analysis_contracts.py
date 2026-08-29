@@ -8,6 +8,7 @@ objects, canonical identities, and fail-closed fallback-policy validation.
 from __future__ import annotations
 
 import hashlib
+import weakref
 from collections.abc import Mapping, Sequence
 from enum import Enum
 from types import MappingProxyType
@@ -121,28 +122,28 @@ class DeepAnalysisFailureCode(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-_FAILURE_STAGE_BY_CODE: Final[Mapping[DeepAnalysisFailureCode, DeepAnalysisFailureStage]] = MappingProxyType(
+_FAILURE_STAGES_BY_CODE: Final[Mapping[DeepAnalysisFailureCode, frozenset[DeepAnalysisFailureStage]]] = MappingProxyType(
     {
-        DeepAnalysisFailureCode.AUTH_REQUIRED: DeepAnalysisFailureStage.PRE_DISPATCH,
-        DeepAnalysisFailureCode.CAPABILITY_UNSUPPORTED: DeepAnalysisFailureStage.PRE_DISPATCH,
-        DeepAnalysisFailureCode.CONTEXT_BUDGET_EXCEEDED: DeepAnalysisFailureStage.PRE_DISPATCH,
-        DeepAnalysisFailureCode.INVALID_FALLBACK_POLICY: DeepAnalysisFailureStage.PRE_DISPATCH,
-        DeepAnalysisFailureCode.NETWORK_FAILURE: DeepAnalysisFailureStage.TRANSPORT,
-        DeepAnalysisFailureCode.TIMEOUT: DeepAnalysisFailureStage.TRANSPORT,
-        DeepAnalysisFailureCode.AUTH_INVALID: DeepAnalysisFailureStage.PROVIDER_ACCOUNT,
-        DeepAnalysisFailureCode.QUOTA_EXCEEDED: DeepAnalysisFailureStage.PROVIDER_ACCOUNT,
-        DeepAnalysisFailureCode.RATE_LIMITED: DeepAnalysisFailureStage.PROVIDER_ACCOUNT,
-        DeepAnalysisFailureCode.MODEL_UNAVAILABLE: DeepAnalysisFailureStage.PROVIDER_MODEL,
-        DeepAnalysisFailureCode.PROVIDER_UNAVAILABLE: DeepAnalysisFailureStage.PROVIDER_MODEL,
-        DeepAnalysisFailureCode.PROVIDER_ENVELOPE_INVALID: DeepAnalysisFailureStage.RESPONSE_ENVELOPE,
-        DeepAnalysisFailureCode.PROVENANCE_INVALID: DeepAnalysisFailureStage.PROVENANCE,
-        DeepAnalysisFailureCode.STRUCTURED_OUTPUT_INVALID: DeepAnalysisFailureStage.STRUCTURED_OUTPUT,
-        DeepAnalysisFailureCode.SCHEMA_INVALID: DeepAnalysisFailureStage.SCHEMA,
-        DeepAnalysisFailureCode.DOMAIN_INVALID: DeepAnalysisFailureStage.DOMAIN,
-        DeepAnalysisFailureCode.GROUNDING_INVALID: DeepAnalysisFailureStage.GROUNDING,
-        DeepAnalysisFailureCode.KG2_INVALID: DeepAnalysisFailureStage.KG2,
-        DeepAnalysisFailureCode.OUTPUT_LANGUAGE_INVALID: DeepAnalysisFailureStage.LANGUAGE,
-        DeepAnalysisFailureCode.UNKNOWN: DeepAnalysisFailureStage.UNKNOWN,
+        DeepAnalysisFailureCode.AUTH_REQUIRED: frozenset({DeepAnalysisFailureStage.PRE_DISPATCH}),
+        DeepAnalysisFailureCode.CAPABILITY_UNSUPPORTED: frozenset({DeepAnalysisFailureStage.PRE_DISPATCH}),
+        DeepAnalysisFailureCode.CONTEXT_BUDGET_EXCEEDED: frozenset({DeepAnalysisFailureStage.PRE_DISPATCH}),
+        DeepAnalysisFailureCode.INVALID_FALLBACK_POLICY: frozenset({DeepAnalysisFailureStage.PRE_DISPATCH}),
+        DeepAnalysisFailureCode.NETWORK_FAILURE: frozenset({DeepAnalysisFailureStage.TRANSPORT}),
+        DeepAnalysisFailureCode.TIMEOUT: frozenset({DeepAnalysisFailureStage.TRANSPORT}),
+        DeepAnalysisFailureCode.AUTH_INVALID: frozenset({DeepAnalysisFailureStage.PROVIDER_ACCOUNT}),
+        DeepAnalysisFailureCode.QUOTA_EXCEEDED: frozenset({DeepAnalysisFailureStage.PROVIDER_ACCOUNT}),
+        DeepAnalysisFailureCode.RATE_LIMITED: frozenset({DeepAnalysisFailureStage.PROVIDER_ACCOUNT}),
+        DeepAnalysisFailureCode.MODEL_UNAVAILABLE: frozenset({DeepAnalysisFailureStage.PROVIDER_MODEL}),
+        DeepAnalysisFailureCode.PROVIDER_UNAVAILABLE: frozenset({DeepAnalysisFailureStage.PRE_DISPATCH, DeepAnalysisFailureStage.PROVIDER_MODEL}),
+        DeepAnalysisFailureCode.PROVIDER_ENVELOPE_INVALID: frozenset({DeepAnalysisFailureStage.RESPONSE_ENVELOPE}),
+        DeepAnalysisFailureCode.PROVENANCE_INVALID: frozenset({DeepAnalysisFailureStage.PROVENANCE}),
+        DeepAnalysisFailureCode.STRUCTURED_OUTPUT_INVALID: frozenset({DeepAnalysisFailureStage.STRUCTURED_OUTPUT}),
+        DeepAnalysisFailureCode.SCHEMA_INVALID: frozenset({DeepAnalysisFailureStage.SCHEMA}),
+        DeepAnalysisFailureCode.DOMAIN_INVALID: frozenset({DeepAnalysisFailureStage.DOMAIN}),
+        DeepAnalysisFailureCode.GROUNDING_INVALID: frozenset({DeepAnalysisFailureStage.GROUNDING}),
+        DeepAnalysisFailureCode.KG2_INVALID: frozenset({DeepAnalysisFailureStage.KG2}),
+        DeepAnalysisFailureCode.OUTPUT_LANGUAGE_INVALID: frozenset({DeepAnalysisFailureStage.LANGUAGE}),
+        DeepAnalysisFailureCode.UNKNOWN: frozenset({DeepAnalysisFailureStage.UNKNOWN}),
     }
 )
 FAILURE_PRECEDENCE: Final[tuple[DeepAnalysisFailureStage, ...]] = tuple(DeepAnalysisFailureStage)
@@ -234,15 +235,18 @@ class DeepAnalysisModelIdentityV1(_ContractModel):
 
 
 class CredentialExecutionProfileIdentityV1(_ContractModel):
-    """Non-secret execution routing identity; secret-shaped fields are forbidden."""
+    """Opaque, structurally non-secret execution-profile identity.
+
+    The trusted configuration boundary provides only a one-way profile digest;
+    raw account, organization, deployment, policy, reference, and credential
+    values have no field in this serializable domain model.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     schema_version: Literal["credential-execution-profile-v1"]
     provider_id: str = Field(min_length=1, pattern=r"\S")
-    project_identity: str | None = Field(default=None, min_length=1)
-    organization_identity: str | None = Field(default=None, min_length=1)
-    region: str | None = Field(default=None, min_length=1)
-    endpoint_deployment_identity: str = Field(min_length=1, pattern=r"\S")
-    execution_policy_identity: str = Field(min_length=1, pattern=r"\S")
+    execution_profile_identity: str = Field(pattern=_SHA256)
 
     @property
     def identity(self) -> str:
@@ -413,10 +417,24 @@ class DeepAnalysisStructuredOutputV1(_ContractModel):
 
     @model_validator(mode="after")
     def _mode_shape_is_closed(self) -> Self:
-        if self.mode is DeepAnalysisStructuredOutputMode.RAW_JSON_PROMPT and (self.schema_object is not None or self.tools is not None):
-            raise ValueError("RAW_JSON_PROMPT must have null schema and tools")
-        if self.mode is DeepAnalysisStructuredOutputMode.TOOL_STRUCTURED_RETURN and not self.tools:
-            raise ValueError("TOOL_STRUCTURED_RETURN requires ordered tool definitions")
+        if self.mode is DeepAnalysisStructuredOutputMode.RAW_JSON_PROMPT:
+            if self.schema_object is not None or self.tools is not None or self.tool_choice is not None:
+                raise ValueError("RAW_JSON_PROMPT forbids schema, tools, and tool choice")
+        elif self.mode is DeepAnalysisStructuredOutputMode.PROVIDER_JSON_MODE:
+            if self.schema_object is not None or self.tools is not None or self.tool_choice is not None:
+                raise ValueError("PROVIDER_JSON_MODE forbids schema, tools, and tool choice")
+        elif self.mode is DeepAnalysisStructuredOutputMode.PROVIDER_JSON_SCHEMA:
+            if self.schema_object is None:
+                raise ValueError("PROVIDER_JSON_SCHEMA requires an exact schema")
+            if self.tools is not None or self.tool_choice is not None:
+                raise ValueError("PROVIDER_JSON_SCHEMA forbids tools and tool choice")
+        elif self.mode is DeepAnalysisStructuredOutputMode.TOOL_STRUCTURED_RETURN:
+            if self.schema_object is not None:
+                raise ValueError("TOOL_STRUCTURED_RETURN forbids provider JSON schema")
+            if not self.tools or self.tool_choice is None:
+                raise ValueError("TOOL_STRUCTURED_RETURN requires tools and tool choice")
+        else:
+            raise ValueError("unknown structured-output mode")
         return self
 
 
@@ -447,6 +465,9 @@ class DeepAnalysisRequestProjectionV1(_ContractModel):
             raise ValueError("request projection payload scope must match authorized payload")
         if self.output_language != self.authorized_payload.output_language:
             raise ValueError("request projection output language must match authorized payload")
+        if self.structured_output.mode is DeepAnalysisStructuredOutputMode.RAW_JSON_PROMPT:
+            if len(self.provider_visible_messages) != 1 or self.provider_visible_messages[0].role != "user":
+                raise ValueError("RAW_JSON_PROMPT requires exactly one user message")
         return self
 
     @property
@@ -483,7 +504,7 @@ class DeepAnalysisFailureV1(_ContractModel):
 
     @model_validator(mode="after")
     def _stage_matches_frozen_precedence(self) -> Self:
-        if _FAILURE_STAGE_BY_CODE[self.code] is not self.stage:
+        if self.stage not in _FAILURE_STAGES_BY_CODE[self.code]:
             raise ValueError("failure stage does not match frozen taxonomy")
         return self
 
@@ -572,11 +593,23 @@ class DeepAnalysisFallbackPolicyV1(_ContractModel):
             raise ValueError("fallback policy contains duplicate edges")
         adjacency: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
         source_codes: dict[str, set[DeepAnalysisFailureCode]] = {node_id: set() for node_id in node_ids}
+        nodes_by_identity = {node.identity: node for node in self.nodes}
         for edge in self.edges:
             if edge.source_node_identity not in node_set or edge.destination_node_identity not in node_set:
                 raise ValueError("fallback edge references a missing node")
             if edge.source_node_identity == edge.destination_node_identity:
                 raise ValueError("fallback policy does not permit a self-loop")
+            source_node = nodes_by_identity[edge.source_node_identity]
+            destination_node = nodes_by_identity[edge.destination_node_identity]
+            if edge.source_payload_scope is not source_node.payload_scope:
+                raise ValueError("fallback edge source payload scope does not match source node")
+            if edge.destination_payload_scope is not destination_node.payload_scope:
+                raise ValueError("fallback edge destination payload scope does not match destination node")
+            if (
+                edge.destination_credential_execution_profile_identity
+                != destination_node.credential_execution_profile_identity
+            ):
+                raise ValueError("fallback edge credential profile does not match destination node")
             overlap = source_codes[edge.source_node_identity].intersection(edge.allowed_failure_codes)
             if overlap:
                 raise ValueError("fallback policy has ambiguous outgoing edges")
@@ -774,6 +807,18 @@ class DeepAnalysisDispatchEnvelopeV1(_ContractModel):
             raise ValueError("dispatch envelope payload consent binding is invalid")
         if self.request_projection.payload_scope is not self.payload_consent.payload_scope:
             raise ValueError("dispatch envelope payload scope binding is invalid")
+        if self.payload_consent.named_provider_id != self.execution_profile.provider_id:
+            raise ValueError("dispatch envelope consent provider binding is invalid")
+        if self.payload_consent.provider_kind is not self.execution_profile.provider_kind:
+            raise ValueError("dispatch envelope consent provider kind binding is invalid")
+        if self.payload_consent.allowed_model_constraint != self.execution_profile.model_selection.model_id:
+            raise ValueError("dispatch envelope consent model binding is invalid")
+        if self.context_budget_profile.authority_identity != self.execution_profile.context_authority_identity:
+            raise ValueError("dispatch envelope context authority binding is invalid")
+        if self.prompt_identity != self.request_projection.prompt_identity:
+            raise ValueError("dispatch envelope prompt binding is invalid")
+        if self.schema_identity != self.request_projection.knowledge_content_schema_identity:
+            raise ValueError("dispatch envelope schema binding is invalid")
         if (
             self.request_projection.payload_scope is DeepAnalysisPayloadScope.FULL_TRANSCRIPT
             and not self.canonical_input.coverage_complete
@@ -871,7 +916,7 @@ class TrustedDeepAnalysisSuccess:
     authorized validator/finalizer slice owns the private mint seam.
     """
 
-    __slots__ = ("_content_identity", "_cache_identity", "_sealed")
+    __slots__ = ("_content_identity", "_cache_identity", "_sealed", "__weakref__")
 
     def __init_subclass__(cls, **kwargs: object) -> NoReturn:
         del cls, kwargs
@@ -910,6 +955,85 @@ class TrustedDeepAnalysisSuccess:
 
     def __reduce_ex__(self, protocol: object) -> NoReturn:
         raise TypeError("TrustedDeepAnalysisSuccess cannot be serialized")
+
+
+# Admission state is deliberately process-local and keyed by object identity.
+# It is not persisted and object field equality is never used as authority.
+_AUTHORITATIVE_INPUT_ADMISSIONS: dict[
+    int, tuple[weakref.ReferenceType[CanonicalDeepAnalysisInputV1], str, str]
+] = {}
+_TRUSTED_SUCCESS_ADMISSIONS: dict[
+    int, tuple[weakref.ReferenceType[TrustedDeepAnalysisSuccess], str, str, str]
+] = {}
+
+
+def _admit_authoritative_input_for_finalizer(
+    canonical_input: CanonicalDeepAnalysisInputV1,
+) -> None:
+    """Internal finalizer seam that records a verified-scoring admission.
+
+    The future complete validator/finalizer owns this seam. It is intentionally
+    not exported: callers can calculate A1 but cannot make copied fields pass
+    consumer verification without a runtime-owned admission record.
+    """
+
+    _AUTHORITATIVE_INPUT_ADMISSIONS[id(canonical_input)] = (
+        weakref.ref(canonical_input),
+        canonical_input.a1_identity,
+        canonical_input.scoring_request_hash,
+    )
+
+
+def verify_authoritative_deep_analysis_input(value: object) -> bool:
+    """Return whether this exact object has process-local verified admission."""
+
+    if type(value) is not CanonicalDeepAnalysisInputV1:
+        return False
+    admission = _AUTHORITATIVE_INPUT_ADMISSIONS.get(id(value))
+    if admission is None or admission[0]() is not value:
+        return False
+    try:
+        return admission[1] == value.a1_identity and admission[2] == value.scoring_request_hash
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
+def _mint_trusted_deep_analysis_success_for_finalizer(
+    *,
+    canonical_input: CanonicalDeepAnalysisInputV1,
+    content_identity: str,
+    cache_identity: str,
+) -> TrustedDeepAnalysisSuccess:
+    """Internal finalizer seam; no raw response or caller-owned object mints trust."""
+
+    if not verify_authoritative_deep_analysis_input(canonical_input):
+        raise ValueError("trusted success requires an admitted authoritative input")
+    success = TrustedDeepAnalysisSuccess(
+        content_identity=content_identity,
+        cache_identity=cache_identity,
+        sentinel=_TRUSTED_DEEP_ANALYSIS_SUCCESS_SENTINEL,
+    )
+    _TRUSTED_SUCCESS_ADMISSIONS[id(success)] = (
+        weakref.ref(success),
+        success.content_identity,
+        success.cache_identity,
+        canonical_input.a1_identity,
+    )
+    return success
+
+
+def verify_trusted_deep_analysis_success(value: object) -> bool:
+    """Verify process-local finalizer admission before any trusted consumption."""
+
+    if type(value) is not TrustedDeepAnalysisSuccess:
+        return False
+    admission = _TRUSTED_SUCCESS_ADMISSIONS.get(id(value))
+    if admission is None or admission[0]() is not value:
+        return False
+    try:
+        return admission[1] == value.content_identity and admission[2] == value.cache_identity
+    except (AttributeError, TypeError, ValueError):
+        return False
 
 
 __all__ = [
@@ -954,4 +1078,6 @@ __all__ = [
     "provider_envelope_identity",
     "select_fallback_edge",
     "validated_payload_identity",
+    "verify_authoritative_deep_analysis_input",
+    "verify_trusted_deep_analysis_success",
 ]
