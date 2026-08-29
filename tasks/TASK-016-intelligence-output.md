@@ -200,3 +200,14 @@ with a new ordered implementation plan.
 - This approval makes only the **Provider-Neutral Dispatch / Validation Boundary
   Design-to-Implementation Gate** ready. It does not authorize a provider
   adapter, credentials, TASK-016D/E/F, or any TASK-016B/C semantic change.
+
+## 2026-08-30 provider-neutral dispatch / validation boundary
+
+- Closed-loop implementation and review are recorded in
+  `docs/TASK-016-DEEP-ANALYSIS-DISPATCH-VALIDATION-CLOSED-LOOP-REVIEW.md`.
+- The runtime now owns input admission from an exact `VerifiedScoringRead`,
+  payload projection, prepared dispatch binding, ordered untrusted-response
+  validation, and the successful `TrustedDeepAnalysisSuccess` admission.
+- No concrete provider adapter, transport/network code, credential storage, or
+  TASK-016D/E/F work was added. The next logical gate is one qualified
+  reference-provider adapter, not persistence/cache work.

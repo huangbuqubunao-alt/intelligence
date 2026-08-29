@@ -199,3 +199,24 @@
   push, tag, rebase, or squash. Recommendation: `IN_REVIEW` for orchestrator
   acceptance; the next provider-neutral dispatch/validation boundary gate is
   ready, but not implemented.
+
+## Provider-neutral dispatch / validation boundary — 2026-08-30
+
+- Starting HEAD: `32ba2e8e4daabdbe7a784e3ed4e4b0a5bd94b74a`; implementation
+  commit: `bad6d01991fd9d775f72957a0cb0a3baced66afa`; correction commit:
+  `4d1abfe99109aceb80276ebd4d3eeb2ec90a0b14`.
+- Reuse decision: `DIRECT` — existing DACS-1 contracts, `VerifiedScoringRead`,
+  canonical KnowledgeContent/Evidence Registry/KG2 models, and frozen TASK-016B
+  language validator. No dependency was added.
+- Implements runtime-owned admitted input and selected-evidence payload scope,
+  provider-neutral prepared envelope binding, untrusted response handling,
+  strict no-repair JSON parsing, schema/grounding/KG2/language/provenance
+  validation, and finalizer-owned process-local success admission.
+- Closed-loop review found one implementation-critical provenance-policy gap;
+  it was regression-tested and corrected. Final review: `APPROVE`, P0 `0`,
+  implementation-critical P1 `0`.
+- Evidence: focused contracts `57 passed`; full pytest `1839 passed, 1 existing
+  warning`; targeted mypy and `uv run mypy src` PASS; Ruff and diff check PASS;
+  repo-wide mypy remains historical `1019 errors / 44 files` with no new errors.
+- No adapter, network, credential storage/loading, persistence/cache, database,
+  TASK-016D/E/F, push, tag, rebase, or squash. TASK-016B/C preserved.
