@@ -177,3 +177,26 @@ with a new ordered implementation plan.
   pass; repository mypy remains its `1019 errors / 44 files` historical
   baseline with zero errors in this test file. This correction still authorizes
   no provider adapter, credential storage/loading, or TASK-016D/E/F.
+
+## 2026-08-30 foundational trust-authority closed-loop correction
+
+- The Correction R1 second review identified that its registry-backed
+  `_admit_*` / `_mint_*` seams were still caller-importable authority. The
+  closed-loop correction removes those helpers and both registries entirely.
+  The foundational public surface can verify
+  `TrustedDeepAnalysisSuccess`, but has no successful production mint/admit
+  path; verification fails closed until the separately authorized
+  provider-neutral validation/finalizer boundary owns runtime admission.
+- A1, known scoring request hashes, PRIMARY/REPAIR_H2C provenance, and
+  caller-created or `model_construct` canonical input remain identities/data,
+  never authority. Object-shaped lookalikes, copy/deepcopy/pickle,
+  reconstruction, admission transfer, dead state, and object-ID reuse cannot
+  produce trust because no foundational admission registry exists.
+- Closed-loop review: `docs/TASK-016-DEEP-ANALYSIS-FOUNDATIONAL-TRUST-AUTHORITY-CLOSED-LOOP-REVIEW.md`.
+  Final result: original P0 `4/4` closed; original P1 `2/2` closed; final P0
+  `0`; final implementation-critical P1 `0`. Focused contracts `43 passed`,
+  full pytest `1825 passed, 1 existing warning`, targeted/source mypy and Ruff
+  pass, and repository mypy remains the `1019 errors / 44 files` baseline.
+- This approval makes only the **Provider-Neutral Dispatch / Validation Boundary
+  Design-to-Implementation Gate** ready. It does not authorize a provider
+  adapter, credentials, TASK-016D/E/F, or any TASK-016B/C semantic change.

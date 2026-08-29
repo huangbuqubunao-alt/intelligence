@@ -169,3 +169,33 @@
   storage/loading, cache persistence, database/migration, TASK-016D/E/F, or
   TASK-016B/C code. Recommendation: `IN_REVIEW` for a second independent code
   review. Commit SHA: pending this correction commit; push/tag: no.
+
+## Foundational trust-authority closed-loop correction — 2026-08-30
+
+- Base: `main@9e38967cb2a22d097986ad032a2ed2d3c79e8a6a`; correction commit:
+  `a8389096844df066bbfa91313b3c3234977e8a4d`.
+- Scope: removed only the foundational `TrustedDeepAnalysisSuccess` admission
+  registry/sentinel/mint seams in `deep_analysis_contracts.py`, updated focused
+  tests, and recorded review evidence. Reuse decision: `DIRECT` — existing
+  Python/Pydantic and DACS-1 contracts only; no dependency added.
+- Correction: no module-level mint/admit/register helper or mutable admission
+  registry remains. `verify_trusted_deep_analysis_success` remains the public
+  consumer API and fails closed until a future authorized validation/finalizer
+  owns the actual runtime admission authority. A1 and the exact
+  `VerifiedScoringRead.scoring_outcome.result.request_hash` remain identity/data
+  only; provenance is never substituted for request identity.
+- Adversarial review: object construction/new/setattr, model construction,
+  copy/deepcopy/pickle, reconstruction, known A1/A2/A3/request hashes, PRIMARY
+  provenance, transfer/replay, dead-state cleanup, and object-ID reuse cannot
+  confer trust. No registry state remains to leak, transfer, or retain stale
+  entries. Final review: `APPROVE`; P0 `0`; implementation-critical P1 `0`.
+- Evidence: focused contracts `43 passed`; full pytest `1825 passed, 1 existing
+  warning`; target test mypy and `uv run mypy src` `PASS`; Ruff and
+  `git diff --check` `PASS`; `uv run mypy .` exactly retains the historical
+  `1019 errors / 44 files` baseline. Review report:
+  `docs/TASK-016-DEEP-ANALYSIS-FOUNDATIONAL-TRUST-AUTHORITY-CLOSED-LOOP-REVIEW.md`.
+- Scope confirmation: TASK-016B/C unchanged; no provider adapter, network,
+  credential storage/loading, persistence, database/migration, TASK-016D/E/F,
+  push, tag, rebase, or squash. Recommendation: `IN_REVIEW` for orchestrator
+  acceptance; the next provider-neutral dispatch/validation boundary gate is
+  ready, but not implemented.
