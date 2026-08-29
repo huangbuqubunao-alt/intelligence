@@ -238,3 +238,23 @@ with a new ordered implementation plan.
 - Final review is `APPROVE`, P0 `0`, implementation-critical P1 `0`. The next
   gate is TASK-016D provider-aware Deep Analysis persistence/cache provenance;
   TASK-016B/C remain closed and TASK-016E/F remain unauthorized.
+
+## 2026-08-30 TASK-016D persistence/cache provenance
+
+- TASK-016D adds SQLite schema v3 and append-only provider-aware Deep Analysis
+  persisted results. It retains contract-required input/request/execution,
+  validation, response, KnowledgeContent, scoring, Evidence Registry,
+  consent/scope, and attempt provenance for persisted revalidation.
+- A database row is not runtime admission: writes require a live
+  runtime-verified success; reads return only an integrity-verified persisted
+  representation. The original process-local admission is not persisted.
+- Exact cache identity binds A1/A2/A3/validation policy; floating profiles are
+  audit-only/cache-ineligible. Evidence is in the TASK-016D persistence and
+  closed-loop review documents. OpenAI live remains `PENDING / CREDENTIAL
+  BLOCKED`; no provider call, credential storage, 016E/F, or 016B/C change.
+- Independent adversarial review found and closed one P0: a persisted
+  `provenance_identity` alteration originally escaped cache-read verification.
+  `84715a0` adds a regression test and exact finalizer-compatible provenance
+  recomputation. Final result: `APPROVE`, P0 `0`, implementation-critical P1
+  `0`. The app-only revalidation materials share exactly the persisted cache
+  row's lifetime; no unapproved TTL was introduced.

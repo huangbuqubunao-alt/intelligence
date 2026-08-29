@@ -13,6 +13,22 @@
 - Started: 2026-08-28
 - Reported: 2026-08-29
 
+## TASK-016D persistence/cache provenance addendum
+
+- Scope: provider-aware Deep Analysis audit persistence and exact cache read;
+  no dispatch, credential loading/storage, second provider, Note/Weekly V2, or
+  TASK-016B/C semantic change.
+- Migration: `003_add_deep_analysis_persistence.sql`, schema/user version
+  `2 -> 3`; append-only result rows plus one partial unique cache index.
+- Trust: writer accepts only a live finalizer admission; forged/reconstructed
+  values reject. Process-local admission is not persisted. Reader returns an
+  integrity-verified persisted representation, not runtime trusted success.
+- Reuse: `DIRECT` existing SQLite migration/WAL/FK conventions, DACS-1,
+  Evidence Registry, KnowledgeContent, runtime finalizer, fake OpenAI tests;
+  no dependency changed.
+- Live status: `PENDING / CREDENTIAL BLOCKED`; no OpenAI request and no
+  credential persisted. Final checks are recorded in the TASK-016D review.
+
 ## 目标与范围
 
 - 任务目标：按用户固定顺序和固定门禁机械执行本地模型资格测试；随后仅作 Local + Optional Cloud Provider architecture/trust review 和 provider-neutral contract amendment；不实现。
@@ -261,3 +277,28 @@
 - Scope confirmation: no second provider, fallback runtime, credential storage,
   TASK-016D/E/F, push, tag, rebase, or squash. Next authorized gate is
   TASK-016D only.
+
+## TASK-016D persistence/cache provenance — 2026-08-30
+
+- Starting baseline: `main@d91c59bf5cb51686381d3f387cdf1c65bb7cc927`; schema
+  user_version `2`. Implementation commit:
+  `4635c984ac85d15ce4b6bcc21992d753452810d9`; review correction commit:
+  `84715a0`.
+- Reuse decision: `DIRECT` — existing SQLite migration/state conventions,
+  DACS-1 identities, runtime finalizer admission, Evidence Registry,
+  KnowledgeContent, and frozen validation primitives. No dependency,
+  credential, network/provider runtime, second provider, or TASK-016E/F work.
+- Migration `003_add_deep_analysis_persistence.sql` advances user_version to
+  `3`, creates append-only `deep_analysis_persisted_results`, and adds exact
+  eligible-cache uniqueness. Writes require runtime admission; reads return an
+  integrity-verified persisted type, never a runtime success. Process-local
+  admission is not serialized.
+- Independent adversarial review found one P0: tampering
+  `provenance_identity` initially escaped cache-read verification. It was
+  regression-tested and corrected by exact reconstitution of the runtime-minted
+  DACS-1 provenance identity; final review `APPROVE`, P0 `0`,
+  implementation-critical P1 `0`.
+- Revalidation artifacts and the cache entry are the same protected app-only
+  row, so their lifetime is coupled; §11 supplies no separate TTL to invent.
+  OpenAI live remains `PENDING / CREDENTIAL BLOCKED`; `OPENAI LIVE
+  QUALIFICATION 2/2` is required before real-cloud release/smoke.
