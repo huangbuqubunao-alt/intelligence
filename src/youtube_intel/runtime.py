@@ -173,6 +173,7 @@ from youtube_intel.transcripts import (
     TranscriptError,
     TranscriptJobContext,
 )
+from youtube_intel.verified_note_v2 import _bind_verified_note_v2_runtime
 
 
 class _KnownPrimaryFailure(ValueError):
@@ -2543,6 +2544,10 @@ class RuntimeOperations(Operations):
             attempted=1,
             safe_message=f"Weekly report written to {report.note_ref.relative_path}.",
         )
+
+
+_bind_verified_note_v2_runtime(RuntimeOperations)
+del _bind_verified_note_v2_runtime
 
 
 def create_runtime_operations(config: AppConfig, project_root: Path) -> RuntimeOperations:

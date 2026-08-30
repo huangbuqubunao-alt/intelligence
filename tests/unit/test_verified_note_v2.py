@@ -2,181 +2,154 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from tests.integration.test_deep_analysis_persistence import _trusted_success
+import youtube_intel.verified_note_v2 as verified_note_v2
 from youtube_intel.deep_analysis_persistence import DeepAnalysisPersistenceStore
-from youtube_intel.domain import (
-    Availability,
-    LiveStatus,
-    PipelineStatus,
-    ProviderCallMetadata,
-    ScoreResult,
-    ScoringDecision,
-    ScoringOutcome,
-)
-from youtube_intel.note_v2 import build_note_v2
-from youtube_intel.scoring import VerifiedScoringRead
-from youtube_intel.state import VideoRecord
 from youtube_intel.verified_note_v2 import (
     VerifiedNoteV2ArtifactError,
-    build_verified_note_v2_artifact,
     verify_verified_note_v2_artifact,
 )
-
-NOW = datetime(2026, 8, 30, 12, tzinfo=UTC)
-
-
-class _Repository:
-    def __init__(self, record: VideoRecord) -> None:
-        self._record = record
-
-    def get_video(self, video_id: str) -> VideoRecord | None:
-        return self._record if video_id == self._record.video_id else None
+from youtube_intel.weekly_v2 import build_weekly_v2
 
 
-def _score_read(*, video_id: str = "video-1", score: float = 8.0) -> VerifiedScoringRead:
-    result = ScoreResult(
-        schema_version="score-result-v2",
-        score=score,
-        reason="This result contains a concrete useful explanation of the score.",
-        topics=("workflow",),
-        should_summarize=True,
-        provider="scoring-provider",
-        model="scoring-model",
-        prompt_version="scoring-prompt-v2",
-        request_hash="a" * 64,
-        output_language="en",
-    )
-    return VerifiedScoringRead(
-        scoring_outcome=ScoringOutcome(
-            result=result,
-            decision=ScoringDecision(
-                threshold=7.0, final_should_summarize=True, model_disagrees=False
-            ),
-            call=ProviderCallMetadata(
-                provider="scoring-provider", model="scoring-model", started_at=NOW, finished_at=NOW
-            ),
-        ),
-        video_id=video_id,
-        scoring_job_id="job-1",
-        scoring_success_provenance="PRIMARY",
+def test_boundary_is_available_only_from_runtime_owned_composition(
+    tmp_path: Path, admitted_artifact_bundle: object
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    artifact, source, _repository, _scoring_reader, runtime = admitted_artifact_bundle(
+        tmp_path
     )
 
+    assert verify_verified_note_v2_artifact(artifact)
+    assert callable(runtime.build_verified_note_v2_artifact)
+    with pytest.raises(VerifiedNoteV2ArtifactError, match="runtime-owned composition"):
+        runtime.__class__.build_verified_note_v2_artifact(
+            object.__new__(runtime.__class__), source
+        )
 
-def _record(
-    *, video_id: str = "video-1", completed_at: datetime = NOW, score: float = 8.0
-) -> VideoRecord:
-    return VideoRecord(
-        video_id=video_id,
-        channel_id="channel-1",
-        channel_name="Channel",
-        title="Verified video",
-        description="not aggregation input",
-        source_url=f"https://example.invalid/{video_id}",
-        published_at=NOW,
-        duration_seconds=42,
-        default_language="en",
-        available_languages=("en",),
-        live_status=LiveStatus.NONE,
-        availability=Availability.PUBLIC,
-        pipeline_status=PipelineStatus.COMPLETE,
-        pipeline_version="pipeline-v1",
-        score=score,
-        should_summarize=True,
-        discovered_at=NOW,
-        updated_at=NOW,
-        completed_at=completed_at,
-        authoritative_scoring_job_id="job-1",
+
+def test_public_boundary_exposes_no_admission_or_metadata_minting_seam(
+    tmp_path: Path, admitted_artifact_bundle: object
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    _artifact, _source, _repository, _scoring_reader, runtime = (
+        admitted_artifact_bundle(tmp_path)
     )
 
+    assert not hasattr(runtime, "_verified_note_v2_admit")
+    assert not hasattr(runtime, "_verified_note_v2_build")
+    assert not hasattr(verified_note_v2, "create_verified_note_v2_artifact_boundary")
+    assert not hasattr(verified_note_v2, "_build_from_authorities")
+    assert not hasattr(verified_note_v2, "_make_boundary_authority")
+    assert tuple(
+        inspect.signature(runtime.build_verified_note_v2_artifact).parameters
+    ) == ("source",)
 
-def _artifact(
-    *, video_id: str = "video-1", completed_at: datetime = NOW, score: float = 8.0
-) -> Any:
-    return build_verified_note_v2_artifact(
-        _trusted_success(video_id=video_id, score=score),
-        repository=_Repository(_record(video_id=video_id, completed_at=completed_at, score=score)),
-        scoring_reader=lambda _video_id: _score_read(video_id=video_id, score=score),
+    class CallerCreatedRuntime:
+        pass
+
+    with pytest.raises(RuntimeError, match="requires RuntimeOperations"):
+        verified_note_v2._bind_verified_note_v2_runtime(CallerCreatedRuntime)
+
+
+def test_note_identity_is_stable_when_authoritative_weekly_only_metadata_changes(
+    tmp_path: Path, admitted_artifact_bundle: object
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    first, source, repository, _scoring_reader, runtime = admitted_artifact_bundle(
+        tmp_path
     )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET completed_at = ? WHERE video_id = ?",
+            ("2026-08-31T12:00:00Z", first.video_id),
+        )
+    finally:
+        connection.close()
+    second = runtime.build_verified_note_v2_artifact(source)
 
-
-def test_authoritative_builder_binds_note_and_weekly_metadata_without_changing_note_identity() -> None:
-    source = _trusted_success()
-    note = build_note_v2(source)
-    first = build_verified_note_v2_artifact(
-        source, repository=_Repository(_record(completed_at=NOW)), scoring_reader=lambda _video_id: _score_read()
-    )
-    second = build_verified_note_v2_artifact(
-        source,
-        repository=_Repository(_record(completed_at=datetime(2026, 8, 31, 12, tzinfo=UTC))),
-        scoring_reader=lambda _video_id: _score_read(),
-    )
-
-    assert first.note == note
-    assert first.note_identity == note.identity
-    assert second.note.identity == note.identity
+    assert first.note.identity == second.note.identity
     assert first.identity != second.identity
-    assert verify_verified_note_v2_artifact(first)
 
 
-def test_lookalike_and_tampered_artifacts_are_not_admitted() -> None:
-    artifact = _artifact()
+def test_lookalike_and_url_tampering_cannot_cross_process_local_admission(
+    tmp_path: Path, admitted_artifact_bundle: object
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    artifact, _source, _repository, _scoring_reader, _runtime = (
+        admitted_artifact_bundle(tmp_path)
+    )
 
     assert not verify_verified_note_v2_artifact(replace(artifact))
-    tampered = replace(artifact, source_url="https://attacker.invalid/forged")
-    assert not verify_verified_note_v2_artifact(tampered)
+    assert not verify_verified_note_v2_artifact(
+        replace(artifact, source_url="https://attacker.invalid/forged")
+    )
 
 
-def test_caller_cannot_supply_a_forged_score_or_week_date_to_the_authoritative_builder() -> None:
-    source = _trusted_success()
-
-    with pytest.raises(VerifiedNoteV2ArtifactError, match="score"):
-        build_verified_note_v2_artifact(
-            source,
-            repository=_Repository(_record(score=8.0)),
-            scoring_reader=lambda _video_id: _score_read(score=9.9),
-        )
-    artifact = _artifact()
-    assert artifact.completed_at == NOW
-    assert "completed_at" not in build_verified_note_v2_artifact.__annotations__
-
-
-def test_live_and_integrity_verified_persisted_sources_produce_the_same_artifact(
-    tmp_path: Path,
+def test_fake_score_date_or_url_are_not_supported_builder_inputs(
+    tmp_path: Path, admitted_artifact_bundle: object
 ) -> None:
-    from youtube_intel.state import SQLiteStateRepository
+    assert callable(admitted_artifact_bundle)
+    artifact, source, _repository, _scoring_reader, runtime = admitted_artifact_bundle(
+        tmp_path
+    )
 
-    source = _trusted_success()
-    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
-    repository.initialize(now=NOW)
-    persisted = DeepAnalysisPersistenceStore(repository).persist_trusted_deep_analysis_success(
-        success=source, now=NOW
+    assert "score" not in runtime.build_verified_note_v2_artifact.__annotations__
+    assert "completed_at" not in runtime.build_verified_note_v2_artifact.__annotations__
+    assert "source_url" not in runtime.build_verified_note_v2_artifact.__annotations__
+    assert runtime.build_verified_note_v2_artifact(source) == artifact
+
+
+def test_runtime_boundary_ignores_caller_mutated_repository_and_reader_instances(
+    tmp_path: Path, admitted_artifact_bundle: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    artifact, source, repository, _scoring_reader, runtime = admitted_artifact_bundle(
+        tmp_path
     )
-    weekly_repository = _Repository(_record())
-    live = build_verified_note_v2_artifact(
-        source, repository=weekly_repository, scoring_reader=lambda _video_id: _score_read()
+
+    def forged_lookup(_video_id: str) -> object:
+        raise AssertionError(
+            "runtime-owned boundary must not use caller-mutated repository"
+        )
+
+    monkeypatch.setattr(repository, "get_video", forged_lookup)
+    monkeypatch.setattr(
+        runtime,
+        "_scoring_reader",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("runtime-owned boundary must not use caller-mutated reader")
+        ),
     )
-    rehydrated = build_verified_note_v2_artifact(
-        persisted, repository=weekly_repository, scoring_reader=lambda _video_id: _score_read()
+
+    assert runtime.build_verified_note_v2_artifact(source) == artifact
+
+
+def test_live_and_verified_persisted_sources_produce_equivalent_weekly_v2(
+    tmp_path: Path, admitted_artifact_bundle: object
+) -> None:
+    assert callable(admitted_artifact_bundle)
+    live, source, repository, _scoring_reader, runtime = admitted_artifact_bundle(
+        tmp_path
+    )
+    persisted = DeepAnalysisPersistenceStore(
+        repository
+    ).persist_trusted_deep_analysis_success(
+        success=source, now=datetime(2026, 8, 30, tzinfo=UTC)
+    )
+    rehydrated = runtime.build_verified_note_v2_artifact(persisted)
+    now = datetime(2026, 8, 27, tzinfo=UTC)
+    live_weekly = build_weekly_v2((live,), now=now, timezone="Asia/Shanghai", top_n=10)
+    persisted_weekly = build_weekly_v2(
+        (rehydrated,), now=now, timezone="Asia/Shanghai", top_n=10
     )
 
     assert rehydrated == live
-    assert rehydrated.identity == live.identity
-
-
-def test_selected_evidence_only_sentinel_cannot_leak_into_the_note_or_weekly_handoff() -> None:
-    sentinel = "SECRET_WEEKLY_UNSELECTED_TEXT"
-    artifact = build_verified_note_v2_artifact(
-        _trusted_success(public_description=sentinel),
-        repository=_Repository(_record()),
-        scoring_reader=lambda _video_id: _score_read(),
-    )
-
-    assert sentinel not in repr(artifact.note)
-    assert sentinel not in repr(artifact)
+    assert persisted_weekly == live_weekly

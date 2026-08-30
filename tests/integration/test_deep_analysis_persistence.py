@@ -52,8 +52,9 @@ def _trusted_success(
     video_id: str = "video-1",
     score: float = 8.0,
     public_description: str = "Selected evidence only.",
+    verified_scoring_read: VerifiedScoringRead | None = None,
 ) -> TrustedDeepAnalysisSuccess:
-    read = VerifiedScoringRead(
+    read = verified_scoring_read or VerifiedScoringRead(
         scoring_outcome=ScoringOutcome(
             result=ScoreResult(
                 schema_version="score-result-v2",
@@ -86,7 +87,7 @@ def _trusted_success(
         schema_version="canonical-deep-analysis-input-v1",
         operation="deep-analysis",
         input_schema_version="input-v1",
-        video_identity=video_id,
+        video_identity=read.video_id,
         transcript_identity="transcript-1",
         transcript_language="en",
         transcript_normalization_version="normalized-v1",
