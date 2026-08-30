@@ -75,3 +75,39 @@ modified. Local remains currently unqualified as a future offline/privacy
 capability.
 
 Output repairs: `0`. Semantic retries: `0`. Provider fallback: `0`.
+
+## R2 timeout-profile correction — frozen before fresh qualification
+
+R1 remains historical evidence: its 30-second profile passed Case 1 and timed
+out at transport on Case 2 (`1/2`). It is not counted toward R2.
+
+The committed provider-neutral contract makes **bounded transport** normative;
+it does not set a globally required 30-second value. The exact current types
+also place `timeout_profile_identity` on the prepared dispatch envelope rather
+than as a direct `DeepAnalysisExecutionProfileV1`/A3 field. A2 remains the
+complete provider-semantic request projection and does not contain this
+transport timeout. A1 is the authoritative input identity and is unaffected.
+
+The change is nevertheless material to the qualification profile. R2 therefore
+uses a new A3-bound `qualified_capability_profile_identity` and a new dispatch
+timeout-profile identity. Cache identity changes transitively through A3 (and
+the selected floating model remains cache-ineligible). No other profile field
+changes.
+
+| Field | R2 frozen value |
+| --- | --- |
+| Qualification profile | `kimi-deep-analysis-reference-capabilities-r2-timeout-120s-v1` |
+| Timeout profile | `moonshot-chat-timeout-120s-v2` |
+| Timeout | 120 seconds, bounded |
+| SDK / semantic retries | `0` / `0` |
+| Provider / model / endpoint | `kimi` / `kimi-k3` / unchanged China Chat Completions endpoint |
+| Structured mode, messages, prompt/schema/operation, generation, context, scope | Unchanged from R1 |
+
+The 120-second value is a single bounded correction: R1 reached the full
+30-second client bound, K3 is a reasoning model, and Moonshot documents a large
+context/output capability. It is within the authorized 90–120 second range and
+is neither streaming nor an unbounded timeout. A second timeout escalation is
+not authorized.
+
+Contract evidence: [provider-neutral amendment, §§5 and 8–10](TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
+and [ADR-027](decisions/ADR-027-provider-neutral-deep-analysis-contract.md).
