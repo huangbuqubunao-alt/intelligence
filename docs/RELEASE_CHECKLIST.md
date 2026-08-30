@@ -1,6 +1,6 @@
 # V1 Release Checklist
 
-- 当前结论：`NO-GO — Phase A 仅建立资料与风险披露`
+- 当前结论：`NO-GO — 2026-08-31 final sign-off completed; mandatory release gates remain blocked`
 - 签署责任：PO、TL、QA、隐私 Reviewer；任何一方未签字或任一红线未满足即为 No-Go。
 - 禁止误读：本检查表不执行真实 smoke，不批准发布，不改变任务状态。
 
@@ -78,6 +78,16 @@
   metadata/enumerate/read=`1/1/0`, safe `OK`. Its scoped smoke-root artifacts were removed after inspection.
 - Historical attempts remain preserved. No scanner policy, B11 rule, or release criterion changed; B9 is
   `QUALIFIED / CLOSED`, but TASK-014 remains `IN_PROGRESS / No-Go` pending release checklist sign-off.
+
+### Final release sign-off — 2026-08-31
+
+- B9 is now integrated on `main@21bf38f` by a clean fast-forward; its evidence is not a public-release
+  approval. The final review records `NO-GO`, `P0=0`, and five release-critical P1 gates in
+  [RELEASE_SIGNOFF.md](RELEASE_SIGNOFF.md).
+- The remaining mandatory gates are project/distribution licensing and notices, a qualified live Deep
+  Analysis provider plus Product Owner output acceptance before TASK-016G, a cleanly closed global security
+  scan, required Security/Privacy/PO/TL signatures and at-most-once acceptance, and authorized operational
+  smoke/recovery/Vault validation. No push, tag, or public release occurred.
 
 ## 最终签署记录（发布前填写）
 

@@ -49,11 +49,12 @@ provider/model capability change accompanied by a new authorization, or a
 future explicitly authorized provider task. No provider work is authorized
 merely to keep this project moving.
 
-The next authorized independent project task is **TASK-014B11 Correction 2 —
-safe directory contract diagnostics**. It is independent of TASK-016G and live
-provider qualification, but is tightly constrained by its task card: begin
-with its required read-only classification of two unclassified test-line scan
-matches; any real or non-excludable credential risk stops with zero commit.
+TASK-014B11 is now `INTEGRATED / CLOSED`, and TASK-014B9 is
+`QUALIFIED / CLOSED`; neither result authorizes provider work or TASK-016G.
+The 2026-08-31 final release sign-off is `NO-GO` pending the provider/acceptance
+gate and the separately recorded licensing, security/privacy-signature, and
+operational gates. No new TASK-016 provider experimentation is authorized by
+that sign-off.
 
 ## Evidence
 

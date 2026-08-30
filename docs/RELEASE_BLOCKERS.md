@@ -1,13 +1,23 @@
 # Release Blockers — Items Requiring Human Decision
 
 - Status: `BLOCKED FOR PUBLIC DISTRIBUTION`
-- Last updated: 2026-08-11 (updated after P1 remediation)
+- Last updated: 2026-08-31 (final release sign-off; see `docs/RELEASE_SIGNOFF.md`)
 - P1 remediation status: The three Codex Maintainer Review P1 blockers
   (security scanner fail-open, backup/recovery drill false-pass, Obsidian
   Markdown/HTML rendering safety) are remediated on `workbuddy/fix-rc-p1`.
 - Remaining items below cannot be resolved by code changes alone. Each
   requires explicit authorization, legal review, or production credential
   access from the designated decision maker.
+
+## Current final-review additions
+
+- TASK-014B9 is `QUALIFIED / CLOSED` and TASK-014B11 is `INTEGRATED / CLOSED` on
+  `main@21bf38f`; neither closure is a public-distribution approval.
+- TASK-016 has no qualified live Deep Analysis provider and no Product Owner
+  acceptance of real qualified-provider output. TASK-016G remains unauthorized.
+- The canonical security scanner is fail-closed and currently exits non-zero on
+  11 documented TASK-016 test fixtures. No new release-candidate finding exists,
+  but no formal release-policy closure treats a non-zero global scan as green.
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 

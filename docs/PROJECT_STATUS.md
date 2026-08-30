@@ -1,8 +1,10 @@
 # YouTube Intelligence Agent 项目状态
 
-- 更新时间：2026-08-30
-- 当前阶段：TASK-016 — implementation through TASK-016F is complete; the
-  reference-provider live gate and product-owner acceptance remain open.
+- 更新时间：2026-08-31
+- 当前阶段：release sign-off completed as `NO-GO`. TASK-014B9 is
+  `QUALIFIED / CLOSED`, TASK-014B11 is `INTEGRATED / CLOSED`, and TASK-016
+  implementation through F is complete; the reference-provider live gate and
+  product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is
   `docs/TASK-016-REFERENCE-PROVIDER-GATE-STATUS.md`. Local is currently
@@ -16,11 +18,11 @@
   `c0268a… -> df920cc… -> 931674e…` 已经用户授权以 conflict-free、线性、tree/content-equivalent 的
   integrated equivalents `61bb0bb… -> d059bea… -> 2f6e30b…` 落在当前基线；不得重写历史恢复原 SHA。
   Phase F 保持 PRIMARY-only、memory-only、zero-persistence，并输出 request-bound
-  `PhaseFTrustedScoringSuccess`。Phase G 现为 `READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`：它将先
-  补全 sealed F→G quality/input continuation，再实现 PREWRITE_VALIDATE、validated write plan、
-  verified filesystem + atomic SQLite registration 与 normal runtime cutover；它仍不含 repair/retry/
-  recovery/cache recovery。H 负责 repair/retry/recovery/budget，I 负责 cache verification/recovery
-  与 release acceptance。真实模型、网络、Cloud、DB migration 和依赖变更均未获授权。
+  `PhaseFTrustedScoringSuccess`。此前 `READY / AUTHORIZED` 的 Phase G 状态与 TASK-016
+  task card / current provider-gate record 冲突，现已更正：TASK-016G 为
+  `NOT AUTHORIZED / IMPLEMENTATION NOT STARTED`，须先有 qualified live provider、真实
+  qualified-provider output 与 Product Owner acceptance；不得据此开展真实模型、网络、Cloud、
+  DB migration 或依赖变更。
 - TASK-015 accepted source `429bf45…` 已以 merge `451766f…` 进入 main，Maintainer
   APPROVE 且整合后 675 tests 及规定门禁通过，现为 `DONE`。真实 Local Smoke 同时暴露
   Cloud-off 知识笔记为空的产品断层。

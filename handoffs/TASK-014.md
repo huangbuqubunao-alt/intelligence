@@ -1747,3 +1747,20 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - Evidence is `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-NAMED-SAMPLE-QUALIFICATION.md`. B9 is
   `QUALIFIED / CLOSED`, not a TASK-014 release approval. The next gate is PO/TL/QA/Privacy final release
   checklist sign-off; TASK-016 remains unchanged.
+
+## Final Release Checklist Sign-Off — 2026-08-31
+
+- The B9 evidence branch was cleanly fast-forwarded onto `main@21bf38f`; B9 is
+  `QUALIFIED / CLOSED` and B11 remains `INTEGRATED / CLOSED`. No production,
+  test, dependency, or lockfile content was introduced by that integration.
+- The evidence-only final review is `NO-GO`, not a release authorization. It
+  preserves five release-critical P1 gates: licensing/distribution and notices;
+  qualified live Deep Analysis provider plus Product Owner acceptance before
+  TASK-016G; a closed global security scan; Security/Privacy/PO/TL signatures
+  and at-most-once acceptance; and authorized operational smoke/recovery/Vault
+  validation. P0 is `0`; no push, tag, merge beyond B9 fast-forward, or public
+  release occurred.
+- Canonical matrix and exact validation evidence: `docs/RELEASE_SIGNOFF.md`.
+  The next action is a PO/TL project-license and distribution decision package;
+  it does not authorize TASK-016 provider work, TASK-016G, push, tag, or public
+  distribution.
