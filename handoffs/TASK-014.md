@@ -1723,3 +1723,15 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   The current PO/TL package cannot proceed further without violating the one-operation/no-iteration contract.
 - B9 returns to `BLOCKED / NOT QUALIFIED`. The next possible live path requires a fresh explicit PO/TL package
   with a pre-frozen eligible replacement sample. B11 and TASK-016 remain unchanged.
+
+## TASK-014B9 Replacement Sample Nomination — 2026-08-31
+
+- A new nomination-only PO/TL cycle applied the stricter ADR-022 single-discovery limit. The sole flat public
+  metadata result provided `5MWT_doo68k`, a new official TED-source stable ID with no known credential gate,
+  retirement, or prior directory failure. No title, URL, subtitle data, or public body content is retained.
+- `5MWT_doo68k` is `PRE-FROZEN / ELIGIBLE FOR QUALIFICATION`, not qualified. Its directory response, subtitle
+  availability, tracks, language, and B9 outcome remain unknown because the project smoke entrypoint,
+  enumeration, and read paths were not invoked (`0/0/0`).
+- `agent-prompts/TASK-014B9-PRE-FROZEN-REPLACEMENT-ONE-SHOT-QUALIFICATION-CODEX.md` names this sole sample
+  and is ready for a separate PO execution authorization. It permits one directory-only call only, zero retry,
+  zero substitution, no fallback, and no timeout escalation. B11 and TASK-016 remain unchanged.

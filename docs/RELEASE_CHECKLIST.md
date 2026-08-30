@@ -65,6 +65,13 @@
 - This result does not authorize another discovery, fallback, sample substitution, or smoke call. A future
   qualification requires a new explicit PO/TL package naming its candidate before execution.
 
+### TASK-014B9 pre-frozen replacement nomination — 2026-08-31
+
+- The nomination-only cycle used one legal metadata-only discovery round to pre-freeze `5MWT_doo68k`. It did
+  not invoke the B9 path, enumerate subtitles, or read a body; qualification remains unknown and unexecuted.
+- A prepared named-sample package is ready for separate PO execution authorization. It permits one
+  directory-only call only, with no fallback, retry, substitution, timeout escalation, or release conclusion.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |
