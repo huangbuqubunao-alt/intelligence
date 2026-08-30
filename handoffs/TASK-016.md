@@ -57,6 +57,11 @@
   raw repository rows, Deep Analysis, transcripts, or providers.
 - No Note persistence or migration is introduced; the admission sidecar is not
   persisted. Contract: `docs/TASK-016EF-VERIFIED-NOTE-ARTIFACT-CONTRACT-AMENDMENT.md`.
+- Final closed-loop review: `APPROVE`, P0 `0`, implementation-critical P1 `0`.
+  The runtime-owned handoff rebuilds its verified SQLite/scoring readers from
+  captured composition values, so caller-provided or monkey-patched reader data
+  cannot mint an admitted artifact. Full pytest: `1894 passed, 1 warning`;
+  review evidence: `docs/TASK-016F-WEEKLY-V2-CLOSED-LOOP-REVIEW.md`.
 
 ## 目标与范围
 

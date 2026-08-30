@@ -284,3 +284,13 @@ with a new ordered implementation plan.
 - The contract correction is documented in
   `docs/TASK-016EF-VERIFIED-NOTE-ARTIFACT-CONTRACT-AMENDMENT.md`; it does not
   reopen TASK-016E Note schema/identity semantics or add a migration.
+
+## 2026-08-30 TASK-016F completion amendment
+
+- TASK-016F Weekly V2 is complete pending orchestrator acceptance. It consumes
+  only runtime-admitted `VerifiedNoteV2Artifact` values; `NoteV2` remains
+  deterministic presentation and `NOT AUTHORITY`.
+- Independent closed-loop review reached `APPROVE`, P0 `0`,
+  implementation-critical P1 `0`; evidence is
+  `docs/TASK-016F-WEEKLY-V2-CLOSED-LOOP-REVIEW.md`. No migration, provider
+  work, credential work, or TASK-016B/C/D semantic change occurred.
