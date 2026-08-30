@@ -5,17 +5,20 @@
   Release 3.0 notice 外，不复制第三方 LICENSE 全文。
 - 非结论：本文件不是项目自身 LICENSE，不授予再分发权，也不替代律师、TL 或发布负责人
   对最终发行物的审核。
+- 2026-08-31 的产物边界和 PO/TL 选择项已整理在
+  [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)；该包不选择
+  项目许可证，也不将本清单提升为发行批准。
 
 | 组件或资源 | 已证实的许可证/来源事实 | NOTICE / 分发状态 |
 |---|---|---|
-| `yt-dlp[default,deno]==2026.7.4` | 直接锁定依赖；`default`/`deno` extra 由 `uv.lock` 记录。 | 必须在最终目标发行物中逐项确定它和 extra 依赖的归属/NOTICE；尚未签署。 |
+| `yt-dlp[default,deno]==2026.7.4` | 直接锁定依赖；锁定安装 metadata 声明 `License-Expression: Unlicense`；`default`/`deno` extra 由 `uv.lock` 记录。 | 必须在最终目标发行物中逐项确定它和 extra 依赖的归属/NOTICE；尚未签署。 |
 | `mutagen==1.48.1` | `uv.lock` 显示它由 `yt-dlp` 的 `default` extra 引入；任务卡/Scout 输入将其标为 GPL-2.0-or-later。 | **BLOCKER**：TL/发布负责人须书面决定源码、二进制、bundle/容器的兼容分发方案。结论前不发布任何捆绑依赖物。 |
 | OpenAI Python SDK `openai==2.46.0` | ADR-008、Reuse Register：Apache-2.0。 | 收集 SDK 及传递项的版权/NOTICE；SDK 隔离导入不等于可分发签署。 |
 | `tiktoken==0.13.0` | ADR-008、Reuse Register：MIT。 | 收集包级 NOTICE；不得把此结论延伸到 `o200k_base.tiktoken` 文件。 |
 | `Jinja2==3.1.6` | ADR-009、Reuse Register：BSD-3-Clause。 | 收集发行物所需归属/NOTICE；传递 `MarkupSafe==3.0.3` 独立补证。 |
 | `spaCy==3.8.15` | Explosion 官方 Python 包；上游 LICENSE 与 PyPI 元数据声明 MIT；TASK-016B 固定版本和锁文件工件哈希。 | 本地英文依存分析的直接依赖；新增传递项的 Local-only 版权/NOTICE 清单已在下方逐项闭合。公开 bundle 仍待许可证文本装载与 release-owner sign-off；运行时不得下载模型或联网 fallback。 |
 | `en_core_web_sm==3.8.0` | Explosion 官方模型 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85`。模型来源清单包含 OntoNotes 5（commercial，licensed by Explosion）、ClearNLP conversion reference 与 WordNet 3.0 License。 | **RELEASE REVIEW REQUIRED**：Local-only 可从固定包加载；公开发行前须保留模型 LICENSE/来源归属、满足 WordNet NOTICE，并由发布负责人确认模型随 wheel/sdist/安装缓存的分发方式。缺失时只能 fail-closed，不得自动下载。 |
-| `MarkupSafe==3.0.3` | 锁文件中存在；本阶段输入没有其许可证/NOTICE 原始证据。 | **EVIDENCE GAP**：发布前补充组件级证据与义务。 |
+| `MarkupSafe==3.0.3` | 锁定安装 metadata 声明 `License-Expression: BSD-3-Clause`，并携带 license 文件。 | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
 | `mlx-whisper==0.4.3` | ADR-007、Reuse Register：MIT。 | 条件性本地转写组件；解析后的 MLX/torch/Numba/NumPy 等及最终目标平台包必须逐项审查。 |
 | MLX Community Whisper 转换模型 | ADR-007：固定来源/revision/权重哈希；转换仓库 model card 未声明 license。 | **BLOCKER**：不得假定转换模型可再分发或纳入发布物。 |
 | ffmpeg | ADR-007：参考的 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 不安装、不调用、不捆绑、不重新分发，直至单独许可与发行决策完成。 |

@@ -5,6 +5,9 @@
   `QUALIFIED / CLOSED`, TASK-014B11 is `INTEGRATED / CLOSED`, and TASK-016
   implementation through F is complete; the reference-provider live gate and
   product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
+- Licensing/distribution technical inventory is now decision-ready, but no
+  first-party license or public distribution mode has been selected. See
+  [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is
   `docs/TASK-016-REFERENCE-PROVIDER-GATE-STATUS.md`. Local is currently

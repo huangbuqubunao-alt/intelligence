@@ -88,8 +88,9 @@ P1 gates, all preserved rather than downgraded:
 
 ## Required next action
 
-The highest-priority next action is a **PO/TL project-license and distribution
-decision package**: select the project license and distribution form, then
-authorize the bounded SBOM/NOTICE/artifact update required by
+The technical **PO/TL project-license and distribution decision package** is
+prepared in `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`. The next action is
+for PO/TL to select the project license and distribution form from that package,
+then authorize the bounded SBOM/NOTICE/artifact update required by
 `docs/RELEASE_BLOCKERS.md §§0–1`. This does not authorize provider work,
 TASK-016G, a push, a tag, or public distribution.

@@ -6,6 +6,10 @@
 - 范围：锁文件解析到的 Python 分发包，以及条件性模型、系统工具和固定资源边界。
 - TASK-016B 补充：已对 spaCy 新增依赖执行锁定安装、离线构建、包 metadata/LICENSE
   清点与模型哈希核验；其余 Phase A 组件仍沿用原证据边界。
+- 2026-08-31 离线 wheel/sdist 检查确认当前产物包含项目源码、operations/launchd 示例和
+  `o200k_base.tiktoken`，不包含模型 weights、ffmpeg、Ollama、tests/fixtures 或依赖 wheel；
+  这仅是产物边界事实，不构成任何分发许可。决策矩阵见
+  [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)。
 
 本清单是发行决策输入，不是法律意见，也不表示任何锁定组件、资源或其组合已经获准
 分发。`uv.lock` 记录版本、来源与工件哈希，但不携带完整的许可证文本、NOTICE、版权
@@ -20,11 +24,11 @@
 | `jinja2` | `3.1.6`；直接运行依赖 | ADR-009 / Reuse Register：BSD-3-Clause | 收集发行包的版权与 NOTICE 证据；其传递 `markupsafe` 单列。 |
 | `mlx-whisper` | `0.4.3`；直接运行依赖 | ADR-007 / Reuse Register：MIT | 仅条件性本地转写能力；模型、ffmpeg、传递包与真实资源另行审批。 |
 | `openai` | `2.46.0`；直接运行依赖 | ADR-008 / Reuse Register：Apache-2.0 | 收集 SDK 与所有传递项的发行 NOTICE；不含真实密钥、响应或云验证。 |
-| `pydantic` | `2.13.4`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
-| `pyyaml` | `6.0.3`；直接运行依赖 | 锁文件有版本，但本阶段资料未给出许可证证据 | 发布前补充组件级许可证/NOTICE 证据。 |
+| `pydantic` | `2.13.4`；直接运行依赖 | 锁定安装的 distribution metadata 声明 `License-Expression: MIT`，并携带 license 文件 | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
+| `pyyaml` | `6.0.3`；直接运行依赖 | 锁定安装的 distribution metadata 声明 MIT | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
 | `spacy` | `3.8.15`；直接运行依赖 | 固定 wheel metadata/LICENSE：MIT；© 2015 Matthew Honnibal、2016 spaCy GmbH、2016–2024 ExplosionAI GmbH | 固定本地 CPU 解析能力；21 个新增传递项逐项证据见 `THIRD_PARTY_NOTICES.md`。Local-only 已闭合；公开 bundle 仍阻断。 |
 | `tiktoken` | `0.13.0`；直接运行依赖 | ADR-008 / Reuse Register：MIT | 收集其发行 NOTICE；不能据此推断附带 BPE 文件的文件级许可。 |
-| `yt-dlp[default,deno]` | `2026.7.4`；直接运行依赖 | Reuse Register：DIRECT；锁文件固定 extras | `default` 会带入 `mutagen`；二进制/捆绑发行被其 GPL 门禁阻断。 |
+| `yt-dlp[default,deno]` | `2026.7.4`；直接运行依赖 | Reuse Register：DIRECT；锁定安装 metadata 声明 `License-Expression: Unlicense`；锁文件固定 extras | `default` 会带入 `mutagen`；二进制/捆绑发行被其 GPL 门禁阻断。 |
 | `mypy` / `pytest` / `ruff` | `2.3.0` / `9.1.1` / `0.15.21`；直接开发依赖 | 锁文件版本 | 开发工具不自动进入运行时发行物；若随发行物提供，仍须组件级清单与许可证证据。 |
 
 ## 已识别的条件性资源与系统边界

@@ -35,6 +35,9 @@
 - **Required input**: PO or TL declares the project license (e.g. MIT,
   Apache-2.0, proprietary/all-rights-reserved). Decision must be consistent
   with §1.1 mutagen GPL constraints.
+- **Decision package**: The technical artifact inventory and the exact choices
+  requiring PO/TL action are prepared in
+  `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`; it does not select a license.
 - **Pass criteria**: Written decision; LICENSE file added; pyproject.toml updated;
   SBOM and THIRD_PARTY_NOTICES updated; build artifact includes LICENSE.
 - **Blocker level**: DISTRIBUTION BLOCKER — no public release until resolved.
