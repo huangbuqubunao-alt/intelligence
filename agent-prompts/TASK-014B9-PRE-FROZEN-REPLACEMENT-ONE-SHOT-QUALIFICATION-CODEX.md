@@ -2,9 +2,10 @@
 
 ## Status and authority
 
-**READY FOR PRODUCT-OWNER EXECUTION AUTHORIZATION.** This document prepares, but does not grant, the future
-live qualification. A new Product Owner authorization must explicitly approve execution of this exact package.
-It authorizes no discovery, fallback, retry, source change, merge, push, or tag.
+**CONSUMED / PRESERVED.** The Product Owner separately authorized this exact package, which completed its one
+live qualification successfully. Its result is recorded in
+`docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-NAMED-SAMPLE-QUALIFICATION.md`. This historical package authorizes no
+discovery, fallback, retry, source change, merge, push, or tag.
 
 ## Frozen scope
 

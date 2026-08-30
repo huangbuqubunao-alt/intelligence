@@ -132,6 +132,11 @@
   `BLOCKED / READY FOR FINAL ONE-SHOT QUALIFICATION`. See
   `docs/SMOKE_EVIDENCE/TASK-014B9-REPLACEMENT-SAMPLE-NOMINATION.md` and
   `agent-prompts/TASK-014B9-PRE-FROZEN-REPLACEMENT-ONE-SHOT-QUALIFICATION-CODEX.md`.
+- The separately authorized final named-sample invocation consumed that package exactly once and passed with
+  `metadata/enumerate/read=1/1/0`, exit `0`, and safe result `OK`. Its smoke root was removed after safe
+  inspection. TASK-014B9 is `QUALIFIED / CLOSED`; this preserves the two historical failures and does not
+  change TASK-014 `IN_PROGRESS / No-Go` or release approval requirements. See
+  `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-NAMED-SAMPLE-QUALIFICATION.md`.
 - TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分

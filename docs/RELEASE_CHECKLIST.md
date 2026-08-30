@@ -72,6 +72,13 @@
 - A prepared named-sample package is ready for separate PO execution authorization. It permits one
   directory-only call only, with no fallback, retry, substitution, timeout escalation, or release conclusion.
 
+### TASK-014B9 final named-sample qualification — 2026-08-31
+
+- The separately authorized, fixed `5MWT_doo68k` package was consumed once and passed: exit `0`,
+  metadata/enumerate/read=`1/1/0`, safe `OK`. Its scoped smoke-root artifacts were removed after inspection.
+- Historical attempts remain preserved. No scanner policy, B11 rule, or release criterion changed; B9 is
+  `QUALIFIED / CLOSED`, but TASK-014 remains `IN_PROGRESS / No-Go` pending release checklist sign-off.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

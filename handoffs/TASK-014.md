@@ -1735,3 +1735,15 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - `agent-prompts/TASK-014B9-PRE-FROZEN-REPLACEMENT-ONE-SHOT-QUALIFICATION-CODEX.md` names this sole sample
   and is ready for a separate PO execution authorization. It permits one directory-only call only, zero retry,
   zero substitution, no fallback, and no timeout escalation. B11 and TASK-016 remain unchanged.
+
+## TASK-014B9 Final Named-Sample Qualification — 2026-08-31
+
+- The separately authorized final package consumed exactly one canonical directory-only invocation for
+  `5MWT_doo68k`. It passed with exit `0`, safe `OK`, and metadata/enumerate/read=`1/1/0`; no subtitle body was
+  read, no retry/substitution/fallback/timeout escalation occurred, and the historical ID was not used.
+- The fresh smoke root produced only its state file, empty data/test-vault directories, and a safe JSONL log;
+  all were removed after safe inspection. B11 remained enforced. The global security scan still fails only on
+  the same 11 Task-016 fixtures; B9 introduced none and scanner policy is unchanged.
+- Evidence is `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-NAMED-SAMPLE-QUALIFICATION.md`. B9 is
+  `QUALIFIED / CLOSED`, not a TASK-014 release approval. The next gate is PO/TL/QA/Privacy final release
+  checklist sign-off; TASK-016 remains unchanged.
