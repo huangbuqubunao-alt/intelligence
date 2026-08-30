@@ -1677,3 +1677,13 @@ public distribution is still blocked pending human decisions on license, SBOM,
 and third-party NOTICE items.
 
 Verdict: REMEDIATION READY FOR CODEX REVIEW.
+
+## TASK-014B11 Independent Integration / No-Op Closeout — 2026-08-30
+
+- Historical source retained as evidence:
+  `codex/task-014b11-safe-directory-contract-diagnostics@4b86ecb27012dd4c1c9fd2e8c2496160e64aa3bf`.
+  Its effective delta from `80aff83…` spans the original five B11 paths; the Correction 2 sub-delta from `f57b21c…` changes only this handoff and the two synthetic Mapping-fixture tests.
+- Forward-integration anchor `e04f52269d94dfe1317c088d49dc8ad78ae490b9` has the same stable path-scoped patch ID (`700128137ec309dfbfcd8c7b1eaf245f0bd31e7f`) and byte-identical blobs for all five B11 paths. Historical merge, cherry-pick, and replay are therefore redundant and were not performed.
+- At verification `main@05ceb22d27a7aaa59f90d06e9adf6d06fd2f826d`, post-anchor overlap is restricted to this handoff, `providers/subtitles.py`, and `test_subtitle_provider.py`. The later Provider change suppresses dependency output and adds fixed safe error categories; its test asserts silence. Independent review found no change to B11 state values, output gates, restricted key-name validation, safe diagnostics, or the two corrected fixture methods.
+- Current evidence: B11 focused tests, scanner regression tests, full pytest, `uv run mypy src`, Ruff, and `git diff --check` pass. The current repository scanner fails on 11 newer TASK-016 test-fixture findings; this is outside B11, is not hidden by an exemption, and receives no code change in this closeout.
+- Independent verdict: `APPROVE`; `P0=0`, implementation-critical `P1=0`, `P2=0`. TASK-014B11 is `INTEGRATED / CLOSED`; its historical branch remains retained evidence. This does not change TASK-014 `IN_PROGRESS / No-Go`, real-smoke, compatibility, release, or distribution conclusions.

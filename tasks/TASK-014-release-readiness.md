@@ -167,6 +167,12 @@
   修正，并保持测试/泄漏断言强度、关闭两个新增 locator 命中且通过综合扫描。TASK-014 继续
   `IN_PROGRESS / No-Go`；本控制面不启动 Implementer/Reviewer，也不构成 merge 或发行批准。
 
+## TASK-014B11 independent integration / no-op closeout
+
+- Historical Correction 2 `4b86ecb…` was forward-integrated as `e04f522…`; stable patch and five-path blob comparisons prove the complete effective B11 delta is already on current main.
+- Current-main review confirms later subtitle Provider/test overlap preserves the B11 closed state matrix, strict directory-only gate, restricted key-name boundary, diagnostic secrecy, and both corrected synthetic Mapping fixture methods. Historical branch is retained as evidence only; merge, cherry-pick, and replay are prohibited as redundant.
+- TASK-014B11 is `INTEGRATED / CLOSED`. Current repository security-scan findings in newer TASK-016 test fixtures are outside this B11 closeout and do not authorize a scanner exemption or a TASK-016 change here. TASK-014 remains `IN_PROGRESS / No-Go`.
+
 ## Phase B-4：受限 directory-only 字幕目录 smoke（已整合关闭为 `DONE`）
 
 - 产品负责人已接受 ADR-016 并创建 TASK-014B4：既有 `smoke-public-subtitles` 只新增受限

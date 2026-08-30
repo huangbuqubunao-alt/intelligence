@@ -1,8 +1,8 @@
 # TASK-014B11：安全字幕目录契约状态诊断
 
-- Status: `IN_PROGRESS`
-- Assignee: `Codex Implementer（Correction 2）`
-- Reviewer: `Reviewer 2 历史 APPROVE；Correction 2 待后续独立审查`
+- Status: `INTEGRATED / CLOSED`
+- Assignee: `Historical source retained as evidence only`
+- Reviewer: `Independent integration / no-op review APPROVE`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
 - Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
@@ -205,3 +205,13 @@ git diff --check
   和 `.codebase-memory` 工件。
 - 不得修改任务状态、启动 Reviewer 或把 B11 写成真实成功。TASK-014 始终
   `IN_PROGRESS / No-Go`；完成后只报告 Implementer commit、检查、跳过项和剩余风险。
+
+## Independent integration / no-op closeout — 2026-08-30
+
+- Historical Correction 2 source is
+  `codex/task-014b11-safe-directory-contract-diagnostics@4b86ecb27012dd4c1c9fd2e8c2496160e64aa3bf`.
+  Its effective five-path B11 delta has stable patch ID `700128137ec309dfbfcd8c7b1eaf245f0bd31e7f`.
+- Forward-integration anchor `e04f52269d94dfe1317c088d49dc8ad78ae490b9` contains byte-identical blobs for all five B11 paths, including both Correction 2 test files and this handoff. No historical merge, cherry-pick, replay, push, or tag is required.
+- At `main@05ceb22d27a7aaa59f90d06e9adf6d06fd2f826d`, later overlap is limited to this handoff, `providers/subtitles.py`, and its integration test. The source change adds silent dependency logging and fixed safe error categories; the B11 matrix, output gates, restricted key-name validation, and corrected synthetic fixture methods remain unchanged.
+- Current B11-focused tests, scanner regression tests, full pytest, `uv run mypy src`, Ruff, and Diff checks pass. The current repository security scan reports 11 findings in newer TASK-016 test fixtures; this is outside B11, is not an exemption or scanner weakening, and must be handled under separately authorized scope.
+- Verdict: `INTEGRATED / CLOSED`. The historical branch is retained as evidence only; TASK-014 remains `IN_PROGRESS / No-Go` and this closure is not real smoke, compatibility, release, or project-Go evidence.
