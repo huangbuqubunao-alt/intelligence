@@ -29,6 +29,22 @@
 - Live status: `PENDING / CREDENTIAL BLOCKED`; no OpenAI request and no
   credential persisted. Final checks are recorded in the TASK-016D review.
 
+## TASK-016E Note V2 addendum
+
+- Scope: deterministic Note V2 derivation/rendering from authoritative Deep
+  Analysis; no V1 write-path redirect, Note storage, migration, provider,
+  credential, network, or TASK-016F work.
+- Inputs: runtime-finalizer-verified `TrustedDeepAnalysisSuccess` and exact
+  016D integrity-verified persisted read only. Raw KnowledgeContent, raw DB
+  rows, runtime lookalikes, and reconstructed persisted reads reject.
+- Provenance: result/content identities, A1/A2/A3, policy/Registry identities,
+  scoring request hash plus separate `PRIMARY | REPAIR_H2C`, payload scope, and
+  provider/model audit fields. DACS-1 Note identity excludes timestamps/paths.
+- Reuse: `DIRECT` existing KnowledgeContent, Evidence Registry, DACS-1, 016D
+  reader/runtime finalizer, and safe Markdown helpers. No dependency change.
+- Live status: `PENDING / CREDENTIAL BLOCKED`; no provider call or credential
+  operation occurred. Review evidence is `docs/TASK-016E-NOTE-V2-CLOSED-LOOP-REVIEW.md`.
+
 ## 目标与范围
 
 - 任务目标：按用户固定顺序和固定门禁机械执行本地模型资格测试；随后仅作 Local + Optional Cloud Provider architecture/trust review 和 provider-neutral contract amendment；不实现。

@@ -258,3 +258,15 @@ with a new ordered implementation plan.
   recomputation. Final result: `APPROVE`, P0 `0`, implementation-critical P1
   `0`. The app-only revalidation materials share exactly the persisted cache
   row's lifetime; no unapproved TTL was introduced.
+
+## 2026-08-30 TASK-016E Note V2
+
+- Note V2 is a deterministic, immutable derived artifact from runtime-verified
+  `TrustedDeepAnalysisSuccess` or 016D integrity-verified persisted reads only.
+  Raw KnowledgeContent and raw database rows are not authority.
+- It preserves exact Deep Analysis provenance, validated KnowledgeContent
+  evidence references, selected-evidence privacy, output language, deterministic
+  identity/order/rendering, and separate scoring request/provenance fields.
+- No Note V2 persistence, migration, V1 path reroute, provider call, credential
+  work, or Weekly V2 logic was added. OpenAI live remains `PENDING / CREDENTIAL
+  BLOCKED`.
