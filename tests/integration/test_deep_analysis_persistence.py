@@ -47,12 +47,17 @@ from youtube_intel.state import SQLiteStateRepository
 NOW = datetime(2026, 8, 30, tzinfo=UTC)
 
 
-def _trusted_success() -> TrustedDeepAnalysisSuccess:
+def _trusted_success(
+    *,
+    video_id: str = "video-1",
+    score: float = 8.0,
+    public_description: str = "Selected evidence only.",
+) -> TrustedDeepAnalysisSuccess:
     read = VerifiedScoringRead(
         scoring_outcome=ScoringOutcome(
             result=ScoreResult(
                 schema_version="score-result-v2",
-                score=8.0,
+                score=score,
                 reason="This result contains a concrete useful explanation of the score.",
                 topics=("workflow",),
                 should_summarize=True,
@@ -72,7 +77,7 @@ def _trusted_success() -> TrustedDeepAnalysisSuccess:
                 finished_at=NOW,
             ),
         ),
-        video_id="video-1",
+        video_id=video_id,
         scoring_job_id="job-1",
         scoring_success_provenance="PRIMARY",
     )
@@ -81,7 +86,7 @@ def _trusted_success() -> TrustedDeepAnalysisSuccess:
         schema_version="canonical-deep-analysis-input-v1",
         operation="deep-analysis",
         input_schema_version="input-v1",
-        video_identity="video-1",
+        video_identity=video_id,
         transcript_identity="transcript-1",
         transcript_language="en",
         transcript_normalization_version="normalized-v1",
@@ -134,7 +139,7 @@ def _trusted_success() -> TrustedDeepAnalysisSuccess:
         published_at="2026-01-01T00:00:00Z",
         duration_seconds=42,
         source_language="en",
-        public_description="Selected evidence only.",
+        public_description=public_description,
     )
     request = build_openai_reference_request_projection(
         canonical_input=canonical,
