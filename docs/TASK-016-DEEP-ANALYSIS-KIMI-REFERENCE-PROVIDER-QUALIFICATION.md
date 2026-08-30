@@ -1,0 +1,77 @@
+# TASK-016 Kimi Live Reference Provider Qualification
+
+Status: `BLOCKED` — `1/2` representative live cases passed. No production Kimi
+adapter is authorized or implemented.
+
+## Approved runtime credential gate
+
+`MOONSHOT_API_KEY` was available through approved ephemeral runtime injection.
+It was used only in the provider-call process and was not written to source,
+tests, fixtures, logs, identities, provenance, database state, or this record.
+
+## Current official API profile discovery
+
+Moonshot documents an OpenAI-compatible Chat Completions API callable through
+the existing OpenAI Python SDK configured with `base_url`. The English global
+endpoint is `https://api.moonshot.ai/v1`; the matching official China endpoint
+is `https://api.moonshot.cn/v1`.
+
+The global endpoint/account availability probe returned only `AUTH_INVALID`.
+Before any successful qualification attempt, the profile was corrected once for
+that factual regional endpoint mismatch. `GET /v1/models` on the final endpoint
+confirmed the selected model is available to the account.
+
+| Field | Frozen Kimi qualification value |
+| --- | --- |
+| Provider kind / canonical ID | `CLOUD_USER_KEY` / `kimi` |
+| Endpoint | `POST /v1/chat/completions` at `https://api.moonshot.cn/v1` |
+| SDK | Existing locked `openai==2.46.0`, with `base_url`; no dependency change |
+| Model / identity class | `kimi-k3` / `FLOATING`, with no claimed resolved revision |
+| Structured-output mode | `PROVIDER_JSON_MODE`, `response_format={"type":"json_object"}` |
+| Schema trust | Application-owned schema instruction only; JSON mode is an untrusted output constraint, not trusted schema validation |
+| Generation | `reasoning_effort="low"`; K3 fixed defaults are not sent |
+| Output / context | `max_completion_tokens=4096`; documented 1M context with conservative UTF-8-byte prompt accounting, 16,384 instruction reserve, and 4,096 output reserve |
+| Context authority | `CONSERVATIVE_PROVIDER_CONTRACT` |
+| Timeout / SDK retries | 30 seconds / `max_retries=0` |
+| Payload scope | `SELECTED_EVIDENCE_ONLY` |
+| Credential execution identity | Static non-secret execution-profile identity only; never based on API-key bytes |
+
+Moonshot documents K3’s 1M context, `reasoning_effort`, and fixed generation
+parameters in its [model parameter reference](https://platform.moonshot.cn/docs/api/models-overview).
+The [Chat Completions API](https://platform.moonshot.cn/docs/api/chat) documents
+JSON object mode, its prompt requirement for expected fields/types, and
+`max_completion_tokens`. Although a JSON Schema mode is documented, this profile
+does not claim a strict-schema guarantee. The [Quickstart](https://platform.moonshot.cn/docs/guide/start-using-kimi-api)
+documents SDK/base URL compatibility; [List Models](https://platform.moonshot.cn/docs/api/list-models)
+documents availability lookup.
+
+## Harness and outcomes
+
+An ephemeral, isolated non-production harness built an admitted
+`CanonicalDeepAnalysisInputV1`, authorized selected-evidence projection, A2,
+A3, and a conservative context profile. It made one Chat Completions request
+per case, then fed the exact untrusted response to the existing
+provider-neutral finalizer. It did not mint trust, repair output, retry, use a
+fallback, or persist request/response data.
+
+| Case | Representative input | Result |
+| --- | --- | --- |
+| 1 | Privacy-preserving research workflow; selected evidence requires generated claims to be tied to corroborated excerpts | `PASS` through strict JSON, schema, grounding, KG2, language, and provenance |
+| 2 | Reliable incident communication; selected evidence requires an evidence-linked handoff timeline | `FAIL` at `TRANSPORT` with `TIMEOUT` |
+
+Case 2 emitted no completion marker before the frozen 30-second request bound
+ended, and no harness process remained afterward. Delivery is treated as
+unknown and the request was not resent. This is a failure of the tested frozen
+profile, not evidence that Kimi generally cannot satisfy the application
+contract.
+
+## Decision and preserved boundaries
+
+Kimi is **unqualified under this tested frozen profile** (`1/2`). No
+`KimiDeepAnalysisProviderAdapter`, fake or real adapter qualification, product
+pipeline, 016D persistence run, Note V2/Weekly V2 acceptance artifact, or
+TASK-016G code was created. OpenAI and TASK-016B/C/D/E/F semantics were not
+modified. Local remains currently unqualified as a future offline/privacy
+capability.
+
+Output repairs: `0`. Semantic retries: `0`. Provider fallback: `0`.

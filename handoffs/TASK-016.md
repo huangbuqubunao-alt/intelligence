@@ -391,3 +391,29 @@
   requires real **qualified-provider** output. Current eligible route is
   OpenAI `CLOUD_USER_KEY` after live qualification 2/2 and explicit consent.
   Live OpenAI remains `PENDING / CREDENTIAL BLOCKED`; no credential was used.
+
+## Kimi live reference qualification — 2026-08-30
+
+- Starting baseline: `main@c94181f95484e616f7d7b6a07f6829bc37625a24`, clean.
+  Reuse decision: `DIRECT` — existing locked `openai==2.46.0`, frozen
+  provider-neutral contracts/runtime finalizer, and current official Moonshot
+  API documentation. No dependency, lockfile, schema, configuration, or secret
+  storage changed.
+- The approved ephemeral `MOONSHOT_API_KEY` gate was available. It was neither
+  emitted nor persisted. The first official global endpoint availability probe
+  safely classified as `AUTH_INVALID`; before any successful qualification
+  attempt, the final regional endpoint profile was corrected once to
+  `https://api.moonshot.cn/v1`, where `kimi-k3` availability was confirmed.
+- Frozen final profile: `CLOUD_USER_KEY/kimi`; Chat Completions JSON object
+  mode; `kimi-k3` floating identity; selected evidence only; 1M conservative
+  context; 4,096 output reserve; 30 seconds; SDK retries `0`; non-secret A3
+  execution-profile identity. JSON mode remained an output constraint only.
+- The isolated non-production harness ran full frozen request/finalizer
+  semantics. Case 1 passed; Case 2 reached `TIMEOUT` at `TRANSPORT` after the
+  single 30-second attempt. It was not resent because delivery is unknown.
+  Qualification result is `1/2`; Kimi is unqualified under this tested profile.
+- No Kimi production adapter, fake-transport tests, real adapter qualification,
+  product acceptance pipeline, persistence, Note V2/Weekly V2 package,
+  fallback, repair, or TASK-016G code was created. OpenAI and TASK-016B/C/D/E/F
+  semantics are unchanged. Evidence:
+  `docs/TASK-016-DEEP-ANALYSIS-KIMI-REFERENCE-PROVIDER-QUALIFICATION.md`.

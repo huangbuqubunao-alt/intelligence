@@ -333,3 +333,15 @@ with a new ordered implementation plan.
 - OpenAI live qualification is `PENDING / CREDENTIAL BLOCKED`; no live cloud
   call or credential operation occurred. TASK-016B/C/D/E/F semantics remain
   unchanged and TASK-016G remains unauthorized.
+
+## 2026-08-30 Kimi live reference qualification
+
+- Kimi `CLOUD_USER_KEY` provider ID `kimi` was evaluated under one frozen
+  `kimi-k3` Chat Completions JSON-mode profile. Case 1 passed the full existing
+  provider-neutral finalizer; Case 2 reached the 30-second transport bound and
+  was not retried. Result: `1/2`, **unqualified under the tested profile**.
+- No adapter, fallback, output repair, persistence run, Note V2/Weekly V2
+  acceptance package, or TASK-016G implementation is authorized by this
+  result. `MOONSHOT_API_KEY` was available ephemerally and was not persisted.
+  The exact safe evidence is in
+  `docs/TASK-016-DEEP-ANALYSIS-KIMI-REFERENCE-PROVIDER-QUALIFICATION.md`.
