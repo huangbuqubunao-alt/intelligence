@@ -115,6 +115,9 @@
 - A distinct PO authorization is issued at fresh baseline `main@947c407d1cfec692bcb3cd175e1bdddcd13d6525` through
   `agent-prompts/TASK-014B9-PO-ONE-SHOT-EXECUTION-CODEX.md`. It freezes exactly one 30-second directory-only
   invocation and zero semantic retries or substitutions; it preserves the historical record and is not release approval.
+- The new authorization is consumed after its one invocation stopped with fixed `INVALID_RESPONSE` and counts
+  `1/1/0`; see `docs/SMOKE_EVIDENCE/TASK-014B9-PO-ONE-SHOT-DIRECTORY-ONLY-PUBLIC-YOUTUBE.md`. B9 remains
+  `BLOCKED / NOT QUALIFIED`; no retry, sample substitution, contract weakening, or release conclusion is authorized.
 - TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分

@@ -1687,3 +1687,28 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - At verification `main@05ceb22d27a7aaa59f90d06e9adf6d06fd2f826d`, post-anchor overlap is restricted to this handoff, `providers/subtitles.py`, and `test_subtitle_provider.py`. The later Provider change suppresses dependency output and adds fixed safe error categories; its test asserts silence. Independent review found no change to B11 state values, output gates, restricted key-name validation, safe diagnostics, or the two corrected fixture methods.
 - Current evidence: B11 focused tests, scanner regression tests, full pytest, `uv run mypy src`, Ruff, and `git diff --check` pass. The current repository scanner fails on 11 newer TASK-016 test-fixture findings; this is outside B11, is not hidden by an exemption, and receives no code change in this closeout.
 - Independent verdict: `APPROVE`; `P0=0`, implementation-critical `P1=0`, `P2=0`. TASK-014B11 is `INTEGRATED / CLOSED`; its historical branch remains retained evidence. This does not change TASK-014 `IN_PROGRESS / No-Go`, real-smoke, compatibility, release, or distribution conclusions.
+
+## TASK-014B9 Product-Owner One-Shot Qualification — 2026-08-30
+
+- Historical authorization `e975ff4…` remains consumed; its unmerged direct child `bd770ef…` remains the preserved
+  historical `CONTENT_UNAVAILABLE` result with counts `1/1/0`.
+- New PO authorization was recorded in `d75988a…` on the dedicated B9 worktree/branch. Reuse is `DIRECT` of the
+  integrated B4 directory-only entrypoint and existing locked dependencies; no product code, dependency, scanner, B11,
+  or TASK-016 change was made.
+- The separate authorization selected the same public candidate `eIho2S0ZahI` before execution, allowed one semantic
+  invocation, zero semantic retries, and no post-start substitution. The existing 30-second network-call timeout was
+  retained. yt-dlp may retain its documented bounded extractor transport retry behavior; that is not a second product
+  invocation.
+- The one invocation stopped fail-closed with `INVALID_RESPONSE` and counts `1/1/0`. The approved safe directory
+  diagnostics show only unknown mapping structure; no body was read. The controlled temporary root was inspected with
+  relative paths and moved to Trash; no repository file changed.
+- Result: `BLOCKED / NOT QUALIFIED`; the new authorization is consumed. Detailed safe evidence is
+  `docs/SMOKE_EVIDENCE/TASK-014B9-PO-ONE-SHOT-DIRECTORY-ONLY-PUBLIC-YOUTUBE.md`. No retry, sample substitution,
+  timeout escalation, contract weakening, or release conclusion is authorized.
+- Validation: focused subtitle/smoke `149 passed`, scanner regression `20 passed`, combined focused `169 passed`,
+  full pytest `1910 passed, 1 warning`, source mypy and Ruff passed, and `git diff --check` passed. Repository-wide
+  mypy remains non-regression evidence at `1019` errors / `44` files. Pre/post scanner exits remain `1` with only the
+  same 11 TASK-016 fixture findings and zero B9 findings.
+- Independent adversarial review: `APPROVE`; `P0=0`, implementation-critical `P1=0`, `P2=0`. Review confirmed that
+  the historical evidence was preserved, the new authorization was distinct and consumed exactly once, the B11
+  directory boundary stayed fail-closed, and neither TASK-014B11 nor TASK-016 was touched.

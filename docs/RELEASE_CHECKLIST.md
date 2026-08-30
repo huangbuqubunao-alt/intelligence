@@ -42,6 +42,13 @@
 | 四阶段真实 smoke | NOT AUTHORIZED by default | 必须逐阶段遵循 [授权矩阵](SMOKE_AUTHORIZATION_MATRIX.md)；无 PO 书面批准不执行。TASK-014B9 has one separately recorded, non-release, Stage-1 directory-only PO authorization; it permits exactly one invocation and does not authorize any other smoke phase. |
 | 真实 Vault、用户笔记和 launchd | NOT AUTHORIZED | 保持单独授权；不因其他 smoke 通过而隐含获批。 |
 
+### TASK-014B9 product-owner one-shot record — 2026-08-30
+
+- Historical authorization `e975ff4` and its failure evidence `bd770ef` remain consumed and preserved.
+- The distinct PO one-shot completed once at fresh baseline `d75988a` and stopped with safe
+  `INVALID_RESPONSE` at `metadata/enumerate/read=1/1/0`; it is not release approval.
+- The new authorization is consumed. B9 remains `BLOCKED / NOT QUALIFIED`; no retry or sample substitution is authorized.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |
