@@ -365,3 +365,29 @@
   preserved; TASK-016G was not implemented and is not authorized.
 - Recommendation: `BLOCKED` — request a Local reference-provider decision
   before any additional model/profile qualification. Push/tag: no.
+
+## Final bounded Local reference decision — 2026-08-30
+
+- Decision: `CURRENT LOCAL REFERENCE UNQUALIFIED`. Starting from historical
+  documentation commit `79535f6`, exactly one additional installed candidate
+  was selected: `qwen2.5-coder:7b`, exact digest
+  `sha256:dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`.
+  No model acquisition occurred.
+- Initial frozen qualification used Ollama `0.32.1`, loopback `/api/chat`,
+  `format=json`, non-streaming, `think=false`, temperature/seed `0`,
+  `num_ctx=8192`, `num_predict=1024`, 120-second timeout, retry count `0`, and
+  conservative 32,768-token pre-dispatch context authority. It passed 2/2
+  through the provider-neutral finalizer, including strict JSON, domain,
+  grounding, KG2, language and provenance.
+- One untrusted-only local adapter was then implemented and deterministic
+  mock-transport tested. Its first real adapter-path case failed finalization
+  as `SCHEMA_INVALID` (exact model echo; reported 979/175 input/output tokens).
+  The required real-adapter target was 2/2, so no retry, prompt modification,
+  repair, cloud call/fallback, or second Local candidate occurred.
+- Contract weakened: **NO**. Output repair: **NO**. Cloud substitution: **NO**.
+  TASK-016G: **NOT AUTHORIZED**. Local stays a future explicit offline/privacy
+  capability; the result does not claim Local impossibility.
+- Authorized roadmap correction: product-owner acceptance before TASK-016G now
+  requires real **qualified-provider** output. Current eligible route is
+  OpenAI `CLOUD_USER_KEY` after live qualification 2/2 and explicit consent.
+  Live OpenAI remains `PENDING / CREDENTIAL BLOCKED`; no credential was used.

@@ -312,3 +312,24 @@ with a new ordered implementation plan.
   artifact was fabricated. `TECHNICAL LOCAL ACCEPTANCE PIPELINE: BLOCKED`;
   `PRODUCT-OWNER ACCEPTANCE: NOT YET POSSIBLE`; `TASK-016G: NOT AUTHORIZED`.
 - OpenAI live qualification remains `PENDING / CREDENTIAL BLOCKED`.
+
+## 2026-08-30 final bounded Local reference decision
+
+- The one additional installed candidate, exact `qwen2.5-coder:7b`
+  `sha256:dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`,
+  passed the frozen initial local model qualification 2/2 without output repair,
+  semantic retry, cloud use, or contract change.
+- Its one real LOCAL Ollama adapter then failed the first required real-adapter
+  qualification case at application finalization with `SCHEMA_INVALID`. Because
+  real adapter qualification requires 2/2, no second semantic attempt or other
+  model was sent. `LOCAL REFERENCE: CURRENTLY UNQUALIFIED` is deliberately
+  bounded to this contract/profile effort, not a claim of Local impossibility.
+- The mandatory acceptance gate is amended narrowly: before TASK-016G,
+  product-owner acceptance requires **real qualified-provider output**, rather
+  than Local-only output. Local remains supported as a future explicit
+  offline/privacy capability pending a later qualification; it is never a
+  cloud fallback. The current eligible reference route is OpenAI
+  `CLOUD_USER_KEY` after live qualification 2/2 and explicit user consent.
+- OpenAI live qualification is `PENDING / CREDENTIAL BLOCKED`; no live cloud
+  call or credential operation occurred. TASK-016B/C/D/E/F semantics remain
+  unchanged and TASK-016G remains unauthorized.
