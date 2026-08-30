@@ -1,7 +1,10 @@
 # TASK-016 Kimi Live Reference Provider Qualification
 
-Status: `BLOCKED` — `1/2` representative live cases passed. No production Kimi
-adapter is authorized or implemented.
+Status: `IMPLEMENTED / LIVE UNQUALIFIED` — the raw R2 profile passed `2/2`,
+but the production adapter passed only `1/2` and its second case was
+`SCHEMA_INVALID`. R1 remains historical `1/2` evidence (30-second transport
+timeout); it is not the current profile result. The adapter is not a runtime
+default or fallback-eligible provider.
 
 ## Approved runtime credential gate
 
@@ -9,7 +12,7 @@ adapter is authorized or implemented.
 It was used only in the provider-call process and was not written to source,
 tests, fixtures, logs, identities, provenance, database state, or this record.
 
-## Current official API profile discovery
+## R1 official API profile discovery (historical)
 
 Moonshot documents an OpenAI-compatible Chat Completions API callable through
 the existing OpenAI Python SDK configured with `base_url`. The English global

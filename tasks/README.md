@@ -124,10 +124,13 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | [TASK-014B0](TASK-014B0-restricted-public-subtitle-smoke-entry.md) | 受限公开字幕 smoke 组合入口 | 已整合并 closure；merge `e50b211…` | DONE | 014；ADR-013 |
 | [TASK-014B2](TASK-014B2-console-entry.md) | 正式 console entry | 已整合并 closure；merge `99a22d…`；仅既有 CLI 入口的离线打包暴露 | DONE | 014；ADR-014 |
 | [TASK-015](TASK-015-runtime-composition.md) | 正式 Runtime Composition 与 Local-First Smoke | merge `451766f…`；Maintainer APPROVE，675 tests | DONE | 013；ADR-022 |
-| [TASK-016](TASK-016-intelligence-output.md) | Local / Hybrid / Cloud Intelligence 与中文知识输出 | Codex Orchestrator；Local-only 第一里程碑 | IN_PROGRESS | 015；ADR-023 |
+| [TASK-016](TASK-016-intelligence-output.md) | Local / Hybrid / Cloud Intelligence 与中文知识输出 | 实现至 016F 已完成；live provider / product-owner acceptance gate 仍开放 | IN_PROGRESS | 015；ADR-023、ADR-027 |
 | [TASK-016A](TASK-016A-intelligence-contract-foundation.md) | Intelligence Mode、配置与 Knowledge V2 契约基础 | merge `945dade…`；contracts `87`、full pytest `687`、mypy、Ruff、CLI help、offline build、安全扫描与 Diff checks 通过 | DONE | 015；ADR-023 |
-| [TASK-016B](TASK-016B-scoring-output-language.md) | 本地评分输出语言契约 | Codex Implementer；等待独立 Reviewer | IN_PROGRESS | 016A；ADR-023 |
-| [TASK-016C](TASK-016C-content-quality-layer.md) | Content Quality Layer | Phase D/E/F `APPROVED`；F accepted source 已以用户授权的线性 content-equivalent commits `61bb0bb… -> d059bea… -> 2f6e30b…` 整合。G=`READY / AUTHORIZED / IMPLEMENTATION NOT STARTED`：pre-write/persistence/cutover，须以 sealed F→G evidence continuation，禁止 caller DTO 补信任；H=repair/recovery，I=cache hardening/release，均未授权 | IN_PROGRESS | 016B；ADR-025、ADR-026 |
+| [TASK-016B](TASK-016B-scoring-output-language.md) | 本地评分输出语言契约 | CLOSED | DONE | 016A；ADR-023 |
+| [TASK-016C](TASK-016C-content-quality-layer.md) | Content Quality Layer | CLOSED；冻结语义保持不变 | DONE | 016B；ADR-025、ADR-026 |
+| TASK-016D | Deep Analysis persistence/cache provenance | COMPLETE；冻结语义保持不变 | DONE | 016C |
+| TASK-016E | Note V2 | COMPLETE；冻结语义保持不变 | DONE | 016D |
+| TASK-016F | Weekly V2 / Verified Note handoff | COMPLETE；冻结语义保持不变 | DONE | 016E |
 
 ## 主控分配模板
 
