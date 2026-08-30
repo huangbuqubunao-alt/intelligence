@@ -75,7 +75,7 @@ Adapters: SQLite, filesystem, RSS/yt-dlp, MLX Whisper, Ollama, OpenAI, Obsidian
 | Knowledge Sink | 安全、原子、幂等写入笔记 | 修改 Vault 其他内容 |
 | Weekly Reporter | 读取已完成记录并渲染周报 | 重新分析视频 |
 
-Weekly Reporter 按 ADR-010 直接使用 reports upsert 与 Knowledge Sink，不创建 `video_id=None` 的 Pipeline Job；CLI 按 ADR-011 只编排已冻结服务，`weekly` 在周报服务整合后接入。
+Weekly Reporter 按 ADR-010 直接使用 reports upsert 与 Knowledge Sink，不创建 `video_id=None` 的 Pipeline Job；CLI 按 ADR-011 只编排已冻结服务，`weekly` 在周报服务整合后接入。TASK-016 Weekly V2 不把 `NoteV2` 当作 authority：它只接受在 Note construction boundary 由 authoritative Deep Analysis、completed video metadata 与 verified scoring read 共同生成的 `VerifiedNoteV2Artifact`，再做纯确定性聚合。
 
 ## 5. Provider 契约
 

@@ -270,3 +270,17 @@ with a new ordered implementation plan.
 - No Note V2 persistence, migration, V1 path reroute, provider call, credential
   work, or Weekly V2 logic was added. OpenAI live remains `PENDING / CREDENTIAL
   BLOCKED`.
+
+## 2026-08-30 TASK-016E/F verified Note handoff and Weekly V2
+
+- `NoteV2` remains deterministic presentation and is not weekly authority.
+  TASK-016F consumes only a process-admitted `VerifiedNoteV2Artifact`, whose
+  identity binds the frozen Note identity to authoritative `completed_at`,
+  `ScoreResult.score` lineage and rendered source/video metadata.
+- Weekly V2 preserves ADR-010's configured-timezone ISO `[start,end)` window
+  and `score DESC, video_id ASC` Top-N ordering, operates without raw
+  repository/Deep Analysis reads after admission, and performs no provider or
+  LLM operation. The process-local admission receipt is not persisted.
+- The contract correction is documented in
+  `docs/TASK-016EF-VERIFIED-NOTE-ARTIFACT-CONTRACT-AMENDMENT.md`; it does not
+  reopen TASK-016E Note schema/identity semantics or add a migration.

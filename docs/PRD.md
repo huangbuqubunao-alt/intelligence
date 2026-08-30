@@ -294,7 +294,8 @@ uv、依赖白名单和锁文件方向已在 `TASK-000` 批准；实际安装、
 - Hybrid 为推荐模式，但新安装与升级不得自动启用外发或付费调用。
 - 所有用户可见 AI 叙述遵守 `general.output_language`；默认 `zh-CN`。
 - Local/Cloud 共享 Knowledge V2；无可靠机会时明确表达不足，禁止为了填字段而幻觉。
-- Weekly V2 使用已验证 Structured Knowledge 做跨视频综合，不默认发送全文 Transcript。
+- Weekly V2 使用 `VerifiedNoteV2Artifact` 中已验证 Structured Knowledge 和
+  artifact-bound metadata 做跨视频综合；普通 `NoteV2` 不是 authority，且不默认发送全文 Transcript。
 - Historical Local-only-first sequencing is superseded globally for Deep
   Analysis by the provider-neutral P0--P7 gate in ADR-027 / TASK-016
   Correction R1; no provider implementation is thereby authorized.

@@ -47,3 +47,12 @@ helpers. No dependency, migration, provider adapter, credential code, network
 call, V1 persistence wiring, or Weekly V2 logic was added.
 
 OpenAI live qualification remains `PENDING / CREDENTIAL BLOCKED`.
+
+## Verified aggregation handoff amendment
+
+TASK-016E additionally exposes the separately admitted
+`VerifiedNoteV2Artifact` handoff for TASK-016F. This is a boundary bridge, not
+a change to `NoteV2`: the Note schema, deterministic render and semantic DACS-1
+identity remain frozen, and `NoteV2` remains `NOT AUTHORITY`. The wrapper binds
+weekly-only authoritative metadata outside Note semantics; see
+`TASK-016EF-VERIFIED-NOTE-ARTIFACT-CONTRACT-AMENDMENT.md`.

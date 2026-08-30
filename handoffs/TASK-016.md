@@ -45,6 +45,19 @@
 - Live status: `PENDING / CREDENTIAL BLOCKED`; no provider call or credential
   operation occurred. Review evidence is `docs/TASK-016E-NOTE-V2-CLOSED-LOOP-REVIEW.md`.
 
+## TASK-016E/F verified Note weekly handoff addendum
+
+- Contract correction: `NoteV2` remains deterministic presentation and `NOT
+  AUTHORITY`; `VerifiedNoteV2Artifact` is the authoritative process-admitted
+  weekly handoff. Its DACS-1 identity binds Note identity, completed timestamp,
+  existing verified `ScoreResult.score`/lineage, video/source metadata, and
+  Deep Analysis provenance without changing Note identity.
+- Weekly V2 consumes only admitted artifacts, preserving existing `completed_at`
+  ISO-week membership and `score DESC, video_id ASC` ranking. It does not query
+  raw repository rows, Deep Analysis, transcripts, or providers.
+- No Note persistence or migration is introduced; the admission sidecar is not
+  persisted. Contract: `docs/TASK-016EF-VERIFIED-NOTE-ARTIFACT-CONTRACT-AMENDMENT.md`.
+
 ## 目标与范围
 
 - 任务目标：按用户固定顺序和固定门禁机械执行本地模型资格测试；随后仅作 Local + Optional Cloud Provider architecture/trust review 和 provider-neutral contract amendment；不实现。
