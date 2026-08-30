@@ -58,6 +58,13 @@
 - Directory-only, B11, fail-closed, safe-evidence, and validation requirements are unchanged. The one package
   remains `IN PROGRESS` until its frozen sample has exactly one recorded result.
 
+### TASK-014B9 ADR-022 selection disposition — 2026-08-31
+
+- The one permitted metadata-only discovery identified only the retired historical B9 sample. No eligible
+  replacement was frozen, no B9 qualification was called, and B9 remains `BLOCKED / NOT QUALIFIED`.
+- This result does not authorize another discovery, fallback, sample substitution, or smoke call. A future
+  qualification requires a new explicit PO/TL package naming its candidate before execution.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

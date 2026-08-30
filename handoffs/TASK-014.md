@@ -1714,3 +1714,12 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   escalation, source fix/live-rerun, or authority for a future package.
 - B11 directory safety, fail-closed result handling, scanner policy, evidence secrecy, B9 pass criteria, and
   TASK-016 remain unchanged. See `docs/decisions/ADR-022-task-014b9-replacement-sample-one-shot.md`.
+
+## TASK-014B9 ADR-022 Replacement Selection Disposition — 2026-08-31
+
+- The sole authorized metadata-only discovery returned the retired historical B9 ID. It was not selected;
+  no other discovery, existing failed candidate, fallback, or qualification command was used.
+- No eligible replacement package was frozen, so no B9 invocation occurred (`metadata/enumerate/read=0/0/0`).
+  The current PO/TL package cannot proceed further without violating the one-operation/no-iteration contract.
+- B9 returns to `BLOCKED / NOT QUALIFIED`. The next possible live path requires a fresh explicit PO/TL package
+  with a pre-frozen eligible replacement sample. B11 and TASK-016 remain unchanged.

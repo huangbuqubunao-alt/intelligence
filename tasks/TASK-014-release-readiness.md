@@ -123,6 +123,9 @@
   separately committed package for one fixed replacement public sample. It does not authorize automatic
   replacement, fallback, iteration, retries, timeout escalation, changed directory-only criteria, or any
   other future package. See `docs/decisions/ADR-022-task-014b9-replacement-sample-one-shot.md`.
+- The one permitted ADR-022 metadata-only discovery returned only the retired historical B9 ID; no eligible
+  replacement was frozen and no B9 qualification was invoked. B9 remains `BLOCKED / NOT QUALIFIED`. See
+  `docs/SMOKE_EVIDENCE/TASK-014B9-ADR022-REPLACEMENT-SELECTION-DISPOSITION.md`.
 - TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
