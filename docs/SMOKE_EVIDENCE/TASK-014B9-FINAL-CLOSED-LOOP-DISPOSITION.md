@@ -20,6 +20,10 @@
   change occurred.
 - Security non-regression: the repository scan remains the known 11 TASK-016 fixture findings only; this
   documentation-only disposition adds no B9 finding and does not change scanner policy, allowlists, or tests.
+- Deterministic validation: B9/safe-directory/provider focused tests `149 passed`; scanner regression tests
+  `20 passed`; full pytest `1910 passed, 1 warning`; `uv run mypy src` passed for 40 source files; Ruff and
+  `git diff --check` passed. Repository-wide mypy remains non-regression evidence at `1019` errors in `44`
+  files (108 checked).
 - Result: `TASK-014B9` remains `BLOCKED / NOT QUALIFIED`. A future live qualification requires a new formal
   B9 contract/authorization package that fixes one eligible replacement sample and its bounded execution
   conditions before any invocation. This result is not release approval.
