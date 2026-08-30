@@ -336,3 +336,32 @@
   row, so their lifetime is coupled; §11 supplies no separate TTL to invent.
   OpenAI live remains `PENDING / CREDENTIAL BLOCKED`; `OPENAI LIVE
   QUALIFICATION 2/2` is required before real-cloud release/smoke.
+
+## Local-only product-owner acceptance preflight — 2026-08-30
+
+- Starting baseline: `main@8111cdd50aa7b981a15db5b362dbc5b288a9ef72`, clean.
+  Reuse decision: `DIRECT` — existing installed Ollama `0.32.1`, the frozen
+  provider-neutral contracts, and application-owned `KnowledgeContent`
+  validation; no dependency, lockfile, schema, provider adapter, or credential
+  change.
+- Existing qualified Local adapter: **NO**. Adapter implemented: **NO**. The
+  preflight stopped before implementation because no candidate qualified;
+  adding an adapter could not truthfully create Local acceptance evidence.
+- Attempted installed candidates: `qwen3.5:4b`
+  `sha256:2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd`
+  failed strict whole-document JSON under actual Ollama JSON mode;
+  `qwen2.5:7b`
+  `sha256:845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e`
+  produced strict JSON but failed the frozen `why_it_matters.kind=inference`
+  domain invariant. The latter used a materially distinct JSON-mode profile
+  from its historical raw/no-format rejection. No repair, prompt tuning,
+  quality retry, cloud request, credential, fallback, or acquisition occurred.
+- Qualification result: **BLOCKED**; case 1: FAIL; case 2: FAIL. The Local
+  context-authority/adapter/finalizer gate remains unqualified, so real Local
+  inference did not enter the app's trust pipeline. No real product acceptance
+  input was available or used; no Note/Weekly acceptance artifact exists.
+- Evidence: `docs/TASK-016-LOCAL-REFERENCE-QUALIFICATION-2026-08-30.md`.
+  OpenAI live remains `PENDING / CREDENTIAL BLOCKED`; TASK-016B/C/D/E/F remain
+  preserved; TASK-016G was not implemented and is not authorized.
+- Recommendation: `BLOCKED` — request a Local reference-provider decision
+  before any additional model/profile qualification. Push/tag: no.

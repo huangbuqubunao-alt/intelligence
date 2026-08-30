@@ -294,3 +294,21 @@ with a new ordered implementation plan.
   implementation-critical P1 `0`; evidence is
   `docs/TASK-016F-WEEKLY-V2-CLOSED-LOOP-REVIEW.md`. No migration, provider
   work, credential work, or TASK-016B/C/D semantic change occurred.
+
+## 2026-08-30 Local-only product-owner acceptance preflight
+
+- The Local-only real-output gate is **BLOCKED**. The bounded current-machine
+  qualification record is
+  `docs/TASK-016-LOCAL-REFERENCE-QUALIFICATION-2026-08-30.md`.
+- No qualified Local provider/model/adapter exists. Installed `qwen3.5:4b`
+  was rejected for strict whole-document JSON failure under actual Ollama JSON
+  mode. The exact historical `qwen2.5:7b` digest was separately considered
+  only under a materially distinct JSON-mode profile and rejected for a frozen
+  `KnowledgeContent` domain-kind violation. No output repair, prompt tuning,
+  retry-until-valid behavior, cloud call, fallback, or model acquisition was
+  used.
+- Consequently no real Local `TrustedDeepAnalysisSuccess`, 016D verified read,
+  Note V2, `VerifiedNoteV2Artifact`, Weekly V2, or product-owner acceptance
+  artifact was fabricated. `TECHNICAL LOCAL ACCEPTANCE PIPELINE: BLOCKED`;
+  `PRODUCT-OWNER ACCEPTANCE: NOT YET POSSIBLE`; `TASK-016G: NOT AUTHORIZED`.
+- OpenAI live qualification remains `PENDING / CREDENTIAL BLOCKED`.
