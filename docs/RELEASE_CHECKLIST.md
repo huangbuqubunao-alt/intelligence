@@ -50,6 +50,14 @@
   candidate and forbids replacement expansion, so another candidate requires a new formal B9 contract and
   authorization package before execution. B9 remains `BLOCKED / NOT QUALIFIED` and is not release approval.
 
+### TASK-014B9 ADR-022 replacement amendment — 2026-08-30
+
+- ADR-022 preserves both consumed attempts and permits only this PO/TL-authorized, separately committed
+  package for one fixed replacement sample. Selection is not qualification; no automatic replacement,
+  fallback, iteration, retry, substitution, timeout escalation, or release conclusion is authorized.
+- Directory-only, B11, fail-closed, safe-evidence, and validation requirements are unchanged. The one package
+  remains `IN PROGRESS` until its frozen sample has exactly one recorded result.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

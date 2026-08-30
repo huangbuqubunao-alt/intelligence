@@ -118,6 +118,11 @@
   no replacement-candidate package exists. B9 is `BLOCKED / NOT QUALIFIED`; a future replacement requires a
   new formal B9 contract/authorization package. See
   `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-CLOSED-LOOP-DISPOSITION.md`.
+- ADR-022 is the minimum PO/TL amendment for this B9 recovery: it preserves both historical attempts, retires
+  their fixed sample only from current qualification use, and permits this PO/TL message to create one new
+  separately committed package for one fixed replacement public sample. It does not authorize automatic
+  replacement, fallback, iteration, retries, timeout escalation, changed directory-only criteria, or any
+  other future package. See `docs/decisions/ADR-022-task-014b9-replacement-sample-one-shot.md`.
 - TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分

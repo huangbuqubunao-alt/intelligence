@@ -1702,3 +1702,15 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - B9 remains `BLOCKED / NOT QUALIFIED`; B11 remains `INTEGRATED / CLOSED`; TASK-016 is unchanged. No scanner
   policy, safe-directory behavior, source, dependency, or release conclusion changed. Details are in
   `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-CLOSED-LOOP-DISPOSITION.md`.
+
+## TASK-014B9 ADR-022 Replacement-Sample Amendment — 2026-08-30
+
+- ADR-022 is the PO/TL-authorized minimum amendment after the preserved `CONTENT_UNAVAILABLE` and
+  `INVALID_RESPONSE` B9 one-shots. It retires `eIho2S0ZahI` only from current qualification use; the historical
+  authorizations, attempts, counts, and evidence remain consumed and permanent.
+- This PO/TL message may create one separately committed package for one replacement public sample and one
+  directory-only invocation. Selection is metadata-only and may not be hidden qualification. There is no
+  automatic replacement, candidate iteration, fallback, semantic retry, post-start substitution, timeout
+  escalation, source fix/live-rerun, or authority for a future package.
+- B11 directory safety, fail-closed result handling, scanner policy, evidence secrecy, B9 pass criteria, and
+  TASK-016 remain unchanged. See `docs/decisions/ADR-022-task-014b9-replacement-sample-one-shot.md`.
