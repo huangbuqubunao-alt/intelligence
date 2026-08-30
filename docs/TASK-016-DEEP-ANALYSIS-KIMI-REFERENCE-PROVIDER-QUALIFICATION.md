@@ -111,3 +111,35 @@ not authorized.
 
 Contract evidence: [provider-neutral amendment, §§5 and 8–10](TASK-016-DEEP-ANALYSIS-PROVIDER-NEUTRAL-CONTRACT-AMENDMENT.md)
 and [ADR-027](decisions/ADR-027-provider-neutral-deep-analysis-contract.md).
+
+## R2 fresh qualification result
+
+Fresh R2 qualification began at `0/2`; neither R1 case was reused. Both
+independent representative calls passed the full untrusted-response finalizer
+chain, including strict whole-document JSON, schema, domain, grounding, KG2,
+language, provenance, and runtime-owned trusted-success verification.
+
+`R2 RAW QUALIFICATION: 2/2 PASS`.
+
+## Production-adapter qualification result
+
+The thin `KimiDeepAnalysisProviderAdapter` was implemented only after raw R2
+passed. Its deterministic no-network boundary suite passes, including R2 profile
+mapping, selected-evidence-only request projection, timeout/retry binding,
+credential sentinel non-leakage, envelope normalization, malformed envelope,
+model mismatch, usage/request-ID observationality, error mapping, no repair,
+and no trust mint.
+
+Fresh real qualification through that exact adapter is **not qualified**:
+
+| Adapter case | Result |
+| --- | --- |
+| 1 | `PASS`: actual adapter response → finalizer → verified trusted success |
+| 2 | `FAIL`: `SCHEMA_INVALID` at `SCHEMA` |
+
+Adapter Case 2 was one new Kimi request under R2. Its actual provider payload
+failed application schema validation; it was neither repaired nor retried. The
+successful raw R2 Case 2 is not substituted for this adapter-path failure.
+Accordingly `REAL KIMI ADAPTER QUALIFICATION: 1/2`, and no real product
+acceptance pipeline, 016D persistence run, Note V2, Weekly V2, or acceptance
+artifact is authorized.

@@ -417,3 +417,20 @@
   fallback, repair, or TASK-016G code was created. OpenAI and TASK-016B/C/D/E/F
   semantics are unchanged. Evidence:
   `docs/TASK-016-DEEP-ANALYSIS-KIMI-REFERENCE-PROVIDER-QUALIFICATION.md`.
+
+## Kimi R2 timeout correction and adapter gate — 2026-08-30
+
+- Contract review found bounded transport normative but no global 30-second
+  constant. Timeout is an envelope timeout-profile identity, not a direct A3
+  field; the material R2 qualification identity is A3-bound, so A3 changes
+  while A1/A2 request semantics remain unchanged. Cache is already ineligible
+  for the floating Kimi alias.
+- One R2 correction was frozen at 120 seconds, 0 SDK retries, and 0 semantic
+  retries. Raw qualification restarted at 0/2 and passed fresh cases 1/2 and
+  2/2 through the existing finalizer. R1 remains unchanged at 1/2.
+- Implementation commit `ba6df27565313e64f7821761b1e07bc836295073` adds the
+  one untrusted Kimi Chat Completions adapter plus deterministic boundary tests;
+  OpenAI and Local files are untouched. Production-adapter live case 1 passed,
+  but independent live case 2 failed `SCHEMA_INVALID` at `SCHEMA`. The payload
+  was not repaired or retried; no second timeout escalation or fallback was
+  attempted. Adapter qualification is 1/2 and product acceptance is blocked.

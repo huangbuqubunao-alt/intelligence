@@ -345,3 +345,15 @@ with a new ordered implementation plan.
   result. `MOONSHOT_API_KEY` was available ephemerally and was not persisted.
   The exact safe evidence is in
   `docs/TASK-016-DEEP-ANALYSIS-KIMI-REFERENCE-PROVIDER-QUALIFICATION.md`.
+
+## 2026-08-30 Kimi R2 timeout decision and adapter qualification
+
+- The provider-neutral contract requires bounded transport, not a global
+  30-second value. R2 froze a one-time 120-second Kimi profile with all request
+  semantics unchanged. Raw R2 qualification restarted at `0/2` and passed
+  `2/2`; historical R1 remains `1/2` with a transport timeout.
+- The only production Kimi adapter then passed live case 1 but failed live case
+  2 at application `SCHEMA_INVALID`. No repair, semantic retry, timeout
+  escalation, fallback, or product acceptance pipeline occurred. Kimi’s real
+  adapter profile is therefore not qualified (`1/2`); TASK-016G remains
+  unauthorized.
