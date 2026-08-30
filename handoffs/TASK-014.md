@@ -1687,3 +1687,18 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - At verification `main@05ceb22d27a7aaa59f90d06e9adf6d06fd2f826d`, post-anchor overlap is restricted to this handoff, `providers/subtitles.py`, and `test_subtitle_provider.py`. The later Provider change suppresses dependency output and adds fixed safe error categories; its test asserts silence. Independent review found no change to B11 state values, output gates, restricted key-name validation, safe diagnostics, or the two corrected fixture methods.
 - Current evidence: B11 focused tests, scanner regression tests, full pytest, `uv run mypy src`, Ruff, and `git diff --check` pass. The current repository scanner fails on 11 newer TASK-016 test-fixture findings; this is outside B11, is not hidden by an exemption, and receives no code change in this closeout.
 - Independent verdict: `APPROVE`; `P0=0`, implementation-critical `P1=0`, `P2=0`. TASK-014B11 is `INTEGRATED / CLOSED`; its historical branch remains retained evidence. This does not change TASK-014 `IN_PROGRESS / No-Go`, real-smoke, compatibility, release, or distribution conclusions.
+
+## TASK-014B9 Final Closed-Loop Disposition — 2026-08-30
+
+- Historical authorization `e975ff4…` and evidence `bd770ef…` remain consumed and preserved with
+  `CONTENT_UNAVAILABLE` at `1/1/0`. The distinct PO one-shot on
+  `codex/task-014b9-po-one-shot-qualification@d75988a..e5642fc` remains consumed and preserved with
+  fail-closed `INVALID_RESPONSE` at `1/1/0`; neither record is rewritten or replayed.
+- Existing evidence does not prove a product defect, a permanently unsuitable sample, or material upstream change;
+  ownership is `EVIDENCE_INSUFFICIENT`. A third execution of the fixed sample is `NOT_JUSTIFIED` and was not made.
+- The current B9 package fixes one candidate and expressly forbids expansion, replacement, and reordering. With no
+  committed replacement inventory or formal replacement package, this final PO disposition made zero live calls and
+  concludes `CONTRACT_AMENDMENT_REQUIRED` before any future candidate qualification.
+- B9 remains `BLOCKED / NOT QUALIFIED`; B11 remains `INTEGRATED / CLOSED`; TASK-016 is unchanged. No scanner
+  policy, safe-directory behavior, source, dependency, or release conclusion changed. Details are in
+  `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-CLOSED-LOOP-DISPOSITION.md`.

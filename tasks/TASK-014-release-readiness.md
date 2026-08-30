@@ -104,7 +104,7 @@
   离线 lock/sync/lock、绝对 launcher、临时 parent/non-existent `smoke-root`、安全证据和停止规则以正式包为准。证据只可记录安全
   stdout 摘要、B6/B7 固定分类，以及仅在 ADR-019 全部条件同时成立时的受限键名数组；任一结果都保持 TASK-014
   `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
-- 产品负责人现授权 TASK-014B9「替代公开样本 directory-only 资格验证」的一次单视频执行。候选 `eIho2S0ZahI` 的公开 TED
+- Historical (consumed) TASK-014B9 authorization: the product owner authorized one replacement public-sample directory-only invocation. The candidate `eIho2S0ZahI` public TED
   官方频道线索仅来自 agent-reach/yt-dlp 的只读字幕目录枚举，未下载正文；其工具版本可能不同于项目锁定的 yt-dlp，绝不构成项目通过
   证据。唯一 source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
   `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4f343442e69bb88e09e36bffc7996341cf`，必须保持干净；正式包为
@@ -112,6 +112,12 @@
   一次执行已整合的 `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`；离线 lock/sync/lock、绝对
   launcher、临时 parent/non-existent `smoke-root`、安全证据和停止规则以正式包为准。任一结果都保持 TASK-014
   `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
+- A distinct PO one-shot was subsequently consumed at `d75988a..e5642fc`: its only invocation stopped
+  fail-closed with `INVALID_RESPONSE` and counts `1/1/0`. The final closed-loop review at `947c407` made
+  zero live calls: the committed B9 contract fixes the sole candidate and forbids candidate expansion, while
+  no replacement-candidate package exists. B9 is `BLOCKED / NOT QUALIFIED`; a future replacement requires a
+  new formal B9 contract/authorization package. See
+  `docs/SMOKE_EVIDENCE/TASK-014B9-FINAL-CLOSED-LOOP-DISPOSITION.md`.
 - TASK-014B9 未合并 failure evidence `bd770ef9…` 记录替代样本同样在 metadata/enumerate 后、正文读取前以
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
