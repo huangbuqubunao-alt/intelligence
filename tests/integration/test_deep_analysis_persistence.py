@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from youtube_intel.domain import (
     ScoringDecision,
     ScoringOutcome,
 )
+from youtube_intel.note_v2 import NoteV2Error, build_note_v2, render_note_v2
 from youtube_intel.openai_deep_analysis import (
     OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE,
     OpenAIDeepAnalysisProviderAdapter,
@@ -49,72 +51,110 @@ def _trusted_success() -> TrustedDeepAnalysisSuccess:
     read = VerifiedScoringRead(
         scoring_outcome=ScoringOutcome(
             result=ScoreResult(
-                schema_version="score-result-v2", score=8.0,
+                schema_version="score-result-v2",
+                score=8.0,
                 reason="This result contains a concrete useful explanation of the score.",
-                topics=("workflow",), should_summarize=True,
-                provider="scoring-provider", model="scoring-model",
-                prompt_version="scoring-prompt-v2", request_hash="a" * 64,
+                topics=("workflow",),
+                should_summarize=True,
+                provider="scoring-provider",
+                model="scoring-model",
+                prompt_version="scoring-prompt-v2",
+                request_hash="a" * 64,
                 output_language="en",
             ),
             decision=ScoringDecision(
                 threshold=7.0, final_should_summarize=True, model_disagrees=False
             ),
             call=ProviderCallMetadata(
-                provider="scoring-provider", model="scoring-model",
-                started_at=NOW, finished_at=NOW,
+                provider="scoring-provider",
+                model="scoring-model",
+                started_at=NOW,
+                finished_at=NOW,
             ),
         ),
-        video_id="video-1", scoring_job_id="job-1", scoring_success_provenance="PRIMARY",
+        video_id="video-1",
+        scoring_job_id="job-1",
+        scoring_success_provenance="PRIMARY",
     )
     canonical = CanonicalDeepAnalysisInputV1.from_verified_scoring_read(
         verified_scoring_read=read,
-        schema_version="canonical-deep-analysis-input-v1", operation="deep-analysis",
-        input_schema_version="input-v1", video_identity="video-1",
-        transcript_identity="transcript-1", transcript_language="en",
-        transcript_normalization_version="normalized-v1", evidence_registry_identity="registry-v1",
-        selected_evidence=({
-            "schema_version": "selected-evidence-projection-v1", "evidence_id": "e1",
-            "source": "description", "excerpt": "Selected evidence only.",
-        },),
-        selection_policy_identity="selection-v1", coverage_policy_identity="coverage-v1",
-        coverage_complete=False, output_language="en", knowledge_content_schema_version="knowledge-v1",
-        prompt_version="prompt-v1", operation_version="operation-v1",
+        schema_version="canonical-deep-analysis-input-v1",
+        operation="deep-analysis",
+        input_schema_version="input-v1",
+        video_identity="video-1",
+        transcript_identity="transcript-1",
+        transcript_language="en",
+        transcript_normalization_version="normalized-v1",
+        evidence_registry_identity="registry-v1",
+        selected_evidence=(
+            {
+                "schema_version": "selected-evidence-projection-v1",
+                "evidence_id": "e1",
+                "source": "description",
+                "excerpt": "Selected evidence only.",
+            },
+        ),
+        selection_policy_identity="selection-v1",
+        coverage_policy_identity="coverage-v1",
+        coverage_complete=False,
+        output_language="en",
+        knowledge_content_schema_version="knowledge-v1",
+        prompt_version="prompt-v1",
+        operation_version="operation-v1",
     )
     runtime = DeepAnalysisRuntime()
     admitted = runtime.admit_verified_scoring_read(
         verified_scoring_read=read, canonical_input=canonical
     )
     consent = PayloadConsentIdentityV1(
-        schema_version="payload-consent-identity-v1", consent_mode=PayloadConsentMode.CLOUD_EXPLICIT,
-        authorization_record_identity="openai-test-consent-v1", named_provider_id="openai",
+        schema_version="payload-consent-identity-v1",
+        consent_mode=PayloadConsentMode.CLOUD_EXPLICIT,
+        authorization_record_identity="openai-test-consent-v1",
+        named_provider_id="openai",
         provider_kind=OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE.provider_kind,
         payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
         allowed_model_constraint=OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE.model_id,
     )
     payload = runtime.authorize_payload(
         authoritative_input=admitted,
-        evidence_registry=EvidenceRegistry(items=(KnowledgeEvidence(
-            evidence_id="e1", source=EvidenceSource.DESCRIPTION,
-            excerpt="Selected evidence only.", source_content_hash="d" * 64,
-        ),)),
+        evidence_registry=EvidenceRegistry(
+            items=(
+                KnowledgeEvidence(
+                    evidence_id="e1",
+                    source=EvidenceSource.DESCRIPTION,
+                    excerpt="Selected evidence only.",
+                    source_content_hash="d" * 64,
+                ),
+            )
+        ),
         payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
-        payload_consent=consent, video_title="Title", channel_name="Channel",
-        published_at="2026-01-01T00:00:00Z", duration_seconds=42, source_language="en",
+        payload_consent=consent,
+        video_title="Title",
+        channel_name="Channel",
+        published_at="2026-01-01T00:00:00Z",
+        duration_seconds=42,
+        source_language="en",
         public_description="Selected evidence only.",
     )
     request = build_openai_reference_request_projection(
-        canonical_input=canonical, authorized_payload=payload.payload, payload_consent=consent
+        canonical_input=canonical,
+        authorized_payload=payload.payload,
+        payload_consent=consent,
     )
     execution = build_openai_reference_execution_profile(
         request_projection=request,
         credential_execution_profile=CredentialExecutionProfileIdentityV1(
-            schema_version="credential-execution-profile-v1", provider_id="openai",
+            schema_version="credential-execution-profile-v1",
+            provider_id="openai",
             execution_profile_identity="b" * 64,
         ),
     )
     prepared = runtime.prepare_dispatch(
-        authoritative_input=admitted, authorized_payload=payload, request_projection=request,
-        execution_profile=execution, payload_consent=consent,
+        authoritative_input=admitted,
+        authorized_payload=payload,
+        request_projection=request,
+        execution_profile=execution,
+        payload_consent=consent,
         context_budget_profile=build_openai_reference_context_budget(input_budget=1024),
         timeout_profile_identity=OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE.timeout_profile_identity,
         fallback_policy_identity="c" * 64,
@@ -122,17 +162,34 @@ def _trusted_success() -> TrustedDeepAnalysisSuccess:
     content = {
         "one_sentence_summary": "This result contains a concrete useful explanation of the score.",
         "summary_evidence_ids": ["e1"],
-        "why_it_matters": {"text": "This result contains a concrete useful explanation of the score.", "kind": "inference", "evidence_ids": ["e1"]},
-        "core_points": [{"text": "This result contains a concrete useful explanation of the score.", "kind": "fact", "evidence_ids": ["e1"]}],
+        "why_it_matters": {
+            "text": "This result contains a concrete useful explanation of the score.",
+            "kind": "inference",
+            "evidence_ids": ["e1"],
+        },
+        "core_points": [
+            {
+                "text": "This result contains a concrete useful explanation of the score.",
+                "kind": "fact",
+                "evidence_ids": ["e1"],
+            }
+        ],
         "knowledge_graph": {"topics": ["workflow"]},
     }
     response = OpenAIDeepAnalysisProviderAdapter(
-        transport=lambda *_args: {"kind": "response", "response": {
-            "id": "request-observational-only", "model": OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE.model_id,
-            "status": "completed", "output_text": __import__("json").dumps(content),
-        }}
+        transport=lambda *_args: {
+            "kind": "response",
+            "response": {
+                "id": "request-observational-only",
+                "model": OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE.model_id,
+                "status": "completed",
+                "output_text": __import__("json").dumps(content),
+            },
+        }
     ).dispatch(prepared_dispatch=prepared, credential="sk-task016-DO-NOT-PERSIST")
-    result = runtime.validation_finalizer().finalize(prepared_dispatch=prepared, response=response)
+    result = runtime.validation_finalizer().finalize(
+        prepared_dispatch=prepared, response=response
+    )
     assert result.success is not None
     assert verify_trusted_deep_analysis_success(result.success)
     return result.success
@@ -160,17 +217,98 @@ def test_runtime_verified_success_persists_and_reloads_by_exact_cache_identity(
     assert persisted.cache_identity is not None
 
     assert persisted.cache_identity == success.cache_identity
-    assert store.lookup_deep_analysis_cache(cache_identity=success.cache_identity) == persisted
+    assert (
+        store.lookup_deep_analysis_cache(cache_identity=success.cache_identity)
+        == persisted
+    )
     assert isinstance(persisted, VerifiedPersistedDeepAnalysisRead)
     assert not verify_trusted_deep_analysis_success(persisted)
 
 
-def test_forged_or_reconstructed_success_cannot_write_authoritative_row(tmp_path: Path) -> None:
+def test_persisted_verified_read_builds_deterministic_traceable_note_v2(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    success = _trusted_success()
+    persisted = DeepAnalysisPersistenceStore(
+        repository
+    ).persist_trusted_deep_analysis_success(success=success, now=NOW)
+
+    live_note = build_note_v2(success)
+    persisted_note = build_note_v2(persisted)
+
+    assert persisted_note == live_note
+    assert persisted_note.identity == live_note.identity
+    assert (
+        persisted_note.provenance.deep_analysis_result_identity
+        == persisted.result_identity
+    )
+    assert persisted_note.provenance.scoring_request_hash == "a" * 64
+    assert persisted_note.provenance.scoring_success_provenance == "PRIMARY"
+    assert tuple(item.evidence_id for item in persisted_note.evidence_references) == (
+        "e1",
+    )
+    rendered = render_note_v2(persisted_note)
+    assert "Selected evidence only." in rendered
+    assert "unselected full transcript" not in repr(persisted_note)
+    assert "unselected full transcript" not in rendered
+
+
+def test_note_v2_rejects_raw_or_reconstructed_persisted_read(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    persisted = DeepAnalysisPersistenceStore(
+        repository
+    ).persist_trusted_deep_analysis_success(success=_trusted_success(), now=NOW)
+
+    with pytest.raises(NoteV2Error, match="authoritative Deep Analysis"):
+        build_note_v2(
+            {"knowledge_content_json": persisted.content.model_dump(mode="json")}
+        )
+    with pytest.raises(NoteV2Error, match="persisted read is untrusted"):
+        build_note_v2(replace(persisted))
+
+
+def test_tampered_persisted_result_is_rejected_before_note_v2(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    store = DeepAnalysisPersistenceStore(repository)
+    persisted = store.persist_trusted_deep_analysis_success(
+        success=_trusted_success(), now=NOW
+    )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE deep_analysis_persisted_results SET knowledge_content_json = ?",
+            ("{}",),
+        )
+    finally:
+        connection.close()
+
+    assert (
+        store.read_persisted_deep_analysis_result(
+            result_identity=persisted.result_identity
+        )
+        is None
+    )
+    with pytest.raises(NoteV2Error, match="authoritative Deep Analysis"):
+        build_note_v2(None)
+
+
+def test_forged_or_reconstructed_success_cannot_write_authoritative_row(
+    tmp_path: Path,
+) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     real = _trusted_success()
     forged = object.__new__(type(real))
-    for name in ("_content_identity", "_cache_identity", "_provenance_identity", "_sealed"):
+    for name in (
+        "_content_identity",
+        "_cache_identity",
+        "_provenance_identity",
+        "_sealed",
+    ):
         object.__setattr__(forged, name, getattr(real, name))
 
     with pytest.raises(DeepAnalysisPersistenceError, match="runtime-verified"):
@@ -180,7 +318,12 @@ def test_forged_or_reconstructed_success_cannot_write_authoritative_row(tmp_path
 
     connection = repository._connect()
     try:
-        assert connection.execute("SELECT COUNT(*) FROM deep_analysis_persisted_results").fetchone()[0] == 0
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM deep_analysis_persisted_results"
+            ).fetchone()[0]
+            == 0
+        )
     finally:
         connection.close()
 
@@ -188,12 +331,24 @@ def test_forged_or_reconstructed_success_cannot_write_authoritative_row(tmp_path
 @pytest.mark.parametrize(
     "column",
     (
-        "a1_identity", "a2_identity", "a3_identity", "cache_identity", "knowledge_content_json",
-        "content_identity", "provenance_identity", "provider_id", "scoring_request_hash", "scoring_success_provenance",
-        "evidence_registry_identity", "validation_policy_identity", "payload_scope",
+        "a1_identity",
+        "a2_identity",
+        "a3_identity",
+        "cache_identity",
+        "knowledge_content_json",
+        "content_identity",
+        "provenance_identity",
+        "provider_id",
+        "scoring_request_hash",
+        "scoring_success_provenance",
+        "evidence_registry_identity",
+        "validation_policy_identity",
+        "payload_scope",
     ),
 )
-def test_tampered_row_is_never_returned_as_exact_cache_hit(tmp_path: Path, column: str) -> None:
+def test_tampered_row_is_never_returned_as_exact_cache_hit(
+    tmp_path: Path, column: str
+) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     success = _trusted_success()
@@ -209,30 +364,45 @@ def test_tampered_row_is_never_returned_as_exact_cache_hit(tmp_path: Path, colum
             value = "other-provider"
         elif column == "payload_scope":
             value = "FULL_TRANSCRIPT"
-        connection.execute(f"UPDATE deep_analysis_persisted_results SET {column} = ?", (value,))
+        connection.execute(
+            f"UPDATE deep_analysis_persisted_results SET {column} = ?", (value,)
+        )
     finally:
         connection.close()
 
-    assert store.lookup_deep_analysis_cache(cache_identity=persisted.cache_identity) is None
+    assert (
+        store.lookup_deep_analysis_cache(cache_identity=persisted.cache_identity)
+        is None
+    )
 
 
-def test_secret_and_unselected_transcript_are_absent_from_persisted_record(tmp_path: Path) -> None:
+def test_secret_and_unselected_transcript_are_absent_from_persisted_record(
+    tmp_path: Path,
+) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     success = _trusted_success()
-    DeepAnalysisPersistenceStore(repository).persist_trusted_deep_analysis_success(success=success, now=NOW)
+    DeepAnalysisPersistenceStore(repository).persist_trusted_deep_analysis_success(
+        success=success, now=NOW
+    )
     connection = repository._connect()
     try:
-        row = connection.execute("SELECT * FROM deep_analysis_persisted_results").fetchone()
+        row = connection.execute(
+            "SELECT * FROM deep_analysis_persisted_results"
+        ).fetchone()
         assert row is not None
-        serialized = " ".join(str(row[name]) for name in row.keys() if name != "structured_payload_bytes")
+        serialized = " ".join(
+            str(row[name]) for name in row.keys() if name != "structured_payload_bytes"
+        )
         assert "sk-task016-DO-NOT-PERSIST" not in serialized
         assert "unselected full transcript" not in serialized
     finally:
         connection.close()
 
 
-def test_cache_eligibility_must_match_the_persisted_model_identity_class(tmp_path: Path) -> None:
+def test_cache_eligibility_must_match_the_persisted_model_identity_class(
+    tmp_path: Path,
+) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     success = _trusted_success()
@@ -247,10 +417,17 @@ def test_cache_eligibility_must_match_the_persisted_model_identity_class(tmp_pat
     finally:
         connection.close()
 
-    assert store.read_persisted_deep_analysis_result(result_identity=persisted.result_identity) is None
+    assert (
+        store.read_persisted_deep_analysis_result(
+            result_identity=persisted.result_identity
+        )
+        is None
+    )
 
 
-def test_same_cache_identity_with_different_content_is_rejected_by_sqlite(tmp_path: Path) -> None:
+def test_same_cache_identity_with_different_content_is_rejected_by_sqlite(
+    tmp_path: Path,
+) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     success = _trusted_success()
