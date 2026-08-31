@@ -1777,3 +1777,15 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   prevents safe removal. Licensing remains blocked pending BPE rights/NOTICE
   and legal-owner identity; model weights, spaCy model assets, ffmpeg, Ollama,
   dependency wheels, and dev tools remain unbundled.
+
+## `o200k_base.tiktoken` Evidence Disposition — 2026-08-31
+
+- `O200K_BASE_REDISTRIBUTION_EVIDENCE.md` verifies the local resource against
+  the canonical OpenAI Blob and classifies the available authoritative evidence
+  as `C`: official OpenAI distribution/provenance is proven, but downstream
+  file-level redistribution and NOTICE rights are ambiguous. The MIT license
+  for the `tiktoken` repository is not extended to the separately hosted data.
+- The release blocker remains. No BPE file was removed and ADR-008 received no
+  fallback/network change. The document prepares—but does not authorize or
+  implement—a bounded operator-provisioning alternative for a later PO/TL
+  architecture decision.

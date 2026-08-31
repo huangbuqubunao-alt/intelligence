@@ -81,16 +81,17 @@ the compliance plan before the latter is published.
 
 - The current package **does** ship `o200k_base.tiktoken`; ADR-008 requires it
   for fail-closed local token accounting and prohibits runtime download.
-- Primary tiktoken source identifies the exact public-blob origin and matching
-  SHA-256, while the tiktoken repository has an MIT license. Neither source
-  explicitly states that the separate public-blob BPE data is covered by that
-  repository license or grants redistribution of the data file. The file-level
-  redistribution right is therefore **UNVERIFIED**.
+- The closed-loop rightsholder investigation is recorded in
+  [`O200K_BASE_REDISTRIBUTION_EVIDENCE.md`](O200K_BASE_REDISTRIBUTION_EVIDENCE.md).
+  It classifies the asset as **C — rightsholder distributed but downstream grant
+  ambiguous**: origin and hash are verified, but no explicit file-level
+  redistribution or NOTICE term was found.
 - Removing the file is not technically safe under the existing ADR-008
   no-download architecture: missing or invalid local data must fail closed.
   No runtime acquisition behavior is added. The BPE remains packaged and blocks
   even controlled artifact distribution until the rights/NOTICE conclusion is
-  supplied by the rightsholder or legal owner.
+  supplied by the rightsholder or legal owner. A prepared, unimplemented
+  ADR-008-compatible provisioning alternative is in the evidence record.
 - The current package does **not** ship MLX Whisper converted weights, Ollama
   model weights, ffmpeg, or an Ollama binary. Their recorded use is model/tool
   support, not current model redistribution.

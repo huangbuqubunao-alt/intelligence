@@ -6,9 +6,10 @@
   implementation through F is complete; the reference-provider live gate and
   product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
 - PO/TL has selected private/proprietary controlled source/wheel/sdist testing.
-  Root `NOTICE` and package metadata encode that posture, but BPE file-level
-  redistribution rights and legal-owner identity remain blockers; no actual
-  artifact distribution is authorized. See
+  Root `NOTICE` and package metadata encode that posture, but the BPE evidence
+  classification is `C` (rightsholder distribution, downstream grant ambiguous)
+  and legal-owner identity remains a blocker; no actual artifact distribution is
+  authorized. See
   [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is

@@ -38,7 +38,7 @@
 
 | 项目 | 已证实事实 | 发布门禁 |
 |---|---|---|
-| `o200k_base.tiktoken` | OpenAI tiktoken primary source references the official Blob URL and fixed SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`; current wheel/sdist include the file; ADR-008 prohibits fallback download. | tiktoken repository MIT evidence does not expressly extend to the separate Blob data. File-level redistribution/NOTICE right is unverified; no safe removal exists under current architecture; containing artifacts remain `BLOCKED`. |
+| `o200k_base.tiktoken` | Canonical Blob URL, SHA-256, local package identity, official source/sdist boundary, Blob metadata, and maintainer-discussion searches are recorded in `O200K_BASE_REDISTRIBUTION_EVIDENCE.md`. | Classification `C`: OpenAI distribution is established but downstream file-level redistribution/NOTICE right remains ambiguous. ADR-008 prevents safe removal; containing artifacts remain `BLOCKED`. |
 | MLX Community Whisper 转换模型 | ADR-007 固定 revision、大小和权重哈希；上游 OpenAI Whisper 资料为 MIT。 | 转换仓库 model card 缺少许可声明；不得推断转换产物许可或纳入任何发行物。 |
 | ffmpeg | ADR-007 记录 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 未获安装/调用/捆绑授权；不得捆绑或重新分发。 |
 | Ollama 与 `qwen3:8b` | ADR-007 记录 Ollama MIT、固定 qwen digest；上游 Qwen3-8B 为 Apache-2.0。 | 程序版本、模型拉取、本机服务与模型分发均待单独供应链/授权审查。 |

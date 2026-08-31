@@ -60,8 +60,9 @@
 - **Decision maker**: PO + TL
 - **Risk**: The `o200k_base.tiktoken` resource is pinned at SHA-256
   `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`.
-  The primary tiktoken source identifies the Blob origin, but no evidence
-  expressly licenses redistribution of that separate data file or supplies its
+  `O200K_BASE_REDISTRIBUTION_EVIDENCE.md` verifies the canonical Blob identity
+  and classifies first-party evidence as `C`: OpenAI distributes the file, but
+  no evidence expressly licenses downstream redistribution or supplies its
   file-level NOTICE/credit requirement.
 - **Required input**: Rightsholder or legal confirmation of file-level
   redistribution, license, and NOTICE/credit text for distribution.

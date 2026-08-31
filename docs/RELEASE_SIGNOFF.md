@@ -27,7 +27,7 @@ or lockfile changed in that integration.
 | Security scanner | BLOCKED | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` test-fixture findings across two test files; no new release-candidate finding was introduced. No formal release-policy exception or semantic remediation closes a non-zero global scan. |
 | Secret handling | PASS (code evidence) / human sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. Final Security Reviewer sign-off remains required. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
-| Licensing / distribution | BLOCKED | Private/proprietary controlled-distribution posture is encoded by root `NOTICE` and package metadata. BPE file-level rights, legal-owner identity, target NOTICE set, GPL mutagen scope, and optional model-source decisions remain open. |
+| Licensing / distribution | BLOCKED | Private/proprietary controlled-distribution posture is encoded by root `NOTICE` and package metadata. The BPE investigation classified `o200k_base.tiktoken` as `C` (rightsholder distribution, downstream grant ambiguous); legal-owner identity, target NOTICE set, GPL mutagen scope, and optional model-source decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
 | Release signatures | BLOCKED | PO, TL/release owner, QA, and Privacy Reviewer signatures are not present. |
 

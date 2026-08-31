@@ -20,7 +20,7 @@
 | SBOM 覆盖直接/传递锁定组件 | BLOCKED | 初始 private/controlled source/wheel/sdist 范围已记录；BPE 文件权利、目标安装集的许可证/NOTICE 与其余模型来源仍待闭合。 |
 | `yt-dlp[default,deno]` / `mutagen==1.48.1` | BLOCKED | TL/发布负责人决定 GPL-2.0-or-later 下的源码、二进制、bundle/容器分发方案。 |
 | OpenAI SDK、tiktoken、Jinja2、MarkupSafe 及传递项 | BLOCKED | 确认 Apache-2.0/MIT/BSD-3-Clause 的现有证据、补齐 MarkupSafe 与所有实际包含传递项的证据/NOTICE。 |
-| `o200k_base.tiktoken` | BLOCKED | PO/TL 对文件级来源、许可证、归属、NOTICE 与是否可进发行物签署。哈希和本地无网络回退不能替代此签署。 |
+| `o200k_base.tiktoken` | BLOCKED（classification `C`） | 一手证据已确认 Blob 来源/哈希和 OpenAI 公开分发，但未确认下游文件级许可证/NOTICE。见 `O200K_BASE_REDISTRIBUTION_EVIDENCE.md`；哈希和本地无网络回退不能替代此签署。 |
 | MLX Whisper、模型、ffmpeg、Ollama/qwen | BLOCKED / 条件性 | 明确是否完全排除；若包含，逐项完成许可证、模型来源、系统工具、程序/模型供应链审查。 |
 
 ## 安全、隐私与可靠性
