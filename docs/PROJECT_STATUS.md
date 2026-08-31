@@ -6,11 +6,15 @@
   implementation through F is complete; the reference-provider live gate and
   product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
 - PO/TL has selected private/proprietary controlled source/wheel/sdist testing.
-  Root `NOTICE` and package metadata encode that posture, but the BPE evidence
-  classification is `C` (rightsholder distribution, downstream grant ambiguous)
-  and legal-owner identity remains a blocker; no actual artifact distribution is
-  authorized. See
-  [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
+  The target boundary is now frozen: first-party source/wheel/sdist only, with
+  74 macOS-arm64/Python-3.12 runtime dependencies separately resolved by the
+  package manager (9 direct, 65 transitive); no vendored wheel, site-packages,
+  bundle, container, or installer is authorized. SBOM-A/B and NOTICE A/B/C are
+  complete for that target. `mutagen==1.48.1` is GPL-2.0-or-later but is not
+  physically present in first-party wheel/sdist; a future physically bundled
+  form requires separate GPL compliance review. The BPE classification remains
+  `C` and legal-owner identity remains a blocker; no public or actual external
+  distribution is authorized. See [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is
   `docs/TASK-016-REFERENCE-PROVIDER-GATE-STATUS.md`. Local is currently

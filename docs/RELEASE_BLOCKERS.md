@@ -1,7 +1,7 @@
 # Release Blockers — Items Requiring Human Decision
 
 - Status: `BLOCKED FOR PUBLIC DISTRIBUTION`
-- Last updated: 2026-08-31 (final release sign-off; see `docs/RELEASE_SIGNOFF.md`)
+- Last updated: 2026-08-31 (current controlled target SBOM/NOTICE reconciliation)
 - P1 remediation status: The three Codex Maintainer Review P1 blockers
   (security scanner fail-open, backup/recovery drill false-pass, Obsidian
   Markdown/HTML rendering safety) are remediated on `workbuddy/fix-rc-p1`.
@@ -47,14 +47,19 @@
 
 ### 1.1 mutagen GPL-2.0-or-later Distribution
 
-- **Decision maker**: PO + TL
-- **Risk**: `yt-dlp[default]` transitively depends on `mutagen==1.48.1`
-  (GPL-2.0-or-later). Distributing the package as a binary or bundled
-  dependency may trigger GPL copyleft obligations.
-- **Required input**: Legal review of distribution model (source-only
-  pip install vs. binary wheel vs. standalone executable).
-- **Pass criteria**: Written decision on distribution form; if binary,
-  GPL compliance plan including source availability.
+- **Current controlled target: RESOLVED.** The boundary is frozen as first-party
+  source/wheel/sdist with separately package-manager-resolved dependencies. The
+  fresh offline archives contain no `mutagen`, dependency wheel, `site-packages`,
+  GPL, or `COPYING` payload. `mutagen==1.48.1` remains a separately installed
+  `yt-dlp[default]` transitive runtime dependency and is accurately listed as
+  GPL-2.0-or-later in SBOM-B/NOTICE Set B.
+- **Future physical-distribution gate: BLOCKED.** An application bundle,
+  materialized venv, container, installer, or copied dependency set is not
+  authorized. Before any such form, PO/TL/legal must complete a target-specific
+  GPL-sensitive compliance package covering included components, license texts,
+  attribution, and source/source-offer obligations where applicable.
+- **No legal approval is implied.** This technical resolution neither characterizes
+  GPL effects beyond the documented facts nor authorizes public distribution.
 
 ### 1.2 o200k_base.tiktoken File-Level License — Mitigated for Current Artifact
 
@@ -74,15 +79,15 @@
   reopens this item and requires rightsholder/legal confirmation of its license
   and NOTICE/credit text.
 
-### 1.3 OpenAI SDK / tiktoken / Jinja2 / MarkupSafe NOTICE Evidence
+### 1.3 Target-runtime inventory / NOTICE evidence
 
-- **Decision maker**: TL
-- **Risk**: Apache-2.0 (OpenAI SDK), MIT (tiktoken), BSD-3-Clause
-  (Jinja2, MarkupSafe) all require NOTICE preservation in distribution.
-- **Required input**: Complete transitive dependency list with licenses
-  and NOTICE texts for the final distribution artifact.
-- **Pass criteria**: SBOM covers all direct and transitive dependencies;
-  NOTICE texts verified and included.
+- **Current controlled target: RESOLVED.** SBOM-A distinguishes physical project
+  artifact content from SBOM-B's 74 separately installed macOS-arm64 runtime
+  packages (9 direct, 65 transitive), with metadata/license evidence and explicit
+  dev exclusion. NOTICE A/B/C freezes the same physical-versus-runtime boundary.
+- **Future gate:** a target that copies dependencies must collect and present all
+  applicable license/notice material for its actual contents; it cannot reuse
+  this source/wheel/sdist conclusion.
 
 ### 1.4 MLX Whisper / ffmpeg / Ollama Model Licensing
 

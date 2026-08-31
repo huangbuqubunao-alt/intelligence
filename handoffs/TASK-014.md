@@ -1808,3 +1808,47 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   the BPE redistribution sub-blocker for the
   controlled artifact; it does not close remaining licensing, security,
   privacy, provider, operational, or release-signature gates.
+
+## Target installed-runtime SBOM / NOTICE + Mutagen scope freeze — 2026-08-31
+
+- Role: TL / release-owner evidence implementation on `main@d198be7`; this
+  evidence-only update does not alter production code, dependencies, ADR-008,
+  ADR-028, TASK-016, TASK-014B9, or TASK-014B11.
+- Reuse decision: `DIRECT` — existing `uv`, lockfile, local installed package
+  metadata, and the upstream Mutagen `release-1.48.1` COPYING. No new package,
+  vendored code, or dependency change was introduced.
+- Frozen target: controlled first-party source/wheel/sdist. Runtime dependencies
+  are separately resolved by the package manager; a materialized venv,
+  dependency-wheel copy, app bundle, container, and installer are not current
+  artifacts and are not authorized.
+- Evidence: `uv tree --locked --no-dev --no-dedupe --python-platform
+  aarch64-apple-darwin` resolves 74 runtime distributions (9 direct, 65
+  transitive); direct dev is 3 with six dev-only transitives. The exact edge is
+  `youtube-intel -> yt-dlp[default] -> mutagen==1.48.1`.
+- Mutagen facts: locked installed metadata declares `GPL-2.0-or-later`; its
+  installed distribution carries `COPYING`; upstream `quodlibet/mutagen`
+  `release-1.48.1` supplies the GPL v2-or-later source. First-party code does
+  not import Mutagen. yt-dlp's Mutagen-related thumbnail embedding is outside
+  the product's metadata/subtitle-directory, no-media-write adapter behavior.
+- Fresh `uv build --offline` inspection produced a 62-entry wheel and 68-entry
+  sdist. Neither contains `mutagen`, `yt_dlp`, GPL/COPYING payload, a dependency
+  wheel, or site-packages copy. Mutagen is separately installed only for normal
+  runtime. Future bundle/container/installer distribution remains prohibited
+  until a separate target-specific GPL-sensitive compliance package is complete.
+- Updated evidence/status: `docs/SBOM.md`, `docs/THIRD_PARTY_NOTICES.md`,
+  `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`, `docs/RELEASE_BLOCKERS.md`,
+  `docs/RELEASE_CHECKLIST.md`, `docs/RELEASE_SIGNOFF.md`, and
+  `docs/PROJECT_STATUS.md` distinguish artifact, runtime, and dev scope.
+- Current-target technical verdict: `APPROVE`; P0=`0`, release-critical
+  technical P1=`0`, P2=`0`. No legal owner, legal approval, bundle/container
+  authorization, push, tag, or public release is asserted.
+- Validation: `uv lock --check`, `uv sync --locked --offline`, offline wheel and
+  sdist build/archive inspection, full pytest (`1918 passed, 1 skipped, 1
+  warning`), `uv run mypy src`, Ruff, CLI help, scanner-regression tests (`20
+  passed`), and `git diff --check` passed. Repository-wide mypy remains a
+  pre-existing non-green baseline (`1020 errors in 45 files`, 109 checked).
+  The canonical scanner remains exit `1` on exactly the 11 documented TASK-016
+  fixture findings and reports zero new licensing-task findings.
+- Next authorized release action: obtain a Security Reviewer/TL release-policy
+  disposition for the documented non-zero canonical scanner result, without
+  suppressing or altering the 11 TASK-016 fixtures.

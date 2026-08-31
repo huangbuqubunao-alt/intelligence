@@ -1,107 +1,132 @@
-# Release SBOM — TASK-014 Phase A
+# Release SBOM — Controlled Source/Wheel/Sdist and Target Runtime
 
-- 状态：`DRAFT — NOT A DISTRIBUTION APPROVAL`
-- 生成依据：已提交的 `pyproject.toml`、`uv.lock`、ADR-007、ADR-008、ADR-009、
-  `docs/REUSE_REGISTER.md` 与已有 handoff/验收记录。
-- 范围：锁文件解析到的 Python 分发包，以及条件性模型、系统工具和固定资源边界。
-- TASK-016B 补充：已对 spaCy 新增依赖执行锁定安装、离线构建、包 metadata/LICENSE
-  清点与模型哈希核验；其余 Phase A 组件仍沿用原证据边界。
-- 2026-08-31 ADR-028 后的离线 wheel/sdist 检查确认当前产物包含项目源码、operations/launchd
-  示例，**不包含** `o200k_base.tiktoken`、模型 weights、ffmpeg、Ollama、tests/fixtures 或依赖 wheel；
-  这仅是产物边界事实，不构成任何分发许可。决策矩阵见
-  [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)。
-- PO/TL 已选择私有/专有、受控 source/wheel/sdist 测试姿态：root `NOTICE` 与包 metadata
-  已编码该姿态，且不含 bundled dependency wheels、model weights、ffmpeg、Ollama 或 BPE Blob。
-  BPE 文件权利仍为 classification C，但本项目不再分发它；其余目标安装集、NOTICE 与模型来源
-  问题仍使发行保持 `BLOCKED`。
+- Status: `COMPLETE FOR THE CURRENT CONTROLLED TARGET — NOT A PUBLIC-RELEASE APPROVAL`
+- Evidence baseline: `main@d198be7`, `pyproject.toml`, `uv.lock`, locked offline sync, and a fresh offline wheel/sdist build inspected on 2026-08-31.
+- This is a technical inventory, not legal advice, legal approval, or a change to ADR-008 or ADR-028.
 
-本清单是发行决策输入，不是法律意见，也不表示任何锁定组件、资源或其组合已经获准
-分发。`uv.lock` 记录版本、来源与工件哈希，但不携带完整的许可证文本、NOTICE、版权
-归属或组合分发结论。
+## Frozen distribution boundary
 
-## 项目与直接依赖
+The present, and only present, controlled-release boundary is **first-party source repository, project sdist, and project wheel**. Python dependencies are declared in project metadata and normally resolved as separate distributions by the environment package manager. This release does not distribute a materialized virtualenv/site-packages tree, dependency wheels, an application bundle, container image, or OS installer. A future source repository is not a grant for public publication; the controlled posture remains private/proprietary.
 
-| 组件 | 锁定版本 / 关系 | 已有许可证或来源证据 | 发行缺口与处理 |
-|---|---|---|---|
-| `youtube-intel` | `0.1.0`；项目根 | PO/TL 选择 private/proprietary；root `NOTICE`；`pyproject.toml` 的 `license.file=NOTICE` | 不授予公开开源或公开分发权；仓库尚无合法权利人身份，任何更广泛发行前须补齐。 |
-| `en-core-web-sm` | `3.8.0`；固定 URL 直接运行依赖 | Explosion 官方 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85` | 仅用于本地英文依存分析；训练来源含 Explosion 授权的 OntoNotes 5 与 WordNet 3.0，最终分发前须完成模型级 NOTICE/许可复核。运行时禁止下载或网络 fallback。 |
-| `jinja2` | `3.1.6`；直接运行依赖 | ADR-009 / Reuse Register：BSD-3-Clause | 收集发行包的版权与 NOTICE 证据；其传递 `markupsafe` 单列。 |
-| `mlx-whisper` | `0.4.3`；直接运行依赖 | ADR-007 / Reuse Register：MIT | 仅条件性本地转写能力；模型、ffmpeg、传递包与真实资源另行审批。 |
-| `openai` | `2.46.0`；直接运行依赖 | ADR-008 / Reuse Register：Apache-2.0 | 收集 SDK 与所有传递项的发行 NOTICE；不含真实密钥、响应或云验证。 |
-| `pydantic` | `2.13.4`；直接运行依赖 | 锁定安装的 distribution metadata 声明 `License-Expression: MIT`，并携带 license 文件 | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
-| `pyyaml` | `6.0.3`；直接运行依赖 | 锁定安装的 distribution metadata 声明 MIT | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
-| `spacy` | `3.8.15`；直接运行依赖 | 固定 wheel metadata/LICENSE：MIT；© 2015 Matthew Honnibal、2016 spaCy GmbH、2016–2024 ExplosionAI GmbH | 固定本地 CPU 解析能力；21 个新增传递项逐项证据见 `THIRD_PARTY_NOTICES.md`。Local-only 已闭合；公开 bundle 仍阻断。 |
-| `tiktoken` | `0.13.0`；直接运行依赖 | ADR-008 / Reuse Register：MIT | 收集其发行 NOTICE；不能据此推断附带 BPE 文件的文件级许可。 |
-| `yt-dlp[default,deno]` | `2026.7.4`；直接运行依赖 | Reuse Register：DIRECT；锁定安装 metadata 声明 `License-Expression: Unlicense`；锁文件固定 extras | `default` 会带入 `mutagen`；二进制/捆绑发行被其 GPL 门禁阻断。 |
-| `mypy` / `pytest` / `ruff` | `2.3.0` / `9.1.1` / `0.15.21`；直接开发依赖 | 锁文件版本 | 开发工具不自动进入运行时发行物；若随发行物提供，仍须组件级清单与许可证证据。 |
+| Candidate form | Current target? | Physical relationship |
+| --- | --- | --- |
+| A. First-party source repository | Yes, controlled | First-party source only; no vendored Python dependency tree. |
+| B. Project sdist | Yes, controlled | First-party source and package metadata; no dependency wheel/site-packages copy. |
+| C. Project wheel | Yes, controlled | First-party package and dependency declarations; no dependency wheel/site-packages copy. |
+| D. Separately installed Python dependencies | Yes, runtime consequence | Resolver installs separately; not physically distributed by this project. |
+| E. Materialized virtualenv/site-packages | No | Local installation state, not a project artifact. |
+| F. Application bundle | No | Not authorized. |
+| G. Container image | No | Not authorized. |
+| H. Installer image/package | No | Not authorized. |
 
-## 已识别的条件性资源与系统边界
+ADR-028 continues to exclude `o200k_base.tiktoken` from A–C. Its classification `C` is preserved; a user/admin-provisioned runtime file is neither a project artifact nor a dependency record below.
 
-| 项目 | 已证实事实 | 发布门禁 |
-|---|---|---|
-| `o200k_base.tiktoken` | Canonical Blob URL, SHA-256 and rights investigation are recorded in `O200K_BASE_REDISTRIBUTION_EVIDENCE.md`; ADR-028 verifies only an explicitly provisioned local copy before use. | Classification `C` remains: OpenAI distribution is established but downstream file-level redistribution/NOTICE right is ambiguous. The project wheel/sdist/source artifact excludes the file, so it is used but not redistributed. |
-| MLX Community Whisper 转换模型 | ADR-007 固定 revision、大小和权重哈希；上游 OpenAI Whisper 资料为 MIT。 | 转换仓库 model card 缺少许可声明；不得推断转换产物许可或纳入任何发行物。 |
-| ffmpeg | ADR-007 记录 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 未获安装/调用/捆绑授权；不得捆绑或重新分发。 |
-| Ollama 与 `qwen3:8b` | ADR-007 记录 Ollama MIT、固定 qwen digest；上游 Qwen3-8B 为 Apache-2.0。 | 程序版本、模型拉取、本机服务与模型分发均待单独供应链/授权审查。 |
-| spaCy `en_core_web_sm` 英文模型 | 固定 `3.8.0` 官方 wheel、大小与 SHA-256；模型包声明 MIT；来源清单含 OntoNotes 5、ClearNLP 转换规则与 WordNet 3.0。 | 运行时只能加载已安装的固定包，缺失时 fail-closed；不得自动下载。公开分发前须复核训练来源归属、WordNet NOTICE 和模型随发行物策略。 |
+## SBOM-A — distributed-artifact SBOM
 
-## 锁定解析清单
+Fresh `uv build --offline` output contained a 62-entry wheel and a 68-entry sdist. Direct archive inspection found **no** `mutagen`, `yt_dlp`, GPL/COPYING payload, dependency `.whl`, or `site-packages` tree. Both artifacts contain first-party package files and dependency declarations only. Therefore:
 
-TASK-016B 新增的 23 个包均已在 `docs/THIRD_PARTY_NOTICES.md` 明确记录版本、许可证、
-版权、来源和分发状态；不再属于下述通用 `EVIDENCE GAP`。其余组件仍遵循本节限制。
+| Item | Version / status | Physically distributed by project | Notice set |
+| --- | --- | --- | --- |
+| `youtube-intel` | `0.1.0` | Yes | A — root `NOTICE` / package metadata; legal-owner identity remains separately blocked. |
+| `o200k_base.tiktoken` | Not applicable | No | None; ADR-028 explicit user/admin provisioning only. |
+| All Python dependencies, including `mutagen` and `yt-dlp` | Not applicable | No | None physically copied into the wheel/sdist. |
+| Dependency declarations | Locked references | Yes, as metadata only | The runtime inventory (SBOM-B) is supplied for truthful installation information. |
 
-以下是 `uv.lock` 中除上表已列直接依赖外的其余非根解析包（版本由锁文件直接给出）。
-除本文件上表与 ADR 明确给出证据的组件外，许可证/版权/NOTICE 一律标为 `EVIDENCE GAP`，而非根据名称、
-PyPI 来源或历史记忆推断。它们是直接依赖的传递解析项，或受平台/extra/dev marker
-控制的解析项；锁文件本身不能证明某一目标发行形态实际会包含哪一个条件项。
+## SBOM-B — target installed-runtime dependency inventory
 
-```text
-annotated-types 0.7.0        anyio 4.14.2                 ast-serialize 0.6.0
-annotated-doc 0.0.5          blis 1.3.3                   catalogue 2.0.10
-brotli 1.2.0                 brotlicffi 1.2.0.1           certifi 2026.6.17
-cffi 2.1.0                   charset-normalizer 3.4.9     click 8.4.2
-colorama 0.4.6               cuda-bindings 13.3.1         cuda-pathfinder 1.5.6
-cloudpathlib 0.24.0          confection 1.3.3             cymem 2.0.13
-cuda-toolkit 13.0.3.0        deno 2.9.2                   distro 1.9.0
-filelock 3.31.0              fsspec 2026.6.0              h11 0.16.0
-hf-xet 1.5.2                 httpcore 1.0.9               httpx 0.28.1
-huggingface-hub 1.24.0       idna 3.18                    iniconfig 2.3.0
-jiter 0.16.0                 librt 0.13.0                 llvmlite 0.48.0
-markupsafe 3.0.3             mlx 0.32.0                   mlx-metal 0.32.0
-markdown-it-py 4.2.0         mdurl 0.1.2                  murmurhash 1.0.15
-more-itertools 11.1.0        mpmath 1.3.0                 mutagen 1.48.1
-mypy-extensions 1.1.0        networkx 3.6.1               numba 0.66.0
-numpy 2.4.6                  nvidia-cublas 13.1.1.3       nvidia-cuda-cupti 13.0.85
-nvidia-cuda-nvrtc 13.0.88    nvidia-cuda-runtime 13.0.96  nvidia-cudnn-cu13 9.20.0.48
-nvidia-cufft 12.0.0.61       nvidia-cufile 1.15.1.6       nvidia-curand 10.4.0.35
-nvidia-cusolver 12.0.4.66    nvidia-cusparse 12.6.3.3     nvidia-cusparselt-cu13 0.8.1
-nvidia-nccl-cu13 2.29.7      nvidia-nvjitlink 13.3.33     nvidia-nvshmem-cu13 3.4.5
-nvidia-nvtx 13.0.85          packaging 26.2               pathspec 1.1.1
-preshed 3.0.13               rich 15.0.0                  shellingham 1.5.4
-pluggy 1.6.0                 pycparser 3.0                pycryptodomex 3.23.0
-pydantic-core 2.46.4         pygments 2.20.0              regex 2026.7.10
-requests 2.34.2              scipy 1.18.0                 setuptools 83.0.0
-smart-open 8.0.1             sniffio 1.3.1                spacy-legacy 3.0.12
-spacy-loggers 1.0.5          srsly 2.5.3                  sympy 1.14.0
-thinc 8.3.13                 torch 2.13.0                 typer 0.27.1
-tqdm 4.69.0                  triton 3.7.1                 typing-extensions 4.16.0
-typing-inspection 0.4.2      urllib3 2.7.0                wasabi 1.1.3
-weasel 1.0.0                 websockets 16.1              wrapt 2.3.0
-yt-dlp-ejs 0.8.0
-```
+This is the deterministic normal supported-install closure for **CPython 3.12 on macOS arm64**, reconstructed by `uv tree --locked --no-dev --no-dedupe --python-platform aarch64-apple-darwin`. It contains 74 separately installed third-party distributions: 9 direct runtime dependencies and 65 transitives. `D` means direct and `T` transitive. Every record below is **runtime**, is **not physically distributed by this project**, and is **normally installed separately by the package manager**. Its license evidence is the locked installed distribution's PEP 639 `License-Expression`/`License` field and packaged metadata/license files, with lock identity in `uv.lock`; `NOASSERTION` honestly means that the installed metadata did not supply a license expression. For every registry row, the upstream source is the exact named PyPI record and artifact hash in `uv.lock`; `en-core-web-sm` is the explicit Explosion release URL in `pyproject.toml`/`uv.lock`. Installed `Project-URL` metadata is retained as supplemental upstream evidence. This rule applies to every row below.
 
-### 强制单列：`mutagen`
+| Dependency (relationship) | License declaration / evidence | Notice and compliance note |
+| --- | --- | --- |
+| `annotated-doc==0.0.5` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `annotated-types==0.7.0` (T) | NOASSERTION — installed METADATA | Runtime inventory only; no license conclusion inferred. |
+| `anyio==4.14.2` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `blis==1.3.3` (T) | BSD — installed METADATA/LICENSE | Runtime inventory only. |
+| `brotli==1.2.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `catalogue==2.0.10` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `certifi==2026.6.17` (T) | MPL-2.0 — installed METADATA | Runtime inventory only. |
+| `charset-normalizer==3.4.9` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `click==8.4.2` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `cloudpathlib==0.24.0` (T) | NOASSERTION — installed METADATA | Runtime inventory only; no license conclusion inferred. |
+| `confection==1.3.3` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `cymem==2.0.13` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `deno==2.9.2` (T; `yt-dlp[deno]`) | MIT — installed METADATA | Runtime inventory only. |
+| `distro==1.9.0` (T) | Apache License 2.0 — installed METADATA | Runtime inventory only. |
+| `en-core-web-sm==3.8.0` (D) | MIT — installed METADATA/LICENSE | Runtime inventory only; model-source/WordNet future bundle gate remains. |
+| `filelock==3.31.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `fsspec==2026.6.0` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `h11==0.16.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `hf-xet==1.5.2` (T) | Apache-2.0 — installed METADATA | Runtime inventory only. |
+| `httpcore==1.0.9` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `httpx==0.28.1` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `huggingface-hub==1.24.0` (T) | Apache-2.0 — installed METADATA | Runtime inventory only. |
+| `idna==3.18` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `jinja2==3.1.6` (D) | NOASSERTION in field; BSD-3-Clause evidence in ADR-009 | Runtime inventory only. |
+| `jiter==0.16.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `llvmlite==0.48.0` (T) | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception — METADATA/LICENSE | Runtime inventory only. |
+| `markdown-it-py==4.2.0` (T) | NOASSERTION in field; MIT evidence in installed license | Runtime inventory only. |
+| `markupsafe==3.0.3` (T) | BSD-3-Clause — installed METADATA/LICENSE | Runtime inventory only. |
+| `mdurl==0.1.2` (T) | NOASSERTION in field; MIT evidence in installed license | Runtime inventory only. |
+| `mlx==0.32.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `mlx-metal==0.32.0` (T; macOS arm64) | MIT — installed METADATA | Platform-specific runtime item; not project-distributed. |
+| `mlx-whisper==0.4.3` (D) | MIT — installed METADATA | Runtime inventory only; model artifacts excluded. |
+| `more-itertools==11.1.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `mpmath==1.3.0` (T) | BSD — installed METADATA/LICENSE | Runtime inventory only. |
+| `murmurhash==1.0.15` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `mutagen==1.48.1` (T; `yt-dlp[default]`) | GPL-2.0-or-later — installed METADATA and packaged `COPYING`; upstream tag `release-1.48.1` | Separately installed only; see Mutagen posture below. |
+| `networkx==3.6.1` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `numba==0.66.0` (T) | BSD — installed METADATA/LICENSE | Runtime inventory only. |
+| `numpy==2.4.6` (T) | Composite expression — installed METADATA/LICENSE | Runtime inventory only. |
+| `openai==2.46.0` (D) | Apache-2.0 — installed METADATA | Runtime inventory only. |
+| `packaging==26.2` (T) | Apache-2.0 OR BSD-2-Clause — installed METADATA | Runtime inventory only. |
+| `preshed==3.0.13` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `pycryptodomex==3.23.0` (T) | BSD, Public Domain — installed METADATA/LICENSE | Runtime inventory only. |
+| `pydantic==2.13.4` (D) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `pydantic-core==2.46.4` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `pygments==2.20.0` (T) | BSD-2-Clause — installed METADATA | Runtime inventory only. |
+| `pyyaml==6.0.3` (D) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `regex==2026.7.10` (T) | Apache-2.0 AND CNRI-Python — installed METADATA/LICENSE | Runtime inventory only. |
+| `requests==2.34.2` (T) | Apache-2.0 — installed METADATA | Runtime inventory only. |
+| `rich==15.0.0` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `scipy==1.18.0` (T) | BSD-3-Clause plus wheel-bundled components — installed METADATA/LICENSE | Runtime inventory only; future bundle must inspect target binary contents. |
+| `setuptools==83.0.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `shellingham==1.5.4` (T) | ISC — installed METADATA | Runtime inventory only. |
+| `smart-open==8.0.1` (T) | NOASSERTION — installed METADATA | Runtime inventory only; no license conclusion inferred. |
+| `sniffio==1.3.1` (T) | MIT OR Apache-2.0 — installed METADATA | Runtime inventory only. |
+| `spacy==3.8.15` (D) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `spacy-legacy==3.0.12` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `spacy-loggers==1.0.5` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `srsly==2.5.3` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `sympy==1.14.0` (T) | BSD — installed METADATA/LICENSE | Runtime inventory only. |
+| `thinc==8.3.13` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `tiktoken==0.13.0` (D) | MIT — installed METADATA/LICENSE | Package only; does not license the external BPE Blob. |
+| `torch==2.13.0` (T) | Composite expression — installed METADATA/LICENSE | Runtime inventory only; future bundle must inspect target binary contents. |
+| `tqdm==4.69.0` (T) | MPL-2.0 AND MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `typer==0.27.1` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `typing-extensions==4.16.0` (T) | PSF-2.0 — installed METADATA/LICENSE | Runtime inventory only. |
+| `typing-inspection==0.4.2` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `urllib3==2.7.0` (T) | MIT — installed METADATA | Runtime inventory only. |
+| `wasabi==1.1.3` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `weasel==1.0.0` (T) | MIT — installed METADATA/LICENSE | Runtime inventory only. |
+| `websockets==16.1` (T) | BSD-3-Clause — installed METADATA | Runtime inventory only. |
+| `wrapt==2.3.0` (T) | BSD-2-Clause — installed METADATA/LICENSE | Runtime inventory only. |
+| `yt-dlp-ejs==0.8.0` (T; `yt-dlp[default]`) | Unlicense AND MIT AND ISC — installed METADATA/LICENSE | Runtime inventory only. |
+| `yt-dlp==2026.7.4` (D; extras `default,deno`) | Unlicense — installed METADATA/LICENSE | Runtime inventory only. |
 
-`uv.lock` 将 `mutagen==1.48.1` 列入 `yt-dlp` 的 `default` extra。任务包冻结输入与
-TASK-014 任务卡均记录其为 GPL-2.0-or-later。源代码、二进制和捆绑依赖的具体分发方案
-必须由 TL/发布负责人书面确认；在确认前，不得发布二进制、app bundle、容器或任何捆绑
-依赖的发行物。
+The lock's 107-package universal resolution additionally contains mutually exclusive platform-marker candidates. They are not silently counted as the macOS-arm64 target inventory. On another supported platform, a fresh target-platform SBOM-B reconstruction is required before distribution.
 
-## 发行前完成条件
+## Dev tooling — excluded from the runtime target
 
-1. 针对最终目标平台和发行形态，生成可复现的组件包含清单，而不是仅复用锁文件的
-   全平台解析集合。
-2. 为每个会进入发行物的组件补齐许可证、版权、NOTICE、来源和适用义务的证据位置。
-3. 对 `mutagen`、模型、ffmpeg、Ollama、CUDA/NVIDIA 相关条件项给出明确的
-   包含/排除与分发决策。
-4. 由 PO、TL、QA 与隐私 Reviewer 在发布检查表签字；在此之前结论保持 `NO-GO`。
+The direct dev dependencies are `mypy==2.3.0`, `pytest==9.1.1`, and `ruff==0.15.21`. Six additional packages are dev-only on this target: `ast-serialize==0.6.0`, `iniconfig==2.3.0`, `librt==0.13.0`, `mypy-extensions==1.1.0`, `pathspec==1.1.1`, and `pluggy==1.6.0`. `packaging`, `pygments`, and `typing-extensions` are shared with runtime and are already in SBOM-B. None of these dev-only packages belongs to a current wheel/sdist or installed-runtime NOTICE set.
+
+## Mutagen relationship and GPL-sensitive technical posture
+
+- `pyproject.toml` declares `yt-dlp[default,deno]>=2026.7.4,<2026.8`; the lock records the exact edge `youtube-intel -> yt-dlp[default] -> mutagen==1.48.1`.
+- `mutagen==1.48.1` is GPL-2.0-or-later. This is supported by the locked distribution's PEP 639 `License-Expression`, its packaged `COPYING`, the upstream `quodlibet/mutagen` `release-1.48.1` tag, and the upstream project statement that it is GPL version 2 or later.
+- First-party code does not import `mutagen`. It imports `yt_dlp` for metadata and subtitle-directory work only; both adapters use `download=False`, `skip_download=True`, disable subtitle/thumbnail/info writes, and do not call ffmpeg. yt-dlp documents Mutagen for `--embed-thumbnail` in certain media formats. That media-embedding feature is not part of current product behavior.
+- Removing the `default` extra is technically possible in package metadata, but is **not authorized by this task** and was not done. It would remove the declared default-extra feature set (including Mutagen-backed thumbnail embedding) and requires a separate product/test decision; absence of a direct import is not a sufficient reason to change the dependency graph.
+- **Current wheel/sdist:** Mutagen code and license files are not physically redistributed. **Normal installed environment:** the package manager installs Mutagen separately. **Future materialized venv, bundle, container, or installer:** it would physically include Mutagen and is not authorized until a target-specific GPL/notice/source-obligation compliance package is complete.
+
+## SBOM conclusion
+
+SBOM-A is complete for the controlled first-party artifact. SBOM-B is complete as a separately installed target-runtime inventory. The current target neither embeds nor claims to redistribute Mutagen, so this record makes no legal claim about GPL effects beyond the documented facts. Bundle/container compliance, model-source review, legal-owner identity, security/privacy, provider, operations, and formal signatures remain distinct release gates.

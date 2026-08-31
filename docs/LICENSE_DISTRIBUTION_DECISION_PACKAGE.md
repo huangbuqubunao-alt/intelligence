@@ -2,15 +2,29 @@
 
 ## Status and boundary
 
-**IMPLEMENTED POSTURE / PARTIAL LICENSING BLOCKER.** The Product Owner / Tech
-Lead selected private, proprietary, controlled limited source/wheel/sdist
-distribution. This document is technical evidence, not legal advice; it does
-not authorize public distribution.
+**IMPLEMENTED POSTURE / CURRENT-TARGET LICENSING BLOCKER RESOLVED.** The Product
+Owner / Tech Lead selected private, proprietary, controlled limited
+source/wheel/sdist distribution. This document is technical evidence, not legal
+advice; it does not authorize public distribution.
 
-This package reconciles `main@440c22e` against `pyproject.toml`, `uv.lock`, the
+This package now reconciles `main@d198be7` against `pyproject.toml`, `uv.lock`, the
 offline wheel/sdist build, `docs/SBOM.md`, `docs/THIRD_PARTY_NOTICES.md`,
 ADR-007, ADR-008, and the reuse register. It does not change the release
 decision: public distribution remains `NO-GO`.
+
+## 2026-08-31 target-runtime scope freeze
+
+The current controlled target is exactly source, sdist, and wheel. Dependencies
+are separately resolved/installed by the environment package manager; a fully
+materialized virtualenv, application bundle, container, installer, dependency
+wheel cache, and copied `site-packages` tree are **not** current artifacts and
+are **not authorized**. The fresh offline artifact evidence and complete,
+separate runtime inventory are recorded in [SBOM](SBOM.md).
+
+This resolves the technical `target installed-runtime SBOM / NOTICE + mutagen`
+blocker for this bounded current form. It does not resolve the legal-owner,
+model-source, security, privacy, provider, operations, signature, or public
+release blockers.
 
 ## Objective artifact inventory
 
@@ -23,7 +37,7 @@ boundary below. It is a build fact, not permission to distribute.
 | Python dependency declarations | Wheel metadata / sdist project metadata | References only; dependency wheels are not vendored | Final install/bundle mode determines the actual resolved dependency set. |
 | Lockfile | Repository/reproducibility input | No | Not automatically a shipped asset. |
 | `o200k_base.tiktoken` | Used only after explicit user/admin provisioning; SHA fixed by ADR-008/ADR-028 | **No**; no project artifact carries the file | File-level origin is recorded as classification C; the project does not claim or exercise downstream redistribution. |
-| `en_core_web_sm` | Direct URL runtime dependency | No; package manager may install it | Model-package/WordNet attribution and install-vs-bundle decision remain required. |
+| `en_core_web_sm` | Direct URL runtime dependency | No; package manager may install it | Not current first-party redistribution; model-source review is a future bundle/distribution gate. |
 | MLX Whisper converted weights | Controlled runtime data path under `data/models/...` | No | Do not distribute without a separate source/license decision. |
 | Ollama / Qwen model artifacts | External user/runtime installation reference | No | Do not distribute without a separate model/tool decision. |
 | ffmpeg | External system tool reference | No | Do not bundle or redistribute without a separate decision. |
@@ -56,7 +70,7 @@ platform/extra/dev markers; that lockfile is not a target-artifact manifest.
 | PyYAML 6.0.3 | Installed locked metadata declares MIT | Copyright/notice presentation for the final artifact remains to be recorded. |
 | spaCy 3.8.15 | MIT evidence; 23 related locked component records exist | Public bundle remains blocked pending all applicable license/notice/model-source review. |
 | tiktoken 0.13.0 | MIT package evidence | Does not decide the separately shipped BPE file. |
-| `yt-dlp[default,deno]` 2026.7.4 | Locked distribution metadata declares `License-Expression: Unlicense`; `default` resolves `mutagen==1.48.1`, recorded as GPL-2.0-or-later | Decide source/install-only versus any bundled binary/container/dependency distribution and required compliance process. |
+| `yt-dlp[default,deno]` 2026.7.4 | Locked distribution metadata declares `License-Expression: Unlicense`; `default` resolves `mutagen==1.48.1`, whose metadata and upstream tag declare GPL-2.0-or-later | Current source/wheel/sdist do not embed either package; separately installed runtime is inventoried. Any bundled/container/dependency-copy form remains a separate compliance gate. |
 
 `mypy`, `pytest`, and `ruff` are the three direct development dependencies.
 They do not become runtime package payload merely because they are locked.
@@ -68,14 +82,14 @@ extra in the locked runtime tree. `ffmpeg` is an external Homebrew/system-tool
 reference and is not in the inspected artifacts. No claim is made here about
 legal effect beyond the existing documented GPL labels.
 
-**Distribution consequence:** a normal wheel does not vendor these dependency
-files, while a bundle, executable, container, or redistributed dependency set
-could. The final artifact mode must name which interpretation applies and
-identify the owner for corresponding source/notice obligations.
+**Distribution consequence:** the current normal wheel/sdist does not vendor
+these dependency files, while a bundle, executable, container, or redistributed
+dependency set would physically carry them. The current target is frozen as the
+former; the latter remains unauthorized pending its own compliance package.
 
-**Human decision:** TL/release owner confirms whether the product is private
-execution only, source/install distribution, or a bundle; legal review confirms
-the compliance plan before the latter is published.
+**Human decision retained:** before any future bundle/container/dependency-copy
+distribution, the release owner and legal reviewer must identify the applicable
+source, license-text, attribution, and GPL-sensitive compliance obligations.
 
 ## Model and tokenizer boundary
 
@@ -107,10 +121,10 @@ the compliance plan before the latter is published.
 | Decision | Options supported by current facts | Consequence | Lowest-scope technical default (not approval) |
 | --- | --- | --- | --- |
 | A. First-party license | Proprietary/all-rights-reserved internal use; MIT; Apache-2.0 | Defines the project’s public grant and the root/package metadata work. Apache-2.0 has an express patent-license component; MIT is shorter; proprietary use does not authorize public open-source publication. | Keep the project private until PO/TL selects a license and distribution intent. |
-| B. Distribution mode | Internal/private execution; public source repository; wheel/sdist; bundled executable/container | Higher packaging modes require a target-artifact component/notice plan. | Controlled wheel/sdist only; no public/bundle publication until target NOTICE, GPL, and model decisions are closed. |
+| B. Distribution mode | Internal/private execution; public source repository; wheel/sdist; bundled executable/container | Higher packaging modes require a target-artifact component/notice plan. | Controlled source/wheel/sdist only; current target SBOM/NOTICE is frozen, while public/bundle publication remains blocked. |
 | C. Model/tokenizer assets | Explicitly provision BPE; reference-install spaCy model; ship an approved model/tool; exclude optional model features | Current wheel/sdist exclude BPE and all weights. | Preserve ADR-028; do not add model weights, ffmpeg, Ollama assets, or a BPE copy. |
-| D. GPL/copyleft-sensitive components | Resolver-installed dependency set; separately distributed dependencies; bundle/container | `mutagen` is present through yt-dlp default; technical packaging facts do not replace legal analysis. | Avoid bundled/container distribution until a written compliance plan exists. |
-| E. SBOM/NOTICE scope | Target runtime artifact only; target plus source repository; include dev tooling only when distributed | Dev tools are not automatically shipped; all actually installed/bundled runtime components need a final inventory. | Generate a target-specific runtime SBOM and NOTICE set; list dev tools separately as non-shipped. |
+| D. GPL/copyleft-sensitive components | Resolver-installed dependency set; separately distributed dependencies; bundle/container | `mutagen` is present through yt-dlp default, but absent from first-party archives. Technical packaging facts do not replace legal analysis. | Keep resolver-installed current target; bundle/container remains prohibited pending a written compliance package. |
+| E. SBOM/NOTICE scope | Distributed artifact; separately installed target runtime; dev tooling | Dev tools are not shipped; source/wheel/sdist and runtime are separately reconciled in SBOM-A/B and NOTICE A/B/C. | Frozen for current controlled target. |
 
 ## Remaining PO/TL / legal inputs
 
@@ -119,8 +133,8 @@ the compliance plan before the latter is published.
 2. Preserve ADR-028's explicit-provisioning boundary in any future distribution;
    a future proposal to ship the BPE requires a separate file-level
    redistribution/NOTICE conclusion.
-3. Decide whether spaCy model installation is supported in the chosen mode and
-   obtain the required model-source/WordNet notice conclusion.
+3. For any future artifact that physically redistributes the spaCy model, obtain
+   the required model-source/WordNet notice conclusion.
 4. For any future bundle/container, obtain a written `mutagen` GPL compliance decision
    and explicitly include or exclude ffmpeg, MLX, Ollama, and all model assets.
 5. Confirm any exception to the selected default that dev tools are not distributed.

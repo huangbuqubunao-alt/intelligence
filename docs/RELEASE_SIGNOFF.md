@@ -27,7 +27,7 @@ or lockfile changed in that integration.
 | Security scanner | BLOCKED | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` test-fixture findings across two test files; no new release-candidate finding was introduced. No formal release-policy exception or semantic remediation closes a non-zero global scan. |
 | Secret handling | PASS (code evidence) / human sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. Final Security Reviewer sign-off remains required. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
-| Licensing / distribution | BLOCKED | Private/proprietary controlled-distribution posture is encoded by root `NOTICE` and package metadata. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob from project artifacts without claiming downstream rights; legal-owner identity, target NOTICE set, GPL mutagen scope, and optional model-source decisions remain open. |
+| Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Legal-owner identity and future model/bundle/container decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
 | Release signatures | BLOCKED | PO, TL/release owner, QA, and Privacy Reviewer signatures are not present. |
 
@@ -52,9 +52,9 @@ infer one.
 | Recovery tests | `8 passed` |
 | Provider contract/privacy-boundary tests | `83 passed` |
 | Scanner regression tests | `20 passed` |
-| Full pytest | `1910 passed, 1 warning` |
+| Full pytest | `1918 passed, 1 skipped, 1 warning` |
 | `uv run mypy src` | `Success: no issues found in 40 source files` |
-| Repository-wide mypy | Historical non-regression baseline: `1019 errors in 44 files` (`108` files checked) |
+| Repository-wide mypy | Current historical baseline remains non-green: `1020 errors in 45 files` (`109` files checked); this documentation-only task introduced no source/test change. |
 | `uv run ruff check .` | PASS |
 | `uv lock --check`; `uv sync --locked --offline` | PASS |
 | Offline build | PASS; wheel and sdist built in a temporary directory and removed |
@@ -74,7 +74,7 @@ TASK-014B11 regression, TASK-016 implementation change, scanner weakening,
 push, tag, or public-release action. It did find the following release-critical
 P1 gates, all preserved rather than downgraded:
 
-1. Project/distribution legal-owner, third-party notice/SBOM, GPL, and model-source decisions.
+1. Legal-owner identity and any future model/bundle/container distribution decision.
 2. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
 3. Global security scan exit remains non-zero without a formal release closure
@@ -84,15 +84,33 @@ P1 gates, all preserved rather than downgraded:
 5. Authorized real operational validation (backup/recovery, staged smoke,
    Vault/launchd) is absent.
 
-**Release-critical P0: 0. Release-critical P1: 5. P2: 0.**
+**Release-critical P0: 0. Release-critical P1: 4. P2: 0.**
+
+### Current-target SBOM/NOTICE adversarial re-review
+
+The following review applies only to the completed controlled source/wheel/sdist
+licensing slice; it does not downgrade the four independent release gates above.
+
+| Attack surface | Result |
+| --- | --- |
+| Wheel/sdist confused with installed runtime; Mutagen falsely claimed bundled or external | PASS — SBOM-A/B and fresh archive inspection keep all three relationships distinct. |
+| yt-dlp extra edge, Mutagen version/license, or first-party functional use misstated | PASS — `pyproject.toml`, `uv.lock`, installed metadata/COPYING, upstream tag, and adapter options agree. |
+| Runtime/transitive/dev or platform-specific packages omitted/misclassified | PASS — 74 runtime packages (9 direct/65 transitive), three direct dev packages plus six dev-only transitives, and macOS-arm64 scope are explicit. |
+| GPL implications overstated/understated; future bundle risk silently authorized | PASS — no legal conclusion or current bundle authorization; separate future GPL gate is explicit. |
+| Dependency graph or yt-dlp behavior changed merely for licensing | PASS — `pyproject.toml`/`uv.lock` and production code are unchanged. |
+| BPE, ADR-008/ADR-028, TASK-016, B9/B11, fixtures, scanner, owner identity, push/tag/public release changed or fabricated | PASS — path-scoped diff and checks show documentation/evidence only; none occurred. |
+
+**Current-target review: P0: 0; release-critical technical P1: 0; P2: 0;
+verdict: APPROVE.**
 
 ## Required next action
 
-The BPE artifact sub-blocker is resolved by ADR-028 without a rights claim. The
-next licensing action is for the TL/release owner to define the target installed
-runtime NOTICE/SBOM set and the `mutagen` GPL compliance posture required by
-`docs/RELEASE_BLOCKERS.md §§0–1`. This does not authorize provider work,
-TASK-016G, a push, a tag, or public distribution.
+The BPE artifact sub-blocker and the current controlled target-runtime
+SBOM/NOTICE + Mutagen technical gate are resolved without a rights claim or legal
+approval. The **one next authorized release action** is a Security Reviewer/TL
+release-policy disposition for the canonical scanner's documented non-zero
+fixture result. It must not suppress, weaken, or alter those fixtures. This does
+not authorize provider work, TASK-016G, a push, a tag, or public distribution.
 
 ## ADR-028 post-sign-off licensing evidence
 

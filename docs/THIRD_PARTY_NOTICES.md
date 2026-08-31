@@ -1,6 +1,6 @@
-# Third-Party NOTICE Inventory — TASK-014 Phase A
+# Third-Party NOTICE Inventory — Current Controlled Target
 
-- 状态：`DRAFT — RELEASE BLOCKED`
+- 状态：`COMPLETE FOR CURRENT CONTROLLED SOURCE/WHEEL/SDIST — NOT A PUBLIC-RELEASE APPROVAL`
 - 用途：列出已证实的归属/许可证事实和待补证据；除下方必须随副本保留的 WordNet
   Release 3.0 notice 外，不复制第三方 LICENSE 全文。
 - 非结论：本文件不是项目自身 LICENSE，不授予再分发权，也不替代律师、TL 或发布负责人
@@ -9,13 +9,53 @@
   [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)；该包不选择
   项目许可证，也不将本清单提升为发行批准。
 
+## Frozen NOTICE scopes — 2026-08-31
+
+This policy deliberately separates the thing distributed by the project from a
+normal environment's separately installed dependency set. It does not choose a
+legal owner or make a legal conclusion about GPL combination or conveyance.
+
+| Notice set | Current policy | Included content |
+| --- | --- | --- |
+| A — physically redistributed first-party artifacts | Complete | The root proprietary `NOTICE` and first-party package metadata. Fresh offline archives contain no third-party dependency code, wheels, site-packages, `mutagen`, `yt_dlp`, GPL/COPYING payload, or BPE Blob. |
+| B — target installed runtime | Complete as an inventory/reference set | The exact 74-package macOS-arm64/Python-3.12 dependency inventory, versions, direct/transitive role, metadata license evidence, upstream metadata and separate-install relationship are in [SBOM-B](SBOM.md#sbom-b--target-installed-runtime-dependency-inventory). The project does not copy their license text into its wheel/sdist because it does not copy those packages. |
+| C — dev tooling | Excluded | `mypy`, `pytest`, `ruff`, and their six dev-only transitives are not current runtime or project-artifact NOTICE content. |
+
+### `mutagen==1.48.1` — exact current relationship
+
+- The exact locked edge is `youtube-intel -> yt-dlp[default] -> mutagen==1.48.1`.
+  `pyproject.toml` activates `yt-dlp[default,deno]`; locked installed yt-dlp
+  metadata declares `mutagen; extra == 'default'`.
+- The installed Mutagen metadata declares `License-Expression: GPL-2.0-or-later`
+  and carries `mutagen-1.48.1.dist-info/licenses/COPYING`. The authoritative
+  upstream is [quodlibet/mutagen release-1.48.1](https://github.com/quodlibet/mutagen/releases/tag/release-1.48.1), whose
+  [`COPYING`](https://raw.githubusercontent.com/quodlibet/mutagen/release-1.48.1/COPYING)
+  is GPL version 2 and later.
+- It is not physically present in the current first-party wheel or sdist and its
+  license file is not copied there. In a normal installation it is separately
+  installed by the package manager. Accordingly this project does not claim to
+  bundle GPL code or reproduce the GPL text as though it had done so.
+- yt-dlp documents Mutagen for `--embed-thumbnail` in some media formats. The
+  first-party adapters do not import Mutagen and disable download, subtitle and
+  thumbnail writes; they do not invoke ffmpeg. This is a functional-use fact,
+  not a justification to modify the declared extra.
+
+### Future physical-distribution gate
+
+An application bundle, materialized virtualenv, container, installer, or any
+copied dependency set is **not authorized**. Before such a form is considered,
+the release owner must complete a target-specific package/content inventory,
+license-text and attribution plan, GPL-sensitive source/source-offer analysis
+where applicable, and legal review. This task supplies no legal approval for
+that future form.
+
 | 组件或资源 | 已证实的许可证/来源事实 | NOTICE / 分发状态 |
 |---|---|---|
-| `yt-dlp[default,deno]==2026.7.4` | 直接锁定依赖；锁定安装 metadata 声明 `License-Expression: Unlicense`；`default`/`deno` extra 由 `uv.lock` 记录。 | 必须在最终目标发行物中逐项确定它和 extra 依赖的归属/NOTICE；尚未签署。 |
-| `mutagen==1.48.1` | `uv.lock` 显示它由 `yt-dlp` 的 `default` extra 引入；任务卡/Scout 输入将其标为 GPL-2.0-or-later。 | **BLOCKER**：TL/发布负责人须书面决定源码、二进制、bundle/容器的兼容分发方案。结论前不发布任何捆绑依赖物。 |
-| OpenAI Python SDK `openai==2.46.0` | ADR-008、Reuse Register：Apache-2.0。 | 收集 SDK 及传递项的版权/NOTICE；SDK 隔离导入不等于可分发签署。 |
-| `tiktoken==0.13.0` | ADR-008、Reuse Register：MIT。 | 收集包级 NOTICE；不得把此结论延伸到 `o200k_base.tiktoken` 文件。 |
-| `Jinja2==3.1.6` | ADR-009、Reuse Register：BSD-3-Clause。 | 收集发行物所需归属/NOTICE；传递 `MarkupSafe==3.0.3` 独立补证。 |
+| `yt-dlp[default,deno]==2026.7.4` | 直接锁定依赖；锁定安装 metadata 声明 `License-Expression: Unlicense`；`default`/`deno` extra 由 `uv.lock` 记录。 | Current target relationship and activated runtime extra dependencies are complete in NOTICE Set B / SBOM-B; a future copied-dependency artifact needs its own notice plan. |
+| `mutagen==1.48.1` | `uv.lock` 显示它由 `yt-dlp` 的 `default` extra 引入；locked installed metadata and upstream `release-1.48.1` declare GPL-2.0-or-later. | Current wheel/sdist: not embedded or copied; normal runtime: separately package-manager-installed; bundle/container: not authorized pending a separate GPL compliance package. |
+| OpenAI Python SDK `openai==2.46.0` | ADR-008、Reuse Register：Apache-2.0。 | Separately installed runtime entry in NOTICE Set B; SDK isolation does not imply distribution approval. |
+| `tiktoken==0.13.0` | ADR-008、Reuse Register：MIT。 | Separately installed runtime entry in NOTICE Set B; does not extend to `o200k_base.tiktoken`. |
+| `Jinja2==3.1.6` | ADR-009、Reuse Register：BSD-3-Clause。 | Separately installed runtime entry in NOTICE Set B; `MarkupSafe==3.0.3` is separately listed in SBOM-B. |
 | `spaCy==3.8.15` | Explosion 官方 Python 包；上游 LICENSE 与 PyPI 元数据声明 MIT；TASK-016B 固定版本和锁文件工件哈希。 | 本地英文依存分析的直接依赖；新增传递项的 Local-only 版权/NOTICE 清单已在下方逐项闭合。公开 bundle 仍待许可证文本装载与 release-owner sign-off；运行时不得下载模型或联网 fallback。 |
 | `en_core_web_sm==3.8.0` | Explosion 官方模型 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85`。模型来源清单包含 OntoNotes 5（commercial，licensed by Explosion）、ClearNLP conversion reference 与 WordNet 3.0 License。 | **RELEASE REVIEW REQUIRED**：Local-only 可从固定包加载；公开发行前须保留模型 LICENSE/来源归属、满足 WordNet NOTICE，并由发布负责人确认模型随 wheel/sdist/安装缓存的分发方式。缺失时只能 fail-closed，不得自动下载。 |
 | `MarkupSafe==3.0.3` | 锁定安装 metadata 声明 `License-Expression: BSD-3-Clause`，并携带 license 文件。 | 发布前记录最终发行物所需的版权/NOTICE 呈现。 |
@@ -115,19 +155,21 @@ compliant with the frozen dependency evidence; public distribution remains NO-GO
 above license files/model-source attribution are included in the selected release form and the
 release owner signs the OntoNotes/model redistribution decision.
 
-## 未逐项证明的锁定组件
+## Metadata limitations retained
 
-`docs/SBOM.md` 列出其余锁定解析包和版本。对任何会进入最终发行物、但未在本文件或
-既有 ADR 中有明示来源/许可证事实的组件，当前状态均为 `EVIDENCE GAP`。不得根据
-registry URL、包名或先前经验填补此缺口。
+SBOM-B now records every current-target runtime package and its exact installed
+license evidence. Where a package declares `NOASSERTION`, that is an explicit
+metadata limitation, not a guessed license. It does not block this non-vendored
+current artifact boundary, but a future copied-dependency artifact must obtain
+the applicable license/notice material for its actual contents.
 
-## 发布负责人需要作出的书面决定
+## Remaining release-owner decisions
 
-1. 最终发行形态：仅源代码、可安装源码包、wheel、二进制、容器或带依赖 bundle；哪些
-   条件性组件/模型/系统工具被明确排除。
-2. `mutagen` GPL-2.0-or-later 对所选形态的处置，以及提供相应源代码/NOTICE 的责任人。
-3. 每个纳入组件的许可证文本、版权和 NOTICE 的取得位置及发行包呈现方式。
-4. 若未来拟分发固定 BPE 文件，先取得其文件级归属、NOTICE 与分发许可；当前 ADR-028
-   已将其从所有项目发行物排除。
+1. Record the first-party legal owner before any broader external distribution.
+2. Before any bundle/container/installer or copied dependency set, complete its
+   target-specific license, attribution and GPL-sensitive compliance review.
+3. Before distributing model assets or a BPE Blob, complete their separate
+   source-rights and notice gates. ADR-028 continues to exclude the BPE Blob.
 
-未完成任一项时，发布结论为 `NO-GO`。
+These remaining gates keep the overall release at `NO-GO`; they do not reopen
+the complete current controlled source/wheel/sdist NOTICE scopes above.
