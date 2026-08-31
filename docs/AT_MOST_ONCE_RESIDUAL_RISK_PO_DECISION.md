@@ -43,7 +43,13 @@ No numerical probability is asserted here. Each window requires the stated
 operations to occur and then a process/machine crash or equivalent loss of
 execution in the narrow interval stated.
 
-## Window 1 — Provider success → SQLite commit
+## Window 1 — Provider success → SQLite commit (pre-remediation decision support)
+
+The behavior described in this section is the evidence presented to the Product
+Owner before the decision. It is preserved to explain the rejected risk. The
+current authoritative disposition is the later **Product Owner decision and
+Window-1 remediation** section: expired uncertain cloud dispatches now fail
+closed and do not automatically retry.
 
 ### Authoritative identity and implementation path
 
@@ -312,8 +318,9 @@ Adversarial review conclusions:
 - No numerical likelihood, strict exactly-once claim, provider qualification,
   operational authorization, TASK-016G authorization, scanner exception, or
   privacy/security waiver is implied.
-- Window 1 explicitly retains conditional duplicate provider execution; it is
-  not misdescribed as generic idempotency.
+- Before the PO decision, Window 1 conditionally permitted duplicate provider
+  execution; the later finite remediation supersedes that behavior with
+  fail-closed ambiguity handling and still does not claim generic idempotency.
 - Windows 2 and 3 retain their recovery burden and do not claim that a
   filesystem and SQLite form one transaction.
 - The document does not alter TASK-016, ADR-008, ADR-028, BPE, frozen-task
@@ -383,18 +390,18 @@ authorized by this remediation.
 | Field | Decision support |
 | --- | --- |
 | NAME | Provider success → SQLite commit |
-| IN ONE SENTENCE | A provider can finish one request before local SQLite records its receipt, so an expired retry can conditionally execute that request again. |
+| IN ONE SENTENCE | A provider can finish one request before local SQLite records its receipt, but the remediated runtime turns that uncertain state into a terminal operator-visible item rather than retrying it. |
 | CRASH BETWEEN | Provider returns success and SQLite commits artifacts/provider-call success/pipeline transition. |
-| USER-VISIBLE RESULT | Processing can remain incomplete and later complete after recovery; a cloud account can have one extra authorized request. |
-| DUPLICATE POSSIBLE | CONDITIONALLY YES |
-| LOSS POSSIBLE | CONDITIONALLY YES — first response can be unavailable if not durably captured. |
+| USER-VISIBLE RESULT | Processing remains incomplete for explicit operator resolution; the runtime does not send a second request automatically. |
+| DUPLICATE POSSIBLE | NO — not from automatic restart/recovery of this documented state. |
+| LOSS POSSIBLE | CONDITIONALLY YES — the first response can be unavailable if not durably captured. |
 | CORRUPTION POSSIBLE | NO committed SQLite corruption. |
-| RECOVERY | PARTIAL — verified durable artifact recovery when available; otherwise authorized retry. |
+| RECOVERY | MANUAL / separately authorized — cache/artifact evidence cannot promote ambiguity to success, and automatic retry is forbidden. |
 | SEVERITY | MEDIUM |
 | FUNDAMENTAL OR FIXABLE | Fundamental cross-provider/SQLite atomicity boundary; reducible with provider idempotency and stronger durable recovery. |
 | COST TO REDUCE | LARGE |
-| CODEX TECHNICAL RECOMMENDATION | REMEDIATE before qualifying a live paid/cloud Deep Analysis provider. |
-| WHY | This is the only window that can conditionally repeat an external account-visible request and its authorized payload/cost. |
+| CODEX TECHNICAL RECOMMENDATION | REMEDIATED — validate the fail-closed contract as part of any separately authorized live qualification. |
+| WHY | The exact automatic repeat risk was replaced with a bounded terminal operator-resolution state. |
 | PRODUCT OWNER DECISION | **REJECT / REQUIRE REMEDIATION — remediation COMPLETE; no automatic redispatch** |
 
 ### WINDOW 2
@@ -437,11 +444,11 @@ authorized by this remediation.
 
 ## Overall technical recommendation
 
-**ACCEPT SOME / REMEDIATE SOME.** Technically, retain the current guarded
-filesystem and cleanup semantics for Windows 2 and 3, while requiring a
-provider-specific idempotency/receipt and recovery design before any live paid
-or cloud Deep Analysis provider is qualified. This is not a Product Owner
-decision and does not authorize that remediation or any provider work.
+**ACCEPT SOME / REMEDIATE SOME — IMPLEMENTED AS AUTHORIZED.** Windows 2 and 3
+retain their guarded semantics for the current posture. Window 1 now uses a
+provider-neutral fail-closed receipt protocol rather than an automatic retry.
+Any live paid/cloud qualification remains separately authorized and must test
+the selected provider contract; this document does not authorize provider work.
 
 ## Completion statement
 
