@@ -26,7 +26,7 @@ or lockfile changed in that integration.
 | Build / CLI | PARTIAL | Offline wheel and sdist build passed. `youtube-intel --help` and `doctor --help` passed. A configured doctor and real backup/recovery drill remain unrun because the required authorized temporary configuration / real-environment gate is absent. |
 | Security scanner | ACCEPTED FINITE PO/TL POLICY EXCEPTION — technical blocker resolved for current controlled release | The canonical scanner remains fail-closed at exit `1` on exactly 11 existing TASK-016 `api-key` intentional-positive test-fixture findings across two test files; it is not PASS or globally clean. The Product Owner / Tech Lead accepts only the documented `5e15d62` matrix for controlled private source/wheel/sdist. The [finding matrix, conditions, and re-review triggers](SECURITY_SCANNER_FIXTURE_DISPOSITION.md) confirm no production runtime or wheel/sdist reachability, while controlled Git source does include the tests. No scanner weakening, allowlist, suppression, wider distribution, or new finding is covered. |
 | Secret handling | PASS (code evidence); ADR-008 technical isolation review approved / independent Security Reviewer sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. The [ADR-008 cloud-SDK review](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md) additionally confirms current SDK import, child-environment, pipe, and offline-network controls. Neither record is an independent named human Security Reviewer signature. |
-| Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
+| Privacy | TECHNICAL REVIEW APPROVED / independent Privacy Reviewer signature OPEN | [Vault/template privacy review](VAULT_TEMPLATE_PRIVACY_REVIEW.md) confirms the runtime-only Vault, fixed templates, redacted logs/errors, credential exclusion, and fresh wheel/sdist content with synthetic sentinels. It records no named independent human reviewer; the final signature gate remains blocked. |
 | Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. `墨竹` is recorded only as the current pseudonymous first-party owner attribution; no verified legal identity is claimed. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Future verified-identity, model, bundle, and container decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
 | Release signatures | BLOCKED | PO, TL/release owner, QA, and Privacy Reviewer signatures are not present. |
@@ -108,9 +108,9 @@ The BPE artifact sub-blocker, current controlled target-runtime SBOM/NOTICE +
 Mutagen technical gate, finite scanner-fixture technical disposition, current
 owner-attribution blocker, and ADR-008 cloud-SDK isolation technical review are
 resolved without a verified-identity, legal-rights, or human-signature claim.
-The **one next authorized release action** is: **Privacy Reviewer performs the
-Vault and template distribution-boundary review and records the required
-sign-off.** This does not authorize provider work, TASK-016G, a push, a tag, or
+The **one next authorized release action** is: **obtain an independent Privacy
+Reviewer signature on the recorded Vault/template distribution-boundary
+evidence.** This does not authorize provider work, TASK-016G, a push, a tag, or
 public distribution.
 
 ## ADR-028 post-sign-off licensing evidence

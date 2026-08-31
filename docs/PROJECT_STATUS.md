@@ -825,6 +825,27 @@
   authorized release action: Privacy Reviewer performs the Vault and template
   distribution-boundary review and records the required sign-off.
 
+## Vault and template distribution-boundary privacy technical review — 2026-08-31
+
+- The current technical review is **APPROVED** for the controlled
+  source/wheel/sdist target: runtime Vault paths and generated Note/Weekly
+  outputs remain outside the package boundary; the two shipped templates are
+  first-party static Jinja material; and resolved credential values are absent
+  from templates, archives, logs, errors, persistence, provenance, and cache.
+  Fresh offline wheel/sdist inspection found no Vault/runtime artifacts and no
+  synthetic privacy sentinel matches. See
+  [the privacy review evidence](VAULT_TEMPLATE_PRIVACY_REVIEW.md).
+- This evidence uses only temporary directories and synthetic values; no real
+  Vault, user note, credential, provider, or network call was accessed. The
+  controlled Git source's historical governance metadata is recorded as a P2
+  source-hygiene risk for any future broader/public source distribution, not as
+  a package or Vault-content finding.
+- No independent named human Privacy Reviewer signature is recorded. The final
+  human-signature gate remains open; no provider qualification, TASK-016,
+  ADR-008/ADR-028, BPE, scanner policy, push, tag, or public-release status
+  changed. Next authorized release action: obtain an independent Privacy
+  Reviewer signature on the recorded Vault/template evidence.
+
 ## 主控接收执行结果的最小格式
 
 ```text

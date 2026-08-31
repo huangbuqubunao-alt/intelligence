@@ -151,6 +151,18 @@
 - **Required input**: Review that no real Vault content, user notes, or
   user templates are included in any distribution artifact.
 - **Pass criteria**: Privacy Reviewer confirms clean artifact content.
+- **Technical evidence disposition (2026-08-31): RESOLVED.** The
+  [Vault/template privacy review](VAULT_TEMPLATE_PRIVACY_REVIEW.md) traces the
+  runtime-only Vault boundary, fixed package templates, rendered-output
+  destination, credential/log/cache/provenance controls, and fresh offline
+  archive contents. Wheel and sdist contain neither Vault/runtime output nor
+  the synthetic privacy sentinels; technical P0: `0`, release-critical
+  technical P1: `0`.
+- **Human-signature boundary:** this technical review records no named
+  independent Privacy Reviewer signature. The separate final human-signature
+  gate in §4.1 remains open. Historical controlled-Git governance metadata is
+  recorded as a non-release-critical P2 source-hygiene re-review trigger, not
+  as Vault content or wheel/sdist payload.
 
 ### 2.3 At-Most-Once Risk Acceptance
 
