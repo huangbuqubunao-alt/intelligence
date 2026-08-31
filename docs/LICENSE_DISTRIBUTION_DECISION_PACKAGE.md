@@ -22,7 +22,7 @@ boundary below. It is a build fact, not permission to distribute.
 | First-party Python source and CLI metadata | Current project artifact | Yes | First-party license required before publication. |
 | Python dependency declarations | Wheel metadata / sdist project metadata | References only; dependency wheels are not vendored | Final install/bundle mode determines the actual resolved dependency set. |
 | Lockfile | Repository/reproducibility input | No | Not automatically a shipped asset. |
-| `o200k_base.tiktoken` | Committed `src/youtube_intel/resources` resource, SHA fixed by ADR-008 | **Yes**; 3,613,922 bytes | File-level origin, license, attribution, and redistribution decision are required. |
+| `o200k_base.tiktoken` | Used only after explicit user/admin provisioning; SHA fixed by ADR-008/ADR-028 | **No**; no project artifact carries the file | File-level origin is recorded as classification C; the project does not claim or exercise downstream redistribution. |
 | `en_core_web_sm` | Direct URL runtime dependency | No; package manager may install it | Model-package/WordNet attribution and install-vs-bundle decision remain required. |
 | MLX Whisper converted weights | Controlled runtime data path under `data/models/...` | No | Do not distribute without a separate source/license decision. |
 | Ollama / Qwen model artifacts | External user/runtime installation reference | No | Do not distribute without a separate model/tool decision. |
@@ -79,19 +79,20 @@ the compliance plan before the latter is published.
 
 ## Model and tokenizer boundary
 
-- The current package **does** ship `o200k_base.tiktoken`; ADR-008 requires it
-  for fail-closed local token accounting and prohibits runtime download.
+- The current package does **not** ship `o200k_base.tiktoken`. ADR-028 preserves
+  ADR-008's local fail-closed accounting: an administrator explicitly provisions
+  the canonical file at `storage.data_dir/tokenizers/o200k_base.tiktoken` before
+  cloud analysis can run; runtime never downloads or substitutes it.
 - The closed-loop rightsholder investigation is recorded in
   [`O200K_BASE_REDISTRIBUTION_EVIDENCE.md`](O200K_BASE_REDISTRIBUTION_EVIDENCE.md).
   It classifies the asset as **C — rightsholder distributed but downstream grant
   ambiguous**: origin and hash are verified, but no explicit file-level
   redistribution or NOTICE term was found.
-- Removing the file is not technically safe under the existing ADR-008
-  no-download architecture: missing or invalid local data must fail closed.
-  No runtime acquisition behavior is added. The BPE remains packaged and blocks
-  even controlled artifact distribution until the rights/NOTICE conclusion is
-  supplied by the rightsholder or legal owner. A prepared, unimplemented
-  ADR-008-compatible provisioning alternative is in the evidence record.
+- ADR-028 implemented the prepared explicit-provisioning alternative without
+  runtime acquisition behavior. Missing or invalid local data fails closed before
+  cloud-provider side effects. Classification C and the absence of a downstream
+  grant remain recorded; the project avoids the ambiguous redistribution rather
+  than claiming it was licensed.
 - The current package does **not** ship MLX Whisper converted weights, Ollama
   model weights, ffmpeg, or an Ollama binary. Their recorded use is model/tool
   support, not current model redistribution.
@@ -106,8 +107,8 @@ the compliance plan before the latter is published.
 | Decision | Options supported by current facts | Consequence | Lowest-scope technical default (not approval) |
 | --- | --- | --- | --- |
 | A. First-party license | Proprietary/all-rights-reserved internal use; MIT; Apache-2.0 | Defines the project’s public grant and the root/package metadata work. Apache-2.0 has an express patent-license component; MIT is shorter; proprietary use does not authorize public open-source publication. | Keep the project private until PO/TL selects a license and distribution intent. |
-| B. Distribution mode | Internal/private execution; public source repository; wheel/sdist; bundled executable/container | Higher packaging modes require a target-artifact component/notice plan. | No wheel/sdist/bundle publication until C/D and the BPE decision are closed. |
-| C. Model/tokenizer assets | Ship only current BPE; reference-install spaCy model; ship an approved model/tool; exclude optional model features | Current wheel/sdist already include BPE; no weights are shipped. | Do not add model weights, ffmpeg, or Ollama assets; decide BPE file rights before shipping the current artifact. |
+| B. Distribution mode | Internal/private execution; public source repository; wheel/sdist; bundled executable/container | Higher packaging modes require a target-artifact component/notice plan. | Controlled wheel/sdist only; no public/bundle publication until target NOTICE, GPL, and model decisions are closed. |
+| C. Model/tokenizer assets | Explicitly provision BPE; reference-install spaCy model; ship an approved model/tool; exclude optional model features | Current wheel/sdist exclude BPE and all weights. | Preserve ADR-028; do not add model weights, ffmpeg, Ollama assets, or a BPE copy. |
 | D. GPL/copyleft-sensitive components | Resolver-installed dependency set; separately distributed dependencies; bundle/container | `mutagen` is present through yt-dlp default; technical packaging facts do not replace legal analysis. | Avoid bundled/container distribution until a written compliance plan exists. |
 | E. SBOM/NOTICE scope | Target runtime artifact only; target plus source repository; include dev tooling only when distributed | Dev tools are not automatically shipped; all actually installed/bundled runtime components need a final inventory. | Generate a target-specific runtime SBOM and NOTICE set; list dev tools separately as non-shipped. |
 
@@ -115,9 +116,9 @@ the compliance plan before the latter is published.
 
 1. Record the legal copyright-holder identity that must own the proprietary
    notice before any broader external distribution.
-2. Obtain a file-level BPE redistribution/NOTICE conclusion for
-   `o200k_base.tiktoken`, or authorize an architecture change that can remove it
-   without weakening ADR-008's no-download/fail-closed contract.
+2. Preserve ADR-028's explicit-provisioning boundary in any future distribution;
+   a future proposal to ship the BPE requires a separate file-level
+   redistribution/NOTICE conclusion.
 3. Decide whether spaCy model installation is supported in the chosen mode and
    obtain the required model-source/WordNet notice conclusion.
 4. For any future bundle/container, obtain a written `mutagen` GPL compliance decision

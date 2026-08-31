@@ -32,13 +32,14 @@
   broader release until its legal owner is recorded. Target-artifact third-party
   obligations and GPL-sensitive future bundled modes remain separate concerns.
 - **Remaining input**: PO/legal records the copyright-holder identity before
-  broader external distribution, and resolves the BPE file-level right in §1.2.
+  broader external distribution. Any future attempt to ship the BPE file needs
+  its separate file-level rights conclusion; ADR-028 currently excludes it.
   Any future bundled mode must also satisfy §1.1 mutagen constraints.
 - **Decision package**: The technical artifact inventory and the selected
   limited-distribution posture are recorded in
   `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`.
-- **Pass criteria**: Legal owner identity recorded; BPE distribution decision
-  resolved; target-specific SBOM/NOTICE complete; proprietary notice and package
+- **Pass criteria**: Legal owner identity recorded; target-specific SBOM/NOTICE
+  complete; proprietary notice and package
   metadata remain consistent in the built artifact.
 - **Blocker level**: DISTRIBUTION BLOCKER — no public release until resolved.
 
@@ -55,19 +56,23 @@
 - **Pass criteria**: Written decision on distribution form; if binary,
   GPL compliance plan including source availability.
 
-### 1.2 o200k_base.tiktoken File-Level License
+### 1.2 o200k_base.tiktoken File-Level License — Mitigated for Current Artifact
 
-- **Decision maker**: PO + TL
-- **Risk**: The `o200k_base.tiktoken` resource is pinned at SHA-256
+- **Current state**: The `o200k_base.tiktoken` resource is pinned at SHA-256
   `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`.
   `O200K_BASE_REDISTRIBUTION_EVIDENCE.md` verifies the canonical Blob identity
   and classifies first-party evidence as `C`: OpenAI distributes the file, but
   no evidence expressly licenses downstream redistribution or supplies its
   file-level NOTICE/credit requirement.
-- **Required input**: Rightsholder or legal confirmation of file-level
-  redistribution, license, and NOTICE/credit text for distribution.
-- **Pass criteria**: Written license conclusion; NOTICE text added to
-  `docs/THIRD_PARTY_NOTICES.md` if required.
+- **Disposition**: ADR-028 removes the file from project source/wheel/sdist
+  artifacts and admits only an explicitly user/admin-provisioned local copy.
+  Runtime remains local, fixed-hash and fail-closed, with no download or
+  tokenizer fallback. Therefore no project redistribution of this Blob occurs
+  in the current controlled artifact.
+- **Status**: `RESOLVED FOR CURRENT CONTROLLED ARTIFACT`; classification C and
+  the lack of a downstream grant remain preserved. Any future shipped copy
+  reopens this item and requires rightsholder/legal confirmation of its license
+  and NOTICE/credit text.
 
 ### 1.3 OpenAI SDK / tiktoken / Jinja2 / MarkupSafe NOTICE Evidence
 

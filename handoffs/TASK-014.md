@@ -1789,3 +1789,22 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   fallback/network change. The document prepares—but does not authorize or
   implement—a bounded operator-provisioning alternative for a later PO/TL
   architecture decision.
+
+## ADR-028 External `o200k_base` Provisioning — 2026-08-31
+
+- PO/TL selected and implemented the prepared Option 1 with ADR-028: project
+  source, wheel, and sdist no longer carry `o200k_base.tiktoken`. A lawful
+  user/admin must explicitly provision it at `storage.data_dir/tokenizers/`
+  before enabled cloud analysis can use the exact first-party SHA-256.
+- The historical classification C, canonical identity, and absence of an
+  downstream redistribution grant remain preserved. Runtime has no BPE
+  download, cache/network fallback, tokenizer substitution, or caller-defined
+  expected hash; missing, invalid, malformed, or unsafe local data fails closed
+  before credentials or provider side effects.
+- Offline archive inspection and provisioned-asset golden vectors are required
+  evidence; the completed record is `1918 passed, 1 warning`, lock/sync,
+  mypy/Ruff, offline build and direct archive checks PASS, while the canonical
+  scanner remains the same eleven TASK-016 fixtures only. This resolves only
+  the BPE redistribution sub-blocker for the
+  controlled artifact; it does not close remaining licensing, security,
+  privacy, provider, operational, or release-signature gates.

@@ -452,7 +452,8 @@
 - 产品负责人已于 2026-07-21 补充批准 ADR-008 A-16/A-17：固定包内
   `o200k_base.tiktoken` 资源及其 SHA-256、禁止运行时网络回退，并冻结 OpenAI SDK
   子进程隔离导入/导入后匿名管道密钥策略；TASK-008A Correction 1 可执行一次官方
-  Blob 下载。
+  Blob 下载。该包内存储细节已由 ADR-028 在 2026-08-31 替换为显式验证的外部预置，
+  但本地、固定哈希、无运行时网络和失败关闭的核心契约保持不变。
 
 ## 当前阻塞
 
@@ -678,11 +679,17 @@
 
 ## 当前风险
 
+- ADR-028 已将 classification C 的 `o200k_base.tiktoken` 从项目可分发源码、wheel 和
+  sdist 排除。仅管理员显式预置、固定 SHA-256 验证的本地副本可供云分析使用；缺失、篡改、
+  非法路径或解析失败均在凭据/Provider 前失败关闭，无运行时下载或 tokenizer fallback。
+  该实施解决当前受控发行物的 BPE 再分发子门禁，不取得或声称 Blob 的下游分发权，也不关闭
+  剩余许可证、Security、Privacy、Provider、运营或签署门禁。
+
 - TASK-001 的 `.gitignore` 使用未锚定 `data/`、`logs/`，会忽略任意同名嵌套目录；不违反当前 AC-3，已登记为 `TASK-014` 发布门禁检查项。
 - TASK-014 发布前必须形成书面 Go/No-Go 输入：`mutagen`（GPL-2.0-or-later）和所有直接/传递依赖的
-  分发许可证/NOTICE 处置；OpenAI SDK、tiktoken、Jinja2、MarkupSafe 复核；固定
-  `o200k_base.tiktoken` 的文件级许可、归属和 NOTICE；包内容；以及发布形态决策。没有这些结论不得把
-  二进制、捆绑依赖或该 BPE 资源作为发布物。
+  分发许可证/NOTICE 处置；OpenAI SDK、tiktoken、Jinja2、MarkupSafe 复核；包内容；以及发布形态
+  决策。classification C 的 `o200k_base.tiktoken` 已通过 ADR-028 从项目发行物排除，仍不得把该
+  BPE 资源作为项目发布物，除非另获文件级权利结论。
 - 已接受的可靠性契约只承诺 at-most-once best effort：外部 Provider 成功与 SQLite 提交、文件 replace
   与 SQLite 提交、以及音频清理最终 CAS 之间仍有崩溃窗口；离线恢复证据不等于严格 exactly-once。
   Phase B-1 最终真实 smoke 已在两个固定目标的正文读取前以 `INVALID_RESPONSE` 失败；当前仅获离线只读 Adapter

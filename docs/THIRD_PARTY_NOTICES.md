@@ -23,7 +23,7 @@
 | MLX Community Whisper 转换模型 | ADR-007：固定来源/revision/权重哈希；转换仓库 model card 未声明 license。 | **BLOCKER**：不得假定转换模型可再分发或纳入发布物。 |
 | ffmpeg | ADR-007：参考的 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 不安装、不调用、不捆绑、不重新分发，直至单独许可与发行决策完成。 |
 | Ollama / `qwen3:8b` | ADR-007：Ollama MIT；上游 Qwen3-8B 为 Apache-2.0，固定本机模型 digest 已登记。 | 程序、模型层、拉取与本机服务都需独立供应链审查；不得因 loopback 而跳过。 |
-| `o200k_base.tiktoken` | `O200K_BASE_REDISTRIBUTION_EVIDENCE.md` verifies exact Blob identity and classifies the reviewed first-party evidence as `C`: rightsholder distribution, downstream grant ambiguous. | **BLOCKER**：the repository MIT license is not extended to the separate Blob data; file-level redistribution and NOTICE terms remain unresolved. ADR-008 cannot safely remove it; no controlled source/wheel/sdist distribution. |
+| `o200k_base.tiktoken` | `O200K_BASE_REDISTRIBUTION_EVIDENCE.md` verifies exact Blob identity and classifies the reviewed first-party evidence as `C`: rightsholder distribution, downstream grant ambiguous. | ADR-028 excludes the file from project source/wheel/sdist artifacts. It is only user/admin-provisioned for local runtime verification; this NOTICE inventory neither grants nor asserts a right to redistribute the Blob. |
 
 ## TASK-016B spaCy dependency NOTICE inventory
 
@@ -127,6 +127,7 @@ registry URL、包名或先前经验填补此缺口。
    条件性组件/模型/系统工具被明确排除。
 2. `mutagen` GPL-2.0-or-later 对所选形态的处置，以及提供相应源代码/NOTICE 的责任人。
 3. 每个纳入组件的许可证文本、版权和 NOTICE 的取得位置及发行包呈现方式。
-4. 固定 BPE 文件的文件级归属、NOTICE 与分发许可；无明确结论时从所有发行物排除它。
+4. 若未来拟分发固定 BPE 文件，先取得其文件级归属、NOTICE 与分发许可；当前 ADR-028
+   已将其从所有项目发行物排除。
 
 未完成任一项时，发布结论为 `NO-GO`。

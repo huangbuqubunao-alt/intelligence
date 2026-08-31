@@ -35,6 +35,17 @@ value or Vault contents; contact YouTube or a cloud Provider; or repair local st
 On a first run, use its missing-state report as guidance, run `check` to perform the
 idempotent bootstrap, then run `doctor` again.
 
+### Cloud tokenizer provisioning
+
+When `cloud.enabled: true`, an administrator must explicitly provision a lawfully
+obtained canonical `o200k_base.tiktoken` at
+`storage.data_dir/tokenizers/o200k_base.tiktoken` before cloud analysis is run.
+The project never downloads, copies, or substitutes this file. Runtime accepts
+only the fixed first-party SHA-256 recorded in ADR-028; a missing, malformed,
+unsafe, or mismatched file fails closed before any credential or provider action.
+`youtube-intel doctor` reports a safe ready/missing-or-invalid state without
+displaying the local filesystem path.
+
 Each invocation writes JSONL records to `logs/operations.jsonl` with a UUID4
 `run_id`. Records contain timestamp, level, event, run_id, stage and a safe
 message; they may also contain video/job IDs, error codes and duration. Exception

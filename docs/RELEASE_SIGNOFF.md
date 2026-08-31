@@ -27,7 +27,7 @@ or lockfile changed in that integration.
 | Security scanner | BLOCKED | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` test-fixture findings across two test files; no new release-candidate finding was introduced. No formal release-policy exception or semantic remediation closes a non-zero global scan. |
 | Secret handling | PASS (code evidence) / human sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. Final Security Reviewer sign-off remains required. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
-| Licensing / distribution | BLOCKED | Private/proprietary controlled-distribution posture is encoded by root `NOTICE` and package metadata. The BPE investigation classified `o200k_base.tiktoken` as `C` (rightsholder distribution, downstream grant ambiguous); legal-owner identity, target NOTICE set, GPL mutagen scope, and optional model-source decisions remain open. |
+| Licensing / distribution | BLOCKED | Private/proprietary controlled-distribution posture is encoded by root `NOTICE` and package metadata. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob from project artifacts without claiming downstream rights; legal-owner identity, target NOTICE set, GPL mutagen scope, and optional model-source decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
 | Release signatures | BLOCKED | PO, TL/release owner, QA, and Privacy Reviewer signatures are not present. |
 
@@ -74,7 +74,7 @@ TASK-014B11 regression, TASK-016 implementation change, scanner weakening,
 push, tag, or public-release action. It did find the following release-critical
 P1 gates, all preserved rather than downgraded:
 
-1. Project/distribution license and third-party notice/SBOM decisions.
+1. Project/distribution legal-owner, third-party notice/SBOM, GPL, and model-source decisions.
 2. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
 3. Global security scan exit remains non-zero without a formal release closure
@@ -88,9 +88,20 @@ P1 gates, all preserved rather than downgraded:
 
 ## Required next action
 
-The technical **PO/TL project-license and distribution decision package** is
-prepared in `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`. The next action is
-for PO/TL to select the project license and distribution form from that package,
-then authorize the bounded SBOM/NOTICE/artifact update required by
+The BPE artifact sub-blocker is resolved by ADR-028 without a rights claim. The
+next licensing action is for the TL/release owner to define the target installed
+runtime NOTICE/SBOM set and the `mutagen` GPL compliance posture required by
 `docs/RELEASE_BLOCKERS.md §§0–1`. This does not authorize provider work,
 TASK-016G, a push, a tag, or public distribution.
+
+## ADR-028 post-sign-off licensing evidence
+
+The later ADR-028 implementation excludes the classification-C
+`o200k_base.tiktoken` Blob from project source/wheel/sdist artifacts. It uses
+only explicit local administrator provisioning with first-party fixed-hash
+admission, no runtime network, no fallback, and fail-closed diagnostics. The
+post-change evidence is `1918 passed, 1 warning`, `mypy src`/Ruff/lock/sync/
+offline build/diff-check PASS, and canonical scanner exit `1` for the same eleven
+TASK-016 fixtures only. This resolves the BPE redistribution sub-blocker, not
+the remaining licensing, provider, security, privacy, operations, or signature
+gates; the release decision remains `NO-GO`.

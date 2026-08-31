@@ -10,24 +10,26 @@ ADR-008 nor permits a network fallback.
 AMBIGUOUS.** OpenAI publicly hosts the exact file and its official `tiktoken`
 code loads it, but the reviewed authoritative material does not expressly grant
 downstream redistribution of this separately hosted data file or identify its
-file-level NOTICE obligation. The current source/wheel/sdist artifact therefore
-remains non-distributable.
+file-level NOTICE obligation. ADR-028 consequently excludes the Blob from the
+current project source/wheel/sdist artifact; it does not claim a downstream
+license or change this classification.
 
 ## Exact file identity
 
 | Field | Evidence |
 | --- | --- |
-| Repository path | `src/youtube_intel/resources/o200k_base.tiktoken` |
-| Packaged path | `youtube_intel/resources/o200k_base.tiktoken` in wheel; `src/youtube_intel/resources/o200k_base.tiktoken` in sdist |
+| Historical repository / packaged path | Before ADR-028: `src/youtube_intel/resources/o200k_base.tiktoken` / `youtube_intel/resources/o200k_base.tiktoken` |
+| Current project artifact path | None. The runtime verifies an explicitly user/admin-provisioned file at `storage.data_dir/tokenizers/o200k_base.tiktoken`; this is not a project-distributed path. |
 | Size | 3,613,922 bytes |
 | Local SHA-256 | `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` |
 | Canonical URL | `https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken` |
 | Authoritative expected SHA-256 | The same value in [`openai_public.py` at tiktoken 0.13.0](https://github.com/openai/tiktoken/blob/0.13.0/tiktoken_ext/openai_public.py#L95-L100) |
 | Project acquisition record | ADR-008 A-16 and `d95745f`: one authenticated-free GET, hash verification, then commit |
 
-The local hash matches the fixed upstream value. `analysis._encoding()` loads
-only the package resource with that expected hash; missing, malformed, or
-changed data fails locally before any provider, credential, or network action.
+The historical local hash matched the fixed upstream value. Under ADR-028,
+`analysis.load_provisioned_o200k_encoding()` only admits the fixed local
+provisioning path when it has that expected hash; missing, malformed, changed,
+or unsafe data fails locally before any provider, credential, or network action.
 
 ## Authoritative evidence reviewed
 
@@ -77,10 +79,10 @@ Accordingly, downstream redistribution is **not established** and file-specific
 NOTICE obligations are **unresolved**. Adding an attribution or the repository
 MIT text would not supply missing permission.
 
-## ADR-008-compatible BPE artifact strategy — prepared, not approved
+## ADR-008-compatible BPE artifact strategy — decision history
 
-No architecture option below is authorized or implemented. They are bounded
-decision inputs if direct rightsholder confirmation cannot be obtained.
+The table below was the bounded decision input after direct rightsholder
+confirmation was not established.
 
 | Option | ADR-008 / offline / fail-closed effect | Packaging, security, privacy, and licensing effect | Migration and test impact |
 | --- | --- | --- | --- |
@@ -89,18 +91,46 @@ decision inputs if direct rightsholder confirmation cannot be obtained.
 | 3. Clearly redistributable tokenizer data or implementation | Requires a fresh model-to-tokenizer compatibility decision and deterministic-token-count proof. | Could remove the ambiguous asset, but replacement licensing and packaging must be independently verified. | Broad compatibility, budget-boundary, regression, and migration work. |
 | 4. Amend ADR-008 for a formal provisioning flow | May preserve no-silent-network-at-runtime semantics, but changes the accepted architecture. | Requires explicit PO/TL security, privacy, and licensing approval. | ADR revision plus implementation and end-to-end validation. |
 
-**Smallest technical candidate, not a recommendation or authorization:** Option 1
-has the narrowest application behavior change because it preserves deterministic
-local tokenization, the exact hash check, offline operation after provisioning,
-and fail-closed semantics while removing the ambiguous file from shipped
-artifacts. It still requires a distinct PO/TL architecture package and an
-operator-side lawful-acquisition decision.
+**Selected and implemented:** Option 1, by the PO/TL-authorized ADR-028. It
+preserves deterministic local tokenization, the exact hash check, offline
+operation after provisioning, and fail-closed semantics while removing the
+ambiguous file from shipped artifacts. It does not acquire, mirror, or license
+the file for the operator.
+
+## ADR-028 implementation disposition
+
+- The project no longer vendors, mirrors, proxies, embeds, re-hosts, or copies
+  this Blob into distributable source, wheel, or sdist artifacts.
+- A user or administrator must explicitly and lawfully provision the exact file
+  before normal cloud analysis. Runtime makes no network request, accepts no
+  caller-supplied expected hash, and has no alternate tokenizer fallback.
+- Archive inspection confirms no `o200k_base.tiktoken`, `.tiktoken` asset, or
+  same-hash copy appears in the target wheel or sdist. Golden token-ID vectors
+  still match when a separately provisioned canonical copy is supplied.
+- This is a distribution-boundary mitigation, **not** a rightsholder grant.
+  Classification C and unresolved file-level NOTICE obligations for any future
+  project-distributed copy remain unchanged.
+
+## ADR-028 validation record
+
+- Explicit-provisioning boundary tests cover missing, wrong-hash, malformed,
+  file-symlink, directory-symlink, fixed-hash admission, no-network behavior,
+  safe doctor diagnostics, and external canonical golden token IDs.
+- The provisioned canonical asset matches the historical fixed hash; ASCII,
+  Chinese, multilingual, emoji, punctuation, and long-input token-ID/count
+  vectors remain exact.
+- `uv lock --check`, `uv sync --locked --offline`, offline wheel/sdist builds,
+  direct archive inspection, `uv run mypy src`, Ruff, scanner regression, and
+  `git diff --check` pass. Full pytest is `1918 passed, 1 warning`.
+- The canonical security scanner still exits `1` only for the documented eleven
+  TASK-016 fixtures; ADR-028 introduces zero findings and does not alter scanner
+  policy.
 
 ## Status
 
-- Current artifact redistribution: **BLOCKED**.
-- ADR-008: **PRESERVED**; no file removal, fallback download, or runtime change
-  occurred.
-- Required resolution: direct rightsholder/legal confirmation covering this
-  exact file and its NOTICE terms, or PO/TL authorization of one prepared
-  alternative architecture package.
+- Current BPE artifact redistribution: **NOT APPLICABLE — PROJECT DOES NOT
+  REDISTRIBUTE THE FILE**.
+- ADR-008: **CORE REQUIREMENTS PRESERVED**; ADR-028 replaces only A-16's
+  package-storage detail with explicit verified local provisioning.
+- Any future decision to ship a copy requires direct rightsholder/legal
+  confirmation covering this exact file and its NOTICE terms.

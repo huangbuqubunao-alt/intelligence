@@ -6,13 +6,14 @@
 - 范围：锁文件解析到的 Python 分发包，以及条件性模型、系统工具和固定资源边界。
 - TASK-016B 补充：已对 spaCy 新增依赖执行锁定安装、离线构建、包 metadata/LICENSE
   清点与模型哈希核验；其余 Phase A 组件仍沿用原证据边界。
-- 2026-08-31 离线 wheel/sdist 检查确认当前产物包含项目源码、operations/launchd 示例和
-  `o200k_base.tiktoken`，不包含模型 weights、ffmpeg、Ollama、tests/fixtures 或依赖 wheel；
+- 2026-08-31 ADR-028 后的离线 wheel/sdist 检查确认当前产物包含项目源码、operations/launchd
+  示例，**不包含** `o200k_base.tiktoken`、模型 weights、ffmpeg、Ollama、tests/fixtures 或依赖 wheel；
   这仅是产物边界事实，不构成任何分发许可。决策矩阵见
   [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)。
 - PO/TL 已选择私有/专有、受控 source/wheel/sdist 测试姿态：root `NOTICE` 与包 metadata
-  已编码该姿态，且不含 bundled dependency wheels、model weights、ffmpeg 或 Ollama。BPE 文件
-  权利未明，故任何该产物的实际分发仍为 `BLOCKED`。
+  已编码该姿态，且不含 bundled dependency wheels、model weights、ffmpeg、Ollama 或 BPE Blob。
+  BPE 文件权利仍为 classification C，但本项目不再分发它；其余目标安装集、NOTICE 与模型来源
+  问题仍使发行保持 `BLOCKED`。
 
 本清单是发行决策输入，不是法律意见，也不表示任何锁定组件、资源或其组合已经获准
 分发。`uv.lock` 记录版本、来源与工件哈希，但不携带完整的许可证文本、NOTICE、版权
@@ -38,7 +39,7 @@
 
 | 项目 | 已证实事实 | 发布门禁 |
 |---|---|---|
-| `o200k_base.tiktoken` | Canonical Blob URL, SHA-256, local package identity, official source/sdist boundary, Blob metadata, and maintainer-discussion searches are recorded in `O200K_BASE_REDISTRIBUTION_EVIDENCE.md`. | Classification `C`: OpenAI distribution is established but downstream file-level redistribution/NOTICE right remains ambiguous. ADR-008 prevents safe removal; containing artifacts remain `BLOCKED`. |
+| `o200k_base.tiktoken` | Canonical Blob URL, SHA-256 and rights investigation are recorded in `O200K_BASE_REDISTRIBUTION_EVIDENCE.md`; ADR-028 verifies only an explicitly provisioned local copy before use. | Classification `C` remains: OpenAI distribution is established but downstream file-level redistribution/NOTICE right is ambiguous. The project wheel/sdist/source artifact excludes the file, so it is used but not redistributed. |
 | MLX Community Whisper 转换模型 | ADR-007 固定 revision、大小和权重哈希；上游 OpenAI Whisper 资料为 MIT。 | 转换仓库 model card 缺少许可声明；不得推断转换产物许可或纳入任何发行物。 |
 | ffmpeg | ADR-007 记录 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 未获安装/调用/捆绑授权；不得捆绑或重新分发。 |
 | Ollama 与 `qwen3:8b` | ADR-007 记录 Ollama MIT、固定 qwen digest；上游 Qwen3-8B 为 Apache-2.0。 | 程序版本、模型拉取、本机服务与模型分发均待单独供应链/授权审查。 |
@@ -101,6 +102,6 @@ TASK-014 任务卡均记录其为 GPL-2.0-or-later。源代码、二进制和捆
 1. 针对最终目标平台和发行形态，生成可复现的组件包含清单，而不是仅复用锁文件的
    全平台解析集合。
 2. 为每个会进入发行物的组件补齐许可证、版权、NOTICE、来源和适用义务的证据位置。
-3. 对 `mutagen`、BPE 文件、模型、ffmpeg、Ollama、CUDA/NVIDIA 相关条件项给出明确的
+3. 对 `mutagen`、模型、ffmpeg、Ollama、CUDA/NVIDIA 相关条件项给出明确的
    包含/排除与分发决策。
 4. 由 PO、TL、QA 与隐私 Reviewer 在发布检查表签字；在此之前结论保持 `NO-GO`。
