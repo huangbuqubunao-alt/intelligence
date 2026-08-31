@@ -51,10 +51,12 @@ merely to keep this project moving.
 
 TASK-014B11 is now `INTEGRATED / CLOSED`, and TASK-014B9 is
 `QUALIFIED / CLOSED`; neither result authorizes provider work or TASK-016G.
-The 2026-08-31 final release sign-off is `NO-GO` pending the provider/acceptance
-gate and the separately recorded licensing, security/privacy-signature, and
-operational gates. No new TASK-016 provider experimentation is authorized by
-that sign-off.
+The 2026-08-31 final release sign-off remains `NO-GO` pending the
+provider/acceptance gate and separately recorded technical, retained PO, and
+operational gates. Under the PO trigger-based governance decision after the
+`026e9b8` audit, named Security/Privacy Reviewer signatures are deferred for
+the current controlled posture; that policy does not authorize provider work or
+TASK-016G.
 
 ## Evidence
 

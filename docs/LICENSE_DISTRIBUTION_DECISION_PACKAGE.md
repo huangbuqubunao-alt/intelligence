@@ -181,8 +181,11 @@ After the remaining inputs—not before—make the following changes as applicab
 4. Update `docs/SBOM.md`, `docs/THIRD_PARTY_NOTICES.md`,
    `docs/RELEASE_BLOCKERS.md`, `docs/RELEASE_CHECKLIST.md`, and
    `docs/PROJECT_STATUS.md` with the signed decision and artifact evidence.
-5. Rebuild in an isolated directory, inspect payload and metadata, and obtain
-   the required Security/Privacy/QA/PO/TL release sign-offs.
+5. Rebuild in an isolated directory and inspect payload and metadata. For the
+   current controlled posture, retain technical evidence and any applicable PO
+   authorization; named Security/Privacy/QA/TL roles are trigger-based under the
+   PO decision after the `026e9b8` governance audit. Determine applicable roles
+   again for a broadened/public/commercial/contractual or other governing trigger.
 
 The authorized private posture is encoded by root `NOTICE` and the package
 license metadata. No open-source first-party license or third-party license

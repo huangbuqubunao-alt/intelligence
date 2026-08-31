@@ -8,6 +8,15 @@
 - Remaining items below cannot be resolved by code changes alone. Each
   requires explicit authorization, legal review, or production credential
   access from the designated decision maker.
+- **Current governance policy (PO decision after `026e9b8` audit):** for the
+  current personal/private/proprietary controlled source/wheel/sdist posture,
+  named independent Security/Privacy Reviewer, separate TL, separate QA, and
+  the multi-role signature table are conditional future controls, not current
+  blockers. This preserves technical evidence requirements and every explicit
+  PO decision/authorization gate. Re-evaluate applicable roles at public or
+  broader distribution, commercial/customer/contractual use, bundle/container/
+  installer/app-store, legal-identity/ownership, multi-developer, or externally
+  imposed compliance trigger.
 
 ## Current final-review additions
 
@@ -28,8 +37,9 @@
   Git source tree does contain the tracked test corpus. **The security technical
   release blocker is resolved for the current controlled release.** No broader
   distribution, scanner weakening, allowlist, or suppression is approved.
-- This does not close the independent Security Reviewer sign-off, final human
-  signature gate, privacy, provider, legal-owner, or operations blockers. The
+- This does not close provider, retained PO-authorization, legal/distribution,
+  or operations blockers. Named organizational reviewer and final-table controls
+  are deferred only for the current posture under the PO policy above. The
   ADR-008 technical isolation review is recorded separately in §2.1. The
   non-blocking future follow-up is a first-class
   fail-closed scanner scope/intentional-fixture disposition design; it covers no
@@ -120,18 +130,18 @@
 - **Pass criteria**: Written exclusion or inclusion decision with
   license compliance plan for each component.
 
-## 2. Security & Privacy Sign-Offs
+## 2. Security & Privacy Technical Reviews and Conditional Human Review
 
 ### 2.1 Cloud SDK Isolation Verification
 
-- **Decision maker**: Security Reviewer
+- **Current requirement**: ADR-008 technical review evidence is required.
+  A named independent Security Reviewer is deferred / not required for the
+  current posture.
 - **Risk**: The isolated child process (`cloud_llm.py`) must not import
   the SDK in the main process, must use a whitelist environment, and
   must receive credentials only through anonymous pipes.
-- **Required input**: Review of ADR-008 implementation against the
-  isolation requirements.
-- **Pass criteria**: Security Reviewer confirms: no main-process SDK
-  import, whitelist env, pipe-only credential passing, no credential
+- **Required input / pass criteria**: Evidence confirms no main-process SDK
+  import, whitelist env, pipe-only credential passing, and no credential
   leakage through env/argv/files/logs/exceptions.
 - **Technical evidence disposition (2026-08-31): RESOLVED.**
   [ADR-008 cloud-SDK isolation security review](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md)
@@ -139,18 +149,22 @@
   no-main-process-import and literal child-environment boundary, and records
   offline socket-deny/fake-transport/credential/BPE evidence. Technical P0: `0`;
   release-critical technical P1: `0`.
-- **Human-signature boundary:** this technical review records no named independent
-  Security Reviewer signature. The separate final human-signature gate in §4.1
-  remains open; no legal approval, provider qualification, or release is implied.
+- **Conditional human-review boundary:** a named independent Security Reviewer
+  is not required for the current posture. It must be re-evaluated when a
+  relevant public/broader-distribution, commercial/customer/contractual,
+  multi-developer, material cloud/credential-boundary, or externally imposed
+  compliance trigger occurs. No legal approval, provider qualification, or
+  release is implied.
 
 ### 2.2 Vault & Template Distribution Boundary
 
-- **Decision maker**: Privacy Reviewer
+- **Current requirement**: Vault/template technical review evidence is required.
+  A named independent Privacy Reviewer is deferred / not required for the
+  current posture.
 - **Risk**: Managed Obsidian notes must not include real user content in
   distribution artifacts. Templates must be safe defaults.
-- **Required input**: Review that no real Vault content, user notes, or
-  user templates are included in any distribution artifact.
-- **Pass criteria**: Privacy Reviewer confirms clean artifact content.
+- **Required input / pass criteria**: Evidence confirms no real Vault content,
+  user notes, or user templates are included in any distribution artifact.
 - **Technical evidence disposition (2026-08-31): RESOLVED.** The
   [Vault/template privacy review](VAULT_TEMPLATE_PRIVACY_REVIEW.md) traces the
   runtime-only Vault boundary, fixed package templates, rendered-output
@@ -158,11 +172,13 @@
   archive contents. Wheel and sdist contain neither Vault/runtime output nor
   the synthetic privacy sentinels; technical P0: `0`, release-critical
   technical P1: `0`.
-- **Human-signature boundary:** this technical review records no named
-  independent Privacy Reviewer signature. The separate final human-signature
-  gate in §4.1 remains open. Historical controlled-Git governance metadata is
-  recorded as a non-release-critical P2 source-hygiene re-review trigger, not
-  as Vault content or wheel/sdist payload.
+- **Conditional human-review boundary:** a named independent Privacy Reviewer
+  is not required for the current posture. Re-evaluate at relevant public/
+  broader-distribution, commercial/customer/contractual, multi-developer,
+  material Vault/template/build-boundary, or externally imposed compliance
+  trigger. Historical controlled-Git governance metadata remains a
+  non-release-critical P2 source-hygiene re-review trigger before broader/public
+  source distribution, not Vault content or wheel/sdist payload.
 
 ### 2.3 At-Most-Once Risk Acceptance
 
@@ -181,7 +197,8 @@
 ### 3.1 Backup & Recovery Drill (Real Environment)
 
 - **Status**: Automated drill v3 remediated and passing on `workbuddy/fix-rc-p1`.
-- **Decision maker**: QA + TL
+- **Decision maker**: PO for the current one-owner posture; separate QA/TL
+  review is conditional on a future applicable trigger.
 - **Risk**: The automated drill (`scripts/backup_recovery_drill.sh`)
   validates temporary environments. A real drill requires temporary
   SQLite/DATA/Vault with real pipeline data.
@@ -209,15 +226,20 @@
 - **Required input**: Explicit PO approval for each.
 - **Pass criteria**: Written authorization with scope and rollback plan.
 
-## 4. Final Sign-Offs
+## 4. Current Controlled-Posture Final Authorization
 
-### 4.1 PO / TL / QA / Privacy Reviewer Signatures
+### 4.1 Objective Evidence plus Product Owner Authorization
 
-- **Decision maker**: All four roles
-- **Required input**: Review of this document, `RELEASE_CHECKLIST.md`,
-  and all evidence links.
-- **Pass criteria**: All four roles sign `GO` in
-  `docs/RELEASE_CHECKLIST.md` final signature table.
+- **Decision maker**: PO for any release/distribution decision; no separate
+  named TL, QA, Security Reviewer, or Privacy Reviewer signature is required
+  for the current posture.
+- **Required input**: All non-deferred technical, operational, and product gates
+  must be satisfied, and the PO must make any required release/distribution
+  authorization. This document and `RELEASE_CHECKLIST.md` remain the evidence
+  roll-up.
+- **Pass criteria**: The current target may be considered only after those gates
+  are satisfied and an explicit PO authorization required by the selected action
+  is recorded. The deferred role table cannot itself turn `NO-GO` into `GO`.
 
 ## 5. Non-Blocking Known Risks
 

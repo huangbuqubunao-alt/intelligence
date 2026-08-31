@@ -13,9 +13,13 @@
 - **Privacy technical review:** **APPROVE** for the current controlled target.
   No P0 or release-critical technical P1 Vault/template distribution defect was
   found.
-- **Independent human Privacy Reviewer signature:** **OPEN**. This is technical
-  evidence only; it records no named reviewer, human signature, legal approval,
-  or final release approval.
+- **Independent human Privacy Reviewer signature:** **DEFERRED / NOT REQUIRED
+  FOR CURRENT POSTURE** under the explicit PO trigger-based governance decision
+  after the `026e9b8` audit. This remains technical evidence only; it records
+  no named reviewer, human signature, legal approval, or final release approval.
+  Re-evaluate an applicable privacy review for broader/public distribution,
+  commercial/customer/contractual use, a material Vault/template/build-boundary
+  change, or an externally imposed requirement.
 
 ## Recovered privacy and distribution contract
 

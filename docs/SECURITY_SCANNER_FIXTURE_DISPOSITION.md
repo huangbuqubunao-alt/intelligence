@@ -39,10 +39,12 @@ enumeration, reading, parsing, or extraction fails.
 The Product Owner / Tech Lead disposition supplied for this record establishes
 the finite exception described below. It does not change scanner exit semantics:
 the result remains exit `1`, never “security scan PASS” or “global scan clean.”
-The repository's separate final-signature and independent Security Reviewer
-requirements remain governed by [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md),
-[RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md), and
-[RELEASE_SIGNOFF.md](RELEASE_SIGNOFF.md).
+The repository's separate organizational-role controls remain governed by
+[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md), [RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md),
+and [RELEASE_SIGNOFF.md](RELEASE_SIGNOFF.md). Under the PO decision after the
+`026e9b8` governance audit, named independent Security Reviewer and final
+multi-role requirements are deferred for the current controlled posture; the
+technical scanner contract and finite exception are unchanged.
 
 ## Finding matrix
 
@@ -107,8 +109,8 @@ a scanner blind spot.
 
 At-most-once risk acceptance is separate: `RELEASE_BLOCKERS.md` assigns its
 three crash windows to the PO. This finite scanner exception neither grants nor
-replaces that acceptance, the final human-signature gate, or an independent
-Security Reviewer signature.
+replaces that acceptance, any applicable PO release/distribution authorization,
+or the underlying ADR-008 technical review.
 
 ### Finite exception identity, conditions, and re-review
 
@@ -147,8 +149,8 @@ review: **P0 0; release-critical technical P1 0; P2 0.**
 ## Required disposition
 
 **SECURITY TECHNICAL RELEASE BLOCKER: RESOLVED FOR CURRENT CONTROLLED RELEASE.**
-The independent Security Reviewer signature remains **OPEN / not named or
-fabricated**, and the final human-signature gate remains **BLOCKED** because
-the final release checklist's GO signatures and other independent gates are not
-complete. The next authorized project action is recorded in the current release
-documents; this exception does not authorize it itself.
+The independent Security Reviewer and final multi-role signature requirements
+are **DEFERRED / NOT REQUIRED FOR CURRENT POSTURE** under the PO decision after
+the `026e9b8` governance audit; no reviewer or signature is named or
+fabricated. Retained PO and technical gates remain blocking as recorded in the
+current release documents. This exception does not authorize any next action.

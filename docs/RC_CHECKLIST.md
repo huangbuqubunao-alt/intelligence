@@ -131,7 +131,7 @@ Platform: macOS arm64.
 | ② Personal local smoke (no distribution) | **YES** | Smoke authorization matrix gates remain (SMOKE_AUTHORIZATION_MATRIX.md) |
 | ③ Merge to main | **CONDITIONAL** | Requires Integrator + Orchestrator approval per COLLABORATION.md |
 | ④ Public distribution (pip install / upload to PyPI) | **NO** | License unresolved; mutagen GPL; o200k_base.tiktoken; SBOM gaps; NOTICE not complete |
-| ⑤ Production deployment | **NO** | All ④ items plus: at-most-once risk acceptance, real backup drill, four-phase smoke, final signatures |
+| ⑤ Production deployment | **NO** | All ④ items plus: at-most-once risk acceptance, real backup drill, four-phase smoke, and applicable PO/review authorization; roles are determined by the governing trigger rather than assumed final signatures. |
 
 ---
 
@@ -145,12 +145,16 @@ Summary of **distribution-blocking** items:
 3. **[DIST BLOCKER]** `o200k_base.tiktoken` file-level license and NOTICE
 4. **[DIST BLOCKER]** OpenAI SDK / tiktoken / Jinja2 NOTICE evidence gap
 5. **[DIST BLOCKER]** MLX Whisper / ffmpeg / Ollama licensing decision
-6. Cloud SDK isolation security review sign-off
-7. Vault and template distribution boundary sign-off
+6. Cloud SDK isolation technical review evidence (named independent reviewer is
+   deferred for the current posture)
+7. Vault and template distribution-boundary technical review evidence (named
+   independent reviewer is deferred for the current posture)
 8. At-most-once risk acceptance (PO)
 9. Four-phase real smoke authorization
 10. Real Vault and launchd authorization
-11. PO / TL / QA / Privacy Reviewer final signatures
+11. Applicable PO release/distribution authorization after non-deferred gates;
+    separate TL/QA/Privacy multi-role signatures are deferred for the current
+    posture
 
 ---
 

@@ -10,9 +10,42 @@
   controlled first-party source/wheel/sdist only. Public source/PyPI, bundles,
   containers, installers, app stores, and third-party commercial distribution
   are outside the current authorization.
-- **Non-effect:** human gates closed `0`; signatures fabricated `0`; release
-  policy changed `NO`. This is a decision package for the Product Owner (PO),
-  not a waiver or approval.
+- **Audit non-effect at `026e9b8`:** human gates closed `0`; signatures
+  fabricated `0`; release policy changed `NO`. The audit was a decision package
+  for the Product Owner (PO), not itself a waiver or approval.
+
+## Product Owner policy adoption — 2026-08-31
+
+The Product Owner explicitly accepted the finite policy decision proposed by
+this audit on baseline `main@026e9b8`: for the current personal, private,
+proprietary, controlled first-party source/wheel/sdist posture, use a
+trigger-based human-governance profile. This is the authoritative trace for the
+policy updates in the release records; it is not a fabricated signature or a
+claim that a separate reviewer read any evidence.
+
+The adoption changes only organizational-role ceremony. It preserves every
+technical review and its evidence, the canonical scanner's exit `1` and exact
+11-fixture disposition, the privacy P2 broader/public-source re-review trigger,
+and all explicit PO authority. It does not authorize provider work, TASK-016G,
+operational actions, broader distribution, a push, a tag, or a release.
+
+| Gate | Previous audit recommendation | Current controlled-posture disposition | PO authority / future trigger |
+| --- | --- | --- | --- |
+| `G-SEC` | `DEFER_TO_TRIGGER` | Named independent Security Reviewer is **DEFERRED / NOT REQUIRED NOW**; ADR-008 technical evidence remains required and approved. | Re-evaluate for public/broader source or package distribution, commercial/customer/contractual use, material cloud/credential change, or externally imposed requirement. |
+| `G-PRIV` | `DEFER_TO_TRIGGER` | Named independent Privacy Reviewer is **DEFERRED / NOT REQUIRED NOW**; Vault/template technical evidence remains required and approved. | Re-evaluate for public/broader source or package distribution, commercial/customer/contractual use, real-Vault/template/build-boundary change, or externally imposed requirement. |
+| `G-RISK` | `KEEP_NOW` | **RETAINED.** | PO must accept or reject at-most-once residual risk. |
+| `G-OPS-RECOVERY` | `REDEFINE` | Separate QA/TL signature is **DEFERRED**; the real drill remains unrun and requires explicit PO scope, rollback, and evidence authorization. | Real operational validation; multi-developer team; external customer. |
+| `G-OPS-SMOKE` | `KEEP_NOW` | **RETAINED.** | PO authorization remains required per real-smoke phase. |
+| `G-OPS-VAULT` | `KEEP_NOW` | **RETAINED.** | PO authorization remains required for real Vault or launchd action. |
+| `G-PO-OUTPUT` | `KEEP_NOW` | **RETAINED.** | A qualified live provider and real output remain prerequisites for PO acceptance and TASK-016G authorization. |
+| `G-FINAL` | `REDEFINE` | Four-role PO/TL/QA/Privacy table is **DEFERRED / NOT REQUIRED NOW**. A future release still needs all non-deferred technical gates plus any explicit PO release/distribution decision. | Re-evaluate for public/broader distribution, commercial/customer/contractual use, or multi-developer team. |
+| `G-SCANNER-EXCEPTION` | `KEEP_NOW` | **UNCHANGED.** | The exact finite 11-fixture PO/TL disposition remains the only accepted exception; any new finding or scope change needs a new PO decision. |
+| `G-OWNER` | `KEEP_NOW` | **UNCHANGED.** `墨竹` remains a pseudonymous owner-attribution identifier. | Re-evaluate for broader/public distribution, legal-entity transfer, IP assignment, or copyright registration. |
+| `G-LEGAL-FUTURE` | `DEFER_TO_TRIGGER` | **DEFERRED.** No current legal counsel, verified identity, entity, registration, or assignment is introduced. | Public/package release, commercial/contractual distribution, bundle/container/installer/app store, legal-entity transfer, IP assignment, copyright registration, or an externally imposed requirement. |
+
+At a trigger, the PO must determine which review roles and legal/security/privacy
+controls are actually applicable to that governing context; the trigger model
+does not require every role indiscriminately.
 
 ## Method and authority test
 
@@ -41,9 +74,10 @@ or intent.
 
 ## Inventory and decision matrix
 
-**Count:** 11 material human-governance controls were found: 9 currently open
-or conditional and 2 already-recorded decisions. **External requirements now:**
-0. All 11 are project-internal for the current posture; 4 have a conservative
+**Count:** 11 material human-governance controls were found at the audit
+baseline: 9 then open or conditional and 2 already-recorded decisions.
+**External requirements now:** 0. All 11 are project-internal for the current
+posture; 4 have a conservative
 RC-template origin without a specific PO decision citation (`G-SEC`, `G-PRIV`,
 `G-OPS-RECOVERY`, `G-FINAL`).
 
@@ -61,16 +95,17 @@ RC-template origin without a specific PO decision citation (`G-SEC`, `G-PRIV`,
 | `G-OWNER` Owner attribution and controlled distribution posture | **ACCEPTED / CLOSED**. PO/TL selected private/proprietary controlled source/wheel/sdist; `墨竹` is pseudonymous first-party attribution ([license package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md), §§Status and First-party owner attribution). | Explicit recorded internal decision; `d493691`, `docs(release): record first-party owner attribution`. | **Not established for current posture.** | Defines the current artifact boundary without fabricating verified legal identity. | Applies now and is already resolved for the stated current target. | `PUBLIC_*`, `COMMERCIAL_DISTRIBUTION`, `LEGAL_ENTITY_TRANSFER`, `COPYRIGHT_REGISTRATION`. | `KEEP_NOW` — retain its narrow scope. | Already made; broadened scope requires a new PO decision. |
 | `G-LEGAL-FUTURE` Verified identity, rights, GPL/BPE compliance review | Conditional/future only. Current source/wheel/sdist excludes BPE and copied dependencies; bundle/container/installer or an action whose policy requires verified identity reopens review ([RELEASE_BLOCKERS §§0-1](RELEASE_BLOCKERS.md), lines 50-100). | Internal distribution-policy records: `d75c8db`, `b008a96`, `d493691`, `e8c00a4`; ADR-028. | **Not established now.** Repository records conditional licensing facts, not a current counsel-signature rule. | Ensures a later target obtains evidence appropriate to its actual rights and contents. | Deferable; no legal real name, counsel identity, or opinion is required or fabricated for the current target. | `PUBLIC_*`, `BUNDLE_OR_CONTAINER`, `COMMERCIAL_DISTRIBUTION`, `THIRD_PARTY_CONTRACT`, `LEGAL_ENTITY_TRANSFER`, `COPYRIGHT_REGISTRATION`. | `DEFER_TO_TRIGGER` | Yes, when a trigger occurs. |
 
-### Roll-up ambiguity requiring definition, not silent closure
+### Roll-up ambiguity identified at audit baseline; now redefined by PO policy
 
-`G-SEC` is still described as an independent Security Reviewer sign-off in
-`RELEASE_BLOCKERS.md` and `RELEASE_SIGNOFF.md`, but the final signature table
-contains **PO, TL/release owner, QA, and Privacy Reviewer only**. `G-RISK` is
-also described as a PO signature but is not a table role. Therefore the
-"final human-signature gate" is not an independent technical control: it is an
-ambiguous roll-up of some, but not all, human controls. `G-FINAL` is correctly
-recommended for **REDEFINE**, not counted as a second technical defect or
-silently treated as satisfying `G-SEC`/`G-RISK`.
+At the baseline, `G-SEC` was described as an independent Security Reviewer
+sign-off while the final table contained **PO, TL/release owner, QA, and Privacy
+Reviewer only**; `G-RISK` was also outside that table. The audit therefore
+found the "final human-signature gate" to be an ambiguous roll-up, not an
+independent technical control. The subsequent explicit PO decision implements
+the recommended `REDEFINE`: current records use objective evidence plus any
+applicable PO authorization, and defer the unsupported role table. It does not
+silently satisfy `G-SEC` or `G-RISK`—the former's technical evidence remains
+required and the latter remains a PO decision.
 
 ## Role-specific conclusions
 
@@ -222,8 +257,9 @@ acceptance, and every distribution-scope change.
 
 It would reclassify only `G-SEC`, `G-PRIV`, and the organizational-role portion
 of `G-FINAL` as deferred/redefined for the current posture, and redefine
-`G-OPS-RECOVERY` to an actual-owner authorization. It would require a separate
-follow-up policy update; this audit makes none.
+`G-OPS-RECOVERY` to an actual-owner authorization. At the audit baseline it
+would have required a follow-up policy update; the subsequent explicit PO
+decision recorded above now supplies that policy update.
 
 **NOT AFFECTED:**
 
@@ -243,10 +279,10 @@ stricter profile when a documented trigger occurs.
 ## Completion record
 
 ```text
-RELEASE HUMAN-GOVERNANCE AUDIT COMPLETE
-HUMAN GATES CLOSED BY THIS TASK: 0
+RELEASE HUMAN-GOVERNANCE AUDIT COMPLETE AT 026e9b8
+HUMAN GATES CLOSED BY AUDIT: 0
 HUMAN SIGNATURES FABRICATED: 0
-RELEASE POLICY CHANGED: NO
+RELEASE POLICY CHANGED BY AUDIT: NO
 CURRENT RELEASE STATUS: NO-GO
 EXTERNALLY REQUIRED HUMAN GATES NOW: 0 (none established by repository evidence)
 INTERNAL HUMAN GATES: 11 (G-SEC, G-PRIV, G-RISK, G-OPS-RECOVERY,
@@ -259,3 +295,9 @@ PUSH: NO
 TAG: NO
 PUBLIC RELEASE: NO
 ```
+
+**Current state after the explicit PO adoption:** release policy changed `YES`;
+the named independent Security/Privacy, separate TL/QA, and final multi-role
+requirements are deferred for the current posture only. No human gate was
+silently closed, no signature was fabricated, and all retained PO and technical
+gates remain as stated in the adoption table.

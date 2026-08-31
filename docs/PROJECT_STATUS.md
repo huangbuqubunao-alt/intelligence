@@ -5,6 +5,12 @@
   `QUALIFIED / CLOSED`, TASK-014B11 is `INTEGRATED / CLOSED`, and TASK-016
   implementation through F is complete; the reference-provider live gate and
   product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
+- 当前治理：PO 在 `main@026e9b8` 的人类治理审计后，已为当前个人/私有/专有/
+  受控 source/wheel/sdist 姿态采用 trigger-based profile。命名独立
+  Security/Privacy Reviewer、单独 TL、单独 QA 和最终多角色表均为未来触发控制，
+  不再因当前不存在这些角色而阻塞。所有技术审查、scanner exit `1` / 精确 11
+  accepted fixtures、privacy P2、以及 PO 风险/真实副作用/产品/发行授权均保持；
+  本政策不改变 `NO-GO`。见 [governance audit](RELEASE_GOVERNANCE_HUMAN_GATE_AUDIT.md)。
 - PO/TL has selected private/proprietary controlled source/wheel/sdist testing.
   The target boundary is now frozen: first-party source/wheel/sdist only, with
   74 macOS-arm64/Python-3.12 runtime dependencies separately resolved by the
@@ -791,9 +797,9 @@
 - The scanner was not weakened; no allowlist, fixture, TASK-016 behavior,
   dependency, ADR, B9/B11 state, push, tag, or public release changed. Scanner
   regression is `20 passed`. The security technical release blocker is resolved
-  for the current controlled release. Independent Security Reviewer sign-off and
-  the final human-signature gate remain open; no external reviewer or legal
-  approval is fabricated.
+  for the current controlled release. The later PO governance policy defers the
+  named Security Reviewer and final multi-role table for this posture; no
+  external reviewer or legal approval is fabricated.
 
 ## First-party owner attribution disposition — 2026-08-31
 
@@ -806,8 +812,9 @@
   assignment, or other proof of legal ownership. No legal name, government ID,
   phone number, address, personal email, or other unnecessary PII was added.
 - Verified legal identity remains a separate future gate only before an action
-  whose governing policy requires it. Independent Security Reviewer and final
-  human signatures remain open; the ADR-008 technical review follows below.
+  whose governing policy requires it. The later PO governance policy makes
+  named reviewer/table roles trigger-based; the ADR-008 technical review follows
+  below.
 
 ## ADR-008 cloud-SDK isolation technical review — 2026-08-31
 
@@ -820,10 +827,11 @@
   cross-provider fallback, `max_retries=0`, credential exclusion from identity/
   persistence/error surfaces, and ADR-028 BPE fail-closed controls remain
   preserved. See [security review evidence](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md).
-- No independent named human Security Reviewer signature is recorded; final
-  human signatures, privacy, provider, and operational gates remain open. Next
-  authorized release action: Privacy Reviewer performs the Vault and template
-  distribution-boundary review and records the required sign-off.
+- No independent named human Security Reviewer signature is recorded. The later
+  PO governance policy defers that named role and the final multi-role table for
+  this posture; provider, retained PO risk/acceptance, and operational gates
+  remain open. The next authorized project action is PO acceptance or rejection
+  of the documented at-most-once risk.
 
 ## Vault and template distribution-boundary privacy technical review — 2026-08-31
 
@@ -840,11 +848,11 @@
   controlled Git source's historical governance metadata is recorded as a P2
   source-hygiene risk for any future broader/public source distribution, not as
   a package or Vault-content finding.
-- No independent named human Privacy Reviewer signature is recorded. The final
-  human-signature gate remains open; no provider qualification, TASK-016,
-  ADR-008/ADR-028, BPE, scanner policy, push, tag, or public-release status
-  changed. Next authorized release action: obtain an independent Privacy
-  Reviewer signature on the recorded Vault/template evidence.
+- No independent named human Privacy Reviewer signature is recorded. The later
+  PO governance policy defers that named role and the final multi-role table for
+  this posture; no provider qualification, TASK-016, ADR-008/ADR-028, BPE,
+  scanner policy, push, tag, or public-release status changed. Privacy P2
+  remains a broader/public source-distribution re-review trigger.
 
 ## 主控接收执行结果的最小格式
 

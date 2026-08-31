@@ -10,9 +10,13 @@
   scanner redesign, BPE redesign, and release execution.
 - **Security technical review:** **APPROVE** for the current controlled release
   posture. No P0 or release-critical technical P1 isolation defect was found.
-- **Independent human Security Reviewer signature:** **OPEN**. This technical
-  evidence records no named reviewer, human signature, legal approval, or final
-  release approval.
+- **Independent human Security Reviewer signature:** **DEFERRED / NOT REQUIRED
+  FOR CURRENT POSTURE** under the explicit PO trigger-based governance decision
+  after the `026e9b8` audit. This remains technical evidence only; it records
+  no named reviewer, human signature, legal approval, or final release approval.
+  Re-evaluate an applicable security review for broader/public distribution,
+  commercial/customer/contractual use, a material cloud/credential-boundary
+  change, or an externally imposed requirement.
 
 ## Normative contract recovered
 
