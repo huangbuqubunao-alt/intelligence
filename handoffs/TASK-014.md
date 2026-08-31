@@ -1764,3 +1764,16 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   The next action is a PO/TL project-license and distribution decision package;
   it does not authorize TASK-016 provider work, TASK-016G, push, tag, or public
   distribution.
+
+## PO/TL Private Distribution Decision — 2026-08-31
+
+- PO/TL selected `PRIVATE / PROPRIETARY / LIMITED-DISTRIBUTION` for controlled
+  source/wheel/sdist testing only. Root `NOTICE` and `pyproject.toml`
+  `license.file=NOTICE` record this without inventing a copyright-holder
+  identity; it is not a public-release grant.
+- The current wheel/sdist contain the ADR-008 `o200k_base.tiktoken` resource,
+  but primary tiktoken evidence identifies its origin/hash without an express
+  file-level redistribution grant. ADR-008's no-download/fail-closed design
+  prevents safe removal. Licensing remains blocked pending BPE rights/NOTICE
+  and legal-owner identity; model weights, spaCy model assets, ffmpeg, Ollama,
+  dependency wheels, and dev tools remain unbundled.

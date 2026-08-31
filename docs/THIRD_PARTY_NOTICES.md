@@ -23,7 +23,7 @@
 | MLX Community Whisper 转换模型 | ADR-007：固定来源/revision/权重哈希；转换仓库 model card 未声明 license。 | **BLOCKER**：不得假定转换模型可再分发或纳入发布物。 |
 | ffmpeg | ADR-007：参考的 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 不安装、不调用、不捆绑、不重新分发，直至单独许可与发行决策完成。 |
 | Ollama / `qwen3:8b` | ADR-007：Ollama MIT；上游 Qwen3-8B 为 Apache-2.0，固定本机模型 digest 已登记。 | 程序、模型层、拉取与本机服务都需独立供应链审查；不得因 loopback 而跳过。 |
-| `o200k_base.tiktoken` | 官方 Blob 来源；固定 SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`；运行时无网络回退。 | **BLOCKER**：文件级许可证、归属和 NOTICE 尚无书面结论；不能纳入二进制或捆绑发行物。 |
+| `o200k_base.tiktoken` | tiktoken primary source references the official Blob URL and fixed SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`; current wheel/sdist include it; runtime has no network fallback. | **BLOCKER**：tiktoken repository MIT evidence does not expressly grant file-level redistribution of the separate Blob data. The current ADR-008 design cannot safely remove it; no controlled source/wheel/sdist distribution until rights/NOTICE are verified. |
 
 ## TASK-016B spaCy dependency NOTICE inventory
 

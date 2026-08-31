@@ -10,6 +10,9 @@
   `o200k_base.tiktoken`，不包含模型 weights、ffmpeg、Ollama、tests/fixtures 或依赖 wheel；
   这仅是产物边界事实，不构成任何分发许可。决策矩阵见
   [LICENSE_DISTRIBUTION_DECISION_PACKAGE.md](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md)。
+- PO/TL 已选择私有/专有、受控 source/wheel/sdist 测试姿态：root `NOTICE` 与包 metadata
+  已编码该姿态，且不含 bundled dependency wheels、model weights、ffmpeg 或 Ollama。BPE 文件
+  权利未明，故任何该产物的实际分发仍为 `BLOCKED`。
 
 本清单是发行决策输入，不是法律意见，也不表示任何锁定组件、资源或其组合已经获准
 分发。`uv.lock` 记录版本、来源与工件哈希，但不携带完整的许可证文本、NOTICE、版权
@@ -19,7 +22,7 @@
 
 | 组件 | 锁定版本 / 关系 | 已有许可证或来源证据 | 发行缺口与处理 |
 |---|---|---|---|
-| `youtube-intel` | `0.1.0`；项目根 | `pyproject.toml` | 本任务不选择、创建或暗示项目自身 LICENSE。 |
+| `youtube-intel` | `0.1.0`；项目根 | PO/TL 选择 private/proprietary；root `NOTICE`；`pyproject.toml` 的 `license.file=NOTICE` | 不授予公开开源或公开分发权；仓库尚无合法权利人身份，任何更广泛发行前须补齐。 |
 | `en-core-web-sm` | `3.8.0`；固定 URL 直接运行依赖 | Explosion 官方 wheel；MIT；12,806,118 bytes；SHA-256 `1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85` | 仅用于本地英文依存分析；训练来源含 Explosion 授权的 OntoNotes 5 与 WordNet 3.0，最终分发前须完成模型级 NOTICE/许可复核。运行时禁止下载或网络 fallback。 |
 | `jinja2` | `3.1.6`；直接运行依赖 | ADR-009 / Reuse Register：BSD-3-Clause | 收集发行包的版权与 NOTICE 证据；其传递 `markupsafe` 单列。 |
 | `mlx-whisper` | `0.4.3`；直接运行依赖 | ADR-007 / Reuse Register：MIT | 仅条件性本地转写能力；模型、ffmpeg、传递包与真实资源另行审批。 |
@@ -35,7 +38,7 @@
 
 | 项目 | 已证实事实 | 发布门禁 |
 |---|---|---|
-| `o200k_base.tiktoken` | OpenAI 官方 Blob 来源；固定 SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`；运行时使用包内资源且无网络回退。 | 文件级许可证、归属、NOTICE 和可否纳入 sdist/wheel/二进制均未形成书面结论；含该文件的发行物 `BLOCKED`。 |
+| `o200k_base.tiktoken` | OpenAI tiktoken primary source references the official Blob URL and fixed SHA-256 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`; current wheel/sdist include the file; ADR-008 prohibits fallback download. | tiktoken repository MIT evidence does not expressly extend to the separate Blob data. File-level redistribution/NOTICE right is unverified; no safe removal exists under current architecture; containing artifacts remain `BLOCKED`. |
 | MLX Community Whisper 转换模型 | ADR-007 固定 revision、大小和权重哈希；上游 OpenAI Whisper 资料为 MIT。 | 转换仓库 model card 缺少许可声明；不得推断转换产物许可或纳入任何发行物。 |
 | ffmpeg | ADR-007 记录 Homebrew `ffmpeg 8.1.2` 构建标记为 GPL-3.0-or-later。 | 未获安装/调用/捆绑授权；不得捆绑或重新分发。 |
 | Ollama 与 `qwen3:8b` | ADR-007 记录 Ollama MIT、固定 qwen digest；上游 Qwen3-8B 为 Apache-2.0。 | 程序版本、模型拉取、本机服务与模型分发均待单独供应链/授权审查。 |

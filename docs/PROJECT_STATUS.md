@@ -5,8 +5,10 @@
   `QUALIFIED / CLOSED`, TASK-014B11 is `INTEGRATED / CLOSED`, and TASK-016
   implementation through F is complete; the reference-provider live gate and
   product-owner acceptance remain open. See [final release sign-off](RELEASE_SIGNOFF.md).
-- Licensing/distribution technical inventory is now decision-ready, but no
-  first-party license or public distribution mode has been selected. See
+- PO/TL has selected private/proprietary controlled source/wheel/sdist testing.
+  Root `NOTICE` and package metadata encode that posture, but BPE file-level
+  redistribution rights and legal-owner identity remain blockers; no actual
+  artifact distribution is authorized. See
   [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is

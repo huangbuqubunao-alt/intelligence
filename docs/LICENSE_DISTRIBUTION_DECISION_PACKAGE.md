@@ -2,8 +2,10 @@
 
 ## Status and boundary
 
-**DECISION-READY — no first-party license or distribution approval is made by
-this document.** It is technical decision support, not legal advice.
+**IMPLEMENTED POSTURE / PARTIAL LICENSING BLOCKER.** The Product Owner / Tech
+Lead selected private, proprietary, controlled limited source/wheel/sdist
+distribution. This document is technical evidence, not legal advice; it does
+not authorize public distribution.
 
 This package reconciles `main@440c22e` against `pyproject.toml`, `uv.lock`, the
 offline wheel/sdist build, `docs/SBOM.md`, `docs/THIRD_PARTY_NOTICES.md`,
@@ -31,9 +33,12 @@ boundary below. It is a build fact, not permission to distribute.
 | Generated release docs | Repository records | Only operations material is source-included | Final public source-repository policy remains a PO/TL decision. |
 | Credentials, private Vault data, raw subtitle bodies | Not tracked package inputs | No | Must remain excluded. |
 
-The inspection found no `LICENSE`, `COPYING`, or `NOTICE` file in the root or
-in the generated wheel/sdist. The wheel and sdist contain no matching model
-weight, tokenizer-other-than-BPE, fixture, or dependency-wheel payload.
+The current root contains `NOTICE`, the approved license-equivalent private
+distribution notice. `pyproject.toml` points its PEP 621 license field to that
+file; the current build backend embeds its restrictive text in wheel metadata
+as `License:`, and the sdist carries the root `NOTICE` file. The wheel and sdist
+contain no matching model-weight, tokenizer-other-than-BPE, fixture, or
+dependency-wheel payload.
 
 ## Dependency and copyleft facts
 
@@ -76,6 +81,16 @@ the compliance plan before the latter is published.
 
 - The current package **does** ship `o200k_base.tiktoken`; ADR-008 requires it
   for fail-closed local token accounting and prohibits runtime download.
+- Primary tiktoken source identifies the exact public-blob origin and matching
+  SHA-256, while the tiktoken repository has an MIT license. Neither source
+  explicitly states that the separate public-blob BPE data is covered by that
+  repository license or grants redistribution of the data file. The file-level
+  redistribution right is therefore **UNVERIFIED**.
+- Removing the file is not technically safe under the existing ADR-008
+  no-download architecture: missing or invalid local data must fail closed.
+  No runtime acquisition behavior is added. The BPE remains packaged and blocks
+  even controlled artifact distribution until the rights/NOTICE conclusion is
+  supplied by the rightsholder or legal owner.
 - The current package does **not** ship MLX Whisper converted weights, Ollama
   model weights, ffmpeg, or an Ollama binary. Their recorded use is model/tool
   support, not current model redistribution.
@@ -95,24 +110,22 @@ the compliance plan before the latter is published.
 | D. GPL/copyleft-sensitive components | Resolver-installed dependency set; separately distributed dependencies; bundle/container | `mutagen` is present through yt-dlp default; technical packaging facts do not replace legal analysis. | Avoid bundled/container distribution until a written compliance plan exists. |
 | E. SBOM/NOTICE scope | Target runtime artifact only; target plus source repository; include dev tooling only when distributed | Dev tools are not automatically shipped; all actually installed/bundled runtime components need a final inventory. | Generate a target-specific runtime SBOM and NOTICE set; list dev tools separately as non-shipped. |
 
-## Required PO/TL decisions
+## Remaining PO/TL / legal inputs
 
-1. Select the first-party license, or explicitly keep the project private and
-   forbid public artifact/source publication.
-2. Select the intended first distribution mode: private execution, public
-   source, wheel/sdist, or bundle/container.
-3. Decide whether the current BPE-containing artifact may be distributed after
-   file-level rights/NOTICE verification, or whether its packaging/design must
-   be changed.
-4. Decide whether spaCy model installation is supported in the chosen mode and
+1. Record the legal copyright-holder identity that must own the proprietary
+   notice before any broader external distribution.
+2. Obtain a file-level BPE redistribution/NOTICE conclusion for
+   `o200k_base.tiktoken`, or authorize an architecture change that can remove it
+   without weakening ADR-008's no-download/fail-closed contract.
+3. Decide whether spaCy model installation is supported in the chosen mode and
    obtain the required model-source/WordNet notice conclusion.
-5. For any bundle/container, obtain a written `mutagen` GPL compliance decision
+4. For any future bundle/container, obtain a written `mutagen` GPL compliance decision
    and explicitly include or exclude ffmpeg, MLX, Ollama, and all model assets.
-6. Confirm whether dev tools are distributed (default: no).
+5. Confirm any exception to the selected default that dev tools are not distributed.
 
 ## Exact post-decision implementation plan
 
-After those decisions—not before—make the following changes as applicable:
+After the remaining inputs—not before—make the following changes as applicable:
 
 1. Add the PO/TL-selected root `LICENSE` text and `pyproject.toml` license
    metadata.
@@ -126,12 +139,13 @@ After those decisions—not before—make the following changes as applicable:
 5. Rebuild in an isolated directory, inspect payload and metadata, and obtain
    the required Security/Privacy/QA/PO/TL release sign-offs.
 
-No license file, package license field, or third-party license text is added by
-this decision-preparation package.
+The authorized private posture is encoded by root `NOTICE` and the package
+license metadata. No open-source first-party license or third-party license
+text is added by this package.
 
 ## Review outcome
 
-Adversarial review found no silently selected license, fabricated legal
-approval, bundled model-weight claim, dev-tool-as-runtime claim, or reduction
-of other release gates. Technical P0: `0`; release-critical technical P1:
-`0`; decision-dependent legal/release blockers remain open.
+Adversarial review found no fabricated owner identity or legal approval,
+open-source implication, bundled model-weight claim, dev-tool-as-runtime claim,
+or reduction of other release gates. Technical P0: `0`; release-critical
+technical P1: `0`; the finite BPE/owner/model-source legal blockers remain open.

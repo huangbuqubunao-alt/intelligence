@@ -21,25 +21,25 @@
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 
-### 0.1 Project Own License Is Unresolved
+### 0.1 Project Own License / Owner Identity Is Partially Resolved
 
 - **Decision maker**: PO + TL (codebase owner)
-- **Current state**: No LICENSE file in repo root; no `license` field in pyproject.toml;
-  docs/SBOM.md explicitly defers: "本任务不选择、创建或暗示项目自身 LICENSE";
-  no ADR, commit, or product decision specifies which license governs project code.
-- **Risk**: Recipients of any distributed artifact (wheel, sdist, container, source
-  tarball) have no explicit grant of rights. PyPI and standard distribution
-  platforms require a declared license. Any third-party contributor has no
-  legal clarity. The chosen license must also be compatible with GPL transitive
-  dependencies (see §1.1 below).
-- **Required input**: PO or TL declares the project license (e.g. MIT,
-  Apache-2.0, proprietary/all-rights-reserved). Decision must be consistent
-  with §1.1 mutagen GPL constraints.
-- **Decision package**: The technical artifact inventory and the exact choices
-  requiring PO/TL action are prepared in
-  `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`; it does not select a license.
-- **Pass criteria**: Written decision; LICENSE file added; pyproject.toml updated;
-  SBOM and THIRD_PARTY_NOTICES updated; build artifact includes LICENSE.
+- **Current state**: PO/TL selected `PRIVATE / PROPRIETARY / LIMITED-DISTRIBUTION`.
+  Root `NOTICE` and `pyproject.toml` `license.file=NOTICE` encode that restrictive
+  posture without inventing a legal owner identity. It does not permit public
+  distribution.
+- **Risk**: The selected notice is intentionally restrictive and cannot support a
+  broader release until its legal owner is recorded. Target-artifact third-party
+  obligations and GPL-sensitive future bundled modes remain separate concerns.
+- **Remaining input**: PO/legal records the copyright-holder identity before
+  broader external distribution, and resolves the BPE file-level right in §1.2.
+  Any future bundled mode must also satisfy §1.1 mutagen constraints.
+- **Decision package**: The technical artifact inventory and the selected
+  limited-distribution posture are recorded in
+  `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`.
+- **Pass criteria**: Legal owner identity recorded; BPE distribution decision
+  resolved; target-specific SBOM/NOTICE complete; proprietary notice and package
+  metadata remain consistent in the built artifact.
 - **Blocker level**: DISTRIBUTION BLOCKER — no public release until resolved.
 
 ## 1. Supply Chain & License Decisions
@@ -60,10 +60,11 @@
 - **Decision maker**: PO + TL
 - **Risk**: The `o200k_base.tiktoken` resource is pinned at SHA-256
   `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`.
-  Its origin, license, copyright holder, and NOTICE requirements are
-  undocumented.
-- **Required input**: Source attribution, license identification,
-  NOTICE/credit text for distribution.
+  The primary tiktoken source identifies the Blob origin, but no evidence
+  expressly licenses redistribution of that separate data file or supplies its
+  file-level NOTICE/credit requirement.
+- **Required input**: Rightsholder or legal confirmation of file-level
+  redistribution, license, and NOTICE/credit text for distribution.
 - **Pass criteria**: Written license conclusion; NOTICE text added to
   `docs/THIRD_PARTY_NOTICES.md` if required.
 

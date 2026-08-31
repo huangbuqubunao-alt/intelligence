@@ -17,7 +17,7 @@
 
 | 项目 | 状态 | 必要的书面结论 |
 |---|---|---|
-| SBOM 覆盖直接/传递锁定组件 | PARTIAL | 已有锁文件清单；TL 需将最终目标发行物的实际包含集、许可证、版权和 NOTICE 补齐。 |
+| SBOM 覆盖直接/传递锁定组件 | BLOCKED | 初始 private/controlled source/wheel/sdist 范围已记录；BPE 文件权利、目标安装集的许可证/NOTICE 与其余模型来源仍待闭合。 |
 | `yt-dlp[default,deno]` / `mutagen==1.48.1` | BLOCKED | TL/发布负责人决定 GPL-2.0-or-later 下的源码、二进制、bundle/容器分发方案。 |
 | OpenAI SDK、tiktoken、Jinja2、MarkupSafe 及传递项 | BLOCKED | 确认 Apache-2.0/MIT/BSD-3-Clause 的现有证据、补齐 MarkupSafe 与所有实际包含传递项的证据/NOTICE。 |
 | `o200k_base.tiktoken` | BLOCKED | PO/TL 对文件级来源、许可证、归属、NOTICE 与是否可进发行物签署。哈希和本地无网络回退不能替代此签署。 |

@@ -12,6 +12,7 @@ source-include = [
 name = "youtube-intel"
 version = "0.1.0"
 description = "A local-first YouTube intelligence agent"
+license = {file = "NOTICE"}
 requires-python = ">=3.12"
 dependencies = [
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
