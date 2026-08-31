@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from youtube_intel import analysis as analysis_mod
+
 
 def _load_flow_module():  # type: ignore[no-untyped-def]
     path = Path(__file__).with_name("test_mvp_flow.py")
@@ -22,6 +24,13 @@ def _load_flow_module():  # type: ignore[no-untyped-def]
 
 
 _FLOW = _load_flow_module()
+
+
+@pytest.fixture(autouse=True)
+def _recovery_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Recovery assertions are independent from explicit BPE provisioning."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
 @pytest.mark.parametrize("failure", ("subtitle", "transcription", "scoring", "analysis", "note", "weekly"))

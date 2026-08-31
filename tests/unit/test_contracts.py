@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import importlib
 import importlib.metadata
 import inspect
@@ -16,13 +15,13 @@ import textwrap
 import tomllib
 import traceback
 from datetime import UTC, datetime, timedelta, timezone
-from importlib import resources
 from pathlib import Path
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
+from youtube_intel import analysis as analysis_mod
 from youtube_intel import config as config_mod
 from youtube_intel import domain as domain_mod
 from youtube_intel import transcripts as transcripts_mod
@@ -113,10 +112,6 @@ SETTINGS_EXAMPLE = REPO_ROOT / "config" / "settings.example.yaml"
 NOW = datetime(2026, 7, 14, 12, 0, 0, tzinfo=UTC)
 TRANSCRIPT_HASH = "a" * 64
 MODEL_DIGEST = "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
-O200K_BASE_RESOURCE = REPO_ROOT / "src/youtube_intel/resources/o200k_base.tiktoken"
-O200K_BASE_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -695,17 +690,6 @@ def test_correction_p1_4_tokenizer_resource_is_local_verified_and_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    assert O200K_BASE_RESOURCE.is_file()
-
-    package_resource = resources.files("youtube_intel").joinpath(
-        "resources",
-        "o200k_base.tiktoken",
-    )
-    source_bytes = O200K_BASE_RESOURCE.read_bytes()
-    package_bytes = package_resource.read_bytes()
-    assert package_bytes == source_bytes
-    assert hashlib.sha256(source_bytes).hexdigest() == O200K_BASE_SHA256
-
     empty_cache = tmp_path / "empty-tiktoken-cache"
     empty_cache.mkdir()
     assert not tuple(empty_cache.iterdir())
@@ -713,45 +697,17 @@ def test_correction_p1_4_tokenizer_resource_is_local_verified_and_fail_closed(
     requests_module = importlib.import_module("requests")
 
     def deny_http(*args: object, **kwargs: object) -> None:
-        raise AssertionError("network access is forbidden for packaged tokenizer resources")
+        raise AssertionError("network access is forbidden for tokenizer provisioning checks")
 
     monkeypatch.setattr(requests_module, "get", deny_http)
     monkeypatch.setattr(socket, "create_connection", deny_http)
-    load_tiktoken_bpe = importlib.import_module("tiktoken.load").load_tiktoken_bpe
-    with resources.as_file(package_resource) as packaged_path:
-        ranks = load_tiktoken_bpe(
-            str(packaged_path),
-            expected_hash=O200K_BASE_SHA256,
-        )
-        assert len(ranks) > 0
-
-        with pytest.raises(ValueError, match="Hash mismatch"):
-            load_tiktoken_bpe(
-                str(packaged_path),
-                expected_hash="0" * 64,
-            )
-
-    with pytest.raises(FileNotFoundError):
-        load_tiktoken_bpe(
-            str(tmp_path / "missing.tiktoken"),
-            expected_hash=O200K_BASE_SHA256,
-        )
-
-    tampered_bytes = bytearray(source_bytes)
-    tampered_bytes[0] ^= 1
-    tampered = tmp_path / "tampered.tiktoken"
-    tampered.write_bytes(tampered_bytes)
-    with pytest.raises(ValueError, match="Hash mismatch"):
-        load_tiktoken_bpe(str(tampered), expected_hash=O200K_BASE_SHA256)
-
-    malformed_bytes = b"not-a-valid-rank-line"
-    malformed = tmp_path / "malformed.tiktoken"
-    malformed.write_bytes(malformed_bytes)
-    with pytest.raises(ValueError, match="Error parsing line"):
-        load_tiktoken_bpe(
-            str(malformed),
-            expected_hash=hashlib.sha256(malformed_bytes).hexdigest(),
-        )
+    assert not analysis_mod.PACKAGED_O200K_RESOURCE.exists()
+    assert analysis_mod.O200K_BASE_SHA256 == (
+        "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+    )
+    with pytest.raises(analysis_mod.LocalTokenizerResourceError, match="missing"):
+        analysis_mod.load_provisioned_o200k_encoding(tmp_path)
+    assert analysis_mod.tokenizer_resource_status(tmp_path) == "MISSING"
 
 
 def test_correction_p1_5_openai_import_is_isolated_from_pytest_main(

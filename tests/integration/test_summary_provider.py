@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import youtube_intel.providers.cloud_llm as cloud_llm
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
     AnalysisJobContext,
     AnalysisPolicyError,
@@ -34,6 +35,13 @@ from youtube_intel.providers.cloud_llm import (
     OpenAIResponsesProvider,
 )
 from youtube_intel.state import JobType, SQLiteStateRepository
+
+
+@pytest.fixture(autouse=True)
+def _persistence_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Persistence tests exercise provider state, not external BPE provisioning."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
 def _input() -> object:

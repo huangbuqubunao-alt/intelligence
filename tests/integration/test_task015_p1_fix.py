@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.cli import ExitCode, main
 from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
@@ -69,6 +70,13 @@ from youtube_intel.transcripts import (
     SubtitleTrack,
     SubtitleTrackListing,
 )
+
+
+@pytest.fixture(autouse=True)
+def _task015_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TASK-015 state tests do not exercise administrator BPE provisioning."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 NOW = datetime(2026, 8, 12, 8, tzinfo=UTC)
 VIDEO_ID = "2A1IEBFt6Xg"

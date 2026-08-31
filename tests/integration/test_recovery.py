@@ -7,6 +7,9 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
@@ -35,6 +38,13 @@ from youtube_intel.retry import RetryPolicy
 from youtube_intel.state import JobRecord, JobType, SQLiteStateRepository, VideoRecord
 
 PIPELINE_VERSION = "pipeline-v1"
+
+
+@pytest.fixture(autouse=True)
+def _recovery_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Recovery tests isolate persistence from external BPE provisioning."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
 def _metadata() -> VideoMetadata:

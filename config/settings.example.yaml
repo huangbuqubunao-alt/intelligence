@@ -91,6 +91,10 @@ cloud:
   sampling_version: cloud-token-sampling-v1
   privacy_version: cloud-privacy-v1
 
+  # When enabled, an administrator must separately provision the canonical
+  # o200k_base.tiktoken at data_dir/tokenizers/o200k_base.tiktoken. Runtime
+  # verifies its fixed first-party SHA-256 and never downloads or substitutes it.
+
 storage:
   data_dir: data
   logs_dir: logs

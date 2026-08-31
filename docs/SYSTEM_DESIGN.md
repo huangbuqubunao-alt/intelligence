@@ -445,12 +445,12 @@ Provider call。
 framing 预留 2,000；实际 Provider 硬上限 30,000。V1 不调用云端
 `/v1/responses/input_tokens`。
 
-`o200k_base` 的 rank 表只能读取包内
-`youtube_intel/resources/o200k_base.tiktoken`，固定 SHA-256 为
+`o200k_base` 的 rank 表按 ADR-028 只能读取管理员在项目 `storage.data_dir` 下显式预置的
+`tokenizers/o200k_base.tiktoken`，固定 SHA-256 为
 `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d`。资源缺失、
 内容哈希不匹配或无法解析均必须在任何云端副作用前失败关闭；禁止使用 tiktoken
-内置的 HTTP 下载或任意缓存/网络回退。该资源的分发许可证结论由 TASK-014 发布门禁
-最终确认。
+内置的 HTTP 下载或任意缓存/网络回退。项目 wheel、sdist 和可分发源码均不携带该文件；
+其文件级分发许可证结论仍为 classification C，不能据此推断任何下游分发权。
 
 官方 OpenAI Responses Adapter 固定 `store=False`、`max_retries=0`、
 `truncation="disabled"`、无 tools/stream/custom base URL、120 秒 timeout，不发送

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
@@ -57,6 +58,13 @@ from youtube_intel.state import (
 
 NOW = datetime(2100, 7, 23, 8, 0, tzinfo=UTC)
 PIPELINE_VERSION = "pipeline-v1"
+
+
+@pytest.fixture(autouse=True)
+def _pipeline_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pipeline state tests must not require a licensed external BPE file."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
 def _metadata(video_id: str) -> VideoMetadata:

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
     AnalysisService,
     CloudCallBudget,
@@ -18,6 +21,13 @@ from youtube_intel.domain import (
     LiveStatus,
     VideoMetadata,
 )
+
+
+@pytest.fixture(autouse=True)
+def _policy_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep cloud-policy tests independent from an external BPE provision."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
 def _video() -> VideoMetadata:

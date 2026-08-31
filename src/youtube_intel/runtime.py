@@ -21,6 +21,7 @@ from youtube_intel.analysis import (
     CloudCallBudget,
     EnvironmentCredentialResolver,
     RepositoryBackedAnalysisService,
+    tokenizer_resource_status,
 )
 from youtube_intel.config import AppConfig, LocalScoringSettings
 from youtube_intel.discovery import DiscoveryService, YouTubeRssSourceProvider
@@ -2663,6 +2664,18 @@ def doctor(config: AppConfig, project_root: Path) -> DoctorReport:
         ),
     ]
     checks.extend(_ollama_check(config))
+    if config.settings.cloud.enabled:
+        tokenizer_status = tokenizer_resource_status(data_root)
+        checks.append(
+            DoctorCheck(
+                "Cloud tokenizer",
+                "PASS" if tokenizer_status == "READY" else "FAIL",
+                "explicitly provisioned local o200k tokenizer asset is ready."
+                if tokenizer_status == "READY"
+                else "explicitly provisioned local o200k tokenizer asset is missing or invalid.",
+                tokenizer_status != "READY",
+            )
+        )
     checks.append(
         DoctorCheck(
             "Cloud",

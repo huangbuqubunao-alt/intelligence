@@ -185,6 +185,27 @@ def test_doctor_reports_missing_database_as_local_resource(tmp_path: Path) -> No
     assert main(_args(project, "doctor")) is ExitCode.LOCAL_RESOURCE
 
 
+def test_doctor_reports_missing_explicit_cloud_tokenizer_without_path_leakage(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = _project(tmp_path)
+    settings = project / "config" / "settings.yaml"
+    settings.write_text(
+        settings.read_text(encoding="utf-8")
+        + "\ncloud:\n  enabled: true\n  provider: openai\n  model: gpt-4.1-mini\n"
+        + "  api_key_env: OPENAI_API_KEY\n",
+        encoding="utf-8",
+    )
+
+    assert main(_args(project, "doctor")) is ExitCode.LOCAL_RESOURCE
+
+    output = capsys.readouterr()
+    assert "Cloud tokenizer" in output.out
+    assert "missing or invalid" in output.out
+    assert str(project) not in output.out
+
+
 def test_doctor_unexpected_failure_is_visible_and_safe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

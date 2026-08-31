@@ -8,9 +8,12 @@ OpenAI SDK; that SDK is isolated in ``providers.cloud_llm``.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -19,7 +22,6 @@ from pathlib import Path
 from typing import Any, Final, Protocol
 
 import tiktoken
-from tiktoken.load import load_tiktoken_bpe
 
 from youtube_intel.config import CloudSettings
 from youtube_intel.domain import (
@@ -55,9 +57,13 @@ _PROVIDER: Final = "openai"
 _OPERATION: Final = "cloud-analysis"
 _SAMPLING_VERSION: Final = "cloud-token-sampling-v1"
 _PRIVACY_VERSION: Final = "cloud-privacy-v1"
-_RESOURCE_NAME: Final = "o200k_base.tiktoken"
-_RESOURCE_HASH: Final = (
+O200K_BASE_FILENAME: Final = "o200k_base.tiktoken"
+O200K_BASE_SHA256: Final = (
     "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+)
+O200K_BASE_SIZE: Final = 3_613_922
+PACKAGED_O200K_RESOURCE: Final = (
+    Path(__file__).parent / "resources" / O200K_BASE_FILENAME
 )
 _MAX_SAMPLE_CODEPOINTS: Final = 4_000
 _O200K_PAT_STR: Final = "|".join(
@@ -80,6 +86,10 @@ class AnalysisPolicyError(Exception):
     def __init__(self, error: AppError) -> None:
         super().__init__(error.message)
         self.error = error
+
+
+class LocalTokenizerResourceError(ValueError):
+    """A safe local failure for the explicitly provisioned o200k resource."""
 
 
 class CredentialResolver(Protocol):
@@ -234,22 +244,121 @@ def _request_parts(payload: AnalysisPayload) -> _RequestParts:
     )
 
 
-def _encoding() -> tiktoken.Encoding:
+def _provisioned_o200k_path(data_root: Path) -> Path:
+    """Return the sole administrator-provisioned tokenizer location.
+
+    The fixed child path prevents caller-controlled tokenizer selection.  It is
+    intentionally not created here: provisioning is an explicit pre-runtime
+    operator action under ADR-028.
+    """
+
     try:
-        path = resources.files("youtube_intel").joinpath("resources", _RESOURCE_NAME)
-        ranks = load_tiktoken_bpe(str(path), expected_hash=_RESOURCE_HASH)
+        if stat.S_ISLNK(data_root.lstat().st_mode):
+            raise LocalTokenizerResourceError("local o200k asset path is unsafe")
+        root = data_root.resolve(strict=True)
+    except OSError as exc:
+        raise LocalTokenizerResourceError("local o200k asset is missing") from exc
+    if not root.is_dir():
+        raise LocalTokenizerResourceError("local o200k asset is missing")
+
+    directory = root / "tokenizers"
+    path = directory / O200K_BASE_FILENAME
+    for candidate in (directory, path):
+        try:
+            mode = candidate.lstat().st_mode
+        except FileNotFoundError as exc:
+            raise LocalTokenizerResourceError("local o200k asset is missing") from exc
+        except OSError as exc:
+            raise LocalTokenizerResourceError("local o200k asset is invalid") from exc
+        if stat.S_ISLNK(mode):
+            raise LocalTokenizerResourceError("local o200k asset path is unsafe")
+    if not stat.S_ISDIR(directory.lstat().st_mode) or not stat.S_ISREG(path.lstat().st_mode):
+        raise LocalTokenizerResourceError("local o200k asset is invalid")
+    return path
+
+
+def _read_provisioned_o200k(data_root: Path) -> bytes:
+    path = _provisioned_o200k_path(data_root)
+    directory_flags = (
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    )
+    file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        directory_descriptor = os.open(path.parent, directory_flags)
+    except FileNotFoundError as exc:
+        raise LocalTokenizerResourceError("local o200k asset is missing") from exc
+    except OSError as exc:
+        raise LocalTokenizerResourceError("local o200k asset path is unsafe") from exc
+    try:
+        descriptor = os.open(path.name, file_flags, dir_fd=directory_descriptor)
+    except FileNotFoundError as exc:
+        os.close(directory_descriptor)
+        raise LocalTokenizerResourceError("local o200k asset is missing") from exc
+    except OSError as exc:
+        os.close(directory_descriptor)
+        raise LocalTokenizerResourceError("local o200k asset path is unsafe") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != O200K_BASE_SIZE:
+            raise LocalTokenizerResourceError("local o200k asset is invalid")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            contents = source.read(O200K_BASE_SIZE + 1)
+        if len(contents) != O200K_BASE_SIZE:
+            raise LocalTokenizerResourceError("local o200k asset is invalid")
+    except OSError as exc:
+        raise LocalTokenizerResourceError("local o200k asset is invalid") from exc
+    finally:
+        os.close(descriptor)
+        os.close(directory_descriptor)
+    if hashlib.sha256(contents).hexdigest() != O200K_BASE_SHA256:
+        raise LocalTokenizerResourceError("local o200k asset is invalid")
+    return contents
+
+
+def _parse_o200k_ranks(contents: bytes) -> dict[bytes, int]:
+    ranks: dict[bytes, int] = {}
+    try:
+        for line in contents.splitlines():
+            if not line:
+                continue
+            token, rank = line.split()
+            ranks[base64.b64decode(token, validate=True)] = int(rank)
+    except (binascii.Error, ValueError, UnicodeError) as exc:
+        raise LocalTokenizerResourceError("local o200k asset is invalid") from exc
+    if not ranks:
+        raise LocalTokenizerResourceError("local o200k asset is invalid")
+    return ranks
+
+
+def load_provisioned_o200k_encoding(data_root: Path) -> tiktoken.Encoding:
+    """Load only the exact, explicitly provisioned local o200k resource."""
+
+    ranks = _parse_o200k_ranks(_read_provisioned_o200k(data_root))
+    try:
         return tiktoken.Encoding(
             name="o200k_base-local",
             pat_str=_O200K_PAT_STR,
             mergeable_ranks=ranks,
             special_tokens={"<|endoftext|>": 199999, "<|endofprompt|>": 200018},
         )
-    except Exception as exc:
-        raise ValueError("local o200k_base resource is unavailable or invalid") from exc
+    except ValueError as exc:
+        raise LocalTokenizerResourceError("local o200k asset is invalid") from exc
 
 
-def _input_tokens(parts: _RequestParts) -> int:
-    encoding = _encoding()
+def tokenizer_resource_status(data_root: Path) -> str:
+    """Return a safe diagnostic state without exposing filesystem paths."""
+
+    try:
+        load_provisioned_o200k_encoding(data_root)
+    except LocalTokenizerResourceError as exc:
+        return "MISSING" if "missing" in str(exc) else "INVALID"
+    return "READY"
+
+
+def _input_tokens(parts: _RequestParts, data_root: Path | None) -> int:
+    if data_root is None:
+        raise LocalTokenizerResourceError("local o200k asset is missing")
+    encoding = load_provisioned_o200k_encoding(data_root)
     return sum(
         len(encoding.encode(part, disallowed_special=()))
         for part in (parts.system, parts.developer, _canonical_json(parts.schema), parts.payload_json)
@@ -322,6 +431,7 @@ class AnalysisService:
         cache: AnalysisCache,
         budget: CloudCallBudget,
         credential_resolver: CredentialResolver,
+        tokenizer_data_root: Path | None = None,
         output_language: str = "zh-CN",
         clock: _CLOCK = _utcnow,
     ) -> None:
@@ -330,6 +440,7 @@ class AnalysisService:
         self._cache = cache
         self._budget = budget
         self._credential_resolver = credential_resolver
+        self._tokenizer_data_root = tokenizer_data_root
         self._output_language = output_language
         self._clock = clock
 
@@ -357,7 +468,7 @@ class AnalysisService:
                 output_language=self._output_language, settings=self._settings,
             )
             parts = _request_parts(analysis_input.payload)
-            if _input_tokens(parts) > self._settings.max_local_input_tokens_per_video:
+            if _input_tokens(parts, self._tokenizer_data_root) > self._settings.max_local_input_tokens_per_video:
                 return self._skipped(AnalysisSkipReason.INPUT_TOO_LARGE, "local input token limit exceeded")
         except ValueError as exc:
             raise AnalysisPolicyError(
@@ -555,7 +666,9 @@ class RepositoryBackedAnalysisService:
                 safe_message="cloud analysis is disabled")
         analysis_input = build_analysis_input(video=video, transcript_text=transcript_text,
             language=language, output_language=output_language, settings=self.settings)
-        if _input_tokens(_request_parts(analysis_input.payload)) > self.settings.max_local_input_tokens_per_video:
+        if _input_tokens(
+            _request_parts(analysis_input.payload), self.artifact_root
+        ) > self.settings.max_local_input_tokens_per_video:
             return AnalysisSkipped(reason=AnalysisSkipReason.INPUT_TOO_LARGE, call=None,
                 safe_message="local input token limit exceeded")
         request = ProviderCallRequest(operation=_OPERATION,

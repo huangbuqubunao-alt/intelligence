@@ -91,11 +91,11 @@
 - TASK-008A 可在该固定 worktree 内解析、下载、锁定并安装已批准的 OpenAI SDK、
   tiktoken 和必要传递依赖，执行任务卡离线门禁；不得实现 Provider、读取密钥、
   调用 API 或修改 Schema、migration、`state.py`、`complete_stage`。
-- 2026-07-21 补充批准 A-16/A-17：TASK-008A Correction 1 可从 OpenAI 官方 Blob
-  单次下载并提交固定 SHA-256
-  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` 的
-  `src/youtube_intel/resources/o200k_base.tiktoken`。运行时只能读取该包内资源，
-  缺失或哈希不符必须失败关闭，禁止网络回退；其分发许可证由 TASK-014 最终复核。
+-  2026-07-21 对 A-16/A-17 的历史批准曾允许固定包内 `o200k_base.tiktoken`。该 Blob 的
+  文件级分发结论后被确认为 classification C；ADR-028 仅替换其存储/分发细节：管理员须在
+  `storage.data_dir/tokenizers/o200k_base.tiktoken` 显式预置固定 SHA-256
+  `446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d` 的副本。运行时只读该
+  本地资源，缺失或哈希不符失败关闭，禁止网络回退；项目发行物不携带该 Blob。
 - OpenAI SDK 不得在主进程导入。TASK-008 必须在不继承父进程环境、只含固定非敏感
   Python 启动变量的独立子进程完成 SDK 导入；导入完成后，密钥只能经匿名管道传入，
   不进入环境变量、命令行、文件、异常或日志。TASK-008A 只冻结并离线验证该策略，

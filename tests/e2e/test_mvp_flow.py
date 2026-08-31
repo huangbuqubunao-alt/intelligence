@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 import yaml
 
+from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
@@ -78,6 +80,13 @@ from youtube_intel.transcripts import (
 )
 
 NOW = datetime(2100, 1, 1, 8, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _mvp_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The MVP flow verifies orchestration, not operator asset provisioning."""
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 PIPELINE_VERSION = "runtime-v1"
 OWNER = "youtube-intel-runtime"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
