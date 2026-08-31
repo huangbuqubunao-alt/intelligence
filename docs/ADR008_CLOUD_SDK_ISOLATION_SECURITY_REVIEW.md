@@ -90,6 +90,8 @@ gate. Neither model silently changes provider.
 | Socket-deny package import and CLI-help sentinel with synthetic cloud environment values | SDK clients `0`; network attempts `0`; `openai` absent from main-process module set |
 | Existing child import-environment sentinel | confirms `openai==2.46.0` import with an empty blocked-variable set and no parent sentinel leakage |
 | Existing fake transport/construction sentinels | selected fake provider only; missing credential fails before transport; disabled/cache/budget paths are zero transport calls |
+| Full regression after the two BPE-before-cloud sentinels | `1920 passed, 1 skipped, 1 warning` |
+| Lock/type/lint, scanner regression, canonical scanner, offline wheel/sdist, and CLI help | pass; canonical scanner remains `EXIT 1` on exactly the 11 previously accepted fixtures |
 
 No live provider, DNS query, HTTP request, real credential, provider
 qualification action, scanner change, BPE redesign, push, tag, or release was

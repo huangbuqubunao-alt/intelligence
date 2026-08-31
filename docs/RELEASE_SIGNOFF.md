@@ -52,7 +52,7 @@ infer one.
 | Recovery tests | `8 passed` |
 | Provider contract/privacy-boundary tests | `83 passed` |
 | Scanner regression tests | `20 passed` |
-| Full pytest | `1918 passed, 1 skipped, 1 warning` |
+| Full pytest | `1920 passed, 1 skipped, 1 warning` |
 | `uv run mypy src` | `Success: no issues found in 40 source files` |
 | Repository-wide mypy | Current historical baseline remains non-green: `1020 errors in 45 files` (`109` files checked); this documentation-only task introduced no source/test change. |
 | `uv run ruff check .` | PASS |
