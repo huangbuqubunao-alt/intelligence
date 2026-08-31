@@ -16,15 +16,23 @@
 - TASK-016 has no qualified live Deep Analysis provider and no Product Owner
   acceptance of real qualified-provider output. TASK-016G remains unauthorized.
 - The canonical security scanner is fail-closed and currently exits non-zero on
-  11 documented TASK-016 test fixtures. No new release-candidate finding exists,
-  but no formal release-policy closure treats a non-zero global scan as green.
-  The finding-by-finding technical evidence is complete in
+  exactly 11 documented TASK-016 intentional-positive test fixtures. No new
+  release-candidate finding exists. The Product Owner / Tech Lead accepted a
+  finite release-policy exception for this exact matrix at `main@5e15d62`, for
+  the current controlled private source/wheel/sdist posture only. The scanner
+  remains exit `1`; it is not globally clean or PASS. The finding-by-finding
+  evidence, conditions, and re-review triggers are in
   [SECURITY_SCANNER_FIXTURE_DISPOSITION.md](SECURITY_SCANNER_FIXTURE_DISPOSITION.md):
   all 11 are intentional positive test fixtures, are absent from fresh wheel/
   sdist archives, and have no production-runtime reachability. The controlled
-  Git source tree does contain the tracked test corpus. Security remains blocked
-  pending an actual Security Reviewer/TL release-policy disposition; this is not
-  an accepted-risk approval.
+  Git source tree does contain the tracked test corpus. **The security technical
+  release blocker is resolved for the current controlled release.** No broader
+  distribution, scanner weakening, allowlist, or suppression is approved.
+- This does not close the independent Security Reviewer sign-off, final human
+  signature gate, cloud-SDK isolation review, privacy, provider, legal-owner,
+  or operations blockers. The non-blocking future follow-up is a first-class
+  fail-closed scanner scope/intentional-fixture disposition design; it covers no
+  future finding automatically.
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 

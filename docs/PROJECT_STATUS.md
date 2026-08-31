@@ -772,7 +772,7 @@
   package inclusion 全部通过。`dist/` 仅为 ignored/uncommitted 构建产物，未被删除或提交。
 - 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
-## Canonical security scanner fixture evidence — 2026-08-31
+## Canonical security scanner fixture disposition — 2026-08-31
 
 - On `main@e8c00a4`, the unchanged canonical scanner returns exit `1` for
   exactly 11 `api-key` matches in two TASK-016 test modules. The redacted
@@ -782,11 +782,17 @@
   they have no production/CLI/provider-credential reachability and are absent
   from fresh wheel/sdist archives. The controlled full Git source tree retains
   the tracked tests, so it is not treated as equivalent to sdist.
+- Product Owner / Tech Lead policy approval accepts this exact `5e15d62`
+  eleven-finding matrix as a finite exception for current controlled private
+  source/wheel/sdist distribution only. Canonical scanner status remains exit
+  `1`, not PASS or globally clean; no future finding, broader distribution,
+  scanner weakening, allowlist, or suppression is covered.
 - The scanner was not weakened; no allowlist, fixture, TASK-016 behavior,
   dependency, ADR, B9/B11 state, push, tag, or public release changed. Scanner
-  regression is `20 passed`. This is evidence complete only: Security remains
-  blocked until an actual Security Reviewer/TL records the release-policy
-  disposition; no approval is fabricated.
+  regression is `20 passed`. The security technical release blocker is resolved
+  for the current controlled release. Independent Security Reviewer sign-off and
+  the final human-signature gate remain open; no external reviewer or legal
+  approval is fabricated.
 
 ## 主控接收执行结果的最小格式
 

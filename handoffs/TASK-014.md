@@ -1868,7 +1868,23 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - `tests/scripts/test_security_scan.py` passed `20`; no scanner suppression,
   allowlist, fixture rewrite, TASK-016 behavior change, ADR change, dependency
   change, push, tag, or public release occurred. The technical review has
-  P0/P1/P2=`0/0/0`, but the release security blocker remains open because the
-  authoritative policy has no signed exception mechanism. Required next action:
-  Security Reviewer/TL approve or reject the documented eleven-fixture
-  release-policy disposition. No approval is fabricated.
+  P0/P1/P2=`0/0/0`.
+
+## PO/TL finite scanner policy exception — 2026-08-31
+
+- Product Owner / Tech Lead approved the exact eleven-finding `5e15d62` matrix
+  as a finite release-policy exception for current controlled private
+  source/wheel/sdist distribution. The scanner remains fail-closed at exit `1`;
+  it is not PASS or globally clean. The exception covers no future finding,
+  scanner weakening, allowlist, suppression, fixture rewrite, or broader
+  distribution mode.
+- The documented conditions and mandatory re-review triggers are in
+  `docs/SECURITY_SCANNER_FIXTURE_DISPOSITION.md`. The security technical release
+  blocker is resolved only for that controlled posture. Independent Security
+  Reviewer signature and final human release signatures remain open; no named
+  reviewer, legal approval, push, tag, or public release is asserted.
+- Non-blocking future follow-up: design a first-class fail-closed scanner
+  scope/intentional-fixture disposition mechanism without hiding new findings or
+  exempting arbitrary test paths. Next authorized release action: PO/legal
+  records the first-party copyright-holder identity for the current proprietary
+  limited-distribution posture.

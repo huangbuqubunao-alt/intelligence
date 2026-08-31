@@ -2,11 +2,17 @@
 
 ## Status
 
-**CANONICAL SCAN: EXIT 1. FINDINGS: 11.** This is an evidence record, not a
-green scan, suppression, allowlist, or approval. Technical review classifies
-all eleven as intentional positive test fixtures, but the release-security
-blocker remains **WAITING ON SECURITY REVIEWER / TL DISPOSITION**. No Security
-Reviewer or TL approval is recorded here.
+**CANONICAL SCAN: EXIT 1. FINDINGS: 11. CLASSIFICATION: 11 INTENTIONAL POSITIVE
+TEST FIXTURES.** The scanner's technical result remains non-zero. It is not a
+green scan, global bypass, suppression, or allowlist.
+
+**RELEASE DISPOSITION: ACCEPTED FINITE PO/TL RELEASE-POLICY EXCEPTION.** The
+Product Owner / Tech Lead explicit policy disposition applies only to the exact
+eleven documented findings at `main@5e15d62`. It resolves the **security
+technical release blocker for the current controlled private source/wheel/sdist
+posture**. It does not constitute a final-release GO signature, an independent
+Security Reviewer signature, legal approval, or authorization for a wider
+distribution form.
 
 Baseline: `main@e8c00a4fecfb23d1b163a6352ca7c3a13a1eaf7a` before this
 documentation-only evidence change. The unchanged command was:
@@ -30,13 +36,13 @@ enumeration, reading, parsing, or extraction fails.
 - `WARN` items are explicitly review-only; rules have no severity classes.
 - All eleven records are blocking `api-key` matches.
 
-The authoritative release evidence requires a “cleanly closed global security
-scan” and says no formal release-policy closure treats a non-zero global scan
-as green: [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md),
+The Product Owner / Tech Lead disposition supplied for this record establishes
+the finite exception described below. It does not change scanner exit semantics:
+the result remains exit `1`, never “security scan PASS” or “global scan clean.”
+The repository's separate final-signature and independent Security Reviewer
+requirements remain governed by [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md),
 [RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md), and
-[RELEASE_SIGNOFF.md](RELEASE_SIGNOFF.md). It defines neither a reviewer
-exception mechanism nor an expiry/owner for one. Current policy is therefore
-**D — ambiguous/no approved exception rule**, not Policy A/B/C by inference.
+[RELEASE_SIGNOFF.md](RELEASE_SIGNOFF.md).
 
 ## Finding matrix
 
@@ -86,8 +92,10 @@ Fresh `uv build --offline` artifacts were directly inspected:
 | Controlled full Git source tree | yes — both tracked tests | yes | 11 canonical findings | not applicable |
 
 Thus wheel and sdist are fixture-free, while the controlled full source tree is
-not. This task does not authorize a bundle, container, installer, copied venv,
-or public release.
+not. The finite exception is limited to the current controlled private
+source/wheel/sdist posture; it does not authorize public open-source or package
+index release, bundle, container, installer, copied venv, or vendored
+environment distribution.
 
 ## Regression, policy paths, and adversarial review
 
@@ -98,16 +106,38 @@ placeholder boundaries, and non-bypass behavior. The project findings are not
 a scanner blind spot.
 
 At-most-once risk acceptance is separate: `RELEASE_BLOCKERS.md` assigns its
-three crash windows to the PO. It neither grants nor replaces a Security
-Reviewer/TL scanner disposition.
+three crash windows to the PO. This finite scanner exception neither grants nor
+replaces that acceptance, the final human-signature gate, or an independent
+Security Reviewer signature.
 
-Because no exception rule exists, the current release posture is global-exit-0
-and this blocker remains open. A future Security Reviewer/TL policy decision
-could first establish and sign a finite disposition for exactly this matrix,
-including controlled-source presence, scope, owner, and review trigger, while
-keeping scanner exit `1` explicit. A first-class scanner/scope architecture
-change is a possible future design task only; it is not authorized or
-implemented here.
+### Finite exception identity, conditions, and re-review
+
+The exception identity is the documented test purposes and fixture semantics in
+this matrix, the `api-key` scanner rule, and exactly the eleven findings at
+`5e15d62`—not permanently fixed line numbers. It covers no future finding.
+It remains valid only while all conditions below hold:
+
+1. **C1:** Finding count remains exactly 11.
+2. **C2:** Every finding remains an intentional-positive test fixture.
+3. **C3:** No real credential is present.
+4. **C4:** No production/runtime/provider-credential reachability exists.
+5. **C5:** Fixture-bearing files remain excluded from wheel and sdist.
+6. **C6:** Scanner rules and exit semantics are not weakened.
+7. **C7:** No allowlist or suppression is introduced.
+8. **C8:** Fixtures retain their documented security-test purpose.
+9. **C9:** No additional canonical finding is automatically covered.
+10. **C10:** Any meaningful finding or fixture-semantic change is re-reviewed.
+
+Re-review is mandatory if the count, rule, fixture semantics, test-file
+classification, runtime reachability, wheel/sdist inclusion, scanner
+architecture, or distribution mode changes; and before any public release,
+bundle, container, or installer is considered.
+
+The PO/TL also records a non-blocking post-release engineering follow-up: design
+a first-class canonical scanner scope/intentional-fixture disposition mechanism
+that preserves fail-closed behavior. It must not weaken rules, hide new
+findings, or turn arbitrary test paths into exemptions. It is not current
+release-critical work unless an authoritative future release document says so.
 
 Adversarial review found no real secret, production/provider flow, wheel/sdist
 inclusion, policy approval fabrication, scanner weakening, allowlist, fixture
@@ -116,7 +146,9 @@ review: **P0 0; release-critical technical P1 0; P2 0.**
 
 ## Required disposition
 
-**SECURITY RELEASE BLOCKER: WAITING ON SECURITY REVIEWER / TL DISPOSITION.**
-The next authorized action is: **Security Reviewer / TL approve or reject the
-documented eleven-fixture release-policy disposition.** No legal or policy
-approval is fabricated.
+**SECURITY TECHNICAL RELEASE BLOCKER: RESOLVED FOR CURRENT CONTROLLED RELEASE.**
+The independent Security Reviewer signature remains **OPEN / not named or
+fabricated**, and the final human-signature gate remains **BLOCKED** because
+the final release checklist's GO signatures and other independent gates are not
+complete. The next authorized project action is recorded in the current release
+documents; this exception does not authorize it itself.

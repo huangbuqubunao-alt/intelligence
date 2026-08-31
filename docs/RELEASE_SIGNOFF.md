@@ -24,8 +24,8 @@ or lockfile changed in that integration.
 | Product-owner Deep Analysis output acceptance / TASK-016G | BLOCKED | No real qualified-provider Note V2 / Weekly V2 output exists for acceptance. TASK-016G remains unauthorized; the conflicting older `PROJECT_STATUS.md` statement has been corrected from the task card and provider-gate record. |
 | Deterministic QA | PASS | 149 B9/subtitle tests, 933 TASK-016 tests, 8 recovery tests, 20 scanner-regression tests, and full pytest `1910 passed, 1 warning`; `mypy src`, Ruff, lock/sync, and diff check passed. |
 | Build / CLI | PARTIAL | Offline wheel and sdist build passed. `youtube-intel --help` and `doctor --help` passed. A configured doctor and real backup/recovery drill remain unrun because the required authorized temporary configuration / real-environment gate is absent. |
-| Security scanner | BLOCKED — evidence complete / human disposition pending | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` intentional-positive test-fixture findings across two test files; no new release-candidate finding was introduced. The [finding matrix and reachability evidence](SECURITY_SCANNER_FIXTURE_DISPOSITION.md) confirms no production runtime or wheel/sdist reachability, while controlled Git source does include the tests. No formal release-policy exception or Security Reviewer/TL disposition closes a non-zero global scan. |
-| Secret handling | PASS (code evidence) / human sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. Final Security Reviewer sign-off remains required. |
+| Security scanner | ACCEPTED FINITE PO/TL POLICY EXCEPTION — technical blocker resolved for current controlled release | The canonical scanner remains fail-closed at exit `1` on exactly 11 existing TASK-016 `api-key` intentional-positive test-fixture findings across two test files; it is not PASS or globally clean. The Product Owner / Tech Lead accepts only the documented `5e15d62` matrix for controlled private source/wheel/sdist. The [finding matrix, conditions, and re-review triggers](SECURITY_SCANNER_FIXTURE_DISPOSITION.md) confirm no production runtime or wheel/sdist reachability, while controlled Git source does include the tests. No scanner weakening, allowlist, suppression, wider distribution, or new finding is covered. |
+| Secret handling | PASS (code evidence) / independent Security Reviewer sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. The PO/TL scanner exception is not an independent Security Reviewer signature. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
 | Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Legal-owner identity and future model/bundle/container decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
@@ -59,7 +59,7 @@ infer one.
 | `uv lock --check`; `uv sync --locked --offline` | PASS |
 | Offline build | PASS; wheel and sdist built in a temporary directory and removed |
 | CLI | `youtube-intel --help` and `youtube-intel doctor --help` PASS; bare `doctor` correctly exits `2` without a configured project root |
-| Canonical security scan | FAIL CLOSED: 11 known TASK-016 test-fixture findings; 0 new release-candidate findings |
+| Canonical security scan | EXIT `1`, fail-closed: 11 accepted intentional-positive TASK-016 fixtures; 0 new release-candidate findings. The finite PO/TL exception resolves only the current controlled-release technical blocker; it does not make the scanner PASS. |
 | `git diff --check` | PASS |
 
 No credential values, subtitle bodies, private Vault data, or public-sample
@@ -77,12 +77,9 @@ P1 gates, all preserved rather than downgraded:
 1. Legal-owner identity and any future model/bundle/container distribution decision.
 2. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
-3. Global security scan exit remains non-zero without a formal release closure
-   for its documented fixtures. The evidence matrix is complete, but a Security
-   Reviewer/TL disposition is still absent.
-4. Required Security/Privacy/PO/TL signatures and at-most-once risk acceptance
+3. Required Security/Privacy/PO/TL signatures and at-most-once risk acceptance
    are absent.
-5. Authorized real operational validation (backup/recovery, staged smoke,
+4. Authorized real operational validation (backup/recovery, staged smoke,
    Vault/launchd) is absent.
 
 **Release-critical P0: 0. Release-critical P1: 4. P2: 0.**
@@ -106,11 +103,11 @@ verdict: APPROVE.**
 
 ## Required next action
 
-The BPE artifact sub-blocker and the current controlled target-runtime
-SBOM/NOTICE + Mutagen technical gate are resolved without a rights claim or legal
-approval. The **one next authorized release action** is a Security Reviewer/TL
-release-policy disposition for the canonical scanner's documented non-zero
-fixture result. It must not suppress, weaken, or alter those fixtures. This does
+The BPE artifact sub-blocker, current controlled target-runtime SBOM/NOTICE +
+Mutagen technical gate, and the finite scanner-fixture technical disposition are
+resolved without a rights claim or legal approval. The **one next authorized
+release action** is: **PO/legal records the first-party copyright-holder identity
+for the existing private/proprietary limited-distribution posture.** This does
 not authorize provider work, TASK-016G, a push, a tag, or public distribution.
 
 ## ADR-028 post-sign-off licensing evidence
