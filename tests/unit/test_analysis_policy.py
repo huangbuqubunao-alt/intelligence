@@ -8,6 +8,7 @@ import pytest
 
 from youtube_intel import analysis as analysis_mod
 from youtube_intel.analysis import (
+    AnalysisPolicyError,
     AnalysisService,
     CloudCallBudget,
     InMemoryAnalysisCache,
@@ -126,6 +127,32 @@ def test_low_value_video_creates_no_outcome_or_provider_side_effect() -> None:
     )
 
     assert outcome is None
+    assert provider.calls == 0
+    assert resolver.calls == 0
+
+
+@pytest.mark.parametrize("reason", ("missing", "invalid"))
+def test_local_bpe_failure_precedes_credential_and_provider_side_effects(
+    monkeypatch: pytest.MonkeyPatch, reason: str
+) -> None:
+    provider = _Provider()
+    resolver = _CredentialResolver()
+
+    def fail_local_tokenizer(*_args: object, **_kwargs: object) -> int:
+        raise analysis_mod.LocalTokenizerResourceError(f"local o200k asset is {reason}")
+
+    monkeypatch.setattr(analysis_mod, "_input_tokens", fail_local_tokenizer)
+    service = AnalysisService(
+        provider=provider, settings=_settings(), cache=InMemoryAnalysisCache(),
+        budget=CloudCallBudget(limit=5), credential_resolver=resolver,
+    )
+
+    with pytest.raises(AnalysisPolicyError) as raised:
+        service.analyze(
+            video=_video(), transcript_text="a canonical transcript with enough text", language="en"
+        )
+
+    assert raised.value.error.code.value == "CONFIG_INVALID"
     assert provider.calls == 0
     assert resolver.calls == 0
 

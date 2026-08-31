@@ -86,7 +86,7 @@ gate. Neither model silently changes provider.
 
 | Check | Result |
 | --- | --- |
-| Focused admission, credential, BPE, provider-adapter, persistence tests | `235 passed, 1 skipped` |
+| Focused admission, credential, BPE, provider-adapter, persistence tests | `237 passed, 1 skipped` |
 | Socket-deny package import and CLI-help sentinel with synthetic cloud environment values | SDK clients `0`; network attempts `0`; `openai` absent from main-process module set |
 | Existing child import-environment sentinel | confirms `openai==2.46.0` import with an empty blocked-variable set and no parent sentinel leakage |
 | Existing fake transport/construction sentinels | selected fake provider only; missing credential fails before transport; disabled/cache/budget paths are zero transport calls |

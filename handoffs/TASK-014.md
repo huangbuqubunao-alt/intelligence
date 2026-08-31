@@ -1913,7 +1913,7 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   child environments, stdin-pipe-only temporary credentials, explicit
   provider/consent selection, no automatic or cross-provider fallback, no SDK
   retry, and BPE fail-closed ordering where required. Offline focused evidence:
-  `235 passed, 1 skipped`; socket-deny package import/CLI help: zero SDK client
+  `237 passed, 1 skipped`; socket-deny package import/CLI help: zero SDK client
   constructions and network attempts.
 - This is not an independent named human Security Reviewer signature and does
   not change TASK-016, provider qualification, ADR-008/ADR-028, B9/B11,
