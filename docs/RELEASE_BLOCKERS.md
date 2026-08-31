@@ -29,8 +29,9 @@
   release blocker is resolved for the current controlled release.** No broader
   distribution, scanner weakening, allowlist, or suppression is approved.
 - This does not close the independent Security Reviewer sign-off, final human
-  signature gate, cloud-SDK isolation review, privacy, provider, legal-owner,
-  or operations blockers. The non-blocking future follow-up is a first-class
+  signature gate, privacy, provider, legal-owner, or operations blockers. The
+  ADR-008 technical isolation review is recorded separately in §2.1. The
+  non-blocking future follow-up is a first-class
   fail-closed scanner scope/intentional-fixture disposition design; it covers no
   future finding automatically.
 
@@ -132,6 +133,15 @@
 - **Pass criteria**: Security Reviewer confirms: no main-process SDK
   import, whitelist env, pipe-only credential passing, no credential
   leakage through env/argv/files/logs/exceptions.
+- **Technical evidence disposition (2026-08-31): RESOLVED.**
+  [ADR-008 cloud-SDK isolation security review](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md)
+  traces the current OpenAI and Moonshot-compatible paths, confirms the
+  no-main-process-import and literal child-environment boundary, and records
+  offline socket-deny/fake-transport/credential/BPE evidence. Technical P0: `0`;
+  release-critical technical P1: `0`.
+- **Human-signature boundary:** this technical review records no named independent
+  Security Reviewer signature. The separate final human-signature gate in §4.1
+  remains open; no legal approval, provider qualification, or release is implied.
 
 ### 2.2 Vault & Template Distribution Boundary
 

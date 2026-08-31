@@ -807,9 +807,23 @@
   phone number, address, personal email, or other unnecessary PII was added.
 - Verified legal identity remains a separate future gate only before an action
   whose governing policy requires it. Independent Security Reviewer and final
-  human signatures remain open. Next authorized release action: Security
-  Reviewer performs the ADR-008 cloud-SDK isolation review and records the
-  required sign-off.
+  human signatures remain open; the ADR-008 technical review follows below.
+
+## ADR-008 cloud-SDK isolation technical review — 2026-08-31
+
+- The current technical review is **APPROVED**: project-owned OpenAI and
+  Moonshot-compatible SDK code is imported/constructed only in short-lived
+  child processes with a literal allow-list environment and pipe-only temporary
+  credentials. Package import and CLI help under a socket-deny sentinel made
+  zero cloud client constructions and network attempts.
+- Explicit provider consent, no `auto` selection, no implicit local-to-cloud or
+  cross-provider fallback, `max_retries=0`, credential exclusion from identity/
+  persistence/error surfaces, and ADR-028 BPE fail-closed controls remain
+  preserved. See [security review evidence](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md).
+- No independent named human Security Reviewer signature is recorded; final
+  human signatures, privacy, provider, and operational gates remain open. Next
+  authorized release action: Privacy Reviewer performs the Vault and template
+  distribution-boundary review and records the required sign-off.
 
 ## 主控接收执行结果的最小格式
 

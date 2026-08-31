@@ -114,6 +114,17 @@
   signature; verified legal identity remains a separate future gate when an
   action's governing policy requires it.
 
+### ADR-008 cloud-SDK isolation technical review — 2026-08-31
+
+- Technical review is **APPROVED** for the current controlled posture:
+  [recorded evidence](ADR008_CLOUD_SDK_ISOLATION_SECURITY_REVIEW.md) confirms
+  zero local/offline cloud client construction and network attempts, explicit
+  consent/provider binding, pipe-only credentials, `max_retries=0`, and BPE
+  fail-closed ordering where the local BPE gate applies.
+- This is not a named independent human Security Reviewer signature and does not
+  close the final signature table, provider qualification, privacy, operations,
+  or any broader distribution gate.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

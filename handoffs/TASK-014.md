@@ -1905,3 +1905,18 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   boundaries are unchanged. No push, tag, or public release occurred. Next
   authorized release action: Security Reviewer performs the ADR-008 cloud-SDK
   isolation review and records the required sign-off.
+
+## ADR-008 cloud-SDK isolation technical review — 2026-08-31
+
+- Technical evidence is complete and approved for the current controlled
+  posture. The review traces no main-process OpenAI SDK import/client, literal
+  child environments, stdin-pipe-only temporary credentials, explicit
+  provider/consent selection, no automatic or cross-provider fallback, no SDK
+  retry, and BPE fail-closed ordering where required. Offline focused evidence:
+  `235 passed, 1 skipped`; socket-deny package import/CLI help: zero SDK client
+  constructions and network attempts.
+- This is not an independent named human Security Reviewer signature and does
+  not change TASK-016, provider qualification, ADR-008/ADR-028, B9/B11,
+  scanner policy, release permissions, or other human gates. Next authorized
+  release action: Privacy Reviewer performs the Vault and template
+  distribution-boundary review and records the required sign-off.
