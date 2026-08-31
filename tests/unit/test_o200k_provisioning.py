@@ -105,6 +105,16 @@ def test_symlinked_tokenizer_directory_is_rejected(
         analysis.load_provisioned_o200k_encoding(tmp_path)
 
 
+def test_missing_nofollow_support_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _asset_path(tmp_path).write_bytes(b"not a canonical asset")
+    monkeypatch.delattr(analysis.os, "O_NOFOLLOW", raising=False)
+
+    with pytest.raises(analysis.LocalTokenizerResourceError, match="unsafe"):
+        analysis.load_provisioned_o200k_encoding(tmp_path)
+
+
 def test_correct_hash_but_malformed_asset_is_rejected(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

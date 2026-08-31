@@ -279,10 +279,12 @@ def _provisioned_o200k_path(data_root: Path) -> Path:
 
 def _read_provisioned_o200k(data_root: Path) -> bytes:
     path = _provisioned_o200k_path(data_root)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise LocalTokenizerResourceError("local o200k asset path is unsafe")
     directory_flags = (
-        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
     )
-    file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW
     try:
         directory_descriptor = os.open(path.parent, directory_flags)
     except FileNotFoundError as exc:
