@@ -36,27 +36,31 @@
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 
-### 0.1 Project Own License / Owner Identity Is Partially Resolved
+### 0.1 Project Own License / Owner Attribution Is Resolved for Current Controlled Artifact
 
 - **Decision maker**: PO + TL (codebase owner)
 - **Current state**: PO/TL selected `PRIVATE / PROPRIETARY / LIMITED-DISTRIBUTION`.
   Root `NOTICE` and `pyproject.toml` `license.file=NOTICE` encode that restrictive
-  posture without inventing a legal owner identity. It does not permit public
-  distribution.
-- **Risk**: The selected notice is intentionally restrictive and cannot support a
-  broader release until its legal owner is recorded. Target-artifact third-party
-  obligations and GPL-sensitive future bundled modes remain separate concerns.
-- **Remaining input**: PO/legal records the copyright-holder identity before
-  broader external distribution. Any future attempt to ship the BPE file needs
-  its separate file-level rights conclusion; ADR-028 currently excludes it.
-  Any future bundled mode must also satisfy §1.1 mutagen constraints.
+  posture and record `墨竹` as the current pseudonymous first-party owner/
+  copyright attribution identifier. This does not permit public distribution.
+- **Current controlled-artifact disposition: RESOLVED.** The attribution is not
+  represented as a verified legal name, legal entity, trademark, copyright
+  registration, or IP-assignment proof. No unnecessary PII is recorded.
+- **Future verified-identity gate:** before a broader external distribution or
+  any action whose governing policy requires verified legal identity, PO/legal
+  must establish the needed controlled legal record separately. Any future
+  attempt to ship the BPE file needs its separate file-level rights conclusion;
+  ADR-028 currently excludes it. Any future bundled mode must also satisfy §1.1
+  mutagen constraints.
 - **Decision package**: The technical artifact inventory and the selected
   limited-distribution posture are recorded in
   `docs/LICENSE_DISTRIBUTION_DECISION_PACKAGE.md`.
-- **Pass criteria**: Legal owner identity recorded; target-specific SBOM/NOTICE
-  complete; proprietary notice and package
-  metadata remain consistent in the built artifact.
-- **Blocker level**: DISTRIBUTION BLOCKER — no public release until resolved.
+- **Pass criteria for current controlled artifact**: Pseudonymous first-party
+  attribution recorded; target-specific SBOM/NOTICE complete; proprietary notice
+  and package metadata consistent in the built artifact.
+- **Blocker level**: Current controlled-artifact owner-attribution blocker
+  resolved. A future verified-identity requirement remains a distribution/legal
+  gate only when the governing action requires it; no public release is approved.
 
 ## 1. Supply Chain & License Decisions
 

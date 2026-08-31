@@ -103,6 +103,17 @@
   a general exception, cover a new finding, authorize broader distribution, or
   satisfy the separate final human-signature gate.
 
+### First-party owner attribution — 2026-08-31
+
+- The Product Owner records `墨竹` as the pseudonymous first-party owner/
+  copyright attribution identifier for the current private, proprietary,
+  controlled source/wheel/sdist posture. Root `NOTICE` and the NOTICE-based
+  package metadata carry that limited attribution.
+- This resolves current owner attribution only. It does not claim a verified
+  legal name or entity, registration, IP assignment, trademark, or final release
+  signature; verified legal identity remains a separate future gate when an
+  action's governing policy requires it.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |

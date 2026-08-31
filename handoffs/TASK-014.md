@@ -1888,3 +1888,20 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
   exempting arbitrary test paths. Next authorized release action: PO/legal
   records the first-party copyright-holder identity for the current proprietary
   limited-distribution posture.
+
+## First-party owner attribution disposition — 2026-08-31
+
+- Product Owner records `墨竹` as the pseudonymous first-party owner/copyright
+  attribution identifier for the current private, proprietary, controlled
+  source/wheel/sdist posture. Root `NOTICE` uses concise `Copyright © 2026 墨竹`
+  attribution and remains all-rights-reserved/private-limited-distribution;
+  `pyproject.toml` remains NOTICE-based without an OSS classifier or license.
+- This resolves the current owner-attribution blocker only. It does not claim a
+  legal real name, legal entity, trademark, copyright registration, IP
+  assignment, verified ownership, legal approval, or a final signature. No
+  unnecessary PII was introduced. Verified legal identity is a separate future
+  controlled legal-record gate only when a governing action requires it.
+- BPE, scanner, TASK-016, B9/B11, ADR-008/ADR-028, dependency, and distribution
+  boundaries are unchanged. No push, tag, or public release occurred. Next
+  authorized release action: Security Reviewer performs the ADR-008 cloud-SDK
+  isolation review and records the required sign-off.

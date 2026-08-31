@@ -13,7 +13,8 @@
   complete for that target. `mutagen==1.48.1` is GPL-2.0-or-later but is not
   physically present in first-party wheel/sdist; a future physically bundled
   form requires separate GPL compliance review. The BPE classification remains
-  `C` and legal-owner identity remains a blocker; no public or actual external
+  `C`; current owner attribution is recorded, while verified legal identity is
+  a separate future gate when required; no public or actual external
   distribution is authorized. See [license decision package](LICENSE_DISTRIBUTION_DECISION_PACKAGE.md).
 - 主控状态：ACTIVE
 - Current provider-gate authority is
@@ -793,6 +794,22 @@
   for the current controlled release. Independent Security Reviewer sign-off and
   the final human-signature gate remain open; no external reviewer or legal
   approval is fabricated.
+
+## First-party owner attribution disposition — 2026-08-31
+
+- Product Owner records `墨竹` as the pseudonymous first-party owner/copyright
+  attribution identifier for the current private, proprietary, controlled
+  source/wheel/sdist posture. Root `NOTICE` carries the concise attribution;
+  `pyproject.toml` remains NOTICE-based and proprietary.
+- This resolves the current owner-attribution blocker. It does not record or
+  claim a legal real name, legal entity, trademark, copyright registration, IP
+  assignment, or other proof of legal ownership. No legal name, government ID,
+  phone number, address, personal email, or other unnecessary PII was added.
+- Verified legal identity remains a separate future gate only before an action
+  whose governing policy requires it. Independent Security Reviewer and final
+  human signatures remain open. Next authorized release action: Security
+  Reviewer performs the ADR-008 cloud-SDK isolation review and records the
+  required sign-off.
 
 ## 主控接收执行结果的最小格式
 

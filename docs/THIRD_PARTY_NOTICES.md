@@ -12,8 +12,10 @@
 ## Frozen NOTICE scopes — 2026-08-31
 
 This policy deliberately separates the thing distributed by the project from a
-normal environment's separately installed dependency set. It does not choose a
-legal owner or make a legal conclusion about GPL combination or conveyance.
+normal environment's separately installed dependency set. The root `NOTICE`
+records `墨竹` as a pseudonymous first-party attribution identifier only; this
+policy does not establish verified legal identity or make a legal conclusion
+about GPL combination or conveyance.
 
 | Notice set | Current policy | Included content |
 | --- | --- | --- |
@@ -165,7 +167,9 @@ the applicable license/notice material for its actual contents.
 
 ## Remaining release-owner decisions
 
-1. Record the first-party legal owner before any broader external distribution.
+1. Before any broader external distribution requiring verified identity, create
+   the necessary separate legal record; the current `墨竹` attribution is not a
+   verified legal-owner record.
 2. Before any bundle/container/installer or copied dependency set, complete its
    target-specific license, attribution and GPL-sensitive compliance review.
 3. Before distributing model assets or a BPE Blob, complete their separate

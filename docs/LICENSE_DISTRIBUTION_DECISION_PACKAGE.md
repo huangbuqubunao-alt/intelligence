@@ -22,9 +22,10 @@ are **not authorized**. The fresh offline artifact evidence and complete,
 separate runtime inventory are recorded in [SBOM](SBOM.md).
 
 This resolves the technical `target installed-runtime SBOM / NOTICE + mutagen`
-blocker for this bounded current form. It does not resolve the legal-owner,
-model-source, security, privacy, provider, operations, signature, or public
-release blockers.
+blocker for this bounded current form. The current first-party attribution is
+recorded separately below; verified legal identity for future qualifying actions,
+model-source, security, privacy, provider, operations, signature, and public
+release gates remain distinct.
 
 ## Objective artifact inventory
 
@@ -48,11 +49,38 @@ boundary below. It is a build fact, not permission to distribute.
 | Credentials, private Vault data, raw subtitle bodies | Not tracked package inputs | No | Must remain excluded. |
 
 The current root contains `NOTICE`, the approved license-equivalent private
-distribution notice. `pyproject.toml` points its PEP 621 license field to that
-file; the current build backend embeds its restrictive text in wheel metadata
-as `License:`, and the sdist carries the root `NOTICE` file. The wheel and sdist
+distribution notice. It records `墨竹` only as a pseudonymous first-party
+project-owner/copyright attribution identifier for this controlled posture; it
+does not claim verified legal identity, legal-entity status, registration, or IP
+assignment. `pyproject.toml` points its PEP 621 license field to that file; the
+current build backend embeds its restrictive text in wheel metadata as
+`License:`, and the sdist carries the root `NOTICE` file. The wheel and sdist
 contain no matching model-weight, tokenizer-other-than-BPE, fixture, or
 dependency-wheel payload.
+
+## First-party owner attribution disposition — 2026-08-31
+
+| Record | Current controlled-artifact fact |
+| --- | --- |
+| First-party owner / copyright attribution identifier | `墨竹` |
+| Attribution type | Pseudonymous project-owner identifier |
+| Legal real-name verification in repository | Not recorded |
+| Legal entity verification | Not established by this record |
+| Copyright registration | Not claimed |
+| IP assignment | Not claimed |
+
+This closes the **owner-attribution blocker for the current private,
+proprietary, controlled source/wheel/sdist posture**. It is not proof of legal
+ownership beyond this internal attribution record. No legal name, government
+identifier, phone number, address, personal email, or other unnecessary PII is
+added to Git, NOTICE, wheel, sdist, or release documentation.
+
+Verified legal identity must be established separately in an appropriately
+controlled legal record before any action that actually requires it, such as a
+commercial license agreement, copyright registration, IP assignment, corporate
+ownership transfer, legally binding third-party authorization, or a distribution
+mode whose governing policy requires it. This repository neither establishes nor
+fabricates that record.
 
 ## Dependency and copyleft facts
 
@@ -128,8 +156,9 @@ source, license-text, attribution, and GPL-sensitive compliance obligations.
 
 ## Remaining PO/TL / legal inputs
 
-1. Record the legal copyright-holder identity that must own the proprietary
-   notice before any broader external distribution.
+1. Before any broader external distribution or action whose governing policy
+   requires verified identity, establish the required legal identity separately;
+   the current `墨竹` attribution is intentionally not that record.
 2. Preserve ADR-028's explicit-provisioning boundary in any future distribution;
    a future proposal to ship the BPE requires a separate file-level
    redistribution/NOTICE conclusion.
@@ -161,7 +190,9 @@ text is added by this package.
 
 ## Review outcome
 
-Adversarial review found no fabricated owner identity or legal approval,
+Adversarial review found no fabricated verified owner identity or legal approval,
 open-source implication, bundled model-weight claim, dev-tool-as-runtime claim,
 or reduction of other release gates. Technical P0: `0`; release-critical
-technical P1: `0`; the finite BPE/owner/model-source legal blockers remain open.
+technical P1: `0`; the BPE sub-blocker and current owner-attribution blocker are
+resolved, while future verified-identity and model-source requirements remain
+separate.

@@ -27,7 +27,7 @@ Fresh `uv build --offline` output contained a 62-entry wheel and a 68-entry sdis
 
 | Item | Version / status | Physically distributed by project | Notice set |
 | --- | --- | --- | --- |
-| `youtube-intel` | `0.1.0` | Yes | A — root `NOTICE` / package metadata; legal-owner identity remains separately blocked. |
+| `youtube-intel` | `0.1.0` | Yes | A — root `NOTICE` / package metadata; `墨竹` is the current pseudonymous owner-attribution identifier, not a verified legal identity. |
 | `o200k_base.tiktoken` | Not applicable | No | None; ADR-028 explicit user/admin provisioning only. |
 | All Python dependencies, including `mutagen` and `yt-dlp` | Not applicable | No | None physically copied into the wheel/sdist. |
 | Dependency declarations | Locked references | Yes, as metadata only | The runtime inventory (SBOM-B) is supplied for truthful installation information. |
@@ -129,4 +129,4 @@ The direct dev dependencies are `mypy==2.3.0`, `pytest==9.1.1`, and `ruff==0.15.
 
 ## SBOM conclusion
 
-SBOM-A is complete for the controlled first-party artifact. SBOM-B is complete as a separately installed target-runtime inventory. The current target neither embeds nor claims to redistribute Mutagen, so this record makes no legal claim about GPL effects beyond the documented facts. Bundle/container compliance, model-source review, legal-owner identity, security/privacy, provider, operations, and formal signatures remain distinct release gates.
+SBOM-A is complete for the controlled first-party artifact. SBOM-B is complete as a separately installed target-runtime inventory. The current target neither embeds nor claims to redistribute Mutagen, so this record makes no legal claim about GPL effects beyond the documented facts. Bundle/container compliance, model-source review, verified legal identity where a future action requires it, security/privacy, provider, operations, and formal signatures remain distinct release gates.

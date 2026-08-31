@@ -27,7 +27,7 @@ or lockfile changed in that integration.
 | Security scanner | ACCEPTED FINITE PO/TL POLICY EXCEPTION — technical blocker resolved for current controlled release | The canonical scanner remains fail-closed at exit `1` on exactly 11 existing TASK-016 `api-key` intentional-positive test-fixture findings across two test files; it is not PASS or globally clean. The Product Owner / Tech Lead accepts only the documented `5e15d62` matrix for controlled private source/wheel/sdist. The [finding matrix, conditions, and re-review triggers](SECURITY_SCANNER_FIXTURE_DISPOSITION.md) confirm no production runtime or wheel/sdist reachability, while controlled Git source does include the tests. No scanner weakening, allowlist, suppression, wider distribution, or new finding is covered. |
 | Secret handling | PASS (code evidence) / independent Security Reviewer sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. The PO/TL scanner exception is not an independent Security Reviewer signature. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
-| Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Legal-owner identity and future model/bundle/container decisions remain open. |
+| Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. `墨竹` is recorded only as the current pseudonymous first-party owner attribution; no verified legal identity is claimed. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Future verified-identity, model, bundle, and container decisions remain open. |
 | Operations | BLOCKED | Real backup/recovery, four-phase smoke, real Vault/user-note, and launchd gates remain separately unauthorized or unexecuted. |
 | Release signatures | BLOCKED | PO, TL/release owner, QA, and Privacy Reviewer signatures are not present. |
 
@@ -74,7 +74,8 @@ TASK-014B11 regression, TASK-016 implementation change, scanner weakening,
 push, tag, or public-release action. It did find the following release-critical
 P1 gates, all preserved rather than downgraded:
 
-1. Legal-owner identity and any future model/bundle/container distribution decision.
+1. Verified legal identity for any future action that requires it, and any future
+   model/bundle/container distribution decision.
 2. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
 3. Required Security/Privacy/PO/TL signatures and at-most-once risk acceptance
@@ -104,11 +105,12 @@ verdict: APPROVE.**
 ## Required next action
 
 The BPE artifact sub-blocker, current controlled target-runtime SBOM/NOTICE +
-Mutagen technical gate, and the finite scanner-fixture technical disposition are
-resolved without a rights claim or legal approval. The **one next authorized
-release action** is: **PO/legal records the first-party copyright-holder identity
-for the existing private/proprietary limited-distribution posture.** This does
-not authorize provider work, TASK-016G, a push, a tag, or public distribution.
+Mutagen technical gate, finite scanner-fixture technical disposition, and
+current owner-attribution blocker are resolved without a verified-identity or
+legal-rights claim. The **one next authorized release action** is: **Security
+Reviewer performs the ADR-008 cloud-SDK isolation review and records the
+required sign-off.** This does not authorize provider work, TASK-016G, a push,
+a tag, or public distribution.
 
 ## ADR-028 post-sign-off licensing evidence
 
