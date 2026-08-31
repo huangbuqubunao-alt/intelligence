@@ -59,6 +59,19 @@ def test_service_boundary_failures_recover_without_duplicate_outputs(
     recovered.run(now=_FLOW.NOW + timedelta(minutes=2))
     recovered.weekly_service().generate(now=_FLOW.NOW + timedelta(minutes=2))
 
+    if failure == "analysis":
+        statuses = tuple(
+            recovered.repository.get_video(scenario.video_id).pipeline_status
+            for scenario in _FLOW.SCENARIOS
+        )
+        assert statuses.count(_FLOW.PipelineStatus.COMPLETE) == 4
+        assert statuses.count(_FLOW.PipelineStatus.SCORED) == 1
+        assert (recovered.whisper.calls, recovered.scoring.calls, recovered.analysis.calls) == (0, 0, 0)
+        assert recovered.credentials.calls == 0
+        assert len(list((recovered.vault_root / "Knowledge" / "Videos").glob("*.md"))) == 3
+        assert len(list((recovered.vault_root / "Knowledge" / "Weekly").glob("*.md"))) == 1
+        return
+
     assert all(
         recovered.repository.get_video(scenario.video_id).pipeline_status is _FLOW.PipelineStatus.COMPLETE
         for scenario in _FLOW.SCENARIOS

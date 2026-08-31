@@ -98,6 +98,23 @@ class ProviderCallStatus(str, Enum):
     FAILED_FINAL = "FAILED_FINAL"
 
 
+class ProviderDispatchStatus(str, Enum):
+    """Durable evidence about one cloud request's external dispatch boundary.
+
+    ``AMBIGUOUS`` is deliberately terminal for automatic recovery.  It means a
+    process stopped after it had durably authorized a cloud request, but before
+    the local success receipt became durable; SQLite cannot prove whether the
+    provider acted.
+    """
+
+    NOT_DISPATCHED = "NOT_DISPATCHED"
+    DISPATCH_INTENT_DURABLE = "DISPATCH_INTENT_DURABLE"
+    DISPATCHED_RESULT_UNKNOWN = "DISPATCHED_RESULT_UNKNOWN"
+    SUCCESS_DURABLY_RECORDED = "SUCCESS_DURABLY_RECORDED"
+    FAILED_KNOWN = "FAILED_KNOWN"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
 class ReportStatus(str, Enum):
     PENDING = "PENDING"
     WRITTEN = "WRITTEN"
@@ -318,6 +335,13 @@ class ProviderCallRecord:
     last_error_message: str | None
     started_at: datetime
     finished_at: datetime | None
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderDispatchRecord:
+    request_hash: str
+    status: ProviderDispatchStatus
     updated_at: datetime
 
 
@@ -612,6 +636,7 @@ class SQLiteStateRepository:
             "001_initial.sql",
             "002_add_scoring_lineage.sql",
             "003_add_deep_analysis_persistence.sql",
+            "004_add_provider_dispatch_state.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -898,6 +923,14 @@ class SQLiteStateRepository:
             last_error_message=row["last_error_message"],
             started_at=_parse_utc_datetime(str(row["started_at"])),
             finished_at=SQLiteStateRepository._optional_datetime(row["finished_at"]),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _provider_dispatch_from_row(row: sqlite3.Row) -> ProviderDispatchRecord:
+        return ProviderDispatchRecord(
+            request_hash=str(row["request_hash"]),
+            status=ProviderDispatchStatus(row["status"]),
             updated_at=_parse_utc_datetime(str(row["updated_at"])),
         )
 
@@ -2205,6 +2238,61 @@ class SQLiteStateRepository:
             == request.schema_version
         )
 
+    @staticmethod
+    def _dispatch_state_in_transaction(
+        connection: sqlite3.Connection, request_hash: str
+    ) -> ProviderDispatchRecord | None:
+        row = connection.execute(
+            "SELECT * FROM provider_dispatch_states WHERE request_hash = :request_hash",
+            {"request_hash": request_hash},
+        ).fetchone()
+        return (
+            None
+            if row is None
+            else SQLiteStateRepository._provider_dispatch_from_row(row)
+        )
+
+    @staticmethod
+    def _mark_dispatch_ambiguous_in_transaction(
+        connection: sqlite3.Connection, *, request_hash: str, now: str
+    ) -> ProviderCallRecord:
+        """Make one uncertain cloud request terminal for automatic recovery."""
+
+        connection.execute(
+            "UPDATE provider_dispatch_states SET status = :ambiguous, updated_at = :now "
+            "WHERE request_hash = :request_hash AND status IN (:intent, :unknown)",
+            {
+                "ambiguous": ProviderDispatchStatus.AMBIGUOUS.value,
+                "now": now,
+                "request_hash": request_hash,
+                "intent": ProviderDispatchStatus.DISPATCH_INTENT_DURABLE.value,
+                "unknown": ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN.value,
+            },
+        )
+        connection.execute(
+            "UPDATE provider_calls SET status = :failed_final, "
+            "reservation_owner = NULL, lease_until = NULL, "
+            "last_error_code = :error_code, last_error_message = :error_message, "
+            "finished_at = :now, updated_at = :now WHERE request_hash = :request_hash "
+            "AND status IN (:pending, :retryable)",
+            {
+                "failed_final": ProviderCallStatus.FAILED_FINAL.value,
+                "error_code": ErrorCode.PROVIDER_UNAVAILABLE.value,
+                "error_message": "cloud provider dispatch outcome is ambiguous; operator resolution required",
+                "now": now,
+                "request_hash": request_hash,
+                "pending": ProviderCallStatus.PENDING.value,
+                "retryable": ProviderCallStatus.FAILED_RETRYABLE.value,
+            },
+        )
+        row = connection.execute(
+            "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
+            {"request_hash": request_hash},
+        ).fetchone()
+        if row is None:
+            raise StateStoreError("ambiguous provider call could not be read")
+        return SQLiteStateRepository._provider_call_from_row(row)
+
     def _reserve_provider_call_in_transaction(
         self,
         connection: sqlite3.Connection,
@@ -2302,6 +2390,7 @@ class SQLiteStateRepository:
         available_at: datetime,
         now: datetime,
         verified_artifact: VerifiedArtifact | None = None,
+        fail_closed_on_ambiguous_dispatch: bool = False,
     ) -> ProviderReservation:
         _validate_sha256(request.request_hash, field_name="request_hash")
         if not request.operation.strip() or not request.provider.strip():
@@ -2350,6 +2439,17 @@ class SQLiteStateRepository:
                             "updated_at": now_text,
                         },
                     )
+                    if fail_closed_on_ambiguous_dispatch:
+                        connection.execute(
+                            "INSERT INTO provider_dispatch_states "
+                            "(request_hash, status, updated_at) "
+                            "VALUES (:request_hash, :status, :now)",
+                            {
+                                "request_hash": request.request_hash,
+                                "status": ProviderDispatchStatus.NOT_DISPATCHED.value,
+                                "now": now_text,
+                            },
+                        )
                     inserted = connection.execute(
                         "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
                         {"request_hash": request.request_hash},
@@ -2366,6 +2466,53 @@ class SQLiteStateRepository:
                     msg = "request hash already identifies a different provider call"
                     raise IntegrityConflict(msg)
                 record = self._provider_call_from_row(row)
+                dispatch = self._dispatch_state_in_transaction(
+                    connection, request.request_hash
+                )
+                if (
+                    fail_closed_on_ambiguous_dispatch
+                    and dispatch is not None
+                    and dispatch.status is ProviderDispatchStatus.AMBIGUOUS
+                ):
+                    if (
+                        record.status is ProviderCallStatus.PENDING
+                        and record.lease_until is not None
+                        and record.lease_until > now
+                    ):
+                        return ProviderReservation(record, False, False)
+                    return ProviderReservation(
+                        self._mark_dispatch_ambiguous_in_transaction(
+                            connection,
+                            request_hash=request.request_hash,
+                            now=now_text,
+                        ),
+                        False,
+                        False,
+                    )
+                if (
+                    fail_closed_on_ambiguous_dispatch
+                    and dispatch is not None
+                    and dispatch.status
+                    in {
+                        ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+                        ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+                    }
+                ):
+                    if (
+                        record.status is ProviderCallStatus.PENDING
+                        and record.lease_until is not None
+                        and record.lease_until > now
+                    ):
+                        return ProviderReservation(record, False, False)
+                    return ProviderReservation(
+                        self._mark_dispatch_ambiguous_in_transaction(
+                            connection,
+                            request_hash=request.request_hash,
+                            now=now_text,
+                        ),
+                        False,
+                        False,
+                    )
                 if record.status in {
                     ProviderCallStatus.SUCCEEDED,
                     ProviderCallStatus.FAILED_FINAL,
@@ -2436,6 +2583,18 @@ class SQLiteStateRepository:
                         "request_hash": request.request_hash,
                     },
                 )
+                if fail_closed_on_ambiguous_dispatch and dispatch is not None:
+                    connection.execute(
+                        "UPDATE provider_dispatch_states SET status = :not_dispatched, "
+                        "updated_at = :now WHERE request_hash = :request_hash "
+                        "AND status = :failed_known",
+                        {
+                            "not_dispatched": ProviderDispatchStatus.NOT_DISPATCHED.value,
+                            "now": now_text,
+                            "request_hash": request.request_hash,
+                            "failed_known": ProviderDispatchStatus.FAILED_KNOWN.value,
+                        },
+                    )
                 taken = connection.execute(
                     "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
                     {"request_hash": request.request_hash},
@@ -2457,6 +2616,172 @@ class SQLiteStateRepository:
                 {"request_hash": request_hash},
             ).fetchone()
             return None if row is None else self._provider_call_from_row(row)
+        finally:
+            connection.close()
+
+    def get_provider_dispatch(
+        self, request_hash: str
+    ) -> ProviderDispatchRecord | None:
+        """Read cloud-dispatch recovery state without minting a new state."""
+
+        connection = self._connect()
+        try:
+            return self._dispatch_state_in_transaction(connection, request_hash)
+        finally:
+            connection.close()
+
+    def _update_provider_dispatch_owned(
+        self,
+        request_hash: str,
+        *,
+        owner: str,
+        expected: ProviderDispatchStatus,
+        target: ProviderDispatchStatus,
+        now: datetime,
+    ) -> ProviderDispatchRecord:
+        now_text = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE provider_dispatch_states SET status = :target, updated_at = :now "
+                    "WHERE request_hash = :request_hash AND status = :expected "
+                    "AND EXISTS (SELECT 1 FROM provider_calls WHERE "
+                    "request_hash = :request_hash AND status = :pending "
+                    "AND reservation_owner = :owner AND lease_until > :now)",
+                    {
+                        "target": target.value,
+                        "now": now_text,
+                        "request_hash": request_hash,
+                        "expected": expected.value,
+                        "pending": ProviderCallStatus.PENDING.value,
+                        "owner": owner,
+                    },
+                ).rowcount
+                if changed != 1:
+                    raise LeaseConflict("provider dispatch is not owned or is not in the expected state")
+                saved = self._dispatch_state_in_transaction(connection, request_hash)
+                if saved is None:
+                    raise StateStoreError("provider dispatch state could not be read")
+                return saved
+        finally:
+            connection.close()
+
+    def record_provider_dispatch_intent(
+        self, request_hash: str, *, owner: str, now: datetime
+    ) -> ProviderDispatchRecord:
+        """Durably authorize one external cloud request before transport starts."""
+
+        return self._update_provider_dispatch_owned(
+            request_hash,
+            owner=owner,
+            expected=ProviderDispatchStatus.NOT_DISPATCHED,
+            target=ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+            now=now,
+        )
+
+    def record_provider_dispatch_result_unknown(
+        self, request_hash: str, *, owner: str, now: datetime
+    ) -> ProviderDispatchRecord:
+        """Record that a transport returned before the atomic local receipt."""
+
+        return self._update_provider_dispatch_owned(
+            request_hash,
+            owner=owner,
+            expected=ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+            target=ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+            now=now,
+        )
+
+    def record_provider_dispatch_known_failure(
+        self, request_hash: str, *, owner: str, now: datetime
+    ) -> ProviderDispatchRecord:
+        """Record a provider outcome proven not to be an unknown success."""
+
+        return self._update_provider_dispatch_owned(
+            request_hash,
+            owner=owner,
+            expected=ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+            target=ProviderDispatchStatus.FAILED_KNOWN,
+            now=now,
+        )
+
+    def mark_provider_dispatch_ambiguous(
+        self, request_hash: str, *, owner: str, now: datetime
+    ) -> ProviderCallRecord:
+        """Fail closed after an in-process error once transport intent was durable."""
+
+        now_text = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT * FROM provider_calls WHERE request_hash = :request_hash "
+                    "AND status = :pending AND reservation_owner = :owner "
+                    "AND lease_until > :now",
+                    {
+                        "request_hash": request_hash,
+                        "pending": ProviderCallStatus.PENDING.value,
+                        "owner": owner,
+                        "now": now_text,
+                    },
+                ).fetchone()
+                if row is None:
+                    raise LeaseConflict("provider call reservation is not owned or has expired")
+                dispatch = self._dispatch_state_in_transaction(connection, request_hash)
+                if dispatch is None or dispatch.status not in {
+                    ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+                    ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+                }:
+                    raise IntegrityConflict("provider dispatch is not an ambiguous external boundary")
+                return self._mark_dispatch_ambiguous_in_transaction(
+                    connection, request_hash=request_hash, now=now_text
+                )
+        finally:
+            connection.close()
+
+    def recover_provider_dispatch(
+        self, request_hash: str, *, now: datetime
+    ) -> ProviderDispatchRecord | None:
+        """Resolve expired cloud-dispatch uncertainty before reading credentials.
+
+        A still-live lease is left untouched for its owner.  Once the lease is
+        expired, an intent or returned-but-uncommitted result becomes a durable
+        operator-visible ``AMBIGUOUS`` terminal state instead of a retry.
+        """
+
+        now_text = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                dispatch = self._dispatch_state_in_transaction(connection, request_hash)
+                if dispatch is None:
+                    return None
+                if dispatch.status not in {
+                    ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+                    ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+                }:
+                    return dispatch
+                call_row = connection.execute(
+                    "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
+                    {"request_hash": request_hash},
+                ).fetchone()
+                if call_row is None:
+                    raise StateStoreError("provider dispatch call is missing")
+                call = self._provider_call_from_row(call_row)
+                if (
+                    call.status is ProviderCallStatus.PENDING
+                    and call.lease_until is not None
+                    and call.lease_until > now
+                ):
+                    return dispatch
+                self._mark_dispatch_ambiguous_in_transaction(
+                    connection, request_hash=request_hash, now=now_text
+                )
+                resolved = self._dispatch_state_in_transaction(connection, request_hash)
+                if resolved is None:
+                    raise StateStoreError("ambiguous provider dispatch could not be read")
+                return resolved
         finally:
             connection.close()
 
@@ -2497,6 +2822,16 @@ class SQLiteStateRepository:
         if artifact_exists is None:
             msg = "provider response artifact is not indexed"
             raise IntegrityConflict(msg)
+        dispatch = self._dispatch_state_in_transaction(
+            connection, completion.request_hash
+        )
+        if (
+            dispatch is not None
+            and dispatch.status is not ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN
+        ):
+            raise IntegrityConflict(
+                "provider dispatch state does not permit durable success"
+            )
         connection.execute(
             "UPDATE provider_calls SET status = :succeeded, "
             "reservation_owner = NULL, lease_until = NULL, "
@@ -2515,6 +2850,19 @@ class SQLiteStateRepository:
                 "request_hash": completion.request_hash,
             },
         )
+        if dispatch is not None:
+            changed = connection.execute(
+                "UPDATE provider_dispatch_states SET status = :success, updated_at = :now "
+                "WHERE request_hash = :request_hash AND status = :unknown",
+                {
+                    "success": ProviderDispatchStatus.SUCCESS_DURABLY_RECORDED.value,
+                    "now": now,
+                    "request_hash": completion.request_hash,
+                    "unknown": ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN.value,
+                },
+            ).rowcount
+            if changed != 1:
+                raise IntegrityConflict("provider dispatch state changed before durable success")
         saved = connection.execute(
             "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
             {"request_hash": completion.request_hash},

@@ -95,7 +95,9 @@ P1 gates, all preserved rather than downgraded:
 
 1. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
-2. PO at-most-once risk acceptance is absent.
+2. At the time of this historical sign-off, PO at-most-once risk acceptance was
+   absent; the later finite PO decision and Window-1 remediation update this
+   item below without changing the `NO-GO` conclusion.
 3. Authorized real operational validation (backup/recovery, staged smoke,
    Vault/launchd) is absent.
 
@@ -130,11 +132,14 @@ The BPE artifact sub-blocker, current controlled target-runtime SBOM/NOTICE +
 Mutagen technical gate, finite scanner-fixture technical disposition, current
 owner-attribution blocker, and ADR-008 cloud-SDK isolation technical review are
 resolved without a verified-identity, legal-rights, or human-signature claim.
-The **one next authorized project action** is: **obtain an explicit Product
-Owner acceptance or rejection of the documented three at-most-once residual
-crash windows.** This is a retained owner risk decision. It does not authorize
-provider work, TASK-016G, a real operational action, a push, a tag, or public
-distribution.
+The at-most-once decision is now recorded: Window 1 was rejected and remediated
+to fail closed; Windows 2 and 3 were accepted only for the current controlled
+posture. The **one next authorized project action** is therefore: **obtain an
+explicit PO authorization for one bounded live reference-provider qualification
+package, only after its documented material external prerequisite is present.**
+The provider-gate record remains controlling: this does not itself authorize a
+credential, a live call, provider work, TASK-016G, a real operational action,
+a push, a tag, or public distribution.
 
 ## ADR-028 post-sign-off licensing evidence
 

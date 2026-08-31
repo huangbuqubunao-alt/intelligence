@@ -258,6 +258,20 @@ TASK-003 对外提供具名参数/返回对象，不接收自由 `dict`。最小
 - 外部调用成功但进程在落库前崩溃时，SQLite 不能凭空保证 exactly-once；V1 的保证是“租约 + 确定性本地产物 + 先查缓存”的 at-most-once best effort。不得声称严格 exactly-once。
 - Provider 原始正文只能存在受控文件产物，SQLite 和日志只保存路径、哈希、用量与安全化诊断。
 
+#### 2026-08-31 PO amendment — cloud dispatch ambiguity
+
+For the repository-backed paid/cloud analysis path, migration 004 adds a
+separate durable dispatch state. Before transport it records
+`DISPATCH_INTENT_DURABLE`; after transport returns but before the existing
+atomic success transaction it records `DISPATCHED_RESULT_UNKNOWN`; that
+transaction alone records `SUCCESS_DURABLY_RECORDED`. On restart, expired
+intent/unknown state, including an old pre-protocol `PENDING` row backfilled as
+ambiguous, becomes an operator-visible terminal failure and **must not** be
+automatically redispatched or promoted by cache/artifact evidence. Known
+provider refusals remain distinct from ambiguity. This reduces the exact
+Window-1 duplicate cloud-side-effect risk; it does not assert cross-system
+exactly-once or alter the separate filesystem/SQLite cleanup boundaries.
+
 ### S-08：TASK-003 范围与验收门禁
 
 允许实现文件：

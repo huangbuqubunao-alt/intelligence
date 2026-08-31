@@ -2,10 +2,11 @@
 
 ## Status and scope
 
-**PO DECISION PENDING.** This is decision support only. It records neither an
-acceptance nor a rejection, does not authorize remediation, and does not change
-any task, release, provider, operational, privacy, scanner, or distribution
-gate.
+**PRODUCT OWNER DECISIONS RECORDED.** The Product Owner rejected Window 1 and
+authorized only its remediation; accepted Windows 2 and 3 only for the current
+personal/private/proprietary controlled source/wheel/sdist posture. This record
+does not qualify a provider, accept real output, authorize TASK-016G, perform
+operational validation, broaden distribution, or change the current `NO-GO`.
 
 The authoritative release disclosure lists exactly these three windows in
 [`RELEASE_BLOCKERS.md` §2.3](RELEASE_BLOCKERS.md#23-at-most-once-risk-acceptance):
@@ -318,7 +319,64 @@ Adversarial review conclusions:
 - The document does not alter TASK-016, ADR-008, ADR-028, BPE, frozen-task
   semantics, distribution scope, production source, tests, or dependencies.
 
-## Product Owner decision table
+## Product Owner decision and Window-1 remediation — 2026-08-31
+
+### Finite decisions
+
+- **Window 1 — Provider success → SQLite commit:** **REJECT / REQUIRE
+  REMEDIATION.** The rejection applies only to an ambiguous externally visible
+  paid/cloud Deep Analysis request; it is not an acceptance of any other crash
+  window or a provider qualification.
+- **Window 2 — File atomic replace → SQLite commit:** **ACCEPT** for the
+  current personal/private/proprietary controlled source/wheel/sdist posture
+  only. Its guarded Vault recovery behavior is unchanged.
+- **Window 3 — Audio cleanup final CAS:** **ACCEPT** for the current
+  personal/private/proprietary controlled posture only. Its unlink/CAS behavior
+  is unchanged.
+
+### Window 1 remediation status: COMPLETE
+
+Migration `004_add_provider_dispatch_state.sql` and the repository-backed cloud
+analysis path now persist this finite recovery protocol:
+
+1. `NOT_DISPATCHED` — a reservation exists but no cloud dispatch intent is
+   durable; expiry can safely be taken over.
+2. `DISPATCH_INTENT_DURABLE` — the local transaction authorized one cloud
+   dispatch immediately before transport.
+3. `DISPATCHED_RESULT_UNKNOWN` — transport returned, but the one atomic SQLite
+   transaction that registers artifacts, provider receipt, pipeline transition,
+   and job success has not yet completed.
+4. `SUCCESS_DURABLY_RECORDED` — that transaction committed; only this state is
+   trusted as a completed provider result.
+5. `FAILED_KNOWN` — an explicit provider refusal/permission response was
+   recorded as a known non-success, distinct from uncertainty.
+6. `AMBIGUOUS` — an intent/result-unknown call lost its lease or failed after
+   intent. The provider call becomes `FAILED_FINAL` with a redacted,
+   operator-visible `PROVIDER_UNAVAILABLE` diagnostic.
+
+On restart, `INTENT`, `RESULT_UNKNOWN`, and legacy pre-protocol `PENDING`
+records are never automatically redispatched. The v4 migration conservatively
+backfills old `PENDING` rows as `AMBIGUOUS`; it preserves the row but does not
+claim that a prior provider operation was absent. A matching cache/artifact
+cannot promote `AMBIGUOUS` to success. Credentials are not resolved and the
+Provider is not called when the ambiguous state is discovered.
+
+**Exact residual risk after remediation:** one cloud provider operation can
+still have succeeded while its local success receipt is absent after a crash.
+The consequence is a single terminal, operator-visible incomplete item rather
+than automatic duplicate request, repeat charge, or duplicate authorized
+payload transmission. The current runtime deliberately offers no automatic
+retry or automatic conversion to success; any manual resolution must use
+separate operator/PO authorization and independently supplied provider-side
+evidence. This is not a claim of global exactly-once semantics.
+
+**New PO decision required for Window 1:** **NO.** The Product Owner rejected
+automatic repetition of this exact ambiguity and the implemented protocol now
+fails closed. A future live-provider qualification still needs its own
+authorization and must validate the selected provider contract; it is not
+authorized by this remediation.
+
+## Historical decision-support table
 
 ### WINDOW 1
 
@@ -337,7 +395,7 @@ Adversarial review conclusions:
 | COST TO REDUCE | LARGE |
 | CODEX TECHNICAL RECOMMENDATION | REMEDIATE before qualifying a live paid/cloud Deep Analysis provider. |
 | WHY | This is the only window that can conditionally repeat an external account-visible request and its authorized payload/cost. |
-| PRODUCT OWNER DECISION | **PENDING** |
+| PRODUCT OWNER DECISION | **REJECT / REQUIRE REMEDIATION — remediation COMPLETE; no automatic redispatch** |
 
 ### WINDOW 2
 
@@ -356,7 +414,7 @@ Adversarial review conclusions:
 | COST TO REDUCE | MEDIUM |
 | CODEX TECHNICAL RECOMMENDATION | ACCEPT for the current controlled posture. |
 | WHY | Existing replace/fsync/identity/user-region safeguards and retry evidence retain the file and prevent duplicate logical outputs; a journal adds complexity without strict atomicity. |
-| PRODUCT OWNER DECISION | **PENDING** |
+| PRODUCT OWNER DECISION | **ACCEPT — current controlled posture only** |
 
 ### WINDOW 3
 
@@ -375,7 +433,7 @@ Adversarial review conclusions:
 | COST TO REDUCE | MEDIUM |
 | CODEX TECHNICAL RECOMMENDATION | ACCEPT for the current controlled posture. |
 | WHY | The source audio is explicitly ephemeral, transcription is already committed, and current validation prevents deletion of an unverified or out-of-root file. |
-| PRODUCT OWNER DECISION | **PENDING** |
+| PRODUCT OWNER DECISION | **ACCEPT — current controlled posture only** |
 
 ## Overall technical recommendation
 
@@ -391,10 +449,11 @@ decision and does not authorize that remediation or any provider work.
 AT-MOST-ONCE RESIDUAL RISK DECISION PACKAGE COMPLETE
 EXACT RESIDUAL WINDOWS: 3
 PRODUCT OWNER ACCEPTANCES FABRICATED: 0
-PRODUCT OWNER DECISIONS: PENDING
-PRODUCTION CHANGE: NO
+PRODUCT OWNER DECISIONS: WINDOW 1 REJECT / REQUIRE REMEDIATION; WINDOWS 2 AND 3 ACCEPTED
+WINDOW 1 REMEDIATION: COMPLETE; AMBIGUOUS EXTERNAL SUCCESS MUST NOT AUTO-REDISPATCH
+PRODUCTION CHANGE: WINDOW 1 ONLY
 CURRENT RELEASE: NO-GO
-NEXT ACTION: PRODUCT OWNER ACCEPTS OR REJECTS EACH OF THE THREE EXACT DOCUMENTED WINDOWS
+NEXT ACTION: OBTAIN A SEPARATE PO AUTHORIZATION IF A LIVE-PROVIDER QUALIFICATION PACKAGE IS TO BE RUN
 PUSH: NO
 TAG: NO
 PUBLIC RELEASE: NO

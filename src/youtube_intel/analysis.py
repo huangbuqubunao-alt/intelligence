@@ -48,6 +48,7 @@ from youtube_intel.state import (
     ProviderCallCompletion,
     ProviderCallRequest,
     ProviderCallStatus,
+    ProviderDispatchStatus,
     RetentionClass,
     StorageRoot,
     build_provider_request_hash,
@@ -685,6 +686,28 @@ class RepositoryBackedAnalysisService:
             return self._reuse_persisted_result(
                 request=request, provider_call=existing, video_id=video.video_id, now=now
             )
+        dispatch = self.repository.recover_provider_dispatch(
+            request.request_hash, now=now
+        )
+        if dispatch is not None and dispatch.status is ProviderDispatchStatus.AMBIGUOUS:
+            raise AnalysisPolicyError(AppError(
+                code=ErrorCode.PROVIDER_UNAVAILABLE,
+                message="cloud provider dispatch outcome is ambiguous; operator resolution required",
+                retryable=False,
+                video_id=video.video_id,
+                stage=ProcessingStage.ANALYSIS,
+            ))
+        if dispatch is not None and dispatch.status in {
+            ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+            ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+        }:
+            raise AnalysisPolicyError(AppError(
+                code=ErrorCode.PROVIDER_UNAVAILABLE,
+                message="cloud provider dispatch is still owned by an active lease",
+                retryable=True,
+                video_id=video.video_id,
+                stage=ProcessingStage.ANALYSIS,
+            ))
         if self.budget.remaining == 0:
             return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
                 safe_message="cloud call budget is exhausted")
@@ -693,7 +716,8 @@ class RepositoryBackedAnalysisService:
             return AnalysisSkipped(reason=AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, call=None,
                 safe_message="cloud credential is unavailable")
         reservation = self.repository.reserve_provider_call(request, owner=self.context.owner,
-            lease_until=now + timedelta(seconds=300), available_at=now, now=now)
+            lease_until=now + timedelta(seconds=300), available_at=now, now=now,
+            fail_closed_on_ambiguous_dispatch=True)
         if not reservation.acquired:
             if reservation.record.status is not ProviderCallStatus.SUCCEEDED:
                 raise AnalysisPolicyError(AppError(code=ErrorCode.PROVIDER_UNAVAILABLE,
@@ -703,11 +727,20 @@ class RepositoryBackedAnalysisService:
                 request=request, provider_call=reservation.record, video_id=video.video_id, now=now
             )
         if not self.budget.try_consume():
+            self.repository.fail_provider_call(request.request_hash, owner=self.context.owner,
+                retryable=True, available_at=now, error_code=ErrorCode.LOCAL_RESOURCE,
+                error_message="cloud analysis could not start", now=now)
             raise AnalysisPolicyError(AppError(code=ErrorCode.LOCAL_RESOURCE,
                 message="cloud analysis could not start", retryable=True, video_id=video.video_id,
                 stage=ProcessingStage.ANALYSIS))
+        self.repository.record_provider_dispatch_intent(
+            request.request_hash, owner=self.context.owner, now=now
+        )
         try:
             result = self.provider.summarize_with_credential(analysis_input, credential)
+            self.repository.record_provider_dispatch_result_unknown(
+                request.request_hash, owner=self.context.owner, now=now
+            )
             raw = self.provider.consume_raw_response(request_hash=request.request_hash).encode()
             structured = _canonical_json(result.model_dump(mode="json")).encode()
             artifacts = self._artifacts(request, video.video_id, raw, structured, now)
@@ -722,11 +755,33 @@ class RepositoryBackedAnalysisService:
             for path in locals().get("paths", ()):
                 path.unlink(missing_ok=True)
             error = getattr(exc, "error", None)
-            self.repository.fail_provider_call(request.request_hash, owner=self.context.owner,
-                retryable=True, available_at=now,
-                error_code=ErrorCode.LOCAL_RESOURCE if not isinstance(error, AppError) else error.code,
-                error_message="cloud analysis stage persistence failed", now=now)
+            if (
+                isinstance(error, AppError)
+                and error.code is ErrorCode.PERMISSION_DENIED
+            ):
+                # A provider refusal/permission response is a known failure,
+                # not an unknown successful execution.  Other transport and
+                # validation failures remain conservative because they cannot
+                # prove the cloud request did not already succeed.
+                self.repository.record_provider_dispatch_known_failure(
+                    request.request_hash, owner=self.context.owner, now=now
+                )
+                self.repository.fail_provider_call(
+                    request.request_hash,
+                    owner=self.context.owner,
+                    retryable=error.retryable,
+                    available_at=now,
+                    error_code=error.code,
+                    error_message="cloud analysis provider refused the request",
+                    now=now,
+                )
+            else:
+                self.repository.mark_provider_dispatch_ambiguous(
+                    request.request_hash, owner=self.context.owner, now=now
+                )
             raise
+        finally:
+            credential = ""
         return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
             model=result.model, started_at=now, finished_at=_utcnow()))
 

@@ -830,8 +830,42 @@
 - No independent named human Security Reviewer signature is recorded. The later
   PO governance policy defers that named role and the final multi-role table for
   this posture; provider, retained PO risk/acceptance, and operational gates
-  remain open. The next authorized project action is PO acceptance or rejection
-  of the documented at-most-once risk.
+  remain open. The historical next-action wording is superseded by the later
+  Window-1 disposition below.
+
+## At-most-once Product Owner disposition and cloud dispatch recovery — 2026-08-31
+
+- PO records exactly three finite decisions in
+  [the decision record](AT_MOST_ONCE_RESIDUAL_RISK_PO_DECISION.md): Window 1
+  (Provider success → SQLite commit) is `REJECT / REQUIRE REMEDIATION`; Window
+  2 (file replace → SQLite) and Window 3 (audio cleanup final CAS) are
+  `ACCEPT` only for the current personal/private/proprietary controlled posture.
+  No acceptance is broadened to another crash window, operational action,
+  distribution, privacy/security exception, provider qualification, or
+  TASK-016G.
+- Window-1 remediation is complete. Schema v4 records
+  `NOT_DISPATCHED`, durable intent, returned-result-unknown, known-failure,
+  durable-success, and terminal ambiguous states. An expired uncertain cloud
+  call is now `FAILED_FINAL` and operator-visible; it cannot auto-redispatch,
+  reuse a cache/artifact as trusted success, or re-resolve a credential before
+  fail-closed recovery. Legacy pre-protocol pending calls are safely preserved
+  as `AMBIGUOUS` on migration.
+- Exact residual: a provider can still have externally succeeded while the
+  local receipt is absent, but the runtime stops rather than repeats the paid/
+  cloud operation. There is no global exactly-once claim and no automatic
+  manual-resolution path. The remediation does not require another PO risk
+  acceptance, but live-provider qualification remains separately frozen and
+  unauthorized pending its own material prerequisite and PO authorization.
+- Current release stays **NO-GO**. TASK-014B9 remains `QUALIFIED / CLOSED`,
+  TASK-014B11 remains `INTEGRATED / CLOSED`, ADR-008 and ADR-028 remain
+  preserved, the canonical scanner remains exit `1` on exactly 11 accepted
+  intentional-positive fixtures, privacy P2 remains, and TASK-016G remains
+  `UNAUTHORIZED`. Window 2/3 production behavior, BPE, provider selection,
+  fallback policy, credentials, and distribution posture did not change.
+- **Next authorized project action:** obtain explicit PO authorization for one
+  bounded live reference-provider qualification package, only after its
+  documented material external prerequisite exists. Do not execute it merely
+  from this status update.
 
 ## Vault and template distribution-boundary privacy technical review — 2026-08-31
 

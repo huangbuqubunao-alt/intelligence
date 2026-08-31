@@ -84,6 +84,7 @@ EXPECTED_TABLES = {
     "job_attempts",
     "jobs",
     "provider_calls",
+    "provider_dispatch_states",
     "reports",
     "schema_migrations",
     "videos",
@@ -194,6 +195,11 @@ EXPECTED_COLUMNS = {
         "last_error_message",
         "started_at",
         "finished_at",
+        "updated_at",
+    ),
+    "provider_dispatch_states": (
+        "request_hash",
+        "status",
         "updated_at",
     ),
     "reports": (
@@ -569,12 +575,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "003_add_deep_analysis_persistence.sql")
+        .joinpath("migrations", "004_add_provider_dispatch_state.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 3
-    assert first.name == "003_add_deep_analysis_persistence.sql"
+    assert first.version == 4
+    assert first.name == "004_add_provider_dispatch_state.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -589,7 +595,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 3
+    assert migration_count == 4
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:

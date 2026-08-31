@@ -183,14 +183,27 @@
 ### 2.3 At-Most-Once Risk Acceptance
 
 - **Decision maker**: PO
-- **Risk**: Three residual crash windows exist where recovery is
-  best-effort, not exactly-once:
-  1. Provider success → SQLite commit
-  2. File atomic replace → SQLite commit
-  3. Audio cleanup final CAS
-- **Required input**: PO explicitly accepts the at-most-once semantics
-  and documents the accepted risk.
-- **Pass criteria**: PO signature on the risk disclosure.
+- **PO decision record**:
+  1. **Provider success → SQLite commit:** `REJECT / REQUIRE REMEDIATION`.
+     Remediation is complete: durable dispatch state now fails closed on an
+     expired `INTENT`/`RESULT_UNKNOWN` call, never auto-redispatches it, and
+     never lets cache/artifact evidence convert it to trusted success. The
+     residual is an operator-visible terminal incomplete item, not exactly-once
+     semantics. A future live-provider qualification remains separately
+     authorized and must validate its selected provider contract.
+  2. **File atomic replace → SQLite commit:** `ACCEPT` for the current
+     personal/private/proprietary controlled source/wheel/sdist posture only;
+     no Window-2 behavior changed.
+  3. **Audio cleanup final CAS:** `ACCEPT` for the current
+     personal/private/proprietary controlled posture only; no Window-3 behavior
+     changed.
+- **Evidence**: `AT_MOST_ONCE_RESIDUAL_RISK_PO_DECISION.md` records the finite
+  decisions, Window-1 recovery protocol, migration-safe legacy handling, and
+  exact residual. These decisions do not accept other crash windows, qualify a
+  provider, authorize TASK-016G, operational validation, or distribution.
+- **Current gate status**: **RESOLVED FOR CURRENT WINDOW-1 POLICY**. It does
+  not make the release `GO`; the live-provider, real-output, and operational
+  gates below remain independently blocked.
 
 ## 3. Operational Authorization
 

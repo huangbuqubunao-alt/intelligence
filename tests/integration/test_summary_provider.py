@@ -34,7 +34,12 @@ from youtube_intel.providers.cloud_llm import (
     CloudProviderError,
     OpenAIResponsesProvider,
 )
-from youtube_intel.state import JobType, SQLiteStateRepository
+from youtube_intel.state import (
+    JobType,
+    ProviderCallStatus,
+    ProviderDispatchStatus,
+    SQLiteStateRepository,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -345,11 +350,66 @@ def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(
     request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
-    assert repository.get_provider_call(request_hash).status.value == "FAILED_RETRYABLE"
+    assert repository.get_provider_call(request_hash).status is ProviderCallStatus.FAILED_FINAL
+    assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.AMBIGUOUS
     assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
     assert repository.get_job("analysis-job").status.value == "RUNNING"
     assert not (tmp_path / "data" / "analysis" / request_hash / "raw.json").exists()
     assert len(transport.requests) == 1
+
+
+def test_crashed_returned_cloud_result_is_not_redispatched_or_credential_rechecked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    original = repository.record_provider_dispatch_result_unknown
+
+    def crash_after_durable_unknown(*args: object, **kwargs: object) -> object:
+        original(*args, **kwargs)
+        raise SystemExit("simulated process crash")
+
+    monkeypatch.setattr(repository, "record_provider_dispatch_result_unknown", crash_after_durable_unknown)
+    with pytest.raises(SystemExit, match="simulated process crash"):
+        service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="transcript evidence", language="en",
+        output_language="zh-CN", settings=service.settings,
+    ).request_hash
+    assert len(transport.requests) == 1
+    assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN
+    assert service.credential_resolver.calls == 1
+
+    monkeypatch.setattr(repository, "record_provider_dispatch_result_unknown", original)
+    later = datetime.now(UTC) + timedelta(minutes=6)
+    monkeypatch.setattr(analysis_mod, "_utcnow", lambda: later)
+    with pytest.raises(AnalysisPolicyError) as raised:
+        service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+
+    assert raised.value.error.code is ErrorCode.PROVIDER_UNAVAILABLE
+    assert raised.value.error.retryable is False
+    assert service.credential_resolver.calls == 1
+    assert len(transport.requests) == 1
+    assert repository.get_provider_call(request_hash).status is ProviderCallStatus.FAILED_FINAL
+    assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.AMBIGUOUS
+
+
+def test_explicit_provider_refusal_is_recorded_as_known_failure_not_ambiguity(
+    tmp_path: Path
+) -> None:
+    repository, service, transport = _repository_service(tmp_path)
+    transport.response = {"refusal": True}
+
+    with pytest.raises(CloudProviderError):
+        service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
+
+    request_hash = build_analysis_input(
+        video=_video(), transcript_text="transcript evidence", language="en",
+        output_language="zh-CN", settings=service.settings,
+    ).request_hash
+    assert len(transport.requests) == 1
+    assert repository.get_provider_call(request_hash).status is ProviderCallStatus.FAILED_FINAL
+    assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.FAILED_KNOWN
 
 
 def test_reordered_job_reuses_succeeded_provider_call_without_transport(
