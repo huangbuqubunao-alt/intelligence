@@ -24,7 +24,7 @@ or lockfile changed in that integration.
 | Product-owner Deep Analysis output acceptance / TASK-016G | BLOCKED | No real qualified-provider Note V2 / Weekly V2 output exists for acceptance. TASK-016G remains unauthorized; the conflicting older `PROJECT_STATUS.md` statement has been corrected from the task card and provider-gate record. |
 | Deterministic QA | PASS | 149 B9/subtitle tests, 933 TASK-016 tests, 8 recovery tests, 20 scanner-regression tests, and full pytest `1910 passed, 1 warning`; `mypy src`, Ruff, lock/sync, and diff check passed. |
 | Build / CLI | PARTIAL | Offline wheel and sdist build passed. `youtube-intel --help` and `doctor --help` passed. A configured doctor and real backup/recovery drill remain unrun because the required authorized temporary configuration / real-environment gate is absent. |
-| Security scanner | BLOCKED | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` test-fixture findings across two test files; no new release-candidate finding was introduced. No formal release-policy exception or semantic remediation closes a non-zero global scan. |
+| Security scanner | BLOCKED — evidence complete / human disposition pending | The canonical scanner fails closed (exit `1`) on exactly 11 existing TASK-016 `api-key` intentional-positive test-fixture findings across two test files; no new release-candidate finding was introduced. The [finding matrix and reachability evidence](SECURITY_SCANNER_FIXTURE_DISPOSITION.md) confirms no production runtime or wheel/sdist reachability, while controlled Git source does include the tests. No formal release-policy exception or Security Reviewer/TL disposition closes a non-zero global scan. |
 | Secret handling | PASS (code evidence) / human sign-off pending | Scanner regression and provider-boundary tests show fail-closed scanning, redaction, runtime-only credentials, and no key persistence in cache/provenance. Final Security Reviewer sign-off remains required. |
 | Privacy | BLOCKED | Existing selected-evidence, cloud-consent, safe-path, and retention controls have deterministic evidence, but the required Privacy Reviewer artifact/Vault/template review has not been signed. |
 | Licensing / distribution | PARTIAL | Current controlled source/wheel/sdist boundary, SBOM-A/B, NOTICE A/B/C, and Mutagen's separate-install relationship are reconciled. ADR-028 excludes the classification-C `o200k_base.tiktoken` Blob without claiming downstream rights. Legal-owner identity and future model/bundle/container decisions remain open. |
@@ -78,7 +78,8 @@ P1 gates, all preserved rather than downgraded:
 2. No qualified live Deep Analysis provider and no Product Owner acceptance;
    TASK-016G is unauthorized.
 3. Global security scan exit remains non-zero without a formal release closure
-   for its documented fixtures.
+   for its documented fixtures. The evidence matrix is complete, but a Security
+   Reviewer/TL disposition is still absent.
 4. Required Security/Privacy/PO/TL signatures and at-most-once risk acceptance
    are absent.
 5. Authorized real operational validation (backup/recovery, staged smoke,

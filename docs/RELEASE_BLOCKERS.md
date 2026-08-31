@@ -18,6 +18,13 @@
 - The canonical security scanner is fail-closed and currently exits non-zero on
   11 documented TASK-016 test fixtures. No new release-candidate finding exists,
   but no formal release-policy closure treats a non-zero global scan as green.
+  The finding-by-finding technical evidence is complete in
+  [SECURITY_SCANNER_FIXTURE_DISPOSITION.md](SECURITY_SCANNER_FIXTURE_DISPOSITION.md):
+  all 11 are intentional positive test fixtures, are absent from fresh wheel/
+  sdist archives, and have no production-runtime reachability. The controlled
+  Git source tree does contain the tracked test corpus. Security remains blocked
+  pending an actual Security Reviewer/TL release-policy disposition; this is not
+  an accepted-risk approval.
 
 ## 0. Project License (NEW — Added after RC Reviewer feedback)
 

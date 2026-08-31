@@ -1852,3 +1852,23 @@ Verdict: REMEDIATION READY FOR CODEX REVIEW.
 - Next authorized release action: obtain a Security Reviewer/TL release-policy
   disposition for the documented non-zero canonical scanner result, without
   suppressing or altering the 11 TASK-016 fixtures.
+
+## Canonical security scanner fixture disposition evidence — 2026-08-31
+
+- Evidence-only handoff on `main@e8c00a4`: the unchanged canonical scanner is
+  fail-closed and exits `1` for exactly 11 `api-key` findings in
+  `tests/integration/test_deep_analysis_persistence.py` and
+  `tests/unit/test_kimi_deep_analysis_adapter.py`. The redacted per-finding
+  matrix is `docs/SECURITY_SCANNER_FIXTURE_DISPOSITION.md`.
+- Every match is a B-class intentional positive synthetic fixture consumed only
+  by an injected in-memory test transport. No real credential, production/CLI
+  reachability, or provider authentication use was found. Fresh offline wheel/
+  sdist archives exclude both test paths, exact fixture values, and `api-key`
+  pattern matches; the controlled full Git source intentionally includes them.
+- `tests/scripts/test_security_scan.py` passed `20`; no scanner suppression,
+  allowlist, fixture rewrite, TASK-016 behavior change, ADR change, dependency
+  change, push, tag, or public release occurred. The technical review has
+  P0/P1/P2=`0/0/0`, but the release security blocker remains open because the
+  authoritative policy has no signed exception mechanism. Required next action:
+  Security Reviewer/TL approve or reject the documented eleven-fixture
+  release-policy disposition. No approval is fabricated.

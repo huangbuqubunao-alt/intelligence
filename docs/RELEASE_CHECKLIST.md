@@ -89,6 +89,15 @@
   scan, required Security/Privacy/PO/TL signatures and at-most-once acceptance, and authorized operational
   smoke/recovery/Vault validation. No push, tag, or public release occurred.
 
+### Canonical scanner fixture evidence — 2026-08-31
+
+- The canonical scan remains exit `1` with exactly 11 intentional TASK-016
+  test-fixture findings. The completed technical matrix, synthetic-secret and
+  runtime tracing, wheel/sdist exclusion, and controlled-source nuance are in
+  [SECURITY_SCANNER_FIXTURE_DISPOSITION.md](SECURITY_SCANNER_FIXTURE_DISPOSITION.md).
+- This does **not** make the global scan PASS or create a policy exception. The
+  required next action remains an actual Security Reviewer/TL disposition.
+
 ## 最终签署记录（发布前填写）
 
 | 角色 | 决定（GO / NO-GO） | 姓名/日期 | 证据链接与限制 |
