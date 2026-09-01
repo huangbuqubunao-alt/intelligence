@@ -122,15 +122,30 @@ def main(
         if args.command == "serve-api":
             from youtube_intel.local_api import LocalApiApplication, serve_loopback
             from youtube_intel.orchestration_service import ProductOrchestrationService
+            from youtube_intel.runtime import PIPELINE_VERSION
+            from youtube_intel.scoring import AuthoritativeScoringReader
             from youtube_intel.state import SQLiteStateRepository
 
             if args.port < 1024 or args.port > 65535:
                 return ExitCode.USAGE_OR_CONFIGURATION
+            project_root = _project_root(args.project_root)
+            config = _load_config(project_root, args.settings, args.channels)
             repository = SQLiteStateRepository(args.database)
             repository.initialize(now=datetime.now(UTC))
+            reader = AuthoritativeScoringReader(
+                repository=repository,
+                data_root=_project_path(project_root, config.settings.storage.data_dir),
+                summary_threshold=config.settings.thresholds.summary_score,
+                pipeline_version=PIPELINE_VERSION,
+                current_model=config.settings.local_scoring.model,
+                current_output_language=config.settings.general.output_language,
+            )
             server = serve_loopback(
                 LocalApiApplication(
-                    repository, ProductOrchestrationService(repository)
+                    repository,
+                    ProductOrchestrationService(repository),
+                    scoring_reader=reader,
+                    timezone=config.settings.general.timezone,
                 ),
                 port=args.port,
             )

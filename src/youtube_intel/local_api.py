@@ -8,15 +8,19 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Callable
 from urllib.parse import urlparse
 
+from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
     ScheduleFrequency,
+    next_scheduled_for,
     provider_model_statuses,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.state import (
     AutomationRunRecord,
     AutomationScheduleRecord,
@@ -72,7 +76,7 @@ def _video_dto(video: VideoRecord) -> dict[str, object]:
         "source_url": video.source_url,
         "published_at": _timestamp(video.published_at),
         "processing_status": video.pipeline_status.value,
-        "scoring": {"status": "NOT_EXPOSED_PENDING_VERIFIED_READER"},
+        "scoring": {"status": "NOT_AVAILABLE"},
         "note": {"status": "UNKNOWN"},
         "deep_analysis": {"status": "BLOCKED", "reason": "No qualified live provider."},
         "last_updated": _timestamp(video.updated_at),
@@ -83,10 +87,19 @@ class LocalApiApplication:
     """Framework-free route dispatcher.  Controllers validate then delegate."""
 
     def __init__(
-        self, repository: SQLiteStateRepository, service: ProductOrchestrationService
+        self,
+        repository: SQLiteStateRepository,
+        service: ProductOrchestrationService,
+        *,
+        scoring_reader: AuthoritativeScoringReader | None = None,
+        timezone: str = "Asia/Shanghai",
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
+        self._scoring_reader = scoring_reader
+        self._timezone = timezone
+        self._now = now or (lambda: datetime.now(UTC))
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
@@ -206,7 +219,7 @@ class LocalApiApplication:
                     frequency=frequency,
                     weekday=weekday,
                     local_time=self._string(data, "local_time"),
-                    timezone=self._string(data, "timezone", required=True) or "",
+                    timezone=self._string(data, "timezone") or self._timezone,
                     enabled=self._boolean(data, "enabled") is not False,
                 )
                 return HTTPStatus.CREATED, {"schedule": self._schedule_dto(schedule)}
@@ -292,6 +305,7 @@ class LocalApiApplication:
                 )
             return {
                 "video": _video_dto(video),
+                "scoring": self._scoring_projection(video.video_id),
                 "transcript": {"status": "UNKNOWN"},
                 "history": [],
             }
@@ -329,6 +343,7 @@ class LocalApiApplication:
                 "processing_defaults": {
                     "policy": ProcessingPolicy.STANDARD_INTELLIGENCE.value
                 },
+                "general": {"timezone": self._timezone},
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
@@ -356,6 +371,47 @@ class LocalApiApplication:
             }
         raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
 
+    def _scoring_projection(self, video_id: str) -> dict[str, object]:
+        """Project only a value already verified by AuthoritativeScoringReader."""
+        if self._scoring_reader is None:
+            return {
+                "status": "NOT_AVAILABLE",
+                "reason": "Verified scoring is unavailable in this local service configuration.",
+            }
+        try:
+            verified: VerifiedScoringRead = self._scoring_reader.read(video_id)
+        except Exception:
+            job = self._repository.latest_video_job(
+                video_id, target_stage=ProcessingStage.SCORING
+            )
+            if job is not None and job.status is JobStatus.FAILED_FINAL:
+                return {
+                    "status": "FAILED",
+                    "reason": "Scoring did not complete with a trusted result.",
+                    "code": job.last_error_code or "SCORING_FAILED",
+                }
+            return {
+                "status": "NOT_AVAILABLE",
+                "reason": "No verified scoring result is available for this video.",
+            }
+        outcome = verified.scoring_outcome
+        result = outcome.result
+        return {
+            "status": "AVAILABLE",
+            "score": result.score,
+            "reason": result.reason,
+            "topics": list(result.topics),
+            "should_summarize": outcome.decision.final_should_summarize,
+            "trusted": True,
+            "completed_at": _timestamp(outcome.call.finished_at),
+            "provenance": {
+                "provider": result.provider,
+                "model": result.model,
+                "prompt_version": result.prompt_version,
+                "success_provenance": verified.scoring_success_provenance,
+            },
+        }
+
     def _next_schedule_dto(self) -> dict[str, object] | None:
         schedules = self._repository.list_automation_schedules()
         schedule = next(
@@ -368,8 +424,14 @@ class LocalApiApplication:
         )
         return None if schedule is None else self._schedule_dto(schedule)
 
-    @staticmethod
-    def _schedule_dto(schedule: AutomationScheduleRecord) -> dict[str, object]:
+    def _schedule_dto(self, schedule: AutomationScheduleRecord) -> dict[str, object]:
+        next_run = next_scheduled_for(
+            frequency=schedule.frequency,
+            weekday=schedule.weekday,
+            local_time=schedule.local_time,
+            timezone=schedule.timezone,
+            after=self._now(),
+        )
         return {
             "schedule_id": schedule.schedule_id,
             "target_type": schedule.target_type.value,
@@ -380,7 +442,7 @@ class LocalApiApplication:
             "timezone": schedule.timezone,
             "enabled": schedule.enabled,
             "last_run": None,
-            "next_run": None,
+            "next_run": _timestamp(next_run),
         }
 
     @staticmethod

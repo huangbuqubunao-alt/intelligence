@@ -39,6 +39,12 @@ period. Disabled sources are excluded. Provider dispatch remains governed by
 the existing v4 durable dispatch state machine; `AMBIGUOUS` remains terminal
 and operator-visible.
 
+Schedules are deliberately constrained: Manual, Daily at a user-selected local
+time, or Weekly on a user-selected weekday and local time. They use the
+backend-configured timezone (shown by the UI), not a browser-derived timezone.
+Editing a schedule changes only future due calculation; it does not check a
+source, create a run, or backfill an interval.
+
 ## Provider and credential truth
 
 The model preference is a *desired* setting, not an active production default.
@@ -52,4 +58,10 @@ Current projections remain: OpenAI 0/2 credential blocked; Kimi 1/2
 `frontend/dist` is intentionally ignored and is not included in the Python
 wheel or sdist. The production UI always fetches local API projections; test
 fixtures are confined to unit/E2E setup. Video scoring is not rendered unless
-a future safe projection is explicitly wired through `AuthoritativeScoringReader`.
+the safe Video Detail projection has been obtained through
+`AuthoritativeScoringReader.read()` and `VerifiedScoringRead`. The projection
+contains only the trusted score, evidence, recommendation, safe completion
+time, and limited provenance. A raw scoring row, failed attempt, rejected
+reader result, credential, request hash, or artifact path is never used as a
+frontend authority. The UI distinguishes `AVAILABLE`, `FAILED`, and
+`NOT_AVAILABLE`; missing scoring is never represented as a score of zero.

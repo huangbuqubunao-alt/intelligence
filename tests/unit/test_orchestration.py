@@ -72,3 +72,45 @@ def test_missed_schedule_returns_one_catch_up_only() -> None:
         now=datetime(2026, 9, 1, 12, tzinfo=UTC),
     )
     assert due == datetime(2026, 8, 29, 9, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("weekday", "local_time", "after", "expected"),
+    [
+        (
+            0,
+            "09:00",
+            datetime(2026, 9, 6, 12, tzinfo=UTC),
+            datetime(2026, 9, 7, 9, tzinfo=UTC),
+        ),
+        (
+            6,
+            "20:00",
+            datetime(2026, 9, 6, 12, tzinfo=UTC),
+            datetime(2026, 9, 6, 20, tzinfo=UTC),
+        ),
+    ],
+)
+def test_weekly_schedule_honors_selected_weekday_and_time(
+    weekday: int, local_time: str, after: datetime, expected: datetime
+) -> None:
+    assert (
+        next_scheduled_for(
+            frequency=ScheduleFrequency.WEEKLY,
+            weekday=weekday,
+            local_time=local_time,
+            timezone="UTC",
+            after=after,
+        )
+        == expected
+    )
+
+
+def test_daily_time_update_changes_future_due_without_backfill() -> None:
+    assert next_scheduled_for(
+        frequency=ScheduleFrequency.DAILY,
+        weekday=None,
+        local_time="08:30",
+        timezone="UTC",
+        after=datetime(2026, 9, 1, 8, tzinfo=UTC),
+    ) == datetime(2026, 9, 1, 8, 30, tzinfo=UTC)
