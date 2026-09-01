@@ -16,6 +16,7 @@ htmlcov/
 # Runtime state
 /data/
 /logs/
+/.var/
 
 # Local secrets
 .env

@@ -100,6 +100,8 @@ class LocalApiApplication:
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
         now: Callable[[], datetime] | None = None,
+        runtime_mode: str = "STANDARD_LOCAL",
+        demo_data: bool = False,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -108,6 +110,8 @@ class LocalApiApplication:
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._runtime_mode = runtime_mode
+        self._demo_data = demo_data
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
@@ -376,6 +380,10 @@ class LocalApiApplication:
                 "doctor": {"status": "NOT_RUN"},
                 "backup": {"status": "NOT_RUN"},
                 "credential_status": "Blocked",
+                "runtime": {
+                    "mode": self._runtime_mode,
+                    "demo_data": self._demo_data,
+                },
             }
         raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
 
@@ -568,6 +576,7 @@ class LocalApiApplication:
             "updated_at": _timestamp(report.updated_at),
             "content": content,
             "content_status": "AVAILABLE" if content is not None else "UNAVAILABLE",
+            "weekly_v2": {"status": "UNAVAILABLE", "code": "WEEKLY_V2_UNAVAILABLE"},
             "linkage": {"status": "UNAVAILABLE_IN_CURRENT_AUTHORITY", "videos": []},
         }
 
@@ -601,6 +610,16 @@ class LocalApiApplication:
             timezone=schedule.timezone,
             after=self._now(),
         )
+        completed_runs = [
+            run
+            for run in self._repository.list_automation_runs(limit=100)
+            if run.schedule_id == schedule.schedule_id and run.finished_at is not None
+        ]
+        last_run = max(
+            completed_runs,
+            key=lambda run: run.finished_at or run.scheduled_for,
+            default=None,
+        )
         return {
             "schedule_id": schedule.schedule_id,
             "target_type": schedule.target_type.value,
@@ -610,7 +629,7 @@ class LocalApiApplication:
             "local_time": schedule.local_time,
             "timezone": schedule.timezone,
             "enabled": schedule.enabled,
-            "last_run": None,
+            "last_run": None if last_run is None else _timestamp(last_run.finished_at),
             "next_run": _timestamp(next_run),
         }
 
@@ -622,7 +641,9 @@ class LocalApiApplication:
             "target_type": run.target_type.value,
             "target_id": run.target_id,
             "scheduled_for": _timestamp(run.scheduled_for),
-            "status": run.status.value,
+            "status": "AMBIGUOUS"
+            if run.error_code == "AMBIGUOUS"
+            else run.status.value,
             "error": None
             if run.error_code is None
             else {"code": run.error_code},
