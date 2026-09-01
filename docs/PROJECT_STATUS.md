@@ -867,6 +867,30 @@
   documented material external prerequisite exists. Do not execute it merely
   from this status update.
 
+## OpenAI live-qualification internal readiness — 2026-09-01
+
+- The two internal prerequisites from
+  [the qualification prerequisite record](LIVE_PROVIDER_QUALIFICATION_PREREQUISITE.md)
+  are complete: exactly two committed synthetic manifests
+  (`openai-live-qualification-1`, `openai-live-qualification-2`) are frozen,
+  and their only package executor uses the existing v4 fail-closed dispatch
+  state machine. This is non-live offline evidence, not provider qualification.
+- Before any credential resolution or transport, the executor records durable
+  dispatch intent. A restart from durable intent or returned-result-unknown
+  becomes terminal `AMBIGUOUS`, cannot automatically redispatch, cannot
+  re-resolve a credential, and cannot promote a cache/artifact to success.
+  Explicit provider refusal remains a distinct known failure; trusted success
+  requires the authoritative durable completion record. No global exactly-once
+  claim is made.
+- The external prerequisite remains **PO input**: an approved ephemeral OpenAI
+  credential mechanism must be available, followed by explicit PO
+  authorization for exactly two requests, the fixed model/profile, 30 seconds
+  each, zero retries, and no fallback/substitution/escalation. OpenAI live
+  qualification remains `0/2`, TASK-016G remains `UNAUTHORIZED`, and current
+  release remains **NO-GO**. No credential, live network call, provider
+  qualification, Window-2/3 behavior, ADR-008/ADR-028, BPE, scanner exception,
+  or distribution posture changed.
+
 ## Vault and template distribution-boundary privacy technical review — 2026-08-31
 
 - The current technical review is **APPROVED** for the controlled

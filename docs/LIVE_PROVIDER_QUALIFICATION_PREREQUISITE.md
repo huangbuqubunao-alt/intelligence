@@ -39,7 +39,7 @@ credential, a request, or a qualification run.
 | Provider | Kind / implemented state | Adapter technical qualification | Live attempt / result | Currently qualified or default? | Fallback? | Current blocker | Material external prerequisite for reconsideration | Retry currently authorized? | Paid / credit effect of a retry |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Local Ollama `qwen2.5-coder:7b` | `LOCAL`; Deep Analysis adapter is implemented, loopback-only | Deterministic mock-transport boundary suite passes | Initial model profile `2/2`; real adapter case 1 failed at application finalization with `SCHEMA_INVALID`; case 2 was not sent | **UNQUALIFIED**; not a current critical-path reference; remains an optional future offline/privacy capability | No Local-to-cloud fallback | The frozen real-adapter target is `2/2`; a first failure made it unattainable without an unauthorized semantic retry | New external evidence of a materially different eligible local model/runtime capability, plus a new PO/local-provider qualification decision. An internal prompt change or another run of the failed profile is not external evidence. | **NO** | No paid cloud credit; an additional local execution still consumes local machine/model resources and is not authorized. |
-| OpenAI `gpt-5.4-mini-2026-03-17` | `CLOUD_USER_KEY`; `openai-deep-analysis-responses` v1, Responses API | **QUALIFIED** offline with fake transport and provider-neutral finalizer | `0/2`; `LIVE CREDENTIAL BLOCKED`; neither `LIVE-1` nor `LIVE-2` was sent | **UNQUALIFIED** live; the current eligible reference route once qualified; not a product-wide mandatory/default provider | No provider/model fallback | No approved ephemeral OpenAI credential was available in the prior approved runtime mechanism; additionally, the proposed direct qualification path has not been wired to Window-1 v4 dispatch persistence (see below) | An **approved ephemeral OpenAI credential** made available for the one bounded package. This is the only concrete OpenAI example named by the controlling gate record. It must still be followed by separate explicit PO execution authorization. | **NO** | Up to one billable/account-visible request per authorized case; repository evidence has no price or spend ceiling. |
+| OpenAI `gpt-5.4-mini-2026-03-17` | `CLOUD_USER_KEY`; `openai-deep-analysis-responses` v1, Responses API | **QUALIFIED** offline with fake transport and provider-neutral finalizer | `0/2`; `LIVE CREDENTIAL BLOCKED`; neither frozen case was sent | **UNQUALIFIED** live; the current eligible reference route once qualified; not a product-wide mandatory/default provider | No provider/model fallback | The remaining prerequisite is PO-approved ephemeral credential availability plus separate explicit PO execution authorization. The two synthetic manifests and v4 qualification dispatch protection are now complete (below). | An **approved ephemeral OpenAI credential** made available for the one bounded package. This is the only concrete OpenAI example named by the controlling gate record. It must still be followed by separate explicit PO execution authorization. | **NO** | Up to one billable/account-visible request per authorized case; repository evidence has no price or spend ceiling. |
 | Kimi / Moonshot `kimi-k3` R2 | `CLOUD_USER_KEY`; `kimi-deep-analysis-chat-completions` v1, China endpoint | Deterministic no-network adapter suite passes; raw R2 profile proves capability only | R1 historical: `1/2`, Case 2 `TIMEOUT` at 30 s. R2 raw: `2/2`; R2 production adapter: `1/2`, Case 2 `SCHEMA_INVALID` at `SCHEMA` under the 120 s bound | **IMPLEMENTED / LIVE UNQUALIFIED**; neither default nor registered runtime provider | No fallback | The real R2 adapter failed its second required case. The successful raw result cannot substitute for adapter evidence. | A documented material Kimi provider/model/API capability change that addresses the relevant structured-output behavior, accompanied by new authorization. An identical retry, internal adapter change, or a timeout increase beyond R2 is not an external change. | **NO** | A new cloud request can consume account credit; no repository price/cost bound exists. |
 
 ## Meaning of “material external prerequisite”
@@ -139,20 +139,23 @@ TASK-016 card identifies it as the current eligible route after live `2/2`
 qualification and explicit cloud consent. Kimi has a recorded production-adapter
 failure, and Local is closed for this critical path.
 
-The repository fixes the **number** of OpenAI live cases (`LIVE-1` and
-`LIVE-2`, target `2/2`) but does not preserve their complete input manifests,
-payload hashes, or an executable live harness. It is therefore not truthful to
-claim that an execution-ready exact two-case package already exists. No
-unrecorded fixture is substituted here.
+The repository fixes the exact two committed synthetic cases as
+`openai-live-qualification-1` and `openai-live-qualification-2` in
+`src/youtube_intel/openai_qualification.py`. Each freezes its selected evidence,
+projection identity inputs, provider/model/profile, strict validation contract,
+30-second timeout, zero SDK/semantic retries, and no fallback/substitution.
+The qualification executor accepts neither an altered manifest nor a third
+case; it cannot substitute the second case after a first-case failure.
 
-If the two prerequisites below are first satisfied, the maximum bounded package
-that should be brought back to the PO is:
+With the internal prerequisites now satisfied, the following is the maximum
+bounded package that may be brought back to the PO only after the external
+ephemeral-credential prerequisite is attested:
 
 | Field | Required package value |
 | --- | --- |
 | Provider / model / kind | OpenAI / `gpt-5.4-mini-2026-03-17` / `CLOUD_USER_KEY` |
-| Live cases | Exactly 2, pre-frozen as `LIVE-1` and `LIVE-2`; each one provider request only |
-| Input fixtures | Two committed, synthetic, selected-evidence-only fixture manifests with immutable content/request hashes and no real transcript, Vault, user data, or credential. They must be attached to the later PO authorization; repository authority does not yet define them. |
+| Live cases | Exactly 2, pre-frozen as `openai-live-qualification-1` and `openai-live-qualification-2`; each one provider request only |
+| Input fixtures | Two committed, synthetic, selected-evidence-only manifests with immutable identities and no real transcript, Vault, user data, or credential. The later PO authorization must name these exact IDs; no replacement case is allowed. |
 | Structured-output contract | Current OpenAI Responses `text.format` JSON Schema, fixed name `deep_analysis_knowledge_content_v1`, `strict=true`, followed by the existing strict whole-document JSON, schema/domain, grounding, KG2, language, and provenance finalizer. |
 | Timeout | 30 seconds per case; no escalation. |
 | SDK retries | `0`. |
@@ -167,56 +170,45 @@ that should be brought back to the PO is:
 This table is a conditional package design, not an authorization. It deliberately
 does not select a default provider or alter existing profile policy.
 
-## Window-1 v4 integration check — blocking internal prerequisite
+## Internal readiness — frozen package and Window-1 v4 integration
 
-The package above cannot presently be executed while truthfully asserting that
-it uses the Window-1 v4 protocol.
+The two internal prerequisites are now **SATISFIED** by a non-live,
+fake-transport-only implementation. This changes neither the external
+credential prerequisite nor the separate PO authorization requirement.
 
-- `OpenAIDeepAnalysisProviderAdapter.dispatch()` directly performs one isolated
-  transport call on a prepared dispatch and returns an
-  `UntrustedDeepAnalysisResponseV1`.
-- The TASK-016 persistence tests use that adapter with a fake transport and
-  persist only a **post-finalization** trusted success through
-  `DeepAnalysisPersistenceStore`.
-- The v4 state machine (`NOT_DISPATCHED` →
-  `DISPATCH_INTENT_DURABLE` → `DISPATCHED_RESULT_UNKNOWN` →
-  `SUCCESS_DURABLY_RECORDED`, with terminal `AMBIGUOUS`) is implemented in
-  `SQLiteStateRepository` and is invoked by the legacy
-  `RepositoryBackedAnalysisService` path. That path currently constructs the
-  legacy `OpenAIResponsesProvider` with its own cloud profile, not the TASK-016
-  OpenAI reference adapter.
+| Internal prerequisite | Status | Enforced evidence |
+| --- | --- | --- |
+| Exact two synthetic manifests | **SATISFIED** | `FROZEN_OPENAI_QUALIFICATION_MANIFESTS` contains exactly the two IDs above. `require_frozen_openai_qualification_manifest()` rejects alteration or any unfrozen/third case before it can acquire a qualification request. |
+| v4 fail-closed qualification dispatch | **SATISFIED** | `OpenAIQualificationExecutor` is the sole package executor. For each frozen request it persists `NOT_DISPATCHED` → `DISPATCH_INTENT_DURABLE` before credential resolution/transport, records `DISPATCHED_RESULT_UNKNOWN` after a response returns, and reaches `SUCCESS_DURABLY_RECORDED` only through `SQLiteStateRepository.complete_provider_call()`. |
 
-Accordingly, a direct OpenAI adapter qualification currently has no durable
-dispatch intent, unknown-result marker, or v4 recovery path. It cannot prove
-that an ambiguous result will be prevented from being re-run by the
-qualification harness, nor that cache/persistence cannot be misused. The v4
-tests do prove the required fail-closed behavior for the path that uses the
-repository protocol; they do not establish it for the separate direct adapter
-qualification path.
+The executor uses the existing TASK-016 request projection, explicit
+selected-evidence consent, strict OpenAI adapter, and provider-neutral
+finalizer. It does not use `DeepAnalysisPersistenceStore` or any cache as a
+qualification success source. A crash after durable intent or after an
+uncommitted returned response becomes terminal `AMBIGUOUS` on recovery; the
+executor raises an operator-visible error before resolving a credential,
+redispatching, or accepting an artifact as success. An explicit account/model
+refusal instead becomes distinct `FAILED_KNOWN`/final failure. Success is only
+trusted after the authoritative provider-call completion transaction records
+the qualification receipt. This is a finite fail-closed recovery protocol, not
+a claim of global exactly-once provider execution.
 
-This is an **internal technical integration prerequisite**, not a material
-external change. It cannot be satisfied by treating a credential as proof of
-recovery safety. Before any live qualification package is authorized, a
-separate non-live architecture/implementation decision must either:
-
-1. wire the TASK-016 OpenAI dispatch/qualification runner through v4 durable
-   state transitions and prove the ambiguity/cache/credential properties; or
-2. establish, with an equivalent reviewed durable one-shot protocol, why the
-   standalone qualification harness provides the same no-auto-redispatch
-   guarantee.
-
-Neither path is authorized by this decision-support task. No claim of global
-exactly-once provider execution is made.
+Offline tests cover the exact two cases, alteration/third-case rejection,
+no-substitution after failure, safe pre-intent recovery, durable-intent
+ambiguity, returned-result crash ambiguity, no credential re-resolution, no
+artifact/cache promotion, distinct explicit refusal, fixed 30-second/zero-SDK
+retry adapter invocation, and durable success. They contain no live transport
+or credential.
 
 ## Minimum Product Owner input before a future package could execute
 
 1. Attest, without revealing it here, that an approved ephemeral OpenAI
    credential mechanism is available for the one bounded package.
-2. After the internal Window-1 integration prerequisite and two immutable
-   synthetic fixture manifests are independently established, explicitly
-   authorize the named provider/model, exactly two requests, 30-second timeout,
-   zero SDK/semantic retries, no fallback/substitution/escalation, and a spend
-   ceiling or acknowledged unpriced exposure.
+2. After attesting that the external ephemeral mechanism exists, explicitly
+   authorize the named provider/model, the exact two frozen manifest IDs, two
+   requests, 30-second timeout, zero SDK/semantic retries, no
+   fallback/substitution/escalation, and a spend ceiling or acknowledged
+   unpriced exposure.
 3. Confirm the result will remain qualification evidence only: TASK-016G stays
    unauthorized until separately qualified-provider real-output and PO
    acceptance requirements are met.
@@ -233,7 +225,7 @@ document.
 | Material prerequisite fabricated | **NO** — OpenAI availability is unestablished pending PO input; Kimi/Local have no new evidence. |
 | Same Kimi/Local failure presented as a new experiment | **NO** |
 | Paid exposure, retry, timeout escalation, fallback, or substitution hidden | **NO** — two-request maximum is conditional; price is unknown; retries/fallback/escalation are zero/none. |
-| Window-1 protection overstated | **NO** — the missing direct-adapter/v4 integration is recorded as a blocker. |
+| Window-1 protection overstated | **NO** — the package executor is v4 fail-closed; this does not claim global exactly-once behavior or authorize a live call. |
 | Provider marked qualified, TASK-016G authorized, or release changed | **NO** |
 | ADR-008, ADR-028, scanner disposition, credential isolation, or distribution posture weakened | **NO** |
 
@@ -245,8 +237,9 @@ OpenAI gpt-5.4-mini-2026-03-17 (conditional; not currently qualified)
 
 CURRENT STATUS:
 OpenAI adapter/offline contract qualified; live 0/2 and credential blocked.
-No execution-ready live package exists because the two live fixtures and the
-TASK-016-to-v4 dispatch integration are not established.
+The exact two-case package is frozen and its qualification executor is v4
+fail-closed; it remains unexecuted and requires external PO input and a
+separate PO authorization.
 
 MATERIAL EXTERNAL PREREQUISITE:
 An approved ephemeral OpenAI credential made available for one separately
@@ -257,8 +250,9 @@ REQUIRES PO INPUT.
 
 WHY:
 The repository only proves its prior absence and this task did not access
-credentials. A credential does not satisfy the separate internal v4 integration
-and fixture-manifest prerequisites.
+credentials. The internal manifest and v4 prerequisites are satisfied, but an
+ephemeral mechanism and explicit bounded execution authorization are retained
+PO decisions.
 
 IF PREREQUISITES ARE SATISFIED, PROPOSED LIVE PACKAGE:
 Exactly 2 pre-frozen synthetic selected-evidence-only cases using the frozen
@@ -287,9 +281,9 @@ TIMEOUT ESCALATION:
 NO; 30 seconds per case.
 
 WINDOW-1 PROTECTION:
-v4 is fail-closed where integrated, but the direct TASK-016 qualification path
-is not presently integrated; do not authorize live execution until that
-internal prerequisite is independently resolved.
+The exact qualification executor persists durable intent before credential
+resolution/transport and fail-closes an uncertain restart without automatic
+redispatch, credential re-resolution, or cache/artifact promotion.
 
 PRODUCT OWNER AUTHORIZATION REQUIRED:
 YES.
@@ -309,8 +303,11 @@ ARE SATISFIED.
 - `docs/AT_MOST_ONCE_RESIDUAL_RISK_PO_DECISION.md`
 - `docs/RELEASE_BLOCKERS.md`, `docs/RELEASE_CHECKLIST.md`,
   `docs/RELEASE_SIGNOFF.md`, and `docs/PROJECT_STATUS.md`
-- `src/youtube_intel/openai_deep_analysis.py`, `analysis.py`, `state.py`, and
+- `src/youtube_intel/openai_qualification.py`,
+  `src/youtube_intel/openai_deep_analysis.py`, `analysis.py`, `state.py`, and
   `migrations/004_add_provider_dispatch_state.sql`
 - `tests/unit/test_openai_deep_analysis_adapter.py`,
+  `tests/unit/test_openai_qualification_manifests.py`,
+  `tests/integration/test_openai_qualification_dispatch.py`,
   `tests/integration/test_deep_analysis_persistence.py`, and
   `tests/integration/test_provider_dispatch_crash_recovery.py`

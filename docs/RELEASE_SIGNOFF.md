@@ -134,12 +134,12 @@ owner-attribution blocker, and ADR-008 cloud-SDK isolation technical review are
 resolved without a verified-identity, legal-rights, or human-signature claim.
 The at-most-once decision is now recorded: Window 1 was rejected and remediated
 to fail closed; Windows 2 and 3 were accepted only for the current controlled
-posture. The **one next authorized project action** is therefore: **obtain an
-explicit PO authorization for one bounded live reference-provider qualification
-package, only after its documented material external prerequisite is present.**
-The provider-gate record remains controlling: this does not itself authorize a
-credential, a live call, provider work, TASK-016G, a real operational action,
-a push, a tag, or public distribution.
+posture. The **one next authorized project action** is therefore: **obtain PO
+confirmation that an approved ephemeral OpenAI credential mechanism exists and
+explicit authorization for the already-frozen two-request qualification
+package.** The provider-gate record remains controlling: this does not itself
+authorize disclosure of a credential, a live call, provider work, TASK-016G, a
+real operational action, a push, a tag, or public distribution.
 
 ## ADR-028 post-sign-off licensing evidence
 
