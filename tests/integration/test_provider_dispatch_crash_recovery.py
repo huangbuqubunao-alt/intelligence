@@ -67,7 +67,9 @@ def _migrations_through_v3() -> tuple[state_mod._Migration, ...]:
     return tuple(migrations)
 
 
-def _reserve(repository: SQLiteStateRepository, *, owner: str = "worker", now: datetime = NOW):
+def _reserve(
+    repository: SQLiteStateRepository, *, owner: str = "worker", now: datetime = NOW
+):
     return repository.reserve_provider_call(
         _request(),
         owner=owner,
@@ -78,20 +80,28 @@ def _reserve(repository: SQLiteStateRepository, *, owner: str = "worker", now: d
     )
 
 
-def test_restart_after_crash_before_dispatch_can_take_over_not_dispatched_call(tmp_path) -> None:
+def test_restart_after_crash_before_dispatch_can_take_over_not_dispatched_call(
+    tmp_path,
+) -> None:
     """A crash before intent is safe: no external operation was authorized."""
 
     repository = _repository(tmp_path)
     initial = _reserve(repository)
     assert initial.acquired is True
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.NOT_DISPATCHED
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.NOT_DISPATCHED
+    )
 
     restarted = _reserve(repository, owner="recovery", now=NOW + timedelta(minutes=6))
 
     assert restarted.acquired is True
     assert restarted.record.reservation_owner == "recovery"
     assert restarted.record.attempt_count == 2
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.NOT_DISPATCHED
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.NOT_DISPATCHED
+    )
 
 
 def test_migration_marks_pre_protocol_pending_call_ambiguous(
@@ -111,7 +121,7 @@ def test_migration_marks_pre_protocol_pending_call_ambiguous(
     )
     monkeypatch.undo()
 
-    assert repository.initialize(now=NOW + timedelta(minutes=1)).version == 4
+    assert repository.initialize(now=NOW + timedelta(minutes=1)).version == 5
     dispatch = repository.get_provider_dispatch(initial.record.request_hash)
 
     assert dispatch is not None
@@ -121,12 +131,16 @@ def test_migration_marks_pre_protocol_pending_call_ambiguous(
     assert restarted.record.status is ProviderCallStatus.FAILED_FINAL
 
 
-def test_restart_after_durable_intent_before_provider_call_fails_closed(tmp_path) -> None:
+def test_restart_after_durable_intent_before_provider_call_fails_closed(
+    tmp_path,
+) -> None:
     """Intent is conservative: a crash here must not authorize a duplicate call."""
 
     repository = _repository(tmp_path)
     initial = _reserve(repository)
-    repository.record_provider_dispatch_intent(initial.record.request_hash, owner="worker", now=NOW)
+    repository.record_provider_dispatch_intent(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
 
     restarted = _reserve(repository, owner="recovery", now=NOW + timedelta(minutes=6))
 
@@ -134,32 +148,50 @@ def test_restart_after_durable_intent_before_provider_call_fails_closed(tmp_path
     assert restarted.record.status is ProviderCallStatus.FAILED_FINAL
     assert restarted.record.last_error_code == ErrorCode.PROVIDER_UNAVAILABLE.value
     assert restarted.record.attempt_count == 1
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.AMBIGUOUS
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.AMBIGUOUS
+    )
 
 
-def test_provider_success_before_sqlite_commit_never_auto_redispatches(tmp_path) -> None:
+def test_provider_success_before_sqlite_commit_never_auto_redispatches(
+    tmp_path,
+) -> None:
     """A returned response without the atomic success receipt remains ambiguous."""
 
     repository = _repository(tmp_path)
     initial = _reserve(repository)
-    repository.record_provider_dispatch_intent(initial.record.request_hash, owner="worker", now=NOW)
-    repository.record_provider_dispatch_result_unknown(initial.record.request_hash, owner="worker", now=NOW)
+    repository.record_provider_dispatch_intent(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
+    repository.record_provider_dispatch_result_unknown(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
 
     restarted = _reserve(repository, owner="recovery", now=NOW + timedelta(minutes=6))
 
     assert restarted.acquired is False
     assert restarted.recovered_from_artifact is False
     assert restarted.record.status is ProviderCallStatus.FAILED_FINAL
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.AMBIGUOUS
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.AMBIGUOUS
+    )
 
 
-def test_ambiguous_dispatch_cannot_be_promoted_by_a_matching_cache_artifact(tmp_path) -> None:
+def test_ambiguous_dispatch_cannot_be_promoted_by_a_matching_cache_artifact(
+    tmp_path,
+) -> None:
     """Only the success transaction, never a cache artifact, establishes success."""
 
     repository = _repository(tmp_path)
     initial = _reserve(repository)
-    repository.record_provider_dispatch_intent(initial.record.request_hash, owner="worker", now=NOW)
-    repository.record_provider_dispatch_result_unknown(initial.record.request_hash, owner="worker", now=NOW)
+    repository.record_provider_dispatch_intent(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
+    repository.record_provider_dispatch_result_unknown(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
     contents = b"untrusted orphan response"
     artifact = ArtifactWrite(
         artifact_id="ambiguous-raw",
@@ -184,21 +216,32 @@ def test_ambiguous_dispatch_cannot_be_promoted_by_a_matching_cache_artifact(tmp_
         lease_until=NOW + timedelta(minutes=11),
         available_at=NOW + timedelta(minutes=6),
         now=NOW + timedelta(minutes=6),
-        verified_artifact=VerifiedArtifact(artifact.artifact_key, artifact.content_hash),
+        verified_artifact=VerifiedArtifact(
+            artifact.artifact_key, artifact.content_hash
+        ),
         fail_closed_on_ambiguous_dispatch=True,
     )
 
     assert restarted.acquired is False
     assert restarted.recovered_from_artifact is False
     assert restarted.record.status is ProviderCallStatus.FAILED_FINAL
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.AMBIGUOUS
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.AMBIGUOUS
+    )
 
 
-def test_known_provider_failure_remains_distinct_from_ambiguous_dispatch(tmp_path) -> None:
+def test_known_provider_failure_remains_distinct_from_ambiguous_dispatch(
+    tmp_path,
+) -> None:
     repository = _repository(tmp_path)
     initial = _reserve(repository)
-    repository.record_provider_dispatch_intent(initial.record.request_hash, owner="worker", now=NOW)
-    repository.record_provider_dispatch_known_failure(initial.record.request_hash, owner="worker", now=NOW)
+    repository.record_provider_dispatch_intent(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
+    repository.record_provider_dispatch_known_failure(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
     failed = repository.fail_provider_call(
         initial.record.request_hash,
         owner="worker",
@@ -210,14 +253,21 @@ def test_known_provider_failure_remains_distinct_from_ambiguous_dispatch(tmp_pat
     )
 
     assert failed.status is ProviderCallStatus.FAILED_RETRYABLE
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.FAILED_KNOWN
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.FAILED_KNOWN
+    )
 
 
 def test_normal_success_commits_the_provider_receipt_once(tmp_path) -> None:
     repository = _repository(tmp_path)
     initial = _reserve(repository)
-    repository.record_provider_dispatch_intent(initial.record.request_hash, owner="worker", now=NOW)
-    repository.record_provider_dispatch_result_unknown(initial.record.request_hash, owner="worker", now=NOW)
+    repository.record_provider_dispatch_intent(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
+    repository.record_provider_dispatch_result_unknown(
+        initial.record.request_hash, owner="worker", now=NOW
+    )
     contents = b"verified response"
     artifact = ArtifactWrite(
         artifact_id="success-raw",
@@ -246,4 +296,7 @@ def test_normal_success_commits_the_provider_receipt_once(tmp_path) -> None:
     )
 
     assert completed.status is ProviderCallStatus.SUCCEEDED
-    assert repository.get_provider_dispatch(initial.record.request_hash).status is ProviderDispatchStatus.SUCCESS_DURABLY_RECORDED
+    assert (
+        repository.get_provider_dispatch(initial.record.request_hash).status
+        is ProviderDispatchStatus.SUCCESS_DURABLY_RECORDED
+    )

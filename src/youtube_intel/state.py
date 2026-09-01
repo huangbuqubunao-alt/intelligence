@@ -28,6 +28,13 @@ from youtube_intel.domain import (
     VideoMetadata,
     transition_pipeline,
 )
+from youtube_intel.orchestration import (
+    AutomationRunStatus,
+    AutomationTargetType,
+    ProcessingPolicy,
+    ScheduleFrequency,
+    SourceType,
+)
 
 #: The sole post-migration scoring lineage generation (schema v2).  Every
 #: post-migration SCORING Job receives exactly this literal at creation; the
@@ -118,6 +125,61 @@ class ProviderDispatchStatus(str, Enum):
 class ReportStatus(str, Enum):
     PENDING = "PENDING"
     WRITTEN = "WRITTEN"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSubscriptionRecord:
+    source_id: str
+    source_type: SourceType
+    canonical_url: str
+    channel_id: str | None
+    video_id: str | None
+    display_name: str | None
+    enabled: bool
+    processing_policy: ProcessingPolicy
+    last_checked_at: datetime | None
+    last_success_at: datetime | None
+    last_error_code: str | None
+    last_error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class AutomationScheduleRecord:
+    schedule_id: str
+    target_type: AutomationTargetType
+    target_id: str | None
+    frequency: ScheduleFrequency
+    weekday: int | None
+    local_time: str | None
+    timezone: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class AutomationRunRecord:
+    run_id: str
+    schedule_id: str
+    target_type: AutomationTargetType
+    target_id: str | None
+    scheduled_for: datetime
+    claimed_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    status: AutomationRunStatus
+    error_code: str | None
+    error_message: str | None
+    result_summary: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GlobalModelPreferenceRecord:
+    desired_provider: str | None
+    desired_model: str | None
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,10 +282,10 @@ def _release_terminal_scoring_admission(
 ) -> None:
     """Drop H1 runtime-only admission state after a committed scoring terminal."""
 
-    if (
-        job.target_stage is not ProcessingStage.SCORING
-        or job.status not in {JobStatus.SUCCEEDED, JobStatus.FAILED_FINAL}
-    ):
+    if job.target_stage is not ProcessingStage.SCORING or job.status not in {
+        JobStatus.SUCCEEDED,
+        JobStatus.FAILED_FINAL,
+    }:
         return
     # Keep state persistence independent: this only releases process-local H1 state
     # after the SQLite transaction has committed.
@@ -473,7 +535,9 @@ def _safe_error_message(value: str) -> str:
 
 
 def _validate_sha256(value: str, *, field_name: str) -> None:
-    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+    if len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
         msg = f"{field_name} must be a lowercase SHA-256 hexadecimal value"
         raise ValueError(msg)
 
@@ -585,6 +649,7 @@ class SQLiteStateRepository:
         database_path: str | Path,
     ) -> None:
         self._database_path = Path(database_path)
+
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
 
@@ -637,6 +702,7 @@ class SQLiteStateRepository:
             "002_add_scoring_lineage.sql",
             "003_add_deep_analysis_persistence.sql",
             "004_add_provider_dispatch_state.sql",
+            "005_add_product_orchestration.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -728,9 +794,7 @@ class SQLiteStateRepository:
                                 "applied_at": applied_at,
                             },
                         )
-                        connection.execute(
-                            f"PRAGMA user_version = {migration.version}"
-                        )
+                        connection.execute(f"PRAGMA user_version = {migration.version}")
                 except (sqlite3.Error, MigrationError) as error:
                     msg = f"failed to apply migration {migration.version}"
                     raise MigrationError(msg) from error
@@ -807,9 +871,7 @@ class SQLiteStateRepository:
             title=row["title"],
             description=row["description"],
             source_url=row["source_url"],
-            published_at=SQLiteStateRepository._optional_datetime(
-                row["published_at"]
-            ),
+            published_at=SQLiteStateRepository._optional_datetime(row["published_at"]),
             duration_seconds=row["duration_seconds"],
             default_language=row["default_language"],
             available_languages=tuple(languages),
@@ -873,9 +935,7 @@ class SQLiteStateRepository:
             lease_until=_parse_utc_datetime(str(row["lease_until"])),
             finished_at=SQLiteStateRepository._optional_datetime(row["finished_at"]),
             outcome=(
-                None
-                if row["outcome"] is None
-                else JobAttemptOutcome(row["outcome"])
+                None if row["outcome"] is None else JobAttemptOutcome(row["outcome"])
             ),
             error_code=row["error_code"],
             error_message=row["error_message"],
@@ -1118,6 +1178,19 @@ class SQLiteStateRepository:
                     "duration_limit": PipelineStatus.SKIPPED_DURATION_LIMIT.value,
                     "limit": limit,
                 },
+            ).fetchall()
+            return tuple(self._video_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_videos(self, *, limit: int = 200) -> tuple[VideoRecord, ...]:
+        if limit <= 0 or limit > 1000:
+            raise ValueError("video list limit is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT :limit",
+                {"limit": limit},
             ).fetchall()
             return tuple(self._video_from_row(row) for row in rows)
         finally:
@@ -1730,9 +1803,9 @@ class SQLiteStateRepository:
                 row = self._owned_running_job(
                     connection, job_id=job_id, owner=owner, now=now_text
                 )
-                retryable = retry_text is not None and int(
-                    row["attempt_count"]
-                ) < int(row["max_attempts"])
+                retryable = retry_text is not None and int(row["attempt_count"]) < int(
+                    row["max_attempts"]
+                )
                 status = (
                     JobStatus.RETRY_PENDING if retryable else JobStatus.FAILED_FINAL
                 )
@@ -1861,7 +1934,9 @@ class SQLiteStateRepository:
                     connection, job_id=job_id, owner=owner, now=now_text
                 )
                 if row["video_id"] is not None:
-                    msg = "video stage jobs must complete with pipeline state atomically"
+                    msg = (
+                        "video stage jobs must complete with pipeline state atomically"
+                    )
                     raise StateStoreError(msg)
                 attempt_changed = connection.execute(
                     "UPDATE job_attempts SET finished_at = :now, outcome = :outcome "
@@ -1910,15 +1985,14 @@ class SQLiteStateRepository:
                 )
                 recovered: list[JobRecord] = []
                 for row in expired:
-                    scoring_unknown = row["target_stage"] == ProcessingStage.SCORING.value
-                    retryable = (
-                        not scoring_unknown
-                        and int(row["attempt_count"]) < int(row["max_attempts"])
+                    scoring_unknown = (
+                        row["target_stage"] == ProcessingStage.SCORING.value
+                    )
+                    retryable = not scoring_unknown and int(row["attempt_count"]) < int(
+                        row["max_attempts"]
                     )
                     status = (
-                        JobStatus.RETRY_PENDING
-                        if retryable
-                        else JobStatus.FAILED_FINAL
+                        JobStatus.RETRY_PENDING if retryable else JobStatus.FAILED_FINAL
                     )
                     finished_at = None if retryable else now_text
                     error_code = (
@@ -2224,17 +2298,9 @@ class SQLiteStateRepository:
             str(row["operation"]) == request.operation
             and str(row["provider"]) == request.provider
             and (None if row["model"] is None else str(row["model"])) == request.model
-            and (
-                None
-                if row["prompt_version"] is None
-                else str(row["prompt_version"])
-            )
+            and (None if row["prompt_version"] is None else str(row["prompt_version"]))
             == request.prompt_version
-            and (
-                None
-                if row["schema_version"] is None
-                else str(row["schema_version"])
-            )
+            and (None if row["schema_version"] is None else str(row["schema_version"]))
             == request.schema_version
         )
 
@@ -2619,9 +2685,7 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
-    def get_provider_dispatch(
-        self, request_hash: str
-    ) -> ProviderDispatchRecord | None:
+    def get_provider_dispatch(self, request_hash: str) -> ProviderDispatchRecord | None:
         """Read cloud-dispatch recovery state without minting a new state."""
 
         connection = self._connect()
@@ -2659,7 +2723,9 @@ class SQLiteStateRepository:
                     },
                 ).rowcount
                 if changed != 1:
-                    raise LeaseConflict("provider dispatch is not owned or is not in the expected state")
+                    raise LeaseConflict(
+                        "provider dispatch is not owned or is not in the expected state"
+                    )
                 saved = self._dispatch_state_in_transaction(connection, request_hash)
                 if saved is None:
                     raise StateStoreError("provider dispatch state could not be read")
@@ -2727,13 +2793,17 @@ class SQLiteStateRepository:
                     },
                 ).fetchone()
                 if row is None:
-                    raise LeaseConflict("provider call reservation is not owned or has expired")
+                    raise LeaseConflict(
+                        "provider call reservation is not owned or has expired"
+                    )
                 dispatch = self._dispatch_state_in_transaction(connection, request_hash)
                 if dispatch is None or dispatch.status not in {
                     ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
                     ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
                 }:
-                    raise IntegrityConflict("provider dispatch is not an ambiguous external boundary")
+                    raise IntegrityConflict(
+                        "provider dispatch is not an ambiguous external boundary"
+                    )
                 return self._mark_dispatch_ambiguous_in_transaction(
                     connection, request_hash=request_hash, now=now_text
                 )
@@ -2780,7 +2850,9 @@ class SQLiteStateRepository:
                 )
                 resolved = self._dispatch_state_in_transaction(connection, request_hash)
                 if resolved is None:
-                    raise StateStoreError("ambiguous provider dispatch could not be read")
+                    raise StateStoreError(
+                        "ambiguous provider dispatch could not be read"
+                    )
                 return resolved
         finally:
             connection.close()
@@ -2862,7 +2934,9 @@ class SQLiteStateRepository:
                 },
             ).rowcount
             if changed != 1:
-                raise IntegrityConflict("provider dispatch state changed before durable success")
+                raise IntegrityConflict(
+                    "provider dispatch state changed before durable success"
+                )
         saved = connection.execute(
             "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
             {"request_hash": completion.request_hash},
@@ -3228,6 +3302,19 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def list_reports(self, *, limit: int = 100) -> tuple[ReportRecord, ...]:
+        if limit <= 0 or limit > 1000:
+            raise ValueError("report list limit is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM reports WHERE report_type='weekly' ORDER BY iso_year DESC, iso_week DESC LIMIT :limit",
+                {"limit": limit},
+            ).fetchall()
+            return tuple(self._report_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
     def list_weekly_candidates(
         self, *, start_utc: datetime, end_utc: datetime
     ) -> tuple[WeeklyCandidateRecord, ...]:
@@ -3287,5 +3374,391 @@ class SQLiteStateRepository:
                         )
                     )
             return tuple(candidates)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _source_from_row(row: sqlite3.Row) -> SourceSubscriptionRecord:
+        return SourceSubscriptionRecord(
+            source_id=str(row["source_id"]),
+            source_type=SourceType(row["source_type"]),
+            canonical_url=str(row["canonical_url"]),
+            channel_id=row["channel_id"],
+            video_id=row["video_id"],
+            display_name=row["display_name"],
+            enabled=bool(row["enabled"]),
+            processing_policy=ProcessingPolicy(row["processing_policy"]),
+            last_checked_at=SQLiteStateRepository._optional_datetime(
+                row["last_checked_at"]
+            ),
+            last_success_at=SQLiteStateRepository._optional_datetime(
+                row["last_success_at"]
+            ),
+            last_error_code=row["last_error_code"],
+            last_error_message=row["last_error_message"],
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _schedule_from_row(row: sqlite3.Row) -> AutomationScheduleRecord:
+        return AutomationScheduleRecord(
+            schedule_id=str(row["schedule_id"]),
+            target_type=AutomationTargetType(row["target_type"]),
+            target_id=row["target_id"],
+            frequency=ScheduleFrequency(row["frequency"]),
+            weekday=row["weekday"],
+            local_time=row["local_time"],
+            timezone=str(row["timezone"]),
+            enabled=bool(row["enabled"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _automation_run_from_row(row: sqlite3.Row) -> AutomationRunRecord:
+        return AutomationRunRecord(
+            run_id=str(row["run_id"]),
+            schedule_id=str(row["schedule_id"]),
+            target_type=AutomationTargetType(row["target_type"]),
+            target_id=row["target_id"],
+            scheduled_for=_parse_utc_datetime(str(row["scheduled_for"])),
+            claimed_at=_parse_utc_datetime(str(row["claimed_at"])),
+            started_at=SQLiteStateRepository._optional_datetime(row["started_at"]),
+            finished_at=SQLiteStateRepository._optional_datetime(row["finished_at"]),
+            status=AutomationRunStatus(row["status"]),
+            error_code=row["error_code"],
+            error_message=row["error_message"],
+            result_summary=row["result_summary"],
+        )
+
+    def create_source_subscription(
+        self, source: SourceSubscriptionRecord
+    ) -> SourceSubscriptionRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO source_subscriptions (source_id, source_type, canonical_url, channel_id, video_id, display_name, enabled, processing_policy, last_checked_at, last_success_at, last_error_code, last_error_message, created_at, updated_at) "
+                    "VALUES (:source_id, :source_type, :canonical_url, :channel_id, :video_id, :display_name, :enabled, :processing_policy, NULL, NULL, NULL, NULL, :created_at, :updated_at)",
+                    {
+                        "source_id": source.source_id,
+                        "source_type": source.source_type.value,
+                        "canonical_url": source.canonical_url,
+                        "channel_id": source.channel_id,
+                        "video_id": source.video_id,
+                        "display_name": source.display_name,
+                        "enabled": int(source.enabled),
+                        "processing_policy": source.processing_policy.value,
+                        "created_at": format_utc_datetime(source.created_at),
+                        "updated_at": format_utc_datetime(source.updated_at),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_subscriptions WHERE source_id = :source_id",
+                    {"source_id": source.source_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("source subscription was not saved")
+                return self._source_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict(
+                "source subscription identity already exists"
+            ) from error
+        finally:
+            connection.close()
+
+    def get_source_subscription(
+        self, source_id: str
+    ) -> SourceSubscriptionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM source_subscriptions WHERE source_id = :source_id",
+                {"source_id": source_id},
+            ).fetchone()
+            return None if row is None else self._source_from_row(row)
+        finally:
+            connection.close()
+
+    def get_source_by_canonical_url(
+        self, canonical_url: str
+    ) -> SourceSubscriptionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM source_subscriptions WHERE canonical_url = :canonical_url",
+                {"canonical_url": canonical_url},
+            ).fetchone()
+            return None if row is None else self._source_from_row(row)
+        finally:
+            connection.close()
+
+    def list_source_subscriptions(self) -> tuple[SourceSubscriptionRecord, ...]:
+        connection = self._connect()
+        try:
+            return tuple(
+                self._source_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM source_subscriptions ORDER BY created_at DESC, source_id"
+                )
+            )
+        finally:
+            connection.close()
+
+    def update_source_subscription(
+        self,
+        source_id: str,
+        *,
+        enabled: bool | None = None,
+        processing_policy: ProcessingPolicy | None = None,
+        now: datetime,
+    ) -> SourceSubscriptionRecord | None:
+        if enabled is None and processing_policy is None:
+            raise ValueError("a source change is required")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT * FROM source_subscriptions WHERE source_id = :source_id",
+                    {"source_id": source_id},
+                ).fetchone()
+                if row is None:
+                    return None
+                connection.execute(
+                    "UPDATE source_subscriptions SET enabled = :enabled, processing_policy = :policy, updated_at = :updated_at WHERE source_id = :source_id",
+                    {
+                        "source_id": source_id,
+                        "enabled": int(
+                            bool(row["enabled"]) if enabled is None else enabled
+                        ),
+                        "policy": str(row["processing_policy"])
+                        if processing_policy is None
+                        else processing_policy.value,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM source_subscriptions WHERE source_id = :source_id",
+                    {"source_id": source_id},
+                ).fetchone()
+                return None if saved is None else self._source_from_row(saved)
+        finally:
+            connection.close()
+
+    def record_source_check(
+        self,
+        source_id: str,
+        *,
+        now: datetime,
+        succeeded: bool,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> SourceSubscriptionRecord | None:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE source_subscriptions SET last_checked_at=:now, last_success_at=CASE WHEN :succeeded THEN :now ELSE last_success_at END, last_error_code=:error_code, last_error_message=:error_message, updated_at=:now WHERE source_id=:source_id",
+                    {
+                        "source_id": source_id,
+                        "now": format_utc_datetime(now),
+                        "succeeded": int(succeeded),
+                        "error_code": error_code,
+                        "error_message": error_message,
+                    },
+                ).rowcount
+                if changed != 1:
+                    return None
+                row = connection.execute(
+                    "SELECT * FROM source_subscriptions WHERE source_id=:source_id",
+                    {"source_id": source_id},
+                ).fetchone()
+                return None if row is None else self._source_from_row(row)
+        finally:
+            connection.close()
+
+    def link_source_video(
+        self, source_id: str, video_id: str, *, discovered_at: datetime
+    ) -> None:
+        """Record source membership without changing VideoRecord authority."""
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO source_video_links (source_id, video_id, discovered_at) "
+                    "VALUES (:source_id, :video_id, :discovered_at) "
+                    "ON CONFLICT(source_id, video_id) DO NOTHING",
+                    {
+                        "source_id": source_id,
+                        "video_id": video_id,
+                        "discovered_at": format_utc_datetime(discovered_at),
+                    },
+                )
+        finally:
+            connection.close()
+
+    def create_or_update_schedule(
+        self, schedule: AutomationScheduleRecord
+    ) -> AutomationScheduleRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO automation_schedules (schedule_id, target_type, target_id, frequency, weekday, local_time, timezone, enabled, created_at, updated_at) VALUES (:schedule_id, :target_type, :target_id, :frequency, :weekday, :local_time, :timezone, :enabled, :created_at, :updated_at) ON CONFLICT(target_type, target_id) DO UPDATE SET frequency=excluded.frequency, weekday=excluded.weekday, local_time=excluded.local_time, timezone=excluded.timezone, enabled=excluded.enabled, updated_at=excluded.updated_at",
+                    {
+                        "schedule_id": schedule.schedule_id,
+                        "target_type": schedule.target_type.value,
+                        "target_id": schedule.target_id,
+                        "frequency": schedule.frequency.value,
+                        "weekday": schedule.weekday,
+                        "local_time": schedule.local_time,
+                        "timezone": schedule.timezone,
+                        "enabled": int(schedule.enabled),
+                        "created_at": format_utc_datetime(schedule.created_at),
+                        "updated_at": format_utc_datetime(schedule.updated_at),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM automation_schedules WHERE target_type = :target_type AND target_id IS :target_id",
+                    {
+                        "target_type": schedule.target_type.value,
+                        "target_id": schedule.target_id,
+                    },
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("automation schedule was not saved")
+                return self._schedule_from_row(row)
+        finally:
+            connection.close()
+
+    def list_automation_schedules(self) -> tuple[AutomationScheduleRecord, ...]:
+        connection = self._connect()
+        try:
+            return tuple(
+                self._schedule_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM automation_schedules ORDER BY created_at, schedule_id"
+                )
+            )
+        finally:
+            connection.close()
+
+    def claim_automation_run(self, *, run: AutomationRunRecord) -> bool:
+        """Atomically claim one stable schedule occurrence; False means another tick won."""
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                result = connection.execute(
+                    "INSERT INTO automation_runs (run_id, schedule_id, target_type, target_id, scheduled_for, claimed_at, status) VALUES (:run_id, :schedule_id, :target_type, :target_id, :scheduled_for, :claimed_at, :status) ON CONFLICT(schedule_id, scheduled_for) DO NOTHING",
+                    {
+                        "run_id": run.run_id,
+                        "schedule_id": run.schedule_id,
+                        "target_type": run.target_type.value,
+                        "target_id": run.target_id,
+                        "scheduled_for": format_utc_datetime(run.scheduled_for),
+                        "claimed_at": format_utc_datetime(run.claimed_at),
+                        "status": AutomationRunStatus.CLAIMED.value,
+                    },
+                )
+                return result.rowcount == 1
+        finally:
+            connection.close()
+
+    def finish_automation_run(
+        self,
+        run_id: str,
+        *,
+        status: AutomationRunStatus,
+        now: datetime,
+        error_code: str | None = None,
+        error_message: str | None = None,
+        result_summary: str | None = None,
+    ) -> AutomationRunRecord | None:
+        if status not in {
+            AutomationRunStatus.SUCCEEDED,
+            AutomationRunStatus.FAILED_FINAL,
+            AutomationRunStatus.BLOCKED,
+        }:
+            raise ValueError("automation run must finish in a terminal state")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "UPDATE automation_runs SET status=:status, finished_at=:finished_at, error_code=:error_code, error_message=:error_message, result_summary=:result_summary WHERE run_id=:run_id AND status IN ('CLAIMED', 'RUNNING')",
+                    {
+                        "run_id": run_id,
+                        "status": status.value,
+                        "finished_at": format_utc_datetime(now),
+                        "error_code": error_code,
+                        "error_message": error_message,
+                        "result_summary": result_summary,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM automation_runs WHERE run_id=:run_id",
+                    {"run_id": run_id},
+                ).fetchone()
+                return None if row is None else self._automation_run_from_row(row)
+        finally:
+            connection.close()
+
+    def list_automation_runs(
+        self, *, limit: int = 100
+    ) -> tuple[AutomationRunRecord, ...]:
+        connection = self._connect()
+        try:
+            return tuple(
+                self._automation_run_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM automation_runs ORDER BY scheduled_for DESC, run_id DESC LIMIT :limit",
+                    {"limit": limit},
+                )
+            )
+        finally:
+            connection.close()
+
+    def save_global_model_preference(
+        self, *, desired_provider: str | None, desired_model: str | None, now: datetime
+    ) -> GlobalModelPreferenceRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO global_model_preferences (preference_key, desired_provider, desired_model, updated_at) VALUES ('deep_analysis', :provider, :model, :updated_at) ON CONFLICT(preference_key) DO UPDATE SET desired_provider=excluded.desired_provider, desired_model=excluded.desired_model, updated_at=excluded.updated_at",
+                    {
+                        "provider": desired_provider,
+                        "model": desired_model,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM global_model_preferences WHERE preference_key='deep_analysis'"
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("model preference was not saved")
+                return GlobalModelPreferenceRecord(
+                    row["desired_provider"],
+                    row["desired_model"],
+                    _parse_utc_datetime(str(row["updated_at"])),
+                )
+        finally:
+            connection.close()
+
+    def get_global_model_preference(self) -> GlobalModelPreferenceRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM global_model_preferences WHERE preference_key='deep_analysis'"
+            ).fetchone()
+            return (
+                None
+                if row is None
+                else GlobalModelPreferenceRecord(
+                    row["desired_provider"],
+                    row["desired_model"],
+                    _parse_utc_datetime(str(row["updated_at"])),
+                )
+            )
         finally:
             connection.close()

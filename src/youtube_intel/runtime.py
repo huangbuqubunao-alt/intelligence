@@ -181,7 +181,8 @@ class _KnownPrimaryFailure(ValueError):
     """A received PRIMARY response failed locally without exposing repair authority."""
 
     def __init__(
-        self, message: str = "received PRIMARY response is ineligible for trusted scoring"
+        self,
+        message: str = "received PRIMARY response is ineligible for trusted scoring",
     ) -> None:
         super().__init__(message)
         self.error = AppError(
@@ -367,9 +368,11 @@ def bootstrap_runtime(
 
 def _production_dependencies(config: AppConfig) -> RuntimeDependencies:
     timeout = config.settings.timeouts.http_seconds
-    scoring_prompt = resources.files("youtube_intel").joinpath(
-        "prompts", "scoring.md"
-    ).read_text(encoding="utf-8")
+    scoring_prompt = (
+        resources.files("youtube_intel")
+        .joinpath("prompts", "scoring.md")
+        .read_text(encoding="utf-8")
+    )
     cloud = config.settings.cloud
     return RuntimeDependencies(
         discovery_source=YouTubeRssSourceProvider(timeout_seconds=timeout),
@@ -650,7 +653,9 @@ class RuntimeOperations(Operations):
             factory = self._dependencies.quality_judge_provider_factory
             if factory is not None:
                 return factory()
-            return OllamaQualityJudgeProvider(settings=self._config.settings.local_scoring)
+            return OllamaQualityJudgeProvider(
+                settings=self._config.settings.local_scoring
+            )
         except Exception as error:
             raise ScoringDispatchDenied(
                 "quality judge dispatch failed before external provider contact"
@@ -1039,7 +1044,6 @@ class RuntimeOperations(Operations):
         )
         return committed
 
-
     # Private compatibility seam for the already-approved Phase G test suite.
     # It exposes the same runtime-local entry, never a repository capability.
     def _trusted_scoring_committer(
@@ -1054,16 +1058,30 @@ class RuntimeOperations(Operations):
         values = {
             name: getattr(record, name)
             for name in (
-                "video_id", "channel_id", "channel_name", "title", "description",
-                "source_url", "published_at", "duration_seconds", "default_language",
-                "available_languages", "live_status", "availability",
+                "video_id",
+                "channel_id",
+                "channel_name",
+                "title",
+                "description",
+                "source_url",
+                "published_at",
+                "duration_seconds",
+                "default_language",
+                "available_languages",
+                "live_status",
+                "availability",
             )
         }
         if any(
             values[name] is None
             for name in (
-                "channel_name", "title", "source_url", "published_at", "duration_seconds",
-                "live_status", "availability",
+                "channel_name",
+                "title",
+                "source_url",
+                "published_at",
+                "duration_seconds",
+                "live_status",
+                "availability",
             )
         ):
             raise ValueError("persisted video metadata is incomplete")
@@ -1100,7 +1118,11 @@ class RuntimeOperations(Operations):
         ):
             raise ValueError("persisted artifact index is invalid")
         relative = PurePosixPath(record.relative_path)
-        if relative.is_absolute() or ".." in relative.parts or "\\" in record.relative_path:
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in record.relative_path
+        ):
             raise ValueError("persisted artifact path is unsafe")
         path = self._data_root.joinpath(*relative.parts)
         current = path
@@ -1109,7 +1131,10 @@ class RuntimeOperations(Operations):
                 raise ValueError("persisted artifact path is unsafe")
             current = current.parent
         body = path.read_bytes()
-        if len(body) > max_bytes or hashlib.sha256(body).hexdigest() != record.content_hash:
+        if (
+            len(body) > max_bytes
+            or hashlib.sha256(body).hexdigest() != record.content_hash
+        ):
             raise ValueError("persisted artifact hash is invalid")
         return body
 
@@ -1172,9 +1197,13 @@ class RuntimeOperations(Operations):
         ):
             raise ValueError("persisted analysis raw artifact provenance is invalid")
         if result.model != self._config.settings.cloud.model:
-            raise ValueError("persisted analysis model does not match current configuration")
+            raise ValueError(
+                "persisted analysis model does not match current configuration"
+            )
         if result.provider != self._config.settings.cloud.provider:
-            raise ValueError("persisted analysis provider does not match current configuration")
+            raise ValueError(
+                "persisted analysis provider does not match current configuration"
+            )
         self._verified_artifact(raw, max_bytes=1_000_000)
 
     def _scoring_reader(self) -> AuthoritativeScoringReader:
@@ -1197,7 +1226,9 @@ class RuntimeOperations(Operations):
                 call=None,
                 safe_message="cloud analysis is disabled",
             )
-        artifact = self._repository.latest_artifact(video_id, ArtifactKind.ANALYSIS_STRUCTURED)
+        artifact = self._repository.latest_artifact(
+            video_id, ArtifactKind.ANALYSIS_STRUCTURED
+        )
         if artifact is None:
             raise ValueError("persisted analysis is unavailable")
         result = AnalysisResult.model_validate_json(
@@ -1225,10 +1256,14 @@ class RuntimeOperations(Operations):
             if current is None:
                 raise ValueError("metadata stage lost its video")
             self._repository.complete_stage(
-                job_id=job.job_id, owner=owner, video_id=metadata.video_id,
+                job_id=job.job_id,
+                owner=owner,
+                video_id=metadata.video_id,
                 expected_status=PipelineStatus.DISCOVERED,
                 target_status=PipelineStatus.METADATA_READY,
-                pipeline_version=PIPELINE_VERSION, artifacts=(), provider_call=None,
+                pipeline_version=PIPELINE_VERSION,
+                artifacts=(),
+                provider_call=None,
                 now=_utcnow(),
             )
 
@@ -1587,9 +1622,7 @@ class RuntimeOperations(Operations):
                     raise UnknownProviderState(
                         "REPAIR Judge outer provider protocol is ambiguous after contact"
                     ) from error
-                judge_raw = self._h2b_extract_model_content(
-                    judge_outer.decode("utf-8")
-                )
+                judge_raw = self._h2b_extract_model_content(judge_outer.decode("utf-8"))
                 if judge_raw is None:
                     raise UnknownProviderState(
                         "REPAIR Judge model content is ambiguous after contact"
@@ -1806,7 +1839,10 @@ class RuntimeOperations(Operations):
                     )
                     if replayed_rni != aggregate.repair_normalized_input:
                         _invalid("RNI_MISMATCH")
-                    if h2_canonical_bytes(replayed_rni) != aggregate.repair_normalized_input_bytes:
+                    if (
+                        h2_canonical_bytes(replayed_rni)
+                        != aggregate.repair_normalized_input_bytes
+                    ):
                         _invalid("RNI_MISMATCH")
                     replayed_rni_hash = repair_normalized_input_hash(replayed_rni)
                     if replayed_rni_hash != aggregate.rni_hash:
@@ -1827,9 +1863,9 @@ class RuntimeOperations(Operations):
                         ).decode("utf-8"),
                         primary_raw_utf8=replayed_pfe.primary_raw_utf8,
                         candidate_evidence_jcs_utf8=(
-                            h2_canonical_bytes(
-                                replayed_pfe.primary_candidate
-                            ).decode("utf-8")
+                            h2_canonical_bytes(replayed_pfe.primary_candidate).decode(
+                                "utf-8"
+                            )
                             if isinstance(
                                 replayed_pfe.primary_candidate, CandidateEvidence
                             )
@@ -1956,8 +1992,7 @@ class RuntimeOperations(Operations):
                         _invalid("JUDGE_EVIDENCE_INVALID")
                     if (
                         replayed_judge_capture.utf8 != aggregate.judge_raw_utf8
-                        or replayed_judge_capture.sha256
-                        != aggregate.judge_raw_sha256
+                        or replayed_judge_capture.sha256 != aggregate.judge_raw_sha256
                         or replayed_judge_capture.byte_length
                         != aggregate.judge_raw_length
                     ):
@@ -1984,20 +2019,22 @@ class RuntimeOperations(Operations):
                     # 19-21. Independent finalizer; exact trusted-result and
                     #        sealed structured bytes equality.
                     try:
-                        replayed_finalization = RepairTrustedScoringFinalizer().finalize(
-                            candidate=replayed_candidate,
-                            scoring_input=scoring_input,
-                            repair_normalized_input=replayed_rni,
-                            rni_hash=replayed_rni_hash,
-                            repair_request_hash=replayed_request_hash,
-                            quality_input=replayed_judge_input,
-                            quality_result=replayed_judge_result,
-                            quality_operation=replayed_judge_ctx.operation_input,
-                            judge_evidence=aggregate.judge_evidence,
-                            attestation=aggregate.attestation,
-                            quality_authority=self._quality_provenance_authority,
-                            scoring_context=self._trusted_scoring_context,
-                            validated_settings=settings,
+                        replayed_finalization = (
+                            RepairTrustedScoringFinalizer().finalize(
+                                candidate=replayed_candidate,
+                                scoring_input=scoring_input,
+                                repair_normalized_input=replayed_rni,
+                                rni_hash=replayed_rni_hash,
+                                repair_request_hash=replayed_request_hash,
+                                quality_input=replayed_judge_input,
+                                quality_result=replayed_judge_result,
+                                quality_operation=replayed_judge_ctx.operation_input,
+                                judge_evidence=aggregate.judge_evidence,
+                                attestation=aggregate.attestation,
+                                quality_authority=self._quality_provenance_authority,
+                                scoring_context=self._trusted_scoring_context,
+                                validated_settings=settings,
+                            )
                         )
                     except (ValueError, TypeError, RepairFinalizationInvalid):
                         _invalid("FINALIZER_INVALID")
@@ -2040,9 +2077,10 @@ class RuntimeOperations(Operations):
                     settings_provenance_sha256 = hashlib.sha256(
                         _jcs_serialize(settings_provenance.model_dump(mode="json"))
                     ).hexdigest()
-                    if len(
-                        _jcs_serialize(settings_provenance.model_dump(mode="json"))
-                    ) > 8_192:
+                    if (
+                        len(_jcs_serialize(settings_provenance.model_dump(mode="json")))
+                        > 8_192
+                    ):
                         raise _H2CSettingsBoundExceeded()
                     provider_evidence = RepairProviderEvidence.model_validate(
                         {
@@ -2067,16 +2105,12 @@ class RuntimeOperations(Operations):
                             "settings_provenance": settings_provenance.model_dump(
                                 mode="json"
                             ),
-                            "settings_provenance_sha256": (
-                                settings_provenance_sha256
-                            ),
+                            "settings_provenance_sha256": (settings_provenance_sha256),
                         }
                     )
                     candidate_evidence = RepairCandidateEvidence.model_validate(
                         {
-                            "schema_version": (
-                                "task016c-repair-candidate-evidence-v1"
-                            ),
+                            "schema_version": ("task016c-repair-candidate-evidence-v1"),
                             "repair_raw_utf8": aggregate.repair_raw_utf8,
                             "repair_raw_sha256": aggregate.repair_raw_sha256,
                             "repair_raw_length": aggregate.repair_raw_length,
@@ -2119,9 +2153,7 @@ class RuntimeOperations(Operations):
                     )
                     finalizer_binding = RepairFinalizerBinding.model_validate(
                         {
-                            "schema_version": (
-                                "task016c-repair-finalizer-binding-v1"
-                            ),
+                            "schema_version": ("task016c-repair-finalizer-binding-v1"),
                             "trusted_result": (
                                 replayed_finalization.trusted_result.result.model_dump(
                                     mode="json"
@@ -2308,7 +2340,9 @@ class RuntimeOperations(Operations):
             )
             return None
 
-        def analysis_stage(job: JobRecord, record: VideoRecord) -> AnalysisOutcome | None:
+        def analysis_stage(
+            job: JobRecord, record: VideoRecord
+        ) -> AnalysisOutcome | None:
             if not self._config.settings.cloud.enabled:
                 return AnalysisSkipped(
                     reason=AnalysisSkipReason.CLOUD_DISABLED,
@@ -2317,10 +2351,14 @@ class RuntimeOperations(Operations):
                 )
             video = self._video_metadata(record)
             transcript = self._load_transcript(job, video).artifact
-            artifact = self._repository.latest_artifact(video.video_id, ArtifactKind.TRANSCRIPT_CANONICAL)
+            artifact = self._repository.latest_artifact(
+                video.video_id, ArtifactKind.TRANSCRIPT_CANONICAL
+            )
             if artifact is None:
                 raise ValueError("transcript is unavailable")
-            text = self._verified_artifact(artifact, max_bytes=4_000_000).decode("utf-8")
+            text = self._verified_artifact(artifact, max_bytes=4_000_000).decode(
+                "utf-8"
+            )
             return RepositoryBackedAnalysisService(
                 provider=self._dependencies.analysis_provider_factory(),
                 settings=self._config.settings.cloud,
@@ -2328,7 +2366,9 @@ class RuntimeOperations(Operations):
                 context=AnalysisJobContext(job.job_id, owner, PIPELINE_VERSION),
                 artifact_root=self._data_root,
                 credential_resolver=EnvironmentCredentialResolver(),
-                budget=CloudCallBudget(limit=self._config.settings.cloud.max_calls_per_run),
+                budget=CloudCallBudget(
+                    limit=self._config.settings.cloud.max_calls_per_run
+                ),
             ).analyze(
                 video=video,
                 transcript_text=text,
@@ -2467,18 +2507,21 @@ class RuntimeOperations(Operations):
             )
             persisted = self._repository.get_video(failed_record.video_id)
             target_stage = (
-                None
-                if persisted is None
-                else PipelineJobPlanner.next_stage(persisted)
+                None if persisted is None else PipelineJobPlanner.next_stage(persisted)
             )
             latest = self._repository.latest_video_job(
                 failed_record.video_id,
                 target_stage=target_stage,
             )
             stage = "unknown" if latest is None else latest.target_stage.value.lower()
-            error = "prerequisite unavailable" if latest is None else (latest.last_error_message or "stage failed")
+            error = (
+                "prerequisite unavailable"
+                if latest is None
+                else (latest.last_error_message or "stage failed")
+            )
             return CommandOutcome(
-                attempted=len(selected), failed=failed,
+                attempted=len(selected),
+                failed=failed,
                 safe_message=f"Processing stopped at {stage}: {error}. Run `youtube-intel doctor` for prerequisites.",
             )
         return CommandOutcome(
@@ -2501,8 +2544,7 @@ class RuntimeOperations(Operations):
                 # TRUST_INTEGRITY_INVALID terminals are non-retryable
                 # automatically and manually; the sole exclusion predicate is
                 # the error code alone (never the diagnostic detail).
-                and job.last_error_code
-                != ErrorCode.TRUST_INTEGRITY_INVALID.value
+                and job.last_error_code != ErrorCode.TRUST_INTEGRITY_INVALID.value
                 and job.video_id is not None
                 and (video is None or job.video_id == video)
                 and (
@@ -2512,7 +2554,9 @@ class RuntimeOperations(Operations):
             )
         )
         if not selected:
-            return CommandOutcome(safe_message="No final failed video job is available to retry.")
+            return CommandOutcome(
+                safe_message="No final failed video job is available to retry."
+            )
         for job in selected:
             self._repository.rerun_job(
                 job.job_id,
@@ -2534,7 +2578,9 @@ class RuntimeOperations(Operations):
                 vault_root=Path(self._config.settings.storage.vault_root),
                 vault_subdir=self._config.settings.storage.vault_subdir,
                 repository=self._repository,
-                context=NoteWriteContext("weekly-runtime", "youtube-intel-runtime", PIPELINE_VERSION),
+                context=NoteWriteContext(
+                    "weekly-runtime", "youtube-intel-runtime", PIPELINE_VERSION
+                ),
             ),
             artifact_root=self._data_root,
             timezone=self._config.settings.general.timezone,
@@ -2551,7 +2597,9 @@ _bind_verified_note_v2_runtime(RuntimeOperations)
 del _bind_verified_note_v2_runtime
 
 
-def create_runtime_operations(config: AppConfig, project_root: Path) -> RuntimeOperations:
+def create_runtime_operations(
+    config: AppConfig, project_root: Path
+) -> RuntimeOperations:
     return RuntimeOperations(config=config, project_root=project_root)
 
 
@@ -2567,7 +2615,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 4:
+        if integrity != ("ok",) or version != 5:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)
@@ -2577,7 +2625,9 @@ def _database_check(path: Path) -> DoctorCheck:
 def _ollama_check(config: AppConfig) -> tuple[DoctorCheck, DoctorCheck]:
     settings = config.settings.local_scoring
     request = urllib.request.Request(
-        settings.base_url + "/api/tags", headers={"Accept": "application/json"}, method="GET"
+        settings.base_url + "/api/tags",
+        headers={"Accept": "application/json"},
+        method="GET",
     )
     try:
         with urllib.request.urlopen(  # noqa: S310 — base_url is config-validated loopback only
@@ -2590,12 +2640,21 @@ def _ollama_check(config: AppConfig) -> tuple[DoctorCheck, DoctorCheck]:
         models = payload.get("models") if isinstance(payload, dict) else None
         if not isinstance(models, list):
             raise ValueError
-    except (OSError, TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError):
+    except (
+        OSError,
+        TimeoutError,
+        urllib.error.URLError,
+        ValueError,
+        json.JSONDecodeError,
+    ):
         unavailable = DoctorCheck(
             "Ollama", "FAIL", "loopback service is unavailable or invalid.", True
         )
         return unavailable, DoctorCheck(
-            "Local scoring model", "FAIL", "model cannot be verified until Ollama is available.", True
+            "Local scoring model",
+            "FAIL",
+            "model cannot be verified until Ollama is available.",
+            True,
         )
     matched = any(
         isinstance(item, dict)

@@ -87,6 +87,11 @@ EXPECTED_TABLES = {
     "provider_dispatch_states",
     "reports",
     "schema_migrations",
+    "source_subscriptions",
+    "source_video_links",
+    "automation_schedules",
+    "automation_runs",
+    "global_model_preferences",
     "videos",
 }
 EXPECTED_COLUMNS = {
@@ -212,6 +217,55 @@ EXPECTED_COLUMNS = {
         "content_hash",
         "status",
         "created_at",
+        "updated_at",
+    ),
+    "source_subscriptions": (
+        "source_id",
+        "source_type",
+        "canonical_url",
+        "channel_id",
+        "video_id",
+        "display_name",
+        "enabled",
+        "processing_policy",
+        "last_checked_at",
+        "last_success_at",
+        "last_error_code",
+        "last_error_message",
+        "created_at",
+        "updated_at",
+    ),
+    "source_video_links": ("source_id", "video_id", "discovered_at"),
+    "automation_schedules": (
+        "schedule_id",
+        "target_type",
+        "target_id",
+        "frequency",
+        "weekday",
+        "local_time",
+        "timezone",
+        "enabled",
+        "created_at",
+        "updated_at",
+    ),
+    "automation_runs": (
+        "run_id",
+        "schedule_id",
+        "target_type",
+        "target_id",
+        "scheduled_for",
+        "claimed_at",
+        "started_at",
+        "finished_at",
+        "status",
+        "error_code",
+        "error_message",
+        "result_summary",
+    ),
+    "global_model_preferences": (
+        "preference_key",
+        "desired_provider",
+        "desired_model",
         "updated_at",
     ),
 }
@@ -575,12 +629,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "004_add_provider_dispatch_state.sql")
+        .joinpath("migrations", "005_add_product_orchestration.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 4
-    assert first.name == "004_add_provider_dispatch_state.sql"
+    assert first.version == 5
+    assert first.name == "005_add_product_orchestration.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -595,7 +649,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 4
+    assert migration_count == 5
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -652,6 +706,9 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "uq_jobs_authoritative_scoring_artifact_key",
         "uq_videos_authoritative_scoring_job_id",
         "uq_deep_analysis_persisted_cache_identity",
+        "idx_source_subscriptions_enabled",
+        "idx_automation_runs_schedule_time",
+        "uq_automation_schedule_target",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index
@@ -947,7 +1004,9 @@ def test_claim_uses_stable_order_and_creates_attempt(tmp_path: Path) -> None:
     ]
     completed = repository.complete_job("job-a", owner="worker-1", now=NOW)
     assert completed.status is JobStatus.SUCCEEDED
-    assert repository.list_job_attempts("job-a")[0].outcome is JobAttemptOutcome.SUCCEEDED
+    assert (
+        repository.list_job_attempts("job-a")[0].outcome is JobAttemptOutcome.SUCCEEDED
+    )
 
 
 def test_two_connections_cannot_double_claim_one_job(tmp_path: Path) -> None:
@@ -1018,9 +1077,12 @@ def test_retry_must_be_activated_and_attempt_history_is_preserved(
         now=NOW + td(minutes=1),
     )
     assert failed.status is JobStatus.RETRY_PENDING
-    assert repository.claim_next_job(
-        owner="worker-2", lease_until=NOW + td(minutes=20), now=NOW + td(minutes=10)
-    ) is None
+    assert (
+        repository.claim_next_job(
+            owner="worker-2", lease_until=NOW + td(minutes=20), now=NOW + td(minutes=10)
+        )
+        is None
+    )
     assert repository.activate_retry_jobs(now=NOW + td(minutes=9)) == ()
     activated = repository.activate_retry_jobs(now=NOW + td(minutes=10))
     assert [job.job_id for job in activated] == ["retry-job"]
@@ -1083,7 +1145,9 @@ def test_lease_recovery_requeues_then_stops_at_max_attempts(tmp_path: Path) -> N
 
     assert final[0].status is JobStatus.FAILED_FINAL
     assert final[0].attempt_count == 2
-    assert [attempt.outcome for attempt in repository.list_job_attempts("crashed-job")] == [
+    assert [
+        attempt.outcome for attempt in repository.list_job_attempts("crashed-job")
+    ] == [
         JobAttemptOutcome.LEASE_EXPIRED,
         JobAttemptOutcome.LEASE_EXPIRED,
     ]
@@ -1357,7 +1421,9 @@ def test_stage_completion_rejects_a_job_for_another_target_stage(
         )
 
     assert repository.get_job("wrong-stage-job").status is JobStatus.RUNNING
-    assert repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+    assert (
+        repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+    )
 
 
 @pytest.mark.parametrize(
@@ -1429,8 +1495,12 @@ def test_stage_completion_failure_rolls_back_every_write(
         )
 
     assert repository.get_artifact_by_key(artifact.artifact_key) is None
-    assert repository.get_provider_call(REQUEST_HASH).status is ProviderCallStatus.PENDING
-    assert repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+    assert (
+        repository.get_provider_call(REQUEST_HASH).status is ProviderCallStatus.PENDING
+    )
+    assert (
+        repository.get_video("video-1").pipeline_status is PipelineStatus.METADATA_READY
+    )
     assert repository.get_job("stage-job").status is JobStatus.RUNNING
     assert repository.list_job_attempts("stage-job")[0].finished_at is None
 
@@ -1697,6 +1767,4 @@ def test_weekly_report_upsert_uses_stable_period_and_transaction(
             ),
             now=NOW,
         )
-    assert repository.get_report(
-        timezone="UTC", iso_year=2026, iso_week=29
-    ) is None
+    assert repository.get_report(timezone="UTC", iso_year=2026, iso_week=29) is None

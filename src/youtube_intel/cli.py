@@ -6,6 +6,7 @@ import argparse
 import sqlite3
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn, Sequence
 from uuid import uuid4
@@ -22,7 +23,9 @@ class _Parser(argparse.ArgumentParser):
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = _Parser(prog="youtube-intel", description="Local-first YouTube intelligence agent")
+    parser = _Parser(
+        prog="youtube-intel", description="Local-first YouTube intelligence agent"
+    )
     parser.add_argument(
         "--project-root",
         type=Path,
@@ -47,7 +50,21 @@ def _build_parser() -> argparse.ArgumentParser:
 
     weekly = commands.add_parser("weekly", help="generate one weekly report")
     weekly.add_argument("--week")
-    commands.add_parser("doctor", help="read-only configuration and local-resource checks")
+    tick = commands.add_parser(
+        "scheduler-tick",
+        help="claim bounded due local automation work; execution remains governance-guarded",
+    )
+    tick.add_argument("--database", type=Path, required=True)
+    tick.add_argument("--limit", type=int, default=20)
+    api = commands.add_parser(
+        "serve-api",
+        help="serve the loopback-only local application API",
+    )
+    api.add_argument("--database", type=Path, required=True)
+    api.add_argument("--port", type=int, default=8765)
+    commands.add_parser(
+        "doctor", help="read-only configuration and local-resource checks"
+    )
     smoke = commands.add_parser(
         "smoke-public-subtitles",
         help="run the restricted public subtitle release-QA smoke",
@@ -73,16 +90,55 @@ def main(
     parser = _build_parser()
     try:
         args = parser.parse_args(effective_argv)
-        if args.command == "smoke-public-subtitles" and _uses_global_configuration(effective_argv):
+        if args.command == "smoke-public-subtitles" and _uses_global_configuration(
+            effective_argv
+        ):
             return ExitCode.USAGE_OR_CONFIGURATION
         _validate_arguments(args)
         if args.command == "smoke-public-subtitles":
-            return (smoke_runner or PublicSubtitleSmoke()).run(
-                temporary_root=args.temporary_root,
-                video_ids=tuple(args.video_id),
-                run_id=run_id,
-                directory_only=args.directory_only,
-            ).exit_code
+            return (
+                (smoke_runner or PublicSubtitleSmoke())
+                .run(
+                    temporary_root=args.temporary_root,
+                    video_ids=tuple(args.video_id),
+                    run_id=run_id,
+                    directory_only=args.directory_only,
+                )
+                .exit_code
+            )
+        if args.command == "scheduler-tick":
+            from youtube_intel.orchestration_service import ProductOrchestrationService
+            from youtube_intel.state import SQLiteStateRepository
+
+            repository = SQLiteStateRepository(args.database)
+            repository.initialize(now=datetime.now(UTC))
+            runs = ProductOrchestrationService(repository).scheduler_tick(
+                limit=args.limit
+            )
+            print(
+                f"Claimed {len(runs)} automation run(s); side effects remain guarded."
+            )
+            return ExitCode.OK
+        if args.command == "serve-api":
+            from youtube_intel.local_api import LocalApiApplication, serve_loopback
+            from youtube_intel.orchestration_service import ProductOrchestrationService
+            from youtube_intel.state import SQLiteStateRepository
+
+            if args.port < 1024 or args.port > 65535:
+                return ExitCode.USAGE_OR_CONFIGURATION
+            repository = SQLiteStateRepository(args.database)
+            repository.initialize(now=datetime.now(UTC))
+            server = serve_loopback(
+                LocalApiApplication(
+                    repository, ProductOrchestrationService(repository)
+                ),
+                port=args.port,
+            )
+            try:
+                server.serve_forever()
+            finally:
+                server.server_close()
+            return ExitCode.OK
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
     except (ConfigError, OSError, ValueError):
@@ -131,7 +187,10 @@ def main(
             )
             return ExitCode.LOCAL_RESOURCE
 
-    logger = JsonlLogger(_project_path(project_root, config.settings.storage.logs_dir) / "operations.jsonl")
+    logger = JsonlLogger(
+        _project_path(project_root, config.settings.storage.logs_dir)
+        / "operations.jsonl"
+    )
     stage = str(args.command)
     started = time.monotonic()
     try:
@@ -221,7 +280,13 @@ def _validate_arguments(args: argparse.Namespace) -> None:
         raise ValueError("--resume requires --video")
     if args.command == "weekly" and args.week is not None:
         year, separator, week = args.week.partition("-W")
-        if separator != "-W" or not (year.isdigit() and len(year) == 4 and week.isdigit() and len(week) == 2 and 1 <= int(week) <= 53):
+        if separator != "-W" or not (
+            year.isdigit()
+            and len(year) == 4
+            and week.isdigit()
+            and len(week) == 2
+            and 1 <= int(week) <= 53
+        ):
             raise ValueError("week must use YYYY-Www")
 
 
