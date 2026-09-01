@@ -145,6 +145,11 @@ def main(
                     repository,
                     ProductOrchestrationService(repository),
                     scoring_reader=reader,
+                    data_root=_project_path(project_root, config.settings.storage.data_dir),
+                    vault_root=(
+                        Path(config.settings.storage.vault_root)
+                        / config.settings.storage.vault_subdir
+                    ),
                     timezone=config.settings.general.timezone,
                 ),
                 port=args.port,

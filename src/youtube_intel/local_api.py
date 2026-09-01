@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import asdict
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import urlparse
 
@@ -22,8 +24,10 @@ from youtube_intel.orchestration import (
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.state import (
+    ArtifactKind,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    ReportRecord,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     VideoRecord,
@@ -77,7 +81,7 @@ def _video_dto(video: VideoRecord) -> dict[str, object]:
         "published_at": _timestamp(video.published_at),
         "processing_status": video.pipeline_status.value,
         "scoring": {"status": "NOT_AVAILABLE"},
-        "note": {"status": "UNKNOWN"},
+        "note": {"status": "UNAVAILABLE"},
         "deep_analysis": {"status": "BLOCKED", "reason": "No qualified live provider."},
         "last_updated": _timestamp(video.updated_at),
     }
@@ -92,12 +96,16 @@ class LocalApiApplication:
         service: ProductOrchestrationService,
         *,
         scoring_reader: AuthoritativeScoringReader | None = None,
+        data_root: Path | None = None,
+        vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
         self._scoring_reader = scoring_reader
+        self._data_root = None if data_root is None else data_root.resolve()
+        self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
 
@@ -285,11 +293,20 @@ class LocalApiApplication:
                     for item in self._repository.list_automation_schedules()
                     if item.target_id == source.source_id
                 ],
-                "recent_activity": [
-                    self._run_dto(run)
-                    for run in self._repository.list_automation_runs(limit=50)
-                    if run.target_id == source.source_id
+                "recent_videos": [
+                    self._source_video_dto(video)
+                    for video in self._repository.list_source_videos(
+                        source.source_id, limit=10
+                    )
                 ],
+                "activity": {
+                    "status": "AVAILABLE",
+                    "runs": [
+                        self._run_dto(run)
+                        for run in self._repository.list_automation_runs(limit=50)
+                        if run.target_id == source.source_id
+                    ],
+                },
             }
         if route == "/api/v1/videos":
             return {
@@ -306,22 +323,13 @@ class LocalApiApplication:
             return {
                 "video": _video_dto(video),
                 "scoring": self._scoring_projection(video.video_id),
-                "transcript": {"status": "UNKNOWN"},
-                "history": [],
+                "transcript": self._transcript_projection(video.video_id),
+                "note": self._note_projection(),
+                "history": self._history_projection(video.video_id),
             }
         if route == "/api/v1/weekly":
             return {
-                "weekly": [
-                    {
-                        "report_id": item.report_id,
-                        "iso_year": item.iso_year,
-                        "iso_week": item.iso_week,
-                        "version": "UNKNOWN",
-                        "status": item.status.value,
-                        "updated_at": _timestamp(item.updated_at),
-                    }
-                    for item in self._repository.list_reports()
-                ]
+                "weekly": [self._report_dto(item) for item in self._repository.list_reports()]
             }
         if route == "/api/v1/activity":
             return {
@@ -412,6 +420,167 @@ class LocalApiApplication:
             },
         }
 
+    @staticmethod
+    def _safe_artifact_text(
+        root: Path | None, record: object, *, max_bytes: int
+    ) -> str | None:
+        """Read a hash-bound local artifact without revealing its location."""
+
+        if root is None:
+            return None
+        relative_path = getattr(record, "relative_path", None)
+        content_hash = getattr(record, "content_hash", None)
+        if not isinstance(relative_path, str) or not isinstance(content_hash, str):
+            return None
+        relative = PurePosixPath(relative_path)
+        if (
+            not relative.parts
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in relative_path
+        ):
+            return None
+        path = root.joinpath(*relative.parts)
+        current = path
+        while current != root:
+            if current.is_symlink():
+                return None
+            current = current.parent
+        try:
+            body = path.read_bytes()
+        except OSError:
+            return None
+        if len(body) > max_bytes or hashlib.sha256(body).hexdigest() != content_hash:
+            return None
+        try:
+            return body.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+    def _transcript_projection(self, video_id: str) -> dict[str, object]:
+        artifact = self._repository.latest_artifact(
+            video_id, ArtifactKind.TRANSCRIPT_CANONICAL
+        )
+        if artifact is not None:
+            relative = PurePosixPath(artifact.relative_path)
+            if (
+                artifact.video_id != video_id
+                or artifact.kind is not ArtifactKind.TRANSCRIPT_CANONICAL
+                or artifact.deleted_at is not None
+                or artifact.storage_root.value != "DATA"
+                or relative.parts[:1] != ("transcripts",)
+            ):
+                text = None
+            else:
+                text = self._safe_artifact_text(
+                    self._data_root, artifact, max_bytes=1_000_000
+                )
+            if text is not None:
+                return {
+                    "status": "AVAILABLE",
+                    "text": text,
+                    "created_at": _timestamp(artifact.created_at),
+                    "content_length": len(text),
+                }
+            return {
+                "status": "UNAVAILABLE",
+                "code": "TRANSCRIPT_UNAVAILABLE",
+                "reason": "The recorded canonical transcript cannot be safely read.",
+            }
+        job = self._repository.latest_video_job(
+            video_id, target_stage=ProcessingStage.TRANSCRIPT
+        )
+        if job is not None and job.status is JobStatus.FAILED_FINAL:
+            return {
+                "status": "FAILED",
+                "code": job.last_error_code or "TRANSCRIPT_FAILED",
+                "reason": "Transcript processing ended without a canonical transcript.",
+            }
+        return {
+            "status": "NOT_PROCESSED",
+            "reason": "No canonical transcript has been recorded for this video.",
+        }
+
+    @staticmethod
+    def _note_projection() -> dict[str, object]:
+        """There is no persisted NoteRef association in the current authority."""
+
+        return {
+            "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+            "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+        }
+
+    def _history_projection(self, video_id: str) -> list[dict[str, object]]:
+        events: list[dict[str, object]] = []
+        for job in self._repository.list_video_jobs(video_id, limit=100):
+            events.append(
+                {
+                    "timestamp": _timestamp(job.created_at),
+                    "type": "JOB_CREATED",
+                    "status": "PENDING",
+                    "summary": f"{job.target_stage.value} processing was queued.",
+                    "code": None,
+                    "context": {"stage": job.target_stage.value},
+                }
+            )
+            status = (
+                "AMBIGUOUS"
+                if job.last_error_code == "AMBIGUOUS"
+                else job.status.value
+            )
+            events.append(
+                {
+                    "timestamp": _timestamp(job.finished_at or job.updated_at),
+                    "type": "JOB_STATUS",
+                    "status": status,
+                    "summary": (
+                        "Provider may have received the request. The system will not automatically retry to avoid duplicate calls or charges."
+                        if status == "AMBIGUOUS"
+                        else f"{job.target_stage.value} processing is {job.status.value}."
+                    ),
+                    "code": job.last_error_code,
+                    "context": {"stage": job.target_stage.value},
+                }
+            )
+            for attempt in self._repository.list_job_attempts(job.job_id):
+                events.append(
+                    {
+                        "timestamp": _timestamp(attempt.finished_at or attempt.started_at),
+                        "type": "ATTEMPT",
+                        "status": "AMBIGUOUS" if attempt.error_code == "AMBIGUOUS" else (attempt.outcome.value if attempt.outcome else "RUNNING"),
+                        "summary": f"Attempt {attempt.attempt_number} for {job.target_stage.value} was recorded.",
+                        "code": attempt.error_code,
+                        "context": {"stage": job.target_stage.value},
+                    }
+                )
+        return sorted(events, key=lambda event: str(event["timestamp"]), reverse=True)
+
+    def _report_dto(self, report: ReportRecord) -> dict[str, object]:
+        content = self._safe_artifact_text(self._vault_root, report, max_bytes=1_000_000)
+        return {
+            "report_id": report.report_id,
+            "iso_year": report.iso_year,
+            "iso_week": report.iso_week,
+            "timezone": report.timezone,
+            "version": "UNKNOWN",
+            "status": report.status.value,
+            "created_at": _timestamp(report.created_at),
+            "updated_at": _timestamp(report.updated_at),
+            "content": content,
+            "content_status": "AVAILABLE" if content is not None else "UNAVAILABLE",
+            "linkage": {"status": "UNAVAILABLE_IN_CURRENT_AUTHORITY", "videos": []},
+        }
+
+    @staticmethod
+    def _source_video_dto(video: VideoRecord) -> dict[str, object]:
+        return {
+            "video_id": video.video_id,
+            "title": video.title,
+            "published_at": _timestamp(video.published_at),
+            "processing_status": video.pipeline_status.value,
+            "navigation": {"video_id": video.video_id},
+        }
+
     def _next_schedule_dto(self) -> dict[str, object] | None:
         schedules = self._repository.list_automation_schedules()
         schedule = next(
@@ -456,8 +625,8 @@ class LocalApiApplication:
             "status": run.status.value,
             "error": None
             if run.error_code is None
-            else {"code": run.error_code, "message": run.error_message},
-            "summary": run.result_summary,
+            else {"code": run.error_code},
+            "summary": None,
         }
 
 

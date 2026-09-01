@@ -1226,6 +1226,24 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def list_video_jobs(
+        self, video_id: str, *, limit: int = 100
+    ) -> tuple[JobRecord, ...]:
+        """Return persisted lifecycle records for one video without mutation."""
+
+        if not video_id.strip() or limit <= 0 or limit > 1000:
+            raise ValueError("video job query arguments are invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM jobs WHERE video_id = :video_id "
+                "ORDER BY created_at, job_id LIMIT :limit",
+                {"video_id": video_id, "limit": limit},
+            ).fetchall()
+            return tuple(self._job_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
     def list_failed_video_jobs(self, *, limit: int = 100) -> tuple[JobRecord, ...]:
         """Return one newest final failure per video in stable order."""
 
@@ -3595,6 +3613,26 @@ class SQLiteStateRepository:
                         "discovered_at": format_utc_datetime(discovered_at),
                     },
                 )
+        finally:
+            connection.close()
+
+    def list_source_videos(
+        self, source_id: str, *, limit: int = 10
+    ) -> tuple[VideoRecord, ...]:
+        """Read source membership joined to VideoRecord in one query."""
+
+        if not source_id.strip() or limit <= 0 or limit > 100:
+            raise ValueError("source video query arguments are invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT v.* FROM source_video_links AS link "
+                "JOIN videos AS v ON v.video_id = link.video_id "
+                "WHERE link.source_id = :source_id "
+                "ORDER BY link.discovered_at DESC, v.video_id DESC LIMIT :limit",
+                {"source_id": source_id, "limit": limit},
+            ).fetchall()
+            return tuple(self._video_from_row(row) for row in rows)
         finally:
             connection.close()
 
