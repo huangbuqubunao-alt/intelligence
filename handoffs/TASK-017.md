@@ -66,5 +66,5 @@
 ## 实现者结论
 
 - 建议状态：`IN_REVIEW`
-- Commit SHA：pending local commit
+- Commit SHA：`1b81d5dcf64ed62f79f93e7f0592e90cd260e96b`
 - 复现/验证说明：after fixed ports are free, use the three prescribed PO Demo scripts; otherwise the local frontend E2E can use `YIA_E2E_BASE_URL` against an isolated Vite port.
