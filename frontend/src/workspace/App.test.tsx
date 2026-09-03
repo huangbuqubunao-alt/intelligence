@@ -6,6 +6,7 @@ let demoSystem = false;
 
 beforeEach(() => {
   demoSystem = false;
+  location.hash = "";
   vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
     if (input.endsWith("/dashboard")) return response({ sources: { total: 0, needs_attention: 0 }, new_videos: 0, recent_videos: [], next_scheduled_run: null, recent_processing: [], deep_analysis: { status: "BLOCKED", reason: "No qualified live provider." } });
     if (input.endsWith("/sources") && init?.method === "POST") return response({ source: { source_id: "s1" } });
@@ -33,8 +34,8 @@ test("provider and Deep Analysis blocked truth is visible", async () => {
 });
 
 test("video detail consumes transcript, note, and ambiguous lifecycle projections", async () => {
-  render(<App />); fireEvent.click(screen.getByText("Videos")); expect(await screen.findByText("Verified data")).toBeTruthy(); fireEvent.click(screen.getByText("Verified data")); fireEvent.click(screen.getByRole("button", { name: "Scoring" })); expect(await screen.findByText("Clear product evidence.")).toBeTruthy(); expect(screen.getByText("VERIFIED SCORING")).toBeTruthy(); fireEvent.click(screen.getByRole("button", { name: "History" })); expect(screen.getByText(/will not automatically retry/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Transcript" })); expect(await screen.findByText("Verified transcript text.")).toBeTruthy(); fireEvent.click(screen.getByRole("button", { name: "Note" })); expect(screen.getByText("NOTE_REF_NOT_PERSISTED")).toBeTruthy();
+  render(<App />); fireEvent.click(screen.getByText("Videos")); expect(await screen.findByText("Verified data")).toBeTruthy(); fireEvent.click(screen.getByText("Verified data")); fireEvent.click(screen.getByRole("tab", { name: "Scoring" })); expect(await screen.findByText("Clear product evidence.")).toBeTruthy(); expect(screen.getByText("VERIFIED SCORING")).toBeTruthy(); fireEvent.click(screen.getByRole("tab", { name: "History" })); expect(screen.getByText(/will not automatically retry/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Transcript" })); expect(await screen.findByText("Verified transcript text.")).toBeTruthy(); fireEvent.click(screen.getByRole("tab", { name: "Note" })); expect(screen.getByText("NOTE_REF_NOT_PERSISTED")).toBeTruthy();
 });
 
 test("weekly shows UNKNOWN truth without pretending to have V2 or linkage", async () => {
@@ -59,4 +60,14 @@ test("PO Review Demo badge is displayed only when the backend projects demo data
   demoSystem = true;
   render(<App />);
   expect(await screen.findByText("PO Review Demo")).toBeTruthy();
+});
+
+test("workspace navigation exposes the active destination and semantic status variants", async () => {
+  render(<App />);
+  const dashboard = screen.getByRole("button", { name: "Dashboard" });
+  expect(dashboard.getAttribute("aria-current")).toBe("page");
+  expect((await screen.findByText("BLOCKED")).className).toContain("status-blocked");
+
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  expect((await screen.findByRole("button", { name: "Sources" })).getAttribute("aria-current")).toBe("page");
 });
