@@ -131,6 +131,7 @@ B0 现为 `DONE`，但这不是真实 smoke 或发布批准；TASK-014 仍为 `I
 | TASK-016D | Deep Analysis persistence/cache provenance | COMPLETE；冻结语义保持不变 | DONE | 016C |
 | TASK-016E | Note V2 | COMPLETE；冻结语义保持不变 | DONE | 016D |
 | TASK-016F | Weekly V2 / Verified Note handoff | COMPLETE；冻结语义保持不变 | DONE | 016E |
+| [TASK-017](TASK-017-fcc-inspired-workspace-presentation.md) | FCC-Inspired Product Workspace Presentation Refactor | Codex Implementer；独立 Reviewer 待主控指定 | READY | 已批准本地工作台基线 `main@943e1a73b56aecba988d2bd847f9f3031b2f1752` |
 
 ## 主控分配模板
 

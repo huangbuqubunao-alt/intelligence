@@ -1,6 +1,6 @@
 # YouTube Intelligence Agent 产品需求文档
 
-- 版本：V1.1
+- 版本：V1.1（2026-09-04 Local Product Workspace amendment）
 - 日期：2026-07-14
 - 文档负责人：产品/项目经理
 - 依据：用户提供的 V1.0 PRD + Technical Design
@@ -40,11 +40,36 @@
 ### 3.2 明确不包含
 
 - 自动读取 YouTube 账号订阅。
-- GUI、Web 页面或移动端。
 - 多用户、账号体系、权限系统。
 - 远程数据库、后台管理系统或云端常驻服务。
 - V2 数据源：GitHub、Hacker News、Product Hunt、arXiv、Reddit、X、RSS。
 - 自动发布、评论、点赞或修改 YouTube 上的任何内容。
+
+### 3.3 已批准的本地产品工作台（2026-09-04 amendment）
+
+产品已演进为本地优先、可配置、可自动运行的 YouTube Intelligence
+工作台。以下现有本地工作台表面属于批准范围：Dashboard、Sources、Source
+Detail Drawer、Videos、Video Detail、Weekly、Automation、Activity 和 Settings。
+前端仅通过受控的本地 application-service/API 边界消费既有 authoritative
+runtime/read models；它不获得新的 authority。
+
+因此，GUI/Web 页面不再作为整体排除项，但本 amendment 不授权：
+
+- direct DB authority bypass、provider SDK bypass、credential bypass、scoring
+  trust bypass、Note authority bypass、Weekly authority bypass 或 Deep Analysis
+  gate bypass；
+- public SaaS/web hosting、multi-user accounts、remote cloud dashboard、public
+  deployment、mobile app、credential management UI、arbitrary provider execution
+  或 unqualified provider use；
+- TASK-016G、new Note authority、new Weekly V2 authority、public release 或
+  package publication。
+
+下列真实产品状态必须如实呈现，而不是由 GUI 推断或修复：没有 persisted
+authoritative NoteRef association 时 Note V1 为 `UNAVAILABLE`；Note V2 为
+`UNAVAILABLE`；当前 authority 无法证明时 Weekly version 为 `UNKNOWN`；Weekly
+V2 为 `UNAVAILABLE`；Weekly video linkage 为
+`UNAVAILABLE_IN_CURRENT_AUTHORITY`；未同时具备 qualified live provider 与 PO
+acceptance 时 Deep Analysis 为 `BLOCKED`。
 
 ## 4. 目标用户与运行环境
 
