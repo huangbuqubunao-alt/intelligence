@@ -1,0 +1,3 @@
+# TASK-025 Implementer Packet
+
+From approved TASK-024, create `codex/task-025-weekly-foundation` and implement only `tasks/TASK-025-v1-weekly-intelligence-foundation.md`. TDD m011 snapshot/reference/immutability contracts. Build V1 Weekly from trusted revisions/Topics only and preserve generic reports and Weekly V2 UNAVAILABLE as separate authorities. Attack raw-video inputs, copied text, and correction rewriting history. Run migration/API/full checkpoint/frontend contract checks and diff check. No Daily/Ask/V2 relabel, provider or scheduler change, TASK-016 change, V2/later task work/deps/push/tag/release/merge/rebase. Handoff, adversarial review, fix P0/P1, re-review; stop APPROVE or PO blocker.

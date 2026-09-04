@@ -1,0 +1,3 @@
+# TASK-026 Implementer Packet
+
+From approved TASK-025, create `codex/task-026-product-ia` and implement only `tasks/TASK-026-v1-product-ia-integration.md`. TDD frontend/API client rendering and accessibility; keep UI reads limited to closed trusted projections and local API writes through services. Retain/reframe existing Video/Weekly/Automation/Activity capabilities; make Investigations truthful V2-reserved state. Browser-test evidence drill-down, raw context, feedback/pin, policy errors, needs-attention, budget/model/AMBIGUOUS and loopback-only network. No browser DB/provider use, backend authority change, active V2, Deep Analysis, frozen core/deps/push/tag/release/merge/rebase. Handoff, independent review, P0/P1 repair, re-review; stop APPROVE or PO blocker.

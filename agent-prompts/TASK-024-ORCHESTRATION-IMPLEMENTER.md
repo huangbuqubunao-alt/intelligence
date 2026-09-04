@@ -1,0 +1,3 @@
+# TASK-024 Implementer Packet
+
+From approved TASK-023, create `codex/task-024-v1-orchestration` and implement only `tasks/TASK-024-v1-processing-orchestration.md`. TDD shared trigger-to-service pipeline before mutation. Reuse ProductOrchestrationService/runtime/jobs/automation records; prove manual, scheduled and override paths share policy/priority/budget/checkpoint semantics. Attack duplicate claims, partial resume, waiting model/budget, dispatch crash and AMBIGUOUS; never redispatch. No schema, direct scheduler DB/provider/YouTube path, new provider, credentials, Deep Analysis, Weekly/V2/later work, deps/push/tag/release/merge/rebase. Handoff, independent adversarial review, fix P0/P1, re-review; stop APPROVE or PO blocker.

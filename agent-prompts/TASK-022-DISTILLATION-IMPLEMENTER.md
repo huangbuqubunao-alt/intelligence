@@ -1,0 +1,3 @@
+# TASK-022 Implementer Packet
+
+From approved TASK-021, create `codex/task-022-personalized-distillation` and implement only `tasks/TASK-022-personalized-video-distillation.md`. Begin TDD with deterministic fake-model fixtures; build minimal application-service path/m009 ledger. Prove Evidence-bound claims, actual model identity, reliable usage-or-UNKNOWN, budget/model pause, completed-step reuse and no Deep Analysis dependency. Attack hallucination, missing evidence, forged cost, duplicates and AMBIGUOUS; no real calls. Preserve all TASK-016 frozen authority, credentials/dispatch, no provider qualification/V2/later task work/dependencies/push/tag/release/merge/rebase. Handoff, independent trust/cost review, repair P0/P1, re-review; stop only APPROVE or PO blocker.
