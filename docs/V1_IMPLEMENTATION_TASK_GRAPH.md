@@ -84,4 +84,4 @@ No task activates or presents Early Signal, automatic Investigation, Evidence Ex
 | L, M | 024 owns all triggers through the application service; manual override affects filtering only, while dispatch/AMBIGUOUS is untouched. |
 | P | 021 modifies existing Source/Automation data compatibly; 024 delegates to the existing bounded scheduler/runtime rather than replacing it. |
 
-Result after correction: **P0 = 0; P1 = 0; P2 = 0 for task-graph scope.** No Product Owner decision is currently required.
+Result after correction: **P0 = 0; P1 = 0; P2 = 0 for task-graph scope.** The TASK-018A Product Owner amendment is applied; no further Product Owner decision is currently required.

@@ -1,6 +1,6 @@
 # TASK-018A — Persisted Claim Classification Amendment
 
-- Status: `IN_PROGRESS`; Product Owner amendment to approved TASK-018.
+- Status: `APPROVE`; Product Owner amendment to approved TASK-018.
 - START_ANCHOR: `7d89f5965a0c87d599e48ba72b887b3322ef4c17`. Dependency: approved TASK-018. Merge prerequisite: independent persistence review APPROVE.
 
 ## Authority and scope
@@ -32,3 +32,12 @@ discovery. Preserve TASK-018, Source/Automation, and scoring regressions.
 Update the task graph to shift future migration ownership: 020→m008,
 021→m009, 022→m010, 023→m011, and 025→m012. No Product Spec semantic change or
 V2 expansion is authorized.
+
+## Closeout
+
+The finite classification prerequisite is now durable at m007. TASK-019 may
+later consume only non-`UNCLASSIFIED` revisions from this correction's approved
+anchor; it is not implemented here. Adversarial review and re-review found
+`P0 = 0`, `P1 = 0`, and `P2 = 0`. TASK-018 and m006 remain unchanged; no
+Product Spec semantics, V2 scope, scoring authority, provider/credential
+contract, Note/Weekly authority, or Deep Analysis status changed.
