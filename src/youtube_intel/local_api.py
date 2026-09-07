@@ -33,7 +33,6 @@ from youtube_intel.source_policy import (
     EffectiveSourcePolicy,
     SourcePolicyApplicationService,
 )
-from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
@@ -55,6 +54,7 @@ from youtube_intel.state import (
     TopicMembershipRecord,
     VideoRecord,
 )
+from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
 
 
 class ApiError(Exception):

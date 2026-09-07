@@ -37,7 +37,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 10
+    assert repository.initialize(now=NOW).version == 11
     return repository
 
 
@@ -100,11 +100,11 @@ def _app(repository: SQLiteStateRepository) -> LocalApiApplication:
     )
 
 
-def test_fresh_database_reaches_m010_and_does_not_create_m011(tmp_path: Path) -> None:
+def test_fresh_database_reaches_m011_and_does_not_create_m012(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 10
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
         migrations = tuple(
             row["name"]
             for row in connection.execute(
@@ -113,8 +113,8 @@ def test_fresh_database_reaches_m010_and_does_not_create_m011(tmp_path: Path) ->
         )
     finally:
         connection.close()
-    assert migrations[-1] == "010_add_personalized_distillation.sql"
-    assert not any(name.startswith("011_") for name in migrations)
+    assert migrations[-1] == "011_add_topic_timeline.sql"
+    assert not any(name.startswith("012_") for name in migrations)
 
 
 def test_v008_upgrade_preserves_source_automation_and_preference_data(
@@ -146,7 +146,7 @@ def test_v008_upgrade_preserves_source_automation_and_preference_data(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 10
+    assert upgraded.initialize(now=NOW).version == 11
     assert upgraded.get_source_subscription(source_id) is not None
     assert len(upgraded.list_automation_schedules()) == 1
     assert len(upgraded.list_preferences()) == 1

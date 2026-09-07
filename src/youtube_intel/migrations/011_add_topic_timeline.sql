@@ -117,11 +117,68 @@ END;
 CREATE TABLE topic_timeline_events (
     event_id TEXT PRIMARY KEY CHECK (length(trim(event_id)) > 0 AND length(event_id) <= 512),
     topic_id TEXT NOT NULL REFERENCES topics(topic_id) ON DELETE RESTRICT,
+    primary_membership_id TEXT NOT NULL REFERENCES topic_memberships(membership_id) ON DELETE RESTRICT,
     event_kind TEXT NOT NULL CHECK (event_kind IN ('NEW_INFORMATION', 'NEW_EVIDENCE', 'CONTRADICTION')),
     state TEXT NOT NULL CHECK (state IN ('UNRESOLVED', 'CONSENSUS', 'DISAGREEMENT', 'DEGRADED')),
     created_at TEXT NOT NULL
 );
 CREATE INDEX idx_topic_timeline_events_topic ON topic_timeline_events(topic_id, created_at, event_id);
+
+CREATE TRIGGER topic_timeline_event_primary_dependency_must_belong_to_topic
+BEFORE INSERT ON topic_timeline_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM topic_memberships
+    WHERE membership_id = NEW.primary_membership_id AND topic_id = NEW.topic_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'topic timeline event requires an owned membership dependency');
+END;
+
+CREATE TRIGGER topic_timeline_event_kind_must_match_primary_membership
+BEFORE INSERT ON topic_timeline_events
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM topic_memberships
+    WHERE membership_id = NEW.primary_membership_id
+      AND topic_id = NEW.topic_id
+      AND (
+        (NEW.event_kind = 'NEW_INFORMATION' AND association_kind = 'NEW_INFORMATION')
+        OR (NEW.event_kind = 'NEW_EVIDENCE' AND association_kind = 'NEW_EVIDENCE')
+        OR (NEW.event_kind = 'CONTRADICTION' AND association_kind = 'CONTRADICTORY_INFORMATION')
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'topic timeline event kind must match its primary membership');
+END;
+
+CREATE TRIGGER topic_timeline_event_state_must_be_supported
+BEFORE INSERT ON topic_timeline_events
+WHEN (
+    NEW.state = 'DISAGREEMENT'
+    AND NOT EXISTS (
+        SELECT 1 FROM topic_memberships
+        WHERE topic_id = NEW.topic_id
+          AND association_kind = 'CONTRADICTORY_INFORMATION'
+    )
+) OR (
+    NEW.state = 'CONSENSUS'
+    AND (
+        (SELECT COUNT(*) FROM topic_memberships WHERE topic_id = NEW.topic_id) < 2
+        OR NOT EXISTS (
+            SELECT 1
+            FROM topic_memberships AS membership
+            JOIN topic_membership_evidence AS membership_evidence
+              ON membership_evidence.membership_id = membership.membership_id
+            JOIN evidence ON evidence.evidence_id = membership_evidence.evidence_id
+            WHERE membership.topic_id = NEW.topic_id
+              AND membership.association_kind = 'NEW_EVIDENCE'
+              AND evidence.role = 'INDEPENDENT_VERIFICATION'
+        )
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'topic timeline event state is not supported by its memberships');
+END;
 
 CREATE TRIGGER topic_timeline_event_immutable_update
 BEFORE UPDATE ON topic_timeline_events

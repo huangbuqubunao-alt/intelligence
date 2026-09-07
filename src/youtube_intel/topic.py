@@ -29,7 +29,6 @@ from youtube_intel.state import (
     TopicMembershipWrite,
     TopicRecord,
     TopicRelationKind,
-    TopicRelationRecord,
     TopicTimelineEventKind,
     TopicTimelineEventRecord,
     TopicTimelineEventWrite,
@@ -330,7 +329,10 @@ class TopicApplicationService:
         ):
             current_state = TopicCurrentState.DEGRADED
         else:
-            current_state = current_event.state
+            # An event is immutable audit history, not an independent truth
+            # source.  Recompute the live state solely from reader-validated
+            # memberships so a raw event row cannot mint consensus/disagreement.
+            current_state = self._state_for_memberships(memberships)
         independence = (
             "KNOWN_INDEPENDENT"
             if any(

@@ -33,7 +33,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
     version = repository.initialize(now=NOW)
-    assert version.version == 10
+    assert version.version == 11
     return repository
 
 

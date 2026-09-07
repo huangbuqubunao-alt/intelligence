@@ -5886,8 +5886,13 @@ class SQLiteStateRepository:
     ) -> TopicTimelineEventRecord:
         event_id = str(row["event_id"])
         members = connection.execute(
+            "SELECT membership_id FROM ("
             "SELECT membership_id FROM topic_timeline_event_memberships "
-            "WHERE event_id = :event_id ORDER BY membership_id ASC",
+            "WHERE event_id = :event_id "
+            "UNION "
+            "SELECT primary_membership_id AS membership_id FROM topic_timeline_events "
+            "WHERE event_id = :event_id"
+            ") ORDER BY membership_id ASC",
             {"event_id": event_id},
         ).fetchall()
         return TopicTimelineEventRecord(
@@ -6172,11 +6177,12 @@ class SQLiteStateRepository:
                 if existing is not None:
                     return self._topic_timeline_event_from_row(connection, existing)
                 connection.execute(
-                    "INSERT INTO topic_timeline_events (event_id, topic_id, event_kind, state, created_at) "
-                    "VALUES (:event_id, :topic_id, :event_kind, :state, :now)",
+                    "INSERT INTO topic_timeline_events (event_id, topic_id, primary_membership_id, event_kind, state, created_at) "
+                    "VALUES (:event_id, :topic_id, :primary_membership_id, :event_kind, :state, :now)",
                     {
                         "event_id": event.event_id,
                         "topic_id": event.topic_id,
+                        "primary_membership_id": membership_ids[0],
                         "event_kind": event.event_kind.value,
                         "state": event.state.value,
                         "now": format_utc_datetime(now),

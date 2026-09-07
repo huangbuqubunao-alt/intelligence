@@ -19,11 +19,15 @@ from youtube_intel.state import (
     EvidenceLineageKind,
     EvidenceRole,
     EvidenceWrite,
+    IntegrityConflict,
     IntelligenceClaimKind,
     IntelligenceInterpretationKind,
     IntelligenceRevisionWrite,
     IntelligenceState,
     SQLiteStateRepository,
+    TopicMembershipWrite,
+    TopicTimelineEventKind,
+    TopicTimelineEventWrite,
     build_evidence_id,
 )
 from youtube_intel.topic import (
@@ -383,7 +387,7 @@ def test_new_evidence_can_form_bounded_consensus_but_source_count_cannot(tmp_pat
     assert unresolved.current_state is TopicCurrentState.UNRESOLVED
     assert still_unresolved.current_state is TopicCurrentState.UNRESOLVED
     assert consensus.current_state is TopicCurrentState.CONSENSUS
-    assert consensus.independence is "KNOWN_INDEPENDENT"
+    assert consensus.independence == "KNOWN_INDEPENDENT"
     assert len(consensus.timeline) == 2
 
 
@@ -529,7 +533,7 @@ def test_merge_and_split_copy_associations_without_rewriting_source_identity(tmp
     service = _topic_service(repository)
     source = service.create_topic(command_id="source", name="Source")
     target = service.create_topic(command_id="target", name="Target")
-    membership = service.associate_intelligence(
+    service.associate_intelligence(
         topic_id=source.topic_id,
         intelligence_id="intelligence-merge",
         kind=TopicAssociationKind.NEW_INFORMATION,
@@ -588,3 +592,241 @@ def test_local_api_accepts_only_controlled_topic_commands_not_raw_topic_truth(tm
         )
     assert raw_revision.value.code == "VALIDATION_ERROR"
     assert raw_summary.value.code == "VALIDATION_ERROR"
+
+
+def test_raw_invalidated_membership_cannot_become_current_topic_truth(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    evidence_id = _evidence(repository, "video-raw-invalid")
+    revision_id = _admit(
+        repository,
+        "intelligence-raw-invalid",
+        evidence_id,
+        state=IntelligenceState.INVALIDATED,
+    )
+    service = _topic_service(repository)
+    topic = service.create_topic(command_id="raw-invalid", name="Raw invalid")
+
+    with pytest.raises(Exception, match="legally readable"):
+        service.associate_intelligence(
+            topic_id=topic.topic_id,
+            intelligence_id="intelligence-raw-invalid",
+            kind=TopicAssociationKind.NEW_INFORMATION,
+        )
+    raw_membership = repository.create_topic_membership(
+        TopicMembershipWrite(
+            membership_id="raw-membership",
+            topic_id=topic.topic_id,
+            intelligence_id="intelligence-raw-invalid",
+            revision_id=revision_id,
+            association_kind=TopicAssociationKind.NEW_INFORMATION,
+            source_claim_kind=IntelligenceClaimKind.FACT,
+            source_state=IntelligenceState.INVALIDATED,
+            evidence_ids=(evidence_id,),
+        ),
+        now=NOW,
+    )
+    event = repository.create_topic_timeline_event(
+        TopicTimelineEventWrite(
+            event_id="raw-event",
+            topic_id=topic.topic_id,
+            event_kind=TopicTimelineEventKind.NEW_INFORMATION,
+            state=TopicCurrentState.UNRESOLVED,
+            membership_ids=(raw_membership.membership_id,),
+        ),
+        now=NOW,
+    )
+    repository.set_topic_current_event(topic_id=topic.topic_id, event_id=event.event_id, now=NOW)
+
+    read = service.read_topic(topic.topic_id)
+
+    assert read.current_state is TopicCurrentState.DEGRADED
+    assert read.contributions[0].available is False
+
+
+def test_foreign_or_mismatched_revision_cannot_enter_topic_membership(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    evidence_id = _evidence(repository, "video-owned")
+    revision_id = _admit(repository, "intelligence-owned", evidence_id)
+    topic = _topic_service(repository).create_topic(command_id="foreign", name="Foreign")
+
+    with pytest.raises(IntegrityConflict):
+        repository.create_topic_membership(
+            TopicMembershipWrite(
+                membership_id="foreign-membership",
+                topic_id=topic.topic_id,
+                intelligence_id="foreign-intelligence",
+                revision_id=revision_id,
+                association_kind=TopicAssociationKind.NEW_INFORMATION,
+                source_claim_kind=IntelligenceClaimKind.FACT,
+                source_state=IntelligenceState.CONFIRMED,
+                evidence_ids=(evidence_id,),
+            ),
+            now=NOW,
+        )
+
+
+def test_timeline_event_without_a_meaningful_provenance_dependency_is_rejected(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    topic = _topic_service(repository).create_topic(command_id="empty-event", name="No source")
+    connection = repository._connect()
+    try:
+        with pytest.raises(Exception, match="topic timeline event"):
+            connection.execute(
+                "INSERT INTO topic_timeline_events (event_id, topic_id, primary_membership_id, event_kind, state, created_at) "
+                "VALUES ('orphan-event', ?, 'orphan-membership', 'NEW_INFORMATION', 'UNRESOLVED', '2026-09-07T09:00:00.000000Z')",
+                (topic.topic_id,),
+            )
+    finally:
+        connection.close()
+
+
+def test_timeline_projection_includes_its_primary_membership_provenance(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    evidence_id = _evidence(repository, "video-primary-provenance")
+    revision_id = _admit(repository, "intelligence-primary-provenance", evidence_id)
+    service = _topic_service(repository)
+    topic = service.create_topic(command_id="primary-provenance", name="Primary provenance")
+    membership = repository.create_topic_membership(
+        TopicMembershipWrite(
+            membership_id="primary-provenance-membership",
+            topic_id=topic.topic_id,
+            intelligence_id="intelligence-primary-provenance",
+            revision_id=revision_id,
+            association_kind=TopicAssociationKind.NEW_INFORMATION,
+            source_claim_kind=IntelligenceClaimKind.FACT,
+            source_state=IntelligenceState.CONFIRMED,
+            evidence_ids=(evidence_id,),
+        ),
+        now=NOW,
+    )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "INSERT INTO topic_timeline_events (event_id, topic_id, primary_membership_id, event_kind, state, created_at) "
+            "VALUES ('primary-provenance-event', ?, ?, 'NEW_INFORMATION', 'UNRESOLVED', '2026-09-07T09:00:00.000000Z')",
+            (topic.topic_id, membership.membership_id),
+        )
+    finally:
+        connection.close()
+
+    event = service.read_topic(topic.topic_id).timeline[0]
+
+    assert event.dependency_revision_ids == (revision_id,)
+    assert event.dependency_evidence_ids == (evidence_id,)
+
+
+def test_later_active_intelligence_revision_does_not_silently_overwrite_topic_history(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    evidence_id = _evidence(repository, "video-updated")
+    original_revision = _admit(repository, "intelligence-updated", evidence_id)
+    service = _topic_service(repository)
+    topic = service.create_topic(command_id="updated", name="Updated")
+    service.associate_intelligence(
+        topic_id=topic.topic_id,
+        intelligence_id="intelligence-updated",
+        kind=TopicAssociationKind.NEW_INFORMATION,
+    )
+    repository.append_intelligence_revision(
+        intelligence_id="intelligence-updated",
+        revision=IntelligenceRevisionWrite(
+            revision_id="intelligence-updated:r3",
+            interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=IntelligenceClaimKind.FACT,
+            content_hash="e" * 64,
+            state=IntelligenceState.UPDATED,
+            reason="later trusted update requires explicit Topic association",
+            evidence_ids=(evidence_id,),
+        ),
+        now=NOW,
+    )
+    repository.create_dependency_edge(
+        DependencyEdgeWrite(
+            edge_id="support:intelligence-updated:r3",
+            dependent_revision_id="intelligence-updated:r3",
+            relation=DependencyRelation.EVIDENCE_SUPPORT,
+            input_evidence_id=evidence_id,
+            input_revision_id=None,
+        ),
+        now=NOW,
+    )
+
+    read = service.read_topic(topic.topic_id)
+
+    assert read.current_state is TopicCurrentState.DEGRADED
+    assert read.timeline[0].dependency_revision_ids == (original_revision,)
+    assert read.contributions[0].revision_id == original_revision
+
+
+def test_pin_and_low_value_duplicate_do_not_change_topic_truth_or_timeline(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    first_evidence = _evidence(repository, "video-pin-one")
+    duplicate_evidence = _evidence(repository, "video-pin-two")
+    _admit(repository, "intelligence-pin-one", first_evidence)
+    _admit(repository, "intelligence-pin-two", duplicate_evidence)
+    service = _topic_service(repository)
+    topic = service.create_topic(command_id="pin-truth", name="Pinned")
+    service.associate_intelligence(
+        topic_id=topic.topic_id,
+        intelligence_id="intelligence-pin-one",
+        kind=TopicAssociationKind.NEW_INFORMATION,
+    )
+    before = service.read_topic(topic.topic_id)
+    service.set_pinned(topic_id=topic.topic_id, pinned=True)
+    service.associate_intelligence(
+        topic_id=topic.topic_id,
+        intelligence_id="intelligence-pin-two",
+        kind=TopicAssociationKind.LOW_VALUE_DUPLICATE,
+    )
+    after = service.read_topic(topic.topic_id)
+
+    assert after.pinned is True
+    assert after.current_event_id == before.current_event_id
+    assert after.current_state is before.current_state
+    assert tuple(event.event_id for event in after.timeline) == tuple(
+        event.event_id for event in before.timeline
+    )
+    assert len(after.contributions) == 2
+
+
+def test_raw_timeline_state_cannot_mint_consensus_without_trusted_aggregation(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    evidence_id = _evidence(repository, "video-raw-state")
+    revision_id = _admit(repository, "intelligence-raw-state", evidence_id)
+    service = _topic_service(repository)
+    topic = service.create_topic(command_id="raw-state", name="Raw state")
+    membership = repository.create_topic_membership(
+        TopicMembershipWrite(
+            membership_id="raw-state-membership",
+            topic_id=topic.topic_id,
+            intelligence_id="intelligence-raw-state",
+            revision_id=revision_id,
+            association_kind=TopicAssociationKind.NEW_INFORMATION,
+            source_claim_kind=IntelligenceClaimKind.FACT,
+            source_state=IntelligenceState.CONFIRMED,
+            evidence_ids=(evidence_id,),
+        ),
+        now=NOW,
+    )
+    with pytest.raises(IntegrityConflict):
+        repository.create_topic_timeline_event(
+            TopicTimelineEventWrite(
+                event_id="raw-state-event",
+                topic_id=topic.topic_id,
+                event_kind=TopicTimelineEventKind.NEW_INFORMATION,
+                state=TopicCurrentState.CONSENSUS,
+                membership_ids=(membership.membership_id,),
+            ),
+            now=NOW,
+        )
+
+    read = service.read_topic(topic.topic_id)
+    assert read.current_state is TopicCurrentState.UNRESOLVED
+    assert read.timeline == ()

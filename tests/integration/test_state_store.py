@@ -108,6 +108,12 @@ EXPECTED_TABLES = {
     "source_policy_current",
     "source_policy_revisions",
     "source_video_filter_decisions",
+    "topic_memberships",
+    "topic_membership_evidence",
+    "topic_relations",
+    "topic_timeline_event_memberships",
+    "topic_timeline_events",
+    "topics",
     "videos",
 }
 EXPECTED_COLUMNS = {
@@ -710,12 +716,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "010_add_personalized_distillation.sql")
+        .joinpath("migrations", "011_add_topic_timeline.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 10
-    assert first.name == "010_add_personalized_distillation.sql"
+    assert first.version == 11
+    assert first.name == "011_add_topic_timeline.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -730,7 +736,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 10
+    assert migration_count == 11
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -804,6 +810,10 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_manual_analyze_overrides_source_video",
         "idx_source_policy_revisions_scope_created",
         "idx_source_video_filter_decisions_source_video",
+        "idx_topic_memberships_revision",
+        "idx_topic_memberships_topic",
+        "idx_topic_timeline_events_topic",
+        "idx_topics_pinned_updated",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

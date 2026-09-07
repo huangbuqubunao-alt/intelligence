@@ -106,7 +106,7 @@ class _RaisingTransport(_FakeTransport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 10
+    assert repository.initialize(now=NOW).version == 11
     return repository
 
 
@@ -255,12 +255,12 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
     )
 
 
-def test_m010_fresh_database_reaches_exactly_v010_and_m011_is_absent(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v011_and_m012_is_absent(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 10
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -274,16 +274,16 @@ def test_m010_fresh_database_reaches_exactly_v010_and_m011_is_absent(tmp_path: P
     finally:
         connection.close()
 
-    assert migrations[-1] == "010_add_personalized_distillation.sql"
-    assert not any(name.startswith("011_") for name in migrations)
-    assert not any("topic" in name.lower() for name in tables)
+    assert migrations[-1] == "011_add_topic_timeline.sql"
+    assert not any(name.startswith("012_") for name in migrations)
+    assert "topics" in tables
 
 
 def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     path = tmp_path / "state.sqlite3"
     legacy = SQLiteStateRepository(path)
     migrations = legacy._load_migrations()
-    monkeypatch.setattr(legacy, "_load_migrations", lambda: migrations[:-1])
+    monkeypatch.setattr(legacy, "_load_migrations", lambda: migrations[:9])
     assert legacy.initialize(now=NOW).version == 9
     source_id, _ = _source_and_video(legacy)
     preference = PreferenceApplicationService(legacy, now=lambda: NOW).set_explicit_long_term(
@@ -296,7 +296,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 10
+    assert upgraded.initialize(now=NOW).version == 11
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
