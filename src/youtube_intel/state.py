@@ -261,6 +261,38 @@ class FilterReason(str, Enum):
     MANUAL_ANALYZE = "MANUAL_ANALYZE"
 
 
+class TopicLifecycle(str, Enum):
+    ACTIVE = "ACTIVE"
+    MERGED = "MERGED"
+
+
+class TopicAssociationKind(str, Enum):
+    """Finite V1 cross-video information-gain classification."""
+
+    NEW_INFORMATION = "NEW_INFORMATION"
+    SUPPORTING_REPETITION = "SUPPORTING_REPETITION"
+    NEW_EVIDENCE = "NEW_EVIDENCE"
+    CONTRADICTORY_INFORMATION = "CONTRADICTORY_INFORMATION"
+    LOW_VALUE_DUPLICATE = "LOW_VALUE_DUPLICATE"
+
+
+class TopicCurrentState(str, Enum):
+    UNRESOLVED = "UNRESOLVED"
+    CONSENSUS = "CONSENSUS"
+    DISAGREEMENT = "DISAGREEMENT"
+    DEGRADED = "DEGRADED"
+
+
+class TopicTimelineEventKind(str, Enum):
+    NEW_INFORMATION = "NEW_INFORMATION"
+    NEW_EVIDENCE = "NEW_EVIDENCE"
+    CONTRADICTION = "CONTRADICTION"
+
+
+class TopicRelationKind(str, Enum):
+    RELATED = "RELATED"
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceWrite:
     evidence_id: str
@@ -484,6 +516,71 @@ class DependencyEdgeRecord:
     relation: DependencyRelation
     input_evidence_id: str | None
     input_revision_id: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TopicRecord:
+    topic_id: str
+    name: str
+    pinned: bool
+    lifecycle: TopicLifecycle
+    merged_into_topic_id: str | None
+    current_event_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TopicMembershipWrite:
+    membership_id: str
+    topic_id: str
+    intelligence_id: str
+    revision_id: str
+    association_kind: TopicAssociationKind
+    source_claim_kind: IntelligenceClaimKind
+    source_state: IntelligenceState
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TopicMembershipRecord:
+    membership_id: str
+    topic_id: str
+    intelligence_id: str
+    revision_id: str
+    association_kind: TopicAssociationKind
+    source_claim_kind: IntelligenceClaimKind
+    source_state: IntelligenceState
+    evidence_ids: tuple[str, ...]
+    created_at: datetime
+    effective_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TopicTimelineEventWrite:
+    event_id: str
+    topic_id: str
+    event_kind: TopicTimelineEventKind
+    state: TopicCurrentState
+    membership_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TopicTimelineEventRecord:
+    event_id: str
+    topic_id: str
+    event_kind: TopicTimelineEventKind
+    state: TopicCurrentState
+    membership_ids: tuple[str, ...]
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TopicRelationRecord:
+    topic_id: str
+    related_topic_id: str
+    relation: TopicRelationKind
     created_at: datetime
 
 
@@ -1170,6 +1267,7 @@ class SQLiteStateRepository:
             "008_add_preference_feedback.sql",
             "009_add_source_policy_filtering.sql",
             "010_add_personalized_distillation.sql",
+            "011_add_topic_timeline.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -5733,6 +5831,477 @@ class SQLiteStateRepository:
                 return self._dependency_edge_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("dependency edge violates the finite provenance contract") from error
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _topic_from_row(row: sqlite3.Row) -> TopicRecord:
+        return TopicRecord(
+            topic_id=str(row["topic_id"]),
+            name=str(row["name"]),
+            pinned=bool(row["pinned"]),
+            lifecycle=TopicLifecycle(str(row["lifecycle"])),
+            merged_into_topic_id=(
+                None if row["merged_into_topic_id"] is None else str(row["merged_into_topic_id"])
+            ),
+            current_event_id=(
+                None if row["current_event_id"] is None else str(row["current_event_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _topic_membership_evidence_ids(
+        connection: sqlite3.Connection, membership_id: str
+    ) -> tuple[str, ...]:
+        rows = connection.execute(
+            "SELECT evidence_id FROM topic_membership_evidence "
+            "WHERE membership_id = :membership_id ORDER BY evidence_id ASC",
+            {"membership_id": membership_id},
+        ).fetchall()
+        return tuple(str(item["evidence_id"]) for item in rows)
+
+    @classmethod
+    def _topic_membership_from_row(
+        cls, connection: sqlite3.Connection, row: sqlite3.Row
+    ) -> TopicMembershipRecord:
+        membership_id = str(row["membership_id"])
+        return TopicMembershipRecord(
+            membership_id=membership_id,
+            topic_id=str(row["topic_id"]),
+            intelligence_id=str(row["intelligence_id"]),
+            revision_id=str(row["revision_id"]),
+            association_kind=TopicAssociationKind(str(row["association_kind"])),
+            source_claim_kind=IntelligenceClaimKind(str(row["source_claim_kind"])),
+            source_state=IntelligenceState(str(row["source_state"])),
+            evidence_ids=cls._topic_membership_evidence_ids(connection, membership_id),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            effective_at=_parse_utc_datetime(str(row["effective_at"])),
+        )
+
+    @classmethod
+    def _topic_timeline_event_from_row(
+        cls, connection: sqlite3.Connection, row: sqlite3.Row
+    ) -> TopicTimelineEventRecord:
+        event_id = str(row["event_id"])
+        members = connection.execute(
+            "SELECT membership_id FROM topic_timeline_event_memberships "
+            "WHERE event_id = :event_id ORDER BY membership_id ASC",
+            {"event_id": event_id},
+        ).fetchall()
+        return TopicTimelineEventRecord(
+            event_id=event_id,
+            topic_id=str(row["topic_id"]),
+            event_kind=TopicTimelineEventKind(str(row["event_kind"])),
+            state=TopicCurrentState(str(row["state"])),
+            membership_ids=tuple(str(item["membership_id"]) for item in members),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _topic_relation_from_row(row: sqlite3.Row) -> TopicRelationRecord:
+        return TopicRelationRecord(
+            topic_id=str(row["topic_id"]),
+            related_topic_id=str(row["related_topic_id"]),
+            relation=TopicRelationKind(str(row["relation"])),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _topic_identity(value: str, *, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512:
+            raise ValueError(f"{field_name} is invalid")
+        return value
+
+    @staticmethod
+    def _topic_name(value: str) -> str:
+        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 240:
+            raise ValueError("topic name is invalid")
+        return value
+
+    def create_topic(self, *, topic_id: str, name: str, now: datetime) -> TopicRecord:
+        topic_id = self._topic_identity(topic_id, field_name="topic identity")
+        name = self._topic_name(name)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                ).fetchone()
+                if existing is not None:
+                    return self._topic_from_row(existing)
+                connection.execute(
+                    "INSERT INTO topics (topic_id, name, pinned, lifecycle, merged_into_topic_id, current_event_id, created_at, updated_at) "
+                    "VALUES (:topic_id, :name, 0, 'ACTIVE', NULL, NULL, :now, :now)",
+                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now)},
+                )
+                row = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic was not saved")
+                return self._topic_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic violates its identity contract") from error
+        finally:
+            connection.close()
+
+    def get_topic(self, topic_id: str) -> TopicRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+            ).fetchone()
+            return None if row is None else self._topic_from_row(row)
+        finally:
+            connection.close()
+
+    def list_topics(self) -> tuple[TopicRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topics ORDER BY pinned DESC, updated_at DESC, topic_id ASC"
+            ).fetchall()
+            return tuple(self._topic_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def rename_topic(self, *, topic_id: str, name: str, now: datetime) -> TopicRecord:
+        name = self._topic_name(name)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE topics SET name = :name, updated_at = :now WHERE topic_id = :topic_id",
+                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now)},
+                ).rowcount
+                if changed != 1:
+                    raise StateStoreError("topic does not exist")
+                row = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic was not saved")
+                return self._topic_from_row(row)
+        finally:
+            connection.close()
+
+    def set_topic_pinned(self, *, topic_id: str, pinned: bool, now: datetime) -> TopicRecord:
+        if not isinstance(pinned, bool):
+            raise ValueError("topic pin state is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE topics SET pinned = :pinned, updated_at = :now WHERE topic_id = :topic_id",
+                    {"topic_id": topic_id, "pinned": int(pinned), "now": format_utc_datetime(now)},
+                ).rowcount
+                if changed != 1:
+                    raise StateStoreError("topic does not exist")
+                row = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic was not saved")
+                return self._topic_from_row(row)
+        finally:
+            connection.close()
+
+    def mark_topic_merged(
+        self, *, source_topic_id: str, target_topic_id: str, now: datetime
+    ) -> TopicRecord:
+        if source_topic_id == target_topic_id:
+            raise ValueError("topic merge requires different topics")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE topics SET lifecycle = 'MERGED', merged_into_topic_id = :target_topic_id, updated_at = :now "
+                    "WHERE topic_id = :source_topic_id AND lifecycle = 'ACTIVE'",
+                    {
+                        "source_topic_id": source_topic_id,
+                        "target_topic_id": target_topic_id,
+                        "now": format_utc_datetime(now),
+                    },
+                ).rowcount
+                if changed != 1:
+                    raise StateStoreError("active source topic does not exist")
+                row = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :source_topic_id",
+                    {"source_topic_id": source_topic_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic was not saved")
+                return self._topic_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic merge target is invalid") from error
+        finally:
+            connection.close()
+
+    def get_topic_membership(self, membership_id: str) -> TopicMembershipRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM topic_memberships WHERE membership_id = :membership_id",
+                {"membership_id": membership_id},
+            ).fetchone()
+            return None if row is None else self._topic_membership_from_row(connection, row)
+        finally:
+            connection.close()
+
+    def list_topic_memberships(self, topic_id: str) -> tuple[TopicMembershipRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topic_memberships WHERE topic_id = :topic_id "
+                "ORDER BY created_at ASC, membership_id ASC",
+                {"topic_id": topic_id},
+            ).fetchall()
+            return tuple(self._topic_membership_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_topic_memberships_for_revision(
+        self, intelligence_id: str, revision_id: str
+    ) -> tuple[TopicMembershipRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topic_memberships WHERE intelligence_id = :intelligence_id "
+                "AND revision_id = :revision_id ORDER BY topic_id ASC, membership_id ASC",
+                {"intelligence_id": intelligence_id, "revision_id": revision_id},
+            ).fetchall()
+            return tuple(self._topic_membership_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def create_topic_membership(
+        self, membership: TopicMembershipWrite, *, now: datetime
+    ) -> TopicMembershipRecord:
+        if (
+            not isinstance(membership.association_kind, TopicAssociationKind)
+            or not isinstance(membership.source_claim_kind, IntelligenceClaimKind)
+            or membership.source_claim_kind is IntelligenceClaimKind.UNCLASSIFIED
+            or not isinstance(membership.source_state, IntelligenceState)
+        ):
+            raise ValueError("topic membership semantics are invalid")
+        for field_name, value in (
+            ("membership identity", membership.membership_id),
+            ("topic identity", membership.topic_id),
+            ("intelligence identity", membership.intelligence_id),
+            ("revision identity", membership.revision_id),
+        ):
+            self._topic_identity(value, field_name=field_name)
+        evidence_ids = tuple(sorted(membership.evidence_ids))
+        if not evidence_ids or len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("topic membership requires unique evidence identities")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM topic_memberships WHERE topic_id = :topic_id "
+                    "AND intelligence_id = :intelligence_id AND revision_id = :revision_id",
+                    {
+                        "topic_id": membership.topic_id,
+                        "intelligence_id": membership.intelligence_id,
+                        "revision_id": membership.revision_id,
+                    },
+                ).fetchone()
+                if existing is not None:
+                    existing_record = self._topic_membership_from_row(connection, existing)
+                    if (
+                        existing_record.association_kind is not membership.association_kind
+                        or existing_record.source_claim_kind is not membership.source_claim_kind
+                        or existing_record.source_state is not membership.source_state
+                        or existing_record.evidence_ids != evidence_ids
+                    ):
+                        raise IntegrityConflict("topic membership replay conflicts with immutable provenance")
+                    return existing_record
+                connection.execute(
+                    "INSERT INTO topic_memberships (membership_id, topic_id, intelligence_id, revision_id, association_kind, source_claim_kind, source_state, created_at, effective_at) "
+                    "VALUES (:membership_id, :topic_id, :intelligence_id, :revision_id, :association_kind, :source_claim_kind, :source_state, :now, :now)",
+                    {
+                        "membership_id": membership.membership_id,
+                        "topic_id": membership.topic_id,
+                        "intelligence_id": membership.intelligence_id,
+                        "revision_id": membership.revision_id,
+                        "association_kind": membership.association_kind.value,
+                        "source_claim_kind": membership.source_claim_kind.value,
+                        "source_state": membership.source_state.value,
+                        "now": format_utc_datetime(now),
+                    },
+                )
+                for evidence_id in evidence_ids:
+                    connection.execute(
+                        "INSERT INTO topic_membership_evidence (membership_id, evidence_id) "
+                        "VALUES (:membership_id, :evidence_id)",
+                        {"membership_id": membership.membership_id, "evidence_id": evidence_id},
+                    )
+                row = connection.execute(
+                    "SELECT * FROM topic_memberships WHERE membership_id = :membership_id",
+                    {"membership_id": membership.membership_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic membership was not saved")
+                return self._topic_membership_from_row(connection, row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic membership violates its provenance contract") from error
+        finally:
+            connection.close()
+
+    def create_topic_timeline_event(
+        self, event: TopicTimelineEventWrite, *, now: datetime
+    ) -> TopicTimelineEventRecord:
+        if not isinstance(event.event_kind, TopicTimelineEventKind) or not isinstance(
+            event.state, TopicCurrentState
+        ):
+            raise ValueError("topic timeline semantics are invalid")
+        self._topic_identity(event.event_id, field_name="topic event identity")
+        self._topic_identity(event.topic_id, field_name="topic identity")
+        membership_ids = tuple(sorted(event.membership_ids))
+        if not membership_ids or len(membership_ids) != len(set(membership_ids)):
+            raise ValueError("topic timeline event requires unique membership dependencies")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM topic_timeline_events WHERE event_id = :event_id",
+                    {"event_id": event.event_id},
+                ).fetchone()
+                if existing is not None:
+                    return self._topic_timeline_event_from_row(connection, existing)
+                connection.execute(
+                    "INSERT INTO topic_timeline_events (event_id, topic_id, event_kind, state, created_at) "
+                    "VALUES (:event_id, :topic_id, :event_kind, :state, :now)",
+                    {
+                        "event_id": event.event_id,
+                        "topic_id": event.topic_id,
+                        "event_kind": event.event_kind.value,
+                        "state": event.state.value,
+                        "now": format_utc_datetime(now),
+                    },
+                )
+                for membership_id in membership_ids:
+                    connection.execute(
+                        "INSERT INTO topic_timeline_event_memberships (event_id, membership_id) "
+                        "VALUES (:event_id, :membership_id)",
+                        {"event_id": event.event_id, "membership_id": membership_id},
+                    )
+                row = connection.execute(
+                    "SELECT * FROM topic_timeline_events WHERE event_id = :event_id",
+                    {"event_id": event.event_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic timeline event was not saved")
+                return self._topic_timeline_event_from_row(connection, row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic timeline event violates its provenance contract") from error
+        finally:
+            connection.close()
+
+    def set_topic_current_event(
+        self, *, topic_id: str, event_id: str, now: datetime
+    ) -> TopicRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE topics SET current_event_id = :event_id, updated_at = :now "
+                    "WHERE topic_id = :topic_id",
+                    {
+                        "topic_id": topic_id,
+                        "event_id": event_id,
+                        "now": format_utc_datetime(now),
+                    },
+                ).rowcount
+                if changed != 1:
+                    raise StateStoreError("topic does not exist")
+                row = connection.execute(
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("topic was not saved")
+                return self._topic_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic current state must cite a meaningful event") from error
+        finally:
+            connection.close()
+
+    def list_topic_timeline_events(self, topic_id: str) -> tuple[TopicTimelineEventRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topic_timeline_events WHERE topic_id = :topic_id "
+                "ORDER BY created_at ASC, event_id ASC",
+                {"topic_id": topic_id},
+            ).fetchall()
+            return tuple(self._topic_timeline_event_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def create_topic_relation(
+        self, *, topic_id: str, related_topic_id: str, now: datetime
+    ) -> TopicRelationRecord:
+        self._topic_identity(topic_id, field_name="topic identity")
+        self._topic_identity(related_topic_id, field_name="related topic identity")
+        if topic_id == related_topic_id:
+            raise ValueError("topic relation requires different topics")
+        first, second = sorted((topic_id, related_topic_id))
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM topic_relations WHERE topic_id = :topic_id "
+                    "AND related_topic_id = :related_topic_id",
+                    {"topic_id": first, "related_topic_id": second},
+                ).fetchone()
+                if existing is None:
+                    connection.execute(
+                        "INSERT INTO topic_relations (topic_id, related_topic_id, relation, created_at) "
+                        "VALUES (:topic_id, :related_topic_id, 'RELATED', :now)",
+                        {
+                            "topic_id": first,
+                            "related_topic_id": second,
+                            "now": format_utc_datetime(now),
+                        },
+                    )
+                    existing = connection.execute(
+                        "SELECT * FROM topic_relations WHERE topic_id = :topic_id "
+                        "AND related_topic_id = :related_topic_id",
+                        {"topic_id": first, "related_topic_id": second},
+                    ).fetchone()
+                if existing is None:
+                    raise StateStoreError("topic relation was not saved")
+                return self._topic_relation_from_row(existing)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("topic relation is invalid") from error
+        finally:
+            connection.close()
+
+    def list_topic_relations(self, topic_id: str) -> tuple[TopicRelationRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topic_relations WHERE topic_id = :topic_id OR related_topic_id = :topic_id "
+                "ORDER BY created_at ASC, topic_id ASC, related_topic_id ASC",
+                {"topic_id": topic_id},
+            ).fetchall()
+            result: list[TopicRelationRecord] = []
+            for row in rows:
+                record = self._topic_relation_from_row(row)
+                if record.related_topic_id == topic_id:
+                    result.append(
+                        TopicRelationRecord(
+                            topic_id=topic_id,
+                            related_topic_id=record.topic_id,
+                            relation=record.relation,
+                            created_at=record.created_at,
+                        )
+                    )
+                else:
+                    result.append(record)
+            return tuple(result)
         finally:
             connection.close()
 

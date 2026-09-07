@@ -33,6 +33,7 @@ from youtube_intel.source_policy import (
     EffectiveSourcePolicy,
     SourcePolicyApplicationService,
 )
+from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
@@ -50,6 +51,8 @@ from youtube_intel.state import (
     ReportRecord,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
+    TopicAssociationKind,
+    TopicMembershipRecord,
     VideoRecord,
 )
 
@@ -167,6 +170,69 @@ def _filter_decision_dto(decision: FilterDecisionRecord) -> dict[str, object]:
     }
 
 
+def _topic_association_dto(association: TopicMembershipRecord) -> dict[str, object]:
+    return {
+        "membership_id": association.membership_id,
+        "topic_id": association.topic_id,
+        "intelligence_id": association.intelligence_id,
+        "revision_id": association.revision_id,
+        "association_kind": association.association_kind.value,
+        "claim_kind": association.source_claim_kind.value,
+        "state": association.source_state.value,
+        "evidence_ids": list(association.evidence_ids),
+        "created_at": _timestamp(association.created_at),
+        "effective_at": _timestamp(association.effective_at),
+    }
+
+
+def _topic_relation_dto(relation: TopicRelation) -> dict[str, object]:
+    return {
+        "topic_id": relation.topic_id,
+        "related_topic_id": relation.related_topic_id,
+        "relation": relation.relation.value,
+        "causal": False,
+        "created_at": _timestamp(relation.created_at),
+    }
+
+
+def _topic_dto(topic: TopicRead) -> dict[str, object]:
+    return {
+        "topic_id": topic.topic_id,
+        "name": topic.name,
+        "pinned": topic.pinned,
+        "lifecycle": topic.lifecycle.value,
+        "merged_into_topic_id": topic.merged_into_topic_id,
+        "current_event_id": topic.current_event_id,
+        "current_state": topic.current_state.value,
+        "independence": topic.independence,
+        "contributions": [
+            {
+                "membership_id": contribution.membership_id,
+                "intelligence_id": contribution.intelligence_id,
+                "revision_id": contribution.revision_id,
+                "evidence_ids": list(contribution.evidence_ids),
+                "association_kind": contribution.association_kind.value,
+                "claim_kind": contribution.claim_kind.value,
+                "state": contribution.state.value,
+                "available": contribution.available,
+            }
+            for contribution in topic.contributions
+        ],
+        "timeline": [
+            {
+                "event_id": event.event_id,
+                "event_kind": event.event_kind.value,
+                "state": event.state.value,
+                "dependency_revision_ids": list(event.dependency_revision_ids),
+                "dependency_evidence_ids": list(event.dependency_evidence_ids),
+                "created_at": _timestamp(event.created_at),
+            }
+            for event in topic.timeline
+        ],
+        "relations": [_topic_relation_dto(relation) for relation in topic.relations],
+    }
+
+
 class LocalApiApplication:
     """Framework-free route dispatcher.  Controllers validate then delegate."""
 
@@ -199,6 +265,7 @@ class LocalApiApplication:
         self._source_policy_service = SourcePolicyApplicationService(
             repository, now=self._now
         )
+        self._topic_service = TopicApplicationService(repository, now=self._now)
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
 
@@ -400,6 +467,78 @@ class LocalApiApplication:
                     )
                 )
                 return HTTPStatus.CREATED, {"feedback": _feedback_dto(feedback)}
+            if method == "POST" and route == "/api/v1/topics":
+                self._only_keys(data, {"command_id", "name"})
+                topic = self._topic_service.create_topic(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    name=self._string(data, "name", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+            topic_prefix = "/api/v1/topics/"
+            if method == "PATCH" and route.startswith(topic_prefix):
+                topic_id = route.removeprefix(topic_prefix)
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"name"})
+                topic = self._topic_service.rename_topic(
+                    topic_id=topic_id, name=self._string(data, "name", required=True) or ""
+                )
+                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/pin"):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/pin")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"pinned"})
+                pinned = self._boolean(data, "pinned")
+                if pinned is None:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "pinned is required.")
+                topic = self._topic_service.set_pinned(topic_id=topic_id, pinned=pinned)
+                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/associations"):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/associations")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"intelligence_id", "association_kind"})
+                association = self._topic_service.associate_intelligence(
+                    topic_id=topic_id,
+                    intelligence_id=self._string(data, "intelligence_id", required=True) or "",
+                    kind=TopicAssociationKind(
+                        self._string(data, "association_kind", required=True) or ""
+                    ),
+                )
+                return HTTPStatus.CREATED, {"association": _topic_association_dto(association)}
+            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/relations"):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/relations")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"related_topic_id"})
+                relation = self._topic_service.relate_topics(
+                    topic_id,
+                    self._string(data, "related_topic_id", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"relation": _topic_relation_dto(relation)}
+            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/merge"):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/merge")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"source_topic_id"})
+                topic = self._topic_service.merge_topics(
+                    target_topic_id=topic_id,
+                    source_topic_id=self._string(data, "source_topic_id", required=True) or "",
+                )
+                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/split"):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/split")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"command_id", "name", "membership_ids"})
+                topic = self._topic_service.split_topic(
+                    source_topic_id=topic_id,
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    name=self._string(data, "name", required=True) or "",
+                    membership_ids=self._rules(data, "membership_ids", required=True) or (),
+                )
+                return HTTPStatus.CREATED, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
             preference_prefix = "/api/v1/settings/preferences/"
             if (
                 method == "PATCH"
@@ -683,6 +822,19 @@ class LocalApiApplication:
                     _feedback_dto(item) for item in self._repository.list_feedback()
                 ]
             }
+        if route == "/api/v1/topics":
+            return {
+                "topics": [
+                    _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                    for topic in self._repository.list_topics()
+                ]
+            }
+        topic_prefix = "/api/v1/topics/"
+        if route.startswith(topic_prefix):
+            topic_id = route.removeprefix(topic_prefix)
+            if not topic_id or "/" in topic_id:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            return {"topic": _topic_dto(self._topic_service.read_topic(topic_id))}
         if route == "/api/v1/dashboard":
             sources = self._repository.list_source_subscriptions()
             videos = self._repository.list_videos(limit=20)
