@@ -152,6 +152,18 @@ class IntelligenceInterpretationKind(str, Enum):
     CORRECTION = "CORRECTION"
 
 
+class IntelligenceClaimKind(str, Enum):
+    """Finite semantic classification carried by one immutable revision."""
+
+    UNCLASSIFIED = "UNCLASSIFIED"
+    FACT = "FACT"
+    EVIDENCE_BACKED_STATEMENT = "EVIDENCE_BACKED_STATEMENT"
+    OPINION = "OPINION"
+    PREDICTION = "PREDICTION"
+    RUMOR = "RUMOR"
+    SYSTEM_INFERENCE = "SYSTEM_INFERENCE"
+
+
 class IntelligenceState(str, Enum):
     NEW = "NEW"
     PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
@@ -205,6 +217,7 @@ class IntelligenceRecord:
 class IntelligenceRevisionWrite:
     revision_id: str
     interpretation_kind: IntelligenceInterpretationKind
+    claim_kind: IntelligenceClaimKind
     content_hash: str
     state: IntelligenceState
     reason: str
@@ -218,6 +231,7 @@ class IntelligenceRevisionRecord:
     revision_number: int
     prior_revision_id: str | None
     interpretation_kind: IntelligenceInterpretationKind
+    claim_kind: IntelligenceClaimKind
     content_hash: str
     created_at: datetime
 
@@ -860,6 +874,7 @@ class SQLiteStateRepository:
             "004_add_provider_dispatch_state.sql",
             "005_add_product_orchestration.sql",
             "006_add_intelligence_domain.sql",
+            "007_add_intelligence_claim_classification.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -4001,6 +4016,7 @@ class SQLiteStateRepository:
             interpretation_kind=IntelligenceInterpretationKind(
                 str(row["interpretation_kind"])
             ),
+            claim_kind=IntelligenceClaimKind(str(row["claim_kind"])),
             content_hash=str(row["content_hash"]),
             created_at=_parse_utc_datetime(str(row["created_at"])),
         )
@@ -4174,6 +4190,10 @@ class SQLiteStateRepository:
     ) -> IntelligenceRevisionRecord:
         if not revision.revision_id.strip() or not revision.reason.strip():
             raise ValueError("revision identity and reason must be non-empty")
+        if not isinstance(revision.claim_kind, IntelligenceClaimKind):
+            raise ValueError("revision claim kind must be a finite claim kind")
+        if revision.claim_kind is IntelligenceClaimKind.UNCLASSIFIED:
+            raise ValueError("UNCLASSIFIED claim kind is reserved for migrated revisions")
         _validate_sha256(revision.content_hash, field_name="revision content_hash")
         evidence_ids = tuple(sorted(revision.evidence_ids))
         if not evidence_ids:
@@ -4221,14 +4241,15 @@ class SQLiteStateRepository:
                     ).fetchone()[0]
                 )
                 connection.execute(
-                    "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, content_hash, created_at) "
-                    "VALUES (:revision_id, :intelligence_id, :revision_number, :prior_revision_id, :interpretation_kind, :content_hash, :created_at)",
+                    "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) "
+                    "VALUES (:revision_id, :intelligence_id, :revision_number, :prior_revision_id, :interpretation_kind, :claim_kind, :content_hash, :created_at)",
                     {
                         "revision_id": revision.revision_id,
                         "intelligence_id": intelligence_id,
                         "revision_number": revision_number,
                         "prior_revision_id": prior_revision_id,
                         "interpretation_kind": revision.interpretation_kind.value,
+                        "claim_kind": revision.claim_kind.value,
                         "content_hash": revision.content_hash,
                         "created_at": format_utc_datetime(now),
                     },

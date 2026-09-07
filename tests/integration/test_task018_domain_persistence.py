@@ -19,6 +19,7 @@ from youtube_intel.state import (
     EvidenceRole,
     EvidenceWrite,
     IntegrityConflict,
+    IntelligenceClaimKind,
     IntelligenceInterpretationKind,
     IntelligenceRevisionWrite,
     IntelligenceState,
@@ -121,6 +122,7 @@ def _append_first_revision(
         revision=IntelligenceRevisionWrite(
             revision_id=revision_id,
             interpretation_kind=IntelligenceInterpretationKind.DISTILLATION,
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
             content_hash="b" * 64,
             state=IntelligenceState.NEW,
             reason="initial evidence-bound interpretation",
@@ -136,9 +138,9 @@ def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) ->
 
     version = repository.initialize(now=NOW)
 
-    assert (version.version, version.name) == (6, "006_add_intelligence_domain.sql")
+    assert (version.version, version.name) == (7, "007_add_intelligence_claim_classification.sql")
     with _connection(_database_path(tmp_path)) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
         tables = {row["name"] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {
             "evidence",
@@ -173,12 +175,12 @@ def test_v005_upgrade_preserves_source_and_automation_and_is_idempotent(
             (now, now),
         )
 
-    assert repository.initialize(now=NOW).version == 6
-    assert repository.initialize(now=NOW).version == 6
+    assert repository.initialize(now=NOW).version == 7
+    assert repository.initialize(now=NOW).version == 7
     with _connection(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM source_subscriptions").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM automation_schedules").fetchone()[0] == 1
-        assert connection.execute("SELECT COUNT(*) FROM schema_migrations WHERE version = 6").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM schema_migrations WHERE version = 7").fetchone()[0] == 1
 
 
 def test_m006_failure_rolls_back_schema_history_and_user_version(
@@ -233,6 +235,7 @@ def test_revisions_append_preserve_history_and_current_pointer_is_scoped(tmp_pat
         revision=IntelligenceRevisionWrite(
             revision_id="revision-2",
             interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=IntelligenceClaimKind.FACT,
             content_hash="c" * 64,
             state=IntelligenceState.UPDATED,
             reason="correction preserves prior interpretation",
@@ -273,6 +276,7 @@ def test_unavailable_or_missing_evidence_cannot_support_current_revision_or_be_d
             revision=IntelligenceRevisionWrite(
                 revision_id="revision-missing-evidence",
                 interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+                claim_kind=IntelligenceClaimKind.FACT,
                 content_hash="e" * 64,
                 state=IntelligenceState.UPDATED,
                 reason="must fail closed",

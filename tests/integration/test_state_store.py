@@ -635,12 +635,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "006_add_intelligence_domain.sql")
+        .joinpath("migrations", "007_add_intelligence_claim_classification.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 6
-    assert first.name == "006_add_intelligence_domain.sql"
+    assert first.version == 7
+    assert first.name == "007_add_intelligence_claim_classification.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -655,7 +655,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 6
+    assert migration_count == 7
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
