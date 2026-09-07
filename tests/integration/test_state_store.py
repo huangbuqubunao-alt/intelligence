@@ -101,6 +101,10 @@ EXPECTED_TABLES = {
     "preferences",
     "preference_state_events",
     "feedback_events",
+    "manual_analyze_overrides",
+    "source_policy_current",
+    "source_policy_revisions",
+    "source_video_filter_decisions",
     "videos",
 }
 EXPECTED_COLUMNS = {
@@ -298,6 +302,48 @@ EXPECTED_COLUMNS = {
         "content",
         "correction_kind",
         "effect_status",
+        "created_at",
+    ),
+    "source_policy_revisions": (
+        "revision_id",
+        "policy_scope",
+        "source_id",
+        "initial_history_count",
+        "per_run_max_new_videos",
+        "focus_mode",
+        "focus_rules_json",
+        "ignore_mode",
+        "ignore_rules_json",
+        "distillation_style_mode",
+        "distillation_style",
+        "created_at",
+    ),
+    "source_policy_current": (
+        "policy_key",
+        "policy_scope",
+        "source_id",
+        "revision_id",
+    ),
+    "source_video_filter_decisions": (
+        "decision_order",
+        "decision_id",
+        "source_id",
+        "video_id",
+        "stage",
+        "outcome",
+        "reason",
+        "global_policy_revision_id",
+        "source_policy_revision_id",
+        "manual_override_id",
+        "prior_decision_id",
+        "evaluated_at",
+    ),
+    "manual_analyze_overrides": (
+        "override_id",
+        "source_id",
+        "video_id",
+        "command_id",
+        "prior_decision_id",
         "created_at",
     ),
 }
@@ -661,12 +707,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "008_add_preference_feedback.sql")
+        .joinpath("migrations", "009_add_source_policy_filtering.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 8
-    assert first.name == "008_add_preference_feedback.sql"
+    assert first.version == 9
+    assert first.name == "009_add_source_policy_filtering.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -681,7 +727,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 8
+    assert migration_count == 9
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -752,6 +798,9 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_preferences_scope_created",
         "idx_preference_state_events_preference",
         "idx_feedback_events_created",
+        "idx_manual_analyze_overrides_source_video",
+        "idx_source_policy_revisions_scope_created",
+        "idx_source_video_filter_decisions_source_video",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

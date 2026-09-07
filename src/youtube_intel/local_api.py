@@ -28,15 +28,22 @@ from youtube_intel.orchestration import (
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
+from youtube_intel.source_policy import (
+    EffectiveSourcePolicy,
+    SourcePolicyApplicationService,
+)
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    DistillationStyle,
     FeedbackCorrectionKind,
     FeedbackKind,
     FeedbackRecord,
     FeedbackWrite,
+    FilterDecisionRecord,
     IntegrityConflict,
+    PolicyOverrideMode,
     PreferenceRecord,
     PreferenceScope,
     ReportRecord,
@@ -129,6 +136,36 @@ def _feedback_dto(feedback: FeedbackRecord) -> dict[str, object]:
     }
 
 
+def _source_policy_dto(policy: EffectiveSourcePolicy) -> dict[str, object]:
+    return {
+        "source_id": policy.source_id,
+        "initial_history_count": policy.initial_history_count,
+        "per_run_max_new_videos": policy.per_run_max_new_videos,
+        "focus_rules": list(policy.focus_rules),
+        "ignore_rules": list(policy.ignore_rules),
+        "distillation_style": policy.distillation_style.value,
+        "global_revision_id": policy.global_revision_id,
+        "source_policy_revision_id": policy.source_policy_revision_id,
+    }
+
+
+def _filter_decision_dto(decision: FilterDecisionRecord) -> dict[str, object]:
+    return {
+        "decision_id": decision.decision_id,
+        "source_id": decision.source_id,
+        "video_id": decision.video_id,
+        "stage": decision.stage.value,
+        "outcome": decision.outcome.value,
+        "reason": decision.reason.value,
+        "global_policy_revision_id": decision.global_policy_revision_id,
+        "source_policy_revision_id": decision.source_policy_revision_id,
+        "manual_override_id": decision.manual_override_id,
+        "prior_decision_id": decision.prior_decision_id,
+        "evaluated_at": _timestamp(decision.evaluated_at),
+        "execution_authorized": False,
+    }
+
+
 class LocalApiApplication:
     """Framework-free route dispatcher.  Controllers validate then delegate."""
 
@@ -154,6 +191,9 @@ class LocalApiApplication:
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
         self._preference_service = PreferenceApplicationService(
+            repository, now=self._now
+        )
+        self._source_policy_service = SourcePolicyApplicationService(
             repository, now=self._now
         )
         self._runtime_mode = runtime_mode
@@ -210,6 +250,36 @@ class LocalApiApplication:
                 f"{key} must be boolean.",
             )
         return value
+
+    @staticmethod
+    def _integer(
+        data: dict[str, object], key: str, *, required: bool = False
+    ) -> int | None:
+        value = data.get(key)
+        if value is None and not required:
+            return None
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                f"{key} must be an integer.",
+            )
+        return value
+
+    @staticmethod
+    def _rules(
+        data: dict[str, object], key: str, *, required: bool = False
+    ) -> tuple[str, ...] | None:
+        value = data.get(key)
+        if value is None and not required:
+            return None
+        if not isinstance(value, list) or not all(isinstance(rule, str) for rule in value):
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                f"{key} must be a list of strings.",
+            )
+        return tuple(value)
 
     @staticmethod
     def _only_keys(data: dict[str, object], allowed: set[str]) -> None:
@@ -356,17 +426,122 @@ class LocalApiApplication:
                     "state": event.state.value,
                     "created_at": _timestamp(event.created_at),
                 }
+            if method == "PUT" and route == "/api/v1/settings/source-policy":
+                self._only_keys(
+                    data,
+                    {
+                        "command_id",
+                        "initial_history_count",
+                        "per_run_max_new_videos",
+                        "focus_rules",
+                        "ignore_rules",
+                        "distillation_style",
+                    },
+                )
+                source_policy = self._source_policy_service.update_global(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    initial_history_count=self._integer(
+                        data, "initial_history_count", required=True
+                    )
+                    or 0,
+                    per_run_max_new_videos=self._integer(
+                        data, "per_run_max_new_videos", required=True
+                    )
+                    or 0,
+                    focus_rules=self._rules(data, "focus_rules", required=True) or (),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True)
+                    or (),
+                    distillation_style=DistillationStyle(
+                        self._string(data, "distillation_style", required=True) or ""
+                    ),
+                )
+                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
             if method == "POST" and route == "/api/v1/sources":
-                policy = ProcessingPolicy(
+                processing_policy = ProcessingPolicy(
                     self._string(data, "processing_policy", required=True) or ""
                 )
                 source = self._service.add_source(
                     url=self._string(data, "url", required=True) or "",
-                    processing_policy=policy,
+                    processing_policy=processing_policy,
                 )
                 return HTTPStatus.CREATED, {"source": _source_dto(source)}
+            source_policy_prefix = "/api/v1/sources/"
+            if (
+                method == "PUT"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/policy")
+            ):
+                source_id = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/policy"
+                )
+                if not source_id or "/" in source_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(
+                    data,
+                    {
+                        "command_id",
+                        "initial_history_count",
+                        "per_run_max_new_videos",
+                        "focus_mode",
+                        "focus_rules",
+                        "ignore_mode",
+                        "ignore_rules",
+                        "distillation_style_mode",
+                        "distillation_style",
+                    },
+                )
+                source_policy = self._source_policy_service.update_source(
+                    source_id=source_id,
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    initial_history_count=self._integer(data, "initial_history_count"),
+                    per_run_max_new_videos=self._integer(
+                        data, "per_run_max_new_videos"
+                    ),
+                    focus_mode=PolicyOverrideMode(
+                        self._string(data, "focus_mode", required=True) or ""
+                    ),
+                    focus_rules=self._rules(data, "focus_rules", required=True) or (),
+                    ignore_mode=PolicyOverrideMode(
+                        self._string(data, "ignore_mode", required=True) or ""
+                    ),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True)
+                    or (),
+                    distillation_style_mode=PolicyOverrideMode(
+                        self._string(
+                            data, "distillation_style_mode", required=True
+                        )
+                        or ""
+                    ),
+                    distillation_style=(
+                        None
+                        if self._string(data, "distillation_style") is None
+                        else DistillationStyle(
+                            self._string(data, "distillation_style") or ""
+                        )
+                    ),
+                )
+                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
+            if (
+                method == "POST"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/manual-analyze")
+            ):
+                remainder = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/manual-analyze"
+                )
+                parts = remainder.split("/")
+                if len(parts) != 3 or parts[1] != "videos" or not all(parts):
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"command_id"})
+                decision = self._source_policy_service.manual_analyze_override(
+                    source_id=parts[0],
+                    video_id=parts[2],
+                    command_id=self._string(data, "command_id", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"decision": _filter_decision_dto(decision)}
             if method == "PATCH" and route.startswith("/api/v1/sources/"):
                 source_id = route.rsplit("/", 1)[1]
+                self._only_keys(data, {"enabled", "processing_policy"})
                 policy_value = self._string(data, "processing_policy")
                 updated_source = self._service.update_source(
                     source_id,
@@ -446,6 +621,8 @@ class LocalApiApplication:
             ) from error
 
     def _get(self, route: str) -> dict[str, object]:
+        if route == "/api/v1/settings/source-policy":
+            return {"policy": _source_policy_dto(self._source_policy_service.global_policy())}
         if route == "/api/v1/settings/preferences":
             return {
                 "active": [
@@ -488,6 +665,29 @@ class LocalApiApplication:
                     _source_dto(source)
                     for source in self._repository.list_source_subscriptions()
                 ]
+            }
+        source_prefix = "/api/v1/sources/"
+        if route.startswith(source_prefix) and route.endswith("/policy"):
+            source_id = route.removeprefix(source_prefix).removesuffix("/policy")
+            if not source_id or "/" in source_id:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if self._repository.get_source_subscription(source_id) is None:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found.")
+            return {"policy": _source_policy_dto(self._source_policy_service.effective_policy(source_id))}
+        if route.startswith(source_prefix) and route.endswith("/filter"):
+            remainder = route.removeprefix(source_prefix).removesuffix("/filter")
+            parts = remainder.split("/")
+            if len(parts) != 3 or parts[1] != "videos" or not all(parts):
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if self._repository.get_source_subscription(parts[0]) is None:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found.")
+            current = self._repository.current_filter_decision(parts[0], parts[2])
+            return {
+                "current": None if current is None else _filter_decision_dto(current),
+                "history": [
+                    _filter_decision_dto(item)
+                    for item in self._repository.list_filter_decisions(parts[0], parts[2])
+                ],
             }
         if route.startswith("/api/v1/sources/"):
             source = self._repository.get_source_subscription(route.rsplit("/", 1)[1])

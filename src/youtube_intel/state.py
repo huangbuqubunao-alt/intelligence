@@ -222,6 +222,45 @@ class FeedbackCorrectionKind(str, Enum):
     OTHER = "OTHER"
 
 
+class PolicyOverrideMode(str, Enum):
+    """Whether a Source field inherits its global policy or replaces it."""
+
+    INHERIT = "INHERIT"
+    OVERRIDE = "OVERRIDE"
+
+
+class DistillationStyle(str, Enum):
+    """Finite V1 policy selection; TASK-022 owns actual distillation."""
+
+    BALANCED = "BALANCED"
+    TECHNICAL_DETAIL_FIRST = "TECHNICAL_DETAIL_FIRST"
+    PRODUCT_CASE_FIRST = "PRODUCT_CASE_FIRST"
+    TREND_OPINION_FIRST = "TREND_OPINION_FIRST"
+
+
+class FilterStage(str, Enum):
+    STAGE_1 = "STAGE_1"
+    STAGE_2 = "STAGE_2"
+    MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
+
+
+class FilterOutcome(str, Enum):
+    RELEVANT = "RELEVANT"
+    NOT_RELEVANT = "NOT_RELEVANT"
+    UNCERTAIN = "UNCERTAIN"
+
+
+class FilterReason(str, Enum):
+    FOCUS_MATCH = "FOCUS_MATCH"
+    IGNORE_RULE_MATCH = "IGNORE_RULE_MATCH"
+    SHORT_VIDEO = "SHORT_VIDEO"
+    NO_FOCUS_MATCH = "NO_FOCUS_MATCH"
+    NO_FOCUS_RULES = "NO_FOCUS_RULES"
+    INSUFFICIENT_METADATA = "INSUFFICIENT_METADATA"
+    STAGE_TWO_REVIEW = "STAGE_TWO_REVIEW"
+    MANUAL_ANALYZE = "MANUAL_ANALYZE"
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceWrite:
     evidence_id: str
@@ -383,6 +422,78 @@ class SourceSubscriptionRecord:
     last_error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SourcePolicyRevisionWrite:
+    revision_id: str
+    policy_scope: str
+    source_id: str | None
+    initial_history_count: int | None
+    per_run_max_new_videos: int | None
+    focus_mode: PolicyOverrideMode
+    focus_rules: tuple[str, ...]
+    ignore_mode: PolicyOverrideMode
+    ignore_rules: tuple[str, ...]
+    distillation_style_mode: PolicyOverrideMode
+    distillation_style: DistillationStyle | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SourcePolicyRevisionRecord:
+    revision_id: str
+    policy_scope: str
+    source_id: str | None
+    initial_history_count: int | None
+    per_run_max_new_videos: int | None
+    focus_mode: PolicyOverrideMode
+    focus_rules: tuple[str, ...]
+    ignore_mode: PolicyOverrideMode
+    ignore_rules: tuple[str, ...]
+    distillation_style_mode: PolicyOverrideMode
+    distillation_style: DistillationStyle | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FilterDecisionWrite:
+    decision_id: str
+    source_id: str
+    video_id: str
+    stage: FilterStage
+    outcome: FilterOutcome
+    reason: FilterReason
+    global_policy_revision_id: str
+    source_policy_revision_id: str | None
+    manual_override_id: str | None
+    prior_decision_id: str | None
+    evaluated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FilterDecisionRecord:
+    decision_id: str
+    source_id: str
+    video_id: str
+    stage: FilterStage
+    outcome: FilterOutcome
+    reason: FilterReason
+    global_policy_revision_id: str
+    source_policy_revision_id: str | None
+    manual_override_id: str | None
+    prior_decision_id: str | None
+    evaluated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ManualAnalyzeOverrideWrite:
+    override_id: str
+    source_id: str
+    video_id: str
+    command_id: str
+    prior_decision_id: str
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -976,6 +1087,7 @@ class SQLiteStateRepository:
             "006_add_intelligence_domain.sql",
             "007_add_intelligence_claim_classification.sql",
             "008_add_preference_feedback.sql",
+            "009_add_source_policy_filtering.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -3918,6 +4030,543 @@ class SQLiteStateRepository:
                 {"source_id": source_id, "limit": limit},
             ).fetchall()
             return tuple(self._video_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _policy_rules_from_json(value: object) -> tuple[str, ...]:
+        try:
+            parsed = json.loads(str(value))
+        except (TypeError, ValueError) as error:
+            raise StateStoreError("stored source policy rules are invalid") from error
+        if not isinstance(parsed, list) or not all(
+            isinstance(rule, str) for rule in parsed
+        ):
+            raise StateStoreError("stored source policy rules are invalid")
+        return tuple(parsed)
+
+    @staticmethod
+    def _source_policy_revision_from_row(
+        row: sqlite3.Row,
+    ) -> SourcePolicyRevisionRecord:
+        return SourcePolicyRevisionRecord(
+            revision_id=str(row["revision_id"]),
+            policy_scope=str(row["policy_scope"]),
+            source_id=(
+                None if row["source_id"] is None else str(row["source_id"])
+            ),
+            initial_history_count=(
+                None
+                if row["initial_history_count"] is None
+                else int(row["initial_history_count"])
+            ),
+            per_run_max_new_videos=(
+                None
+                if row["per_run_max_new_videos"] is None
+                else int(row["per_run_max_new_videos"])
+            ),
+            focus_mode=PolicyOverrideMode(str(row["focus_mode"])),
+            focus_rules=SQLiteStateRepository._policy_rules_from_json(
+                row["focus_rules_json"]
+            ),
+            ignore_mode=PolicyOverrideMode(str(row["ignore_mode"])),
+            ignore_rules=SQLiteStateRepository._policy_rules_from_json(
+                row["ignore_rules_json"]
+            ),
+            distillation_style_mode=PolicyOverrideMode(
+                str(row["distillation_style_mode"])
+            ),
+            distillation_style=(
+                None
+                if row["distillation_style"] is None
+                else DistillationStyle(str(row["distillation_style"]))
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _filter_decision_from_row(row: sqlite3.Row) -> FilterDecisionRecord:
+        return FilterDecisionRecord(
+            decision_id=str(row["decision_id"]),
+            source_id=str(row["source_id"]),
+            video_id=str(row["video_id"]),
+            stage=FilterStage(str(row["stage"])),
+            outcome=FilterOutcome(str(row["outcome"])),
+            reason=FilterReason(str(row["reason"])),
+            global_policy_revision_id=str(row["global_policy_revision_id"]),
+            source_policy_revision_id=(
+                None
+                if row["source_policy_revision_id"] is None
+                else str(row["source_policy_revision_id"])
+            ),
+            manual_override_id=(
+                None
+                if row["manual_override_id"] is None
+                else str(row["manual_override_id"])
+            ),
+            prior_decision_id=(
+                None
+                if row["prior_decision_id"] is None
+                else str(row["prior_decision_id"])
+            ),
+            evaluated_at=_parse_utc_datetime(str(row["evaluated_at"])),
+        )
+
+    @staticmethod
+    def _validate_policy_rules(rules: tuple[str, ...], *, field_name: str) -> None:
+        if len(rules) > 20:
+            raise ValueError(f"{field_name} allows at most 20 rules")
+        normalized: set[str] = set()
+        for rule in rules:
+            if (
+                not isinstance(rule, str)
+                or not rule.strip()
+                or rule != rule.strip()
+                or len(rule) > 160
+            ):
+                raise ValueError(f"{field_name} contains an invalid rule")
+            folded = rule.casefold()
+            if folded in normalized:
+                raise ValueError(f"{field_name} cannot contain duplicate rules")
+            normalized.add(folded)
+
+    @staticmethod
+    def _validate_source_policy_revision(
+        revision: SourcePolicyRevisionWrite,
+    ) -> None:
+        if (
+            not revision.revision_id.strip()
+            or revision.revision_id != revision.revision_id.strip()
+            or len(revision.revision_id) > 512
+        ):
+            raise ValueError("source policy revision identity is invalid")
+        if revision.policy_scope not in {"GLOBAL", "SOURCE"}:
+            raise ValueError("source policy scope must be finite")
+        if not isinstance(revision.focus_mode, PolicyOverrideMode) or not isinstance(
+            revision.ignore_mode, PolicyOverrideMode
+        ) or not isinstance(revision.distillation_style_mode, PolicyOverrideMode):
+            raise ValueError("source policy override mode must be finite")
+        if (
+            isinstance(revision.initial_history_count, bool)
+            or revision.initial_history_count not in {None, 0, 1, 3, 5, 10}
+        ):
+            raise ValueError("initial history count must be one of the V1 values")
+        if (
+            isinstance(revision.per_run_max_new_videos, bool)
+            or revision.per_run_max_new_videos not in {None, 1, 3, 5, 10}
+        ):
+            raise ValueError("per-run new video limit must be one of the V1 values")
+        SQLiteStateRepository._validate_policy_rules(
+            revision.focus_rules, field_name="focus rules"
+        )
+        SQLiteStateRepository._validate_policy_rules(
+            revision.ignore_rules, field_name="ignore rules"
+        )
+        if revision.policy_scope == "GLOBAL":
+            if (
+                revision.source_id is not None
+                or revision.initial_history_count is None
+                or revision.per_run_max_new_videos is None
+                or revision.focus_mode is not PolicyOverrideMode.OVERRIDE
+                or revision.ignore_mode is not PolicyOverrideMode.OVERRIDE
+                or revision.distillation_style_mode is not PolicyOverrideMode.OVERRIDE
+                or not isinstance(revision.distillation_style, DistillationStyle)
+            ):
+                raise ValueError("global source policy requires complete finite values")
+        else:
+            if (
+                revision.source_id is None
+                or not revision.source_id.strip()
+                or len(revision.source_id) > 512
+            ):
+                raise ValueError("source policy requires a source identity")
+            if (
+                revision.focus_mode is PolicyOverrideMode.INHERIT
+                and revision.focus_rules
+            ) or (
+                revision.ignore_mode is PolicyOverrideMode.INHERIT
+                and revision.ignore_rules
+            ):
+                raise ValueError("inherited source rules cannot carry rule values")
+            if (
+                revision.distillation_style_mode is PolicyOverrideMode.INHERIT
+                and revision.distillation_style is not None
+            ) or (
+                revision.distillation_style_mode is PolicyOverrideMode.OVERRIDE
+                and not isinstance(revision.distillation_style, DistillationStyle)
+            ):
+                raise ValueError("source distillation style override is invalid")
+        format_utc_datetime(revision.created_at)
+
+    def get_global_source_policy_revision(self) -> SourcePolicyRevisionRecord:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT revision.* FROM source_policy_current AS current "
+                "JOIN source_policy_revisions AS revision "
+                "ON revision.revision_id = current.revision_id "
+                "WHERE current.policy_key = 'GLOBAL'"
+            ).fetchone()
+            if row is None:
+                raise StateStoreError("global source policy is not initialized")
+            return self._source_policy_revision_from_row(row)
+        finally:
+            connection.close()
+
+    def get_source_policy_revision(
+        self, source_id: str
+    ) -> SourcePolicyRevisionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT revision.* FROM source_policy_current AS current "
+                "JOIN source_policy_revisions AS revision "
+                "ON revision.revision_id = current.revision_id "
+                "WHERE current.policy_key = :policy_key",
+                {"policy_key": f"SOURCE:{source_id}"},
+            ).fetchone()
+            return None if row is None else self._source_policy_revision_from_row(row)
+        finally:
+            connection.close()
+
+    def create_source_policy_revision(
+        self, revision: SourcePolicyRevisionWrite
+    ) -> SourcePolicyRevisionRecord:
+        self._validate_source_policy_revision(revision)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM source_policy_revisions WHERE revision_id = :revision_id",
+                    {"revision_id": revision.revision_id},
+                ).fetchone()
+                if existing is not None:
+                    saved = self._source_policy_revision_from_row(existing)
+                    if (
+                        saved.policy_scope == revision.policy_scope
+                        and saved.source_id == revision.source_id
+                        and saved.initial_history_count == revision.initial_history_count
+                        and saved.per_run_max_new_videos
+                        == revision.per_run_max_new_videos
+                        and saved.focus_mode is revision.focus_mode
+                        and saved.focus_rules == revision.focus_rules
+                        and saved.ignore_mode is revision.ignore_mode
+                        and saved.ignore_rules == revision.ignore_rules
+                        and saved.distillation_style_mode
+                        is revision.distillation_style_mode
+                        and saved.distillation_style is revision.distillation_style
+                    ):
+                        return saved
+                    raise IntegrityConflict("source policy command identity conflicts")
+                connection.execute(
+                    "INSERT INTO source_policy_revisions "
+                    "(revision_id, policy_scope, source_id, initial_history_count, "
+                    "per_run_max_new_videos, focus_mode, focus_rules_json, ignore_mode, "
+                    "ignore_rules_json, distillation_style_mode, distillation_style, created_at) "
+                    "VALUES (:revision_id, :policy_scope, :source_id, :initial_history_count, "
+                    ":per_run_max_new_videos, :focus_mode, :focus_rules_json, :ignore_mode, "
+                    ":ignore_rules_json, :distillation_style_mode, :distillation_style, :created_at)",
+                    {
+                        "revision_id": revision.revision_id,
+                        "policy_scope": revision.policy_scope,
+                        "source_id": revision.source_id,
+                        "initial_history_count": revision.initial_history_count,
+                        "per_run_max_new_videos": revision.per_run_max_new_videos,
+                        "focus_mode": revision.focus_mode.value,
+                        "focus_rules_json": json.dumps(
+                            revision.focus_rules,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
+                        "ignore_mode": revision.ignore_mode.value,
+                        "ignore_rules_json": json.dumps(
+                            revision.ignore_rules,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
+                        "distillation_style_mode": revision.distillation_style_mode.value,
+                        "distillation_style": (
+                            None
+                            if revision.distillation_style is None
+                            else revision.distillation_style.value
+                        ),
+                        "created_at": format_utc_datetime(revision.created_at),
+                    },
+                )
+                policy_key = (
+                    "GLOBAL"
+                    if revision.policy_scope == "GLOBAL"
+                    else f"SOURCE:{revision.source_id}"
+                )
+                connection.execute(
+                    "INSERT INTO source_policy_current "
+                    "(policy_key, policy_scope, source_id, revision_id) "
+                    "VALUES (:policy_key, :policy_scope, :source_id, :revision_id) "
+                    "ON CONFLICT(policy_key) DO UPDATE SET revision_id = excluded.revision_id",
+                    {
+                        "policy_key": policy_key,
+                        "policy_scope": revision.policy_scope,
+                        "source_id": revision.source_id,
+                        "revision_id": revision.revision_id,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_policy_revisions WHERE revision_id = :revision_id",
+                    {"revision_id": revision.revision_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("source policy revision was not saved")
+                return self._source_policy_revision_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("source policy violates its finite contract") from error
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _validate_filter_decision(decision: FilterDecisionWrite) -> None:
+        if (
+            not decision.decision_id.strip()
+            or decision.decision_id != decision.decision_id.strip()
+            or len(decision.decision_id) > 512
+            or not decision.source_id.strip()
+            or not decision.video_id.strip()
+        ):
+            raise ValueError("filter decision identity is invalid")
+        if not isinstance(decision.stage, FilterStage) or not isinstance(
+            decision.outcome, FilterOutcome
+        ) or not isinstance(decision.reason, FilterReason):
+            raise ValueError("filter decision fields must be finite")
+        stage_contract = {
+            (FilterStage.STAGE_1, FilterOutcome.RELEVANT): {
+                FilterReason.FOCUS_MATCH
+            },
+            (FilterStage.STAGE_1, FilterOutcome.NOT_RELEVANT): {
+                FilterReason.IGNORE_RULE_MATCH,
+                FilterReason.SHORT_VIDEO,
+                FilterReason.NO_FOCUS_MATCH,
+            },
+            (FilterStage.STAGE_1, FilterOutcome.UNCERTAIN): {
+                FilterReason.INSUFFICIENT_METADATA,
+                FilterReason.NO_FOCUS_RULES,
+            },
+            (FilterStage.STAGE_2, FilterOutcome.RELEVANT): {
+                FilterReason.STAGE_TWO_REVIEW
+            },
+            (FilterStage.STAGE_2, FilterOutcome.NOT_RELEVANT): {
+                FilterReason.STAGE_TWO_REVIEW
+            },
+            (FilterStage.MANUAL_OVERRIDE, FilterOutcome.RELEVANT): {
+                FilterReason.MANUAL_ANALYZE
+            },
+        }
+        if decision.reason not in stage_contract.get(
+            (decision.stage, decision.outcome), set()
+        ):
+            raise ValueError("filter outcome and reason are not an approved pair")
+        if decision.stage is FilterStage.MANUAL_OVERRIDE:
+            if decision.manual_override_id is None or decision.prior_decision_id is None:
+                raise ValueError("manual override decision requires immutable context")
+        elif (
+            decision.manual_override_id is not None
+            or decision.prior_decision_id is not None
+        ):
+            raise ValueError("automated filter decision cannot carry manual context")
+        format_utc_datetime(decision.evaluated_at)
+
+    def append_filter_decision(self, decision: FilterDecisionWrite) -> FilterDecisionRecord:
+        self._validate_filter_decision(decision)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO source_video_filter_decisions "
+                    "(decision_id, source_id, video_id, stage, outcome, reason, "
+                    "global_policy_revision_id, source_policy_revision_id, "
+                    "manual_override_id, prior_decision_id, evaluated_at) "
+                    "VALUES (:decision_id, :source_id, :video_id, :stage, :outcome, "
+                    ":reason, :global_policy_revision_id, :source_policy_revision_id, "
+                    ":manual_override_id, :prior_decision_id, :evaluated_at)",
+                    {
+                        "decision_id": decision.decision_id,
+                        "source_id": decision.source_id,
+                        "video_id": decision.video_id,
+                        "stage": decision.stage.value,
+                        "outcome": decision.outcome.value,
+                        "reason": decision.reason.value,
+                        "global_policy_revision_id": decision.global_policy_revision_id,
+                        "source_policy_revision_id": decision.source_policy_revision_id,
+                        "manual_override_id": decision.manual_override_id,
+                        "prior_decision_id": decision.prior_decision_id,
+                        "evaluated_at": format_utc_datetime(decision.evaluated_at),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_video_filter_decisions "
+                    "WHERE decision_id = :decision_id",
+                    {"decision_id": decision.decision_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("filter decision was not saved")
+                return self._filter_decision_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("filter decision violates its finite audit contract") from error
+        finally:
+            connection.close()
+
+    def list_filter_decisions(
+        self, source_id: str, video_id: str
+    ) -> tuple[FilterDecisionRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM source_video_filter_decisions "
+                "WHERE source_id = :source_id AND video_id = :video_id "
+                "ORDER BY decision_order ASC",
+                {"source_id": source_id, "video_id": video_id},
+            ).fetchall()
+            return tuple(self._filter_decision_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def current_filter_decision(
+        self, source_id: str, video_id: str
+    ) -> FilterDecisionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM source_video_filter_decisions "
+                "WHERE source_id = :source_id AND video_id = :video_id "
+                "ORDER BY decision_order DESC LIMIT 1",
+                {"source_id": source_id, "video_id": video_id},
+            ).fetchone()
+            return None if row is None else self._filter_decision_from_row(row)
+        finally:
+            connection.close()
+
+    def filter_decision_for_manual_override(
+        self, override_id: str
+    ) -> FilterDecisionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM source_video_filter_decisions "
+                "WHERE manual_override_id = :override_id",
+                {"override_id": override_id},
+            ).fetchone()
+            return None if row is None else self._filter_decision_from_row(row)
+        finally:
+            connection.close()
+
+    def record_manual_analyze_override(
+        self,
+        override: ManualAnalyzeOverrideWrite,
+        decision: FilterDecisionWrite,
+    ) -> FilterDecisionRecord:
+        self._validate_filter_decision(decision)
+        if (
+            decision.stage is not FilterStage.MANUAL_OVERRIDE
+            or decision.manual_override_id != override.override_id
+            or decision.prior_decision_id != override.prior_decision_id
+            or decision.source_id != override.source_id
+            or decision.video_id != override.video_id
+            or not override.command_id.strip()
+            or len(override.command_id) > 512
+        ):
+            raise ValueError("manual analyze override is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM manual_analyze_overrides "
+                    "WHERE source_id = :source_id AND video_id = :video_id "
+                    "AND command_id = :command_id",
+                    {
+                        "source_id": override.source_id,
+                        "video_id": override.video_id,
+                        "command_id": override.command_id,
+                    },
+                ).fetchone()
+                if existing is not None:
+                    if (
+                        str(existing["override_id"]) != override.override_id
+                        or str(existing["prior_decision_id"])
+                        != override.prior_decision_id
+                    ):
+                        raise IntegrityConflict("manual analyze command identity conflicts")
+                    row = connection.execute(
+                        "SELECT * FROM source_video_filter_decisions "
+                        "WHERE manual_override_id = :override_id",
+                        {"override_id": override.override_id},
+                    ).fetchone()
+                    if row is None:
+                        raise StateStoreError("manual analyze override lacks its decision")
+                    return self._filter_decision_from_row(row)
+                prior = connection.execute(
+                    "SELECT * FROM source_video_filter_decisions "
+                    "WHERE decision_id = :decision_id",
+                    {"decision_id": override.prior_decision_id},
+                ).fetchone()
+                if (
+                    prior is None
+                    or str(prior["source_id"]) != override.source_id
+                    or str(prior["video_id"]) != override.video_id
+                    or str(prior["outcome"]) != FilterOutcome.NOT_RELEVANT.value
+                ):
+                    raise ValueError("manual analyze requires a currently skipped video")
+                current = connection.execute(
+                    "SELECT decision_id FROM source_video_filter_decisions "
+                    "WHERE source_id = :source_id AND video_id = :video_id "
+                    "ORDER BY decision_order DESC LIMIT 1",
+                    {"source_id": override.source_id, "video_id": override.video_id},
+                ).fetchone()
+                if current is None or str(current["decision_id"]) != override.prior_decision_id:
+                    raise ValueError("manual analyze requires a currently skipped video")
+                connection.execute(
+                    "INSERT INTO manual_analyze_overrides "
+                    "(override_id, source_id, video_id, command_id, prior_decision_id, created_at) "
+                    "VALUES (:override_id, :source_id, :video_id, :command_id, "
+                    ":prior_decision_id, :created_at)",
+                    {
+                        "override_id": override.override_id,
+                        "source_id": override.source_id,
+                        "video_id": override.video_id,
+                        "command_id": override.command_id,
+                        "prior_decision_id": override.prior_decision_id,
+                        "created_at": format_utc_datetime(override.created_at),
+                    },
+                )
+                connection.execute(
+                    "INSERT INTO source_video_filter_decisions "
+                    "(decision_id, source_id, video_id, stage, outcome, reason, "
+                    "global_policy_revision_id, source_policy_revision_id, "
+                    "manual_override_id, prior_decision_id, evaluated_at) "
+                    "VALUES (:decision_id, :source_id, :video_id, :stage, :outcome, "
+                    ":reason, :global_policy_revision_id, :source_policy_revision_id, "
+                    ":manual_override_id, :prior_decision_id, :evaluated_at)",
+                    {
+                        "decision_id": decision.decision_id,
+                        "source_id": decision.source_id,
+                        "video_id": decision.video_id,
+                        "stage": decision.stage.value,
+                        "outcome": decision.outcome.value,
+                        "reason": decision.reason.value,
+                        "global_policy_revision_id": decision.global_policy_revision_id,
+                        "source_policy_revision_id": decision.source_policy_revision_id,
+                        "manual_override_id": decision.manual_override_id,
+                        "prior_decision_id": decision.prior_decision_id,
+                        "evaluated_at": format_utc_datetime(decision.evaluated_at),
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM source_video_filter_decisions "
+                    "WHERE decision_id = :decision_id",
+                    {"decision_id": decision.decision_id},
+                ).fetchone()
+                if saved is None:
+                    raise StateStoreError("manual analyze decision was not saved")
+                return self._filter_decision_from_row(saved)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("manual analyze override violates its audit contract") from error
         finally:
             connection.close()
 
