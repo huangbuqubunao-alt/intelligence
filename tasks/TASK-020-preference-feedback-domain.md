@@ -1,6 +1,6 @@
 # TASK-020 — Preference and Feedback Domain
 
-- Status: `PLANNED`; Reuse: `ADAPT` existing local API service mutation pattern.
+- Status: `APPROVE`; Reuse: `ADAPT` existing local API service mutation pattern.
 - START_ANCHOR: approved TASK-019 SHA. Dependencies: 018, 018A, 019. Parallel-safe-with: none. Merge prerequisite: m008 and intent-boundary review APPROVE.
 
 ## Contract metadata
