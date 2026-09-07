@@ -107,6 +107,11 @@ EXPECTED_TABLES = {
     "manual_analyze_overrides",
     "source_policy_current",
     "source_policy_revisions",
+    "source_run_checkpoint_events",
+    "source_run_state_events",
+    "source_run_video_execution_events",
+    "source_run_video_executions",
+    "source_runs",
     "source_video_filter_decisions",
     "topic_memberships",
     "topic_membership_evidence",
@@ -353,6 +358,53 @@ EXPECTED_COLUMNS = {
         "video_id",
         "command_id",
         "prior_decision_id",
+        "created_at",
+    ),
+    "source_runs": (
+        "run_id",
+        "source_id",
+        "trigger",
+        "trigger_reference",
+        "priority",
+        "idempotency_key",
+        "state",
+        "attention_reason",
+        "automation_run_id",
+        "manual_command_id",
+        "manual_analyze_override_id",
+        "created_at",
+        "updated_at",
+    ),
+    "source_run_state_events": (
+        "event_id",
+        "run_id",
+        "prior_state",
+        "state",
+        "attention_reason",
+        "occurred_at",
+    ),
+    "source_run_video_executions": (
+        "run_id",
+        "video_id",
+        "state",
+        "distillation_execution_id",
+        "created_at",
+        "updated_at",
+    ),
+    "source_run_video_execution_events": (
+        "event_id",
+        "run_id",
+        "video_id",
+        "prior_state",
+        "state",
+        "occurred_at",
+    ),
+    "source_run_checkpoint_events": (
+        "event_id",
+        "run_id",
+        "checkpoint",
+        "checkpoint_position",
+        "event_status",
         "created_at",
     ),
 }
@@ -716,12 +768,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "011_add_topic_timeline.sql")
+        .joinpath("migrations", "012_add_source_run_orchestration.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 11
-    assert first.name == "011_add_topic_timeline.sql"
+    assert first.version == 12
+    assert first.name == "012_add_source_run_orchestration.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -736,7 +788,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 11
+    assert migration_count == 12
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -809,6 +861,12 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_feedback_events_created",
         "idx_manual_analyze_overrides_source_video",
         "idx_source_policy_revisions_scope_created",
+        "idx_source_run_checkpoint_events_run",
+        "idx_source_run_state_events_run",
+        "idx_source_run_video_execution_events_child",
+        "idx_source_run_video_executions_run_state",
+        "idx_source_runs_admission",
+        "idx_source_runs_source_created",
         "idx_source_video_filter_decisions_source_video",
         "idx_topic_memberships_revision",
         "idx_topic_memberships_topic",

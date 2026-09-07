@@ -42,7 +42,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 11
+    assert repository.initialize(now=NOW).version == 12
     return repository
 
 
@@ -194,12 +194,12 @@ def _topic_service(repository: SQLiteStateRepository) -> TopicApplicationService
     return TopicApplicationService(repository, now=lambda: NOW)
 
 
-def test_m011_fresh_database_reaches_exactly_v011_and_m012_is_absent(tmp_path: Path) -> None:
+def test_topic_contract_remains_available_at_v012_without_m013(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -211,8 +211,8 @@ def test_m011_fresh_database_reaches_exactly_v011_and_m012_is_absent(tmp_path: P
     finally:
         connection.close()
 
-    assert migrations[-1] == "011_add_topic_timeline.sql"
-    assert not any(name.startswith("012_") for name in migrations)
+    assert migrations[-1] == "012_add_source_run_orchestration.sql"
+    assert not any(name.startswith("013_") for name in migrations)
     assert {"topics", "topic_memberships", "topic_timeline_events", "topic_relations"} <= tables
 
 
@@ -227,7 +227,7 @@ def test_v010_upgrade_preserves_data_and_creates_no_synthetic_topic_truth(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 11
+    assert upgraded.initialize(now=NOW).version == 12
     assert upgraded.get_intelligence("preserved-intelligence").intelligence_id == "preserved-intelligence"
     assert upgraded.list_topics() == ()
 

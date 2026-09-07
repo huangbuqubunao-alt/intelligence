@@ -35,6 +35,24 @@ from youtube_intel.orchestration import (
     ScheduleFrequency,
     SourceType,
 )
+from youtube_intel.source_run import (
+    SOURCE_RUN_CHECKPOINT_ORDER,
+    SourceRunAttentionReason,
+    SourceRunCheckpoint,
+    SourceRunCheckpointEventStatus,
+    SourceRunCheckpointProgress,
+    SourceRunChildRecord,
+    SourceRunChildState,
+    SourceRunPriority,
+    SourceRunRecord,
+    SourceRunState,
+    SourceRunTrigger,
+    SourceRunWrite,
+    build_source_run_id,
+    build_source_run_idempotency_key,
+    source_run_child_transition_allowed,
+    source_run_transition_allowed,
+)
 
 #: The sole post-migration scoring lineage generation (schema v2).  Every
 #: post-migration SCORING Job receives exactly this literal at creation; the
@@ -1268,6 +1286,7 @@ class SQLiteStateRepository:
             "009_add_source_policy_filtering.sql",
             "010_add_personalized_distillation.sql",
             "011_add_topic_timeline.sql",
+            "012_add_source_run_orchestration.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -4885,6 +4904,547 @@ class SQLiteStateRepository:
                     {"limit": limit},
                 )
             )
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _source_run_from_row(row: sqlite3.Row) -> SourceRunRecord:
+        return SourceRunRecord(
+            run_id=str(row["run_id"]),
+            source_id=str(row["source_id"]),
+            trigger=SourceRunTrigger(str(row["trigger"])),
+            trigger_reference=str(row["trigger_reference"]),
+            priority=SourceRunPriority(str(row["priority"])),
+            idempotency_key=str(row["idempotency_key"]),
+            state=SourceRunState(str(row["state"])),
+            attention_reason=(
+                None
+                if row["attention_reason"] is None
+                else SourceRunAttentionReason(str(row["attention_reason"]))
+            ),
+            automation_run_id=(
+                None if row["automation_run_id"] is None else str(row["automation_run_id"])
+            ),
+            manual_command_id=(
+                None if row["manual_command_id"] is None else str(row["manual_command_id"])
+            ),
+            manual_analyze_override_id=(
+                None
+                if row["manual_analyze_override_id"] is None
+                else str(row["manual_analyze_override_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _source_run_child_from_row(row: sqlite3.Row) -> SourceRunChildRecord:
+        return SourceRunChildRecord(
+            run_id=str(row["run_id"]),
+            video_id=str(row["video_id"]),
+            state=SourceRunChildState(str(row["state"])),
+            distillation_execution_id=(
+                None
+                if row["distillation_execution_id"] is None
+                else str(row["distillation_execution_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _validate_source_run_write(run: SourceRunWrite) -> None:
+        if not isinstance(run, SourceRunWrite):
+            raise ValueError("Source Run write is invalid")
+        if (
+            not isinstance(run.trigger, SourceRunTrigger)
+            or not isinstance(run.priority, SourceRunPriority)
+        ):
+            raise ValueError("Source Run trigger and priority must be finite")
+        identity_fields = (
+            run.run_id,
+            run.source_id,
+            run.trigger_reference,
+            run.idempotency_key,
+        )
+        if any(
+            not isinstance(value, str)
+            or not value.strip()
+            or value != value.strip()
+            or len(value) > 512
+            for value in identity_fields
+        ):
+            raise ValueError("Source Run identity is invalid")
+        for value in (
+            run.automation_run_id,
+            run.manual_command_id,
+            run.manual_analyze_override_id,
+        ):
+            if value is not None and (
+                not isinstance(value, str)
+                or not value.strip()
+                or value != value.strip()
+                or len(value) > 512
+            ):
+                raise ValueError("Source Run trigger reference is invalid")
+        expected_run_id = build_source_run_id(
+            source_id=run.source_id,
+            trigger=run.trigger,
+            trigger_reference=run.trigger_reference,
+        )
+        expected_idempotency_key = build_source_run_idempotency_key(
+            source_id=run.source_id,
+            trigger=run.trigger,
+            trigger_reference=run.trigger_reference,
+        )
+        if run.run_id != expected_run_id or run.idempotency_key != expected_idempotency_key:
+            raise ValueError("Source Run identity must be derived from its bound trigger")
+        if run.trigger is SourceRunTrigger.MANUAL_CHECK_NOW:
+            context_is_legal = (
+                run.automation_run_id is None
+                and run.manual_command_id == run.trigger_reference
+                and run.manual_analyze_override_id is None
+            )
+        elif run.trigger is SourceRunTrigger.SCHEDULED_SOURCE_RUN:
+            context_is_legal = (
+                run.automation_run_id == run.trigger_reference
+                and run.manual_command_id is None
+                and run.manual_analyze_override_id is None
+            )
+        else:
+            context_is_legal = (
+                run.automation_run_id is None
+                and run.manual_command_id is not None
+                and run.manual_analyze_override_id == run.trigger_reference
+            )
+        if not context_is_legal:
+            raise ValueError("Source Run trigger context is invalid")
+        format_utc_datetime(run.created_at)
+
+    @staticmethod
+    def _same_source_run_admission(
+        record: SourceRunRecord, run: SourceRunWrite
+    ) -> bool:
+        return (
+            record.run_id == run.run_id
+            and record.source_id == run.source_id
+            and record.trigger is run.trigger
+            and record.trigger_reference == run.trigger_reference
+            and record.priority is run.priority
+            and record.idempotency_key == run.idempotency_key
+            and record.automation_run_id == run.automation_run_id
+            and record.manual_command_id == run.manual_command_id
+            and record.manual_analyze_override_id == run.manual_analyze_override_id
+        )
+
+    def create_source_run(self, run: SourceRunWrite) -> SourceRunRecord:
+        """Durably admit one source-bound logical run without executing it."""
+
+        self._validate_source_run_write(run)
+        timestamp = format_utc_datetime(run.created_at)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM source_runs WHERE source_id = :source_id "
+                    "AND idempotency_key = :idempotency_key",
+                    {
+                        "source_id": run.source_id,
+                        "idempotency_key": run.idempotency_key,
+                    },
+                ).fetchone()
+                if existing is not None:
+                    record = self._source_run_from_row(existing)
+                    if not self._same_source_run_admission(record, run):
+                        raise IntegrityConflict("Source Run idempotency identity conflicts")
+                    return record
+                connection.execute(
+                    "INSERT INTO source_runs "
+                    "(run_id, source_id, trigger, trigger_reference, priority, "
+                    "idempotency_key, state, attention_reason, automation_run_id, "
+                    "manual_command_id, manual_analyze_override_id, created_at, updated_at) "
+                    "VALUES (:run_id, :source_id, :trigger, :trigger_reference, :priority, "
+                    ":idempotency_key, 'QUEUED', NULL, :automation_run_id, "
+                    ":manual_command_id, :manual_analyze_override_id, :created_at, :updated_at)",
+                    {
+                        "run_id": run.run_id,
+                        "source_id": run.source_id,
+                        "trigger": run.trigger.value,
+                        "trigger_reference": run.trigger_reference,
+                        "priority": run.priority.value,
+                        "idempotency_key": run.idempotency_key,
+                        "automation_run_id": run.automation_run_id,
+                        "manual_command_id": run.manual_command_id,
+                        "manual_analyze_override_id": run.manual_analyze_override_id,
+                        "created_at": timestamp,
+                        "updated_at": timestamp,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_runs WHERE run_id = :run_id",
+                    {"run_id": run.run_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("Source Run was not saved")
+                return self._source_run_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run violates its durable admission contract") from error
+        finally:
+            connection.close()
+
+    def get_source_run(self, run_id: str) -> SourceRunRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+            ).fetchone()
+            return None if row is None else self._source_run_from_row(row)
+        finally:
+            connection.close()
+
+    def list_source_runs(self) -> tuple[SourceRunRecord, ...]:
+        connection = self._connect()
+        try:
+            return tuple(
+                self._source_run_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM source_runs ORDER BY created_at ASC, run_id ASC"
+                )
+            )
+        finally:
+            connection.close()
+
+    def list_resumable_source_runs(self) -> tuple[SourceRunRecord, ...]:
+        """Read durable queue/resume candidates; this does not claim or execute them."""
+
+        connection = self._connect()
+        try:
+            return tuple(
+                self._source_run_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM source_runs "
+                    "WHERE state IN ('QUEUED', 'WAITING', 'PARTIAL') "
+                    "ORDER BY CASE priority "
+                    "WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END, "
+                    "created_at ASC, run_id ASC"
+                )
+            )
+        finally:
+            connection.close()
+
+    def transition_source_run(
+        self,
+        run_id: str,
+        *,
+        to_state: SourceRunState,
+        now: datetime,
+        attention_reason: SourceRunAttentionReason | None = None,
+    ) -> SourceRunRecord:
+        if not isinstance(to_state, SourceRunState):
+            raise ValueError("Source Run state must be finite")
+        if to_state in {SourceRunState.NEEDS_ATTENTION, SourceRunState.AMBIGUOUS}:
+            if not isinstance(attention_reason, SourceRunAttentionReason):
+                raise ValueError("Source Run attention reason must be finite")
+            if (
+                to_state is SourceRunState.AMBIGUOUS
+                and attention_reason
+                is not SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
+            ):
+                raise ValueError("Source Run attention reason is invalid for AMBIGUOUS")
+        elif attention_reason is not None:
+            raise ValueError("Source Run attention reason is valid only for attention states")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                ).fetchone()
+                if row is None:
+                    raise ValueError("Source Run does not exist")
+                current = SourceRunState(str(row["state"]))
+                if not source_run_transition_allowed(current, to_state):
+                    raise ValueError("Source Run state transition is not allowed")
+                connection.execute(
+                    "UPDATE source_runs SET state = :state, attention_reason = :attention_reason, "
+                    "updated_at = :updated_at WHERE run_id = :run_id",
+                    {
+                        "run_id": run_id,
+                        "state": to_state.value,
+                        "attention_reason": (
+                            None if attention_reason is None else attention_reason.value
+                        ),
+                        "updated_at": timestamp,
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                ).fetchone()
+                if saved is None:
+                    raise StateStoreError("Source Run state was not saved")
+                return self._source_run_from_row(saved)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run state violates its durable contract") from error
+        finally:
+            connection.close()
+
+    def source_run_checkpoint_progress(self, run_id: str) -> SourceRunCheckpointProgress:
+        connection = self._connect()
+        try:
+            run = connection.execute(
+                "SELECT 1 FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+            ).fetchone()
+            if run is None:
+                raise ValueError("Source Run does not exist")
+            rows = tuple(
+                connection.execute(
+                    "SELECT checkpoint, checkpoint_position, event_status, event_id "
+                    "FROM source_run_checkpoint_events WHERE run_id = :run_id "
+                    "ORDER BY checkpoint_position ASC, event_id ASC",
+                    {"run_id": run_id},
+                )
+            )
+            completed_positions = {
+                int(row["checkpoint_position"])
+                for row in rows
+                if str(row["event_status"])
+                == SourceRunCheckpointEventStatus.COMPLETED.value
+            }
+            completed = tuple(
+                checkpoint
+                for position, checkpoint in enumerate(SOURCE_RUN_CHECKPOINT_ORDER, start=1)
+                if position in completed_positions
+            )
+            next_checkpoint = next(
+                (
+                    checkpoint
+                    for position, checkpoint in enumerate(
+                        SOURCE_RUN_CHECKPOINT_ORDER, start=1
+                    )
+                    if position not in completed_positions
+                ),
+                None,
+            )
+            blocked_checkpoint = None
+            if next_checkpoint is not None:
+                next_position = SOURCE_RUN_CHECKPOINT_ORDER.index(next_checkpoint) + 1
+                blocked = [
+                    row
+                    for row in rows
+                    if int(row["checkpoint_position"]) == next_position
+                    and str(row["event_status"])
+                    == SourceRunCheckpointEventStatus.BLOCKED.value
+                ]
+                if blocked:
+                    blocked_checkpoint = next_checkpoint
+            return SourceRunCheckpointProgress(
+                run_id=run_id,
+                completed=completed,
+                next_checkpoint=next_checkpoint,
+                blocked_checkpoint=blocked_checkpoint,
+            )
+        finally:
+            connection.close()
+
+    def _require_safe_checkpoint(
+        self, run_id: str, checkpoint: SourceRunCheckpoint
+    ) -> None:
+        if not isinstance(checkpoint, SourceRunCheckpoint):
+            raise ValueError("Source Run checkpoint must be finite")
+        progress = self.source_run_checkpoint_progress(run_id)
+        if progress.next_checkpoint is not checkpoint:
+            raise ValueError("Source Run checkpoint is not the safe next step")
+
+    def complete_source_run_checkpoint(
+        self, run_id: str, checkpoint: SourceRunCheckpoint, *, now: datetime
+    ) -> SourceRunCheckpointProgress:
+        self._require_safe_checkpoint(run_id, checkpoint)
+        timestamp = format_utc_datetime(now)
+        position = SOURCE_RUN_CHECKPOINT_ORDER.index(checkpoint) + 1
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                ).fetchone()
+                if row is None:
+                    raise ValueError("Source Run does not exist")
+                if SourceRunState(str(row["state"])) not in {
+                    SourceRunState.RUNNING,
+                    SourceRunState.PARTIAL,
+                }:
+                    raise ValueError("Source Run cannot complete a checkpoint from its state")
+                connection.execute(
+                    "INSERT INTO source_run_checkpoint_events "
+                    "(run_id, checkpoint, checkpoint_position, event_status, created_at) "
+                    "VALUES (:run_id, :checkpoint, :checkpoint_position, :event_status, :created_at)",
+                    {
+                        "run_id": run_id,
+                        "checkpoint": checkpoint.value,
+                        "checkpoint_position": position,
+                        "event_status": SourceRunCheckpointEventStatus.COMPLETED.value,
+                        "created_at": timestamp,
+                    },
+                )
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run checkpoint violates safe child proof") from error
+        finally:
+            connection.close()
+        return self.source_run_checkpoint_progress(run_id)
+
+    def block_source_run_checkpoint(
+        self, run_id: str, checkpoint: SourceRunCheckpoint, *, now: datetime
+    ) -> SourceRunCheckpointProgress:
+        self._require_safe_checkpoint(run_id, checkpoint)
+        timestamp = format_utc_datetime(now)
+        position = SOURCE_RUN_CHECKPOINT_ORDER.index(checkpoint) + 1
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                ).fetchone()
+                if row is None:
+                    raise ValueError("Source Run does not exist")
+                if SourceRunState(str(row["state"])) not in {
+                    SourceRunState.RUNNING,
+                    SourceRunState.WAITING,
+                    SourceRunState.PARTIAL,
+                    SourceRunState.NEEDS_ATTENTION,
+                }:
+                    raise ValueError("Source Run cannot block a checkpoint from its state")
+                connection.execute(
+                    "INSERT INTO source_run_checkpoint_events "
+                    "(run_id, checkpoint, checkpoint_position, event_status, created_at) "
+                    "VALUES (:run_id, :checkpoint, :checkpoint_position, :event_status, :created_at)",
+                    {
+                        "run_id": run_id,
+                        "checkpoint": checkpoint.value,
+                        "checkpoint_position": position,
+                        "event_status": SourceRunCheckpointEventStatus.BLOCKED.value,
+                        "created_at": timestamp,
+                    },
+                )
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run checkpoint block is invalid") from error
+        finally:
+            connection.close()
+        return self.source_run_checkpoint_progress(run_id)
+
+    def record_source_run_child(
+        self,
+        run_id: str,
+        *,
+        video_id: str,
+        state: SourceRunChildState,
+        distillation_execution_id: str | None,
+        now: datetime,
+    ) -> SourceRunChildRecord:
+        if not isinstance(state, SourceRunChildState) or state is not SourceRunChildState.PENDING:
+            raise ValueError("Source Run child must begin in finite PENDING state")
+        if (
+            not isinstance(video_id, str)
+            or not video_id.strip()
+            or video_id != video_id.strip()
+            or len(video_id) > 512
+        ):
+            raise ValueError("Source Run child video identity is invalid")
+        if distillation_execution_id is not None and (
+            not isinstance(distillation_execution_id, str)
+            or not distillation_execution_id.strip()
+            or distillation_execution_id != distillation_execution_id.strip()
+            or len(distillation_execution_id) > 512
+        ):
+            raise ValueError("Source Run child execution identity is invalid")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO source_run_video_executions "
+                    "(run_id, video_id, state, distillation_execution_id, created_at, updated_at) "
+                    "VALUES (:run_id, :video_id, :state, :distillation_execution_id, "
+                    ":created_at, :updated_at)",
+                    {
+                        "run_id": run_id,
+                        "video_id": video_id,
+                        "state": state.value,
+                        "distillation_execution_id": distillation_execution_id,
+                        "created_at": timestamp,
+                        "updated_at": timestamp,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_run_video_executions "
+                    "WHERE run_id = :run_id AND video_id = :video_id",
+                    {"run_id": run_id, "video_id": video_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("Source Run child was not saved")
+                return self._source_run_child_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run child violates its durable contract") from error
+        finally:
+            connection.close()
+
+    def list_source_run_children(self, run_id: str) -> tuple[SourceRunChildRecord, ...]:
+        connection = self._connect()
+        try:
+            return tuple(
+                self._source_run_child_from_row(row)
+                for row in connection.execute(
+                    "SELECT * FROM source_run_video_executions WHERE run_id = :run_id "
+                    "ORDER BY video_id ASC",
+                    {"run_id": run_id},
+                )
+            )
+        finally:
+            connection.close()
+
+    def transition_source_run_child(
+        self,
+        run_id: str,
+        *,
+        video_id: str,
+        to_state: SourceRunChildState,
+        now: datetime,
+    ) -> SourceRunChildRecord:
+        if not isinstance(to_state, SourceRunChildState):
+            raise ValueError("Source Run child state must be finite")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT * FROM source_run_video_executions "
+                    "WHERE run_id = :run_id AND video_id = :video_id",
+                    {"run_id": run_id, "video_id": video_id},
+                ).fetchone()
+                if row is None:
+                    raise ValueError("Source Run child does not exist")
+                current = SourceRunChildState(str(row["state"]))
+                if not source_run_child_transition_allowed(current, to_state):
+                    raise ValueError("Source Run child state transition is not allowed")
+                connection.execute(
+                    "UPDATE source_run_video_executions SET state = :state, "
+                    "updated_at = :updated_at WHERE run_id = :run_id AND video_id = :video_id",
+                    {
+                        "run_id": run_id,
+                        "video_id": video_id,
+                        "state": to_state.value,
+                        "updated_at": timestamp,
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM source_run_video_executions "
+                    "WHERE run_id = :run_id AND video_id = :video_id",
+                    {"run_id": run_id, "video_id": video_id},
+                ).fetchone()
+                if saved is None:
+                    raise StateStoreError("Source Run child state was not saved")
+                return self._source_run_child_from_row(saved)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("Source Run child state violates protected execution") from error
         finally:
             connection.close()
 
