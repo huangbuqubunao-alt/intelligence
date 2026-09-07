@@ -1,6 +1,6 @@
 # TASK-023A — Durable Source Run Orchestration Persistence Amendment
 
-- Status: `PLANNED`; Product Owner correction task following approved TASK-023.
+- Status: `APPROVE`; Product Owner correction task following approved TASK-023.
 - START_ANCHOR: `02334a9a1891b363a2badfa5464f93b1fe42d841`. Dependencies: 018–023 plus 018A. Parallel-safe-with: none. Merge prerequisite: m012 durable-orchestration persistence review APPROVE.
 
 ## Contract metadata
