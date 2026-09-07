@@ -58,6 +58,35 @@ BEGIN
     SELECT RAISE(ABORT, 'evidence deletion requires dependency impact handling');
 END;
 
+CREATE TRIGGER artifact_deletion_requires_no_current_evidence
+BEFORE UPDATE OF deleted_at ON artifacts
+WHEN OLD.deleted_at IS NULL
+ AND NEW.deleted_at IS NOT NULL
+ AND EXISTS (
+    SELECT 1
+    FROM evidence
+    JOIN intelligence_revision_evidence AS link ON link.evidence_id = evidence.evidence_id
+    JOIN intelligences ON intelligences.current_revision_id = link.revision_id
+    WHERE evidence.artifact_id = OLD.artifact_id
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'artifact deletion requires current intelligence impact handling');
+END;
+
+CREATE TRIGGER video_unavailability_requires_no_current_evidence
+BEFORE UPDATE OF availability ON videos
+WHEN NEW.availability IN ('unavailable', 'private', 'deleted', 'restricted')
+ AND EXISTS (
+    SELECT 1
+    FROM evidence
+    JOIN intelligence_revision_evidence AS link ON link.evidence_id = evidence.evidence_id
+    JOIN intelligences ON intelligences.current_revision_id = link.revision_id
+    WHERE evidence.video_id = OLD.video_id
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'video availability requires current intelligence impact handling');
+END;
+
 CREATE TABLE intelligence_revisions (
     revision_id TEXT PRIMARY KEY CHECK (length(trim(revision_id)) > 0),
     intelligence_id TEXT NOT NULL REFERENCES intelligences(intelligence_id) ON DELETE RESTRICT,
@@ -154,6 +183,16 @@ CREATE TABLE intelligence_state_history (
 );
 CREATE INDEX idx_intelligence_state_history_identity ON intelligence_state_history(intelligence_id, created_at, state_event_id);
 
+CREATE TRIGGER intelligence_state_history_evidence_must_be_revision_link
+BEFORE INSERT ON intelligence_state_history
+WHEN NOT EXISTS (
+    SELECT 1 FROM intelligence_revision_evidence
+    WHERE revision_id = NEW.revision_id AND evidence_id = NEW.evidence_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'state history evidence must be linked to its revision');
+END;
+
 CREATE TRIGGER intelligence_state_history_immutable_update
 BEFORE UPDATE ON intelligence_state_history
 BEGIN
@@ -190,6 +229,24 @@ BEGIN
     SELECT RAISE(ABORT, 'current intelligence revision must have available evidence and state history');
 END;
 
+CREATE TRIGGER intelligence_current_revision_must_advance
+BEFORE UPDATE OF current_revision_id ON intelligences
+WHEN OLD.current_revision_id IS NOT NULL
+ AND (
+    NEW.current_revision_id IS NULL
+    OR NOT EXISTS (
+        SELECT 1
+        FROM intelligence_revisions AS prior
+        JOIN intelligence_revisions AS next ON next.revision_id = NEW.current_revision_id
+        WHERE prior.revision_id = OLD.current_revision_id
+          AND next.intelligence_id = OLD.intelligence_id
+          AND next.revision_number > prior.revision_number
+    )
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'current intelligence revision cannot silently regress');
+END;
+
 CREATE TRIGGER evidence_availability_requires_no_current_support
 BEFORE UPDATE OF availability ON evidence
 WHEN EXISTS (
@@ -223,6 +280,18 @@ CREATE UNIQUE INDEX uq_dependency_edge_revision
 CREATE INDEX idx_dependency_edges_input_evidence ON dependency_edges(input_evidence_id, dependent_revision_id);
 CREATE INDEX idx_dependency_edges_input_revision ON dependency_edges(input_revision_id, dependent_revision_id);
 
+CREATE TRIGGER dependency_edge_evidence_must_be_revision_link
+BEFORE INSERT ON dependency_edges
+WHEN NEW.relation = 'EVIDENCE_SUPPORT'
+ AND NOT EXISTS (
+    SELECT 1 FROM intelligence_revision_evidence
+    WHERE revision_id = NEW.dependent_revision_id
+      AND evidence_id = NEW.input_evidence_id
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'dependency evidence must be linked to its dependent revision');
+END;
+
 CREATE TRIGGER dependency_edge_revision_must_be_same_intelligence
 BEFORE INSERT ON dependency_edges
 WHEN NEW.relation = 'REVISION_SUPERSEDES'
@@ -236,6 +305,18 @@ WHEN NEW.relation = 'REVISION_SUPERSEDES'
  )
 BEGIN
     SELECT RAISE(ABORT, 'revision supersession must stay within one intelligence identity');
+END;
+
+CREATE TRIGGER dependency_edge_revision_must_match_prior_revision
+BEFORE INSERT ON dependency_edges
+WHEN NEW.relation = 'REVISION_SUPERSEDES'
+ AND NOT EXISTS (
+    SELECT 1 FROM intelligence_revisions
+    WHERE revision_id = NEW.dependent_revision_id
+      AND prior_revision_id = NEW.input_revision_id
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'revision supersession edge must cite the immediate prior revision');
 END;
 
 CREATE TRIGGER dependency_edge_immutable_update

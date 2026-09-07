@@ -253,6 +253,11 @@ def test_revisions_append_preserve_history_and_current_pointer_is_scoped(tmp_pat
             connection.execute("UPDATE intelligences SET current_revision_id = 'revision-1' WHERE intelligence_id = 'intelligence-2'")
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("UPDATE intelligence_revisions SET content_hash = ? WHERE revision_id = ?", ("d" * 64, first_revision_id))
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "UPDATE intelligences SET current_revision_id = ? WHERE intelligence_id = ?",
+                (first_revision_id, intelligence_id),
+            )
 
 
 def test_unavailable_or_missing_evidence_cannot_support_current_revision_or_be_deleted(tmp_path: Path) -> None:
@@ -285,6 +290,15 @@ def test_unavailable_or_missing_evidence_cannot_support_current_revision_or_be_d
             connection.execute("DELETE FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,))
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
+                "UPDATE artifacts SET deleted_at = ? WHERE artifact_id = 'artifact-1'",
+                (state_mod.format_utc_datetime(NOW),),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "UPDATE videos SET availability = 'deleted' WHERE video_id = 'video-1'"
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
                 "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id) VALUES ('revision-1', ?)",
                 (evidence.evidence_id,),
             )
@@ -309,6 +323,20 @@ def test_dependency_edges_are_directed_finite_and_identity_bound(tmp_path: Path)
     )
 
     assert edge.dependent_revision_id == revision_id
+    unlinked_evidence = repository.create_evidence(
+        _evidence_write(start_ms=2000), now=NOW
+    )
+    with pytest.raises(IntegrityConflict, match="dependency edge"):
+        repository.create_dependency_edge(
+            DependencyEdgeWrite(
+                edge_id="edge-unlinked-evidence",
+                dependent_revision_id=revision_id,
+                relation=DependencyRelation.EVIDENCE_SUPPORT,
+                input_evidence_id=unlinked_evidence.evidence_id,
+                input_revision_id=None,
+            ),
+            now=NOW,
+        )
     with pytest.raises(StateStoreError, match="requires exactly one"):
         repository.create_dependency_edge(
             DependencyEdgeWrite(
