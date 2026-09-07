@@ -127,6 +127,132 @@ class ReportStatus(str, Enum):
     WRITTEN = "WRITTEN"
 
 
+class EvidenceAvailability(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+    DELETED = "DELETED"
+
+
+class EvidenceLineageKind(str, Enum):
+    ORIGINAL_TRANSCRIPT = "ORIGINAL_TRANSCRIPT"
+    TRANSLATION = "TRANSLATION"
+    EXTRACTION = "EXTRACTION"
+
+
+class EvidenceRole(str, Enum):
+    PRIMARY_ORIGINAL = "PRIMARY_ORIGINAL"
+    INDEPENDENT_VERIFICATION = "INDEPENDENT_VERIFICATION"
+    ANALYSIS_COMMENTARY = "ANALYSIS_COMMENTARY"
+    SECONDARY_RELAY = "SECONDARY_RELAY"
+
+
+class IntelligenceInterpretationKind(str, Enum):
+    DISTILLATION = "DISTILLATION"
+    SYNTHESIS = "SYNTHESIS"
+    CORRECTION = "CORRECTION"
+
+
+class IntelligenceState(str, Enum):
+    NEW = "NEW"
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
+    CONFIRMED = "CONFIRMED"
+    DISPUTED = "DISPUTED"
+    UPDATED = "UPDATED"
+    INVALIDATED = "INVALIDATED"
+    OVERTURNED = "OVERTURNED"
+
+
+class DependencyRelation(str, Enum):
+    EVIDENCE_SUPPORT = "EVIDENCE_SUPPORT"
+    REVISION_SUPERSEDES = "REVISION_SUPERSEDES"
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceWrite:
+    evidence_id: str
+    video_id: str
+    artifact_id: str
+    start_ms: int
+    end_ms: int
+    lineage_kind: EvidenceLineageKind
+    role: EvidenceRole
+    language: str
+    availability: EvidenceAvailability
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceRecord:
+    evidence_id: str
+    video_id: str
+    artifact_id: str
+    start_ms: int
+    end_ms: int
+    lineage_kind: EvidenceLineageKind
+    role: EvidenceRole
+    language: str
+    availability: EvidenceAvailability
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class IntelligenceRecord:
+    intelligence_id: str
+    current_revision_id: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class IntelligenceRevisionWrite:
+    revision_id: str
+    interpretation_kind: IntelligenceInterpretationKind
+    content_hash: str
+    state: IntelligenceState
+    reason: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class IntelligenceRevisionRecord:
+    revision_id: str
+    intelligence_id: str
+    revision_number: int
+    prior_revision_id: str | None
+    interpretation_kind: IntelligenceInterpretationKind
+    content_hash: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class IntelligenceStateHistoryRecord:
+    state_event_id: str
+    intelligence_id: str
+    revision_id: str
+    state: IntelligenceState
+    prior_state: IntelligenceState | None
+    reason: str
+    evidence_id: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyEdgeWrite:
+    edge_id: str
+    dependent_revision_id: str
+    relation: DependencyRelation
+    input_evidence_id: str | None
+    input_revision_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyEdgeRecord:
+    edge_id: str
+    dependent_revision_id: str
+    relation: DependencyRelation
+    input_evidence_id: str | None
+    input_revision_id: str | None
+    created_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class SourceSubscriptionRecord:
     source_id: str
@@ -587,6 +713,36 @@ def build_provider_request_hash(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def build_evidence_id(
+    *,
+    video_id: str,
+    artifact_id: str,
+    start_ms: int,
+    end_ms: int,
+    lineage_kind: EvidenceLineageKind,
+    role: EvidenceRole,
+) -> str:
+    """Build the stable identity for one precise, source-bound evidence span."""
+
+    if not video_id.strip() or not artifact_id.strip():
+        raise ValueError("evidence provenance identities must be non-empty")
+    if start_ms < 0 or end_ms < start_ms:
+        raise ValueError("evidence timestamp range is invalid")
+    canonical = json.dumps(
+        [
+            video_id,
+            artifact_id,
+            start_ms,
+            end_ms,
+            lineage_kind.value,
+            role.value,
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _processing_stage_for_transition(
     current: PipelineStatus,
     target: PipelineStatus,
@@ -703,6 +859,7 @@ class SQLiteStateRepository:
             "003_add_deep_analysis_persistence.sql",
             "004_add_provider_dispatch_state.sql",
             "005_add_product_orchestration.sql",
+            "006_add_intelligence_domain.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -3798,5 +3955,386 @@ class SQLiteStateRepository:
                     _parse_utc_datetime(str(row["updated_at"])),
                 )
             )
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _evidence_from_row(row: sqlite3.Row) -> EvidenceRecord:
+        return EvidenceRecord(
+            evidence_id=str(row["evidence_id"]),
+            video_id=str(row["video_id"]),
+            artifact_id=str(row["artifact_id"]),
+            start_ms=int(row["start_ms"]),
+            end_ms=int(row["end_ms"]),
+            lineage_kind=EvidenceLineageKind(str(row["lineage_kind"])),
+            role=EvidenceRole(str(row["role"])),
+            language=str(row["language"]),
+            availability=EvidenceAvailability(str(row["availability"])),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _intelligence_from_row(row: sqlite3.Row) -> IntelligenceRecord:
+        return IntelligenceRecord(
+            intelligence_id=str(row["intelligence_id"]),
+            current_revision_id=(
+                None
+                if row["current_revision_id"] is None
+                else str(row["current_revision_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _intelligence_revision_from_row(
+        row: sqlite3.Row,
+    ) -> IntelligenceRevisionRecord:
+        return IntelligenceRevisionRecord(
+            revision_id=str(row["revision_id"]),
+            intelligence_id=str(row["intelligence_id"]),
+            revision_number=int(row["revision_number"]),
+            prior_revision_id=(
+                None
+                if row["prior_revision_id"] is None
+                else str(row["prior_revision_id"])
+            ),
+            interpretation_kind=IntelligenceInterpretationKind(
+                str(row["interpretation_kind"])
+            ),
+            content_hash=str(row["content_hash"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _intelligence_state_history_from_row(
+        row: sqlite3.Row,
+    ) -> IntelligenceStateHistoryRecord:
+        return IntelligenceStateHistoryRecord(
+            state_event_id=str(row["state_event_id"]),
+            intelligence_id=str(row["intelligence_id"]),
+            revision_id=str(row["revision_id"]),
+            state=IntelligenceState(str(row["state"])),
+            prior_state=(
+                None
+                if row["prior_state"] is None
+                else IntelligenceState(str(row["prior_state"]))
+            ),
+            reason=str(row["reason"]),
+            evidence_id=str(row["evidence_id"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _dependency_edge_from_row(row: sqlite3.Row) -> DependencyEdgeRecord:
+        return DependencyEdgeRecord(
+            edge_id=str(row["edge_id"]),
+            dependent_revision_id=str(row["dependent_revision_id"]),
+            relation=DependencyRelation(str(row["relation"])),
+            input_evidence_id=(
+                None
+                if row["input_evidence_id"] is None
+                else str(row["input_evidence_id"])
+            ),
+            input_revision_id=(
+                None
+                if row["input_revision_id"] is None
+                else str(row["input_revision_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    def create_evidence(self, evidence: EvidenceWrite, *, now: datetime) -> EvidenceRecord:
+        expected_id = build_evidence_id(
+            video_id=evidence.video_id,
+            artifact_id=evidence.artifact_id,
+            start_ms=evidence.start_ms,
+            end_ms=evidence.end_ms,
+            lineage_kind=evidence.lineage_kind,
+            role=evidence.role,
+        )
+        if evidence.evidence_id != expected_id:
+            raise ValueError("evidence identity does not match its provenance")
+        if not evidence.language.strip():
+            raise ValueError("evidence language must be non-empty")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) "
+                    "VALUES (:evidence_id, :video_id, :artifact_id, :start_ms, :end_ms, :lineage_kind, :role, :language, :availability, :created_at)",
+                    {
+                        "evidence_id": evidence.evidence_id,
+                        "video_id": evidence.video_id,
+                        "artifact_id": evidence.artifact_id,
+                        "start_ms": evidence.start_ms,
+                        "end_ms": evidence.end_ms,
+                        "lineage_kind": evidence.lineage_kind.value,
+                        "role": evidence.role.value,
+                        "language": evidence.language,
+                        "availability": evidence.availability.value,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM evidence WHERE evidence_id = :evidence_id",
+                    {"evidence_id": evidence.evidence_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("evidence was not saved")
+                return self._evidence_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("evidence identity or provenance is invalid") from error
+        finally:
+            connection.close()
+
+    def get_evidence(self, evidence_id: str) -> EvidenceRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM evidence WHERE evidence_id = :evidence_id",
+                {"evidence_id": evidence_id},
+            ).fetchone()
+            return None if row is None else self._evidence_from_row(row)
+        finally:
+            connection.close()
+
+    def set_evidence_availability(
+        self, *, evidence_id: str, availability: EvidenceAvailability
+    ) -> EvidenceRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE evidence SET availability = :availability WHERE evidence_id = :evidence_id",
+                    {"evidence_id": evidence_id, "availability": availability.value},
+                ).rowcount
+                if changed != 1:
+                    raise StateStoreError("evidence does not exist")
+                row = connection.execute(
+                    "SELECT * FROM evidence WHERE evidence_id = :evidence_id",
+                    {"evidence_id": evidence_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("evidence availability was not saved")
+                return self._evidence_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict(
+                "current intelligence support must be resolved before evidence changes"
+            ) from error
+        finally:
+            connection.close()
+
+    def create_intelligence(
+        self, *, intelligence_id: str, now: datetime
+    ) -> IntelligenceRecord:
+        if not intelligence_id.strip():
+            raise ValueError("intelligence identity must be non-empty")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO intelligences (intelligence_id, current_revision_id, created_at) "
+                    "VALUES (:intelligence_id, NULL, :created_at)",
+                    {
+                        "intelligence_id": intelligence_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM intelligences WHERE intelligence_id = :intelligence_id",
+                    {"intelligence_id": intelligence_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("intelligence identity was not saved")
+                return self._intelligence_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("intelligence identity already exists") from error
+        finally:
+            connection.close()
+
+    def get_intelligence(self, intelligence_id: str) -> IntelligenceRecord:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM intelligences WHERE intelligence_id = :intelligence_id",
+                {"intelligence_id": intelligence_id},
+            ).fetchone()
+            if row is None:
+                raise StateStoreError("intelligence does not exist")
+            return self._intelligence_from_row(row)
+        finally:
+            connection.close()
+
+    def append_intelligence_revision(
+        self,
+        *,
+        intelligence_id: str,
+        revision: IntelligenceRevisionWrite,
+        now: datetime,
+    ) -> IntelligenceRevisionRecord:
+        if not revision.revision_id.strip() or not revision.reason.strip():
+            raise ValueError("revision identity and reason must be non-empty")
+        _validate_sha256(revision.content_hash, field_name="revision content_hash")
+        evidence_ids = tuple(sorted(revision.evidence_ids))
+        if not evidence_ids:
+            raise ValueError("an intelligence revision requires evidence")
+        if len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("revision evidence identities must be unique")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                intelligence = connection.execute(
+                    "SELECT * FROM intelligences WHERE intelligence_id = :intelligence_id",
+                    {"intelligence_id": intelligence_id},
+                ).fetchone()
+                if intelligence is None:
+                    raise StateStoreError("intelligence does not exist")
+                evidence_rows = connection.execute(
+                    "SELECT evidence_id, availability FROM evidence WHERE evidence_id IN ("
+                    + ",".join("?" for _ in evidence_ids)
+                    + ")",
+                    evidence_ids,
+                ).fetchall()
+                found = {str(row["evidence_id"]): str(row["availability"]) for row in evidence_rows}
+                missing = [evidence_id for evidence_id in evidence_ids if evidence_id not in found]
+                if missing:
+                    raise StateStoreError("evidence does not exist")
+                if any(found[evidence_id] != EvidenceAvailability.AVAILABLE.value for evidence_id in evidence_ids):
+                    raise StateStoreError("unavailable evidence cannot support a current revision")
+                prior_revision_id = intelligence["current_revision_id"]
+                prior_state_row = (
+                    None
+                    if prior_revision_id is None
+                    else connection.execute(
+                        "SELECT state FROM intelligence_state_history WHERE revision_id = :revision_id",
+                        {"revision_id": prior_revision_id},
+                    ).fetchone()
+                )
+                if prior_revision_id is None and revision.state is not IntelligenceState.NEW:
+                    raise StateStoreError("first intelligence revision must begin in NEW state")
+                if prior_revision_id is not None and prior_state_row is None:
+                    raise StateStoreError("current intelligence revision lacks state history")
+                revision_number = int(
+                    connection.execute(
+                        "SELECT COALESCE(MAX(revision_number), 0) + 1 FROM intelligence_revisions WHERE intelligence_id = :intelligence_id",
+                        {"intelligence_id": intelligence_id},
+                    ).fetchone()[0]
+                )
+                connection.execute(
+                    "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, content_hash, created_at) "
+                    "VALUES (:revision_id, :intelligence_id, :revision_number, :prior_revision_id, :interpretation_kind, :content_hash, :created_at)",
+                    {
+                        "revision_id": revision.revision_id,
+                        "intelligence_id": intelligence_id,
+                        "revision_number": revision_number,
+                        "prior_revision_id": prior_revision_id,
+                        "interpretation_kind": revision.interpretation_kind.value,
+                        "content_hash": revision.content_hash,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                for evidence_id in evidence_ids:
+                    connection.execute(
+                        "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id) VALUES (:revision_id, :evidence_id)",
+                        {"revision_id": revision.revision_id, "evidence_id": evidence_id},
+                    )
+                connection.execute(
+                    "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) "
+                    "VALUES (:state_event_id, :intelligence_id, :revision_id, :state, :prior_state, :reason, :evidence_id, :created_at)",
+                    {
+                        "state_event_id": f"state:{revision.revision_id}",
+                        "intelligence_id": intelligence_id,
+                        "revision_id": revision.revision_id,
+                        "state": revision.state.value,
+                        "prior_state": (
+                            None if prior_state_row is None else str(prior_state_row["state"])
+                        ),
+                        "reason": revision.reason,
+                        "evidence_id": evidence_ids[0],
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                connection.execute(
+                    "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
+                    {"revision_id": revision.revision_id, "intelligence_id": intelligence_id},
+                )
+                row = connection.execute(
+                    "SELECT * FROM intelligence_revisions WHERE revision_id = :revision_id",
+                    {"revision_id": revision.revision_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("intelligence revision was not saved")
+                return self._intelligence_revision_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("intelligence revision violates its immutable contract") from error
+        finally:
+            connection.close()
+
+    def list_intelligence_revisions(
+        self, intelligence_id: str
+    ) -> tuple[IntelligenceRevisionRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM intelligence_revisions WHERE intelligence_id = :intelligence_id "
+                "ORDER BY revision_number ASC",
+                {"intelligence_id": intelligence_id},
+            ).fetchall()
+            return tuple(self._intelligence_revision_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_intelligence_state_history(
+        self, intelligence_id: str
+    ) -> tuple[IntelligenceStateHistoryRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM intelligence_state_history WHERE intelligence_id = :intelligence_id "
+                "ORDER BY created_at ASC, state_event_id ASC",
+                {"intelligence_id": intelligence_id},
+            ).fetchall()
+            return tuple(
+                self._intelligence_state_history_from_row(row) for row in rows
+            )
+        finally:
+            connection.close()
+
+    def create_dependency_edge(
+        self, edge: DependencyEdgeWrite, *, now: datetime
+    ) -> DependencyEdgeRecord:
+        if not edge.edge_id.strip() or not edge.dependent_revision_id.strip():
+            raise ValueError("dependency edge identities must be non-empty")
+        is_evidence_edge = edge.relation is DependencyRelation.EVIDENCE_SUPPORT
+        if is_evidence_edge != (edge.input_evidence_id is not None) or (
+            is_evidence_edge and edge.input_revision_id is not None
+        ) or (not is_evidence_edge and edge.input_revision_id is None) or (
+            not is_evidence_edge and edge.input_evidence_id is not None
+        ):
+            raise StateStoreError("dependency relation requires exactly one valid input")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) "
+                    "VALUES (:edge_id, :dependent_revision_id, :relation, :input_evidence_id, :input_revision_id, :created_at)",
+                    {
+                        "edge_id": edge.edge_id,
+                        "dependent_revision_id": edge.dependent_revision_id,
+                        "relation": edge.relation.value,
+                        "input_evidence_id": edge.input_evidence_id,
+                        "input_revision_id": edge.input_revision_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM dependency_edges WHERE edge_id = :edge_id",
+                    {"edge_id": edge.edge_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("dependency edge was not saved")
+                return self._dependency_edge_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("dependency edge violates the finite provenance contract") from error
         finally:
             connection.close()
