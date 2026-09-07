@@ -26,11 +26,19 @@ from youtube_intel.orchestration import (
     provider_model_statuses,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    FeedbackCorrectionKind,
+    FeedbackKind,
+    FeedbackRecord,
+    FeedbackWrite,
+    IntegrityConflict,
+    PreferenceRecord,
+    PreferenceScope,
     ReportRecord,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
@@ -91,6 +99,36 @@ def _video_dto(video: VideoRecord) -> dict[str, object]:
     }
 
 
+def _preference_dto(preference: PreferenceRecord) -> dict[str, object]:
+    return {
+        "preference_id": preference.preference_id,
+        "horizon": preference.horizon.value,
+        "provenance": preference.provenance.value,
+        "scope": preference.scope.value,
+        "target_id": preference.target_id,
+        "statement": preference.statement,
+        "starts_at": _timestamp(preference.starts_at),
+        "expires_at": _timestamp(preference.expires_at),
+        "supersedes_preference_id": preference.supersedes_preference_id,
+        "created_at": _timestamp(preference.created_at),
+    }
+
+
+def _feedback_dto(feedback: FeedbackRecord) -> dict[str, object]:
+    return {
+        "feedback_id": feedback.feedback_id,
+        "kind": feedback.kind.value,
+        "scope": feedback.scope.value,
+        "target_id": feedback.target_id,
+        "content": feedback.content,
+        "correction_kind": None
+        if feedback.correction_kind is None
+        else feedback.correction_kind.value,
+        "effect_status": feedback.effect_status,
+        "created_at": _timestamp(feedback.created_at),
+    }
+
+
 class LocalApiApplication:
     """Framework-free route dispatcher.  Controllers validate then delegate."""
 
@@ -115,6 +153,9 @@ class LocalApiApplication:
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._preference_service = PreferenceApplicationService(
+            repository, now=self._now
+        )
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
 
@@ -170,6 +211,41 @@ class LocalApiApplication:
             )
         return value
 
+    @staticmethod
+    def _only_keys(data: dict[str, object], allowed: set[str]) -> None:
+        if set(data).difference(allowed):
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                "Request contains unsupported fields.",
+            )
+
+    @staticmethod
+    def _utc_timestamp(data: dict[str, object], key: str) -> datetime:
+        value = LocalApiApplication._string(data, key, required=True)
+        assert value is not None
+        if not value.endswith("Z"):
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                f"{key} must be an RFC 3339 UTC timestamp.",
+            )
+        try:
+            timestamp = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+        except ValueError as error:
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                f"{key} must be an RFC 3339 UTC timestamp.",
+            ) from error
+        if timestamp.utcoffset() != UTC.utcoffset(timestamp):
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                f"{key} must use UTC.",
+            )
+        return timestamp.astimezone(UTC)
+
     def handle(
         self, method: str, path: str, body: bytes = b""
     ) -> tuple[int, dict[str, object]]:
@@ -178,6 +254,108 @@ class LocalApiApplication:
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            if method == "POST" and route == "/api/v1/settings/preferences/long-term":
+                self._only_keys(
+                    data, {"command_id", "scope", "target_id", "statement"}
+                )
+                preference = self._preference_service.set_explicit_long_term(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    scope=PreferenceScope(
+                        self._string(data, "scope", required=True) or ""
+                    ),
+                    target_id=self._string(data, "target_id"),
+                    statement=self._string(data, "statement", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"preference": _preference_dto(preference)}
+            if method == "POST" and route == "/api/v1/settings/preferences/temporary-focus":
+                self._only_keys(
+                    data,
+                    {"command_id", "scope", "target_id", "statement", "expires_at"},
+                )
+                expires_at = self._utc_timestamp(data, "expires_at")
+                if expires_at <= self._now():
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "expires_at must be after the backend current time.",
+                    )
+                preference = self._preference_service.set_temporary_focus(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    scope=PreferenceScope(
+                        self._string(data, "scope", required=True) or ""
+                    ),
+                    target_id=self._string(data, "target_id"),
+                    statement=self._string(data, "statement", required=True) or "",
+                    expires_at=expires_at,
+                )
+                return HTTPStatus.CREATED, {"preference": _preference_dto(preference)}
+            if method == "POST" and route == "/api/v1/settings/feedback":
+                self._only_keys(
+                    data,
+                    {
+                        "feedback_id",
+                        "kind",
+                        "scope",
+                        "target_id",
+                        "content",
+                        "correction_kind",
+                    },
+                )
+                content = data.get("content")
+                if content is not None and not isinstance(content, str):
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "content is invalid.",
+                    )
+                correction_value = self._string(data, "correction_kind")
+                feedback = self._preference_service.record_feedback(
+                    FeedbackWrite(
+                        feedback_id=self._string(data, "feedback_id", required=True)
+                        or "",
+                        kind=FeedbackKind(
+                            self._string(data, "kind", required=True) or ""
+                        ),
+                        scope=PreferenceScope(
+                            self._string(data, "scope", required=True) or ""
+                        ),
+                        target_id=self._string(data, "target_id"),
+                        content=None if content is None else content.strip(),
+                        correction_kind=None
+                        if correction_value is None
+                        else FeedbackCorrectionKind(correction_value),
+                    )
+                )
+                return HTTPStatus.CREATED, {"feedback": _feedback_dto(feedback)}
+            preference_prefix = "/api/v1/settings/preferences/"
+            if (
+                method == "PATCH"
+                and route.startswith(preference_prefix)
+                and "/" not in route.removeprefix(preference_prefix)
+            ):
+                self._only_keys(data, {"command_id", "statement"})
+                preference = self._preference_service.replace_explicit_long_term(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    preference_id=route.removeprefix(preference_prefix),
+                    statement=self._string(data, "statement", required=True) or "",
+                )
+                return HTTPStatus.OK, {"preference": _preference_dto(preference)}
+            if (
+                method == "DELETE"
+                and route.startswith(preference_prefix)
+                and "/" not in route.removeprefix(preference_prefix)
+            ):
+                self._only_keys(data, {"command_id"})
+                event = self._preference_service.delete_preference(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    preference_id=route.removeprefix(preference_prefix),
+                )
+                return HTTPStatus.OK, {
+                    "state_event_id": event.state_event_id,
+                    "preference_id": event.preference_id,
+                    "state": event.state.value,
+                    "created_at": _timestamp(event.created_at),
+                }
             if method == "POST" and route == "/api/v1/sources":
                 policy = ProcessingPolicy(
                     self._string(data, "processing_policy", required=True) or ""
@@ -254,6 +432,12 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
         except ApiError:
             raise
+        except IntegrityConflict as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "CONFLICT",
+                "Preference or feedback command conflicts with existing history.",
+            ) from error
         except (ValueError, KeyError) as error:
             raise ApiError(
                 HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -262,6 +446,22 @@ class LocalApiApplication:
             ) from error
 
     def _get(self, route: str) -> dict[str, object]:
+        if route == "/api/v1/settings/preferences":
+            return {
+                "active": [
+                    _preference_dto(item)
+                    for item in self._preference_service.active_preferences(now=self._now())
+                ],
+                "history": [
+                    _preference_dto(item) for item in self._repository.list_preferences()
+                ],
+            }
+        if route == "/api/v1/settings/feedback":
+            return {
+                "feedback": [
+                    _feedback_dto(item) for item in self._repository.list_feedback()
+                ]
+            }
         if route == "/api/v1/dashboard":
             sources = self._repository.list_source_subscriptions()
             videos = self._repository.list_videos(limit=20)
@@ -765,5 +965,6 @@ def serve_loopback(
         do_POST = _handle
         do_PATCH = _handle
         do_PUT = _handle
+        do_DELETE = _handle
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)

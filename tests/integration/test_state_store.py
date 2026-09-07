@@ -98,6 +98,9 @@ EXPECTED_TABLES = {
     "intelligence_state_history",
     "intelligence_revision_evidence",
     "dependency_edges",
+    "preferences",
+    "preference_state_events",
+    "feedback_events",
     "videos",
 }
 EXPECTED_COLUMNS = {
@@ -273,6 +276,29 @@ EXPECTED_COLUMNS = {
         "desired_provider",
         "desired_model",
         "updated_at",
+    ),
+    "preferences": (
+        "preference_id",
+        "horizon",
+        "provenance",
+        "scope",
+        "target_id",
+        "statement",
+        "starts_at",
+        "expires_at",
+        "supersedes_preference_id",
+        "created_at",
+    ),
+    "preference_state_events": ("state_event_id", "preference_id", "state", "created_at"),
+    "feedback_events": (
+        "feedback_id",
+        "kind",
+        "scope",
+        "target_id",
+        "content",
+        "correction_kind",
+        "effect_status",
+        "created_at",
     ),
 }
 
@@ -635,12 +661,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "007_add_intelligence_claim_classification.sql")
+        .joinpath("migrations", "008_add_preference_feedback.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 7
-    assert first.name == "007_add_intelligence_claim_classification.sql"
+    assert first.version == 8
+    assert first.name == "008_add_preference_feedback.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -655,7 +681,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 7
+    assert migration_count == 8
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -723,6 +749,9 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_dependency_edges_input_revision",
         "uq_dependency_edge_evidence",
         "uq_dependency_edge_revision",
+        "idx_preferences_scope_created",
+        "idx_preference_state_events_preference",
+        "idx_feedback_events_created",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

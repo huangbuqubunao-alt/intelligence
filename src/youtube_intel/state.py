@@ -179,6 +179,49 @@ class DependencyRelation(str, Enum):
     REVISION_SUPERSEDES = "REVISION_SUPERSEDES"
 
 
+class PreferenceHorizon(str, Enum):
+    LONG_TERM = "LONG_TERM"
+    RECENT = "RECENT"
+    TEMPORARY_FOCUS = "TEMPORARY_FOCUS"
+
+
+class PreferenceProvenance(str, Enum):
+    EXPLICIT = "EXPLICIT"
+    DERIVED = "DERIVED"
+    TEMPORARY = "TEMPORARY"
+
+
+class PreferenceScope(str, Enum):
+    GLOBAL_CONTENT = "GLOBAL_CONTENT"
+    SOURCE_CONTENT = "SOURCE_CONTENT"
+    VIDEO_CONTENT = "VIDEO_CONTENT"
+    INTELLIGENCE_CONTENT = "INTELLIGENCE_CONTENT"
+    DISTILLATION_STYLE = "DISTILLATION_STYLE"
+
+
+class PreferenceState(str, Enum):
+    ACTIVATED = "ACTIVATED"
+    REPLACED = "REPLACED"
+    DELETED = "DELETED"
+
+
+class FeedbackKind(str, Enum):
+    MORE_LIKE_THIS = "MORE_LIKE_THIS"
+    LESS_LIKE_THIS = "LESS_LIKE_THIS"
+    IMPORTANT = "IMPORTANT"
+    NATURAL_LANGUAGE = "NATURAL_LANGUAGE"
+    EXPLICIT_PREFERENCE_STATEMENT = "EXPLICIT_PREFERENCE_STATEMENT"
+    FACTUAL_CORRECTION = "FACTUAL_CORRECTION"
+
+
+class FeedbackCorrectionKind(str, Enum):
+    WRONG_INTERPRETATION = "WRONG_INTERPRETATION"
+    SOURCE_UNSUPPORTED = "SOURCE_UNSUPPORTED"
+    OUTDATED = "OUTDATED"
+    VIEWPOINTS_MERGED = "VIEWPOINTS_MERGED"
+    OTHER = "OTHER"
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceWrite:
     evidence_id: str
@@ -245,6 +288,63 @@ class IntelligenceStateHistoryRecord:
     prior_state: IntelligenceState | None
     reason: str
     evidence_id: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PreferenceWrite:
+    preference_id: str
+    horizon: PreferenceHorizon
+    provenance: PreferenceProvenance
+    scope: PreferenceScope
+    target_id: str | None
+    statement: str
+    starts_at: datetime | None
+    expires_at: datetime | None
+    supersedes_preference_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PreferenceRecord:
+    preference_id: str
+    horizon: PreferenceHorizon
+    provenance: PreferenceProvenance
+    scope: PreferenceScope
+    target_id: str | None
+    statement: str
+    starts_at: datetime | None
+    expires_at: datetime | None
+    supersedes_preference_id: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PreferenceStateEventRecord:
+    state_event_id: str
+    preference_id: str
+    state: PreferenceState
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FeedbackWrite:
+    feedback_id: str
+    kind: FeedbackKind
+    scope: PreferenceScope
+    target_id: str | None
+    content: str | None
+    correction_kind: FeedbackCorrectionKind | None
+
+
+@dataclass(frozen=True, slots=True)
+class FeedbackRecord:
+    feedback_id: str
+    kind: FeedbackKind
+    scope: PreferenceScope
+    target_id: str | None
+    content: str | None
+    correction_kind: FeedbackCorrectionKind | None
+    effect_status: str
     created_at: datetime
 
 
@@ -875,6 +975,7 @@ class SQLiteStateRepository:
             "005_add_product_orchestration.sql",
             "006_add_intelligence_domain.sql",
             "007_add_intelligence_claim_classification.sql",
+            "008_add_preference_feedback.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -3982,6 +4083,467 @@ class SQLiteStateRepository:
                     _parse_utc_datetime(str(row["updated_at"])),
                 )
             )
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _preference_from_row(row: sqlite3.Row) -> PreferenceRecord:
+        return PreferenceRecord(
+            preference_id=str(row["preference_id"]),
+            horizon=PreferenceHorizon(str(row["horizon"])),
+            provenance=PreferenceProvenance(str(row["provenance"])),
+            scope=PreferenceScope(str(row["scope"])),
+            target_id=None if row["target_id"] is None else str(row["target_id"]),
+            statement=str(row["statement"]),
+            starts_at=SQLiteStateRepository._optional_datetime(row["starts_at"]),
+            expires_at=SQLiteStateRepository._optional_datetime(row["expires_at"]),
+            supersedes_preference_id=(
+                None
+                if row["supersedes_preference_id"] is None
+                else str(row["supersedes_preference_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _preference_state_event_from_row(
+        row: sqlite3.Row,
+    ) -> PreferenceStateEventRecord:
+        return PreferenceStateEventRecord(
+            state_event_id=str(row["state_event_id"]),
+            preference_id=str(row["preference_id"]),
+            state=PreferenceState(str(row["state"])),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _feedback_from_row(row: sqlite3.Row) -> FeedbackRecord:
+        return FeedbackRecord(
+            feedback_id=str(row["feedback_id"]),
+            kind=FeedbackKind(str(row["kind"])),
+            scope=PreferenceScope(str(row["scope"])),
+            target_id=None if row["target_id"] is None else str(row["target_id"]),
+            content=None if row["content"] is None else str(row["content"]),
+            correction_kind=(
+                None
+                if row["correction_kind"] is None
+                else FeedbackCorrectionKind(str(row["correction_kind"]))
+            ),
+            effect_status=str(row["effect_status"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _validate_target(
+        *, scope: PreferenceScope, target_id: str | None
+    ) -> None:
+        targeted = {
+            PreferenceScope.SOURCE_CONTENT,
+            PreferenceScope.VIDEO_CONTENT,
+            PreferenceScope.INTELLIGENCE_CONTENT,
+        }
+        if not isinstance(scope, PreferenceScope):
+            raise ValueError("preference scope must be finite")
+        if scope in targeted:
+            if target_id is None or not target_id.strip() or len(target_id) > 2048:
+                raise ValueError("targeted preference scope requires a target identity")
+        elif target_id is not None:
+            raise ValueError("global preference scope cannot have a target identity")
+
+    @staticmethod
+    def _validate_preference_write(preference: PreferenceWrite) -> None:
+        if not preference.preference_id.strip() or len(preference.preference_id) > 2048:
+            raise ValueError("preference identity is invalid")
+        if not preference.statement.strip() or len(preference.statement) > 2048:
+            raise ValueError("preference statement is invalid")
+        if not isinstance(preference.horizon, PreferenceHorizon) or not isinstance(
+            preference.provenance, PreferenceProvenance
+        ):
+            raise ValueError("preference horizon and provenance must be finite")
+        SQLiteStateRepository._validate_target(
+            scope=preference.scope, target_id=preference.target_id
+        )
+        if preference.horizon is PreferenceHorizon.LONG_TERM:
+            if (
+                preference.provenance is not PreferenceProvenance.EXPLICIT
+                or preference.starts_at is not None
+                or preference.expires_at is not None
+            ):
+                raise ValueError("long-term preference must be explicit and non-expiring")
+        elif preference.horizon is PreferenceHorizon.RECENT:
+            if (
+                preference.provenance is not PreferenceProvenance.DERIVED
+                or preference.starts_at is not None
+                or preference.expires_at is not None
+            ):
+                raise ValueError("recent preference must be derived and non-expiring")
+        elif preference.horizon is PreferenceHorizon.TEMPORARY_FOCUS:
+            if (
+                preference.provenance is not PreferenceProvenance.TEMPORARY
+                or preference.starts_at is None
+                or preference.expires_at is None
+            ):
+                raise ValueError("temporary focus requires temporary provenance and expiry")
+            format_utc_datetime(preference.starts_at)
+            format_utc_datetime(preference.expires_at)
+            if preference.expires_at <= preference.starts_at:
+                raise ValueError("temporary focus expiry must be after its effective time")
+        else:
+            raise ValueError("preference horizon must be finite")
+
+    def create_preference(
+        self,
+        preference: PreferenceWrite,
+        *,
+        activation_event_id: str,
+        now: datetime,
+    ) -> PreferenceRecord:
+        self._validate_preference_write(preference)
+        if not activation_event_id.strip() or len(activation_event_id) > 2048:
+            raise ValueError("preference state event identity is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                    {"preference_id": preference.preference_id},
+                ).fetchone()
+                if existing is not None:
+                    record = self._preference_from_row(existing)
+                    if (
+                        record.horizon is preference.horizon
+                        and record.provenance is preference.provenance
+                        and record.scope is preference.scope
+                        and record.target_id == preference.target_id
+                        and record.statement == preference.statement
+                        and record.starts_at == preference.starts_at
+                        and record.expires_at == preference.expires_at
+                        and record.supersedes_preference_id
+                        == preference.supersedes_preference_id
+                    ):
+                        return record
+                    raise IntegrityConflict("preference command identity conflicts")
+                connection.execute(
+                    "INSERT INTO preferences (preference_id, horizon, provenance, scope, target_id, statement, starts_at, expires_at, supersedes_preference_id, created_at) "
+                    "VALUES (:preference_id, :horizon, :provenance, :scope, :target_id, :statement, :starts_at, :expires_at, :supersedes_preference_id, :created_at)",
+                    {
+                        "preference_id": preference.preference_id,
+                        "horizon": preference.horizon.value,
+                        "provenance": preference.provenance.value,
+                        "scope": preference.scope.value,
+                        "target_id": preference.target_id,
+                        "statement": preference.statement.strip(),
+                        "starts_at": None
+                        if preference.starts_at is None
+                        else format_utc_datetime(preference.starts_at),
+                        "expires_at": None
+                        if preference.expires_at is None
+                        else format_utc_datetime(preference.expires_at),
+                        "supersedes_preference_id": preference.supersedes_preference_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                connection.execute(
+                    "INSERT INTO preference_state_events (state_event_id, preference_id, state, created_at) "
+                    "VALUES (:state_event_id, :preference_id, :state, :created_at)",
+                    {
+                        "state_event_id": activation_event_id,
+                        "preference_id": preference.preference_id,
+                        "state": PreferenceState.ACTIVATED.value,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                    {"preference_id": preference.preference_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("preference was not saved")
+                return self._preference_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("preference violates its finite immutable contract") from error
+        finally:
+            connection.close()
+
+    def get_preference(self, preference_id: str) -> PreferenceRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                {"preference_id": preference_id},
+            ).fetchone()
+            return None if row is None else self._preference_from_row(row)
+        finally:
+            connection.close()
+
+    def list_preferences(self) -> tuple[PreferenceRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM preferences ORDER BY created_at ASC, preference_id ASC"
+            ).fetchall()
+            return tuple(self._preference_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_active_preferences(self, *, now: datetime) -> tuple[PreferenceRecord, ...]:
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT p.* FROM preferences AS p "
+                "WHERE EXISTS (SELECT 1 FROM preference_state_events AS activated "
+                "WHERE activated.preference_id = p.preference_id AND activated.state = 'ACTIVATED') "
+                "AND NOT EXISTS (SELECT 1 FROM preference_state_events AS terminal "
+                "WHERE terminal.preference_id = p.preference_id AND terminal.state IN ('REPLACED', 'DELETED')) "
+                "AND (p.horizon != 'TEMPORARY_FOCUS' OR p.expires_at > :now) "
+                "ORDER BY p.created_at ASC, p.preference_id ASC",
+                {"now": timestamp},
+            ).fetchall()
+            return tuple(self._preference_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_preference_state_events(
+        self, preference_id: str
+    ) -> tuple[PreferenceStateEventRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM preference_state_events WHERE preference_id = :preference_id "
+                "ORDER BY created_at ASC, state_event_id ASC",
+                {"preference_id": preference_id},
+            ).fetchall()
+            return tuple(self._preference_state_event_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def retire_preference(
+        self,
+        *,
+        preference_id: str,
+        state_event_id: str,
+        state: PreferenceState,
+        now: datetime,
+    ) -> PreferenceStateEventRecord:
+        if state not in {PreferenceState.REPLACED, PreferenceState.DELETED}:
+            raise ValueError("preference retirement requires a terminal finite state")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                row = connection.execute(
+                    "SELECT * FROM preference_state_events WHERE state_event_id = :state_event_id",
+                    {"state_event_id": state_event_id},
+                ).fetchone()
+                if row is not None:
+                    event = self._preference_state_event_from_row(row)
+                    if event.preference_id == preference_id and event.state is state:
+                        return event
+                    raise IntegrityConflict("preference state command identity conflicts")
+                connection.execute(
+                    "INSERT INTO preference_state_events (state_event_id, preference_id, state, created_at) "
+                    "VALUES (:state_event_id, :preference_id, :state, :created_at)",
+                    {
+                        "state_event_id": state_event_id,
+                        "preference_id": preference_id,
+                        "state": state.value,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM preference_state_events WHERE state_event_id = :state_event_id",
+                    {"state_event_id": state_event_id},
+                ).fetchone()
+                if saved is None:
+                    raise StateStoreError("preference state event was not saved")
+                return self._preference_state_event_from_row(saved)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("preference state change violates immutable lifecycle") from error
+        finally:
+            connection.close()
+
+    def replace_preference(
+        self,
+        preference: PreferenceWrite,
+        *,
+        activation_event_id: str,
+        replacement_event_id: str,
+        now: datetime,
+    ) -> PreferenceRecord:
+        """Atomically append a replacement and retire only its prior record."""
+        self._validate_preference_write(preference)
+        if preference.supersedes_preference_id is None:
+            raise ValueError("preference replacement requires a prior preference identity")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                    {"preference_id": preference.preference_id},
+                ).fetchone()
+                if existing is not None:
+                    record = self._preference_from_row(existing)
+                    if (
+                        record.horizon is preference.horizon
+                        and record.provenance is preference.provenance
+                        and record.scope is preference.scope
+                        and record.target_id == preference.target_id
+                        and record.statement == preference.statement
+                        and record.starts_at == preference.starts_at
+                        and record.expires_at == preference.expires_at
+                        and record.supersedes_preference_id
+                        == preference.supersedes_preference_id
+                    ):
+                        return record
+                    raise IntegrityConflict("preference command identity conflicts")
+                prior = connection.execute(
+                    "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                    {"preference_id": preference.supersedes_preference_id},
+                ).fetchone()
+                if prior is None:
+                    raise StateStoreError("preference to replace does not exist")
+                terminal = connection.execute(
+                    "SELECT 1 FROM preference_state_events WHERE preference_id = :preference_id "
+                    "AND state IN ('REPLACED', 'DELETED')",
+                    {"preference_id": preference.supersedes_preference_id},
+                ).fetchone()
+                if terminal is not None:
+                    raise IntegrityConflict("preference to replace is not active")
+                connection.execute(
+                    "INSERT INTO preferences (preference_id, horizon, provenance, scope, target_id, statement, starts_at, expires_at, supersedes_preference_id, created_at) "
+                    "VALUES (:preference_id, :horizon, :provenance, :scope, :target_id, :statement, :starts_at, :expires_at, :supersedes_preference_id, :created_at)",
+                    {
+                        "preference_id": preference.preference_id,
+                        "horizon": preference.horizon.value,
+                        "provenance": preference.provenance.value,
+                        "scope": preference.scope.value,
+                        "target_id": preference.target_id,
+                        "statement": preference.statement.strip(),
+                        "starts_at": None
+                        if preference.starts_at is None
+                        else format_utc_datetime(preference.starts_at),
+                        "expires_at": None
+                        if preference.expires_at is None
+                        else format_utc_datetime(preference.expires_at),
+                        "supersedes_preference_id": preference.supersedes_preference_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                connection.execute(
+                    "INSERT INTO preference_state_events (state_event_id, preference_id, state, created_at) "
+                    "VALUES (:state_event_id, :preference_id, 'REPLACED', :created_at)",
+                    {
+                        "state_event_id": replacement_event_id,
+                        "preference_id": preference.supersedes_preference_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                connection.execute(
+                    "INSERT INTO preference_state_events (state_event_id, preference_id, state, created_at) "
+                    "VALUES (:state_event_id, :preference_id, 'ACTIVATED', :created_at)",
+                    {
+                        "state_event_id": activation_event_id,
+                        "preference_id": preference.preference_id,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                saved = connection.execute(
+                    "SELECT * FROM preferences WHERE preference_id = :preference_id",
+                    {"preference_id": preference.preference_id},
+                ).fetchone()
+                if saved is None:
+                    raise StateStoreError("replacement preference was not saved")
+                return self._preference_from_row(saved)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("preference replacement violates immutable lifecycle") from error
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _validate_feedback_write(feedback: FeedbackWrite) -> None:
+        if not feedback.feedback_id.strip() or len(feedback.feedback_id) > 2048:
+            raise ValueError("feedback identity is invalid")
+        if not isinstance(feedback.kind, FeedbackKind):
+            raise ValueError("feedback kind must be finite")
+        SQLiteStateRepository._validate_target(
+            scope=feedback.scope, target_id=feedback.target_id
+        )
+        content = feedback.content
+        if content is not None and (not content.strip() or len(content) > 2048):
+            raise ValueError("feedback content is invalid")
+        quick = {
+            FeedbackKind.MORE_LIKE_THIS,
+            FeedbackKind.LESS_LIKE_THIS,
+            FeedbackKind.IMPORTANT,
+        }
+        text = {
+            FeedbackKind.NATURAL_LANGUAGE,
+            FeedbackKind.EXPLICIT_PREFERENCE_STATEMENT,
+        }
+        if feedback.kind in quick and (content is not None or feedback.correction_kind is not None):
+            raise ValueError("quick feedback cannot carry configuration content")
+        if feedback.kind in text and (content is None or feedback.correction_kind is not None):
+            raise ValueError("natural-language feedback has an invalid correction boundary")
+        if feedback.kind is FeedbackKind.FACTUAL_CORRECTION and (
+            content is None
+            or not isinstance(feedback.correction_kind, FeedbackCorrectionKind)
+        ):
+            raise ValueError("factual correction requires a finite correction kind")
+
+    def record_feedback(self, feedback: FeedbackWrite, *, now: datetime) -> FeedbackRecord:
+        self._validate_feedback_write(feedback)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM feedback_events WHERE feedback_id = :feedback_id",
+                    {"feedback_id": feedback.feedback_id},
+                ).fetchone()
+                if existing is not None:
+                    record = self._feedback_from_row(existing)
+                    if (
+                        record.kind is feedback.kind
+                        and record.scope is feedback.scope
+                        and record.target_id == feedback.target_id
+                        and record.content == feedback.content
+                        and record.correction_kind is feedback.correction_kind
+                    ):
+                        return record
+                    raise IntegrityConflict("feedback command identity conflicts")
+                connection.execute(
+                    "INSERT INTO feedback_events (feedback_id, kind, scope, target_id, content, correction_kind, effect_status, created_at) "
+                    "VALUES (:feedback_id, :kind, :scope, :target_id, :content, :correction_kind, 'RECORDED', :created_at)",
+                    {
+                        "feedback_id": feedback.feedback_id,
+                        "kind": feedback.kind.value,
+                        "scope": feedback.scope.value,
+                        "target_id": feedback.target_id,
+                        "content": None if feedback.content is None else feedback.content.strip(),
+                        "correction_kind": None
+                        if feedback.correction_kind is None
+                        else feedback.correction_kind.value,
+                        "created_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM feedback_events WHERE feedback_id = :feedback_id",
+                    {"feedback_id": feedback.feedback_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("feedback event was not saved")
+                return self._feedback_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("feedback violates its finite append-only contract") from error
+        finally:
+            connection.close()
+
+    def list_feedback(self) -> tuple[FeedbackRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM feedback_events ORDER BY created_at ASC, rowid ASC"
+            ).fetchall()
+            return tuple(self._feedback_from_row(row) for row in rows)
         finally:
             connection.close()
 
