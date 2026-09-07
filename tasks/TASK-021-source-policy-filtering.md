@@ -14,7 +14,7 @@ Persist V1 source/global processing policy: initial-history count, per-run max n
 ## Ownership / impact
 
 - Modules: m009, Source repository/service, policy/filter domain, controlled local API/settings/source DTOs/tests.
-- Domain: Source policy revision, SourceVideo filtering record/manual override. DB: m008. UI: API only. Cost: filtering itself records no model consumption.
+- Domain: Source policy revision, SourceVideo filtering record/manual override. DB: m009. UI: API only. Cost: filtering itself records no model consumption.
 
 ## Out of scope / frozen core
 

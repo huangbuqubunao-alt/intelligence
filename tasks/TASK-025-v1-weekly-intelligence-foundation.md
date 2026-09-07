@@ -14,7 +14,7 @@ Add immutable V1 Weekly Brief snapshot/items that reference only trusted Intelli
 ## Ownership / impact
 
 - Modules: m012, brief repository/service/projection, local API DTOs/tests.
-- Domain: Brief, BriefItem, DependencyEdge. DB: m011. UI: API only. Trust: no raw video/blob input. Cost: no automatic new model call.
+- Domain: Brief, BriefItem, DependencyEdge. DB: m012. UI: API only. Trust: no raw video/blob input. Cost: no automatic new model call.
 
 ## Out of scope / frozen core
 

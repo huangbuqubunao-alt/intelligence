@@ -14,7 +14,7 @@ Add basic V1 Topic identity/current state, Intelligence-revision membership/dedu
 ## Ownership / impact
 
 - Modules: m011, topic repository/service, controlled local API read/write DTOs/tests.
-- Domain: Topic, TopicAssociation, TopicTimelineEvent, TopicRelation. DB: m010. UI: API only. Trust: every state/event references supporting IDs. Cost: no model execution required.
+- Domain: Topic, TopicAssociation, TopicTimelineEvent, TopicRelation. DB: m011. UI: API only. Trust: every state/event references supporting IDs. Cost: no model execution required.
 
 ## Out of scope / frozen core
 
