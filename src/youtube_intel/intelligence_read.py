@@ -127,6 +127,16 @@ class AuthoritativeIntelligenceReader:
 
     def read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
         try:
+            return self._read_current(intelligence_id)
+        except IntelligenceReadRejected:
+            raise
+        except (AttributeError, StateStoreError, ValueError) as error:
+            raise IntelligenceReadRejected(
+                "PERSISTENCE_INVALID", "intelligence persistence is invalid"
+            ) from error
+
+    def _read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
+        try:
             intelligence = self._repository.get_intelligence(intelligence_id)
         except (StateStoreError, ValueError) as error:
             raise IntelligenceReadRejected("INTELLIGENCE_NOT_FOUND", "intelligence does not exist") from error
@@ -169,22 +179,29 @@ class AuthoritativeIntelligenceReader:
         )
 
     def impact_for_evidence(self, evidence_id: str) -> EvidenceDependencyImpact:
-        if self._repository.get_evidence(evidence_id) is None:
-            raise IntelligenceReadRejected("EVIDENCE_NOT_FOUND", "evidence does not exist")
-        impacts: list[EvidenceRevisionImpact] = []
-        for revision_id in self._repository.list_revision_ids_for_evidence(evidence_id):
-            revision = self._repository.get_intelligence_revision(revision_id)
-            if revision is None:
-                raise IntelligenceReadRejected("DEPENDENCY_INVALID", "evidence dependency is invalid")
-            intelligence = self._repository.get_intelligence(revision.intelligence_id)
-            impacts.append(
-                EvidenceRevisionImpact(
-                    intelligence_id=revision.intelligence_id,
-                    revision_id=revision.revision_id,
-                    is_current=intelligence.current_revision_id == revision.revision_id,
+        try:
+            if self._repository.get_evidence(evidence_id) is None:
+                raise IntelligenceReadRejected("EVIDENCE_NOT_FOUND", "evidence does not exist")
+            impacts: list[EvidenceRevisionImpact] = []
+            for revision_id in self._repository.list_revision_ids_for_evidence(evidence_id):
+                revision = self._repository.get_intelligence_revision(revision_id)
+                if revision is None:
+                    raise IntelligenceReadRejected("DEPENDENCY_INVALID", "evidence dependency is invalid")
+                intelligence = self._repository.get_intelligence(revision.intelligence_id)
+                impacts.append(
+                    EvidenceRevisionImpact(
+                        intelligence_id=revision.intelligence_id,
+                        revision_id=revision.revision_id,
+                        is_current=intelligence.current_revision_id == revision.revision_id,
+                    )
                 )
-            )
-        return EvidenceDependencyImpact(evidence_id=evidence_id, revisions=tuple(impacts))
+            return EvidenceDependencyImpact(evidence_id=evidence_id, revisions=tuple(impacts))
+        except IntelligenceReadRejected:
+            raise
+        except (AttributeError, StateStoreError, ValueError) as error:
+            raise IntelligenceReadRejected(
+                "PERSISTENCE_INVALID", "intelligence persistence is invalid"
+            ) from error
 
     def _validate_history(
         self, revision: IntelligenceRevisionRecord, revisions: tuple[IntelligenceRevisionRecord, ...]
@@ -201,7 +218,7 @@ class AuthoritativeIntelligenceReader:
         events_by_revision = {
             item.revision_id: item for item in history if item.revision_id in expected_ids
         }
-        if len(events_by_revision) != len(ordered):
+        if len(history) != len(ordered) or len(events_by_revision) != len(ordered):
             raise IntelligenceReadRejected("STATE_HISTORY_INVALID", "revision state history is invalid")
         if ordered[0].prior_revision_id is not None:
             raise IntelligenceReadRejected("REVISION_HISTORY_INVALID", "revision history is invalid")

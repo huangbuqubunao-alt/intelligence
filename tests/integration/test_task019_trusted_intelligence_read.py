@@ -287,6 +287,27 @@ class _RegressedPointerRepository:
         return replace(intelligence, current_revision_id="revision-1")
 
 
+def test_corrupt_persistence_is_projected_fail_closed_not_as_a_raw_error(tmp_path: Path) -> None:
+    repository, intelligence_id, _, _ = _supported_current(tmp_path)
+    reader = AuthoritativeIntelligenceReader(_CorruptEvidenceRepository(repository))
+
+    with pytest.raises(IntelligenceReadRejected) as rejected:
+        reader.read_current(intelligence_id)
+
+    assert rejected.value.code == "PERSISTENCE_INVALID"
+
+
+class _CorruptEvidenceRepository:
+    def __init__(self, repository: SQLiteStateRepository) -> None:
+        self._repository = repository
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._repository, name)
+
+    def get_evidence(self, evidence_id: str) -> object:
+        raise ValueError("tampered persisted enum")
+
+
 def test_impact_reports_direct_current_and_history_dependencies(tmp_path: Path) -> None:
     repository, intelligence_id, _, evidence_id = _supported_current(tmp_path)
 
