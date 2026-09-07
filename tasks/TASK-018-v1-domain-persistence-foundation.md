@@ -1,6 +1,6 @@
 # TASK-018 — V1 Domain Persistence Foundation
 
-- Status: `PLANNED`; Reuse decision: `ADAPT` existing SQLite migration/repository transaction pattern; no third-party dependency.
+- Status: `IN_REVIEW`; Reuse decision: `ADAPT` existing SQLite migration/repository transaction pattern; no third-party dependency.
 - START_ANCHOR: approved V1 integration commit at frozen `404c9e5...`.
 - Dependencies: none. Parallel-safe-with: read-only review only. Merge prerequisite: migration 006 review APPROVE.
 
