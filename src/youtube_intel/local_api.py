@@ -14,6 +14,10 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from youtube_intel.domain import JobStatus, ProcessingStage
+from youtube_intel.intelligence_read import (
+    AuthoritativeIntelligenceReader,
+    IntelligenceReadRejected,
+)
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
@@ -106,6 +110,7 @@ class LocalApiApplication:
         self._repository = repository
         self._service = service
         self._scoring_reader = scoring_reader
+        self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
@@ -331,6 +336,12 @@ class LocalApiApplication:
                 "note": self._note_projection(),
                 "history": self._history_projection(video.video_id),
             }
+        if route.startswith("/api/v1/intelligence/"):
+            intelligence_id = route.rsplit("/", 1)[1]
+            return {"intelligence": self._intelligence_projection(intelligence_id)}
+        if route.startswith("/api/v1/evidence/") and route.endswith("/impact"):
+            evidence_id = route.split("/")[-2]
+            return {"impact": self._evidence_impact_projection(evidence_id)}
         if route == "/api/v1/weekly":
             return {
                 "weekly": [self._report_dto(item) for item in self._repository.list_reports()]
@@ -386,6 +397,40 @@ class LocalApiApplication:
                 },
             }
         raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+
+    def _intelligence_projection(self, intelligence_id: str) -> dict[str, object]:
+        try:
+            verified = self._intelligence_reader.read_current(intelligence_id)
+        except IntelligenceReadRejected as error:
+            return {"status": "UNAVAILABLE", "trusted": False, "code": error.code}
+        return {
+            "status": "AVAILABLE",
+            "trusted": True,
+            "intelligence_id": verified.intelligence_id,
+            "revision_id": verified.revision_id,
+            "claim_kind": verified.claim_kind.value,
+            "state": verified.state.value,
+            "evidence_ids": list(verified.evidence_ids),
+            "confirmed": verified.is_confirmed,
+        }
+
+    def _evidence_impact_projection(self, evidence_id: str) -> dict[str, object]:
+        try:
+            impact = self._intelligence_reader.impact_for_evidence(evidence_id)
+        except IntelligenceReadRejected as error:
+            return {"status": "UNAVAILABLE", "code": error.code, "revisions": []}
+        return {
+            "status": "AVAILABLE",
+            "evidence_id": impact.evidence_id,
+            "revisions": [
+                {
+                    "intelligence_id": item.intelligence_id,
+                    "revision_id": item.revision_id,
+                    "is_current": item.is_current,
+                }
+                for item in impact.revisions
+            ],
+        }
 
     def _scoring_projection(self, video_id: str) -> dict[str, object]:
         """Project only a value already verified by AuthoritativeScoringReader."""

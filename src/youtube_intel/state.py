@@ -2416,6 +2416,18 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def get_artifact(self, artifact_id: str) -> ArtifactRecord | None:
+        """Return a raw persisted artifact record; this confers no display authority."""
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM artifacts WHERE artifact_id = :artifact_id",
+                {"artifact_id": artifact_id},
+            ).fetchone()
+            return None if row is None else self._artifact_from_row(row)
+        finally:
+            connection.close()
+
     def mark_artifact_deleted(
         self,
         artifact_id: str,
@@ -4305,6 +4317,45 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def get_intelligence_revision(
+        self, revision_id: str
+    ) -> IntelligenceRevisionRecord | None:
+        """Return raw revision persistence for repository-owned validation only."""
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM intelligence_revisions WHERE revision_id = :revision_id",
+                {"revision_id": revision_id},
+            ).fetchone()
+            return None if row is None else self._intelligence_revision_from_row(row)
+        finally:
+            connection.close()
+
+    def list_intelligence_revision_evidence(self, revision_id: str) -> tuple[str, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT evidence_id FROM intelligence_revision_evidence "
+                "WHERE revision_id = :revision_id ORDER BY evidence_id ASC",
+                {"revision_id": revision_id},
+            ).fetchall()
+            return tuple(str(row["evidence_id"]) for row in rows)
+        finally:
+            connection.close()
+
+    def list_revision_ids_for_evidence(self, evidence_id: str) -> tuple[str, ...]:
+        """Raw direct links for a deletion-impact preview, never a trusted read."""
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT revision_id FROM intelligence_revision_evidence "
+                "WHERE evidence_id = :evidence_id ORDER BY revision_id ASC",
+                {"evidence_id": evidence_id},
+            ).fetchall()
+            return tuple(str(row["revision_id"]) for row in rows)
+        finally:
+            connection.close()
+
     def list_intelligence_state_history(
         self, intelligence_id: str
     ) -> tuple[IntelligenceStateHistoryRecord, ...]:
@@ -4318,6 +4369,20 @@ class SQLiteStateRepository:
             return tuple(
                 self._intelligence_state_history_from_row(row) for row in rows
             )
+        finally:
+            connection.close()
+
+    def list_dependency_edges_for_revision(
+        self, revision_id: str
+    ) -> tuple[DependencyEdgeRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM dependency_edges WHERE dependent_revision_id = :revision_id "
+                "ORDER BY edge_id ASC",
+                {"revision_id": revision_id},
+            ).fetchall()
+            return tuple(self._dependency_edge_from_row(row) for row in rows)
         finally:
             connection.close()
 
