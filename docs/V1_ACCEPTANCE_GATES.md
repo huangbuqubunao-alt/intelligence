@@ -11,6 +11,7 @@ An implementation task is APPROVE only after focused TDD tests are green, advers
 | Task | Must prove | Adversarial gate |
 | --- | --- | --- |
 | 018 | immutable Evidence/revision and dependency links; current pointer is valid | evidence deletion cannot leave current ghost claim; bad FK/pointer rejected |
+| 018A | immutable finite revision claim classification with fail-closed legacy sentinel | lifecycle cannot stand in for claim type; migration never guesses old semantics |
 | 019 | only admitted persisted Intelligence is readable; exact evidence/revision labels and deletion/correction impact preview | raw artifacts/score rows and forged DTOs cannot become authoritative; unavailable evidence marks dependents unsupported |
 | 020 | feedback event history and derived preference are distinct; expiry works | Less-like-this cannot change explicit config; correction is not feedback |
 | 021 | deterministic metadata filtering, skip reason, cap/history, manual override audit | manual analyze overrides relevance only; no LLM or provider call in filter |

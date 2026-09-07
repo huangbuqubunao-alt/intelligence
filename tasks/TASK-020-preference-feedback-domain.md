@@ -1,11 +1,11 @@
 # TASK-020 — Preference and Feedback Domain
 
 - Status: `PLANNED`; Reuse: `ADAPT` existing local API service mutation pattern.
-- START_ANCHOR: approved TASK-019 SHA. Dependencies: 018, 019. Parallel-safe-with: none. Merge prerequisite: m007 and intent-boundary review APPROVE.
+- START_ANCHOR: approved TASK-019 SHA. Dependencies: 018, 018A, 019. Parallel-safe-with: none. Merge prerequisite: m008 and intent-boundary review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 020. TITLE: Preference and Feedback Domain. FILES / MODULE OWNERSHIP: m007, preference domain/repository/service, local API tests. DOMAIN OBJECTS: Feedback, Preference. DB IMPACT: m007. API IMPACT: Settings/Preference scoped reads/writes. UI IMPACT: API only. TRUST IMPACT: correction cannot alter Evidence. COST IMPACT: none. MIGRATION IMPACT: v006→v007. ACCEPTANCE CRITERIA: TDD/adversarial cases below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 020. TITLE: Preference and Feedback Domain. FILES / MODULE OWNERSHIP: m008, preference domain/repository/service, local API tests. DOMAIN OBJECTS: Feedback, Preference. DB IMPACT: m008. API IMPACT: Settings/Preference scoped reads/writes. UI IMPACT: API only. TRUST IMPACT: correction cannot alter Evidence. COST IMPACT: none. MIGRATION IMPACT: v007→v008. ACCEPTANCE CRITERIA: TDD/adversarial cases below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
 
@@ -13,8 +13,8 @@ Add raw feedback event history and separately derived/current long-term, recent,
 
 ## Ownership / impact
 
-- Modules: migration 007, domain/repository, preference application service, local API DTOs/tests.
-- Domain: Feedback, Preference. DB: m007 only. UI: API contract only. Trust: correction never edits Evidence. Cost: no execution.
+- Modules: migration 008, domain/repository, preference application service, local API DTOs/tests.
+- Domain: Feedback, Preference. DB: m008 only. UI: API contract only. Trust: correction never edits Evidence. Cost: no execution.
 
 ## Out of scope / frozen core
 
@@ -22,7 +22,7 @@ No source-policy filtering, model/provider settings replacement, Intelligence re
 
 ## TDD and adversarial acceptance
 
-Test event append/audit, derived projection determinism, temporary expiry, delete/edit semantics, explicit versus learned isolation, target validation, and correction type separation. Attack More/Less/Important and natural-language input: none may overwrite explicit interest/ignore/enabled/schedule/model; correction must create no altered source material. Test v006 upgrade, migration failure/restart, focused API/repository tests, diff check, Ruff/mypy.
+Test event append/audit, derived projection determinism, temporary expiry, delete/edit semantics, explicit versus learned isolation, target validation, and correction type separation. Attack More/Less/Important and natural-language input: none may overwrite explicit interest/ignore/enabled/schedule/model; correction must create no altered source material. Test v007 upgrade, migration failure/restart, focused API/repository tests, diff check, Ruff/mypy.
 
 ## Stop / handoff
 

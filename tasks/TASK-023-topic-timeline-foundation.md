@@ -1,11 +1,11 @@
 # TASK-023 — Topic Aggregation and Timeline Foundation
 
 - Status: `PLANNED`; Reuse: `ADAPT` m006 revisions/dependencies; no graph library.
-- START_ANCHOR: approved TASK-022 SHA. Dependencies: 018–022. Parallel-safe-with: none. Merge prerequisite: m010 topic provenance review APPROVE.
+- START_ANCHOR: approved TASK-022 SHA. Dependencies: 018–022 plus 018A. Parallel-safe-with: none. Merge prerequisite: m011 topic provenance review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 023. TITLE: Topic Aggregation and Timeline Foundation. FILES / MODULE OWNERSHIP: m010, Topic repository/service, local API tests. DOMAIN OBJECTS: Topic, association, timeline event, relation. DB IMPACT: m010. API IMPACT: Topic projections/mutations. UI IMPACT: API only. TRUST IMPACT: every state/event cites revision/evidence. COST IMPACT: none. MIGRATION IMPACT: v009→v010. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 023. TITLE: Topic Aggregation and Timeline Foundation. FILES / MODULE OWNERSHIP: m011, Topic repository/service, local API tests. DOMAIN OBJECTS: Topic, association, timeline event, relation. DB IMPACT: m011. API IMPACT: Topic projections/mutations. UI IMPACT: API only. TRUST IMPACT: every state/event cites revision/evidence. COST IMPACT: none. MIGRATION IMPACT: v010→v011. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
 
@@ -13,7 +13,7 @@ Add basic V1 Topic identity/current state, Intelligence-revision membership/dedu
 
 ## Ownership / impact
 
-- Modules: m010, topic repository/service, controlled local API read/write DTOs/tests.
+- Modules: m011, topic repository/service, controlled local API read/write DTOs/tests.
 - Domain: Topic, TopicAssociation, TopicTimelineEvent, TopicRelation. DB: m010. UI: API only. Trust: every state/event references supporting IDs. Cost: no model execution required.
 
 ## Out of scope / frozen core

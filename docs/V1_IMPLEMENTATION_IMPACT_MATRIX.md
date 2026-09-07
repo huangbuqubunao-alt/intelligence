@@ -3,7 +3,7 @@
 | Domain / feature | Current implementation | Disposition | Owner | Risk |
 | --- | --- | --- | --- | --- |
 | Video, artifacts, jobs, provider calls | Existing SQLite authority | REUSE; reference only | 018–024 | high trust coupling |
-| Evidence / Intelligence / revisions / edges / deletion impact | absent | ADD | 018/019 | high |
+| Evidence / Intelligence / revisions / claim classification / edges / deletion impact | absent | ADD | 018/018A/019 | high |
 | Trusted scoring read | `AuthoritativeScoringReader` | REUSE; DO NOT reinterpret | 019/026 | critical |
 | Feedback / preference | absent; global model preference is unrelated | ADD | 020 | high intent boundary |
 | Source drawer/config | SourceSubscription + m005 policy | MODIFY/REUSE | 021/026 | migration compatibility |

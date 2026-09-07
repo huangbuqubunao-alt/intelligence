@@ -1,11 +1,11 @@
 # TASK-025 — V1 Weekly Intelligence Foundation
 
 - Status: `PLANNED`; Reuse: `ADAPT` existing report persistence only as a separate authority; preserve Weekly V2 `UNAVAILABLE`.
-- START_ANCHOR: approved TASK-024 SHA. Dependencies: 018–024. Parallel-safe-with: none. Merge prerequisite: m011 dual-authority review APPROVE.
+- START_ANCHOR: approved TASK-024 SHA. Dependencies: 018–024 plus 018A. Parallel-safe-with: none. Merge prerequisite: m012 dual-authority review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 025. TITLE: V1 Weekly Intelligence Foundation. FILES / MODULE OWNERSHIP: m011, Brief repository/service/projection, local API tests. DOMAIN OBJECTS: Brief, BriefItem, DependencyEdge. DB IMPACT: m011. API IMPACT: controlled Weekly V1 projection. UI IMPACT: API only. TRUST IMPACT: trusted revision/Topic inputs only. COST IMPACT: no automatic new model call. MIGRATION IMPACT: v010→v011. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 025. TITLE: V1 Weekly Intelligence Foundation. FILES / MODULE OWNERSHIP: m012, Brief repository/service/projection, local API tests. DOMAIN OBJECTS: Brief, BriefItem, DependencyEdge. DB IMPACT: m012. API IMPACT: controlled Weekly V1 projection. UI IMPACT: API only. TRUST IMPACT: trusted revision/Topic inputs only. COST IMPACT: no automatic new model call. MIGRATION IMPACT: v011→v012. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
 
@@ -13,7 +13,7 @@ Add immutable V1 Weekly Brief snapshot/items that reference only trusted Intelli
 
 ## Ownership / impact
 
-- Modules: m011, brief repository/service/projection, local API DTOs/tests.
+- Modules: m012, brief repository/service/projection, local API DTOs/tests.
 - Domain: Brief, BriefItem, DependencyEdge. DB: m011. UI: API only. Trust: no raw video/blob input. Cost: no automatic new model call.
 
 ## Out of scope / frozen core

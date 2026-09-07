@@ -1,11 +1,11 @@
 # TASK-022 — Personalized Video Distillation and Resource Ledger
 
 - Status: `PLANNED`; Reuse: `ADAPT` existing runtime job/artifact/provider-call identity; do not copy authority.
-- START_ANCHOR: approved TASK-021 SHA. Dependencies: 018–021. Parallel-safe-with: none. Merge prerequisite: m009 cost/trust review APPROVE.
+- START_ANCHOR: approved TASK-021 SHA. Dependencies: 018–021 plus 018A. Parallel-safe-with: none. Merge prerequisite: m010 cost/trust review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 022. TITLE: Personalized Video Distillation and Resource Ledger. FILES / MODULE OWNERSHIP: m009, distillation service/adapters, repository and local API tests. DOMAIN OBJECTS: Intelligence/Evidence, execution checkpoint/ResourceUsage. DB IMPACT: m009. API IMPACT: controlled manual admission/status. UI IMPACT: API only. TRUST IMPACT: evidence-bound admission. COST IMPACT: selected/actual model plus reliable usage/cost or UNKNOWN. MIGRATION IMPACT: v008→v009. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 022. TITLE: Personalized Video Distillation and Resource Ledger. FILES / MODULE OWNERSHIP: m010, distillation service/adapters, repository and local API tests. DOMAIN OBJECTS: Intelligence/Evidence, execution checkpoint/ResourceUsage. DB IMPACT: m010. API IMPACT: controlled manual admission/status. UI IMPACT: API only. TRUST IMPACT: evidence-bound admission. COST IMPACT: selected/actual model plus reliable usage/cost or UNKNOWN. MIGRATION IMPACT: v009→v010. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
 
@@ -13,7 +13,7 @@ Implement the bounded application-service path from existing trusted transcript/
 
 ## Ownership / impact
 
-- Modules: m009, distillation service/adapters, repository records, local API manual admission endpoint/tests.
+- Modules: m010, distillation service/adapters, repository records, local API manual admission endpoint/tests.
 - Domain: Intelligence/Evidence; execution ledger/checkpoint. DB: m009. UI: API DTO only. Cost: first executable V1 path owns ledger.
 
 ## Out of scope / frozen core

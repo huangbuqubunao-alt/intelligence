@@ -1,11 +1,11 @@
 # TASK-019 — Intelligence Admission and Trusted Read Contract
 
 - Status: `PLANNED`; Reuse: `DIRECT` existing `AuthoritativeScoringReader` and local API/application-service boundary.
-- START_ANCHOR: approved TASK-018 integration SHA. Dependencies: 018. Parallel-safe-with: read-only review only. Merge prerequisite: independent trust review APPROVE.
+- START_ANCHOR: approved TASK-018A integration SHA. Dependencies: 018, 018A. Parallel-safe-with: read-only review only. Merge prerequisite: independent trust review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 019. TITLE: Intelligence Admission and Trusted Read Contract. FILES / MODULE OWNERSHIP: Intelligence service/projection, local API/client DTO tests, repository readers. DOMAIN OBJECTS: admitted Intelligence revisions/dependencies. DB IMPACT: none (uses m006). API IMPACT: trusted DTO/read and deletion-impact preview endpoint. UI IMPACT: contract only. TRUST IMPACT: only admitted read data is displayable. COST IMPACT: none. MIGRATION IMPACT: none. ACCEPTANCE CRITERIA: TDD/adversarial cases below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: TASK-016/scoring/dispatch/credentials/Note/Weekly/Deep Analysis.
+TASK_ID: 019. TITLE: Intelligence Admission and Trusted Read Contract. FILES / MODULE OWNERSHIP: Intelligence service/projection, local API/client DTO tests, repository readers. DOMAIN OBJECTS: admitted Intelligence revisions/dependencies. DB IMPACT: none (uses m007). API IMPACT: trusted DTO/read and deletion-impact preview endpoint. UI IMPACT: contract only. TRUST IMPACT: only admitted read data is displayable. COST IMPACT: none. MIGRATION IMPACT: none. ACCEPTANCE CRITERIA: TDD/adversarial cases below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: TASK-016/scoring/dispatch/credentials/Note/Weekly/Deep Analysis.
 
 ## Purpose and scope
 
@@ -13,7 +13,7 @@ Define admission of persisted Intelligence and its local trusted read projection
 
 ## Ownership / impact
 
-- Modules: Intelligence service/projection, `local_api.py`, client DTO tests, repository readers; no migration.
+- Modules: Intelligence service/projection, `local_api.py`, client DTO tests, repository readers; no migration. TASK-018A persists the prerequisite finite revision claim classification; TASK-019 rejects legacy `UNCLASSIFIED` from trusted reads.
 - Domain: admitted Intelligence revisions and dependency references. DB: uses m006. UI: contract only. Cost: none.
 - Trust: a UI may only receive this projection; scoring remains read through its existing authoritative reader.
 
