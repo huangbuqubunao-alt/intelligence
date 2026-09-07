@@ -601,3 +601,51 @@ def test_api_surfaces_duplicate_feedback_conflict_without_a_server_error(
         )
     assert rejected.value.status == 409
     assert rejected.value.code == "CONFLICT"
+
+
+def test_database_rejects_raw_arbitrary_types_targets_and_derived_overwrite(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    explicit = _service(repository).set_explicit_long_term(
+        command_id="raw-explicit",
+        scope=PreferenceScope.GLOBAL_CONTENT,
+        target_id=None,
+        statement="Explicit rule remains authoritative.",
+    )
+    connection = repository._connect()
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO feedback_events (feedback_id, kind, scope, target_id, content, correction_kind, effect_status, created_at) VALUES ('raw-kind', 'ARBITRARY', 'GLOBAL_CONTENT', NULL, NULL, NULL, 'RECORDED', ?)",
+                ("2026-09-07T09:00:00.000000Z",),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO preferences (preference_id, horizon, provenance, scope, target_id, statement, starts_at, expires_at, supersedes_preference_id, created_at) VALUES ('raw-horizon', 'ARBITRARY', 'DERIVED', 'GLOBAL_CONTENT', NULL, 'bad', NULL, NULL, NULL, ?)",
+                ("2026-09-07T09:00:00.000000Z",),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO feedback_events (feedback_id, kind, scope, target_id, content, correction_kind, effect_status, created_at) VALUES ('raw-target', 'IMPORTANT', 'SOURCE_CONTENT', 'missing-source', NULL, NULL, 'RECORDED', ?)",
+                ("2026-09-07T09:00:00.000000Z",),
+            )
+    finally:
+        connection.close()
+    with pytest.raises(IntegrityConflict, match="finite immutable"):
+        repository.create_preference(
+            PreferenceWrite(
+                preference_id="derived-overwrite",
+                horizon=PreferenceHorizon.RECENT,
+                provenance=PreferenceProvenance.DERIVED,
+                scope=PreferenceScope.GLOBAL_CONTENT,
+                target_id=None,
+                statement="Derived observation.",
+                starts_at=None,
+                expires_at=None,
+                supersedes_preference_id=explicit.preference_id,
+            ),
+            activation_event_id="derived-overwrite:activated",
+            now=NOW,
+        )
+    assert _service(repository).active_preferences(now=NOW) == (explicit,)
