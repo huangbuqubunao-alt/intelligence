@@ -20,6 +20,7 @@ from youtube_intel.state import (
     IntelligenceInterpretationKind,
     IntelligenceRevisionWrite,
     IntelligenceState,
+    MigrationError,
     SQLiteStateRepository,
     build_evidence_id,
 )
@@ -158,7 +159,38 @@ def test_v006_revision_migrates_to_unclassified_without_guessing(
     monkeypatch.undo()
 
     assert repository.initialize(now=NOW).version == 7
-    assert repository.list_intelligence_revisions("legacy")[0].claim_kind is IntelligenceClaimKind.UNCLASSIFIED
+    migrated = repository.list_intelligence_revisions("legacy")[0]
+    assert migrated.claim_kind is IntelligenceClaimKind.UNCLASSIFIED
+    assert migrated.interpretation_kind is IntelligenceInterpretationKind.DISTILLATION
+    assert migrated.content_hash == "b" * 64
+
+
+def test_m007_failure_leaves_a_v006_database_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    monkeypatch.setattr(repository, "_load_migrations", _v006_migrations)
+    assert repository.initialize(now=NOW).version == 6
+    failed = state_mod._Migration(
+        version=7,
+        name="007_bad.sql",
+        sql="ALTER TABLE intelligence_revisions ADD COLUMN bad TEXT;\nTHIS IS NOT SQL;\n",
+        checksum="f" * 64,
+    )
+    monkeypatch.setattr(repository, "_load_migrations", lambda: _v006_migrations() + (failed,))
+
+    with pytest.raises(MigrationError, match="failed to apply migration 7"):
+        repository.initialize(now=NOW)
+
+    with _connection(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        columns = {
+            row["name"]
+            for row in connection.execute('PRAGMA table_info("intelligence_revisions")')
+        }
+        assert "bad" not in columns
+        assert connection.execute("SELECT COUNT(*) FROM schema_migrations WHERE version = 7").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize(
@@ -263,8 +295,33 @@ def test_fact_is_not_trust_and_system_inference_remains_distinct(tmp_path: Path)
     assert repository.list_intelligence_state_history("intelligence-1")[0].state is IntelligenceState.NEW
 
 
+def test_database_rejects_raw_arbitrary_and_new_unclassified_claim_kinds(tmp_path: Path) -> None:
+    path = _path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+    timestamp = state_mod.format_utc_datetime(NOW)
+    repository.create_intelligence(intelligence_id="intelligence-1", now=NOW)
+
+    with _connection(path) as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) "
+                "VALUES ('forged-kind', 'intelligence-1', 1, NULL, 'DISTILLATION', 'FORGED', ?, ?)",
+                ("b" * 64, timestamp),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) "
+                "VALUES ('unclassified-kind', 'intelligence-1', 1, NULL, 'DISTILLATION', 'UNCLASSIFIED', ?, ?)",
+                ("b" * 64, timestamp),
+            )
+
+
 def test_m007_is_packaged_and_no_m008_is_introduced() -> None:
     migrations = resources.files("youtube_intel").joinpath("migrations")
 
     assert migrations.joinpath("007_add_intelligence_claim_classification.sql").is_file()
     assert not migrations.joinpath("008_add_intelligence_claim_classification.sql").exists()
+    assert "UPDATE intelligence_revisions" not in migrations.joinpath(
+        "007_add_intelligence_claim_classification.sql"
+    ).read_text(encoding="utf-8")
