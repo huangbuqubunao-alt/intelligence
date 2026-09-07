@@ -1,15 +1,15 @@
 # TASK-024 — V1 Processing Orchestration
 
 - Status: `PLANNED`; Reuse: `ADAPT` ProductOrchestrationService, automation runs, jobs/attempts, runtime boundary and dispatch protections.
-- START_ANCHOR: approved TASK-023 SHA. Dependencies: 018–023. Parallel-safe-with: none. Merge prerequisite: scheduler/duplicate-effect review APPROVE.
+- START_ANCHOR: approved TASK-023A SHA. Dependencies: 018–023A. Parallel-safe-with: none. Merge prerequisite: scheduler/duplicate-effect review APPROVE.
 
 ## Contract metadata
 
-TASK_ID: 024. TITLE: V1 Processing Orchestration. FILES / MODULE OWNERSHIP: orchestration service/runtime adapter, scheduler delegation, local API/tests. DOMAIN OBJECTS: operational Task/Execution. DB IMPACT: none; uses m009. API IMPACT: triggers/status. UI IMPACT: no page work. TRUST IMPACT: invokes only closed contracts. COST IMPACT: applies priority/budget/ledger. MIGRATION IMPACT: none. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 024. TITLE: V1 Processing Orchestration. FILES / MODULE OWNERSHIP: orchestration service/runtime adapter, scheduler delegation, local API/tests. DOMAIN OBJECTS: durable Source Run plus child execution detail. DB IMPACT: none; consumes TASK-023A m012. API IMPACT: triggers/status. UI IMPACT: no page work. TRUST IMPACT: invokes only closed contracts. COST IMPACT: applies priority/budget/ledger. MIGRATION IMPACT: none. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
 
-Unify Manual Check Now, scheduled Source Run, and manual analyze-skipped-video in one application-service pipeline: trigger, discover, deterministic filter, process, distill, persist, Topic update, Activity/Needs Attention. Implement P0–P3 semantics, queue/defer, budget/model wait, partial completion/safe resume, and use m009 ledger/checkpoint records.
+Unify Manual Check Now, scheduled Source Run, and manual analyze-skipped-video in one application-service pipeline: trigger, discover, deterministic filter, process, distill, persist, Topic update, Activity/Needs Attention. Implement P0–P3 semantics, queue/defer, budget/model wait, and partial completion/safe resume by consuming TASK-023A's durable Source Run contract and TASK-022's separate child ledger/checkpoints.
 
 ## Ownership / impact
 

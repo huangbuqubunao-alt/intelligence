@@ -11,7 +11,8 @@
 | Personalized distillation | current scoring/summary runtime only | ADAPT behind new application service | 022 | evidence/cost |
 | Resource ledger | provider-call usage exists but no product ledger | ADD, reference provider calls | 022 | cost integrity |
 | Topic/timeline | absent | ADD | 023 | revision coupling |
-| Scheduler/automation runs | bounded m005 service tick | REUSE/MODIFY | 024 | duplicate effects |
+| Source Run execution persistence | m005 automation runs and m010 child checkpoints are insufficient | ADD m012 without reinterpreting either authority | 023A | duplicate effects / unsafe resume |
+| Scheduler/automation runs | bounded m005 service tick | REUSE/MODIFY through Source Run contract | 024 | duplicate effects |
 | Weekly generic report | reports + frozen Weekly V2 unavailable | REUSE/ADD V1 projection; preserve V2 | 025 | dual authority |
 | Dashboard/Videos/Weekly/Automation/Activity/Settings | existing FCC presentation routes | REUSE/RELOCATE/REFRAME | 026 | IA and authority |
 | Intelligence/Topics/Investigations IA | absent | ADD Intelligence/Topics; RESERVE Investigations | 026 | V2 leakage |

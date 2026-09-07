@@ -16,7 +16,8 @@ At the approved TASK-018 anchor, `PRAGMA user_version` is **6**. `SQLiteStateRep
 | 009 | TASK-021 | Source policy revision/config fields; source-video filter disposition/reason; manual-analyze audit | v008 |
 | 010 | TASK-022 | V1 execution target/checkpoint and immutable resource-usage ledger linked to existing jobs/provider calls | v009 |
 | 011 | TASK-023 | Topic, Intelligence membership, pin state, source-backed timeline event, light relation | v010 |
-| 012 | TASK-025 | immutable V1 Brief snapshot/item references and supersession marker | v011 |
+| 012 | TASK-023A | durable Source Run identity, finite trigger/priority/state, checkpoint, attention, idempotency, and schedule/manual references | v011 |
+| 013 | TASK-025 | immutable V1 Brief snapshot/item references and supersession marker | v012 |
 
 Each migration is additive/forward-only, one file, one owner, and may reference existing stable IDs without duplicating their authority. No V2 Investigation, Early Signal, external evidence, Daily, Ask, credential, dispatch, or TASK-016 tables are added. Migration rollback is not an operating strategy: restore a verified pre-upgrade local backup, diagnose the migration, issue a later corrective migration only after PO approval, and never alter applied migration text/checksums.
 
@@ -28,4 +29,4 @@ The migration transaction must leave neither schema nor `user_version` advanced 
 
 ## Independent evidence per owner
 
-For every migration owner: assert fresh-v012 schema, v005-to-target sequential upgrade, exact constraints/indexes/FKs, preservation of source/schedule/run data, transaction rollback on injected malformed SQL, checksum/history mismatch failure, and restart without work admission. TASK-027 runs the packaged wheel/runtime against a v005 fixture, initializes to v012, serves the read-only synthetic API, and verifies no real provider/YouTube call. Version gates must be updated only by their owning task after all migration fixtures pass.
+For every migration owner: assert fresh schema through its owned target, v005-to-target sequential upgrade, exact constraints/indexes/FKs, preservation of source/schedule/run data, transaction rollback on injected malformed SQL, checksum/history mismatch failure, and restart without work admission. TASK-027 runs the packaged wheel/runtime against a v005 fixture, initializes to v013, serves the read-only synthetic API, and verifies no real provider/YouTube call. Version gates must be updated only by their owning task after all migration fixtures pass.

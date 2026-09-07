@@ -29,9 +29,11 @@ TDD m006-to-m007 and fresh-v007 migrations; test every valid kind, rejection of
 arbitrary kinds and new `UNCLASSIFIED`, immutable historical classification,
 revision replacement, lifecycle orthogonality, no implicit trust, and package
 discovery. Preserve TASK-018, Source/Automation, and scoring regressions.
-Update the task graph to shift future migration ownership: 020→m008,
-021→m009, 022→m010, 023→m011, and 025→m012. No Product Spec semantic change or
-V2 expansion is authorized.
+At this amendment's approval time, the task graph shifted future migration
+ownership to 020→m008, 021→m009, 022→m010, 023→m011, and 025→m012. The later
+Product Owner TASK-023A correction supersedes only that downstream assignment:
+TASK-023A owns m012 for durable Source Run persistence and TASK-025 owns m013.
+No Product Spec semantic change or V2 expansion is authorized.
 
 ## Closeout
 
