@@ -1,6 +1,6 @@
 # TASK-019 — Intelligence Admission and Trusted Read Contract
 
-- Status: `PLANNED`; Reuse: `DIRECT` existing `AuthoritativeScoringReader` and local API/application-service boundary.
+- Status: `APPROVE`; Reuse: `DIRECT` existing `AuthoritativeScoringReader` and local API/application-service boundary.
 - START_ANCHOR: approved TASK-018A integration SHA. Dependencies: 018, 018A. Parallel-safe-with: read-only review only. Merge prerequisite: independent trust review APPROVE.
 
 ## Contract metadata
@@ -28,3 +28,20 @@ Test admitted versus incomplete/forged/untrusted candidates, exact evidence/revi
 ## Stop / handoff
 
 Stop if satisfying V1 requires changing scoring admission or Weekly V2 authority. Handoff records DTO schema, trust tests, reused reader and SHA.
+
+## Closeout
+
+`AuthoritativeIntelligenceReader` now mints only sealed
+`VerifiedIntelligenceRead` values after re-validating the persisted current
+pointer, append-only revision/state chain, non-`UNCLASSIFIED` finite claim
+kind, exact evidence links, `EVIDENCE_SUPPORT` edges, Evidence/artifact/video
+availability, and provenance identity. `DISPUTED`, `PENDING_CONFIRMATION`,
+`NEW`, and `UPDATED` remain explicitly typed; `INVALIDATED` and `OVERTURNED`
+fail closed from the ordinary current path. The controlled local API provides
+only this projection and a direct Evidence dependency-impact preview; raw
+repository records never become an API authority.
+
+No migration was created and fresh initialization remains at user_version 7.
+TASK-020 preference behavior, frozen scoring authority, provider/dispatch,
+Note/Weekly authority, and Deep Analysis are unchanged. Adversarial review and
+re-review closed `P0 = 0`, `P1 = 0`, `P2 = 0` for TASK-019 scope.
