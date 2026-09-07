@@ -114,9 +114,9 @@ def _write(
 def test_fresh_database_reaches_v007_with_finite_claim_kind_column(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(_path(tmp_path))
 
-    assert repository.initialize(now=NOW).version == 9
+    assert repository.initialize(now=NOW).version == 10
     with _connection(_path(tmp_path)) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 9
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 10
         columns = {
             row["name"]: row
             for row in connection.execute('PRAGMA table_info("intelligence_revisions")')
@@ -158,7 +158,7 @@ def test_v006_revision_migrates_to_unclassified_without_guessing(
         )
     monkeypatch.undo()
 
-    assert repository.initialize(now=NOW).version == 9
+    assert repository.initialize(now=NOW).version == 10
     migrated = repository.list_intelligence_revisions("legacy")[0]
     assert migrated.claim_kind is IntelligenceClaimKind.UNCLASSIFIED
     assert migrated.interpretation_kind is IntelligenceInterpretationKind.DISTILLATION

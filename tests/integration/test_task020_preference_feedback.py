@@ -33,7 +33,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
     version = repository.initialize(now=NOW)
-    assert version.version == 9
+    assert version.version == 10
     return repository
 
 
@@ -53,7 +53,7 @@ def test_m008_fresh_database_reaches_exactly_user_version_8_and_no_m009(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    m008 = repository._load_migrations()[:-1]
+    m008 = repository._load_migrations()[:8]
     monkeypatch.setattr(repository, "_load_migrations", lambda: m008)
     assert repository.initialize(now=NOW).version == 8
 
@@ -357,7 +357,7 @@ def test_v007_upgrade_preserves_source_automation_and_trusted_intelligence(
     path = tmp_path / "state.sqlite3"
     legacy = SQLiteStateRepository(path)
     all_migrations = legacy._load_migrations()
-    v007 = all_migrations[:-2]
+    v007 = all_migrations[:7]
     monkeypatch.setattr(legacy, "_load_migrations", lambda: v007)
     assert legacy.initialize(now=NOW).version == 7
     timestamp = "2026-09-07T09:00:00.000000Z"
@@ -403,7 +403,7 @@ def test_v007_upgrade_preserves_source_automation_and_trusted_intelligence(
         )
     finally:
         connection.close()
-    v008 = all_migrations[:-1]
+    v008 = all_migrations[:8]
     monkeypatch.setattr(legacy, "_load_migrations", lambda: v008)
     upgraded = legacy
     assert upgraded.initialize(now=NOW).version == 8
@@ -420,7 +420,7 @@ def test_m008_failure_rolls_back_and_a_later_restart_applies_without_side_effect
     path = tmp_path / "state.sqlite3"
     repository = SQLiteStateRepository(path)
     all_migrations = repository._load_migrations()
-    v007 = all_migrations[:-2]
+    v007 = all_migrations[:7]
     monkeypatch.setattr(repository, "_load_migrations", lambda: v007)
     assert repository.initialize(now=NOW).version == 7
     broken_sql = "CREATE TABLE task020_half_applied (value TEXT);\nTHIS IS NOT SQL;\n"
@@ -439,7 +439,7 @@ def test_m008_failure_rolls_back_and_a_later_restart_applies_without_side_effect
         assert connection.execute("SELECT 1 FROM sqlite_master WHERE name = 'task020_half_applied'").fetchone() is None
     finally:
         connection.close()
-    v008 = all_migrations[:-1]
+    v008 = all_migrations[:8]
     monkeypatch.setattr(repository, "_load_migrations", lambda: v008)
     assert repository.initialize(now=NOW).version == 8
     assert repository.list_preferences() == ()

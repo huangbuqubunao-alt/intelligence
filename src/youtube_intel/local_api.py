@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import urlparse
 
+from youtube_intel.distillation import PersonalizedDistillationService
 from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
@@ -175,6 +176,7 @@ class LocalApiApplication:
         service: ProductOrchestrationService,
         *,
         scoring_reader: AuthoritativeScoringReader | None = None,
+        distillation_service: PersonalizedDistillationService | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
@@ -185,6 +187,7 @@ class LocalApiApplication:
         self._repository = repository
         self._service = service
         self._scoring_reader = scoring_reader
+        self._distillation_service = distillation_service
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
@@ -539,6 +542,47 @@ class LocalApiApplication:
                     command_id=self._string(data, "command_id", required=True) or "",
                 )
                 return HTTPStatus.CREATED, {"decision": _filter_decision_dto(decision)}
+            if (
+                method == "POST"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/distill")
+            ):
+                remainder = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/distill"
+                )
+                parts = remainder.split("/")
+                if len(parts) != 3 or parts[1] != "videos" or not all(parts):
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._only_keys(data, {"execution_id", "evidence_ids"})
+                if self._distillation_service is None:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "DISTILLATION_UNAVAILABLE",
+                        "Personalized distillation requires an authorized offline transport.",
+                    )
+                evidence_ids = self._rules(data, "evidence_ids", required=True)
+                distillation_result = self._distillation_service.distill(
+                    self._distillation_service.manual_command(
+                        execution_id=self._string(data, "execution_id", required=True) or "",
+                        source_id=parts[0],
+                        video_id=parts[2],
+                        evidence_ids=evidence_ids or (),
+                    )
+                )
+                status = (
+                    HTTPStatus.CREATED
+                    if distillation_result.status.value == "SUCCEEDED"
+                    else HTTPStatus.ACCEPTED
+                )
+                return status, {
+                    "execution": {
+                        "execution_id": distillation_result.execution_id,
+                        "status": distillation_result.status.value,
+                        "invocation_count": distillation_result.invocation_count,
+                        "intelligence_id": distillation_result.intelligence_id,
+                        "revision_id": distillation_result.revision_id,
+                    }
+                }
             if method == "PATCH" and route.startswith("/api/v1/sources/"):
                 source_id = route.rsplit("/", 1)[1]
                 self._only_keys(data, {"enabled", "processing_policy"})
@@ -803,7 +847,7 @@ class LocalApiApplication:
             verified = self._intelligence_reader.read_current(intelligence_id)
         except IntelligenceReadRejected as error:
             return {"status": "UNAVAILABLE", "trusted": False, "code": error.code}
-        return {
+        projection: dict[str, object] = {
             "status": "AVAILABLE",
             "trusted": True,
             "intelligence_id": verified.intelligence_id,
@@ -813,6 +857,37 @@ class LocalApiApplication:
             "evidence_ids": list(verified.evidence_ids),
             "confirmed": verified.is_confirmed,
         }
+        try:
+            card = self._intelligence_reader.read_current_card(intelligence_id)
+        except IntelligenceReadRejected:
+            return projection
+        video = self._repository.get_video(card.video_id)
+        evidence_links = []
+        for evidence_id in card.verified.evidence_ids:
+            evidence = self._repository.get_evidence(evidence_id)
+            if evidence is None:
+                return projection
+            evidence_links.append(
+                {
+                    "evidence_id": evidence.evidence_id,
+                    "start_ms": evidence.start_ms,
+                    "end_ms": evidence.end_ms,
+                }
+            )
+        projection["card"] = {
+            "core_conclusion": card.core_conclusion,
+            "user_relevant_information": list(card.user_relevant_information),
+            "important_new_information": list(card.important_new_information),
+            "meaningful_details": list(card.meaningful_details),
+            "filtered_noise": list(card.filtered_noise),
+            "source_id": card.source_id,
+            "video_id": card.video_id,
+            "original_video_url": None if video is None else video.source_url,
+            "evidence_links": evidence_links,
+            "preference_ids": list(card.preference_ids),
+            "source_policy_revision_id": card.source_policy_revision_id,
+        }
+        return projection
 
     def _evidence_impact_projection(self, evidence_id: str) -> dict[str, object]:
         try:

@@ -81,6 +81,9 @@ EXPECTED_TABLES = {
     "artifacts",
     "channel_cursors",
     "deep_analysis_persisted_results",
+    "distillation_cards",
+    "distillation_execution_checkpoints",
+    "distillation_resource_usage",
     "job_attempts",
     "jobs",
     "provider_calls",
@@ -707,12 +710,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "009_add_source_policy_filtering.sql")
+        .joinpath("migrations", "010_add_personalized_distillation.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 9
-    assert first.name == "009_add_source_policy_filtering.sql"
+    assert first.version == 10
+    assert first.name == "010_add_personalized_distillation.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -727,7 +730,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 9
+    assert migration_count == 10
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:

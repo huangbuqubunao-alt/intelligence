@@ -331,6 +331,87 @@ class IntelligenceStateHistoryRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class DistillationExecutionWrite:
+    execution_id: str
+    source_id: str
+    video_id: str
+    reason: str
+    use_case: str
+    selected_provider: str
+    selected_model: str
+
+
+@dataclass(frozen=True, slots=True)
+class DistillationExecutionRecord:
+    execution_id: str
+    source_id: str
+    video_id: str
+    reason: str
+    use_case: str
+    selected_provider: str
+    selected_model: str
+    status: str
+    budget_state: str
+    invocation_count: int
+    intelligence_id: str | None
+    revision_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DistillationCardWrite:
+    source_id: str
+    video_id: str
+    core_conclusion: str
+    user_relevant_information: tuple[str, ...]
+    important_new_information: tuple[str, ...]
+    meaningful_details: tuple[str, ...]
+    filtered_noise: tuple[str, ...]
+    preference_ids: tuple[str, ...]
+    source_policy_revision_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DistillationCardRecord:
+    revision_id: str
+    source_id: str
+    video_id: str
+    core_conclusion: str
+    user_relevant_information: tuple[str, ...]
+    important_new_information: tuple[str, ...]
+    meaningful_details: tuple[str, ...]
+    filtered_noise: tuple[str, ...]
+    preference_ids: tuple[str, ...]
+    source_policy_revision_id: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DistillationResourceUsageRecord:
+    execution_id: str
+    reason: str
+    use_case: str
+    source_id: str
+    video_id: str
+    intelligence_id: str | None
+    revision_id: str | None
+    selected_provider: str
+    selected_model: str
+    actual_provider: str | None
+    actual_model: str | None
+    status: str
+    invocation_count: int
+    input_tokens: int | None
+    output_tokens: int | None
+    cost_microunits: int | None
+    duration_ms: int | None
+    budget_state: str
+    outcome: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class PreferenceWrite:
     preference_id: str
     horizon: PreferenceHorizon
@@ -1088,6 +1169,7 @@ class SQLiteStateRepository:
             "007_add_intelligence_claim_classification.sql",
             "008_add_preference_feedback.sql",
             "009_add_source_policy_filtering.sql",
+            "010_add_personalized_distillation.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -4033,6 +4115,24 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def source_has_video(self, source_id: str, video_id: str) -> bool:
+        """Check source membership without applying a presentation-list limit."""
+
+        if not source_id.strip() or not video_id.strip():
+            raise ValueError("source video membership arguments are invalid")
+        connection = self._connect()
+        try:
+            return (
+                connection.execute(
+                    "SELECT 1 FROM source_video_links WHERE source_id = :source_id "
+                    "AND video_id = :video_id",
+                    {"source_id": source_id, "video_id": video_id},
+                ).fetchone()
+                is not None
+            )
+        finally:
+            connection.close()
+
     @staticmethod
     def _policy_rules_from_json(value: object) -> tuple[str, ...]:
         try:
@@ -5633,5 +5733,474 @@ class SQLiteStateRepository:
                 return self._dependency_edge_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("dependency edge violates the finite provenance contract") from error
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _distillation_strings(value: object, *, field_name: str) -> tuple[str, ...]:
+        if not isinstance(value, list) or len(value) > 20:
+            raise StateStoreError(f"distillation {field_name} is invalid")
+        values = tuple(value)
+        if any(
+            not isinstance(item, str)
+            or not item.strip()
+            or item != item.strip()
+            or len(item) > 2_000
+            for item in values
+        ):
+            raise StateStoreError(f"distillation {field_name} is invalid")
+        return cast(tuple[str, ...], values)
+
+    @classmethod
+    def _distillation_card_from_row(cls, row: sqlite3.Row) -> DistillationCardRecord:
+        def decode(name: str) -> tuple[str, ...]:
+            try:
+                value = json.loads(str(row[name]))
+            except json.JSONDecodeError as error:
+                raise StateStoreError("distillation card persistence is invalid") from error
+            return cls._distillation_strings(value, field_name=name)
+
+        return DistillationCardRecord(
+            revision_id=str(row["revision_id"]),
+            source_id=str(row["source_id"]),
+            video_id=str(row["video_id"]),
+            core_conclusion=str(row["core_conclusion"]),
+            user_relevant_information=decode("user_relevant_information_json"),
+            important_new_information=decode("important_new_information_json"),
+            meaningful_details=decode("meaningful_details_json"),
+            filtered_noise=decode("filtered_noise_json"),
+            preference_ids=decode("preference_ids_json"),
+            source_policy_revision_id=(
+                None
+                if row["source_policy_revision_id"] is None
+                else str(row["source_policy_revision_id"])
+            ),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _distillation_execution_from_row(row: sqlite3.Row) -> DistillationExecutionRecord:
+        return DistillationExecutionRecord(
+            execution_id=str(row["execution_id"]),
+            source_id=str(row["source_id"]),
+            video_id=str(row["video_id"]),
+            reason=str(row["reason"]),
+            use_case=str(row["use_case"]),
+            selected_provider=str(row["selected_provider"]),
+            selected_model=str(row["selected_model"]),
+            status=str(row["status"]),
+            budget_state=str(row["budget_state"]),
+            invocation_count=int(row["invocation_count"]),
+            intelligence_id=(
+                None if row["intelligence_id"] is None else str(row["intelligence_id"])
+            ),
+            revision_id=None if row["revision_id"] is None else str(row["revision_id"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+            updated_at=_parse_utc_datetime(str(row["updated_at"])),
+        )
+
+    @staticmethod
+    def _distillation_usage_from_row(row: sqlite3.Row) -> DistillationResourceUsageRecord:
+        return DistillationResourceUsageRecord(
+            execution_id=str(row["execution_id"]),
+            reason=str(row["reason"]),
+            use_case=str(row["use_case"]),
+            source_id=str(row["source_id"]),
+            video_id=str(row["video_id"]),
+            intelligence_id=(
+                None if row["intelligence_id"] is None else str(row["intelligence_id"])
+            ),
+            revision_id=None if row["revision_id"] is None else str(row["revision_id"]),
+            selected_provider=str(row["selected_provider"]),
+            selected_model=str(row["selected_model"]),
+            actual_provider=(
+                None if row["actual_provider"] is None else str(row["actual_provider"])
+            ),
+            actual_model=None if row["actual_model"] is None else str(row["actual_model"]),
+            status=str(row["status"]),
+            invocation_count=int(row["invocation_count"]),
+            input_tokens=None if row["input_tokens"] is None else int(row["input_tokens"]),
+            output_tokens=None if row["output_tokens"] is None else int(row["output_tokens"]),
+            cost_microunits=(
+                None if row["cost_microunits"] is None else int(row["cost_microunits"])
+            ),
+            duration_ms=None if row["duration_ms"] is None else int(row["duration_ms"]),
+            budget_state=str(row["budget_state"]),
+            outcome=str(row["outcome"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    def get_distillation_execution(self, execution_id: str) -> DistillationExecutionRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            return None if row is None else self._distillation_execution_from_row(row)
+        finally:
+            connection.close()
+
+    def begin_distillation_execution(
+        self, execution: DistillationExecutionWrite, *, now: datetime
+    ) -> DistillationExecutionRecord:
+        fields = (
+            execution.execution_id,
+            execution.source_id,
+            execution.video_id,
+            execution.reason,
+            execution.use_case,
+            execution.selected_provider,
+            execution.selected_model,
+        )
+        if any(not value.strip() or len(value) > 512 for value in fields):
+            raise ValueError("distillation execution identity is invalid")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
+                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, 'PENDING', 'NOT_CHECKED', 0, NULL, NULL, :created_at, :updated_at)",
+                    {
+                        "execution_id": execution.execution_id,
+                        "source_id": execution.source_id,
+                        "video_id": execution.video_id,
+                        "reason": execution.reason,
+                        "use_case": execution.use_case,
+                        "selected_provider": execution.selected_provider,
+                        "selected_model": execution.selected_model,
+                        "created_at": timestamp,
+                        "updated_at": timestamp,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution.execution_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("distillation execution was not saved")
+                return self._distillation_execution_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("distillation execution identity conflicts") from error
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _validate_observed_usage(
+        *,
+        invocation_count: int,
+        actual_provider: str | None,
+        actual_model: str | None,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_microunits: int | None,
+        duration_ms: int | None,
+    ) -> None:
+        if invocation_count not in (0, 1):
+            raise ValueError("distillation invocation count is invalid")
+        if invocation_count == 0 and (actual_provider is not None or actual_model is not None):
+            raise ValueError("uninvoked distillation cannot have an actual model")
+        if invocation_count == 1 and (
+            actual_provider is None
+            or actual_model is None
+            or not actual_provider.strip()
+            or not actual_model.strip()
+        ):
+            raise ValueError("invoked distillation requires its actual model identity")
+        if (input_tokens is None) != (output_tokens is None):
+            raise ValueError("token usage must be reliable or unknown as a pair")
+        for value in (input_tokens, output_tokens, cost_microunits, duration_ms):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise ValueError("distillation observed usage is invalid")
+
+    def _insert_distillation_usage(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        checkpoint: sqlite3.Row,
+        status: str,
+        budget_state: str,
+        outcome: str,
+        invocation_count: int,
+        actual_provider: str | None,
+        actual_model: str | None,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_microunits: int | None,
+        duration_ms: int | None,
+        intelligence_id: str | None,
+        revision_id: str | None,
+        now: datetime,
+    ) -> None:
+        self._validate_observed_usage(
+            invocation_count=invocation_count,
+            actual_provider=actual_provider,
+            actual_model=actual_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_microunits=cost_microunits,
+            duration_ms=duration_ms,
+        )
+        connection.execute(
+            "INSERT INTO distillation_resource_usage (execution_id, reason, use_case, source_id, video_id, intelligence_id, revision_id, selected_provider, selected_model, actual_provider, actual_model, status, invocation_count, input_tokens, output_tokens, cost_microunits, duration_ms, budget_state, outcome, created_at) "
+            "VALUES (:execution_id, :reason, :use_case, :source_id, :video_id, :intelligence_id, :revision_id, :selected_provider, :selected_model, :actual_provider, :actual_model, :status, :invocation_count, :input_tokens, :output_tokens, :cost_microunits, :duration_ms, :budget_state, :outcome, :created_at)",
+            {
+                "execution_id": checkpoint["execution_id"],
+                "reason": checkpoint["reason"],
+                "use_case": checkpoint["use_case"],
+                "source_id": checkpoint["source_id"],
+                "video_id": checkpoint["video_id"],
+                "intelligence_id": intelligence_id,
+                "revision_id": revision_id,
+                "selected_provider": checkpoint["selected_provider"],
+                "selected_model": checkpoint["selected_model"],
+                "actual_provider": actual_provider,
+                "actual_model": actual_model,
+                "status": status,
+                "invocation_count": invocation_count,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_microunits": cost_microunits,
+                "duration_ms": duration_ms,
+                "budget_state": budget_state,
+                "outcome": outcome,
+                "created_at": format_utc_datetime(now),
+            },
+        )
+
+    def finish_distillation_without_admission(
+        self,
+        *,
+        execution_id: str,
+        status: str,
+        budget_state: str,
+        outcome: str,
+        invocation_count: int,
+        actual_provider: str | None,
+        actual_model: str | None,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_microunits: int | None,
+        duration_ms: int | None,
+        now: datetime,
+    ) -> DistillationExecutionRecord:
+        if status not in {
+            "WAITING_BUDGET", "WAITING_MODEL", "REJECTED_INELIGIBLE", "REJECTED_EVIDENCE",
+            "REJECTED_OUTPUT", "AMBIGUOUS",
+        } or not budget_state.strip() or not outcome.strip():
+            raise ValueError("distillation terminal status is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if checkpoint is None or str(checkpoint["status"]) != "PENDING":
+                    raise StateStoreError("distillation execution is not safely resumable")
+                connection.execute(
+                    "UPDATE distillation_execution_checkpoints SET status = :status, budget_state = :budget_state, invocation_count = :invocation_count, updated_at = :updated_at WHERE execution_id = :execution_id",
+                    {
+                        "status": status,
+                        "budget_state": budget_state,
+                        "invocation_count": invocation_count,
+                        "updated_at": format_utc_datetime(now),
+                        "execution_id": execution_id,
+                    },
+                )
+                self._insert_distillation_usage(
+                    connection,
+                    checkpoint=checkpoint,
+                    status=status,
+                    budget_state=budget_state,
+                    outcome=outcome,
+                    invocation_count=invocation_count,
+                    actual_provider=actual_provider,
+                    actual_model=actual_model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_microunits=cost_microunits,
+                    duration_ms=duration_ms,
+                    intelligence_id=None,
+                    revision_id=None,
+                    now=now,
+                )
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("distillation terminal state was not saved")
+                return self._distillation_execution_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("distillation terminal state violates the ledger contract") from error
+        finally:
+            connection.close()
+
+    def admit_distillation(
+        self,
+        *,
+        execution_id: str,
+        intelligence_id: str,
+        revision_id: str,
+        claim_kind: IntelligenceClaimKind,
+        content_hash: str,
+        evidence_ids: tuple[str, ...],
+        card: DistillationCardWrite,
+        actual_provider: str,
+        actual_model: str,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_microunits: int | None,
+        duration_ms: int | None,
+        now: datetime,
+    ) -> DistillationExecutionRecord:
+        if claim_kind is IntelligenceClaimKind.UNCLASSIFIED or not isinstance(claim_kind, IntelligenceClaimKind):
+            raise ValueError("distillation claim kind must be classified")
+        _validate_sha256(content_hash, field_name="distillation content_hash")
+        evidence_ids = tuple(sorted(evidence_ids))
+        if not evidence_ids or len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("distillation evidence identities are invalid")
+        if not card.core_conclusion.strip() or len(card.core_conclusion) > 4_000:
+            raise ValueError("distillation card conclusion is invalid")
+        encoded_card = {
+            "user_relevant_information_json": json.dumps(
+                self._distillation_strings(list(card.user_relevant_information), field_name="user relevance"), separators=(",", ":")
+            ),
+            "important_new_information_json": json.dumps(
+                self._distillation_strings(list(card.important_new_information), field_name="important information"), separators=(",", ":")
+            ),
+            "meaningful_details_json": json.dumps(
+                self._distillation_strings(list(card.meaningful_details), field_name="details"), separators=(",", ":")
+            ),
+            "filtered_noise_json": json.dumps(
+                self._distillation_strings(list(card.filtered_noise), field_name="noise"), separators=(",", ":")
+            ),
+            "preference_ids_json": json.dumps(
+                self._distillation_strings(list(card.preference_ids), field_name="preferences"), separators=(",", ":")
+            ),
+        }
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if checkpoint is None or str(checkpoint["status"]) != "PENDING":
+                    raise StateStoreError("distillation execution is not safely admissible")
+                if card.source_id != checkpoint["source_id"] or card.video_id != checkpoint["video_id"]:
+                    raise StateStoreError("distillation card target does not match execution")
+                evidence_rows = connection.execute(
+                    "SELECT evidence_id, video_id, availability FROM evidence WHERE evidence_id IN ("
+                    + ",".join("?" for _ in evidence_ids)
+                    + ")",
+                    evidence_ids,
+                ).fetchall()
+                evidence_by_id = {str(row["evidence_id"]): row for row in evidence_rows}
+                if len(evidence_by_id) != len(evidence_ids) or any(
+                    str(evidence_by_id[evidence_id]["video_id"]) != card.video_id
+                    or str(evidence_by_id[evidence_id]["availability"]) != EvidenceAvailability.AVAILABLE.value
+                    for evidence_id in evidence_ids
+                ):
+                    raise StateStoreError("distillation evidence is unavailable or foreign")
+                timestamp = format_utc_datetime(now)
+                connection.execute(
+                    "INSERT INTO intelligences (intelligence_id, current_revision_id, created_at) VALUES (:intelligence_id, NULL, :created_at)",
+                    {"intelligence_id": intelligence_id, "created_at": timestamp},
+                )
+                connection.execute(
+                    "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) VALUES (:revision_id, :intelligence_id, 1, NULL, 'DISTILLATION', :claim_kind, :content_hash, :created_at)",
+                    {"revision_id": revision_id, "intelligence_id": intelligence_id, "claim_kind": claim_kind.value, "content_hash": content_hash, "created_at": timestamp},
+                )
+                for evidence_id in evidence_ids:
+                    connection.execute(
+                        "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id) VALUES (:revision_id, :evidence_id)",
+                        {"revision_id": revision_id, "evidence_id": evidence_id},
+                    )
+                connection.execute(
+                    "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
+                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": evidence_ids[0], "created_at": timestamp},
+                )
+                connection.execute(
+                    "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
+                    {"revision_id": revision_id, "intelligence_id": intelligence_id},
+                )
+                for evidence_id in evidence_ids:
+                    connection.execute(
+                        "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) VALUES (:edge_id, :revision_id, 'EVIDENCE_SUPPORT', :evidence_id, NULL, :created_at)",
+                        {"edge_id": f"support:{revision_id}:{evidence_id}", "revision_id": revision_id, "evidence_id": evidence_id, "created_at": timestamp},
+                    )
+                connection.execute(
+                    "INSERT INTO distillation_cards (revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, important_new_information_json, meaningful_details_json, filtered_noise_json, preference_ids_json, source_policy_revision_id, created_at) VALUES (:revision_id, :source_id, :video_id, :core_conclusion, :user_relevant_information_json, :important_new_information_json, :meaningful_details_json, :filtered_noise_json, :preference_ids_json, :source_policy_revision_id, :created_at)",
+                    {"revision_id": revision_id, "source_id": card.source_id, "video_id": card.video_id, "core_conclusion": card.core_conclusion.strip(), "source_policy_revision_id": card.source_policy_revision_id, "created_at": timestamp, **encoded_card},
+                )
+                connection.execute(
+                    "UPDATE distillation_execution_checkpoints SET status = 'SUCCEEDED', budget_state = 'ADMITTED', invocation_count = 1, intelligence_id = :intelligence_id, revision_id = :revision_id, updated_at = :updated_at WHERE execution_id = :execution_id",
+                    {"intelligence_id": intelligence_id, "revision_id": revision_id, "updated_at": timestamp, "execution_id": execution_id},
+                )
+                self._insert_distillation_usage(
+                    connection,
+                    checkpoint=checkpoint,
+                    status="SUCCEEDED",
+                    budget_state="ADMITTED",
+                    outcome="ADMITTED",
+                    invocation_count=1,
+                    actual_provider=actual_provider,
+                    actual_model=actual_model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_microunits=cost_microunits,
+                    duration_ms=duration_ms,
+                    intelligence_id=intelligence_id,
+                    revision_id=revision_id,
+                    now=now,
+                )
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("distillation admission was not saved")
+                return self._distillation_execution_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("distillation admission violates the evidence contract") from error
+        finally:
+            connection.close()
+
+    def get_distillation_resource_usage(
+        self, execution_id: str
+    ) -> DistillationResourceUsageRecord:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            if row is None:
+                raise StateStoreError("distillation resource usage does not exist")
+            return self._distillation_usage_from_row(row)
+        finally:
+            connection.close()
+
+    def get_distillation_card(self, revision_id: str) -> DistillationCardRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_cards WHERE revision_id = :revision_id",
+                {"revision_id": revision_id},
+            ).fetchone()
+            return None if row is None else self._distillation_card_from_row(row)
+        finally:
+            connection.close()
+
+    def list_distillation_cards(self) -> tuple[DistillationCardRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM distillation_cards ORDER BY created_at ASC, revision_id ASC"
+            ).fetchall()
+            return tuple(self._distillation_card_from_row(row) for row in rows)
         finally:
             connection.close()

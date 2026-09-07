@@ -6,6 +6,8 @@ mint the sealed projection consumed by the local application layer.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Final, NoReturn
 
@@ -119,6 +121,22 @@ class EvidenceDependencyImpact:
     revisions: tuple[EvidenceRevisionImpact, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class IntelligenceCard:
+    """A card projection reached only after the existing authoritative read."""
+
+    verified: VerifiedIntelligenceRead
+    source_id: str
+    video_id: str
+    core_conclusion: str
+    user_relevant_information: tuple[str, ...]
+    important_new_information: tuple[str, ...]
+    meaningful_details: tuple[str, ...]
+    filtered_noise: tuple[str, ...]
+    preference_ids: tuple[str, ...]
+    source_policy_revision_id: str | None
+
+
 class AuthoritativeIntelligenceReader:
     """The sole validator and issuer of a current trusted Intelligence read."""
 
@@ -133,6 +151,65 @@ class AuthoritativeIntelligenceReader:
         except (AttributeError, StateStoreError, ValueError) as error:
             raise IntelligenceReadRejected(
                 "PERSISTENCE_INVALID", "intelligence persistence is invalid"
+            ) from error
+
+    def read_current_card(self, intelligence_id: str) -> IntelligenceCard:
+        """Return persisted card content only after minting the trusted revision read."""
+
+        verified = self.read_current(intelligence_id)
+        try:
+            revision = self._repository.get_intelligence_revision(verified.revision_id)
+            card = self._repository.get_distillation_card(verified.revision_id)
+            if revision is None or card is None:
+                raise IntelligenceReadRejected("CARD_MISSING", "distillation card is unavailable")
+            evidence_records = tuple(
+                self._repository.get_evidence(evidence_id)
+                for evidence_id in verified.evidence_ids
+            )
+            if any(record is None or record.video_id != card.video_id for record in evidence_records):
+                raise IntelligenceReadRejected("CARD_EVIDENCE_INVALID", "card evidence target is invalid")
+            if not self._repository.source_has_video(card.source_id, card.video_id):
+                raise IntelligenceReadRejected("CARD_SOURCE_INVALID", "card source target is invalid")
+            canonical = json.dumps(
+                {
+                    "core_conclusion": card.core_conclusion,
+                    "user_relevant_information": list(card.user_relevant_information),
+                    "important_new_information": list(card.important_new_information),
+                    "meaningful_details": list(card.meaningful_details),
+                    "filtered_noise": list(card.filtered_noise),
+                    "claim_kind": verified.claim_kind.value,
+                    "evidence": [
+                        {
+                            "evidence_id": evidence_id,
+                            "start_ms": evidence.start_ms,
+                            "end_ms": evidence.end_ms,
+                        }
+                        for evidence_id, evidence in zip(verified.evidence_ids, evidence_records, strict=True)
+                        if evidence is not None
+                    ],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            if hashlib.sha256(canonical).hexdigest() != revision.content_hash:
+                raise IntelligenceReadRejected("CARD_HASH_INVALID", "distillation card content is invalid")
+            return IntelligenceCard(
+                verified=verified,
+                source_id=card.source_id,
+                video_id=card.video_id,
+                core_conclusion=card.core_conclusion,
+                user_relevant_information=card.user_relevant_information,
+                important_new_information=card.important_new_information,
+                meaningful_details=card.meaningful_details,
+                filtered_noise=card.filtered_noise,
+                preference_ids=card.preference_ids,
+                source_policy_revision_id=card.source_policy_revision_id,
+            )
+        except IntelligenceReadRejected:
+            raise
+        except (AttributeError, StateStoreError, ValueError) as error:
+            raise IntelligenceReadRejected(
+                "PERSISTENCE_INVALID", "intelligence card persistence is invalid"
             ) from error
 
     def _read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:

@@ -206,7 +206,7 @@ def test_fresh_database_has_provider_aware_persistence_schema(tmp_path: Path) ->
 
     version = repository.initialize(now=NOW)
 
-    assert version.version == 9
+    assert version.version == 10
     store = DeepAnalysisPersistenceStore(repository)
     assert store.lookup_deep_analysis_cache(cache_identity="a" * 64) is None
 
