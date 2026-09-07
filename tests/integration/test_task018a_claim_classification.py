@@ -315,6 +315,12 @@ def test_database_rejects_raw_arbitrary_and_new_unclassified_claim_kinds(tmp_pat
                 "VALUES ('unclassified-kind', 'intelligence-1', 1, NULL, 'DISTILLATION', 'UNCLASSIFIED', ?, ?)",
                 ("b" * 64, timestamp),
             )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, content_hash, created_at) "
+                "VALUES ('defaulted-kind', 'intelligence-1', 1, NULL, 'DISTILLATION', ?, ?)",
+                ("b" * 64, timestamp),
+            )
 
 
 def test_m007_is_packaged_and_no_m008_is_introduced() -> None:
