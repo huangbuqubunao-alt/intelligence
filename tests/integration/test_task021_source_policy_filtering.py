@@ -43,7 +43,7 @@ def _repository(tmp_path: Path) -> SQLiteStateRepository:
 
 def _source(repository: SQLiteStateRepository) -> str:
     source = ProductOrchestrationService(repository, now=lambda: NOW).add_source(
-        url="https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv",
+        url="https://www.youtube.com/channel/UC______________________",
         processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
     )
     return source.source_id
@@ -53,7 +53,7 @@ def _video(repository: SQLiteStateRepository, video_id: str, *, title: str) -> N
     repository.upsert_video_metadata(
         VideoMetadata(
             video_id=video_id,
-            channel_id="UCabcdefghijklmnopqrstuv",
+            channel_id="UC______________________",
             channel_name="Fixture channel",
             title=title,
             description="Fixture description",
