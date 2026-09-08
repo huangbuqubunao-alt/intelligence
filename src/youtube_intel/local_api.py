@@ -28,11 +28,13 @@ from youtube_intel.orchestration import (
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
+from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.source_policy import (
     EffectiveSourcePolicy,
     SourcePolicyApplicationService,
 )
+from youtube_intel.source_run import SourceRunRecord
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
@@ -88,6 +90,27 @@ def _source_dto(source: SourceSubscriptionRecord) -> dict[str, object]:
         else {"code": source.last_error_code, "message": source.last_error_message},
         "created_at": _timestamp(source.created_at),
         "updated_at": _timestamp(source.updated_at),
+    }
+
+
+def _source_run_dto(run: SourceRunRecord) -> dict[str, object]:
+    """Expose finite durable execution facts only; no exception detail is stored."""
+
+    return {
+        "run_id": run.run_id,
+        "source_id": run.source_id,
+        "trigger": run.trigger.value,
+        "trigger_reference": run.trigger_reference,
+        "priority": run.priority.value,
+        "state": run.state.value,
+        "attention_reason": (
+            None if run.attention_reason is None else run.attention_reason.value
+        ),
+        "automation_run_id": run.automation_run_id,
+        "manual_command_id": run.manual_command_id,
+        "manual_analyze_override_id": run.manual_analyze_override_id,
+        "created_at": _timestamp(run.created_at),
+        "updated_at": _timestamp(run.updated_at),
     }
 
 
@@ -243,6 +266,7 @@ class LocalApiApplication:
         *,
         scoring_reader: AuthoritativeScoringReader | None = None,
         distillation_service: PersonalizedDistillationService | None = None,
+        processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
@@ -254,6 +278,7 @@ class LocalApiApplication:
         self._service = service
         self._scoring_reader = scoring_reader
         self._distillation_service = distillation_service
+        self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
@@ -675,12 +700,31 @@ class LocalApiApplication:
                 if len(parts) != 3 or parts[1] != "videos" or not all(parts):
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
                 self._only_keys(data, {"command_id"})
-                decision = self._source_policy_service.manual_analyze_override(
+                command_id = self._string(data, "command_id", required=True) or ""
+                if self._processing_orchestrator is None:
+                    decision = self._source_policy_service.manual_analyze_override(
+                        source_id=parts[0], video_id=parts[2], command_id=command_id
+                    )
+                    return HTTPStatus.CREATED, {"decision": _filter_decision_dto(decision)}
+                run = self._processing_orchestrator.enqueue_manual_analyze_video(
                     source_id=parts[0],
                     video_id=parts[2],
-                    command_id=self._string(data, "command_id", required=True) or "",
+                    command_id=command_id,
                 )
-                return HTTPStatus.CREATED, {"decision": _filter_decision_dto(decision)}
+                assert run.manual_analyze_override_id is not None
+                manual_decision = self._repository.filter_decision_for_manual_override(
+                    run.manual_analyze_override_id
+                )
+                if manual_decision is None:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "CONFLICT",
+                        "Manual Analyze was not durably admitted.",
+                    )
+                return HTTPStatus.ACCEPTED, {
+                    "decision": _filter_decision_dto(manual_decision),
+                    "source_run": _source_run_dto(run),
+                }
             if (
                 method == "POST"
                 and route.startswith(source_policy_prefix)
@@ -744,6 +788,14 @@ class LocalApiApplication:
                 and route.startswith("/api/v1/sources/")
             ):
                 source_id = route.split("/")[-2]
+                if self._processing_orchestrator is not None:
+                    self._only_keys(data, {"command_id"})
+                    run = self._processing_orchestrator.enqueue_manual_check_now(
+                        source_id=source_id,
+                        command_id=self._string(data, "command_id", required=True)
+                        or "",
+                    )
+                    return HTTPStatus.ACCEPTED, {"source_run": _source_run_dto(run)}
                 result = self._service.check_source(source_id)
                 return HTTPStatus.OK, {
                     "status": result.status.value,
@@ -829,6 +881,15 @@ class LocalApiApplication:
                     for topic in self._repository.list_topics()
                 ]
             }
+        source_run_prefix = "/api/v1/source-runs/"
+        if route.startswith(source_run_prefix):
+            run_id = route.removeprefix(source_run_prefix)
+            if not run_id or "/" in run_id:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            run = self._repository.get_source_run(run_id)
+            if run is None:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source Run was not found.")
+            return {"source_run": _source_run_dto(run)}
         topic_prefix = "/api/v1/topics/"
         if route.startswith(topic_prefix):
             topic_id = route.removeprefix(topic_prefix)

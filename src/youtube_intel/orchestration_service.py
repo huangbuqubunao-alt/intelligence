@@ -17,6 +17,7 @@ from youtube_intel.orchestration import (
     validate_policy,
     validate_schedule,
 )
+from youtube_intel.source_run import SourceRunPriority, SourceRunRecord
 from youtube_intel.state import (
     AutomationRunRecord,
     AutomationScheduleRecord,
@@ -33,6 +34,26 @@ class SourceCheckExecutor(Protocol):
     def check_source(self, source: SourceSubscriptionRecord) -> str: ...
 
 
+class SourceRunSubmitter(Protocol):
+    """TASK-024 trigger seam; it admits durable work but does not execute it."""
+
+    def enqueue_manual_check_now(
+        self,
+        *,
+        source_id: str,
+        command_id: str,
+        priority: SourceRunPriority = SourceRunPriority.P0,
+    ) -> SourceRunRecord: ...
+
+    def enqueue_scheduled_source_run(
+        self,
+        *,
+        source_id: str,
+        automation_run_id: str,
+        priority: SourceRunPriority = SourceRunPriority.P2,
+    ) -> SourceRunRecord: ...
+
+
 @dataclass(frozen=True, slots=True)
 class SourceCheckResult:
     status: AutomationRunStatus
@@ -47,11 +68,13 @@ class ProductOrchestrationService:
         now: Callable[[], datetime] | None = None,
         execution_enabled: bool = False,
         source_check_executor: SourceCheckExecutor | None = None,
+        source_run_submitter: SourceRunSubmitter | None = None,
     ) -> None:
         self._repository = repository
         self._now = now or (lambda: datetime.now(UTC))
         self._execution_enabled = execution_enabled
         self._source_check_executor = source_check_executor
+        self._source_run_submitter = source_run_submitter
 
     def add_source(
         self, *, url: str, processing_policy: ProcessingPolicy
@@ -156,13 +179,27 @@ class ProductOrchestrationService:
             desired_provider=provider, desired_model=model, now=self._now()
         )
 
-    def check_source(self, source_id: str) -> SourceCheckResult:
+    def check_source(
+        self, source_id: str, *, command_id: str | None = None
+    ) -> SourceCheckResult:
         source = self._repository.get_source_subscription(source_id)
         if source is None:
             raise ValueError("source does not exist")
         if not source.enabled:
             return SourceCheckResult(
                 AutomationRunStatus.BLOCKED, "Source is disabled; no check was started."
+            )
+        if self._source_run_submitter is not None:
+            if not isinstance(command_id, str) or not command_id.strip():
+                raise ValueError("Check Now requires a durable command identity")
+            self._source_run_submitter.enqueue_manual_check_now(
+                source_id=source.source_id,
+                command_id=command_id,
+                priority=SourceRunPriority.P0,
+            )
+            return SourceCheckResult(
+                AutomationRunStatus.SUCCEEDED,
+                "Full Source Run was durably queued.",
             )
         if not self._execution_enabled or self._source_check_executor is None:
             self._repository.record_source_check(
@@ -245,7 +282,18 @@ class ProductOrchestrationService:
                 continue
             if schedule.target_type is AutomationTargetType.SOURCE_CHECK:
                 assert schedule.target_id is not None
-                result = self.check_source(schedule.target_id)
+                if self._source_run_submitter is not None:
+                    self._source_run_submitter.enqueue_scheduled_source_run(
+                        source_id=schedule.target_id,
+                        automation_run_id=run.run_id,
+                        priority=SourceRunPriority.P2,
+                    )
+                    result = SourceCheckResult(
+                        AutomationRunStatus.SUCCEEDED,
+                        "Scheduled Source Run was durably queued.",
+                    )
+                else:
+                    result = self.check_source(schedule.target_id)
                 self._repository.finish_automation_run(
                     run.run_id,
                     status=result.status,
