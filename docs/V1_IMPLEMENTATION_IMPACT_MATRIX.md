@@ -8,7 +8,7 @@
 | Feedback / preference | absent; global model preference is unrelated | ADD | 020 | high intent boundary |
 | Source drawer/config | SourceSubscription + m005 policy | MODIFY/REUSE | 021/026 | migration compatibility |
 | Filtering disposition / manual override | absent | ADD | 021 | safety semantics |
-| Personalized distillation | current scoring/summary runtime only | ADAPT behind new application service | 022 | evidence/cost |
+| Personalized distillation | current scoring/summary runtime only | ADAPT behind new application service; add reserved execution continuation seam | 022/023B | evidence/cost / duplicate dispatch |
 | Resource ledger | provider-call usage exists but no product ledger | ADD, reference provider calls | 022 | cost integrity |
 | Topic/timeline | absent | ADD | 023 | revision coupling |
 | Source Run execution persistence | m005 automation runs and m010 child checkpoints are insufficient | ADD m012 without reinterpreting either authority | 023A | duplicate effects / unsafe resume |

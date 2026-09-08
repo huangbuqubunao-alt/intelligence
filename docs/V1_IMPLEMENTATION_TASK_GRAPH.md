@@ -21,13 +21,14 @@ All writes follow `UI -> loopback local API -> application service -> repository
   -> 022 Personalized Distillation + Ledger (m010)
   -> 023 Topic + Timeline (m011)
   -> 023A Durable Source Run Orchestration Persistence Amendment (m012)
+  -> 023B Distillation Reservation / Continue Seam Amendment
   -> 024 Unified Processing Orchestration
   -> 025 Weekly Intelligence Foundation (m013)
   -> 026 Frozen IA Integration
   -> 027 Integrated Acceptance / PO Demo
 ```
 
-The graph is intentionally a single implementation lane. Although preference and source-policy semantics are conceptually independent after 018, both must evolve `state.py`, migration history, local API contracts, and source configuration. Parallel feature branches would create migration-number/ancestry ambiguity and a review-unfriendly conflict. Parallel-safe work is limited to read-only design review, reviewer preparation, and fixture design after their owner task is closed; no two implementation tasks are parallel-safe. Forbidden parallel pairs are any pair containing 018–023A or 025 (migration/state ownership), 024 with 021–023A (orchestration interface), 026 with any unclosed API/projection producer, and 027 with all implementation tasks.
+The graph is intentionally a single implementation lane. Although preference and source-policy semantics are conceptually independent after 018, both must evolve `state.py`, migration history, local API contracts, and source configuration. Parallel feature branches would create migration-number/ancestry ambiguity and a review-unfriendly conflict. Parallel-safe work is limited to read-only design review, reviewer preparation, and fixture design after their owner task is closed; no two implementation tasks are parallel-safe. Forbidden parallel pairs are any pair containing 018–023B or 025 (migration/state ownership), 024 with 021–023B (orchestration interface), 026 with any unclosed API/projection producer, and 027 with all implementation tasks.
 
 Critical path is the full sequence above. Merge order is exactly task-number order; each branch is cut from the immediately preceding approved integration anchor. This is deliberate: migrations are forward-only and no task B may rely on task A's unreviewed working tree.
 
@@ -43,7 +44,8 @@ Critical path is the full sequence above. Merge order is exactly task-number ord
 | 022 | m010 evidence-bound personal distillation and resource ledger | 021 | unsupported claims, missing actual model/cost data |
 | 023 | m011 Topics, membership, pin, timeline, light relations | 022 | copied claim text or mutable history |
 | 023A | m012 durable Source Run identity, state, checkpoint, attention, and idempotency persistence | 023 | overloading m005/m010 or allowing memory-only execution authority |
-| 024 | shared Manual/Scheduled/override orchestration using the durable Source Run contract | 023A | duplicate provider effect or AMBIGUOUS redispatch |
+| 023B | TASK-022-owned canonical reservation/continue seam using m010 and m012 unchanged | 023A | treating a reservation or crash as safe redispatch |
+| 024 | shared Manual/Scheduled/override orchestration using the durable Source Run and reservation contracts | 023A, 023B | duplicate provider effect or AMBIGUOUS redispatch |
 | 025 | m013 immutable V1 Weekly projection from trusted revisions | 024 | a second Weekly authority or raw-video summary |
 | 026 | frozen IA and local API client integration | 025 | UI treats untrusted data as intelligence or hides existing capability |
 | 027 | synthetic, provider-free V1 acceptance evidence | 026 | false product-completeness claim |
@@ -81,6 +83,20 @@ Intelligence, or update Topics; m005 and m010 retain their existing meaning and
 AMBIGUOUS terminal safety. TASK-024 remains migration-free and consumes this
 contract. TASK-025 shifts to m013. This correction changes neither frozen product
 semantics nor V2 scope; Deep Analysis remains **BLOCKED**.
+
+## Product Owner amendment — TASK-023B
+
+TASK-024 correctly identified that m012's immutable child execution binding
+needs a canonical TASK-022 execution identity before provider dispatch, while
+the legacy `distill()` entry point conservatively treats an existing `PENDING`
+checkpoint as AMBIGUOUS. TASK-023B owns no migration and changes neither m010
+nor m012 SQL. It adds only the TASK-022 application seam: a canonical,
+zero-dispatch reservation; an atomic persisted dispatch claim; and continuation
+of that exact identity through the existing admission path. `PENDING /
+RESERVED_NOT_DISPATCHED / 0` is the only legal continuation state;
+`PENDING / DISPATCH_CLAIMED / 1` is conservatively AMBIGUOUS after restart.
+TASK-024 remains migration-free and may consume this seam only after TASK-023B
+approval. TASK-025 remains sole owner of m013; Deep Analysis remains **BLOCKED**.
 
 ## V2 containment
 

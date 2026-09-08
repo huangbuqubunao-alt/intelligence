@@ -18,7 +18,8 @@ An implementation task is APPROVE only after focused TDD tests are green, advers
 | 022 | evidence-bound Card/revision plus actual model/usage-or-UNKNOWN ledger | unsupported claim, missing evidence, budget/model pause, or AMBIGUOUS has no admitted result |
 | 023 | Topic association/dedupe/pin/timeline references revisions | merge/split does not rewrite Evidence/Intelligence identity |
 | 023A | durable finite Source Run trigger/priority/state/checkpoint/attention/idempotency persistence | m005/m010 cannot be overloaded; AMBIGUOUS child state never gains retry permission |
-| 024 | Check Now/scheduler/manual override share one service and consume safe Source Run checkpoints | duplicate trigger, budget stop, model wait, partial resume, AMBIGUOUS never redispatch |
+| 023B | zero-call canonical TASK-022 reservation and exact restart-safe continuation | claimed/unknown dispatch becomes AMBIGUOUS; no second ledger, Intelligence, or m012 ID replacement |
+| 024 | Check Now/scheduler/manual override share one service and consume safe Source Run checkpoints plus TASK-023B reservation/continue | duplicate trigger, budget stop, model wait, partial resume, AMBIGUOUS never redispatch |
 | 025 | Weekly only references trusted revisions/Topics and is immutable | raw video cannot generate it; correction adds marker, does not rewrite; no Weekly V2 claim |
 | 026 | frozen IA exposes evidence/context and truthful unavailable/reserved states | browser cannot call DB/provider; Investigations cannot appear active; old capability remains reachable/reframed |
 | 027 | provider-free synthetic journey covers V1 state transitions | model unavailable, budget exhausted, skip override, AMBIGUOUS, Deep Analysis BLOCKED remain truthful |

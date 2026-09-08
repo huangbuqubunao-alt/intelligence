@@ -19,6 +19,12 @@ At the approved TASK-018 anchor, `PRAGMA user_version` is **6**. `SQLiteStateRep
 | 012 | TASK-023A | durable Source Run identity, finite trigger/priority/state, checkpoint, attention, idempotency, and schedule/manual references | v011 |
 | 013 | TASK-025 | immutable V1 Brief snapshot/item references and supersession marker | v012 |
 
+TASK-023B is an explicit **no-migration** TASK-022 application-contract
+amendment between TASK-023A and TASK-024. It consumes the existing m010
+checkpoint fields for a finite reservation/dispatch-claim distinction and does
+not alter any migration SQL, checksum, trigger, `user_version`, or ownership:
+TASK-024 remains no-migration and TASK-025 retains m013.
+
 Each migration is additive/forward-only, one file, one owner, and may reference existing stable IDs without duplicating their authority. No V2 Investigation, Early Signal, external evidence, Daily, Ask, credential, dispatch, or TASK-016 tables are added. Migration rollback is not an operating strategy: restore a verified pre-upgrade local backup, diagnose the migration, issue a later corrective migration only after PO approval, and never alter applied migration text/checksums.
 
 ## Upgrade and failure safety
