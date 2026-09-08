@@ -311,6 +311,16 @@ class TopicRelationKind(str, Enum):
     RELATED = "RELATED"
 
 
+class WeeklyBriefStatus(str, Enum):
+    FINALIZED = "FINALIZED"
+
+
+class WeeklyBriefMarkerKind(str, Enum):
+    SUPERSEDED = "SUPERSEDED"
+    EVIDENCE_DELETED = "EVIDENCE_DELETED"
+    SOURCE_INVALIDATED = "SOURCE_INVALIDATED"
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceWrite:
     evidence_id: str
@@ -600,6 +610,107 @@ class TopicRelationRecord:
     related_topic_id: str
     relation: TopicRelationKind
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefWrite:
+    brief_id: str
+    logical_period_id: str
+    timezone: str
+    period_start: datetime
+    period_end: datetime
+    no_important_information: bool
+    preference_projection_hash: str
+    generated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefRecord:
+    brief_id: str
+    version: str
+    logical_period_id: str
+    timezone: str
+    period_start: datetime
+    period_end: datetime
+    status: WeeklyBriefStatus
+    no_important_information: bool
+    preference_projection_hash: str
+    generated_at: datetime
+    finalized_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefItemWrite:
+    brief_item_id: str
+    membership_id: str
+    topic_id: str
+    topic_name: str
+    intelligence_id: str
+    revision_id: str
+    association_kind: TopicAssociationKind
+    claim_kind: IntelligenceClaimKind
+    source_state: IntelligenceState
+    summary: str
+    source_content_hash: str
+    position: int
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefItemRecord:
+    brief_item_id: str
+    brief_id: str
+    membership_id: str
+    topic_id: str
+    topic_name: str
+    intelligence_id: str
+    revision_id: str
+    association_kind: TopicAssociationKind
+    claim_kind: IntelligenceClaimKind
+    source_state: IntelligenceState
+    summary: str
+    source_content_hash: str
+    position: int
+    evidence_ids: tuple[str, ...]
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefPreferenceProjectionWrite:
+    preference_id: str
+    horizon: PreferenceHorizon
+    provenance: PreferenceProvenance
+    statement_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefPreferenceProjectionRecord:
+    brief_id: str
+    preference_id: str
+    horizon: PreferenceHorizon
+    provenance: PreferenceProvenance
+    statement_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefMarkerWrite:
+    marker_id: str
+    brief_item_id: str
+    kind: WeeklyBriefMarkerKind
+    reason: str
+    current_revision_id: str | None
+    evidence_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklyBriefMarkerRecord:
+    marker_id: str
+    brief_item_id: str
+    kind: WeeklyBriefMarkerKind
+    reason: str
+    current_revision_id: str | None
+    evidence_id: str | None
+    marked_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -1287,6 +1398,7 @@ class SQLiteStateRepository:
             "010_add_personalized_distillation.sql",
             "011_add_topic_timeline.sql",
             "012_add_source_run_orchestration.sql",
+            "013_add_weekly_brief_foundation.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -6429,6 +6541,70 @@ class SQLiteStateRepository:
             connection.close()
 
     @staticmethod
+    def _weekly_brief_from_row(row: sqlite3.Row) -> WeeklyBriefRecord:
+        return WeeklyBriefRecord(
+            brief_id=str(row["brief_id"]),
+            version=str(row["version"]),
+            logical_period_id=str(row["logical_period_id"]),
+            timezone=str(row["timezone"]),
+            period_start=_parse_utc_datetime(str(row["period_start_utc"])),
+            period_end=_parse_utc_datetime(str(row["period_end_utc"])),
+            status=WeeklyBriefStatus(str(row["status"])),
+            no_important_information=bool(row["no_important_information"]),
+            preference_projection_hash=str(row["preference_projection_hash"]),
+            generated_at=_parse_utc_datetime(str(row["generated_at"])),
+            finalized_at=_parse_utc_datetime(str(row["finalized_at"])),
+        )
+
+    @staticmethod
+    def _weekly_brief_item_evidence_ids(
+        connection: sqlite3.Connection, brief_item_id: str
+    ) -> tuple[str, ...]:
+        rows = connection.execute(
+            "SELECT evidence_id FROM brief_item_evidence WHERE brief_item_id = :brief_item_id "
+            "ORDER BY evidence_id ASC",
+            {"brief_item_id": brief_item_id},
+        ).fetchall()
+        return tuple(str(row["evidence_id"]) for row in rows)
+
+    @classmethod
+    def _weekly_brief_item_from_row(
+        cls, connection: sqlite3.Connection, row: sqlite3.Row
+    ) -> WeeklyBriefItemRecord:
+        brief_item_id = str(row["brief_item_id"])
+        return WeeklyBriefItemRecord(
+            brief_item_id=brief_item_id,
+            brief_id=str(row["brief_id"]),
+            membership_id=str(row["membership_id"]),
+            topic_id=str(row["topic_id"]),
+            topic_name=str(row["topic_name"]),
+            intelligence_id=str(row["intelligence_id"]),
+            revision_id=str(row["revision_id"]),
+            association_kind=TopicAssociationKind(str(row["association_kind"])),
+            claim_kind=IntelligenceClaimKind(str(row["claim_kind"])),
+            source_state=IntelligenceState(str(row["source_state"])),
+            summary=str(row["summary"]),
+            source_content_hash=str(row["source_content_hash"]),
+            position=int(row["position"]),
+            evidence_ids=cls._weekly_brief_item_evidence_ids(connection, brief_item_id),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _weekly_brief_marker_from_row(row: sqlite3.Row) -> WeeklyBriefMarkerRecord:
+        return WeeklyBriefMarkerRecord(
+            marker_id=str(row["marker_id"]),
+            brief_item_id=str(row["brief_item_id"]),
+            kind=WeeklyBriefMarkerKind(str(row["marker_kind"])),
+            reason=str(row["reason"]),
+            current_revision_id=(
+                None if row["current_revision_id"] is None else str(row["current_revision_id"])
+            ),
+            evidence_id=None if row["evidence_id"] is None else str(row["evidence_id"]),
+            marked_at=_parse_utc_datetime(str(row["marked_at"])),
+        )
+
+    @staticmethod
     def _topic_from_row(row: sqlite3.Row) -> TopicRecord:
         return TopicRecord(
             topic_id=str(row["topic_id"]),
@@ -6672,6 +6848,342 @@ class SQLiteStateRepository:
                 {"intelligence_id": intelligence_id, "revision_id": revision_id},
             ).fetchall()
             return tuple(self._topic_membership_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_topic_memberships_between(
+        self, *, start: datetime, end: datetime
+    ) -> tuple[TopicMembershipRecord, ...]:
+        start_text = format_utc_datetime(start)
+        end_text = format_utc_datetime(end)
+        if start_text >= end_text:
+            raise ValueError("topic membership period is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM topic_memberships WHERE effective_at >= :start "
+                "AND effective_at < :end ORDER BY effective_at ASC, membership_id ASC",
+                {"start": start_text, "end": end_text},
+            ).fetchall()
+            return tuple(self._topic_membership_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _weekly_brief_identity(value: str, *, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512:
+            raise ValueError(f"{field_name} is invalid")
+        return value
+
+    @staticmethod
+    def _weekly_brief_summary(value: str) -> str:
+        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 4_000:
+            raise ValueError("weekly brief summary is invalid")
+        return value
+
+    def create_finalized_weekly_brief(
+        self,
+        brief: WeeklyBriefWrite,
+        *,
+        items: tuple[WeeklyBriefItemWrite, ...],
+        preferences: tuple[WeeklyBriefPreferenceProjectionWrite, ...],
+    ) -> WeeklyBriefRecord:
+        for field_name, value in (
+            ("weekly brief identity", brief.brief_id),
+            ("weekly logical period identity", brief.logical_period_id),
+            ("weekly timezone", brief.timezone),
+        ):
+            self._weekly_brief_identity(value, field_name=field_name)
+        _validate_sha256(
+            brief.preference_projection_hash, field_name="weekly preference projection hash"
+        )
+        start_text = format_utc_datetime(brief.period_start)
+        end_text = format_utc_datetime(brief.period_end)
+        if start_text >= end_text or brief.no_important_information != (not items):
+            raise ValueError("weekly brief finalization shape is invalid")
+        if len({item.brief_item_id for item in items}) != len(items) or len(
+            {item.topic_id for item in items}
+        ) != len(items) or {item.position for item in items} != set(range(1, len(items) + 1)):
+            raise ValueError("weekly brief items must have distinct identities and topics")
+        if len({item.preference_id for item in preferences}) != len(preferences):
+            raise ValueError("weekly brief preference projections must be unique")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                existing = connection.execute(
+                    "SELECT * FROM weekly_briefs WHERE logical_period_id = :logical_period_id",
+                    {"logical_period_id": brief.logical_period_id},
+                ).fetchone()
+                if existing is not None:
+                    return self._weekly_brief_from_row(existing)
+                timestamp = format_utc_datetime(brief.generated_at)
+                connection.execute(
+                    "INSERT INTO weekly_briefs (brief_id, version, logical_period_id, timezone, "
+                    "period_start_utc, period_end_utc, status, no_important_information, "
+                    "preference_projection_hash, generated_at, finalized_at) "
+                    "VALUES (:brief_id, 'weekly-v1', :logical_period_id, :timezone, :period_start, "
+                    ":period_end, 'FINALIZED', :no_important_information, :preference_projection_hash, "
+                    ":generated_at, :finalized_at)",
+                    {
+                        "brief_id": brief.brief_id,
+                        "logical_period_id": brief.logical_period_id,
+                        "timezone": brief.timezone,
+                        "period_start": start_text,
+                        "period_end": end_text,
+                        "no_important_information": int(brief.no_important_information),
+                        "preference_projection_hash": brief.preference_projection_hash,
+                        "generated_at": timestamp,
+                        "finalized_at": timestamp,
+                    },
+                )
+                for item in items:
+                    self._weekly_brief_identity(
+                        item.brief_item_id, field_name="weekly brief item identity"
+                    )
+                    self._weekly_brief_identity(
+                        item.membership_id, field_name="weekly brief membership identity"
+                    )
+                    self._weekly_brief_identity(item.topic_id, field_name="weekly topic identity")
+                    self._weekly_brief_identity(
+                        item.intelligence_id, field_name="weekly intelligence identity"
+                    )
+                    self._weekly_brief_identity(
+                        item.revision_id, field_name="weekly revision identity"
+                    )
+                    self._topic_name(item.topic_name)
+                    self._weekly_brief_summary(item.summary)
+                    if (
+                        item.association_kind
+                        not in {
+                            TopicAssociationKind.NEW_INFORMATION,
+                            TopicAssociationKind.NEW_EVIDENCE,
+                            TopicAssociationKind.CONTRADICTORY_INFORMATION,
+                        }
+                        or item.claim_kind is IntelligenceClaimKind.UNCLASSIFIED
+                    ):
+                        raise ValueError("weekly brief item semantics are invalid")
+                    _validate_sha256(
+                        item.source_content_hash, field_name="weekly source content hash"
+                    )
+                    evidence_ids = tuple(sorted(item.evidence_ids))
+                    if not evidence_ids or len(set(evidence_ids)) != len(evidence_ids):
+                        raise ValueError("weekly brief item evidence is invalid")
+                    connection.execute(
+                        "INSERT INTO brief_items (brief_item_id, brief_id, membership_id, topic_id, "
+                        "topic_name, intelligence_id, revision_id, association_kind, claim_kind, "
+                        "source_state, summary, source_content_hash, position, created_at) "
+                        "VALUES (:brief_item_id, :brief_id, :membership_id, :topic_id, :topic_name, "
+                        ":intelligence_id, :revision_id, :association_kind, :claim_kind, :source_state, "
+                        ":summary, :source_content_hash, :position, :created_at)",
+                        {
+                            "brief_item_id": item.brief_item_id,
+                            "brief_id": brief.brief_id,
+                            "membership_id": item.membership_id,
+                            "topic_id": item.topic_id,
+                            "topic_name": item.topic_name,
+                            "intelligence_id": item.intelligence_id,
+                            "revision_id": item.revision_id,
+                            "association_kind": item.association_kind.value,
+                            "claim_kind": item.claim_kind.value,
+                            "source_state": item.source_state.value,
+                            "summary": item.summary,
+                            "source_content_hash": item.source_content_hash,
+                            "position": item.position,
+                            "created_at": timestamp,
+                        },
+                    )
+                    for evidence_id in evidence_ids:
+                        connection.execute(
+                            "INSERT INTO brief_item_evidence (brief_item_id, evidence_id) "
+                            "VALUES (:brief_item_id, :evidence_id)",
+                            {
+                                "brief_item_id": item.brief_item_id,
+                                "evidence_id": evidence_id,
+                            },
+                        )
+                for preference in preferences:
+                    self._weekly_brief_identity(
+                        preference.preference_id, field_name="weekly preference identity"
+                    )
+                    if not isinstance(preference.horizon, PreferenceHorizon) or not isinstance(
+                        preference.provenance, PreferenceProvenance
+                    ):
+                        raise ValueError("weekly preference projection semantics are invalid")
+                    _validate_sha256(
+                        preference.statement_hash, field_name="weekly preference statement hash"
+                    )
+                    connection.execute(
+                        "INSERT INTO weekly_brief_preference_projections "
+                        "(brief_id, preference_id, horizon, provenance, statement_hash) "
+                        "VALUES (:brief_id, :preference_id, :horizon, :provenance, :statement_hash)",
+                        {
+                            "brief_id": brief.brief_id,
+                            "preference_id": preference.preference_id,
+                            "horizon": preference.horizon.value,
+                            "provenance": preference.provenance.value,
+                            "statement_hash": preference.statement_hash,
+                        },
+                    )
+                row = connection.execute(
+                    "SELECT * FROM weekly_briefs WHERE brief_id = :brief_id",
+                    {"brief_id": brief.brief_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("weekly brief was not saved")
+                return self._weekly_brief_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("weekly brief violates its immutable provenance contract") from error
+        finally:
+            connection.close()
+
+    def get_weekly_v1_brief(self, brief_id: str) -> WeeklyBriefRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM weekly_briefs WHERE brief_id = :brief_id", {"brief_id": brief_id}
+            ).fetchone()
+            return None if row is None else self._weekly_brief_from_row(row)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_briefs(self) -> tuple[WeeklyBriefRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM weekly_briefs ORDER BY period_start_utc DESC, brief_id ASC"
+            ).fetchall()
+            return tuple(self._weekly_brief_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_brief_items(
+        self, brief_id: str
+    ) -> tuple[WeeklyBriefItemRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM brief_items WHERE brief_id = :brief_id "
+                "ORDER BY position ASC, brief_item_id ASC",
+                {"brief_id": brief_id},
+            ).fetchall()
+            return tuple(self._weekly_brief_item_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_items(self) -> tuple[WeeklyBriefItemRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM brief_items ORDER BY brief_id ASC, position ASC, brief_item_id ASC"
+            ).fetchall()
+            return tuple(self._weekly_brief_item_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_items_for_evidence(
+        self, evidence_id: str
+    ) -> tuple[WeeklyBriefItemRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT item.* FROM brief_items AS item JOIN brief_item_evidence AS evidence "
+                "ON evidence.brief_item_id = item.brief_item_id "
+                "WHERE evidence.evidence_id = :evidence_id "
+                "ORDER BY item.brief_id ASC, item.brief_item_id ASC",
+                {"evidence_id": evidence_id},
+            ).fetchall()
+            return tuple(self._weekly_brief_item_from_row(connection, row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_markers(
+        self, brief_item_id: str
+    ) -> tuple[WeeklyBriefMarkerRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM brief_item_markers WHERE brief_item_id = :brief_item_id "
+                "ORDER BY marked_at ASC, marker_id ASC",
+                {"brief_item_id": brief_item_id},
+            ).fetchall()
+            return tuple(self._weekly_brief_marker_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def list_weekly_v1_preference_projections(
+        self, brief_id: str
+    ) -> tuple[WeeklyBriefPreferenceProjectionRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM weekly_brief_preference_projections WHERE brief_id = :brief_id "
+                "ORDER BY preference_id ASC",
+                {"brief_id": brief_id},
+            ).fetchall()
+            return tuple(
+                WeeklyBriefPreferenceProjectionRecord(
+                    brief_id=str(row["brief_id"]),
+                    preference_id=str(row["preference_id"]),
+                    horizon=PreferenceHorizon(str(row["horizon"])),
+                    provenance=PreferenceProvenance(str(row["provenance"])),
+                    statement_hash=str(row["statement_hash"]),
+                )
+                for row in rows
+            )
+        finally:
+            connection.close()
+
+    def append_weekly_v1_marker(
+        self, marker: WeeklyBriefMarkerWrite, *, now: datetime
+    ) -> bool:
+        self._weekly_brief_identity(marker.marker_id, field_name="weekly marker identity")
+        self._weekly_brief_identity(marker.brief_item_id, field_name="weekly marker item identity")
+        if not isinstance(marker.kind, WeeklyBriefMarkerKind) or not marker.reason.strip():
+            raise ValueError("weekly marker semantics are invalid")
+        if marker.kind is WeeklyBriefMarkerKind.SUPERSEDED:
+            if marker.current_revision_id is None or marker.evidence_id is not None:
+                raise ValueError("weekly supersession marker source is invalid")
+        elif marker.evidence_id is None or marker.current_revision_id is not None:
+            raise ValueError("weekly evidence marker source is invalid")
+        expected_reason = {
+            WeeklyBriefMarkerKind.SUPERSEDED: (
+                "A later trusted Intelligence revision supersedes this historical snapshot item."
+            ),
+            WeeklyBriefMarkerKind.EVIDENCE_DELETED: (
+                "Historical supporting evidence was later deleted."
+            ),
+            WeeklyBriefMarkerKind.SOURCE_INVALIDATED: (
+                "Historical supporting evidence is no longer available."
+            ),
+        }[marker.kind]
+        if marker.reason != expected_reason:
+            raise ValueError("weekly marker reason is not task-authorized")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                if connection.execute(
+                    "SELECT 1 FROM brief_item_markers WHERE marker_id = :marker_id",
+                    {"marker_id": marker.marker_id},
+                ).fetchone() is not None:
+                    return False
+                connection.execute(
+                    "INSERT INTO brief_item_markers (marker_id, brief_item_id, marker_kind, reason, "
+                    "current_revision_id, evidence_id, marked_at) "
+                    "VALUES (:marker_id, :brief_item_id, :marker_kind, :reason, "
+                    ":current_revision_id, :evidence_id, :marked_at)",
+                    {
+                        "marker_id": marker.marker_id,
+                        "brief_item_id": marker.brief_item_id,
+                        "marker_kind": marker.kind.value,
+                        "reason": marker.reason,
+                        "current_revision_id": marker.current_revision_id,
+                        "evidence_id": marker.evidence_id,
+                        "marked_at": format_utc_datetime(now),
+                    },
+                )
+                return True
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("weekly marker violates its legal source contract") from error
         finally:
             connection.close()
 

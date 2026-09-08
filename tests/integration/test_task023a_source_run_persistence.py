@@ -41,7 +41,7 @@ NOW = datetime(2026, 9, 8, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 12
+    assert repository.initialize(now=NOW).version == 13
     return repository
 
 
@@ -182,12 +182,12 @@ def _manual_analyze_override(
     return override_id, command_id
 
 
-def test_m012_fresh_database_reaches_v012_without_weekly_or_m013(tmp_path: Path) -> None:
+def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 13
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -200,10 +200,10 @@ def test_m012_fresh_database_reaches_v012_without_weekly_or_m013(tmp_path: Path)
     finally:
         connection.close()
 
-    assert migrations[-1] == "012_add_source_run_orchestration.sql"
-    assert not any(name.startswith("013_") for name in migrations)
+    assert migrations[-1] == "013_add_weekly_brief_foundation.sql"
+    assert not any(name.startswith("014_") for name in migrations)
     assert {"source_runs", "source_run_state_events", "source_run_checkpoint_events"} <= tables
-    assert not any("weekly" in name.lower() or "brief" in name.lower() for name in tables)
+    assert {"weekly_briefs", "brief_items", "brief_item_evidence"} <= tables
 
 
 def test_v011_upgrade_preserves_existing_automation_and_creates_no_synthetic_runs(
@@ -218,7 +218,7 @@ def test_v011_upgrade_preserves_existing_automation_and_creates_no_synthetic_run
         occurrence = _scheduled_occurrence(old_repository, source_id)
 
     repository = SQLiteStateRepository(database)
-    assert repository.initialize(now=NOW).version == 12
+    assert repository.initialize(now=NOW).version == 13
     assert repository.get_source_subscription(source_id) is not None
     assert repository.list_automation_runs() == (occurrence,)
     assert repository.list_source_runs() == ()
@@ -462,7 +462,7 @@ def test_finalized_source_run_can_complete_and_remains_terminal(tmp_path: Path) 
 def test_checkpoint_progress_and_priority_are_durable_across_reopen(tmp_path: Path) -> None:
     database = tmp_path / "state.sqlite3"
     repository = SQLiteStateRepository(database)
-    assert repository.initialize(now=NOW).version == 12
+    assert repository.initialize(now=NOW).version == 13
     source_id = _source(repository)
     low = repository.create_source_run(
         SourceRunWrite.manual_check_now(

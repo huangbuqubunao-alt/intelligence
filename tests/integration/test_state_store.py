@@ -94,6 +94,11 @@ EXPECTED_TABLES = {
     "source_video_links",
     "automation_schedules",
     "automation_runs",
+    "weekly_briefs",
+    "brief_items",
+    "brief_item_evidence",
+    "weekly_brief_preference_projections",
+    "brief_item_markers",
     "global_model_preferences",
     "evidence",
     "intelligences",
@@ -245,6 +250,24 @@ EXPECTED_COLUMNS = {
         "status",
         "created_at",
         "updated_at",
+    ),
+    "weekly_briefs": (
+        "brief_id", "version", "logical_period_id", "timezone", "period_start_utc",
+        "period_end_utc", "status", "no_important_information",
+        "preference_projection_hash", "generated_at", "finalized_at",
+    ),
+    "brief_items": (
+        "brief_item_id", "brief_id", "membership_id", "topic_id", "topic_name",
+        "intelligence_id", "revision_id", "association_kind", "claim_kind",
+        "source_state", "summary", "source_content_hash", "position", "created_at",
+    ),
+    "brief_item_evidence": ("brief_item_id", "evidence_id"),
+    "weekly_brief_preference_projections": (
+        "brief_id", "preference_id", "horizon", "provenance", "statement_hash",
+    ),
+    "brief_item_markers": (
+        "marker_id", "brief_item_id", "marker_kind", "reason", "current_revision_id",
+        "evidence_id", "marked_at",
     ),
     "source_subscriptions": (
         "source_id",
@@ -768,12 +791,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "012_add_source_run_orchestration.sql")
+        .joinpath("migrations", "013_add_weekly_brief_foundation.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 12
-    assert first.name == "012_add_source_run_orchestration.sql"
+    assert first.version == 13
+    assert first.name == "013_add_weekly_brief_foundation.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -788,7 +811,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 12
+    assert migration_count == 13
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -833,12 +856,16 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
     assert explicit_indexes == {
         "idx_artifacts_retention",
         "idx_artifacts_video_kind_created",
+        "idx_brief_item_markers_item",
+        "idx_brief_items_membership",
+        "idx_brief_items_revision",
         "idx_jobs_schedule",
         "idx_jobs_video_stage_created",
         "idx_provider_calls_recovery",
         "idx_videos_availability_updated",
         "idx_videos_channel_published",
         "idx_videos_pipeline_updated",
+        "idx_weekly_briefs_period",
         "uq_job_attempts_active",
         "uq_job_attempts_number",
         "uq_jobs_active_scope_pipeline",
@@ -856,6 +883,8 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_dependency_edges_input_revision",
         "uq_dependency_edge_evidence",
         "uq_dependency_edge_revision",
+        "uq_brief_marker_evidence",
+        "uq_brief_marker_superseded",
         "idx_preferences_scope_created",
         "idx_preference_state_events_preference",
         "idx_feedback_events_created",

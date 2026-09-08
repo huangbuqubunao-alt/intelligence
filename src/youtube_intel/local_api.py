@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import urlparse
 
+from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
 from youtube_intel.distillation import PersonalizedDistillationService
 from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.intelligence_read import (
@@ -291,6 +292,9 @@ class LocalApiApplication:
             repository, now=self._now
         )
         self._topic_service = TopicApplicationService(repository, now=self._now)
+        self._weekly_brief_service = WeeklyBriefService(
+            repository, timezone=timezone, now=self._now
+        )
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
 
@@ -999,6 +1003,22 @@ class LocalApiApplication:
         if route.startswith("/api/v1/evidence/") and route.endswith("/impact"):
             evidence_id = route.split("/")[-2]
             return {"impact": self._evidence_impact_projection(evidence_id)}
+        if route == "/api/v1/weekly/v1":
+            return {
+                "weekly_v1": [
+                    self._weekly_v1_dto(item)
+                    for item in self._weekly_brief_service.list_finalized()
+                ]
+            }
+        weekly_v1_prefix = "/api/v1/weekly/v1/"
+        if route.startswith(weekly_v1_prefix):
+            brief_id = route.removeprefix(weekly_v1_prefix)
+            if not brief_id or "/" in brief_id:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            try:
+                return {"weekly_v1": self._weekly_v1_dto(self._weekly_brief_service.read(brief_id))}
+            except ValueError as error:
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Weekly V1 was not found.") from error
         if route == "/api/v1/weekly":
             return {
                 "weekly": [self._report_dto(item) for item in self._repository.list_reports()]
@@ -1311,6 +1331,49 @@ class LocalApiApplication:
             "content_status": "AVAILABLE" if content is not None else "UNAVAILABLE",
             "weekly_v2": {"status": "UNAVAILABLE", "code": "WEEKLY_V2_UNAVAILABLE"},
             "linkage": {"status": "UNAVAILABLE_IN_CURRENT_AUTHORITY", "videos": []},
+        }
+
+    @staticmethod
+    def _weekly_v1_dto(brief: WeeklyBrief) -> dict[str, object]:
+        return {
+            "brief_id": brief.brief_id,
+            "version": brief.version,
+            "logical_period_id": brief.logical_period_id,
+            "timezone": brief.timezone,
+            "period_start": _timestamp(brief.period_start),
+            "period_end": _timestamp(brief.period_end),
+            "generated_at": _timestamp(brief.generated_at),
+            "finalized_at": _timestamp(brief.finalized_at),
+            "status": brief.status,
+            "no_important_information": brief.no_important_information,
+            "preference_ids": list(brief.preference_ids),
+            "items": [
+                {
+                    "brief_item_id": item.brief_item_id,
+                    "topic_id": item.topic_id,
+                    "topic_name": item.topic_name,
+                    "intelligence_id": item.intelligence_id,
+                    "revision_id": item.revision_id,
+                    "association_kind": item.association_kind.value,
+                    "claim_kind": item.claim_kind.value,
+                    "source_state": item.source_state,
+                    "summary": item.summary,
+                    "evidence_ids": list(item.evidence_ids),
+                    "markers": [
+                        {
+                            "marker_id": marker.marker_id,
+                            "kind": marker.kind,
+                            "reason": marker.reason,
+                            "current_revision_id": marker.current_revision_id,
+                            "evidence_id": marker.evidence_id,
+                            "marked_at": _timestamp(marker.marked_at),
+                        }
+                        for marker in item.markers
+                    ],
+                }
+                for item in brief.items
+            ],
+            "weekly_v2": {"status": "UNAVAILABLE", "code": "WEEKLY_V2_UNAVAILABLE"},
         }
 
     @staticmethod
