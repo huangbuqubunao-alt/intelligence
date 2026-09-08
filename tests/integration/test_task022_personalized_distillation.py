@@ -106,7 +106,7 @@ class _RaisingTransport(_FakeTransport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 13
+    assert repository.initialize(now=NOW).version == 14
     return repository
 
 
@@ -255,12 +255,12 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
     )
 
 
-def test_fresh_database_reaches_exactly_v013_and_m014_is_absent(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v014_and_m015_is_absent(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 14
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -274,8 +274,8 @@ def test_fresh_database_reaches_exactly_v013_and_m014_is_absent(tmp_path: Path) 
     finally:
         connection.close()
 
-    assert migrations[-1] == "013_add_weekly_brief_foundation.sql"
-    assert not any(name.startswith("014_") for name in migrations)
+    assert migrations[-1] == "014_add_saved_intelligence.sql"
+    assert not any(name.startswith("015_") for name in migrations)
     assert "topics" in tables
 
 
@@ -296,7 +296,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 13
+    assert upgraded.initialize(now=NOW).version == 14
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None

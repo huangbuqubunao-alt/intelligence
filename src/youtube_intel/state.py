@@ -349,6 +349,14 @@ class EvidenceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class SavedIntelligenceRecord:
+    """Raw local organization metadata; never an Intelligence authority."""
+
+    intelligence_id: str
+    saved_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class IntelligenceRecord:
     intelligence_id: str
     current_revision_id: str | None
@@ -1399,6 +1407,7 @@ class SQLiteStateRepository:
             "011_add_topic_timeline.sql",
             "012_add_source_run_orchestration.sql",
             "013_add_weekly_brief_foundation.sql",
+            "014_add_saved_intelligence.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -6264,6 +6273,64 @@ class SQLiteStateRepository:
             raise IntegrityConflict(
                 "current intelligence support must be resolved before evidence changes"
             ) from error
+        finally:
+            connection.close()
+
+    def save_intelligence_relation(
+        self, *, intelligence_id: str, now: datetime
+    ) -> SavedIntelligenceRecord:
+        """Set organization state only; the application owns Save admission."""
+        saved_at = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO saved_intelligences (intelligence_id, saved_at) VALUES (?, ?) "
+                    "ON CONFLICT(intelligence_id) DO NOTHING",
+                    (intelligence_id, saved_at),
+                )
+                row = connection.execute(
+                    "SELECT intelligence_id, saved_at FROM saved_intelligences WHERE intelligence_id = ?",
+                    (intelligence_id,),
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("saved relation is unavailable")
+                return SavedIntelligenceRecord(row["intelligence_id"], _parse_utc_datetime(row["saved_at"]))
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("saved relation requires an existing Intelligence") from error
+        finally:
+            connection.close()
+
+    def unsave_intelligence_relation(self, intelligence_id: str) -> None:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "DELETE FROM saved_intelligences WHERE intelligence_id = ?",
+                    (intelligence_id,),
+                )
+        finally:
+            connection.close()
+
+    def list_saved_intelligence_relations(
+        self, *, limit: int, after: SavedIntelligenceRecord | None = None
+    ) -> tuple[SavedIntelligenceRecord, ...]:
+        if type(limit) is not int or not 1 <= limit <= 101:
+            raise ValueError("saved page limit must be between 1 and 101")
+        after_time = None if after is None else format_utc_datetime(after.saved_at)
+        after_id = None if after is None else after.intelligence_id
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT intelligence_id, saved_at FROM saved_intelligences "
+                "WHERE (? IS NULL OR saved_at < ? OR (saved_at = ? AND intelligence_id > ?)) "
+                "ORDER BY saved_at DESC, intelligence_id ASC LIMIT ?",
+                (after_time, after_time, after_time, after_id, limit),
+            ).fetchall()
+            return tuple(
+                SavedIntelligenceRecord(row["intelligence_id"], _parse_utc_datetime(row["saved_at"]))
+                for row in rows
+            )
         finally:
             connection.close()
 

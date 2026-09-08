@@ -11,7 +11,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Callable
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
 from youtube_intel.distillation import PersonalizedDistillationService
@@ -30,6 +30,12 @@ from youtube_intel.orchestration import (
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
+from youtube_intel.saved_intelligence import (
+    SavedIntelligenceItem,
+    SavedIntelligenceService,
+    SaveIntelligence,
+    UnsaveIntelligence,
+)
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.source_policy import (
     EffectiveSourcePolicy,
@@ -51,6 +57,7 @@ from youtube_intel.state import (
     PreferenceRecord,
     PreferenceScope,
     ReportRecord,
+    SavedIntelligenceRecord,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     TopicAssociationKind,
@@ -72,6 +79,30 @@ def _timestamp(value: datetime | None) -> str | None:
         if value is None
         else value.astimezone(UTC).isoformat().replace("+00:00", "Z")
     )
+
+
+def _saved_relation_dto(relation: SavedIntelligenceRecord) -> dict[str, object]:
+    return {"intelligence_id": relation.intelligence_id, "saved_at": _timestamp(relation.saved_at)}
+
+
+def _saved_item_dto(item: SavedIntelligenceItem) -> dict[str, object]:
+    projection = _saved_relation_dto(item.relation)
+    verified = item.verified
+    if verified is None:
+        projection["intelligence"] = {
+            "status": "UNAVAILABLE", "trusted": False, "code": item.unavailable_code,
+        }
+    else:
+        projection["intelligence"] = {
+            "status": "AVAILABLE", "trusted": True,
+            "intelligence_id": verified.intelligence_id,
+            "revision_id": verified.revision_id,
+            "claim_kind": verified.claim_kind.value,
+            "state": verified.state.value,
+            "evidence_ids": list(verified.evidence_ids),
+            "confirmed": verified.is_confirmed,
+        }
+    return projection
 
 
 def _source_dto(source: SourceSubscriptionRecord) -> dict[str, object]:
@@ -292,6 +323,7 @@ class LocalApiApplication:
             repository, now=self._now
         )
         self._topic_service = TopicApplicationService(repository, now=self._now)
+        self._saved_service = SavedIntelligenceService(repository, now=self._now)
         self._weekly_brief_service = WeeklyBriefService(
             repository, timezone=timezone, now=self._now
         )
@@ -420,9 +452,23 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if method == "GET" and route == "/api/v1/saved-intelligence":
+                return HTTPStatus.OK, self._saved_list(path)
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            if method == "POST" and route in {
+                "/api/v1/saved-intelligence/save", "/api/v1/saved-intelligence/unsave",
+            }:
+                self._only_keys(data, {"intelligence_id"})
+                intelligence_id = data.get("intelligence_id")
+                if not isinstance(intelligence_id, str):
+                    raise ValueError("Intelligence identity is required")
+                if route.endswith("/unsave"):
+                    self._saved_service.unsave(UnsaveIntelligence(intelligence_id=intelligence_id))
+                    return HTTPStatus.OK, {"saved": False}
+                saved = self._saved_service.save(SaveIntelligence(intelligence_id=intelligence_id))
+                return HTTPStatus.OK, {"saved": _saved_relation_dto(saved)}
             if method == "POST" and route == "/api/v1/settings/preferences/long-term":
                 self._only_keys(
                     data, {"command_id", "scope", "target_id", "statement"}
@@ -858,6 +904,25 @@ class LocalApiApplication:
                 "VALIDATION_ERROR",
                 "Request values are invalid or unavailable.",
             ) from error
+
+    def _saved_list(self, path: str) -> dict[str, object]:
+        query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=3)
+        if set(query) - {"limit", "after_id", "after_saved_at"} or any(len(v) != 1 for v in query.values()):
+            raise ValueError("unsupported Saved query")
+        limit = int(query.get("limit", ["100"])[0])
+        after = None
+        if "after_id" in query or "after_saved_at" in query:
+            if "after_id" not in query or "after_saved_at" not in query:
+                raise ValueError("incomplete Saved cursor")
+            after = SavedIntelligenceRecord(
+                query["after_id"][0],
+                self._utc_timestamp({"saved_at": query["after_saved_at"][0]}, "saved_at"),
+            )
+        page = self._saved_service.list_saved(limit=limit, after=after)
+        return {
+            "saved": [_saved_item_dto(item) for item in page.items],
+            "next_cursor": None if page.next_cursor is None else _saved_relation_dto(page.next_cursor),
+        }
 
     def _get(self, route: str) -> dict[str, object]:
         if route == "/api/v1/settings/source-policy":

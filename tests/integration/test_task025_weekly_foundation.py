@@ -87,7 +87,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=WEEK_START).version == 13
+    assert repository.initialize(now=WEEK_START).version == 14
     return repository
 
 
@@ -330,6 +330,9 @@ def test_m013_upgrades_v012_preserves_prior_data_and_creates_no_synthetic_weekly
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
+    # TASK-025's migration-specific gate remains an exact v012 → v013 test.
+    migrations = upgraded._load_migrations()
+    monkeypatch.setattr(upgraded, "_load_migrations", lambda: migrations[:13])
     assert upgraded.initialize(now=WEEK_START).version == 13
     assert upgraded.get_intelligence("preserved-intelligence") is not None
     assert upgraded.list_weekly_v1_briefs() == ()

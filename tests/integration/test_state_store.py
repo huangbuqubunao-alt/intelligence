@@ -78,6 +78,7 @@ REQUEST_HASH = build_provider_request_hash(
 )
 
 EXPECTED_TABLES = {
+    "saved_intelligences",
     "artifacts",
     "channel_cursors",
     "deep_analysis_persisted_results",
@@ -127,6 +128,7 @@ EXPECTED_TABLES = {
     "videos",
 }
 EXPECTED_COLUMNS = {
+    "saved_intelligences": ("intelligence_id", "saved_at"),
     "schema_migrations": ("version", "name", "checksum", "applied_at"),
     "videos": (
         "video_id",
@@ -791,12 +793,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "013_add_weekly_brief_foundation.sql")
+        .joinpath("migrations", "014_add_saved_intelligence.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 13
-    assert first.name == "013_add_weekly_brief_foundation.sql"
+    assert first.version == 14
+    assert first.name == "014_add_saved_intelligence.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -811,7 +813,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 13
+    assert migration_count == 14
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -854,6 +856,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
 
     assert actual_columns == EXPECTED_COLUMNS
     assert explicit_indexes == {
+        "idx_saved_intelligences_order",
         "idx_artifacts_retention",
         "idx_artifacts_video_kind_created",
         "idx_brief_item_markers_item",
