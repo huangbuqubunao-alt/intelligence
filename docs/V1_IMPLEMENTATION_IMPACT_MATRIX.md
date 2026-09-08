@@ -14,6 +14,7 @@
 | Source Run execution persistence | m005 automation runs and m010 child checkpoints are insufficient | ADD m012 without reinterpreting either authority | 023A | duplicate effects / unsafe resume |
 | Scheduler/automation runs | bounded m005 service tick | REUSE/MODIFY through Source Run contract | 024 | duplicate effects |
 | Weekly generic report | reports + frozen Weekly V2 unavailable | REUSE/ADD V1 projection; preserve V2 | 025 | dual authority |
+| Save Intelligence | frozen V1 requirement lacked durable ownership at TASK-026 preflight | ADD m014 organization relation + commands; REUSE TASK-019 current reader | 025A; 026 consumes | saved metadata mistaken for trust or feedback |
 | Dashboard/Videos/Weekly/Automation/Activity/Settings | existing FCC presentation routes | REUSE/RELOCATE/REFRAME | 026 | IA and authority |
 | Intelligence/Topics/Investigations IA | absent | ADD Intelligence/Topics; RESERVE Investigations | 026 | V2 leakage |
 | Deep Analysis / Investigation / Signals / Ask / Daily | blocked or absent | RESERVE only | all | critical product scope |

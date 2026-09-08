@@ -1,3 +1,6 @@
 # TASK-027 Implementer Packet
 
+The approved TASK-026 anchor must include TASK-025A. Verify packaged v005→v014
+and Save/Unsave/unavailable Saved behavior. TASK-027 creates no migration.
+
 From approved TASK-026, create `codex/task-027-v1-acceptance` and execute only `tasks/TASK-027-v1-integrated-acceptance-po-demo.md`. Build provider-free synthetic fixtures and TDD the stated complete journey; do not develop new product capability. Run every required suite including packaged runtime and offline build, diff check, and canonical scanner reported exactly as EXIT 1/11 accepted fixtures/0 new findings—not PASS. Do not make real provider/YouTube calls, touch frozen core/V2/dependencies, or push/tag/release/merge/rebase. Handoff complete evidence for PO; remediate P0/P1 only via original owner/review flow and re-review. Stop only PO APPROVE or genuine PRODUCT OWNER DECISION REQUIRED.

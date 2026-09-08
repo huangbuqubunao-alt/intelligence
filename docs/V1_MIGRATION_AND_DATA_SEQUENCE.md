@@ -18,6 +18,7 @@ At the approved TASK-018 anchor, `PRAGMA user_version` is **6**. `SQLiteStateRep
 | 011 | TASK-023 | Topic, Intelligence membership, pin state, source-backed timeline event, light relation | v010 |
 | 012 | TASK-023A | durable Source Run identity, finite trigger/priority/state, checkpoint, attention, idempotency, and schedule/manual references | v011 |
 | 013 | TASK-025 | immutable V1 Brief snapshot/item references and supersession marker | v012 |
+| 014 | TASK-025A | empty local current Save relation by Intelligence ID; backend save time; no content copy | v013 |
 
 TASK-023B is an explicit **no-migration** TASK-022 application-contract
 amendment between TASK-023A and TASK-024. It consumes the existing m010
@@ -35,4 +36,9 @@ The migration transaction must leave neither schema nor `user_version` advanced 
 
 ## Independent evidence per owner
 
-For every migration owner: assert fresh schema through its owned target, v005-to-target sequential upgrade, exact constraints/indexes/FKs, preservation of source/schedule/run data, transaction rollback on injected malformed SQL, checksum/history mismatch failure, and restart without work admission. TASK-027 runs the packaged wheel/runtime against a v005 fixture, initializes to v013, serves the read-only synthetic API, and verifies no real provider/YouTube call. Version gates must be updated only by their owning task after all migration fixtures pass.
+For every migration owner: assert fresh schema through its owned target, v005-to-target sequential upgrade, exact constraints/indexes/FKs, preservation of source/schedule/run data, transaction rollback on injected malformed SQL, checksum/history mismatch failure, and restart without work admission. TASK-027 runs the packaged wheel/runtime against a v005 fixture, initializes to v014, serves the synthetic API, and verifies no real provider/YouTube call. Version gates must be updated only by their owning task after all migration fixtures pass.
+
+TASK-025A exclusively owns m014 under the Product Owner Save prerequisite
+amendment. Upgrade infers no Save from views, preferences, pin or Weekly.
+TASK-026 and TASK-027 own no migration; m015 is not authorized. Historical
+handoffs and m006–m013 remain unchanged.

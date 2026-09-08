@@ -24,11 +24,12 @@ All writes follow `UI -> loopback local API -> application service -> repository
   -> 023B Distillation Reservation / Continue Seam Amendment
   -> 024 Unified Processing Orchestration
   -> 025 Weekly Intelligence Foundation (m013)
+  -> 025A Saved Intelligence Persistence & Command Amendment (m014)
   -> 026 Frozen IA Integration
   -> 027 Integrated Acceptance / PO Demo
 ```
 
-The graph is intentionally a single implementation lane. Although preference and source-policy semantics are conceptually independent after 018, both must evolve `state.py`, migration history, local API contracts, and source configuration. Parallel feature branches would create migration-number/ancestry ambiguity and a review-unfriendly conflict. Parallel-safe work is limited to read-only design review, reviewer preparation, and fixture design after their owner task is closed; no two implementation tasks are parallel-safe. Forbidden parallel pairs are any pair containing 018–023B or 025 (migration/state ownership), 024 with 021–023B (orchestration interface), 026 with any unclosed API/projection producer, and 027 with all implementation tasks.
+The graph is intentionally a single implementation lane. Although preference and source-policy semantics are conceptually independent after 018, both must evolve `state.py`, migration history, local API contracts, and source configuration. Parallel feature branches would create migration-number/ancestry ambiguity and a review-unfriendly conflict. Parallel-safe work is limited to read-only design review, reviewer preparation, and fixture design after their owner task is closed; no two implementation tasks are parallel-safe. Forbidden parallel pairs are any pair containing 018–023B, 025 or 025A (migration/state ownership), 024 with 021–023B (orchestration interface), 026 with any unclosed API/projection producer, and 027 with all implementation tasks.
 
 Critical path is the full sequence above. Merge order is exactly task-number order; each branch is cut from the immediately preceding approved integration anchor. This is deliberate: migrations are forward-only and no task B may rely on task A's unreviewed working tree.
 
@@ -47,7 +48,8 @@ Critical path is the full sequence above. Merge order is exactly task-number ord
 | 023B | TASK-022-owned canonical reservation/continue seam using m010 and m012 unchanged | 023A | treating a reservation or crash as safe redispatch |
 | 024 | shared Manual/Scheduled/override orchestration using the durable Source Run and reservation contracts | 023A, 023B | duplicate provider effect or AMBIGUOUS redispatch |
 | 025 | m013 immutable V1 Weekly projection from trusted revisions | 024 | a second Weekly authority or raw-video summary |
-| 026 | frozen IA and local API client integration | 025 | UI treats untrusted data as intelligence or hides existing capability |
+| 025A | m014 local Save relation, Save/Unsave commands and trusted current Saved read | 025 | organization state becomes a second trust root |
+| 026 | frozen IA and local API client integration; no migration | 025A | UI treats untrusted data as intelligence or hides existing capability |
 | 027 | synthetic, provider-free V1 acceptance evidence | 026 | false product-completeness claim |
 
 ## Worktree policy
@@ -56,7 +58,7 @@ Create a dedicated V1 integration worktree/branch from the approved frozen ancho
 
 ## Cross-cutting verification policy
 
-Each task runs its focused unit/domain/repository/API tests plus `git diff --check`. A task touching a migration additionally runs fresh DB, sequential upgrade, failed migration rollback, and packaged-runtime initialization tests. A task touching Python runs Ruff and mypy for its scope; frontend tasks run frontend test/typecheck/build. Full `pytest`, `uv run --offline mypy src`, `uv run --offline ruff check .`, frontend typecheck/build where applicable, `uv build --offline`, and packaged-runtime checks are mandatory at 023, 023A, 025, 026, and 027. The canonical scanner has expected **EXIT 1**, exactly **11 accepted synthetic fixtures**, and **0 new findings**; this is never reported as PASS.
+Each task runs its focused unit/domain/repository/API tests plus `git diff --check`. A task touching a migration additionally runs fresh DB, sequential upgrade, failed migration rollback, and packaged-runtime initialization tests. A task touching Python runs Ruff and mypy for its scope; frontend tasks run frontend test/typecheck/build. Full `pytest`, `uv run --offline mypy src`, `uv run --offline ruff check .`, frontend typecheck/build where applicable, `uv build --offline`, and packaged-runtime checks are mandatory at 023, 023A, 025, 025A, 026, and 027. The canonical scanner has expected **EXIT 1**, exactly **11 accepted synthetic fixtures**, and **0 new findings**; this is never reported as PASS.
 
 ## Product Owner amendment — TASK-018A
 
@@ -98,7 +100,23 @@ RESERVED_NOT_DISPATCHED / 0` is the only legal continuation state;
 TASK-024 remains migration-free and may consume this seam only after TASK-023B
 approval. TASK-025 remains sole owner of m013; Deep Analysis remains **BLOCKED**.
 
-## V2 containment
+## Product Owner amendment — TASK-025A
+
+TASK-026 correctly stopped at approved TASK-025 commit
+`eb002b64649495d9b2567ade13b08117a877118f`: Save Intelligence was frozen V1
+behavior but lacked persistence and command ownership. TASK-025A exclusively
+owns m014 (v013 → v014), the minimum local Save/Unsave relation and a Saved
+read that resolves each target through TASK-019. Save is organization state,
+never Intelligence truth, feedback, preference, Topic pin or Weekly history.
+No copied card is persisted. Existing m006–m013 and their owners are unchanged.
+TASK-026 must restart from the approved TASK-025A SHA and remains migration-free;
+TASK-027 remains acceptance-only at v014, with no migration ownership.
+TASK-025A is in the same serial lane and runs the full Python, migration,
+packaged-runtime and canonical scanner gates plus independent adversarial review.
+This closes an ownership gap, not a Product Spec semantic expansion. No UI,
+V2 behavior or provider/model execution is authorized by TASK-025A.
+
+## V2 containment (unchanged)
 
 No task activates or presents Early Signal, automatic Investigation, Evidence Expansion, external validation, Daily, Ask, advanced source credibility/independence inference, advanced resource optimization, or Deep Analysis. IDs/edges may be reserved only where the domain contract requires it; reserved UI is truthful, non-actionable, and explicitly future state.
 
@@ -106,7 +124,7 @@ No task activates or presents Early Signal, automatic Investigation, Evidence Ex
 
 | Attack | Result / correction |
 | --- | --- |
-| A, E, I | Schema ownership is one task/version at a time (006–013); TASK-018A exclusively owns m007 and TASK-023A exclusively owns m012; no task combines schema, orchestration, and major UI. |
+| A, E, I | Schema ownership is one task/version at a time (006–014); TASK-018A exclusively owns m007 and TASK-023A exclusively owns m012; no task combines schema, orchestration, and major UI. |
 | B, Q | 018/019 close persistence plus trusted-read admission before 022 and 026. |
 | C, N | 020 closes event history, explicit/derived separation and expiry before distillation. |
 | D, O | 018 revisions/edges and 019 deletion impact precede 023 Topics; 023 consumes trusted revisions only. |

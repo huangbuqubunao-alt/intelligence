@@ -1,19 +1,23 @@
 # TASK-027 — V1 Integrated Acceptance and PO Demo
 
 - Status: `PLANNED`; Reuse: `ADAPT` existing PO demo/E2E fixture harness. START_ANCHOR: approved TASK-026 SHA.
-- Dependencies: 018–026. Parallel-safe-with: none. Merge prerequisite: PO APPROVE; this task adds no product capability.
+- Dependencies: 018–026 including TASK-025A. Parallel-safe-with: none. Merge prerequisite: PO APPROVE; this task adds no product capability.
 
 ## Contract metadata
 
-TASK_ID: 027. TITLE: V1 Integrated Acceptance and PO Demo. FILES / MODULE OWNERSHIP: synthetic fixtures, harness/E2E, demo evidence/handoff. DOMAIN OBJECTS: verification-only across all V1 objects. DB IMPACT: no product migration; test v005→v011. API IMPACT: verification only. UI IMPACT: verification only. TRUST IMPACT: proves boundaries. COST IMPACT: proves ledger/pause truthfulness. MIGRATION IMPACT: packaged upgrade verification. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
+TASK_ID: 027. TITLE: V1 Integrated Acceptance and PO Demo. FILES / MODULE OWNERSHIP: synthetic fixtures, harness/E2E, demo evidence/handoff. DOMAIN OBJECTS: verification-only across all V1 objects. DB IMPACT: no product migration; test v005→v014. API IMPACT: verification only. UI IMPACT: verification only. TRUST IMPACT: proves boundaries. COST IMPACT: proves ledger/pause truthfulness. MIGRATION IMPACT: packaged upgrade verification. ACCEPTANCE CRITERIA: below. STOP CONDITIONS and EXPECTED HANDOFF below. DO_NOT_TOUCH_FROZEN_CORE: frozen authority set.
 
 ## Purpose and scope
+
+TASK-025A owns m014. The packaged upgrade target is now v014 (superseding the
+older v011 planning target); TASK-027 has no migration ownership. Include
+Save/Unsave and unavailable Saved target behavior in the acceptance journey.
 
 Create provider-free realistic synthetic fixtures and execute the complete V1 acceptance journey. Repair only P0/P1 defects discovered in owned prior work through the original implementer/review flow; do not add features or reinterpret product authority.
 
 ## Ownership / impact
 
-- Modules: synthetic fixtures, test harness/E2E, PO demo docs/handoff; no migration other than testing v005-to-v011.
+- Modules: synthetic fixtures, test harness/E2E, PO demo docs/handoff; no migration; test v005-to-v014.
 - Domain/API/UI: verification only. Trust/cost: verifies all prior contracts.
 
 ## Out of scope / frozen core

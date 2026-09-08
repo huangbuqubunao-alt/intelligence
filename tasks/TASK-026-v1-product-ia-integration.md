@@ -1,7 +1,7 @@
 # TASK-026 — V1 Product IA Integration
 
 - Status: `PLANNED`; Reuse: `ADAPT` existing FCC-inspired React shell/API client; relocate/reframe, do not delete working capabilities.
-- START_ANCHOR: approved TASK-025 SHA. Dependencies: 018–025. Parallel-safe-with: none. Merge prerequisite: browser/trust review APPROVE.
+- START_ANCHOR: approved TASK-025A SHA. Dependencies: 018–025 plus 025A. Parallel-safe-with: none. Merge prerequisite: browser/trust review APPROVE.
 
 ## Contract metadata
 
@@ -12,6 +12,11 @@ TASK_ID: 026. TITLE: V1 Product IA Integration. FILES / MODULE OWNERSHIP: fronte
 Migrate the frozen IA to Dashboard, Intelligence, Topics, Sources, Investigations (truthful V2-reserved state), and Settings. Integrate trusted Intelligence feed/detail/evidence drill-down, Topic list/detail/pin, preference center, source policy editor, Needs Attention, cost/model state, Save Intelligence, raw video/transcript context, and existing weekly/automation/activity capabilities relocated or reframed.
 
 ## Ownership / impact
+
+Product Owner prerequisite amendment: the initial TASK-026 preflight stopped
+without implementation because Save lacked durable ownership. Save remains
+required. Consume TASK-025A Save/Unsave/Saved contracts (m014, schema v014);
+TASK-026 owns no migration and must not reinterpret feedback as Save.
 
 - Modules: frontend workspace/client/tests/E2E, local API projection endpoints only, accessibility styles.
 - Domain: consumes all prior projections; no DB migration. Trust: cards come only from 019 contract. Cost: display ledger model/UNKNOWN state only.
