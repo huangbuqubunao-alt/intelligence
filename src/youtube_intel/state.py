@@ -6095,6 +6095,40 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def list_available_canonical_evidence_ids(self, video_id: str) -> tuple[str, ...]:
+        """Return the stable evidence set eligible for a restart-safe reservation.
+
+        This is deliberately a narrow read over existing Evidence/Artifact authority.
+        It neither creates Evidence nor reinterprets its availability or lineage.
+        """
+        if (
+            not isinstance(video_id, str)
+            or not video_id.strip()
+            or video_id != video_id.strip()
+            or len(video_id) > 512
+        ):
+            raise ValueError("video identity is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT evidence.evidence_id FROM evidence "
+                "JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id "
+                "WHERE evidence.video_id = :video_id "
+                "AND evidence.availability = :availability "
+                "AND artifacts.video_id = :video_id "
+                "AND artifacts.deleted_at IS NULL "
+                "AND artifacts.kind = :artifact_kind "
+                "ORDER BY evidence.evidence_id ASC LIMIT 21",
+                {
+                    "video_id": video_id,
+                    "availability": EvidenceAvailability.AVAILABLE.value,
+                    "artifact_kind": ArtifactKind.TRANSCRIPT_CANONICAL.value,
+                },
+            ).fetchall()
+            return tuple(str(row["evidence_id"]) for row in rows)
+        finally:
+            connection.close()
+
     def set_evidence_availability(
         self, *, evidence_id: str, availability: EvidenceAvailability
     ) -> EvidenceRecord:
@@ -7018,6 +7052,113 @@ class SQLiteStateRepository:
                 return self._distillation_execution_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("distillation execution identity conflicts") from error
+        finally:
+            connection.close()
+
+    def reserve_distillation_execution(
+        self, execution: DistillationExecutionWrite, *, now: datetime
+    ) -> DistillationExecutionRecord:
+        """Persist a TASK-022 execution known to be pre-dispatch.
+
+        `RESERVED_NOT_DISPATCHED` is a finite application-contract marker on the
+        existing m010 PENDING row.  Unlike a legacy PENDING row, only this marker
+        combined with invocation_count=0 proves no dispatch has been claimed.
+        """
+        fields = (
+            execution.execution_id,
+            execution.source_id,
+            execution.video_id,
+            execution.reason,
+            execution.use_case,
+            execution.selected_provider,
+            execution.selected_model,
+        )
+        if any(not value.strip() or len(value) > 512 for value in fields):
+            raise ValueError("distillation execution identity is invalid")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
+                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, 'PENDING', 'RESERVED_NOT_DISPATCHED', 0, NULL, NULL, :created_at, :updated_at)",
+                    {
+                        "execution_id": execution.execution_id,
+                        "source_id": execution.source_id,
+                        "video_id": execution.video_id,
+                        "reason": execution.reason,
+                        "use_case": execution.use_case,
+                        "selected_provider": execution.selected_provider,
+                        "selected_model": execution.selected_model,
+                        "created_at": timestamp,
+                        "updated_at": timestamp,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
+                    {"execution_id": execution.execution_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("distillation reservation was not saved")
+                return self._distillation_execution_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("distillation reservation identity conflicts") from error
+        finally:
+            connection.close()
+
+    def claim_reserved_distillation_execution(
+        self,
+        *,
+        execution_id: str,
+        source_id: str,
+        video_id: str,
+        reason: str,
+        use_case: str,
+        selected_provider: str,
+        selected_model: str,
+        now: datetime,
+    ) -> bool:
+        """Atomically claim the one permitted external dispatch boundary.
+
+        A successful claim records that a transport call may follow *before* the
+        call is made.  A crash after this point is deliberately not resumable as
+        a new dispatch: the caller must surface AMBIGUOUS instead.
+        """
+        fields = (
+            execution_id,
+            source_id,
+            video_id,
+            reason,
+            use_case,
+            selected_provider,
+            selected_model,
+        )
+        if any(not isinstance(value, str) or not value.strip() or len(value) > 512 for value in fields):
+            raise ValueError("distillation execution identity is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE distillation_execution_checkpoints "
+                    "SET budget_state = 'DISPATCH_CLAIMED', invocation_count = 1, updated_at = :updated_at "
+                    "WHERE execution_id = :execution_id "
+                    "AND source_id = :source_id AND video_id = :video_id "
+                    "AND reason = :reason AND use_case = :use_case "
+                    "AND selected_provider = :selected_provider AND selected_model = :selected_model "
+                    "AND status = 'PENDING' AND budget_state = 'RESERVED_NOT_DISPATCHED' "
+                    "AND invocation_count = 0",
+                    {
+                        "execution_id": execution_id,
+                        "source_id": source_id,
+                        "video_id": video_id,
+                        "reason": reason,
+                        "use_case": use_case,
+                        "selected_provider": selected_provider,
+                        "selected_model": selected_model,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                ).rowcount
+                return changed == 1
         finally:
             connection.close()
 

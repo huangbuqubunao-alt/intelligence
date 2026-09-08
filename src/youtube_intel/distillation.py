@@ -96,6 +96,15 @@ class DistillationResult:
     revision_id: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class DistillationReservation:
+    """Canonical TASK-022 execution identity safe to bind before dispatch."""
+
+    execution_id: str
+    source_id: str
+    video_id: str
+
+
 class DistillationBudget(Protocol):
     def check(self, command: DistillationCommand) -> BudgetDecision: ...
 
@@ -121,6 +130,11 @@ class _Candidate:
 
 class PersonalizedDistillationService:
     """Admits only evidence-bound output from an injected offline/test transport."""
+
+    _RESERVED_NOT_DISPATCHED = "RESERVED_NOT_DISPATCHED"
+    _DISPATCH_CLAIMED = "DISPATCH_CLAIMED"
+    _RESERVATION_REASON = "SOURCE_RUN_PERSONALIZED_DISTILLATION"
+    _RESERVATION_USE_CASE = "PERSONALIZED_INTELLIGENCE"
 
     def __init__(
         self,
@@ -164,6 +178,137 @@ class PersonalizedDistillationService:
         )
 
     @staticmethod
+    def _reservation_id(
+        *,
+        source_id: str,
+        video_id: str,
+        evidence_ids: tuple[str, ...],
+        selected_provider: str,
+        selected_model: str,
+    ) -> str:
+        canonical = json.dumps(
+            {
+                "evidence_ids": evidence_ids,
+                "reason": PersonalizedDistillationService._RESERVATION_REASON,
+                "selected_model": selected_model,
+                "selected_provider": selected_provider,
+                "source_id": source_id,
+                "use_case": PersonalizedDistillationService._RESERVATION_USE_CASE,
+                "video_id": video_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return f"distillation:reservation:v1:{hashlib.sha256(canonical).hexdigest()}"
+
+    def _canonical_reservation_evidence(
+        self, *, video_id: str, evidence_ids: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        if (
+            not isinstance(evidence_ids, tuple)
+            or not evidence_ids
+            or any(
+                not isinstance(evidence_id, str)
+                or not evidence_id.strip()
+                or evidence_id != evidence_id.strip()
+                or len(evidence_id) > 512
+                for evidence_id in evidence_ids
+            )
+        ):
+            raise ValueError("reservation evidence is invalid")
+        normalized = tuple(sorted(evidence_ids))
+        if len(normalized) > 20 or len(set(normalized)) != len(normalized):
+            raise ValueError("reservation evidence is invalid")
+        canonical = self._repository.list_available_canonical_evidence_ids(video_id)
+        if normalized != canonical:
+            raise ValueError("reservation requires the current canonical evidence set")
+        return canonical
+
+    def _reserved_command(
+        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...]
+    ) -> DistillationCommand:
+        return DistillationCommand(
+            execution_id=self._reservation_id(
+                source_id=source_id,
+                video_id=video_id,
+                evidence_ids=evidence_ids,
+                selected_provider=self._selected_provider,
+                selected_model=self._selected_model,
+            ),
+            source_id=source_id,
+            video_id=video_id,
+            evidence_ids=evidence_ids,
+            reason=self._RESERVATION_REASON,
+            use_case=self._RESERVATION_USE_CASE,
+            selected_provider=self._selected_provider,
+            selected_model=self._selected_model,
+        )
+
+    @staticmethod
+    def _same_execution_identity(
+        record: DistillationExecutionRecord, command: DistillationCommand
+    ) -> bool:
+        return (
+            record.execution_id == command.execution_id
+            and record.source_id == command.source_id
+            and record.video_id == command.video_id
+            and record.reason == command.reason
+            and record.use_case == command.use_case
+            and record.selected_provider == command.selected_provider
+            and record.selected_model == command.selected_model
+        )
+
+    def reserve_distillation_execution(
+        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...]
+    ) -> DistillationReservation:
+        """Mint the sole canonical execution identity before any dispatch exists.
+
+        The supplied evidence set must equal the current persisted canonical
+        transcript evidence set.  That lets a later process rebuild and verify
+        the exact command from m010/Evidence persistence rather than memory.
+        """
+        canonical_evidence = self._canonical_reservation_evidence(
+            video_id=video_id, evidence_ids=evidence_ids
+        )
+        command = self._reserved_command(
+            source_id=source_id, video_id=video_id, evidence_ids=canonical_evidence
+        )
+        if not self._eligible(command):
+            raise ValueError("reservation source/video is not eligible")
+        if not self._legal_evidence(command):
+            raise ValueError("reservation evidence is not legal")
+        existing = self._repository.get_distillation_execution(command.execution_id)
+        if existing is None:
+            try:
+                existing = self._repository.reserve_distillation_execution(
+                    DistillationExecutionWrite(
+                        execution_id=command.execution_id,
+                        source_id=command.source_id,
+                        video_id=command.video_id,
+                        reason=command.reason,
+                        use_case=command.use_case,
+                        selected_provider=command.selected_provider,
+                        selected_model=command.selected_model,
+                    ),
+                    now=self._now(),
+                )
+            except IntegrityConflict:
+                existing = self._repository.get_distillation_execution(command.execution_id)
+        if existing is None or not self._same_execution_identity(existing, command):
+            raise StateStoreError("distillation reservation identity conflicts")
+        if not (
+            existing.status == "PENDING"
+            and existing.budget_state == self._RESERVED_NOT_DISPATCHED
+            and existing.invocation_count == 0
+        ):
+            raise StateStoreError("existing execution is no longer a safe reservation")
+        return DistillationReservation(
+            execution_id=existing.execution_id,
+            source_id=existing.source_id,
+            video_id=existing.video_id,
+        )
+
+    @staticmethod
     def _result(record: DistillationExecutionRecord) -> DistillationResult:
         try:
             status = DistillationExecutionStatus(record.status)
@@ -201,8 +346,27 @@ class PersonalizedDistillationService:
         invocation_count: int,
         result: DistillationTransportResult | None = None,
     ) -> DistillationResult:
-        record = self._repository.finish_distillation_without_admission(
+        return self._finish_execution(
             execution_id=command.execution_id,
+            status=status,
+            budget_state=budget_state,
+            outcome=outcome,
+            invocation_count=invocation_count,
+            result=result,
+        )
+
+    def _finish_execution(
+        self,
+        *,
+        execution_id: str,
+        status: DistillationExecutionStatus,
+        budget_state: str,
+        outcome: str,
+        invocation_count: int,
+        result: DistillationTransportResult | None = None,
+    ) -> DistillationResult:
+        record = self._repository.finish_distillation_without_admission(
+            execution_id=execution_id,
             status=status.value,
             budget_state=budget_state,
             outcome=outcome,
@@ -216,6 +380,256 @@ class PersonalizedDistillationService:
             now=self._now(),
         )
         return self._result(record)
+
+    def _finish_or_recover(
+        self,
+        command: DistillationCommand,
+        *,
+        status: DistillationExecutionStatus,
+        budget_state: str,
+        outcome: str,
+        invocation_count: int,
+        result: DistillationTransportResult | None = None,
+    ) -> DistillationResult:
+        try:
+            return self._finish(
+                command,
+                status=status,
+                budget_state=budget_state,
+                outcome=outcome,
+                invocation_count=invocation_count,
+                result=result,
+            )
+        except StateStoreError:
+            persisted = self._repository.get_distillation_execution(command.execution_id)
+            if persisted is not None and persisted.status != "PENDING":
+                return self._result(persisted)
+            raise
+
+    def _projection(self, command: DistillationCommand) -> DistillationCommand:
+        policy = self._source_policy.effective_policy(command.source_id)
+        projection = replace(
+            command,
+            evidence_ids=tuple(sorted(command.evidence_ids)),
+            active_preferences=tuple(
+                ActivePreferenceProjection(
+                    preference_id=item.preference_id,
+                    horizon=item.horizon.value,
+                    provenance=item.provenance.value,
+                    scope=item.scope.value,
+                    target_id=item.target_id,
+                    statement=item.statement,
+                )
+                for item in self._repository.list_active_preferences(now=self._now())
+            ),
+            source_focus_rules=policy.focus_rules,
+            source_ignore_rules=policy.ignore_rules,
+            source_policy_revision_id=policy.source_policy_revision_id,
+            distillation_style=policy.distillation_style.value,
+        )
+        return replace(
+            projection,
+            preference_ids=tuple(item.preference_id for item in projection.active_preferences),
+        )
+
+    def _dispatch_and_admit(
+        self, projection: DistillationCommand, decision: BudgetDecision
+    ) -> DistillationResult:
+        try:
+            response = self._transport.generate(projection)
+        except Exception:
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.AMBIGUOUS,
+                budget_state=decision.state,
+                outcome="TRANSPORT_OUTCOME_UNKNOWN",
+                invocation_count=1,
+                result=DistillationTransportResult(
+                    raw="",
+                    actual_provider=self._transport.actual_provider,
+                    actual_model=self._transport.actual_model,
+                    input_tokens=None,
+                    output_tokens=None,
+                    cost_microunits=None,
+                    duration_ms=None,
+                ),
+            )
+        if (
+            response.actual_provider != projection.selected_provider
+            or response.actual_model != projection.selected_model
+        ):
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.REJECTED_OUTPUT,
+                budget_state=decision.state,
+                outcome="ACTUAL_MODEL_MISMATCH",
+                invocation_count=1,
+                result=response,
+            )
+        try:
+            candidate = self._parse_candidate(response.raw, projection)
+            record = self._repository.admit_distillation(
+                execution_id=projection.execution_id,
+                intelligence_id=f"intelligence:distillation:{projection.execution_id}",
+                revision_id=f"revision:distillation:{projection.execution_id}",
+                claim_kind=candidate.claim_kind,
+                content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
+                evidence_ids=candidate.evidence_ids,
+                card=candidate.card,
+                actual_provider=response.actual_provider,
+                actual_model=response.actual_model,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                cost_microunits=response.cost_microunits,
+                duration_ms=response.duration_ms,
+                now=self._now(),
+            )
+        except (IntegrityConflict, StateStoreError, ValueError):
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.REJECTED_OUTPUT,
+                budget_state=decision.state,
+                outcome="STRUCTURED_OR_EVIDENCE_VALIDATION_REJECTED",
+                invocation_count=1,
+                result=response,
+            )
+        return self._result(record)
+
+    def _reserved_command_from_record(
+        self, record: DistillationExecutionRecord
+    ) -> DistillationCommand:
+        if (
+            record.selected_provider != self._selected_provider
+            or record.selected_model != self._selected_model
+        ):
+            raise ValueError("reserved execution model identity does not match TASK-022 transport")
+        evidence_ids = self._repository.list_available_canonical_evidence_ids(record.video_id)
+        command = self._reserved_command(
+            source_id=record.source_id,
+            video_id=record.video_id,
+            evidence_ids=evidence_ids,
+        )
+        if not self._same_execution_identity(record, command):
+            raise StateStoreError("reserved execution context is not persistently reconstructible")
+        return command
+
+    def _close_claimed_reservation_as_ambiguous(
+        self, record: DistillationExecutionRecord
+    ) -> DistillationResult:
+        if (
+            record.selected_provider != self._selected_provider
+            or record.selected_model != self._selected_model
+        ):
+            raise ValueError("reserved execution model identity does not match TASK-022 transport")
+        try:
+            return self._finish_execution(
+                execution_id=record.execution_id,
+                status=DistillationExecutionStatus.AMBIGUOUS,
+                budget_state="UNKNOWN",
+                outcome="RESERVED_DISPATCH_OUTCOME_UNKNOWN",
+                invocation_count=1,
+                result=DistillationTransportResult(
+                    raw="",
+                    actual_provider=self._transport.actual_provider,
+                    actual_model=self._transport.actual_model,
+                    input_tokens=None,
+                    output_tokens=None,
+                    cost_microunits=None,
+                    duration_ms=None,
+                ),
+            )
+        except StateStoreError:
+            persisted = self._repository.get_distillation_execution(record.execution_id)
+            if persisted is not None and persisted.status != "PENDING":
+                return self._result(persisted)
+            raise
+
+    def _recover_reserved_execution(self, execution_id: str) -> DistillationResult:
+        record = self._repository.get_distillation_execution(execution_id)
+        if record is None:
+            raise StateStoreError("reserved execution disappeared")
+        if record.status != "PENDING":
+            return self._result(record)
+        if (
+            record.budget_state == self._DISPATCH_CLAIMED
+            and record.invocation_count == 1
+        ):
+            return self._close_claimed_reservation_as_ambiguous(record)
+        raise StateStoreError("distillation execution is not a safely reserved pre-dispatch state")
+
+    def continue_reserved_distillation(self, execution_id: str) -> DistillationResult:
+        """Continue exactly one persisted reservation through the TASK-022 path.
+
+        The public seam accepts only the canonical execution identity.  It rebuilds
+        the command from persisted m010/Evidence rows, applies normal policy and
+        budget gates, and atomically records a possible dispatch before calling
+        the transport.  A claimed record is AMBIGUOUS, never redispatchable.
+        """
+        if not isinstance(execution_id, str) or not execution_id.strip() or len(execution_id) > 512:
+            raise ValueError("reserved execution identity is invalid")
+        record = self._repository.get_distillation_execution(execution_id)
+        if record is None:
+            raise ValueError("reserved execution does not exist")
+        if record.status != "PENDING":
+            return self._result(record)
+        if (
+            record.budget_state == self._DISPATCH_CLAIMED
+            and record.invocation_count == 1
+        ):
+            return self._close_claimed_reservation_as_ambiguous(record)
+        if not (
+            record.budget_state == self._RESERVED_NOT_DISPATCHED
+            and record.invocation_count == 0
+        ):
+            raise StateStoreError("distillation execution is not a safely reserved pre-dispatch state")
+        command = self._reserved_command_from_record(record)
+        if not self._eligible(command):
+            return self._finish_or_recover(
+                command,
+                status=DistillationExecutionStatus.REJECTED_INELIGIBLE,
+                budget_state="NOT_CHECKED",
+                outcome="SOURCE_POLICY_INELIGIBLE",
+                invocation_count=0,
+            )
+        if not self._legal_evidence(command):
+            return self._finish_or_recover(
+                command,
+                status=DistillationExecutionStatus.REJECTED_EVIDENCE,
+                budget_state="NOT_CHECKED",
+                outcome="EVIDENCE_UNAVAILABLE_OR_FOREIGN",
+                invocation_count=0,
+            )
+        projection = self._projection(command)
+        decision = self._budget.check(projection)
+        if not decision.allowed:
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.WAITING_BUDGET,
+                budget_state=decision.state,
+                outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
+                invocation_count=0,
+            )
+        if not self._transport.available:
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.WAITING_MODEL,
+                budget_state=decision.state,
+                outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+                invocation_count=0,
+            )
+        claimed = self._repository.claim_reserved_distillation_execution(
+            execution_id=projection.execution_id,
+            source_id=projection.source_id,
+            video_id=projection.video_id,
+            reason=projection.reason,
+            use_case=projection.use_case,
+            selected_provider=projection.selected_provider,
+            selected_model=projection.selected_model,
+            now=self._now(),
+        )
+        if not claimed:
+            return self._recover_reserved_execution(projection.execution_id)
+        return self._dispatch_and_admit(projection, decision)
 
     def _eligible(self, command: DistillationCommand) -> bool:
         source = self._repository.get_source_subscription(command.source_id)
@@ -388,30 +802,7 @@ class PersonalizedDistillationService:
                 outcome="EVIDENCE_UNAVAILABLE_OR_FOREIGN",
                 invocation_count=0,
             )
-        policy = self._source_policy.effective_policy(command.source_id)
-        projection = replace(
-            command,
-            evidence_ids=tuple(sorted(command.evidence_ids)),
-            active_preferences=tuple(
-                ActivePreferenceProjection(
-                    preference_id=item.preference_id,
-                    horizon=item.horizon.value,
-                    provenance=item.provenance.value,
-                    scope=item.scope.value,
-                    target_id=item.target_id,
-                    statement=item.statement,
-                )
-                for item in self._repository.list_active_preferences(now=self._now())
-            ),
-            source_focus_rules=policy.focus_rules,
-            source_ignore_rules=policy.ignore_rules,
-            source_policy_revision_id=policy.source_policy_revision_id,
-            distillation_style=policy.distillation_style.value,
-        )
-        projection = replace(
-            projection,
-            preference_ids=tuple(item.preference_id for item in projection.active_preferences),
-        )
+        projection = self._projection(command)
         self._begin(projection)
         decision = self._budget.check(projection)
         if not decision.allowed:
@@ -430,62 +821,4 @@ class PersonalizedDistillationService:
                 outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
-        try:
-            response = self._transport.generate(projection)
-        except Exception:
-            return self._finish(
-                projection,
-                status=DistillationExecutionStatus.AMBIGUOUS,
-                budget_state=decision.state,
-                outcome="TRANSPORT_OUTCOME_UNKNOWN",
-                invocation_count=1,
-                result=DistillationTransportResult(
-                    raw="",
-                    actual_provider=self._transport.actual_provider,
-                    actual_model=self._transport.actual_model,
-                    input_tokens=None,
-                    output_tokens=None,
-                    cost_microunits=None,
-                    duration_ms=None,
-                ),
-            )
-        if (
-            response.actual_provider != projection.selected_provider
-            or response.actual_model != projection.selected_model
-        ):
-            return self._finish(
-                projection,
-                status=DistillationExecutionStatus.REJECTED_OUTPUT,
-                budget_state=decision.state,
-                outcome="ACTUAL_MODEL_MISMATCH",
-                invocation_count=1,
-                result=response,
-            )
-        try:
-            candidate = self._parse_candidate(response.raw, projection)
-            record = self._repository.admit_distillation(
-                execution_id=projection.execution_id,
-                intelligence_id=f"intelligence:distillation:{projection.execution_id}",
-                revision_id=f"revision:distillation:{projection.execution_id}",
-                claim_kind=candidate.claim_kind,
-                content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
-                evidence_ids=candidate.evidence_ids,
-                card=candidate.card,
-                actual_provider=response.actual_provider,
-                actual_model=response.actual_model,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                cost_microunits=response.cost_microunits,
-                duration_ms=response.duration_ms,
-                now=self._now(),
-            )
-        except (IntegrityConflict, StateStoreError, ValueError):
-            return self._finish(
-                projection,
-                status=DistillationExecutionStatus.REJECTED_OUTPUT,
-                budget_state=decision.state,
-                outcome="STRUCTURED_OR_EVIDENCE_VALIDATION_REJECTED",
-                invocation_count=1,
-                result=response,
-            )
-        return self._result(record)
+        return self._dispatch_and_admit(projection, decision)
