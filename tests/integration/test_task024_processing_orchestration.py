@@ -613,10 +613,7 @@ def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
         source_run_submitter=orchestrator,
         now=lambda: NOW,
     )
-    source = product.add_source(
-        url="https://www.youtube.com/channel/UC0000000000000000000000",
-        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
-    )
+    source_id = _source(repository, suffix="entrypoint")
     SourcePolicyApplicationService(repository, now=lambda: NOW).update_global(
         command_id="entrypoint-policy",
         initial_history_count=5,
@@ -626,7 +623,7 @@ def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
         distillation_style=DistillationStyle.BALANCED,
     )
 
-    queued = product.check_source(source.source_id, command_id="manual-entrypoint")
+    queued = product.check_source(source_id, command_id="manual-entrypoint")
     manual = repository.list_source_runs()[0]
     assert queued.status is AutomationRunStatus.SUCCEEDED
     assert manual.trigger is SourceRunTrigger.MANUAL_CHECK_NOW
@@ -634,12 +631,12 @@ def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
     assert manual.state is SourceRunState.QUEUED
 
     repository.record_source_check(
-        source.source_id, now=NOW - timedelta(days=2), succeeded=True
+        source_id, now=NOW - timedelta(days=2), succeeded=True
     )
     product.save_schedule(
         schedule_id=None,
         target_type=AutomationTargetType.SOURCE_CHECK,
-        target_id=source.source_id,
+        target_id=source_id,
         frequency=ScheduleFrequency.DAILY,
         weekday=None,
         local_time="12:00",
@@ -667,10 +664,7 @@ def test_local_api_exposes_only_durable_trigger_and_status_when_core_is_injected
         source_run_submitter=orchestrator,
         now=lambda: NOW,
     )
-    source = product.add_source(
-        url="https://www.youtube.com/channel/UC1111111111111111111111",
-        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
-    )
+    source_id = _source(repository, suffix="local-api")
     app = LocalApiApplication(
         repository,
         product,
@@ -680,7 +674,7 @@ def test_local_api_exposes_only_durable_trigger_and_status_when_core_is_injected
 
     status, queued = app.handle(
         "POST",
-        f"/api/v1/sources/{source.source_id}/check",
+        f"/api/v1/sources/{source_id}/check",
         b'{"command_id":"api-check"}',
     )
     assert status == 202
