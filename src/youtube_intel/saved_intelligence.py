@@ -65,7 +65,9 @@ class SavedIntelligenceService:
         _validate_identity(command.intelligence_id)
         verified = self._reader.read_current(command.intelligence_id)
         return self._repository.save_intelligence_relation(
-            intelligence_id=verified.intelligence_id, now=self._now()
+            intelligence_id=verified.intelligence_id,
+            now=self._now(),
+            expected_revision_id=verified.revision_id,
         )
 
     def unsave(self, command: UnsaveIntelligence) -> None:

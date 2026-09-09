@@ -467,7 +467,14 @@ class LocalApiApplication:
                 if route.endswith("/unsave"):
                     self._saved_service.unsave(UnsaveIntelligence(intelligence_id=intelligence_id))
                     return HTTPStatus.OK, {"saved": False}
-                saved = self._saved_service.save(SaveIntelligence(intelligence_id=intelligence_id))
+                try:
+                    saved = self._saved_service.save(SaveIntelligence(intelligence_id=intelligence_id))
+                except IntegrityConflict as error:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "SAVED_TARGET_CHANGED",
+                        "Intelligence changed before Save; read its current state.",
+                    ) from error
                 return HTTPStatus.OK, {"saved": _saved_relation_dto(saved)}
             if method == "POST" and route == "/api/v1/settings/preferences/long-term":
                 self._only_keys(

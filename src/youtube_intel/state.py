@@ -6277,13 +6277,19 @@ class SQLiteStateRepository:
             connection.close()
 
     def save_intelligence_relation(
-        self, *, intelligence_id: str, now: datetime
+        self, *, intelligence_id: str, now: datetime, expected_revision_id: str | None
     ) -> SavedIntelligenceRecord:
         """Set organization state only; the application owns Save admission."""
         saved_at = format_utc_datetime(now)
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                current = connection.execute(
+                    "SELECT current_revision_id FROM intelligences WHERE intelligence_id = ?",
+                    (intelligence_id,),
+                ).fetchone()
+                if current is None or current["current_revision_id"] != expected_revision_id:
+                    raise IntegrityConflict("saved target changed after admission")
                 connection.execute(
                     "INSERT INTO saved_intelligences (intelligence_id, saved_at) VALUES (?, ?) "
                     "ON CONFLICT(intelligence_id) DO NOTHING",

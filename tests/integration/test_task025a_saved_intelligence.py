@@ -327,7 +327,7 @@ def test_unavailable_evidence_and_raw_saved_row_never_bypass_reader(
         service.save(SaveIntelligence(intelligence_id="raw-without-authority"))
     # Deliberately bypass admission in a persistence attack; relation is still not authority.
     repository.save_intelligence_relation(
-        intelligence_id="raw-without-authority", now=NOW
+        intelligence_id="raw-without-authority", now=NOW, expected_revision_id=None
     )
     items = service.list_saved().items
     assert len(items) == 2 and all(item.verified is None for item in items)
@@ -494,7 +494,9 @@ def test_saved_relation_schema_denies_foreign_target_and_updates(
                 (NOW.isoformat(),),
             )
         repository.create_intelligence(intelligence_id="schema-fixture", now=NOW)
-        repository.save_intelligence_relation(intelligence_id="schema-fixture", now=NOW)
+        repository.save_intelligence_relation(
+            intelligence_id="schema-fixture", now=NOW, expected_revision_id=None
+        )
         with pytest.raises(sqlite3.IntegrityError, match="removed before saving"):
             connection.execute("UPDATE saved_intelligences SET saved_at = 'forged'")
         with pytest.raises(sqlite3.IntegrityError):
@@ -673,3 +675,32 @@ def test_saved_timestamp_requires_canonical_utc_storage(
             )
     finally:
         connection.close()
+
+
+def test_save_rejects_revision_changed_between_admission_and_write(tmp_path: Path) -> None:
+    from youtube_intel.state import IntegrityConflict
+
+    repository = SQLiteStateRepository(tmp_path / "race.sqlite3")
+    repository.initialize(now=NOW)
+    intelligence_id, revision_id, evidence_id = _admit(
+        repository, source_id=_source(repository), video_id="save-race01",
+        at=WEEK_START, conclusion="An old admission cannot overtake Unsave.",
+    )
+    normal = SavedIntelligenceService(repository, now=lambda: NOW)
+    normal.save(SaveIntelligence(intelligence_id=intelligence_id))
+
+    def interleaved_clock() -> datetime:
+        # Clock is invoked after reader admission, immediately before the write.
+        _append_card_backed_revision(
+            repository, intelligence_id=intelligence_id, prior_revision_id=revision_id,
+            revision_id="race-invalidated", claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+            state=IntelligenceState.INVALIDATED, evidence_id=evidence_id,
+            at=NOW + timedelta(seconds=1),
+        )
+        normal.unsave(UnsaveIntelligence(intelligence_id))
+        return NOW + timedelta(seconds=2)
+
+    racing = SavedIntelligenceService(repository, now=interleaved_clock)
+    with pytest.raises(IntegrityConflict, match="changed"):
+        racing.save(SaveIntelligence(intelligence_id=intelligence_id))
+    assert normal.list_saved().items == ()
