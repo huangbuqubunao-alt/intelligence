@@ -3,7 +3,7 @@ import { chromium } from "playwright-core";
 const browser = await chromium.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-first-run", "--no-default-browser-check"] });
 const consoleErrors = [];
 const externalRequests = [];
-const baseUrl = process.env.YIA_E2E_BASE_URL ?? "http://127.0.0.1:5173/";
+const baseUrl = process.env.YIA_E2E_BASE_URL ?? "http://127.0.0.1:5174/";
 const frozenNav = ["Dashboard", "Intelligence", "Topics", "Sources", "Investigations", "Settings"];
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 }]) {

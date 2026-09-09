@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
+import { apiProxyTarget } from "../api/proxy";
 
 const intelligence = { status: "AVAILABLE", trusted: true, intelligence_id: "intel-1", claim_kind: "RUMOR", state: "DISPUTED", card: { core_conclusion: "A rumor remains unresolved.", user_relevant_information: ["Watch for confirmation."], important_new_information: [], source_id: "source-1", video_id: "video-1", original_video_url: "https://youtube.test/video", evidence_links: [{ evidence_id: "evidence-1", start_ms: 1000, end_ms: 2000 }] } };
 const topic = { topic_id: "topic-1", name: "Topic", pinned: false, lifecycle: "ACTIVE", current_state: "DEGRADED", independence: "UNKNOWN", contributions: [], timeline: [{ event_id: "event-1", event_kind: "NEW_INFORMATION", state: "UNRESOLVED", created_at: "2026-09-01T00:00:00Z" }], relations: [] };
@@ -32,6 +33,10 @@ beforeEach(() => {
   }));
 });
 afterEach(() => vi.unstubAllGlobals());
+
+test("PO demo can direct the development proxy to its owned loopback API", () => {
+  expect(apiProxyTarget("http://127.0.0.1:8766")).toBe("http://127.0.0.1:8766");
+});
 
 test("frozen product IA exposes exactly its six first-level destinations", async () => {
   render(<App />);
