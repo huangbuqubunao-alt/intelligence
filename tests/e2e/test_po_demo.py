@@ -107,6 +107,9 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert unverified["scoring"]["status"] == "NOT_AVAILABLE"
     assert "score" not in unverified["scoring"]
     assert source["recent_videos"]
+    skipped = next(video for video in source["recent_videos"] if video["video_id"] == "unverified-score")
+    assert skipped["filter"]["outcome"] == "NOT_RELEVANT"
+    assert skipped["filter"]["reason"] == "IGNORE_RULE_MATCH"
     assert "policy" in source
     assert "source_runs" in source
     assert any(run["status"] == "AMBIGUOUS" for run in activity["runs"])

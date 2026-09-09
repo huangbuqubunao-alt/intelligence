@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
 
 const intelligence = { status: "AVAILABLE", trusted: true, intelligence_id: "intel-1", claim_kind: "RUMOR", state: "DISPUTED", card: { core_conclusion: "A rumor remains unresolved.", user_relevant_information: ["Watch for confirmation."], important_new_information: [], source_id: "source-1", video_id: "video-1", original_video_url: "https://youtube.test/video", evidence_links: [{ evidence_id: "evidence-1", start_ms: 1000, end_ms: 2000 }] } };
+const topic = { topic_id: "topic-1", name: "Topic", pinned: false, lifecycle: "ACTIVE", current_state: "DEGRADED", independence: "UNKNOWN", contributions: [], timeline: [{ event_id: "event-1", event_kind: "NEW_INFORMATION", state: "UNRESOLVED", created_at: "2026-09-01T00:00:00Z" }], relations: [] };
 const response = (value: object) => Promise.resolve({ ok: true, json: async () => value });
 
 beforeEach(() => {
@@ -12,7 +13,9 @@ beforeEach(() => {
     if (input.endsWith("/intelligence/intel-1")) return response({ intelligence });
     if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
     if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
-    if (input.endsWith("/topics")) return response({ topics: [] });
+    if (input.endsWith("/topics/topic-1")) return response({ topic });
+    if (input.endsWith("/topics")) return response({ topics: [topic] });
+    if (input.endsWith("/sources/source-1")) return response({ source: { source_id: "source-1", display_name: "Source", canonical_url: "https://youtube.test/source", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", last_error: null }, policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: ["AI"], ignore_rules: ["rough"], distillation_style: "BALANCED" }, recent_videos: [{ video_id: "skip-1", title: "Rough draft", processing_status: "METADATA_READY", filter: { outcome: "NOT_RELEVANT", reason: "IGNORE_RULE_MATCH" } }], source_runs: [] });
     if (input.endsWith("/sources")) return response({ sources: [{ source_id: "source-1", display_name: "Source", canonical_url: "https://youtube.test/source", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", last_error: null }] });
     if (input.endsWith("/settings/preferences")) return response({ active: [], history: [] });
     if (input.endsWith("/settings/source-policy")) return response({ policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: [], ignore_rules: [], distillation_style: "BALANCED" } });
@@ -55,4 +58,21 @@ test("Investigations and Deep Analysis remain truthful V1-unavailable states", a
   expect(screen.getByText(/no active runtime, Evidence Expansion/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByText(/Settings cannot trigger a provider/)).toBeTruthy();
+});
+
+test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as failure or Retry", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Source STANDARD_INTELLIGENCE/ }));
+  expect(await screen.findByText("SKIPPED")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Analyze this Video" })).toBeTruthy();
+  expect(screen.queryByText("Retry")).toBeNull();
+});
+
+test("Topic detail waits for its typed projection instead of treating a list response as detail", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Topics" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Topic.*Current knowledge/ }));
+  expect(await screen.findByText("Timeline (historical)")).toBeTruthy();
+  expect(screen.getByText("Related Topics")).toBeTruthy();
 });

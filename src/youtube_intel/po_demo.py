@@ -487,7 +487,7 @@ def _seed_verified_intelligence(
         initial_history_count=5,
         per_run_max_new_videos=5,
         focus_rules=("AI",),
-        ignore_rules=(),
+        ignore_rules=("rough",),
         distillation_style=DistillationStyle.BALANCED,
     )
     policies.evaluate_and_record_stage_one(
@@ -537,6 +537,22 @@ def _seed_verified_intelligence(
             f"{result.status.value}"
         )
     return result.intelligence_id
+
+
+def _seed_skipped_video(repository: SQLiteStateRepository) -> None:
+    """Record a legal SKIPPED decision for the Sources override surface."""
+
+    SourcePolicyApplicationService(repository, now=lambda: _NOW).evaluate_and_record_stage_one(
+        "source-ai",
+        MetadataFilterCandidate(
+            video_id="unverified-score",
+            title="A rough scoring draft without a trusted result",
+            description="Synthetic skipped-video fixture.",
+            channel_name="Practical AI Engineering",
+            published_at=_NOW,
+            video_type=VideoType.STANDARD,
+        ),
+    )
 
 
 def _seed_weekly_v1(repository: SQLiteStateRepository, intelligence_id: str) -> None:
@@ -855,6 +871,7 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
     intelligence_id = _seed_verified_intelligence(
         repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
     )
+    _seed_skipped_video(repository)
     _seed_weekly_v1(repository, intelligence_id)
     _seed_weekly_correction(repository, intelligence_id)
     _seed_unavailable_saved(repository, intelligence_id)
