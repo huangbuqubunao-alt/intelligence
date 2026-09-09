@@ -31,6 +31,7 @@ from youtube_intel.domain import (
     ScoreResult,
     VideoMetadata,
 )
+from youtube_intel.intelligence_read import AuthoritativeIntelligenceReader
 from youtube_intel.local_api import LocalApiApplication, serve_loopback
 from youtube_intel.orchestration import (
     AutomationRunStatus,
@@ -55,11 +56,17 @@ from youtube_intel.state import (
     ArtifactWrite,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    DependencyEdgeWrite,
+    DependencyRelation,
     DistillationStyle,
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
     EvidenceWrite,
+    IntelligenceClaimKind,
+    IntelligenceInterpretationKind,
+    IntelligenceRevisionWrite,
+    IntelligenceState,
     JobType,
     ProviderCallRequest,
     ReportStatus,
@@ -68,9 +75,10 @@ from youtube_intel.state import (
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     StorageRoot,
+    TopicAssociationKind,
     build_evidence_id,
 )
-from youtube_intel.topic import TopicApplicationService, TopicAssociationKind
+from youtube_intel.topic import TopicApplicationService
 
 _NOW = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
 _PIPELINE_VERSION = "po-demo-v1"
@@ -549,6 +557,57 @@ def _seed_weekly_v1(repository: SQLiteStateRepository, intelligence_id: str) -> 
     ).finalize_week()
 
 
+def _seed_weekly_correction(
+    repository: SQLiteStateRepository, intelligence_id: str
+) -> None:
+    """Create a later legal revision and let TASK-025 add its marker."""
+
+    verified = AuthoritativeIntelligenceReader(repository).read_current(intelligence_id)
+    prior = repository.get_intelligence_revision(verified.revision_id)
+    assert prior is not None
+    revision_id = "po-demo-weekly-correction"
+    corrected_at = _NOW + timedelta(days=7)
+    repository.append_intelligence_revision(
+        intelligence_id=intelligence_id,
+        revision=IntelligenceRevisionWrite(
+            revision_id=revision_id,
+            interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+            content_hash=prior.content_hash,
+            state=IntelligenceState.UPDATED,
+            reason="Synthetic correction after the frozen Weekly snapshot.",
+            evidence_ids=verified.evidence_ids,
+        ),
+        now=corrected_at,
+    )
+    repository.create_dependency_edge(
+        DependencyEdgeWrite(
+            edge_id=f"support:{revision_id}",
+            dependent_revision_id=revision_id,
+            relation=DependencyRelation.EVIDENCE_SUPPORT,
+            input_evidence_id=verified.evidence_ids[0],
+            input_revision_id=None,
+        ),
+        now=corrected_at,
+    )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "INSERT INTO distillation_cards "
+            "(revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, "
+            "important_new_information_json, meaningful_details_json, filtered_noise_json, "
+            "preference_ids_json, source_policy_revision_id, created_at) "
+            "SELECT ?, source_id, video_id, core_conclusion, user_relevant_information_json, "
+            "important_new_information_json, meaningful_details_json, filtered_noise_json, "
+            "preference_ids_json, source_policy_revision_id, ? "
+            "FROM distillation_cards WHERE revision_id = ?",
+            (revision_id, corrected_at.isoformat().replace("+00:00", "Z"), prior.revision_id),
+        )
+    finally:
+        connection.close()
+    WeeklyBriefService(repository, timezone="UTC", now=lambda: corrected_at).append_correction_markers()
+
+
 def _seed_unverified_scoring_like_artifact(
     repository: SQLiteStateRepository, data_root: Path, video_id: str
 ) -> None:
@@ -716,6 +775,7 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
         repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
     )
     _seed_weekly_v1(repository, intelligence_id)
+    _seed_weekly_correction(repository, intelligence_id)
     _seed_unverified_scoring_like_artifact(repository, data_root, "unverified-score")
     _record_completed_job(repository, job_id="demo-metadata-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.METADATA)
     _record_completed_job(repository, job_id="demo-transcript-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.TRANSCRIPT)

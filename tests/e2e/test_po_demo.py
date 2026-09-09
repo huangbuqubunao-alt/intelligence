@@ -53,6 +53,8 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert available["card"]["evidence_links"]
     assert weekly_v1["weekly_v1"]
     assert weekly_v1["weekly_v1"][0]["items"]
+    assert weekly_v1["weekly_v1"][0]["items"][0]["markers"]
+    assert weekly_v1["weekly_v1"][0]["items"][0]["markers"][0]["kind"] == "SUPERSEDED"
 
     saved_before = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
     assert saved_before["saved"] == []
