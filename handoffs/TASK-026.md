@@ -23,9 +23,20 @@
   before secondary source count. Sources display legal policy/filter/Source Run
   context and use the existing Check Now/manual-analyze routes. Investigations
   and Deep Analysis are truthful V1-unavailable states.
-- TDD RED: frozen navigation test initially failed `expected 6, received 3`.
-  GREEN: frontend focused suite `4 passed`; local API/PO demo `17 passed`.
-- Full pytest: `2198 passed, 1 skipped, 1 existing warning`.
+- Settings reads a bounded TASK-022 Resource Ledger projection only. It exposes
+  no credentials and renders missing token/cost values as `UNKNOWN`, never as
+  an estimate. The isolated demo uses legal TASK-020 commands to show explicit,
+  derived and temporary preference provenance plus expiry, and a finite durable
+  `MODEL_UNAVAILABLE` Source Run for Needs Attention.
+- Check Now handles either a durable Source Run or the backend's guarded state
+  without inventing a run or Retry. Source enable/disable is explicit “future
+  monitoring” control through the existing API and explicitly does not delete
+  historical Intelligence, Topics, Weekly, or Saved relations.
+- TDD RED/GREEN covered unavailable Saved content, Topic detail projection,
+  skipped-video wording, guarded Check Now, preference/resource truth and
+  Source monitoring control. Frontend focused suite: `9 passed`; targeted
+  TASK-022/023A/024/025A/PO-demo regression: `112 passed`.
+- Final full pytest: `2198 passed, 1 skipped, 1 existing warning`.
 - `mypy src`, Ruff, frontend typecheck/build, offline build and diff check pass.
 - Security scanner exits `1` with exactly 11 accepted historical synthetic
   fixture findings and no new finding; this is not reported as PASS.
@@ -44,11 +55,13 @@
   TASK-025 service add its visible `SUPERSEDED` marker. It also preserves a
   Save relation after a later legal invalidation; the Saved UI displays only
   `CURRENT_NOT_ACTIVE` and an Unsave action, never the former card. The
-  fixture's execution guard still legally rejects Check Now.
+  fixture's execution guard still legally rejects Check Now. Final two-viewport
+  browser E2E additionally covered finite Needs Attention, Settings provenance
+  and unknown ledger values, with no external request or browser console error.
 - Adversarial fixes: fail-closed identity feed, unavailable Saved content,
   Save refresh reconciliation, no-success coloring for rumor/prediction/system
-  inference, and incompatible projection resilience. P0=0; P1=0 in the
-  reviewed slice.
+  inference, typed Topic detail waiting, legal skipped wording, guarded Check
+  Now and bounded ledger truth. P0=0; P1=0 in the reviewed product path.
 
 ## Remaining boundary
 
