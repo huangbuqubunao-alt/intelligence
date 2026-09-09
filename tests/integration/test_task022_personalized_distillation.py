@@ -36,6 +36,8 @@ from youtube_intel.state import (
     EvidenceLineageKind,
     EvidenceRole,
     EvidenceWrite,
+    FeedbackKind,
+    FeedbackWrite,
     IntelligenceClaimKind,
     LiveStatus,
     PreferenceScope,
@@ -351,6 +353,84 @@ def test_personalization_projection_is_active_only_and_never_mutates_source_poli
     assert card.core_conclusion.startswith("The release")
     assert card.verified.claim_kind is IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT
     assert card.verified.is_confirmed is False
+
+
+def test_feedback_derived_preference_changes_a_later_distillation_request_only(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, first_video_id = _source_and_video(repository)
+    first_evidence_id = _evidence(repository, first_video_id)
+    policy = SourcePolicyApplicationService(repository, now=lambda: NOW)
+    before = policy.effective_policy(source_id)
+
+    first_transport = _FakeTransport(_raw(first_evidence_id))
+    assert _service(repository, first_transport).distill(
+        _command(source_id, first_video_id, first_evidence_id, execution_id="feedback-run-a")
+    ).status is DistillationExecutionStatus.SUCCEEDED
+    assert first_transport.commands[0].active_preferences == ()
+
+    preferences = PreferenceApplicationService(repository, now=lambda: NOW)
+    feedback = preferences.record_feedback(
+        FeedbackWrite(
+            feedback_id="feedback-product-evidence",
+            kind=FeedbackKind.IMPORTANT,
+            scope=PreferenceScope.GLOBAL_CONTENT,
+            target_id=None,
+            content=None,
+            correction_kind=None,
+        )
+    )
+    derived = preferences.record_derived_recent(
+        command_id="derive-product-evidence",
+        scope=PreferenceScope.GLOBAL_CONTENT,
+        target_id=None,
+        statement="Emphasize evidence-led product execution detail.",
+    )
+
+    later_video_id = "video-022-feedback-later"
+    repository.upsert_video_metadata(
+        VideoMetadata(
+            video_id=later_video_id,
+            channel_id="UC______________________",
+            channel_name="Fixture channel",
+            title="AI Agent evidence update",
+            description="Developer tools and product cases.",
+            source_url=f"https://www.youtube.com/watch?v={later_video_id}",
+            published_at=NOW + timedelta(minutes=1),
+            duration_seconds=60,
+            default_language="en",
+            available_languages=("en",),
+            live_status=LiveStatus.NONE,
+            availability=Availability.PUBLIC,
+        ),
+        pipeline_version="fixture-v1",
+        now=NOW,
+    )
+    repository.link_source_video(source_id, later_video_id, discovered_at=NOW)
+    policy.evaluate_and_record_stage_one(
+        source_id,
+        MetadataFilterCandidate(
+            video_id=later_video_id,
+            title="AI Agent evidence update",
+            description="Developer tools and product cases.",
+            channel_name="Fixture channel",
+            published_at=NOW + timedelta(minutes=1),
+            video_type=VideoType.STANDARD,
+        ),
+    )
+    later_evidence_id = _evidence(repository, later_video_id)
+    later_transport = _FakeTransport(_raw(later_evidence_id))
+
+    assert _service(repository, later_transport).distill(
+        _command(source_id, later_video_id, later_evidence_id, execution_id="feedback-run-b")
+    ).status is DistillationExecutionStatus.SUCCEEDED
+    assert repository.list_feedback() == (feedback,)
+    assert later_transport.commands[0].preference_ids == (derived.preference_id,)
+    assert tuple(item.statement for item in later_transport.commands[0].active_preferences) == (
+        "Emphasize evidence-led product execution detail.",
+    )
+    assert policy.effective_policy(source_id) == before
 
 
 @pytest.mark.parametrize(
