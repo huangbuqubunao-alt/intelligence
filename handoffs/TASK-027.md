@@ -45,7 +45,7 @@ One bounded P1 acceptance-harness defect was found and corrected:
 | Structured output / claims / Evidence | TASK-018A/019/022 prove finite kinds, reader-only admission, exact Evidence binding and fail-closed malformed/foreign/generated support. | PASS |
 | Intelligence authority | TASK-019, TASK-025A and TASK-026 fixture prove `AuthoritativeIntelligenceReader` is the only product-facing authority; Saved never falls back to raw data. | PASS |
 | Topic evolution | TASK-023 proves reader-only association, information-gain semantics, non-causal relations, append-only Timeline and degraded current projection. | PASS |
-| Feedback learning loop | TASK-020/022 fixtures prove active feedback-derived context affects future deterministic distillation without rewriting explicit Source policy. | PASS |
+| Feedback learning loop | TASK-027's Run A → legal `IMPORTANT` feedback → legal DERIVED preference → Run B test proves the later deterministic request changes while explicit Source policy remains unchanged. | PASS |
 | Save / unavailable Saved | TASK-025A plus PO demo prove durable idempotent Save/Unsave and retained relation with `CURRENT_NOT_ACTIVE`, not stale content. | PASS |
 | Weekly V1 | TASK-025 and PO demo prove trusted Topic inputs, finite provenance, idempotency, empty week, immutable snapshots and correction marker. | PASS |
 | Product IA / trust UX | Playwright at 1440x900 and 768x900 verifies the exact six destinations, evidence drill-down, labels, unavailable Saved, Weekly, Topics, Sources, Settings, V1 Investigations and BLOCKED Deep Analysis. | PASS |
@@ -74,11 +74,12 @@ One bounded P1 acceptance-harness defect was found and corrected:
 
 | Command / check | Result |
 | --- | --- |
-| all V1 task integrations plus PO demo | `233 passed in 37.34s` |
+| all V1 task integrations plus PO demo | `234 passed in 41.09s` |
+| affected feedback-loop acceptance group | `108 passed in 26.59s` |
 | fresh SQLite acceptance probe | `user_version=14`; 14 files `001…014`; `m015_present=False` |
 | PO-demo proxy regression | `10 passed` frontend tests |
 | loopback Playwright product flow | PASS at `1440x900` and `768x900`; `0` external requests; `0` console errors |
-| full pytest | `2198 passed, 1 skipped, 1 existing warning in 147.08s` |
+| full pytest | `2199 passed, 1 skipped, 1 existing warning in 142.35s` |
 | `uv run --offline mypy src` | PASS, 54 source files |
 | `uv run --offline ruff check .` | PASS |
 | `uv build --offline` | PASS; wheel and sdist contain m013/m014; existing uv build-system-version warning only |
@@ -106,10 +107,9 @@ generic Retry, unknown cost, provider unavailability and Deep Analysis BLOCKED.
 
 ## Security disposition
 
-The canonical scanner is run against the final staged tree. Its required result
-is **exit 1**, exactly 11 accepted historical synthetic-fixture findings, and
-zero new findings. This is recorded as a finite accepted disposition, never as
-scanner PASS.
+The canonical scanner ran against the final staged tree with **exit 1**, exactly
+11 accepted historical synthetic-fixture findings, and zero new findings. This
+is a finite accepted disposition, never scanner PASS.
 
 ## Conclusion
 
