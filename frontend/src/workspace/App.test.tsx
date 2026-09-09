@@ -12,8 +12,8 @@ beforeEach(() => {
     if (input.endsWith("/dashboard")) return response({ intelligence: [intelligence], pinned_topics: [], weekly_v1: [], needs_attention: [{ run_id: "attention-1", state: "NEEDS_ATTENTION", attention_reason: "MODEL_UNAVAILABLE", trigger: "MANUAL_CHECK_NOW", updated_at: "2026-09-01T00:00:00Z" }], operations: { source_count: 1 } });
     if (input.endsWith("/intelligence")) return response({ intelligence: [intelligence] });
     if (input.endsWith("/intelligence/intel-1")) return response({ intelligence });
-    if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
-    if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
+    if (input.endsWith("/saved-intelligence")) return response({ saved: [{ intelligence_id: "intel-old", saved_at: "2026-09-01T00:00:00Z", intelligence: { status: "UNAVAILABLE", code: "CURRENT_NOT_ACTIVE", trusted: false } }] });
+    if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [{ brief_id: "week-1", version: "V1", period_start: "2026-09-01T00:00:00Z", no_important_information: false, items: [{ topic_name: "Topic", intelligence_id: "intel-1", claim_kind: "FACT", source_state: "AVAILABLE", summary: "A factual weekly change.", evidence_ids: ["evidence-raw-1"], markers: [{ kind: "SUPERSEDED", reason: "A correction is available." }] }], weekly_v2: { status: "UNAVAILABLE" } }] });
     if (input.endsWith("/topics/topic-1")) return response({ topic });
     if (input.endsWith("/topics")) return response({ topics: [topic] });
     if (input.endsWith("/sources/source-1") && init?.method === "PATCH") return response({ source: { source_id: "source-1", enabled: false } });
@@ -43,17 +43,18 @@ test("frozen product IA exposes exactly its six first-level destinations", async
   await screen.findByText("Important Intelligence");
   expect(screen.getAllByRole("button", { name: /^(Dashboard|Intelligence|Topics|Sources|Investigations|Settings)$/ })).toHaveLength(6);
   for (const legacy of ["Videos", "Activity", "Saved", "Weekly", "Daily", "Ask", "Runs", "Jobs"]) expect(screen.queryByRole("button", { name: new RegExp(`^${legacy}$`) })).toBeNull();
-  expect(screen.getByText("MODEL UNAVAILABLE")).toBeTruthy();
+  expect(screen.getByText("Analysis is paused because no approved model is currently available.")).toBeTruthy();
+  expect(screen.queryByText("MODEL_UNAVAILABLE")).toBeNull();
 });
 
 test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
-  expect(screen.getByText("Unconfirmed rumor").className).toContain("status-warning");
-  expect(screen.getByText("DISPUTED")).toBeTruthy();
+  expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
+  expect(screen.getByText("Disputed")).toBeTruthy();
   fireEvent.click(screen.getByText("Evidence and source"));
-  expect(screen.getByText(/evidence-1/)).toBeTruthy();
+  expect(screen.getByText(/source-1.*video-1.*1s/)).toBeTruthy();
   expect(screen.queryByText(/Worth Watching|Watch Score|Should I watch/)).toBeNull();
 });
 
@@ -70,29 +71,30 @@ test("Investigations and Deep Analysis remain truthful V1-unavailable states", a
   expect(await screen.findByText("Investigations are not active in V1")).toBeTruthy();
   expect(screen.getByText(/no active runtime, Evidence Expansion/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/Settings cannot trigger a provider/)).toBeTruthy();
+  expect(await screen.findByText(/This screen cannot enable a provider/)).toBeTruthy();
 });
 
 test("Settings preserves preference provenance and renders unknown resource values as unknown", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByText("Prefer evidence-led product analysis.")).toBeTruthy();
-  expect(screen.getByText("EXPLICIT")).toBeTruthy();
-  expect(screen.getByText("DERIVED")).toBeTruthy();
-  expect(screen.getByText("TEMPORARY")).toBeTruthy();
-  expect(screen.getByText(/expires 2026-09-02/)).toBeTruthy();
+  expect(screen.getByText("Explicit")).toBeTruthy();
+  expect(screen.getByText("Derived")).toBeTruthy();
+  expect(screen.getByText("Temporary")).toBeTruthy();
+  expect(screen.getByText(/Expires Sep 2, 2026/)).toBeTruthy();
   expect(screen.getByText("Resource Usage")).toBeTruthy();
-  expect(screen.getByText(/Token usage: UNKNOWN/)).toBeTruthy();
-  expect(screen.getByText(/Cost: UNKNOWN/)).toBeTruthy();
+  expect(screen.getByText(/Token usage: Unavailable/)).toBeTruthy();
+  expect(screen.getByText(/Cost: Unavailable/)).toBeTruthy();
   expect(screen.queryByText(/estimated/i)).toBeNull();
 });
 
 test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as failure or Retry", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Sources" }));
-  fireEvent.click(await screen.findByRole("button", { name: /Source STANDARD_INTELLIGENCE/ }));
-  expect(await screen.findByText("SKIPPED")).toBeTruthy();
-  expect(screen.getByText(/DAILY.*08:30/)).toBeTruthy();
+  fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
+  expect(await screen.findByText("Skipped")).toBeTruthy();
+  expect(screen.getByText(/Runs daily at 08:30/)).toBeTruthy();
+  expect(screen.getByText("Excluded by your ignore rules.")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Analyze this Video" })).toBeTruthy();
   expect(screen.queryByText("Retry")).toBeNull();
 });
@@ -100,17 +102,18 @@ test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as fail
 test("Check Now preserves a legal guarded state without inventing a Source Run or Retry", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Sources" }));
-  fireEvent.click(await screen.findByRole("button", { name: /Source STANDARD_INTELLIGENCE/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
   fireEvent.click(await screen.findByRole("button", { name: "Check Now" }));
-  expect(await screen.findByText(/Check now is blocked by the runtime side-effect guard/)).toBeTruthy();
+  expect(await screen.findByText(/Check Now cannot start in this local demo/)).toBeTruthy();
+  expect(screen.queryByText(/runtime side-effect guard/i)).toBeNull();
   expect(screen.queryByText("Retry")).toBeNull();
 });
 
 test("stopping a Source uses the legal enabled command and is not historical deletion", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Sources" }));
-  fireEvent.click(await screen.findByRole("button", { name: /Source STANDARD_INTELLIGENCE/ }));
-  expect(await screen.findByText(/does not delete historical Intelligence/)).toBeTruthy();
+  fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
+  expect(await screen.findByText(/existing Intelligence remains unchanged/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Stop future monitoring" }));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-1", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ enabled: false }) })));
 });
@@ -118,7 +121,74 @@ test("stopping a Source uses the legal enabled command and is not historical del
 test("Topic detail waits for its typed projection instead of treating a list response as detail", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Topics" }));
-  fireEvent.click(await screen.findByRole("button", { name: /Topic.*Current knowledge/ }));
-  expect(await screen.findByText("Timeline (historical)")).toBeTruthy();
+  fireEvent.click(await screen.findByRole("button", { name: /Topic.*Current understanding/ }));
+  expect(await screen.findByText("Timeline")).toBeTruthy();
   expect(screen.getByText("Related Topics")).toBeTruthy();
+});
+
+test("a new user can reach a Source setup surface with the bounded V1 controls", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    return response({});
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Source" })[1]);
+
+  expect(await screen.findByRole("heading", { name: "Add a Source" })).toBeTruthy();
+  expect(screen.getByLabelText("Source URL")).toBeTruthy();
+  expect(screen.getByLabelText("Monitor this Source")).toBeTruthy();
+  expect(screen.getByLabelText("Automatic schedule")).toBeTruthy();
+  expect(screen.getByLabelText("Initial history")).toBeTruthy();
+  expect(screen.getByLabelText("Per-run limit")).toBeTruthy();
+  expect(screen.getByLabelText("Focus")).toBeTruthy();
+  expect(screen.getByLabelText("Ignore")).toBeTruthy();
+  expect(screen.getByLabelText("Distillation style")).toBeTruthy();
+  expect(screen.getByText(/recent existing videos are considered when this Source is first added/i)).toBeTruthy();
+  expect(screen.getByText(/maximum number of new videos processed in one Source Run/i)).toBeTruthy();
+  expect(Array.from((screen.getByLabelText("Initial history") as HTMLSelectElement).options).map(option => option.value)).toEqual(["0", "1", "3", "5", "10"]);
+  expect(Array.from((screen.getByLabelText("Per-run limit") as HTMLSelectElement).options).map(option => option.value)).toEqual(["1", "3", "5", "10"]);
+  expect(Array.from((screen.getByLabelText("Distillation style") as HTMLSelectElement).options).map(option => option.value)).toEqual(["BALANCED", "TECHNICAL_DETAIL_FIRST", "PRODUCT_CASE_FIRST", "TREND_OPINION_FIRST"]);
+});
+
+test("Source setup writes only through the existing Source, policy, and schedule commands", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/sources") && init?.method === "POST") return response({ source: { source_id: "source-new", canonical_url: "https://youtube.test/new", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", display_name: null, last_error: null } });
+    if (input.endsWith("/sources/source-new/policy")) return response({ policy: {} });
+    if (input.endsWith("/sources/source-new") && init?.method === "PATCH") return response({ source: {} });
+    if (input.endsWith("/automation")) return response({ schedule: {} });
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    return response({});
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add Source" }))[1]);
+  fireEvent.change(screen.getByLabelText("Source URL"), { target: { value: "https://youtube.test/new" } });
+  fireEvent.click(screen.getByLabelText("Monitor this Source"));
+  fireEvent.change(screen.getByLabelText("Initial history"), { target: { value: "3" } });
+  fireEvent.change(screen.getByLabelText("Per-run limit"), { target: { value: "10" } });
+  fireEvent.change(screen.getByLabelText("Focus"), { target: { value: "product, AI" } });
+  fireEvent.change(screen.getByLabelText("Ignore"), { target: { value: "rough" } });
+  fireEvent.change(screen.getByLabelText("Distillation style"), { target: { value: "PRODUCT_CASE_FIRST" } });
+  fireEvent.change(screen.getByLabelText("Automatic schedule"), { target: { value: "WEEKLY" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Source" }).at(-1)!);
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/sources", expect.objectContaining({ method: "POST", body: JSON.stringify({ url: "https://youtube.test/new", processing_policy: "STANDARD_INTELLIGENCE" }) })));
+  expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-new", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ enabled: false, processing_policy: "STANDARD_INTELLIGENCE" }) }));
+  expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-new/policy", expect.objectContaining({ method: "PUT", body: expect.stringContaining('"initial_history_count":3') }));
+  expect(fetch).toHaveBeenCalledWith("/api/v1/automation", expect.objectContaining({ method: "POST", body: expect.stringContaining('"target_type":"SOURCE_CHECK"') }));
+});
+
+test("Saved, Topic, and Weekly keep trust meaning while hiding backend codes from primary reading", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Saved" }));
+  expect(await screen.findByText(/no longer available as current Intelligence/)).toBeTruthy();
+  expect(screen.queryByText("CURRENT_NOT_ACTIVE")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
+  expect(await screen.findByText(/Weekly digest · Sep 1, 2026/)).toBeTruthy();
+  expect(screen.getByText("Evidence references").parentElement?.hasAttribute("open")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Topics" }));
+  expect(await screen.findByText(/Some support is unavailable/)).toBeTruthy();
+  expect(screen.queryByText("DEGRADED")).toBeNull();
 });
