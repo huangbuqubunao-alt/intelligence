@@ -32,12 +32,15 @@
 
 ## Browser/review
 
-- Browser validation confirmed the exact six-element accessibility navigation,
-  a truthful quiet Dashboard, Deep Analysis BLOCKED and no console errors after
-  fixing incompatible-dashboard-shape handling. The occupied, unknown process
-  on loopback port 8765 prevented starting this worktree's isolated PO-demo API,
-  so the full live fixture journey could not be run without violating worktree
-  isolation; component/API fixture flows are covered by the listed tests.
+- Browser validation used a worktree-owned PO-demo API on loopback port 8766
+  (the occupied unknown process on 8765 was not touched) and confirmed the
+  exact six-element accessibility navigation, a truthful quiet Dashboard,
+  Sources policy/detail context and Deep Analysis BLOCKED, with no console
+  errors after fixing incompatible-dashboard-shape handling. The fixture's
+  execution guard legally rejects Check Now, and it has no consumable verified
+  Intelligence/Saved/Weekly fixture; therefore the complete live product
+  journey remains unverified. Component/API fixture flows are covered by the
+  listed tests.
 - Adversarial fixes: fail-closed identity feed, unavailable Saved content,
   Save refresh reconciliation, no-success coloring for rumor/prediction/system
   inference, and incompatible projection resilience. P0=0; P1=0 in the
