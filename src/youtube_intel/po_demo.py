@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from youtube_intel.brief import WeeklyBriefService
 from youtube_intel.distillation import (
     BudgetDecision,
     DistillationCommand,
@@ -69,6 +70,7 @@ from youtube_intel.state import (
     StorageRoot,
     build_evidence_id,
 )
+from youtube_intel.topic import TopicApplicationService, TopicAssociationKind
 
 _NOW = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
 _PIPELINE_VERSION = "po-demo-v1"
@@ -444,7 +446,7 @@ def _seed_verified_scoring(
 
 def _seed_verified_intelligence(
     repository: SQLiteStateRepository, *, source_id: str, video_id: str
-) -> None:
+) -> str:
     """Create a verified card through TASK-022's offline test boundary only."""
 
     artifact_id = f"demo-transcript-{video_id}"
@@ -525,6 +527,26 @@ def _seed_verified_intelligence(
             "PO demo failed to create its deterministic Intelligence fixture: "
             f"{result.status.value}"
         )
+    return result.intelligence_id
+
+
+def _seed_weekly_v1(repository: SQLiteStateRepository, intelligence_id: str) -> None:
+    """Finalize an immutable V1 snapshot from the legal Topic association."""
+
+    topics = TopicApplicationService(repository, now=lambda: _NOW)
+    topic = topics.create_topic(
+        command_id="po-demo-weekly-topic", name="Decision-system practice"
+    )
+    topics.associate_intelligence(
+        topic_id=topic.topic_id,
+        intelligence_id=intelligence_id,
+        kind=TopicAssociationKind.NEW_INFORMATION,
+    )
+    WeeklyBriefService(
+        repository,
+        timezone="UTC",
+        now=lambda: _NOW + timedelta(days=5),
+    ).finalize_week()
 
 
 def _seed_unverified_scoring_like_artifact(
@@ -690,9 +712,10 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
 
     _seed_transcript(repository, data_root, _GOLDEN_VIDEO_ID)
     _seed_verified_scoring(repository, data_root, _GOLDEN_VIDEO_ID)
-    _seed_verified_intelligence(
+    intelligence_id = _seed_verified_intelligence(
         repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
     )
+    _seed_weekly_v1(repository, intelligence_id)
     _seed_unverified_scoring_like_artifact(repository, data_root, "unverified-score")
     _record_completed_job(repository, job_id="demo-metadata-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.METADATA)
     _record_completed_job(repository, job_id="demo-transcript-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.TRANSCRIPT)

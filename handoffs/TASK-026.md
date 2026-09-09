@@ -39,9 +39,10 @@
   subview, and Deep Analysis BLOCKED. The fixture creates its verified card
   through TASK-022's offline transport then re-reads it through TASK-019; the
   browser and API tests cover Save, Saved and Unsave without a provider call.
-  The fixture's execution guard still legally rejects Check Now. Weekly and
-  unavailable-Saved product journeys remain to be completed before TASK-026
-  may close.
+  It also finalizes a V1 Weekly snapshot from the legal Topic association for
+  the preceding UTC week. The fixture's execution guard still legally rejects
+  Check Now. Correction-marked Weekly and unavailable-Saved product journeys
+  remain to be completed before TASK-026 may close.
 - Adversarial fixes: fail-closed identity feed, unavailable Saved content,
   Save refresh reconciliation, no-success coloring for rumor/prediction/system
   inference, and incompatible projection resilience. P0=0; P1=0 in the

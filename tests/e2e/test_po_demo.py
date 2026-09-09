@@ -30,6 +30,7 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     dashboard = runtime.application.handle("GET", "/api/v1/dashboard")[1]
     videos = runtime.application.handle("GET", "/api/v1/videos")[1]
     weekly = runtime.application.handle("GET", "/api/v1/weekly")[1]
+    weekly_v1 = runtime.application.handle("GET", "/api/v1/weekly/v1")[1]
     automation = runtime.application.handle("GET", "/api/v1/automation")[1]
     activity = runtime.application.handle("GET", "/api/v1/activity")[1]
     system = runtime.application.handle("GET", "/api/v1/system")[1]
@@ -50,6 +51,8 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     intelligence_id = available["intelligence_id"]
     assert available["trusted"] is True
     assert available["card"]["evidence_links"]
+    assert weekly_v1["weekly_v1"]
+    assert weekly_v1["weekly_v1"][0]["items"]
 
     saved_before = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
     assert saved_before["saved"] == []
