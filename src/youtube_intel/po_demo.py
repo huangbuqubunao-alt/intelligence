@@ -41,6 +41,7 @@ from youtube_intel.orchestration import (
     SourceType,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.saved_intelligence import SavedIntelligenceService, SaveIntelligence
 from youtube_intel.scoring import (
     PROMPT_VERSION,
@@ -51,6 +52,12 @@ from youtube_intel.source_policy import (
     MetadataFilterCandidate,
     SourcePolicyApplicationService,
     VideoType,
+)
+from youtube_intel.source_run import (
+    SourceRunAttentionReason,
+    SourceRunPriority,
+    SourceRunState,
+    SourceRunWrite,
 )
 from youtube_intel.state import (
     ArtifactKind,
@@ -70,6 +77,7 @@ from youtube_intel.state import (
     IntelligenceState,
     JobType,
     ProviderCallRequest,
+    PreferenceScope,
     ReportStatus,
     ReportWrite,
     RetentionClass,
@@ -555,6 +563,50 @@ def _seed_skipped_video(repository: SQLiteStateRepository) -> None:
     )
 
 
+def _seed_preferences(repository: SQLiteStateRepository) -> None:
+    """Exercise the legal TASK-020 provenance/expiry distinctions in demo only."""
+
+    preferences = PreferenceApplicationService(repository, now=lambda: _NOW)
+    preferences.set_explicit_long_term(
+        command_id="po-demo-explicit",
+        scope=PreferenceScope.GLOBAL_CONTENT,
+        target_id=None,
+        statement="Prefer evidence-led product analysis.",
+    )
+    preferences.record_derived_recent(
+        command_id="po-demo-derived",
+        scope=PreferenceScope.GLOBAL_CONTENT,
+        target_id=None,
+        statement="Recent interest in evaluation practice.",
+    )
+    preferences.set_temporary_focus(
+        command_id="po-demo-temporary",
+        scope=PreferenceScope.GLOBAL_CONTENT,
+        target_id=None,
+        statement="Focus this week on decision logs.",
+        expires_at=_NOW + timedelta(days=1),
+    )
+
+
+def _seed_needs_attention_run(repository: SQLiteStateRepository) -> None:
+    """Persist one finite TASK-024-shaped attention state without execution."""
+
+    run = repository.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id="source-startup",
+            command_id="po-demo-attention",
+            priority=SourceRunPriority.P0,
+            created_at=_NOW,
+        )
+    )
+    repository.transition_source_run(
+        run.run_id,
+        to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE,
+        now=_NOW,
+    )
+
+
 def _seed_weekly_v1(repository: SQLiteStateRepository, intelligence_id: str) -> None:
     """Finalize an immutable V1 snapshot from the legal Topic association."""
 
@@ -872,6 +924,8 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
         repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
     )
     _seed_skipped_video(repository)
+    _seed_preferences(repository)
+    _seed_needs_attention_run(repository)
     _seed_weekly_v1(repository, intelligence_id)
     _seed_weekly_correction(repository, intelligence_id)
     _seed_unavailable_saved(repository, intelligence_id)

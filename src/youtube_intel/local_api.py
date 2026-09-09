@@ -46,6 +46,7 @@ from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    DistillationResourceUsageRecord,
     DistillationStyle,
     FeedbackCorrectionKind,
     FeedbackKind,
@@ -177,6 +178,27 @@ def _preference_dto(preference: PreferenceRecord) -> dict[str, object]:
         "expires_at": _timestamp(preference.expires_at),
         "supersedes_preference_id": preference.supersedes_preference_id,
         "created_at": _timestamp(preference.created_at),
+    }
+
+
+def _resource_usage_dto(usage: DistillationResourceUsageRecord) -> dict[str, object]:
+    """Expose bounded TASK-022 ledger facts without credentials or estimates."""
+
+    return {
+        "execution_id": usage.execution_id,
+        "reason": usage.reason,
+        "use_case": usage.use_case,
+        "actual_provider": usage.actual_provider,
+        "actual_model": usage.actual_model,
+        "status": usage.status,
+        "invocation_count": usage.invocation_count,
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cost_microunits": usage.cost_microunits,
+        "duration_ms": usage.duration_ms,
+        "budget_state": usage.budget_state,
+        "outcome": usage.outcome,
+        "created_at": _timestamp(usage.created_at),
     }
 
 
@@ -943,6 +965,13 @@ class LocalApiApplication:
                 "history": [
                     _preference_dto(item) for item in self._repository.list_preferences()
                 ],
+            }
+        if route == "/api/v1/settings/resource-usage":
+            return {
+                "usage": [
+                    _resource_usage_dto(item)
+                    for item in self._repository.list_distillation_resource_usage()
+                ]
             }
         if route == "/api/v1/settings/feedback":
             return {

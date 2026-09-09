@@ -37,6 +37,8 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     golden = runtime.application.handle("GET", "/api/v1/videos/golden-ai-roadmap")[1]
     unverified = runtime.application.handle("GET", "/api/v1/videos/unverified-score")[1]
     source = runtime.application.handle("GET", "/api/v1/sources/source-ai")[1]
+    preferences = runtime.application.handle("GET", "/api/v1/settings/preferences")[1]
+    resource_usage = runtime.application.handle("GET", "/api/v1/settings/resource-usage")[1]
 
     assert dashboard["operations"]["source_count"] == 5
     assert set(dashboard) == {
@@ -47,6 +49,22 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
         "operations",
     }
     assert all(item["status"] != "AVAILABLE" or item["trusted"] for item in dashboard["intelligence"])
+    assert dashboard["needs_attention"] == [
+        {
+            "run_id": "source-run:5709dd545ce77763b946df78fc31e287147bc27a0649159110d1c9aefc787b5c",
+            "source_id": "source-startup",
+            "trigger": "MANUAL_CHECK_NOW",
+            "trigger_reference": "po-demo-attention",
+            "priority": "P0",
+            "state": "NEEDS_ATTENTION",
+            "attention_reason": "MODEL_UNAVAILABLE",
+            "automation_run_id": None,
+            "manual_command_id": "po-demo-attention",
+            "manual_analyze_override_id": None,
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-09-01T08:00:00Z",
+        }
+    ]
     available = next(item for item in dashboard["intelligence"] if item["status"] == "AVAILABLE")
     intelligence_id = available["intelligence_id"]
     assert available["trusted"] is True
@@ -112,6 +130,16 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert skipped["filter"]["reason"] == "IGNORE_RULE_MATCH"
     assert "policy" in source
     assert "source_runs" in source
+    assert {(item["provenance"], item["horizon"]) for item in preferences["history"]} == {
+        ("EXPLICIT", "LONG_TERM"),
+        ("DERIVED", "RECENT"),
+        ("TEMPORARY", "TEMPORARY_FOCUS"),
+    }
+    assert any(item["expires_at"] for item in preferences["history"])
+    assert resource_usage["usage"]
+    assert all("credential" not in item and "secret" not in item for item in resource_usage["usage"])
+    assert resource_usage["usage"][0]["input_tokens"] is None
+    assert resource_usage["usage"][0]["cost_microunits"] is None
     assert any(run["status"] == "AMBIGUOUS" for run in activity["runs"])
     assert {schedule["frequency"] for schedule in automation["schedules"]} >= {"MANUAL", "DAILY", "WEEKLY"}
     assert any(not schedule["enabled"] for schedule in automation["schedules"])

@@ -8060,6 +8060,23 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def list_distillation_resource_usage(
+        self, *, limit: int = 100
+    ) -> tuple[DistillationResourceUsageRecord, ...]:
+        """Return a bounded immutable TASK-022 ledger projection."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise ValueError("distillation resource usage limit is invalid")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM distillation_resource_usage "
+                "ORDER BY created_at DESC, execution_id DESC LIMIT :limit",
+                {"limit": limit},
+            ).fetchall()
+            return tuple(self._distillation_usage_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
     def get_distillation_card(self, revision_id: str) -> DistillationCardRecord | None:
         connection = self._connect()
         try:

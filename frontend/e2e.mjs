@@ -17,6 +17,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
     if (await page.getByRole("button", { name: legacy, exact: true }).count()) throw new Error(`${legacy} returned as first-level IA`);
   }
   await page.getByText("Important Intelligence", { exact: true }).waitFor();
+  await page.getByText("MODEL UNAVAILABLE", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Intelligence", exact: true }).click();
   await page.getByText("Evidence-backed statement", { exact: true }).waitFor();
   await page.getByText("Evidence and source", { exact: true }).click();
@@ -36,10 +37,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("SKIPPED", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Analyze this Video", exact: true }).waitFor();
   if (await page.getByText("Retry", { exact: true }).count()) throw new Error("Retry leaked into Source UI");
+  await page.getByRole("button", { name: "Check Now", exact: true }).click();
+  await page.getByText(/Check now is blocked by the runtime side-effect guard/).waitFor();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByText(/Settings cannot trigger a provider/).waitFor();
   await page.getByText("UNAVAILABLE", { exact: true }).first().waitFor();
+  await page.getByText("EXPLICIT", { exact: true }).waitFor();
+  await page.getByText("DERIVED", { exact: true }).waitFor();
+  await page.getByText("TEMPORARY", { exact: true }).waitFor();
+  await page.getByText("Resource Usage", { exact: true }).waitFor();
+  await page.getByText(/Token usage: UNKNOWN/).waitFor();
+  await page.getByText(/Cost: UNKNOWN/).waitFor();
   await page.getByRole("button", { name: "Investigations", exact: true }).click();
   await page.getByText("Investigations are not active in V1", { exact: true }).waitFor();
   await page.screenshot({ path: `/tmp/yia-task026-${viewport.width}x${viewport.height}.png`, fullPage: true });
@@ -48,4 +57,4 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
 await browser.close();
 if (externalRequests.length) throw new Error(`External browser network requests: ${externalRequests.join(" | ")}`);
 if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
-console.log("Browser E2E passed: frozen IA, trusted Intelligence, Saved fail-closed, Weekly V1, Topic, Source policy, and V1 reservations.");
+console.log("Browser E2E passed: frozen IA, trusted Intelligence, Saved fail-closed, Weekly V1, Topic, Source policy, finite attention, and V1 reservations.");
