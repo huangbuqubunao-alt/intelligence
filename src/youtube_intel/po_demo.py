@@ -41,6 +41,7 @@ from youtube_intel.orchestration import (
     SourceType,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.saved_intelligence import SavedIntelligenceService, SaveIntelligence
 from youtube_intel.scoring import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -608,6 +609,86 @@ def _seed_weekly_correction(
     WeeklyBriefService(repository, timezone="UTC", now=lambda: corrected_at).append_correction_markers()
 
 
+def _seed_unavailable_saved(
+    repository: SQLiteStateRepository, source_intelligence_id: str
+) -> None:
+    """Preserve a Save relation after a later legal invalidation."""
+
+    source = AuthoritativeIntelligenceReader(repository).read_current(source_intelligence_id)
+    prior = repository.get_intelligence_revision(source.revision_id)
+    assert prior is not None
+    intelligence_id = "po-demo-unavailable-saved"
+    available_revision_id = "po-demo-unavailable-saved-available"
+    invalidated_revision_id = "po-demo-unavailable-saved-invalidated"
+    available_at = _NOW + timedelta(days=8)
+    repository.create_intelligence(intelligence_id=intelligence_id, now=available_at)
+    repository.append_intelligence_revision(
+        intelligence_id=intelligence_id,
+        revision=IntelligenceRevisionWrite(
+            revision_id=available_revision_id,
+            interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=source.claim_kind,
+            content_hash=prior.content_hash,
+            state=IntelligenceState.NEW,
+            reason="Synthetic saved target before later invalidation.",
+            evidence_ids=source.evidence_ids,
+        ),
+        now=available_at,
+    )
+    repository.create_dependency_edge(
+        DependencyEdgeWrite(
+            edge_id=f"support:{available_revision_id}",
+            dependent_revision_id=available_revision_id,
+            relation=DependencyRelation.EVIDENCE_SUPPORT,
+            input_evidence_id=source.evidence_ids[0],
+            input_revision_id=None,
+        ),
+        now=available_at,
+    )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "INSERT INTO distillation_cards "
+            "(revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, "
+            "important_new_information_json, meaningful_details_json, filtered_noise_json, "
+            "preference_ids_json, source_policy_revision_id, created_at) "
+            "SELECT ?, source_id, video_id, core_conclusion, user_relevant_information_json, "
+            "important_new_information_json, meaningful_details_json, filtered_noise_json, "
+            "preference_ids_json, source_policy_revision_id, ? "
+            "FROM distillation_cards WHERE revision_id = ?",
+            (available_revision_id, available_at.isoformat().replace("+00:00", "Z"), prior.revision_id),
+        )
+    finally:
+        connection.close()
+    SavedIntelligenceService(repository, now=lambda: available_at).save(
+        SaveIntelligence(intelligence_id=intelligence_id)
+    )
+    invalidated_at = available_at + timedelta(seconds=1)
+    repository.append_intelligence_revision(
+        intelligence_id=intelligence_id,
+        revision=IntelligenceRevisionWrite(
+            revision_id=invalidated_revision_id,
+            interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=source.claim_kind,
+            content_hash=prior.content_hash,
+            state=IntelligenceState.INVALIDATED,
+            reason="Synthetic invalidation; historical Save must not become trust.",
+            evidence_ids=source.evidence_ids,
+        ),
+        now=invalidated_at,
+    )
+    repository.create_dependency_edge(
+        DependencyEdgeWrite(
+            edge_id=f"support:{invalidated_revision_id}",
+            dependent_revision_id=invalidated_revision_id,
+            relation=DependencyRelation.EVIDENCE_SUPPORT,
+            input_evidence_id=source.evidence_ids[0],
+            input_revision_id=None,
+        ),
+        now=invalidated_at,
+    )
+
+
 def _seed_unverified_scoring_like_artifact(
     repository: SQLiteStateRepository, data_root: Path, video_id: str
 ) -> None:
@@ -776,6 +857,7 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
     )
     _seed_weekly_v1(repository, intelligence_id)
     _seed_weekly_correction(repository, intelligence_id)
+    _seed_unavailable_saved(repository, intelligence_id)
     _seed_unverified_scoring_like_artifact(repository, data_root, "unverified-score")
     _record_completed_job(repository, job_id="demo-metadata-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.METADATA)
     _record_completed_job(repository, job_id="demo-transcript-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.TRANSCRIPT)

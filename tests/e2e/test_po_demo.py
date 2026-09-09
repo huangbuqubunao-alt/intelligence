@@ -57,7 +57,17 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert weekly_v1["weekly_v1"][0]["items"][0]["markers"][0]["kind"] == "SUPERSEDED"
 
     saved_before = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
-    assert saved_before["saved"] == []
+    assert saved_before["saved"] == [
+        {
+            "intelligence_id": "po-demo-unavailable-saved",
+            "saved_at": "2026-09-09T08:00:00Z",
+            "intelligence": {
+                "status": "UNAVAILABLE",
+                "trusted": False,
+                "code": "CURRENT_NOT_ACTIVE",
+            },
+        }
+    ]
     save_status, saved_after = runtime.application.handle(
         "POST",
         "/api/v1/saved-intelligence/save",
@@ -66,15 +76,20 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert save_status == 200
     assert saved_after["saved"]["intelligence_id"] == intelligence_id
     saved_listing = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
-    assert saved_listing["saved"][0]["intelligence_id"] == intelligence_id
-    assert saved_listing["saved"][0]["intelligence"]["trusted"] is True
+    assert {item["intelligence_id"] for item in saved_listing["saved"]} == {
+        intelligence_id,
+        "po-demo-unavailable-saved",
+    }
+    assert next(
+        item for item in saved_listing["saved"] if item["intelligence_id"] == intelligence_id
+    )["intelligence"]["trusted"] is True
     unsave_status, _ = runtime.application.handle(
         "POST",
         "/api/v1/saved-intelligence/unsave",
         ('{"intelligence_id":"' + intelligence_id + '"}').encode(),
     )
     assert unsave_status == 200
-    assert runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]["saved"] == []
+    assert runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]["saved"] == saved_before["saved"]
     assert len(videos["videos"]) == 12
     assert len(weekly["weekly"]) == 2
     assert len(automation["schedules"]) == 4

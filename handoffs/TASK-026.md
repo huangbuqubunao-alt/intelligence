@@ -41,9 +41,10 @@
   browser and API tests cover Save, Saved and Unsave without a provider call.
   It also finalizes a V1 Weekly snapshot from the legal Topic association for
   the preceding UTC week, then creates a later legal correction and lets the
-  TASK-025 service add its visible `SUPERSEDED` marker. The fixture's execution
-  guard still legally rejects Check Now. The unavailable-Saved product journey
-  remains to be completed before TASK-026 may close.
+  TASK-025 service add its visible `SUPERSEDED` marker. It also preserves a
+  Save relation after a later legal invalidation; the Saved UI displays only
+  `CURRENT_NOT_ACTIVE` and an Unsave action, never the former card. The
+  fixture's execution guard still legally rejects Check Now.
 - Adversarial fixes: fail-closed identity feed, unavailable Saved content,
   Save refresh reconciliation, no-success coloring for rumor/prediction/system
   inference, and incompatible projection resilience. P0=0; P1=0 in the
