@@ -46,6 +46,30 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
         "operations",
     }
     assert all(item["status"] != "AVAILABLE" or item["trusted"] for item in dashboard["intelligence"])
+    available = next(item for item in dashboard["intelligence"] if item["status"] == "AVAILABLE")
+    intelligence_id = available["intelligence_id"]
+    assert available["trusted"] is True
+    assert available["card"]["evidence_links"]
+
+    saved_before = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
+    assert saved_before["saved"] == []
+    save_status, saved_after = runtime.application.handle(
+        "POST",
+        "/api/v1/saved-intelligence/save",
+        ('{"intelligence_id":"' + intelligence_id + '"}').encode(),
+    )
+    assert save_status == 200
+    assert saved_after["saved"]["intelligence_id"] == intelligence_id
+    saved_listing = runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]
+    assert saved_listing["saved"][0]["intelligence_id"] == intelligence_id
+    assert saved_listing["saved"][0]["intelligence"]["trusted"] is True
+    unsave_status, _ = runtime.application.handle(
+        "POST",
+        "/api/v1/saved-intelligence/unsave",
+        ('{"intelligence_id":"' + intelligence_id + '"}').encode(),
+    )
+    assert unsave_status == 200
+    assert runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]["saved"] == []
     assert len(videos["videos"]) == 12
     assert len(weekly["weekly"]) == 2
     assert len(automation["schedules"]) == 4

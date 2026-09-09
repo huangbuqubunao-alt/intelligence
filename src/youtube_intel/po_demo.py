@@ -15,6 +15,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from youtube_intel.distillation import (
+    BudgetDecision,
+    DistillationCommand,
+    DistillationTransportResult,
+    PersonalizedDistillationService,
+)
 from youtube_intel.domain import (
     Availability,
     JobStatus,
@@ -38,11 +44,21 @@ from youtube_intel.scoring import (
     SCHEMA_VERSION,
     AuthoritativeScoringReader,
 )
+from youtube_intel.source_policy import (
+    MetadataFilterCandidate,
+    SourcePolicyApplicationService,
+    VideoType,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
     AutomationRunRecord,
     AutomationScheduleRecord,
+    DistillationStyle,
+    EvidenceAvailability,
+    EvidenceLineageKind,
+    EvidenceRole,
+    EvidenceWrite,
     JobType,
     ProviderCallRequest,
     ReportStatus,
@@ -51,6 +67,7 @@ from youtube_intel.state import (
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     StorageRoot,
+    build_evidence_id,
 )
 
 _NOW = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
@@ -65,6 +82,38 @@ class DemoRuntime:
     database: Path
     application: LocalApiApplication
     scoring_reader: AuthoritativeScoringReader
+
+
+class _OfflineDemoBudget:
+    """Deterministic admission fixture; it never contacts a provider."""
+
+    def check(self, command: DistillationCommand) -> BudgetDecision:
+        del command
+        return BudgetDecision(allowed=True, state="ADMITTED")
+
+
+class _OfflineDemoTransport:
+    """In-process synthetic transport allowed only by the PO-demo boundary."""
+
+    is_offline_test_transport = True
+    available = True
+    actual_provider = "po-demo-offline"
+    actual_model = "deterministic-v1"
+
+    def __init__(self, raw: str) -> None:
+        self._raw = raw
+
+    def generate(self, command: DistillationCommand) -> DistillationTransportResult:
+        del command
+        return DistillationTransportResult(
+            raw=self._raw,
+            actual_provider=self.actual_provider,
+            actual_model=self.actual_model,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microunits=None,
+            duration_ms=0,
+        )
 
 
 def demo_runtime_root(project_root: Path) -> Path:
@@ -393,6 +442,91 @@ def _seed_verified_scoring(
         connection.close()
 
 
+def _seed_verified_intelligence(
+    repository: SQLiteStateRepository, *, source_id: str, video_id: str
+) -> None:
+    """Create a verified card through TASK-022's offline test boundary only."""
+
+    artifact_id = f"demo-transcript-{video_id}"
+    evidence_id = build_evidence_id(
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=18_000,
+        end_ms=42_000,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+    )
+    repository.create_evidence(
+        EvidenceWrite(
+            evidence_id=evidence_id,
+            video_id=video_id,
+            artifact_id=artifact_id,
+            start_ms=18_000,
+            end_ms=42_000,
+            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+            role=EvidenceRole.PRIMARY_ORIGINAL,
+            language="en",
+            availability=EvidenceAvailability.AVAILABLE,
+        ),
+        now=_NOW,
+    )
+    policies = SourcePolicyApplicationService(repository, now=lambda: _NOW)
+    policies.update_global(
+        command_id="po-demo-intelligence-policy",
+        initial_history_count=5,
+        per_run_max_new_videos=5,
+        focus_rules=("AI",),
+        ignore_rules=(),
+        distillation_style=DistillationStyle.BALANCED,
+    )
+    policies.evaluate_and_record_stage_one(
+        source_id,
+        MetadataFilterCandidate(
+            video_id=video_id,
+            title="How teams turn AI roadmaps into decision systems",
+            description="Synthetic PO-demo evidence fixture.",
+            channel_name="Practical AI Engineering",
+            published_at=_NOW,
+            video_type=VideoType.STANDARD,
+        ),
+    )
+    raw = json.dumps(
+        {
+            "core_conclusion": "Decision logs keep roadmap changes evidence-bound.",
+            "user_relevant_information": ["The team can inspect the supporting transcript."],
+            "important_new_information": ["Weekly review compares assumptions with outcomes."],
+            "meaningful_details": ["The source records a repeatable review cadence."],
+            "filtered_noise": ["Synthetic fixture only."],
+            "claim_kind": "EVIDENCE_BACKED_STATEMENT",
+            "evidence": [{"evidence_id": evidence_id, "start_ms": 18_000, "end_ms": 42_000}],
+        },
+        separators=(",", ":"),
+    )
+    result = PersonalizedDistillationService(
+        repository,
+        policies,
+        _OfflineDemoTransport(raw),
+        _OfflineDemoBudget(),
+        now=lambda: _NOW,
+    ).distill(
+        DistillationCommand(
+            execution_id="po-demo-distill-golden",
+            source_id=source_id,
+            video_id=video_id,
+            evidence_ids=(evidence_id,),
+            reason="PO_DEMO_SYNTHETIC_FIXTURE",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="po-demo-offline",
+            selected_model="deterministic-v1",
+        )
+    )
+    if result.intelligence_id is None:
+        raise RuntimeError(
+            "PO demo failed to create its deterministic Intelligence fixture: "
+            f"{result.status.value}"
+        )
+
+
 def _seed_unverified_scoring_like_artifact(
     repository: SQLiteStateRepository, data_root: Path, video_id: str
 ) -> None:
@@ -556,6 +690,9 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
 
     _seed_transcript(repository, data_root, _GOLDEN_VIDEO_ID)
     _seed_verified_scoring(repository, data_root, _GOLDEN_VIDEO_ID)
+    _seed_verified_intelligence(
+        repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
+    )
     _seed_unverified_scoring_like_artifact(repository, data_root, "unverified-score")
     _record_completed_job(repository, job_id="demo-metadata-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.METADATA)
     _record_completed_job(repository, job_id="demo-transcript-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.TRANSCRIPT)
