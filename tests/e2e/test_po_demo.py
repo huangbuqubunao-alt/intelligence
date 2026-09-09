@@ -37,7 +37,15 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     unverified = runtime.application.handle("GET", "/api/v1/videos/unverified-score")[1]
     source = runtime.application.handle("GET", "/api/v1/sources/source-ai")[1]
 
-    assert dashboard["sources"]["total"] == 5
+    assert dashboard["operations"]["source_count"] == 5
+    assert set(dashboard) == {
+        "intelligence",
+        "pinned_topics",
+        "weekly_v1",
+        "needs_attention",
+        "operations",
+    }
+    assert all(item["status"] != "AVAILABLE" or item["trusted"] for item in dashboard["intelligence"])
     assert len(videos["videos"]) == 12
     assert len(weekly["weekly"]) == 2
     assert len(automation["schedules"]) == 4
@@ -55,6 +63,8 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert unverified["scoring"]["status"] == "NOT_AVAILABLE"
     assert "score" not in unverified["scoring"]
     assert source["recent_videos"]
+    assert "policy" in source
+    assert "source_runs" in source
     assert any(run["status"] == "AMBIGUOUS" for run in activity["runs"])
     assert {schedule["frequency"] for schedule in automation["schedules"]} >= {"MANUAL", "DAILY", "WEEKLY"}
     assert any(not schedule["enabled"] for schedule in automation["schedules"])

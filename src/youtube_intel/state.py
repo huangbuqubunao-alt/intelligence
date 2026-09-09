@@ -6381,6 +6381,21 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def list_current_intelligence_ids(self, *, limit: int = 100) -> tuple[str, ...]:
+        """Return bounded identities only; callers must re-read through TASK-019."""
+        if not 1 <= limit <= 100:
+            raise ValueError("intelligence list limit must be between 1 and 100")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT intelligence_id FROM intelligences "
+                "WHERE current_revision_id IS NOT NULL ORDER BY created_at DESC, intelligence_id ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return tuple(str(row["intelligence_id"]) for row in rows)
+        finally:
+            connection.close()
+
     def append_intelligence_revision(
         self,
         *,

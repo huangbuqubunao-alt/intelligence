@@ -232,6 +232,21 @@ def test_content_projection_defaults_to_truthful_unavailable_states(
     }
 
 
+def test_intelligence_feed_rechecks_each_identity_and_never_emits_raw_content(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    app._repository.list_current_intelligence_ids = lambda *, limit: ("missing",)  # type: ignore[method-assign]
+
+    status, payload = app.handle("GET", "/api/v1/intelligence")
+
+    assert status == 200
+    item = payload["intelligence"][0]
+    assert item["status"] == "UNAVAILABLE"
+    assert item["trusted"] is False
+    assert "card" not in item
+
+
 def test_source_video_projection_has_a_scoped_repository_reader(tmp_path: Path) -> None:
     app = _app(tmp_path)
     assert app._repository.list_source_videos("missing-source", limit=10) == ()

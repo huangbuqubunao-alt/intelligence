@@ -974,24 +974,22 @@ class LocalApiApplication:
             return {"topic": _topic_dto(self._topic_service.read_topic(topic_id))}
         if route == "/api/v1/dashboard":
             sources = self._repository.list_source_subscriptions()
-            videos = self._repository.list_videos(limit=20)
-            runs = self._repository.list_automation_runs(limit=10)
+            source_runs = self._repository.list_source_runs()
             return {
-                "sources": {
-                    "total": len(sources),
-                    "needs_attention": sum(
-                        source.last_error_code is not None for source in sources
-                    ),
-                },
-                "new_videos": len(videos),
-                "recent_videos": [_video_dto(video) for video in videos[:5]],
-                "next_scheduled_run": self._next_schedule_dto(),
-                "recent_processing": [self._run_dto(run) for run in runs[:5]],
-                "deep_analysis": {
-                    "status": "BLOCKED",
-                    "reason": "No qualified live provider.",
-                },
+                "intelligence": self._intelligence_list(limit=5),
+                "pinned_topics": [
+                    _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                    for topic in self._repository.list_topics() if topic.pinned
+                ],
+                "weekly_v1": [self._weekly_v1_dto(item) for item in self._weekly_brief_service.list_finalized()[:3]],
+                "needs_attention": [
+                    _source_run_dto(run) for run in source_runs
+                    if run.attention_reason is not None or run.state.value == "NEEDS_ATTENTION"
+                ][:10],
+                "operations": {"source_count": len(sources), "next_scheduled_run": self._next_schedule_dto()},
             }
+        if route == "/api/v1/intelligence":
+            return {"intelligence": self._intelligence_list(limit=100)}
         if route == "/api/v1/sources":
             return {
                 "sources": [
@@ -1030,25 +1028,24 @@ class LocalApiApplication:
                 )
             return {
                 "source": _source_dto(source),
+                "policy": _source_policy_dto(
+                    self._source_policy_service.effective_policy(source.source_id)
+                ),
                 "schedules": [
                     self._schedule_dto(item)
                     for item in self._repository.list_automation_schedules()
                     if item.target_id == source.source_id
                 ],
                 "recent_videos": [
-                    self._source_video_dto(video)
+                    self._source_video_dto(video, source.source_id)
                     for video in self._repository.list_source_videos(
                         source.source_id, limit=10
                     )
                 ],
-                "activity": {
-                    "status": "AVAILABLE",
-                    "runs": [
-                        self._run_dto(run)
-                        for run in self._repository.list_automation_runs(limit=50)
-                        if run.target_id == source.source_id
-                    ],
-                },
+                "source_runs": [
+                    _source_run_dto(run) for run in self._repository.list_source_runs()
+                    if run.source_id == source.source_id
+                ][-20:],
             }
         if route == "/api/v1/videos":
             return {
@@ -1193,6 +1190,13 @@ class LocalApiApplication:
             "source_policy_revision_id": card.source_policy_revision_id,
         }
         return projection
+
+    def _intelligence_list(self, *, limit: int) -> list[dict[str, object]]:
+        """A bounded UI projection: raw identities enumerate, TASK-019 decides trust."""
+        return [
+            self._intelligence_projection(intelligence_id)
+            for intelligence_id in self._repository.list_current_intelligence_ids(limit=limit)
+        ]
 
     def _evidence_impact_projection(self, evidence_id: str) -> dict[str, object]:
         try:
@@ -1448,13 +1452,14 @@ class LocalApiApplication:
             "weekly_v2": {"status": "UNAVAILABLE", "code": "WEEKLY_V2_UNAVAILABLE"},
         }
 
-    @staticmethod
-    def _source_video_dto(video: VideoRecord) -> dict[str, object]:
+    def _source_video_dto(self, video: VideoRecord, source_id: str) -> dict[str, object]:
+        decision = self._repository.current_filter_decision(source_id, video.video_id)
         return {
             "video_id": video.video_id,
             "title": video.title,
             "published_at": _timestamp(video.published_at),
             "processing_status": video.pipeline_status.value,
+            "filter": None if decision is None else _filter_decision_dto(decision),
             "navigation": {"video_id": video.video_id},
         }
 
