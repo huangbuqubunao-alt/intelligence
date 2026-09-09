@@ -30,6 +30,8 @@ patterns; REUSE TASK-019 reader without modification. No new dependency.
   repeated/absent IDs are a no-op, including later-unavailable saved targets.
 - Save/Unsave are idempotent state-setting commands, not a replay log across
   intervening opposite actions. Database uniqueness handles concurrent Save.
+  Save checks the admitted current revision again under the immediate write
+  transaction; a changed target rejects with a safe conflict, not a stale write.
 - Saved listing uses bounded keyset pagination ordered by saved_at descending,
   then exact ID; every entry resolves the current TASK-019 verified read.
   Legal details remain at the existing Intelligence detail endpoint. No raw
@@ -42,7 +44,32 @@ patterns; REUSE TASK-019 reader without modification. No new dependency.
 - No Preference/Feedback, Topic/pin, Source policy, Evidence, revision,
   Weekly, ledger, model/provider or trust mutation. No second trusted type.
 
-## Acceptance and stop
+## Application/API handoff
+
+`SavedIntelligenceService.save(SaveIntelligence(intelligence_id=...))` returns
+organization metadata; `unsave(UnsaveIntelligence(intelligence_id=...))` removes
+only that relation. `list_saved(limit=100, after=None)` returns a page of
+metadata plus the existing `VerifiedIntelligenceRead` or a typed rejection code.
+The envelope is not another trusted type and is not accepted as command input.
+
+Local API (existing loopback mutation guard applies):
+
+- `POST /api/v1/saved-intelligence/save`: exact body `{ "intelligence_id": "..." }`.
+- `POST /api/v1/saved-intelligence/unsave`: same exact identity-only body.
+- `GET /api/v1/saved-intelligence?limit=100`: limit 1–100; optional paired
+  `after_id` and `after_saved_at` (RFC 3339 UTC) resume after `next_cursor`'s
+  `intelligence_id` and `saved_at`. Cursor is pagination position only, not trust.
+- The Saved read includes current classification/lifecycle/evidence IDs only
+  after TASK-019 validation. Fetch card/source/evidence detail through existing
+  `GET /api/v1/intelligence/{id}`; no copy is stored in Saved. Missing card
+  content does not authorize raw-content fallback.
+- If validation later fails, the relation remains with `UNAVAILABLE`,
+  `trusted: false`, and the reader's finite code; no revision/claim content is
+  projected. Unsave remains legal for that unavailable relation.
+- Concurrent revision changes before Save commit return HTTP 409
+  `SAVED_TARGET_CHANGED`; re-read current Intelligence before another decision.
+
+## Acceptance and stop (required gates)
 
 Strict TDD: migration fresh/v013 upgrade/all prior data preserved, rollback,
 package discovery, no fabricated saves/m015; Save/Unsave uniqueness/idempotency,
