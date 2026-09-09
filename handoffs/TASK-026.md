@@ -20,8 +20,9 @@
   unavailable state. Saved preserves its relation but never supplies a second
   trust root or raw-content fallback.
 - Dashboard is intelligence-first, with Topics, Weekly and finite attention
-  before secondary source count. Sources display legal policy/filter/Source Run
-  context and use the existing Check Now/manual-analyze routes. Investigations
+  before secondary source count. Sources display legal policy, schedule,
+  filter and Source Run context and use the existing Check Now/manual-analyze
+  routes. Investigations
   and Deep Analysis are truthful V1-unavailable states.
 - Settings reads a bounded TASK-022 Resource Ledger projection only. It exposes
   no credentials and renders missing token/cost values as `UNKNOWN`, never as

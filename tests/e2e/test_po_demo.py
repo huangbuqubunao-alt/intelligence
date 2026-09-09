@@ -40,6 +40,11 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     preferences = runtime.application.handle("GET", "/api/v1/settings/preferences")[1]
     resource_usage = runtime.application.handle("GET", "/api/v1/settings/resource-usage")[1]
 
+    assert any(
+        schedule["frequency"] == "DAILY" and schedule["local_time"] == "08:30"
+        for schedule in source["schedules"]
+    )
+
     assert dashboard["operations"]["source_count"] == 5
     assert set(dashboard) == {
         "intelligence",

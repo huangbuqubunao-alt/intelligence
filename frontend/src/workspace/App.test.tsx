@@ -17,7 +17,7 @@ beforeEach(() => {
     if (input.endsWith("/topics")) return response({ topics: [topic] });
     if (input.endsWith("/sources/source-1") && init?.method === "PATCH") return response({ source: { source_id: "source-1", enabled: false } });
     if (input.endsWith("/sources/source-1/check")) return response({ status: "BLOCKED", message: "Check now is blocked by the runtime side-effect guard." });
-    if (input.endsWith("/sources/source-1")) return response({ source: { source_id: "source-1", display_name: "Source", canonical_url: "https://youtube.test/source", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", last_error: null }, policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: ["AI"], ignore_rules: ["rough"], distillation_style: "BALANCED" }, recent_videos: [{ video_id: "skip-1", title: "Rough draft", processing_status: "METADATA_READY", filter: { outcome: "NOT_RELEVANT", reason: "IGNORE_RULE_MATCH" } }], source_runs: [] });
+    if (input.endsWith("/sources/source-1")) return response({ source: { source_id: "source-1", display_name: "Source", canonical_url: "https://youtube.test/source", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", last_error: null }, policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: ["AI"], ignore_rules: ["rough"], distillation_style: "BALANCED" }, schedules: [{ schedule_id: "schedule-1", frequency: "DAILY", local_time: "08:30", enabled: true }], recent_videos: [{ video_id: "skip-1", title: "Rough draft", processing_status: "METADATA_READY", filter: { outcome: "NOT_RELEVANT", reason: "IGNORE_RULE_MATCH" } }], source_runs: [] });
     if (input.endsWith("/sources")) return response({ sources: [{ source_id: "source-1", display_name: "Source", canonical_url: "https://youtube.test/source", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", last_error: null }] });
     if (input.endsWith("/settings/preferences")) return response({ active: [], history: [
       { preference_id: "explicit", horizon: "LONG_TERM", provenance: "EXPLICIT", statement: "Prefer evidence-led product analysis.", expires_at: null },
@@ -87,6 +87,7 @@ test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as fail
   fireEvent.click(screen.getByRole("button", { name: "Sources" }));
   fireEvent.click(await screen.findByRole("button", { name: /Source STANDARD_INTELLIGENCE/ }));
   expect(await screen.findByText("SKIPPED")).toBeTruthy();
+  expect(screen.getByText(/DAILY.*08:30/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Analyze this Video" })).toBeTruthy();
   expect(screen.queryByText("Retry")).toBeNull();
 });

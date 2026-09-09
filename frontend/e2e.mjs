@@ -34,6 +34,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByRole("button", { name: "Sources", exact: true }).click();
   await page.getByText("Practical AI Engineering", { exact: true }).click();
   await page.getByText("Processing policy", { exact: true }).waitFor();
+  await page.getByText("Schedules", { exact: true }).waitFor();
+  await page.getByText(/DAILY.*08:30/).waitFor();
   await page.getByText("SKIPPED", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Analyze this Video", exact: true }).waitFor();
   if (await page.getByText("Retry", { exact: true }).count()) throw new Error("Retry leaked into Source UI");
