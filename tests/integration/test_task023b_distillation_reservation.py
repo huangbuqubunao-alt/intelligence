@@ -37,10 +37,13 @@ from youtube_intel.state import (
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceTextBindingWrite,
     EvidenceWrite,
     LiveStatus,
     SQLiteStateRepository,
     StateStoreError,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     VideoMetadata,
     build_evidence_id,
 )
@@ -178,17 +181,31 @@ def _source_video_evidence(repository: SQLiteStateRepository) -> tuple[str, str,
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
         role=EvidenceRole.PRIMARY_ORIGINAL,
     )
-    repository.create_evidence(
-        EvidenceWrite(
-            evidence_id=evidence_id,
-            video_id=video_id,
-            artifact_id=artifact_id,
-            start_ms=1_000,
-            end_ms=1_500,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-            language="en",
-            availability=EvidenceAvailability.AVAILABLE,
+    evidence = EvidenceWrite(
+        evidence_id=evidence_id,
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=1_000,
+        end_ms=1_500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+        language="en",
+        availability=EvidenceAvailability.AVAILABLE,
+    )
+    timed = TimedTranscriptWrite.from_cues(
+        video_id=video_id,
+        canonical_artifact_id=artifact_id,
+        cues=(TimedTranscriptCueWrite(start_ms=1_000, end_ms=1_500, text="Fixture canonical evidence."),),
+    )
+    repository.create_timed_transcript(timed, now=NOW)
+    repository.create_evidence_with_text_binding(
+        evidence,
+        EvidenceTextBindingWrite.from_timed_transcript(
+            evidence=evidence,
+            timed_transcript_id=timed.timed_transcript_id,
+            start_cue_index=0,
+            end_cue_index=1,
+            excerpt="Fixture canonical evidence.",
         ),
         now=NOW,
     )
@@ -236,7 +253,7 @@ def test_reserve_mints_one_canonical_pre_dispatch_execution_without_side_effects
     )
 
     assert first == second
-    assert first.execution_id.startswith("distillation:reservation:v1:")
+    assert first.execution_id.startswith("distillation:reservation:v2:")
     checkpoint = repository.get_distillation_execution(first.execution_id)
     assert checkpoint is not None
     assert checkpoint.status == "PENDING"

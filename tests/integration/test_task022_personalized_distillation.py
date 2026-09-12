@@ -35,6 +35,7 @@ from youtube_intel.state import (
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceTextBindingWrite,
     EvidenceWrite,
     FeedbackKind,
     FeedbackWrite,
@@ -42,6 +43,8 @@ from youtube_intel.state import (
     LiveStatus,
     PreferenceScope,
     SQLiteStateRepository,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     VideoMetadata,
     build_evidence_id,
 )
@@ -168,7 +171,7 @@ def _evidence(
     end_ms: int = 1_500,
 ) -> str:
     timestamp = "2026-09-07T09:00:00Z"
-    artifact_id = f"artifact-{video_id}"
+    artifact_id = f"artifact-{video_id}-{start_ms}-{end_ms}"
     connection = repository._connect()
     try:
         existing = connection.execute(
@@ -178,7 +181,7 @@ def _evidence(
             connection.execute(
                 "INSERT INTO artifacts (artifact_id, artifact_key, video_id, job_id, kind, storage_root, relative_path, content_hash, provider, model, producer_version, retention_class, created_at, expires_at, deleted_at) "
                 "VALUES (?, ?, ?, NULL, 'transcript_canonical', 'DATA', ?, ?, NULL, NULL, 'v1', 'LONG_LIVED', ?, NULL, NULL)",
-                (artifact_id, f"artifact-key-{video_id}", video_id, f"{video_id}.txt", "a" * 64, timestamp),
+                (artifact_id, f"artifact-key-{video_id}-{start_ms}-{end_ms}", video_id, f"{video_id}-{start_ms}-{end_ms}.txt", "a" * 64, timestamp),
             )
     finally:
         connection.close()
@@ -190,17 +193,31 @@ def _evidence(
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
         role=EvidenceRole.PRIMARY_ORIGINAL,
     )
-    repository.create_evidence(
-        EvidenceWrite(
-            evidence_id=evidence_id,
-            video_id=video_id,
-            artifact_id=artifact_id,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-            language="en",
-            availability=EvidenceAvailability.AVAILABLE,
+    evidence = EvidenceWrite(
+        evidence_id=evidence_id,
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+        language="en",
+        availability=EvidenceAvailability.AVAILABLE,
+    )
+    timed = TimedTranscriptWrite.from_cues(
+        video_id=video_id,
+        canonical_artifact_id=artifact_id,
+        cues=(TimedTranscriptCueWrite(start_ms=start_ms, end_ms=end_ms, text="Fixture canonical evidence."),),
+    )
+    repository.create_timed_transcript(timed, now=NOW)
+    repository.create_evidence_with_text_binding(
+        evidence,
+        EvidenceTextBindingWrite.from_timed_transcript(
+            evidence=evidence,
+            timed_transcript_id=timed.timed_transcript_id,
+            start_cue_index=0,
+            end_cue_index=1,
+            excerpt="Fixture canonical evidence.",
         ),
         now=NOW,
     )
@@ -309,13 +326,13 @@ def test_personalization_projection_is_active_only_and_never_mutates_source_poli
     source_id, video_id = _source_and_video(repository)
     evidence_id = _evidence(repository, video_id)
     preferences = PreferenceApplicationService(repository, now=lambda: NOW)
-    long_term = preferences.set_explicit_long_term(
+    preferences.set_explicit_long_term(
         command_id="long", scope=PreferenceScope.GLOBAL_CONTENT, target_id=None, statement="Long term."
     )
-    recent = preferences.record_derived_recent(
+    preferences.record_derived_recent(
         command_id="recent", scope=PreferenceScope.GLOBAL_CONTENT, target_id=None, statement="Recent."
     )
-    temporary = preferences.set_temporary_focus(
+    preferences.set_temporary_focus(
         command_id="temporary", scope=PreferenceScope.GLOBAL_CONTENT, target_id=None, statement="Temporary.", expires_at=NOW + timedelta(days=1)
     )
     PreferenceApplicationService(repository, now=lambda: NOW - timedelta(days=2)).set_temporary_focus(
@@ -329,25 +346,14 @@ def test_personalization_projection_is_active_only_and_never_mutates_source_poli
 
     assert result.status is DistillationExecutionStatus.SUCCEEDED
     assert transport.calls == 1
-    assert transport.commands[0].preference_ids == (
-        long_term.preference_id,
-        recent.preference_id,
-        temporary.preference_id,
-    )
-    assert tuple(item.statement for item in transport.commands[0].active_preferences) == (
+    assert transport.commands[0].personalization == (
         "Long term.",
         "Recent.",
         "Temporary.",
     )
-    assert tuple(item.provenance for item in transport.commands[0].active_preferences) == (
-        "EXPLICIT",
-        "DERIVED",
-        "TEMPORARY",
-    )
     assert transport.commands[0].source_focus_rules == ("AI Agent",)
     assert transport.commands[0].source_ignore_rules == ()
     assert transport.commands[0].distillation_style == DistillationStyle.BALANCED.value
-    assert transport.commands[0].source_policy_revision_id == before.source_policy_revision_id
     assert policy.effective_policy(source_id) == before
     card = AuthoritativeIntelligenceReader(repository).read_current_card(result.intelligence_id or "")
     assert card.core_conclusion.startswith("The release")
@@ -368,7 +374,7 @@ def test_feedback_derived_preference_changes_a_later_distillation_request_only(
     assert _service(repository, first_transport).distill(
         _command(source_id, first_video_id, first_evidence_id, execution_id="feedback-run-a")
     ).status is DistillationExecutionStatus.SUCCEEDED
-    assert first_transport.commands[0].active_preferences == ()
+    assert first_transport.commands[0].personalization == ()
 
     preferences = PreferenceApplicationService(repository, now=lambda: NOW)
     feedback = preferences.record_feedback(
@@ -381,7 +387,7 @@ def test_feedback_derived_preference_changes_a_later_distillation_request_only(
             correction_kind=None,
         )
     )
-    derived = preferences.record_derived_recent(
+    preferences.record_derived_recent(
         command_id="derive-product-evidence",
         scope=PreferenceScope.GLOBAL_CONTENT,
         target_id=None,
@@ -426,8 +432,7 @@ def test_feedback_derived_preference_changes_a_later_distillation_request_only(
         _command(source_id, later_video_id, later_evidence_id, execution_id="feedback-run-b")
     ).status is DistillationExecutionStatus.SUCCEEDED
     assert repository.list_feedback() == (feedback,)
-    assert later_transport.commands[0].preference_ids == (derived.preference_id,)
-    assert tuple(item.statement for item in later_transport.commands[0].active_preferences) == (
+    assert later_transport.commands[0].personalization == (
         "Emphasize evidence-led product execution detail.",
     )
     assert policy.effective_policy(source_id) == before

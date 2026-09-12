@@ -32,10 +32,13 @@ from youtube_intel.state import (
     Availability,
     DependencyEdgeWrite,
     DependencyRelation,
+    DistillationCardWrite,
+    DistillationExecutionWrite,
     DistillationStyle,
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceTextBindingWrite,
     EvidenceWrite,
     IntegrityConflict,
     IntelligenceClaimKind,
@@ -45,6 +48,8 @@ from youtube_intel.state import (
     PreferenceProvenance,
     PreferenceScope,
     SQLiteStateRepository,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     VideoMetadata,
     WeeklyBriefMarkerKind,
     WeeklyBriefMarkerWrite,
@@ -144,6 +149,7 @@ def _admit(
     at: datetime,
     conclusion: str,
     claim_kind: IntelligenceClaimKind = IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+    bind_exact_text: bool = True,
 ) -> tuple[str, str, str]:
     repository.upsert_video_metadata(
         VideoMetadata(
@@ -193,20 +199,37 @@ def _admit(
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
         role=EvidenceRole.PRIMARY_ORIGINAL,
     )
-    repository.create_evidence(
-        EvidenceWrite(
-            evidence_id=evidence_id,
-            video_id=video_id,
-            artifact_id=artifact_id,
-            start_ms=1_000,
-            end_ms=1_500,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-            language="en",
-            availability=EvidenceAvailability.AVAILABLE,
-        ),
-        now=at,
+    evidence = EvidenceWrite(
+        evidence_id=evidence_id,
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=1_000,
+        end_ms=1_500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+        language="en",
+        availability=EvidenceAvailability.AVAILABLE,
     )
+    if bind_exact_text:
+        timed = TimedTranscriptWrite.from_cues(
+            video_id=video_id,
+            canonical_artifact_id=artifact_id,
+            cues=(TimedTranscriptCueWrite(start_ms=1_000, end_ms=1_500, text="Fixture canonical evidence."),),
+        )
+        repository.create_timed_transcript(timed, now=at)
+        repository.create_evidence_with_text_binding(
+            evidence,
+            EvidenceTextBindingWrite.from_timed_transcript(
+                evidence=evidence,
+                timed_transcript_id=timed.timed_transcript_id,
+                start_cue_index=0,
+                end_cue_index=1,
+                excerpt="Fixture canonical evidence.",
+            ),
+            now=at,
+        )
+    else:
+        repository.create_evidence(evidence, now=at)
     raw = json.dumps(
         {
             "core_conclusion": conclusion,
@@ -219,6 +242,49 @@ def _admit(
         },
         separators=(",", ":"),
     )
+    if not bind_exact_text:
+        execution_id = f"execution:{video_id}"
+        repository.begin_distillation_execution(
+            DistillationExecutionWrite(
+                execution_id=execution_id,
+                source_id=source_id,
+                video_id=video_id,
+                reason="WEEKLY_TEST_ADMISSION",
+                use_case="PERSONALIZED_INTELLIGENCE",
+                selected_provider="weekly-test-transport",
+                selected_model="deterministic-fixture",
+            ),
+            now=at,
+        )
+        record = repository.admit_distillation(
+            execution_id=execution_id,
+            intelligence_id=f"intelligence:distillation:{execution_id}",
+            revision_id=f"revision:distillation:{execution_id}",
+            claim_kind=claim_kind,
+            content_hash=sha256(
+                json.dumps(json.loads(raw), sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            evidence_ids=(evidence_id,),
+            card=DistillationCardWrite(
+                source_id=source_id,
+                video_id=video_id,
+                core_conclusion=conclusion,
+                user_relevant_information=(conclusion,),
+                important_new_information=(conclusion,),
+                meaningful_details=(conclusion,),
+                filtered_noise=(),
+                preference_ids=(),
+                source_policy_revision_id=None,
+            ),
+            actual_provider="weekly-test-transport",
+            actual_model="deterministic-fixture",
+            input_tokens=1,
+            output_tokens=1,
+            cost_microunits=1,
+            duration_ms=1,
+            now=at,
+        )
+        return record.intelligence_id or "", record.revision_id or "", evidence_id
     transport = _Transport(raw)
     result = PersonalizedDistillationService(
         repository,

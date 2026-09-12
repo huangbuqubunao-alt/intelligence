@@ -21,6 +21,7 @@ from youtube_intel.distillation import (
     DistillationCommand,
     DistillationTransportResult,
     PersonalizedDistillationService,
+    VerifiedDistillationInput,
 )
 from youtube_intel.domain import (
     Availability,
@@ -70,6 +71,7 @@ from youtube_intel.state import (
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceTextBindingWrite,
     EvidenceWrite,
     IntelligenceClaimKind,
     IntelligenceInterpretationKind,
@@ -84,6 +86,8 @@ from youtube_intel.state import (
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     StorageRoot,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     TopicAssociationKind,
     build_evidence_id,
 )
@@ -122,8 +126,8 @@ class _OfflineDemoTransport:
     def __init__(self, raw: str) -> None:
         self._raw = raw
 
-    def generate(self, command: DistillationCommand) -> DistillationTransportResult:
-        del command
+    def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
+        del verified_input
         return DistillationTransportResult(
             raw=self._raw,
             actual_provider=self.actual_provider,
@@ -332,6 +336,20 @@ def _seed_transcript(
         ),
         now=_NOW,
     )
+    repository.create_timed_transcript(_demo_timed_transcript(video_id), now=_NOW)
+
+
+def _demo_timed_transcript(video_id: str) -> TimedTranscriptWrite:
+    return TimedTranscriptWrite.from_cues(
+        video_id=video_id,
+        canonical_artifact_id=f"demo-transcript-{video_id}",
+        cues=(
+            TimedTranscriptCueWrite(0, 18_000, "00:00 The team begins with a customer decision log, not a feature list."),
+            TimedTranscriptCueWrite(18_000, 42_000, "00:18 Each weekly review compares the intended outcome with observed behavior."),
+            TimedTranscriptCueWrite(42_000, 70_000, "00:42 The roadmap stays small when owners record assumptions, evidence, and the next experiment."),
+            TimedTranscriptCueWrite(70_000, 90_000, "01:10 A release is complete only when the decision log explains what changed and why."),
+        ),
+    )
 
 
 def _seed_verified_scoring(
@@ -475,17 +493,26 @@ def _seed_verified_intelligence(
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
         role=EvidenceRole.PRIMARY_ORIGINAL,
     )
-    repository.create_evidence(
-        EvidenceWrite(
-            evidence_id=evidence_id,
-            video_id=video_id,
-            artifact_id=artifact_id,
-            start_ms=18_000,
-            end_ms=42_000,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-            language="en",
-            availability=EvidenceAvailability.AVAILABLE,
+    evidence = EvidenceWrite(
+        evidence_id=evidence_id,
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=18_000,
+        end_ms=42_000,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+        language="en",
+        availability=EvidenceAvailability.AVAILABLE,
+    )
+    timed = _demo_timed_transcript(video_id)
+    repository.create_evidence_with_text_binding(
+        evidence,
+        EvidenceTextBindingWrite.from_timed_transcript(
+            evidence=evidence,
+            timed_transcript_id=timed.timed_transcript_id,
+            start_cue_index=1,
+            end_cue_index=2,
+            excerpt="00:18 Each weekly review compares the intended outcome with observed behavior.",
         ),
         now=_NOW,
     )

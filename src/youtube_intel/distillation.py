@@ -77,6 +77,45 @@ class DistillationCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class VerifiedEvidenceInput:
+    """Exact TASK-018B Evidence projection permitted to reach a transport."""
+
+    evidence_id: str
+    start_ms: int
+    end_ms: int
+    excerpt: str
+    excerpt_hash: str
+    timed_transcript_id: str
+    timed_transcript_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedDistillationInput:
+    """Sealed, minimum-disclosure semantic input for one V1 distillation call.
+
+    This is source provenance, not an admission decision.  Source evidence is
+    deliberately a separate field from task/personalization instructions so a
+    future provider adapter cannot treat transcript text as system authority.
+    """
+
+    source_display_name: str | None
+    video_id: str
+    video_title: str | None
+    evidence: tuple[VerifiedEvidenceInput, ...]
+    personalization: tuple[str, ...]
+    source_focus_rules: tuple[str, ...]
+    source_ignore_rules: tuple[str, ...]
+    distillation_style: str | None
+    selected_provider: str
+    selected_model: str
+    semantic_hash: str
+
+    @property
+    def evidence_ids(self) -> tuple[str, ...]:
+        return tuple(item.evidence_id for item in self.evidence)
+
+
+@dataclass(frozen=True, slots=True)
 class DistillationTransportResult:
     raw: str
     actual_provider: str
@@ -117,7 +156,7 @@ class DistillationTransport(Protocol):
     actual_provider: str
     actual_model: str
 
-    def generate(self, command: DistillationCommand) -> DistillationTransportResult: ...
+    def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +224,7 @@ class PersonalizedDistillationService:
         evidence_ids: tuple[str, ...],
         selected_provider: str,
         selected_model: str,
+        verified_input_hash: str,
     ) -> str:
         canonical = json.dumps(
             {
@@ -195,11 +235,12 @@ class PersonalizedDistillationService:
                 "source_id": source_id,
                 "use_case": PersonalizedDistillationService._RESERVATION_USE_CASE,
                 "video_id": video_id,
+                "verified_input_hash": verified_input_hash,
             },
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-        return f"distillation:reservation:v1:{hashlib.sha256(canonical).hexdigest()}"
+        return f"distillation:reservation:v2:{hashlib.sha256(canonical).hexdigest()}"
 
     def _canonical_reservation_evidence(
         self, *, video_id: str, evidence_ids: tuple[str, ...]
@@ -226,15 +267,9 @@ class PersonalizedDistillationService:
 
     def _reserved_command(
         self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...]
-    ) -> DistillationCommand:
-        return DistillationCommand(
-            execution_id=self._reservation_id(
-                source_id=source_id,
-                video_id=video_id,
-                evidence_ids=evidence_ids,
-                selected_provider=self._selected_provider,
-                selected_model=self._selected_model,
-            ),
+    ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
+        base = DistillationCommand(
+            execution_id="",
             source_id=source_id,
             video_id=video_id,
             evidence_ids=evidence_ids,
@@ -242,6 +277,22 @@ class PersonalizedDistillationService:
             use_case=self._RESERVATION_USE_CASE,
             selected_provider=self._selected_provider,
             selected_model=self._selected_model,
+        )
+        projection = self._projection(base)
+        verified_input = self._compose_verified_input(projection)
+        return (
+            replace(
+                projection,
+                execution_id=self._reservation_id(
+                    source_id=source_id,
+                    video_id=video_id,
+                    evidence_ids=evidence_ids,
+                    selected_provider=self._selected_provider,
+                    selected_model=self._selected_model,
+                    verified_input_hash=verified_input.semantic_hash,
+                ),
+            ),
+            verified_input,
         )
 
     @staticmethod
@@ -270,13 +321,23 @@ class PersonalizedDistillationService:
         canonical_evidence = self._canonical_reservation_evidence(
             video_id=video_id, evidence_ids=evidence_ids
         )
-        command = self._reserved_command(
+        provisional = DistillationCommand(
+            execution_id="",
+            source_id=source_id,
+            video_id=video_id,
+            evidence_ids=canonical_evidence,
+            reason=self._RESERVATION_REASON,
+            use_case=self._RESERVATION_USE_CASE,
+            selected_provider=self._selected_provider,
+            selected_model=self._selected_model,
+        )
+        if not self._eligible(provisional):
+            raise ValueError("reservation source/video is not eligible")
+        if not self._legal_evidence(provisional):
+            raise ValueError("reservation evidence is not legal")
+        command, _ = self._reserved_command(
             source_id=source_id, video_id=video_id, evidence_ids=canonical_evidence
         )
-        if not self._eligible(command):
-            raise ValueError("reservation source/video is not eligible")
-        if not self._legal_evidence(command):
-            raise ValueError("reservation evidence is not legal")
         existing = self._repository.get_distillation_execution(command.execution_id)
         if existing is None:
             try:
@@ -432,11 +493,88 @@ class PersonalizedDistillationService:
             preference_ids=tuple(item.preference_id for item in projection.active_preferences),
         )
 
+    def _compose_verified_input(
+        self, projection: DistillationCommand
+    ) -> VerifiedDistillationInput:
+        """Resolve the sole provider-visible source content through TASK-018B.
+
+        The command remains identity/policy-only.  This boundary never reads an
+        Artifact body, filesystem path, subtitle source, or caller-provided
+        text: every excerpt comes from the m015 exact Evidence resolver.
+        """
+        if not self._legal_evidence(projection):
+            raise ValueError("verified provider input evidence is not legal")
+        source = self._repository.get_source_subscription(projection.source_id)
+        video = self._repository.get_video(projection.video_id)
+        if source is None or video is None:
+            raise ValueError("verified provider input target is unavailable")
+        evidence: list[VerifiedEvidenceInput] = []
+        for evidence_id in tuple(sorted(projection.evidence_ids)):
+            resolved = self._repository.resolve_verified_evidence_text(evidence_id)
+            if resolved is None or resolved.video_id != projection.video_id:
+                raise ValueError("verified provider input evidence is unbound or foreign")
+            evidence.append(
+                VerifiedEvidenceInput(
+                    evidence_id=resolved.evidence_id,
+                    start_ms=resolved.start_ms,
+                    end_ms=resolved.end_ms,
+                    excerpt=resolved.excerpt,
+                    excerpt_hash=resolved.excerpt_hash,
+                    timed_transcript_id=resolved.timed_transcript_id,
+                    timed_transcript_hash=resolved.timed_transcript_hash,
+                )
+            )
+        personalization = tuple(item.statement for item in projection.active_preferences)
+        semantic_payload = {
+            "distillation_style": projection.distillation_style,
+            "evidence": [
+                {
+                    "end_ms": item.end_ms,
+                    "evidence_id": item.evidence_id,
+                    "excerpt_hash": item.excerpt_hash,
+                    "start_ms": item.start_ms,
+                    "timed_transcript_hash": item.timed_transcript_hash,
+                    "timed_transcript_id": item.timed_transcript_id,
+                }
+                for item in evidence
+            ],
+            "personalization": personalization,
+            "selected_model": projection.selected_model,
+            "selected_provider": projection.selected_provider,
+            "source_focus_rules": projection.source_focus_rules,
+            "source_id": projection.source_id,
+            "source_ignore_rules": projection.source_ignore_rules,
+            "source_display_name": source.display_name,
+            "video_id": projection.video_id,
+            "video_title": video.title,
+        }
+        semantic_hash = hashlib.sha256(
+            json.dumps(
+                semantic_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+        return VerifiedDistillationInput(
+            source_display_name=source.display_name,
+            video_id=projection.video_id,
+            video_title=video.title,
+            evidence=tuple(evidence),
+            personalization=personalization,
+            source_focus_rules=projection.source_focus_rules,
+            source_ignore_rules=projection.source_ignore_rules,
+            distillation_style=projection.distillation_style,
+            selected_provider=projection.selected_provider,
+            selected_model=projection.selected_model,
+            semantic_hash=semantic_hash,
+        )
+
     def _dispatch_and_admit(
-        self, projection: DistillationCommand, decision: BudgetDecision
+        self,
+        projection: DistillationCommand,
+        verified_input: VerifiedDistillationInput,
+        decision: BudgetDecision,
     ) -> DistillationResult:
         try:
-            response = self._transport.generate(projection)
+            response = self._transport.generate(verified_input)
         except Exception:
             return self._finish_or_recover(
                 projection,
@@ -467,7 +605,7 @@ class PersonalizedDistillationService:
                 result=response,
             )
         try:
-            candidate = self._parse_candidate(response.raw, projection)
+            candidate = self._parse_candidate(response.raw, projection, verified_input)
             record = self._repository.admit_distillation(
                 execution_id=projection.execution_id,
                 intelligence_id=f"intelligence:distillation:{projection.execution_id}",
@@ -497,21 +635,21 @@ class PersonalizedDistillationService:
 
     def _reserved_command_from_record(
         self, record: DistillationExecutionRecord
-    ) -> DistillationCommand:
+    ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
         if (
             record.selected_provider != self._selected_provider
             or record.selected_model != self._selected_model
         ):
             raise ValueError("reserved execution model identity does not match TASK-022 transport")
         evidence_ids = self._repository.list_available_canonical_evidence_ids(record.video_id)
-        command = self._reserved_command(
+        command, verified_input = self._reserved_command(
             source_id=record.source_id,
             video_id=record.video_id,
             evidence_ids=evidence_ids,
         )
         if not self._same_execution_identity(record, command):
             raise StateStoreError("reserved execution context is not persistently reconstructible")
-        return command
+        return command, verified_input
 
     def _close_claimed_reservation_as_ambiguous(
         self, record: DistillationExecutionRecord
@@ -582,7 +720,22 @@ class PersonalizedDistillationService:
             and record.invocation_count == 0
         ):
             raise StateStoreError("distillation execution is not a safely reserved pre-dispatch state")
-        command = self._reserved_command_from_record(record)
+        if (
+            record.selected_provider != self._selected_provider
+            or record.selected_model != self._selected_model
+        ):
+            raise ValueError("reserved execution model identity does not match TASK-022 transport")
+        try:
+            command, verified_input = self._reserved_command_from_record(record)
+        except (StateStoreError, ValueError):
+            return self._finish_execution(
+                execution_id=record.execution_id,
+                status=DistillationExecutionStatus.REJECTED_EVIDENCE,
+                budget_state="NOT_CHECKED",
+                outcome="VERIFIED_INPUT_MISMATCH_OR_UNBOUND",
+                invocation_count=0,
+                result=None,
+            )
         if not self._eligible(command):
             return self._finish_or_recover(
                 command,
@@ -629,7 +782,7 @@ class PersonalizedDistillationService:
         )
         if not claimed:
             return self._recover_reserved_execution(projection.execution_id)
-        return self._dispatch_and_admit(projection, decision)
+        return self._dispatch_and_admit(projection, verified_input, decision)
 
     def _eligible(self, command: DistillationCommand) -> bool:
         source = self._repository.get_source_subscription(command.source_id)
@@ -689,7 +842,12 @@ class PersonalizedDistillationService:
             raise ValueError(f"{field_name} is invalid")
         return tuple(cls._text(item, field_name=field_name) for item in value)
 
-    def _parse_candidate(self, raw: str, command: DistillationCommand) -> _Candidate:
+    def _parse_candidate(
+        self,
+        raw: str,
+        command: DistillationCommand,
+        verified_input: VerifiedDistillationInput,
+    ) -> _Candidate:
         try:
             payload = json.loads(raw)
         except (TypeError, json.JSONDecodeError) as error:
@@ -709,7 +867,7 @@ class PersonalizedDistillationService:
         evidence = payload["evidence"]
         if not isinstance(evidence, list) or not evidence:
             raise ValueError("distillation evidence is missing")
-        expected_evidence_ids = set(command.evidence_ids)
+        expected_evidence_ids = set(verified_input.evidence_ids)
         cited_evidence_ids: set[str] = set()
         canonical_supports: dict[str, dict[str, int | str]] = {}
         for support in evidence:
@@ -803,6 +961,17 @@ class PersonalizedDistillationService:
                 invocation_count=0,
             )
         projection = self._projection(command)
+        try:
+            verified_input = self._compose_verified_input(projection)
+        except ValueError:
+            self._begin(projection)
+            return self._finish(
+                projection,
+                status=DistillationExecutionStatus.REJECTED_EVIDENCE,
+                budget_state="NOT_CHECKED",
+                outcome="VERIFIED_INPUT_UNBOUND_OR_INVALID",
+                invocation_count=0,
+            )
         self._begin(projection)
         decision = self._budget.check(projection)
         if not decision.allowed:
@@ -821,4 +990,4 @@ class PersonalizedDistillationService:
                 outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
-        return self._dispatch_and_admit(projection, decision)
+        return self._dispatch_and_admit(projection, verified_input, decision)

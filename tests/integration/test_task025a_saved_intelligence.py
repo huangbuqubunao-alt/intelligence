@@ -530,6 +530,7 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
         video_id="upgrade025a",
         at=WEEK_START,
         conclusion="Saved organization must not change prior domain state.",
+        bind_exact_text=False,
     )
     topics = TopicApplicationService(repository, now=lambda: WEEK_START)
     topic = topics.create_topic(command_id="saved-topic", name="Preserved Topic")

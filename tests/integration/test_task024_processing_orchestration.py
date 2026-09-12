@@ -50,10 +50,13 @@ from youtube_intel.state import (
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceTextBindingWrite,
     EvidenceWrite,
     LiveStatus,
     PolicyOverrideMode,
     SQLiteStateRepository,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     TopicAssociationKind,
     VideoMetadata,
     build_evidence_id,
@@ -209,17 +212,31 @@ def _video_with_evidence(
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
         role=EvidenceRole.PRIMARY_ORIGINAL,
     )
-    repository.create_evidence(
-        EvidenceWrite(
-            evidence_id=evidence_id,
-            video_id=video_id,
-            artifact_id=artifact_id,
-            start_ms=1_000,
-            end_ms=1_500,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-            language="en",
-            availability=EvidenceAvailability.AVAILABLE,
+    evidence = EvidenceWrite(
+        evidence_id=evidence_id,
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=1_000,
+        end_ms=1_500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+        language="en",
+        availability=EvidenceAvailability.AVAILABLE,
+    )
+    timed = TimedTranscriptWrite.from_cues(
+        video_id=video_id,
+        canonical_artifact_id=artifact_id,
+        cues=(TimedTranscriptCueWrite(start_ms=1_000, end_ms=1_500, text="Fixture canonical evidence."),),
+    )
+    repository.create_timed_transcript(timed, now=NOW)
+    repository.create_evidence_with_text_binding(
+        evidence,
+        EvidenceTextBindingWrite.from_timed_transcript(
+            evidence=evidence,
+            timed_transcript_id=timed.timed_transcript_id,
+            start_cue_index=0,
+            end_cue_index=1,
+            excerpt="Fixture canonical evidence.",
         ),
         now=NOW,
     )

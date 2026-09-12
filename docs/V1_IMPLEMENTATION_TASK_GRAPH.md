@@ -72,6 +72,16 @@ The dependency order is `TASK-018B -> TASK-022B -> TASK-022A -> real YouTube
 provider qualification`. This amendment enables no cloud transport, provider,
 Deep Analysis, TASK-016G, V2 work, or network activity.
 
+## Product Owner amendment — TASK-022B
+
+TASK-022B consumes TASK-018B's sole exact Evidence-text resolver to compose an
+immutable minimum-disclosure provider-input envelope. It adds no migration and
+does not enable cloud transport: an unbound legacy Evidence set fails closed,
+and the existing offline transport consumes the same semantic envelope. The
+reservation identity binds the verified provider-visible semantic hash, so
+content/personalization drift cannot dispatch under an old reservation. TASK-022A
+may begin only after this amendment is approved.
+
 ## Product Owner amendment — TASK-018A
 
 TASK-019 correctly blocked because m006 stored a revision's interpretation
