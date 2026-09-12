@@ -11,9 +11,11 @@ import pytest
 
 from youtube_intel.distillation import (
     BudgetDecision,
+    CloudDistillationAuthorization,
     DistillationCommand,
     DistillationExecutionStatus,
     DistillationTransportResult,
+    OpenAICloudDistillationTransport,
     PersonalizedDistillationService,
 )
 from youtube_intel.intelligence_read import (
@@ -109,6 +111,67 @@ class _RaisingTransport(_FakeTransport):
         self.calls += 1
         self.commands.append(command)
         raise RuntimeError("transport outcome is unknown")
+
+
+def test_cloud_transport_is_default_denied_and_never_invokes_wire_adapter() -> None:
+    calls: list[object] = []
+    transport = OpenAICloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(),
+        credential_resolver=lambda: "credential-not-used",
+        wire_transport=lambda request, credential, timeout, retries: calls.append(request) or {},
+    )
+
+    assert transport.available is False
+    assert transport.is_authorized_for(_verified_input_for_cloud_test()) is False
+    assert calls == []
+
+
+def test_cloud_transport_requires_explicit_eligibility_and_uses_no_retry_wire_contract() -> None:
+    calls: list[tuple[object, str, float, int]] = []
+    verified = _verified_input_for_cloud_test()
+    transport = OpenAICloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="openai",
+            model="gpt-test",
+            credential_available=True,
+            provider_available=True,
+            qualified=True,
+            authorized=True,
+        ),
+        credential_resolver=lambda: "test-credential",
+        wire_transport=lambda request, credential, timeout, retries: calls.append(
+            (request, credential, timeout, retries)
+        ) or {"output_text": "{}", "model": "gpt-test"},
+    )
+
+    response = transport.generate(verified)
+
+    assert response.actual_model == "gpt-test"
+    assert len(calls) == 1
+    request, credential, _timeout, retries = calls[0]
+    assert credential == "test-credential"
+    assert retries == 0
+    assert request["endpoint_identity"] == "openai-responses-v1"
+    assert [item["role"] for item in request["input"]] == ["system", "developer", "user"]
+
+
+def _verified_input_for_cloud_test():
+    from youtube_intel.distillation import VerifiedDistillationInput
+
+    return VerifiedDistillationInput(
+        source_display_name="Public source",
+        video_id="video-cloud",
+        video_title="Public video",
+        evidence=(),
+        personalization=(),
+        source_focus_rules=(),
+        source_ignore_rules=(),
+        distillation_style=None,
+        selected_provider="openai",
+        selected_model="gpt-test",
+        semantic_hash="a" * 64,
+    )
 
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
@@ -845,7 +908,7 @@ def test_service_rejects_non_offline_transport_before_any_execution(tmp_path: Pa
     transport = _FakeTransport("{}")
     transport.is_offline_test_transport = False
 
-    with pytest.raises(ValueError, match="offline deterministic"):
+    with pytest.raises(ValueError, match="transport kind is not legal"):
         _service(repository, transport)
     assert transport.calls == 0
 

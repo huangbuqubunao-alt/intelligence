@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
@@ -34,6 +34,13 @@ class DistillationExecutionStatus(str, Enum):
     REJECTED_OUTPUT = "REJECTED_OUTPUT"
     AMBIGUOUS = "AMBIGUOUS"
     SUCCEEDED = "SUCCEEDED"
+
+
+class DistillationTransportKind(str, Enum):
+    """The complete finite set of V1 distillation transport authorities."""
+
+    OFFLINE_TEST = "OFFLINE_TEST"
+    CLOUD_PRODUCTION = "CLOUD_PRODUCTION"
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +134,162 @@ class DistillationTransportResult:
 
 
 @dataclass(frozen=True, slots=True)
+class CloudDistillationAuthorization:
+    """Backend-owned gates for one OpenAI V1 cloud transport route.
+
+    This carries no credential and deliberately has no endpoint override.  A
+    qualification execution is scoped to one immutable verified-input hash;
+    ordinary production instead requires the qualified+authorized pair.
+    """
+
+    cloud_enabled: bool = False
+    provider: str | None = None
+    model: str | None = None
+    credential_available: bool = False
+    provider_available: bool = False
+    qualified: bool = False
+    authorized: bool = False
+    qualification_input_hash: str | None = None
+    qualification_max_calls: int = 1
+
+    def permits(self, verified_input: VerifiedDistillationInput) -> bool:
+        if not (
+            self.cloud_enabled
+            and self.provider == "openai"
+            and isinstance(self.model, str)
+            and bool(self.model.strip())
+            and self.credential_available
+            and self.provider_available
+            and verified_input.selected_provider == self.provider
+            and verified_input.selected_model == self.model
+        ):
+            return False
+        normal = self.qualified and self.authorized
+        qualification = (
+            self.qualification_input_hash == verified_input.semantic_hash
+            and self.qualification_max_calls == 1
+        )
+        return normal or qualification
+
+
+class CloudDistillationPreDispatchError(Exception):
+    """A known no-dispatch failure which must not be reclassified as ambiguity."""
+
+
+class _OpenAICloudWireTransport(Protocol):
+    def __call__(
+        self,
+        request: Mapping[str, object],
+        credential: str,
+        timeout_seconds: float,
+        max_retries: int,
+    ) -> Mapping[str, object]: ...
+
+
+class OpenAICloudDistillationTransport:
+    """One fixed-endpoint OpenAI adapter for the sealed V1 input boundary.
+
+    The injected wire boundary is intentionally the only potentially-networked
+    operation.  It receives zero retry budget; callers cannot supply an URL,
+    provider, model, transcript, or arbitrary provider messages.
+    """
+
+    transport_kind = DistillationTransportKind.CLOUD_PRODUCTION
+    is_offline_test_transport = False
+    _OFFICIAL_ENDPOINT_IDENTITY = "openai-responses-v1"
+    _TIMEOUT_SECONDS = 30.0
+
+    def __init__(
+        self,
+        *,
+        authorization: CloudDistillationAuthorization,
+        credential_resolver: Callable[[], str],
+        wire_transport: _OpenAICloudWireTransport,
+    ) -> None:
+        self._authorization = authorization
+        self._credential_resolver = credential_resolver
+        self._wire_transport = wire_transport
+
+    @property
+    def available(self) -> bool:
+        return self._authorization.provider_available
+
+    @property
+    def actual_provider(self) -> str:
+        return "openai"
+
+    @property
+    def actual_model(self) -> str:
+        return self._authorization.model or ""
+
+    def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
+        return self._authorization.permits(verified_input)
+
+    def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
+        if not self.is_authorized_for(verified_input):
+            raise CloudDistillationPreDispatchError("cloud distillation is not authorized")
+        credential = self._credential_resolver()
+        if not credential:
+            raise CloudDistillationPreDispatchError("cloud credential is unavailable")
+        try:
+            response = self._wire_transport(
+                self._request(verified_input), credential, self._TIMEOUT_SECONDS, 0
+            )
+        finally:
+            credential = ""
+        output = response.get("output_text")
+        model = response.get("model")
+        if not isinstance(output, str) or not isinstance(model, str) or not model:
+            raise ValueError("cloud provider response envelope is invalid")
+        usage = response.get("usage")
+        input_tokens = usage.get("input_tokens") if isinstance(usage, Mapping) else None
+        output_tokens = usage.get("output_tokens") if isinstance(usage, Mapping) else None
+        return DistillationTransportResult(
+            raw=output,
+            actual_provider="openai",
+            actual_model=model,
+            input_tokens=input_tokens if isinstance(input_tokens, int) and input_tokens >= 0 else None,
+            output_tokens=output_tokens if isinstance(output_tokens, int) and output_tokens >= 0 else None,
+            cost_microunits=None,
+            duration_ms=None,
+        )
+
+    @classmethod
+    def _request(cls, verified_input: VerifiedDistillationInput) -> dict[str, object]:
+        evidence = [
+            {
+                "evidence_id": item.evidence_id,
+                "start_ms": item.start_ms,
+                "end_ms": item.end_ms,
+                "excerpt": item.excerpt,
+            }
+            for item in verified_input.evidence
+        ]
+        source_payload = json.dumps(
+            {"video_id": verified_input.video_id, "video_title": verified_input.video_title, "evidence": evidence},
+            ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+        )
+        task_payload = json.dumps(
+            {"personalization": verified_input.personalization, "focus": verified_input.source_focus_rules,
+             "ignore": verified_input.source_ignore_rules, "style": verified_input.distillation_style},
+            ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+        )
+        return {
+            "endpoint_identity": cls._OFFICIAL_ENDPOINT_IDENTITY,
+            "model": verified_input.selected_model,
+            "input": [
+                {"role": "system", "content": "Return only the exact TASK-022 JSON schema."},
+                {"role": "developer", "content": f"TASK_AND_PERSONALIZATION={task_payload}"},
+                {"role": "user", "content": f"UNTRUSTED_SOURCE_EVIDENCE={source_payload}"},
+            ],
+            "store": False,
+            "truncation": "disabled",
+            "stream": False,
+            "max_retries": 0,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class DistillationResult:
     execution_id: str
     status: DistillationExecutionStatus
@@ -184,8 +347,15 @@ class PersonalizedDistillationService:
         *,
         now: Callable[[], datetime],
     ) -> None:
-        if not transport.is_offline_test_transport:
-            raise ValueError("TASK-022 accepts only offline deterministic transports")
+        kind = getattr(transport, "transport_kind", None)
+        if kind is None and transport.is_offline_test_transport:
+            kind = DistillationTransportKind.OFFLINE_TEST
+        if kind not in {DistillationTransportKind.OFFLINE_TEST, DistillationTransportKind.CLOUD_PRODUCTION}:
+            raise ValueError("TASK-022 transport kind is not legal")
+        if kind is DistillationTransportKind.OFFLINE_TEST and not transport.is_offline_test_transport:
+            raise ValueError("offline transport authority is invalid")
+        if kind is DistillationTransportKind.CLOUD_PRODUCTION and transport.is_offline_test_transport:
+            raise ValueError("cloud transport authority is invalid")
         if not transport.actual_provider.strip() or not transport.actual_model.strip():
             raise ValueError("offline transport identity is invalid")
         self._repository = repository
@@ -195,6 +365,10 @@ class PersonalizedDistillationService:
         self._now = now
         self._selected_provider = transport.actual_provider
         self._selected_model = transport.actual_model
+
+    def _transport_permits(self, verified_input: VerifiedDistillationInput) -> bool:
+        permits = getattr(self._transport, "is_authorized_for", None)
+        return True if permits is None else bool(permits(verified_input))
 
     def manual_command(
         self,
@@ -744,7 +918,7 @@ class PersonalizedDistillationService:
                 outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
-        if not self._transport.available:
+        if not self._transport_permits(verified_input) or not self._transport.available:
             return self._finish_or_recover(
                 projection,
                 status=DistillationExecutionStatus.WAITING_MODEL,
@@ -964,7 +1138,7 @@ class PersonalizedDistillationService:
                 outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
-        if not self._transport.available:
+        if not self._transport_permits(verified_input) or not self._transport.available:
             return self._finish(
                 projection,
                 status=DistillationExecutionStatus.WAITING_MODEL,
