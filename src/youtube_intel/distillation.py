@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
+from http.client import HTTPException, HTTPSConnection
 from typing import Protocol
 
 from youtube_intel.domain import Availability
@@ -135,7 +136,7 @@ class DistillationTransportResult:
 
 @dataclass(frozen=True, slots=True)
 class CloudDistillationAuthorization:
-    """Backend-owned gates for one OpenAI V1 cloud transport route.
+    """Backend-owned gates for the finite V1 cloud transport routes.
 
     This carries no credential and deliberately has no endpoint override.  A
     qualification execution is scoped to one immutable verified-input hash;
@@ -155,7 +156,7 @@ class CloudDistillationAuthorization:
     def permits(self, verified_input: VerifiedDistillationInput) -> bool:
         if not (
             self.cloud_enabled
-            and self.provider == "openai"
+            and self.provider in {"openai", "nvidia_nim"}
             and isinstance(self.model, str)
             and bool(self.model.strip())
             and self.credential_available
@@ -184,6 +185,70 @@ class _OpenAICloudWireTransport(Protocol):
         timeout_seconds: float,
         max_retries: int,
     ) -> Mapping[str, object]: ...
+
+
+class _NvidiaNimCloudWireTransport(Protocol):
+    def __call__(
+        self,
+        endpoint: str,
+        request: Mapping[str, object],
+        credential: str,
+        timeout_seconds: float,
+        max_retries: int,
+    ) -> Mapping[str, object]: ...
+
+
+_NVIDIA_NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
+_NVIDIA_NIM_HOST = "integrate.api.nvidia.com"
+_NVIDIA_NIM_PATH = "/v1/chat/completions"
+_NVIDIA_NIM_PROVIDER = "nvidia_nim"
+_NVIDIA_NIM_MODEL = "moonshotai/kimi-k3"
+_NVIDIA_NIM_MAX_RESPONSE_BYTES = 2_000_000
+
+
+def _nvidia_nim_http_transport(
+    endpoint: str,
+    request: Mapping[str, object],
+    credential: str,
+    timeout_seconds: float,
+    max_retries: int,
+) -> Mapping[str, object]:
+    """Perform one bounded POST to the fixed official NVIDIA NIM authority."""
+
+    if endpoint != _NVIDIA_NIM_ENDPOINT or max_retries != 0:
+        raise RuntimeError("NVIDIA NIM transport policy is invalid")
+    body = json.dumps(
+        request, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    connection = HTTPSConnection(_NVIDIA_NIM_HOST, timeout=timeout_seconds)
+    try:
+        connection.request(
+            "POST",
+            _NVIDIA_NIM_PATH,
+            body=body,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {credential}",
+                "Content-Type": "application/json",
+            },
+        )
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError("NVIDIA NIM response was not complete")
+        response_bytes = response.read(_NVIDIA_NIM_MAX_RESPONSE_BYTES + 1)
+    except (HTTPException, OSError, TimeoutError):
+        raise RuntimeError("NVIDIA NIM transport outcome is not confirmed") from None
+    finally:
+        connection.close()
+    if len(response_bytes) > _NVIDIA_NIM_MAX_RESPONSE_BYTES:
+        raise RuntimeError("NVIDIA NIM response exceeded the capture bound")
+    try:
+        decoded = json.loads(response_bytes.decode("utf-8", errors="strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise RuntimeError("NVIDIA NIM response envelope is invalid") from None
+    if not isinstance(decoded, Mapping):
+        raise RuntimeError("NVIDIA NIM response envelope is invalid")
+    return decoded
 
 
 class OpenAICloudDistillationTransport:
@@ -223,7 +288,11 @@ class OpenAICloudDistillationTransport:
         return self._authorization.model or ""
 
     def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
-        return self._authorization.permits(verified_input)
+        return (
+            self._authorization.provider == "openai"
+            and verified_input.selected_provider == "openai"
+            and self._authorization.permits(verified_input)
+        )
 
     def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
         if not self.is_authorized_for(verified_input):
@@ -286,6 +355,158 @@ class OpenAICloudDistillationTransport:
             "truncation": "disabled",
             "stream": False,
             "max_retries": 0,
+        }
+
+
+class NvidiaNimCloudDistillationTransport:
+    """Fixed-authority NVIDIA NIM adapter for one sealed V1 distillation input."""
+
+    transport_kind = DistillationTransportKind.CLOUD_PRODUCTION
+    is_offline_test_transport = False
+    _TIMEOUT_SECONDS = 120.0
+
+    def __init__(
+        self,
+        *,
+        authorization: CloudDistillationAuthorization,
+        credential_resolver: Callable[[], str],
+        wire_transport: _NvidiaNimCloudWireTransport = _nvidia_nim_http_transport,
+    ) -> None:
+        self._authorization = authorization
+        self._credential_resolver = credential_resolver
+        self._wire_transport = wire_transport
+
+    @property
+    def available(self) -> bool:
+        return self._authorization.provider_available
+
+    @property
+    def actual_provider(self) -> str:
+        return _NVIDIA_NIM_PROVIDER
+
+    @property
+    def actual_model(self) -> str:
+        return _NVIDIA_NIM_MODEL
+
+    def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
+        return (
+            type(verified_input) is VerifiedDistillationInput
+            and bool(verified_input.evidence)
+            and self._authorization.provider == _NVIDIA_NIM_PROVIDER
+            and self._authorization.model == _NVIDIA_NIM_MODEL
+            and verified_input.selected_provider == _NVIDIA_NIM_PROVIDER
+            and verified_input.selected_model == _NVIDIA_NIM_MODEL
+            and self._authorization.permits(verified_input)
+        )
+
+    def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
+        if not self.is_authorized_for(verified_input):
+            raise CloudDistillationPreDispatchError("cloud distillation is not authorized")
+        try:
+            credential = self._credential_resolver()
+        except Exception:
+            raise CloudDistillationPreDispatchError("cloud credential is unavailable") from None
+        if not credential:
+            raise CloudDistillationPreDispatchError("cloud credential is unavailable")
+        try:
+            try:
+                response = self._wire_transport(
+                    _NVIDIA_NIM_ENDPOINT,
+                    self._request(verified_input),
+                    credential,
+                    self._TIMEOUT_SECONDS,
+                    0,
+                )
+            except Exception:
+                raise RuntimeError("NVIDIA NIM transport outcome is not confirmed") from None
+        finally:
+            credential = ""
+        model = response.get("model")
+        choices = response.get("choices")
+        if (
+            not isinstance(model, str)
+            or not model
+            or not isinstance(choices, Sequence)
+            or isinstance(choices, (str, bytes, bytearray))
+            or not choices
+            or not isinstance(choices[0], Mapping)
+        ):
+            raise ValueError("cloud provider response envelope is invalid")
+        message = choices[0].get("message")
+        output = message.get("content") if isinstance(message, Mapping) else None
+        if not isinstance(output, str):
+            raise ValueError("cloud provider response envelope is invalid")
+        usage = response.get("usage")
+        input_tokens = usage.get("prompt_tokens") if isinstance(usage, Mapping) else None
+        output_tokens = usage.get("completion_tokens") if isinstance(usage, Mapping) else None
+        return DistillationTransportResult(
+            raw=output,
+            actual_provider=_NVIDIA_NIM_PROVIDER,
+            actual_model=model,
+            input_tokens=input_tokens if isinstance(input_tokens, int) and input_tokens >= 0 else None,
+            output_tokens=output_tokens if isinstance(output_tokens, int) and output_tokens >= 0 else None,
+            cost_microunits=None,
+            duration_ms=None,
+        )
+
+    @staticmethod
+    def _request(verified_input: VerifiedDistillationInput) -> dict[str, object]:
+        evidence = [
+            {
+                "evidence_id": item.evidence_id,
+                "start_ms": item.start_ms,
+                "end_ms": item.end_ms,
+                "excerpt": item.excerpt,
+                "excerpt_hash": item.excerpt_hash,
+                "timed_transcript_id": item.timed_transcript_id,
+                "timed_transcript_hash": item.timed_transcript_hash,
+            }
+            for item in verified_input.evidence
+        ]
+        task_payload = json.dumps(
+            {
+                "distillation_style": verified_input.distillation_style,
+                "focus": verified_input.source_focus_rules,
+                "ignore": verified_input.source_ignore_rules,
+                "personalization": verified_input.personalization,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        source_payload = json.dumps(
+            {
+                "evidence": evidence,
+                "source_display_name": verified_input.source_display_name,
+                "video_id": verified_input.video_id,
+                "video_title": verified_input.video_title,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        schema_contract = (
+            "Return only one JSON object with exactly these keys: core_conclusion, "
+            "user_relevant_information, important_new_information, meaningful_details, "
+            "filtered_noise, claim_kind, evidence. core_conclusion must be a non-empty "
+            "string. The four information/noise fields must be arrays of strings. "
+            "claim_kind must be exactly one of FACT, EVIDENCE_BACKED_STATEMENT, OPINION, "
+            "PREDICTION, RUMOR, SYSTEM_INFERENCE. evidence must cite every supplied "
+            "evidence item exactly once using only evidence_id, start_ms, end_ms copied "
+            "exactly from the source payload. Do not use markdown fences or extra text."
+        )
+        return {
+            "model": _NVIDIA_NIM_MODEL,
+            "messages": [
+                {"role": "system", "content": schema_contract},
+                {"role": "system", "content": f"TASK_AND_PERSONALIZATION={task_payload}"},
+                {"role": "user", "content": f"UNTRUSTED_SOURCE_EVIDENCE={source_payload}"},
+            ],
+            "max_tokens": 4_096,
+            "reasoning_effort": "low",
+            "seed": 0,
+            "stream": False,
+            "temperature": 0.0,
         }
 
 

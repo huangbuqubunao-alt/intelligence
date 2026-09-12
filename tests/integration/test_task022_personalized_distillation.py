@@ -12,9 +12,11 @@ import pytest
 from youtube_intel.distillation import (
     BudgetDecision,
     CloudDistillationAuthorization,
+    CloudDistillationPreDispatchError,
     DistillationCommand,
     DistillationExecutionStatus,
     DistillationTransportResult,
+    NvidiaNimCloudDistillationTransport,
     OpenAICloudDistillationTransport,
     PersonalizedDistillationService,
 )
@@ -156,6 +158,146 @@ def test_cloud_transport_requires_explicit_eligibility_and_uses_no_retry_wire_co
     assert [item["role"] for item in request["input"]] == ["system", "developer", "user"]
 
 
+def test_openai_transport_rejects_nvidia_authorization_before_credential_or_wire() -> None:
+    credential_resolutions = 0
+    calls: list[object] = []
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "credential-not-used"
+
+    transport = OpenAICloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualified=True,
+            authorized=True,
+        ),
+        credential_resolver=resolve_credential,
+        wire_transport=lambda request, credential, timeout, retries: calls.append(request)
+        or {},
+    )
+    verified = _verified_input_for_nvidia_nim_test()
+
+    assert transport.is_authorized_for(verified) is False
+    with pytest.raises(CloudDistillationPreDispatchError, match="not authorized"):
+        transport.generate(verified)
+    assert credential_resolutions == 0
+    assert calls == []
+
+
+def test_nvidia_nim_transport_is_default_denied_before_credential_or_http_boundary() -> None:
+    credential_resolutions = 0
+    calls: list[object] = []
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "credential-not-used"
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(),
+        credential_resolver=resolve_credential,
+        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
+            request
+        )
+        or {},
+    )
+
+    assert transport.available is False
+    assert transport.is_authorized_for(_verified_input_for_nvidia_nim_test()) is False
+    assert credential_resolutions == 0
+    assert calls == []
+
+
+def test_nvidia_nim_transport_uses_fixed_endpoint_model_and_zero_retry_contract() -> None:
+    calls: list[tuple[str, object, str, float, int]] = []
+    verified = _verified_input_for_nvidia_nim_test()
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+        ),
+        credential_resolver=lambda: "test-only-nvidia-credential",
+        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
+            (endpoint, request, credential, timeout, retries)
+        )
+        or {
+            "id": "request-fixture",
+            "model": "moonshotai/kimi-k3",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": "{}", "role": "assistant"},
+                }
+            ],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 45},
+        },
+    )
+
+    response = transport.generate(verified)
+
+    assert response.actual_provider == "nvidia_nim"
+    assert response.actual_model == "moonshotai/kimi-k3"
+    assert response.input_tokens == 120
+    assert response.output_tokens == 45
+    assert len(calls) == 1
+    endpoint, request, credential, _timeout, retries = calls[0]
+    assert endpoint == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert credential == "test-only-nvidia-credential"
+    assert retries == 0
+    assert request["model"] == "moonshotai/kimi-k3"
+    assert request["stream"] is False
+    assert "response_format" not in request
+    assert [item["role"] for item in request["messages"]] == ["system", "system", "user"]
+    assert "test-only-nvidia-credential" not in json.dumps(request, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    ("provider", "model"),
+    [
+        ("openai", "moonshotai/kimi-k3"),
+        ("nvidia_nim", "kimi-k3"),
+        ("nvidia_nim", "moonshotai/kimi-k2-thinking"),
+    ],
+)
+def test_nvidia_nim_transport_rejects_provider_or_model_substitution_before_dispatch(
+    provider: str, model: str
+) -> None:
+    verified = _verified_input_for_nvidia_nim_test()
+    calls: list[object] = []
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider=provider,
+            model=model,
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+        ),
+        credential_resolver=lambda: "credential-not-used",
+        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
+            request
+        )
+        or {},
+    )
+
+    assert transport.is_authorized_for(verified) is False
+    with pytest.raises(CloudDistillationPreDispatchError, match="not authorized"):
+        transport.generate(verified)
+    assert calls == []
+
+
 def _verified_input_for_cloud_test():
     from youtube_intel.distillation import VerifiedDistillationInput
 
@@ -171,6 +313,37 @@ def _verified_input_for_cloud_test():
         selected_provider="openai",
         selected_model="gpt-test",
         semantic_hash="a" * 64,
+    )
+
+
+def _verified_input_for_nvidia_nim_test():
+    from youtube_intel.distillation import (
+        VerifiedDistillationInput,
+        VerifiedEvidenceInput,
+    )
+
+    return VerifiedDistillationInput(
+        source_display_name="Public source",
+        video_id="video-nvidia-nim",
+        video_title="Public video",
+        evidence=(
+            VerifiedEvidenceInput(
+                evidence_id="evidence-nvidia-nim",
+                start_ms=1_000,
+                end_ms=2_000,
+                excerpt="A bounded public evidence excerpt.",
+                excerpt_hash="c" * 64,
+                timed_transcript_id="timed-nvidia-nim",
+                timed_transcript_hash="d" * 64,
+            ),
+        ),
+        personalization=("Prefer actionable product lessons.",),
+        source_focus_rules=("AI infrastructure",),
+        source_ignore_rules=("sponsor messages",),
+        distillation_style="BALANCED",
+        selected_provider="nvidia_nim",
+        selected_model="moonshotai/kimi-k3",
+        semantic_hash="b" * 64,
     )
 
 
@@ -337,6 +510,243 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
         selected_provider="test-transport",
         selected_model="deterministic-v1",
     )
+
+
+def _nvidia_nim_command(
+    source_id: str,
+    video_id: str,
+    evidence_id: str,
+    *,
+    execution_id: str,
+) -> DistillationCommand:
+    return DistillationCommand(
+        execution_id=execution_id,
+        source_id=source_id,
+        video_id=video_id,
+        evidence_ids=(evidence_id,),
+        reason="MANUAL_PERSONALIZED_DISTILLATION",
+        use_case="PERSONALIZED_INTELLIGENCE",
+        selected_provider="nvidia_nim",
+        selected_model="moonshotai/kimi-k3",
+    )
+
+
+def test_nvidia_nim_transport_runs_exact_task022_admission_and_authoritative_read(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    calls: list[tuple[str, object, str, float, int]] = []
+
+    def wire_transport(endpoint, request, credential, timeout, retries):
+        calls.append((endpoint, request, credential, timeout, retries))
+        return {
+            "id": "fixture-nvidia-request",
+            "model": "moonshotai/kimi-k3",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": _raw(evidence_id), "role": "assistant"},
+                }
+            ],
+            "usage": {"prompt_tokens": 210, "completion_tokens": 80},
+        }
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualified=True,
+            authorized=True,
+        ),
+        credential_resolver=lambda: "synthetic-nvidia-credential",
+        wire_transport=wire_transport,
+    )
+    command = _nvidia_nim_command(
+        source_id, video_id, evidence_id, execution_id="nvidia-success"
+    )
+
+    result = _service(repository, transport).distill(command)  # type: ignore[arg-type]
+
+    assert result.status is DistillationExecutionStatus.SUCCEEDED
+    assert len(calls) == 1
+    endpoint, request, credential, _timeout, retries = calls[0]
+    assert endpoint == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert credential == "synthetic-nvidia-credential"
+    assert retries == 0
+    assert "synthetic-nvidia-credential" not in json.dumps(request, sort_keys=True)
+    evidence_payload = json.loads(request["messages"][2]["content"].removeprefix("UNTRUSTED_SOURCE_EVIDENCE="))
+    assert evidence_payload["evidence"] == [
+        {
+            "evidence_id": evidence_id,
+            "start_ms": 1_000,
+            "end_ms": 1_500,
+            "excerpt": "Fixture canonical evidence.",
+            "excerpt_hash": repository.resolve_verified_evidence_text(evidence_id).excerpt_hash,
+            "timed_transcript_id": repository.resolve_verified_evidence_text(evidence_id).timed_transcript_id,
+            "timed_transcript_hash": repository.resolve_verified_evidence_text(evidence_id).timed_transcript_hash,
+        }
+    ]
+    card = AuthoritativeIntelligenceReader(repository).read_current_card(
+        result.intelligence_id or ""
+    )
+    assert card.verified.evidence_ids == (evidence_id,)
+    ledger = repository.get_distillation_resource_usage(command.execution_id)
+    assert ledger.selected_provider == "nvidia_nim"
+    assert ledger.selected_model == "moonshotai/kimi-k3"
+    assert ledger.actual_provider == "nvidia_nim"
+    assert ledger.actual_model == "moonshotai/kimi-k3"
+    assert ledger.input_tokens == 210 and ledger.output_tokens == 80
+
+
+@pytest.mark.parametrize("raw", ("{not-json", "```json\n{}\n```"))
+def test_nvidia_nim_malformed_output_fails_closed_without_repair_or_redispatch(
+    tmp_path: Path, raw: str
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    calls = 0
+
+    def wire_transport(endpoint, request, credential, timeout, retries):
+        nonlocal calls
+        calls += 1
+        return {
+            "id": "fixture-malformed",
+            "model": "moonshotai/kimi-k3",
+            "choices": [{"finish_reason": "stop", "message": {"content": raw}}],
+        }
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualified=True,
+            authorized=True,
+        ),
+        credential_resolver=lambda: "synthetic-nvidia-credential",
+        wire_transport=wire_transport,
+    )
+    command = _nvidia_nim_command(
+        source_id, video_id, evidence_id, execution_id=f"nvidia-malformed-{len(raw)}"
+    )
+    service = _service(repository, transport)  # type: ignore[arg-type]
+
+    first = service.distill(command)
+    second = service.distill(command)
+
+    assert first.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert second == first
+    assert calls == 1
+    assert repository.list_distillation_cards() == ()
+
+
+def test_nvidia_nim_wire_error_is_sanitized_without_credential_value() -> None:
+    verified = _verified_input_for_nvidia_nim_test()
+    secret = "synthetic-nvidia-secret-sentinel"
+
+    def wire_transport(endpoint, request, credential, timeout, retries):
+        raise RuntimeError(f"unsafe wire detail {credential}")
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+        ),
+        credential_resolver=lambda: secret,
+        wire_transport=wire_transport,
+    )
+
+    with pytest.raises(RuntimeError) as error:
+        transport.generate(verified)
+    assert secret not in str(error.value)
+    assert secret not in repr(error.value)
+
+
+def test_nvidia_nim_default_http_boundary_is_fully_mocked_and_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verified = _verified_input_for_nvidia_nim_test()
+    credential = "synthetic-http-credential"
+    connections: list[tuple[str, float]] = []
+    requests: list[tuple[str, str, bytes, dict[str, str]]] = []
+
+    class FakeHttpResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exception_type, exception, traceback):
+            return False
+
+        def read(self, maximum_bytes: int) -> bytes:
+            assert maximum_bytes == 2_000_001
+            return json.dumps(
+                {
+                    "id": "mock-http-response",
+                    "model": "moonshotai/kimi-k3",
+                    "choices": [{"message": {"content": "{}"}}],
+                },
+                separators=(",", ":"),
+            ).encode()
+
+    class FakeHttpsConnection:
+        def __init__(self, host: str, *, timeout: float) -> None:
+            connections.append((host, timeout))
+
+        def request(
+            self, method: str, path: str, *, body: bytes, headers: dict[str, str]
+        ) -> None:
+            requests.append((method, path, body, headers))
+
+        def getresponse(self) -> FakeHttpResponse:
+            return FakeHttpResponse()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "youtube_intel.distillation.HTTPSConnection", FakeHttpsConnection
+    )
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+        ),
+        credential_resolver=lambda: credential,
+    )
+
+    response = transport.generate(verified)
+
+    assert response.actual_model == "moonshotai/kimi-k3"
+    assert connections == [("integrate.api.nvidia.com", 120.0)]
+    assert len(requests) == 1
+    method, path, request_body, headers = requests[0]
+    assert method == "POST"
+    assert path == "/v1/chat/completions"
+    assert headers["Authorization"] == f"Bearer {credential}"
+    assert headers["Accept"] == "application/json"
+    body = json.loads(request_body)
+    assert body["model"] == "moonshotai/kimi-k3"
+    assert body["stream"] is False
 
 
 def test_fresh_database_reaches_exactly_v016_with_ambiguous_ledger_schema(tmp_path: Path) -> None:
