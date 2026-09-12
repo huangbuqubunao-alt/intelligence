@@ -136,7 +136,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     return repository
 
 
@@ -402,7 +402,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 15
+    assert reopened.initialize(now=NOW).version == 16
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -613,13 +613,14 @@ def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Pa
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
     assert "012_add_source_run_orchestration.sql" in migrations
     assert "013_add_weekly_brief_foundation.sql" in migrations
     assert "015_add_timed_transcript_evidence_bindings.sql" in migrations
+    assert "016_add_ambiguous_resource_ledger_outcome.sql" in migrations
 
 
 def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
@@ -736,7 +737,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 15
+    assert reopened.initialize(now=NOW).version == 16
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

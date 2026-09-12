@@ -36,18 +36,18 @@ NOW = datetime(2026, 9, 8, 10, tzinfo=UTC)
 
 def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     connection = repository._connect()
     try:
         assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         names = [
             row[0]
             for row in connection.execute(
                 "SELECT name FROM schema_migrations ORDER BY version"
             )
         ]
-        assert names[-1] == "015_add_timed_transcript_evidence_bindings.sql"
+        assert names[-1] == "016_add_ambiguous_resource_ledger_outcome.sql"
         assert any(name.startswith("015_") for name in names)
     finally:
         connection.close()
@@ -605,7 +605,7 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
         }
     )
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 15
+    assert upgraded.initialize(now=NOW).version == 16
     assert _domain_rows(upgraded) == before
     service = SavedIntelligenceService(upgraded, now=lambda: NOW)
     assert service.list_saved().items == ()
@@ -613,7 +613,7 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
     assert _domain_rows(upgraded) == before
     service.unsave(UnsaveIntelligence(intelligence_id))
     assert _domain_rows(upgraded) == before
-    assert SQLiteStateRepository(path).initialize(now=NOW).version == 15
+    assert SQLiteStateRepository(path).initialize(now=NOW).version == 16
     assert _domain_rows(upgraded) == before
 
 
@@ -650,7 +650,7 @@ def test_m014_failure_rolls_back_and_checksum_mismatch_fails_closed(
     finally:
         connection.close()
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     modified = replace(migrations[13], checksum="0" * 64)
     monkeypatch.setattr(
         repository, "_load_migrations", lambda: (*migrations[:13], modified)

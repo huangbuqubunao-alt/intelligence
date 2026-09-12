@@ -113,7 +113,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     return repository
 
 
@@ -344,7 +344,7 @@ def test_reopen_continues_only_from_persisted_reservation_state(tmp_path: Path) 
         source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 15
+    assert reopened.initialize(now=NOW).version == 16
     transport = _Transport(_raw(evidence_id))
 
     result = _service(reopened, transport).continue_reserved_distillation(reservation.execution_id)
@@ -526,9 +526,10 @@ def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_pat
     assert alternate_transport.calls == 0
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
     assert "013_add_weekly_brief_foundation.sql" in migrations
     assert any(name.startswith("015_") for name in migrations)
+    assert any(name.startswith("016_") for name in migrations)

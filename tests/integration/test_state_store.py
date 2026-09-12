@@ -809,12 +809,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "015_add_timed_transcript_evidence_bindings.sql")
+        .joinpath("migrations", "016_add_ambiguous_resource_ledger_outcome.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 15
-    assert first.name == "015_add_timed_transcript_evidence_bindings.sql"
+    assert first.version == 16
+    assert first.name == "016_add_ambiguous_resource_ledger_outcome.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -829,7 +829,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 15
+    assert migration_count == 16
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:

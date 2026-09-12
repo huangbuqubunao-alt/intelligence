@@ -31,7 +31,7 @@ NOW = datetime(2026, 9, 12, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     return repository
 
 
@@ -68,7 +68,7 @@ def _timed(repository: SQLiteStateRepository, *, video_id: str = "video-018b") -
     return artifact_id, timed.timed_transcript_id
 
 
-def test_v014_upgrade_reaches_v15_without_backfilling_legacy_evidence(
+def test_v014_upgrade_reaches_v16_without_backfilling_legacy_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
@@ -85,7 +85,7 @@ def test_v014_upgrade_reaches_v15_without_backfilling_legacy_evidence(
         language="en", availability=EvidenceAvailability.AVAILABLE,
     )
     repository.create_evidence(evidence, now=NOW)
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     assert repository.resolve_verified_evidence_text(evidence.evidence_id) is None
 
 

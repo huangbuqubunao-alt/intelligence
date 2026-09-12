@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from youtube_intel.source_policy import (
 from youtube_intel.state import (
     Availability,
     DistillationStyle,
+    DistillationExecutionWrite,
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
@@ -111,7 +113,7 @@ class _RaisingTransport(_FakeTransport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     return repository
 
 
@@ -274,12 +276,12 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
     )
 
 
-def test_fresh_database_reaches_exactly_v015_with_timed_evidence_schema(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v016_with_ambiguous_ledger_schema(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -293,8 +295,10 @@ def test_fresh_database_reaches_exactly_v015_with_timed_evidence_schema(tmp_path
     finally:
         connection.close()
 
-    assert migrations[-1] == "015_add_timed_transcript_evidence_bindings.sql"
+    assert migrations[-1] == "016_add_ambiguous_resource_ledger_outcome.sql"
     assert any(name.startswith("015_") for name in migrations)
+    assert any(name.startswith("016_") for name in migrations)
+    assert not any(name.startswith("017_") for name in migrations)
     assert "topics" in tables
 
 
@@ -315,10 +319,129 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 15
+    assert upgraded.initialize(now=NOW).version == 16
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
+
+
+def test_v015_upgrade_preserves_ledger_rows_constraints_and_immutability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "state.sqlite3"
+    legacy = SQLiteStateRepository(path)
+    migrations = legacy._load_migrations()
+    monkeypatch.setattr(legacy, "_load_migrations", lambda: migrations[:15])
+    assert legacy.initialize(now=NOW).version == 15
+    source_id, video_id = _source_and_video(legacy)
+    execution_id = "exec-v015-ledger"
+    legacy.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=execution_id,
+            source_id=source_id,
+            video_id=video_id,
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="test-transport",
+            selected_model="deterministic-v1",
+        ),
+        now=NOW,
+    )
+    legacy.finish_distillation_without_admission(
+        execution_id=execution_id,
+        status="WAITING_MODEL",
+        budget_state="MODEL_UNAVAILABLE",
+        outcome="MODEL_UNAVAILABLE",
+        invocation_count=0,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+    connection = legacy._connect()
+    try:
+        before_row = tuple(
+            connection.execute(
+                "SELECT * FROM distillation_resource_usage WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+        )
+        before_indexes = tuple(
+            tuple(row) for row in connection.execute("PRAGMA index_list(distillation_resource_usage)")
+        )
+        before_foreign_keys = tuple(
+            tuple(row) for row in connection.execute("PRAGMA foreign_key_list(distillation_resource_usage)")
+        )
+    finally:
+        connection.close()
+    monkeypatch.undo()
+
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 16
+    connection = upgraded._connect()
+    try:
+        after_row = tuple(
+            connection.execute(
+                "SELECT * FROM distillation_resource_usage WHERE execution_id = ?", (execution_id,)
+            ).fetchone()
+        )
+        assert before_row == after_row
+        assert before_indexes == tuple(
+            tuple(row) for row in connection.execute("PRAGMA index_list(distillation_resource_usage)")
+        )
+        assert before_foreign_keys == tuple(
+            tuple(row) for row in connection.execute("PRAGMA foreign_key_list(distillation_resource_usage)")
+        )
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE distillation_resource_usage SET outcome = 'FORGED' WHERE execution_id = ?",
+                (execution_id,),
+            )
+    finally:
+        connection.close()
+
+
+def test_ledger_sql_rejects_unknown_status_and_nonambiguous_unknown_identity(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    for execution_id in ("exec-unknown-status", "exec-unknown-identity"):
+        repository.begin_distillation_execution(
+            DistillationExecutionWrite(
+                execution_id=execution_id,
+                source_id=source_id,
+                video_id=video_id,
+                reason="MANUAL_PERSONALIZED_DISTILLATION",
+                use_case="PERSONALIZED_INTELLIGENCE",
+                selected_provider="test-transport",
+                selected_model="deterministic-v1",
+            ),
+            now=NOW,
+        )
+    connection = repository._connect()
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO distillation_resource_usage "
+                "(execution_id, reason, use_case, source_id, video_id, selected_provider, "
+                "selected_model, status, invocation_count, budget_state, outcome, created_at) "
+                "VALUES (?, 'reason', 'use-case', ?, ?, 'test-transport', 'deterministic-v1', "
+                "'ARBITRARY', 0, 'UNKNOWN', 'UNKNOWN', ?)",
+                ("exec-unknown-status", source_id, video_id, "2026-09-07T09:00:00.000000Z"),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO distillation_resource_usage "
+                "(execution_id, reason, use_case, source_id, video_id, selected_provider, "
+                "selected_model, status, invocation_count, budget_state, outcome, created_at) "
+                "VALUES (?, 'reason', 'use-case', ?, ?, 'test-transport', 'deterministic-v1', "
+                "'REJECTED_OUTPUT', 1, 'UNKNOWN', 'UNKNOWN', ?)",
+                ("exec-unknown-identity", source_id, video_id, "2026-09-07T09:00:00.000000Z"),
+            )
+    finally:
+        connection.close()
 
 
 def test_personalization_projection_is_active_only_and_never_mutates_source_policy(tmp_path: Path) -> None:
@@ -741,7 +864,53 @@ def test_ambiguous_transport_outcome_is_not_automatically_retried(tmp_path: Path
     assert first.status is DistillationExecutionStatus.AMBIGUOUS
     assert second == first
     assert transport.calls == 1
-    assert repository.get_distillation_resource_usage(command.execution_id).outcome == "TRANSPORT_OUTCOME_UNKNOWN"
+    ledger = repository.get_distillation_resource_usage(command.execution_id)
+    assert ledger.outcome == "TRANSPORT_OUTCOME_UNKNOWN"
+    assert ledger.actual_provider is None
+    assert ledger.actual_model is None
+    assert ledger.cost_microunits is None
+
+
+def test_ambiguous_invocation_round_trips_with_unknown_actual_identity_only(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    execution_id = "exec-ambiguous-unknown-identity"
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=execution_id,
+            source_id=source_id,
+            video_id=video_id,
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="test-transport",
+            selected_model="deterministic-v1",
+        ),
+        now=NOW,
+    )
+
+    result = repository.finish_distillation_without_admission(
+        execution_id=execution_id,
+        status="AMBIGUOUS",
+        budget_state="UNKNOWN",
+        outcome="TRANSPORT_OUTCOME_UNKNOWN",
+        invocation_count=1,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+
+    assert result.status == "AMBIGUOUS"
+    ledger = repository.get_distillation_resource_usage(execution_id)
+    assert ledger.status == "AMBIGUOUS"
+    assert ledger.invocation_count == 1
+    assert ledger.actual_provider is None
+    assert ledger.actual_model is None
+    assert ledger.input_tokens is None and ledger.output_tokens is None
+    assert ledger.cost_microunits is None
 
 
 def test_raw_candidate_never_mints_verified_read_and_ledger_has_no_credential_fields(tmp_path: Path) -> None:

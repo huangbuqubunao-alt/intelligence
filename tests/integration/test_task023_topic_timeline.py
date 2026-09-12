@@ -42,7 +42,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 15
+    assert repository.initialize(now=NOW).version == 16
     return repository
 
 
@@ -199,7 +199,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -211,7 +211,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-1] == "015_add_timed_transcript_evidence_bindings.sql"
+    assert migrations[-1] == "016_add_ambiguous_resource_ledger_outcome.sql"
     assert any(name.startswith("015_") for name in migrations)
     assert {"topics", "topic_memberships", "topic_timeline_events", "topic_relations"} <= tables
 
@@ -227,7 +227,7 @@ def test_v010_upgrade_preserves_data_and_creates_no_synthetic_topic_truth(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 15
+    assert upgraded.initialize(now=NOW).version == 16
     assert upgraded.get_intelligence("preserved-intelligence").intelligence_id == "preserved-intelligence"
     assert upgraded.list_topics() == ()
 
