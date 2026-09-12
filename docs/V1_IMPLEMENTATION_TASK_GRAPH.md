@@ -60,6 +60,18 @@ Create a dedicated V1 integration worktree/branch from the approved frozen ancho
 
 Each task runs its focused unit/domain/repository/API tests plus `git diff --check`. A task touching a migration additionally runs fresh DB, sequential upgrade, failed migration rollback, and packaged-runtime initialization tests. A task touching Python runs Ruff and mypy for its scope; frontend tasks run frontend test/typecheck/build. Full `pytest`, `uv run --offline mypy src`, `uv run --offline ruff check .`, frontend typecheck/build where applicable, `uv build --offline`, and packaged-runtime checks are mandatory at 023, 023A, 025, 025A, 026, and 027. The canonical scanner has expected **EXIT 1**, exactly **11 accepted synthetic fixtures**, and **0 new findings**; this is never reported as PASS.
 
+## Product Owner amendment — TASK-018B
+
+Real V1 provider enablement exposed that persisted Evidence carried temporal
+provenance but no immutable, exact text authority. TASK-018B is authorized to
+own m015 only: an additive canonical timed-transcript/cue representation and
+an immutable, cue-aligned Evidence text binding. It must not fabricate timing
+or excerpts for legacy plain-text artifacts. Legacy Evidence remains valid for
+its existing historical contracts but is `UNBOUND` for exact outbound text.
+The dependency order is `TASK-018B -> TASK-022B -> TASK-022A -> real YouTube
+provider qualification`. This amendment enables no cloud transport, provider,
+Deep Analysis, TASK-016G, V2 work, or network activity.
+
 ## Product Owner amendment — TASK-018A
 
 TASK-019 correctly blocked because m006 stored a revision's interpretation

@@ -79,6 +79,9 @@ REQUEST_HASH = build_provider_request_hash(
 
 EXPECTED_TABLES = {
     "saved_intelligences",
+    "timed_transcripts",
+    "timed_transcript_cues",
+    "evidence_text_bindings",
     "artifacts",
     "channel_cursors",
     "deep_analysis_persisted_results",
@@ -129,6 +132,19 @@ EXPECTED_TABLES = {
 }
 EXPECTED_COLUMNS = {
     "saved_intelligences": ("intelligence_id", "saved_at"),
+    "timed_transcripts": (
+        "timed_transcript_id", "video_id", "canonical_artifact_id",
+        "timed_transcript_hash", "created_at",
+    ),
+    "timed_transcript_cues": (
+        "timed_transcript_id", "cue_index", "start_ms", "end_ms",
+        "cue_text", "cue_text_hash",
+    ),
+    "evidence_text_bindings": (
+        "evidence_id", "timed_transcript_id", "start_cue_index",
+        "end_cue_index", "excerpt", "excerpt_hash", "timed_transcript_hash",
+        "created_at",
+    ),
     "schema_migrations": ("version", "name", "checksum", "applied_at"),
     "videos": (
         "video_id",
@@ -793,12 +809,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "014_add_saved_intelligence.sql")
+        .joinpath("migrations", "015_add_timed_transcript_evidence_bindings.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 14
-    assert first.name == "014_add_saved_intelligence.sql"
+    assert first.version == 15
+    assert first.name == "015_add_timed_transcript_evidence_bindings.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -813,7 +829,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 14
+    assert migration_count == 15
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -879,6 +895,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_automation_runs_schedule_time",
         "uq_automation_schedule_target",
         "idx_evidence_video_availability",
+        "idx_evidence_text_bindings_timed",
         "idx_intelligence_revisions_identity",
         "idx_intelligence_revision_evidence_evidence",
         "idx_intelligence_state_history_identity",
@@ -904,6 +921,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_topic_memberships_topic",
         "idx_topic_timeline_events_topic",
         "idx_topics_pinned_updated",
+        "idx_timed_transcripts_video",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index

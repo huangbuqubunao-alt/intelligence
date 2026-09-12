@@ -348,6 +348,120 @@ class EvidenceRecord:
     created_at: datetime
 
 
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class TimedTranscriptCueWrite:
+    start_ms: int
+    end_ms: int
+    text: str
+
+    def __post_init__(self) -> None:
+        if self.start_ms < 0 or self.end_ms <= self.start_ms:
+            raise ValueError("timed transcript cue range is invalid")
+        if not self.text or self.text.strip() != self.text:
+            raise ValueError("timed transcript cue text is invalid")
+
+    @property
+    def text_hash(self) -> str:
+        return _sha256_text(self.text)
+
+
+def build_timed_transcript_hash(cues: tuple[TimedTranscriptCueWrite, ...]) -> str:
+    """Hash ordered cue-level semantic content, never local storage metadata."""
+    canonical = json.dumps(
+        [[cue.start_ms, cue.end_ms, cue.text_hash] for cue in cues],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class TimedTranscriptWrite:
+    timed_transcript_id: str
+    video_id: str
+    canonical_artifact_id: str
+    timed_transcript_hash: str
+    cues: tuple[TimedTranscriptCueWrite, ...]
+
+    @classmethod
+    def from_cues(
+        cls,
+        *,
+        video_id: str,
+        canonical_artifact_id: str,
+        cues: tuple[TimedTranscriptCueWrite, ...],
+    ) -> TimedTranscriptWrite:
+        if not video_id.strip() or not canonical_artifact_id.strip() or not cues:
+            raise ValueError("timed transcript identity and cues are required")
+        previous_end = -1
+        for cue in cues:
+            if cue.start_ms < previous_end:
+                raise ValueError("timed transcript cues must not overlap")
+            previous_end = cue.end_ms
+        transcript_hash = build_timed_transcript_hash(cues)
+        identity = hashlib.sha256(
+            json.dumps(
+                [video_id, canonical_artifact_id, transcript_hash],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return cls(
+            timed_transcript_id=f"timed-transcript:v1:{identity}",
+            video_id=video_id,
+            canonical_artifact_id=canonical_artifact_id,
+            timed_transcript_hash=transcript_hash,
+            cues=cues,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceTextBindingWrite:
+    evidence_id: str
+    timed_transcript_id: str
+    start_cue_index: int
+    end_cue_index: int
+    excerpt: str
+    excerpt_hash: str
+
+    @classmethod
+    def from_timed_transcript(
+        cls,
+        *,
+        evidence: EvidenceWrite,
+        timed_transcript_id: str,
+        start_cue_index: int,
+        end_cue_index: int,
+        excerpt: str,
+    ) -> EvidenceTextBindingWrite:
+        return cls(
+            evidence_id=evidence.evidence_id,
+            timed_transcript_id=timed_transcript_id,
+            start_cue_index=start_cue_index,
+            end_cue_index=end_cue_index,
+            excerpt=excerpt,
+            excerpt_hash=_sha256_text(excerpt),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedEvidenceText:
+    """Exact persisted Evidence text; not a provider request and not a trust read."""
+
+    evidence_id: str
+    video_id: str
+    timed_transcript_id: str
+    timed_transcript_hash: str
+    start_ms: int
+    end_ms: int
+    excerpt: str
+    excerpt_hash: str
+
+
 @dataclass(frozen=True, slots=True)
 class SavedIntelligenceRecord:
     """Raw local organization metadata; never an Intelligence authority."""
@@ -1408,6 +1522,7 @@ class SQLiteStateRepository:
             "012_add_source_run_orchestration.sql",
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
+            "015_add_timed_transcript_evidence_bindings.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -6160,6 +6275,182 @@ class SQLiteStateRepository:
             ),
             created_at=_parse_utc_datetime(str(row["created_at"])),
         )
+
+    def create_timed_transcript(
+        self, timed: TimedTranscriptWrite, *, now: datetime
+    ) -> TimedTranscriptWrite:
+        """Persist one cue-level authority after validating its canonical Artifact."""
+        if (
+            not timed.timed_transcript_id.strip()
+            or not timed.video_id.strip()
+            or not timed.canonical_artifact_id.strip()
+            or not re.fullmatch(r"[0-9a-f]{64}", timed.timed_transcript_hash)
+            or not timed.cues
+            or build_timed_transcript_hash(timed.cues) != timed.timed_transcript_hash
+        ):
+            raise ValueError("timed transcript authority is invalid")
+        previous_end = -1
+        for cue in timed.cues:
+            if cue.start_ms < previous_end:
+                raise ValueError("timed transcript cues must not overlap")
+            previous_end = cue.end_ms
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                artifact = connection.execute(
+                    "SELECT video_id, kind, deleted_at FROM artifacts WHERE artifact_id = ?",
+                    (timed.canonical_artifact_id,),
+                ).fetchone()
+                if (
+                    artifact is None
+                    or artifact["video_id"] != timed.video_id
+                    or artifact["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
+                    or artifact["deleted_at"] is not None
+                ):
+                    raise IntegrityConflict("timed transcript canonical artifact is not legal")
+                existing = connection.execute(
+                    "SELECT timed_transcript_hash FROM timed_transcripts WHERE timed_transcript_id = ?",
+                    (timed.timed_transcript_id,),
+                ).fetchone()
+                if existing is not None:
+                    if existing["timed_transcript_hash"] != timed.timed_transcript_hash:
+                        raise IntegrityConflict("timed transcript identity conflicts")
+                    return timed
+                connection.execute(
+                    "INSERT INTO timed_transcripts (timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (timed.timed_transcript_id, timed.video_id, timed.canonical_artifact_id, timed.timed_transcript_hash, format_utc_datetime(now)),
+                )
+                connection.executemany(
+                    "INSERT INTO timed_transcript_cues (timed_transcript_id, cue_index, start_ms, end_ms, cue_text, cue_text_hash) VALUES (?, ?, ?, ?, ?, ?)",
+                    [
+                        (timed.timed_transcript_id, index, cue.start_ms, cue.end_ms, cue.text, cue.text_hash)
+                        for index, cue in enumerate(timed.cues)
+                    ],
+                )
+                return timed
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("timed transcript violates immutable authority") from error
+        finally:
+            connection.close()
+
+    def _insert_evidence_text_binding_in_transaction(
+        self,
+        connection: sqlite3.Connection,
+        evidence: EvidenceWrite,
+        binding: EvidenceTextBindingWrite,
+        *,
+        now: datetime,
+    ) -> None:
+        if binding.evidence_id != evidence.evidence_id or _sha256_text(binding.excerpt) != binding.excerpt_hash:
+            raise IntegrityConflict("evidence text binding identity is invalid")
+        timed = connection.execute(
+            "SELECT timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash FROM timed_transcripts WHERE timed_transcript_id = ?",
+            (binding.timed_transcript_id,),
+        ).fetchone()
+        if (
+            timed is None
+            or timed["video_id"] != evidence.video_id
+            or timed["canonical_artifact_id"] != evidence.artifact_id
+        ):
+            raise IntegrityConflict("evidence text binding is foreign to its evidence")
+        cues = connection.execute(
+            "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
+            (binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index),
+        ).fetchall()
+        if len(cues) != binding.end_cue_index - binding.start_cue_index:
+            raise IntegrityConflict("evidence text binding cue set is incomplete")
+        if (
+            not cues
+            or cues[0]["cue_index"] != binding.start_cue_index
+            or cues[-1]["cue_index"] != binding.end_cue_index - 1
+            or cues[0]["start_ms"] != evidence.start_ms
+            or cues[-1]["end_ms"] != evidence.end_ms
+        ):
+            raise IntegrityConflict("evidence range must align to full canonical cues")
+        expected_excerpt = "\n".join(str(cue["cue_text"]) for cue in cues)
+        if (
+            expected_excerpt != binding.excerpt
+            or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
+        ):
+            raise IntegrityConflict("evidence text binding does not match canonical cues")
+        connection.execute(
+            "INSERT INTO evidence_text_bindings (evidence_id, timed_transcript_id, start_cue_index, end_cue_index, excerpt, excerpt_hash, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (binding.evidence_id, binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index, binding.excerpt, binding.excerpt_hash, timed["timed_transcript_hash"], format_utc_datetime(now)),
+        )
+
+    def create_evidence_text_binding(
+        self, binding: EvidenceTextBindingWrite, *, now: datetime
+    ) -> None:
+        evidence = self.get_evidence(binding.evidence_id)
+        if evidence is None:
+            raise IntegrityConflict("evidence text binding evidence is missing")
+        write = EvidenceWrite(
+            evidence_id=evidence.evidence_id, video_id=evidence.video_id, artifact_id=evidence.artifact_id,
+            start_ms=evidence.start_ms, end_ms=evidence.end_ms, lineage_kind=evidence.lineage_kind,
+            role=evidence.role, language=evidence.language, availability=evidence.availability,
+        )
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                self._insert_evidence_text_binding_in_transaction(connection, write, binding, now=now)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("evidence text binding is immutable or invalid") from error
+        finally:
+            connection.close()
+
+    def create_evidence_with_text_binding(
+        self, evidence: EvidenceWrite, binding: EvidenceTextBindingWrite, *, now: datetime
+    ) -> EvidenceRecord:
+        expected_id = build_evidence_id(video_id=evidence.video_id, artifact_id=evidence.artifact_id, start_ms=evidence.start_ms, end_ms=evidence.end_ms, lineage_kind=evidence.lineage_kind, role=evidence.role)
+        if evidence.evidence_id != expected_id or not evidence.language.strip():
+            raise ValueError("evidence identity is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (evidence.evidence_id, evidence.video_id, evidence.artifact_id, evidence.start_ms, evidence.end_ms, evidence.lineage_kind.value, evidence.role.value, evidence.language, evidence.availability.value, format_utc_datetime(now)),
+                )
+                self._insert_evidence_text_binding_in_transaction(connection, evidence, binding, now=now)
+                row = connection.execute("SELECT * FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,)).fetchone()
+                if row is None:
+                    raise StateStoreError("evidence was not saved")
+                return self._evidence_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("evidence and exact-text binding must be coherent") from error
+        finally:
+            connection.close()
+
+    def resolve_verified_evidence_text(self, evidence_id: str) -> VerifiedEvidenceText | None:
+        """Return exact persisted cue-bound text, or ``None`` for legacy/unbound/invalid Evidence."""
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
+                (evidence_id,),
+            ).fetchone()
+            if (
+                row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
+                or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
+                or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
+                or row["timed_transcript_hash"] != row["actual_timed_hash"]
+                or _sha256_text(str(row["excerpt"])) != row["excerpt_hash"]
+            ):
+                return None
+            cues = connection.execute(
+                "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
+                (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"]),
+            ).fetchall()
+            if (
+                len(cues) != row["end_cue_index"] - row["start_cue_index"] or not cues
+                or cues[0]["start_ms"] != row["start_ms"] or cues[-1]["end_ms"] != row["end_ms"]
+                or "\n".join(str(cue["cue_text"]) for cue in cues) != row["excerpt"]
+                or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
+            ):
+                return None
+            return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]))
+        finally:
+            connection.close()
 
     def create_evidence(self, evidence: EvidenceWrite, *, now: datetime) -> EvidenceRecord:
         expected_id = build_evidence_id(

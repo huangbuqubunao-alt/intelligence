@@ -54,6 +54,8 @@ from youtube_intel.state import (
     RetentionClass,
     StageCompletionResult,
     StorageRoot,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
     VerifiedArtifact,
     VideoRecord,
 )
@@ -204,6 +206,27 @@ class NormalizedSubtitle:
     char_count: int
     segment_count: int
     quality_flags: tuple[TranscriptQualityFlag, ...]
+    timed_cues: tuple[CanonicalTimedCue, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalTimedCue:
+    """One immutable, cue-granular canonical transcript interval."""
+
+    start_ms: int
+    end_ms: int
+    text: str
+
+    def __post_init__(self) -> None:
+        if self.start_ms < 0 or self.end_ms <= self.start_ms or not self.text:
+            raise ValueError("canonical timed cue is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class _SourceTimedCue:
+    start_ms: int
+    end_ms: int
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +361,10 @@ class TranscriptRepository(Protocol):
         provider_call: ProviderCallCompletion | None,
         now: datetime,
     ) -> StageCompletionResult: ...
+
+    def create_timed_transcript(
+        self, timed: TimedTranscriptWrite, *, now: datetime
+    ) -> TimedTranscriptWrite: ...
 
 
 def normalize_language_tag(value: str) -> str:
@@ -518,6 +545,140 @@ def _parse_srt(text: str) -> list[str]:
             raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
         cues.append("\n".join(lines[timestamp_index + 1 :]))
     return cues
+
+
+def _timestamp_ms(value: str) -> int:
+    token = value.replace(",", ".")
+    fields = token.split(":")
+    if len(fields) == 2:
+        hours = "0"
+        minutes, seconds = fields
+    elif len(fields) == 3:
+        hours, minutes, seconds = fields
+    else:
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+    try:
+        whole_seconds, milliseconds = seconds.split(".")
+        result = ((int(hours) * 60 + int(minutes)) * 60 + int(whole_seconds)) * 1000 + int(milliseconds)
+    except (TypeError, ValueError):
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED) from None
+    if result < 0:
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+    return result
+
+
+def _timed_vtt_or_srt_cues(text: str, *, source_format: SubtitleFormat) -> list[_SourceTimedCue]:
+    blocks = re.split(r"\n{2,}", text.strip("\n"))
+    if source_format is SubtitleFormat.VTT:
+        if not blocks or not blocks[0].splitlines() or not blocks[0].splitlines()[0].strip().startswith("WEBVTT"):
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+        blocks = blocks[1:]
+        timestamp_pattern = _VTT_TIMESTAMP
+    else:
+        timestamp_pattern = _SRT_TIMESTAMP
+    result: list[_SourceTimedCue] = []
+    for block in blocks:
+        lines = [line.rstrip() for line in block.splitlines()]
+        if not lines or (source_format is SubtitleFormat.VTT and _is_vtt_control_block(lines[0])):
+            continue
+        index = 0
+        if not timestamp_pattern.fullmatch(lines[0].strip()):
+            index = 1
+        if index >= len(lines) or not timestamp_pattern.fullmatch(lines[index].strip()) or index + 1 >= len(lines):
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+        start_text, end_text = lines[index].split("-->", 1)
+        start_ms = _timestamp_ms(start_text.strip())
+        end_ms = _timestamp_ms(end_text.strip().split()[0])
+        if end_ms <= start_ms:
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+        result.append(_SourceTimedCue(start_ms=start_ms, end_ms=end_ms, text="\n".join(lines[index + 1 :])))
+    return result
+
+
+def _timed_json3_cues(text: str) -> list[_SourceTimedCue]:
+    try:
+        payload: Any = json.loads(text)
+        events = payload["events"]
+    except (KeyError, TypeError, json.JSONDecodeError):
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED) from None
+    if not isinstance(events, list):
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+    result: list[_SourceTimedCue] = []
+    for event in events:
+        if not isinstance(event, dict) or event.get("segs") is None:
+            continue
+        segments = event.get("segs")
+        start_ms = event.get("tStartMs")
+        duration_ms = event.get("dDurationMs")
+        if not isinstance(segments, list) or not isinstance(start_ms, int) or not isinstance(duration_ms, int) or start_ms < 0 or duration_ms <= 0:
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+        pieces: list[str] = []
+        for segment in segments:
+            if not isinstance(segment, dict) or not isinstance(segment.get("utf8"), str):
+                raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+            pieces.append(str(segment["utf8"]))
+        value = "".join(pieces)
+        if value.strip():
+            result.append(_SourceTimedCue(start_ms=start_ms, end_ms=start_ms + duration_ms, text=value))
+    return result
+
+
+def _canonicalize_timed_cues(cues: Sequence[_SourceTimedCue]) -> tuple[CanonicalTimedCue, ...]:
+    output: list[CanonicalTimedCue] = []
+    previous: str | None = None
+    previous_end = -1
+    for source in cues:
+        normalized = _normalize_cue(source.text)
+        if not normalized:
+            continue
+        if source.start_ms < previous_end:
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+        if previous is not None and normalized == previous:
+            previous = normalized
+            continue
+        text = normalized
+        if previous is not None and normalized.startswith(previous) and len(normalized) > len(previous) and normalized[len(previous)].isspace():
+            text = normalized[len(previous) :].strip()
+        if text:
+            output.append(CanonicalTimedCue(source.start_ms, source.end_ms, text))
+            previous_end = source.end_ms
+        previous = normalized
+    return tuple(output)
+
+
+def normalize_timed_subtitle(raw: bytes, source_format: SubtitleFormat) -> NormalizedSubtitle:
+    """Preserve source timing while proving its text projection equals v1 plain text."""
+    normalized = normalize_subtitle(raw, source_format)
+    try:
+        decoded = raw.decode("utf-8-sig", errors="strict").replace("\r\n", "\n").replace("\r", "\n")
+    except UnicodeDecodeError:
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.INVALID_UTF8) from None
+    try:
+        if source_format is SubtitleFormat.JSON3:
+            source_cues = _timed_json3_cues(decoded)
+        elif source_format in {SubtitleFormat.VTT, SubtitleFormat.SRT}:
+            source_cues = _timed_vtt_or_srt_cues(decoded, source_format=source_format)
+        else:
+            raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+    except InvalidSubtitleCandidate:
+        # Historical/current accepted subtitle payloads may lack source timing.
+        # They retain their existing plain-text contract, explicitly unbound.
+        return normalized
+    try:
+        timed_cues = _canonicalize_timed_cues(source_cues)
+    except InvalidSubtitleCandidate:
+        return normalized
+    projection = "\n".join(cue.text for cue in timed_cues)
+    if projection:
+        projection += "\n"
+    if not timed_cues or projection != normalized.text:
+        raise InvalidSubtitleCandidate(InvalidSubtitleReason.MALFORMED)
+    return NormalizedSubtitle(
+        text=normalized.text, source_content_hash=normalized.source_content_hash,
+        source_byte_count=normalized.source_byte_count, content_hash=normalized.content_hash,
+        char_count=normalized.char_count, segment_count=normalized.segment_count,
+        quality_flags=normalized.quality_flags, timed_cues=timed_cues,
+    )
 
 
 def _preserve_vtt_voice_spans(value: str) -> str:
@@ -2285,7 +2446,7 @@ class SubtitleAcquisitionService:
                     )
                     last_call = read_result.call
                     raw_body = read_result.body
-                    normalized = normalize_subtitle(
+                    normalized = normalize_timed_subtitle(
                         raw_body,
                         candidate.track.source_format,
                     )
@@ -2396,6 +2557,23 @@ class SubtitleAcquisitionService:
                     ),
                     now=now,
                 )
+                persist_timed = getattr(self._repository, "create_timed_transcript", None)
+                if callable(persist_timed) and normalized.timed_cues:
+                    persist_timed(
+                        TimedTranscriptWrite.from_cues(
+                            video_id=video_id,
+                            canonical_artifact_id=canonical_artifact_id,
+                            cues=tuple(
+                                TimedTranscriptCueWrite(
+                                    start_ms=cue.start_ms,
+                                    end_ms=cue.end_ms,
+                                    text=cue.text,
+                                )
+                                for cue in normalized.timed_cues
+                            ),
+                        ),
+                        now=now,
+                    )
             except Exception:
                 stage_persistence_failed = True
             if stage_persistence_failed:

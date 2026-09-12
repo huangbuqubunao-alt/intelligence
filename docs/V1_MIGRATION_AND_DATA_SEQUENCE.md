@@ -42,3 +42,6 @@ TASK-025A exclusively owns m014 under the Product Owner Save prerequisite
 amendment. Upgrade infers no Save from views, preferences, pin or Weekly.
 TASK-026 and TASK-027 own no migration; m015 is not authorized. Historical
 handoffs and m006–m013 remain unchanged.
+# TASK-018B amendment: m015 adds immutable cue-level timed transcript and
+# exact Evidence text binding authority.  It never backfills legacy plain
+# transcripts/Evidence; legacy records remain unbound for exact disclosure.
