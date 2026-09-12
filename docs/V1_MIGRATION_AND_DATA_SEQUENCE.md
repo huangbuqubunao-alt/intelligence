@@ -20,6 +20,7 @@ At the approved TASK-018 anchor, `PRAGMA user_version` is **6**. `SQLiteStateRep
 | 013 | TASK-025 | immutable V1 Brief snapshot/item references and supersession marker | v012 |
 | 014 | TASK-025A | empty local current Save relation by Intelligence ID; backend save time; no content copy | v013 |
 | 015 | TASK-018B | immutable cue-level timed transcript and exact Evidence text binding; no legacy backfill | v014 |
+| 016 | TASK-022C | Resource Ledger reconstruction allowing unknown actual model identity only for invoked terminal `AMBIGUOUS` outcomes | v015 |
 
 TASK-023B is an explicit **no-migration** TASK-022 application-contract
 amendment between TASK-023A and TASK-024. It consumes the existing m010
@@ -42,8 +43,8 @@ For every migration owner: assert fresh schema through its owned target, v005-to
 TASK-025A exclusively owns m014 under the Product Owner Save prerequisite
 amendment. Upgrade infers no Save from views, preferences, pin or Weekly.
 TASK-026, TASK-027, TASK-022B, and TASK-022A own no migration. TASK-018B
-exclusively owns m015; m016 is absent. Historical handoffs and m006–m013 remain
-unchanged.
+exclusively owns m015; TASK-022C exclusively owns m016. Historical handoffs and
+m006–m013 remain unchanged.
 # TASK-018B amendment: m015 adds immutable cue-level timed transcript and
 # exact Evidence text binding authority.  It never backfills legacy plain
 # transcripts/Evidence; legacy records remain unbound for exact disclosure.

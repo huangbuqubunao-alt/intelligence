@@ -72,6 +72,19 @@ The dependency order is `TASK-018B -> TASK-022B -> TASK-022A -> real YouTube
 provider qualification`. This amendment enables no cloud transport, provider,
 Deep Analysis, TASK-016G, V2 work, or network activity.
 
+## Product Owner amendment — TASK-022C
+
+TASK-022A correctly stopped because m010's immutable Resource Ledger requires
+an invoked row to name an actual provider/model, while a protected cloud request
+with an unconfirmed result must remain terminal `AMBIGUOUS` without invented
+identity or cost. TASK-022C exclusively owns m016: a forward-only reconstruction
+of that ledger table that preserves all historical rows, finite status values,
+foreign keys, indexes, and append-only triggers. It permits unknown actual
+identity only for an invoked `AMBIGUOUS` row. It does not authorize cloud
+transport, a provider, qualification, network activity, Deep Analysis, or
+TASK-016G. The amended order is `TASK-018B -> TASK-022B -> TASK-022C ->
+TASK-022A -> real YouTube provider qualification`.
+
 ## Product Owner amendment — TASK-022B
 
 TASK-022B consumes TASK-018B's sole exact Evidence-text resolver to compose an
