@@ -40,8 +40,10 @@ fallback, and zero redispatch behavior are unchanged.
 
 ## Adversarial result
 
-P0: `0`  
-P1: `0`  
+P0: `0`
+
+P1: `0`
+
 P2: `0`
 
 Checked: unknown actual identity is accepted only for durable `AMBIGUOUS`;
