@@ -32,8 +32,8 @@ from youtube_intel.source_policy import (
 )
 from youtube_intel.state import (
     Availability,
-    DistillationStyle,
     DistillationExecutionWrite,
+    DistillationStyle,
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
