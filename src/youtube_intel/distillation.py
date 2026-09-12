@@ -582,15 +582,6 @@ class PersonalizedDistillationService:
                 budget_state=decision.state,
                 outcome="TRANSPORT_OUTCOME_UNKNOWN",
                 invocation_count=1,
-                result=DistillationTransportResult(
-                    raw="",
-                    actual_provider=self._transport.actual_provider,
-                    actual_model=self._transport.actual_model,
-                    input_tokens=None,
-                    output_tokens=None,
-                    cost_microunits=None,
-                    duration_ms=None,
-                ),
             )
         if (
             response.actual_provider != projection.selected_provider
@@ -666,15 +657,6 @@ class PersonalizedDistillationService:
                 budget_state="UNKNOWN",
                 outcome="RESERVED_DISPATCH_OUTCOME_UNKNOWN",
                 invocation_count=1,
-                result=DistillationTransportResult(
-                    raw="",
-                    actual_provider=self._transport.actual_provider,
-                    actual_model=self._transport.actual_model,
-                    input_tokens=None,
-                    output_tokens=None,
-                    cost_microunits=None,
-                    duration_ms=None,
-                ),
             )
         except StateStoreError:
             persisted = self._repository.get_distillation_execution(record.execution_id)

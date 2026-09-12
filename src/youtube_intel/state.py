@@ -1523,6 +1523,7 @@ class SQLiteStateRepository:
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
             "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -8056,6 +8057,7 @@ class SQLiteStateRepository:
     @staticmethod
     def _validate_observed_usage(
         *,
+        status: str,
         invocation_count: int,
         actual_provider: str | None,
         actual_model: str | None,
@@ -8068,13 +8070,20 @@ class SQLiteStateRepository:
             raise ValueError("distillation invocation count is invalid")
         if invocation_count == 0 and (actual_provider is not None or actual_model is not None):
             raise ValueError("uninvoked distillation cannot have an actual model")
-        if invocation_count == 1 and (
-            actual_provider is None
-            or actual_model is None
-            or not actual_provider.strip()
-            or not actual_model.strip()
-        ):
-            raise ValueError("invoked distillation requires its actual model identity")
+        if invocation_count == 1:
+            unknown_ambiguous_identity = (
+                status == "AMBIGUOUS"
+                and actual_provider is None
+                and actual_model is None
+            )
+            known_actual_identity = (
+                actual_provider is not None
+                and actual_model is not None
+                and bool(actual_provider.strip())
+                and bool(actual_model.strip())
+            )
+            if not (unknown_ambiguous_identity or known_actual_identity):
+                raise ValueError("invoked distillation requires its actual model identity")
         if (input_tokens is None) != (output_tokens is None):
             raise ValueError("token usage must be reliable or unknown as a pair")
         for value in (input_tokens, output_tokens, cost_microunits, duration_ms):
@@ -8101,6 +8110,7 @@ class SQLiteStateRepository:
         now: datetime,
     ) -> None:
         self._validate_observed_usage(
+            status=status,
             invocation_count=invocation_count,
             actual_provider=actual_provider,
             actual_model=actual_model,
