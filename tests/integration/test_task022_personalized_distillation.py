@@ -262,6 +262,78 @@ def test_nvidia_nim_transport_uses_fixed_endpoint_model_and_zero_retry_contract(
     assert "test-only-nvidia-credential" not in json.dumps(request, sort_keys=True)
 
 
+def test_nvidia_nim_qualification_can_wait_300_seconds_for_the_same_single_request() -> None:
+    calls: list[tuple[float, int]] = []
+    credential_resolutions = 0
+    verified = _verified_input_for_nvidia_nim_test()
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "test-only-nvidia-credential"
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+            qualification_response_wait_timeout_seconds=300,
+        ),
+        credential_resolver=resolve_credential,
+        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
+            (timeout, retries)
+        )
+        or {
+            "model": "moonshotai/kimi-k3",
+            "choices": [{"message": {"content": "{}"}}],
+        },
+    )
+
+    transport.generate(verified)
+
+    assert credential_resolutions == 1
+    assert calls == [(300.0, 0)]
+
+
+def test_nvidia_nim_qualification_timeout_cannot_expand_normal_production() -> None:
+    calls: list[object] = []
+    credential_resolutions = 0
+    verified = _verified_input_for_nvidia_nim_test()
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "credential-not-used"
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualified=True,
+            authorized=True,
+            qualification_response_wait_timeout_seconds=300,
+        ),
+        credential_resolver=resolve_credential,
+        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
+            request
+        )
+        or {},
+    )
+
+    assert transport.is_authorized_for(verified) is False
+    with pytest.raises(CloudDistillationPreDispatchError, match="not authorized"):
+        transport.generate(verified)
+    assert credential_resolutions == 0
+    assert calls == []
+
+
 @pytest.mark.parametrize(
     ("provider", "model"),
     [
@@ -1342,6 +1414,58 @@ def test_ambiguous_transport_outcome_is_not_automatically_retried(tmp_path: Path
     assert ledger.actual_provider is None
     assert ledger.actual_model is None
     assert ledger.cost_microunits is None
+
+
+def test_nvidia_nim_qualification_timeout_is_terminal_without_redispatch(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    command = _nvidia_nim_command(
+        source_id, video_id, evidence_id, execution_id="nvidia-timeout"
+    )
+    projection_service = _service(repository, _FakeTransport("{}"))
+    verified = projection_service._compose_verified_input(
+        projection_service._projection(command)
+    )
+    calls: list[tuple[float, int]] = []
+
+    def wire_transport(endpoint, request, credential, timeout, retries):
+        calls.append((timeout, retries))
+        raise TimeoutError("synthetic timeout")
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+            qualification_response_wait_timeout_seconds=300,
+        ),
+        credential_resolver=lambda: "synthetic-nvidia-credential",
+        wire_transport=wire_transport,
+    )
+    service = PersonalizedDistillationService(
+        repository,
+        SourcePolicyApplicationService(repository, now=lambda: NOW),
+        transport,
+        _FakeBudget(True),
+        now=lambda: NOW,
+    )
+
+    first = service.distill(command)
+    second = service.distill(command)
+
+    assert first.status is DistillationExecutionStatus.AMBIGUOUS
+    assert second == first
+    assert calls == [(300.0, 0)]
+    ledger = repository.get_distillation_resource_usage(command.execution_id)
+    assert ledger.invocation_count == 1
+    assert ledger.outcome == "TRANSPORT_OUTCOME_UNKNOWN"
 
 
 def test_ambiguous_invocation_round_trips_with_unknown_actual_identity_only(tmp_path: Path) -> None:

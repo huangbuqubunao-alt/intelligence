@@ -152,6 +152,7 @@ class CloudDistillationAuthorization:
     authorized: bool = False
     qualification_input_hash: str | None = None
     qualification_max_calls: int = 1
+    qualification_response_wait_timeout_seconds: int | None = None
 
     def permits(self, verified_input: VerifiedDistillationInput) -> bool:
         if not (
@@ -364,6 +365,7 @@ class NvidiaNimCloudDistillationTransport:
     transport_kind = DistillationTransportKind.CLOUD_PRODUCTION
     is_offline_test_transport = False
     _TIMEOUT_SECONDS = 120.0
+    _QUALIFICATION_TIMEOUT_SECONDS = 300.0
 
     def __init__(
         self,
@@ -397,6 +399,19 @@ class NvidiaNimCloudDistillationTransport:
             and verified_input.selected_provider == _NVIDIA_NIM_PROVIDER
             and verified_input.selected_model == _NVIDIA_NIM_MODEL
             and self._authorization.permits(verified_input)
+            and self._qualification_timeout_is_authorized(verified_input)
+        )
+
+    def _qualification_timeout_is_authorized(
+        self, verified_input: VerifiedDistillationInput
+    ) -> bool:
+        timeout = self._authorization.qualification_response_wait_timeout_seconds
+        if timeout is None:
+            return True
+        return (
+            timeout == self._QUALIFICATION_TIMEOUT_SECONDS
+            and self._authorization.qualification_input_hash == verified_input.semantic_hash
+            and self._authorization.qualification_max_calls == 1
         )
 
     def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
@@ -414,7 +429,7 @@ class NvidiaNimCloudDistillationTransport:
                     _NVIDIA_NIM_ENDPOINT,
                     self._request(verified_input),
                     credential,
-                    self._TIMEOUT_SECONDS,
+                    self._response_wait_timeout_seconds(),
                     0,
                 )
             except Exception:
@@ -448,6 +463,14 @@ class NvidiaNimCloudDistillationTransport:
             cost_microunits=None,
             duration_ms=None,
         )
+
+    def _response_wait_timeout_seconds(self) -> float:
+        if (
+            self._authorization.qualification_response_wait_timeout_seconds
+            == self._QUALIFICATION_TIMEOUT_SECONDS
+        ):
+            return self._QUALIFICATION_TIMEOUT_SECONDS
+        return self._TIMEOUT_SECONDS
 
     @staticmethod
     def _request(verified_input: VerifiedDistillationInput) -> dict[str, object]:
