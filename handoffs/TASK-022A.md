@@ -73,3 +73,60 @@ Preservation verification was entirely offline:
 The next action requires a Product Owner decision about whether to authorize a
 completely new, independent NVIDIA NIM qualification execution.  The prior
 `AMBIGUOUS` execution must never be retried.
+
+## NVIDIA NIM / Kimi K3 independent Phase 1 attempt 2 — 2026-09-13
+
+This independent attempt started from `f1454ba1db61b01589811ec8986e1269473ab318`.
+Commit `b60c835` adds a qualification-scoped 300-second response wait while
+preserving the normal 120-second default.  The 300-second wait applies only to
+the same one-call qualification request and does not add retries, redispatch,
+provider fallback, or model fallback.
+
+- `PHASE1_RESULT: PHASE1_PASS`
+- `PREVIOUS_AMBIGUOUS_EXECUTION_REUSED: NO`
+- `NEW_EXECUTION_ID: distillation:reservation:v2:58d27c5d747c6276fc7ae178cc03831ac11ba31df2d0a844da0bc32c2c516155`
+- `VIDEO_ID: aircAruvnKk`
+- `VIDEO_TITLE: But what is a neural network? | Deep learning chapter 1`
+- `TRANSCRIPT_SOURCE: manual_subtitle`
+- `TIMED_TRANSCRIPT_CUES: 286`
+- `BOUND_EVIDENCE_COUNT: 4`
+- `VERIFIED_INPUT_HASH: ecc54dc08dfd2d1614ab893ebac391ee0a6ed9fc94ddc2e712fd39e0fb1898ec`
+- `PROVIDER: NVIDIA NIM`
+- `REQUESTED_MODEL: moonshotai/kimi-k3`
+- `ACTUAL_MODEL: moonshotai/kimi-k3`
+- `REAL_PROVIDER_CALLS: 1`
+- `CONFIRMED_RESPONSES: 1`
+- `REDISPATCH: 0`
+- `TRANSPORT_OUTCOME: ADMITTED`
+- `PROVIDER_QUALIFIED: NO / PENDING_PHASE2`
+- `PRODUCTION_ELIGIBLE: NO`
+
+The exact TASK-022 schema passed without repair or extraction, the accepted
+claims were supported by the exact outbound Evidence set, and TASK-019
+`AuthoritativeIntelligenceReader` returned the admitted Intelligence.  The
+immutable Resource Ledger records one invocation, 1,657 input tokens and 692
+output tokens.  Cost and duration remain truthfully unknown.  It contains no
+credential, Evidence excerpt, transcript, provider payload, or raw
+personalization.
+
+The isolated real-data UI showed the admitted Intelligence, its four Evidence
+rows, the enabled Source, and truthful Resource Usage.  Provider/model details
+remain less discoverable behind the collapsed technical-details control, and
+the Source list displays the canonical channel URL when no friendly display
+name is stored.  No redesign was made.
+
+Verification for the bounded timeout change and attempt:
+
+- NVIDIA/timeout focused tests: `13 passed`.
+- TASK-018B/019/022/022B/023B regressions: `83 passed`.
+- Full pytest: `2225 passed, 1 skipped, 1 existing Pydantic warning`.
+- `mypy src`, Ruff, `uv build --offline`, and `git diff --check`: passed.
+- Isolated DB: user version `16`; m015/m016 present; m017 absent.
+- Canonical scanner: exit `1`, exactly 11 accepted historical synthetic
+  fixture findings, 0 new.  This is not a scanner PASS.
+
+The historical `BLOCKED_AMBIGUOUS` execution remains unchanged and permanently
+non-retryable.  Normal production remains disabled; Deep Analysis remains
+blocked; TASK-016G remains unauthorized.  No Phase 2, push, tag, release, main
+change, or RC-tag movement was performed.  Product Owner must separately
+authorize Phase 2.
