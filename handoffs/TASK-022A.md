@@ -130,3 +130,102 @@ non-retryable.  Normal production remains disabled; Deep Analysis remains
 blocked; TASK-016G remains unauthorized.  No Phase 2, push, tag, release, main
 change, or RC-tag movement was performed.  Product Owner must separately
 authorize Phase 2.
+
+## NVIDIA NIM / Kimi K3 Phase 2 qualification — 2026-09-13
+
+The Product Owner authorized exactly two new independent real-video
+qualification executions from `d9d72c06856270b5a55dab94ef8f426e89767fc9`.
+The credential gate verified only that `NVIDIA_API_KEY` was present and
+non-empty; its value was never printed, persisted, or logged.  The historical
+ambiguous execution and the successful Phase 1 execution were not reused or
+redispatched.
+
+### Case 2 — opinion/prediction-heavy public video
+
+- `CASE2_RESULT: PASS`
+- `NEW_EXECUTION_ID: distillation:reservation:v2:e9a4eb28fdf025f62bb5548db91971097fb1980b0d1681fc4aeb6472c2b60271`
+- `VIDEO_ID: 7gtc1DW2Tgo`
+- `VIDEO_TITLE: Wait... Smart Glasses are Suddenly Good?`
+- `CHANNEL: Marques Brownlee`
+- `TRANSCRIPT_SOURCE: manual_subtitle`
+- `TIMED_TRANSCRIPT_CUES: 326`
+- `BOUND_EVIDENCE_COUNT: 4`
+- `VERIFIED_INPUT_HASH: 69127dada1558c808693c763705cc3ac95517f7467c473696ee7efb6d5cc5b98`
+- `CLAIM_KIND: OPINION`
+- `SCHEMA_VALIDATION: PASS`
+- `EVIDENCE_SCOPE: PASS`
+- `EVIDENCE_SUPPORT: PASS`
+- `MATERIAL_UNSUPPORTED_ACCEPTED_CLAIMS: 0`
+- `AUTHORITATIVE_READ: PASS`
+- `RESOURCE_LEDGER: ADMITTED / invocation_count=1 / input_tokens=1716 / output_tokens=885`
+- `POST_TERMINAL_REDISPATCH: 0`
+
+The accepted conclusion and every material item were reviewed against the
+four exact outbound Evidence slices.  They remained within the source claims
+about product capabilities, prototype cost and form-factor constraints,
+near-term competitor expectations, and the qualified post-smartphone
+prediction.  `OPINION` is appropriate for this mixed evaluative and
+predictive source.
+
+### Case 3 — factual/technical mixed public video
+
+- `CASE3_RESULT: PASS`
+- `NEW_EXECUTION_ID: distillation:reservation:v2:9518fd9edfe32b7449c8e01066cd6cfb017d3030a58de45b4a48b54da192fe02`
+- `VIDEO_ID: wjZofJX0v4M`
+- `VIDEO_TITLE: Transformers, the tech behind LLMs | Deep Learning Chapter 5`
+- `CHANNEL: 3Blue1Brown`
+- `TRANSCRIPT_SOURCE: manual_subtitle`
+- `TIMED_TRANSCRIPT_CUES: 443`
+- `BOUND_EVIDENCE_COUNT: 4`
+- `VERIFIED_INPUT_HASH: babf781b76f6dafd2326fc40a0c35a95e229cc164a39ec46dc24710fd8db31d3`
+- `CLAIM_KIND: EVIDENCE_BACKED_STATEMENT`
+- `SCHEMA_VALIDATION: PASS`
+- `EVIDENCE_SCOPE: PASS`
+- `EVIDENCE_SUPPORT: PASS`
+- `MATERIAL_UNSUPPORTED_ACCEPTED_CLAIMS: 0`
+- `AUTHORITATIVE_READ: PASS`
+- `RESOURCE_LEDGER: ADMITTED / invocation_count=1 / input_tokens=2463 / output_tokens=1342`
+- `POST_TERMINAL_REDISPATCH: 0`
+
+The accepted conclusion and every material item were reviewed against the
+four exact outbound Evidence slices.  The statements remained within the
+source explanation of GPT, iterative token sampling, token embeddings,
+attention and feed-forward blocks, matrix operations, and the demonstrated
+GPT-2/GPT-3 comparison.  `EVIDENCE_BACKED_STATEMENT` is appropriate for the
+technical explanation and its explicitly identified qualitative example.
+
+### Cross-case qualification decision
+
+Phase 1, Case 2, and Case 3 all passed the exact production admission path.
+Across the three successful real cases:
+
+- exact TASK-022 schema: `3/3`
+- TASK-019 authoritative read: `3/3`
+- exact outbound Evidence scope: `3/3`
+- Evidence support review: `3/3`
+- material unsupported accepted claims: `0`
+- semantic retries: `0`
+- provider fallback: `0`
+- model fallback: `0`
+- at-most-once: `PASS`
+
+Phase 2 made exactly two NVIDIA NIM semantic calls, one per new execution.
+Each used a distinct reservation and exact-hash qualification authority, a
+300-second response wait, zero SDK/HTTP retries, and zero post-terminal
+redispatch.  Both immutable Resource Ledger records identified
+`nvidia_nim / moonshotai/kimi-k3` as selected and actual provider/model.
+
+Therefore, only for `V1 VIDEO DISTILLATION`:
+
+- `AVAILABLE: YES`
+- `QUALIFIED: YES`
+
+Normal production remains disabled.  `PRODUCTION_ELIGIBLE` remains pending
+explicit Product Owner authorization; no normal provider registration,
+Deep Analysis/TASK-016G authority, push, tag, release, main, RC tag, remote,
+dependency, migration, or release-state change is included.
+
+Focused pre-dispatch verification was `13 passed`.  Both qualification
+databases and subtitle files lived only in automatically removed temporary
+directories.  No credential, transcript, provider request/response payload,
+database, media, Cookie, local path, or raw personalization was added to Git.
