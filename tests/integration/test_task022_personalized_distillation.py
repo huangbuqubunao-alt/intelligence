@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -295,6 +297,41 @@ def test_nvidia_nim_qualification_can_wait_300_seconds_for_the_same_single_reque
 
     assert credential_resolutions == 1
     assert calls == [(300.0, 0)]
+
+
+def test_qualification_scope_never_authorizes_a_normal_source_run() -> None:
+    verified = _verified_input_for_nvidia_nim_test()
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(
+            cloud_enabled=True,
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            credential_available=True,
+            provider_available=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
+        ),
+        credential_resolver=lambda: "credential-not-used",
+        wire_transport=lambda endpoint, request, credential, timeout, retries: {},
+    )
+
+    assert transport.is_authorized_for(verified) is True
+    assert transport.is_authorized_for_normal_production(verified) is False
+
+
+def test_absent_qualification_hash_cannot_equal_malformed_verified_identity() -> None:
+    verified = replace(
+        _verified_input_for_nvidia_nim_test(), semantic_hash=cast(str, None)
+    )
+    authorization = CloudDistillationAuthorization(
+        cloud_enabled=True,
+        provider="nvidia_nim",
+        model="moonshotai/kimi-k3",
+        credential_available=True,
+        provider_available=True,
+    )
+
+    assert authorization.permits(verified) is False
 
 
 def test_nvidia_nim_qualification_timeout_cannot_expand_normal_production() -> None:
@@ -631,11 +668,12 @@ def test_nvidia_nim_transport_runs_exact_task022_admission_and_authoritative_rea
         credential_resolver=lambda: "synthetic-nvidia-credential",
         wire_transport=wire_transport,
     )
-    command = _nvidia_nim_command(
-        source_id, video_id, evidence_id, execution_id="nvidia-success"
+    service = _service(repository, transport)  # type: ignore[arg-type]
+    reservation = service.reserve_distillation_execution(
+        source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
 
-    result = _service(repository, transport).distill(command)  # type: ignore[arg-type]
+    result = service.continue_reserved_distillation(reservation.execution_id)
 
     assert result.status is DistillationExecutionStatus.SUCCEEDED
     assert len(calls) == 1
@@ -660,12 +698,46 @@ def test_nvidia_nim_transport_runs_exact_task022_admission_and_authoritative_rea
         result.intelligence_id or ""
     )
     assert card.verified.evidence_ids == (evidence_id,)
-    ledger = repository.get_distillation_resource_usage(command.execution_id)
+    ledger = repository.get_distillation_resource_usage(reservation.execution_id)
     assert ledger.selected_provider == "nvidia_nim"
     assert ledger.selected_model == "moonshotai/kimi-k3"
     assert ledger.actual_provider == "nvidia_nim"
     assert ledger.actual_model == "moonshotai/kimi-k3"
     assert ledger.input_tokens == 210 and ledger.output_tokens == 80
+
+
+def test_normal_production_authority_cannot_use_legacy_unreserved_distill(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    wire_calls = 0
+
+    def wire_transport(endpoint, request, credential, timeout, retries):
+        nonlocal wire_calls
+        wire_calls += 1
+        return {}
+
+    transport = NvidiaNimCloudDistillationTransport(
+        authorization=_normal_nvidia_authorization(),
+        credential_resolver=lambda: "credential-not-used",
+        wire_transport=wire_transport,
+    )
+    service = _service(repository, transport)  # type: ignore[arg-type]
+
+    result = service.distill(
+        _nvidia_nim_command(
+            source_id,
+            video_id,
+            evidence_id,
+            execution_id="forged-unreserved-production-execution",
+        )
+    )
+
+    assert result.status is DistillationExecutionStatus.WAITING_MODEL
+    assert result.invocation_count == 0
+    assert wire_calls == 0
 
 
 @pytest.mark.parametrize("raw", ("{not-json", "```json\n{}\n```"))
@@ -691,13 +763,13 @@ def test_nvidia_nim_malformed_output_fails_closed_without_repair_or_redispatch(
         credential_resolver=lambda: "synthetic-nvidia-credential",
         wire_transport=wire_transport,
     )
-    command = _nvidia_nim_command(
-        source_id, video_id, evidence_id, execution_id=f"nvidia-malformed-{len(raw)}"
-    )
     service = _service(repository, transport)  # type: ignore[arg-type]
+    reservation = service.reserve_distillation_execution(
+        source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
+    )
 
-    first = service.distill(command)
-    second = service.distill(command)
+    first = service.continue_reserved_distillation(reservation.execution_id)
+    second = service.continue_reserved_distillation(reservation.execution_id)
 
     assert first.status is DistillationExecutionStatus.REJECTED_OUTPUT
     assert second == first

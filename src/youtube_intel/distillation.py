@@ -331,7 +331,14 @@ class CloudDistillationAuthorization:
             is DistillationCapabilityScope.V1_VIDEO_DISTILLATION
         )
         qualification = (
-            self.qualification_input_hash == verified_input.semantic_hash
+            isinstance(self.qualification_input_hash, str)
+            and len(self.qualification_input_hash) == 64
+            and all(
+                character in "0123456789abcdef"
+                for character in self.qualification_input_hash
+            )
+            and isinstance(verified_input.semantic_hash, str)
+            and self.qualification_input_hash == verified_input.semantic_hash
             and self.qualification_max_calls == 1
         )
         return normal or qualification
@@ -458,6 +465,13 @@ class OpenAICloudDistillationTransport:
             and self._authorization.permits(verified_input)
         )
 
+    def is_authorized_for_qualification(
+        self, verified_input: VerifiedDistillationInput
+    ) -> bool:
+        return not self._authorization.production_eligible and self.is_authorized_for(
+            verified_input
+        )
+
     def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
         if not self.is_authorized_for(verified_input):
             raise CloudDistillationPreDispatchError("cloud distillation is not authorized")
@@ -563,6 +577,20 @@ class NvidiaNimCloudDistillationTransport:
             and verified_input.selected_model == _NVIDIA_NIM_MODEL
             and self._authorization.permits(verified_input)
             and self._qualification_timeout_is_authorized(verified_input)
+        )
+
+    def is_authorized_for_normal_production(
+        self, verified_input: VerifiedDistillationInput
+    ) -> bool:
+        return self._authorization.production_eligible and self.is_authorized_for(
+            verified_input
+        )
+
+    def is_authorized_for_qualification(
+        self, verified_input: VerifiedDistillationInput
+    ) -> bool:
+        return not self._authorization.production_eligible and self.is_authorized_for(
+            verified_input
         )
 
     def _qualification_timeout_is_authorized(
@@ -773,8 +801,27 @@ class PersonalizedDistillationService:
         self._selected_provider = transport.actual_provider
         self._selected_model = transport.actual_model
 
-    def _transport_permits(self, verified_input: VerifiedDistillationInput) -> bool:
-        permits = getattr(self._transport, "is_authorized_for", None)
+    def _transport_permits(
+        self,
+        verified_input: VerifiedDistillationInput,
+        *,
+        normal_production: bool = False,
+    ) -> bool:
+        cloud_transport = (
+            getattr(self._transport, "transport_kind", None)
+            is DistillationTransportKind.CLOUD_PRODUCTION
+        )
+        if cloud_transport:
+            method_name = (
+                "is_authorized_for_normal_production"
+                if normal_production
+                else "is_authorized_for_qualification"
+            )
+        else:
+            method_name = "is_authorized_for"
+        permits = getattr(self._transport, method_name, None)
+        if cloud_transport and permits is None:
+            return False
         return True if permits is None else bool(permits(verified_input))
 
     def manual_command(
@@ -1325,7 +1372,10 @@ class PersonalizedDistillationService:
                 outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
-        if not self._transport_permits(verified_input) or not self._transport.available:
+        if (
+            not self._transport_permits(verified_input, normal_production=True)
+            or not self._transport.available
+        ):
             return self._finish_or_recover(
                 projection,
                 status=DistillationExecutionStatus.WAITING_MODEL,

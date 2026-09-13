@@ -8,6 +8,7 @@ from youtube_intel.distillation import (
     CloudDistillationAuthorization,
     DistillationCapabilityScope,
     NormalV1ProductionAuthorizationAuthority,
+    ProviderProductionEligibility,
 )
 
 
@@ -65,6 +66,11 @@ def test_callers_cannot_submit_derived_production_authority(forged_field: str) -
         CloudDistillationAuthorization(**{forged_field: True})
 
 
+def test_callers_cannot_construct_a_backend_eligibility_record() -> None:
+    with pytest.raises(TypeError, match="backend-authoritative"):
+        ProviderProductionEligibility()
+
+
 def test_backend_authority_mints_normal_production_state_without_forcing_cloud() -> None:
     eligibility = NormalV1ProductionAuthorizationAuthority.resolve(
         provider="nvidia_nim",
@@ -89,4 +95,3 @@ def test_backend_authority_mints_normal_production_state_without_forcing_cloud()
     assert disabled.production_eligible is True
     assert disabled.cloud_enabled is False
     assert enabled.cloud_enabled is True
-
