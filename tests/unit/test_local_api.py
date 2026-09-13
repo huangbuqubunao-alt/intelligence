@@ -8,7 +8,7 @@ from typing import cast
 import pytest
 
 from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
-from youtube_intel.local_api import _LOCAL_ORIGIN, LocalApiApplication
+from youtube_intel.local_api import _LOCAL_ORIGIN, ApiError, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.scoring import AuthoritativeScoringReader
 from youtube_intel.state import (

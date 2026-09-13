@@ -13,9 +13,11 @@ from youtube_intel.distillation import (
     BudgetDecision,
     CloudDistillationAuthorization,
     CloudDistillationPreDispatchError,
+    DistillationCapabilityScope,
     DistillationCommand,
     DistillationExecutionStatus,
     DistillationTransportResult,
+    NormalV1ProductionAuthorizationAuthority,
     NvidiaNimCloudDistillationTransport,
     OpenAICloudDistillationTransport,
     PersonalizedDistillationService,
@@ -128,7 +130,7 @@ def test_cloud_transport_is_default_denied_and_never_invokes_wire_adapter() -> N
     assert calls == []
 
 
-def test_cloud_transport_requires_explicit_eligibility_and_uses_no_retry_wire_contract() -> None:
+def test_cloud_transport_qualification_scope_uses_no_retry_wire_contract() -> None:
     calls: list[tuple[object, str, float, int]] = []
     verified = _verified_input_for_cloud_test()
     transport = OpenAICloudDistillationTransport(
@@ -138,8 +140,8 @@ def test_cloud_transport_requires_explicit_eligibility_and_uses_no_retry_wire_co
             model="gpt-test",
             credential_available=True,
             provider_available=True,
-            qualified=True,
-            authorized=True,
+            qualification_input_hash=verified.semantic_hash,
+            qualification_max_calls=1,
         ),
         credential_resolver=lambda: "test-credential",
         wire_transport=lambda request, credential, timeout, retries: calls.append(
@@ -168,14 +170,10 @@ def test_openai_transport_rejects_nvidia_authorization_before_credential_or_wire
         return "credential-not-used"
 
     transport = OpenAICloudDistillationTransport(
-        authorization=CloudDistillationAuthorization(
-            cloud_enabled=True,
+        authorization=_normal_nvidia_authorization(
             provider="nvidia_nim",
             model="moonshotai/kimi-k3",
             credential_available=True,
-            provider_available=True,
-            qualified=True,
-            authorized=True,
         ),
         credential_resolver=resolve_credential,
         wire_transport=lambda request, credential, timeout, retries: calls.append(request)
@@ -300,38 +298,20 @@ def test_nvidia_nim_qualification_can_wait_300_seconds_for_the_same_single_reque
 
 
 def test_nvidia_nim_qualification_timeout_cannot_expand_normal_production() -> None:
-    calls: list[object] = []
-    credential_resolutions = 0
-    verified = _verified_input_for_nvidia_nim_test()
-
-    def resolve_credential() -> str:
-        nonlocal credential_resolutions
-        credential_resolutions += 1
-        return "credential-not-used"
-
-    transport = NvidiaNimCloudDistillationTransport(
-        authorization=CloudDistillationAuthorization(
-            cloud_enabled=True,
-            provider="nvidia_nim",
-            model="moonshotai/kimi-k3",
-            credential_available=True,
-            provider_available=True,
-            qualified=True,
-            authorized=True,
-            qualification_response_wait_timeout_seconds=300,
-        ),
-        credential_resolver=resolve_credential,
-        wire_transport=lambda endpoint, request, credential, timeout, retries: calls.append(
-            request
-        )
-        or {},
+    eligibility = NormalV1ProductionAuthorizationAuthority.resolve(
+        provider="nvidia_nim",
+        model="moonshotai/kimi-k3",
+        capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+        available=True,
     )
 
-    assert transport.is_authorized_for(verified) is False
-    with pytest.raises(CloudDistillationPreDispatchError, match="not authorized"):
-        transport.generate(verified)
-    assert credential_resolutions == 0
-    assert calls == []
+    with pytest.raises(TypeError):
+        CloudDistillationAuthorization.for_normal_production(
+            eligibility=eligibility,
+            cloud_enabled=True,
+            credential_available=True,
+            qualification_response_wait_timeout_seconds=300,  # type: ignore[call-arg]
+        )
 
 
 @pytest.mark.parametrize(
@@ -416,6 +396,27 @@ def _verified_input_for_nvidia_nim_test():
         selected_provider="nvidia_nim",
         selected_model="moonshotai/kimi-k3",
         semantic_hash="b" * 64,
+    )
+
+
+def _normal_nvidia_authorization(
+    *,
+    provider: str = "nvidia_nim",
+    model: str = "moonshotai/kimi-k3",
+    available: bool = True,
+    cloud_enabled: bool = True,
+    credential_available: bool = True,
+) -> CloudDistillationAuthorization:
+    eligibility = NormalV1ProductionAuthorizationAuthority.resolve(
+        provider=provider,
+        model=model,
+        capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+        available=available,
+    )
+    return CloudDistillationAuthorization.for_normal_production(
+        eligibility=eligibility,
+        cloud_enabled=cloud_enabled,
+        credential_available=credential_available,
     )
 
 
@@ -626,15 +627,7 @@ def test_nvidia_nim_transport_runs_exact_task022_admission_and_authoritative_rea
         }
 
     transport = NvidiaNimCloudDistillationTransport(
-        authorization=CloudDistillationAuthorization(
-            cloud_enabled=True,
-            provider="nvidia_nim",
-            model="moonshotai/kimi-k3",
-            credential_available=True,
-            provider_available=True,
-            qualified=True,
-            authorized=True,
-        ),
+        authorization=_normal_nvidia_authorization(),
         credential_resolver=lambda: "synthetic-nvidia-credential",
         wire_transport=wire_transport,
     )
@@ -694,15 +687,7 @@ def test_nvidia_nim_malformed_output_fails_closed_without_repair_or_redispatch(
         }
 
     transport = NvidiaNimCloudDistillationTransport(
-        authorization=CloudDistillationAuthorization(
-            cloud_enabled=True,
-            provider="nvidia_nim",
-            model="moonshotai/kimi-k3",
-            credential_available=True,
-            provider_available=True,
-            qualified=True,
-            authorized=True,
-        ),
+        authorization=_normal_nvidia_authorization(),
         credential_resolver=lambda: "synthetic-nvidia-credential",
         wire_transport=wire_transport,
     )

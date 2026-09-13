@@ -908,6 +908,7 @@ class LocalApiApplication:
                 )
                 return HTTPStatus.CREATED, {"schedule": self._schedule_dto(schedule)}
             if method == "PUT" and route == "/api/v1/settings/model-preference":
+                self._only_keys(data, {"provider", "model"})
                 pref = self._service.set_desired_model(
                     provider=self._string(data, "provider"),
                     model=self._string(data, "model"),

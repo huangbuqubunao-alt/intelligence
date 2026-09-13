@@ -44,6 +44,83 @@ class DistillationTransportKind(str, Enum):
     CLOUD_PRODUCTION = "CLOUD_PRODUCTION"
 
 
+class DistillationCapabilityScope(str, Enum):
+    """Finite capability names that can be checked by production authority."""
+
+    V1_VIDEO_DISTILLATION = "V1_VIDEO_DISTILLATION"
+    DEEP_ANALYSIS = "DEEP_ANALYSIS"
+    INVESTIGATION = "INVESTIGATION"
+    ASK = "ASK"
+    DAILY = "DAILY"
+    EVIDENCE_EXPANSION = "EVIDENCE_EXPANSION"
+    TASK_016G = "TASK_016G"
+    V2 = "V2"
+
+
+_PRODUCTION_ELIGIBILITY_SEAL = object()
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ProviderProductionEligibility:
+    """Backend-minted provider/model/capability production decision."""
+
+    provider: str
+    model: str
+    capability_scope: DistillationCapabilityScope
+    available: bool
+    qualified: bool
+    authorized: bool
+    production_eligible: bool
+    _seal: object
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise TypeError("provider production eligibility is backend-authoritative")
+
+    def _is_authoritative(self) -> bool:
+        return self._seal is _PRODUCTION_ELIGIBILITY_SEAL
+
+
+class NormalV1ProductionAuthorizationAuthority:
+    """The complete TASK-022D authorization allowlist."""
+
+    _PROVIDER = "nvidia_nim"
+    _MODEL = "moonshotai/kimi-k3"
+    _CAPABILITY = DistillationCapabilityScope.V1_VIDEO_DISTILLATION
+
+    @classmethod
+    def resolve(
+        cls,
+        *,
+        provider: str,
+        model: str,
+        capability_scope: DistillationCapabilityScope,
+        available: bool,
+    ) -> ProviderProductionEligibility:
+        if (
+            not isinstance(provider, str)
+            or not isinstance(model, str)
+            or not isinstance(capability_scope, DistillationCapabilityScope)
+            or type(available) is not bool
+        ):
+            raise TypeError("provider production eligibility input is invalid")
+        authorized = (
+            provider == cls._PROVIDER
+            and model == cls._MODEL
+            and capability_scope is cls._CAPABILITY
+        )
+        eligibility = object.__new__(ProviderProductionEligibility)
+        object.__setattr__(eligibility, "provider", provider)
+        object.__setattr__(eligibility, "model", model)
+        object.__setattr__(eligibility, "capability_scope", capability_scope)
+        object.__setattr__(eligibility, "available", available)
+        object.__setattr__(eligibility, "qualified", authorized)
+        object.__setattr__(eligibility, "authorized", authorized)
+        object.__setattr__(eligibility, "production_eligible", available and authorized)
+        object.__setattr__(eligibility, "_seal", _PRODUCTION_ELIGIBILITY_SEAL)
+        return eligibility
+
+
 @dataclass(frozen=True, slots=True)
 class BudgetDecision:
     allowed: bool
@@ -134,7 +211,6 @@ class DistillationTransportResult:
     duration_ms: int | None
 
 
-@dataclass(frozen=True, slots=True)
 class CloudDistillationAuthorization:
     """Backend-owned gates for the finite V1 cloud transport routes.
 
@@ -143,16 +219,98 @@ class CloudDistillationAuthorization:
     ordinary production instead requires the qualified+authorized pair.
     """
 
-    cloud_enabled: bool = False
-    provider: str | None = None
-    model: str | None = None
-    credential_available: bool = False
-    provider_available: bool = False
-    qualified: bool = False
-    authorized: bool = False
-    qualification_input_hash: str | None = None
-    qualification_max_calls: int = 1
-    qualification_response_wait_timeout_seconds: int | None = None
+    cloud_enabled: bool
+    provider: str | None
+    model: str | None
+    credential_available: bool
+    provider_available: bool
+    qualification_input_hash: str | None
+    qualification_max_calls: int
+    qualification_response_wait_timeout_seconds: int | None
+    _normal_eligibility: ProviderProductionEligibility | None
+    _sealed: bool
+
+    __slots__ = (
+        "cloud_enabled",
+        "provider",
+        "model",
+        "credential_available",
+        "provider_available",
+        "qualification_input_hash",
+        "qualification_max_calls",
+        "qualification_response_wait_timeout_seconds",
+        "_normal_eligibility",
+        "_sealed",
+    )
+
+    def __init__(
+        self,
+        *,
+        cloud_enabled: bool = False,
+        provider: str | None = None,
+        model: str | None = None,
+        credential_available: bool = False,
+        provider_available: bool = False,
+        qualification_input_hash: str | None = None,
+        qualification_max_calls: int = 1,
+        qualification_response_wait_timeout_seconds: int | None = None,
+    ) -> None:
+        object.__setattr__(self, "cloud_enabled", cloud_enabled)
+        object.__setattr__(self, "provider", provider)
+        object.__setattr__(self, "model", model)
+        object.__setattr__(self, "credential_available", credential_available)
+        object.__setattr__(self, "provider_available", provider_available)
+        object.__setattr__(self, "qualification_input_hash", qualification_input_hash)
+        object.__setattr__(self, "qualification_max_calls", qualification_max_calls)
+        object.__setattr__(
+            self,
+            "qualification_response_wait_timeout_seconds",
+            qualification_response_wait_timeout_seconds,
+        )
+        object.__setattr__(self, "_normal_eligibility", None)
+        object.__setattr__(self, "_sealed", True)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        del name, value
+        raise AttributeError("cloud distillation authorization is immutable")
+
+    @classmethod
+    def for_normal_production(
+        cls,
+        *,
+        eligibility: ProviderProductionEligibility,
+        cloud_enabled: bool,
+        credential_available: bool,
+    ) -> CloudDistillationAuthorization:
+        if (
+            type(eligibility) is not ProviderProductionEligibility
+            or not eligibility._is_authoritative()
+        ):
+            raise TypeError("normal production requires backend provider eligibility")
+        authorization = cls(
+            cloud_enabled=cloud_enabled,
+            provider=eligibility.provider,
+            model=eligibility.model,
+            credential_available=credential_available,
+            provider_available=eligibility.available,
+        )
+        object.__setattr__(authorization, "_normal_eligibility", eligibility)
+        return authorization
+
+    @property
+    def qualified(self) -> bool:
+        eligibility = self._normal_eligibility
+        return eligibility is not None and eligibility.qualified
+
+    @property
+    def authorized(self) -> bool:
+        eligibility = self._normal_eligibility
+        return eligibility is not None and eligibility.authorized
+
+    @property
+    def production_eligible(self) -> bool:
+        eligibility = self._normal_eligibility
+        return eligibility is not None and eligibility.production_eligible
 
     def permits(self, verified_input: VerifiedDistillationInput) -> bool:
         if not (
@@ -166,7 +324,12 @@ class CloudDistillationAuthorization:
             and verified_input.selected_model == self.model
         ):
             return False
-        normal = self.qualified and self.authorized
+        normal = (
+            self.production_eligible
+            and self._normal_eligibility is not None
+            and self._normal_eligibility.capability_scope
+            is DistillationCapabilityScope.V1_VIDEO_DISTILLATION
+        )
         qualification = (
             self.qualification_input_hash == verified_input.semantic_hash
             and self.qualification_max_calls == 1

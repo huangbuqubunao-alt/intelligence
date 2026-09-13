@@ -12,11 +12,11 @@ import pytest
 from youtube_intel.distillation import (
     BudgetDecision,
     CloudDistillationAuthorization,
-    DistillationCommand,
     DistillationCapabilityScope,
+    DistillationCommand,
     DistillationTransportResult,
-    NvidiaNimCloudDistillationTransport,
     NormalV1ProductionAuthorizationAuthority,
+    NvidiaNimCloudDistillationTransport,
     PersonalizedDistillationService,
 )
 from youtube_intel.local_api import LocalApiApplication
