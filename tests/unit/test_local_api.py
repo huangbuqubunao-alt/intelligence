@@ -82,10 +82,86 @@ def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) 
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
     assert payload["model_preference"]["active_production_default"] is None
-    assert payload["providers"][1]["reason"] == "1/2; SCHEMA_INVALID"
+    kimi = payload["providers"][0]
+    assert kimi["provider"] == "NVIDIA NIM"
+    assert kimi["model"] == "moonshotai/kimi-k3"
+    assert kimi["adapter_available"] is True
+    assert kimi["qualification_status"] == "QUALIFIED"
+    assert kimi["authorized"] is True
+    assert kimi["production_eligible"] is True
+    assert kimi["scope"] == "V1_VIDEO_DISTILLATION_ONLY"
+    assert "secret" not in str(payload).lower()
 
 
-@pytest.mark.parametrize("forged_field", ("qualified", "authorized", "production_eligible"))
+def test_intelligence_card_projects_readable_persisted_provenance(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-1",
+        revision_id="revision-1",
+        claim_kind=SimpleNamespace(value="EVIDENCE_BACKED_STATEMENT"),
+        state=SimpleNamespace(value="UPDATED"),
+        evidence_ids=("evidence-1",),
+        is_confirmed=True,
+    )
+    card = SimpleNamespace(
+        verified=verified,
+        core_conclusion="Transformer attention weighs relevant context.",
+        user_relevant_information=("This helps explain current LLM behavior.",),
+        important_new_information=("Context is weighted per token.",),
+        meaningful_details=("The mechanism repeats across layers.",),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="wjZofJX0v4M",
+        preference_ids=(),
+        source_policy_revision_id="policy-1",
+    )
+    app._intelligence_reader = SimpleNamespace(  # type: ignore[assignment]
+        read_current=lambda intelligence_id: verified,
+        read_current_card=lambda intelligence_id: card,
+    )
+    app._repository.get_source_subscription = lambda source_id: SimpleNamespace(  # type: ignore[method-assign]
+        display_name=None,
+        canonical_url="https://www.youtube.com/channel/3blue1brown",
+        channel_id="UCYO_jab_esuFRV4b17AJtAw",
+        video_id=None,
+    )
+    app._repository.get_video = lambda video_id: SimpleNamespace(  # type: ignore[method-assign]
+        title="Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+        channel_name="3Blue1Brown",
+        source_url="https://www.youtube.com/watch?v=wjZofJX0v4M",
+    )
+    app._repository.resolve_verified_evidence_text = lambda evidence_id: (
+        SimpleNamespace(  # type: ignore[method-assign]
+            evidence_id=evidence_id,
+            video_id="wjZofJX0v4M",
+            start_ms=18_000,
+            end_ms=42_000,
+            excerpt="Attention lets each token weigh relevant context from other tokens.",
+        )
+    )
+
+    projection = app._intelligence_projection("intel-1")
+
+    assert projection["trusted"] is True
+    projected_card = cast(dict[str, object], projection["card"])
+    assert projected_card["source_display_name"] == "3Blue1Brown"
+    assert projected_card["source_url"] == "https://www.youtube.com/channel/3blue1brown"
+    assert projected_card["video_title"] == (
+        "Transformers, the tech behind LLMs | Deep Learning Chapter 5"
+    )
+    assert cast(list[dict[str, object]], projected_card["evidence_links"])[0] == {
+        "evidence_id": "evidence-1",
+        "start_ms": 18_000,
+        "end_ms": 42_000,
+        "excerpt": "Attention lets each token weigh relevant context from other tokens.",
+    }
+
+
+@pytest.mark.parametrize(
+    "forged_field", ("qualified", "authorized", "production_eligible")
+)
 def test_frontend_cannot_submit_provider_authority(
     tmp_path: Path, forged_field: str
 ) -> None:
@@ -352,7 +428,9 @@ def test_transcript_failed_state_uses_only_the_safe_failure_code(
         status=JobStatus.FAILED_FINAL,
         last_error_code="LOCAL_RESOURCE",
     )
-    monkeypatch.setattr(app._repository, "latest_video_job", lambda *_args, **_kwargs: failed)  # type: ignore[union-attr]
+    monkeypatch.setattr(
+        app._repository, "latest_video_job", lambda *_args, **_kwargs: failed
+    )  # type: ignore[union-attr]
     projection = app._transcript_projection("abcdefghijk")
     assert projection == {
         "status": "FAILED",
@@ -374,7 +452,9 @@ def test_history_preserves_ambiguous_and_weekly_keeps_unknown_version(
         status=JobStatus.FAILED_FINAL,
         last_error_code="AMBIGUOUS",
     )
-    monkeypatch.setattr(app._repository, "list_video_jobs", lambda *_args, **_kwargs: (ambiguous,))  # type: ignore[union-attr]
+    monkeypatch.setattr(
+        app._repository, "list_video_jobs", lambda *_args, **_kwargs: (ambiguous,)
+    )  # type: ignore[union-attr]
     monkeypatch.setattr(app._repository, "list_job_attempts", lambda *_args: ())  # type: ignore[union-attr]
     history = app._history_projection("abcdefghijk")
     ambiguous_event = next(item for item in history if item["status"] == "AMBIGUOUS")
@@ -404,12 +484,19 @@ def test_source_recent_videos_are_joined_only_through_persisted_links(
     _, created = app.handle(
         "POST",
         "/api/v1/sources",
-        json.dumps({"url": "https://youtu.be/abcdefghijk", "processing_policy": "DISCOVER_ONLY"}).encode(),
+        json.dumps(
+            {
+                "url": "https://youtu.be/abcdefghijk",
+                "processing_policy": "DISCOVER_ONLY",
+            }
+        ).encode(),
     )
     source_id = created["source"]["source_id"]
     _record_video(app, "abcdefghijk")
     _record_video(app, "zzzzzzzzzzz")
-    app._repository.link_source_video(source_id, "abcdefghijk", discovered_at=datetime(2026, 9, 1, tzinfo=UTC))
+    app._repository.link_source_video(
+        source_id, "abcdefghijk", discovered_at=datetime(2026, 9, 1, tzinfo=UTC)
+    )
 
     detail = app.handle("GET", f"/api/v1/sources/{source_id}")[1]
     assert [item["video_id"] for item in detail["recent_videos"]] == ["abcdefghijk"]

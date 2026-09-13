@@ -1629,7 +1629,12 @@ def test_loopback_manual_admission_accepts_no_raw_model_fields_and_reads_card_th
     assert read_payload["intelligence"]["card"]["core_conclusion"].startswith("The release")
     assert read_payload["intelligence"]["card"]["original_video_url"].endswith(video_id)
     assert read_payload["intelligence"]["card"]["evidence_links"] == [
-        {"evidence_id": evidence_id, "start_ms": 1_000, "end_ms": 1_500}
+        {
+            "evidence_id": evidence_id,
+            "start_ms": 1_000,
+            "end_ms": 1_500,
+            "excerpt": "Fixture canonical evidence.",
+        }
     ]
     with pytest.raises(ApiError):
         app.handle(

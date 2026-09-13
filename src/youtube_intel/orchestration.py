@@ -238,7 +238,9 @@ class ProviderModelStatus:
     credential_status: str
     adapter_available: bool
     qualification_status: str
+    authorized: bool
     production_eligible: bool
+    scope: str
     reason: str
 
 
@@ -246,36 +248,42 @@ def provider_model_statuses(
     desired_provider: str | None, desired_model: str | None
 ) -> tuple[ProviderModelStatus, ...]:
     """Static safe projections of the currently approved qualification facts."""
-    known = (
-        (
-            "OpenAI",
-            desired_model if desired_provider == "OpenAI" else None,
-            "BLOCKED",
-            "0/2; credential blocked",
-        ),
-        (
-            "Kimi",
-            desired_model if desired_provider == "Kimi" else None,
-            "NOT_CONFIGURED",
-            "1/2; SCHEMA_INVALID",
-        ),
-        (
-            "Local",
-            desired_model if desired_provider == "Local" else None,
-            "NOT_CONFIGURED",
-            "Unqualified; search closed",
-        ),
-    )
-    return tuple(
+    return (
         ProviderModelStatus(
-            provider,
-            model,
-            desired_provider == provider,
-            credential,
-            True,
-            "UNQUALIFIED",
-            False,
-            reason,
-        )
-        for provider, model, credential, reason in known
+            provider="NVIDIA NIM",
+            model="moonshotai/kimi-k3",
+            configured=desired_provider == "NVIDIA NIM"
+            and desired_model == "moonshotai/kimi-k3",
+            credential_status="AVAILABLE",
+            adapter_available=True,
+            qualification_status="QUALIFIED",
+            authorized=True,
+            production_eligible=True,
+            scope="V1_VIDEO_DISTILLATION_ONLY",
+            reason="Approved for V1 Video Distillation only.",
+        ),
+        ProviderModelStatus(
+            provider="OpenAI",
+            model=desired_model if desired_provider == "OpenAI" else None,
+            configured=desired_provider == "OpenAI",
+            credential_status="BLOCKED",
+            adapter_available=True,
+            qualification_status="UNQUALIFIED",
+            authorized=False,
+            production_eligible=False,
+            scope="NONE",
+            reason="Not approved for production use.",
+        ),
+        ProviderModelStatus(
+            provider="Local",
+            model=desired_model if desired_provider == "Local" else None,
+            configured=desired_provider == "Local",
+            credential_status="NOT_CONFIGURED",
+            adapter_available=True,
+            qualification_status="UNQUALIFIED",
+            authorized=False,
+            production_eligible=False,
+            scope="NONE",
+            reason="Not approved for production use.",
+        ),
     )

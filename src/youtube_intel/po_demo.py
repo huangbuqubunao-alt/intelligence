@@ -1,8 +1,10 @@
 """Isolated, deterministic Product Owner review demo runtime.
 
-This module deliberately creates only synthetic data below ``.var/po-demo``.
-It never loads application settings, credentials, a user database, or a user
-Vault, and it never composes discovery, provider, or scheduler execution.
+This module deliberately creates only deterministic review data below
+``.var/po-demo``. Public metadata and paraphrased UX fixtures may represent
+governed qualification cases, but no qualification database or transcript body
+is copied. It never loads application settings, credentials, a user database,
+or a user Vault, and it never composes discovery, provider, or scheduler execution.
 """
 
 from __future__ import annotations
@@ -96,7 +98,24 @@ from youtube_intel.topic import TopicApplicationService
 _NOW = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
 _PIPELINE_VERSION = "po-demo-v1"
 _MODEL = "demo-offline-model"
-_GOLDEN_VIDEO_ID = "golden-ai-roadmap"
+_GOLDEN_VIDEO_ID = "aircAruvnKk"
+_OPINION_VIDEO_ID = "7gtc1DW2Tgo"
+_FACTUAL_VIDEO_ID = "wjZofJX0v4M"
+
+
+@dataclass(frozen=True, slots=True)
+class _RealDataUxCase:
+    case_id: str
+    source_id: str
+    video_id: str
+    video_title: str
+    channel_name: str
+    core_conclusion: str
+    relevance: str
+    new_information: str
+    detail: str
+    evidence_excerpt: str
+    claim_kind: IntelligenceClaimKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +145,9 @@ class _OfflineDemoTransport:
     def __init__(self, raw: str) -> None:
         self._raw = raw
 
-    def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult:
+    def generate(
+        self, verified_input: VerifiedDistillationInput
+    ) -> DistillationTransportResult:
         del verified_input
         return DistillationTransportResult(
             raw=self._raw,
@@ -168,17 +189,18 @@ def reset_demo_runtime(project_root: Path) -> Path:
 
 def _source(
     source_id: str,
-    name: str,
+    name: str | None,
     handle: str,
     *,
     enabled: bool,
     policy: ProcessingPolicy,
+    channel_id: str | None = None,
 ) -> SourceSubscriptionRecord:
     return SourceSubscriptionRecord(
         source_id=source_id,
         source_type=SourceType.CHANNEL,
         canonical_url=f"https://www.youtube.com/{handle}",
-        channel_id=None,
+        channel_id=channel_id,
         video_id=None,
         display_name=name,
         enabled=enabled,
@@ -252,10 +274,16 @@ def _record_source_check_state(
             "last_success_at=:success, last_error_code=:code, last_error_message=:message, "
             "updated_at=:now WHERE source_id=:source_id",
             {
-                "checked": None if checked is None else checked.isoformat().replace("+00:00", "Z"),
-                "success": None if failed or checked is None else checked.isoformat().replace("+00:00", "Z"),
+                "checked": None
+                if checked is None
+                else checked.isoformat().replace("+00:00", "Z"),
+                "success": None
+                if failed or checked is None
+                else checked.isoformat().replace("+00:00", "Z"),
                 "code": "SOURCE_CHECK_FAILED" if failed else None,
-                "message": "The synthetic source check ended in a recorded failure." if failed else None,
+                "message": "The synthetic source check ended in a recorded failure."
+                if failed
+                else None,
                 "now": _NOW.isoformat().replace("+00:00", "Z"),
                 "source_id": source_id,
             },
@@ -308,13 +336,19 @@ def _write_artifact(root: Path, relative_path: str, body: bytes) -> str:
 
 
 def _seed_transcript(
-    repository: SQLiteStateRepository, data_root: Path, video_id: str
+    repository: SQLiteStateRepository,
+    data_root: Path,
+    video_id: str,
+    *,
+    evidence_excerpt: str,
 ) -> None:
+    """Seed an original, paraphrased UX fixture; never a copied transcript body."""
+
     transcript = (
-        "00:00  The team begins with a customer decision log, not a feature list.\n\n"
-        "00:18  Each weekly review compares the intended outcome with observed behavior.\n\n"
-        "00:42  The roadmap stays small when owners record assumptions, evidence, and the next experiment.\n\n"
-        "01:10  A release is complete only when the decision log explains what changed and why."
+        "00:00 This deterministic fixture summarizes a governed qualification outcome.\n\n"
+        f"00:18 {evidence_excerpt}\n\n"
+        "00:42 The wording is an original paraphrase for product review.\n\n"
+        "01:10 No qualification transcript content is included."
     ).encode("utf-8")
     relative = f"transcripts/{video_id}/canonical.txt"
     content_hash = _write_artifact(data_root, relative, transcript)
@@ -336,18 +370,33 @@ def _seed_transcript(
         ),
         now=_NOW,
     )
-    repository.create_timed_transcript(_demo_timed_transcript(video_id), now=_NOW)
+    repository.create_timed_transcript(
+        _demo_timed_transcript(video_id, evidence_excerpt=evidence_excerpt),
+        now=_NOW,
+    )
 
 
-def _demo_timed_transcript(video_id: str) -> TimedTranscriptWrite:
+def _demo_timed_transcript(
+    video_id: str, *, evidence_excerpt: str
+) -> TimedTranscriptWrite:
     return TimedTranscriptWrite.from_cues(
         video_id=video_id,
         canonical_artifact_id=f"demo-transcript-{video_id}",
         cues=(
-            TimedTranscriptCueWrite(0, 18_000, "00:00 The team begins with a customer decision log, not a feature list."),
-            TimedTranscriptCueWrite(18_000, 42_000, "00:18 Each weekly review compares the intended outcome with observed behavior."),
-            TimedTranscriptCueWrite(42_000, 70_000, "00:42 The roadmap stays small when owners record assumptions, evidence, and the next experiment."),
-            TimedTranscriptCueWrite(70_000, 90_000, "01:10 A release is complete only when the decision log explains what changed and why."),
+            TimedTranscriptCueWrite(
+                0,
+                18_000,
+                "00:00 This deterministic fixture summarizes a governed qualification outcome.",
+            ),
+            TimedTranscriptCueWrite(18_000, 42_000, f"00:18 {evidence_excerpt}"),
+            TimedTranscriptCueWrite(
+                42_000,
+                70_000,
+                "00:42 The wording is an original paraphrase for product review.",
+            ),
+            TimedTranscriptCueWrite(
+                70_000, 90_000, "01:10 No qualification transcript content is included."
+            ),
         ),
     )
 
@@ -480,13 +529,15 @@ def _seed_verified_scoring(
 
 
 def _seed_verified_intelligence(
-    repository: SQLiteStateRepository, *, source_id: str, video_id: str
+    repository: SQLiteStateRepository,
+    *,
+    case: _RealDataUxCase,
 ) -> str:
-    """Create a verified card through TASK-022's offline test boundary only."""
+    """Create a safe qualification-derived card through the offline boundary."""
 
-    artifact_id = f"demo-transcript-{video_id}"
+    artifact_id = f"demo-transcript-{case.video_id}"
     evidence_id = build_evidence_id(
-        video_id=video_id,
+        video_id=case.video_id,
         artifact_id=artifact_id,
         start_ms=18_000,
         end_ms=42_000,
@@ -495,7 +546,7 @@ def _seed_verified_intelligence(
     )
     evidence = EvidenceWrite(
         evidence_id=evidence_id,
-        video_id=video_id,
+        video_id=case.video_id,
         artifact_id=artifact_id,
         start_ms=18_000,
         end_ms=42_000,
@@ -504,7 +555,10 @@ def _seed_verified_intelligence(
         language="en",
         availability=EvidenceAvailability.AVAILABLE,
     )
-    timed = _demo_timed_transcript(video_id)
+    timed = _demo_timed_transcript(
+        case.video_id,
+        evidence_excerpt=case.evidence_excerpt,
+    )
     repository.create_evidence_with_text_binding(
         evidence,
         EvidenceTextBindingWrite.from_timed_transcript(
@@ -512,39 +566,41 @@ def _seed_verified_intelligence(
             timed_transcript_id=timed.timed_transcript_id,
             start_cue_index=1,
             end_cue_index=2,
-            excerpt="00:18 Each weekly review compares the intended outcome with observed behavior.",
+            excerpt=f"00:18 {case.evidence_excerpt}",
         ),
         now=_NOW,
     )
     policies = SourcePolicyApplicationService(repository, now=lambda: _NOW)
     policies.update_global(
-        command_id="po-demo-intelligence-policy",
+        command_id="po-demo-real-data-ux-policy",
         initial_history_count=5,
         per_run_max_new_videos=5,
-        focus_rules=("AI",),
+        focus_rules=("qualification",),
         ignore_rules=("rough",),
         distillation_style=DistillationStyle.BALANCED,
     )
     policies.evaluate_and_record_stage_one(
-        source_id,
+        case.source_id,
         MetadataFilterCandidate(
-            video_id=video_id,
-            title="How teams turn AI roadmaps into decision systems",
-            description="Synthetic PO-demo evidence fixture.",
-            channel_name="Practical AI Engineering",
+            video_id=case.video_id,
+            title=case.video_title,
+            description="Qualification-derived, paraphrased UX fixture.",
+            channel_name=case.channel_name,
             published_at=_NOW,
             video_type=VideoType.STANDARD,
         ),
     )
     raw = json.dumps(
         {
-            "core_conclusion": "Decision logs keep roadmap changes evidence-bound.",
-            "user_relevant_information": ["The team can inspect the supporting transcript."],
-            "important_new_information": ["Weekly review compares assumptions with outcomes."],
-            "meaningful_details": ["The source records a repeatable review cadence."],
-            "filtered_noise": ["Synthetic fixture only."],
-            "claim_kind": "EVIDENCE_BACKED_STATEMENT",
-            "evidence": [{"evidence_id": evidence_id, "start_ms": 18_000, "end_ms": 42_000}],
+            "core_conclusion": case.core_conclusion,
+            "user_relevant_information": [case.relevance],
+            "important_new_information": [case.new_information],
+            "meaningful_details": [case.detail],
+            "filtered_noise": ["Qualification transcript body intentionally excluded."],
+            "claim_kind": case.claim_kind.value,
+            "evidence": [
+                {"evidence_id": evidence_id, "start_ms": 18_000, "end_ms": 42_000}
+            ],
         },
         separators=(",", ":"),
     )
@@ -556,11 +612,11 @@ def _seed_verified_intelligence(
         now=lambda: _NOW,
     ).distill(
         DistillationCommand(
-            execution_id="po-demo-distill-golden",
-            source_id=source_id,
-            video_id=video_id,
+            execution_id=f"po-demo-distill-{case.case_id}",
+            source_id=case.source_id,
+            video_id=case.video_id,
             evidence_ids=(evidence_id,),
-            reason="PO_DEMO_SYNTHETIC_FIXTURE",
+            reason="PO_DEMO_QUALIFICATION_DERIVED_FIXTURE",
             use_case="PERSONALIZED_INTELLIGENCE",
             selected_provider="po-demo-offline",
             selected_model="deterministic-v1",
@@ -577,13 +633,15 @@ def _seed_verified_intelligence(
 def _seed_skipped_video(repository: SQLiteStateRepository) -> None:
     """Record a legal SKIPPED decision for the Sources override surface."""
 
-    SourcePolicyApplicationService(repository, now=lambda: _NOW).evaluate_and_record_stage_one(
+    SourcePolicyApplicationService(
+        repository, now=lambda: _NOW
+    ).evaluate_and_record_stage_one(
         "source-ai",
         MetadataFilterCandidate(
             video_id="unverified-score",
             title="A rough scoring draft without a trusted result",
             description="Synthetic skipped-video fixture.",
-            channel_name="Practical AI Engineering",
+            channel_name="3Blue1Brown",
             published_at=_NOW,
             video_type=VideoType.STANDARD,
         ),
@@ -697,11 +755,17 @@ def _seed_weekly_correction(
             "important_new_information_json, meaningful_details_json, filtered_noise_json, "
             "preference_ids_json, source_policy_revision_id, ? "
             "FROM distillation_cards WHERE revision_id = ?",
-            (revision_id, corrected_at.isoformat().replace("+00:00", "Z"), prior.revision_id),
+            (
+                revision_id,
+                corrected_at.isoformat().replace("+00:00", "Z"),
+                prior.revision_id,
+            ),
         )
     finally:
         connection.close()
-    WeeklyBriefService(repository, timezone="UTC", now=lambda: corrected_at).append_correction_markers()
+    WeeklyBriefService(
+        repository, timezone="UTC", now=lambda: corrected_at
+    ).append_correction_markers()
 
 
 def _seed_unavailable_saved(
@@ -709,7 +773,9 @@ def _seed_unavailable_saved(
 ) -> None:
     """Preserve a Save relation after a later legal invalidation."""
 
-    source = AuthoritativeIntelligenceReader(repository).read_current(source_intelligence_id)
+    source = AuthoritativeIntelligenceReader(repository).read_current(
+        source_intelligence_id
+    )
     prior = repository.get_intelligence_revision(source.revision_id)
     assert prior is not None
     intelligence_id = "po-demo-unavailable-saved"
@@ -751,7 +817,11 @@ def _seed_unavailable_saved(
             "important_new_information_json, meaningful_details_json, filtered_noise_json, "
             "preference_ids_json, source_policy_revision_id, ? "
             "FROM distillation_cards WHERE revision_id = ?",
-            (available_revision_id, available_at.isoformat().replace("+00:00", "Z"), prior.revision_id),
+            (
+                available_revision_id,
+                available_at.isoformat().replace("+00:00", "Z"),
+                prior.revision_id,
+            ),
         )
     finally:
         connection.close()
@@ -874,8 +944,18 @@ def _seed_run(
 
 def _seed_reports(repository: SQLiteStateRepository, vault_root: Path) -> None:
     reports = (
-        ("demo-weekly-35", 2026, 35, "Week 35: teams consolidated experiment notes and clarified ownership."),
-        ("demo-weekly-36", 2026, 36, "Week 36: decision logs connected evidence, release checks, and follow-up questions."),
+        (
+            "demo-weekly-35",
+            2026,
+            35,
+            "Week 35: teams consolidated experiment notes and clarified ownership.",
+        ),
+        (
+            "demo-weekly-36",
+            2026,
+            36,
+            "Week 36: decision logs connected evidence, release checks, and follow-up questions.",
+        ),
     )
     for report_id, year, week, content in reports:
         relative = f"reports/{year}-W{week:02d}.md"
@@ -896,7 +976,7 @@ def _seed_reports(repository: SQLiteStateRepository, vault_root: Path) -> None:
 
 
 def prepare_demo(project_root: Path) -> DemoRuntime:
-    """Create an idempotent synthetic demo database in the fixed runtime root."""
+    """Create an idempotent, offline UX-review database in the fixed runtime root."""
 
     root = _assert_demo_root(project_root)
     database = root / "state.sqlite3"
@@ -910,46 +990,232 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
     repository.initialize(now=_NOW)
 
     sources = (
-        _source("source-ai", "Practical AI Engineering", "@practical-ai-engineering", enabled=True, policy=ProcessingPolicy.STANDARD_INTELLIGENCE),
-        _source("source-product", "Product Craft Fieldnotes", "@product-craft-fieldnotes", enabled=True, policy=ProcessingPolicy.DISCOVER_ONLY),
-        _source("source-startup", "Startup Systems Review", "@startup-systems-review", enabled=True, policy=ProcessingPolicy.STANDARD_INTELLIGENCE),
-        _source("source-data", "Data Systems Workshop", "@data-systems-workshop", enabled=True, policy=ProcessingPolicy.DISCOVER_ONLY),
-        _source("source-creator", "Creator Economy Signals", "@creator-economy-signals", enabled=False, policy=ProcessingPolicy.DISCOVER_ONLY),
+        _source(
+            "source-ai",
+            None,
+            "channel/UCYO_jab_esuFRV4b17AJtAw",
+            enabled=True,
+            policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+            channel_id="UCYO_jab_esuFRV4b17AJtAw",
+        ),
+        _source(
+            "source-product",
+            "Product Craft Fieldnotes",
+            "@product-craft-fieldnotes",
+            enabled=True,
+            policy=ProcessingPolicy.DISCOVER_ONLY,
+        ),
+        _source(
+            "source-startup",
+            "Startup Systems Review",
+            "@startup-systems-review",
+            enabled=True,
+            policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+        ),
+        _source(
+            "source-data",
+            "Data Systems Workshop",
+            "@data-systems-workshop",
+            enabled=True,
+            policy=ProcessingPolicy.DISCOVER_ONLY,
+        ),
+        _source(
+            "source-creator",
+            "Marques Brownlee",
+            "@mkbhd",
+            enabled=True,
+            policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+            channel_id="UCBJycsmduvYEL83R_U4JriQ",
+        ),
     )
     for source in sources:
         repository.create_source_subscription(source)
-    _record_source_check_state(repository, "source-ai", checked=_NOW - timedelta(hours=1))
-    _record_source_check_state(repository, "source-product", checked=_NOW - timedelta(days=2))
-    _record_source_check_state(repository, "source-startup", checked=_NOW - timedelta(hours=4), failed=True)
+    _record_source_check_state(
+        repository, "source-ai", checked=_NOW - timedelta(hours=1)
+    )
+    _record_source_check_state(
+        repository, "source-product", checked=_NOW - timedelta(days=2)
+    )
+    _record_source_check_state(
+        repository, "source-startup", checked=_NOW - timedelta(hours=4), failed=True
+    )
 
     videos = (
-        (_GOLDEN_VIDEO_ID, "channel-ai", "Practical AI Engineering", "How teams turn AI roadmaps into decision systems", "source-ai", PipelineStatus.SCORED),
-        ("unverified-score", "channel-ai", "Practical AI Engineering", "A rough scoring draft without a trusted result", "source-ai", PipelineStatus.TRANSCRIPT_READY),
-        ("agent-eval-loop", "channel-ai", "Practical AI Engineering", "Designing an agent evaluation loop that teams can maintain", "source-ai", PipelineStatus.COMPLETE),
-        ("product-evidence", "channel-product", "Product Craft Fieldnotes", "Research evidence that changes roadmap conversations", "source-product", PipelineStatus.METADATA_READY),
-        ("service-blueprints", "channel-product", "Product Craft Fieldnotes", "Service blueprints for cross-functional product work", "source-product", PipelineStatus.DISCOVERED),
-        ("pricing-memos", "channel-startup", "Startup Systems Review", "Writing pricing memos before launching an experiment", "source-startup", PipelineStatus.DEFERRED),
-        ("founder-cadence", "channel-startup", "Startup Systems Review", "Founder operating cadence after product-market fit", "source-startup", PipelineStatus.METADATA_READY),
-        ("event-contracts", "channel-data", "Data Systems Workshop", "Event contracts for analytics teams that move quickly", "source-data", PipelineStatus.COMPLETE),
-        ("warehouse-costs", "channel-data", "Data Systems Workshop", "Warehouse cost controls for experimental data products", "source-data", PipelineStatus.DISCOVERED),
-        ("community-flywheel", "channel-creator", "Creator Economy Signals", "Community flywheels with measurable creator incentives", "source-creator", PipelineStatus.METADATA_READY),
-        ("newsletter-ops", "channel-creator", "Creator Economy Signals", "A lightweight operating system for independent newsletters", "source-creator", PipelineStatus.DISCOVERED),
-        ("ambiguous-provider", "channel-startup", "Startup Systems Review", "Provider result uncertain after an interrupted request", "source-startup", PipelineStatus.DEFERRED),
+        (
+            _GOLDEN_VIDEO_ID,
+            "UCYO_jab_esuFRV4b17AJtAw",
+            "3Blue1Brown",
+            "But what is a neural network? | Deep learning chapter 1",
+            "source-ai",
+            PipelineStatus.SCORED,
+        ),
+        (
+            _OPINION_VIDEO_ID,
+            "UCBJycsmduvYEL83R_U4JriQ",
+            "Marques Brownlee",
+            "Wait... Smart Glasses are Suddenly Good?",
+            "source-creator",
+            PipelineStatus.COMPLETE,
+        ),
+        (
+            _FACTUAL_VIDEO_ID,
+            "UCYO_jab_esuFRV4b17AJtAw",
+            "3Blue1Brown",
+            "Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+            "source-ai",
+            PipelineStatus.COMPLETE,
+        ),
+        (
+            "unverified-score",
+            "UCYO_jab_esuFRV4b17AJtAw",
+            "3Blue1Brown",
+            "A rough scoring draft without a trusted result",
+            "source-ai",
+            PipelineStatus.TRANSCRIPT_READY,
+        ),
+        (
+            "product-evidence",
+            "channel-product",
+            "Product Craft Fieldnotes",
+            "Research evidence that changes roadmap conversations",
+            "source-product",
+            PipelineStatus.METADATA_READY,
+        ),
+        (
+            "service-blueprints",
+            "channel-product",
+            "Product Craft Fieldnotes",
+            "Service blueprints for cross-functional product work",
+            "source-product",
+            PipelineStatus.DISCOVERED,
+        ),
+        (
+            "pricing-memos",
+            "channel-startup",
+            "Startup Systems Review",
+            "Writing pricing memos before launching an experiment",
+            "source-startup",
+            PipelineStatus.DEFERRED,
+        ),
+        (
+            "founder-cadence",
+            "channel-startup",
+            "Startup Systems Review",
+            "Founder operating cadence after product-market fit",
+            "source-startup",
+            PipelineStatus.METADATA_READY,
+        ),
+        (
+            "event-contracts",
+            "channel-data",
+            "Data Systems Workshop",
+            "Event contracts for analytics teams that move quickly",
+            "source-data",
+            PipelineStatus.COMPLETE,
+        ),
+        (
+            "warehouse-costs",
+            "channel-data",
+            "Data Systems Workshop",
+            "Warehouse cost controls for experimental data products",
+            "source-data",
+            PipelineStatus.DISCOVERED,
+        ),
+        (
+            "community-flywheel",
+            "UCBJycsmduvYEL83R_U4JriQ",
+            "Marques Brownlee",
+            "Community flywheels with measurable creator incentives",
+            "source-creator",
+            PipelineStatus.METADATA_READY,
+        ),
+        (
+            "newsletter-ops",
+            "UCBJycsmduvYEL83R_U4JriQ",
+            "Marques Brownlee",
+            "A lightweight operating system for independent newsletters",
+            "source-creator",
+            PipelineStatus.DISCOVERED,
+        ),
+        (
+            "ambiguous-provider",
+            "channel-startup",
+            "Startup Systems Review",
+            "Provider result uncertain after an interrupted request",
+            "source-startup",
+            PipelineStatus.DEFERRED,
+        ),
     )
-    for index, (video_id, channel_id, channel_name, title, source_id, status) in enumerate(videos):
+    for index, (
+        video_id,
+        channel_id,
+        channel_name,
+        title,
+        source_id,
+        status,
+    ) in enumerate(videos):
         repository.upsert_video_metadata(
             _video(video_id, channel_id, channel_name, title, offset_days=index),
             pipeline_version=_PIPELINE_VERSION,
             now=_NOW,
         )
-        repository.link_source_video(source_id, video_id, discovered_at=_NOW - timedelta(days=index))
+        repository.link_source_video(
+            source_id, video_id, discovered_at=_NOW - timedelta(days=index)
+        )
         _set_video_status(repository, video_id, status)
 
-    _seed_transcript(repository, data_root, _GOLDEN_VIDEO_ID)
-    _seed_verified_scoring(repository, data_root, _GOLDEN_VIDEO_ID)
-    intelligence_id = _seed_verified_intelligence(
-        repository, source_id="source-ai", video_id=_GOLDEN_VIDEO_ID
+    cases = (
+        _RealDataUxCase(
+            case_id="phase-1",
+            source_id="source-ai",
+            video_id=_GOLDEN_VIDEO_ID,
+            video_title="But what is a neural network? | Deep learning chapter 1",
+            channel_name="3Blue1Brown",
+            core_conclusion="Neural networks learn through layers that transform inputs into useful representations.",
+            relevance="This mental model makes later explanations of modern AI systems easier to evaluate.",
+            new_information="The explanation connects individual neurons, layers, and learned weights into one visual model.",
+            detail="This is an educational explanation from one video, not a multi-source consensus.",
+            evidence_excerpt="The explanation builds intuition by following how one layer transforms the previous layer's activations.",
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+        ),
+        _RealDataUxCase(
+            case_id="phase-2-opinion",
+            source_id="source-creator",
+            video_id=_OPINION_VIDEO_ID,
+            video_title="Wait... Smart Glasses are Suddenly Good?",
+            channel_name="Marques Brownlee",
+            core_conclusion="The presenter believes smart glasses have crossed into everyday usefulness.",
+            relevance="That view can inform how you assess wearable product timing and changing user expectations.",
+            new_information="Recent hardware and AI features are changing the category's practical trade-offs.",
+            detail="This is the presenter's judgment, not a settled fact.",
+            evidence_excerpt="The presenter describes recent smart glasses as useful enough to reconsider the category.",
+            claim_kind=IntelligenceClaimKind.OPINION,
+        ),
+        _RealDataUxCase(
+            case_id="phase-2-factual",
+            source_id="source-ai",
+            video_id=_FACTUAL_VIDEO_ID,
+            video_title="Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+            channel_name="3Blue1Brown",
+            core_conclusion="Transformer attention lets each token weigh relevant context from other tokens.",
+            relevance="This mechanism helps explain how language models connect information across a prompt.",
+            new_information="The video traces attention from token relationships into repeated transformer layers.",
+            detail="The claim is presented as a technical explanation and remains tied to the cited video range.",
+            evidence_excerpt="Attention assigns different weights to the context each token uses for its next representation.",
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+        ),
     )
+    intelligence_ids: list[str] = []
+    for case in cases:
+        _seed_transcript(
+            repository,
+            data_root,
+            case.video_id,
+            evidence_excerpt=case.evidence_excerpt,
+        )
+        intelligence_ids.append(_seed_verified_intelligence(repository, case=case))
+    _seed_verified_scoring(repository, data_root, _GOLDEN_VIDEO_ID)
+    intelligence_id = intelligence_ids[0]
     _seed_skipped_video(repository)
     _seed_preferences(repository)
     _seed_needs_attention_run(repository)
@@ -957,18 +1223,102 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
     _seed_weekly_correction(repository, intelligence_id)
     _seed_unavailable_saved(repository, intelligence_id)
     _seed_unverified_scoring_like_artifact(repository, data_root, "unverified-score")
-    _record_completed_job(repository, job_id="demo-metadata-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.METADATA)
-    _record_completed_job(repository, job_id="demo-transcript-golden", video_id=_GOLDEN_VIDEO_ID, stage=ProcessingStage.TRANSCRIPT)
-    _record_completed_job(repository, job_id="demo-analysis-ambiguous", video_id="ambiguous-provider", stage=ProcessingStage.ANALYSIS, status=JobStatus.FAILED_FINAL, error_code="AMBIGUOUS")
+    _record_completed_job(
+        repository,
+        job_id="demo-metadata-golden",
+        video_id=_GOLDEN_VIDEO_ID,
+        stage=ProcessingStage.METADATA,
+    )
+    _record_completed_job(
+        repository,
+        job_id="demo-transcript-golden",
+        video_id=_GOLDEN_VIDEO_ID,
+        stage=ProcessingStage.TRANSCRIPT,
+    )
+    _record_completed_job(
+        repository,
+        job_id="demo-analysis-ambiguous",
+        video_id="ambiguous-provider",
+        stage=ProcessingStage.ANALYSIS,
+        status=JobStatus.FAILED_FINAL,
+        error_code="AMBIGUOUS",
+    )
 
-    _seed_schedule(repository, schedule_id="demo-manual", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-product", frequency=ScheduleFrequency.MANUAL, weekday=None, local_time=None, enabled=True)
-    _seed_schedule(repository, schedule_id="demo-daily", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-ai", frequency=ScheduleFrequency.DAILY, weekday=None, local_time="08:30", enabled=True)
-    _seed_schedule(repository, schedule_id="demo-weekly", target_type=AutomationTargetType.WEEKLY_GENERATION, target_id=None, frequency=ScheduleFrequency.WEEKLY, weekday=6, local_time="20:00", enabled=True)
-    _seed_schedule(repository, schedule_id="demo-disabled", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-creator", frequency=ScheduleFrequency.DAILY, weekday=None, local_time="07:00", enabled=False)
-    _seed_run(repository, run_id="run-success", schedule_id="demo-daily", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-ai", status=AutomationRunStatus.SUCCEEDED)
-    _seed_run(repository, run_id="run-failed", schedule_id="demo-manual", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-product", status=AutomationRunStatus.FAILED_FINAL, error_code="SOURCE_CHECK_FAILED")
-    _seed_run(repository, run_id="run-ambiguous", schedule_id="demo-weekly", target_type=AutomationTargetType.WEEKLY_GENERATION, target_id=None, status=AutomationRunStatus.FAILED_FINAL, error_code="AMBIGUOUS")
-    _seed_run(repository, run_id="run-blocked", schedule_id="demo-disabled", target_type=AutomationTargetType.SOURCE_CHECK, target_id="source-creator", status=AutomationRunStatus.BLOCKED, error_code="DISABLED")
+    _seed_schedule(
+        repository,
+        schedule_id="demo-manual",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-product",
+        frequency=ScheduleFrequency.MANUAL,
+        weekday=None,
+        local_time=None,
+        enabled=True,
+    )
+    _seed_schedule(
+        repository,
+        schedule_id="demo-daily",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-ai",
+        frequency=ScheduleFrequency.DAILY,
+        weekday=None,
+        local_time="08:30",
+        enabled=True,
+    )
+    _seed_schedule(
+        repository,
+        schedule_id="demo-weekly",
+        target_type=AutomationTargetType.WEEKLY_GENERATION,
+        target_id=None,
+        frequency=ScheduleFrequency.WEEKLY,
+        weekday=6,
+        local_time="20:00",
+        enabled=True,
+    )
+    _seed_schedule(
+        repository,
+        schedule_id="demo-disabled",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-creator",
+        frequency=ScheduleFrequency.DAILY,
+        weekday=None,
+        local_time="07:00",
+        enabled=False,
+    )
+    _seed_run(
+        repository,
+        run_id="run-success",
+        schedule_id="demo-daily",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-ai",
+        status=AutomationRunStatus.SUCCEEDED,
+    )
+    _seed_run(
+        repository,
+        run_id="run-failed",
+        schedule_id="demo-manual",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-product",
+        status=AutomationRunStatus.FAILED_FINAL,
+        error_code="SOURCE_CHECK_FAILED",
+    )
+    _seed_run(
+        repository,
+        run_id="run-ambiguous",
+        schedule_id="demo-weekly",
+        target_type=AutomationTargetType.WEEKLY_GENERATION,
+        target_id=None,
+        status=AutomationRunStatus.FAILED_FINAL,
+        error_code="AMBIGUOUS",
+    )
+    _seed_run(
+        repository,
+        run_id="run-blocked",
+        schedule_id="demo-disabled",
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id="source-creator",
+        status=AutomationRunStatus.BLOCKED,
+        error_code="DISABLED",
+    )
     _seed_reports(repository, vault_root)
     return _open_demo(root)
 

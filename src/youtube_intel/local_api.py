@@ -83,7 +83,10 @@ def _timestamp(value: datetime | None) -> str | None:
 
 
 def _saved_relation_dto(relation: SavedIntelligenceRecord) -> dict[str, object]:
-    return {"intelligence_id": relation.intelligence_id, "saved_at": _timestamp(relation.saved_at)}
+    return {
+        "intelligence_id": relation.intelligence_id,
+        "saved_at": _timestamp(relation.saved_at),
+    }
 
 
 def _saved_item_dto(item: SavedIntelligenceItem) -> dict[str, object]:
@@ -91,11 +94,14 @@ def _saved_item_dto(item: SavedIntelligenceItem) -> dict[str, object]:
     verified = item.verified
     if verified is None:
         projection["intelligence"] = {
-            "status": "UNAVAILABLE", "trusted": False, "code": item.unavailable_code,
+            "status": "UNAVAILABLE",
+            "trusted": False,
+            "code": item.unavailable_code,
         }
     else:
         projection["intelligence"] = {
-            "status": "AVAILABLE", "trusted": True,
+            "status": "AVAILABLE",
+            "trusted": True,
             "intelligence_id": verified.intelligence_id,
             "revision_id": verified.revision_id,
             "claim_kind": verified.claim_kind.value,
@@ -426,7 +432,9 @@ class LocalApiApplication:
         value = data.get(key)
         if value is None and not required:
             return None
-        if not isinstance(value, list) or not all(isinstance(rule, str) for rule in value):
+        if not isinstance(value, list) or not all(
+            isinstance(rule, str) for rule in value
+        ):
             raise ApiError(
                 HTTPStatus.UNPROCESSABLE_ENTITY,
                 "VALIDATION_ERROR",
@@ -480,17 +488,22 @@ class LocalApiApplication:
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
             if method == "POST" and route in {
-                "/api/v1/saved-intelligence/save", "/api/v1/saved-intelligence/unsave",
+                "/api/v1/saved-intelligence/save",
+                "/api/v1/saved-intelligence/unsave",
             }:
                 self._only_keys(data, {"intelligence_id"})
                 intelligence_id = data.get("intelligence_id")
                 if not isinstance(intelligence_id, str):
                     raise ValueError("Intelligence identity is required")
                 if route.endswith("/unsave"):
-                    self._saved_service.unsave(UnsaveIntelligence(intelligence_id=intelligence_id))
+                    self._saved_service.unsave(
+                        UnsaveIntelligence(intelligence_id=intelligence_id)
+                    )
                     return HTTPStatus.OK, {"saved": False}
                 try:
-                    saved = self._saved_service.save(SaveIntelligence(intelligence_id=intelligence_id))
+                    saved = self._saved_service.save(
+                        SaveIntelligence(intelligence_id=intelligence_id)
+                    )
                 except IntegrityConflict as error:
                     raise ApiError(
                         HTTPStatus.CONFLICT,
@@ -499,9 +512,7 @@ class LocalApiApplication:
                     ) from error
                 return HTTPStatus.OK, {"saved": _saved_relation_dto(saved)}
             if method == "POST" and route == "/api/v1/settings/preferences/long-term":
-                self._only_keys(
-                    data, {"command_id", "scope", "target_id", "statement"}
-                )
+                self._only_keys(data, {"command_id", "scope", "target_id", "statement"})
                 preference = self._preference_service.set_explicit_long_term(
                     command_id=self._string(data, "command_id", required=True) or "",
                     scope=PreferenceScope(
@@ -511,7 +522,10 @@ class LocalApiApplication:
                     statement=self._string(data, "statement", required=True) or "",
                 )
                 return HTTPStatus.CREATED, {"preference": _preference_dto(preference)}
-            if method == "POST" and route == "/api/v1/settings/preferences/temporary-focus":
+            if (
+                method == "POST"
+                and route == "/api/v1/settings/preferences/temporary-focus"
+            ):
                 self._only_keys(
                     data,
                     {"command_id", "scope", "target_id", "statement", "expires_at"},
@@ -577,72 +591,126 @@ class LocalApiApplication:
                     command_id=self._string(data, "command_id", required=True) or "",
                     name=self._string(data, "name", required=True) or "",
                 )
-                return HTTPStatus.CREATED, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+                return HTTPStatus.CREATED, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
             topic_prefix = "/api/v1/topics/"
             if method == "PATCH" and route.startswith(topic_prefix):
                 topic_id = route.removeprefix(topic_prefix)
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"name"})
                 topic = self._topic_service.rename_topic(
-                    topic_id=topic_id, name=self._string(data, "name", required=True) or ""
+                    topic_id=topic_id,
+                    name=self._string(data, "name", required=True) or "",
                 )
-                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
-            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/pin"):
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/pin")
+            ):
                 topic_id = route.removeprefix(topic_prefix).removesuffix("/pin")
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"pinned"})
                 pinned = self._boolean(data, "pinned")
                 if pinned is None:
-                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "pinned is required.")
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "pinned is required.",
+                    )
                 topic = self._topic_service.set_pinned(topic_id=topic_id, pinned=pinned)
-                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
-            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/associations"):
-                topic_id = route.removeprefix(topic_prefix).removesuffix("/associations")
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/associations")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix(
+                    "/associations"
+                )
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"intelligence_id", "association_kind"})
                 association = self._topic_service.associate_intelligence(
                     topic_id=topic_id,
-                    intelligence_id=self._string(data, "intelligence_id", required=True) or "",
+                    intelligence_id=self._string(data, "intelligence_id", required=True)
+                    or "",
                     kind=TopicAssociationKind(
                         self._string(data, "association_kind", required=True) or ""
                     ),
                 )
-                return HTTPStatus.CREATED, {"association": _topic_association_dto(association)}
-            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/relations"):
+                return HTTPStatus.CREATED, {
+                    "association": _topic_association_dto(association)
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/relations")
+            ):
                 topic_id = route.removeprefix(topic_prefix).removesuffix("/relations")
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"related_topic_id"})
                 relation = self._topic_service.relate_topics(
                     topic_id,
                     self._string(data, "related_topic_id", required=True) or "",
                 )
                 return HTTPStatus.CREATED, {"relation": _topic_relation_dto(relation)}
-            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/merge"):
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/merge")
+            ):
                 topic_id = route.removeprefix(topic_prefix).removesuffix("/merge")
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"source_topic_id"})
                 topic = self._topic_service.merge_topics(
                     target_topic_id=topic_id,
-                    source_topic_id=self._string(data, "source_topic_id", required=True) or "",
+                    source_topic_id=self._string(data, "source_topic_id", required=True)
+                    or "",
                 )
-                return HTTPStatus.OK, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
-            if method == "POST" and route.startswith(topic_prefix) and route.endswith("/split"):
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/split")
+            ):
                 topic_id = route.removeprefix(topic_prefix).removesuffix("/split")
                 if not topic_id or "/" in topic_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"command_id", "name", "membership_ids"})
                 topic = self._topic_service.split_topic(
                     source_topic_id=topic_id,
                     command_id=self._string(data, "command_id", required=True) or "",
                     name=self._string(data, "name", required=True) or "",
-                    membership_ids=self._rules(data, "membership_ids", required=True) or (),
+                    membership_ids=self._rules(data, "membership_ids", required=True)
+                    or (),
                 )
-                return HTTPStatus.CREATED, {"topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))}
+                return HTTPStatus.CREATED, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
             preference_prefix = "/api/v1/settings/preferences/"
             if (
                 method == "PATCH"
@@ -695,8 +763,7 @@ class LocalApiApplication:
                     )
                     or 0,
                     focus_rules=self._rules(data, "focus_rules", required=True) or (),
-                    ignore_rules=self._rules(data, "ignore_rules", required=True)
-                    or (),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True) or (),
                     distillation_style=DistillationStyle(
                         self._string(data, "distillation_style", required=True) or ""
                     ),
@@ -721,7 +788,9 @@ class LocalApiApplication:
                     "/policy"
                 )
                 if not source_id or "/" in source_id:
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(
                     data,
                     {
@@ -750,12 +819,9 @@ class LocalApiApplication:
                     ignore_mode=PolicyOverrideMode(
                         self._string(data, "ignore_mode", required=True) or ""
                     ),
-                    ignore_rules=self._rules(data, "ignore_rules", required=True)
-                    or (),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True) or (),
                     distillation_style_mode=PolicyOverrideMode(
-                        self._string(
-                            data, "distillation_style_mode", required=True
-                        )
+                        self._string(data, "distillation_style_mode", required=True)
                         or ""
                     ),
                     distillation_style=(
@@ -777,14 +843,18 @@ class LocalApiApplication:
                 )
                 parts = remainder.split("/")
                 if len(parts) != 3 or parts[1] != "videos" or not all(parts):
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"command_id"})
                 command_id = self._string(data, "command_id", required=True) or ""
                 if self._processing_orchestrator is None:
                     decision = self._source_policy_service.manual_analyze_override(
                         source_id=parts[0], video_id=parts[2], command_id=command_id
                     )
-                    return HTTPStatus.CREATED, {"decision": _filter_decision_dto(decision)}
+                    return HTTPStatus.CREATED, {
+                        "decision": _filter_decision_dto(decision)
+                    }
                 run = self._processing_orchestrator.enqueue_manual_analyze_video(
                     source_id=parts[0],
                     video_id=parts[2],
@@ -814,7 +884,9 @@ class LocalApiApplication:
                 )
                 parts = remainder.split("/")
                 if len(parts) != 3 or parts[1] != "videos" or not all(parts):
-                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
                 self._only_keys(data, {"execution_id", "evidence_ids"})
                 if self._distillation_service is None:
                     raise ApiError(
@@ -825,7 +897,8 @@ class LocalApiApplication:
                 evidence_ids = self._rules(data, "evidence_ids", required=True)
                 distillation_result = self._distillation_service.distill(
                     self._distillation_service.manual_command(
-                        execution_id=self._string(data, "execution_id", required=True) or "",
+                        execution_id=self._string(data, "execution_id", required=True)
+                        or "",
                         source_id=parts[0],
                         video_id=parts[2],
                         evidence_ids=evidence_ids or (),
@@ -937,7 +1010,9 @@ class LocalApiApplication:
 
     def _saved_list(self, path: str) -> dict[str, object]:
         query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=3)
-        if set(query) - {"limit", "after_id", "after_saved_at"} or any(len(v) != 1 for v in query.values()):
+        if set(query) - {"limit", "after_id", "after_saved_at"} or any(
+            len(v) != 1 for v in query.values()
+        ):
             raise ValueError("unsupported Saved query")
         limit = int(query.get("limit", ["100"])[0])
         after = None
@@ -946,25 +1021,36 @@ class LocalApiApplication:
                 raise ValueError("incomplete Saved cursor")
             after = SavedIntelligenceRecord(
                 query["after_id"][0],
-                self._utc_timestamp({"saved_at": query["after_saved_at"][0]}, "saved_at"),
+                self._utc_timestamp(
+                    {"saved_at": query["after_saved_at"][0]}, "saved_at"
+                ),
             )
         page = self._saved_service.list_saved(limit=limit, after=after)
         return {
             "saved": [_saved_item_dto(item) for item in page.items],
-            "next_cursor": None if page.next_cursor is None else _saved_relation_dto(page.next_cursor),
+            "next_cursor": None
+            if page.next_cursor is None
+            else _saved_relation_dto(page.next_cursor),
         }
 
     def _get(self, route: str) -> dict[str, object]:
         if route == "/api/v1/settings/source-policy":
-            return {"policy": _source_policy_dto(self._source_policy_service.global_policy())}
+            return {
+                "policy": _source_policy_dto(
+                    self._source_policy_service.global_policy()
+                )
+            }
         if route == "/api/v1/settings/preferences":
             return {
                 "active": [
                     _preference_dto(item)
-                    for item in self._preference_service.active_preferences(now=self._now())
+                    for item in self._preference_service.active_preferences(
+                        now=self._now()
+                    )
                 ],
                 "history": [
-                    _preference_dto(item) for item in self._repository.list_preferences()
+                    _preference_dto(item)
+                    for item in self._repository.list_preferences()
                 ],
             }
         if route == "/api/v1/settings/resource-usage":
@@ -991,16 +1077,22 @@ class LocalApiApplication:
         if route.startswith(source_run_prefix):
             run_id = route.removeprefix(source_run_prefix)
             if not run_id or "/" in run_id:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
             run = self._repository.get_source_run(run_id)
             if run is None:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source Run was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source Run was not found."
+                )
             return {"source_run": _source_run_dto(run)}
         topic_prefix = "/api/v1/topics/"
         if route.startswith(topic_prefix):
             topic_id = route.removeprefix(topic_prefix)
             if not topic_id or "/" in topic_id:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
             return {"topic": _topic_dto(self._topic_service.read_topic(topic_id))}
         if route == "/api/v1/dashboard":
             sources = self._repository.list_source_subscriptions()
@@ -1009,21 +1101,30 @@ class LocalApiApplication:
                 "intelligence": self._intelligence_list(limit=5),
                 "pinned_topics": [
                     _topic_dto(self._topic_service.read_topic(topic.topic_id))
-                    for topic in self._repository.list_topics() if topic.pinned
+                    for topic in self._repository.list_topics()
+                    if topic.pinned
                 ],
-                "weekly_v1": [self._weekly_v1_dto(item) for item in self._weekly_brief_service.list_finalized()[:3]],
+                "weekly_v1": [
+                    self._weekly_v1_dto(item)
+                    for item in self._weekly_brief_service.list_finalized()[:3]
+                ],
                 "needs_attention": [
-                    _source_run_dto(run) for run in source_runs
-                    if run.attention_reason is not None or run.state.value == "NEEDS_ATTENTION"
+                    _source_run_dto(run)
+                    for run in source_runs
+                    if run.attention_reason is not None
+                    or run.state.value == "NEEDS_ATTENTION"
                 ][:10],
-                "operations": {"source_count": len(sources), "next_scheduled_run": self._next_schedule_dto()},
+                "operations": {
+                    "source_count": len(sources),
+                    "next_scheduled_run": self._next_schedule_dto(),
+                },
             }
         if route == "/api/v1/intelligence":
             return {"intelligence": self._intelligence_list(limit=100)}
         if route == "/api/v1/sources":
             return {
                 "sources": [
-                    _source_dto(source)
+                    self._source_projection(source)
                     for source in self._repository.list_source_subscriptions()
                 ]
             }
@@ -1031,23 +1132,37 @@ class LocalApiApplication:
         if route.startswith(source_prefix) and route.endswith("/policy"):
             source_id = route.removeprefix(source_prefix).removesuffix("/policy")
             if not source_id or "/" in source_id:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
             if self._repository.get_source_subscription(source_id) is None:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found.")
-            return {"policy": _source_policy_dto(self._source_policy_service.effective_policy(source_id))}
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                )
+            return {
+                "policy": _source_policy_dto(
+                    self._source_policy_service.effective_policy(source_id)
+                )
+            }
         if route.startswith(source_prefix) and route.endswith("/filter"):
             remainder = route.removeprefix(source_prefix).removesuffix("/filter")
             parts = remainder.split("/")
             if len(parts) != 3 or parts[1] != "videos" or not all(parts):
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
             if self._repository.get_source_subscription(parts[0]) is None:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                )
             current = self._repository.current_filter_decision(parts[0], parts[2])
             return {
                 "current": None if current is None else _filter_decision_dto(current),
                 "history": [
                     _filter_decision_dto(item)
-                    for item in self._repository.list_filter_decisions(parts[0], parts[2])
+                    for item in self._repository.list_filter_decisions(
+                        parts[0], parts[2]
+                    )
                 ],
             }
         if route.startswith("/api/v1/sources/"):
@@ -1057,7 +1172,7 @@ class LocalApiApplication:
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
                 )
             return {
-                "source": _source_dto(source),
+                "source": self._source_projection(source),
                 "policy": _source_policy_dto(
                     self._source_policy_service.effective_policy(source.source_id)
                 ),
@@ -1073,7 +1188,8 @@ class LocalApiApplication:
                     )
                 ],
                 "source_runs": [
-                    _source_run_dto(run) for run in self._repository.list_source_runs()
+                    _source_run_dto(run)
+                    for run in self._repository.list_source_runs()
                     if run.source_id == source.source_id
                 ][-20:],
             }
@@ -1113,14 +1229,24 @@ class LocalApiApplication:
         if route.startswith(weekly_v1_prefix):
             brief_id = route.removeprefix(weekly_v1_prefix)
             if not brief_id or "/" in brief_id:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
             try:
-                return {"weekly_v1": self._weekly_v1_dto(self._weekly_brief_service.read(brief_id))}
+                return {
+                    "weekly_v1": self._weekly_v1_dto(
+                        self._weekly_brief_service.read(brief_id)
+                    )
+                }
             except ValueError as error:
-                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Weekly V1 was not found.") from error
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Weekly V1 was not found."
+                ) from error
         if route == "/api/v1/weekly":
             return {
-                "weekly": [self._report_dto(item) for item in self._repository.list_reports()]
+                "weekly": [
+                    self._report_dto(item) for item in self._repository.list_reports()
+                ]
             }
         if route == "/api/v1/activity":
             return {
@@ -1194,18 +1320,27 @@ class LocalApiApplication:
         except IntelligenceReadRejected:
             return projection
         video = self._repository.get_video(card.video_id)
+        source = self._repository.get_source_subscription(card.source_id)
         evidence_links = []
         for evidence_id in card.verified.evidence_ids:
-            evidence = self._repository.get_evidence(evidence_id)
-            if evidence is None:
+            evidence = self._repository.resolve_verified_evidence_text(evidence_id)
+            if evidence is None or evidence.video_id != card.video_id:
                 return projection
             evidence_links.append(
                 {
                     "evidence_id": evidence.evidence_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
+                    "excerpt": evidence.excerpt,
                 }
             )
+        source_display_name = None
+        if source is not None and source.display_name:
+            source_display_name = source.display_name
+        elif video is not None and video.channel_name:
+            source_display_name = video.channel_name
+        elif source is not None:
+            source_display_name = source.channel_id or source.video_id
         projection["card"] = {
             "core_conclusion": card.core_conclusion,
             "user_relevant_information": list(card.user_relevant_information),
@@ -1213,7 +1348,10 @@ class LocalApiApplication:
             "meaningful_details": list(card.meaningful_details),
             "filtered_noise": list(card.filtered_noise),
             "source_id": card.source_id,
+            "source_display_name": source_display_name,
+            "source_url": None if source is None else source.canonical_url,
             "video_id": card.video_id,
+            "video_title": None if video is None else video.title,
             "original_video_url": None if video is None else video.source_url,
             "evidence_links": evidence_links,
             "preference_ids": list(card.preference_ids),
@@ -1221,11 +1359,26 @@ class LocalApiApplication:
         }
         return projection
 
+    def _source_projection(self, source: SourceSubscriptionRecord) -> dict[str, object]:
+        """Project the best persisted public Source name without network lookup."""
+        projection = _source_dto(source)
+        friendly_name = source.display_name
+        if friendly_name is None:
+            videos = self._repository.list_source_videos(source.source_id, limit=1)
+            if videos and videos[0].channel_name:
+                friendly_name = videos[0].channel_name
+        projection["friendly_name"] = (
+            friendly_name or source.channel_id or source.video_id
+        )
+        return projection
+
     def _intelligence_list(self, *, limit: int) -> list[dict[str, object]]:
         """A bounded UI projection: raw identities enumerate, TASK-019 decides trust."""
         return [
             self._intelligence_projection(intelligence_id)
-            for intelligence_id in self._repository.list_current_intelligence_ids(limit=limit)
+            for intelligence_id in self._repository.list_current_intelligence_ids(
+                limit=limit
+            )
         ]
 
     def _evidence_impact_projection(self, evidence_id: str) -> dict[str, object]:
@@ -1391,9 +1544,7 @@ class LocalApiApplication:
                 }
             )
             status = (
-                "AMBIGUOUS"
-                if job.last_error_code == "AMBIGUOUS"
-                else job.status.value
+                "AMBIGUOUS" if job.last_error_code == "AMBIGUOUS" else job.status.value
             )
             events.append(
                 {
@@ -1412,9 +1563,13 @@ class LocalApiApplication:
             for attempt in self._repository.list_job_attempts(job.job_id):
                 events.append(
                     {
-                        "timestamp": _timestamp(attempt.finished_at or attempt.started_at),
+                        "timestamp": _timestamp(
+                            attempt.finished_at or attempt.started_at
+                        ),
                         "type": "ATTEMPT",
-                        "status": "AMBIGUOUS" if attempt.error_code == "AMBIGUOUS" else (attempt.outcome.value if attempt.outcome else "RUNNING"),
+                        "status": "AMBIGUOUS"
+                        if attempt.error_code == "AMBIGUOUS"
+                        else (attempt.outcome.value if attempt.outcome else "RUNNING"),
                         "summary": f"Attempt {attempt.attempt_number} for {job.target_stage.value} was recorded.",
                         "code": attempt.error_code,
                         "context": {"stage": job.target_stage.value},
@@ -1423,7 +1578,9 @@ class LocalApiApplication:
         return sorted(events, key=lambda event: str(event["timestamp"]), reverse=True)
 
     def _report_dto(self, report: ReportRecord) -> dict[str, object]:
-        content = self._safe_artifact_text(self._vault_root, report, max_bytes=1_000_000)
+        content = self._safe_artifact_text(
+            self._vault_root, report, max_bytes=1_000_000
+        )
         return {
             "report_id": report.report_id,
             "iso_year": report.iso_year,
@@ -1482,7 +1639,9 @@ class LocalApiApplication:
             "weekly_v2": {"status": "UNAVAILABLE", "code": "WEEKLY_V2_UNAVAILABLE"},
         }
 
-    def _source_video_dto(self, video: VideoRecord, source_id: str) -> dict[str, object]:
+    def _source_video_dto(
+        self, video: VideoRecord, source_id: str
+    ) -> dict[str, object]:
         decision = self._repository.current_filter_decision(source_id, video.video_id)
         return {
             "video_id": video.video_id,
@@ -1547,9 +1706,7 @@ class LocalApiApplication:
             "status": "AMBIGUOUS"
             if run.error_code == "AMBIGUOUS"
             else run.status.value,
-            "error": None
-            if run.error_code is None
-            else {"code": run.error_code},
+            "error": None if run.error_code is None else {"code": run.error_code},
             "summary": None,
         }
 

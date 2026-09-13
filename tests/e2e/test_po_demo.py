@@ -34,7 +34,7 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     automation = runtime.application.handle("GET", "/api/v1/automation")[1]
     activity = runtime.application.handle("GET", "/api/v1/activity")[1]
     system = runtime.application.handle("GET", "/api/v1/system")[1]
-    golden = runtime.application.handle("GET", "/api/v1/videos/golden-ai-roadmap")[1]
+    golden = runtime.application.handle("GET", "/api/v1/videos/aircAruvnKk")[1]
     unverified = runtime.application.handle("GET", "/api/v1/videos/unverified-score")[1]
     source = runtime.application.handle("GET", "/api/v1/sources/source-ai")[1]
     preferences = runtime.application.handle("GET", "/api/v1/settings/preferences")[1]
@@ -54,6 +54,21 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
         "operations",
     }
     assert all(item["status"] != "AVAILABLE" or item["trusted"] for item in dashboard["intelligence"])
+    real_data_cards = [
+        item for item in dashboard["intelligence"] if item["status"] == "AVAILABLE"
+    ]
+    assert {item["card"]["video_id"] for item in real_data_cards} == {
+        "aircAruvnKk",
+        "7gtc1DW2Tgo",
+        "wjZofJX0v4M",
+    }
+    assert {item["claim_kind"] for item in real_data_cards} == {
+        "EVIDENCE_BACKED_STATEMENT",
+        "OPINION",
+    }
+    assert all(item["card"]["source_display_name"] for item in real_data_cards)
+    assert all(item["card"]["video_title"] for item in real_data_cards)
+    assert all(item["card"]["evidence_links"][0]["excerpt"] for item in real_data_cards)
     assert dashboard["needs_attention"] == [
         {
             "run_id": "source-run:5709dd545ce77763b946df78fc31e287147bc27a0649159110d1c9aefc787b5c",
@@ -113,14 +128,15 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     )
     assert unsave_status == 200
     assert runtime.application.handle("GET", "/api/v1/saved-intelligence")[1]["saved"] == saved_before["saved"]
-    assert len(videos["videos"]) == 12
+    assert len(videos["videos"]) == 13
     assert len(weekly["weekly"]) == 2
     assert len(automation["schedules"]) == 4
     assert len(activity["runs"]) >= 4
     assert system["runtime"]["mode"] == "PO_REVIEW_DEMO"
     assert system["runtime"]["demo_data"] is True
     assert golden["transcript"]["status"] == "AVAILABLE"
-    assert "decision log" in golden["transcript"]["text"]
+    assert "governed qualification outcome" in golden["transcript"]["text"]
+    assert "No qualification transcript content is included" in golden["transcript"]["text"]
     assert golden["scoring"]["status"] == "AVAILABLE"
     assert golden["scoring"]["trusted"] is True
     assert golden["note"]["v1"]["status"] == "UNAVAILABLE"
@@ -130,6 +146,11 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert unverified["scoring"]["status"] == "NOT_AVAILABLE"
     assert "score" not in unverified["scoring"]
     assert source["recent_videos"]
+    assert source["source"]["display_name"] is None
+    assert source["source"]["friendly_name"] == "3Blue1Brown"
+    assert source["source"]["canonical_url"] == (
+        "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw"
+    )
     skipped = next(video for video in source["recent_videos"] if video["video_id"] == "unverified-score")
     assert skipped["filter"]["outcome"] == "NOT_RELEVANT"
     assert skipped["filter"]["reason"] == "IGNORE_RULE_MATCH"
@@ -152,8 +173,23 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert weekly["weekly"][0]["weekly_v2"]["status"] == "UNAVAILABLE"
     assert weekly["weekly"][0]["linkage"]["status"] == "UNAVAILABLE_IN_CURRENT_AUTHORITY"
 
+    settings = runtime.application.handle("GET", "/api/v1/settings")[1]
+    kimi = settings["providers"][0]
+    assert kimi == {
+        "provider": "NVIDIA NIM",
+        "model": "moonshotai/kimi-k3",
+        "configured": False,
+        "credential_status": "AVAILABLE",
+        "adapter_available": True,
+        "qualification_status": "QUALIFIED",
+        "authorized": True,
+        "production_eligible": True,
+        "scope": "V1_VIDEO_DISTILLATION_ONLY",
+        "reason": "Approved for V1 Video Distillation only.",
+    }
+
     reopened = prepare_demo(tmp_path)
-    assert reopened.application.handle("GET", "/api/v1/videos/golden-ai-roadmap")[1][
+    assert reopened.application.handle("GET", "/api/v1/videos/aircAruvnKk")[1][
         "scoring"
     ] == golden["scoring"]
 
