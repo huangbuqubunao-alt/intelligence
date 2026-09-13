@@ -18,6 +18,26 @@ if [ ! -x "$PYTHON" ]; then
   exit 1
 fi
 
+loopback_port_is_available() {
+  "$PYTHON" - "$1" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+    probe.bind(("127.0.0.1", port))
+PY
+}
+
+if ! loopback_port_is_available "$API_PORT"; then
+  echo "PO demo API port is already in use: $API_PORT" >&2
+  exit 1
+fi
+if ! loopback_port_is_available "$FRONTEND_PORT"; then
+  echo "PO demo frontend port is already in use: $FRONTEND_PORT" >&2
+  exit 1
+fi
+
 if [ -f "$API_PID_FILE" ] || [ -f "$FRONTEND_PID_FILE" ]; then
   echo "PO demo state already exists. Run ./scripts/stop_po_demo.sh first." >&2
   exit 1

@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+import os
+import shlex
+import signal
 import socket
+import subprocess
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from shutil import copy2
 
 import pytest
 
 from youtube_intel.po_demo import demo_runtime_root, prepare_demo, reset_demo_runtime
 from youtube_intel.scoring import AuthoritativeScoringReader
+
+
+class _UnrelatedReadyHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"unrelated service")
+
+    def log_message(self, format: str, *args: object) -> None:
+        del format, args
 
 
 def test_demo_runtime_is_isolated_and_projects_current_product_truth(
@@ -209,3 +227,75 @@ def test_demo_reset_refuses_a_symlinked_runtime_root(tmp_path: Path) -> None:
         reset_demo_runtime(tmp_path)
 
     assert outside.is_dir()
+
+
+def test_demo_launcher_rejects_occupied_ports_before_starting_children(
+    tmp_path: Path,
+) -> None:
+    """Unrelated loopback services must never satisfy launcher readiness."""
+
+    project = tmp_path / "project"
+    script_dir = project / "scripts"
+    python_path = project / ".venv" / "bin" / "python"
+    vite_path = project / "frontend" / "node_modules" / ".bin" / "vite"
+    script_dir.mkdir(parents=True)
+    python_path.parent.mkdir(parents=True)
+    vite_path.parent.mkdir(parents=True)
+    copy2(Path(__file__).parents[2] / "scripts" / "start_po_demo.sh", script_dir)
+    python_path.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        f"if [ \"$1\" = \"-\" ]; then exec {shlex.quote(sys.executable)} \"$@\"; fi\n"
+        "if [ \"$1\" = \"-m\" ] && [ \"$2\" = \"youtube_intel.po_demo\" ]; then\n"
+        "  case \"$3\" in\n"
+        "    prepare) exit 0 ;;\n"
+        "    serve) sleep 30; exit 0 ;;\n"
+        "  esac\n"
+        "fi\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    vite_path.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
+    python_path.chmod(0o700)
+    vite_path.chmod(0o700)
+
+    servers = [
+        ThreadingHTTPServer(("127.0.0.1", 0), _UnrelatedReadyHandler)
+        for _ in range(2)
+    ]
+    threads = [threading.Thread(target=server.serve_forever) for server in servers]
+    for thread in threads:
+        thread.start()
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "YIA_PO_DEMO_API_PORT": str(servers[0].server_port),
+            "YIA_PO_DEMO_FRONTEND_PORT": str(servers[1].server_port),
+        }
+    )
+    try:
+        result = subprocess.run(
+            [str(script_dir / "start_po_demo.sh")],
+            cwd=project,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    finally:
+        for pid_file in (
+            project / ".var" / "po-demo" / "state" / "api.pid",
+            project / ".var" / "po-demo" / "state" / "frontend.pid",
+        ):
+            if pid_file.is_file():
+                os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGTERM)
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+        for thread in threads:
+            thread.join()
+
+    assert result.returncode != 0
+    assert "already in use" in (result.stdout + result.stderr)
+    assert not (project / ".var" / "po-demo" / "state").exists()
