@@ -11,8 +11,12 @@ import pytest
 
 from youtube_intel.distillation import (
     BudgetDecision,
+    CloudDistillationAuthorization,
     DistillationCommand,
+    DistillationCapabilityScope,
     DistillationTransportResult,
+    NvidiaNimCloudDistillationTransport,
+    NormalV1ProductionAuthorizationAuthority,
     PersonalizedDistillationService,
 )
 from youtube_intel.local_api import LocalApiApplication
@@ -385,6 +389,248 @@ def test_full_run_reserves_binds_continues_and_delegates_trusted_topic_update(
     assert service.resume(run.run_id) == completed
     assert transport.calls == 1
     assert len(topic_service.read_topic(topic.topic_id).timeline) == 1
+
+
+def _authorized_nvidia_transport(
+    *,
+    available: bool = True,
+    cloud_enabled: bool = True,
+    credential_available: bool = True,
+    credential_resolver,
+    wire_transport,
+) -> NvidiaNimCloudDistillationTransport:
+    eligibility = NormalV1ProductionAuthorizationAuthority.resolve(
+        provider="nvidia_nim",
+        model="moonshotai/kimi-k3",
+        capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+        available=available,
+    )
+    return NvidiaNimCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization.for_normal_production(
+            eligibility=eligibility,
+            cloud_enabled=cloud_enabled,
+            credential_available=credential_available,
+        ),
+        credential_resolver=credential_resolver,
+        wire_transport=wire_transport,
+    )
+
+
+def _nvidia_success_response(request: object) -> dict[str, object]:
+    assert isinstance(request, dict)
+    messages = request["messages"]
+    assert isinstance(messages, list)
+    source = json.loads(messages[2]["content"].removeprefix("UNTRUSTED_SOURCE_EVIDENCE="))
+    evidence = source["evidence"][0]
+    return {
+        "model": "moonshotai/kimi-k3",
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "core_conclusion": "The execution is evidence-bound.",
+                            "user_relevant_information": ["It is restart-safe."],
+                            "important_new_information": ["It is durable."],
+                            "meaningful_details": ["The ledger is authoritative."],
+                            "filtered_noise": ["Sponsor omitted."],
+                            "claim_kind": "EVIDENCE_BACKED_STATEMENT",
+                            "evidence": [
+                                {
+                                    "evidence_id": evidence["evidence_id"],
+                                    "start_ms": evidence["start_ms"],
+                                    "end_ms": evidence["end_ms"],
+                                }
+                            ],
+                        },
+                        separators=(",", ":"),
+                    )
+                }
+            }
+        ],
+        "usage": {"prompt_tokens": 120, "completion_tokens": 45},
+    }
+
+
+def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    _video_with_evidence(repository, source_id)
+    credential_resolutions = 0
+    wire_calls: list[tuple[str, object, float, int]] = []
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "synthetic-nvidia-credential"
+
+    def wire(endpoint, request, credential, timeout, retries):
+        wire_calls.append((endpoint, request, timeout, retries))
+        assert credential == "synthetic-nvidia-credential"
+        return _nvidia_success_response(request)
+
+    transport = _authorized_nvidia_transport(
+        credential_resolver=resolve_credential,
+        wire_transport=wire,
+    )
+    service = _orchestrator(repository, transport)  # type: ignore[arg-type]
+    run = service.enqueue_manual_check_now(
+        source_id=source_id, command_id="task-022d-success", priority=SourceRunPriority.P0
+    )
+
+    completed = service.resume(run.run_id)
+
+    assert completed.state is SourceRunState.COMPLETED
+    assert credential_resolutions == 1
+    assert len(wire_calls) == 1
+    assert wire_calls[0][0] == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert wire_calls[0][2:] == (120.0, 0)
+    child = repository.list_source_run_children(run.run_id)[0]
+    assert child.distillation_execution_id is not None
+    ledger = repository.get_distillation_resource_usage(child.distillation_execution_id)
+    assert ledger.selected_provider == "nvidia_nim"
+    assert ledger.selected_model == "moonshotai/kimi-k3"
+    assert ledger.actual_provider == "nvidia_nim"
+    assert ledger.actual_model == "moonshotai/kimi-k3"
+    assert ledger.invocation_count == 1
+
+    assert service.resume(run.run_id) == completed
+    reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert reopened.initialize(now=NOW).version == 16
+    restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
+    assert restarted.resume(run.run_id) == completed
+    assert credential_resolutions == 1
+    assert len(wire_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("available", "cloud_enabled", "credential_available", "expected_reason"),
+    [
+        (False, True, True, SourceRunAttentionReason.MODEL_UNAVAILABLE),
+        (True, False, True, SourceRunAttentionReason.MODEL_UNAVAILABLE),
+        (True, True, False, SourceRunAttentionReason.MODEL_UNAVAILABLE),
+    ],
+)
+def test_normal_source_run_missing_runtime_gate_dispatches_zero_times(
+    tmp_path: Path,
+    available: bool,
+    cloud_enabled: bool,
+    credential_available: bool,
+    expected_reason: SourceRunAttentionReason,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    _video_with_evidence(repository, source_id)
+    credential_resolutions = 0
+    wire_calls = 0
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "credential-must-not-be-resolved"
+
+    def wire(endpoint, request, credential, timeout, retries):
+        nonlocal wire_calls
+        wire_calls += 1
+        return _nvidia_success_response(request)
+
+    transport = _authorized_nvidia_transport(
+        available=available,
+        cloud_enabled=cloud_enabled,
+        credential_available=credential_available,
+        credential_resolver=resolve_credential,
+        wire_transport=wire,
+    )
+    service = _orchestrator(repository, transport)  # type: ignore[arg-type]
+    run = service.enqueue_manual_check_now(
+        source_id=source_id,
+        command_id=f"task-022d-gate-{available}-{cloud_enabled}-{credential_available}",
+        priority=SourceRunPriority.P0,
+    )
+
+    blocked = service.resume(run.run_id)
+
+    assert blocked.state is SourceRunState.NEEDS_ATTENTION
+    assert blocked.attention_reason is expected_reason
+    assert credential_resolutions == 0
+    assert wire_calls == 0
+
+
+def test_authorization_cannot_bypass_budget_or_resolve_credential_early(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    _video_with_evidence(repository, source_id)
+    credential_resolutions = 0
+    wire_calls = 0
+
+    def resolve_credential() -> str:
+        nonlocal credential_resolutions
+        credential_resolutions += 1
+        return "credential-must-not-be-resolved"
+
+    def wire(endpoint, request, credential, timeout, retries):
+        nonlocal wire_calls
+        wire_calls += 1
+        return _nvidia_success_response(request)
+
+    transport = _authorized_nvidia_transport(
+        credential_resolver=resolve_credential,
+        wire_transport=wire,
+    )
+    service = _orchestrator(
+        repository,
+        transport,  # type: ignore[arg-type]
+        budget=_Budget(allowed=False, state="EXHAUSTED"),
+    )
+    run = service.enqueue_manual_check_now(
+        source_id=source_id, command_id="task-022d-budget", priority=SourceRunPriority.P0
+    )
+
+    blocked = service.resume(run.run_id)
+
+    assert blocked.state is SourceRunState.NEEDS_ATTENTION
+    assert blocked.attention_reason is SourceRunAttentionReason.BUDGET_BLOCKED
+    assert credential_resolutions == 0
+    assert wire_calls == 0
+
+
+def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    _video_with_evidence(repository, source_id)
+    wire_calls = 0
+
+    def wire(endpoint, request, credential, timeout, retries):
+        nonlocal wire_calls
+        wire_calls += 1
+        raise RuntimeError("synthetic unknown outcome")
+
+    transport = _authorized_nvidia_transport(
+        credential_resolver=lambda: "synthetic-nvidia-credential",
+        wire_transport=wire,
+    )
+    service = _orchestrator(repository, transport)  # type: ignore[arg-type]
+    run = service.enqueue_manual_check_now(
+        source_id=source_id, command_id="task-022d-ambiguous", priority=SourceRunPriority.P0
+    )
+
+    attention = service.resume(run.run_id)
+
+    assert attention.state is SourceRunState.NEEDS_ATTENTION
+    assert attention.attention_reason is SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
+    assert wire_calls == 1
+    assert service.resume(run.run_id) == attention
+    reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert reopened.initialize(now=NOW).version == 16
+    restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
+    assert restarted.resume(run.run_id) == attention
+    assert wire_calls == 1
 
 
 def test_durable_priority_queue_and_restart_recover_the_same_safe_run(

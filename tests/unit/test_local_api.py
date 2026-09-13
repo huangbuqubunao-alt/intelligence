@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+
 from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
 from youtube_intel.local_api import _LOCAL_ORIGIN, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
@@ -81,6 +83,28 @@ def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) 
     assert status == 200
     assert payload["model_preference"]["active_production_default"] is None
     assert payload["providers"][1]["reason"] == "1/2; SCHEMA_INVALID"
+
+
+@pytest.mark.parametrize("forged_field", ("qualified", "authorized", "production_eligible"))
+def test_frontend_cannot_submit_provider_authority(
+    tmp_path: Path, forged_field: str
+) -> None:
+    app = _app(tmp_path)
+
+    with pytest.raises(ApiError) as captured:
+        app.handle(
+            "PUT",
+            "/api/v1/settings/model-preference",
+            json.dumps(
+                {
+                    "provider": "Kimi",
+                    "model": "moonshotai/kimi-k3",
+                    forged_field: True,
+                }
+            ).encode(),
+        )
+
+    assert captured.value.status == 422
 
 
 def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> None:
