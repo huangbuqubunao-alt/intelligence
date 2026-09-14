@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { apiProxyTarget } from "../api/proxy";
+import { LANGUAGE_STORAGE_KEY } from "./localization";
 
 const intelligence = {
   status: "AVAILABLE",
@@ -135,6 +136,8 @@ const readinessFixture = (changes: Record<string, object>) => ({
 
 beforeEach(() => {
   location.hash = "";
+  localStorage.clear();
+  document.documentElement.lang = "";
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string, init?: RequestInit) => {
@@ -1107,4 +1110,316 @@ test("Saved, Topic, and Weekly keep trust meaning while hiding backend codes fro
   fireEvent.click(screen.getByRole("button", { name: "Topics" }));
   expect(await screen.findByText(/Some support is unavailable/)).toBeTruthy();
   expect(screen.queryByText("DEGRADED")).toBeNull();
+});
+
+test("Settings switches the global UI language immediately and preserves it across navigation and remount", async () => {
+  const user = userEvent.setup();
+  const first = render(<App />);
+
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  const selector = await screen.findByRole("combobox", { name: "Language" });
+  expect((selector as HTMLSelectElement).value).toBe("en");
+  await user.selectOptions(selector, "zh-CN");
+
+  expect(screen.getByRole("heading", { level: 1, name: "设置" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "概览" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "洞察" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "语言" })).toBeTruthy();
+  expect(document.documentElement.lang).toBe("zh-CN");
+  expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("zh-CN");
+
+  await user.click(screen.getByRole("button", { name: "来源" }));
+  expect(await screen.findByRole("heading", { level: 1, name: "来源" }))
+    .toBeTruthy();
+  first.unmount();
+  render(<App />);
+  expect(await screen.findByRole("heading", { level: 1, name: "来源" }))
+    .toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  await user.selectOptions(
+    await screen.findByRole("combobox", { name: "语言" }),
+    "en",
+  );
+  expect(screen.getByRole("heading", { level: 1, name: "Settings" }))
+    .toBeTruthy();
+  expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
+
+  const mutations = (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+    ([, init]) =>
+      Boolean((init as RequestInit | undefined)?.method) &&
+      (init as RequestInit).method !== "GET",
+  );
+  expect(mutations).toHaveLength(0);
+});
+
+test("zh-CN translates product chrome while preserving Intelligence, Evidence, Source, provider, and model text", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  render(<App />);
+
+  await user.click(screen.getByRole("button", { name: "洞察" }));
+  expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
+  expect(screen.getByText(
+    "Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+  )).toBeTruthy();
+  expect(screen.getByText(
+    "Attention lets each token weigh relevant context from other tokens.",
+  )).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "证据" })).toBeTruthy();
+  expect(screen.getByText("未确认的传闻")).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "已保存" }));
+  expect(await screen.findByText(/已不能作为当前洞察使用/)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "每周回顾" }));
+  expect(await screen.findByText(/重要回顾 ·/)).toBeTruthy();
+  expect(screen.getByText("证据引用")).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  expect(await screen.findByText("NVIDIA NIM · moonshotai/kimi-k3"))
+    .toBeTruthy();
+  expect(screen.getByText("Prefer evidence-led product analysis."))
+    .toBeTruthy();
+  expect(screen.getByText(/成本：不可用/)).toBeTruthy();
+  expect(screen.queryByText(/免费|零成本|未收费/)).toBeNull();
+});
+
+test("zh-CN exposes representative V1 surfaces without changing unavailable capability semantics", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  render(<App />);
+
+  expect(await screen.findByText("当前重要信息")).toBeTruthy();
+  expect(screen.getByText("为何重要")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "主题" }));
+  expect(await screen.findByText(/当前认识：部分支持信息不可用/)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "来源" }));
+  expect(await screen.findByText("Marques Brownlee")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "添加来源" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "调研" }));
+  expect(await screen.findByText("V1 尚未启用调研")).toBeTruthy();
+  expect(screen.getByText(/目前无法使用证据扩展、外部验证和深度分析/))
+    .toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  expect(await screen.findByText(/深度分析不可用。/))
+    .toBeTruthy();
+  expect(screen.queryByRole("button", { name: /启用深度分析/ })).toBeNull();
+});
+
+test("zh-CN AMBIGUOUS remains details-only and never exposes redispatch", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  const ambiguousRun = {
+    run_id: "run-ambiguous-zh",
+    source_id: "source-1",
+    state: "AMBIGUOUS",
+    attention_reason: "AMBIGUOUS_EXTERNAL_OUTCOME",
+    trigger: "MANUAL_CHECK_NOW",
+    updated_at: "2026-09-01T00:03:00Z",
+    progress: {
+      code: "EXTERNAL_RESULT_UNCONFIRMED",
+      label: "External result unconfirmed",
+    },
+    result: {
+      kind: "EXTERNAL_RESULT_UNCONFIRMED",
+      label: "External result could not be confirmed",
+    },
+    recovery: {
+      kind: "AMBIGUOUS",
+      what_happened: "The external result could not be confirmed.",
+      why_it_matters:
+        "Repeating the protected execution could duplicate an external action.",
+      safe_action: {
+        kind: "VIEW_RUN_DETAILS",
+        label: "View run details",
+        target: "run-ambiguous-zh",
+      },
+      will_not:
+        "The system will not retry, resume, continue, or repeat this execution automatically.",
+    },
+  };
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/sources/source-1") && init?.method !== "PATCH"
+      ? response(sourceDetail([ambiguousRun]))
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "来源" }));
+  await user.click(await screen.findByRole("button", {
+    name: /Marques Brownlee.*正在监控新视频/,
+  }));
+  expect(await screen.findByText("无法确认外部执行结果。")).toBeTruthy();
+  expect(screen.getByText(/系统不会自动重试、恢复、继续或重复/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "查看运行详情" })).toBeTruthy();
+  expect(screen.queryByRole("button", {
+    name: /重试|再试一次|继续|恢复|retry|resume|continue|try again/i,
+  })).toBeNull();
+});
+
+test("zh-CN Source configuration keeps the accessible keyboard modal contract", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "来源" }));
+  const sourceTrigger = await screen.findByRole("button", {
+    name: /Marques Brownlee.*正在监控新视频/,
+  });
+  await user.click(sourceTrigger);
+  const editTrigger = await screen.findByRole("button", { name: "编辑配置" });
+  await user.click(editTrigger);
+  const dialog = await screen.findByRole("dialog", { name: "编辑来源配置" });
+  for (const label of [
+    "来源 URL",
+    "处理级别",
+    "监控此来源",
+    "自动计划",
+    "初始历史范围",
+    "单次运行上限",
+    "关注重点",
+    "忽略内容",
+    "提炼风格",
+  ]) expect(screen.getByLabelText(label)).toBeTruthy();
+  await waitFor(() => expect(document.activeElement).toBe(
+    screen.getByRole("heading", { name: "编辑来源配置" }),
+  ));
+  for (let index = 0; index < 16; index += 1) {
+    await user.tab();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  }
+  for (let index = 0; index < 16; index += 1) {
+    await user.tab({ shift: true });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  }
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "编辑来源配置" })).toBeNull();
+  expect(document.activeElement).toBe(editTrigger);
+});
+
+test.each([
+  {
+    name: "credential missing",
+    readiness: readinessFixture({
+      overall: {
+        code: "SETUP_REQUIRED",
+        label: "Setup required",
+        message: "Review the prerequisite details before checking this Source.",
+      },
+      credential: {
+        code: "SETUP_REQUIRED",
+        label: "NVIDIA credential setup required",
+        message: "On your Mac, make NVIDIA_API_KEY available to the Terminal session that starts the local service, then restart it. Use your approved password manager or environment setup; never add the key to project files or enter it in this browser.",
+        recovery: {
+          action: "VIEW_SETUP_INSTRUCTIONS",
+          will_not: "The product will not store the key or call the model just to check presence.",
+        },
+      },
+    }),
+    expected: "需要设置 NVIDIA 凭据",
+    action: "检查就绪状态",
+  },
+  {
+    name: "budget blocked",
+    readiness: readinessFixture({
+      overall: {
+        code: "BUDGET_BLOCKED",
+        label: "Review usage limit",
+        message: "The current usage limit is blocking a Source Run.",
+      },
+      budget: {
+        code: "LIMIT_REACHED",
+        label: "Usage limit reached",
+        message: "Execution is blocked until you explicitly review the usage limit.",
+        limit: 1,
+        used: 1,
+        recovery: {
+          action: "VIEW_USAGE",
+          will_not: "The product will not increase the limit or authorize spending automatically.",
+        },
+      },
+    }),
+    expected: "已达到使用上限",
+    action: "查看资源使用",
+  },
+  {
+    name: "provider unavailable",
+    readiness: readinessFixture({
+      overall: {
+        code: "TEMPORARILY_UNAVAILABLE",
+        label: "Temporarily unavailable",
+        message: "Video Distillation cannot run with the configured provider right now.",
+      },
+      video_distillation: {
+        code: "TEMPORARILY_UNAVAILABLE",
+        label: "Video Distillation temporarily unavailable",
+        message: "The configured production provider is not currently available.",
+        recovery: {
+          action: "CHECK_READINESS",
+          will_not: "The product will not switch provider or model, enable Deep Analysis, or retry a protected execution.",
+        },
+      },
+    }),
+    expected: "视频提炼暂时不可用",
+    action: "检查就绪状态",
+  },
+])("zh-CN preserves safe readiness behavior for $name", async ({
+  readiness,
+  expected,
+  action,
+}) => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/readiness")
+      ? response({ readiness })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  expect(await screen.findByText(expected)).toBeTruthy();
+  expect(screen.getByRole("button", { name: action })).toBeTruthy();
+  expect(screen.queryByRole("button", {
+    name: /重试|切换|提高上限|授权支出|retry|fallback|switch|increase/i,
+  })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: /NVIDIA|API|凭据/ }))
+    .toBeNull();
+});
+
+test("zh-CN keeps all six claim kinds distinct", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "zh-CN");
+  const kinds = [
+    "FACT",
+    "EVIDENCE_BACKED_STATEMENT",
+    "OPINION",
+    "PREDICTION",
+    "RUMOR",
+    "SYSTEM_INFERENCE",
+  ];
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/intelligence")
+      ? response({
+        intelligence: kinds.map((claim_kind, index) => ({
+          ...intelligence,
+          intelligence_id: `claim-${index}`,
+          claim_kind,
+        })),
+      })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "洞察" }));
+  for (const label of [
+    "事实",
+    "有证据支持的陈述",
+    "归属明确的观点",
+    "预测",
+    "未确认的传闻",
+    "系统推断",
+  ]) expect(await screen.findByText(label)).toBeTruthy();
 });

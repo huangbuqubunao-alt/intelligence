@@ -8,6 +8,13 @@ import {
   useState,
 } from "react";
 import { api, patch, post, put } from "../api/client";
+import {
+  LanguageProvider,
+  Locale,
+  MessageKey,
+  Translate,
+  useLanguage,
+} from "./localization";
 
 type Page =
   | "Dashboard"
@@ -199,7 +206,7 @@ const pages: Page[] = [
   "Investigations",
   "Settings",
 ];
-const subtitles: Record<Page, string> = {
+const subtitles: Record<Page, MessageKey> = {
   Dashboard: "What changed that matters to you.",
   Intelligence: "Verified, evidence-linked intelligence.",
   Topics: "Current understanding and its history.",
@@ -245,8 +252,21 @@ function useRemote<T>(path: string, refresh = 0) {
   }, [path, refresh]);
   return { data, error };
 }
-function statusLabel(value: string) {
-  const labels: Record<string, string> = {
+function statusLabel(value: string, t: Translate) {
+  const labels: Record<string, MessageKey> = {
+    Blocked: "Blocked",
+    READY: "Ready",
+    CONNECTED: "Connected",
+    READY_TO_START: "Ready to start",
+    WITHIN_LIMIT: "Within limit",
+    READY_FOR_MANUAL_CHECK: "Ready for manual check",
+    QUEUED: "Queued",
+    WAITING: "Waiting",
+    PARTIAL: "Partially completed",
+    FAILED_FINAL: "Failed",
+    FAILED: "Failed",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
     AVAILABLE: "Available",
     UNAVAILABLE: "Unavailable",
     ENABLED: "Monitoring on",
@@ -280,13 +300,14 @@ function statusLabel(value: string) {
     VERIFIED: "Verified",
     SKIPPED: "Skipped",
   };
-  return labels[value] ??
+  return labels[value] ? t(labels[value]) :
     value.replaceAll("_", " ").toLowerCase().replace(
       /^./,
       (letter) => letter.toUpperCase(),
     );
 }
 function Status({ value }: { value: string }) {
+  const { t } = useLanguage();
   const upper = value.toUpperCase();
   const tone =
     /AVAILABLE|ENABLED|SUCCEEDED|VERIFIED|ACTIVE|ADMITTED|READY/.test(upper) &&
@@ -296,7 +317,7 @@ function Status({ value }: { value: string }) {
           .test(upper)
       ? "warning"
       : "neutral";
-  return <span className={`status status-${tone}`}>{statusLabel(value)}</span>;
+  return <span className={`status status-${tone}`}>{statusLabel(value, t)}</span>;
 }
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -312,10 +333,11 @@ function Empty({ children }: { children: ReactNode }) {
   return <div className="empty-state">{children}</div>;
 }
 function ErrorState({ error }: { error: string }) {
+  const { translateKnown } = useLanguage();
   return (
     <div className="semantic-state state-danger">
       <Status value="Blocked" />
-      <p>{error}</p>
+      <p>{translateKnown(error)}</p>
     </div>
   );
 }
@@ -376,16 +398,17 @@ function useModalKeyboard(
     }
   };
 }
-function humanDate(value: string) {
+function humanDate(value: string, locale: Locale) {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat("en", {
+  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
   }).format(date);
 }
 function Claim({ kind }: { kind: string }) {
-  const labels: Record<string, string> = {
+  const { t } = useLanguage();
+  const labels: Record<string, MessageKey> = {
     FACT: "Fact",
     EVIDENCE_BACKED_STATEMENT: "Supported statement",
     OPINION: "Attributed opinion",
@@ -393,19 +416,25 @@ function Claim({ kind }: { kind: string }) {
     RUMOR: "Unconfirmed rumor",
     SYSTEM_INFERENCE: "System inference",
   };
-  return <Status value={labels[kind] ?? kind} />;
+  return <Status value={labels[kind] ? t(labels[kind]) : kind} />;
 }
-function filterReason(reason?: string) {
+function filterReason(reason: string | undefined, t: Translate) {
   return ({
     IGNORE_RULE_MATCH: "Excluded by your ignore rules.",
     FOCUS_MATCH: "Matched your focus.",
     FOCUS_MISMATCH: "Outside your current focus.",
     NOT_RELEVANT: "Not relevant enough under this Source’s current policy.",
-  } as Record<string, string>)[reason ?? ""] ??
-    "This video was skipped under this Source’s current policy.";
+  } as Record<string, MessageKey>)[reason ?? ""]
+    ? t(({
+      IGNORE_RULE_MATCH: "Excluded by your ignore rules.",
+      FOCUS_MATCH: "Matched your focus.",
+      FOCUS_MISMATCH: "Outside your current focus.",
+      NOT_RELEVANT: "Not relevant enough under this Source’s current policy.",
+    } as Record<string, MessageKey>)[reason ?? ""])
+    : t("This video was skipped under this Source’s current policy.");
 }
-function attentionCopy(reason: string | null) {
-  return ({
+function attentionCopy(reason: string | null, t: Translate) {
+  const copy = ({
     MODEL_UNAVAILABLE: [
       "Video analysis is paused.",
       "Your Sources and existing Intelligence are unchanged.",
@@ -431,15 +460,16 @@ function attentionCopy(reason: string | null) {
       "Your existing Intelligence is unchanged.",
       "Review the Source details to decide what should happen next.",
     ],
-  } as Record<string, [string, string, string]>)[reason ?? ""] ??
+  } as Record<string, [MessageKey, MessageKey, MessageKey]>)[reason ?? ""] ??
     [
       "This Source needs attention.",
       "Existing Intelligence remains safe.",
       "Review the Source details for the available next step.",
     ];
+  return copy.map((item) => t(item)) as [string, string, string];
 }
 
-const readinessFacts: [keyof Readiness, string][] = [
+const readinessFacts: [keyof Readiness, MessageKey][] = [
   ["application", "Application"],
   ["video_distillation", "Source processing"],
   ["model", "Video analysis model"],
@@ -450,15 +480,16 @@ const readinessFacts: [keyof Readiness, string][] = [
 
 function readinessActionLabel(
   dimension: ReadinessDimension,
+  t: Translate,
   { compact = false }: { compact?: boolean } = {},
 ) {
   return dimension.recovery?.action === "EDIT_SOURCE_CONFIGURATION"
-    ? "Open Source configuration"
+    ? t("Open Source configuration")
     : dimension.recovery?.action === "VIEW_USAGE"
-    ? "View usage"
+    ? t("View usage")
     : dimension.recovery?.action === "VIEW_SETUP_INSTRUCTIONS"
-    ? compact ? "Review setup guidance" : "Check readiness"
-    : "Check readiness";
+    ? compact ? t("Review setup guidance") : t("Check readiness")
+    : t("Check readiness");
 }
 
 function ReadinessPanel(
@@ -468,6 +499,7 @@ function ReadinessPanel(
     onAction?: (dimension: ReadinessDimension) => void;
   },
 ) {
+  const { t, translateKnown } = useLanguage();
   const blocked = readinessFacts
     .map(([key]) => readiness[key])
     .filter((item) => ![
@@ -482,11 +514,11 @@ function ReadinessPanel(
     return (
       <section className="readiness-summary" aria-labelledby="readiness-summary-title">
         <div>
-          <p className="section-label">Run readiness</p>
-          <h2 id="readiness-summary-title">{readiness.overall.label}</h2>
-          <p>{readiness.overall.message}</p>
+          <p className="section-label">{t("Run readiness")}</p>
+          <h2 id="readiness-summary-title">{translateKnown(readiness.overall.label)}</h2>
+          <p>{translateKnown(readiness.overall.message)}</p>
           {blocked.slice(0, 2).map((item) => (
-            <p key={item.label}><strong>{item.label}.</strong> {item.message}</p>
+            <p key={item.label}><strong>{translateKnown(item.label)}.</strong> {translateKnown(item.message)}</p>
           ))}
         </div>
         {blocked[0] && onAction && (
@@ -495,7 +527,7 @@ function ReadinessPanel(
             className="button button-secondary"
             onClick={() => onAction(blocked[0])}
           >
-            {readinessActionLabel(blocked[0], { compact: true })}
+            {readinessActionLabel(blocked[0], t, { compact: true })}
           </button>
         )}
       </section>
@@ -505,29 +537,29 @@ function ReadinessPanel(
     <section className="panel readiness-panel" id="run-readiness">
       <div className="panel-heading readiness-heading">
         <div>
-          <p className="section-label">Normal Video Distillation</p>
-          <h2>Run readiness</h2>
+          <p className="section-label">{t("Normal Video Distillation")}</p>
+          <h2>{t("Run readiness")}</h2>
         </div>
         <Status value={readiness.overall.code} />
       </div>
-      <h3>{readiness.overall.label}</h3>
-      <p>{readiness.overall.message}</p>
+      <h3>{translateKnown(readiness.overall.label)}</h3>
+      <p>{translateKnown(readiness.overall.message)}</p>
       <div className="readiness-grid">
         {readinessFacts.map(([key, title]) => {
           const item = readiness[key];
           return (
             <article className="readiness-fact" key={key}>
-              <small>{title}</small>
-              <strong>{item.label}</strong>
-              <p>{item.message}</p>
-              {item.recovery && <p className="hint">{item.recovery.will_not}</p>}
+              <small>{t(title)}</small>
+              <strong>{translateKnown(item.label)}</strong>
+              <p>{translateKnown(item.message)}</p>
+              {item.recovery && <p className="hint">{translateKnown(item.recovery.will_not)}</p>}
               {item.recovery && onAction && (
                 <button
                   type="button"
                   className="button button-ghost"
                   onClick={() => onAction(item)}
                 >
-                  {readinessActionLabel(item)}
+                  {readinessActionLabel(item, t)}
                 </button>
               )}
             </article>
@@ -535,39 +567,43 @@ function ReadinessPanel(
         })}
       </div>
       <details className="provenance">
-        <summary>Capability boundary</summary>
-        <p>{readiness.deep_analysis.label}. {readiness.deep_analysis.message}</p>
+        <summary>{t("Capability boundary")}</summary>
+        <p>{translateKnown(readiness.deep_analysis.label)}. {translateKnown(readiness.deep_analysis.message)}</p>
       </details>
     </section>
   );
 }
 
 function DisconnectedReadiness() {
+  const { t } = useLanguage();
   return (
-    <section className="readiness-summary state-danger" aria-label="Run readiness">
+    <section className="readiness-summary state-danger" aria-label={t("Run readiness")}>
       <div>
-        <p className="section-label">Run readiness</p>
-        <h2>Application cannot connect</h2>
+        <p className="section-label">{t("Run readiness")}</p>
+        <h2>{t("Application cannot connect")}</h2>
         <p>
-          Source processing, credential, budget, and Source status are unavailable
-          until the local application service responds.
+          {t("Source processing, credential, budget, and Source status are unavailable until the local application service responds.")}
         </p>
       </div>
     </section>
   );
 }
 
-function sourceLabel(source: Source) {
+function sourceLabel(source: Source, t: Translate) {
   return source.display_name || source.friendly_name || source.channel_id ||
-    source.video_id || "YouTube Source";
+    source.video_id || t("YouTube Source");
 }
 function timestamp(value: number) {
   const seconds = Math.max(0, Math.floor(value / 1000));
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
-function timestampRange(start: number | null, end: number | null) {
-  if (start === null) return "Timestamp unavailable";
+function timestampRange(
+  start: number | null,
+  end: number | null,
+  t: Translate,
+) {
+  if (start === null) return t("Timestamp unavailable");
   return end === null
     ? timestamp(start)
     : `${timestamp(start)}–${timestamp(end)}`;
@@ -583,13 +619,14 @@ export function ScoringTab(
     error: string | null;
   },
 ) {
+  const { t, translateKnown } = useLanguage();
   if (!scoring || scoring.status !== "AVAILABLE") {
     return (
       <div className="semantic-state state-neutral">
         <Status value="UNAVAILABLE" />
         <p>
-          {scoring?.reason ??
-            "No verified scoring result is available for this video."}
+          {scoring?.reason ? translateKnown(scoring.reason) :
+            t("No verified scoring result is available for this video.")}
         </p>
       </div>
     );
@@ -601,6 +638,7 @@ export function ScoringTab(
   );
 }
 function Evidence({ item }: { item: Intelligence }) {
+  const { t } = useLanguage();
   const card = item.card;
   const links = card?.evidence_links ?? [];
   if (!card || !links.length) return null;
@@ -609,30 +647,30 @@ function Evidence({ item }: { item: Intelligence }) {
       className="evidence-block"
       aria-labelledby={`evidence-${item.intelligence_id}`}
     >
-      <h3 id={`evidence-${item.intelligence_id}`}>Evidence</h3>
+      <h3 id={`evidence-${item.intelligence_id}`}>{t("Evidence")}</h3>
       <div className="evidence-origin">
         <div>
-          <span>Source</span>
+          <span>{t("Source")}</span>
           <strong>
-            {card.source_display_name || "Source name unavailable"}
+            {card.source_display_name || t("Source name unavailable")}
           </strong>
           {card.source_url
             ? (
               <a href={card.source_url} target="_blank" rel="noreferrer">
-                Open Source
+                {t("Open Source")}
               </a>
             )
             : null}
         </div>
         <div>
-          <span>Video</span>
+          <span>{t("Video")}</span>
           <strong>{card.video_title || card.video_id}</strong>
         </div>
       </div>
       {links.map((link) => (
         <figure className="evidence-item" key={link.evidence_id}>
           <figcaption>
-            <strong>{timestampRange(link.start_ms, link.end_ms)}</strong>
+            <strong>{timestampRange(link.start_ms, link.end_ms, t)}</strong>
             {card.original_video_url
               ? (
                 <a
@@ -640,15 +678,18 @@ function Evidence({ item }: { item: Intelligence }) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Open video at{" "}
-                  {link.start_ms === null ? "source" : timestamp(link.start_ms)}
+                  {t("Open video at {time}", {
+                    time: link.start_ms === null
+                      ? t("source")
+                      : timestamp(link.start_ms),
+                  })}
                 </a>
               )
               : null}
           </figcaption>
           <blockquote>{link.excerpt}</blockquote>
           <details className="provenance">
-            <summary>Technical provenance</summary>
+            <summary>{t("Technical provenance")}</summary>
             <p>{link.evidence_id} · {card.source_id} · {card.video_id}</p>
           </details>
         </figure>
@@ -663,6 +704,7 @@ function IntelligenceCard(
     onSaved: () => void;
   },
 ) {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
     setBusy(true);
@@ -680,7 +722,7 @@ function IntelligenceCard(
     return (
       <div className="semantic-state state-neutral">
         <Status value="UNAVAILABLE" />
-        <p>This Intelligence is not available as current information.</p>
+        <p>{t("This Intelligence is not available as current information.")}</p>
       </div>
     );
   }
@@ -688,17 +730,17 @@ function IntelligenceCard(
   return (
     <article className="panel intelligence-card">
       <header className="intelligence-conclusion">
-        <p className="section-label">Conclusion</p>
+        <p className="section-label">{t("Conclusion")}</p>
         <h2>{card.core_conclusion}</h2>
       </header>
       <section className="intelligence-section">
-        <h3>Why this matters</h3>
+        <h3>{t("Why this matters")}</h3>
         <p>{card.user_relevant_information.join(" ")}</p>
       </section>
       {card.important_new_information.length
         ? (
           <section className="intelligence-section">
-            <h3>What is new</h3>
+            <h3>{t("What is new")}</h3>
             <p>{card.important_new_information.join(" ")}</p>
           </section>
         )
@@ -706,7 +748,7 @@ function IntelligenceCard(
       {card.meaningful_details?.length
         ? (
           <section className="intelligence-section">
-            <h3>Important details</h3>
+            <h3>{t("Important details")}</h3>
             <ul>
               {card.meaningful_details.map((detail) => (
                 <li key={detail}>{detail}</li>
@@ -715,7 +757,7 @@ function IntelligenceCard(
           </section>
         )
         : null}
-      <div className="reading-meta" aria-label="Claim type and current state">
+      <div className="reading-meta" aria-label={t("Claim type and current state")}>
         <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
         <Status value={item.state ?? "AVAILABLE"} />
       </div>
@@ -725,13 +767,18 @@ function IntelligenceCard(
         disabled={busy}
         onClick={toggle}
       >
-        {busy ? "Saving…" : saved ? "Unsave" : "Save"}
+        {busy ? t("Saving…") : saved ? t("Unsave") : t("Save")}
       </button>
     </article>
   );
 }
 
 export function App() {
+  return <LanguageProvider><Workspace /></LanguageProvider>;
+}
+
+function Workspace() {
+  const { t } = useLanguage();
   const [page, setPage] = useState<Page>(
     (location.hash.slice(1) as Page) || "Dashboard",
   );
@@ -766,10 +813,10 @@ export function App() {
           <span className="brand-mark">YI</span>
           <div>
             <strong>YouTube Intelligence Agent</strong>
-            <small>Local-first workspace</small>
+            <small>{t("Local-first workspace")}</small>
           </div>
         </div>
-        <nav className="sidebar-nav" aria-label="Primary navigation">
+        <nav className="sidebar-nav" aria-label={t("Primary navigation")}>
           {pages.map((item) => (
             <button
               type="button"
@@ -778,18 +825,18 @@ export function App() {
               aria-current={page === item ? "page" : undefined}
               onClick={() => navigate(item)}
             >
-              {item}
+              {t(item)}
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Evidence stays reachable</div>
+        <div className="sidebar-foot">{t("Evidence stays reachable")}</div>
       </aside>
       <main className="workspace-main">
         <header className="page-header">
           <div>
             <p className="eyebrow">YOUTUBE INTELLIGENCE AGENT</p>
-            <h1>{page}</h1>
-            <p className="page-subtitle">{subtitles[page]}</p>
+            <h1>{t(page)}</h1>
+            <p className="page-subtitle">{t(subtitles[page])}</p>
           </div>
         </header>
         {page === "Dashboard" && (
@@ -831,6 +878,7 @@ function Dashboard(
     onReadinessAction: (dimension: ReadinessDimension, sourceId?: string) => void;
   },
 ) {
+  const { t, locale } = useLanguage();
   const { data, error } = useRemote<
     {
       intelligence?: Intelligence[];
@@ -847,7 +895,7 @@ function Dashboard(
     return <><DisconnectedReadiness /><ErrorState error={error} /></>;
   }
   if (!data || (!readiness.data && !readiness.error)) {
-    return <Empty>Loading dashboard…</Empty>;
+    return <Empty>{t("Loading dashboard…")}</Empty>;
   }
   const intelligence = (data.intelligence ?? []).filter((item) =>
       item.status === "AVAILABLE" && item.trusted
@@ -875,16 +923,15 @@ function Dashboard(
               onReadinessAction(dimension, dimension.source_id)}
           />
         )}
-        <Panel title="No important new intelligence yet.">
+        <Panel title={t("No important new intelligence yet.")}>
           <p>
-            Add a Source to start monitoring videos that matter. New conclusions
-            will appear here with their Evidence.
+            {t("Add a Source to start monitoring videos that matter. New conclusions will appear here with their Evidence.")}
           </p>
           <button
             className="button button-primary"
             onClick={() => navigate("Sources")}
           >
-            Add Source
+            {t("Add Source")}
           </button>
         </Panel>
       </div>
@@ -903,21 +950,26 @@ function Dashboard(
         />
       )}
       {blockingAttention.length > 0 && (
-        <section className="blocking-summary" aria-label="Blocking Source Runs">
+        <section className="blocking-summary" aria-label={t("Blocking Source Runs")}>
           <div>
-            <strong>{blockingAttention.length} Source Run{blockingAttention.length === 1 ? "" : "s"} need action</strong>
-            <p>Review the affected Source for the finite safe next step.</p>
+            <strong>{t(
+              blockingAttention.length === 1
+                ? "{count} Source Run needs action"
+                : "{count} Source Runs need action",
+              { count: blockingAttention.length },
+            )}</strong>
+            <p>{t("Review the affected Source for the finite safe next step.")}</p>
           </div>
           <button
             type="button"
             className="button button-secondary"
             onClick={() => onRecover(blockingAttention[0])}
           >
-            Open affected Source
+            {t("Open affected Source")}
           </button>
         </section>
       )}
-      <Panel title="What matters now">
+      <Panel title={t("What matters now")}>
         {intelligence.length
           ? intelligence.map((item) => (
             <IntelligenceCard
@@ -927,50 +979,50 @@ function Dashboard(
               onSaved={() => undefined}
             />
           ))
-          : <Empty>No important new intelligence yet.</Empty>}
+          : <Empty>{t("No important new intelligence yet.")}</Empty>}
         <button
           className="button button-ghost"
           onClick={() => navigate("Intelligence")}
         >
-          See all Intelligence
+          {t("See all Intelligence")}
         </button>
       </Panel>
-      <Panel title="Topic changes">
+      <Panel title={t("Topic changes")}>
         {topics.length
           ? topics.map((topic) => (
             <p key={topic.topic_id}>
-              <strong>{topic.name}</strong> · {statusLabel(topic.current_state)}
+              <strong>{topic.name}</strong> · {statusLabel(topic.current_state, t)}
             </p>
           ))
-          : <Empty>No important Topic changes since you last checked.</Empty>}
+          : <Empty>{t("No important Topic changes since you last checked.")}</Empty>}
       </Panel>
-      <Panel title="This week">
+      <Panel title={t("This week")}>
         {weekly.length
           ? weekly.map((brief) => (
             <div key={brief.brief_id}>
               {brief.no_important_information
-                ? <p>No important changes this week.</p>
+                ? <p>{t("No important changes this week.")}</p>
                 : brief.items.slice(0, 2).map((item) => (
                   <p className="dashboard-weekly-item" key={item.intelligence_id}>
                     <strong>{item.summary}</strong>
                     <small>
-                      {item.topic_name} · {humanDate(brief.period_start)}
+                      {item.topic_name} · {humanDate(brief.period_start, locale)}
                     </small>
                   </p>
                 ))}
             </div>
           ))
-          : <Empty>No finalized weekly brief yet.</Empty>}
+          : <Empty>{t("No finalized weekly brief yet.")}</Empty>}
         <button
           className="button button-ghost"
           onClick={() => navigate("Intelligence")}
         >
-          Open Weekly
+          {t("Open Weekly")}
         </button>
       </Panel>
       {attention.length
         ? (
-          <Panel title="Needs Attention">
+          <Panel title={t("Needs Attention")}>
             {attention.map((run) => (
               <Attention key={run.run_id} run={run} onRecover={onRecover} />
             ))}
@@ -983,25 +1035,26 @@ function Dashboard(
 function Attention(
   { run, onRecover }: { run: SourceRun; onRecover?: (run: SourceRun) => void },
 ) {
+  const { t, translateKnown } = useLanguage();
   if (run.recovery) {
     return (
       <article className="semantic-state state-blocked">
-        <strong>{run.recovery.what_happened}</strong>
-        <p>{run.recovery.why_it_matters}</p>
-        <p>{run.recovery.will_not}</p>
+        <strong>{translateKnown(run.recovery.what_happened)}</strong>
+        <p>{translateKnown(run.recovery.why_it_matters)}</p>
+        <p>{translateKnown(run.recovery.will_not)}</p>
         {run.recovery.safe_action && onRecover && (
           <button
             type="button"
             className="button button-secondary"
             onClick={() => onRecover(run)}
           >
-            {run.recovery.safe_action.label}
+            {translateKnown(run.recovery.safe_action.label)}
           </button>
         )}
       </article>
     );
   }
-  const [title, safety, action] = attentionCopy(run.attention_reason);
+  const [title, safety, action] = attentionCopy(run.attention_reason, t);
   return (
     <article className="semantic-state state-blocked">
       <strong>{title}</strong>
@@ -1011,6 +1064,7 @@ function Attention(
   );
 }
 function IntelligencePage({ refresh }: { refresh: number }) {
+  const { t } = useLanguage();
   const [view, setView] = useState<"Current" | "Saved" | "Weekly">("Current");
   const [revision, setRevision] = useState(0);
   const current = useRemote<{ intelligence: Intelligence[] }>(
@@ -1042,12 +1096,12 @@ function IntelligencePage({ refresh }: { refresh: number }) {
             className={view === item ? "active" : ""}
             onClick={() => setView(item)}
           >
-            {item}
+            {t(item)}
           </button>
         ))}
       </div>
       {view === "Current" && (!current.data
-        ? <Empty>Loading verified Intelligence…</Empty>
+        ? <Empty>{t("Loading verified Intelligence…")}</Empty>
         : currentAvailable.length
         ? currentAvailable.map((item) => (
           <IntelligenceCard
@@ -1057,9 +1111,9 @@ function IntelligencePage({ refresh }: { refresh: number }) {
             onSaved={() => setRevision((value) => value + 1)}
           />
         ))
-        : <Empty>No verified Intelligence yet.</Empty>)}
+        : <Empty>{t("No verified Intelligence yet.")}</Empty>)}
       {view === "Saved" && (!saved.data
-        ? <Empty>Loading saved Intelligence…</Empty>
+        ? <Empty>{t("Loading saved Intelligence…")}</Empty>
         : saved.data.saved.length
         ? saved.data.saved.map((item) => (
           <SavedCard
@@ -1070,14 +1124,14 @@ function IntelligencePage({ refresh }: { refresh: number }) {
               setRevision((value) => value + 1)}
           />
         ))
-        : <Empty>No saved Intelligence.</Empty>)}
+        : <Empty>{t("No saved Intelligence.")}</Empty>)}
       {view === "Weekly" && (!weekly.data
-        ? <Empty>Loading weekly digest…</Empty>
+        ? <Empty>{t("Loading weekly digest…")}</Empty>
         : weekly.data.weekly_v1.length
         ? weekly.data.weekly_v1.map((brief) => (
           <WeeklyCard key={brief.brief_id} brief={brief} />
         ))
-        : <Empty>No finalized weekly digest. An empty week is valid.</Empty>)}
+        : <Empty>{t("No finalized weekly digest. An empty week is valid.")}</Empty>)}
     </>
   );
 }
@@ -1088,6 +1142,7 @@ function SavedCard(
     onChanged: () => void;
   },
 ) {
+  const { t } = useLanguage();
   const detail = useRemote<{ intelligence: Intelligence }>(
     `/intelligence/${item.intelligence_id}`,
     revision,
@@ -1097,8 +1152,7 @@ function SavedCard(
       <div className="semantic-state state-neutral">
         <Status value="UNAVAILABLE" />
         <p>
-          This saved item is no longer available as current Intelligence. Its
-          saved reference remains until you choose Unsave.
+          {t("This saved item is no longer available as current Intelligence. Its saved reference remains until you choose Unsave.")}
         </p>
         <button
           className="button button-secondary"
@@ -1109,13 +1163,13 @@ function SavedCard(
             onChanged();
           }}
         >
-          Unsave
+          {t("Unsave")}
         </button>
       </div>
     );
   }
   if (detail.error) return <ErrorState error={detail.error} />;
-  if (!detail.data) return <Empty>Loading current saved Intelligence…</Empty>;
+  if (!detail.data) return <Empty>{t("Loading current saved Intelligence…")}</Empty>;
   return (
     <IntelligenceCard
       item={detail.data.intelligence}
@@ -1125,10 +1179,11 @@ function SavedCard(
   );
 }
 function WeeklyCard({ brief }: { brief: Weekly }) {
+  const { t, locale } = useLanguage();
   return (
-    <Panel title={`What mattered · ${humanDate(brief.period_start)}`}>
+    <Panel title={t("What mattered · {date}", { date: humanDate(brief.period_start, locale) })}>
       {brief.no_important_information
-        ? <Empty>No important information this week.</Empty>
+        ? <Empty>{t("No important information this week.")}</Empty>
         : brief.items.map((item) => (
           <article className="weekly-item" key={item.intelligence_id}>
             <p className="weekly-summary">{item.summary}</p>
@@ -1143,16 +1198,17 @@ function WeeklyCard({ brief }: { brief: Weekly }) {
               </p>
             ))}
             <details className="provenance">
-              <summary>Evidence references</summary>
+              <summary>{t("Evidence references")}</summary>
               <p>{item.evidence_ids.join(", ")}</p>
             </details>
           </article>
         ))}
-      <small>Historical weekly content remains unchanged.</small>
+      <small>{t("Historical weekly content remains unchanged.")}</small>
     </Panel>
   );
 }
 function Topics({ refresh }: { refresh: number }) {
+  const { t, locale } = useLanguage();
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh);
   const [selected, setSelected] = useState<string | null>(null);
   const detail = useRemote<{ topic: Topic }>(
@@ -1161,7 +1217,7 @@ function Topics({ refresh }: { refresh: number }) {
   if (list.error || detail.error) {
     return <ErrorState error={list.error ?? detail.error ?? ""} />;
   }
-  if (!list.data) return <Empty>Loading Topics…</Empty>;
+  if (!list.data) return <Empty>{t("Loading Topics…")}</Empty>;
   if (!selected) {
     return (
       <>
@@ -1175,30 +1231,32 @@ function Topics({ refresh }: { refresh: number }) {
               <span>
                 <strong>{topic.name}</strong>
                 <small>
-                  Current understanding: {statusLabel(topic.current_state)}
+                  {t("Current understanding: {status}", {
+                    status: statusLabel(topic.current_state, t),
+                  })}
                 </small>
               </span>
               <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
             </button>
           ))
-          : <Empty>No Topics yet.</Empty>}
+          : <Empty>{t("No Topics yet.")}</Empty>}
       </>
     );
   }
-  if (!detail.data?.topic) return <Empty>Loading Topic detail…</Empty>;
+  if (!detail.data?.topic) return <Empty>{t("Loading Topic detail…")}</Empty>;
   const topic = detail.data.topic;
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={() => setSelected(null)}>
-        Back to Topics
+        {t("Back to Topics")}
       </button>
       <Panel title={topic.name}>
-        <h3>Current understanding</h3>
-        <p>{statusLabel(topic.current_state)}.</p>
+        <h3>{t("Current understanding")}</h3>
+        <p>{statusLabel(topic.current_state, t)}.</p>
         <p>
           {topic.independence === "UNKNOWN"
-            ? "Not enough reliable information yet to determine how independent the supporting sources are."
-            : "This understanding is based on the available supporting sources."}
+            ? t("Not enough reliable information yet to determine how independent the supporting sources are.")
+            : t("This understanding is based on the available supporting sources.")}
         </p>
         <button
           className="button button-secondary"
@@ -1206,10 +1264,10 @@ function Topics({ refresh }: { refresh: number }) {
             post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
               .then(() => setSelected(null))}
         >
-          {topic.pinned ? "Unpin Topic" : "Pin Topic"}
+          {topic.pinned ? t("Unpin Topic") : t("Pin Topic")}
         </button>
       </Panel>
-      <Panel title="Evidence">
+      <Panel title={t("Evidence")}>
         {topic.contributions.length
           ? topic.contributions.map((contribution) => (
             <article
@@ -1223,32 +1281,32 @@ function Topics({ refresh }: { refresh: number }) {
               />
               <p>
                 {contribution.available
-                  ? "A current contribution supports this topic."
-                  : "Some supporting information is no longer available."}
+                  ? t("A current contribution supports this topic.")
+                  : t("Some supporting information is no longer available.")}
               </p>
               <details className="provenance">
-                <summary>Technical evidence references</summary>
+                <summary>{t("Technical evidence references")}</summary>
                 <p>{contribution.evidence_ids.join(", ")}</p>
               </details>
             </article>
           ))
-          : <Empty>No current supporting information.</Empty>}
+          : <Empty>{t("No current supporting information.")}</Empty>}
       </Panel>
-      <Panel title="Timeline">
+      <Panel title={t("Timeline")}>
         {topic.timeline.length
           ? topic.timeline.map((event) => (
             <p key={event.event_id}>
-              {humanDate(event.created_at)} · {statusLabel(event.state)}
+              {humanDate(event.created_at, locale)} · {statusLabel(event.state, t)}
             </p>
           ))
-          : <Empty>No historical events.</Empty>}
+          : <Empty>{t("No historical events.")}</Empty>}
       </Panel>
-      <Panel title="Related Topics">
+      <Panel title={t("Related Topics")}>
         {topic.relations.length
           ? topic.relations.map((relation) => (
-            <p key={relation.related_topic_id}>Related topic</p>
+            <p key={relation.related_topic_id}>{t("Related topic")}</p>
           ))
-          : <Empty>No related Topics.</Empty>}
+          : <Empty>{t("No related Topics.")}</Empty>}
       </Panel>
     </div>
   );
@@ -1263,6 +1321,7 @@ function Sources(
     onOpenSettings: () => void;
   },
 ) {
+  const { t } = useLanguage();
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -1273,7 +1332,7 @@ function Sources(
     }
   }, [onRequestedSourceOpened, requestedSource]);
   if (error) return <ErrorState error={error} />;
-  if (!data) return <Empty>Loading Sources…</Empty>;
+  if (!data) return <Empty>{t("Loading Sources…")}</Empty>;
   return (
     <>
       <div className="page-actions">
@@ -1281,7 +1340,7 @@ function Sources(
           className="button button-primary"
           onClick={() => setAdding(true)}
         >
-          Add Source
+          {t("Add Source")}
         </button>
       </div>
       {data.sources.length
@@ -1295,11 +1354,11 @@ function Sources(
                     setSelected(source.source_id)}
                 >
                   <span>
-                    <strong>{sourceLabel(source)}</strong>
+                    <strong>{sourceLabel(source, t)}</strong>
                     <small>
                       {source.enabled
-                        ? "Monitoring new videos"
-                        : "Monitoring is paused"}
+                        ? t("Monitoring new videos")
+                        : t("Monitoring is paused")}
                     </small>
                   </span>
                 </button>
@@ -1313,7 +1372,7 @@ function Sources(
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open Source
+                    {t("Open Source")}
                   </a>
                 </div>
               </div>
@@ -1322,16 +1381,15 @@ function Sources(
         )
         : (
           <Empty>
-            <strong>Set up your first Source</strong>
+            <strong>{t("Set up your first Source")}</strong>
             <p>
-              Add a YouTube Source to monitor new videos, turn them into
-              Intelligence, and keep Evidence inspectable.
+              {t("Add a YouTube Source to monitor new videos, turn them into Intelligence, and keep Evidence inspectable.")}
             </p>
             <button
               className="button button-primary"
               onClick={() => setAdding(true)}
             >
-              Add Source
+              {t("Add Source")}
             </button>
           </Empty>
         )}
@@ -1368,6 +1426,7 @@ function SourceForm(
     returnFocusRef?: RefObject<HTMLElement>;
   },
 ) {
+  const { t } = useLanguage();
   const dialogRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const onDialogKeyDown = useModalKeyboard(
@@ -1443,7 +1502,7 @@ function SourceForm(
       setError(
         reason instanceof Error
           ? reason.message
-          : "The Source could not be saved.",
+          : t("The Source could not be saved."),
       );
     } finally {
       setBusy(false);
@@ -1462,15 +1521,14 @@ function SourceForm(
         <div className="modal-head">
           <div>
             <h2 id="source-form-title" ref={titleRef} tabIndex={-1}>
-              {source ? "Edit Source configuration" : "Add a Source"}
+              {source ? t("Edit Source configuration") : t("Add a Source")}
             </h2>
             <p className="hint">
-              These settings use the existing Source policy and schedule
-              services.
+              {t("These settings use the existing Source policy and schedule services.")}
             </p>
           </div>
           <button className="button button-ghost" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
         </div>
         <form
@@ -1478,8 +1536,8 @@ function SourceForm(
           aria-describedby={error ? "source-form-error" : undefined}
         >
           <label className="field">
-            Source URL<input
-              aria-label="Source URL"
+            {t("Source URL")}<input
+              aria-label={t("Source URL")}
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               required
@@ -1487,121 +1545,116 @@ function SourceForm(
             />
           </label>
           <label className="field">
-            Processing level<select
-              aria-label="Processing level"
+            {t("Processing level")}<select
+              aria-label={t("Processing level")}
               value={processingPolicy}
               onChange={(event) => setProcessingPolicy(event.target.value)}
             >
-              <option value="DISCOVER_ONLY">Discover new videos only</option>
+              <option value="DISCOVER_ONLY">{t("Discover new videos only")}</option>
               <option value="STANDARD_INTELLIGENCE">
-                Turn relevant videos into Intelligence
+                {t("Turn relevant videos into Intelligence")}
               </option>
             </select>
           </label>
           <label className="field">
             <span>
               <input
-                aria-label="Monitor this Source"
+                aria-label={t("Monitor this Source")}
                 type="checkbox"
                 checked={enabled}
                 onChange={(event) => setEnabled(event.target.checked)}
               />{" "}
-              Monitor this Source
+              {t("Monitor this Source")}
             </span>
             <small>
-              Turning monitoring off affects future checks only; it never
-              removes existing Intelligence.
+              {t("Turning monitoring off affects future checks only; it never removes existing Intelligence.")}
             </small>
           </label>
-          <Panel title="What to process">
+          <Panel title={t("What to process")}>
             <label className="field">
-              Initial history<select
-                aria-label="Initial history"
+              {t("Initial history")}<select
+                aria-label={t("Initial history")}
                 value={initialHistory}
                 onChange={(event) => setInitialHistory(event.target.value)}
               >
                 {INITIAL_HISTORY.map((value) => (
                   <option key={value} value={value}>
-                    {value} recent videos
+                    {t("{count} recent videos", { count: value })}
                   </option>
                 ))}
               </select>
               <small>
-                How many recent existing videos are considered when this Source
-                is first added.
+                {t("How many recent existing videos are considered when this Source is first added.")}
               </small>
             </label>
             <label className="field">
-              Per-run limit<select
-                aria-label="Per-run limit"
+              {t("Per-run limit")}<select
+                aria-label={t("Per-run limit")}
                 value={perRunLimit}
                 onChange={(event) => setPerRunLimit(event.target.value)}
               >
                 {PER_RUN_LIMIT.map((value) => (
-                  <option key={value} value={value}>{value} new videos</option>
+                  <option key={value} value={value}>{t("{count} new videos", { count: value })}</option>
                 ))}
               </select>
               <small>
-                The maximum number of new videos processed in one Source Run.
-                Videos beyond this limit remain pending.
+                {t("The maximum number of new videos processed in one Source Run. Videos beyond this limit remain pending.")}
               </small>
             </label>
             <label className="field">
-              Focus<input
-                aria-label="Focus"
+              {t("Focus")}<input
+                aria-label={t("Focus")}
                 value={focus}
                 onChange={(event) => setFocus(event.target.value)}
-                placeholder="Comma-separated terms"
+                placeholder={t("Comma-separated terms")}
               />
-              <small>Use simple terms that help choose what is relevant.</small>
+              <small>{t("Use simple terms that help choose what is relevant.")}</small>
             </label>
             <label className="field">
-              Ignore<input
-                aria-label="Ignore"
+              {t("Ignore")}<input
+                aria-label={t("Ignore")}
                 value={ignore}
                 onChange={(event) => setIgnore(event.target.value)}
-                placeholder="Comma-separated terms"
+                placeholder={t("Comma-separated terms")}
               />
               <small>
-                Use simple terms to exclude videos from automatic relevance
-                selection.
+                {t("Use simple terms to exclude videos from automatic relevance selection.")}
               </small>
             </label>
             <label className="field">
-              Distillation style<select
-                aria-label="Distillation style"
+              {t("Distillation style")}<select
+                aria-label={t("Distillation style")}
                 value={style}
                 onChange={(event) => setStyle(event.target.value)}
               >
                 {STYLES.map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
+                  <option key={value} value={value}>{t(label)}</option>
                 ))}
               </select>
-              <small>{STYLES.find(([value]) => value === style)?.[2]}</small>
+              <small>{t(STYLES.find(([value]) => value === style)?.[2] ?? "A useful mix of product, technical, and trend context.")}</small>
             </label>
           </Panel>
-          <Panel title="When it runs">
+          <Panel title={t("When it runs")}>
             <label className="field">
-              Automatic schedule<select
-                aria-label="Automatic schedule"
+              {t("Automatic schedule")}<select
+                aria-label={t("Automatic schedule")}
                 value={frequency}
                 onChange={(event) => setFrequency(event.target.value)}
               >
-                <option value="DAILY">Daily</option>
-                <option value="WEEKLY">Weekly</option>
-                <option value="MANUAL">Run manually</option>
+                <option value="DAILY">{t("Daily")}</option>
+                <option value="WEEKLY">{t("Weekly")}</option>
+                <option value="MANUAL">{t("Run manually")}</option>
               </select>
               <small>
-                Choose when this Source runs automatically. Manual does not
-                create an automatic schedule.
+                {t("Choose when this Source runs automatically. Manual does not create an automatic schedule.")}
               </small>
             </label>
             {frequency !== "MANUAL"
               ? (
                 <>
                   <label className="field">
-                    Time<input
-                      aria-label="Schedule time"
+                    {t("Time")}<input
+                      aria-label={t("Schedule time")}
                       type="time"
                       value={time}
                       onChange={(event) => setTime(event.target.value)}
@@ -1611,13 +1664,13 @@ function SourceForm(
                   <label className="field">
                     <span>
                       <input
-                        aria-label="Enable automatic schedule"
+                        aria-label={t("Enable automatic schedule")}
                         type="checkbox"
                         checked={scheduleEnabled}
                         onChange={(event) =>
                           setScheduleEnabled(event.target.checked)}
                       />{" "}
-                      Enable this automatic schedule
+                      {t("Enable this automatic schedule")}
                     </span>
                   </label>
                 </>
@@ -1635,14 +1688,14 @@ function SourceForm(
               className="button button-ghost"
               onClick={onClose}
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               className="button button-primary"
               disabled={busy}
               type="submit"
             >
-              {busy ? "Saving…" : source ? "Save changes" : "Add Source"}
+              {busy ? t("Saving…") : source ? t("Save changes") : t("Add Source")}
             </button>
           </div>
         </form>
@@ -1658,6 +1711,7 @@ function SourceDetail(
     onOpenSettings: () => void;
   },
 ) {
+  const { t, translateKnown } = useLanguage();
   const [revision, setRevision] = useState(0);
   const { data, error } = useRemote<
     {
@@ -1707,7 +1761,7 @@ function SourceDetail(
     return () => window.clearInterval(timer);
   }, [latestRun?.run_id, latestRun?.state]);
   if (error) return <ErrorState error={error} />;
-  if (!data) return <Empty>Loading Source…</Empty>;
+  if (!data) return <Empty>{t("Loading Source…")}</Empty>;
   const check = async () => {
     const result = await post<
       {
@@ -1719,7 +1773,11 @@ function SourceDetail(
     >(`/sources/${id}/check`, { command_id: commandId() });
     if (result.source_run) {
       setMessage(
-        `Your check was accepted. ${result.source_run.progress?.label ?? "Waiting to start"}. You can leave and return; this status comes from the saved run.`,
+        t("Your check was accepted. {status}. You can leave and return; this status comes from the saved run.", {
+          status: result.source_run.progress?.label
+            ? translateKnown(result.source_run.progress.label)
+            : t("Waiting to start"),
+        }),
       );
       setRevision((value) => value + 1);
       onRefresh();
@@ -1727,18 +1785,22 @@ function SourceDetail(
     }
     if (result.status === "BLOCKED") {
       setMessage(
-        `${result.readiness?.overall.label ?? "Setup required"}. ${result.readiness?.overall.message ?? "No Source Run was created."}`,
+        `${result.readiness?.overall.label
+          ? translateKnown(result.readiness.overall.label)
+          : t("Setup required")}. ${result.readiness?.overall.message
+          ? translateKnown(result.readiness.overall.message)
+          : t("No Source Run was created.")}`,
       );
       return;
     }
     if (result.status === "FAILED_FINAL") {
       setMessage(
-        "The Source check did not complete. Your Source configuration and existing Intelligence are unchanged.",
+        t("The Source check did not complete. Your Source configuration and existing Intelligence are unchanged."),
       );
       return;
     }
     setMessage(
-      "The Source check completed. Review recent videos and Source status for the outcome.",
+      t("The Source check completed. Review recent videos and Source status for the outcome."),
     );
   };
   return (
@@ -1755,7 +1817,7 @@ function SourceDetail(
         <div className="modal-head">
           <div>
             <h2 id="source-detail-title" ref={titleRef} tabIndex={-1}>
-              {sourceLabel(data.source)}
+              {sourceLabel(data.source, t)}
             </h2>
             <a
               className="source-url"
@@ -1763,18 +1825,17 @@ function SourceDetail(
               target="_blank"
               rel="noreferrer"
             >
-              Open Source
+              {t("Open Source")}
             </a>
           </div>
           <button className="button button-ghost" onClick={onClose}>
-            Close
+            {t("Close")}
           </button>
         </div>
-        <Panel title="Source management">
+        <Panel title={t("Source management")}>
           <p>
             <Status value={data.source.enabled ? "ENABLED" : "DISABLED"} />{" "}
-            Monitoring changes affect future checks only; existing Intelligence
-            remains unchanged.
+            {t("Monitoring changes affect future checks only; existing Intelligence remains unchanged.")}
           </p>
           <div className="inline-actions">
             <button
@@ -1782,7 +1843,7 @@ function SourceDetail(
               className="button button-secondary"
               onClick={() => setEditing(true)}
             >
-              Edit configuration
+              {t("Edit configuration")}
             </button>
             <button
               className="button button-secondary"
@@ -1795,47 +1856,57 @@ function SourceDetail(
               }}
             >
               {data.source.enabled
-                ? "Stop future monitoring"
-                : "Resume monitoring"}
+                ? t("Stop future monitoring")
+                : t("Resume monitoring")}
             </button>
           </div>
         </Panel>
-        <Panel title="Processing policy">
+        <Panel title={t("Processing policy")}>
           <p>
-            Initial history: {data.policy.initial_history_count}{" "}
-            recent existing videos when this Source was first added.
+            {t("Initial history: {count} recent existing videos when this Source was first added.", {
+              count: data.policy.initial_history_count,
+            })}
           </p>
           <p>
-            Per-run limit: {data.policy.per_run_max_new_videos}{" "}
-            new videos in one Source Run; overflow remains pending.
+            {t("Per-run limit: {count} new videos in one Source Run; overflow remains pending.", {
+              count: data.policy.per_run_max_new_videos,
+            })}
           </p>
           <p>
-            Focus:{" "}
-            {data.policy.focus_rules.join(", ") || "No focus terms"}. Ignore:
-            {" "}
-            {data.policy.ignore_rules.join(", ") || "No ignore terms"}.
+            {t("Focus: {focus}. Ignore: {ignore}.", {
+              focus: data.policy.focus_rules.join(", ") || t("No focus terms"),
+              ignore: data.policy.ignore_rules.join(", ") || t("No ignore terms"),
+            })}
           </p>
           <p>
-            Style:{" "}
-            {STYLES.find(([value]) => value === data.policy.distillation_style)
-              ?.[1] ?? "Balanced"}.
+            {t("Style: {style}.", {
+              style: t(STYLES.find(([value]) => value === data.policy.distillation_style)
+                ?.[1] ?? "Balanced"),
+            })}
           </p>
         </Panel>
-        <Panel title="Schedule">
+        <Panel title={t("Schedule")}>
           {data.schedules.length
             ? data.schedules.map((schedule) => (
               <p key={schedule.schedule_id}>
                 <Status value={schedule.enabled ? "ENABLED" : "DISABLED"} />
                 {" "}
-                Runs {schedule.frequency.toLowerCase()}
-                {schedule.local_time ? ` at ${schedule.local_time}` : ""}
-                {schedule.timezone ? ` (${schedule.timezone})` : ""}.
+                {t("Runs {frequency}{time}{timezone}.", {
+                  frequency: schedule.frequency === "DAILY"
+                    ? t("daily")
+                    : schedule.frequency === "WEEKLY"
+                    ? t("weekly")
+                    : schedule.frequency.toLowerCase(),
+                  time: schedule.local_time
+                    ? t(" at {time}", { time: schedule.local_time })
+                    : "",
+                  timezone: schedule.timezone ? ` (${schedule.timezone})` : "",
+                })}
               </p>
             ))
             : (
               <Empty>
-                This Source runs manually. Edit configuration to add an
-                automatic schedule.
+                {t("This Source runs manually. Edit configuration to add an automatic schedule.")}
               </Empty>
             )}
         </Panel>
@@ -1862,19 +1933,19 @@ function SourceDetail(
           disabled={sourceReadinessProjection?.overall.code !== "READY"}
           aria-describedby="check-now-guidance"
         >
-          Check Now
+          {t("Check Now")}
         </button>
         <p className="hint" id="check-now-guidance">
           {sourceReadinessProjection?.overall.code === "READY"
-            ? "Starts one new normal Source Run. This is not a retry action."
-            : "Check Now remains unavailable until the prerequisite summary says Ready to check a Source."}
+            ? t("Starts one new normal Source Run. This is not a retry action.")
+            : t("Check Now remains unavailable until the prerequisite summary says Ready to check a Source.")}
         </p>
         {message && (
           <div className="semantic-state state-neutral">
             <p>{message}</p>
           </div>
         )}
-        <Panel title="Recent videos">
+        <Panel title={t("Recent videos")}>
           {data.recent_videos.length
             ? data.recent_videos.map((video) => {
               const skipped = video.filter?.outcome === "NOT_RELEVANT";
@@ -1890,7 +1961,7 @@ function SourceDetail(
                     {skipped
                       ? (
                         <>
-                          <p>{filterReason(video.filter?.reason)}</p>
+                          <p>{filterReason(video.filter?.reason, t)}</p>
                           <button
                             className="button button-secondary"
                             onClick={async () => {
@@ -1902,33 +1973,32 @@ function SourceDetail(
                               );
                               setMessage(
                                 result.source_run
-                                  ? "This video was accepted for analysis. Its relevance skip has been overridden; other safety, budget, and model rules still apply."
-                                  : "This video’s relevance skip has been overridden; other safety, budget, and model rules still apply.",
+                                  ? t("This video was accepted for analysis. Its relevance skip has been overridden; other safety, budget, and model rules still apply.")
+                                  : t("This video’s relevance skip has been overridden; other safety, budget, and model rules still apply."),
                               );
                             }}
                           >
-                            Analyze this Video
+                            {t("Analyze this Video")}
                           </button>
                           <p className="hint">
-                            Analyze this video even though it was skipped for
-                            relevance. Other safety, budget and model rules
-                            still apply.
+                            {t("Analyze this video even though it was skipped for relevance. Other safety, budget and model rules still apply.")}
                           </p>
                         </>
                       )
                       : (
                         <p>
-                          Current processing state:{" "}
-                          {statusLabel(video.processing_status)}.
+                          {t("Current processing state: {status}.", {
+                            status: statusLabel(video.processing_status, t),
+                          })}
                         </p>
                       )}
                   </div>
                 </div>
               );
             })
-            : <Empty>No recent videos for this Source.</Empty>}
+            : <Empty>{t("No recent videos for this Source.")}</Empty>}
         </Panel>
-        <Panel title="Source Run status">
+        <Panel title={t("Source Run status")}>
           {data.source_runs.length
             ? data.source_runs.map((run) =>
               run.attention_reason
@@ -1949,20 +2019,31 @@ function SourceDetail(
                 : (
                   <article className="run-orientation" key={run.run_id}>
                     <Status value={run.state} />
-                    <strong>{run.result?.label ?? run.progress?.label ?? statusLabel(run.state)}</strong>
+                    <strong>{run.result?.label
+                      ? translateKnown(run.result.label)
+                      : run.progress?.label
+                      ? translateKnown(run.progress.label)
+                      : statusLabel(run.state, t)}</strong>
                     {run.result?.kind !== "COMPLETED_WITH_INTELLIGENCE" &&
                       run.progress?.label && run.result?.label !== run.progress.label && (
-                      <p>Current step: {run.progress.label}.</p>
+                      <p>{t("Current step: {status}.", {
+                        status: translateKnown(run.progress.label),
+                      })}</p>
                     )}
                     {run.result?.kind === "COMPLETED_WITH_INTELLIGENCE" && (
                       <p>
-                        Produced {run.result.intelligence_count ?? 0} trusted Intelligence item{run.result.intelligence_count === 1 ? "" : "s"}.
+                        {t(
+                          run.result.intelligence_count === 1
+                            ? "Produced {count} trusted Intelligence item."
+                            : "Produced {count} trusted Intelligence items.",
+                          { count: run.result.intelligence_count ?? 0 },
+                        )}
                       </p>
                     )}
                   </article>
                 )
             )
-            : <Empty>No Source Runs yet.</Empty>}
+            : <Empty>{t("No Source Runs yet.")}</Empty>}
         </Panel>
       </section>
       {editing && (
@@ -1983,13 +2064,13 @@ function SourceDetail(
   );
 }
 function Investigations() {
+  const { t } = useLanguage();
   return (
     <div className="semantic-state state-neutral">
       <Status value="UNAVAILABLE" />
-      <h2>Investigations are not active in V1</h2>
+      <h2>{t("Investigations are not active in V1")}</h2>
       <p>
-        This is planned beyond V1. Evidence Expansion, external validation, and
-        Deep Analysis are not available.
+        {t("This is planned beyond V1. Evidence Expansion, external validation, and Deep Analysis are not available.")}
       </p>
     </div>
   );
@@ -2004,19 +2085,21 @@ type ProviderStatus = {
   scope: string;
   reason: string;
 };
-function preferenceCopy(preference: Preference) {
-  return ({
+function preferenceCopy(preference: Preference, t: Translate) {
+  const key = ({
     EXPLICIT: "You directly chose this.",
     DERIVED: "The app inferred this from your feedback.",
     TEMPORARY: "Used only until its expiry.",
-  } as Record<string, string>)[preference.provenance] ??
+  } as Record<string, MessageKey>)[preference.provenance] ??
     "This preference keeps its recorded origin.";
+  return t(key);
 }
-function usageReason(value: string) {
-  return ({
+function usageReason(value: string, t: Translate) {
+  const key = ({
     PERSONALIZED_INTELLIGENCE: "Personalized Intelligence",
     MANUAL_DISTILLATION: "Manual analysis",
-  } as Record<string, string>)[value] ?? "Recorded work";
+  } as Record<string, MessageKey>)[value] ?? "Recorded work";
+  return t(key);
 }
 function Settings(
   { refresh, onReadinessAction }: {
@@ -2024,6 +2107,7 @@ function Settings(
     onReadinessAction: (dimension: ReadinessDimension) => void;
   },
 ) {
+  const { locale, setLocale, t, translateKnown } = useLanguage();
   const [readinessRefresh, setReadinessRefresh] = useState(0);
   const readiness = useRemote<{ readiness: Readiness }>(
     "/readiness",
@@ -2061,7 +2145,7 @@ function Settings(
   }
   if (!settings.data || !prefs.data || !policy.data || !usage.data ||
     (!readiness.data && !readiness.error)) {
-    return <Empty>Loading Settings…</Empty>;
+    return <Empty>{t("Loading Settings…")}</Empty>;
   }
   const globalPolicy = policy.data.policy;
   const videoDistillation = settings.data.providers.find((provider) =>
@@ -2073,6 +2157,24 @@ function Settings(
   );
   return (
     <div className="settings-stack">
+      <Panel title={t("General")}>
+        <div className="field language-setting">
+          <label htmlFor="ui-language">{t("Language")}</label>
+          <select
+            id="ui-language"
+            aria-describedby="ui-language-description"
+            value={locale}
+            onChange={(event) =>
+              setLocale(event.target.value === "zh-CN" ? "zh-CN" : "en")}
+          >
+            <option value="en">English</option>
+            <option value="zh-CN">简体中文</option>
+          </select>
+          <small id="ui-language-description">
+            {t("Choose the language used for product controls and guidance. Source content and Intelligence remain unchanged.")}
+          </small>
+        </div>
+      </Panel>
       {(readiness.error || !readinessProjection) && <DisconnectedReadiness />}
       {readinessProjection && (
         <ReadinessPanel
@@ -2091,10 +2193,9 @@ function Settings(
           }}
         />
       )}
-      <Panel title="Preference Center">
+      <Panel title={t("Preference Center")}>
         <p className="hint">
-          Explicit means you directly chose it. Derived means the app inferred
-          it from feedback. Temporary means it is used only until its expiry.
+          {t("Explicit means you directly chose it. Derived means the app inferred it from feedback. Temporary means it is used only until its expiry.")}
         </p>
         {prefs.data.history.length
           ? prefs.data.history.map((preference) => (
@@ -2105,117 +2206,135 @@ function Settings(
               <div>
                 <strong>{preference.statement}</strong>
                 <p>
-                  {preferenceCopy(preference)}
+                  {preferenceCopy(preference, t)}
                   {preference.expires_at
-                    ? ` Expires ${humanDate(preference.expires_at)}.`
+                    ? ` ${t("Expires {date}.", {
+                      date: humanDate(preference.expires_at, locale),
+                    })}`
                     : ""}
                 </p>
               </div>
             </article>
           ))
-          : <Empty>No Preferences yet.</Empty>}
+          : <Empty>{t("No Preferences yet.")}</Empty>}
       </Panel>
-      <Panel title="Source policy">
+      <Panel title={t("Source policy")}>
         <p>
-          Default for Sources without their own configuration: initial history
-          {" "}
-          {globalPolicy.initial_history_count}, per-run limit{" "}
-          {globalPolicy.per_run_max_new_videos},{" "}
-          {STYLES.find(([value]) => value === globalPolicy.distillation_style)
-            ?.[1] ?? "Balanced"} style.
+          {t("Default for Sources without their own configuration: initial history {initial}, per-run limit {limit}, {style} style.", {
+            initial: globalPolicy.initial_history_count,
+            limit: globalPolicy.per_run_max_new_videos,
+            style: t(STYLES.find(([value]) =>
+              value === globalPolicy.distillation_style
+            )?.[1] ?? "Balanced"),
+          })}
         </p>
       </Panel>
-      <Panel title="Models and cost">
+      <Panel title={t("Models and cost")}>
         <div className="capability-grid">
           <article className="capability-card">
             <div className="capability-heading">
-              <h3>Video Distillation</h3>
+              <h3>{t("Video Distillation")}</h3>
               <Status
                 value={readinessProjection?.video_distillation.code ??
                   "UNAVAILABLE"}
               />
             </div>
             <p>
-              {readinessProjection?.video_distillation.message ??
-                "Video Distillation readiness is unavailable."}
+              {readinessProjection?.video_distillation.message
+                ? translateKnown(readinessProjection.video_distillation.message)
+                : t("Video Distillation readiness is unavailable.")}
             </p>
             {videoDistillation && (
               <details className="provenance">
-                <summary>Provider and model details</summary>
+                <summary>{t("Provider and model details")}</summary>
                 <p>
                   {videoDistillation.provider} · {videoDistillation.model}
                 </p>
-                <p>Scope: Video Distillation only.</p>
-                <p>{videoDistillation.reason}</p>
+                <p>{t("Scope: Video Distillation only.")}</p>
+                <p>{translateKnown(videoDistillation.reason)}</p>
               </details>
             )}
           </article>
           <article className="capability-card">
             <div className="capability-heading">
-              <h3>Deep Analysis</h3>
+              <h3>{t("Deep Analysis")}</h3>
               <Status value="UNAVAILABLE" />
             </div>
-            <p>Deep Analysis is unavailable.</p>
+            <p>{t("Deep Analysis is unavailable.")}</p>
             <p className="hint">
-              Kimi is not authorized for this capability, and this screen cannot
-              enable it.
+              {t("Kimi is not authorized for this capability, and this screen cannot enable it.")}
             </p>
           </article>
         </div>
         {otherProviders.length > 0 && (
           <details className="provenance">
-            <summary>Other model options</summary>
+            <summary>{t("Other model options")}</summary>
             {otherProviders.map((provider) => (
               <p key={provider.provider}>
-                {provider.provider}: not available for production use.
+                {t("{provider}: not available for production use.", {
+                  provider: provider.provider,
+                })}
               </p>
             ))}
           </details>
         )}
       </Panel>
       <section id="resource-usage">
-        <Panel title="Resource Usage">
+        <Panel title={t("Resource Usage")}>
         {usage.data.usage.length
           ? usage.data.usage.map((item) => (
             <article className="metadata-row" key={item.execution_id}>
               <div>
-                <strong>{usageReason(item.reason)}</strong>
+                <strong>{usageReason(item.reason, t)}</strong>
                 <p>
-                  {item.invocation_count} calls · {item.duration_ms === null
-                    ? "Duration unavailable"
-                    : `Duration ${item.duration_ms}ms`}
+                  {t("{count} calls · {duration}", {
+                    count: item.invocation_count,
+                    duration: item.duration_ms === null
+                      ? t("Duration unavailable")
+                      : t("Duration {duration}ms", {
+                        duration: item.duration_ms,
+                      }),
+                  })}
                 </p>
                 <p>
-                  Token usage:{" "}
-                  {item.input_tokens === null || item.output_tokens === null
-                    ? "Unavailable"
-                    : `${item.input_tokens} input / ${item.output_tokens} output`};
-                  Cost: {item.cost_microunits === null
-                    ? "Unavailable"
-                    : `${item.cost_microunits} microunits`}.
+                  {t("Token usage: {tokens}; Cost: {cost}.", {
+                    tokens: item.input_tokens === null ||
+                        item.output_tokens === null
+                      ? t("Unavailable")
+                      : t("{input} input / {output} output", {
+                        input: item.input_tokens,
+                        output: item.output_tokens,
+                      }),
+                    cost: item.cost_microunits === null
+                      ? t("Unavailable")
+                      : t("{cost} microunits", {
+                        cost: item.cost_microunits,
+                      }),
+                  })}
                 </p>
                 <Status value={item.status} />
               </div>
               <details className="provenance">
-                <summary>Technical details</summary>
+                <summary>{t("Technical details")}</summary>
                 <p>
-                  Model: {item.actual_model ?? "Unknown"}. Provider:{" "}
-                  {item.actual_provider ?? "Unknown"}.
+                  {t("Model: {model}. Provider: {provider}.", {
+                    model: item.actual_model ?? t("Unknown"),
+                    provider: item.actual_provider ?? t("Unknown"),
+                  })}
                 </p>
               </details>
             </article>
           ))
           : (
             <Empty>
-              No Resource Ledger entries yet. Values are never estimated.
+              {t("No Resource Ledger entries yet. Values are never estimated.")}
             </Empty>
           )}
         </Panel>
       </section>
-      <Panel title="Data and privacy">
+      <Panel title={t("Data and privacy")}>
         <p>
-          Local-first means local persistence by default. Credential values are
-          never shown.
+          {t("Local-first means local persistence by default. Credential values are never shown.")}
         </p>
       </Panel>
     </div>
