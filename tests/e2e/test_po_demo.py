@@ -87,22 +87,31 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert all(item["card"]["source_display_name"] for item in real_data_cards)
     assert all(item["card"]["video_title"] for item in real_data_cards)
     assert all(item["card"]["evidence_links"][0]["excerpt"] for item in real_data_cards)
-    assert dashboard["needs_attention"] == [
-        {
-            "run_id": "source-run:5709dd545ce77763b946df78fc31e287147bc27a0649159110d1c9aefc787b5c",
-            "source_id": "source-startup",
-            "trigger": "MANUAL_CHECK_NOW",
-            "trigger_reference": "po-demo-attention",
-            "priority": "P0",
-            "state": "NEEDS_ATTENTION",
-            "attention_reason": "MODEL_UNAVAILABLE",
-            "automation_run_id": None,
-            "manual_command_id": "po-demo-attention",
-            "manual_analyze_override_id": None,
-            "created_at": "2026-09-01T08:00:00Z",
-            "updated_at": "2026-09-01T08:00:00Z",
-        }
-    ]
+    assert len(dashboard["needs_attention"]) == 1
+    attention = dashboard["needs_attention"][0]
+    expected_attention = {
+        "run_id": "source-run:5709dd545ce77763b946df78fc31e287147bc27a0649159110d1c9aefc787b5c",
+        "source_id": "source-startup",
+        "trigger": "MANUAL_CHECK_NOW",
+        "trigger_reference": "po-demo-attention",
+        "priority": "P0",
+        "state": "NEEDS_ATTENTION",
+        "attention_reason": "MODEL_UNAVAILABLE",
+        "automation_run_id": None,
+        "manual_command_id": "po-demo-attention",
+        "manual_analyze_override_id": None,
+        "created_at": "2026-09-01T08:00:00Z",
+        "updated_at": "2026-09-01T08:00:00Z",
+    }
+    assert {key: attention[key] for key in expected_attention} == expected_attention
+    assert attention["progress"] == {
+        "code": "NEEDS_ATTENTION",
+        "label": "Needs attention",
+    }
+    assert attention["result"]["kind"] == "NEEDS_ATTENTION"
+    assert attention["recovery"]["kind"] == "PROVIDER"
+    assert attention["recovery"]["safe_action"]["kind"] == "CHECK_READINESS"
+    assert "will not retry" in attention["recovery"]["will_not"].lower()
     available = next(item for item in dashboard["intelligence"] if item["status"] == "AVAILABLE")
     intelligence_id = available["intelligence_id"]
     assert available["trusted"] is True

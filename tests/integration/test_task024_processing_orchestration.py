@@ -19,7 +19,8 @@ from youtube_intel.distillation import (
     NvidiaNimCloudDistillationTransport,
     PersonalizedDistillationService,
 )
-from youtube_intel.local_api import LocalApiApplication
+from youtube_intel.intelligence_read import AuthoritativeIntelligenceReader
+from youtube_intel.local_api import ApiError, LocalApiApplication
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
@@ -30,6 +31,8 @@ from youtube_intel.processing_orchestrator import (
     DurableProcessingOrchestrator,
     TopicAssociationUpdater,
 )
+from youtube_intel.production_runtime import build_normal_production_runtime
+from youtube_intel.readiness import BudgetReadiness, ProductionReadinessAuthority
 from youtube_intel.source_policy import (
     MetadataFilterCandidate,
     SourcePolicyApplicationService,
@@ -632,6 +635,37 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
 
+    readiness = ProductionReadinessAuthority(
+        reopened,
+        runtime_enabled=True,
+        eligibility=NormalV1ProductionAuthorizationAuthority.resolve(
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+            available=True,
+        ),
+        credential_available=True,
+        budget=BudgetReadiness.within_limit(limit=5, used=1),
+    )
+    api = LocalApiApplication(
+        reopened,
+        ProductOrchestrationService(reopened, now=lambda: NOW),
+        processing_orchestrator=restarted,
+        readiness_authority=readiness,
+        now=lambda: NOW,
+    )
+    status, payload = api.handle("GET", f"/api/v1/source-runs/{run.run_id}")
+    assert status == 200
+    projected = payload["source_run"]
+    assert projected["result"]["kind"] == "EXTERNAL_RESULT_UNCONFIRMED"
+    assert projected["recovery"]["safe_action"]["kind"] == "VIEW_RUN_DETAILS"
+    serialized = str(projected["recovery"]).lower()
+    assert "will not retry" in serialized
+    assert all(
+        forbidden not in projected["recovery"]["safe_action"]["label"].lower()
+        for forbidden in ("retry", "try again", "continue", "resume")
+    )
+
 
 def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     tmp_path: Path,
@@ -677,6 +711,20 @@ def test_disabled_source_and_budget_block_are_durable_non_dispatch_states(
     assert repository.list_source_run_children(run.run_id)[0].state is SourceRunChildState.WAITING
     assert service.resume(run.run_id) == blocked
     assert transport.calls == 0
+    recovery_api = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        readiness_authority=ProductionReadinessAuthority.unconfigured(repository),
+        now=lambda: NOW,
+    )
+    status, budget_payload = recovery_api.handle(
+        "GET", f"/api/v1/source-runs/{run.run_id}"
+    )
+    assert status == 200
+    budget_recovery = budget_payload["source_run"]["recovery"]
+    assert budget_recovery["kind"] == "BUDGET"
+    assert budget_recovery["safe_action"]["kind"] == "VIEW_USAGE"
+    assert "will not increase" in budget_recovery["will_not"].lower()
 
     disabled = _source(repository, suffix="disabled")
     disabled_run = service.enqueue_manual_check_now(
@@ -687,6 +735,20 @@ def test_disabled_source_and_budget_block_are_durable_non_dispatch_states(
     assert result.state is SourceRunState.NEEDS_ATTENTION
     assert result.attention_reason is SourceRunAttentionReason.USER_DECISION_REQUIRED
     assert transport.calls == 0
+    decision_api = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        readiness_authority=ProductionReadinessAuthority.unconfigured(repository),
+        now=lambda: NOW,
+    )
+    status, decision_payload = decision_api.handle(
+        "GET", f"/api/v1/source-runs/{disabled_run.run_id}"
+    )
+    assert status == 200
+    decision_recovery = decision_payload["source_run"]["recovery"]
+    assert decision_recovery["kind"] == "DECISION_REQUIRED"
+    assert decision_recovery["safe_action"]["kind"] == "REVIEW_SOURCE_DECISION"
+    assert "will not continue" in decision_recovery["will_not"].lower()
 
 
 def test_skipped_and_manual_override_children_remain_distinct_and_manual_cannot_retry_ambiguous(
@@ -952,6 +1014,231 @@ def test_local_api_exposes_only_durable_trigger_and_status_when_core_is_injected
     assert "attention_detail" not in projected["source_run"]
 
 
+def test_rc4_api_readiness_preflight_is_backend_owned_and_dispatches_zero_when_missing(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="rc4-preflight")
+    transport = _Transport()
+    orchestrator = _orchestrator(repository, transport)
+    readiness = ProductionReadinessAuthority(
+        repository,
+        runtime_enabled=True,
+        eligibility=NormalV1ProductionAuthorizationAuthority.resolve(
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+            available=True,
+        ),
+        credential_available=False,
+        budget=BudgetReadiness.within_limit(limit=5, used=0),
+    )
+    submitted: list[str] = []
+    app = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        processing_orchestrator=orchestrator,
+        readiness_authority=readiness,
+        source_run_submitter=submitted.append,
+        now=lambda: NOW,
+    )
+
+    status, projected = app.handle("GET", f"/api/v1/sources/{source_id}/readiness")
+    assert status == 200
+    assert projected["readiness"]["overall"]["code"] == "SETUP_REQUIRED"
+    assert projected["readiness"]["credential"]["code"] == "SETUP_REQUIRED"
+
+    status, blocked = app.handle(
+        "POST",
+        f"/api/v1/sources/{source_id}/check",
+        b'{"command_id":"rc4-missing-credential"}',
+    )
+    assert status == 200
+    assert blocked["status"] == "BLOCKED"
+    assert blocked["readiness"]["credential"]["code"] == "SETUP_REQUIRED"
+    assert repository.list_source_runs() == ()
+    assert transport.calls == 0
+    assert submitted == []
+
+    with pytest.raises(ApiError) as forged:
+        app.handle("POST", "/api/v1/readiness", b'{"ready":true}')
+    assert getattr(forged.value, "status", None) == 404
+
+
+def test_rc4_api_projects_run_truth_after_navigation_and_reload(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="rc4-progress")
+    _video_with_evidence(repository, source_id, suffix="rc4-progress")
+    transport = _Transport()
+    orchestrator = _orchestrator(repository, transport)
+    readiness = ProductionReadinessAuthority(
+        repository,
+        runtime_enabled=True,
+        eligibility=NormalV1ProductionAuthorizationAuthority.resolve(
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+            available=True,
+        ),
+        credential_available=True,
+        budget=BudgetReadiness.within_limit(limit=5, used=0),
+    )
+    app = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        processing_orchestrator=orchestrator,
+        readiness_authority=readiness,
+        source_run_submitter=lambda run_id: None,
+        now=lambda: NOW,
+    )
+
+    status, accepted = app.handle(
+        "POST",
+        f"/api/v1/sources/{source_id}/check",
+        b'{"command_id":"rc4-progress"}',
+    )
+    assert status == 202
+    run_id = accepted["source_run"]["run_id"]
+    assert accepted["source_run"]["progress"]["code"] == "WAITING_TO_START"
+    assert "percent" not in str(accepted).lower()
+
+    assert orchestrator.resume(run_id).state is SourceRunState.COMPLETED
+    reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert reopened.initialize(now=NOW).version == 16
+    revisited = LocalApiApplication(
+        reopened,
+        ProductOrchestrationService(reopened, now=lambda: NOW),
+        readiness_authority=ProductionReadinessAuthority.unconfigured(reopened),
+        now=lambda: NOW,
+    )
+    status, projected = revisited.handle("GET", f"/api/v1/source-runs/{run_id}")
+    assert status == 200
+    source_run = projected["source_run"]
+    assert source_run["state"] == "COMPLETED"
+    assert source_run["progress"]["code"] == "COMPLETED"
+    assert source_run["result"]["kind"] == "COMPLETED_WITH_INTELLIGENCE"
+    assert source_run["result"]["intelligence_count"] == 1
+    assert "percent" not in str(source_run).lower()
+
+
+def test_rc4_supported_local_product_path_reaches_normal_task022d_route(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="rc4-production")
+    _video_with_evidence(repository, source_id, suffix="rc4-production")
+    wire_calls: list[tuple[str, float, int]] = []
+
+    def wire(endpoint, request, credential, timeout, retries):
+        assert credential == "synthetic-nvidia-credential"
+        wire_calls.append((endpoint, timeout, retries))
+        return _nvidia_success_response(request)
+
+    runtime = build_normal_production_runtime(
+        repository,
+        enabled=True,
+        call_limit=5,
+        environment={"NVIDIA_API_KEY": "synthetic-nvidia-credential"},
+        wire_transport=wire,
+        now=lambda: NOW,
+    )
+    app = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        distillation_service=runtime.distillation,
+        processing_orchestrator=runtime.orchestrator,
+        readiness_authority=runtime.readiness,
+        source_run_submitter=runtime.worker.submit,
+        now=lambda: NOW,
+    )
+    try:
+        status, ready = app.handle("GET", f"/api/v1/sources/{source_id}/readiness")
+        assert status == 200
+        assert ready["readiness"]["overall"]["code"] == "READY"
+
+        status, accepted = app.handle(
+            "POST",
+            f"/api/v1/sources/{source_id}/check",
+            b'{"command_id":"rc4-supported-production"}',
+        )
+        assert status == 202
+        run_id = accepted["source_run"]["run_id"]
+        runtime.worker.wait_for_idle(timeout=5)
+
+        status, finished = app.handle("GET", f"/api/v1/source-runs/{run_id}")
+        assert status == 200
+        assert finished["source_run"]["result"]["kind"] == (
+            "COMPLETED_WITH_INTELLIGENCE"
+        )
+        child = repository.list_source_run_children(run_id)[0]
+        assert child.distillation_execution_id is not None
+        execution = repository.get_distillation_execution(
+            child.distillation_execution_id
+        )
+        assert execution is not None
+        assert execution.intelligence_id is not None
+        assert AuthoritativeIntelligenceReader(repository).read_current(
+            execution.intelligence_id
+        ).intelligence_id == execution.intelligence_id
+        ledger = repository.get_distillation_resource_usage(
+            child.distillation_execution_id
+        )
+        assert ledger is not None
+        assert ledger.selected_provider == "nvidia_nim"
+        assert ledger.selected_model == "moonshotai/kimi-k3"
+        assert ledger.invocation_count == 1
+        assert wire_calls == [
+            ("https://integrate.api.nvidia.com/v1/chat/completions", 120.0, 0)
+        ]
+    finally:
+        runtime.worker.close()
+
+
+def test_rc4_supported_runtime_budget_block_never_resolves_or_dispatches(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="rc4-budget")
+    _video_with_evidence(repository, source_id, suffix="rc4-budget")
+    wire_calls = 0
+
+    def wire(endpoint, request, credential, timeout, retries):
+        nonlocal wire_calls
+        wire_calls += 1
+        return _nvidia_success_response(request)
+
+    runtime = build_normal_production_runtime(
+        repository,
+        enabled=True,
+        call_limit=0,
+        environment={"NVIDIA_API_KEY": "must-not-be-read-for-dispatch"},
+        wire_transport=wire,
+        now=lambda: NOW,
+    )
+    app = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        processing_orchestrator=runtime.orchestrator,
+        readiness_authority=runtime.readiness,
+        source_run_submitter=runtime.worker.submit,
+        now=lambda: NOW,
+    )
+    try:
+        status, blocked = app.handle(
+            "POST",
+            f"/api/v1/sources/{source_id}/check",
+            b'{"command_id":"rc4-budget-block"}',
+        )
+        assert status == 200
+        assert blocked["readiness"]["budget"]["code"] == "LIMIT_REACHED"
+        assert repository.list_source_runs() == ()
+        assert wire_calls == 0
+    finally:
+        runtime.worker.close()
+
+
 def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1019,6 +1306,62 @@ def test_uncertain_filter_never_calls_stage_two_or_transport(tmp_path: Path) -> 
     progress = repository.source_run_checkpoint_progress(run.run_id)
     assert progress.completed[-1].value == "FILTERING"
     assert progress.next_checkpoint.value == "SOURCE_PREPARATION"
+
+    credential_readiness = ProductionReadinessAuthority(
+        repository,
+        runtime_enabled=True,
+        eligibility=NormalV1ProductionAuthorizationAuthority.resolve(
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+            available=True,
+        ),
+        credential_available=False,
+        budget=BudgetReadiness.within_limit(limit=5, used=0),
+    )
+    credential_api = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        readiness_authority=credential_readiness,
+        now=lambda: NOW,
+    )
+    _, credential_payload = credential_api.handle(
+        "GET", f"/api/v1/source-runs/{run.run_id}"
+    )
+    credential_recovery = credential_payload["source_run"]["recovery"]
+    assert credential_recovery["kind"] == "CREDENTIAL"
+    assert credential_recovery["safe_action"]["kind"] == "VIEW_CREDENTIAL_SETUP"
+    assert "will not ask for, store, echo, or test" in credential_recovery[
+        "will_not"
+    ].lower()
+
+    provider_readiness = ProductionReadinessAuthority(
+        repository,
+        runtime_enabled=True,
+        eligibility=NormalV1ProductionAuthorizationAuthority.resolve(
+            provider="nvidia_nim",
+            model="moonshotai/kimi-k3",
+            capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+            available=False,
+        ),
+        credential_available=True,
+        budget=BudgetReadiness.within_limit(limit=5, used=0),
+    )
+    provider_api = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(repository, now=lambda: NOW),
+        readiness_authority=provider_readiness,
+        now=lambda: NOW,
+    )
+    _, provider_payload = provider_api.handle(
+        "GET", f"/api/v1/source-runs/{run.run_id}"
+    )
+    provider_recovery = provider_payload["source_run"]["recovery"]
+    assert provider_recovery["kind"] == "PROVIDER"
+    assert provider_recovery["safe_action"]["kind"] == "CHECK_READINESS"
+    assert "will not switch provider or model" in provider_recovery[
+        "will_not"
+    ].lower()
 
 
 def test_untrusted_topic_callback_is_not_an_orchestrator_authority(tmp_path: Path) -> None:

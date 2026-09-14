@@ -8378,6 +8378,21 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def total_distillation_invocation_count(self) -> int:
+        """Return the exact durable provider-call count for budget readiness."""
+
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(invocation_count), 0) AS total "
+                "FROM distillation_resource_usage"
+            ).fetchone()
+            if row is None or not isinstance(row["total"], int) or row["total"] < 0:
+                raise StateStoreError("distillation invocation count is invalid")
+            return row["total"]
+        finally:
+            connection.close()
+
     def get_distillation_card(self, revision_id: str) -> DistillationCardRecord | None:
         connection = self._connect()
         try:

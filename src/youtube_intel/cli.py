@@ -62,6 +62,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     api.add_argument("--database", type=Path, required=True)
     api.add_argument("--port", type=int, default=8765)
+    api.add_argument(
+        "--enable-video-distillation",
+        action="store_true",
+        help="explicitly enable the approved normal V1 Video Distillation route",
+    )
+    api.add_argument(
+        "--video-distillation-call-limit",
+        type=int,
+        default=0,
+        help="durable provider-call limit for this local database (0-5; default 0)",
+    )
     commands.add_parser(
         "doctor", help="read-only configuration and local-resource checks"
     )
@@ -122,6 +133,7 @@ def main(
         if args.command == "serve-api":
             from youtube_intel.local_api import LocalApiApplication, serve_loopback
             from youtube_intel.orchestration_service import ProductOrchestrationService
+            from youtube_intel.production_runtime import build_normal_production_runtime
             from youtube_intel.runtime import PIPELINE_VERSION
             from youtube_intel.scoring import AuthoritativeScoringReader
             from youtube_intel.state import SQLiteStateRepository
@@ -140,24 +152,38 @@ def main(
                 current_model=config.settings.local_scoring.model,
                 current_output_language=config.settings.general.output_language,
             )
-            server = serve_loopback(
-                LocalApiApplication(
-                    repository,
-                    ProductOrchestrationService(repository),
-                    scoring_reader=reader,
-                    data_root=_project_path(project_root, config.settings.storage.data_dir),
-                    vault_root=(
-                        Path(config.settings.storage.vault_root)
-                        / config.settings.storage.vault_subdir
-                    ),
-                    timezone=config.settings.general.timezone,
-                ),
-                port=args.port,
+            production = build_normal_production_runtime(
+                repository,
+                enabled=args.enable_video_distillation,
+                call_limit=args.video_distillation_call_limit,
             )
+            server = None
             try:
+                server = serve_loopback(
+                    LocalApiApplication(
+                        repository,
+                        ProductOrchestrationService(repository),
+                        scoring_reader=reader,
+                        distillation_service=production.distillation,
+                        processing_orchestrator=production.orchestrator,
+                        readiness_authority=production.readiness,
+                        source_run_submitter=production.worker.submit,
+                        data_root=_project_path(
+                            project_root, config.settings.storage.data_dir
+                        ),
+                        vault_root=(
+                            Path(config.settings.storage.vault_root)
+                            / config.settings.storage.vault_subdir
+                        ),
+                        timezone=config.settings.general.timezone,
+                    ),
+                    port=args.port,
+                )
                 server.serve_forever()
             finally:
-                server.server_close()
+                if server is not None:
+                    server.server_close()
+                production.worker.close()
             return ExitCode.OK
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)
@@ -308,6 +334,10 @@ def _validate_arguments(args: argparse.Namespace) -> None:
             and 1 <= int(week) <= 53
         ):
             raise ValueError("week must use YYYY-Www")
+    if args.command == "serve-api" and not (
+        0 <= args.video_distillation_call_limit <= 5
+    ):
+        raise ValueError("Video Distillation call limit must be between 0 and 5")
 
 
 def _project_root(value: Path) -> Path:

@@ -30,6 +30,7 @@ from youtube_intel.orchestration import (
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
+from youtube_intel.readiness import ProductionReadinessAuthority
 from youtube_intel.saved_intelligence import (
     SavedIntelligenceItem,
     SavedIntelligenceService,
@@ -42,6 +43,7 @@ from youtube_intel.source_policy import (
     SourcePolicyApplicationService,
 )
 from youtube_intel.source_run import SourceRunRecord
+from youtube_intel.source_run_projection import project_source_run
 from youtube_intel.state import (
     ArtifactKind,
     AutomationRunRecord,
@@ -129,27 +131,6 @@ def _source_dto(source: SourceSubscriptionRecord) -> dict[str, object]:
         else {"code": source.last_error_code, "message": source.last_error_message},
         "created_at": _timestamp(source.created_at),
         "updated_at": _timestamp(source.updated_at),
-    }
-
-
-def _source_run_dto(run: SourceRunRecord) -> dict[str, object]:
-    """Expose finite durable execution facts only; no exception detail is stored."""
-
-    return {
-        "run_id": run.run_id,
-        "source_id": run.source_id,
-        "trigger": run.trigger.value,
-        "trigger_reference": run.trigger_reference,
-        "priority": run.priority.value,
-        "state": run.state.value,
-        "attention_reason": (
-            None if run.attention_reason is None else run.attention_reason.value
-        ),
-        "automation_run_id": run.automation_run_id,
-        "manual_command_id": run.manual_command_id,
-        "manual_analyze_override_id": run.manual_analyze_override_id,
-        "created_at": _timestamp(run.created_at),
-        "updated_at": _timestamp(run.updated_at),
     }
 
 
@@ -327,6 +308,8 @@ class LocalApiApplication:
         scoring_reader: AuthoritativeScoringReader | None = None,
         distillation_service: PersonalizedDistillationService | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
+        readiness_authority: ProductionReadinessAuthority | None = None,
+        source_run_submitter: Callable[[str], None] | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
@@ -340,6 +323,12 @@ class LocalApiApplication:
         self._distillation_service = distillation_service
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
+        self._enforce_readiness = readiness_authority is not None
+        self._readiness = (
+            readiness_authority
+            or ProductionReadinessAuthority.unconfigured(repository)
+        )
+        self._source_run_submitter = source_run_submitter
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
@@ -357,6 +346,11 @@ class LocalApiApplication:
         )
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
+
+    def _source_run_projection(self, run: SourceRunRecord) -> dict[str, object]:
+        return project_source_run(
+            self._repository, self._readiness, run
+        )
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
@@ -872,7 +866,7 @@ class LocalApiApplication:
                     )
                 return HTTPStatus.ACCEPTED, {
                     "decision": _filter_decision_dto(manual_decision),
-                    "source_run": _source_run_dto(run),
+                    "source_run": self._source_run_projection(run),
                 }
             if (
                 method == "POST"
@@ -942,12 +936,27 @@ class LocalApiApplication:
                 source_id = route.split("/")[-2]
                 if self._processing_orchestrator is not None:
                     self._only_keys(data, {"command_id"})
+                    if self._repository.get_source_subscription(source_id) is None:
+                        raise ApiError(
+                            HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                        )
+                    if self._enforce_readiness and not self._readiness.can_start(
+                        source_id=source_id
+                    ):
+                        return HTTPStatus.OK, {
+                            "status": "BLOCKED",
+                            "readiness": self._readiness.project(source_id=source_id),
+                        }
                     run = self._processing_orchestrator.enqueue_manual_check_now(
                         source_id=source_id,
                         command_id=self._string(data, "command_id", required=True)
                         or "",
                     )
-                    return HTTPStatus.ACCEPTED, {"source_run": _source_run_dto(run)}
+                    if self._source_run_submitter is not None:
+                        self._source_run_submitter(run.run_id)
+                    return HTTPStatus.ACCEPTED, {
+                        "source_run": self._source_run_projection(run)
+                    }
                 result = self._service.check_source(source_id)
                 return HTTPStatus.OK, {
                     "status": result.status.value,
@@ -1034,6 +1043,8 @@ class LocalApiApplication:
         }
 
     def _get(self, route: str) -> dict[str, object]:
+        if route == "/api/v1/readiness":
+            return {"readiness": self._readiness.project()}
         if route == "/api/v1/settings/source-policy":
             return {
                 "policy": _source_policy_dto(
@@ -1085,7 +1096,7 @@ class LocalApiApplication:
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source Run was not found."
                 )
-            return {"source_run": _source_run_dto(run)}
+            return {"source_run": self._source_run_projection(run)}
         topic_prefix = "/api/v1/topics/"
         if route.startswith(topic_prefix):
             topic_id = route.removeprefix(topic_prefix)
@@ -1109,7 +1120,7 @@ class LocalApiApplication:
                     for item in self._weekly_brief_service.list_finalized()[:3]
                 ],
                 "needs_attention": [
-                    _source_run_dto(run)
+                    self._source_run_projection(run)
                     for run in source_runs
                     if run.attention_reason is not None
                     or run.state.value == "NEEDS_ATTENTION"
@@ -1129,6 +1140,17 @@ class LocalApiApplication:
                 ]
             }
         source_prefix = "/api/v1/sources/"
+        if route.startswith(source_prefix) and route.endswith("/readiness"):
+            source_id = route.removeprefix(source_prefix).removesuffix("/readiness")
+            if not source_id or "/" in source_id:
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
+            if self._repository.get_source_subscription(source_id) is None:
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                )
+            return {"readiness": self._readiness.project(source_id=source_id)}
         if route.startswith(source_prefix) and route.endswith("/policy"):
             source_id = route.removeprefix(source_prefix).removesuffix("/policy")
             if not source_id or "/" in source_id:
@@ -1188,7 +1210,7 @@ class LocalApiApplication:
                     )
                 ],
                 "source_runs": [
-                    _source_run_dto(run)
+                    self._source_run_projection(run)
                     for run in self._repository.list_source_runs()
                     if run.source_id == source.source_id
                 ][-20:],
