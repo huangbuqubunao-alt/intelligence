@@ -107,21 +107,27 @@ Intelligence.
 ## Verification evidence
 
 - Focused readiness, API/startup, run projection, recovery, and PO demo tests:
-  pass.
+  `37 passed`.
+- TASK-019/021/022/022B/022D/023B/024, provider-dispatch, at-most-once,
+  budget, and database regression selection: `184 passed`.
+- Full backend suite: `2269 passed`, `1 skipped`, `1` pre-existing Pydantic
+  warning.
 - Frontend interaction tests: `28 passed`.
 - Frontend typecheck: pass.
 - Frontend production build: pass.
 - Mypy over `src`: pass (`57` source files).
 - Ruff: pass.
+- Offline package build: pass (sdist and wheel).
+- Git diff check: pass.
+- Security scanner: expected exit `1`, with exactly `11` accepted historical
+  synthetic-fixture findings and `0` new findings. This is not classified as a
+  global scanner pass.
 - Real Chrome browser acceptance: pass at `1440x900`, `1280x800`, and
   `768x900` for ready, missing credential, budget blocked, provider unavailable,
   active run, terminal run, AMBIGUOUS, and Source configuration dialog states.
 - Browser console errors: `0`.
 - Unexpected external frontend requests: `0`.
 - Real provider calls: `0`.
-
-Final full-suite, offline build, scanner, diff, and Git evidence are recorded in
-the implementation handoff after the final clean-worktree verification.
 
 ## Scope exclusions preserved
 
