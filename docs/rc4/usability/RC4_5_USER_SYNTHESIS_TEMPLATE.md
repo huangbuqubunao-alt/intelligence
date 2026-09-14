@@ -12,7 +12,9 @@ or invent missing sessions, behaviors, quotations, or metrics.
 - **ALL FIVE OBSERVATION RECORDS AVAILABLE:** `[YES / NO]`
 - **ALL FIVE SESSION RESULTS AVAILABLE:** `[YES / NO]`
 - **BUILD SHA CONSISTENT:** `[YES / NO / EXPLAIN]`
-- **IMPLEMENTATION SHA:** `9d0d5425e740004f4c4c056f9a55df185bf00c00`
+- **ROUND-1 IMPLEMENTATION ANCHOR:** `9d0d5425e740004f4c4c056f9a55df185bf00c00`
+- **UX-013 BILINGUAL TEST-BUILD SHA:**
+- **TEST LANGUAGE DISTRIBUTION:** `[en: __/5; zh-CN: __/5]`
 - **SYNTHESIS DATE:**
 - **ANALYST:**
 - **PRODUCT OWNER REVIEWER:**
@@ -27,13 +29,13 @@ If all five sessions are not complete, stop and label the document
 
 Use non-identifying summaries only.
 
-| ID | Target perspective covered | Non-sensitive profile summary | Session usable (`YES / PARTIAL / NO`) | Keyboard overlay (`YES / NO`) | Controlled blocker states | Limitations |
-| --- | --- | --- | --- | --- | --- | --- |
-| P1 | Relatively non-technical AI user; pilot |  |  |  |  |  |
-| P2 | Product / operations / business user |  |  |  |  |  |
-| P3 | Technology / engineering-adjacent user |  |  |  |  |  |
-| P4 | Heavy YouTube information consumer |  |  |  |  |  |
-| P5 | Evidence/cost/control-oriented power user |  |  |  |  |  |
+| ID | Target perspective covered | Test language | Non-sensitive profile summary | Session usable (`YES / PARTIAL / NO`) | Keyboard overlay (`YES / NO`) | Controlled blocker states | Limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | Relatively non-technical AI user; pilot |  |  |  |  |  |  |
+| P2 | Product / operations / business user |  |  |  |  |  |  |
+| P3 | Technology / engineering-adjacent user |  |  |  |  |  |  |
+| P4 | Heavy YouTube information consumer |  |  |  |  |  |  |
+| P5 | Evidence/cost/control-oriented power user |  |  |  |  |  |  |
 
 ## Primary research question
 
@@ -87,7 +89,10 @@ new evidence only after real sessions.
 | NEW FINDING: |  |  |  |  |  |  |  |
 
 For every issue, cite participant/task references. Separate repeated behavior
-from an isolated preference and include disconfirming evidence.
+from an isolated preference and include disconfirming evidence. Prefix an issue
+that exists only because of interface translation or wording with
+`[LOCALIZATION]`; keep cross-language product problems attached to their normal
+product category.
 
 ## Round-1 MUST validation
 

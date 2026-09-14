@@ -14,7 +14,8 @@ private viewing history, and credential information.
 - **PRIOR AI FAMILIARITY:**
 - **PRIOR YOUTUBE INFORMATION-USE PATTERN:**
 - **SESSION DATE:**
-- **BUILD SHA:** `9d0d5425e740004f4c4c056f9a55df185bf00c00`
+- **BUILD SHA:** `[exact approved UX-013 bilingual test-build SHA]`
+- **TEST_LANGUAGE:** `[en / zh-CN]`
 - **MODERATOR:**
 - **APPROXIMATE SESSION DURATION:**
 - **RECORDING USED WITH CONSENT:** `[YES / NO]`
@@ -23,6 +24,10 @@ private viewing history, and credential information.
 - **REAL NORMAL-PRODUCTION RUN USED:** `[YES / NO]`
 - **REAL PROVIDER CALL COUNT:**
 - **ENVIRONMENT OR PROTOCOL DEVIATIONS:**
+
+Tag language-specific findings `LOCALIZATION`. Keep a problem observed across
+languages under its normal product category; do not treat original Source,
+Intelligence, or Evidence text as untranslated product UI.
 
 Never write a secret value in this document.
 

@@ -18,14 +18,18 @@ Recommended pacing is 35–50 minutes total:
 
 ## Before the participant joins — MODERATOR ONLY
 
-1. Confirm build SHA
+1. Confirm and record the exact approved UX-013 bilingual test-build SHA; its
+   Round-1 implementation ancestor must be
    `9d0d5425e740004f4c4c056f9a55df185bf00c00`.
 2. Open the isolated participant workspace at the agreed starting state.
-3. Confirm no previous participant information or private account is present.
-4. Confirm prepared states are available without an uncontrolled provider call.
-5. Confirm observation and result templates are blank.
-6. If recording, obtain consent before recording begins.
-7. Record environment transitions and fixture changes separately from observed
+3. Set and record `TEST_LANGUAGE: en / zh-CN` before showing the product. Use
+   the language the participant can evaluate comfortably; do not switch during
+   the core tasks unless the protocol deviation is recorded.
+4. Confirm no previous participant information or private account is present.
+5. Confirm prepared states are available without an uncontrolled provider call.
+6. Confirm observation and result templates are blank.
+7. If recording, obtain consent before recording begins.
+8. Record environment transitions and fixture changes separately from observed
    behavior.
 
 ## Opening — READ VERBATIM

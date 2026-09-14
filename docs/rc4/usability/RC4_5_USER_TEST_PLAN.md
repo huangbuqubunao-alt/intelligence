@@ -3,8 +3,9 @@
 ## Status and authority
 
 - Status: `PREPARATION_ONLY — NOT YET RUN`.
-- Implementation under test:
-  `9d0d5425e740004f4c4c056f9a55df185bf00c00`.
+- Round-1 implementation anchor:
+  `9d0d5425e740004f4c4c056f9a55df185bf00c00`. Before each session, record the
+  exact approved UX-013 bilingual test-build SHA in the participant templates.
 - Study purpose: validate the Round-1 MUST experience and collect real-user
   evidence before deciding UX-003, UX-004, UX-005, or UX-012.
 - Participants: exactly five real humans. P1 is the pilot and counts toward the
@@ -64,6 +65,11 @@ understands this repository or has worked on the RC4 design.
 | P4 | Heavy YouTube information consumer | Regularly follows channels for learning or work |
 | P5 | Evidence/cost/control-oriented power user | Actively checks sources, usage, or automation controls |
 
+Record `TEST_LANGUAGE: en / zh-CN` for every participant. A useful recruitment
+mix is 3–4 participants using `zh-CN` and 1–2 using `en`, but this is guidance,
+not a quota; use the language each real participant can evaluate comfortably
+and document the actual distribution.
+
 ### Neutral screener
 
 Ask only what is necessary:
@@ -101,6 +107,12 @@ participants' data, private accounts, or secret values.
 The operator, not the participant, configures any required provider credential
 outside the participant-facing UI. Presence checks must not generate content.
 Participants must never enter a real credential.
+
+Before the product is shown, set the interface to the participant's recorded
+`TEST_LANGUAGE`. Keep that language stable during core tasks. Language changes
+only product-owned interface text; Source names, video titles, Intelligence,
+Evidence excerpts, transcripts, and participant-entered content remain in their
+original language and must not be coded as untranslated UI.
 
 Prefer existing deterministic or prepared safe data so latency and output are
 comparable. Do not modify application code, manually inject database outcomes,

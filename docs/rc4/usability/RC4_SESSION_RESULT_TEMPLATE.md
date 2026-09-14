@@ -11,12 +11,15 @@ for raw observations. Do not invent missing behavior or quotations.
 - **PARTICIPANT ID:** `[P1 / P2 / P3 / P4 / P5]`
 - **NON-SENSITIVE PROFILE SUMMARY:**
 - **SESSION DATE:**
-- **BUILD SHA:** `9d0d5425e740004f4c4c056f9a55df185bf00c00`
+- **BUILD SHA:** `[exact approved UX-013 bilingual test-build SHA]`
+- **TEST_LANGUAGE:** `[en / zh-CN]`
 - **MODERATOR:**
 - **OBSERVATION RECORD:**
 - **SESSION USABLE FOR SYNTHESIS:** `[YES / PARTIAL / NO]`
 - **LIMITATION OR EXCLUSION REASON:**
 - **PROTOCOL VERSION / CHANGES:**
+- **LOCALIZATION-SPECIFIC FINDINGS:** `[references tagged LOCALIZATION / NONE]`
+- **CROSS-LANGUAGE PRODUCT FINDINGS:** `[normal product category references / NONE]`
 
 ## Headline outcome
 
