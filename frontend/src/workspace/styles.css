@@ -44,7 +44,8 @@ button, input, select {
 button {
   cursor: pointer;
 }
-button:focus-visible, input:focus-visible, select:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible,
+.modal h2:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -292,6 +293,82 @@ small, .hint, .muted {
 .dashboard-stack, .settings-stack, .report-stack {
   display: grid;
   gap: 16px;
+}
+.readiness-summary, .blocking-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px 18px;
+}
+.readiness-summary h2, .blocking-summary strong {
+  display: block;
+  margin-bottom: 5px;
+}
+.readiness-summary p, .blocking-summary p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.readiness-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.readiness-panel > p {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.readiness-fact {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 12px;
+}
+.readiness-fact small, .readiness-fact strong {
+  display: block;
+}
+.readiness-fact strong {
+  margin: 5px 0;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+.readiness-fact p {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.readiness-fact .button {
+  margin-top: 4px;
+}
+.run-orientation {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+.run-orientation:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.run-orientation p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 .dashboard-weekly-item strong,
 .dashboard-weekly-item small {
@@ -1041,18 +1118,23 @@ td small {
   .drawer-layer {
     grid-template-columns: minmax(0, 1fr) minmax(340px, 80vw);
   }
+  .readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 640px) {
   .workspace-main {
     padding: 20px 14px 40px;
   }
-  .page-header, .attention-strip, .score-summary {
+  .page-header, .attention-strip, .score-summary,
+  .readiness-summary, .blocking-summary {
     flex-direction: column;
+    align-items: stretch;
   }
   .page-actions {
     justify-content: flex-start;
   }
-  .workbench-grid, .field-grid, .model-preference {
+  .workbench-grid, .field-grid, .model-preference, .readiness-grid {
     grid-template-columns: 1fr;
   }
   .toolbar {

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
@@ -50,12 +51,96 @@ const topic = {
 };
 const response = (value: object) =>
   Promise.resolve({ ok: true, json: async () => value });
+const readyReadiness = {
+  overall: {
+    code: "READY",
+    label: "Ready to check a Source",
+    message: "All required normal Video Distillation prerequisites are available.",
+  },
+  application: {
+    code: "CONNECTED",
+    label: "Application connected",
+    message: "The local application service is responding.",
+  },
+  video_distillation: {
+    code: "READY_TO_START",
+    label: "Video Distillation ready to start",
+    message: "The normal production processing route is available.",
+  },
+  model: {
+    code: "APPROVED",
+    label: "Video analysis model approved",
+    message: "The approved Kimi model is limited to V1 Video Distillation.",
+  },
+  credential: {
+    code: "AVAILABLE",
+    label: "NVIDIA credential available",
+    message: "The server detected credential presence. Provider success is not guaranteed.",
+  },
+  budget: {
+    code: "WITHIN_LIMIT",
+    label: "Within current usage limit",
+    message: "The configured call limit has remaining capacity.",
+    limit: 5,
+    used: 0,
+  },
+  source: {
+    code: "READY_FOR_MANUAL_CHECK",
+    label: "Source ready for manual check",
+    message: "This Source is enabled and configured for Video Distillation.",
+    source_id: "source-1",
+  },
+  deep_analysis: {
+    code: "BLOCKED",
+    label: "Deep Analysis unavailable",
+    message: "This release supports normal Video Distillation only.",
+  },
+};
+const sourceDetail = (sourceRuns: object[] = []) => ({
+  source: {
+    source_id: "source-1",
+    display_name: null,
+    friendly_name: "Marques Brownlee",
+    channel_id: "UCBJycsmduvYEL83R_U4JriQ",
+    canonical_url: "https://youtube.test/source",
+    enabled: true,
+    processing_policy: "STANDARD_INTELLIGENCE",
+    last_error: null,
+  },
+  policy: {
+    initial_history_count: 5,
+    per_run_max_new_videos: 5,
+    focus_rules: ["AI"],
+    ignore_rules: ["rough"],
+    distillation_style: "BALANCED",
+  },
+  schedules: [{
+    schedule_id: "schedule-1",
+    frequency: "DAILY",
+    local_time: "08:30",
+    enabled: true,
+  }],
+  recent_videos: [{
+    video_id: "skip-1",
+    title: "Rough draft",
+    processing_status: "METADATA_READY",
+    filter: { outcome: "NOT_RELEVANT", reason: "IGNORE_RULE_MATCH" },
+  }],
+  source_runs: sourceRuns,
+});
+const readinessFixture = (changes: Record<string, object>) => ({
+  ...readyReadiness,
+  ...changes,
+});
 
 beforeEach(() => {
   location.hash = "";
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/readiness")) {
+        return response({ readiness: readyReadiness });
+      }
       if (input.endsWith("/dashboard")) {
         return response({
           intelligence: [{
@@ -131,38 +216,7 @@ beforeEach(() => {
         });
       }
       if (input.endsWith("/sources/source-1")) {
-        return response({
-          source: {
-            source_id: "source-1",
-            display_name: null,
-            friendly_name: "Marques Brownlee",
-            channel_id: "UCBJycsmduvYEL83R_U4JriQ",
-            canonical_url: "https://youtube.test/source",
-            enabled: true,
-            processing_policy: "STANDARD_INTELLIGENCE",
-            last_error: null,
-          },
-          policy: {
-            initial_history_count: 5,
-            per_run_max_new_videos: 5,
-            focus_rules: ["AI"],
-            ignore_rules: ["rough"],
-            distillation_style: "BALANCED",
-          },
-          schedules: [{
-            schedule_id: "schedule-1",
-            frequency: "DAILY",
-            local_time: "08:30",
-            enabled: true,
-          }],
-          recent_videos: [{
-            video_id: "skip-1",
-            title: "Rough draft",
-            processing_status: "METADATA_READY",
-            filter: { outcome: "NOT_RELEVANT", reason: "IGNORE_RULE_MATCH" },
-          }],
-          source_runs: [],
-        });
+        return response(sourceDetail());
       }
       if (input.endsWith("/sources")) {
         return response({
@@ -293,6 +347,7 @@ test("frozen product IA exposes exactly its six first-level destinations", async
 test("Dashboard leads with meaningful Intelligence and keeps attention subordinate", async () => {
   render(<App />);
   const conclusion = await screen.findByText("A rumor remains unresolved.");
+  expect(screen.queryByLabelText("Blocking Source Runs")).toBeNull();
   const attention = screen.getByText("Needs Attention");
   expect(
     conclusion.compareDocumentPosition(attention) &
@@ -474,8 +529,9 @@ test("Settings presents Kimi scope truthfully and keeps provider mechanics colla
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByText("Video Distillation")).toBeTruthy();
-  expect(screen.getByText("Available for V1 video analysis only."))
-    .toBeTruthy();
+  expect(
+    screen.getAllByText("The normal production processing route is available."),
+  ).toHaveLength(2);
   expect(screen.getByText("Deep Analysis is unavailable.")).toBeTruthy();
   const disclosure =
     screen.getByText("Provider and model details").parentElement;
@@ -521,7 +577,7 @@ test("Check Now preserves a legal guarded state without inventing a Source Run o
     }),
   );
   fireEvent.click(await screen.findByRole("button", { name: "Check Now" }));
-  expect(await screen.findByText(/Check Now cannot start in this local demo/))
+  expect(await screen.findByText(/Setup required.*No Source Run was created/))
     .toBeTruthy();
   expect(screen.queryByText(/runtime side-effect guard/i)).toBeNull();
   expect(screen.queryByText("Retry")).toBeNull();
@@ -710,6 +766,325 @@ test("Source setup writes only through the existing Source, policy, and schedule
       body: expect.stringContaining('"target_type":"SOURCE_CHECK"'),
     }),
   );
+});
+
+test("Source edit dialog exposes a name, traps keyboard focus, closes with Escape, and restores its trigger", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Sources" }));
+  const sourceTrigger = await screen.findByRole("button", {
+    name: /Marques Brownlee.*Monitoring new videos/,
+  });
+  await user.click(sourceTrigger);
+  const editTrigger = await screen.findByRole("button", {
+    name: "Edit configuration",
+  });
+  const backgroundAction = screen.getByRole("button", {
+    name: "Stop future monitoring",
+  });
+  await user.click(editTrigger);
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "Edit Source configuration",
+  });
+  await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  for (let index = 0; index < 16; index += 1) {
+    await user.tab();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(backgroundAction);
+  }
+  for (let index = 0; index < 16; index += 1) {
+    await user.tab({ shift: true });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(backgroundAction);
+  }
+
+  await user.keyboard("{Escape}");
+  expect(
+    screen.queryByRole("dialog", { name: "Edit Source configuration" }),
+  ).toBeNull();
+  expect(document.activeElement).toBe(editTrigger);
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "Marques Brownlee" })).toBeNull();
+  expect(document.activeElement).toBe(sourceTrigger);
+});
+
+test("keyboard-only Source edit can be reopened and saved without reaching background controls", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Sources" }));
+  const sourceTrigger = await screen.findByRole("button", {
+    name: /Marques Brownlee.*Monitoring new videos/,
+  });
+  sourceTrigger.focus();
+  await user.keyboard("{Enter}");
+  const editTrigger = await screen.findByRole("button", {
+    name: "Edit configuration",
+  });
+  editTrigger.focus();
+  await user.keyboard("{Enter}");
+  const dialog = await screen.findByRole("dialog", {
+    name: "Edit Source configuration",
+  });
+  const focus = screen.getByLabelText("Focus");
+  focus.focus();
+  await user.clear(focus);
+  await user.type(focus, "AI, safety");
+  const save = screen.getByRole("button", { name: "Save changes" });
+  save.focus();
+  await user.keyboard("{Enter}");
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/sources/source-1/policy",
+      expect.objectContaining({ method: "PUT" }),
+    )
+  );
+  expect(dialog.isConnected).toBe(false);
+});
+
+test("credential readiness is server-owned, gives external setup guidance, and never asks for the secret", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  const missingCredential = readinessFixture({
+    overall: {
+      code: "SETUP_REQUIRED",
+      label: "Setup required",
+      message: "Review the prerequisite details before checking this Source.",
+    },
+    credential: {
+      code: "SETUP_REQUIRED",
+      label: "NVIDIA credential setup required",
+      message: "On your Mac, make NVIDIA_API_KEY available to the Terminal session that starts the local service, then restart it. Use your approved password manager or environment setup; never add the key to project files or enter it in this browser.",
+      recovery: {
+        action: "VIEW_SETUP_INSTRUCTIONS",
+        will_not: "The product will not store the key or call the model just to check presence.",
+      },
+    },
+  });
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/readiness")
+      ? response({ readiness: missingCredential })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  expect(await screen.findByText("NVIDIA credential setup required")).toBeTruthy();
+  expect(screen.getByText(/never add the key to project files or enter it in this browser/i)).toBeTruthy();
+  expect(screen.getByText(/will not store the key or call the model just to check presence/)).toBeTruthy();
+  expect(screen.queryByRole("textbox", { name: /NVIDIA|API key|credential/i })).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Check readiness" }));
+  await waitFor(() =>
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) =>
+      String(url).endsWith("/readiness")
+    ).length).toBeGreaterThan(1)
+  );
+  expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([, init]) =>
+    (init as RequestInit | undefined)?.method === "POST"
+  )).toBe(false);
+});
+
+test("budget and provider recovery remain explicit and never promise spending or fallback", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  const blocked = readinessFixture({
+    overall: {
+      code: "BUDGET_BLOCKED",
+      label: "Review usage limit",
+      message: "The current usage limit is blocking a Source Run.",
+    },
+    video_distillation: {
+      code: "TEMPORARILY_UNAVAILABLE",
+      label: "Video Distillation temporarily unavailable",
+      message: "The configured production provider is not currently available.",
+      recovery: {
+        action: "CHECK_READINESS",
+        will_not: "The product will not switch provider or model, enable Deep Analysis, or retry a protected execution.",
+      },
+    },
+    budget: {
+      code: "LIMIT_REACHED",
+      label: "Usage limit reached",
+      message: "Execution is blocked until you explicitly review the usage limit.",
+      limit: 1,
+      used: 1,
+      recovery: {
+        action: "VIEW_USAGE",
+        will_not: "The product will not increase the limit or authorize spending automatically.",
+      },
+    },
+  });
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/readiness")
+      ? response({ readiness: blocked })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  expect(await screen.findByText("Review usage limit")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "View usage" })).toBeTruthy();
+  expect(screen.getByText(/will not increase the limit or authorize spending automatically/)).toBeTruthy();
+  expect(screen.getByText(/will not switch provider or model, enable Deep Analysis, or retry/)).toBeTruthy();
+  expect(screen.queryByText(/^Free$|^\$0$|^No cost$/i)).toBeNull();
+  expect(screen.queryByRole("button", { name: /switch|fallback|increase|authorize/i })).toBeNull();
+});
+
+test("Source configuration recovery opens the affected accessible configuration dialog", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  const sourceBlocked = readinessFixture({
+    overall: {
+      code: "SETUP_REQUIRED",
+      label: "Setup required",
+      message: "Review the prerequisite details before checking this Source.",
+    },
+    source: {
+      code: "FIX_CONFIGURATION",
+      label: "Fix Source configuration",
+      message: "Choose a Video Distillation processing policy for this Source.",
+      source_id: "source-1",
+      recovery: {
+        action: "EDIT_SOURCE_CONFIGURATION",
+        will_not: "The product will not change Source processing settings automatically.",
+      },
+    },
+  });
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/sources/source-1/readiness")
+      ? response({ readiness: sourceBlocked })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Sources" }));
+  await user.click(await screen.findByRole("button", {
+    name: /Marques Brownlee.*Monitoring new videos/,
+  }));
+  expect(await screen.findByText(/Fix Source configuration/)).toBeTruthy();
+  expect(
+    (screen.getByRole("button", { name: "Check Now" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  await user.click(screen.getByRole("button", { name: "Open Source configuration" }));
+  expect(await screen.findByRole("dialog", { name: "Edit Source configuration" })).toBeTruthy();
+});
+
+test("persisted Source Run projection survives remount and never invents percent or AMBIGUOUS retry", async () => {
+  const user = userEvent.setup();
+  const fallback = fetch as typeof fetch;
+  const runs = [
+    {
+      run_id: "run-active",
+      source_id: "source-1",
+      state: "RUNNING",
+      attention_reason: null,
+      trigger: "MANUAL_CHECK_NOW",
+      updated_at: "2026-09-01T00:00:00Z",
+      progress: { code: "CREATING_INTELLIGENCE", label: "Creating Intelligence" },
+      result: { kind: "IN_PROGRESS", label: "Creating Intelligence" },
+    },
+    {
+      run_id: "run-intelligence",
+      source_id: "source-1",
+      state: "COMPLETED",
+      attention_reason: null,
+      trigger: "MANUAL_CHECK_NOW",
+      updated_at: "2026-09-01T00:01:00Z",
+      progress: { code: "COMPLETED", label: "Completed" },
+      result: { kind: "COMPLETED_WITH_INTELLIGENCE", label: "Completed with Intelligence", intelligence_count: 2 },
+    },
+    {
+      run_id: "run-empty",
+      source_id: "source-1",
+      state: "COMPLETED",
+      attention_reason: null,
+      trigger: "MANUAL_CHECK_NOW",
+      updated_at: "2026-09-01T00:02:00Z",
+      progress: { code: "COMPLETED", label: "Completed" },
+      result: { kind: "COMPLETED_NO_IMPORTANT_RESULT", label: "Completed — no important new result", intelligence_count: 0 },
+    },
+    {
+      run_id: "run-ambiguous",
+      source_id: "source-1",
+      state: "AMBIGUOUS",
+      attention_reason: "AMBIGUOUS_EXTERNAL_OUTCOME",
+      trigger: "MANUAL_CHECK_NOW",
+      updated_at: "2026-09-01T00:03:00Z",
+      progress: { code: "EXTERNAL_RESULT_UNCONFIRMED", label: "External result unconfirmed" },
+      result: { kind: "EXTERNAL_RESULT_UNCONFIRMED", label: "External result could not be confirmed" },
+      recovery: {
+        kind: "AMBIGUOUS",
+        what_happened: "The external result could not be confirmed.",
+        why_it_matters: "Repeating the protected execution could duplicate an external action.",
+        safe_action: { kind: "VIEW_RUN_DETAILS", label: "View run details", target: "run-ambiguous" },
+        will_not: "The system will not retry, resume, continue, or repeat this execution automatically.",
+      },
+    },
+  ];
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/sources/source-1") && init?.method !== "PATCH"
+      ? response(sourceDetail(runs))
+      : fallback(input, init)
+  ));
+
+  const openSource = async () => {
+    await user.click(screen.getByRole("button", { name: "Sources" }));
+    await user.click(await screen.findByRole("button", {
+      name: /Marques Brownlee.*Monitoring new videos/,
+    }));
+    expect(await screen.findByText("Creating Intelligence")).toBeTruthy();
+    expect(screen.getByText("Completed with Intelligence")).toBeTruthy();
+    expect(screen.getByText(/Produced 2 trusted Intelligence items/)).toBeTruthy();
+    expect(screen.getByText("Completed — no important new result")).toBeTruthy();
+    expect(screen.getByText("The external result could not be confirmed.")).toBeTruthy();
+    expect(screen.getByText(/will not retry, resume, continue, or repeat/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /retry|resume|continue|try again/i })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Marques Brownlee" }).textContent).not.toContain("%");
+  };
+
+  const first = render(<App />);
+  await openSource();
+  first.unmount();
+  render(<App />);
+  await openSource();
+});
+
+test("malformed frontend data cannot forge readiness", async () => {
+  const fallback = fetch as typeof fetch;
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) =>
+    input.endsWith("/readiness")
+      ? response({ readiness: { overall: { code: "READY", label: "Ready", message: "Ready" } } })
+      : fallback(input, init)
+  ));
+
+  render(<App />);
+  expect(await screen.findByText("Application cannot connect")).toBeTruthy();
+  expect(screen.queryByText("Ready to check a Source")).toBeNull();
+});
+
+test("Check Now sends no frontend-controlled readiness or authorization facts", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "Sources" }));
+  await user.click(await screen.findByRole("button", {
+    name: /Marques Brownlee.*Monitoring new videos/,
+  }));
+  await user.click(await screen.findByRole("button", { name: "Check Now" }));
+  await screen.findByText(/Setup required.*No Source Run was created/);
+  const requestBodies = (fetch as ReturnType<typeof vi.fn>).mock.calls
+    .map(([, init]) => String((init as RequestInit | undefined)?.body ?? ""))
+    .join(" ")
+    .toLowerCase();
+  for (const forbidden of [
+    "ready",
+    "credential",
+    "qualified",
+    "authorized",
+    "production_eligible",
+  ]) expect(requestBodies).not.toContain(forbidden);
 });
 
 test("Saved, Topic, and Weekly keep trust meaning while hiding backend codes from primary reading", async () => {

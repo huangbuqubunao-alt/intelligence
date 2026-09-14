@@ -1,4 +1,12 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  ReactNode,
+  RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { api, patch, post, put } from "../api/client";
 
 type Page =
@@ -74,11 +82,63 @@ type Source = {
 };
 type SourceRun = {
   run_id: string;
+  source_id?: string;
   state: string;
   attention_reason: string | null;
   trigger: string;
   updated_at: string;
+  progress?: { code: string; label: string };
+  result?: { kind: string; label: string; intelligence_count?: number };
+  recovery?: {
+    kind: string;
+    what_happened: string;
+    why_it_matters: string;
+    safe_action: { kind: string; label: string; target: string } | null;
+    will_not: string;
+  } | null;
 };
+type ReadinessDimension = {
+  code: string;
+  label: string;
+  message: string;
+  source_id?: string;
+  limit?: number | null;
+  used?: number | null;
+  recovery?: { action: string; will_not: string };
+};
+type Readiness = {
+  overall: ReadinessDimension;
+  application: ReadinessDimension;
+  video_distillation: ReadinessDimension;
+  model: ReadinessDimension;
+  credential: ReadinessDimension;
+  budget: ReadinessDimension;
+  source: ReadinessDimension;
+  deep_analysis: ReadinessDimension;
+};
+
+function isReadiness(value: unknown): value is Readiness {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<Record<keyof Readiness, unknown>>;
+  return [
+    "overall",
+    "application",
+    "video_distillation",
+    "model",
+    "credential",
+    "budget",
+    "source",
+    "deep_analysis",
+  ].every((key) => {
+    const dimension = candidate[key as keyof Readiness];
+    return Boolean(
+      dimension && typeof dimension === "object" &&
+        typeof (dimension as ReadinessDimension).code === "string" &&
+        typeof (dimension as ReadinessDimension).label === "string" &&
+        typeof (dimension as ReadinessDimension).message === "string",
+    );
+  });
+}
 type SourcePolicy = {
   initial_history_count: number;
   per_run_max_new_videos: number;
@@ -229,10 +289,10 @@ function statusLabel(value: string) {
 function Status({ value }: { value: string }) {
   const upper = value.toUpperCase();
   const tone =
-    /AVAILABLE|ENABLED|SUCCEEDED|VERIFIED|ACTIVE|ADMITTED/.test(upper) &&
+    /AVAILABLE|ENABLED|SUCCEEDED|VERIFIED|ACTIVE|ADMITTED|READY/.test(upper) &&
       !/UNAVAILABLE/.test(upper)
       ? "success"
-      : /BLOCKED|ATTENTION|UNAVAILABLE|DEGRADED|UNRESOLVED|SKIPPED|AMBIGUOUS|UNQUALIFIED|INVALID/
+      : /BLOCKED|ATTENTION|UNAVAILABLE|DEGRADED|UNRESOLVED|SKIPPED|AMBIGUOUS|UNQUALIFIED|INVALID|SETUP|LIMIT_REACHED|TEMPORARILY/
           .test(upper)
       ? "warning"
       : "neutral";
@@ -258,6 +318,63 @@ function ErrorState({ error }: { error: string }) {
       <p>{error}</p>
     </div>
   );
+}
+
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+function useModalKeyboard(
+  dialogRef: RefObject<HTMLElement>,
+  initialFocusRef: RefObject<HTMLElement>,
+  onClose: () => void,
+  restoreFocusRef?: RefObject<HTMLElement>,
+) {
+  const opener = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    opener.current = restoreFocusRef?.current ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null);
+    initialFocusRef.current?.focus();
+    return () => opener.current?.focus();
+  }, [initialFocusRef, restoreFocusRef]);
+  return (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeRef.current();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(FOCUSABLE),
+    ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    if (!focusable.length) {
+      event.preventDefault();
+      initialFocusRef.current?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey &&
+      (document.activeElement === first || document.activeElement === initialFocusRef.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 }
 function humanDate(value: string) {
   const date = new Date(value);
@@ -320,6 +437,124 @@ function attentionCopy(reason: string | null) {
       "Existing Intelligence remains safe.",
       "Review the Source details for the available next step.",
     ];
+}
+
+const readinessFacts: [keyof Readiness, string][] = [
+  ["application", "Application"],
+  ["video_distillation", "Source processing"],
+  ["model", "Video analysis model"],
+  ["credential", "NVIDIA credential"],
+  ["budget", "Usage budget"],
+  ["source", "Source"],
+];
+
+function readinessActionLabel(
+  dimension: ReadinessDimension,
+  { compact = false }: { compact?: boolean } = {},
+) {
+  return dimension.recovery?.action === "EDIT_SOURCE_CONFIGURATION"
+    ? "Open Source configuration"
+    : dimension.recovery?.action === "VIEW_USAGE"
+    ? "View usage"
+    : dimension.recovery?.action === "VIEW_SETUP_INSTRUCTIONS"
+    ? compact ? "Review setup guidance" : "Check readiness"
+    : "Check readiness";
+}
+
+function ReadinessPanel(
+  { readiness, compact = false, onAction }: {
+    readiness: Readiness;
+    compact?: boolean;
+    onAction?: (dimension: ReadinessDimension) => void;
+  },
+) {
+  const blocked = readinessFacts
+    .map(([key]) => readiness[key])
+    .filter((item) => ![
+      "CONNECTED",
+      "READY_TO_START",
+      "APPROVED",
+      "AVAILABLE",
+      "WITHIN_LIMIT",
+      "READY_FOR_MANUAL_CHECK",
+    ].includes(item.code));
+  if (compact) {
+    return (
+      <section className="readiness-summary" aria-labelledby="readiness-summary-title">
+        <div>
+          <p className="section-label">Run readiness</p>
+          <h2 id="readiness-summary-title">{readiness.overall.label}</h2>
+          <p>{readiness.overall.message}</p>
+          {blocked.slice(0, 2).map((item) => (
+            <p key={item.label}><strong>{item.label}.</strong> {item.message}</p>
+          ))}
+        </div>
+        {blocked[0] && onAction && (
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => onAction(blocked[0])}
+          >
+            {readinessActionLabel(blocked[0], { compact: true })}
+          </button>
+        )}
+      </section>
+    );
+  }
+  return (
+    <section className="panel readiness-panel" id="run-readiness">
+      <div className="panel-heading readiness-heading">
+        <div>
+          <p className="section-label">Normal Video Distillation</p>
+          <h2>Run readiness</h2>
+        </div>
+        <Status value={readiness.overall.code} />
+      </div>
+      <h3>{readiness.overall.label}</h3>
+      <p>{readiness.overall.message}</p>
+      <div className="readiness-grid">
+        {readinessFacts.map(([key, title]) => {
+          const item = readiness[key];
+          return (
+            <article className="readiness-fact" key={key}>
+              <small>{title}</small>
+              <strong>{item.label}</strong>
+              <p>{item.message}</p>
+              {item.recovery && <p className="hint">{item.recovery.will_not}</p>}
+              {item.recovery && onAction && (
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={() => onAction(item)}
+                >
+                  {readinessActionLabel(item)}
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <details className="provenance">
+        <summary>Capability boundary</summary>
+        <p>{readiness.deep_analysis.label}. {readiness.deep_analysis.message}</p>
+      </details>
+    </section>
+  );
+}
+
+function DisconnectedReadiness() {
+  return (
+    <section className="readiness-summary state-danger" aria-label="Run readiness">
+      <div>
+        <p className="section-label">Run readiness</p>
+        <h2>Application cannot connect</h2>
+        <p>
+          Source processing, credential, budget, and Source status are unavailable
+          until the local application service responds.
+        </p>
+      </div>
+    </section>
+  );
 }
 
 function sourceLabel(source: Source) {
@@ -501,9 +736,28 @@ export function App() {
     (location.hash.slice(1) as Page) || "Dashboard",
   );
   const [refresh, setRefresh] = useState(0);
+  const [requestedSource, setRequestedSource] = useState<string | null>(null);
   const navigate = (next: Page) => {
     location.hash = next;
     setPage(next);
+  };
+  const recover = (dimension: ReadinessDimension, sourceId?: string) => {
+    if (dimension.recovery?.action === "EDIT_SOURCE_CONFIGURATION" && sourceId) {
+      setRequestedSource(sourceId);
+      navigate("Sources");
+      return;
+    }
+    navigate("Settings");
+  };
+  const recoverRun = (run: SourceRun) => {
+    const kind = run.recovery?.safe_action?.kind;
+    if (kind === "VIEW_USAGE" || kind === "VIEW_CREDENTIAL_SETUP" ||
+      kind === "CHECK_READINESS") {
+      navigate("Settings");
+      return;
+    }
+    if (run.source_id) setRequestedSource(run.source_id);
+    navigate("Sources");
   };
   return (
     <div className="app-shell">
@@ -539,7 +793,12 @@ export function App() {
           </div>
         </header>
         {page === "Dashboard" && (
-          <Dashboard refresh={refresh} navigate={navigate} />
+          <Dashboard
+            refresh={refresh}
+            navigate={navigate}
+            onRecover={recoverRun}
+            onReadinessAction={recover}
+          />
         )}
         {page === "Intelligence" && <IntelligencePage refresh={refresh} />}
         {page === "Topics" && <Topics refresh={refresh} />}
@@ -547,16 +806,30 @@ export function App() {
           <Sources
             refresh={refresh}
             onRefresh={() => setRefresh((value) => value + 1)}
+            requestedSource={requestedSource}
+            onRequestedSourceOpened={() => setRequestedSource(null)}
+            onOpenSettings={() => navigate("Settings")}
           />
         )}
         {page === "Investigations" && <Investigations />}
-        {page === "Settings" && <Settings refresh={refresh} />}
+        {page === "Settings" && (
+          <Settings
+            refresh={refresh}
+            onReadinessAction={(dimension) =>
+              recover(dimension, dimension.source_id)}
+          />
+        )}
       </main>
     </div>
   );
 }
 function Dashboard(
-  { refresh, navigate }: { refresh: number; navigate: (page: Page) => void },
+  { refresh, navigate, onRecover, onReadinessAction }: {
+    refresh: number;
+    navigate: (page: Page) => void;
+    onRecover: (run: SourceRun) => void;
+    onReadinessAction: (dimension: ReadinessDimension, sourceId?: string) => void;
+  },
 ) {
   const { data, error } = useRemote<
     {
@@ -566,20 +839,42 @@ function Dashboard(
       needs_attention?: SourceRun[];
     }
   >("/dashboard", refresh);
-  if (error) return <ErrorState error={error} />;
-  if (!data) return <Empty>Loading dashboard…</Empty>;
+  const readiness = useRemote<{ readiness: Readiness }>("/readiness", refresh);
+  const readinessProjection = isReadiness(readiness.data?.readiness)
+    ? readiness.data.readiness
+    : null;
+  if (error) {
+    return <><DisconnectedReadiness /><ErrorState error={error} /></>;
+  }
+  if (!data || (!readiness.data && !readiness.error)) {
+    return <Empty>Loading dashboard…</Empty>;
+  }
   const intelligence = (data.intelligence ?? []).filter((item) =>
       item.status === "AVAILABLE" && item.trusted
     ),
     attention = data.needs_attention ?? [],
     topics = data.pinned_topics ?? [],
     weekly = data.weekly_v1 ?? [];
+  const blockingAttention = readinessProjection?.overall.code !== "READY"
+    ? attention
+    : attention.filter((run) =>
+      ["AMBIGUOUS", "DECISION_REQUIRED"].includes(run.recovery?.kind ?? "")
+    );
   if (
     !intelligence.length && !topics.length && !weekly.length &&
     !attention.length
   ) {
     return (
       <div className="dashboard-stack">
+        {(readiness.error || !readinessProjection) && <DisconnectedReadiness />}
+        {readinessProjection && (
+          <ReadinessPanel
+            readiness={readinessProjection}
+            compact
+            onAction={(dimension) =>
+              onReadinessAction(dimension, dimension.source_id)}
+          />
+        )}
         <Panel title="No important new intelligence yet.">
           <p>
             Add a Source to start monitoring videos that matter. New conclusions
@@ -597,6 +892,31 @@ function Dashboard(
   }
   return (
     <div className="dashboard-stack">
+      {(readiness.error || !readinessProjection) && <DisconnectedReadiness />}
+      {readinessProjection?.overall.code !== "READY" &&
+        readinessProjection && (
+        <ReadinessPanel
+          readiness={readinessProjection}
+          compact
+          onAction={(dimension) =>
+            onReadinessAction(dimension, dimension.source_id)}
+        />
+      )}
+      {blockingAttention.length > 0 && (
+        <section className="blocking-summary" aria-label="Blocking Source Runs">
+          <div>
+            <strong>{blockingAttention.length} Source Run{blockingAttention.length === 1 ? "" : "s"} need action</strong>
+            <p>Review the affected Source for the finite safe next step.</p>
+          </div>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => onRecover(blockingAttention[0])}
+          >
+            Open affected Source
+          </button>
+        </section>
+      )}
       <Panel title="What matters now">
         {intelligence.length
           ? intelligence.map((item) => (
@@ -651,14 +971,36 @@ function Dashboard(
       {attention.length
         ? (
           <Panel title="Needs Attention">
-            {attention.map((run) => <Attention key={run.run_id} run={run} />)}
+            {attention.map((run) => (
+              <Attention key={run.run_id} run={run} onRecover={onRecover} />
+            ))}
           </Panel>
         )
         : null}
     </div>
   );
 }
-function Attention({ run }: { run: SourceRun }) {
+function Attention(
+  { run, onRecover }: { run: SourceRun; onRecover?: (run: SourceRun) => void },
+) {
+  if (run.recovery) {
+    return (
+      <article className="semantic-state state-blocked">
+        <strong>{run.recovery.what_happened}</strong>
+        <p>{run.recovery.why_it_matters}</p>
+        <p>{run.recovery.will_not}</p>
+        {run.recovery.safe_action && onRecover && (
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => onRecover(run)}
+          >
+            {run.recovery.safe_action.label}
+          </button>
+        )}
+      </article>
+    );
+  }
   const [title, safety, action] = attentionCopy(run.attention_reason);
   return (
     <article className="semantic-state state-blocked">
@@ -913,11 +1255,23 @@ function Topics({ refresh }: { refresh: number }) {
 }
 
 function Sources(
-  { refresh, onRefresh }: { refresh: number; onRefresh: () => void },
+  { refresh, onRefresh, requestedSource, onRequestedSourceOpened, onOpenSettings }: {
+    refresh: number;
+    onRefresh: () => void;
+    requestedSource: string | null;
+    onRequestedSourceOpened: () => void;
+    onOpenSettings: () => void;
+  },
 ) {
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  useEffect(() => {
+    if (requestedSource) {
+      setSelected(requestedSource);
+      onRequestedSourceOpened();
+    }
+  }, [onRequestedSourceOpened, requestedSource]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   return (
@@ -995,6 +1349,7 @@ function Sources(
           id={selected}
           onClose={() => setSelected(null)}
           onRefresh={onRefresh}
+          onOpenSettings={onOpenSettings}
         />
       )}
     </>
@@ -1004,14 +1359,23 @@ function ruleList(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 function SourceForm(
-  { onClose, onSaved, source, policy, schedules }: {
+  { onClose, onSaved, source, policy, schedules, returnFocusRef }: {
     onClose: () => void;
     onSaved: () => void;
     source?: Source;
     policy?: SourcePolicy;
     schedules?: Schedule[];
+    returnFocusRef?: RefObject<HTMLElement>;
   },
 ) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const onDialogKeyDown = useModalKeyboard(
+    dialogRef,
+    titleRef,
+    onClose,
+    returnFocusRef,
+  );
   const schedule = schedules?.[0];
   const [url, setUrl] = useState(source?.canonical_url ?? "");
   const [enabled, setEnabled] = useState(source?.enabled ?? true);
@@ -1088,14 +1452,16 @@ function SourceForm(
   return (
     <div className="overlay">
       <section
+        ref={dialogRef}
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="source-form-title"
+        onKeyDown={onDialogKeyDown}
       >
         <div className="modal-head">
           <div>
-            <h2 id="source-form-title">
+            <h2 id="source-form-title" ref={titleRef} tabIndex={-1}>
               {source ? "Edit Source configuration" : "Add a Source"}
             </h2>
             <p className="hint">
@@ -1107,7 +1473,10 @@ function SourceForm(
             Cancel
           </button>
         </div>
-        <form onSubmit={submit}>
+        <form
+          onSubmit={submit}
+          aria-describedby={error ? "source-form-error" : undefined}
+        >
           <label className="field">
             Source URL<input
               aria-label="Source URL"
@@ -1255,7 +1624,11 @@ function SourceForm(
               )
               : null}
           </Panel>
-          {error && <ErrorState error={error} />}
+          {error && (
+            <div id="source-form-error" role="alert">
+              <ErrorState error={error} />
+            </div>
+          )}
           <div className="modal-actions">
             <button
               type="button"
@@ -1278,12 +1651,14 @@ function SourceForm(
   );
 }
 function SourceDetail(
-  { id, onClose, onRefresh }: {
+  { id, onClose, onRefresh, onOpenSettings }: {
     id: string;
     onClose: () => void;
     onRefresh: () => void;
+    onOpenSettings: () => void;
   },
 ) {
+  const [revision, setRevision] = useState(0);
   const { data, error } = useRemote<
     {
       source: Source;
@@ -1297,25 +1672,62 @@ function SourceDetail(
       }[];
       source_runs: SourceRun[];
     }
-  >(`/sources/${id}`, 0);
+  >(`/sources/${id}`, revision);
+  const sourceReadiness = useRemote<{ readiness: Readiness }>(
+    `/sources/${id}/readiness`,
+    revision,
+  );
+  const sourceReadinessProjection = isReadiness(sourceReadiness.data?.readiness)
+    ? sourceReadiness.data.readiness
+    : null;
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const editTriggerRef = useRef<HTMLButtonElement>(null);
+  const onDialogKeyDown = useModalKeyboard(dialogRef, titleRef, onClose);
+  useEffect(() => {
+    if (dialogRef.current) dialogRef.current.inert = editing;
+  }, [editing]);
+  const closeEditor = () => {
+    if (dialogRef.current) {
+      dialogRef.current.inert = false;
+      dialogRef.current.removeAttribute("aria-hidden");
+    }
+    setEditing(false);
+  };
+  const latestRun = data?.source_runs.at(-1);
+  useEffect(() => {
+    if (!latestRun || !["QUEUED", "RUNNING", "WAITING", "PARTIAL"].includes(
+      latestRun.state,
+    )) return;
+    const timer = window.setInterval(() => {
+      setRevision((value) => value + 1);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [latestRun?.run_id, latestRun?.state]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
   const check = async () => {
     const result = await post<
-      { source_run?: SourceRun; status?: string; message?: string }
+      {
+        source_run?: SourceRun;
+        status?: string;
+        message?: string;
+        readiness?: Readiness;
+      }
     >(`/sources/${id}/check`, { command_id: commandId() });
     if (result.source_run) {
       setMessage(
-        "Your check was accepted and is waiting to run. Review this Source for its current progress.",
+        `Your check was accepted. ${result.source_run.progress?.label ?? "Waiting to start"}. You can leave and return; this status comes from the saved run.`,
       );
+      setRevision((value) => value + 1);
       onRefresh();
       return;
     }
     if (result.status === "BLOCKED") {
       setMessage(
-        "Check Now cannot start in this local demo because processing is intentionally disabled. No Source Run was created and your existing data is unchanged.",
+        `${result.readiness?.overall.label ?? "Setup required"}. ${result.readiness?.overall.message ?? "No Source Run was created."}`,
       );
       return;
     }
@@ -1331,10 +1743,20 @@ function SourceDetail(
   };
   return (
     <div className="overlay">
-      <section className="modal" role="dialog" aria-modal="true">
+      <section
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="source-detail-title"
+        aria-hidden={editing ? "true" : undefined}
+        onKeyDown={onDialogKeyDown}
+      >
         <div className="modal-head">
           <div>
-            <h2>{sourceLabel(data.source)}</h2>
+            <h2 id="source-detail-title" ref={titleRef} tabIndex={-1}>
+              {sourceLabel(data.source)}
+            </h2>
             <a
               className="source-url"
               href={data.source.canonical_url}
@@ -1356,6 +1778,7 @@ function SourceDetail(
           </p>
           <div className="inline-actions">
             <button
+              ref={editTriggerRef}
               className="button button-secondary"
               onClick={() => setEditing(true)}
             >
@@ -1416,12 +1839,35 @@ function SourceDetail(
               </Empty>
             )}
         </Panel>
-        <button className="button button-primary" onClick={check}>
+        {(sourceReadiness.error ||
+          (sourceReadiness.data && !sourceReadinessProjection)) && (
+          <DisconnectedReadiness />
+        )}
+        {sourceReadinessProjection && (
+          <ReadinessPanel
+            readiness={sourceReadinessProjection}
+            compact
+            onAction={(dimension) => {
+              if (dimension.recovery?.action === "EDIT_SOURCE_CONFIGURATION") {
+                setEditing(true);
+              } else {
+                onOpenSettings();
+              }
+            }}
+          />
+        )}
+        <button
+          className="button button-primary"
+          onClick={check}
+          disabled={sourceReadinessProjection?.overall.code !== "READY"}
+          aria-describedby="check-now-guidance"
+        >
           Check Now
         </button>
-        <p className="hint">
-          Checks follow the existing safe processing path. This is not a retry
-          action.
+        <p className="hint" id="check-now-guidance">
+          {sourceReadinessProjection?.overall.code === "READY"
+            ? "Starts one new normal Source Run. This is not a retry action."
+            : "Check Now remains unavailable until the prerequisite summary says Ready to check a Source."}
         </p>
         {message && (
           <div className="semantic-state state-neutral">
@@ -1486,12 +1932,34 @@ function SourceDetail(
           {data.source_runs.length
             ? data.source_runs.map((run) =>
               run.attention_reason
-                ? <Attention key={run.run_id} run={run} />
+                ? (
+                  <Attention
+                    key={run.run_id}
+                    run={run}
+                    onRecover={(item) => {
+                      const kind = item.recovery?.safe_action?.kind;
+                      if (kind === "VIEW_USAGE" ||
+                        kind === "VIEW_CREDENTIAL_SETUP" ||
+                        kind === "CHECK_READINESS") {
+                        onOpenSettings();
+                      }
+                    }}
+                  />
+                )
                 : (
-                  <p key={run.run_id}>
-                    <Status value={run.state} /> A Source Run is{" "}
-                    {statusLabel(run.state).toLowerCase()}.
-                  </p>
+                  <article className="run-orientation" key={run.run_id}>
+                    <Status value={run.state} />
+                    <strong>{run.result?.label ?? run.progress?.label ?? statusLabel(run.state)}</strong>
+                    {run.result?.kind !== "COMPLETED_WITH_INTELLIGENCE" &&
+                      run.progress?.label && run.result?.label !== run.progress.label && (
+                      <p>Current step: {run.progress.label}.</p>
+                    )}
+                    {run.result?.kind === "COMPLETED_WITH_INTELLIGENCE" && (
+                      <p>
+                        Produced {run.result.intelligence_count ?? 0} trusted Intelligence item{run.result.intelligence_count === 1 ? "" : "s"}.
+                      </p>
+                    )}
+                  </article>
                 )
             )
             : <Empty>No Source Runs yet.</Empty>}
@@ -1502,9 +1970,10 @@ function SourceDetail(
           source={data.source}
           policy={data.policy}
           schedules={data.schedules}
-          onClose={() => setEditing(false)}
+          returnFocusRef={editTriggerRef}
+          onClose={closeEditor}
           onSaved={() => {
-            setEditing(false);
+            closeEditor();
             onRefresh();
             onClose();
           }}
@@ -1549,7 +2018,20 @@ function usageReason(value: string) {
     MANUAL_DISTILLATION: "Manual analysis",
   } as Record<string, string>)[value] ?? "Recorded work";
 }
-function Settings({ refresh }: { refresh: number }) {
+function Settings(
+  { refresh, onReadinessAction }: {
+    refresh: number;
+    onReadinessAction: (dimension: ReadinessDimension) => void;
+  },
+) {
+  const [readinessRefresh, setReadinessRefresh] = useState(0);
+  const readiness = useRemote<{ readiness: Readiness }>(
+    "/readiness",
+    refresh + readinessRefresh,
+  );
+  const readinessProjection = isReadiness(readiness.data?.readiness)
+    ? readiness.data.readiness
+    : null;
   const settings = useRemote<{ providers: ProviderStatus[] }>(
     "/settings",
     refresh,
@@ -1568,13 +2050,17 @@ function Settings({ refresh }: { refresh: number }) {
   );
   if (settings.error || prefs.error || policy.error || usage.error) {
     return (
-      <ErrorState
-        error={settings.error ?? prefs.error ?? policy.error ?? usage.error ??
-          ""}
-      />
+      <>
+        <DisconnectedReadiness />
+        <ErrorState
+          error={settings.error ?? prefs.error ?? policy.error ?? usage.error ??
+            ""}
+        />
+      </>
     );
   }
-  if (!settings.data || !prefs.data || !policy.data || !usage.data) {
+  if (!settings.data || !prefs.data || !policy.data || !usage.data ||
+    (!readiness.data && !readiness.error)) {
     return <Empty>Loading Settings…</Empty>;
   }
   const globalPolicy = policy.data.policy;
@@ -1587,6 +2073,24 @@ function Settings({ refresh }: { refresh: number }) {
   );
   return (
     <div className="settings-stack">
+      {(readiness.error || !readinessProjection) && <DisconnectedReadiness />}
+      {readinessProjection && (
+        <ReadinessPanel
+          readiness={readinessProjection}
+          onAction={(dimension) => {
+            if (dimension.recovery?.action === "CHECK_READINESS" ||
+              dimension.recovery?.action === "VIEW_SETUP_INSTRUCTIONS") {
+              setReadinessRefresh((value) => value + 1);
+              return;
+            }
+            if (dimension.recovery?.action === "VIEW_USAGE") {
+              document.getElementById("resource-usage")?.scrollIntoView();
+              return;
+            }
+            onReadinessAction(dimension);
+          }}
+        />
+      )}
       <Panel title="Preference Center">
         <p className="hint">
           Explicit means you directly chose it. Derived means the app inferred
@@ -1626,12 +2130,14 @@ function Settings({ refresh }: { refresh: number }) {
           <article className="capability-card">
             <div className="capability-heading">
               <h3>Video Distillation</h3>
-              <Status value={videoDistillation ? "AVAILABLE" : "UNAVAILABLE"} />
+              <Status
+                value={readinessProjection?.video_distillation.code ??
+                  "UNAVAILABLE"}
+              />
             </div>
             <p>
-              {videoDistillation
-                ? "Available for V1 video analysis only."
-                : "No approved model is currently available for video analysis."}
+              {readinessProjection?.video_distillation.message ??
+                "Video Distillation readiness is unavailable."}
             </p>
             {videoDistillation && (
               <details className="provenance">
@@ -1667,7 +2173,8 @@ function Settings({ refresh }: { refresh: number }) {
           </details>
         )}
       </Panel>
-      <Panel title="Resource Usage">
+      <section id="resource-usage">
+        <Panel title="Resource Usage">
         {usage.data.usage.length
           ? usage.data.usage.map((item) => (
             <article className="metadata-row" key={item.execution_id}>
@@ -1703,7 +2210,8 @@ function Settings({ refresh }: { refresh: number }) {
               No Resource Ledger entries yet. Values are never estimated.
             </Empty>
           )}
-      </Panel>
+        </Panel>
+      </section>
       <Panel title="Data and privacy">
         <p>
           Local-first means local persistence by default. Credential values are
