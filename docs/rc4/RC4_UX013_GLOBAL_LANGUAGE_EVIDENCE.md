@@ -157,4 +157,3 @@ category. Research questions and UX-003/004/005/012 decision rules are unchanged
   documentation reconciliation remains after the five real sessions.
 - Unknown raw external errors remain available verbatim rather than receiving an
   invented translation.
-
