@@ -927,7 +927,7 @@ test("budget and provider recovery remain explicit and never promise spending or
 
   render(<App />);
   await user.click(screen.getByRole("button", { name: "Settings" }));
-  expect(await screen.findByText("Review usage limit")).toBeTruthy();
+  expect((await screen.findAllByText("Review usage limit")).length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: "View usage" })).toBeTruthy();
   expect(screen.getByText(/will not increase the limit or authorize spending automatically/)).toBeTruthy();
   expect(screen.getByText(/will not switch provider or model, enable Deep Analysis, or retry/)).toBeTruthy();
@@ -1317,6 +1317,7 @@ test.each([
       },
     }),
     expected: "需要设置 NVIDIA 凭据",
+    expectedBadge: "需要完成设置",
     action: "检查就绪状态",
   },
   {
@@ -1340,6 +1341,7 @@ test.each([
       },
     }),
     expected: "已达到使用上限",
+    expectedBadge: "查看使用上限",
     action: "查看资源使用",
   },
   {
@@ -1361,11 +1363,13 @@ test.each([
       },
     }),
     expected: "视频提炼暂时不可用",
+    expectedBadge: "暂时不可用",
     action: "检查就绪状态",
   },
 ])("zh-CN preserves safe readiness behavior for $name", async ({
   readiness,
   expected,
+  expectedBadge,
   action,
 }) => {
   const user = userEvent.setup();
@@ -1380,6 +1384,8 @@ test.each([
   render(<App />);
   await user.click(screen.getByRole("button", { name: "设置" }));
   expect(await screen.findByText(expected)).toBeTruthy();
+  expect(screen.getAllByText(expectedBadge, { selector: ".status" }).length)
+    .toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: action })).toBeTruthy();
   expect(screen.queryByRole("button", {
     name: /重试|切换|提高上限|授权支出|retry|fallback|switch|increase/i,

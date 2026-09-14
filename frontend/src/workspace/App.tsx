@@ -256,6 +256,10 @@ function statusLabel(value: string, t: Translate) {
   const labels: Record<string, MessageKey> = {
     Blocked: "Blocked",
     READY: "Ready",
+    SETUP_REQUIRED: "Setup required",
+    BUDGET_BLOCKED: "Review usage limit",
+    TEMPORARILY_UNAVAILABLE: "Temporarily unavailable",
+    LIMIT_REACHED: "Usage limit reached",
     CONNECTED: "Connected",
     READY_TO_START: "Ready to start",
     WITHIN_LIMIT: "Within limit",
