@@ -324,6 +324,7 @@ class LocalApiApplication:
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
+        output_language: str | None = None,
         now: Callable[[], datetime] | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
@@ -337,6 +338,7 @@ class LocalApiApplication:
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
+        self._output_language = output_language
         self._now = now or (lambda: datetime.now(UTC))
         self._preference_service = PreferenceApplicationService(
             repository, now=self._now
@@ -1141,7 +1143,10 @@ class LocalApiApplication:
                 "processing_defaults": {
                     "policy": ProcessingPolicy.STANDARD_INTELLIGENCE.value
                 },
-                "general": {"timezone": self._timezone},
+                "general": {
+                    "timezone": self._timezone,
+                    "output_language": self._output_language,
+                },
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
