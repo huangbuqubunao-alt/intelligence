@@ -32,6 +32,7 @@ from youtube_intel.orchestration import (
     provider_model_statuses,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
 from youtube_intel.saved_intelligence import (
@@ -328,6 +329,7 @@ class LocalApiApplication:
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
+        output_language_default: str = "zh-CN",
         now: Callable[[], datetime] | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
@@ -343,6 +345,10 @@ class LocalApiApplication:
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._output_language_service = OutputLanguagePreferenceService(
+            repository,
+            bootstrap_default=output_language_default,  # validated by service
+        )
         self._preference_service = PreferenceApplicationService(
             repository, now=self._now
         )
@@ -676,6 +682,27 @@ class LocalApiApplication:
                     "preference_id": event.preference_id,
                     "state": event.state.value,
                     "created_at": _timestamp(event.created_at),
+                }
+            if method == "PUT" and route == "/api/v1/settings/output-language":
+                self._only_keys(data, {"output_language"})
+                try:
+                    language = self._output_language_service.set(
+                        output_language=self._string(
+                            data, "output_language", required=True
+                        )
+                        or "",
+                        now=self._now(),
+                    )
+                except ValueError as error:
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "output_language must be zh-CN or en.",
+                    ) from error
+                return HTTPStatus.OK, {
+                    "output_language": language.value,
+                    "source": language.source,
+                    "updated_at": _timestamp(language.updated_at),
                 }
             if method == "PUT" and route == "/api/v1/settings/source-policy":
                 self._only_keys(
@@ -1142,11 +1169,17 @@ class LocalApiApplication:
             }
         if route == "/api/v1/settings":
             preference = self._repository.get_global_model_preference()
+            language = self._output_language_service.effective()
             return {
                 "processing_defaults": {
                     "policy": ProcessingPolicy.STANDARD_INTELLIGENCE.value
                 },
-                "general": {"timezone": self._timezone},
+                "general": {
+                    "timezone": self._timezone,
+                    "output_language": language.value,
+                    "output_language_source": language.source,
+                    "output_language_updated_at": _timestamp(language.updated_at),
+                },
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
