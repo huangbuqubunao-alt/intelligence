@@ -4,7 +4,7 @@ const browser = await chromium.launch({ executablePath: "/Applications/Google Ch
 const consoleErrors = [];
 const externalRequests = [];
 const baseUrl = process.env.YIA_E2E_BASE_URL ?? "http://127.0.0.1:5174/";
-const frozenNav = ["Dashboard", "Intelligence", "Topics", "Sources", "Investigations", "Settings"];
+const frozenNav = ["Home", "Following", "Content", "Intelligence", "Topics", "Settings"];
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 }]) {
   const page = await browser.newPage({ viewport });
@@ -12,9 +12,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("request", request => { const url = request.url(); if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url); });
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "Dashboard", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
   for (const name of frozenNav) await page.getByRole("button", { name, exact: true }).waitFor();
-  for (const legacy of ["Videos", "Activity", "Saved", "Weekly", "Daily", "Ask", "Runs", "Jobs", "Models", "Queue", "Evidence"]) {
+  for (const legacy of ["Dashboard", "Sources", "Investigations", "Videos", "Activity", "Saved", "Weekly", "Daily", "Ask", "Runs", "Jobs", "Models", "Queue", "Evidence"]) {
     if (await page.getByRole("button", { name: legacy, exact: true }).count()) throw new Error(`${legacy} returned as first-level IA`);
   }
   await page.getByText("Important Intelligence", { exact: true }).waitFor();
@@ -33,10 +33,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.locator("button.list-row").filter({ hasText: "Decision-system practice" }).click();
   await page.getByText("Timeline", { exact: true }).waitFor();
   await page.getByText("Related Topics", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
-  await page.getByRole("button", { name: "Add Source", exact: true }).first().click();
-  await page.getByRole("heading", { name: "Add a Source", exact: true }).waitFor();
-  for (const label of ["Source URL", "Monitor this Source", "Automatic schedule", "Initial history", "Per-run limit", "Focus", "Ignore", "Distillation style"]) await page.getByLabel(label, { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Content", exact: true }).click();
+  await page.locator("button.list-row").filter({ hasText: "How teams turn AI roadmaps into decision systems" }).click();
+  await page.getByText(/decision log/i).waitFor();
+  await page.getByText("Summary / Video Notes", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Back to Content", exact: true }).click();
+  await page.getByRole("button", { name: "Following", exact: true }).click();
+  await page.getByRole("button", { name: "Add Following", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Add a Following", exact: true }).waitFor();
+  for (const label of ["YouTube URL", "Monitor this Following", "Automatic schedule", "Initial history", "Per-run limit", "Focus", "Ignore", "Distillation style"]) await page.getByLabel(label, { exact: true }).waitFor();
   await page.screenshot({ path: `/tmp/yia-v1-ux-source-${viewport.width}x${viewport.height}.png`, fullPage: true });
   await page.getByRole("button", { name: "Cancel", exact: true }).first().click();
   await page.getByText("Practical AI Engineering", { exact: true }).click();
@@ -46,9 +51,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("Skipped", { exact: true }).waitFor();
   await page.getByText("Excluded by your ignore rules.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Analyze this Video", exact: true }).waitFor();
-  if (await page.getByText("Retry", { exact: true }).count()) throw new Error("Retry leaked into Source UI");
+  if (await page.getByText("Retry", { exact: true }).count()) throw new Error("Retry leaked into Following UI");
   await page.getByRole("button", { name: "Check Now", exact: true }).click();
-  await page.getByText(/Check Now cannot start in this local demo/).waitFor();
+  await page.getByText(/Processing is currently unavailable in this local setup/).waitFor();
   if (await page.getByText(/runtime side-effect guard/i).count()) throw new Error("Check Now leaked internal guard language");
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -60,12 +65,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("Resource Usage", { exact: true }).waitFor();
   await page.getByText(/Token usage: Unavailable/).waitFor();
   await page.getByText(/Cost: Unavailable/).waitFor();
-  await page.getByRole("button", { name: "Investigations", exact: true }).click();
-  await page.getByText("Investigations are not active in V1", { exact: true }).waitFor();
   await page.screenshot({ path: `/tmp/yia-task026-${viewport.width}x${viewport.height}.png`, fullPage: true });
   await page.close();
 }
 await browser.close();
 if (externalRequests.length) throw new Error(`External browser network requests: ${externalRequests.join(" | ")}`);
 if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
-console.log("Browser E2E passed: frozen IA, trusted Intelligence, Saved fail-closed, Weekly V1, Topic, Source policy, finite attention, and V1 reservations.");
+console.log("Browser E2E passed: Intelligence IA, Content transcript read surface, trusted Intelligence, Saved fail-closed, Weekly V1, Topic, Following policy, and finite attention.");
