@@ -31,6 +31,7 @@ def _app(tmp_path: Path) -> LocalApiApplication:
         service,
         data_root=tmp_path / "data",
         vault_root=tmp_path / "vault",
+        output_language="zh-CN",
         now=lambda: datetime(2026, 9, 1, tzinfo=UTC),
     )
 
@@ -79,6 +80,7 @@ def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
 def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
+    assert payload["general"] == {"timezone": "Asia/Shanghai", "output_language": "zh-CN"}
     assert payload["model_preference"]["active_production_default"] is None
     assert payload["providers"][1]["reason"] == "1/2; SCHEMA_INVALID"
 
