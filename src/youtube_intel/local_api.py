@@ -1201,8 +1201,12 @@ class LocalApiApplication:
             evidence_links.append(
                 {
                     "evidence_id": evidence.evidence_id,
+                    "artifact_id": evidence.artifact_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
+                    "language": evidence.language,
+                    "lineage_kind": evidence.lineage_kind.value,
+                    "role": evidence.role.value,
                 }
             )
         projection["card"] = {
