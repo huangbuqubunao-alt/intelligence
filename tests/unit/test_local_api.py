@@ -89,6 +89,18 @@ def test_output_language_projection_rejects_unsupported_values(tmp_path: Path) -
         LocalApiApplication(repository, service, output_language="fr")
 
 
+def test_system_backup_projection_is_truthful_and_non_actionable(tmp_path: Path) -> None:
+    status, payload = _app(tmp_path).handle("GET", "/api/v1/system")
+
+    assert status == 200
+    assert payload["backup"] == {
+        "status": "NOT_RUN",
+        "backup_available": False,
+        "restore_available": False,
+        "reason": "No production backup/restore service is wired.",
+    }
+
+
 def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
