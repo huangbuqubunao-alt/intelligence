@@ -849,6 +849,12 @@ class GlobalModelPreferenceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class GlobalOutputLanguagePreferenceRecord:
+    output_language: str
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class _Migration:
     version: int
     name: str
@@ -1408,6 +1414,7 @@ class SQLiteStateRepository:
             "012_add_source_run_orchestration.sql",
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
+            "015_add_global_output_language_preference.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -5609,6 +5616,59 @@ class SQLiteStateRepository:
                     row["desired_provider"],
                     row["desired_model"],
                     _parse_utc_datetime(str(row["updated_at"])),
+                )
+            )
+        finally:
+            connection.close()
+
+    def save_global_output_language_preference(
+        self, *, output_language: str, now: datetime
+    ) -> GlobalOutputLanguagePreferenceRecord:
+        if output_language not in {"zh-CN", "en"}:
+            raise ValueError("output language is unsupported")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO global_output_language_preferences "
+                    "(preference_key, output_language, updated_at) "
+                    "VALUES ('global', :output_language, :updated_at) "
+                    "ON CONFLICT(preference_key) DO UPDATE SET "
+                    "output_language=excluded.output_language, "
+                    "updated_at=excluded.updated_at",
+                    {
+                        "output_language": output_language,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM global_output_language_preferences "
+                    "WHERE preference_key='global'"
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("output language preference was not saved")
+                return GlobalOutputLanguagePreferenceRecord(
+                    output_language=str(row["output_language"]),
+                    updated_at=_parse_utc_datetime(str(row["updated_at"])),
+                )
+        finally:
+            connection.close()
+
+    def get_global_output_language_preference(
+        self,
+    ) -> GlobalOutputLanguagePreferenceRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM global_output_language_preferences "
+                "WHERE preference_key='global'"
+            ).fetchone()
+            return (
+                None
+                if row is None
+                else GlobalOutputLanguagePreferenceRecord(
+                    output_language=str(row["output_language"]),
+                    updated_at=_parse_utc_datetime(str(row["updated_at"])),
                 )
             )
         finally:
