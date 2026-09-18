@@ -19,7 +19,7 @@ from youtube_intel.content_summary_read import (
     ContentSummaryReadRejected,
 )
 from youtube_intel.distillation import PersonalizedDistillationService
-from youtube_intel.domain import JobStatus, ProcessingStage
+from youtube_intel.domain import JobStatus, ProcessingStage, ScoringOutputLanguage
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -329,7 +329,7 @@ class LocalApiApplication:
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
-        output_language_default: str = "zh-CN",
+        output_language_default: ScoringOutputLanguage = "zh-CN",
         now: Callable[[], datetime] | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
@@ -347,7 +347,7 @@ class LocalApiApplication:
         self._now = now or (lambda: datetime.now(UTC))
         self._output_language_service = OutputLanguagePreferenceService(
             repository,
-            bootstrap_default=output_language_default,  # validated by service
+            bootstrap_default=output_language_default,
         )
         self._preference_service = PreferenceApplicationService(
             repository, now=self._now
