@@ -192,7 +192,6 @@ def _make_boundary_authority() -> tuple[
             settings = config.settings
             summary_threshold = settings.thresholds.summary_score
             model = settings.local_scoring.model
-            output_language = settings.general.output_language
 
             class Boundary:
                 """A capability with no caller-visible admission or metadata controls."""
@@ -207,7 +206,6 @@ def _make_boundary_authority() -> tuple[
                         summary_threshold=summary_threshold,
                         pipeline_version="runtime-v1",
                         current_model=model,
-                        current_output_language=output_language,
                     )
                     return build_from_authorities(
                         source,
