@@ -723,7 +723,9 @@ class CoreBackupService:
         staged_data.mkdir(mode=0o700)
         try:
             with zipfile.ZipFile(archive_path, "r", allowZip64=True) as archive:
-                manifest = _parse_manifest(archive.read(_MANIFEST_PATH))
+                manifest_body = archive.read(_MANIFEST_PATH)
+                manifest = _parse_manifest(manifest_body)
+                (staging_root / _MANIFEST_PATH).write_bytes(manifest_body)
                 database_path, _, _ = _descriptor(
                     manifest.get("database"), label="database"
                 )
@@ -753,8 +755,10 @@ class CoreBackupService:
                             if not chunk:
                                 break
                             output.write(chunk)
-            self._verify_staged_data(staged_data, inspection)
-            return StagedCoreRestore(staging_root, staged_data, inspection)
+            staged_inspection = self.inspect_staged_restore(staging_root)
+            if staged_inspection != inspection:
+                raise CoreBackupError("staged restore inspection changed after extraction")
+            return StagedCoreRestore(staging_root, staged_data, staged_inspection)
         except BaseException:
             for root, directories, files in os.walk(staging_root, topdown=False):
                 for filename in files:
@@ -764,6 +768,142 @@ class CoreBackupService:
             staging_root.rmdir()
             raise
 
+    def inspect_staged_restore(self, staging_root: Path) -> CoreBackupInspection:
+        if staging_root.is_symlink() or not staging_root.is_dir():
+            raise CoreBackupError("staged restore root is unavailable or unsafe")
+        manifest_path = staging_root / _MANIFEST_PATH
+        data_root = staging_root / "data"
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise CoreBackupError("staged restore manifest is unavailable or unsafe")
+        if data_root.is_symlink() or not data_root.is_dir():
+            raise CoreBackupError("staged restore data root is unavailable or unsafe")
+
+        manifest_body = manifest_path.read_bytes()
+        manifest = _parse_manifest(manifest_body)
+        app_version = manifest.get("app_version")
+        if not isinstance(app_version, str) or not app_version.strip():
+            raise CoreBackupError("staged restore app version is invalid")
+        schema_version = manifest.get("schema_version")
+        if (
+            not isinstance(schema_version, int)
+            or isinstance(schema_version, bool)
+            or schema_version <= 0
+        ):
+            raise CoreBackupError("staged restore schema version is invalid")
+        created_at = _manifest_datetime(manifest.get("created_at"))
+
+        database_archive, database_hash, database_bytes = _descriptor(
+            manifest.get("database"), label="database"
+        )
+        if database_archive != _DATABASE_ARCHIVE_PATH:
+            raise CoreBackupError("staged restore database path is invalid")
+        with _open_regular_under(data_root, "state.sqlite") as database_source:
+            actual_database_hash, actual_database_bytes = _sha256_stream(database_source)
+        if (
+            actual_database_hash != database_hash
+            or actual_database_bytes != database_bytes
+        ):
+            raise CoreBackupError("staged restore database checksum is invalid")
+
+        artifacts_value = manifest.get("artifacts")
+        if not isinstance(artifacts_value, list):
+            raise CoreBackupError("staged restore artifact manifest is invalid")
+        total_bytes = database_bytes
+        manifest_artifacts: set[tuple[str, str, str, str]] = set()
+        for value in artifacts_value:
+            if not isinstance(value, dict) or set(value) != {
+                "artifact_id",
+                "kind",
+                "relative_path",
+                "archive_path",
+                "sha256",
+                "bytes",
+            }:
+                raise CoreBackupError("staged restore artifact descriptor is invalid")
+            artifact_id = value.get("artifact_id")
+            kind = value.get("kind")
+            relative = value.get("relative_path")
+            if (
+                not isinstance(artifact_id, str)
+                or not artifact_id
+                or not isinstance(kind, str)
+                or not kind
+                or not isinstance(relative, str)
+            ):
+                raise CoreBackupError("staged restore artifact descriptor is invalid")
+            archive_member, digest, size = _descriptor(
+                {
+                    "archive_path": value.get("archive_path"),
+                    "sha256": value.get("sha256"),
+                    "bytes": value.get("bytes"),
+                },
+                label="artifact",
+            )
+            safe_relative = _safe_archive_path(relative)
+            if archive_member != f"data/{safe_relative}":
+                raise CoreBackupError("staged restore artifact path binding is invalid")
+            with _open_regular_under(data_root, safe_relative) as source:
+                actual_hash, actual_size = _sha256_stream(source)
+            if actual_hash != digest or actual_size != size:
+                raise CoreBackupError("staged restore artifact checksum is invalid")
+            total_bytes += size
+            if total_bytes > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+                raise CoreBackupError("staged restore exceeds the supported V1 size limit")
+            key = (artifact_id, kind, safe_relative, digest)
+            if key in manifest_artifacts:
+                raise CoreBackupError("staged restore contains duplicate artifact identity")
+            manifest_artifacts.add(key)
+
+        database = data_root / "state.sqlite"
+        connection = sqlite3.connect(database)
+        connection.row_factory = sqlite3.Row
+        try:
+            actual_schema, vault_count = _database_facts(connection)
+            rows = _artifact_rows(connection)
+        finally:
+            connection.close()
+        if actual_schema != schema_version:
+            raise CoreBackupError("staged restore schema version disagrees with its database")
+        live_schema = self._live_schema_version()
+        if live_schema is not None and schema_version != live_schema:
+            raise CoreBackupError(
+                "staged restore schema version is incompatible with the current workspace"
+            )
+        expected_artifacts = {
+            (
+                str(row["artifact_id"]),
+                str(row["kind"]),
+                _safe_archive_path(str(row["relative_path"])),
+                str(row["content_hash"]),
+            )
+            for row in rows
+        }
+        if manifest_artifacts != expected_artifacts:
+            raise CoreBackupError(
+                "staged restore artifact manifest disagrees with SQLite authority"
+            )
+
+        external = manifest.get("excluded_external")
+        if (
+            not isinstance(external, dict)
+            or set(external) != {"vault_artifact_count", "vault_included"}
+            or external.get("vault_included") is not False
+            or not isinstance(external.get("vault_artifact_count"), int)
+            or isinstance(external.get("vault_artifact_count"), bool)
+            or int(external["vault_artifact_count"]) != vault_count
+        ):
+            raise CoreBackupError("staged restore external-scope declaration is invalid")
+
+        return CoreBackupInspection(
+            format_version=_BACKUP_FORMAT,
+            created_at=created_at,
+            schema_version=schema_version,
+            artifact_count=len(manifest_artifacts),
+            excluded_vault_artifact_count=vault_count,
+            total_bytes=total_bytes,
+            core_scope=_CORE_SCOPE,
+        )
+
     def _live_schema_version(self) -> int | None:
         if not self._database.is_file() or self._database.is_symlink():
             return None
@@ -772,31 +912,6 @@ class CoreBackupService:
             return int(connection.execute("PRAGMA user_version").fetchone()[0])
         finally:
             connection.close()
-
-    @staticmethod
-    def _verify_staged_data(
-        data_root: Path,
-        inspection: CoreBackupInspection,
-    ) -> None:
-        database = data_root / "state.sqlite"
-        connection = sqlite3.connect(database)
-        connection.row_factory = sqlite3.Row
-        try:
-            schema_version, _vault_count = _database_facts(connection)
-            rows = _artifact_rows(connection)
-        finally:
-            connection.close()
-        if schema_version != inspection.schema_version:
-            raise CoreBackupError("staged restore schema is invalid")
-        if len(rows) != inspection.artifact_count:
-            raise CoreBackupError("staged restore artifact count is invalid")
-        for row in rows:
-            relative = _safe_archive_path(str(row["relative_path"]))
-            with _open_regular_under(data_root, relative) as source:
-                digest, _size = _sha256_stream(source)
-            if digest != str(row["content_hash"]):
-                raise CoreBackupError("staged restore artifact checksum is invalid")
-
 
 __all__ = [
     "CoreBackupError",
