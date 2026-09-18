@@ -120,9 +120,10 @@ def main(
             )
             return ExitCode.OK
         if args.command == "serve-api":
+            from youtube_intel.core_restore import apply_pending_core_restore
             from youtube_intel.local_api import LocalApiApplication, serve_loopback
             from youtube_intel.orchestration_service import ProductOrchestrationService
-            from youtube_intel.runtime import PIPELINE_VERSION
+            from youtube_intel.runtime import APP_VERSION, PIPELINE_VERSION
             from youtube_intel.scoring import AuthoritativeScoringReader
             from youtube_intel.state import SQLiteStateRepository
 
@@ -130,6 +131,14 @@ def main(
                 return ExitCode.USAGE_OR_CONFIGURATION
             project_root = _project_root(args.project_root)
             config = _load_config(project_root, args.settings, args.channels)
+            data_root = _project_path(project_root, config.settings.storage.data_dir)
+            expected_database = (data_root / "state.sqlite").resolve(strict=False)
+            if args.database.resolve(strict=False) == expected_database:
+                apply_pending_core_restore(
+                    project_root=project_root,
+                    data_root=data_root,
+                    app_version=APP_VERSION,
+                )
             repository = SQLiteStateRepository(args.database)
             repository.initialize(now=datetime.now(UTC))
             effective_output_language = repository.effective_output_language(
@@ -137,7 +146,7 @@ def main(
             )
             reader = AuthoritativeScoringReader(
                 repository=repository,
-                data_root=_project_path(project_root, config.settings.storage.data_dir),
+                data_root=data_root,
                 summary_threshold=config.settings.thresholds.summary_score,
                 pipeline_version=PIPELINE_VERSION,
                 current_model=config.settings.local_scoring.model,
@@ -148,7 +157,7 @@ def main(
                     repository,
                     ProductOrchestrationService(repository),
                     scoring_reader=reader,
-                    data_root=_project_path(project_root, config.settings.storage.data_dir),
+                    data_root=data_root,
                     vault_root=(
                         Path(config.settings.storage.vault_root)
                         / config.settings.storage.vault_subdir
