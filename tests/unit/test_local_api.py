@@ -92,9 +92,52 @@ def test_output_language_projection_rejects_unsupported_values(tmp_path: Path) -
 def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
-    assert payload["general"] == {"timezone": "Asia/Shanghai", "output_language": "zh-CN"}
+    assert payload["general"] == {
+        "timezone": "Asia/Shanghai",
+        "configured_output_language": "zh-CN",
+        "output_language": "zh-CN",
+        "output_language_source": "CONFIG",
+        "output_language_updated_at": None,
+    }
     assert payload["model_preference"]["active_production_default"] is None
     assert payload["providers"][1]["reason"] == "1/2; SCHEMA_INVALID"
+
+
+def test_output_language_preference_is_persisted_for_future_generation_only(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+
+    status, payload = app.handle(
+        "PUT",
+        "/api/v1/settings/output-language",
+        json.dumps({"output_language": "en"}).encode(),
+    )
+
+    assert status == 200
+    assert payload["general"]["configured_output_language"] == "zh-CN"
+    assert payload["general"]["output_language"] == "en"
+    assert payload["general"]["output_language_source"] == "USER"
+    assert payload["historical_content_unchanged"] is True
+
+    persisted = app._repository.get_global_output_language_preference()
+    assert persisted is not None
+    assert persisted.output_language == "en"
+
+    _, settings = app.handle("GET", "/api/v1/settings")
+    assert settings["general"]["output_language"] == "en"
+    assert settings["general"]["output_language_source"] == "USER"
+
+
+def test_output_language_preference_rejects_unsupported_values(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+
+    with pytest.raises(Exception):
+        app.handle(
+            "PUT",
+            "/api/v1/settings/output-language",
+            json.dumps({"output_language": "fr"}).encode(),
+        )
 
 
 def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> None:
