@@ -77,6 +77,16 @@ def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
     )
 
 
+def test_output_language_projection_rejects_unsupported_values(tmp_path: Path) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    repository.initialize(now=datetime(2026, 9, 1, tzinfo=UTC))
+    service = ProductOrchestrationService(
+        repository, now=lambda: datetime(2026, 9, 1, tzinfo=UTC)
+    )
+    with pytest.raises(ValueError, match="output language is unsupported"):
+        LocalApiApplication(repository, service, output_language="fr")
+
+
 def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
