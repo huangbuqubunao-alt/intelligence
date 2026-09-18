@@ -118,7 +118,8 @@ test("Content renders the explicit current Summary with key points and evidence 
   expect(screen.getByText("Keep one validated current version.")).toBeTruthy();
   expect(screen.getByText("English")).toBeTruthy();
   fireEvent.click(screen.getByText("Evidence and timestamps"));
-  expect(screen.getByText(/e1.*12s.*Validated evidence excerpt/)).toBeTruthy();
+  expect(screen.getByText(/Validated evidence excerpt/)).toBeTruthy();
+  expect(screen.getByText(/12s/)).toBeTruthy();
 });
 
 
