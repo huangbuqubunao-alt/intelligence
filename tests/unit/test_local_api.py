@@ -8,7 +8,7 @@ from typing import cast
 import pytest
 
 from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
-from youtube_intel.local_api import _LOCAL_ORIGIN, LocalApiApplication
+from youtube_intel.local_api import _LOCAL_ORIGIN, ApiError, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.scoring import AuthoritativeScoringReader
 from youtube_intel.state import (
@@ -132,12 +132,15 @@ def test_output_language_preference_is_persisted_for_future_generation_only(
 def test_output_language_preference_rejects_unsupported_values(tmp_path: Path) -> None:
     app = _app(tmp_path)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ApiError) as error:
         app.handle(
             "PUT",
             "/api/v1/settings/output-language",
             json.dumps({"output_language": "fr"}).encode(),
         )
+
+    assert error.value.status == 422
+    assert error.value.code == "VALIDATION_ERROR"
 
 
 def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> None:
