@@ -26,6 +26,7 @@ from youtube_intel.providers.ollama import (
 )
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
+    AuthoritativeScoringReader,
     InMemoryScoringCache,
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
@@ -392,6 +393,53 @@ def _trusted_success(
         scoring_input=scoring_input,
         admission=_h1_admission(),
     )
+
+
+def test_runtime_refreshes_output_language_only_for_new_processing_batch(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path / "project")
+    assert runtime._effective_output_language == "en"
+    assert runtime._trusted_scoring_context.output_language == "en"
+
+    runtime._repository.save_global_output_language(
+        output_language="zh-CN", now=_NOW
+    )
+
+    # Persisting a preference does not mutate an already-sealed batch context.
+    assert runtime._effective_output_language == "en"
+    assert runtime._trusted_scoring_context.output_language == "en"
+
+    runtime._refresh_output_language_for_new_batch()
+
+    assert runtime._effective_output_language == "zh-CN"
+    assert runtime._trusted_scoring_context.output_language == "zh-CN"
+
+
+def test_historical_scoring_language_is_not_compared_to_current_preference(
+    tmp_path: Path,
+) -> None:
+    reader = AuthoritativeScoringReader(
+        repository=object(),
+        data_root=tmp_path,
+        summary_threshold=5.0,
+        pipeline_version="runtime-v1",
+        current_model="fake-model",
+    )
+    historical = ScoreResult(
+        schema_version="score-result-v2",
+        score=7.0,
+        reason="Historical result keeps the language it was generated with.",
+        topics=("history",),
+        should_summarize=True,
+        provider="ollama",
+        model="fake-model",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+
+    reader._check_current_model(historical)
 
 
 def test_sample_transcript_uses_bounded_head_center_tail_segments() -> None:
