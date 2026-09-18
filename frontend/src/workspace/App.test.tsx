@@ -100,7 +100,7 @@ test("Content reads the existing video and transcript projections without fabric
 test("Content renders the explicit current verified Summary instead of raw analysis output", async () => {
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.endsWith("/videos/video-1")) return response({
-      video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" },
+      video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://www.youtube.com/watch?v=video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" },
       transcript: { status: "AVAILABLE", text: "Original transcript evidence.", created_at: "2026-09-01T00:00:00Z" },
       note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: {
         status: "AVAILABLE",
@@ -109,6 +109,7 @@ test("Content renders the explicit current verified Summary instead of raw analy
         language: "zh-CN",
         summary: "这是当前正式摘要。",
         core_points: ["第一点。", "第二点。"],
+        timestamped_key_points: [{ text: "第一点。", start_seconds: 12, end_seconds: 18, evidence_ids: ["e1"] }],
         evidence_references: [{ evidence_id: "e1", source: "transcript", excerpt: "Original transcript evidence.", start_seconds: 12, end_seconds: 18 }],
       } },
       history: [],
@@ -124,6 +125,10 @@ test("Content renders the explicit current verified Summary instead of raw analy
   expect(await screen.findByText("这是当前正式摘要。")).toBeTruthy();
   expect(screen.getByText("第一点。")).toBeTruthy();
   expect(screen.getByText("第二点。")).toBeTruthy();
+  expect(screen.getByText("Timestamped key points")).toBeTruthy();
+  const timestampLink = screen.getByRole("link", { name: "0:12" });
+  expect(timestampLink.getAttribute("href")).toContain("t=12");
+  expect(screen.getByText(/Timestamps appear only when the cited trusted Evidence/)).toBeTruthy();
   fireEvent.click(screen.getByText("Evidence references"));
   expect(screen.getByText("Original transcript evidence.")).toBeTruthy();
   expect(screen.getByText(/current verified version for this Content/i)).toBeTruthy();
