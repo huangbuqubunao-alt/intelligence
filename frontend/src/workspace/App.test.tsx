@@ -49,6 +49,31 @@ test("frozen product IA exposes exactly its six first-level destinations", async
   expect(screen.queryByText("MODEL_UNAVAILABLE")).toBeNull();
 });
 
+test("a fresh library gets a three-step local-first onboarding with an isolated synthetic sample", async () => {
+  const fetchMock = vi.fn((input: string) => {
+    if (input.endsWith("/dashboard")) return response({ intelligence: [], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 0 } });
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  expect(await screen.findByRole("heading", { name: /Turn what you follow into traceable knowledge/ })).toBeTruthy();
+  expect(screen.getByLabelText("Onboarding step 1 of 3")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByText("Recommended")).toBeTruthy();
+  expect(screen.getByLabelText("Synthetic sample experience")).toBeTruthy();
+  expect(screen.getByText(/UI-only example · not written to your library/)).toBeTruthy();
+  expect(screen.getByText(/Evaluation baselines should be versioned before prompt changes/)).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByLabelText("Onboarding step 3 of 3")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Add first Following" }));
+  expect(await screen.findByText(/Set up your first Following/)).toBeTruthy();
+});
+
 test("Content reads the existing video and transcript projections without fabricating notes", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Content" }));
