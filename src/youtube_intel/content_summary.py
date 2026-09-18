@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
-import sqlite3
 
 from youtube_intel.deep_analysis_persistence import (
     DeepAnalysisPersistenceStore,
