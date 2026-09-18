@@ -1415,6 +1415,7 @@ class SQLiteStateRepository:
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
             "015_add_global_output_language_preference.sql",
+            "016_add_current_content_summary.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
