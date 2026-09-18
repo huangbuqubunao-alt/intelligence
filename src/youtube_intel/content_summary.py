@@ -52,6 +52,8 @@ class ContentSummaryAuthority:
         promoted_at = datetime.fromisoformat(
             promoted_raw.removesuffix("Z") + "+00:00"
         )
+        if promoted_at.utcoffset() is None or promoted_at.utcoffset().total_seconds() != 0:
+            raise ValueError("current Summary promoted_at is not UTC")
         return CurrentContentSummaryBinding(
             video_id=str(row["video_id"]),
             result_identity=str(row["result_identity"]),
