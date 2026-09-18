@@ -2371,6 +2371,9 @@ class RuntimeOperations(Operations):
             text = self._verified_artifact(artifact, max_bytes=4_000_000).decode(
                 "utf-8"
             )
+            scoring_language = self._load_scoring(
+                video.video_id
+            ).result.output_language
             return RepositoryBackedAnalysisService(
                 provider=self._dependencies.analysis_provider_factory(),
                 settings=self._config.settings.cloud,
@@ -2385,7 +2388,7 @@ class RuntimeOperations(Operations):
                 video=video,
                 transcript_text=text,
                 language=transcript.language,
-                output_language=self._effective_output_language,
+                output_language=scoring_language,
             )
 
         def note_stage(job: JobRecord, record: VideoRecord) -> None:
