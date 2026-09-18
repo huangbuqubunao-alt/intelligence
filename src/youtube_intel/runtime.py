@@ -1232,6 +1232,16 @@ class RuntimeOperations(Operations):
     def _load_scoring(self, video_id: str) -> ScoringOutcome:
         return self._scoring_reader().read(video_id).scoring_outcome
 
+    def _downstream_output_language(
+        self, video_id: str
+    ) -> ScoringOutputLanguage:
+        """Once scoring succeeds, downstream generation keeps that language."""
+
+        language = self._load_scoring(video_id).result.output_language
+        if language not in {"zh-CN", "en"}:
+            raise ValueError("authoritative scoring language is unsupported")
+        return language
+
     def _load_analysis(self, video_id: str) -> AnalysisOutcome:
         if not self._config.settings.cloud.enabled:
             return AnalysisSkipped(
@@ -2371,9 +2381,7 @@ class RuntimeOperations(Operations):
             text = self._verified_artifact(artifact, max_bytes=4_000_000).decode(
                 "utf-8"
             )
-            scoring_language = self._load_scoring(
-                video.video_id
-            ).result.output_language
+            scoring_language = self._downstream_output_language(video.video_id)
             return RepositoryBackedAnalysisService(
                 provider=self._dependencies.analysis_provider_factory(),
                 settings=self._config.settings.cloud,
