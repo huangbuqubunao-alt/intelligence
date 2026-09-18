@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import sqlite3
 
 from youtube_intel.deep_analysis_persistence import (
     DeepAnalysisPersistenceStore,
@@ -21,6 +22,11 @@ from youtube_intel.state import (
 
 class ContentSummaryReadRejected(ValueError):
     """The current Summary pointer or its trusted target is unavailable."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,13 +52,13 @@ class ContentSummaryAuthority:
         self._store = DeepAnalysisPersistenceStore(repository)
 
     @staticmethod
-    def _binding_from_row(row: object) -> CurrentContentSummaryBinding:
+    def _binding_from_row(row: sqlite3.Row) -> CurrentContentSummaryBinding:
         return CurrentContentSummaryBinding(
-            video_id=str(row["video_id"]),  # type: ignore[index]
-            result_identity=str(row["result_identity"]),  # type: ignore[index]
-            note_identity=str(row["note_identity"]),  # type: ignore[index]
-            output_language=str(row["output_language"]),  # type: ignore[index]
-            promoted_at=_parse_utc_datetime(str(row["promoted_at"])),  # type: ignore[index]
+            video_id=str(row["video_id"]),
+            result_identity=str(row["result_identity"]),
+            note_identity=str(row["note_identity"]),
+            output_language=str(row["output_language"]),
+            promoted_at=_parse_utc_datetime(str(row["promoted_at"])),
         )
 
     def promote_verified_result(
