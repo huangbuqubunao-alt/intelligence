@@ -64,7 +64,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("Temporary", { exact: true }).waitFor();
   await page.getByText("Output language", { exact: true }).waitFor();
   await page.getByText("Chinese (Simplified) · zh-CN", { exact: true }).waitFor();
-  await page.getByText(/current production settings authority is read-only here/i).waitFor();
+  await page.getByLabel("Preferred output language", { exact: true }).waitFor();
+  await page.getByText(/Existing generated content keeps its original recorded language/).waitFor();
+  await page.getByText(/Current source: Configured default/).waitFor();
   await page.getByText("Resource Usage", { exact: true }).waitFor();
   await page.getByText(/Token usage: Unavailable/).waitFor();
   await page.getByText(/Cost: Unavailable/).waitFor();
