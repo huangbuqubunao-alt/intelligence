@@ -26,6 +26,7 @@ from youtube_intel.providers.ollama import (
 )
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.scoring import (
+    AuthoritativeScoringReader,
     InMemoryScoringCache,
     PhaseFTrustedScoringSuccess,
     PrimaryScoringAttempt,
@@ -148,6 +149,59 @@ class _CountingProvider:
             request_hash=getattr(scoring_input, "request_hash"),
             output_language=getattr(scoring_input, "output_language"),
         )
+
+
+def test_authoritative_reader_keeps_historical_output_language_readable(
+    tmp_path: Path,
+) -> None:
+    reader = AuthoritativeScoringReader(
+        repository=object(),
+        data_root=tmp_path,
+        summary_threshold=5.0,
+        pipeline_version="runtime-v1",
+        current_model="fake-model",
+    )
+    historical = ScoreResult(
+        schema_version="score-result-v2",
+        score=7.0,
+        reason="Historical scoring remains readable after a later language preference change.",
+        topics=("history",),
+        should_summarize=True,
+        provider="ollama",
+        model="fake-model",
+        prompt_version="scoring-prompt-v2",
+        request_hash="a" * 64,
+        output_language="en",
+    )
+
+    reader._check_current_model(historical)
+
+
+def test_authoritative_reader_still_rejects_current_model_mismatch(
+    tmp_path: Path,
+) -> None:
+    reader = AuthoritativeScoringReader(
+        repository=object(),
+        data_root=tmp_path,
+        summary_threshold=5.0,
+        pipeline_version="runtime-v1",
+        current_model="current-model",
+    )
+    historical = ScoreResult(
+        schema_version="score-result-v2",
+        score=7.0,
+        reason="Model compatibility remains a separate currentness check.",
+        topics=("history",),
+        should_summarize=True,
+        provider="ollama",
+        model="old-model",
+        prompt_version="scoring-prompt-v2",
+        request_hash="b" * 64,
+        output_language="zh-CN",
+    )
+
+    with pytest.raises(ValueError, match="model does not match current configuration"):
+        reader._check_current_model(historical)
 
 
 class _LegacyProvider(_CountingProvider):
