@@ -185,6 +185,17 @@ def _active_work_reasons(connection: sqlite3.Connection) -> tuple[str, ...]:
             "WHERE status = 'PENDING'",
             "distillation executions",
         ),
+        (
+            "source_run_video_executions",
+            "SELECT COUNT(*) FROM source_run_video_executions "
+            "WHERE state IN ('PENDING','WAITING','DEFERRED')",
+            "source-run child executions",
+        ),
+        (
+            "reports",
+            "SELECT COUNT(*) FROM reports WHERE status = 'PENDING'",
+            "pending reports",
+        ),
     )
     active: list[str] = []
     for table, sql, label in checks:
@@ -220,6 +231,14 @@ def _database_facts(connection: sqlite3.Connection) -> tuple[int, int]:
             ).fetchone()[0]
         )
     return schema_version, vault_count
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _snapshot_database(live_database: Path, destination: Path) -> None:
@@ -497,6 +516,7 @@ class CoreBackupService:
             with temporary_archive.open("rb") as handle:
                 os.fsync(handle.fileno())
             os.replace(temporary_archive, resolved_destination)
+            _fsync_directory(parent)
 
         return CoreBackupResult(resolved_destination, inspection)
 
