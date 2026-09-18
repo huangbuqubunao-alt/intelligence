@@ -332,6 +332,20 @@ def test_note_projection_exposes_bounded_verified_summary_content(
         "language": "zh-CN",
         "summary": "One sentence.",
         "core_points": ["Point one.", "Point two."],
+        "timestamped_key_points": [
+            {
+                "text": "Point one.",
+                "start_seconds": 12.0,
+                "end_seconds": 18.0,
+                "evidence_ids": ["e1"],
+            },
+            {
+                "text": "Point two.",
+                "start_seconds": 30.0,
+                "end_seconds": 35.0,
+                "evidence_ids": ["e2"],
+            },
+        ],
         "evidence_references": [
             {
                 "evidence_id": "e1",
