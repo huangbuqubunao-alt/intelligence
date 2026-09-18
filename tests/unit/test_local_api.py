@@ -365,6 +365,42 @@ def test_note_projection_exposes_bounded_verified_summary_content(
     }
 
 
+def test_note_projection_never_invents_timestamped_key_points(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    summary_section = SimpleNamespace(
+        kind=SimpleNamespace(value="SUMMARY"),
+        entries=(SimpleNamespace(text="One sentence.", evidence_ids=("e1",)),),
+    )
+    points_section = SimpleNamespace(
+        kind=SimpleNamespace(value="CORE_POINTS"),
+        entries=(SimpleNamespace(text="Untimed point.", evidence_ids=("e1",)),),
+    )
+    references = (
+        SimpleNamespace(
+            evidence_id="e1",
+            source="description",
+            excerpt="Untimed evidence.",
+            start_seconds=None,
+            end_seconds=None,
+        ),
+    )
+    app._content_summary_reader.read_current = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        result_identity="b" * 64,
+        note=SimpleNamespace(
+            identity="note-untimed",
+            language="en",
+            sections=(summary_section, points_section),
+            evidence_references=references,
+        ),
+    )
+
+    projection = app._note_projection("abcdefghijk")
+
+    assert projection["v2"]["timestamped_key_points"] == []
+
+
 def test_intelligence_feed_rechecks_each_identity_and_never_emits_raw_content(
     tmp_path: Path,
 ) -> None:
