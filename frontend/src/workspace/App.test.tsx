@@ -97,6 +97,39 @@ test("Content reads the existing video and transcript projections without fabric
   expect(screen.getByText("Processing history")).toBeTruthy();
 });
 
+test("Content renders the explicit current verified Summary instead of raw analysis output", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/videos/video-1")) return response({
+      video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" },
+      transcript: { status: "AVAILABLE", text: "Original transcript evidence.", created_at: "2026-09-01T00:00:00Z" },
+      note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: {
+        status: "AVAILABLE",
+        note_identity: "note-1",
+        result_identity: "result-1",
+        language: "zh-CN",
+        summary: "这是当前正式摘要。",
+        core_points: ["第一点。", "第二点。"],
+        evidence_references: [{ evidence_id: "e1", source: "transcript", excerpt: "Original transcript evidence.", start_seconds: 12, end_seconds: 18 }],
+      } },
+      history: [],
+    });
+    if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" }] });
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Evidence-led product lesson/ }));
+
+  expect(await screen.findByText("这是当前正式摘要。")).toBeTruthy();
+  expect(screen.getByText("第一点。")).toBeTruthy();
+  expect(screen.getByText("第二点。")).toBeTruthy();
+  fireEvent.click(screen.getByText("Evidence references"));
+  expect(screen.getByText("Original transcript evidence.")).toBeTruthy();
+  expect(screen.getByText(/current verified version for this Content/i)).toBeTruthy();
+});
+
+
 test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
