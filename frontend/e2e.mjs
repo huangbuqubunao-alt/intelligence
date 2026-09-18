@@ -57,6 +57,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   if (await page.getByText(/runtime side-effect guard/i).count()) throw new Error("Check Now leaked internal guard language");
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel("Preferred output language").waitFor();
+  await page.getByText(/future processing batches/i).waitFor();
+  await page.getByLabel("Preferred output language").selectOption("en");
+  await page.getByText("Saved locally on this Mac.", { exact: true }).waitFor();
   await page.getByText(/This screen cannot enable a provider/).waitFor();
   await page.getByText("Unavailable", { exact: true }).first().waitFor();
   await page.getByText("Explicit", { exact: true }).waitFor();
