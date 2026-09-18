@@ -226,9 +226,78 @@ def test_content_projection_defaults_to_truthful_unavailable_states(
         "status": "NOT_PROCESSED",
         "reason": "No canonical transcript has been recorded for this video.",
     }
-    assert app._note_projection() == {
+    assert app._note_projection("abcdefghijk") == {
         "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-        "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+        "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_MISSING"},
+    }
+
+
+def test_note_projection_exposes_bounded_verified_summary_content(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    summary_section = SimpleNamespace(
+        kind=SimpleNamespace(value="SUMMARY"),
+        entries=(SimpleNamespace(text="One sentence.", evidence_ids=("e1",)),),
+    )
+    points_section = SimpleNamespace(
+        kind=SimpleNamespace(value="CORE_POINTS"),
+        entries=(
+            SimpleNamespace(text="Point one.", evidence_ids=("e1",)),
+            SimpleNamespace(text="Point two.", evidence_ids=("e2",)),
+        ),
+    )
+    references = (
+        SimpleNamespace(
+            evidence_id="e1",
+            source="transcript",
+            excerpt="Evidence one.",
+            start_seconds=12.0,
+            end_seconds=18.0,
+        ),
+        SimpleNamespace(
+            evidence_id="e2",
+            source="transcript",
+            excerpt="Evidence two.",
+            start_seconds=30.0,
+            end_seconds=35.0,
+        ),
+    )
+    app._content_summary_reader.read_current = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        result_identity="a" * 64,
+        note=SimpleNamespace(
+            identity="note-identity",
+            language="zh-CN",
+            sections=(summary_section, points_section),
+            evidence_references=references,
+        ),
+    )
+
+    projection = app._note_projection("abcdefghijk")
+
+    assert projection["v2"] == {
+        "status": "AVAILABLE",
+        "note_identity": "note-identity",
+        "result_identity": "a" * 64,
+        "language": "zh-CN",
+        "summary": "One sentence.",
+        "core_points": ["Point one.", "Point two."],
+        "evidence_references": [
+            {
+                "evidence_id": "e1",
+                "source": "transcript",
+                "excerpt": "Evidence one.",
+                "start_seconds": 12.0,
+                "end_seconds": 18.0,
+            },
+            {
+                "evidence_id": "e2",
+                "source": "transcript",
+                "excerpt": "Evidence two.",
+                "start_seconds": 30.0,
+                "end_seconds": 35.0,
+            },
+        ],
     }
 
 
