@@ -5693,6 +5693,8 @@ class AuthoritativeScoringReader:
         self._repository = repository
         self._data_root = data_root
         self._summary_threshold = summary_threshold
+        if current_output_language not in {"zh-CN", "en"}:
+            raise ValueError("current output language is unsupported")
         self._pipeline_version = pipeline_version
         self._current_model = current_model
         self._current_output_language = current_output_language
@@ -6043,10 +6045,11 @@ class AuthoritativeScoringReader:
             raise ValueError(
                 "persisted scoring model does not match current configuration"
             )
-        if result.output_language != self._current_output_language:
-            raise ValueError(
-                "persisted scoring output language does not match current configuration"
-            )
+        # Output language is part of the persisted scoring request/result identity.
+        # A later user preference changes only future generation and must not make
+        # an already-authoritative historical scoring result unreadable.
+        if result.output_language not in {"zh-CN", "en"}:
+            raise ValueError("persisted scoring output language is unsupported")
 
     # -- legacy pointerless branch ------------------------------------------
 
