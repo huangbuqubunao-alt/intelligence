@@ -83,6 +83,56 @@ def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) 
     assert payload["providers"][1]["reason"] == "1/2; SCHEMA_INVALID"
 
 
+def test_output_language_uses_bootstrap_default_then_persists_user_choice(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+
+    status, before = app.handle("GET", "/api/v1/settings")
+    assert status == 200
+    assert before["general"]["output_language"] == "zh-CN"
+    assert before["general"]["output_language_source"] == "BOOTSTRAP_DEFAULT"
+
+    status, saved = app.handle(
+        "PUT",
+        "/api/v1/settings/output-language",
+        json.dumps({"output_language": "en"}).encode(),
+    )
+    assert status == 200
+    assert saved["output_language"] == "en"
+    assert saved["source"] == "USER_PREFERENCE"
+
+    _, after = app.handle("GET", "/api/v1/settings")
+    assert after["general"]["output_language"] == "en"
+    assert after["general"]["output_language_source"] == "USER_PREFERENCE"
+
+    repository = app._repository
+    reloaded = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(
+            repository, now=lambda: datetime(2026, 9, 1, tzinfo=UTC)
+        ),
+        output_language_default="zh-CN",
+        now=lambda: datetime(2026, 9, 1, tzinfo=UTC),
+    )
+    _, restarted = reloaded.handle("GET", "/api/v1/settings")
+    assert restarted["general"]["output_language"] == "en"
+
+
+def test_output_language_rejects_unsupported_values(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+
+    status, payload = app.handle(
+        "PUT",
+        "/api/v1/settings/output-language",
+        json.dumps({"output_language": "fr"}).encode(),
+    )
+
+    assert status == 422
+    assert payload["error"]["code"] == "VALIDATION_ERROR"
+    assert app.handle("GET", "/api/v1/settings")[1]["general"]["output_language"] == "zh-CN"
+
+
 def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> None:
     app = _app(tmp_path)
     _, created = app.handle(
