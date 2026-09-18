@@ -50,7 +50,7 @@ test("frozen product IA exposes exactly its six first-level destinations", async
 });
 
 test("a fresh library gets a three-step local-first onboarding with an isolated synthetic sample", async () => {
-  const fetchMock = vi.fn((input: string) => {
+  const fetchMock = vi.fn((input: string, _init?: RequestInit) => {
     if (input.endsWith("/dashboard")) return response({ intelligence: [], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 0 } });
     if (input.endsWith("/sources")) return response({ sources: [] });
     return response({});
