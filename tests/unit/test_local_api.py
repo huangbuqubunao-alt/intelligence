@@ -286,9 +286,9 @@ def test_content_projection_defaults_to_truthful_unavailable_states(
         "status": "NOT_PROCESSED",
         "reason": "No canonical transcript has been recorded for this video.",
     }
-    assert app._note_projection() == {
+    assert app._note_projection("abcdefghijk") == {
         "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-        "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+        "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_MISSING"},
     }
 
 
