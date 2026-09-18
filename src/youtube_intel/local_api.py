@@ -356,6 +356,22 @@ class LocalApiApplication:
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
 
+    def _output_language_projection(self) -> dict[str, object]:
+        preference = self._repository.get_global_output_language_preference()
+        effective = (
+            self._output_language
+            if preference is None
+            else preference.output_language
+        )
+        return {
+            "configured_output_language": self._output_language,
+            "output_language": effective,
+            "output_language_source": "CONFIG" if preference is None else "USER",
+            "output_language_updated_at": (
+                None if preference is None else _timestamp(preference.updated_at)
+            ),
+        }
+
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
         if len(body) > 32_768:
@@ -911,6 +927,27 @@ class LocalApiApplication:
                     enabled=self._boolean(data, "enabled") is not False,
                 )
                 return HTTPStatus.CREATED, {"schedule": self._schedule_dto(schedule)}
+            if method == "PUT" and route == "/api/v1/settings/output-language":
+                self._only_keys(data, {"output_language"})
+                output_language = self._string(
+                    data, "output_language", required=True
+                )
+                assert output_language is not None
+                preference = self._repository.save_global_output_language_preference(
+                    output_language=output_language,
+                    now=self._now(),
+                )
+                return HTTPStatus.OK, {
+                    "general": {
+                        "timezone": self._timezone,
+                        **self._output_language_projection(),
+                    },
+                    "preference": {
+                        "output_language": preference.output_language,
+                        "updated_at": _timestamp(preference.updated_at),
+                    },
+                    "historical_content_unchanged": True,
+                }
             if method == "PUT" and route == "/api/v1/settings/model-preference":
                 pref = self._service.set_desired_model(
                     provider=self._string(data, "provider"),
@@ -1147,7 +1184,7 @@ class LocalApiApplication:
                 },
                 "general": {
                     "timezone": self._timezone,
-                    "output_language": self._output_language,
+                    **self._output_language_projection(),
                 },
                 "model_preference": {
                     "desired_provider": None
