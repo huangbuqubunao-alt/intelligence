@@ -48,6 +48,7 @@ from youtube_intel.domain import (
     ScoringEvidenceSource,
     ScoringInput,
     ScoringOutcome,
+    ScoringOutputLanguage,
     SourceProvider,
     TranscriptionRequired,
     TranscriptReady,
@@ -263,16 +264,25 @@ def _build_quality_provenance_authority(
     )
 
 
-def _build_trusted_scoring_context(config: AppConfig) -> TrustedScoringContext:
-    """Mint scoring provenance from the validated runtime configuration only."""
+def _build_trusted_scoring_context(
+    config: AppConfig,
+    *,
+    output_language: ScoringOutputLanguage | None = None,
+) -> TrustedScoringContext:
+    """Mint scoring provenance from validated config plus the persisted user preference."""
 
     local_scoring = config.settings.local_scoring
+    effective_output_language = (
+        config.settings.general.output_language
+        if output_language is None
+        else output_language
+    )
     return _mint_trusted_scoring_context(
         sentinel=_TRUSTED_SCORING_CONTEXT_SENTINEL,
         scoring_provider=_JUDGE_PROVIDER,
         scoring_model=local_scoring.model,
         scoring_model_digest=local_scoring.expected_model_digest,
-        output_language=config.settings.general.output_language,
+        output_language=effective_output_language,
         scoring_schema_version=_SCORING_SCHEMA_VERSION,
         scoring_prompt_version=_SCORING_PROMPT_VERSION,
         scoring_operation=_SCORING_OPERATION,
@@ -403,11 +413,19 @@ class RuntimeOperations(Operations):
         self._config = config
         self._root = project_root.resolve(strict=True)
         self._repository = bootstrap_runtime(config, self._root)
+        self._output_language = cast(
+            ScoringOutputLanguage,
+            self._repository.effective_output_language(
+                config.settings.general.output_language
+            ),
+        )
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
         )
-        self._trusted_scoring_context = _build_trusted_scoring_context(config)
+        self._trusted_scoring_context = _build_trusted_scoring_context(
+            config, output_language=self._output_language
+        )
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,
@@ -1213,7 +1231,7 @@ class RuntimeOperations(Operations):
             summary_threshold=self._config.settings.thresholds.summary_score,
             pipeline_version=PIPELINE_VERSION,
             current_model=self._config.settings.local_scoring.model,
-            current_output_language=self._config.settings.general.output_language,
+            current_output_language=self._output_language,
         )
 
     def _load_scoring(self, video_id: str) -> ScoringOutcome:
@@ -1315,7 +1333,7 @@ class RuntimeOperations(Operations):
                 artifact,
                 max_bytes=4_000_000,
             ).decode("utf-8")
-            configured_output_language = self._config.settings.general.output_language
+            configured_output_language = self._output_language
             scoring_input = build_scoring_input(
                 video=video,
                 transcript_text=text,
@@ -2615,7 +2633,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 14:
+        if integrity != ("ok",) or version != 15:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)
