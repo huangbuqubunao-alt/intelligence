@@ -29,7 +29,8 @@ beforeEach(() => {
     ] });
     if (input.endsWith("/settings/source-policy")) return response({ policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: [], ignore_rules: [], distillation_style: "BALANCED" } });
     if (input.endsWith("/settings/resource-usage")) return response({ usage: [{ execution_id: "exec-1", reason: "PERSONALIZED_INTELLIGENCE", actual_provider: "offline-test", actual_model: "deterministic-v1", invocation_count: 1, input_tokens: null, output_tokens: null, cost_microunits: null, duration_ms: 0, status: "SUCCEEDED", budget_state: "ADMITTED", outcome: "ADMITTED" }] });
-    if (input.endsWith("/settings")) return response({ general: { timezone: "Asia/Shanghai", output_language: "zh-CN" }, providers: [{ provider: "Kimi", production_eligible: false, qualification_status: "UNQUALIFIED", reason: "Not qualified" }] });
+    if (input.endsWith("/settings/output-language") && init?.method === "PUT") return response({ general: { timezone: "Asia/Shanghai", configured_output_language: "zh-CN", output_language: JSON.parse(String(init.body)).output_language, output_language_source: "USER", output_language_updated_at: "2026-09-01T00:00:00Z" }, historical_content_unchanged: true });
+    if (input.endsWith("/settings")) return response({ general: { timezone: "Asia/Shanghai", configured_output_language: "zh-CN", output_language: "zh-CN", output_language_source: "CONFIG", output_language_updated_at: null }, providers: [{ provider: "Kimi", production_eligible: false, qualification_status: "UNQUALIFIED", reason: "Not qualified" }] });
     if (input.endsWith("/saved-intelligence/save") || input.endsWith("/saved-intelligence/unsave")) return response({ saved: true });
     return response({});
   }));
@@ -132,12 +133,29 @@ test("Settings preserves preference provenance and renders unknown resource valu
   expect(screen.getByText(/Expires Sep 2, 2026/)).toBeTruthy();
   expect(screen.getByText("Output language")).toBeTruthy();
   expect(screen.getByText("Chinese (Simplified) · zh-CN")).toBeTruthy();
-  expect(screen.getByText(/current production settings authority is read-only here/i)).toBeTruthy();
+  expect(screen.getByText(/Existing generated content keeps its original recorded language/i)).toBeTruthy();
+  expect(screen.getByText(/Current source: Configured default/)).toBeTruthy();
+  expect(screen.getByLabelText("Preferred output language")).toBeTruthy();
   expect(screen.getByText("Resource Usage")).toBeTruthy();
   expect(screen.getByText(/Token usage: Unavailable/)).toBeTruthy();
   expect(screen.getByText(/Cost: Unavailable/)).toBeTruthy();
   expect(screen.queryByText(/estimated/i)).toBeNull();
 });
+
+test("changing output language persists through the settings API and preserves history", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  await screen.findByText("Chinese (Simplified) · zh-CN");
+
+  fireEvent.change(screen.getByLabelText("Preferred output language"), { target: { value: "en" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save language" }));
+
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/settings/output-language", expect.objectContaining({ method: "PUT", body: JSON.stringify({ output_language: "en" }) })));
+  expect(await screen.findByText("English · en")).toBeTruthy();
+  expect(screen.getByText("Saved. Existing generated content was not changed.")).toBeTruthy();
+  expect(screen.getByText(/Current source: Your saved preference/)).toBeTruthy();
+});
+
 
 test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as failure or Retry", async () => {
   render(<App />);
