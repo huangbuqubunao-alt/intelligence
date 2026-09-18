@@ -964,6 +964,7 @@ def _open_demo(root: Path) -> DemoRuntime:
         data_root=root / "data",
         vault_root=root / "vault",
         timezone="Asia/Shanghai",
+        output_language="zh-CN",
         now=lambda: _NOW,
         runtime_mode="PO_REVIEW_DEMO",
         demo_data=True,
