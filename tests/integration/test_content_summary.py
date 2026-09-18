@@ -81,6 +81,28 @@ def test_current_summary_reader_rejects_tampered_pointer_metadata(
     assert rejected.value.code == "CURRENT_SUMMARY_BINDING_INVALID"
 
 
+def test_current_summary_reader_fails_closed_on_malformed_binding_timestamp(
+    tmp_path: Path,
+    admitted_artifact_bundle: Callable[..., tuple[object, object, object, object, object]],
+) -> None:
+    artifact, repository, persisted = _persist(admitted_artifact_bundle, tmp_path)
+    authority = ContentSummaryAuthority(repository)
+    authority.promote_verified_result(persisted, now=NOW)
+
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE current_content_summaries SET promoted_at = ? WHERE video_id = ?",
+            ("not-a-timestamp", artifact.video_id),
+        )
+    finally:
+        connection.close()
+
+    with pytest.raises(ContentSummaryReadRejected) as rejected:
+        authority.read_current(artifact.video_id)
+    assert rejected.value.code == "CURRENT_SUMMARY_BINDING_INVALID"
+
+
 def test_verified_read_from_another_repository_cannot_be_promoted(
     tmp_path: Path,
     admitted_artifact_bundle: Callable[..., tuple[object, object, object, object, object]],
