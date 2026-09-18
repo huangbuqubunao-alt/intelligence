@@ -151,6 +151,7 @@ def main(
                         / config.settings.storage.vault_subdir
                     ),
                     timezone=config.settings.general.timezone,
+                    output_language=config.settings.general.output_language,
                 ),
                 port=args.port,
             )
