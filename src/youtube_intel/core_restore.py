@@ -124,10 +124,13 @@ class CoreRestoreCoordinator:
 
     def stage_backup(self, archive_path: Path) -> StagedCoreRestore:
         self._ensure_control_directories()
-        return self._backup.stage_restore(
-            archive_path,
-            staging_parent=self._staged_parent,
-        )
+        try:
+            return self._backup.stage_restore(
+                archive_path,
+                staging_parent=self._staged_parent,
+            )
+        except CoreBackupError as error:
+            raise CoreRestoreError("backup could not be staged safely") from error
 
     def schedule_restore(
         self,
@@ -144,7 +147,10 @@ class CoreRestoreCoordinator:
             raise CoreRestoreError("another restore is already pending")
 
         staging_root = self._managed_staging_root(staged.staging_root)
-        inspection = self._backup.inspect_staged_restore(staging_root)
+        try:
+            inspection = self._backup.inspect_staged_restore(staging_root)
+        except CoreBackupError as error:
+            raise CoreRestoreError("staged restore failed revalidation") from error
         if inspection != staged.inspection:
             raise CoreRestoreError("staged restore changed before confirmation")
 
@@ -279,7 +285,12 @@ class CoreRestoreCoordinator:
         if pending is None:
             return None
 
-        inspection = self._backup.inspect_staged_restore(pending.staging_root)
+        try:
+            inspection = self._backup.inspect_staged_restore(pending.staging_root)
+        except CoreBackupError as error:
+            raise CoreRestoreError(
+                "staged restore failed startup revalidation; live data was not touched"
+            ) from error
         if (
             inspection.created_at != pending.backup_created_at
             or inspection.schema_version != pending.schema_version
@@ -401,8 +412,11 @@ class CoreRestoreCoordinator:
     def _managed_staging_root(self, path: Path) -> Path:
         if not self._staged_parent.exists():
             raise CoreRestoreError("restore staging parent does not exist")
-        parent = self._staged_parent.resolve(strict=True)
-        resolved = path.resolve(strict=True)
+        try:
+            parent = self._staged_parent.resolve(strict=True)
+            resolved = path.resolve(strict=True)
+        except OSError as error:
+            raise CoreRestoreError("restore staging root is unavailable") from error
         if path.is_symlink() or not resolved.is_dir() or resolved.parent != parent:
             raise CoreRestoreError("restore staging root is outside the managed boundary")
         return resolved
