@@ -416,6 +416,20 @@ def test_runtime_refreshes_output_language_only_for_new_processing_batch(
     assert runtime._trusted_scoring_context.output_language == "zh-CN"
 
 
+def test_downstream_generation_keeps_completed_scoring_language(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path / "project")
+    runtime._effective_output_language = "zh-CN"
+    runtime._load_scoring = lambda _video_id: type(  # type: ignore[method-assign]
+        "_Outcome",
+        (),
+        {"result": type("_Result", (), {"output_language": "en"})()},
+    )()
+
+    assert runtime._downstream_output_language("video-1") == "en"
+
+
 def test_historical_scoring_language_is_not_compared_to_current_preference(
     tmp_path: Path,
 ) -> None:
