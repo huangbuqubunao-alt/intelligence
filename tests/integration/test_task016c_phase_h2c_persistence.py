@@ -473,14 +473,19 @@ def test_retry_excludes_trust_integrity_invalid_by_code_alone(
 from youtube_intel.scoring import AuthoritativeScoringReader  # noqa: E402
 
 
-def _reader(repository: SQLiteStateRepository, tmp_path: Path) -> AuthoritativeScoringReader:
+def _reader(
+    repository: SQLiteStateRepository,
+    tmp_path: Path,
+    *,
+    current_output_language: str = "en",
+) -> AuthoritativeScoringReader:
     return AuthoritativeScoringReader(
         repository=repository,
         data_root=tmp_path / "data",
         summary_threshold=7.0,
         pipeline_version=_PIPELINE_VERSION,
         current_model=_MODEL,
-        current_output_language="en",
+        current_output_language=current_output_language,
     )
 
 
@@ -497,6 +502,24 @@ def test_reader_returns_verified_repair_read(tmp_path: Path) -> None:
     assert read.scoring_success_provenance == "REPAIR_H2C"
     assert read.scoring_outcome.result.score == 8
     assert read.scoring_outcome.decision.final_should_summarize is True
+
+
+def test_reader_preserves_authoritative_history_after_output_language_preference_changes(
+    tmp_path: Path,
+) -> None:
+    repository = _setup_repository(tmp_path)
+    _claim_scoring_job(repository)
+    entry = _entry(repository, tmp_path)
+    entry.persist_success(_repair_success())
+
+    read = _reader(
+        repository,
+        tmp_path,
+        current_output_language="zh-CN",
+    ).read(_VIDEO_ID)
+
+    assert read.scoring_outcome.result.output_language == "en"
+    assert read.scoring_success_provenance == "REPAIR_H2C"
 
 
 def test_reader_legacy_pointerless_read_requires_null_generation(
