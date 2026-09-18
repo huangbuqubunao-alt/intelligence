@@ -62,6 +62,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("Explicit", { exact: true }).waitFor();
   await page.getByText("Derived", { exact: true }).waitFor();
   await page.getByText("Temporary", { exact: true }).waitFor();
+  await page.getByText("Output language", { exact: true }).waitFor();
+  await page.getByText("Chinese (Simplified) · zh-CN", { exact: true }).waitFor();
+  await page.getByText(/current production settings authority is read-only here/i).waitFor();
   await page.getByText("Resource Usage", { exact: true }).waitFor();
   await page.getByText(/Token usage: Unavailable/).waitFor();
   await page.getByText(/Cost: Unavailable/).waitFor();
