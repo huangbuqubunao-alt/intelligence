@@ -12,7 +12,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO
+from typing import BinaryIO, Callable
 
 from youtube_intel.state import format_utc_datetime
 
@@ -374,7 +374,7 @@ class CoreBackupService:
         *,
         data_root: Path,
         app_version: str,
-        now: callable[[], datetime] | None = None,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._data_root = data_root.resolve(strict=False)
         self._database = self._data_root / "state.sqlite"
@@ -411,8 +411,9 @@ class CoreBackupService:
             finally:
                 snapshot_connection.close()
 
-            database_body = snapshot.read_bytes()
-            database_hash = hashlib.sha256(database_body).hexdigest()
+            with snapshot.open("rb") as database_source:
+                database_hash, database_bytes = _sha256_stream(database_source)
+            total_bytes = database_bytes
             artifacts: list[dict[str, object]] = []
 
             try:
@@ -423,7 +424,15 @@ class CoreBackupService:
                     compresslevel=6,
                     allowZip64=True,
                 ) as archive:
-                    archive.writestr(_DATABASE_ARCHIVE_PATH, database_body)
+                    with snapshot.open("rb") as database_source:
+                        with archive.open(
+                            _DATABASE_ARCHIVE_PATH, "w", force_zip64=True
+                        ) as database_target:
+                            while True:
+                                chunk = database_source.read(_CHUNK)
+                                if not chunk:
+                                    break
+                                database_target.write(chunk)
                     for row in rows:
                         relative = _safe_archive_path(str(row["relative_path"]))
                         archive_path = f"data/{relative}"
@@ -442,6 +451,11 @@ class CoreBackupService:
                                         )
                                     digest.update(chunk)
                                     target.write(chunk)
+                        total_bytes += size
+                        if total_bytes > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+                            raise CoreBackupError(
+                                "backup exceeds the supported V1 size limit"
+                            )
                         expected = str(row["content_hash"])
                         if digest.hexdigest() != expected:
                             raise CoreBackupError(
@@ -463,7 +477,7 @@ class CoreBackupService:
                         app_version=self._app_version,
                         schema_version=schema_version,
                         database_hash=database_hash,
-                        database_bytes=len(database_body),
+                        database_bytes=database_bytes,
                         artifacts=artifacts,
                         excluded_vault_artifact_count=vault_count,
                     )
@@ -477,15 +491,13 @@ class CoreBackupService:
                         ).encode("utf-8"),
                     )
             except (OSError, sqlite3.Error, zipfile.BadZipFile) as error:
-                if isinstance(error, CoreBackupError):
-                    raise
                 raise CoreBackupError("backup archive creation failed") from error
 
+            inspection = self.inspect_backup(temporary_archive)
             with temporary_archive.open("rb") as handle:
                 os.fsync(handle.fileno())
             os.replace(temporary_archive, resolved_destination)
 
-        inspection = self.inspect_backup(resolved_destination)
         return CoreBackupResult(resolved_destination, inspection)
 
     def inspect_backup(self, archive_path: Path) -> CoreBackupInspection:
@@ -509,6 +521,10 @@ class CoreBackupService:
                 if manifest_info.file_size > _MAX_MANIFEST_BYTES:
                     raise CoreBackupError("backup manifest is too large")
                 manifest = _parse_manifest(archive.read(manifest_info))
+
+                app_version = manifest.get("app_version")
+                if not isinstance(app_version, str) or not app_version.strip():
+                    raise CoreBackupError("backup app version is invalid")
 
                 schema_version = manifest.get("schema_version")
                 if (
