@@ -12,12 +12,7 @@ from youtube_intel.deep_analysis_persistence import (
     verify_persisted_deep_analysis_read,
 )
 from youtube_intel.note_v2 import NoteV2, build_note_v2
-from youtube_intel.state import (
-    IntegrityConflict,
-    SQLiteStateRepository,
-    format_utc_datetime,
-    _parse_utc_datetime,
-)
+from youtube_intel.state import IntegrityConflict, SQLiteStateRepository, format_utc_datetime
 
 
 class ContentSummaryReadRejected(ValueError):
@@ -53,12 +48,16 @@ class ContentSummaryAuthority:
 
     @staticmethod
     def _binding_from_row(row: sqlite3.Row) -> CurrentContentSummaryBinding:
+        promoted_raw = str(row["promoted_at"])
+        promoted_at = datetime.fromisoformat(
+            promoted_raw.removesuffix("Z") + "+00:00"
+        )
         return CurrentContentSummaryBinding(
             video_id=str(row["video_id"]),
             result_identity=str(row["result_identity"]),
             note_identity=str(row["note_identity"]),
             output_language=str(row["output_language"]),
-            promoted_at=_parse_utc_datetime(str(row["promoted_at"])),
+            promoted_at=promoted_at,
         )
 
     def promote_verified_result(
@@ -172,7 +171,14 @@ class ContentSummaryAuthority:
                 "CURRENT_SUMMARY_MISSING", "current Summary is unavailable"
             )
 
-        binding = self._binding_from_row(row)
+        try:
+            binding = self._binding_from_row(row)
+        except (KeyError, TypeError, ValueError) as error:
+            raise ContentSummaryReadRejected(
+                "CURRENT_SUMMARY_BINDING_INVALID",
+                "current Summary pointer metadata is invalid",
+            ) from error
+
         persisted = self._store.read_persisted_deep_analysis_result(
             result_identity=binding.result_identity
         )
