@@ -114,7 +114,7 @@ test("Check Now preserves a legal guarded state without inventing a Source Run o
   fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
   fireEvent.click(await screen.findByRole("button", { name: "Check Now" }));
-  expect(await screen.findByText(/Check Now cannot start in this local demo/)).toBeTruthy();
+  expect(await screen.findByText(/Processing is currently unavailable in this local setup/)).toBeTruthy();
   expect(screen.queryByText(/runtime side-effect guard/i)).toBeNull();
   expect(screen.queryByText("Retry")).toBeNull();
 });
@@ -155,8 +155,8 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
   expect(screen.getByLabelText("Focus")).toBeTruthy();
   expect(screen.getByLabelText("Ignore")).toBeTruthy();
   expect(screen.getByLabelText("Distillation style")).toBeTruthy();
-  expect(screen.getByText(/recent existing videos are considered when this Source is first added/i)).toBeTruthy();
-  expect(screen.getByText(/maximum number of new videos processed in one Source Run/i)).toBeTruthy();
+  expect(screen.getByText(/recent existing videos are considered when this Following is first added/i)).toBeTruthy();
+  expect(screen.getByText(/maximum number of new videos processed in one bounded run/i)).toBeTruthy();
   expect(Array.from((screen.getByLabelText("Initial history") as HTMLSelectElement).options).map(option => option.value)).toEqual(["0", "1", "3", "5", "10"]);
   expect(Array.from((screen.getByLabelText("Per-run limit") as HTMLSelectElement).options).map(option => option.value)).toEqual(["1", "3", "5", "10"]);
   expect(Array.from((screen.getByLabelText("Distillation style") as HTMLSelectElement).options).map(option => option.value)).toEqual(["BALANCED", "TECHNICAL_DETAIL_FIRST", "PRODUCT_CASE_FIRST", "TREND_OPINION_FIRST"]);
