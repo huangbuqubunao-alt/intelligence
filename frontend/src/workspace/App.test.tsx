@@ -98,6 +98,30 @@ test("Content reads the existing video and transcript projections without fabric
   expect(screen.getByText("Processing history")).toBeTruthy();
 });
 
+test("Content renders the explicit current Summary with key points and evidence timestamps", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/videos/video-1")) return response({
+      video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" },
+      transcript: { status: "AVAILABLE", text: "Original transcript remains separately readable.", created_at: "2026-09-01T00:00:00Z" },
+      note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: { status: "AVAILABLE", note_identity: "note-1", result_identity: "result-1", language: "en", one_sentence_summary: "A current official summary.", summary_evidence_ids: ["e1"], core_points: [{ text: "Keep one validated current version.", evidence_ids: ["e1"] }], evidence: [{ evidence_id: "e1", source: "transcript", excerpt: "Validated evidence excerpt.", start_seconds: 12.4, end_seconds: 19.0 }] } },
+      history: [],
+    });
+    if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" }] });
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Evidence-led product lesson/ }));
+
+  expect(await screen.findByText("A current official summary.")).toBeTruthy();
+  expect(screen.getByText("Keep one validated current version.")).toBeTruthy();
+  expect(screen.getByText("English")).toBeTruthy();
+  fireEvent.click(screen.getByText("Evidence and timestamps"));
+  expect(screen.getByText(/e1.*12s.*Validated evidence excerpt/)).toBeTruthy();
+});
+
+
 test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
