@@ -108,6 +108,7 @@ def test_core_backup_round_trip_inspection_and_staging_excludes_vault(
     )
     try:
         assert staged.inspection == result.inspection
+        assert (staged.staging_root / "manifest.json").is_file()
         assert (staged.data_root / "state.sqlite").is_file()
         assert (
             staged.data_root / "transcripts" / "example.txt"
@@ -120,6 +121,27 @@ def test_core_backup_round_trip_inspection_and_staging_excludes_vault(
             assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
         finally:
             connection.close()
+    finally:
+        shutil.rmtree(staged.staging_root)
+
+
+def test_staged_restore_revalidation_detects_post_stage_tampering(
+    tmp_path: Path,
+) -> None:
+    data_root, _repository = _workspace(tmp_path)
+    output = tmp_path / "exports"
+    output.mkdir()
+    archive = output / "good.intelligence-backup"
+    service = _service(data_root)
+    service.create_backup(archive)
+
+    staging_parent = tmp_path / "restore-staging"
+    staging_parent.mkdir()
+    staged = service.stage_restore(archive, staging_parent=staging_parent)
+    try:
+        (staged.data_root / "transcripts" / "example.txt").write_bytes(b"tampered")
+        with pytest.raises(CoreBackupError, match="checksum"):
+            service.inspect_staged_restore(staged.staging_root)
     finally:
         shutil.rmtree(staged.staging_root)
 
