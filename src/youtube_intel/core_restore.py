@@ -25,10 +25,16 @@ _PENDING_FILE = "pending.json"
 _STAGED_DIR = "staged"
 _PREVIOUS_DIR = "previous"
 _FAILED_DIR = "failed"
+_STATUS_FILE = "last-result.json"
+_STATUS_FORMAT = "intelligence-restore-result-v1"
 
 
 class CoreRestoreError(ValueError):
-    """A confirmed restore could not proceed without risking current data."""
+    """A restore attempt failed while current data remained available."""
+
+
+class CoreRestoreFatalError(CoreRestoreError):
+    """Automatic rollback could not prove which live data set is authoritative."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,7 +382,7 @@ class CoreRestoreCoordinator:
                     _fsync_directory(self._data_root.parent)
                     moved_current = False
                 except BaseException as rollback_error:
-                    raise CoreRestoreError(
+                    raise CoreRestoreFatalError(
                         "restore failed and automatic rollback could not complete"
                     ) from rollback_error
                 self._pending_path.unlink(missing_ok=True)
@@ -399,6 +405,70 @@ class CoreRestoreCoordinator:
             previous_data_root=previous_data,
             inspection=inspection,
         )
+
+    def record_startup_failure(self, error: CoreRestoreError) -> None:
+        """Consume a safe failed intent so the app can reopen on unchanged data."""
+
+        self._ensure_control_directories()
+        self._pending_path.unlink(missing_ok=True)
+        self._write_status(
+            {
+                "format": _STATUS_FORMAT,
+                "status": "FAILED",
+                "attempted_at": format_utc_datetime(self._now()),
+                "message": str(error),
+            }
+        )
+
+    def record_startup_success(self, result: AppliedCoreRestore) -> None:
+        self._ensure_control_directories()
+        self._write_status(
+            {
+                "format": _STATUS_FORMAT,
+                "status": "SUCCEEDED",
+                "attempted_at": format_utc_datetime(self._now()),
+                "backup_created_at": format_utc_datetime(result.inspection.created_at),
+                "previous_data_relative": result.previous_data_root.relative_to(
+                    self._project_root
+                ).as_posix(),
+            }
+        )
+
+    def last_restore_status(self) -> dict[str, object] | None:
+        path = self._control_root / _STATUS_FILE
+        if not path.exists():
+            return None
+        if path.is_symlink() or not path.is_file():
+            raise CoreRestoreError("restore result status is unsafe")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise CoreRestoreError("restore result status is invalid") from error
+        if not isinstance(value, dict) or value.get("format") != _STATUS_FORMAT:
+            raise CoreRestoreError("restore result status format is invalid")
+        return value
+
+    def _write_status(self, value: dict[str, object]) -> None:
+        body = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=".restore-status-",
+            dir=self._control_root,
+        )
+        temporary_path = Path(temporary)
+        try:
+            with os.fdopen(descriptor, "wb") as target:
+                target.write(body)
+                target.flush()
+                os.fsync(target.fileno())
+            os.replace(temporary_path, self._control_root / _STATUS_FILE)
+            _fsync_directory(self._control_root)
+        finally:
+            temporary_path.unlink(missing_ok=True)
 
     def _ensure_control_directories(self) -> None:
         for path in (self._control_root, self._staged_parent):
@@ -437,13 +507,23 @@ def apply_pending_core_restore(
         app_version=app_version,
         now=now,
     )
-    return coordinator.apply_pending_on_startup()
+    try:
+        result = coordinator.apply_pending_on_startup()
+    except CoreRestoreFatalError:
+        raise
+    except CoreRestoreError as error:
+        coordinator.record_startup_failure(error)
+        return None
+    if result is not None:
+        coordinator.record_startup_success(result)
+    return result
 
 
 __all__ = [
     "AppliedCoreRestore",
     "CoreRestoreCoordinator",
     "CoreRestoreError",
+    "CoreRestoreFatalError",
     "PendingCoreRestore",
     "apply_pending_core_restore",
 ]
