@@ -1408,6 +1408,7 @@ class SQLiteStateRepository:
             "012_add_source_run_orchestration.sql",
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
+            "015_add_current_content_summary.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
