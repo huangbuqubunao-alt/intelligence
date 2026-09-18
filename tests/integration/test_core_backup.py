@@ -162,7 +162,7 @@ def test_missing_live_data_artifact_aborts_without_publishing_backup(
     output.mkdir()
     destination = output / "should-not-exist.intelligence-backup"
 
-    with pytest.raises((CoreBackupError, FileNotFoundError)):
+    with pytest.raises(CoreBackupError):
         _service(data_root).create_backup(destination)
 
     assert not destination.exists()
