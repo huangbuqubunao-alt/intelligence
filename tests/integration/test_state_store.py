@@ -102,6 +102,7 @@ EXPECTED_TABLES = {
     "weekly_brief_preference_projections",
     "brief_item_markers",
     "global_model_preferences",
+    "global_user_settings",
     "evidence",
     "intelligences",
     "intelligence_revisions",
@@ -130,6 +131,7 @@ EXPECTED_TABLES = {
 }
 EXPECTED_COLUMNS = {
     "saved_intelligences": ("intelligence_id", "saved_at"),
+    "global_user_settings": ("settings_key", "output_language", "updated_at"),
     "current_content_summaries": ("video_id", "result_identity", "updated_at"),
     "schema_migrations": ("version", "name", "checksum", "applied_at"),
     "videos": (
@@ -795,12 +797,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "015_add_current_content_summary.sql")
+        .joinpath("migrations", "016_add_global_output_language.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 15
-    assert first.name == "015_add_current_content_summary.sql"
+    assert first.version == 16
+    assert first.name == "016_add_global_output_language.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -815,7 +817,33 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 15
+    assert migration_count == 16
+
+
+def test_global_output_language_persists_and_rejects_unsupported_values(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    assert repository.get_global_user_settings() is None
+
+    saved = repository.save_global_output_language(
+        output_language="en", now=NOW
+    )
+    assert saved.output_language == "en"
+    assert repository.get_global_user_settings() == saved
+
+    replaced = repository.save_global_output_language(
+        output_language="zh-CN", now=NOW + td(minutes=1)
+    )
+    assert replaced.output_language == "zh-CN"
+    assert repository.get_global_user_settings() == replaced
+
+    with pytest.raises(ValueError, match="output language is unsupported"):
+        repository.save_global_output_language(
+            output_language="fr", now=NOW + td(minutes=2)
+        )
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
