@@ -10,6 +10,8 @@ beforeEach(() => {
   location.hash = "";
   vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
     if (input.endsWith("/dashboard")) return response({ intelligence: [intelligence], pinned_topics: [], weekly_v1: [], needs_attention: [{ run_id: "attention-1", state: "NEEDS_ATTENTION", attention_reason: "MODEL_UNAVAILABLE", trigger: "MANUAL_CHECK_NOW", updated_at: "2026-09-01T00:00:00Z" }], operations: { source_count: 1 } });
+    if (input.endsWith("/videos/video-1")) return response({ video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "TRANSCRIPT_READY", last_updated: "2026-09-01T00:00:00Z" }, transcript: { status: "AVAILABLE", text: "A decision log preserves evidence and makes the reasoning traceable.", created_at: "2026-09-01T00:00:00Z" }, note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: { status: "UNAVAILABLE", code: "NOTE_V2_UNAVAILABLE" } }, history: [{ timestamp: "2026-09-01T00:00:00Z", status: "SUCCEEDED", summary: "Transcript processing completed." }] });
+    if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "TRANSCRIPT_READY", last_updated: "2026-09-01T00:00:00Z" }] });
     if (input.endsWith("/intelligence")) return response({ intelligence: [intelligence] });
     if (input.endsWith("/intelligence/intel-1")) return response({ intelligence });
     if (input.endsWith("/saved-intelligence")) return response({ saved: [{ intelligence_id: "intel-old", saved_at: "2026-09-01T00:00:00Z", intelligence: { status: "UNAVAILABLE", code: "CURRENT_NOT_ACTIVE", trusted: false } }] });
@@ -41,10 +43,20 @@ test("PO demo can direct the development proxy to its owned loopback API", () =>
 test("frozen product IA exposes exactly its six first-level destinations", async () => {
   render(<App />);
   await screen.findByText("Important Intelligence");
-  expect(screen.getAllByRole("button", { name: /^(Dashboard|Intelligence|Topics|Sources|Investigations|Settings)$/ })).toHaveLength(6);
-  for (const legacy of ["Videos", "Activity", "Saved", "Weekly", "Daily", "Ask", "Runs", "Jobs"]) expect(screen.queryByRole("button", { name: new RegExp(`^${legacy}$`) })).toBeNull();
+  expect(screen.getAllByRole("button", { name: /^(Home|Following|Content|Intelligence|Topics|Settings)$/ })).toHaveLength(6);
+  for (const legacy of ["Dashboard", "Sources", "Investigations", "Videos", "Activity", "Saved", "Weekly", "Daily", "Ask", "Runs", "Jobs"]) expect(screen.queryByRole("button", { name: new RegExp(`^${legacy}$`) })).toBeNull();
   expect(screen.getByText("Analysis is paused because no approved model is currently available.")).toBeTruthy();
   expect(screen.queryByText("MODEL_UNAVAILABLE")).toBeNull();
+});
+
+test("Content reads the existing video and transcript projections without fabricating notes", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Evidence-led product lesson/ }));
+  expect(await screen.findByText("A decision log preserves evidence and makes the reasoning traceable.")).toBeTruthy();
+  expect(screen.getByText("Summary / Video Notes")).toBeTruthy();
+  expect(screen.getByText(/No summary is fabricated from missing output/)).toBeTruthy();
+  expect(screen.getByText("Processing history")).toBeTruthy();
 });
 
 test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
@@ -65,13 +77,11 @@ test("Save uses the persisted command rather than browser-only state", async () 
   await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/saved-intelligence/save", expect.objectContaining({ method: "POST", body: JSON.stringify({ intelligence_id: "intel-1" }) })));
 });
 
-test("Investigations and Deep Analysis remain truthful V1-unavailable states", async () => {
+test("Deep Analysis remains a truthful unavailable state in Settings", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Investigations" }));
-  expect(await screen.findByText("Investigations are not active in V1")).toBeTruthy();
-  expect(screen.getByText(/no active runtime, Evidence Expansion/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByText(/This screen cannot enable a provider/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Investigations" })).toBeNull();
 });
 
 test("Settings preserves preference provenance and renders unknown resource values as unknown", async () => {
@@ -90,7 +100,7 @@ test("Settings preserves preference provenance and renders unknown resource valu
 
 test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as failure or Retry", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
   expect(await screen.findByText("Skipped")).toBeTruthy();
   expect(screen.getByText(/Runs daily at 08:30/)).toBeTruthy();
@@ -101,7 +111,7 @@ test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as fail
 
 test("Check Now preserves a legal guarded state without inventing a Source Run or Retry", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
   fireEvent.click(await screen.findByRole("button", { name: "Check Now" }));
   expect(await screen.findByText(/Check Now cannot start in this local demo/)).toBeTruthy();
@@ -111,7 +121,7 @@ test("Check Now preserves a legal guarded state without inventing a Source Run o
 
 test("stopping a Source uses the legal enabled command and is not historical deletion", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(await screen.findByRole("button", { name: /Source.*Monitoring new videos/ }));
   expect(await screen.findByText(/existing Intelligence remains unchanged/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Stop future monitoring" }));
@@ -132,13 +142,13 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
     return response({});
   }));
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
-  expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
-  fireEvent.click(screen.getAllByRole("button", { name: "Add Source" })[1]);
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  expect(await screen.findByText(/Set up your first Following/)).toBeTruthy();
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Following" })[1]);
 
-  expect(await screen.findByRole("heading", { name: "Add a Source" })).toBeTruthy();
-  expect(screen.getByLabelText("Source URL")).toBeTruthy();
-  expect(screen.getByLabelText("Monitor this Source")).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Add a Following" })).toBeTruthy();
+  expect(screen.getByLabelText("YouTube URL")).toBeTruthy();
+  expect(screen.getByLabelText("Monitor this Following")).toBeTruthy();
   expect(screen.getByLabelText("Automatic schedule")).toBeTruthy();
   expect(screen.getByLabelText("Initial history")).toBeTruthy();
   expect(screen.getByLabelText("Per-run limit")).toBeTruthy();
@@ -162,17 +172,17 @@ test("Source setup writes only through the existing Source, policy, and schedule
     return response({});
   }));
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
-  fireEvent.click((await screen.findAllByRole("button", { name: "Add Source" }))[1]);
-  fireEvent.change(screen.getByLabelText("Source URL"), { target: { value: "https://youtube.test/new" } });
-  fireEvent.click(screen.getByLabelText("Monitor this Source"));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add Following" }))[1]);
+  fireEvent.change(screen.getByLabelText("YouTube URL"), { target: { value: "https://youtube.test/new" } });
+  fireEvent.click(screen.getByLabelText("Monitor this Following"));
   fireEvent.change(screen.getByLabelText("Initial history"), { target: { value: "3" } });
   fireEvent.change(screen.getByLabelText("Per-run limit"), { target: { value: "10" } });
   fireEvent.change(screen.getByLabelText("Focus"), { target: { value: "product, AI" } });
   fireEvent.change(screen.getByLabelText("Ignore"), { target: { value: "rough" } });
   fireEvent.change(screen.getByLabelText("Distillation style"), { target: { value: "PRODUCT_CASE_FIRST" } });
   fireEvent.change(screen.getByLabelText("Automatic schedule"), { target: { value: "WEEKLY" } });
-  fireEvent.click(screen.getAllByRole("button", { name: "Add Source" }).at(-1)!);
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Following" }).at(-1)!);
   await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/sources", expect.objectContaining({ method: "POST", body: JSON.stringify({ url: "https://youtube.test/new", processing_policy: "STANDARD_INTELLIGENCE" }) })));
   expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-new", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ enabled: false, processing_policy: "STANDARD_INTELLIGENCE" }) }));
   expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-new/policy", expect.objectContaining({ method: "PUT", body: expect.stringContaining('"initial_history_count":3') }));
