@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Callable
 
-from youtube_intel.state import format_utc_datetime
+from youtube_intel.state import CURRENT_SCHEMA_VERSION, format_utc_datetime
 
 _BACKUP_FORMAT = "intelligence-core-backup-v1"
 _MANIFEST_PATH = "manifest.json"
@@ -652,10 +652,9 @@ class CoreBackupService:
                 if actual_schema != schema_version:
                     raise CoreBackupError("backup schema version disagrees with its database")
 
-                live_schema = self._live_schema_version()
-                if live_schema is not None and schema_version != live_schema:
+                if schema_version != CURRENT_SCHEMA_VERSION:
                     raise CoreBackupError(
-                        "backup schema version is incompatible with the current workspace"
+                        "backup schema version is incompatible with this application"
                     )
 
                 expected_artifacts = {
@@ -864,10 +863,9 @@ class CoreBackupService:
             connection.close()
         if actual_schema != schema_version:
             raise CoreBackupError("staged restore schema version disagrees with its database")
-        live_schema = self._live_schema_version()
-        if live_schema is not None and schema_version != live_schema:
+        if schema_version != CURRENT_SCHEMA_VERSION:
             raise CoreBackupError(
-                "staged restore schema version is incompatible with the current workspace"
+                "staged restore schema version is incompatible with this application"
             )
         expected_artifacts = {
             (
@@ -903,15 +901,6 @@ class CoreBackupService:
             total_bytes=total_bytes,
             core_scope=_CORE_SCOPE,
         )
-
-    def _live_schema_version(self) -> int | None:
-        if not self._database.is_file() or self._database.is_symlink():
-            return None
-        connection = sqlite3.connect(self._database)
-        try:
-            return int(connection.execute("PRAGMA user_version").fetchone()[0])
-        finally:
-            connection.close()
 
 __all__ = [
     "CoreBackupError",
