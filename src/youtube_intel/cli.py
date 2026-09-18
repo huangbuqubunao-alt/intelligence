@@ -132,13 +132,16 @@ def main(
             config = _load_config(project_root, args.settings, args.channels)
             repository = SQLiteStateRepository(args.database)
             repository.initialize(now=datetime.now(UTC))
+            effective_output_language = repository.effective_output_language(
+                config.settings.general.output_language
+            )
             reader = AuthoritativeScoringReader(
                 repository=repository,
                 data_root=_project_path(project_root, config.settings.storage.data_dir),
                 summary_threshold=config.settings.thresholds.summary_score,
                 pipeline_version=PIPELINE_VERSION,
                 current_model=config.settings.local_scoring.model,
-                current_output_language=config.settings.general.output_language,
+                current_output_language=effective_output_language,
             )
             server = serve_loopback(
                 LocalApiApplication(
