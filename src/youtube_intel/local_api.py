@@ -359,9 +359,9 @@ class LocalApiApplication:
     def _output_language_projection(self) -> dict[str, object]:
         preference = self._repository.get_global_output_language_preference()
         effective = (
-            self._output_language
-            if preference is None
-            else preference.output_language
+            None
+            if self._output_language is None
+            else self._repository.effective_output_language(self._output_language)
         )
         return {
             "configured_output_language": self._output_language,
