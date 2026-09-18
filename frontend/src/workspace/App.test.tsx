@@ -107,7 +107,7 @@ test("verified Intelligence preserves rumor, dispute, and traceable Evidence wit
   expect(screen.getByText("evidence-1")).toBeTruthy();
   expect(screen.getByText(/source-1.*video-1/)).toBeTruthy();
   expect(screen.getByText("1s–2s")).toBeTruthy();
-  expect(screen.getByText("ORIGINAL_TRANSCRIPT · PRIMARY_ORIGINAL")).toBeTruthy();
+  expect(screen.getByText("Original transcript · Primary original")).toBeTruthy();
   expect(screen.getByText("en")).toBeTruthy();
   expect(screen.getByText("transcript-artifact-1")).toBeTruthy();
   expect(screen.getByText(/Role describes provenance, not V1 stance/)).toBeTruthy();
