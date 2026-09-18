@@ -102,6 +102,7 @@ EXPECTED_TABLES = {
     "brief_item_markers",
     "global_model_preferences",
     "global_output_language_preferences",
+    "current_content_summaries",
     "evidence",
     "intelligences",
     "intelligence_revisions",
@@ -325,6 +326,13 @@ EXPECTED_COLUMNS = {
         "preference_key",
         "output_language",
         "updated_at",
+    ),
+    "current_content_summaries": (
+        "video_id",
+        "result_identity",
+        "note_identity",
+        "output_language",
+        "promoted_at",
     ),
     "preferences": (
         "preference_id",
@@ -799,12 +807,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "015_add_global_output_language_preference.sql")
+        .joinpath("migrations", "016_add_current_content_summary.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 15
-    assert first.name == "015_add_global_output_language_preference.sql"
+    assert first.version == 16
+    assert first.name == "016_add_current_content_summary.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -819,7 +827,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 15
+    assert migration_count == 16
 
 
 def test_global_output_language_preference_persists_and_replaces_current_value(
@@ -887,6 +895,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
 
     assert actual_columns == EXPECTED_COLUMNS
     assert explicit_indexes == {
+        "idx_current_content_summaries_result",
         "idx_saved_intelligences_order",
         "idx_artifacts_retention",
         "idx_artifacts_video_kind_created",
