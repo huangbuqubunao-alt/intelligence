@@ -180,7 +180,7 @@ def test_staged_change_after_confirmation_blocks_before_live_swap(
 
     (staged.data_root / "transcripts" / "restore.txt").write_bytes(b"tampered")
 
-    with pytest.raises((CoreRestoreError, ValueError)):
+    with pytest.raises(CoreRestoreError):
         coordinator.apply_pending_on_startup()
 
     assert (data_root / "state.sqlite").is_file()
