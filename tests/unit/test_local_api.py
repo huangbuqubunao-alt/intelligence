@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+
 from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
 from youtube_intel.local_api import _LOCAL_ORIGIN, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
