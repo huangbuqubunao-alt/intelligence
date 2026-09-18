@@ -338,6 +338,8 @@ class LocalApiApplication:
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
+        if output_language not in {None, "zh-CN", "en"}:
+            raise ValueError("output language is unsupported")
         self._output_language = output_language
         self._now = now or (lambda: datetime.now(UTC))
         self._preference_service = PreferenceApplicationService(
