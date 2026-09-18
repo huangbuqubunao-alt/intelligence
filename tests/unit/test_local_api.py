@@ -232,6 +232,61 @@ def test_content_projection_defaults_to_truthful_unavailable_states(
     }
 
 
+def test_intelligence_projection_exposes_only_persisted_evidence_provenance(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-1",
+        revision_id="revision-1",
+        claim_kind=SimpleNamespace(value="FACT"),
+        state=SimpleNamespace(value="CONFIRMED"),
+        evidence_ids=("evidence-1",),
+        is_confirmed=True,
+    )
+    app._intelligence_reader.read_current = lambda _intelligence_id: verified  # type: ignore[method-assign]
+    app._intelligence_reader.read_current_card = lambda _intelligence_id: SimpleNamespace(  # type: ignore[method-assign]
+        verified=verified,
+        core_conclusion="Trusted conclusion.",
+        user_relevant_information=("Relevant.",),
+        important_new_information=(),
+        meaningful_details=(),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="abcdefghijk",
+        preference_ids=(),
+        source_policy_revision_id=None,
+    )
+    app._repository.get_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        source_url="https://youtube.test/watch?v=abcdefghijk"
+    )
+    app._repository.get_evidence = lambda _evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id="evidence-1",
+        artifact_id="transcript-artifact-1",
+        start_ms=1000,
+        end_ms=2000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+    )
+
+    projection = app._intelligence_projection("intel-1")
+
+    assert projection["card"]["evidence_links"] == [
+        {
+            "evidence_id": "evidence-1",
+            "artifact_id": "transcript-artifact-1",
+            "start_ms": 1000,
+            "end_ms": 2000,
+            "language": "en",
+            "lineage_kind": "ORIGINAL_TRANSCRIPT",
+            "role": "PRIMARY_ORIGINAL",
+        }
+    ]
+    assert "excerpt" not in projection["card"]["evidence_links"][0]
+    assert "stance" not in projection["card"]["evidence_links"][0]
+
+
 def test_intelligence_feed_rechecks_each_identity_and_never_emits_raw_content(
     tmp_path: Path,
 ) -> None:
