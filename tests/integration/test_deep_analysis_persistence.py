@@ -206,9 +206,55 @@ def test_fresh_database_has_provider_aware_persistence_schema(tmp_path: Path) ->
 
     version = repository.initialize(now=NOW)
 
-    assert version.version == 14
+    assert version.version == 15
     store = DeepAnalysisPersistenceStore(repository)
     assert store.lookup_deep_analysis_cache(cache_identity="a" * 64) is None
+
+
+def test_verified_persistence_promotes_one_explicit_current_summary_pointer(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    store = DeepAnalysisPersistenceStore(repository)
+
+    persisted = store.persist_trusted_deep_analysis_success(
+        success=_trusted_success(), now=NOW
+    )
+
+    current = store.read_current_content_summary_result(
+        video_id=persisted.canonical_input.video_identity
+    )
+    assert current is not None
+    assert current.result_identity == persisted.result_identity
+    assert current.content == persisted.content
+
+
+def test_tampered_current_summary_target_fails_closed_without_raw_fallback(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    store = DeepAnalysisPersistenceStore(repository)
+    persisted = store.persist_trusted_deep_analysis_success(
+        success=_trusted_success(), now=NOW
+    )
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "UPDATE deep_analysis_persisted_results "
+            "SET knowledge_content_json = '{}' WHERE result_identity = ?",
+            (persisted.result_identity,),
+        )
+    finally:
+        connection.close()
+
+    assert (
+        store.read_current_content_summary_result(
+            video_id=persisted.canonical_input.video_identity
+        )
+        is None
+    )
 
 
 def test_runtime_verified_success_persists_and_reloads_by_exact_cache_identity(
