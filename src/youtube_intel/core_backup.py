@@ -400,6 +400,60 @@ class CoreBackupService:
         self._app_version = app_version
         self._now = now or (lambda: datetime.now(UTC))
 
+    def live_core_fingerprint(self) -> str:
+        """Fingerprint one quiescent, integrity-checked live core-data snapshot."""
+
+        if not self._data_root.is_dir() or self._data_root.is_symlink():
+            raise CoreBackupError("data root is unavailable or unsafe")
+        parent = self._data_root.parent.resolve(strict=True)
+        with tempfile.TemporaryDirectory(
+            prefix=".intelligence-fingerprint-", dir=parent
+        ) as work:
+            snapshot = Path(work) / "state.sqlite"
+            _snapshot_database(self._database, snapshot)
+            connection = sqlite3.connect(snapshot)
+            connection.row_factory = sqlite3.Row
+            try:
+                schema_version, _vault_count = _database_facts(connection)
+                rows = _artifact_rows(connection)
+            finally:
+                connection.close()
+            if schema_version != CURRENT_SCHEMA_VERSION:
+                raise CoreBackupError("live workspace schema is unsupported")
+
+            with snapshot.open("rb") as database_source:
+                database_hash, _database_bytes = _sha256_stream(database_source)
+            artifact_claims: list[tuple[str, str, str, str]] = []
+            for row in rows:
+                relative = _safe_archive_path(str(row["relative_path"]))
+                with _open_regular_under(self._data_root, relative) as source:
+                    digest, _size = _sha256_stream(source)
+                expected = str(row["content_hash"])
+                if digest != expected:
+                    raise CoreBackupError(
+                        "live DATA artifact checksum disagrees with SQLite authority"
+                    )
+                artifact_claims.append(
+                    (
+                        str(row["artifact_id"]),
+                        str(row["kind"]),
+                        relative,
+                        expected,
+                    )
+                )
+
+        canonical = json.dumps(
+            {
+                "schema_version": schema_version,
+                "database_sha256": database_hash,
+                "artifacts": artifact_claims,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
     def create_backup(self, destination: Path) -> CoreBackupResult:
         now = self._now()
         if now.tzinfo is None or now.utcoffset() != UTC.utcoffset(now):
