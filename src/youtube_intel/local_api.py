@@ -1424,14 +1424,58 @@ class LocalApiApplication:
             ),
             None,
         )
-        core_points = next(
+        core_point_entries = next(
             (
-                [entry.text for entry in section.entries]
+                tuple(section.entries)
                 for section in note.sections
                 if section.kind.value == "CORE_POINTS"
             ),
-            [],
+            (),
         )
+        core_points = [entry.text for entry in core_point_entries]
+        references_by_id = {
+            reference.evidence_id: reference for reference in note.evidence_references
+        }
+        timestamped_key_points: list[dict[str, object]] = []
+        for entry in core_point_entries:
+            timed = [
+                references_by_id[evidence_id]
+                for evidence_id in entry.evidence_ids
+                if evidence_id in references_by_id
+                and references_by_id[evidence_id].start_seconds is not None
+            ]
+            if not timed:
+                continue
+            start_seconds = min(
+                float(reference.start_seconds) for reference in timed
+                if reference.start_seconds is not None
+            )
+            end_seconds = max(
+                float(
+                    reference.end_seconds
+                    if reference.end_seconds is not None
+                    else reference.start_seconds
+                )
+                for reference in timed
+                if reference.start_seconds is not None
+            )
+            timestamped_key_points.append(
+                {
+                    "text": entry.text,
+                    "start_seconds": start_seconds,
+                    "end_seconds": end_seconds,
+                    "evidence_ids": [
+                        reference.evidence_id
+                        for reference in sorted(
+                            timed,
+                            key=lambda item: (
+                                float(item.start_seconds or 0),
+                                item.evidence_id,
+                            ),
+                        )
+                    ],
+                }
+            )
         return {
             "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
             "v2": {
@@ -1441,6 +1485,7 @@ class LocalApiApplication:
                 "language": note.language,
                 "summary": summary,
                 "core_points": core_points,
+                "timestamped_key_points": timestamped_key_points,
                 "evidence_references": [
                     {
                         "evidence_id": reference.evidence_id,
