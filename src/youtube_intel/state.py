@@ -5674,6 +5674,16 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def effective_output_language(self, configured_default: str) -> str:
+        if configured_default not in {"zh-CN", "en"}:
+            raise ValueError("configured output language is unsupported")
+        preference = self.get_global_output_language_preference()
+        return (
+            configured_default
+            if preference is None
+            else preference.output_language
+        )
+
     @staticmethod
     def _preference_from_row(row: sqlite3.Row) -> PreferenceRecord:
         return PreferenceRecord(
