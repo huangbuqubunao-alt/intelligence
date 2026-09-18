@@ -74,6 +74,19 @@ test("a fresh library gets a three-step local-first onboarding with an isolated 
   expect(await screen.findByText(/Set up your first Following/)).toBeTruthy();
 });
 
+test("onboarding never hides existing historical Intelligence even when there are no Followings", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/dashboard")) return response({ intelligence: [intelligence], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 0 } });
+    if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
+    if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
+    return response({});
+  }));
+
+  render(<App />);
+  expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
+  expect(screen.queryByLabelText(/Onboarding step/)).toBeNull();
+});
+
 test("Content reads the existing video and transcript projections without fabricating notes", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Content" }));
