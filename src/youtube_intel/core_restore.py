@@ -10,6 +10,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Callable
 
 from youtube_intel.core_backup import (
     CoreBackupError,
@@ -36,6 +37,7 @@ class PendingCoreRestore:
     staging_root: Path
     live_data_relative: str
     confirmed_live_fingerprint: str
+    confirmed_restore_fingerprint: str
     scheduled_at: datetime
     backup_created_at: datetime
     schema_version: int
@@ -93,7 +95,7 @@ class CoreRestoreCoordinator:
         project_root: Path,
         data_root: Path,
         app_version: str,
-        now: callable[[], datetime] | None = None,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._project_root = project_root.resolve(strict=True)
         if not self._project_root.is_dir() or project_root.is_symlink():
@@ -149,9 +151,14 @@ class CoreRestoreCoordinator:
 
         try:
             live_fingerprint = self._backup.live_core_fingerprint()
+            restore_fingerprint = CoreBackupService(
+                data_root=staging_root / "data",
+                app_version=self._app_version,
+                now=self._now,
+            ).live_core_fingerprint()
         except CoreBackupError as error:
             raise CoreRestoreError(
-                "current workspace is not quiescent and integrity-checked"
+                "current or staged workspace is not quiescent and integrity-checked"
             ) from error
 
         now = self._now()
@@ -163,6 +170,7 @@ class CoreRestoreCoordinator:
             "staging_name": staging_root.name,
             "live_data_relative": self._live_data_relative,
             "confirmed_live_fingerprint": live_fingerprint,
+            "confirmed_restore_fingerprint": restore_fingerprint,
             "scheduled_at": format_utc_datetime(now),
             "backup_created_at": format_utc_datetime(inspection.created_at),
             "schema_version": inspection.schema_version,
@@ -210,6 +218,7 @@ class CoreRestoreCoordinator:
             "staging_name",
             "live_data_relative",
             "confirmed_live_fingerprint",
+            "confirmed_restore_fingerprint",
             "scheduled_at",
             "backup_created_at",
             "schema_version",
@@ -224,6 +233,7 @@ class CoreRestoreCoordinator:
         staging_name = value.get("staging_name")
         live_relative = value.get("live_data_relative")
         fingerprint = value.get("confirmed_live_fingerprint")
+        restore_fingerprint = value.get("confirmed_restore_fingerprint")
         schema_version = value.get("schema_version")
         if (
             not isinstance(staging_name, str)
@@ -234,6 +244,7 @@ class CoreRestoreCoordinator:
             or not isinstance(live_relative, str)
             or live_relative != self._live_data_relative
             or not _valid_sha256(fingerprint)
+            or not _valid_sha256(restore_fingerprint)
             or not isinstance(schema_version, int)
             or isinstance(schema_version, bool)
             or schema_version <= 0
@@ -245,6 +256,7 @@ class CoreRestoreCoordinator:
             staging_root=staging_root,
             live_data_relative=live_relative,
             confirmed_live_fingerprint=str(fingerprint),
+            confirmed_restore_fingerprint=str(restore_fingerprint),
             scheduled_at=_parse_utc(value.get("scheduled_at"), label="scheduled"),
             backup_created_at=_parse_utc(
                 value.get("backup_created_at"), label="backup-created"
@@ -274,6 +286,18 @@ class CoreRestoreCoordinator:
             or inspection.schema_version != pending.schema_version
         ):
             raise CoreRestoreError("pending restore no longer matches its staged backup")
+        try:
+            staged_fingerprint = CoreBackupService(
+                data_root=pending.staging_root / "data",
+                app_version=self._app_version,
+                now=self._now,
+            ).live_core_fingerprint()
+        except CoreBackupError as error:
+            raise CoreRestoreError("staged restore cannot be revalidated") from error
+        if staged_fingerprint != pending.confirmed_restore_fingerprint:
+            raise CoreRestoreError(
+                "staged restore changed after confirmation; live data was not touched"
+            )
 
         if self._data_root.is_symlink() or not self._data_root.is_dir():
             raise CoreRestoreError("current data root is unavailable or unsafe")
@@ -288,12 +312,6 @@ class CoreRestoreCoordinator:
             raise CoreRestoreError(
                 "current data changed after restore confirmation; live data was not touched"
             )
-
-        staged_fingerprint = CoreBackupService(
-            data_root=pending.staging_root / "data",
-            app_version=self._app_version,
-            now=self._now,
-        ).live_core_fingerprint()
 
         previous_parent = self._control_root / _PREVIOUS_DIR
         failed_parent = self._control_root / _FAILED_DIR
@@ -323,6 +341,10 @@ class CoreRestoreCoordinator:
                 os.replace(previous_data, self._data_root)
                 moved_current = False
                 _fsync_directory(self._data_root.parent)
+                try:
+                    previous_root.rmdir()
+                except OSError:
+                    pass
                 raise
 
             restored_fingerprint = CoreBackupService(
@@ -392,7 +414,7 @@ def apply_pending_core_restore(
     project_root: Path,
     data_root: Path,
     app_version: str,
-    now: callable[[], datetime] | None = None,
+    now: Callable[[], datetime] | None = None,
 ) -> AppliedCoreRestore | None:
     """Small startup seam used before a repository connection is opened."""
 
