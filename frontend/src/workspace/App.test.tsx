@@ -97,15 +97,31 @@ test("Content reads the existing video and transcript projections without fabric
   expect(screen.getByText("Processing history")).toBeTruthy();
 });
 
-test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
+test("verified Intelligence preserves rumor, dispute, and traceable Evidence without watch-score language", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
   expect(screen.getByText("Disputed")).toBeTruthy();
   fireEvent.click(screen.getByText("Evidence and source"));
-  expect(screen.getByText(/source-1.*video-1.*1s/)).toBeTruthy();
+  expect(screen.getByText("evidence-1")).toBeTruthy();
+  expect(screen.getByText(/source-1.*video-1/)).toBeTruthy();
+  expect(screen.getByText("1s–2s")).toBeTruthy();
+  expect(screen.getByText(/does not expose an Evidence excerpt or V1 stance yet/)).toBeTruthy();
+  const sourceLink = screen.getByRole("link", { name: "Open original at timestamp" }) as HTMLAnchorElement;
+  expect(sourceLink.href).toContain("t=1");
   expect(screen.queryByText(/Worth Watching|Watch Score|Should I watch/)).toBeNull();
+});
+
+test("Evidence trace opens the existing Content detail and canonical transcript", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  await screen.findByText("A rumor remains unresolved.");
+  fireEvent.click(screen.getByText("Evidence and source"));
+  fireEvent.click(screen.getByRole("button", { name: "Open Content" }));
+  expect(await screen.findByRole("heading", { name: "Content" })).toBeTruthy();
+  expect(await screen.findByText("Evidence-led product lesson")).toBeTruthy();
+  expect(screen.getByText("A decision log preserves evidence and makes the reasoning traceable.")).toBeTruthy();
 });
 
 test("Save uses the persisted command rather than browser-only state", async () => {
