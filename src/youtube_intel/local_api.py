@@ -14,6 +14,10 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
+from youtube_intel.content_summary import (
+    ContentSummaryAuthority,
+    ContentSummaryReadRejected,
+)
 from youtube_intel.distillation import PersonalizedDistillationService
 from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.intelligence_read import (
@@ -27,6 +31,7 @@ from youtube_intel.orchestration import (
     next_scheduled_for,
     provider_model_statuses,
 )
+from youtube_intel.note_v2 import NoteV2SectionKind
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
@@ -335,6 +340,7 @@ class LocalApiApplication:
         self._distillation_service = distillation_service
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
+        self._content_summary = ContentSummaryAuthority(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
@@ -1133,7 +1139,7 @@ class LocalApiApplication:
                 "video": _video_dto(video),
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
-                "note": self._note_projection(),
+                "note": self._note_projection(video.video_id),
                 "history": self._history_projection(video.video_id),
             }
         if route.startswith("/api/v1/intelligence/"):
@@ -1411,13 +1417,53 @@ class LocalApiApplication:
             "reason": "No canonical transcript has been recorded for this video.",
         }
 
-    @staticmethod
-    def _note_projection() -> dict[str, object]:
-        """There is no persisted NoteRef association in the current authority."""
+    def _note_projection(self, video_id: str) -> dict[str, object]:
+        """Project only the explicit current official Summary binding."""
 
+        try:
+            current = self._content_summary.read_current(video_id)
+        except ContentSummaryReadRejected as error:
+            return {
+                "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                "v2": {"status": "UNAVAILABLE", "code": error.code},
+            }
+
+        note = current.note
+        summary = next(
+            section for section in note.sections
+            if section.kind is NoteV2SectionKind.SUMMARY
+        )
+        core_points = next(
+            section for section in note.sections
+            if section.kind is NoteV2SectionKind.CORE_POINTS
+        )
         return {
             "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-            "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+            "v2": {
+                "status": "AVAILABLE",
+                "note_identity": note.identity,
+                "result_identity": current.binding.result_identity,
+                "language": note.language,
+                "one_sentence_summary": summary.entries[0].text,
+                "summary_evidence_ids": list(summary.entries[0].evidence_ids),
+                "core_points": [
+                    {
+                        "text": entry.text,
+                        "evidence_ids": list(entry.evidence_ids),
+                    }
+                    for entry in core_points.entries
+                ],
+                "evidence": [
+                    {
+                        "evidence_id": reference.evidence_id,
+                        "source": reference.source,
+                        "excerpt": reference.excerpt,
+                        "start_seconds": reference.start_seconds,
+                        "end_seconds": reference.end_seconds,
+                    }
+                    for reference in note.evidence_references
+                ],
+            },
         }
 
     def _history_projection(self, video_id: str) -> list[dict[str, object]]:
