@@ -495,6 +495,48 @@ def test_runtime_operations_mints_quality_provenance_authority_from_config(
     assert authority.judge_provider == "ollama"
 
 
+def test_runtime_operations_use_persisted_output_language_for_future_work(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    config = load_app_config(
+        channels_path=project / "config" / "channels.yaml",
+        settings_path=project / "config" / "settings.yaml",
+    )
+
+    initial = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+    assert initial._output_language == "zh-CN"
+    initial._repository.save_global_output_language_preference(
+        output_language="en", now=NOW
+    )
+
+    restarted = RuntimeOperations(
+        config=config,
+        project_root=project,
+        dependencies=RuntimeDependencies(
+            discovery_source=object(),  # type: ignore[arg-type]
+            metadata_provider=object(),  # type: ignore[arg-type]
+            subtitle_adapter_factory=lambda: object(),  # type: ignore[arg-type]
+            scoring_provider_factory=lambda: object(),  # type: ignore[arg-type]
+            analysis_provider_factory=lambda: object(),  # type: ignore[arg-type]
+        ),
+    )
+
+    assert restarted._output_language == "en"
+    assert restarted._trusted_scoring_context.output_language == "en"
+    assert config.settings.general.output_language == "zh-CN"
+
+
 def test_runtime_operations_derives_authority_from_different_model_config(
     tmp_path: Path,
 ) -> None:
