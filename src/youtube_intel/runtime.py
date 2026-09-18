@@ -1213,7 +1213,6 @@ class RuntimeOperations(Operations):
             summary_threshold=self._config.settings.thresholds.summary_score,
             pipeline_version=PIPELINE_VERSION,
             current_model=self._config.settings.local_scoring.model,
-            current_output_language=self._config.settings.general.output_language,
         )
 
     def _load_scoring(self, video_id: str) -> ScoringOutcome:
