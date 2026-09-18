@@ -24,6 +24,7 @@ from youtube_intel.analysis import (
     tokenizer_resource_status,
 )
 from youtube_intel.config import AppConfig, LocalScoringSettings
+from youtube_intel.core_restore import apply_pending_core_restore
 from youtube_intel.discovery import DiscoveryService, YouTubeRssSourceProvider
 from youtube_intel.domain import (
     AnalysisCompleted,
@@ -217,6 +218,7 @@ class _H2CSettingsBoundExceeded(Exception):
     """Current settings exceed an H2-C persistence admission ceiling."""
 
 
+APP_VERSION = "0.1.0"
 PIPELINE_VERSION = "runtime-v1"
 _MAX_OLLAMA_TAGS_BYTES = 1_000_000
 
@@ -369,6 +371,12 @@ def bootstrap_runtime(
 
     root = project_root.resolve(strict=True)
     storage = config.settings.storage
+    declared_data_root = _safe_project_path(root, storage.data_dir)
+    apply_pending_core_restore(
+        project_root=root,
+        data_root=declared_data_root,
+        app_version=APP_VERSION,
+    )
     data_root = _ensure_project_directory(root, storage.data_dir)
     _ensure_project_directory(root, storage.logs_dir)
     _ensure_vault_subdir(Path(storage.vault_root), storage.vault_subdir)
