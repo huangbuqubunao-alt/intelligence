@@ -849,6 +849,12 @@ class GlobalModelPreferenceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class GlobalUserSettingsRecord:
+    output_language: str
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class _Migration:
     version: int
     name: str
@@ -1409,6 +1415,7 @@ class SQLiteStateRepository:
             "013_add_weekly_brief_foundation.sql",
             "014_add_saved_intelligence.sql",
             "015_add_current_content_summary.sql",
+            "016_add_global_output_language.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -5610,6 +5617,57 @@ class SQLiteStateRepository:
                     row["desired_provider"],
                     row["desired_model"],
                     _parse_utc_datetime(str(row["updated_at"])),
+                )
+            )
+        finally:
+            connection.close()
+
+    def save_global_output_language(
+        self, *, output_language: str, now: datetime
+    ) -> GlobalUserSettingsRecord:
+        if output_language not in {"zh-CN", "en"}:
+            raise ValueError("output language is unsupported")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                connection.execute(
+                    "INSERT INTO global_user_settings "
+                    "(settings_key, output_language, updated_at) "
+                    "VALUES ('global', :output_language, :updated_at) "
+                    "ON CONFLICT(settings_key) DO UPDATE SET "
+                    "output_language=excluded.output_language, "
+                    "updated_at=excluded.updated_at",
+                    {
+                        "output_language": output_language,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT output_language, updated_at FROM global_user_settings "
+                    "WHERE settings_key='global'"
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("global output language was not saved")
+                return GlobalUserSettingsRecord(
+                    output_language=str(row["output_language"]),
+                    updated_at=_parse_utc_datetime(str(row["updated_at"])),
+                )
+        finally:
+            connection.close()
+
+    def get_global_user_settings(self) -> GlobalUserSettingsRecord | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT output_language, updated_at FROM global_user_settings "
+                "WHERE settings_key='global'"
+            ).fetchone()
+            return (
+                None
+                if row is None
+                else GlobalUserSettingsRecord(
+                    output_language=str(row["output_language"]),
+                    updated_at=_parse_utc_datetime(str(row["updated_at"])),
                 )
             )
         finally:
