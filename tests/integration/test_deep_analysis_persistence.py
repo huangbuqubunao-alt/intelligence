@@ -348,6 +348,34 @@ def test_tampered_persisted_result_is_rejected_before_note_v2(tmp_path: Path) ->
         build_note_v2(None)
 
 
+def test_failed_new_attempt_cannot_displace_last_verified_current_summary(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(tmp_path / "state.sqlite")
+    repository.initialize(now=NOW)
+    store = DeepAnalysisPersistenceStore(repository)
+    real = _trusted_success()
+    current = store.persist_trusted_deep_analysis_success(success=real, now=NOW)
+
+    forged = object.__new__(type(real))
+    for name in (
+        "_content_identity",
+        "_cache_identity",
+        "_provenance_identity",
+        "_sealed",
+    ):
+        object.__setattr__(forged, name, getattr(real, name))
+
+    with pytest.raises(DeepAnalysisPersistenceError, match="runtime-verified"):
+        store.persist_trusted_deep_analysis_success(success=forged, now=NOW)
+
+    still_current = store.read_current_content_summary_result(
+        video_id=current.canonical_input.video_identity
+    )
+    assert still_current is not None
+    assert still_current.result_identity == current.result_identity
+
+
 def test_forged_or_reconstructed_success_cannot_write_authoritative_row(
     tmp_path: Path,
 ) -> None:
