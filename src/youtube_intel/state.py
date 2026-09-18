@@ -116,6 +116,9 @@ class RetentionClass(str, Enum):
     LONG_LIVED = "LONG_LIVED"
 
 
+CURRENT_SCHEMA_VERSION: Final[int] = 16
+
+
 class ProviderCallStatus(str, Enum):
     PENDING = "PENDING"
     SUCCEEDED = "SUCCEEDED"
