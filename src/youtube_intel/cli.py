@@ -138,7 +138,6 @@ def main(
                 summary_threshold=config.settings.thresholds.summary_score,
                 pipeline_version=PIPELINE_VERSION,
                 current_model=config.settings.local_scoring.model,
-                current_output_language=config.settings.general.output_language,
             )
             server = serve_loopback(
                 LocalApiApplication(
