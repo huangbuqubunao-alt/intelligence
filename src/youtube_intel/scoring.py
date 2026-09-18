@@ -5685,7 +5685,6 @@ class AuthoritativeScoringReader:
         summary_threshold: float,
         pipeline_version: str,
         current_model: str,
-        current_output_language: str,
     ) -> None:
         if not 0 <= summary_threshold <= 10:
             msg = "summary_threshold must be in 0..10"
@@ -5695,7 +5694,6 @@ class AuthoritativeScoringReader:
         self._summary_threshold = summary_threshold
         self._pipeline_version = pipeline_version
         self._current_model = current_model
-        self._current_output_language = current_output_language
 
     def read(self, video_id: str) -> VerifiedScoringRead:
         video = self._repository.get_video(video_id)
@@ -5859,7 +5857,7 @@ class AuthoritativeScoringReader:
         ):
             raise ValueError("primary raw artifact provenance is invalid")
         self._read_artifact_bytes(raw, max_bytes=1_000_000)
-        self._check_current_config(result)
+        self._check_current_model(result)
         return result
 
     def _verify_repair_structured(
@@ -6035,17 +6033,15 @@ class AuthoritativeScoringReader:
             or judge_call.response_artifact_id != raw.artifact_id
         ):
             raise ValueError("repair judge provider call identity is invalid")
-        self._check_current_config(result)
+        self._check_current_model(result)
         return result
 
-    def _check_current_config(self, result: ScoreResult) -> None:
+    def _check_current_model(self, result: ScoreResult) -> None:
+        """Historical language is provenance; model compatibility stays current."""
+
         if result.model != self._current_model:
             raise ValueError(
                 "persisted scoring model does not match current configuration"
-            )
-        if result.output_language != self._current_output_language:
-            raise ValueError(
-                "persisted scoring output language does not match current configuration"
             )
 
     # -- legacy pointerless branch ------------------------------------------
