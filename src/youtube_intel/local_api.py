@@ -14,6 +14,10 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
+from youtube_intel.content_summary_read import (
+    AuthoritativeContentSummaryReader,
+    ContentSummaryReadRejected,
+)
 from youtube_intel.distillation import PersonalizedDistillationService
 from youtube_intel.domain import JobStatus, ProcessingStage
 from youtube_intel.intelligence_read import (
@@ -334,6 +338,7 @@ class LocalApiApplication:
         self._distillation_service = distillation_service
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
+        self._content_summary_reader = AuthoritativeContentSummaryReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
@@ -1092,7 +1097,7 @@ class LocalApiApplication:
                 "video": _video_dto(video),
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
-                "note": self._note_projection(),
+                "note": self._note_projection(video.video_id),
                 "history": self._history_projection(video.video_id),
             }
         if route.startswith("/api/v1/intelligence/"):
@@ -1367,13 +1372,53 @@ class LocalApiApplication:
             "reason": "No canonical transcript has been recorded for this video.",
         }
 
-    @staticmethod
-    def _note_projection() -> dict[str, object]:
-        """There is no persisted NoteRef association in the current authority."""
+    def _note_projection(self, video_id: str) -> dict[str, object]:
+        """Project only the explicit current verified Summary result."""
 
+        try:
+            current = self._content_summary_reader.read_current(video_id)
+        except ContentSummaryReadRejected as error:
+            return {
+                "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                "v2": {"status": "UNAVAILABLE", "code": error.code},
+            }
+        note = current.note
+        summary = next(
+            (
+                section.entries[0].text
+                for section in note.sections
+                if section.kind.value == "SUMMARY" and section.entries
+            ),
+            None,
+        )
+        core_points = next(
+            (
+                [entry.text for entry in section.entries]
+                for section in note.sections
+                if section.kind.value == "CORE_POINTS"
+            ),
+            [],
+        )
         return {
             "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-            "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+            "v2": {
+                "status": "AVAILABLE",
+                "note_identity": note.identity,
+                "result_identity": current.result_identity,
+                "language": note.language,
+                "summary": summary,
+                "core_points": core_points,
+                "evidence_references": [
+                    {
+                        "evidence_id": reference.evidence_id,
+                        "source": reference.source,
+                        "excerpt": reference.excerpt,
+                        "start_seconds": reference.start_seconds,
+                        "end_seconds": reference.end_seconds,
+                    }
+                    for reference in note.evidence_references
+                ],
+            },
         }
 
     def _history_projection(self, video_id: str) -> list[dict[str, object]]:
