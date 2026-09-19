@@ -283,6 +283,11 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
   expect(await screen.findByRole("heading", { name: "Add a Following" })).toBeTruthy();
   expect(screen.getByLabelText("YouTube URL")).toBeTruthy();
   expect(screen.getByLabelText("Monitor this Following")).toBeTruthy();
+  expect(screen.getByText("Recommended defaults")).toBeTruthy();
+  expect(screen.queryByLabelText("Automatic schedule")).toBeNull();
+  expect(screen.queryByLabelText("Initial history")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
   expect(screen.getByLabelText("Automatic schedule")).toBeTruthy();
   expect(screen.getByLabelText("Initial history")).toBeTruthy();
   expect(screen.getByLabelText("Per-run limit")).toBeTruthy();
@@ -295,6 +300,29 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
   expect(Array.from((screen.getByLabelText("Per-run limit") as HTMLSelectElement).options).map(option => option.value)).toEqual(["1", "3", "5", "10"]);
   expect(Array.from((screen.getByLabelText("Distillation style") as HTMLSelectElement).options).map(option => option.value)).toEqual(["BALANCED", "TECHNICAL_DETAIL_FIRST", "PRODUCT_CASE_FIRST", "TREND_OPINION_FIRST"]);
 });
+
+test("recommended first Following setup submits the existing safe defaults without exposing advanced controls", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/sources") && init?.method === "POST") return response({ source: { source_id: "source-new", canonical_url: "https://youtube.test/new", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", display_name: null, last_error: null } });
+    if (input.endsWith("/sources/source-new/policy")) return response({ policy: {} });
+    if (input.endsWith("/sources/source-new") && init?.method === "PATCH") return response({ source: {} });
+    if (input.endsWith("/automation")) return response({ schedule: {} });
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add Following" }))[1]);
+  fireEvent.change(screen.getByLabelText("YouTube URL"), { target: { value: "https://youtube.test/new" } });
+  expect(screen.queryByLabelText("Processing level")).toBeNull();
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Following" }).at(-1)!);
+
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/sources", expect.objectContaining({ method: "POST", body: JSON.stringify({ url: "https://youtube.test/new", processing_policy: "STANDARD_INTELLIGENCE" }) })));
+  expect(fetch).toHaveBeenCalledWith("/api/v1/sources/source-new/policy", expect.objectContaining({ method: "PUT", body: expect.stringContaining('"initial_history_count":5') }));
+  expect(fetch).toHaveBeenCalledWith("/api/v1/automation", expect.objectContaining({ method: "POST", body: expect.stringContaining('"frequency":"DAILY"') }));
+});
+
 
 test("Source setup writes only through the existing Source, policy, and schedule commands", async () => {
   vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
@@ -310,6 +338,7 @@ test("Source setup writes only through the existing Source, policy, and schedule
   fireEvent.click((await screen.findAllByRole("button", { name: "Add Following" }))[1]);
   fireEvent.change(screen.getByLabelText("YouTube URL"), { target: { value: "https://youtube.test/new" } });
   fireEvent.click(screen.getByLabelText("Monitor this Following"));
+  fireEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
   fireEvent.change(screen.getByLabelText("Initial history"), { target: { value: "3" } });
   fireEvent.change(screen.getByLabelText("Per-run limit"), { target: { value: "10" } });
   fireEvent.change(screen.getByLabelText("Focus"), { target: { value: "product, AI" } });
