@@ -35,6 +35,7 @@ class DistillationExecutionStatus(str, Enum):
     REJECTED_OUTPUT = "REJECTED_OUTPUT"
     AMBIGUOUS = "AMBIGUOUS"
     SUCCEEDED = "SUCCEEDED"
+    SUCCEEDED_NO_NEW_INTELLIGENCE = "SUCCEEDED_NO_NEW_INTELLIGENCE"
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +129,13 @@ class _Candidate:
     evidence_stances: tuple[tuple[str, EvidenceStance], ...]
     card: DistillationCardWrite
     canonical_content: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class _NoNewCandidate:
+    """A positive zero-result bound to the exact current Evidence set."""
+
+    evidence_ids: tuple[str, ...]
 
 
 class PersonalizedDistillationService:
@@ -470,23 +478,37 @@ class PersonalizedDistillationService:
             )
         try:
             candidate = self._parse_candidate(response.raw, projection)
-            record = self._repository.admit_distillation(
-                execution_id=projection.execution_id,
-                intelligence_id=f"intelligence:distillation:{projection.execution_id}",
-                revision_id=f"revision:distillation:{projection.execution_id}",
-                claim_kind=candidate.claim_kind,
-                content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
-                evidence_ids=candidate.evidence_ids,
-                evidence_stances=candidate.evidence_stances,
-                card=candidate.card,
-                actual_provider=response.actual_provider,
-                actual_model=response.actual_model,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                cost_microunits=response.cost_microunits,
-                duration_ms=response.duration_ms,
-                now=self._now(),
-            )
+            if isinstance(candidate, _NoNewCandidate):
+                record = self._repository.record_distillation_no_new_intelligence(
+                    execution_id=projection.execution_id,
+                    evidence_ids=candidate.evidence_ids,
+                    budget_state=decision.state,
+                    actual_provider=response.actual_provider,
+                    actual_model=response.actual_model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cost_microunits=response.cost_microunits,
+                    duration_ms=response.duration_ms,
+                    now=self._now(),
+                )
+            else:
+                record = self._repository.admit_distillation(
+                    execution_id=projection.execution_id,
+                    intelligence_id=f"intelligence:distillation:{projection.execution_id}",
+                    revision_id=f"revision:distillation:{projection.execution_id}",
+                    claim_kind=candidate.claim_kind,
+                    content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
+                    evidence_ids=candidate.evidence_ids,
+                    evidence_stances=candidate.evidence_stances,
+                    card=candidate.card,
+                    actual_provider=response.actual_provider,
+                    actual_model=response.actual_model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cost_microunits=response.cost_microunits,
+                    duration_ms=response.duration_ms,
+                    now=self._now(),
+                )
         except (IntegrityConflict, StateStoreError, ValueError):
             return self._finish_or_recover(
                 projection,
@@ -692,11 +714,63 @@ class PersonalizedDistillationService:
             raise ValueError(f"{field_name} is invalid")
         return tuple(cls._text(item, field_name=field_name) for item in value)
 
-    def _parse_candidate(self, raw: str, command: DistillationCommand) -> _Candidate:
+    def _parse_candidate(
+        self, raw: str, command: DistillationCommand
+    ) -> _Candidate | _NoNewCandidate:
         try:
             payload = json.loads(raw)
         except (TypeError, json.JSONDecodeError) as error:
             raise ValueError("structured distillation output is malformed") from error
+
+        if isinstance(payload, dict) and set(payload) == {"result", "evidence"}:
+            if payload["result"] != "NO_NEW_INTELLIGENCE":
+                raise ValueError("positive zero-result marker is invalid")
+            evidence = payload["evidence"]
+            if not isinstance(evidence, list) or not evidence:
+                raise ValueError("no-new Intelligence evidence is missing")
+            expected_evidence_ids = tuple(sorted(command.evidence_ids))
+            if (
+                expected_evidence_ids
+                != self._repository.list_available_canonical_evidence_ids(
+                    command.video_id
+                )
+            ):
+                raise ValueError(
+                    "no-new Intelligence requires the current canonical Evidence set"
+                )
+            cited: set[str] = set()
+            for item in evidence:
+                if (
+                    not isinstance(item, dict)
+                    or set(item) != {"evidence_id", "start_ms", "end_ms"}
+                ):
+                    raise ValueError("no-new Intelligence evidence schema is invalid")
+                evidence_id = item["evidence_id"]
+                start_ms = item["start_ms"]
+                end_ms = item["end_ms"]
+                if (
+                    not isinstance(evidence_id, str)
+                    or isinstance(start_ms, bool)
+                    or isinstance(end_ms, bool)
+                    or not isinstance(start_ms, int)
+                    or not isinstance(end_ms, int)
+                    or evidence_id in cited
+                    or evidence_id not in expected_evidence_ids
+                ):
+                    raise ValueError("no-new Intelligence evidence reference is invalid")
+                evidence_record = self._repository.get_evidence(evidence_id)
+                if (
+                    evidence_record is None
+                    or evidence_record.video_id != command.video_id
+                    or evidence_record.start_ms != start_ms
+                    or evidence_record.end_ms != end_ms
+                ):
+                    raise ValueError("no-new Intelligence evidence binding is invalid")
+                cited.add(evidence_id)
+            if tuple(sorted(cited)) != expected_evidence_ids:
+                raise ValueError("no-new Intelligence evidence set is incomplete")
+            return _NoNewCandidate(evidence_ids=expected_evidence_ids)
+
         expected_keys = {
             "core_conclusion", "user_relevant_information", "important_new_information",
             "meaningful_details", "filtered_noise", "claim_kind", "evidence",
