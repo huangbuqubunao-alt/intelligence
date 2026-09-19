@@ -317,6 +317,21 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     assert upgraded.get_intelligence("preserved-intelligence") is not None
 
 
+def test_distillation_requires_at_least_one_supporting_evidence(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    transport = _FakeTransport(_raw(evidence_id, stance="contradicting"))
+
+    result = _service(repository, transport).distill(
+        _command(source_id, video_id, evidence_id)
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert result.intelligence_id is None
+    assert repository.list_current_intelligence_ids() == ()
+
+
 def test_distillation_rejects_non_product_evidence_stance(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     source_id, video_id = _source_and_video(repository)
