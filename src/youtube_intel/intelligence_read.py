@@ -257,7 +257,7 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected("EVIDENCE_MISSING", "current revision has no evidence")
         if state_event.evidence_id not in evidence_ids:
             raise IntelligenceReadRejected("STATE_HISTORY_INVALID", "state history evidence is invalid")
-        self._validate_support_edges(revision.revision_id, evidence_ids)
+        self._validate_evidence_dependency_edges(revision.revision_id, evidence_ids)
         self._validate_evidence(evidence_ids)
         if state_event.state in {
             IntelligenceState.INVALIDATED,
@@ -328,14 +328,25 @@ class AuthoritativeIntelligenceReader:
                 raise IntelligenceReadRejected("STATE_HISTORY_INVALID", "revision state history is invalid")
         return event
 
-    def _validate_support_edges(self, revision_id: str, evidence_ids: tuple[str, ...]) -> None:
-        supporting = {
+    def _validate_evidence_dependency_edges(
+        self, revision_id: str, evidence_ids: tuple[str, ...]
+    ) -> None:
+        """Validate the legacy structural Evidence dependency set.
+
+        EVIDENCE_SUPPORT is an older schema name for dependency completeness. It
+        is not the M4C semantic stance authority; stance is read exclusively
+        from intelligence_revision_evidence.stance.
+        """
+
+        dependencies = {
             edge.input_evidence_id
             for edge in self._repository.list_dependency_edges_for_revision(revision_id)
             if edge.relation is DependencyRelation.EVIDENCE_SUPPORT
         }
-        if supporting != set(evidence_ids) or None in supporting:
-            raise IntelligenceReadRejected("EVIDENCE_SUPPORT_INVALID", "evidence support is incomplete")
+        if dependencies != set(evidence_ids) or None in dependencies:
+            raise IntelligenceReadRejected(
+                "EVIDENCE_SUPPORT_INVALID", "evidence dependency set is incomplete"
+            )
 
     def _validate_evidence(self, evidence_ids: tuple[str, ...]) -> None:
         for evidence_id in evidence_ids:
