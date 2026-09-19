@@ -1,6 +1,6 @@
 # V1_IMPLEMENTATION_ROADMAP.md
 
-Status: DRAFT — Owner decisions applied 2026-09-17 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
+Status: DRAFT — Product Freeze decisions applied — production implementation in progress; Draft work remains locally/runtime unvalidated unless explicitly recorded
 Product: **Intelligence** (Working Product Name)
 Document authority rank: **3** — below `PRODUCT_CONSTITUTION.md` and `V1_PRODUCT_SPEC.md`, above the Demo.
 Purpose: the production **execution order** for V1.
@@ -10,6 +10,37 @@ Purpose: the production **execution order** for V1.
 > **Anchor.** Baseline verified at commit `41233ee` (2026-09-09), branch `codex/v1-product-ux-repair`. M0 must re-confirm this anchor before any implementation, because the task ledger (`tasks/README.md`) is stale relative to code (migrations 006–014 and TASK-018…027 modules already exist on this branch).
 >
 > **Hard constraints (apply to every milestone).** No silent provider/model fallback. No silent quality downgrade. No surprise paid cloud call. No fabricated result, confidence, timestamp, or cost. Truthful absence beats fabricated completion.
+
+## Current implementation snapshot — 2026-09-20
+
+This is a **GitHub-static snapshot**, not an acceptance claim. Mergeability, code review, and the presence of tests in a Draft are not substitutes for actually running the required local/runtime validation.
+
+### Active core Draft spine
+
+| PR | Milestone slice | Head |
+|---|---|---|
+| #15 | M3A explicit current Summary authority | `5656a420b31aa59e0f1e1c43695592f4a5846f3b` |
+| #18 | M8A persisted output language + batch freeze | `db65b1309a7ad0e033aa351cdccb47d96e4ca61d` |
+| #19 | M3B timestamped key points from trusted Evidence | `810bd245136f9994ee1dac97c16fa21b2be9b2da` |
+| #24 | M4C Evidence excerpt/stance authority hardening | `63bbc71a02130462142b5d3d7f2ee2b0e520d0d8` |
+| #27 | M5A honest Intelligence validation posture | `ce48d3d08e3610558fe57dff94ccab2aaebebc60` |
+
+### Current bounded branches
+
+- **#32 M5B** — `411be176373f35de3c77544613229f91c6703130`: introduces migration **018** and a durable `SUCCEEDED_NO_NEW_INTELLIGENCE` positive-zero result. It creates no fake Intelligence/revision/card and is never inferred from an empty list. Draft; local validation pending.
+- **#28 M10A** — `b9985a34811aa00decb5fcb8711d440f87bc896a`: truthful Backup/Restore readiness surface. Draft; local validation pending.
+- **#29 M10B** — `22e74544b9131322dfbb00f8bffee11b13d6ac57`: hardened core backup archive + restore staging on the pre-M5B schema line. Draft; it must be reconciled with schema v18 and M5B quiescence semantics before integrated validation.
+- **#30 M2C** — `c3c08f1f795b58acadbe24f48b10a80d841739d4`: progressive Following setup over existing Source/policy/schedule commands. Draft; local validation pending.
+- **#31 M7A** — `1ef73cfb91768bb378d6e38876f83e0a6ca6af53`: label-only Topic rename on top of #30. Draft; local validation pending.
+
+### Open authority/integration boundaries
+
+- **M4 source excerpt capture is not complete.** #24 has storage/read/UI plumbing and safe absence behavior, but generic caller text must not become authoritative `source_excerpt`. A trusted source-text capture seam is still required.
+- **M5B Source Run integration is not complete.** #32 records a durable positive-zero result, but migration-012 Source Run triggers still equate child completion with raw admitted-Intelligence `SUCCEEDED`. The follow-up must accept the validated M5B sidecar without fabricating an Intelligence admission.
+- **M10 + M5B integration is not complete.** #29 currently treats every raw distillation `PENDING` row as active work. A validated M5B sidecar intentionally leaves its legacy raw checkpoint PENDING, so integrated backup quiescence must treat that effective terminal result correctly.
+- **Host/runtime proof is still pending** for localhost browser E2E, real YouTube/proxy paths, Ollama/local-model qualification, restart persistence on the active stack, and real-data Backup/Restore.
+
+See `docs/V1_LOCAL_VALIDATION_HANDOFF.md` for the exact validation order and no-duplicate-work rules.
 >
 > **Real-call authorization (Owner ruling 2026-09-17).** Once the Owner gives **"APPROVED — proceed to production implementation,"** that approval authorizes **non-destructive real YouTube ingestion verification against public sources** as part of implementation and testing — the team should **not** request per-test Owner approval for each public ingestion test. It does **NOT** authorize paid cloud-model calls, surprise billing, credential changes, destructive external actions, external writes, or public distribution. **Paid/cloud use remains explicit opt-in** and live-credential cloud provider tests still require separate explicit Owner authorization.
 
