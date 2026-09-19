@@ -8477,6 +8477,19 @@ class SQLiteStateRepository:
             ).fetchone()
             if no_new is None:
                 raise StateStoreError("distillation resource usage does not exist")
+            checkpoint = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            result = connection.execute(
+                "SELECT * FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            if checkpoint is None or result is None:
+                raise StateStoreError("no-new Intelligence resource binding is missing")
+            self._validate_no_new_result_row(result, checkpoint)
             return self._distillation_no_new_usage_from_row(no_new)
         finally:
             connection.close()
@@ -8507,6 +8520,21 @@ class SQLiteStateRepository:
                 "ORDER BY result.created_at DESC, result.execution_id DESC LIMIT :limit",
                 {"limit": limit},
             ).fetchall()
+            for row in zero_rows:
+                execution_id = str(row["execution_id"])
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                result = connection.execute(
+                    "SELECT * FROM distillation_no_new_intelligence_results "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if checkpoint is None or result is None:
+                    raise StateStoreError("no-new Intelligence resource binding is missing")
+                self._validate_no_new_result_row(result, checkpoint)
             combined = [
                 *(self._distillation_usage_from_row(row) for row in normal_rows),
                 *(self._distillation_no_new_usage_from_row(row) for row in zero_rows),
