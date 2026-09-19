@@ -69,6 +69,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("Resource Usage", { exact: true }).waitFor();
   await page.getByText(/Token usage: Unavailable/).waitFor();
   await page.getByText(/Cost: Unavailable/).waitFor();
+  await page.getByText("Backup and restore", { exact: true }).waitFor();
+  await page.getByText("Backup / Restore is not available yet", { exact: true }).waitFor();
+  await page.getByText(/Temporary recovery drills are not presented as real backups/).waitFor();
+  if (await page.getByRole("button", { name: /backup|restore/i }).count()) throw new Error("Unsafe backup/restore action surfaced before production service exists");
   await page.screenshot({ path: `/tmp/yia-task026-${viewport.width}x${viewport.height}.png`, fullPage: true });
   await page.close();
 }
