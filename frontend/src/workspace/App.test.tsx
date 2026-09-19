@@ -270,6 +270,51 @@ test("Topic detail waits for its typed projection instead of treating a list res
   expect(screen.getByText("Related Topics")).toBeTruthy();
 });
 
+test("Topic rename changes only the label through the existing Topic command", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Topics" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Topic.*Current understanding/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "Rename Topic" }));
+  expect(screen.getByText(/does not rewrite Intelligence, Evidence, or Topic membership/i)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Topic name"), { target: { value: "Renamed Topic" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save name" }));
+
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/topics/topic-1",
+    expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ name: "Renamed Topic" }),
+    }),
+  ));
+});
+
+test("Topic rename stays open and reports a failed persisted command", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/topics/topic-1") && init?.method === "PATCH") {
+      return Promise.resolve({
+        ok: false,
+        json: async () => ({ error: { message: "Topic rename was rejected." } }),
+      });
+    }
+    if (input.endsWith("/topics/topic-1")) return response({ topic });
+    if (input.endsWith("/topics")) return response({ topics: [topic] });
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Topics" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Topic.*Current understanding/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "Rename Topic" }));
+  fireEvent.change(screen.getByLabelText("Topic name"), { target: { value: "Rejected rename" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save name" }));
+
+  expect(await screen.findByText("Topic rename was rejected.")).toBeTruthy();
+  expect(screen.getByLabelText("Topic name")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Save name" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Topic" })).toBeTruthy();
+});
+
+
 test("a new user can reach a Source setup surface with the bounded V1 controls", async () => {
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.endsWith("/sources")) return response({ sources: [] });
