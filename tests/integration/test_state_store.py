@@ -86,6 +86,7 @@ EXPECTED_TABLES = {
     "distillation_cards",
     "distillation_execution_checkpoints",
     "distillation_resource_usage",
+    "distillation_no_new_intelligence_results",
     "job_attempts",
     "jobs",
     "provider_calls",
@@ -797,12 +798,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "017_add_evidence_excerpt_stance.sql")
+        .joinpath("migrations", "018_add_no_new_intelligence_result.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 17
-    assert first.name == "017_add_evidence_excerpt_stance.sql"
+    assert first.version == 18
+    assert first.name == "018_add_no_new_intelligence_result.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -817,7 +818,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 17
+    assert migration_count == 18
 
 
 def test_m017_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
