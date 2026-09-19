@@ -7743,6 +7743,46 @@ class SQLiteStateRepository:
             created_at=_parse_utc_datetime(str(row["created_at"])),
         )
 
+    @staticmethod
+    def _validate_no_new_result_row(
+        result: sqlite3.Row, checkpoint: sqlite3.Row
+    ) -> None:
+        try:
+            evidence_ids = json.loads(str(result["evidence_ids_json"]))
+        except (json.JSONDecodeError, TypeError) as error:
+            raise StateStoreError(
+                "no-new Intelligence result persistence is invalid"
+            ) from error
+        if (
+            not isinstance(evidence_ids, list)
+            or not evidence_ids
+            or any(
+                not isinstance(evidence_id, str)
+                or not evidence_id.strip()
+                or evidence_id != evidence_id.strip()
+                for evidence_id in evidence_ids
+            )
+            or evidence_ids != sorted(evidence_ids)
+            or len(evidence_ids) != len(set(evidence_ids))
+        ):
+            raise StateStoreError("no-new Intelligence Evidence binding is invalid")
+        canonical = json.dumps(evidence_ids, separators=(",", ":")).encode("utf-8")
+        if hashlib.sha256(canonical).hexdigest() != str(result["evidence_set_hash"]):
+            raise StateStoreError("no-new Intelligence Evidence hash is invalid")
+        if (
+            str(result["execution_id"]) != str(checkpoint["execution_id"])
+            or str(result["source_id"]) != str(checkpoint["source_id"])
+            or str(result["video_id"]) != str(checkpoint["video_id"])
+            or str(result["actual_provider"]) != str(checkpoint["selected_provider"])
+            or str(result["actual_model"]) != str(checkpoint["selected_model"])
+            or str(result["outcome"]) != "NO_NEW_INTELLIGENCE"
+            or str(checkpoint["status"]) != "PENDING"
+            or int(checkpoint["invocation_count"]) != 1
+            or checkpoint["intelligence_id"] is not None
+            or checkpoint["revision_id"] is not None
+        ):
+            raise StateStoreError("no-new Intelligence execution binding is invalid")
+
     def get_distillation_execution(self, execution_id: str) -> DistillationExecutionRecord | None:
         connection = self._connect()
         try:
@@ -7753,10 +7793,12 @@ class SQLiteStateRepository:
             if row is None:
                 return None
             no_new = connection.execute(
-                "SELECT 1 FROM distillation_no_new_intelligence_results "
+                "SELECT * FROM distillation_no_new_intelligence_results "
                 "WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
             ).fetchone()
+            if no_new is not None:
+                self._validate_no_new_result_row(no_new, row)
             return self._distillation_execution_from_row(
                 row,
                 status_override=(
@@ -7787,10 +7829,12 @@ class SQLiteStateRepository:
             if row is None:
                 return None
             no_new = connection.execute(
-                "SELECT 1 FROM distillation_no_new_intelligence_results "
+                "SELECT * FROM distillation_no_new_intelligence_results "
                 "WHERE execution_id = :execution_id",
                 {"execution_id": str(row["execution_id"])},
             ).fetchone()
+            if no_new is not None:
+                self._validate_no_new_result_row(no_new, row)
             return self._distillation_execution_from_row(
                 row,
                 status_override=(
