@@ -56,6 +56,65 @@ def _record_video(app: LocalApiApplication, video_id: str) -> None:
     )
 
 
+def test_video_detail_distinguishes_not_processed_from_zero_success(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    _record_video(app, "video-result")
+
+    status, before = app.handle("GET", "/api/v1/videos/video-result")
+    assert status == 200
+    assert before["intelligence_result"] == {
+        "status": "NOT_PROCESSED",
+        "execution_id": None,
+        "has_new_intelligence": None,
+        "intelligence_id": None,
+        "revision_id": None,
+        "updated_at": None,
+    }
+
+    app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        execution_id="exec-zero",
+        status="SUCCEEDED_NO_NEW_INTELLIGENCE",
+        intelligence_id=None,
+        revision_id=None,
+        updated_at=datetime(2026, 9, 1, 1, tzinfo=UTC),
+    )
+
+    status, after = app.handle("GET", "/api/v1/videos/video-result")
+    assert status == 200
+    assert after["intelligence_result"] == {
+        "status": "SUCCEEDED_NO_NEW_INTELLIGENCE",
+        "execution_id": "exec-zero",
+        "has_new_intelligence": False,
+        "intelligence_id": None,
+        "revision_id": None,
+        "updated_at": "2026-09-01T01:00:00Z",
+    }
+
+
+def test_video_detail_distinguishes_admitted_intelligence_success(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    _record_video(app, "video-admitted")
+    app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        execution_id="exec-admitted",
+        status="SUCCEEDED",
+        intelligence_id="intel-1",
+        revision_id="revision-1",
+        updated_at=datetime(2026, 9, 1, 2, tzinfo=UTC),
+    )
+
+    status, payload = app.handle("GET", "/api/v1/videos/video-admitted")
+
+    assert status == 200
+    assert payload["intelligence_result"]["status"] == "SUCCEEDED"
+    assert payload["intelligence_result"]["has_new_intelligence"] is True
+    assert payload["intelligence_result"]["intelligence_id"] == "intel-1"
+    assert payload["intelligence_result"]["revision_id"] == "revision-1"
+
+
 def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
     app = _app(tmp_path)
     status, payload = app.handle(
