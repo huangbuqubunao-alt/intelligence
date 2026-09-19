@@ -38,6 +38,9 @@ Current bounded follow-ups / scope-control issues:
 - **#34 M9 Search feasibility** — keep local search non-launch-blocking; do not build RAG/vector/AI-answer search. Revisit only after the launch-critical core is green.
 - **#35 V1 Weekly/Brief visibility** — hide standalone Weekly/Brief surfaces from the V1 normal-user path without deleting the existing backend/history capability.
 - **#36 M5B Source Run integration** — blocked on #32 local validation; later reconcile migration-012 completion guards with the validated positive-zero sidecar without faking an Intelligence admission.
+- **#37 M2/M1 GUI execution wiring** — launch-critical: `serve-api` still constructs a guarded read/config service without the durable processing orchestrator, so normal GUI Check Now remains blocked.
+- **#38 M1 real YouTube body ingestion** — host validation must prove repeatable real transcript/subtitle body reads; historical metadata/directory-only smoke is not acceptance evidence.
+- **#39 M5 local-model qualification** — Gate A requires at least one usable local model path; mock transports and cloud-provider experiments do not satisfy this requirement.
 
 ### Open authority/integration boundaries
 
