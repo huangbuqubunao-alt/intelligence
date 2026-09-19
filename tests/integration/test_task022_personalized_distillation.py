@@ -727,6 +727,8 @@ def test_no_new_intelligence_read_fails_closed_on_binding_hash_tamper(
 
     with pytest.raises(StateStoreError, match="Evidence hash"):
         repository.get_distillation_execution("exec-no-new-tamper")
+    with pytest.raises(StateStoreError, match="Evidence hash"):
+        repository.get_distillation_resource_usage("exec-no-new-tamper")
 
 
 def test_no_new_intelligence_requires_the_full_current_canonical_evidence_set(
