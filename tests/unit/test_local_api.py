@@ -401,6 +401,123 @@ def test_note_projection_never_invents_timestamped_key_points(
     assert projection["v2"]["timestamped_key_points"] == []
 
 
+def test_intelligence_projection_exposes_excerpt_stance_and_persisted_provenance(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-1",
+        revision_id="revision-1",
+        claim_kind=SimpleNamespace(value="FACT"),
+        state=SimpleNamespace(value="CONFIRMED"),
+        evidence_ids=("evidence-1",),
+        is_confirmed=True,
+    )
+    app._intelligence_reader.read_current = lambda _intelligence_id: verified  # type: ignore[method-assign]
+    app._intelligence_reader.read_current_card = lambda _intelligence_id: SimpleNamespace(  # type: ignore[method-assign]
+        verified=verified,
+        core_conclusion="Trusted conclusion.",
+        user_relevant_information=("Relevant.",),
+        important_new_information=(),
+        meaningful_details=(),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="abcdefghijk",
+        preference_ids=(),
+        source_policy_revision_id=None,
+    )
+    app._repository.get_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        source_url="https://www.youtube.com/watch?v=abcdefghijk"
+    )
+    app._repository.list_intelligence_revision_evidence_relations = lambda _revision_id: (  # type: ignore[method-assign]
+        SimpleNamespace(
+            revision_id="revision-1",
+            evidence_id="evidence-1",
+            stance=SimpleNamespace(value="contradicting"),
+        ),
+    )
+    app._repository.get_evidence = lambda _evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id="evidence-1",
+        artifact_id="transcript-artifact-1",
+        start_ms=1000,
+        end_ms=2000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+        source_excerpt="The source directly disputes the claim.",
+    )
+
+    projection = app._intelligence_projection("intel-1")
+
+    assert projection["card"]["evidence_links"] == [
+        {
+            "evidence_id": "evidence-1",
+            "artifact_id": "transcript-artifact-1",
+            "start_ms": 1000,
+            "end_ms": 2000,
+            "language": "en",
+            "lineage_kind": "ORIGINAL_TRANSCRIPT",
+            "role": "PRIMARY_ORIGINAL",
+            "original_excerpt": "The source directly disputes the claim.",
+            "translated_excerpt": None,
+            "translated_language": None,
+            "stance": "contradicting",
+        }
+    ]
+
+
+def test_intelligence_projection_keeps_legacy_excerpt_and_stance_truthfully_unavailable(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-legacy",
+        revision_id="revision-legacy",
+        claim_kind=SimpleNamespace(value="FACT"),
+        state=SimpleNamespace(value="CONFIRMED"),
+        evidence_ids=("evidence-legacy",),
+        is_confirmed=True,
+    )
+    app._intelligence_reader.read_current = lambda _intelligence_id: verified  # type: ignore[method-assign]
+    app._intelligence_reader.read_current_card = lambda _intelligence_id: SimpleNamespace(  # type: ignore[method-assign]
+        verified=verified,
+        core_conclusion="Legacy conclusion.",
+        user_relevant_information=(),
+        important_new_information=(),
+        meaningful_details=(),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="abcdefghijk",
+        preference_ids=(),
+        source_policy_revision_id=None,
+    )
+    app._repository.get_video = lambda _video_id: SimpleNamespace(source_url=None)  # type: ignore[method-assign]
+    app._repository.list_intelligence_revision_evidence_relations = lambda _revision_id: (  # type: ignore[method-assign]
+        SimpleNamespace(
+            revision_id="revision-legacy",
+            evidence_id="evidence-legacy",
+            stance=None,
+        ),
+    )
+    app._repository.get_evidence = lambda _evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id="evidence-legacy",
+        artifact_id="artifact-legacy",
+        start_ms=1000,
+        end_ms=2000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+        source_excerpt=None,
+    )
+
+    projection = app._intelligence_projection("intel-legacy")
+
+    link = projection["card"]["evidence_links"][0]
+    assert link["original_excerpt"] is None
+    assert link["stance"] is None
+    assert link["translated_excerpt"] is None
+
+
 def test_intelligence_feed_rechecks_each_identity_and_never_emits_raw_content(
     tmp_path: Path,
 ) -> None:
