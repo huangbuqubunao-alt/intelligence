@@ -43,6 +43,7 @@ from youtube_intel.scoring import (
 )
 from youtube_intel.scoring_admission import ScoringDispatchAdmission
 from youtube_intel.state import (
+    CURRENT_SCHEMA_VERSION,
     ArtifactKind,
     ArtifactWrite,
     ConcurrencyConflict,
@@ -801,7 +802,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
         .read_bytes()
     )
     assert first == second
-    assert first.version == 17
+    assert first.version == CURRENT_SCHEMA_VERSION == 17
     assert first.name == "017_add_evidence_excerpt_stance.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
@@ -817,7 +818,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 17
+    assert migration_count == CURRENT_SCHEMA_VERSION
 
 
 def test_m017_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
