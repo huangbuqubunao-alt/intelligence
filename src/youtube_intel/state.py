@@ -1434,6 +1434,7 @@ class SQLiteStateRepository:
             "015_add_current_content_summary.sql",
             "016_add_global_output_language.sql",
             "017_add_evidence_excerpt_stance.sql",
+            "018_add_no_new_intelligence_result.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -7660,7 +7661,9 @@ class SQLiteStateRepository:
         )
 
     @staticmethod
-    def _distillation_execution_from_row(row: sqlite3.Row) -> DistillationExecutionRecord:
+    def _distillation_execution_from_row(
+        row: sqlite3.Row, *, status_override: str | None = None
+    ) -> DistillationExecutionRecord:
         return DistillationExecutionRecord(
             execution_id=str(row["execution_id"]),
             source_id=str(row["source_id"]),
@@ -7669,7 +7672,7 @@ class SQLiteStateRepository:
             use_case=str(row["use_case"]),
             selected_provider=str(row["selected_provider"]),
             selected_model=str(row["selected_model"]),
-            status=str(row["status"]),
+            status=str(row["status"]) if status_override is None else status_override,
             budget_state=str(row["budget_state"]),
             invocation_count=int(row["invocation_count"]),
             intelligence_id=(
@@ -7718,7 +7721,53 @@ class SQLiteStateRepository:
                 "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
             ).fetchone()
-            return None if row is None else self._distillation_execution_from_row(row)
+            if row is None:
+                return None
+            no_new = connection.execute(
+                "SELECT 1 FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            return self._distillation_execution_from_row(
+                row,
+                status_override=(
+                    "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
+                ),
+            )
+        finally:
+            connection.close()
+
+    def latest_distillation_execution_for_video(
+        self, video_id: str
+    ) -> DistillationExecutionRecord | None:
+        if (
+            not isinstance(video_id, str)
+            or not video_id.strip()
+            or video_id != video_id.strip()
+            or len(video_id) > 512
+        ):
+            raise ValueError("video identity is invalid")
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints "
+                "WHERE video_id = :video_id "
+                "ORDER BY updated_at DESC, execution_id DESC LIMIT 1",
+                {"video_id": video_id},
+            ).fetchone()
+            if row is None:
+                return None
+            no_new = connection.execute(
+                "SELECT 1 FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": str(row["execution_id"])},
+            ).fetchone()
+            return self._distillation_execution_from_row(
+                row,
+                status_override=(
+                    "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
+                ),
+            )
         finally:
             connection.close()
 
