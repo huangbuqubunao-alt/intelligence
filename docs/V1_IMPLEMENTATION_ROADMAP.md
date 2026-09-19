@@ -33,6 +33,12 @@ This is a **GitHub-static snapshot**, not an acceptance claim. Mergeability, cod
 - **#30 M2C** — `c3c08f1f795b58acadbe24f48b10a80d841739d4`: progressive Following setup over existing Source/policy/schedule commands. Draft; local validation pending.
 - **#31 M7A** — `1ef73cfb91768bb378d6e38876f83e0a6ca6af53`: label-only Topic rename on top of #30. Draft; local validation pending.
 
+Current bounded follow-ups / scope-control issues:
+
+- **#34 M9 Search feasibility** — keep local search non-launch-blocking; do not build RAG/vector/AI-answer search. Revisit only after the launch-critical core is green.
+- **#35 V1 Weekly/Brief visibility** — hide standalone Weekly/Brief surfaces from the V1 normal-user path without deleting the existing backend/history capability.
+- **#36 M5B Source Run integration** — blocked on #32 local validation; later reconcile migration-012 completion guards with the validated positive-zero sidecar without faking an Intelligence admission.
+
 ### Open authority/integration boundaries
 
 - **M4 source excerpt capture is not complete.** #24 has storage/read/UI plumbing and safe absence behavior, but generic caller text must not become authoritative `source_excerpt`. A trusted source-text capture seam is still required.
