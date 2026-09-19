@@ -164,6 +164,14 @@ class EvidenceRole(str, Enum):
     SECONDARY_RELAY = "SECONDARY_RELAY"
 
 
+class EvidenceStance(str, Enum):
+    """How one Evidence item relates to one specific Intelligence revision."""
+
+    SUPPORTING = "supporting"
+    CONTRADICTING = "contradicting"
+    CONDITIONAL = "conditional"
+
+
 class IntelligenceInterpretationKind(str, Enum):
     DISTILLATION = "DISTILLATION"
     SYNTHESIS = "SYNTHESIS"
@@ -332,6 +340,7 @@ class EvidenceWrite:
     role: EvidenceRole
     language: str
     availability: EvidenceAvailability
+    source_excerpt: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,6 +355,14 @@ class EvidenceRecord:
     language: str
     availability: EvidenceAvailability
     created_at: datetime
+    source_excerpt: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceRelationRecord:
+    revision_id: str
+    evidence_id: str
+    stance: EvidenceStance | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1416,6 +1433,7 @@ class SQLiteStateRepository:
             "014_add_saved_intelligence.sql",
             "015_add_current_content_summary.sql",
             "016_add_global_output_language.sql",
+            "017_add_evidence_excerpt_stance.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -6147,6 +6165,11 @@ class SQLiteStateRepository:
             language=str(row["language"]),
             availability=EvidenceAvailability(str(row["availability"])),
             created_at=_parse_utc_datetime(str(row["created_at"])),
+            source_excerpt=(
+                None
+                if row["source_excerpt"] is None
+                else str(row["source_excerpt"])
+            ),
         )
 
     @staticmethod
@@ -6233,12 +6256,16 @@ class SQLiteStateRepository:
             raise ValueError("evidence identity does not match its provenance")
         if not evidence.language.strip():
             raise ValueError("evidence language must be non-empty")
+        if evidence.source_excerpt is not None and (
+            not evidence.source_excerpt.strip() or len(evidence.source_excerpt) > 4_000
+        ):
+            raise ValueError("evidence source excerpt is invalid")
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
                 connection.execute(
-                    "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) "
-                    "VALUES (:evidence_id, :video_id, :artifact_id, :start_ms, :end_ms, :lineage_kind, :role, :language, :availability, :created_at)",
+                    "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at, source_excerpt) "
+                    "VALUES (:evidence_id, :video_id, :artifact_id, :start_ms, :end_ms, :lineage_kind, :role, :language, :availability, :created_at, :source_excerpt)",
                     {
                         "evidence_id": evidence.evidence_id,
                         "video_id": evidence.video_id,
@@ -6250,6 +6277,7 @@ class SQLiteStateRepository:
                         "language": evidence.language,
                         "availability": evidence.availability.value,
                         "created_at": format_utc_datetime(now),
+                        "source_excerpt": evidence.source_excerpt,
                     },
                 )
                 row = connection.execute(
@@ -6602,6 +6630,31 @@ class SQLiteStateRepository:
                 {"revision_id": revision_id},
             ).fetchall()
             return tuple(str(row["evidence_id"]) for row in rows)
+        finally:
+            connection.close()
+
+    def list_intelligence_revision_evidence_relations(
+        self, revision_id: str
+    ) -> tuple[EvidenceRelationRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT revision_id, evidence_id, stance FROM intelligence_revision_evidence "
+                "WHERE revision_id = :revision_id ORDER BY evidence_id ASC",
+                {"revision_id": revision_id},
+            ).fetchall()
+            return tuple(
+                EvidenceRelationRecord(
+                    revision_id=str(row["revision_id"]),
+                    evidence_id=str(row["evidence_id"]),
+                    stance=(
+                        None
+                        if row["stance"] is None
+                        else EvidenceStance(str(row["stance"]))
+                    ),
+                )
+                for row in rows
+            )
         finally:
             connection.close()
 
@@ -7982,6 +8035,7 @@ class SQLiteStateRepository:
         claim_kind: IntelligenceClaimKind,
         content_hash: str,
         evidence_ids: tuple[str, ...],
+        evidence_stances: tuple[tuple[str, EvidenceStance], ...],
         card: DistillationCardWrite,
         actual_provider: str,
         actual_model: str,
@@ -7997,6 +8051,13 @@ class SQLiteStateRepository:
         evidence_ids = tuple(sorted(evidence_ids))
         if not evidence_ids or len(set(evidence_ids)) != len(evidence_ids):
             raise ValueError("distillation evidence identities are invalid")
+        stance_by_id = dict(evidence_stances)
+        if (
+            len(stance_by_id) != len(evidence_stances)
+            or set(stance_by_id) != set(evidence_ids)
+            or any(not isinstance(stance, EvidenceStance) for stance in stance_by_id.values())
+        ):
+            raise ValueError("distillation evidence stances are invalid")
         if not card.core_conclusion.strip() or len(card.core_conclusion) > 4_000:
             raise ValueError("distillation card conclusion is invalid")
         encoded_card = {
@@ -8051,8 +8112,13 @@ class SQLiteStateRepository:
                 )
                 for evidence_id in evidence_ids:
                     connection.execute(
-                        "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id) VALUES (:revision_id, :evidence_id)",
-                        {"revision_id": revision_id, "evidence_id": evidence_id},
+                        "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id, stance) "
+                        "VALUES (:revision_id, :evidence_id, :stance)",
+                        {
+                            "revision_id": revision_id,
+                            "evidence_id": evidence_id,
+                            "stance": stance_by_id[evidence_id].value,
+                        },
                     )
                 connection.execute(
                     "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
