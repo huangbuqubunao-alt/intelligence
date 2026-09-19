@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -43,6 +44,9 @@ from youtube_intel.state import (
     FeedbackKind,
     FeedbackWrite,
     IntelligenceClaimKind,
+    IntelligenceInterpretationKind,
+    IntelligenceRevisionWrite,
+    IntelligenceState,
     LiveStatus,
     PreferenceScope,
     SQLiteStateRepository,
@@ -320,6 +324,141 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
+
+
+def test_v016_legacy_null_stance_keeps_old_card_hash_readable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "legacy-v16.sqlite3"
+    legacy = SQLiteStateRepository(path)
+    migrations = legacy._load_migrations()
+    monkeypatch.setattr(legacy, "_load_migrations", lambda: migrations[:16])
+    assert legacy.initialize(now=NOW).version == 16
+    source_id, video_id = _source_and_video(legacy)
+
+    artifact_id = "legacy-artifact-v16"
+    evidence_id = build_evidence_id(
+        video_id=video_id,
+        artifact_id=artifact_id,
+        start_ms=1_000,
+        end_ms=1_500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+    )
+    with legacy._connect() as connection:
+        connection.execute(
+            "INSERT INTO artifacts "
+            "(artifact_id, artifact_key, video_id, job_id, kind, storage_root, "
+            "relative_path, content_hash, provider, model, producer_version, "
+            "retention_class, created_at, expires_at, deleted_at) "
+            "VALUES (?, ?, ?, NULL, 'transcript_canonical', 'DATA', ?, ?, "
+            "NULL, NULL, 'v1', 'LONG_LIVED', ?, NULL, NULL)",
+            (
+                artifact_id,
+                "legacy-artifact-key-v16",
+                video_id,
+                "legacy-v16.txt",
+                "a" * 64,
+                "2026-09-07T09:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO evidence "
+            "(evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, "
+            "role, language, availability, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 'ORIGINAL_TRANSCRIPT', 'PRIMARY_ORIGINAL', "
+            "'en', 'AVAILABLE', ?)",
+            (
+                evidence_id,
+                video_id,
+                artifact_id,
+                1_000,
+                1_500,
+                "2026-09-07T09:00:00Z",
+            ),
+        )
+
+    payload = {
+        "core_conclusion": "Legacy card remains readable after M4C migration.",
+        "user_relevant_information": ["Legacy authority is preserved."],
+        "important_new_information": [],
+        "meaningful_details": [],
+        "filtered_noise": [],
+        "claim_kind": IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT.value,
+        "evidence": [
+            {
+                "evidence_id": evidence_id,
+                "start_ms": 1_000,
+                "end_ms": 1_500,
+            }
+        ],
+    }
+    content_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+    legacy.create_intelligence(intelligence_id="legacy-intel-v16", now=NOW)
+    legacy.append_intelligence_revision(
+        intelligence_id="legacy-intel-v16",
+        revision=IntelligenceRevisionWrite(
+            revision_id="legacy-revision-v16",
+            interpretation_kind=IntelligenceInterpretationKind.DISTILLATION,
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+            content_hash=content_hash,
+            state=IntelligenceState.NEW,
+            reason="LEGACY_DISTILLATION_ADMITTED",
+            evidence_ids=(evidence_id,),
+        ),
+        now=NOW,
+    )
+    with legacy._connect() as connection:
+        connection.execute(
+            "INSERT INTO dependency_edges "
+            "(edge_id, dependent_revision_id, relation, input_evidence_id, "
+            "input_revision_id, created_at) "
+            "VALUES (?, ?, 'EVIDENCE_SUPPORT', ?, NULL, ?)",
+            (
+                "legacy-support-edge-v16",
+                "legacy-revision-v16",
+                evidence_id,
+                "2026-09-07T09:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO distillation_cards "
+            "(revision_id, source_id, video_id, core_conclusion, "
+            "user_relevant_information_json, important_new_information_json, "
+            "meaningful_details_json, filtered_noise_json, preference_ids_json, "
+            "source_policy_revision_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)",
+            (
+                "legacy-revision-v16",
+                source_id,
+                video_id,
+                payload["core_conclusion"],
+                json.dumps(payload["user_relevant_information"], separators=(",", ":")),
+                json.dumps(payload["important_new_information"], separators=(",", ":")),
+                json.dumps(payload["meaningful_details"], separators=(",", ":")),
+                json.dumps(payload["filtered_noise"], separators=(",", ":")),
+                "[]",
+                "2026-09-07T09:00:00Z",
+            ),
+        )
+
+    monkeypatch.undo()
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 17
+
+    relations = upgraded.list_intelligence_revision_evidence_relations(
+        "legacy-revision-v16"
+    )
+    assert len(relations) == 1
+    assert relations[0].stance is None
+    assert upgraded.get_evidence(evidence_id).source_excerpt is None
+    card = AuthoritativeIntelligenceReader(upgraded).read_current_card(
+        "legacy-intel-v16"
+    )
+    assert card.core_conclusion == payload["core_conclusion"]
 
 
 def test_generic_evidence_write_rejects_unverified_source_excerpt(
