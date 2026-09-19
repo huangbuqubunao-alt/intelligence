@@ -30,6 +30,7 @@ beforeEach(() => {
     if (input.endsWith("/settings/source-policy")) return response({ policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: [], ignore_rules: [], distillation_style: "BALANCED" } });
     if (input.endsWith("/settings/resource-usage")) return response({ usage: [{ execution_id: "exec-1", reason: "PERSONALIZED_INTELLIGENCE", actual_provider: "offline-test", actual_model: "deterministic-v1", invocation_count: 1, input_tokens: null, output_tokens: null, cost_microunits: null, duration_ms: 0, status: "SUCCEEDED", budget_state: "ADMITTED", outcome: "ADMITTED" }] });
     if (input.endsWith("/settings")) return response({ general: { timezone: "Asia/Shanghai", output_language: "zh-CN", output_language_source: "BOOTSTRAP_DEFAULT", output_language_updated_at: null }, providers: [{ provider: "Kimi", production_eligible: false, qualification_status: "UNQUALIFIED", reason: "Not qualified" }] });
+    if (input.endsWith("/system")) return response({ backup: { status: "NOT_RUN", backup_available: false, restore_available: false, reason: "No production backup/restore service is wired." } });
     if (input.endsWith("/saved-intelligence/save") || input.endsWith("/saved-intelligence/unsave")) return response({ saved: true });
     return response({});
   }));
@@ -186,6 +187,7 @@ test("Settings persists output language for future processing without rewriting 
     if (input.endsWith("/settings/preferences")) return response({ active: [], history: [] });
     if (input.endsWith("/settings/source-policy")) return response({ policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: [], ignore_rules: [], distillation_style: "BALANCED" } });
     if (input.endsWith("/settings/resource-usage")) return response({ usage: [] });
+    if (input.endsWith("/system")) return response({ backup: { status: "NOT_RUN", backup_available: false, restore_available: false, reason: "No production backup/restore service is wired." } });
     return response({});
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -222,6 +224,11 @@ test("Settings preserves preference provenance and renders unknown resource valu
   expect(screen.getByText("Resource Usage")).toBeTruthy();
   expect(screen.getByText(/Token usage: Unavailable/)).toBeTruthy();
   expect(screen.getByText(/Cost: Unavailable/)).toBeTruthy();
+  expect(screen.getByText("Backup and restore")).toBeTruthy();
+  expect(screen.getByText("Backup / Restore is not available yet")).toBeTruthy();
+  expect(screen.getByText(/No production backup\/restore service is wired/)).toBeTruthy();
+  expect(screen.getByText(/Temporary recovery drills are not presented as real backups/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /backup|restore/i })).toBeNull();
   expect(screen.queryByText(/estimated/i)).toBeNull();
 });
 
