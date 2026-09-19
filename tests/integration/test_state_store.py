@@ -840,6 +840,52 @@ def test_m017_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) 
     assert "stance" in relation_columns
 
 
+def test_m018_adds_immutable_no_new_intelligence_result_sidecar(
+    tmp_path: Path,
+) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        columns = tuple(
+            row["name"]
+            for row in connection.execute(
+                'PRAGMA table_info("distillation_no_new_intelligence_results")'
+            )
+        )
+        triggers = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'trigger' "
+                "AND name LIKE 'distillation_no_new_result_%'"
+            )
+        }
+
+    assert columns == (
+        "execution_id",
+        "source_id",
+        "video_id",
+        "evidence_ids_json",
+        "evidence_set_hash",
+        "actual_provider",
+        "actual_model",
+        "input_tokens",
+        "output_tokens",
+        "cost_microunits",
+        "duration_ms",
+        "budget_state",
+        "outcome",
+        "created_at",
+    )
+    assert triggers == {
+        "distillation_no_new_result_requires_claimed_checkpoint",
+        "distillation_no_new_result_immutable_update",
+        "distillation_no_new_result_immutable_delete",
+    }
+
+
 def test_global_output_language_persists_and_rejects_unsupported_values(
     tmp_path: Path,
 ) -> None:
