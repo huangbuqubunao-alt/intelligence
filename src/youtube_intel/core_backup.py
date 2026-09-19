@@ -105,8 +105,11 @@ def _open_regular_under(root: Path, relative_path: str) -> BinaryIO:
     if not resolved_root.is_dir():
         raise CoreBackupError("data root is not a directory")
 
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
-    directory = os.open(resolved_root, os.O_RDONLY | os.O_DIRECTORY)
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory_flag is None:
+        raise CoreBackupError("platform cannot safely open backup source files")
+    directory = os.open(resolved_root, os.O_RDONLY | directory_flag)
     try:
         for part in relative.parts[:-1]:
             next_directory = os.open(
@@ -145,8 +148,11 @@ def _open_regular_path(path: Path) -> BinaryIO:
         raise CoreBackupError("backup archive path is invalid")
     try:
         parent = path.parent.resolve(strict=True)
-        nofollow = getattr(os, "O_NOFOLLOW", 0)
-        directory = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        nofollow = getattr(os, "O_NOFOLLOW", None)
+        directory_flag = getattr(os, "O_DIRECTORY", None)
+        if nofollow is None or directory_flag is None:
+            raise CoreBackupError("platform cannot safely open backup archives")
+        directory = os.open(parent, os.O_RDONLY | directory_flag)
         try:
             descriptor = os.open(
                 path.name,
@@ -565,8 +571,11 @@ class CoreBackupService:
         names = [info.filename for info in infos]
         if len(names) != len(set(names)):
             raise CoreBackupError("backup contains duplicate paths")
-        for name in names:
-            _safe_archive_path(name)
+        for info in infos:
+            _safe_archive_path(info.filename)
+            mode = info.external_attr >> 16
+            if mode and stat.S_ISLNK(mode):
+                raise CoreBackupError("backup contains a symbolic link")
         by_name = {info.filename: info for info in infos}
         manifest_info = by_name.get(_MANIFEST_PATH)
         if manifest_info is None:
@@ -739,7 +748,7 @@ class CoreBackupService:
             with _open_regular_path(archive_path) as source:
                 with zipfile.ZipFile(source, "r", allowZip64=True) as archive:
                     return self._inspect_archive(archive)
-        except zipfile.BadZipFile as error:
+        except (zipfile.BadZipFile, RuntimeError) as error:
             raise CoreBackupError("backup archive is not a valid ZIP container") from error
 
     def stage_restore(
@@ -803,7 +812,7 @@ class CoreBackupService:
                                         if not chunk:
                                             break
                                         output.write(chunk)
-            except zipfile.BadZipFile as error:
+            except (zipfile.BadZipFile, RuntimeError) as error:
                 raise CoreBackupError(
                     "backup archive is not a valid ZIP container"
                 ) from error
