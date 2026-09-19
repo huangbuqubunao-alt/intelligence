@@ -50,6 +50,7 @@ from youtube_intel.state import (
     LiveStatus,
     PreferenceScope,
     SQLiteStateRepository,
+    StateStoreError,
     VideoMetadata,
     build_evidence_id,
 )
@@ -694,6 +695,38 @@ def test_successful_no_new_intelligence_is_durable_positive_zero_result(
     repeated = _service(restarted, transport).distill(command)
     assert repeated.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
     assert transport.calls == 1
+
+
+def test_no_new_intelligence_read_fails_closed_on_binding_hash_tamper(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    result = _service(
+        repository, _FakeTransport(_no_new_raw(evidence_id))
+    ).distill(
+        _command(
+            source_id,
+            video_id,
+            evidence_id,
+            execution_id="exec-no-new-tamper",
+        )
+    )
+    assert result.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+
+    with repository._connect() as connection:
+        connection.execute(
+            "DROP TRIGGER distillation_no_new_result_immutable_update"
+        )
+        connection.execute(
+            "UPDATE distillation_no_new_intelligence_results "
+            "SET evidence_set_hash = ? WHERE execution_id = ?",
+            ("0" * 64, "exec-no-new-tamper"),
+        )
+
+    with pytest.raises(StateStoreError, match="Evidence hash"):
+        repository.get_distillation_execution("exec-no-new-tamper")
 
 
 def test_no_new_intelligence_requires_the_full_current_canonical_evidence_set(
