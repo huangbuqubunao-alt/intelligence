@@ -241,6 +241,24 @@ def _raw(
     )
 
 
+def _no_new_raw(
+    evidence_id: str, *, start_ms: int = 1_000, end_ms: int = 1_500
+) -> str:
+    return json.dumps(
+        {
+            "result": "NO_NEW_INTELLIGENCE",
+            "evidence": [
+                {
+                    "evidence_id": evidence_id,
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                }
+            ],
+        },
+        separators=(",", ":"),
+    )
+
+
 def _service(
     repository: SQLiteStateRepository,
     transport: _FakeTransport,
@@ -607,6 +625,88 @@ def test_mixed_legacy_and_new_stance_fails_closed(tmp_path: Path) -> None:
         AuthoritativeIntelligenceReader(repository).read_current_card(
             result.intelligence_id or ""
         )
+
+
+def test_successful_no_new_intelligence_is_durable_positive_zero_result(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    transport = _FakeTransport(_no_new_raw(evidence_id))
+    command = _command(
+        source_id, video_id, evidence_id, execution_id="exec-no-new"
+    )
+
+    result = _service(repository, transport).distill(command)
+
+    assert result.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+    assert result.invocation_count == 1
+    assert result.intelligence_id is None
+    assert result.revision_id is None
+    assert repository.list_current_intelligence_ids() == ()
+    assert repository.list_distillation_cards() == ()
+    persisted = repository.get_distillation_execution("exec-no-new")
+    assert persisted is not None
+    assert persisted.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    assert persisted.intelligence_id is None
+    assert repository.latest_distillation_execution_for_video(video_id) == persisted
+    usage = repository.get_distillation_resource_usage("exec-no-new")
+    assert usage.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    assert usage.outcome == "NO_NEW_INTELLIGENCE"
+    assert usage.invocation_count == 1
+    assert usage.actual_provider == "test-transport"
+    assert usage.actual_model == "deterministic-v1"
+
+    repeated = _service(repository, transport).distill(command)
+    assert repeated.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+    assert transport.calls == 1
+
+
+def test_no_new_intelligence_requires_the_full_current_canonical_evidence_set(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    first_evidence = _evidence(repository, video_id)
+    _evidence(repository, video_id, start_ms=2_000, end_ms=2_500)
+    transport = _FakeTransport(_no_new_raw(first_evidence))
+
+    result = _service(repository, transport).distill(
+        _command(
+            source_id,
+            video_id,
+            first_evidence,
+            execution_id="exec-no-new-incomplete",
+        )
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert result.intelligence_id is None
+    assert repository.list_current_intelligence_ids() == ()
+
+
+def test_no_new_intelligence_schema_has_no_stance_or_claim_payload(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    payload = json.loads(_no_new_raw(evidence_id))
+    payload["evidence"][0]["stance"] = "supporting"
+    transport = _FakeTransport(json.dumps(payload))
+
+    result = _service(repository, transport).distill(
+        _command(
+            source_id,
+            video_id,
+            evidence_id,
+            execution_id="exec-no-new-with-stance",
+        )
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert repository.list_current_intelligence_ids() == ()
 
 
 def test_distillation_requires_at_least_one_supporting_evidence(tmp_path: Path) -> None:
