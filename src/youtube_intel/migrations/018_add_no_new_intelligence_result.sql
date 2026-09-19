@@ -48,9 +48,50 @@ WHEN NOT EXISTS (
       AND checkpoint.invocation_count = 1
       AND checkpoint.intelligence_id IS NULL
       AND checkpoint.revision_id IS NULL
+      AND checkpoint.selected_provider = NEW.actual_provider
+      AND checkpoint.selected_model = NEW.actual_model
 )
+ OR json_array_length(NEW.evidence_ids_json) = 0
+ OR EXISTS (
+    SELECT 1
+    FROM json_each(NEW.evidence_ids_json) AS cited
+    WHERE cited.type != 'text'
+ )
+ OR (
+    SELECT COUNT(*) FROM json_each(NEW.evidence_ids_json)
+ ) != (
+    SELECT COUNT(DISTINCT cited.value)
+    FROM json_each(NEW.evidence_ids_json) AS cited
+ )
+ OR EXISTS (
+    SELECT 1
+    FROM json_each(NEW.evidence_ids_json) AS cited
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM evidence
+        JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id
+        WHERE evidence.evidence_id = cited.value
+          AND evidence.video_id = NEW.video_id
+          AND evidence.availability = 'AVAILABLE'
+          AND artifacts.video_id = NEW.video_id
+          AND artifacts.deleted_at IS NULL
+          AND artifacts.kind = 'transcript_canonical'
+    )
+ )
+ OR (
+    SELECT COUNT(*) FROM json_each(NEW.evidence_ids_json)
+ ) != (
+    SELECT COUNT(*)
+    FROM evidence
+    JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id
+    WHERE evidence.video_id = NEW.video_id
+      AND evidence.availability = 'AVAILABLE'
+      AND artifacts.video_id = NEW.video_id
+      AND artifacts.deleted_at IS NULL
+      AND artifacts.kind = 'transcript_canonical'
+ )
 BEGIN
-    SELECT RAISE(ABORT, 'no-new Intelligence result requires one claimed successful invocation');
+    SELECT RAISE(ABORT, 'no-new Intelligence result requires one claimed invocation and the exact canonical Evidence set');
 END;
 
 CREATE TRIGGER distillation_no_new_result_immutable_update
