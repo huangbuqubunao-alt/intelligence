@@ -13,7 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from youtube_intel.core_backup import CoreBackupError, CoreBackupService
+from youtube_intel.core_backup import (
+    CoreBackupError,
+    CoreBackupInspection,
+    CoreBackupService,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -281,7 +285,9 @@ def test_stage_restore_keeps_one_open_archive_identity_when_path_is_replaced(
     replacement.write_bytes(b"not a zip")
     original_inspect = service._inspect_archive
 
-    def inspect_then_replace(open_archive: zipfile.ZipFile):
+    def inspect_then_replace(
+        open_archive: zipfile.ZipFile,
+    ) -> CoreBackupInspection:
         inspection = original_inspect(open_archive)
         saved = output / "opened-original.intelligence-backup"
         archive.rename(saved)
