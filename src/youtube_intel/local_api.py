@@ -1202,7 +1202,12 @@ class LocalApiApplication:
                 "release_posture": "NO-GO",
                 "version": "0.1.0",
                 "doctor": {"status": "NOT_RUN"},
-                "backup": {"status": "NOT_RUN"},
+                "backup": {
+                    "status": "NOT_RUN",
+                    "backup_available": False,
+                    "restore_available": False,
+                    "reason": "No production backup/restore service is wired.",
+                },
                 "credential_status": "Blocked",
                 "runtime": {
                     "mode": self._runtime_mode,
