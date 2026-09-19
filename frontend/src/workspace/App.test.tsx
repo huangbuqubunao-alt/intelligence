@@ -141,6 +141,9 @@ test("verified Intelligence preserves rumor, dispute, and evidence without watch
   expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
   expect(screen.getByText("Disputed")).toBeTruthy();
+  expect(screen.getByText(/Still needs validation\. Conflicting evidence or interpretation remains unresolved\./)).toBeTruthy();
+  expect(screen.getByText(/not a numeric confidence score/)).toBeTruthy();
+  expect(screen.queryByText(/\b\d+%\b/)).toBeNull();
   fireEvent.click(screen.getByText("Evidence and source"));
   expect(screen.getByText("Contradicting")).toBeTruthy();
   expect(screen.getByText("The speaker says the claim remains unresolved.")).toBeTruthy();
