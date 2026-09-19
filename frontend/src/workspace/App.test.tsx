@@ -10,7 +10,7 @@ beforeEach(() => {
   location.hash = "";
   vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
     if (input.endsWith("/dashboard")) return response({ intelligence: [intelligence], pinned_topics: [], weekly_v1: [], needs_attention: [{ run_id: "attention-1", state: "NEEDS_ATTENTION", attention_reason: "MODEL_UNAVAILABLE", trigger: "MANUAL_CHECK_NOW", updated_at: "2026-09-01T00:00:00Z" }], operations: { source_count: 1 } });
-    if (input.endsWith("/videos/video-1")) return response({ video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "TRANSCRIPT_READY", last_updated: "2026-09-01T00:00:00Z" }, transcript: { status: "AVAILABLE", text: "A decision log preserves evidence and makes the reasoning traceable.", created_at: "2026-09-01T00:00:00Z" }, note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: { status: "UNAVAILABLE", code: "NOTE_V2_UNAVAILABLE" } }, history: [{ timestamp: "2026-09-01T00:00:00Z", status: "SUCCEEDED", summary: "Transcript processing completed." }] });
+    if (input.endsWith("/videos/video-1")) return response({ video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "TRANSCRIPT_READY", last_updated: "2026-09-01T00:00:00Z" }, transcript: { status: "AVAILABLE", text: "A decision log preserves evidence and makes the reasoning traceable.", created_at: "2026-09-01T00:00:00Z" }, note: { v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" }, v2: { status: "UNAVAILABLE", code: "NOTE_V2_UNAVAILABLE" } }, intelligence_result: { status: "NOT_PROCESSED", execution_id: null, has_new_intelligence: null, intelligence_id: null, revision_id: null, updated_at: null }, history: [{ timestamp: "2026-09-01T00:00:00Z", status: "SUCCEEDED", summary: "Transcript processing completed." }] });
     if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "TRANSCRIPT_READY", last_updated: "2026-09-01T00:00:00Z" }] });
     if (input.endsWith("/intelligence")) return response({ intelligence: [intelligence] });
     if (input.endsWith("/intelligence/intel-1")) return response({ intelligence });
@@ -97,6 +97,30 @@ test("Content reads the existing video and transcript projections without fabric
   expect(screen.getByText("Processing history")).toBeTruthy();
 });
 
+test("Content shows an explicit successful no-new Intelligence result without guessing from an empty list", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/videos/video-1")) return response({
+      video: { video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" },
+      transcript: { status: "AVAILABLE", text: "Original transcript evidence.", created_at: "2026-09-01T00:00:00Z" },
+      note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+      intelligence_result: { status: "SUCCEEDED_NO_NEW_INTELLIGENCE", execution_id: "exec-zero", has_new_intelligence: false, intelligence_id: null, revision_id: null, updated_at: "2026-09-01T00:00:00Z" },
+      history: [],
+    });
+    if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" }] });
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Evidence-led product lesson/ }));
+
+  expect(await screen.findByText("Intelligence result")).toBeTruthy();
+  expect(screen.getByText("Completed · no new Intelligence")).toBeTruthy();
+  expect(screen.getByText(/Analysis complete — no new Intelligence/)).toBeTruthy();
+  expect(screen.getByText(/successful processing result, not an empty-list guess/i)).toBeTruthy();
+  expect(screen.queryByText(/\b\d+%\b/)).toBeNull();
+});
+
 test("Content renders the explicit current verified Summary instead of raw analysis output", async () => {
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.endsWith("/videos/video-1")) return response({
@@ -112,6 +136,7 @@ test("Content renders the explicit current verified Summary instead of raw analy
         timestamped_key_points: [{ text: "第一点。", start_seconds: 12, end_seconds: 18, evidence_ids: ["e1"] }],
         evidence_references: [{ evidence_id: "e1", source: "transcript", excerpt: "Original transcript evidence.", start_seconds: 12, end_seconds: 18 }],
       } },
+      intelligence_result: { status: "SUCCEEDED", execution_id: "exec-summary", has_new_intelligence: true, intelligence_id: "intel-summary", revision_id: "rev-summary", updated_at: "2026-09-01T00:00:00Z" },
       history: [],
     });
     if (input.endsWith("/videos")) return response({ videos: [{ video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel", title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1", published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE", last_updated: "2026-09-01T00:00:00Z" }] });
