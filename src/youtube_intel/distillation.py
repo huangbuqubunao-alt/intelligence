@@ -754,6 +754,8 @@ class PersonalizedDistillationService:
             }
         if cited_evidence_ids != expected_evidence_ids:
             raise ValueError("distillation evidence support is incomplete")
+        if EvidenceStance.SUPPORTING not in evidence_stances.values():
+            raise ValueError("distillation requires at least one supporting Evidence")
         card = DistillationCardWrite(
             source_id=command.source_id,
             video_id=command.video_id,
