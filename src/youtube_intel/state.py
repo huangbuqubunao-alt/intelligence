@@ -1434,6 +1434,7 @@ class SQLiteStateRepository:
             "015_add_current_content_summary.sql",
             "016_add_global_output_language.sql",
             "017_add_evidence_excerpt_stance.sql",
+            "018_add_no_new_intelligence_success.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -7974,8 +7975,13 @@ class SQLiteStateRepository:
         now: datetime,
     ) -> DistillationExecutionRecord:
         if status not in {
-            "WAITING_BUDGET", "WAITING_MODEL", "REJECTED_INELIGIBLE", "REJECTED_EVIDENCE",
-            "REJECTED_OUTPUT", "AMBIGUOUS",
+            "WAITING_BUDGET",
+            "WAITING_MODEL",
+            "REJECTED_INELIGIBLE",
+            "REJECTED_EVIDENCE",
+            "REJECTED_OUTPUT",
+            "AMBIGUOUS",
+            "SUCCEEDED_NO_NEW_INTELLIGENCE",
         } or not budget_state.strip() or not outcome.strip():
             raise ValueError("distillation terminal status is invalid")
         connection = self._connect()
@@ -8199,6 +8205,24 @@ class SQLiteStateRepository:
                 {"limit": limit},
             ).fetchall()
             return tuple(self._distillation_usage_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def latest_distillation_resource_usage_for_video(
+        self, video_id: str
+    ) -> DistillationResourceUsageRecord | None:
+        """Return the latest immutable distillation result for one Content item."""
+        if not isinstance(video_id, str) or not video_id.strip():
+            raise ValueError("video_id is invalid")
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_resource_usage "
+                "WHERE video_id = :video_id "
+                "ORDER BY created_at DESC, execution_id DESC LIMIT 1",
+                {"video_id": video_id},
+            ).fetchone()
+            return None if row is None else self._distillation_usage_from_row(row)
         finally:
             connection.close()
 
