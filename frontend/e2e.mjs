@@ -41,7 +41,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByRole("button", { name: "Following", exact: true }).click();
   await page.getByRole("button", { name: "Add Following", exact: true }).first().click();
   await page.getByRole("heading", { name: "Add a Following", exact: true }).waitFor();
-  for (const label of ["YouTube URL", "Monitor this Following", "Automatic schedule", "Initial history", "Per-run limit", "Focus", "Ignore", "Distillation style"]) await page.getByLabel(label, { exact: true }).waitFor();
+  for (const label of ["YouTube URL", "Monitor this Following"]) await page.getByLabel(label, { exact: true }).waitFor();
+  await page.getByText("Recommended defaults", { exact: true }).waitFor();
+  if (await page.getByLabel("Initial history", { exact: true }).count()) throw new Error("Advanced Following controls leaked into the recommended first-run path");
+  await page.getByRole("button", { name: "Advanced settings", exact: true }).click();
+  for (const label of ["Automatic schedule", "Initial history", "Per-run limit", "Focus", "Ignore", "Distillation style"]) await page.getByLabel(label, { exact: true }).waitFor();
   await page.screenshot({ path: `/tmp/yia-v1-ux-source-${viewport.width}x${viewport.height}.png`, fullPage: true });
   await page.getByRole("button", { name: "Cancel", exact: true }).first().click();
   await page.getByText("Practical AI Engineering", { exact: true }).click();
