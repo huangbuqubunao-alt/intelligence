@@ -33,3 +33,9 @@
 .evidence-trace-item blockquote{margin:6px 0 0;border-left:2px solid var(--border-strong);padding:6px 10px;color:var(--text);font-size:13px;line-height:1.55}
 .evidence-actions{display:flex;flex-wrap:wrap;gap:6px}
 .evidence-source-link{text-decoration:none}
+
+.recommended-defaults{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border:1px solid var(--accent-border);border-radius:var(--radius-sm);background:var(--accent-soft);margin:14px 0;padding:14px}
+.recommended-defaults strong{display:block;margin-bottom:5px;color:var(--text-strong);font-size:12px}
+.recommended-defaults p{margin:0;color:var(--text-muted);font-size:12px;line-height:1.55}
+.advanced-close{margin-top:4px}
+@media(max-width:640px){.recommended-defaults{flex-direction:column}}
