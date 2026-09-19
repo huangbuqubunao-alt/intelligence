@@ -6256,10 +6256,10 @@ class SQLiteStateRepository:
             raise ValueError("evidence identity does not match its provenance")
         if not evidence.language.strip():
             raise ValueError("evidence language must be non-empty")
-        if evidence.source_excerpt is not None and (
-            not evidence.source_excerpt.strip() or len(evidence.source_excerpt) > 4_000
-        ):
-            raise ValueError("evidence source excerpt is invalid")
+        if evidence.source_excerpt is not None:
+            raise ValueError(
+                "evidence source excerpt requires a trusted capture path"
+            )
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
@@ -8058,6 +8058,13 @@ class SQLiteStateRepository:
             or any(not isinstance(stance, EvidenceStance) for stance in stance_by_id.values())
         ):
             raise ValueError("distillation evidence stances are invalid")
+        supporting_evidence_ids = tuple(
+            evidence_id
+            for evidence_id in evidence_ids
+            if stance_by_id[evidence_id] is EvidenceStance.SUPPORTING
+        )
+        if not supporting_evidence_ids:
+            raise ValueError("distillation requires at least one supporting Evidence")
         if not card.core_conclusion.strip() or len(card.core_conclusion) > 4_000:
             raise ValueError("distillation card conclusion is invalid")
         encoded_card = {
@@ -8122,12 +8129,15 @@ class SQLiteStateRepository:
                     )
                 connection.execute(
                     "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
-                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": evidence_ids[0], "created_at": timestamp},
+                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": supporting_evidence_ids[0], "created_at": timestamp},
                 )
                 connection.execute(
                     "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
                     {"revision_id": revision_id, "intelligence_id": intelligence_id},
                 )
+                # Legacy EVIDENCE_SUPPORT edges are structural dependency/provenance
+                # bindings for the full Evidence set. Semantic stance is owned only by
+                # intelligence_revision_evidence.stance and must never be inferred here.
                 for evidence_id in evidence_ids:
                     connection.execute(
                         "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) VALUES (:edge_id, :revision_id, 'EVIDENCE_SUPPORT', :evidence_id, NULL, :created_at)",
