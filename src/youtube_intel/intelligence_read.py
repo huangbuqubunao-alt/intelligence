@@ -168,8 +168,34 @@ class AuthoritativeIntelligenceReader:
             )
             if any(record is None or record.video_id != card.video_id for record in evidence_records):
                 raise IntelligenceReadRejected("CARD_EVIDENCE_INVALID", "card evidence target is invalid")
+            relations = self._repository.list_intelligence_revision_evidence_relations(
+                verified.revision_id
+            )
+            if tuple(item.evidence_id for item in relations) != verified.evidence_ids:
+                raise IntelligenceReadRejected(
+                    "CARD_EVIDENCE_INVALID", "card evidence relation is invalid"
+                )
+            stance_presence = tuple(item.stance is not None for item in relations)
+            if any(stance_presence) and not all(stance_presence):
+                raise IntelligenceReadRejected(
+                    "CARD_EVIDENCE_INVALID", "card evidence stance is incomplete"
+                )
             if not self._repository.source_has_video(card.source_id, card.video_id):
                 raise IntelligenceReadRejected("CARD_SOURCE_INVALID", "card source target is invalid")
+            canonical_evidence: list[dict[str, int | str]] = []
+            for evidence_id, evidence, relation in zip(
+                verified.evidence_ids, evidence_records, relations, strict=True
+            ):
+                if evidence is None:
+                    continue
+                item: dict[str, int | str] = {
+                    "evidence_id": evidence_id,
+                    "start_ms": evidence.start_ms,
+                    "end_ms": evidence.end_ms,
+                }
+                if relation.stance is not None:
+                    item["stance"] = relation.stance.value
+                canonical_evidence.append(item)
             canonical = json.dumps(
                 {
                     "core_conclusion": card.core_conclusion,
@@ -178,15 +204,7 @@ class AuthoritativeIntelligenceReader:
                     "meaningful_details": list(card.meaningful_details),
                     "filtered_noise": list(card.filtered_noise),
                     "claim_kind": verified.claim_kind.value,
-                    "evidence": [
-                        {
-                            "evidence_id": evidence_id,
-                            "start_ms": evidence.start_ms,
-                            "end_ms": evidence.end_ms,
-                        }
-                        for evidence_id, evidence in zip(verified.evidence_ids, evidence_records, strict=True)
-                        if evidence is not None
-                    ],
+                    "evidence": canonical_evidence,
                 },
                 sort_keys=True,
                 separators=(",", ":"),
