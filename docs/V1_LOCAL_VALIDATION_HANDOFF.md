@@ -308,6 +308,24 @@ Acceptance focus:
 - no Intelligence/Evidence/membership/lifecycle rewrite
 - no archive/merge/split/lifecycle automation
 
+## 5.5. Launch-critical host work after static/local stack validation
+
+These are not optional polish tasks and cannot be proven by GitHub review.
+
+### Issue #37 — normal GUI execution wiring
+
+Current `serve-api` still constructs the API with a guarded `ProductOrchestrationService(repository)` and no durable processing orchestrator/source-run submitter. Normal GUI **Check Now** therefore remains `EXECUTION_GUARD_BLOCKED`.
+
+After the authority stack is green, Codex must verify a bounded wiring change that uses the existing durable Source Run path without globally disabling the side-effect guard.
+
+### Issue #38 — real YouTube body reads
+
+Run the authorized non-destructive public-source ingestion verification on the real host/proxy path. Historical metadata/directory-only results (`read=0`) are not acceptance evidence.
+
+### Issue #39 — local model qualification
+
+Qualify at least one real local model path for the actual V1 generation contracts. Mock transports do not count. If local quality is insufficient, the accepted product result is pause-and-explain, not silent cloud fallback.
+
 ## 6. Result classification
 
 Every validation report must end with exactly one:
