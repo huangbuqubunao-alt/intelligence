@@ -797,12 +797,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "016_add_global_output_language.sql")
+        .joinpath("migrations", "017_add_evidence_excerpt_stance.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 16
-    assert first.name == "016_add_global_output_language.sql"
+    assert first.version == 17
+    assert first.name == "017_add_evidence_excerpt_stance.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -817,7 +817,26 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 16
+    assert migration_count == 17
+
+
+def test_m017_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        evidence_columns = {
+            row["name"] for row in connection.execute('PRAGMA table_info("evidence")')
+        }
+        relation_columns = {
+            row["name"]
+            for row in connection.execute(
+                'PRAGMA table_info("intelligence_revision_evidence")'
+            )
+        }
+    assert "source_excerpt" in evidence_columns
+    assert "stance" in relation_columns
 
 
 def test_global_output_language_persists_and_rejects_unsupported_values(
