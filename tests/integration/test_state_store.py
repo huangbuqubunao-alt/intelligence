@@ -859,7 +859,7 @@ def test_m018_adds_immutable_no_new_intelligence_result_sidecar(
             for row in connection.execute(
                 "SELECT name FROM sqlite_master "
                 "WHERE type = 'trigger' "
-                "AND name LIKE 'distillation_no_new_result_%'"
+                "AND name LIKE 'distillation_no_new_%'"
             )
         }
 
@@ -883,6 +883,7 @@ def test_m018_adds_immutable_no_new_intelligence_result_sidecar(
         "distillation_no_new_result_requires_claimed_checkpoint",
         "distillation_no_new_result_immutable_update",
         "distillation_no_new_result_immutable_delete",
+        "distillation_no_new_checkpoint_terminal",
     }
 
 
