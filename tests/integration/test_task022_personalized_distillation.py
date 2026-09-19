@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -31,10 +32,13 @@ from youtube_intel.source_policy import (
 )
 from youtube_intel.state import (
     Availability,
+    DistillationCardWrite,
+    DistillationExecutionWrite,
     DistillationStyle,
     EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
+    EvidenceStance,
     EvidenceWrite,
     FeedbackKind,
     FeedbackWrite,
@@ -166,6 +170,7 @@ def _evidence(
     *,
     start_ms: int = 1_000,
     end_ms: int = 1_500,
+    source_excerpt: str | None = None,
 ) -> str:
     timestamp = "2026-09-07T09:00:00Z"
     artifact_id = f"artifact-{video_id}"
@@ -201,7 +206,7 @@ def _evidence(
             role=EvidenceRole.PRIMARY_ORIGINAL,
             language="en",
             availability=EvidenceAvailability.AVAILABLE,
-            source_excerpt="The release adds evidence-bound execution records.",
+            source_excerpt=source_excerpt,
         ),
         now=NOW,
     )
@@ -317,6 +322,154 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     assert upgraded.get_intelligence("preserved-intelligence") is not None
 
 
+def test_generic_evidence_write_rejects_unverified_source_excerpt(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _, video_id = _source_and_video(repository)
+
+    with pytest.raises(ValueError, match="trusted capture path"):
+        _evidence(
+            repository,
+            video_id,
+            source_excerpt="Caller-provided text must not become source truth.",
+        )
+
+    assert repository.list_available_canonical_evidence_ids(video_id) == ()
+
+
+def test_repository_admission_requires_supporting_evidence_independently(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="direct-admit-no-support",
+            source_id=source_id,
+            video_id=video_id,
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="test-transport",
+            selected_model="deterministic-v1",
+        ),
+        now=NOW,
+    )
+
+    with pytest.raises(ValueError, match="at least one supporting Evidence"):
+        repository.admit_distillation(
+            execution_id="direct-admit-no-support",
+            intelligence_id="intel-direct-no-support",
+            revision_id="revision-direct-no-support",
+            claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+            content_hash="b" * 64,
+            evidence_ids=(evidence_id,),
+            evidence_stances=((evidence_id, EvidenceStance.CONTRADICTING),),
+            card=DistillationCardWrite(
+                source_id=source_id,
+                video_id=video_id,
+                core_conclusion="This must not be admitted without supporting Evidence.",
+                user_relevant_information=("No supporting relation exists.",),
+                important_new_information=(),
+                meaningful_details=(),
+                filtered_noise=(),
+                preference_ids=(),
+                source_policy_revision_id=None,
+            ),
+            actual_provider="test-transport",
+            actual_model="deterministic-v1",
+            input_tokens=1,
+            output_tokens=1,
+            cost_microunits=0,
+            duration_ms=1,
+            now=NOW,
+        )
+
+    assert repository.list_current_intelligence_ids() == ()
+
+
+def test_m017_constraints_keep_excerpt_and_relation_immutable(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    first_evidence = _evidence(repository, video_id)
+    second_evidence = _evidence(
+        repository, video_id, start_ms=2_000, end_ms=2_500
+    )
+    result = _service(
+        repository, _FakeTransport(_raw(first_evidence))
+    ).distill(_command(source_id, video_id, first_evidence))
+    card = AuthoritativeIntelligenceReader(repository).read_current_card(
+        result.intelligence_id or ""
+    )
+
+    with repository._connect() as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="source excerpt is immutable"):
+            connection.execute(
+                "UPDATE evidence SET source_excerpt = ? WHERE evidence_id = ?",
+                ("Unverified mutation", first_evidence),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="revision evidence links are immutable"):
+            connection.execute(
+                "UPDATE intelligence_revision_evidence SET stance = ? "
+                "WHERE revision_id = ? AND evidence_id = ?",
+                ("conditional", card.verified.revision_id, first_evidence),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO intelligence_revision_evidence "
+                "(revision_id, evidence_id, stance) VALUES (?, ?, ?)",
+                (card.verified.revision_id, second_evidence, "unknown"),
+            )
+
+
+def test_mixed_legacy_and_new_stance_fails_closed(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    first_evidence = _evidence(repository, video_id)
+    second_evidence = _evidence(
+        repository, video_id, start_ms=2_000, end_ms=2_500
+    )
+    raw = json.loads(_raw(first_evidence))
+    raw["evidence"].append(
+        {
+            "evidence_id": second_evidence,
+            "start_ms": 2_000,
+            "end_ms": 2_500,
+            "stance": "supporting",
+        }
+    )
+    command = _command(source_id, video_id, first_evidence)
+    command = DistillationCommand(
+        execution_id=command.execution_id,
+        source_id=command.source_id,
+        video_id=command.video_id,
+        evidence_ids=(first_evidence, second_evidence),
+        reason=command.reason,
+        use_case=command.use_case,
+        selected_provider=command.selected_provider,
+        selected_model=command.selected_model,
+    )
+    result = _service(repository, _FakeTransport(json.dumps(raw))).distill(command)
+    revision_id = result.revision_id
+    assert revision_id is not None
+
+    with repository._connect() as connection:
+        connection.execute("DROP TRIGGER revision_evidence_immutable_update")
+        connection.execute(
+            "UPDATE intelligence_revision_evidence SET stance = NULL "
+            "WHERE revision_id = ? AND evidence_id = ?",
+            (revision_id, second_evidence),
+        )
+
+    with pytest.raises(IntelligenceReadRejected, match="stance is incomplete"):
+        AuthoritativeIntelligenceReader(repository).read_current_card(
+            result.intelligence_id or ""
+        )
+
+
 def test_distillation_requires_at_least_one_supporting_evidence(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     source_id, video_id = _source_and_video(repository)
@@ -399,9 +552,7 @@ def test_personalization_projection_is_active_only_and_never_mutates_source_poli
     )[0]
     assert relation.stance is not None
     assert relation.stance.value == "supporting"
-    assert repository.get_evidence(evidence_id).source_excerpt == (
-        "The release adds evidence-bound execution records."
-    )
+    assert repository.get_evidence(evidence_id).source_excerpt is None
     assert card.verified.claim_kind is IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT
     assert card.verified.is_confirmed is False
 
@@ -653,26 +804,38 @@ def test_foreign_or_hallucinated_evidence_is_rejected_and_cannot_be_admitted(tmp
     assert repository.list_distillation_cards() == ()
 
 
-def test_multiple_evidence_supports_are_canonicalized_before_trusted_read(tmp_path: Path) -> None:
+def test_multiple_evidence_stances_are_canonicalized_and_supporting_anchors_state(
+    tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id = _source_and_video(repository)
-    first_evidence = _evidence(repository, video_id)
-    second_evidence = _evidence(repository, video_id, start_ms=2_000, end_ms=2_500)
-    raw = json.loads(_raw(second_evidence, start_ms=2_000, end_ms=2_500))
+    evidence_ids = (
+        _evidence(repository, video_id),
+        _evidence(repository, video_id, start_ms=2_000, end_ms=2_500),
+        _evidence(repository, video_id, start_ms=3_000, end_ms=3_500),
+    )
+    ordered = tuple(sorted(evidence_ids))
+    stance_by_id = {
+        ordered[0]: "contradicting",
+        ordered[1]: "conditional",
+        ordered[2]: "supporting",
+    }
+    raw = json.loads(_raw(ordered[2]))
     raw["evidence"] = [
         {
             "evidence_id": evidence_id,
             "start_ms": repository.get_evidence(evidence_id).start_ms,
             "end_ms": repository.get_evidence(evidence_id).end_ms,
+            "stance": stance_by_id[evidence_id],
         }
-        for evidence_id in sorted((first_evidence, second_evidence), reverse=True)
+        for evidence_id in reversed(ordered)
     ]
-    command = _command(source_id, video_id, first_evidence)
+    command = _command(source_id, video_id, ordered[0])
     command = DistillationCommand(
         execution_id=command.execution_id,
         source_id=command.source_id,
         video_id=command.video_id,
-        evidence_ids=(first_evidence, second_evidence),
+        evidence_ids=evidence_ids,
         reason=command.reason,
         use_case=command.use_case,
         selected_provider=command.selected_provider,
@@ -685,7 +848,24 @@ def test_multiple_evidence_supports_are_canonicalized_before_trusted_read(tmp_pa
     )
 
     assert result.status is DistillationExecutionStatus.SUCCEEDED
-    assert card.verified.evidence_ids == tuple(sorted((first_evidence, second_evidence)))
+    assert card.verified.evidence_ids == ordered
+    relations = repository.list_intelligence_revision_evidence_relations(
+        card.verified.revision_id
+    )
+    assert {item.evidence_id: item.stance.value for item in relations if item.stance} == stance_by_id
+    history = repository.list_intelligence_state_history(card.verified.intelligence_id)
+    state_event = next(
+        item for item in history if item.revision_id == card.verified.revision_id
+    )
+    assert state_event.evidence_id == ordered[2]
+    dependency_edges = repository.list_dependency_edges_for_revision(
+        card.verified.revision_id
+    )
+    assert {
+        edge.input_evidence_id
+        for edge in dependency_edges
+        if edge.relation.value == "EVIDENCE_SUPPORT"
+    } == set(ordered)
 
 
 def test_normal_skip_is_not_eligible_and_manual_override_still_cannot_bypass_budget(tmp_path: Path) -> None:
