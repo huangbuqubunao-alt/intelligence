@@ -108,7 +108,7 @@ class _RaisingTransport(_FakeTransport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 14
+    assert repository.initialize(now=NOW).version == 17
     return repository
 
 
@@ -166,6 +166,7 @@ def _evidence(
     *,
     start_ms: int = 1_000,
     end_ms: int = 1_500,
+    stance: str = "supporting",
 ) -> str:
     timestamp = "2026-09-07T09:00:00Z"
     artifact_id = f"artifact-{video_id}"
@@ -201,6 +202,7 @@ def _evidence(
             role=EvidenceRole.PRIMARY_ORIGINAL,
             language="en",
             availability=EvidenceAvailability.AVAILABLE,
+            source_excerpt="The release adds evidence-bound execution records.",
         ),
         now=NOW,
     )
@@ -223,7 +225,7 @@ def _raw(
             "filtered_noise": ["Sponsor segment omitted."],
             "claim_kind": claim_kind.value,
             "evidence": [
-                {"evidence_id": evidence_id, "start_ms": start_ms, "end_ms": end_ms}
+                {"evidence_id": evidence_id, "start_ms": start_ms, "end_ms": end_ms, "stance": stance}
             ],
         },
         separators=(",", ":"),
@@ -257,12 +259,12 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
     )
 
 
-def test_fresh_database_reaches_exactly_v014_and_m015_is_absent(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v017_with_evidence_relation_fields(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -276,9 +278,20 @@ def test_fresh_database_reaches_exactly_v014_and_m015_is_absent(tmp_path: Path) 
     finally:
         connection.close()
 
-    assert migrations[-1] == "014_add_saved_intelligence.sql"
-    assert not any(name.startswith("015_") for name in migrations)
+    assert migrations[-1] == "017_add_evidence_excerpt_stance.sql"
     assert "topics" in tables
+    with repository._connect() as connection:
+        evidence_columns = {
+            row["name"] for row in connection.execute('PRAGMA table_info("evidence")')
+        }
+        relation_columns = {
+            row["name"]
+            for row in connection.execute(
+                'PRAGMA table_info("intelligence_revision_evidence")'
+            )
+        }
+    assert "source_excerpt" in evidence_columns
+    assert "stance" in relation_columns
 
 
 def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -298,10 +311,25 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 14
+    assert upgraded.initialize(now=NOW).version == 17
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
+
+
+def test_distillation_rejects_non_product_evidence_stance(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    transport = _FakeTransport(_raw(evidence_id, stance="unknown"))
+
+    result = _service(repository, transport).distill(
+        _command(source_id, video_id, evidence_id)
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert result.intelligence_id is None
+    assert repository.list_current_intelligence_ids() == ()
 
 
 def test_personalization_projection_is_active_only_and_never_mutates_source_policy(tmp_path: Path) -> None:
@@ -351,6 +379,14 @@ def test_personalization_projection_is_active_only_and_never_mutates_source_poli
     assert policy.effective_policy(source_id) == before
     card = AuthoritativeIntelligenceReader(repository).read_current_card(result.intelligence_id or "")
     assert card.core_conclusion.startswith("The release")
+    relation = repository.list_intelligence_revision_evidence_relations(
+        card.verified.revision_id
+    )[0]
+    assert relation.stance is not None
+    assert relation.stance.value == "supporting"
+    assert repository.get_evidence(evidence_id).source_excerpt == (
+        "The release adds evidence-bound execution records."
+    )
     assert card.verified.claim_kind is IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT
     assert card.verified.is_confirmed is False
 
