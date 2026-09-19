@@ -160,6 +160,7 @@ from youtube_intel.scoring_admission import (
     build_primary_scoring_dispatch_identity,
 )
 from youtube_intel.state import (
+    CURRENT_SCHEMA_VERSION,
     SCORING_LINEAGE_VERSION_V1,
     ArtifactKind,
     ArtifactRecord,
@@ -2648,7 +2649,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 17:
+        if integrity != ("ok",) or version != CURRENT_SCHEMA_VERSION:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)
