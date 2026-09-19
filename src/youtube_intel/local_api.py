@@ -1231,16 +1231,35 @@ class LocalApiApplication:
         except IntelligenceReadRejected:
             return projection
         video = self._repository.get_video(card.video_id)
+        relations = {
+            item.evidence_id: item
+            for item in self._repository.list_intelligence_revision_evidence_relations(
+                card.verified.revision_id
+            )
+        }
+        if set(relations) != set(card.verified.evidence_ids):
+            return projection
         evidence_links = []
         for evidence_id in card.verified.evidence_ids:
             evidence = self._repository.get_evidence(evidence_id)
-            if evidence is None:
+            relation = relations.get(evidence_id)
+            if evidence is None or relation is None:
                 return projection
             evidence_links.append(
                 {
                     "evidence_id": evidence.evidence_id,
+                    "artifact_id": evidence.artifact_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
+                    "language": evidence.language,
+                    "lineage_kind": evidence.lineage_kind.value,
+                    "role": evidence.role.value,
+                    "original_excerpt": evidence.source_excerpt,
+                    "translated_excerpt": None,
+                    "translated_language": None,
+                    "stance": None
+                    if relation.stance is None
+                    else relation.stance.value,
                 }
             )
         projection["card"] = {
