@@ -658,7 +658,40 @@ def test_successful_no_new_intelligence_is_durable_positive_zero_result(
     assert usage.actual_provider == "test-transport"
     assert usage.actual_model == "deterministic-v1"
 
-    repeated = _service(repository, transport).distill(command)
+    with repository._connect() as connection:
+        stored = connection.execute(
+            "SELECT evidence_ids_json, outcome FROM distillation_no_new_intelligence_results "
+            "WHERE execution_id = ?",
+            ("exec-no-new",),
+        ).fetchone()
+        assert json.loads(stored["evidence_ids_json"]) == [evidence_id]
+        assert stored["outcome"] == "NO_NEW_INTELLIGENCE"
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE distillation_no_new_intelligence_results "
+                "SET outcome = 'NO_NEW_INTELLIGENCE' WHERE execution_id = ?",
+                ("exec-no-new",),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "DELETE FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = ?",
+                ("exec-no-new",),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="terminal"):
+            connection.execute(
+                "UPDATE distillation_execution_checkpoints "
+                "SET budget_state = 'MUTATED' WHERE execution_id = ?",
+                ("exec-no-new",),
+            )
+
+    restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert restarted.initialize(now=NOW).version == 18
+    restarted_result = restarted.get_distillation_execution("exec-no-new")
+    assert restarted_result is not None
+    assert restarted_result.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+
+    repeated = _service(restarted, transport).distill(command)
     assert repeated.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
     assert transport.calls == 1
 
