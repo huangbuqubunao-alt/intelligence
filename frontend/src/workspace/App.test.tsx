@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
-const intelligence = { status: "AVAILABLE", trusted: true, intelligence_id: "intel-1", claim_kind: "RUMOR", state: "DISPUTED", card: { core_conclusion: "A rumor remains unresolved.", user_relevant_information: ["Watch for confirmation."], important_new_information: [], source_id: "source-1", video_id: "video-1", original_video_url: "https://youtube.test/video", evidence_links: [{ evidence_id: "evidence-1", start_ms: 1000, end_ms: 2000 }] } };
+const intelligence = { status: "AVAILABLE", trusted: true, intelligence_id: "intel-1", claim_kind: "RUMOR", state: "DISPUTED", card: { core_conclusion: "A rumor remains unresolved.", user_relevant_information: ["Watch for confirmation."], important_new_information: [], source_id: "source-1", video_id: "video-1", original_video_url: "https://www.youtube.com/watch?v=video-1", evidence_links: [{ evidence_id: "evidence-1", artifact_id: "artifact-1", start_ms: 1000, end_ms: 2000, language: "en", lineage_kind: "ORIGINAL_TRANSCRIPT", role: "PRIMARY_ORIGINAL", original_excerpt: "The speaker says the claim remains unresolved.", translated_excerpt: null, translated_language: null, stance: "contradicting" }] } };
 const topic = { topic_id: "topic-1", name: "Topic", pinned: false, lifecycle: "ACTIVE", current_state: "DEGRADED", independence: "UNKNOWN", contributions: [], timeline: [{ event_id: "event-1", event_kind: "NEW_INFORMATION", state: "UNRESOLVED", created_at: "2026-09-01T00:00:00Z" }], relations: [] };
 const response = (value: object) => Promise.resolve({ ok: true, json: async () => value });
 
@@ -142,7 +142,16 @@ test("verified Intelligence preserves rumor, dispute, and evidence without watch
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
   expect(screen.getByText("Disputed")).toBeTruthy();
   fireEvent.click(screen.getByText("Evidence and source"));
-  expect(screen.getByText(/source-1.*video-1.*1s/)).toBeTruthy();
+  expect(screen.getByText("Contradicting")).toBeTruthy();
+  expect(screen.getByText("The speaker says the claim remains unresolved.")).toBeTruthy();
+  expect(screen.getByText("source-1 · video-1")).toBeTruthy();
+  expect(screen.getByText("1s–2s")).toBeTruthy();
+  expect(screen.getByText(/Translation is not available/)).toBeTruthy();
+  expect(screen.getByText(/Original transcript.*Primary original/)).toBeTruthy();
+  const original = screen.getByRole("link", { name: "Open original at timestamp" });
+  expect(original.getAttribute("href")).toContain("t=1");
+  fireEvent.click(screen.getByRole("button", { name: "Open Content" }));
+  expect(await screen.findByText("Evidence-led product lesson")).toBeTruthy();
   expect(screen.queryByText(/Worth Watching|Watch Score|Should I watch/)).toBeNull();
 });
 
