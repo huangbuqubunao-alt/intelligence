@@ -6,6 +6,7 @@ import hashlib
 import os
 import shutil
 import sqlite3
+import stat
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -145,6 +146,27 @@ def test_staged_restore_revalidation_detects_post_stage_tampering(
             service.inspect_staged_restore(staged.staging_root)
     finally:
         shutil.rmtree(staged.staging_root)
+
+
+def test_backup_rejects_symbolic_link_zip_member(tmp_path: Path) -> None:
+    data_root, _repository = _workspace(tmp_path)
+    output = tmp_path / "exports"
+    output.mkdir()
+    good = output / "good.intelligence-backup"
+    _service(data_root).create_backup(good)
+
+    bad = output / "symlink.intelligence-backup"
+    with zipfile.ZipFile(good, "r") as source, zipfile.ZipFile(
+        bad, "w", compression=zipfile.ZIP_DEFLATED
+    ) as target:
+        for info in source.infolist():
+            body = source.read(info)
+            if info.filename == "data/transcripts/example.txt":
+                info.external_attr = (stat.S_IFLNK | 0o777) << 16
+            target.writestr(info, body)
+
+    with pytest.raises(CoreBackupError, match="symbolic link"):
+        _service(data_root).inspect_backup(bad)
 
 
 def test_corrupt_backup_is_rejected_before_restore_staging(
