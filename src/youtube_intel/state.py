@@ -59,6 +59,10 @@ from youtube_intel.source_run import (
 #: repository derives it internally and callers cannot submit a version.
 SCORING_LINEAGE_VERSION_V1: Final = "task016c-scoring-lineage-v1"
 
+# Latest packaged SQLite migration version. Keep runtime/backup compatibility checks
+# bound to the migration loader rather than duplicating magic version literals.
+CURRENT_SCHEMA_VERSION: Final[int] = 17
+
 
 class StateStoreError(Exception):
     """Base error for safe state-store failures."""
