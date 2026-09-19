@@ -166,7 +166,6 @@ def _evidence(
     *,
     start_ms: int = 1_000,
     end_ms: int = 1_500,
-    stance: str = "supporting",
 ) -> str:
     timestamp = "2026-09-07T09:00:00Z"
     artifact_id = f"artifact-{video_id}"
@@ -215,6 +214,7 @@ def _raw(
     claim_kind: IntelligenceClaimKind = IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
     start_ms: int = 1_000,
     end_ms: int = 1_500,
+    stance: str = "supporting",
 ) -> str:
     return json.dumps(
         {
