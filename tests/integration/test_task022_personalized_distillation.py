@@ -116,7 +116,7 @@ class _RaisingTransport(_FakeTransport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 17
+    assert repository.initialize(now=NOW).version == 18
     return repository
 
 
@@ -273,7 +273,7 @@ def test_fresh_database_reaches_exactly_v017_with_evidence_relation_fields(tmp_p
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 18
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -287,7 +287,7 @@ def test_fresh_database_reaches_exactly_v017_with_evidence_relation_fields(tmp_p
     finally:
         connection.close()
 
-    assert migrations[-1] == "017_add_evidence_excerpt_stance.sql"
+    assert migrations[-1] == "018_add_no_new_intelligence_result.sql"
     assert "topics" in tables
     with repository._connect() as connection:
         evidence_columns = {
@@ -320,7 +320,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 17
+    assert upgraded.initialize(now=NOW).version == 18
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
@@ -447,7 +447,7 @@ def test_v016_legacy_null_stance_keeps_old_card_hash_readable(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 17
+    assert upgraded.initialize(now=NOW).version == 18
 
     relations = upgraded.list_intelligence_revision_evidence_relations(
         "legacy-revision-v16"
