@@ -1,4 +1,18 @@
-# YouTube Intelligence Agent 项目状态
+# Intelligence 项目状态
+
+- 当前快照：2026-09-20
+- 当前仓库：`huangbuqubunao-alt/intelligence`（PRIVATE）
+- 当前产品阶段：V1 production implementation in progress
+- 当前发布判断：**NOT MERGE-READY / Gate A NOT READY / Gate B NOT READY**
+- 当前验证纪律：GitHub 静态 Review 不等于本地 PASS；执行器中断且没有完整命令/结果/HEAD 记录的检查一律不计为 PASS。
+- 当前核心 Draft 栈：`#15 → #18 → #19 → #24 → #27`；#32 为 M5B positive-zero 分支；#28/#29 为 M10；#30/#31 为 Following/Topic 受限分支。
+- 当前 schema 按分支区分：#24/#27 线到 migration 017；#32 Draft 到 migration **018**。Doctor、Backup/Restore、migration 验证必须读取目标分支的 `CURRENT_SCHEMA_VERSION`，不得继续复制 magic number。
+- 当前关键未闭环：可信 Evidence excerpt writer、M5B positive-zero 的 Source Run completion 集成、M10 与 v18/M5B quiescence 合流、真实 host/runtime 验证。
+- 当前本地权威 worktree 仍为 `/Users/hua/Documents/yia-worktrees/v1-product-ux-repair`；迁移后 remote 设计为 `origin` 保留旧私有 `youtube-intel`，`github` 指向当前私有 `intelligence`。PR 验证必须从 `github` remote 拉取目标分支，不得误改 remote。
+- 当前详细执行顺序：见 `V1_IMPLEMENTATION_ROADMAP.md` 顶部快照与 `V1_LOCAL_VALIDATION_HANDOFF.md`。
+
+> 以下为历史 release/task 审计记录，保留用于 provenance。历史通过记录不得自动当作当前 Draft 分支的验证证据。
+
 
 - 更新时间：2026-08-31
 - 当前阶段：release sign-off completed as `NO-GO`. TASK-014B9 is
