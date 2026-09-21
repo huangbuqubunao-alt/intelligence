@@ -132,7 +132,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByRole("button", { name: "Analyze this Video", exact: true }).waitFor();
   if (await page.getByText("Retry", { exact: true }).count()) throw new Error("Retry leaked into Source UI");
   await page.getByRole("button", { name: "Check Now", exact: true }).click();
-  await page.getByText(/Check Now cannot start in this local demo/).waitFor();
+  await page.getByText(/durable Source Run was accepted/).waitFor();
   await assertPrimaryLanguage("Source detail");
   await capture("source-detail");
   await page.getByRole("button", { name: "Close", exact: true }).click();

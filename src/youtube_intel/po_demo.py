@@ -45,6 +45,7 @@ from youtube_intel.orchestration import (
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.preference_service import PreferenceApplicationService
+from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
 from youtube_intel.saved_intelligence import SavedIntelligenceService, SaveIntelligence
 from youtube_intel.scoring import (
     PROMPT_VERSION,
@@ -158,6 +159,21 @@ class _OfflineDemoTransport:
             cost_microunits=None,
             duration_ms=0,
         )
+
+
+class _UnavailableDemoTransport:
+    """Fail-closed transport for browser checks that only submit durable work."""
+
+    is_offline_test_transport = True
+    available = False
+    actual_provider = "po-demo-offline"
+    actual_model = "unavailable"
+
+    def generate(
+        self, verified_input: VerifiedDistillationInput
+    ) -> DistillationTransportResult:
+        del verified_input
+        raise AssertionError("PO demo Source Run submission must not dispatch a model")
 
 
 def demo_runtime_root(project_root: Path) -> Path:
@@ -1356,6 +1372,20 @@ def prepare_demo(project_root: Path) -> DemoRuntime:
 def _open_demo(root: Path) -> DemoRuntime:
     database = root / "state.sqlite3"
     repository = SQLiteStateRepository(database)
+    source_policy = SourcePolicyApplicationService(repository, now=lambda: _NOW)
+    distillation = PersonalizedDistillationService(
+        repository,
+        source_policy,
+        _UnavailableDemoTransport(),
+        _OfflineDemoBudget(),
+        now=lambda: _NOW,
+    )
+    processing_orchestrator = DurableProcessingOrchestrator(
+        repository,
+        source_policy=source_policy,
+        distillation=distillation,
+        now=lambda: _NOW,
+    )
     reader = AuthoritativeScoringReader(
         repository=repository,
         data_root=root / "data",
@@ -1365,8 +1395,13 @@ def _open_demo(root: Path) -> DemoRuntime:
     )
     application = LocalApiApplication(
         repository,
-        ProductOrchestrationService(repository, now=lambda: _NOW),
+        ProductOrchestrationService(
+            repository,
+            source_run_submitter=processing_orchestrator,
+            now=lambda: _NOW,
+        ),
         scoring_reader=reader,
+        processing_orchestrator=processing_orchestrator,
         data_root=root / "data",
         vault_root=root / "vault",
         timezone="Asia/Shanghai",

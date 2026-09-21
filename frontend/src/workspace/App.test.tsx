@@ -179,8 +179,14 @@ beforeEach(() => {
       }
       if (input.endsWith("/sources/source-1/check")) {
         return response({
-          status: "BLOCKED",
-          message: "Check now is blocked by the runtime side-effect guard.",
+          source_run: {
+            run_id: "run-check-now",
+            state: "QUEUED",
+            attention_reason: null,
+            trigger: "MANUAL_CHECK_NOW",
+            updated_at: "2026-09-01T00:00:00Z",
+          },
+          message: "Source Run submission is durably persisted.",
         });
       }
       if (input.endsWith("/sources/source-1")) {
@@ -843,7 +849,7 @@ test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as fail
   expect(screen.queryByText("Retry")).toBeNull();
 });
 
-test("Check Now preserves a legal guarded state without inventing a Source Run or Retry", async () => {
+test("Check Now submits a durable Source Run without inventing completion or Retry", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(
@@ -852,9 +858,9 @@ test("Check Now preserves a legal guarded state without inventing a Source Run o
     }),
   );
   fireEvent.click(await screen.findByRole("button", { name: "Check Now" }));
-  expect(await screen.findByText(/Check Now cannot start in this local demo/))
+  expect(await screen.findByText(/durable Source Run was accepted/))
     .toBeTruthy();
-  expect(screen.queryByText(/runtime side-effect guard/i)).toBeNull();
+  expect(screen.queryByText(/completed/i)).toBeNull();
   expect(screen.queryByText("Retry")).toBeNull();
 });
 

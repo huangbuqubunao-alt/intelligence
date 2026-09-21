@@ -354,6 +354,8 @@ def _ensure_vault_subdir(vault_root: Path, vault_subdir: str) -> None:
 def bootstrap_runtime(
     config: AppConfig,
     project_root: Path,
+    *,
+    repository: SQLiteStateRepository | None = None,
 ) -> SQLiteStateRepository:
     """Idempotently create the declared local runtime state.
 
@@ -366,9 +368,9 @@ def bootstrap_runtime(
     data_root = _ensure_project_directory(root, storage.data_dir)
     _ensure_project_directory(root, storage.logs_dir)
     _ensure_vault_subdir(Path(storage.vault_root), storage.vault_subdir)
-    repository = SQLiteStateRepository(data_root / "state.sqlite")
-    repository.initialize(now=_utcnow())
-    return repository
+    active_repository = repository or SQLiteStateRepository(data_root / "state.sqlite")
+    active_repository.initialize(now=_utcnow())
+    return active_repository
 
 
 def _production_dependencies(config: AppConfig) -> RuntimeDependencies:
@@ -404,10 +406,15 @@ class RuntimeOperations(Operations):
         config: AppConfig,
         project_root: Path,
         dependencies: RuntimeDependencies | None = None,
+        repository: SQLiteStateRepository | None = None,
     ) -> None:
         self._config = config
         self._root = project_root.resolve(strict=True)
-        self._repository = bootstrap_runtime(config, self._root)
+        self._repository = bootstrap_runtime(
+            config,
+            self._root,
+            repository=repository,
+        )
         self._dependencies = dependencies or _production_dependencies(config)
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
@@ -2486,6 +2493,48 @@ class RuntimeOperations(Operations):
                 else f"Discovered {discovered} video(s); {failed} channel(s) failed."
             ),
         )
+
+    def ingest_source_to_transcript(
+        self, source_id: str, *, limit: int
+    ) -> tuple[str, ...]:
+        """Use production adapters to persist bounded Source membership and body."""
+
+        if limit <= 0 or limit > 100:
+            raise ValueError("Source ingestion limit is invalid")
+        source = self._repository.get_source_subscription(source_id)
+        if source is None:
+            raise ValueError("Source does not exist")
+        if not source.enabled:
+            raise ValueError("Source is disabled")
+        now = _utcnow()
+        if source.channel_id is not None:
+            batch = self._discovery.discover_and_save(
+                ChannelRef(channel_id=source.channel_id, enabled=True),
+                pipeline_version=PIPELINE_VERSION,
+                now=now,
+                limit=limit,
+            )
+            video_ids = batch.video_ids
+        elif source.video_id is not None:
+            video_ids = (source.video_id,)
+            if self._repository.get_video(source.video_id) is None:
+                self._discovery.fetch_and_store_metadata(
+                    source.video_id,
+                    pipeline_version=PIPELINE_VERSION,
+                    now=now,
+                )
+        else:
+            raise ValueError("Source has no supported ingestion identity")
+
+        pipeline = self._orchestrator()
+        for video_id in video_ids:
+            self._repository.link_source_video(
+                source_id,
+                video_id,
+                discovered_at=now,
+            )
+            pipeline.resume_video_through_transcript(video_id, now=now)
+        return video_ids
 
     def _refresh_output_language_for_new_batch(self) -> None:
         """Freeze the latest preference for the next processing batch only."""

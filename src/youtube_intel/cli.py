@@ -6,7 +6,6 @@ import argparse
 import sqlite3
 import sys
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn, Sequence
 from uuid import uuid4
@@ -107,57 +106,48 @@ def main(
                 .exit_code
             )
         if args.command == "scheduler-tick":
-            from youtube_intel.orchestration_service import ProductOrchestrationService
-            from youtube_intel.state import SQLiteStateRepository
+            from youtube_intel.runtime_composition import (
+                build_local_source_run_runtime,
+            )
 
-            repository = SQLiteStateRepository(args.database)
-            repository.initialize(now=datetime.now(UTC))
-            runs = ProductOrchestrationService(repository).scheduler_tick(
-                limit=args.limit
+            project_root = _project_root(args.project_root)
+            config = _load_config(project_root, args.settings, args.channels)
+            composition = build_local_source_run_runtime(
+                config=config,
+                project_root=project_root,
+                database=args.database,
             )
-            print(
-                f"Claimed {len(runs)} automation run(s); side effects remain guarded."
-            )
+            runs = composition.product.scheduler_tick(limit=args.limit)
+            for _ in runs:
+                if composition.worker.run_once() is None:
+                    break
+            print(f"Claimed {len(runs)} durable automation run(s).")
             return ExitCode.OK
         if args.command == "serve-api":
-            from youtube_intel.local_api import LocalApiApplication, serve_loopback
-            from youtube_intel.orchestration_service import ProductOrchestrationService
-            from youtube_intel.runtime import PIPELINE_VERSION
-            from youtube_intel.scoring import AuthoritativeScoringReader
-            from youtube_intel.state import SQLiteStateRepository
+            from youtube_intel.local_api import serve_loopback
+            from youtube_intel.runtime_composition import (
+                build_local_source_run_runtime,
+            )
 
             if args.port < 1024 or args.port > 65535:
                 return ExitCode.USAGE_OR_CONFIGURATION
             project_root = _project_root(args.project_root)
             config = _load_config(project_root, args.settings, args.channels)
-            repository = SQLiteStateRepository(args.database)
-            repository.initialize(now=datetime.now(UTC))
-            reader = AuthoritativeScoringReader(
-                repository=repository,
-                data_root=_project_path(project_root, config.settings.storage.data_dir),
-                summary_threshold=config.settings.thresholds.summary_score,
-                pipeline_version=PIPELINE_VERSION,
-                current_model=config.settings.local_scoring.model,
+            composition = build_local_source_run_runtime(
+                config=config,
+                project_root=project_root,
+                database=args.database,
             )
             server = serve_loopback(
-                LocalApiApplication(
-                    repository,
-                    ProductOrchestrationService(repository),
-                    scoring_reader=reader,
-                    data_root=_project_path(project_root, config.settings.storage.data_dir),
-                    vault_root=(
-                        Path(config.settings.storage.vault_root)
-                        / config.settings.storage.vault_subdir
-                    ),
-                    timezone=config.settings.general.timezone,
-                    output_language_default=config.settings.general.output_language,
-                ),
+                composition.application,
                 port=args.port,
             )
+            composition.worker.start()
             try:
                 server.serve_forever()
             finally:
                 server.server_close()
+                composition.worker.stop()
             return ExitCode.OK
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)

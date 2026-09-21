@@ -245,7 +245,10 @@ class ProviderModelStatus:
 
 
 def provider_model_statuses(
-    desired_provider: str | None, desired_model: str | None
+    desired_provider: str | None,
+    desired_model: str | None,
+    *,
+    nvidia_runtime_available: bool | None = None,
 ) -> tuple[ProviderModelStatus, ...]:
     """Static safe projections of the currently approved qualification facts."""
     return (
@@ -254,13 +257,21 @@ def provider_model_statuses(
             model="moonshotai/kimi-k3",
             configured=desired_provider == "NVIDIA NIM"
             and desired_model == "moonshotai/kimi-k3",
-            credential_status="AVAILABLE",
+            credential_status=(
+                "AVAILABLE"
+                if nvidia_runtime_available is not False
+                else "NOT_CONFIGURED"
+            ),
             adapter_available=True,
             qualification_status="QUALIFIED",
             authorized=True,
-            production_eligible=True,
+            production_eligible=nvidia_runtime_available is not False,
             scope="V1_VIDEO_DISTILLATION_ONLY",
-            reason="Approved for V1 Video Distillation only.",
+            reason=(
+                "Approved for V1 Video Distillation only."
+                if nvidia_runtime_available is not False
+                else "The approved model is unavailable in this local runtime."
+            ),
         ),
         ProviderModelStatus(
             provider="OpenAI",

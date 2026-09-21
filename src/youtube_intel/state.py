@@ -5304,6 +5304,20 @@ class SQLiteStateRepository:
     def create_source_run(self, run: SourceRunWrite) -> SourceRunRecord:
         """Durably admit one source-bound logical run without executing it."""
 
+        return self._create_source_run(run, reuse_active_manual=False)
+
+    def create_or_reuse_active_manual_source_run(
+        self, run: SourceRunWrite
+    ) -> SourceRunRecord:
+        """Admit Check Now once while the same Source already has active work."""
+
+        if run.trigger is not SourceRunTrigger.MANUAL_CHECK_NOW:
+            raise ValueError("active Source Run reuse is limited to Check Now")
+        return self._create_source_run(run, reuse_active_manual=True)
+
+    def _create_source_run(
+        self, run: SourceRunWrite, *, reuse_active_manual: bool
+    ) -> SourceRunRecord:
         self._validate_source_run_write(run)
         timestamp = format_utc_datetime(run.created_at)
         connection = self._connect()
@@ -5322,6 +5336,15 @@ class SQLiteStateRepository:
                     if not self._same_source_run_admission(record, run):
                         raise IntegrityConflict("Source Run idempotency identity conflicts")
                     return record
+                if reuse_active_manual:
+                    active = connection.execute(
+                        "SELECT * FROM source_runs WHERE source_id = :source_id "
+                        "AND state IN ('QUEUED', 'RUNNING', 'WAITING', 'PARTIAL') "
+                        "ORDER BY created_at ASC, run_id ASC LIMIT 1",
+                        {"source_id": run.source_id},
+                    ).fetchone()
+                    if active is not None:
+                        return self._source_run_from_row(active)
                 connection.execute(
                     "INSERT INTO source_runs "
                     "(run_id, source_id, trigger, trigger_reference, priority, "

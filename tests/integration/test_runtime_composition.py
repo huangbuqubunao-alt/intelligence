@@ -35,11 +35,14 @@ from youtube_intel.domain import (
     TranscriptSourceType,
     VideoMetadata,
 )
+from youtube_intel.orchestration import ProcessingPolicy
 from youtube_intel.providers.ollama import parse_scoring_candidate
 from youtube_intel.quality import QualityProvenanceAuthority
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+from youtube_intel.runtime_composition import build_local_source_run_runtime
 from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_attempt
-from youtube_intel.state import PipelineStatus, SQLiteStateRepository
+from youtube_intel.source_run import SourceRunAttentionReason, SourceRunState
+from youtube_intel.state import ArtifactKind, PipelineStatus, SQLiteStateRepository
 from youtube_intel.transcripts import (
     SubtitleReadResult,
     SubtitleTrack,
@@ -54,9 +57,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "subtitles"
 
 
 def test_runtime_scoring_prompt_is_an_installed_package_resource() -> None:
-    package_prompt = resources.files("youtube_intel").joinpath(
-        "prompts", "scoring.md"
-    )
+    package_prompt = resources.files("youtube_intel").joinpath("prompts", "scoring.md")
     source_prompt = Path(__file__).resolve().parents[2] / "prompts" / "scoring.md"
 
     assert package_prompt.read_bytes() == source_prompt.read_bytes()
@@ -83,6 +84,19 @@ class _DiscoverySource:
                 finished_at=NOW,
             ),
         )
+
+
+class _SingleVideoDiscoverySource(_DiscoverySource):
+    def discover(self, channel: ChannelRef, cursor: DiscoveryCursor) -> DiscoveryBatch:
+        batch = super().discover(channel, cursor)
+        return batch.model_copy(update={"video_ids": (VIDEO_ID,)})
+
+
+class _FailingDiscoverySource(_DiscoverySource):
+    def discover(self, channel: ChannelRef, cursor: DiscoveryCursor) -> DiscoveryBatch:
+        del channel, cursor
+        self.calls += 1
+        raise RuntimeError("controlled ingestion failure")
 
 
 class _MetadataProvider:
@@ -276,7 +290,7 @@ storage:
   data_dir: data
   logs_dir: logs
   templates_dir: templates
-  vault_root: {tmp_path / 'vault'}
+  vault_root: {tmp_path / "vault"}
   vault_subdir: YouTube Intel
 """,
         encoding="utf-8",
@@ -298,9 +312,15 @@ def test_default_cli_builds_production_composition_and_persists_discovery(
         lambda _config: RuntimeDependencies(
             discovery_source=source,
             metadata_provider=metadata,
-            subtitle_adapter_factory=lambda: pytest.fail("subtitle stage was not requested"),
-            scoring_provider_factory=lambda: pytest.fail("scoring stage was not requested"),
-            analysis_provider_factory=lambda: pytest.fail("analysis stage was not requested"),
+            subtitle_adapter_factory=lambda: pytest.fail(
+                "subtitle stage was not requested"
+            ),
+            scoring_provider_factory=lambda: pytest.fail(
+                "scoring stage was not requested"
+            ),
+            analysis_provider_factory=lambda: pytest.fail(
+                "analysis stage was not requested"
+            ),
         ),
     )
 
@@ -334,6 +354,144 @@ def test_default_cli_builds_production_composition_and_persists_discovery(
     output = capsys.readouterr()
     assert "Discovered 1" in output.out
     assert output.err == ""
+
+
+def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    source = _SingleVideoDiscoverySource()
+    metadata = _MetadataProvider()
+    subtitle = _SubtitleAdapter()
+    dependencies = RuntimeDependencies(
+        discovery_source=source,
+        metadata_provider=metadata,
+        subtitle_adapter_factory=lambda: subtitle,
+        scoring_provider_factory=lambda: pytest.fail(
+            "GUI ingestion must stop before local model dispatch"
+        ),
+        analysis_provider_factory=lambda: pytest.fail(
+            "GUI ingestion must not call a cloud provider"
+        ),
+    )
+    config = load_app_config(
+        project / "config" / "channels.yaml",
+        project / "config" / "settings.yaml",
+    )
+    database = project / "gui.sqlite3"
+    first = build_local_source_run_runtime(
+        config=config,
+        project_root=project,
+        database=database,
+        dependencies=dependencies,
+        now=lambda: NOW,
+    )
+    following = first.product.add_source(
+        url=f"https://www.youtube.com/channel/{CHANNEL_ID}",
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    status, accepted = first.application.handle(
+        "POST",
+        f"/api/v1/sources/{following.source_id}/check",
+        b'{"command_id":"gui-command"}',
+    )
+    assert status == 202
+    run_id = accepted["source_run"]["run_id"]
+    assert first.repository.get_source_run(run_id) is not None
+
+    restarted = build_local_source_run_runtime(
+        config=config,
+        project_root=project,
+        database=database,
+        dependencies=dependencies,
+        now=lambda: NOW,
+    )
+    duplicate_status, duplicate = restarted.application.handle(
+        "POST",
+        f"/api/v1/sources/{following.source_id}/check",
+        b'{"command_id":"gui-command-after-restart"}',
+    )
+    assert duplicate_status == 202
+    assert duplicate["source_run"]["run_id"] == run_id
+    _, settings = restarted.application.handle("GET", "/api/v1/settings")
+    nvidia = next(
+        provider
+        for provider in settings["providers"]
+        if provider["provider"] == "NVIDIA NIM"
+    )
+    assert nvidia["production_eligible"] is False
+    assert nvidia["credential_status"] == "NOT_CONFIGURED"
+
+    progressed = restarted.worker.run_once()
+    assert progressed is not None
+    assert progressed.run_id == run_id
+    assert progressed.state is SourceRunState.NEEDS_ATTENTION
+    assert restarted.repository.source_has_video(following.source_id, VIDEO_ID)
+    transcript = restarted.repository.latest_artifact(
+        VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL
+    )
+    assert transcript is not None
+    transcript_path = project / "data" / transcript.relative_path
+    assert transcript_path.is_file()
+    assert transcript_path.read_text(encoding="utf-8").strip()
+    assert (source.calls, metadata.calls, subtitle.read_calls) == (1, 1, 1)
+
+    api_status, projected = restarted.application.handle(
+        "GET", f"/api/v1/source-runs/{run_id}"
+    )
+    assert api_status == 200
+    assert projected["source_run"]["state"] == "NEEDS_ATTENTION"
+
+
+def test_gui_runtime_persists_truthful_attention_when_ingestion_fails(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    source = _FailingDiscoverySource()
+    dependencies = RuntimeDependencies(
+        discovery_source=source,
+        metadata_provider=_MetadataProvider(),
+        subtitle_adapter_factory=lambda: pytest.fail(
+            "failed discovery must not reach transcript ingestion"
+        ),
+        scoring_provider_factory=lambda: pytest.fail(
+            "failed discovery must not reach model dispatch"
+        ),
+        analysis_provider_factory=lambda: pytest.fail(
+            "failed discovery must not reach cloud dispatch"
+        ),
+    )
+    config = load_app_config(
+        project / "config" / "channels.yaml",
+        project / "config" / "settings.yaml",
+    )
+    composition = build_local_source_run_runtime(
+        config=config,
+        project_root=project,
+        database=project / "gui.sqlite3",
+        dependencies=dependencies,
+        now=lambda: NOW,
+    )
+    following = composition.product.add_source(
+        url=f"https://www.youtube.com/channel/{CHANNEL_ID}",
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    _, accepted = composition.application.handle(
+        "POST",
+        f"/api/v1/sources/{following.source_id}/check",
+        b'{"command_id":"gui-ingestion-failure"}',
+    )
+
+    progressed = composition.worker.run_once()
+
+    assert progressed is not None
+    assert progressed.run_id == accepted["source_run"]["run_id"]
+    assert progressed.state is SourceRunState.NEEDS_ATTENTION
+    assert (
+        progressed.attention_reason
+        is SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
+    )
+    assert source.calls == 1
 
 
 def test_doctor_is_read_only_and_explains_missing_first_run_state(
@@ -380,10 +538,15 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
         ),
     )
 
-    assert main(["--project-root", str(project), "check", "--limit", "1"]) is ExitCode.OK
+    assert (
+        main(["--project-root", str(project), "check", "--limit", "1"]) is ExitCode.OK
+    )
     capsys.readouterr()
 
-    assert main(["--project-root", str(project), "process", "--video", VIDEO_ID]) is ExitCode.OK
+    assert (
+        main(["--project-root", str(project), "process", "--video", VIDEO_ID])
+        is ExitCode.OK
+    )
     process_output = capsys.readouterr()
     assert "Processed 1 video" in process_output.out
     assert process_output.err == ""
@@ -393,7 +556,12 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
     assert saved is not None
     assert saved.pipeline_status is PipelineStatus.COMPLETE
     assert saved.should_summarize is True
-    assert (metadata.calls, subtitle.enumerate_calls, subtitle.read_calls, scoring.calls) == (
+    assert (
+        metadata.calls,
+        subtitle.enumerate_calls,
+        subtitle.read_calls,
+        scoring.calls,
+    ) == (
         1,
         1,
         1,
@@ -436,12 +604,12 @@ def test_no_subtitle_stops_at_named_transcription_prerequisite(
             quality_judge_provider_factory=lambda: judge,
         ),
     )
-    assert main(["--project-root", str(project), "check", "--limit", "1"]) is ExitCode.OK
+    assert (
+        main(["--project-root", str(project), "check", "--limit", "1"]) is ExitCode.OK
+    )
     capsys.readouterr()
 
-    exit_code = main(
-        ["--project-root", str(project), "process", "--video", VIDEO_ID]
-    )
+    exit_code = main(["--project-root", str(project), "process", "--video", VIDEO_ID])
 
     assert exit_code is ExitCode.EXECUTION_FAILED
     output = capsys.readouterr()
