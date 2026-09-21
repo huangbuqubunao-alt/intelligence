@@ -86,7 +86,10 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     }
     assert all(item["card"]["source_display_name"] for item in real_data_cards)
     assert all(item["card"]["video_title"] for item in real_data_cards)
-    assert all(item["card"]["evidence_links"][0]["excerpt"] for item in real_data_cards)
+    assert all(
+        item["card"]["evidence_links"][0]["original_excerpt"]
+        for item in real_data_cards
+    )
     assert dashboard["needs_attention"] == [
         {
             "run_id": "source-run:5709dd545ce77763b946df78fc31e287147bc27a0649159110d1c9aefc787b5c",

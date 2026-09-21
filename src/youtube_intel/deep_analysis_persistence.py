@@ -247,6 +247,7 @@ class DeepAnalysisPersistenceStore:
                     raise DeepAnalysisPersistenceError(
                         "existing cache row fails verification"
                     )
+                self._promote_current_content_summary(found, now=now)
                 return found
             columns = ", ".join(values)
             placeholders = ", ".join(f":{key}" for key in values)
@@ -266,6 +267,68 @@ class DeepAnalysisPersistenceStore:
         )
         if result is None:
             raise DeepAnalysisPersistenceError("new cache row fails verification")
+        self._promote_current_content_summary(result, now=now)
+        return result
+
+    def _promote_current_content_summary(
+        self, result: VerifiedPersistedDeepAnalysisRead, *, now: datetime
+    ) -> None:
+        """Promote only a still-verified persisted result to current Summary authority."""
+
+        if not verify_persisted_deep_analysis_read(result):
+            raise DeepAnalysisPersistenceError(
+                "current Summary promotion requires a verified persisted result"
+            )
+        video_id = result.canonical_input.video_identity
+        if not video_id.strip():
+            raise DeepAnalysisPersistenceError(
+                "current Summary promotion requires a video identity"
+            )
+        connection = self._repository._connect()
+        try:
+            with connection:
+                connection.execute(
+                    "INSERT INTO current_content_summaries "
+                    "(video_id, result_identity, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(video_id) DO UPDATE SET "
+                    "result_identity=excluded.result_identity, "
+                    "updated_at=excluded.updated_at",
+                    (
+                        video_id,
+                        result.result_identity,
+                        format_utc_datetime(now),
+                    ),
+                )
+        except sqlite3.IntegrityError as error:
+            raise DeepAnalysisPersistenceError(
+                "current Summary pointer violates persistence integrity"
+            ) from error
+
+    def read_current_content_summary_result(
+        self, *, video_id: str
+    ) -> VerifiedPersistedDeepAnalysisRead | None:
+        """Read the explicit current Summary pointer and revalidate its target."""
+
+        if not video_id.strip():
+            raise ValueError("video_id must be non-empty")
+        connection = self._repository._connect()
+        try:
+            row = connection.execute(
+                "SELECT result_identity FROM current_content_summaries "
+                "WHERE video_id = ?",
+                (video_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        result = self.read_persisted_deep_analysis_result(
+            result_identity=str(row["result_identity"])
+        )
+        if result is None:
+            return None
+        if result.canonical_input.video_identity != video_id:
+            return None
         return result
 
     def lookup_deep_analysis_cache(

@@ -718,7 +718,6 @@ storage:
             summary_threshold=settings.thresholds.summary_score,
             pipeline_version=PIPELINE_VERSION,
             current_model=settings.local_scoring.model,
-            current_output_language=settings.general.output_language,
         )
         return WeeklyReportService(
             repository=repository,

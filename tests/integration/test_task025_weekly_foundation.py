@@ -92,7 +92,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=WEEK_START).version == 16
+    assert repository.initialize(now=WEEK_START).version == 19
     return repository
 
 
@@ -238,7 +238,14 @@ def _admit(
             "meaningful_details": [conclusion],
             "filtered_noise": [],
             "claim_kind": claim_kind.value,
-            "evidence": [{"evidence_id": evidence_id, "start_ms": 1000, "end_ms": 1500}],
+            "evidence": [
+                {
+                    "evidence_id": evidence_id,
+                    "start_ms": 1000,
+                    "end_ms": 1500,
+                    "stance": "supporting",
+                }
+            ],
         },
         separators=(",", ":"),
     )
@@ -339,15 +346,35 @@ def _append_card_backed_revision(
 ) -> None:
     """Create a valid later card revision without exercising a provider in this test."""
 
-    prior = repository.get_intelligence_revision(prior_revision_id)
-    assert prior is not None
+    prior_card = repository.get_distillation_card(prior_revision_id)
+    evidence = repository.get_evidence(evidence_id)
+    assert prior_card is not None
+    assert evidence is not None
+    legacy_payload = {
+        "core_conclusion": prior_card.core_conclusion,
+        "user_relevant_information": list(prior_card.user_relevant_information),
+        "important_new_information": list(prior_card.important_new_information),
+        "meaningful_details": list(prior_card.meaningful_details),
+        "filtered_noise": list(prior_card.filtered_noise),
+        "claim_kind": claim_kind.value,
+        "evidence": [
+            {
+                "evidence_id": evidence_id,
+                "start_ms": evidence.start_ms,
+                "end_ms": evidence.end_ms,
+            }
+        ],
+    }
+    legacy_hash = sha256(
+        json.dumps(legacy_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     repository.append_intelligence_revision(
         intelligence_id=intelligence_id,
         revision=IntelligenceRevisionWrite(
             revision_id=revision_id,
             interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
             claim_kind=claim_kind,
-            content_hash=prior.content_hash,
+            content_hash=legacy_hash,
             state=state,
             reason="Fixture later trusted Intelligence state.",
             evidence_ids=(evidence_id,),

@@ -36,19 +36,24 @@ NOW = datetime(2026, 9, 8, 10, tzinfo=UTC)
 
 def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     connection = repository._connect()
     try:
         assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
         names = [
             row[0]
             for row in connection.execute(
                 "SELECT name FROM schema_migrations ORDER BY version"
             )
         ]
-        assert names[-1] == "016_add_ambiguous_resource_ledger_outcome.sql"
-        assert any(name.startswith("015_") for name in names)
+        assert names[-5:] == [
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+        ]
     finally:
         connection.close()
 
@@ -507,7 +512,7 @@ def test_saved_relation_schema_denies_foreign_target_and_updates(
         connection.close()
 
 
-def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
+def test_v013_upgrade_to_current_preserves_prior_domains_and_save_never_mutates_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from test_task025_weekly_foundation import FINALIZED_AT
@@ -524,53 +529,42 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:13])
     assert repository.initialize(now=WEEK_START).version == 13
     source_id = _source(repository)
-    intelligence_id, _, _ = _admit(
-        repository,
-        source_id=source_id,
-        video_id="upgrade025a",
-        at=WEEK_START,
-        conclusion="Saved organization must not change prior domain state.",
-        bind_exact_text=False,
-    )
+    source = repository.get_source_subscription(source_id)
+    assert source is not None
     topics = TopicApplicationService(repository, now=lambda: WEEK_START)
     topic = topics.create_topic(command_id="saved-topic", name="Preserved Topic")
-    topics.associate_intelligence(
-        topic_id=topic.topic_id,
-        intelligence_id=intelligence_id,
-        kind=TopicAssociationKind.NEW_INFORMATION,
-    )
-    topics.set_pinned(topic_id=topic.topic_id, pinned=True)
+    topic = topics.set_pinned(topic_id=topic.topic_id, pinned=True)
     preferences = PreferenceApplicationService(repository, now=lambda: WEEK_START)
-    preferences.set_explicit_long_term(
+    explicit = preferences.set_explicit_long_term(
         command_id="saved-explicit",
         scope=PreferenceScope.GLOBAL_CONTENT,
         target_id=None,
         statement="Explicit interest",
     )
-    preferences.record_derived_recent(
+    derived = preferences.record_derived_recent(
         command_id="saved-derived",
         scope=PreferenceScope.GLOBAL_CONTENT,
         target_id=None,
         statement="Derived interest",
     )
-    preferences.set_temporary_focus(
+    temporary = preferences.set_temporary_focus(
         command_id="saved-temporary",
         scope=PreferenceScope.GLOBAL_CONTENT,
         target_id=None,
         statement="Temporary interest",
         expires_at=NOW + timedelta(days=1),
     )
-    preferences.record_feedback(
+    feedback = preferences.record_feedback(
         FeedbackWrite(
             feedback_id="saved-feedback",
             kind=FeedbackKind.IMPORTANT,
-            scope=PreferenceScope.INTELLIGENCE_CONTENT,
-            target_id=intelligence_id,
+            scope=PreferenceScope.GLOBAL_CONTENT,
+            target_id=None,
             content=None,
             correction_kind=None,
         )
     )
-    repository.create_source_run(
+    source_run = repository.create_source_run(
         SourceRunWrite.manual_check_now(
             source_id=source_id,
             command_id="saved-run",
@@ -578,11 +572,41 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
             created_at=WEEK_START,
         )
     )
+    preserved_intelligence = repository.create_intelligence(
+        intelligence_id="preserved-v013-intelligence", now=WEEK_START
+    )
+
+    monkeypatch.undo()
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 19
+    assert upgraded.get_source_subscription(source_id) == source
+    assert upgraded.get_topic(topic.topic_id) == topic
+    assert upgraded.get_preference(explicit.preference_id) == explicit
+    assert upgraded.get_preference(derived.preference_id) == derived
+    assert upgraded.get_preference(temporary.preference_id) == temporary
+    assert feedback in upgraded.list_feedback()
+    assert upgraded.get_source_run(source_run.run_id) == source_run
+    assert upgraded.get_intelligence(preserved_intelligence.intelligence_id) == (
+        preserved_intelligence
+    )
+
+    intelligence_id, _, _ = _admit(
+        upgraded,
+        source_id=source_id,
+        video_id="upgrade025a",
+        at=WEEK_START,
+        conclusion="Saved organization must not change prior domain state.",
+    )
+    TopicApplicationService(upgraded, now=lambda: WEEK_START).associate_intelligence(
+        topic_id=topic.topic_id,
+        intelligence_id=intelligence_id,
+        kind=TopicAssociationKind.NEW_INFORMATION,
+    )
     weekly = WeeklyBriefService(
-        repository, timezone="UTC", now=lambda: FINALIZED_AT
+        upgraded, timezone="UTC", now=lambda: FINALIZED_AT
     ).finalize_week()
     assert len(weekly.items) == 1
-    before = _domain_rows(repository)
+    before = _domain_rows(upgraded)
     for table in (
         "source_subscriptions",
         "evidence",
@@ -597,23 +621,13 @@ def test_m014_upgrade_preserves_all_prior_domains_and_save_never_mutates_them(
         "distillation_resource_usage",
     ):
         assert before[table], table
-    before.update(
-        {
-            "timed_transcripts": (),
-            "timed_transcript_cues": (),
-            "evidence_text_bindings": (),
-        }
-    )
-    upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 16
-    assert _domain_rows(upgraded) == before
     service = SavedIntelligenceService(upgraded, now=lambda: NOW)
     assert service.list_saved().items == ()
     service.save(SaveIntelligence(intelligence_id=intelligence_id))
     assert _domain_rows(upgraded) == before
     service.unsave(UnsaveIntelligence(intelligence_id))
     assert _domain_rows(upgraded) == before
-    assert SQLiteStateRepository(path).initialize(now=NOW).version == 16
+    assert SQLiteStateRepository(path).initialize(now=NOW).version == 19
     assert _domain_rows(upgraded) == before
 
 
@@ -650,7 +664,7 @@ def test_m014_failure_rolls_back_and_checksum_mismatch_fails_closed(
     finally:
         connection.close()
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     modified = replace(migrations[13], checksum="0" * 64)
     monkeypatch.setattr(
         repository, "_load_migrations", lambda: (*migrations[:13], modified)

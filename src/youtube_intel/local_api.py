@@ -14,8 +14,12 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
+from youtube_intel.content_summary_read import (
+    AuthoritativeContentSummaryReader,
+    ContentSummaryReadRejected,
+)
 from youtube_intel.distillation import PersonalizedDistillationService
-from youtube_intel.domain import JobStatus, ProcessingStage
+from youtube_intel.domain import JobStatus, ProcessingStage, ScoringOutputLanguage
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -28,6 +32,7 @@ from youtube_intel.orchestration import (
     provider_model_statuses,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
 from youtube_intel.saved_intelligence import (
@@ -330,6 +335,7 @@ class LocalApiApplication:
         data_root: Path | None = None,
         vault_root: Path | None = None,
         timezone: str = "Asia/Shanghai",
+        output_language_default: ScoringOutputLanguage = "zh-CN",
         now: Callable[[], datetime] | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
@@ -340,10 +346,15 @@ class LocalApiApplication:
         self._distillation_service = distillation_service
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
+        self._content_summary_reader = AuthoritativeContentSummaryReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._output_language_service = OutputLanguagePreferenceService(
+            repository,
+            bootstrap_default=output_language_default,
+        )
         self._preference_service = PreferenceApplicationService(
             repository, now=self._now
         )
@@ -739,6 +750,27 @@ class LocalApiApplication:
                     "preference_id": event.preference_id,
                     "state": event.state.value,
                     "created_at": _timestamp(event.created_at),
+                }
+            if method == "PUT" and route == "/api/v1/settings/output-language":
+                self._only_keys(data, {"output_language"})
+                try:
+                    language = self._output_language_service.set(
+                        output_language=self._string(
+                            data, "output_language", required=True
+                        )
+                        or "",
+                        now=self._now(),
+                    )
+                except ValueError as error:
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "output_language must be zh-CN or en.",
+                    ) from error
+                return HTTPStatus.OK, {
+                    "output_language": language.value,
+                    "source": language.source,
+                    "updated_at": _timestamp(language.updated_at),
                 }
             if method == "PUT" and route == "/api/v1/settings/source-policy":
                 self._only_keys(
@@ -1209,7 +1241,7 @@ class LocalApiApplication:
                 "video": _video_dto(video),
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
-                "note": self._note_projection(),
+                "note": self._note_projection(video.video_id),
                 "history": self._history_projection(video.video_id),
             }
         if route.startswith("/api/v1/intelligence/"):
@@ -1264,11 +1296,17 @@ class LocalApiApplication:
             }
         if route == "/api/v1/settings":
             preference = self._repository.get_global_model_preference()
+            language = self._output_language_service.effective()
             return {
                 "processing_defaults": {
                     "policy": ProcessingPolicy.STANDARD_INTELLIGENCE.value
                 },
-                "general": {"timezone": self._timezone},
+                "general": {
+                    "timezone": self._timezone,
+                    "output_language": language.value,
+                    "output_language_source": language.source,
+                    "output_language_updated_at": _timestamp(language.updated_at),
+                },
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
@@ -1321,17 +1359,44 @@ class LocalApiApplication:
             return projection
         video = self._repository.get_video(card.video_id)
         source = self._repository.get_source_subscription(card.source_id)
+        relations = {
+            item.evidence_id: item
+            for item in self._repository.list_intelligence_revision_evidence_relations(
+                card.verified.revision_id
+            )
+        }
+        if set(relations) != set(card.verified.evidence_ids):
+            return projection
         evidence_links = []
         for evidence_id in card.verified.evidence_ids:
-            evidence = self._repository.resolve_verified_evidence_text(evidence_id)
-            if evidence is None or evidence.video_id != card.video_id:
+            evidence = self._repository.get_evidence(evidence_id)
+            verified_text = self._repository.resolve_verified_evidence_text(evidence_id)
+            relation = relations.get(evidence_id)
+            if (
+                evidence is None
+                or relation is None
+                or evidence.video_id != card.video_id
+            ):
                 return projection
             evidence_links.append(
                 {
                     "evidence_id": evidence.evidence_id,
+                    "artifact_id": evidence.artifact_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
-                    "excerpt": evidence.excerpt,
+                    "language": evidence.language,
+                    "lineage_kind": evidence.lineage_kind.value,
+                    "role": evidence.role.value,
+                    "original_excerpt": (
+                        verified_text.excerpt
+                        if verified_text is not None
+                        else evidence.source_excerpt
+                    ),
+                    "translated_excerpt": None,
+                    "translated_language": None,
+                    "stance": None
+                    if relation.stance is None
+                    else relation.stance.value,
                 }
             )
         source_display_name = None
@@ -1521,13 +1586,98 @@ class LocalApiApplication:
             "reason": "No canonical transcript has been recorded for this video.",
         }
 
-    @staticmethod
-    def _note_projection() -> dict[str, object]:
-        """There is no persisted NoteRef association in the current authority."""
+    def _note_projection(self, video_id: str) -> dict[str, object]:
+        """Project only the explicit current verified Summary result."""
 
+        try:
+            current = self._content_summary_reader.read_current(video_id)
+        except ContentSummaryReadRejected as error:
+            return {
+                "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                "v2": {"status": "UNAVAILABLE", "code": error.code},
+            }
+        note = current.note
+        summary = next(
+            (
+                section.entries[0].text
+                for section in note.sections
+                if section.kind.value == "SUMMARY" and section.entries
+            ),
+            None,
+        )
+        core_point_entries = next(
+            (
+                tuple(section.entries)
+                for section in note.sections
+                if section.kind.value == "CORE_POINTS"
+            ),
+            (),
+        )
+        core_points = [entry.text for entry in core_point_entries]
+        references_by_id = {
+            reference.evidence_id: reference for reference in note.evidence_references
+        }
+        timestamped_key_points: list[dict[str, object]] = []
+        for entry in core_point_entries:
+            timed = [
+                references_by_id[evidence_id]
+                for evidence_id in entry.evidence_ids
+                if evidence_id in references_by_id
+                and references_by_id[evidence_id].start_seconds is not None
+            ]
+            if not timed:
+                continue
+            start_seconds = min(
+                float(reference.start_seconds) for reference in timed
+                if reference.start_seconds is not None
+            )
+            end_seconds = max(
+                float(
+                    reference.end_seconds
+                    if reference.end_seconds is not None
+                    else reference.start_seconds
+                )
+                for reference in timed
+                if reference.start_seconds is not None
+            )
+            timestamped_key_points.append(
+                {
+                    "text": entry.text,
+                    "start_seconds": start_seconds,
+                    "end_seconds": end_seconds,
+                    "evidence_ids": [
+                        reference.evidence_id
+                        for reference in sorted(
+                            timed,
+                            key=lambda item: (
+                                float(item.start_seconds or 0),
+                                item.evidence_id,
+                            ),
+                        )
+                    ],
+                }
+            )
         return {
             "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-            "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+            "v2": {
+                "status": "AVAILABLE",
+                "note_identity": note.identity,
+                "result_identity": current.result_identity,
+                "language": note.language,
+                "summary": summary,
+                "core_points": core_points,
+                "timestamped_key_points": timestamped_key_points,
+                "evidence_references": [
+                    {
+                        "evidence_id": reference.evidence_id,
+                        "source": reference.source,
+                        "excerpt": reference.excerpt,
+                        "start_seconds": reference.start_seconds,
+                        "end_seconds": reference.end_seconds,
+                    }
+                    for reference in note.evidence_references
+                ],
+            },
         }
 
     def _history_projection(self, video_id: str) -> list[dict[str, object]]:

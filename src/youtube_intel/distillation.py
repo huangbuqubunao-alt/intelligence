@@ -19,6 +19,7 @@ from youtube_intel.state import (
     DistillationExecutionRecord,
     DistillationExecutionWrite,
     EvidenceAvailability,
+    EvidenceStance,
     FilterOutcome,
     IntegrityConflict,
     IntelligenceClaimKind,
@@ -761,6 +762,7 @@ class DistillationTransport(Protocol):
 class _Candidate:
     claim_kind: IntelligenceClaimKind
     evidence_ids: tuple[str, ...]
+    evidence_stances: tuple[tuple[str, EvidenceStance], ...]
     card: DistillationCardWrite
     canonical_content: bytes
 
@@ -1232,6 +1234,7 @@ class PersonalizedDistillationService:
                 claim_kind=candidate.claim_kind,
                 content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
                 evidence_ids=candidate.evidence_ids,
+                evidence_stances=candidate.evidence_stances,
                 card=candidate.card,
                 actual_provider=response.actual_provider,
                 actual_model=response.actual_model,
@@ -1483,12 +1486,17 @@ class PersonalizedDistillationService:
         expected_evidence_ids = set(verified_input.evidence_ids)
         cited_evidence_ids: set[str] = set()
         canonical_supports: dict[str, dict[str, int | str]] = {}
+        evidence_stances: dict[str, EvidenceStance] = {}
         for support in evidence:
-            if not isinstance(support, dict) or set(support) != {"evidence_id", "start_ms", "end_ms"}:
+            if not isinstance(support, dict) or set(support) != {"evidence_id", "start_ms", "end_ms", "stance"}:
                 raise ValueError("distillation evidence schema is invalid")
             evidence_id = support["evidence_id"]
             start_ms = support["start_ms"]
             end_ms = support["end_ms"]
+            try:
+                stance = EvidenceStance(support["stance"])
+            except (TypeError, ValueError) as error:
+                raise ValueError("distillation evidence stance is invalid") from error
             if (
                 not isinstance(evidence_id, str)
                 or isinstance(start_ms, bool)
@@ -1508,13 +1516,17 @@ class PersonalizedDistillationService:
             ):
                 raise ValueError("distillation evidence support is invalid")
             cited_evidence_ids.add(evidence_id)
+            evidence_stances[evidence_id] = stance
             canonical_supports[evidence_id] = {
                 "evidence_id": evidence_id,
                 "start_ms": start_ms,
                 "end_ms": end_ms,
+                "stance": stance.value,
             }
         if cited_evidence_ids != expected_evidence_ids:
             raise ValueError("distillation evidence support is incomplete")
+        if EvidenceStance.SUPPORTING not in evidence_stances.values():
+            raise ValueError("distillation requires at least one supporting Evidence")
         card = DistillationCardWrite(
             source_id=command.source_id,
             video_id=command.video_id,
@@ -1539,6 +1551,10 @@ class PersonalizedDistillationService:
         return _Candidate(
             claim_kind=claim_kind,
             evidence_ids=tuple(sorted(cited_evidence_ids)),
+            evidence_stances=tuple(
+                (evidence_id, evidence_stances[evidence_id])
+                for evidence_id in sorted(cited_evidence_ids)
+            ),
             card=card,
             canonical_content=canonical_content,
         )

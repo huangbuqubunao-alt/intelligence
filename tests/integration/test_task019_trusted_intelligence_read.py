@@ -162,7 +162,7 @@ def test_missing_pointer_or_evidence_support_fails_closed(tmp_path: Path) -> Non
         connection.execute("DELETE FROM dependency_edges WHERE edge_id = 'support:revision-2'")
     finally:
         connection.close()
-    with pytest.raises(IntelligenceReadRejected, match="support"):
+    with pytest.raises(IntelligenceReadRejected, match="dependency set is incomplete"):
         AuthoritativeIntelligenceReader(repository).read_current(intelligence_id)
 
 

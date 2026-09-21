@@ -12,10 +12,8 @@ import pytest
 
 from youtube_intel import state as state_mod
 from youtube_intel.state import (
-    EvidenceAvailability,
     EvidenceLineageKind,
     EvidenceRole,
-    EvidenceWrite,
     IntelligenceClaimKind,
     IntelligenceInterpretationKind,
     IntelligenceRevisionWrite,
@@ -59,8 +57,16 @@ def _v006_migrations() -> tuple[state_mod._Migration, ...]:
     )
 
 
-def _seed_evidence(repository: SQLiteStateRepository, path: Path) -> str:
+def _seed_evidence(path: Path) -> str:
     timestamp = state_mod.format_utc_datetime(NOW)
+    evidence_id = build_evidence_id(
+        video_id="video-1",
+        artifact_id="artifact-1",
+        start_ms=1000,
+        end_ms=1500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+    )
     with _connection(path) as connection:
         connection.execute(
             "INSERT INTO videos (video_id, channel_id, pipeline_status, pipeline_version, discovered_at, updated_at) "
@@ -72,25 +78,12 @@ def _seed_evidence(repository: SQLiteStateRepository, path: Path) -> str:
             "VALUES ('artifact-1', 'artifact-key-1', 'video-1', NULL, 'transcript_canonical', 'DATA', 'transcript.txt', ?, NULL, NULL, 'v1', 'LONG_LIVED', ?, NULL, NULL)",
             ("a" * 64, timestamp),
         )
-    evidence = EvidenceWrite(
-        evidence_id=build_evidence_id(
-            video_id="video-1",
-            artifact_id="artifact-1",
-            start_ms=1000,
-            end_ms=1500,
-            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-            role=EvidenceRole.PRIMARY_ORIGINAL,
-        ),
-        video_id="video-1",
-        artifact_id="artifact-1",
-        start_ms=1000,
-        end_ms=1500,
-        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
-        role=EvidenceRole.PRIMARY_ORIGINAL,
-        language="en",
-        availability=EvidenceAvailability.AVAILABLE,
-    )
-    return repository.create_evidence(evidence, now=NOW).evidence_id
+        connection.execute(
+            "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) "
+            "VALUES (?, 'video-1', 'artifact-1', 1000, 1500, 'ORIGINAL_TRANSCRIPT', 'PRIMARY_ORIGINAL', 'en', 'AVAILABLE', ?)",
+            (evidence_id, timestamp),
+        )
+    return evidence_id
 
 
 def _write(
@@ -114,9 +107,9 @@ def _write(
 def test_fresh_database_reaches_v007_with_finite_claim_kind_column(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(_path(tmp_path))
 
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     with _connection(_path(tmp_path)) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
         columns = {
             row["name"]: row
             for row in connection.execute('PRAGMA table_info("intelligence_revisions")')
@@ -131,7 +124,7 @@ def test_v006_revision_migrates_to_unclassified_without_guessing(
     repository = SQLiteStateRepository(path)
     monkeypatch.setattr(repository, "_load_migrations", _v006_migrations)
     assert repository.initialize(now=NOW).version == 6
-    evidence_id = _seed_evidence(repository, path)
+    evidence_id = _seed_evidence(path)
     timestamp = state_mod.format_utc_datetime(NOW)
     with _connection(path) as connection:
         connection.execute(
@@ -158,7 +151,7 @@ def test_v006_revision_migrates_to_unclassified_without_guessing(
         )
     monkeypatch.undo()
 
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     migrated = repository.list_intelligence_revisions("legacy")[0]
     assert migrated.claim_kind is IntelligenceClaimKind.UNCLASSIFIED
     assert migrated.interpretation_kind is IntelligenceInterpretationKind.DISTILLATION
@@ -210,7 +203,7 @@ def test_each_explicit_claim_kind_round_trips_without_changing_lifecycle(
     path = _path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
-    evidence_id = _seed_evidence(repository, path)
+    evidence_id = _seed_evidence(path)
     intelligence_id = f"intelligence-{claim_kind.value}"
     repository.create_intelligence(intelligence_id=intelligence_id, now=NOW)
 
@@ -228,7 +221,7 @@ def test_new_revision_rejects_arbitrary_or_unclassified_claim_kind(tmp_path: Pat
     path = _path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
-    evidence_id = _seed_evidence(repository, path)
+    evidence_id = _seed_evidence(path)
     repository.create_intelligence(intelligence_id="intelligence-1", now=NOW)
 
     with pytest.raises(ValueError, match="claim kind"):
@@ -249,7 +242,7 @@ def test_claim_kind_is_immutable_and_new_revision_preserves_history(tmp_path: Pa
     path = _path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
-    evidence_id = _seed_evidence(repository, path)
+    evidence_id = _seed_evidence(path)
     repository.create_intelligence(intelligence_id="intelligence-1", now=NOW)
     repository.append_intelligence_revision(
         intelligence_id="intelligence-1",
@@ -282,7 +275,7 @@ def test_fact_is_not_trust_and_system_inference_remains_distinct(tmp_path: Path)
     path = _path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
-    evidence_id = _seed_evidence(repository, path)
+    evidence_id = _seed_evidence(path)
     repository.create_intelligence(intelligence_id="intelligence-1", now=NOW)
 
     saved = repository.append_intelligence_revision(

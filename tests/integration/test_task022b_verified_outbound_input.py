@@ -73,7 +73,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     return repository
 
 
@@ -174,7 +174,14 @@ def _raw(evidence_id: str) -> str:
         "meaningful_details": ["The transcript is quoted."],
         "filtered_noise": ["none"],
         "claim_kind": "EVIDENCE_BACKED_STATEMENT",
-        "evidence": [{"evidence_id": evidence_id, "start_ms": 1_000, "end_ms": 2_000}],
+        "evidence": [
+            {
+                "evidence_id": evidence_id,
+                "start_ms": 1_000,
+                "end_ms": 2_000,
+                "stance": "supporting",
+            }
+        ],
     }, separators=(",", ":"))
 
 

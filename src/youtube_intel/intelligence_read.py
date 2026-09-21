@@ -168,8 +168,34 @@ class AuthoritativeIntelligenceReader:
             )
             if any(record is None or record.video_id != card.video_id for record in evidence_records):
                 raise IntelligenceReadRejected("CARD_EVIDENCE_INVALID", "card evidence target is invalid")
+            relations = self._repository.list_intelligence_revision_evidence_relations(
+                verified.revision_id
+            )
+            if tuple(item.evidence_id for item in relations) != verified.evidence_ids:
+                raise IntelligenceReadRejected(
+                    "CARD_EVIDENCE_INVALID", "card evidence relation is invalid"
+                )
+            stance_presence = tuple(item.stance is not None for item in relations)
+            if any(stance_presence) and not all(stance_presence):
+                raise IntelligenceReadRejected(
+                    "CARD_EVIDENCE_INVALID", "card evidence stance is incomplete"
+                )
             if not self._repository.source_has_video(card.source_id, card.video_id):
                 raise IntelligenceReadRejected("CARD_SOURCE_INVALID", "card source target is invalid")
+            canonical_evidence: list[dict[str, int | str]] = []
+            for evidence_id, evidence, relation in zip(
+                verified.evidence_ids, evidence_records, relations, strict=True
+            ):
+                if evidence is None:
+                    continue
+                item: dict[str, int | str] = {
+                    "evidence_id": evidence_id,
+                    "start_ms": evidence.start_ms,
+                    "end_ms": evidence.end_ms,
+                }
+                if relation.stance is not None:
+                    item["stance"] = relation.stance.value
+                canonical_evidence.append(item)
             canonical = json.dumps(
                 {
                     "core_conclusion": card.core_conclusion,
@@ -178,15 +204,7 @@ class AuthoritativeIntelligenceReader:
                     "meaningful_details": list(card.meaningful_details),
                     "filtered_noise": list(card.filtered_noise),
                     "claim_kind": verified.claim_kind.value,
-                    "evidence": [
-                        {
-                            "evidence_id": evidence_id,
-                            "start_ms": evidence.start_ms,
-                            "end_ms": evidence.end_ms,
-                        }
-                        for evidence_id, evidence in zip(verified.evidence_ids, evidence_records, strict=True)
-                        if evidence is not None
-                    ],
+                    "evidence": canonical_evidence,
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -239,7 +257,7 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected("EVIDENCE_MISSING", "current revision has no evidence")
         if state_event.evidence_id not in evidence_ids:
             raise IntelligenceReadRejected("STATE_HISTORY_INVALID", "state history evidence is invalid")
-        self._validate_support_edges(revision.revision_id, evidence_ids)
+        self._validate_evidence_dependency_edges(revision.revision_id, evidence_ids)
         self._validate_evidence(evidence_ids)
         if state_event.state in {
             IntelligenceState.INVALIDATED,
@@ -310,14 +328,25 @@ class AuthoritativeIntelligenceReader:
                 raise IntelligenceReadRejected("STATE_HISTORY_INVALID", "revision state history is invalid")
         return event
 
-    def _validate_support_edges(self, revision_id: str, evidence_ids: tuple[str, ...]) -> None:
-        supporting = {
+    def _validate_evidence_dependency_edges(
+        self, revision_id: str, evidence_ids: tuple[str, ...]
+    ) -> None:
+        """Validate the legacy structural Evidence dependency set.
+
+        EVIDENCE_SUPPORT is an older schema name for dependency completeness. It
+        is not the M4C semantic stance authority; stance is read exclusively
+        from intelligence_revision_evidence.stance.
+        """
+
+        dependencies = {
             edge.input_evidence_id
             for edge in self._repository.list_dependency_edges_for_revision(revision_id)
             if edge.relation is DependencyRelation.EVIDENCE_SUPPORT
         }
-        if supporting != set(evidence_ids) or None in supporting:
-            raise IntelligenceReadRejected("EVIDENCE_SUPPORT_INVALID", "evidence support is incomplete")
+        if dependencies != set(evidence_ids) or None in dependencies:
+            raise IntelligenceReadRejected(
+                "EVIDENCE_SUPPORT_INVALID", "evidence dependency set is incomplete"
+            )
 
     def _validate_evidence(self, evidence_ids: tuple[str, ...]) -> None:
         for evidence_id in evidence_ids:
