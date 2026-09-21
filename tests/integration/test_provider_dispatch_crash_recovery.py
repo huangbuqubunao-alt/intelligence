@@ -121,7 +121,7 @@ def test_migration_marks_pre_protocol_pending_call_ambiguous(
     )
     monkeypatch.undo()
 
-    assert repository.initialize(now=NOW + timedelta(minutes=1)).version == 19
+    assert repository.initialize(now=NOW + timedelta(minutes=1)).version == 20
     dispatch = repository.get_provider_dispatch(initial.record.request_hash)
 
     assert dispatch is not None

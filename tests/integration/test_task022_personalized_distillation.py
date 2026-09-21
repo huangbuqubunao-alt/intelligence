@@ -59,6 +59,7 @@ from youtube_intel.state import (
     LiveStatus,
     PreferenceScope,
     SQLiteStateRepository,
+    StateStoreError,
     TimedTranscriptCueWrite,
     TimedTranscriptWrite,
     VideoMetadata,
@@ -465,7 +466,7 @@ def _normal_nvidia_authorization(
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 19
+    assert repository.initialize(now=NOW).version == 20
     return repository
 
 
@@ -612,6 +613,24 @@ def _raw(
     )
 
 
+def _no_new_raw(
+    evidence_id: str, *, start_ms: int = 1_000, end_ms: int = 1_500
+) -> str:
+    return json.dumps(
+        {
+            "result": "NO_NEW_INTELLIGENCE",
+            "evidence": [
+                {
+                    "evidence_id": evidence_id,
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                }
+            ],
+        },
+        separators=(",", ":"),
+    )
+
+
 def _service(
     repository: SQLiteStateRepository,
     transport: _FakeTransport,
@@ -637,6 +656,207 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
         selected_provider="test-transport",
         selected_model="deterministic-v1",
     )
+
+
+def test_successful_no_new_intelligence_is_durable_and_non_redispatchable(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    transport = _FakeTransport(_no_new_raw(evidence_id))
+    command = _command(
+        source_id, video_id, evidence_id, execution_id="exec-no-new"
+    )
+
+    result = _service(repository, transport).distill(command)
+
+    assert result.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+    assert result.invocation_count == 1
+    assert result.intelligence_id is None
+    assert result.revision_id is None
+    assert repository.list_current_intelligence_ids() == ()
+    assert repository.list_distillation_cards() == ()
+    usage = repository.get_distillation_resource_usage("exec-no-new")
+    assert usage.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    assert usage.outcome == "NO_NEW_INTELLIGENCE"
+    assert usage.intelligence_id is None
+    assert usage.revision_id is None
+    assert usage.actual_provider == "test-transport"
+    assert usage.actual_model == "deterministic-v1"
+
+    restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert restarted.initialize(now=NOW).version == 20
+    persisted = restarted.get_distillation_execution("exec-no-new")
+    assert persisted is not None
+    assert persisted.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    repeated = _service(restarted, transport).distill(command)
+    assert repeated.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+    assert transport.calls == 1
+
+    with restarted._connect() as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE distillation_no_new_intelligence_results "
+                "SET outcome = 'FORGED' WHERE execution_id = ?",
+                ("exec-no-new",),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "DELETE FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = ?",
+                ("exec-no-new",),
+            )
+
+
+def test_no_new_result_requires_a_claimed_real_invocation(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="exec-uninvoked-zero",
+            source_id=source_id,
+            video_id=video_id,
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="test-transport",
+            selected_model="deterministic-v1",
+        ),
+        now=NOW,
+    )
+
+    with pytest.raises(StateStoreError, match="legal invocation"):
+        repository.record_distillation_no_new_intelligence(
+            execution_id="exec-uninvoked-zero",
+            evidence_ids=(evidence_id,),
+            budget_state="ADMITTED",
+            actual_provider="test-transport",
+            actual_model="deterministic-v1",
+            input_tokens=None,
+            output_tokens=None,
+            cost_microunits=None,
+            duration_ms=None,
+            now=NOW,
+        )
+
+    persisted = repository.get_distillation_execution("exec-uninvoked-zero")
+    assert persisted is not None
+    assert persisted.status == "PENDING"
+    assert persisted.invocation_count == 0
+
+
+@pytest.mark.parametrize(
+    ("actual_provider", "actual_model"),
+    (
+        ("other-provider", "deterministic-v1"),
+        ("test-transport", "other-model"),
+    ),
+)
+def test_no_new_result_rejects_actual_execution_identity_mismatch(
+    tmp_path: Path, actual_provider: str, actual_model: str
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    transport = _FakeTransport(
+        _no_new_raw(evidence_id),
+        actual_provider=actual_provider,
+        actual_model=actual_model,
+    )
+
+    result = _service(repository, transport).distill(
+        _command(source_id, video_id, evidence_id, execution_id="exec-zero-mismatch")
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert result.intelligence_id is None
+    assert result.revision_id is None
+    with repository._connect() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
+        ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ("", "{}", "not-json", json.dumps({"result": "UNKNOWN", "evidence": []})),
+)
+def test_invalid_or_empty_output_never_becomes_no_new_success(
+    tmp_path: Path, raw: str
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+
+    result = _service(repository, _FakeTransport(raw)).distill(
+        _command(source_id, video_id, evidence_id, execution_id=f"exec-invalid-{len(raw)}")
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert result.intelligence_id is None
+    assert repository.list_current_intelligence_ids() == ()
+
+
+def test_no_new_result_fails_closed_if_canonical_evidence_changes_before_write(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+
+    class _ChangingEvidenceTransport(_FakeTransport):
+        def generate(self, command: DistillationCommand) -> DistillationTransportResult:
+            response = super().generate(command)
+            _evidence(repository, video_id, start_ms=2_000, end_ms=2_500)
+            return response
+
+    result = _service(
+        repository, _ChangingEvidenceTransport(_no_new_raw(evidence_id))
+    ).distill(
+        _command(source_id, video_id, evidence_id, execution_id="exec-stale-evidence")
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert repository.list_current_intelligence_ids() == ()
+
+
+def test_no_new_result_read_fails_closed_on_evidence_hash_tamper(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    result = _service(repository, _FakeTransport(_no_new_raw(evidence_id))).distill(
+        _command(source_id, video_id, evidence_id, execution_id="exec-tamper")
+    )
+    assert result.status is DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE
+
+    with repository._connect() as connection:
+        connection.execute("DROP TRIGGER distillation_no_new_result_immutable_update")
+        connection.execute(
+            "UPDATE distillation_no_new_intelligence_results "
+            "SET evidence_set_hash = ? WHERE execution_id = ?",
+            ("0" * 64, "exec-tamper"),
+        )
+
+    with pytest.raises(StateStoreError, match="Evidence hash"):
+        repository.get_distillation_execution("exec-tamper")
+
+
+def test_no_new_result_rejects_stance_or_claim_payload(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    payload = json.loads(_no_new_raw(evidence_id))
+    payload["evidence"][0]["stance"] = "supporting"
+
+    result = _service(repository, _FakeTransport(json.dumps(payload))).distill(
+        _command(source_id, video_id, evidence_id, execution_id="exec-zero-stance")
+    )
+
+    assert result.status is DistillationExecutionStatus.REJECTED_OUTPUT
+    assert repository.list_current_intelligence_ids() == ()
 
 
 def _nvidia_nim_command(
@@ -895,12 +1115,12 @@ def test_nvidia_nim_default_http_boundary_is_fully_mocked_and_bounded(
     assert body["stream"] is False
 
 
-def test_fresh_database_reaches_exactly_v019_with_integrated_schema(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v020_with_integrated_schema(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -914,12 +1134,13 @@ def test_fresh_database_reaches_exactly_v019_with_integrated_schema(tmp_path: Pa
     finally:
         connection.close()
 
-    assert migrations[-5:] == (
+    assert migrations[-6:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
         "018_add_global_output_language.sql",
         "019_add_evidence_excerpt_stance.sql",
+        "020_add_no_new_intelligence_result.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:
@@ -953,7 +1174,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 19
+    assert upgraded.initialize(now=NOW).version == 20
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
@@ -1013,7 +1234,7 @@ def test_v015_upgrade_preserves_ledger_rows_constraints_and_immutability(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 19
+    assert upgraded.initialize(now=NOW).version == 20
     connection = upgraded._connect()
     try:
         after_row = tuple(
@@ -1199,7 +1420,7 @@ def test_v018_legacy_null_stance_keeps_old_card_hash_readable(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 19
+    assert upgraded.initialize(now=NOW).version == 20
     relations = upgraded.list_intelligence_revision_evidence_relations(
         "legacy-revision-v18"
     )

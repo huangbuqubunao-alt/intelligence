@@ -182,6 +182,14 @@ type ContentDetail = {
       }[];
     };
   };
+  intelligence_result: {
+    status: string;
+    execution_id: string | null;
+    has_new_intelligence: boolean | null;
+    intelligence_id: string | null;
+    revision_id: string | null;
+    updated_at: string | null;
+  };
   history: { timestamp: string; status: string; summary: string }[];
 };
 
@@ -355,6 +363,22 @@ export function intelligenceValidationCopy(state: string) {
     UPDATED:
       "Updated. This is the current revision; older revisions are historical.",
   } as Record<string, string>)[state] ?? "Validation state is unavailable.";
+}
+export function intelligenceResultCopy(status: string) {
+  return ({
+    NOT_PROCESSED: "This Content has not been processed for Intelligence yet.",
+    PENDING: "Analysis has not reached a trusted terminal result.",
+    WAITING_MODEL: "Analysis is waiting for an approved model.",
+    WAITING_BUDGET: "Analysis is waiting for approved budget or resources.",
+    REJECTED_INELIGIBLE: "This Content was not eligible for this Intelligence run.",
+    REJECTED_EVIDENCE: "Analysis could not proceed with trusted Evidence.",
+    REJECTED_OUTPUT: "The generated result did not pass the trusted output checks.",
+    AMBIGUOUS: "The external processing outcome could not be confirmed safely.",
+    SUCCEEDED: "Analysis completed and admitted new Intelligence.",
+    SUCCEEDED_NO_NEW_INTELLIGENCE:
+      "Analysis complete — no new Intelligence. The Content and relevant Evidence were checked, and nothing reached the threshold for adding new Intelligence. Existing Intelligence is unchanged.",
+  } as Record<string, string>)[status] ??
+    "The current Intelligence processing result is unavailable.";
 }
 function intelligenceStateLabel(state?: string) {
   return ({
@@ -1149,6 +1173,19 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
               <p>Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.</p>
             </div>
           )}
+      </Panel>
+      <Panel title="Intelligence result">
+        <div className="semantic-state state-neutral">
+          <Status value={data.intelligence_result.status} />
+          <p>{intelligenceResultCopy(data.intelligence_result.status)}</p>
+          {data.intelligence_result.status === "SUCCEEDED_NO_NEW_INTELLIGENCE"
+            ? (
+              <p className="hint">
+                This is a completed processing result, not an Intelligence validation posture or numeric confidence score.
+              </p>
+            )
+            : null}
+        </div>
       </Panel>
       <Panel title="Processing history">
         {data.history.length

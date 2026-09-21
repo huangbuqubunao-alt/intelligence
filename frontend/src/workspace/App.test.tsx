@@ -109,6 +109,14 @@ beforeEach(() => {
             v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" },
             v2: { status: "UNAVAILABLE", code: "NOTE_V2_UNAVAILABLE" },
           },
+          intelligence_result: {
+            status: "NOT_PROCESSED",
+            execution_id: null,
+            has_new_intelligence: null,
+            intelligence_id: null,
+            revision_id: null,
+            updated_at: null,
+          },
           history: [],
         });
       }
@@ -308,6 +316,55 @@ beforeEach(() => {
     }),
   );
 });
+
+test("Content shows explicit no-new Intelligence success without confidence", async () => {
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/videos/video-1")) {
+      return response({
+        video: {
+          video_id: "video-1",
+          channel_id: "channel-1",
+          channel_name: "Fixture channel",
+          title: "Evidence-led product lesson",
+          source_url: "https://youtube.test/video-1",
+          published_at: "2026-09-01T00:00:00Z",
+          processing_status: "COMPLETE",
+          last_updated: "2026-09-01T00:00:00Z",
+        },
+        transcript: { status: "AVAILABLE", text: "Original transcript evidence." },
+        note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+        intelligence_result: {
+          status: "SUCCEEDED_NO_NEW_INTELLIGENCE",
+          execution_id: "exec-zero",
+          has_new_intelligence: false,
+          intelligence_id: null,
+          revision_id: null,
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+        history: [],
+      });
+    }
+    if (input.endsWith("/videos")) {
+      return response({ videos: [{
+        video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
+        title: "Evidence-led product lesson", source_url: "https://youtube.test/video-1",
+        published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
+        last_updated: "2026-09-01T00:00:00Z",
+      }] });
+    }
+    return response({});
+  }));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Evidence-led product lesson/ }));
+
+  expect(await screen.findByText("Intelligence result")).toBeTruthy();
+  expect(screen.getByText(/Analysis complete — no new Intelligence/)).toBeTruthy();
+  expect(screen.getByText(/nothing reached the threshold for adding new Intelligence/i)).toBeTruthy();
+  expect(screen.queryByText(/\b\d+%\b/)).toBeNull();
+  expect(screen.queryByText(/low confidence|medium confidence|high confidence/i)).toBeNull();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 test("PO demo can direct the development proxy to its owned loopback API", () => {
@@ -399,6 +456,14 @@ test("Content renders only the explicit current verified Summary and its trusted
                 end_seconds: 18,
               }],
             },
+          },
+          intelligence_result: {
+            status: "NOT_PROCESSED",
+            execution_id: null,
+            has_new_intelligence: null,
+            intelligence_id: null,
+            revision_id: null,
+            updated_at: null,
           },
           history: [],
         });

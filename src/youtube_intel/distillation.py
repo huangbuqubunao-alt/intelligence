@@ -36,6 +36,7 @@ class DistillationExecutionStatus(str, Enum):
     REJECTED_OUTPUT = "REJECTED_OUTPUT"
     AMBIGUOUS = "AMBIGUOUS"
     SUCCEEDED = "SUCCEEDED"
+    SUCCEEDED_NO_NEW_INTELLIGENCE = "SUCCEEDED_NO_NEW_INTELLIGENCE"
 
 
 class DistillationTransportKind(str, Enum):
@@ -526,7 +527,16 @@ class OpenAICloudDistillationTransport:
             "endpoint_identity": cls._OFFICIAL_ENDPOINT_IDENTITY,
             "model": verified_input.selected_model,
             "input": [
-                {"role": "system", "content": "Return only the exact TASK-022 JSON schema."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Return only one exact TASK-022 JSON result. Use the existing "
+                        "Intelligence object schema when Intelligence should be admitted. "
+                        "Only when nothing meets the admission threshold, return exactly "
+                        "result=NO_NEW_INTELLIGENCE plus every supplied Evidence identity "
+                        "and timestamp; never use an empty object or empty evidence list."
+                    ),
+                },
                 {"role": "developer", "content": f"TASK_AND_PERSONALIZATION={task_payload}"},
                 {"role": "user", "content": f"UNTRUSTED_SOURCE_EVIDENCE={source_payload}"},
             ],
@@ -701,14 +711,18 @@ class NvidiaNimCloudDistillationTransport:
             sort_keys=True,
         )
         schema_contract = (
-            "Return only one JSON object with exactly these keys: core_conclusion, "
+            "Return exactly one of two JSON results. For admitted Intelligence, return "
+            "one object with exactly these keys: core_conclusion, "
             "user_relevant_information, important_new_information, meaningful_details, "
             "filtered_noise, claim_kind, evidence. core_conclusion must be a non-empty "
             "string. The four information/noise fields must be arrays of strings. "
             "claim_kind must be exactly one of FACT, EVIDENCE_BACKED_STATEMENT, OPINION, "
             "PREDICTION, RUMOR, SYSTEM_INFERENCE. evidence must cite every supplied "
             "evidence item exactly once using only evidence_id, start_ms, end_ms copied "
-            "exactly from the source payload. Do not use markdown fences or extra text."
+            "exactly from the source payload. If no candidate meets the Intelligence "
+            "admission threshold, instead return exactly result=NO_NEW_INTELLIGENCE and "
+            "evidence containing every supplied evidence_id, start_ms, and end_ms once, "
+            "with no stance or claim fields. Do not use markdown fences or extra text."
         )
         return {
             "model": _NVIDIA_NIM_MODEL,
@@ -765,6 +779,13 @@ class _Candidate:
     evidence_stances: tuple[tuple[str, EvidenceStance], ...]
     card: DistillationCardWrite
     canonical_content: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class _NoNewCandidate:
+    """Explicit positive-zero result bound to the complete Evidence set."""
+
+    evidence_ids: tuple[str, ...]
 
 
 class PersonalizedDistillationService:
@@ -1227,23 +1248,37 @@ class PersonalizedDistillationService:
             )
         try:
             candidate = self._parse_candidate(response.raw, projection, verified_input)
-            record = self._repository.admit_distillation(
-                execution_id=projection.execution_id,
-                intelligence_id=f"intelligence:distillation:{projection.execution_id}",
-                revision_id=f"revision:distillation:{projection.execution_id}",
-                claim_kind=candidate.claim_kind,
-                content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
-                evidence_ids=candidate.evidence_ids,
-                evidence_stances=candidate.evidence_stances,
-                card=candidate.card,
-                actual_provider=response.actual_provider,
-                actual_model=response.actual_model,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                cost_microunits=response.cost_microunits,
-                duration_ms=response.duration_ms,
-                now=self._now(),
-            )
+            if isinstance(candidate, _NoNewCandidate):
+                record = self._repository.record_distillation_no_new_intelligence(
+                    execution_id=projection.execution_id,
+                    evidence_ids=candidate.evidence_ids,
+                    budget_state=decision.state,
+                    actual_provider=response.actual_provider,
+                    actual_model=response.actual_model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cost_microunits=response.cost_microunits,
+                    duration_ms=response.duration_ms,
+                    now=self._now(),
+                )
+            else:
+                record = self._repository.admit_distillation(
+                    execution_id=projection.execution_id,
+                    intelligence_id=f"intelligence:distillation:{projection.execution_id}",
+                    revision_id=f"revision:distillation:{projection.execution_id}",
+                    claim_kind=candidate.claim_kind,
+                    content_hash=hashlib.sha256(candidate.canonical_content).hexdigest(),
+                    evidence_ids=candidate.evidence_ids,
+                    evidence_stances=candidate.evidence_stances,
+                    card=candidate.card,
+                    actual_provider=response.actual_provider,
+                    actual_model=response.actual_model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cost_microunits=response.cost_microunits,
+                    duration_ms=response.duration_ms,
+                    now=self._now(),
+                )
         except (IntegrityConflict, StateStoreError, ValueError):
             return self._finish_or_recover(
                 projection,
@@ -1463,11 +1498,55 @@ class PersonalizedDistillationService:
         raw: str,
         command: DistillationCommand,
         verified_input: VerifiedDistillationInput,
-    ) -> _Candidate:
+    ) -> _Candidate | _NoNewCandidate:
         try:
             payload = json.loads(raw)
         except (TypeError, json.JSONDecodeError) as error:
             raise ValueError("structured distillation output is malformed") from error
+        if isinstance(payload, dict) and set(payload) == {"result", "evidence"}:
+            if payload["result"] != "NO_NEW_INTELLIGENCE":
+                raise ValueError("positive zero-result marker is invalid")
+            evidence = payload["evidence"]
+            if not isinstance(evidence, list) or not evidence:
+                raise ValueError("no-new Intelligence evidence is missing")
+            expected_evidence = {
+                item.evidence_id: item for item in verified_input.evidence
+            }
+            if tuple(sorted(expected_evidence)) != tuple(
+                sorted(command.evidence_ids)
+            ):
+                raise ValueError(
+                    "no-new Intelligence requires the verified Evidence set"
+                )
+            cited: set[str] = set()
+            for item in evidence:
+                if (
+                    not isinstance(item, dict)
+                    or set(item) != {"evidence_id", "start_ms", "end_ms"}
+                ):
+                    raise ValueError("no-new Intelligence evidence schema is invalid")
+                evidence_id = item["evidence_id"]
+                start_ms = item["start_ms"]
+                end_ms = item["end_ms"]
+                if (
+                    not isinstance(evidence_id, str)
+                    or isinstance(start_ms, bool)
+                    or isinstance(end_ms, bool)
+                    or not isinstance(start_ms, int)
+                    or not isinstance(end_ms, int)
+                    or evidence_id in cited
+                    or evidence_id not in expected_evidence
+                ):
+                    raise ValueError(
+                        "no-new Intelligence evidence reference is invalid"
+                    )
+                expected = expected_evidence[evidence_id]
+                if expected.start_ms != start_ms or expected.end_ms != end_ms:
+                    raise ValueError("no-new Intelligence evidence binding is invalid")
+                cited.add(evidence_id)
+            if cited != set(expected_evidence):
+                raise ValueError("no-new Intelligence evidence set is incomplete")
+            return _NoNewCandidate(evidence_ids=tuple(sorted(cited)))
         expected_keys = {
             "core_conclusion", "user_relevant_information", "important_new_information",
             "meaningful_details", "filtered_noise", "claim_kind", "evidence",
@@ -1563,12 +1642,18 @@ class PersonalizedDistillationService:
         existing = self._repository.get_distillation_execution(command.execution_id)
         if existing is not None:
             if existing.status == "PENDING":
+                invocation_count = (
+                    1
+                    if existing.budget_state == self._DISPATCH_CLAIMED
+                    and existing.invocation_count == 1
+                    else 0
+                )
                 return self._finish(
                     command,
                     status=DistillationExecutionStatus.AMBIGUOUS,
                     budget_state="UNKNOWN",
                     outcome="PRIOR_ATTEMPT_STATE_UNKNOWN",
-                    invocation_count=0,
+                    invocation_count=invocation_count,
                 )
             return self._result(existing)
         if not self._eligible(command):
@@ -1618,5 +1703,34 @@ class PersonalizedDistillationService:
                 budget_state=decision.state,
                 outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
                 invocation_count=0,
+            )
+        claimed = self._repository.claim_distillation_execution(
+            execution_id=projection.execution_id,
+            source_id=projection.source_id,
+            video_id=projection.video_id,
+            reason=projection.reason,
+            use_case=projection.use_case,
+            selected_provider=projection.selected_provider,
+            selected_model=projection.selected_model,
+            now=self._now(),
+        )
+        if not claimed:
+            persisted = self._repository.get_distillation_execution(
+                projection.execution_id
+            )
+            if persisted is not None and persisted.status != "PENDING":
+                return self._result(persisted)
+            return self._finish_or_recover(
+                projection,
+                status=DistillationExecutionStatus.AMBIGUOUS,
+                budget_state="UNKNOWN",
+                outcome="DISPATCH_CLAIM_STATE_UNKNOWN",
+                invocation_count=(
+                    1
+                    if persisted is not None
+                    and persisted.budget_state == self._DISPATCH_CLAIMED
+                    and persisted.invocation_count == 1
+                    else 0
+                ),
             )
         return self._dispatch_and_admit(projection, verified_input, decision)

@@ -36,23 +36,24 @@ NOW = datetime(2026, 9, 8, 10, tzinfo=UTC)
 
 def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 19
+    assert repository.initialize(now=NOW).version == 20
     connection = repository._connect()
     try:
         assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
         names = [
             row[0]
             for row in connection.execute(
                 "SELECT name FROM schema_migrations ORDER BY version"
             )
         ]
-        assert names[-5:] == [
+        assert names[-6:] == [
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
             "017_add_current_content_summary.sql",
             "018_add_global_output_language.sql",
             "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
         ]
     finally:
         connection.close()
@@ -578,7 +579,7 @@ def test_v013_upgrade_to_current_preserves_prior_domains_and_save_never_mutates_
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 19
+    assert upgraded.initialize(now=NOW).version == 20
     assert upgraded.get_source_subscription(source_id) == source
     assert upgraded.get_topic(topic.topic_id) == topic
     assert upgraded.get_preference(explicit.preference_id) == explicit
@@ -627,7 +628,7 @@ def test_v013_upgrade_to_current_preserves_prior_domains_and_save_never_mutates_
     assert _domain_rows(upgraded) == before
     service.unsave(UnsaveIntelligence(intelligence_id))
     assert _domain_rows(upgraded) == before
-    assert SQLiteStateRepository(path).initialize(now=NOW).version == 19
+    assert SQLiteStateRepository(path).initialize(now=NOW).version == 20
     assert _domain_rows(upgraded) == before
 
 
@@ -664,7 +665,7 @@ def test_m014_failure_rolls_back_and_checksum_mismatch_fails_closed(
     finally:
         connection.close()
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 19
+    assert repository.initialize(now=NOW).version == 20
     modified = replace(migrations[13], checksum="0" * 64)
     monkeypatch.setattr(
         repository, "_load_migrations", lambda: (*migrations[:13], modified)
