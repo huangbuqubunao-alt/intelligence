@@ -245,6 +245,15 @@ class DurableProcessingOrchestrator:
         queued = self.queued_runs(limit=1)
         return None if not queued else self.resume(queued[0].run_id)
 
+    def interrupted_runs(self) -> tuple[SourceRunRecord, ...]:
+        """Return runs left RUNNING by an interrupted owning API process."""
+
+        return tuple(
+            run
+            for run in self._repository.list_source_runs()
+            if run.state is SourceRunState.RUNNING
+        )
+
     def resume(self, run_id: str) -> SourceRunRecord:
         """Continue exactly the next legal persisted Source Run stage.
 

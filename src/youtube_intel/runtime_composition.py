@@ -108,6 +108,13 @@ class DurableSourceRunWorker:
         self._thread = None
 
     def _run(self) -> None:
+        for interrupted in self._orchestrator.interrupted_runs():
+            if self._stop.is_set():
+                return
+            try:
+                self._orchestrator.resume(interrupted.run_id)
+            except Exception:
+                continue
         while not self._stop.is_set():
             try:
                 result = self.run_once()

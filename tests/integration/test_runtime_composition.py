@@ -8,6 +8,7 @@ service, and SQLite are production code.
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
@@ -398,6 +399,12 @@ def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
     assert status == 202
     run_id = accepted["source_run"]["run_id"]
     assert first.repository.get_source_run(run_id) is not None
+    interrupted = first.repository.transition_source_run(
+        run_id,
+        to_state=SourceRunState.RUNNING,
+        now=NOW,
+    )
+    assert interrupted.state is SourceRunState.RUNNING
 
     restarted = build_local_source_run_runtime(
         config=config,
@@ -422,10 +429,17 @@ def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
     assert nvidia["production_eligible"] is False
     assert nvidia["credential_status"] == "NOT_CONFIGURED"
 
-    progressed = restarted.worker.run_once()
-    assert progressed is not None
-    assert progressed.run_id == run_id
+    restarted.worker.start()
+    deadline = time.monotonic() + 5
+    while (
+        restarted.orchestrator.get_run(run_id).state is SourceRunState.RUNNING
+        and time.monotonic() < deadline
+    ):
+        time.sleep(0.01)
+    restarted.worker.stop()
+    progressed = restarted.orchestrator.get_run(run_id)
     assert progressed.state is SourceRunState.NEEDS_ATTENTION
+    assert len(restarted.repository.list_source_runs()) == 1
     assert restarted.repository.source_has_video(following.source_id, VIDEO_ID)
     transcript = restarted.repository.latest_artifact(
         VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL
