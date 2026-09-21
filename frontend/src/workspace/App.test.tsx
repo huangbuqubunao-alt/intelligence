@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
@@ -129,8 +129,14 @@ test("Content renders the explicit current verified Summary instead of raw analy
   const timestampLink = screen.getByRole("link", { name: "0:12" });
   expect(timestampLink.getAttribute("href")).toContain("t=12");
   expect(screen.getByText(/Timestamps appear only when the cited trusted Evidence/)).toBeTruthy();
-  fireEvent.click(screen.getByText("Evidence references"));
-  expect(screen.getByText("Original transcript evidence.")).toBeTruthy();
+  const evidenceSummary = screen.getByText("Evidence references");
+  const evidenceReferences = evidenceSummary.closest("details");
+  expect(evidenceReferences).toBeInstanceOf(HTMLDetailsElement);
+  if (!(evidenceReferences instanceof HTMLDetailsElement)) {
+    throw new Error("Evidence references must render inside details.");
+  }
+  fireEvent.click(evidenceSummary);
+  expect(within(evidenceReferences).getByText("Original transcript evidence.")).toBeTruthy();
   expect(screen.getByText(/current verified version for this Content/i)).toBeTruthy();
 });
 
@@ -191,7 +197,7 @@ test("Settings persists output language for future processing without rewriting 
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   const select = await screen.findByLabelText("Preferred output language");
   expect((select as HTMLSelectElement).value).toBe("zh-CN");
-  expect(screen.getByText(/future processing batches/i)).toBeTruthy();
+  expect(screen.getByText(/New processing batches use this language for generated output/i)).toBeTruthy();
   expect(screen.getByText(/Existing Summary, Evidence, Intelligence, Topic, and historical records stay unchanged/i)).toBeTruthy();
 
   fireEvent.change(select, { target: { value: "en" } });

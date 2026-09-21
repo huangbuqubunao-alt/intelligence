@@ -99,6 +99,7 @@ class _Transport:
                             "evidence_id": evidence_id,
                             "start_ms": 1_000,
                             "end_ms": 1_500,
+                            "stance": "supporting",
                         }
                     ],
                 },
@@ -133,7 +134,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 14
+    assert repository.initialize(now=NOW).version == 17
     return repository
 
 
@@ -385,7 +386,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 14
+    assert reopened.initialize(now=NOW).version == 17
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -596,13 +597,17 @@ def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Pa
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
     assert "012_add_source_run_orchestration.sql" in migrations
     assert "013_add_weekly_brief_foundation.sql" in migrations
-    assert not any(name.startswith("015_") for name in migrations)
+    assert {
+        "015_add_current_content_summary.sql",
+        "016_add_global_output_language.sql",
+        "017_add_evidence_excerpt_stance.sql",
+    } <= set(migrations)
 
 
 def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
@@ -719,7 +724,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 14
+    assert reopened.initialize(now=NOW).version == 17
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

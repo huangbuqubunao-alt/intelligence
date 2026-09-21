@@ -37,7 +37,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 14
+    assert repository.initialize(now=NOW).version == 17
     return repository
 
 
@@ -100,11 +100,11 @@ def _app(repository: SQLiteStateRepository) -> LocalApiApplication:
     )
 
 
-def test_fresh_database_reaches_m013_and_does_not_create_m014(tmp_path: Path) -> None:
+def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 17
         migrations = tuple(
             row["name"]
             for row in connection.execute(
@@ -113,8 +113,11 @@ def test_fresh_database_reaches_m013_and_does_not_create_m014(tmp_path: Path) ->
         )
     finally:
         connection.close()
-    assert migrations[-1] == "014_add_saved_intelligence.sql"
-    assert not any(name.startswith("015_") for name in migrations)
+    assert migrations[-3:] == (
+        "015_add_current_content_summary.sql",
+        "016_add_global_output_language.sql",
+        "017_add_evidence_excerpt_stance.sql",
+    )
 
 
 def test_v008_upgrade_preserves_source_automation_and_preference_data(
@@ -146,7 +149,7 @@ def test_v008_upgrade_preserves_source_automation_and_preference_data(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 14
+    assert upgraded.initialize(now=NOW).version == 17
     assert upgraded.get_source_subscription(source_id) is not None
     assert len(upgraded.list_automation_schedules()) == 1
     assert len(upgraded.list_preferences()) == 1

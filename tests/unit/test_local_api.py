@@ -1,12 +1,15 @@
 import json
 from datetime import UTC, datetime
 from hashlib import sha256
+from http import HTTPStatus
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+
 from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
-from youtube_intel.local_api import _LOCAL_ORIGIN, LocalApiApplication
+from youtube_intel.local_api import _LOCAL_ORIGIN, ApiError, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.scoring import AuthoritativeScoringReader
 from youtube_intel.state import (
@@ -122,14 +125,15 @@ def test_output_language_uses_bootstrap_default_then_persists_user_choice(
 def test_output_language_rejects_unsupported_values(tmp_path: Path) -> None:
     app = _app(tmp_path)
 
-    status, payload = app.handle(
-        "PUT",
-        "/api/v1/settings/output-language",
-        json.dumps({"output_language": "fr"}).encode(),
-    )
+    with pytest.raises(ApiError) as rejected:
+        app.handle(
+            "PUT",
+            "/api/v1/settings/output-language",
+            json.dumps({"output_language": "fr"}).encode(),
+        )
 
-    assert status == 422
-    assert payload["error"]["code"] == "VALIDATION_ERROR"
+    assert rejected.value.status == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert rejected.value.code == "VALIDATION_ERROR"
     assert app.handle("GET", "/api/v1/settings")[1]["general"]["output_language"] == "zh-CN"
 
 

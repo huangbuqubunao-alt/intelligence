@@ -480,7 +480,6 @@ def _reader(repository: SQLiteStateRepository, tmp_path: Path) -> AuthoritativeS
         summary_threshold=7.0,
         pipeline_version=_PIPELINE_VERSION,
         current_model=_MODEL,
-        current_output_language="en",
     )
 
 

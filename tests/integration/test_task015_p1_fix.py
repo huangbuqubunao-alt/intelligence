@@ -1154,7 +1154,6 @@ def _mutate_scoring(
         "structured_model_mismatch",
         "file_hash_mismatch",
         "schema_version_mismatch",
-        "output_language_mismatch",
         "legacy_missing_output_language",
     ],
 )
@@ -1186,6 +1185,34 @@ def test_scoring_provenance_fail_closed(
 
     with pytest.raises(ValueError):
         ops2._load_scoring(VIDEO_ID)
+    assert scoring_provider.calls == 0
+
+
+def test_scoring_historical_language_survives_current_preference_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from youtube_intel.output_language import OutputLanguagePreferenceService
+
+    project = _project(tmp_path)
+    ops = _runtime_ops(project, monkeypatch)
+    repository = ops._repository
+    job_id = "scoring-job-historical-language"
+    _setup_scoring_video_and_job(repository, VIDEO_ID, job_id, NOW)
+    _persist_trusted_scoring_success(ops, VIDEO_ID, job_id, NOW)
+    OutputLanguagePreferenceService(
+        repository, bootstrap_default="zh-CN"
+    ).set(output_language="en", now=NOW + timedelta(minutes=1))
+
+    scoring_provider = _ScoringProvider()
+    monkeypatch.setattr(
+        "youtube_intel.runtime._production_dependencies",
+        lambda _config: _dependencies(scoring=scoring_provider),
+    )
+    restarted = RuntimeOperations(config=_config(project), project_root=project)
+
+    outcome = restarted._load_scoring(VIDEO_ID)
+    assert outcome.result.output_language == "zh-CN"
     assert scoring_provider.calls == 0
 
 

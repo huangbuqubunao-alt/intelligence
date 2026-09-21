@@ -33,7 +33,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
     version = repository.initialize(now=NOW)
-    assert version.version == 14
+    assert version.version == 17
     return repository
 
 
@@ -409,9 +409,23 @@ def test_v007_upgrade_preserves_source_automation_and_trusted_intelligence(
     assert upgraded.initialize(now=NOW).version == 8
     assert upgraded.get_source_subscription("source-1") is not None
     assert len(upgraded.list_automation_schedules()) == 1
-    assert AuthoritativeIntelligenceReader(upgraded).read_current("intelligence-1").claim_kind.value == "FACT"
     assert upgraded.list_preferences() == ()
     assert upgraded.list_feedback() == ()
+    with upgraded._connect() as connection:
+        preserved = connection.execute(
+            "SELECT claim_kind FROM intelligence_revisions WHERE revision_id = 'revision-1'"
+        ).fetchone()
+    assert preserved is not None
+    assert preserved["claim_kind"] == "FACT"
+
+    monkeypatch.undo()
+    assert upgraded.initialize(now=NOW).version == 17
+    assert (
+        AuthoritativeIntelligenceReader(upgraded)
+        .read_current("intelligence-1")
+        .claim_kind.value
+        == "FACT"
+    )
 
 
 def test_m008_failure_rolls_back_and_a_later_restart_applies_without_side_effects(
