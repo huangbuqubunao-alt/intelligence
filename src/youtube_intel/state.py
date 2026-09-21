@@ -1550,6 +1550,7 @@ class SQLiteStateRepository:
             "017_add_current_content_summary.sql",
             "018_add_global_output_language.sql",
             "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -7952,7 +7953,9 @@ class SQLiteStateRepository:
         )
 
     @staticmethod
-    def _distillation_execution_from_row(row: sqlite3.Row) -> DistillationExecutionRecord:
+    def _distillation_execution_from_row(
+        row: sqlite3.Row, *, status_override: str | None = None
+    ) -> DistillationExecutionRecord:
         return DistillationExecutionRecord(
             execution_id=str(row["execution_id"]),
             source_id=str(row["source_id"]),
@@ -7961,7 +7964,7 @@ class SQLiteStateRepository:
             use_case=str(row["use_case"]),
             selected_provider=str(row["selected_provider"]),
             selected_model=str(row["selected_model"]),
-            status=str(row["status"]),
+            status=str(row["status"]) if status_override is None else status_override,
             budget_state=str(row["budget_state"]),
             invocation_count=int(row["invocation_count"]),
             intelligence_id=(
@@ -8003,6 +8006,77 @@ class SQLiteStateRepository:
             created_at=_parse_utc_datetime(str(row["created_at"])),
         )
 
+    @staticmethod
+    def _distillation_no_new_usage_from_row(
+        row: sqlite3.Row,
+    ) -> DistillationResourceUsageRecord:
+        return DistillationResourceUsageRecord(
+            execution_id=str(row["execution_id"]),
+            reason=str(row["reason"]),
+            use_case=str(row["use_case"]),
+            source_id=str(row["source_id"]),
+            video_id=str(row["video_id"]),
+            intelligence_id=None,
+            revision_id=None,
+            selected_provider=str(row["selected_provider"]),
+            selected_model=str(row["selected_model"]),
+            actual_provider=str(row["actual_provider"]),
+            actual_model=str(row["actual_model"]),
+            status="SUCCEEDED_NO_NEW_INTELLIGENCE",
+            invocation_count=1,
+            input_tokens=None if row["input_tokens"] is None else int(row["input_tokens"]),
+            output_tokens=None if row["output_tokens"] is None else int(row["output_tokens"]),
+            cost_microunits=(
+                None if row["cost_microunits"] is None else int(row["cost_microunits"])
+            ),
+            duration_ms=None if row["duration_ms"] is None else int(row["duration_ms"]),
+            budget_state=str(row["budget_state"]),
+            outcome=str(row["outcome"]),
+            created_at=_parse_utc_datetime(str(row["created_at"])),
+        )
+
+    @staticmethod
+    def _validate_no_new_result_row(
+        result: sqlite3.Row, checkpoint: sqlite3.Row
+    ) -> None:
+        try:
+            evidence_ids = json.loads(str(result["evidence_ids_json"]))
+        except (json.JSONDecodeError, TypeError) as error:
+            raise StateStoreError(
+                "no-new Intelligence result persistence is invalid"
+            ) from error
+        if (
+            not isinstance(evidence_ids, list)
+            or not evidence_ids
+            or any(
+                not isinstance(evidence_id, str)
+                or not evidence_id.strip()
+                or evidence_id != evidence_id.strip()
+                for evidence_id in evidence_ids
+            )
+            or evidence_ids != sorted(evidence_ids)
+            or len(evidence_ids) != len(set(evidence_ids))
+        ):
+            raise StateStoreError("no-new Intelligence Evidence binding is invalid")
+        canonical = json.dumps(evidence_ids, separators=(",", ":")).encode("utf-8")
+        if hashlib.sha256(canonical).hexdigest() != str(result["evidence_set_hash"]):
+            raise StateStoreError("no-new Intelligence Evidence hash is invalid")
+        if (
+            str(result["execution_id"]) != str(checkpoint["execution_id"])
+            or str(result["source_id"]) != str(checkpoint["source_id"])
+            or str(result["video_id"]) != str(checkpoint["video_id"])
+            or str(result["reason"]) != str(checkpoint["reason"])
+            or str(result["use_case"]) != str(checkpoint["use_case"])
+            or str(result["actual_provider"]) != str(checkpoint["selected_provider"])
+            or str(result["actual_model"]) != str(checkpoint["selected_model"])
+            or str(result["outcome"]) != "NO_NEW_INTELLIGENCE"
+            or str(checkpoint["status"]) != "PENDING"
+            or int(checkpoint["invocation_count"]) != 1
+            or checkpoint["intelligence_id"] is not None
+            or checkpoint["revision_id"] is not None
+        ):
+            raise StateStoreError("no-new Intelligence execution binding is invalid")
+
     def get_distillation_execution(self, execution_id: str) -> DistillationExecutionRecord | None:
         connection = self._connect()
         try:
@@ -8010,7 +8084,57 @@ class SQLiteStateRepository:
                 "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
             ).fetchone()
-            return None if row is None else self._distillation_execution_from_row(row)
+            if row is None:
+                return None
+            no_new = connection.execute(
+                "SELECT * FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            if no_new is not None:
+                self._validate_no_new_result_row(no_new, row)
+            return self._distillation_execution_from_row(
+                row,
+                status_override=(
+                    "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
+                ),
+            )
+        finally:
+            connection.close()
+
+    def latest_distillation_execution_for_video(
+        self, video_id: str
+    ) -> DistillationExecutionRecord | None:
+        if (
+            not isinstance(video_id, str)
+            or not video_id.strip()
+            or video_id != video_id.strip()
+            or len(video_id) > 512
+        ):
+            raise ValueError("video identity is invalid")
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints "
+                "WHERE video_id = :video_id "
+                "ORDER BY updated_at DESC, execution_id DESC LIMIT 1",
+                {"video_id": video_id},
+            ).fetchone()
+            if row is None:
+                return None
+            no_new = connection.execute(
+                "SELECT * FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": str(row["execution_id"])},
+            ).fetchone()
+            if no_new is not None:
+                self._validate_no_new_result_row(no_new, row)
+            return self._distillation_execution_from_row(
+                row,
+                status_override=(
+                    "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
+                ),
+            )
         finally:
             connection.close()
 
@@ -8150,6 +8274,64 @@ class SQLiteStateRepository:
                     "AND reason = :reason AND use_case = :use_case "
                     "AND selected_provider = :selected_provider AND selected_model = :selected_model "
                     "AND status = 'PENDING' AND budget_state = 'RESERVED_NOT_DISPATCHED' "
+                    "AND invocation_count = 0",
+                    {
+                        "execution_id": execution_id,
+                        "source_id": source_id,
+                        "video_id": video_id,
+                        "reason": reason,
+                        "use_case": use_case,
+                        "selected_provider": selected_provider,
+                        "selected_model": selected_model,
+                        "updated_at": format_utc_datetime(now),
+                    },
+                ).rowcount
+                return changed == 1
+        finally:
+            connection.close()
+
+    def claim_distillation_execution(
+        self,
+        *,
+        execution_id: str,
+        source_id: str,
+        video_id: str,
+        reason: str,
+        use_case: str,
+        selected_provider: str,
+        selected_model: str,
+        now: datetime,
+    ) -> bool:
+        """Claim a directly-started execution before its one transport call."""
+        fields = (
+            execution_id,
+            source_id,
+            video_id,
+            reason,
+            use_case,
+            selected_provider,
+            selected_model,
+        )
+        if any(
+            not isinstance(value, str)
+            or not value.strip()
+            or len(value) > 512
+            for value in fields
+        ):
+            raise ValueError("distillation execution identity is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE distillation_execution_checkpoints "
+                    "SET budget_state = 'DISPATCH_CLAIMED', invocation_count = 1, "
+                    "updated_at = :updated_at "
+                    "WHERE execution_id = :execution_id "
+                    "AND source_id = :source_id AND video_id = :video_id "
+                    "AND reason = :reason AND use_case = :use_case "
+                    "AND selected_provider = :selected_provider "
+                    "AND selected_model = :selected_model "
+                    "AND status = 'PENDING' AND budget_state = 'NOT_CHECKED' "
                     "AND invocation_count = 0",
                     {
                         "execution_id": execution_id,
@@ -8327,6 +8509,175 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def record_distillation_no_new_intelligence(
+        self,
+        *,
+        execution_id: str,
+        evidence_ids: tuple[str, ...],
+        budget_state: str,
+        actual_provider: str,
+        actual_model: str,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        cost_microunits: int | None,
+        duration_ms: int | None,
+        now: datetime,
+    ) -> DistillationExecutionRecord:
+        evidence_ids = tuple(sorted(evidence_ids))
+        if (
+            not evidence_ids
+            or len(evidence_ids) > 20
+            or len(set(evidence_ids)) != len(evidence_ids)
+            or any(
+                not isinstance(evidence_id, str)
+                or not evidence_id.strip()
+                or evidence_id != evidence_id.strip()
+                or len(evidence_id) > 512
+                for evidence_id in evidence_ids
+            )
+        ):
+            raise ValueError("no-new Intelligence evidence set is invalid")
+        if (
+            not isinstance(budget_state, str)
+            or not budget_state.strip()
+            or len(budget_state) > 160
+            or not isinstance(actual_provider, str)
+            or not actual_provider.strip()
+            or len(actual_provider) > 160
+            or not isinstance(actual_model, str)
+            or not actual_model.strip()
+            or len(actual_model) > 320
+        ):
+            raise ValueError("no-new Intelligence execution metadata is invalid")
+        self._validate_observed_usage(
+            status="SUCCEEDED_NO_NEW_INTELLIGENCE",
+            invocation_count=1,
+            actual_provider=actual_provider,
+            actual_model=actual_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_microunits=cost_microunits,
+            duration_ms=duration_ms,
+        )
+        encoded_evidence = json.dumps(list(evidence_ids), separators=(",", ":"))
+        evidence_set_hash = hashlib.sha256(encoded_evidence.encode("utf-8")).hexdigest()
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if checkpoint is None or str(checkpoint["status"]) != "PENDING":
+                    raise StateStoreError("distillation execution is not safely completable")
+                if (
+                    checkpoint["intelligence_id"] is not None
+                    or checkpoint["revision_id"] is not None
+                    or int(checkpoint["invocation_count"]) != 1
+                    or str(checkpoint["budget_state"]) != "DISPATCH_CLAIMED"
+                ):
+                    raise StateStoreError("no-new Intelligence execution is not a legal invocation")
+                if (
+                    str(checkpoint["selected_provider"]) != actual_provider
+                    or str(checkpoint["selected_model"]) != actual_model
+                ):
+                    raise StateStoreError(
+                        "no-new Intelligence model identity does not match execution"
+                    )
+                legal_context = connection.execute(
+                    "SELECT 1 FROM source_subscriptions AS source "
+                    "JOIN source_video_links AS link ON link.source_id = source.source_id "
+                    "JOIN videos AS video ON video.video_id = link.video_id "
+                    "WHERE source.source_id = :source_id AND source.enabled = 1 "
+                    "AND video.video_id = :video_id AND video.availability = :availability",
+                    {
+                        "source_id": str(checkpoint["source_id"]),
+                        "video_id": str(checkpoint["video_id"]),
+                        "availability": Availability.PUBLIC.value,
+                    },
+                ).fetchone()
+                if legal_context is None:
+                    raise StateStoreError(
+                        "no-new Intelligence source/video authority is no longer legal"
+                    )
+                canonical_rows = connection.execute(
+                    "SELECT evidence.evidence_id "
+                    "FROM evidence JOIN artifacts "
+                    "ON artifacts.artifact_id = evidence.artifact_id "
+                    "WHERE evidence.video_id = :video_id "
+                    "AND evidence.availability = :availability "
+                    "AND artifacts.video_id = :video_id "
+                    "AND artifacts.deleted_at IS NULL "
+                    "AND artifacts.kind = :artifact_kind "
+                    "ORDER BY evidence.evidence_id ASC LIMIT 21",
+                    {
+                        "video_id": str(checkpoint["video_id"]),
+                        "availability": EvidenceAvailability.AVAILABLE.value,
+                        "artifact_kind": ArtifactKind.TRANSCRIPT_CANONICAL.value,
+                    },
+                ).fetchall()
+                canonical_ids = tuple(str(row["evidence_id"]) for row in canonical_rows)
+                if evidence_ids != canonical_ids:
+                    raise StateStoreError(
+                        "no-new Intelligence requires the current canonical Evidence set"
+                    )
+                connection.execute(
+                    "UPDATE distillation_execution_checkpoints "
+                    "SET budget_state = :budget_state, invocation_count = 1, "
+                    "updated_at = :updated_at WHERE execution_id = :execution_id",
+                    {
+                        "execution_id": execution_id,
+                        "budget_state": budget_state,
+                        "updated_at": timestamp,
+                    },
+                )
+                connection.execute(
+                    "INSERT INTO distillation_no_new_intelligence_results "
+                    "(execution_id, source_id, video_id, reason, use_case, "
+                    "evidence_ids_json, evidence_set_hash, actual_provider, actual_model, "
+                    "input_tokens, output_tokens, cost_microunits, duration_ms, "
+                    "budget_state, outcome, created_at) "
+                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, "
+                    ":evidence_ids_json, :evidence_set_hash, :actual_provider, "
+                    ":actual_model, :input_tokens, :output_tokens, :cost_microunits, "
+                    ":duration_ms, :budget_state, 'NO_NEW_INTELLIGENCE', :created_at)",
+                    {
+                        "execution_id": execution_id,
+                        "source_id": str(checkpoint["source_id"]),
+                        "video_id": str(checkpoint["video_id"]),
+                        "reason": str(checkpoint["reason"]),
+                        "use_case": str(checkpoint["use_case"]),
+                        "evidence_ids_json": encoded_evidence,
+                        "evidence_set_hash": evidence_set_hash,
+                        "actual_provider": actual_provider,
+                        "actual_model": actual_model,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cost_microunits": cost_microunits,
+                        "duration_ms": duration_ms,
+                        "budget_state": budget_state,
+                        "created_at": timestamp,
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("no-new Intelligence execution disappeared")
+                return self._distillation_execution_from_row(
+                    row, status_override="SUCCEEDED_NO_NEW_INTELLIGENCE"
+                )
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict(
+                "no-new Intelligence result violates its durable authority contract"
+            ) from error
+        finally:
+            connection.close()
+
     def admit_distillation(
         self,
         *,
@@ -8490,26 +8841,89 @@ class SQLiteStateRepository:
                 "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
             ).fetchone()
-            if row is None:
+            if row is not None:
+                return self._distillation_usage_from_row(row)
+            no_new = connection.execute(
+                "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
+                "checkpoint.source_id, checkpoint.video_id, "
+                "checkpoint.selected_provider, checkpoint.selected_model, "
+                "result.actual_provider, result.actual_model, result.input_tokens, "
+                "result.output_tokens, result.cost_microunits, result.duration_ms, "
+                "result.budget_state, result.outcome, result.created_at "
+                "FROM distillation_no_new_intelligence_results AS result "
+                "JOIN distillation_execution_checkpoints AS checkpoint "
+                "ON checkpoint.execution_id = result.execution_id "
+                "WHERE result.execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            if no_new is None:
                 raise StateStoreError("distillation resource usage does not exist")
-            return self._distillation_usage_from_row(row)
+            checkpoint = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            result = connection.execute(
+                "SELECT * FROM distillation_no_new_intelligence_results "
+                "WHERE execution_id = :execution_id",
+                {"execution_id": execution_id},
+            ).fetchone()
+            if checkpoint is None or result is None:
+                raise StateStoreError("no-new Intelligence resource binding is missing")
+            self._validate_no_new_result_row(result, checkpoint)
+            return self._distillation_no_new_usage_from_row(no_new)
         finally:
             connection.close()
 
     def list_distillation_resource_usage(
         self, *, limit: int = 100
     ) -> tuple[DistillationResourceUsageRecord, ...]:
-        """Return a bounded immutable TASK-022 ledger projection."""
+        """Return a bounded immutable TASK-022/M5B ledger projection."""
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
             raise ValueError("distillation resource usage limit is invalid")
         connection = self._connect()
         try:
-            rows = connection.execute(
+            normal_rows = connection.execute(
                 "SELECT * FROM distillation_resource_usage "
                 "ORDER BY created_at DESC, execution_id DESC LIMIT :limit",
                 {"limit": limit},
             ).fetchall()
-            return tuple(self._distillation_usage_from_row(row) for row in rows)
+            zero_rows = connection.execute(
+                "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
+                "checkpoint.source_id, checkpoint.video_id, "
+                "checkpoint.selected_provider, checkpoint.selected_model, "
+                "result.actual_provider, result.actual_model, result.input_tokens, "
+                "result.output_tokens, result.cost_microunits, result.duration_ms, "
+                "result.budget_state, result.outcome, result.created_at "
+                "FROM distillation_no_new_intelligence_results AS result "
+                "JOIN distillation_execution_checkpoints AS checkpoint "
+                "ON checkpoint.execution_id = result.execution_id "
+                "ORDER BY result.created_at DESC, result.execution_id DESC LIMIT :limit",
+                {"limit": limit},
+            ).fetchall()
+            for row in zero_rows:
+                execution_id = str(row["execution_id"])
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                result = connection.execute(
+                    "SELECT * FROM distillation_no_new_intelligence_results "
+                    "WHERE execution_id = :execution_id",
+                    {"execution_id": execution_id},
+                ).fetchone()
+                if checkpoint is None or result is None:
+                    raise StateStoreError("no-new Intelligence resource binding is missing")
+                self._validate_no_new_result_row(result, checkpoint)
+            combined = [
+                *(self._distillation_usage_from_row(row) for row in normal_rows),
+                *(self._distillation_no_new_usage_from_row(row) for row in zero_rows),
+            ]
+            combined.sort(
+                key=lambda item: (item.created_at, item.execution_id), reverse=True
+            )
+            return tuple(combined[:limit])
         finally:
             connection.close()
 

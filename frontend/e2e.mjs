@@ -256,7 +256,69 @@ await summaryPage.getByText("Evidence references", { exact: true }).click();
 await summaryPage.getByText("browser-evidence", { exact: true }).waitFor();
 await summaryPage.close();
 
+const resultPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+resultPage.setDefaultTimeout(7000);
+resultPage.on("console", (message) => {
+  if (message.type() === "error") consoleErrors.push(`result: ${message.text()}`);
+});
+resultPage.on("request", (request) => {
+  const url = request.url();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url);
+});
+await resultPage.route("**/api/v1/videos/product-evidence", async (route) => {
+  const response = await route.fetch();
+  const payload = await response.json();
+  if (payload.intelligence_result?.status !== "NOT_PROCESSED") {
+    throw new Error("PO demo no longer proves the explicit NOT_PROCESSED state");
+  }
+  payload.intelligence_result = {
+    status: "SUCCEEDED_NO_NEW_INTELLIGENCE",
+    execution_id: "browser-zero-result",
+    has_new_intelligence: false,
+    intelligence_id: null,
+    revision_id: null,
+    updated_at: "2026-09-21T00:00:00Z",
+  };
+  await route.fulfill({ response, json: payload });
+});
+await resultPage.goto(baseUrl, { waitUntil: "networkidle" });
+await resultPage.getByRole("button", { name: "Content", exact: true }).click();
+await resultPage.locator("button.list-row").filter({ hasText: "Research evidence that changes roadmap conversations" }).click();
+await resultPage.getByText("Analysis complete — no new Intelligence.", { exact: false }).waitFor();
+await resultPage.getByText("Existing Intelligence is unchanged.", { exact: false }).waitFor();
+await resultPage.getByText("not an Intelligence validation posture or numeric confidence score", { exact: false }).waitFor();
+const resultText = await resultPage.locator("body").innerText();
+if (/\b\d+%\b/.test(resultText)) throw new Error("Zero result invented a confidence percentage");
+if (/\b(low|medium|high) confidence\b/i.test(resultText)) throw new Error("Zero result invented a confidence label");
+await resultPage.close();
+
+const admittedPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+admittedPage.setDefaultTimeout(7000);
+admittedPage.on("console", (message) => {
+  if (message.type() === "error") consoleErrors.push(`admitted: ${message.text()}`);
+});
+admittedPage.on("request", (request) => {
+  const url = request.url();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url);
+});
+await admittedPage.route("**/api/v1/videos/aircAruvnKk", async (route) => {
+  const response = await route.fetch();
+  const payload = await response.json();
+  if (payload.intelligence_result?.status !== "SUCCEEDED") {
+    throw new Error("PO demo no longer proves the admitted Intelligence result");
+  }
+  await route.fulfill({ response, json: payload });
+});
+await admittedPage.goto(baseUrl, { waitUntil: "networkidle" });
+await admittedPage.getByRole("button", { name: "Content", exact: true }).click();
+await admittedPage.locator("button.list-row").filter({ hasText: "But what is a neural network? | Deep learning chapter 1" }).click();
+await admittedPage.getByText("Analysis completed and admitted new Intelligence.", { exact: true }).waitFor();
+if (await admittedPage.getByText("Analysis complete — no new Intelligence.", { exact: false }).count()) {
+  throw new Error("Admitted success was rendered as a zero result");
+}
+await admittedPage.close();
+
 await browser.close();
 if (externalRequests.length) throw new Error(`External browser network requests: ${externalRequests.join(" | ")}`);
 if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
-console.log("Browser E2E passed at 1440×900 and 768×900: integrated IA, Content, all Evidence stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors.");
+console.log("Browser E2E passed at 1440×900 and 768×900: integrated IA, Content, explicit not-processed/admitted/no-new Intelligence results, all Evidence stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors.");

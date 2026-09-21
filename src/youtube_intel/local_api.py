@@ -213,6 +213,33 @@ def _resource_usage_dto(usage: DistillationResourceUsageRecord) -> dict[str, obj
     }
 
 
+def _distillation_execution_dto(execution: object | None) -> dict[str, object]:
+    if execution is None:
+        return {
+            "status": "NOT_PROCESSED",
+            "execution_id": None,
+            "has_new_intelligence": None,
+            "intelligence_id": None,
+            "revision_id": None,
+            "updated_at": None,
+        }
+    status = str(getattr(execution, "status"))
+    return {
+        "status": status,
+        "execution_id": str(getattr(execution, "execution_id")),
+        "has_new_intelligence": (
+            True
+            if status == "SUCCEEDED"
+            else False
+            if status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+            else None
+        ),
+        "intelligence_id": getattr(execution, "intelligence_id"),
+        "revision_id": getattr(execution, "revision_id"),
+        "updated_at": _timestamp(getattr(execution, "updated_at")),
+    }
+
+
 def _feedback_dto(feedback: FeedbackRecord) -> dict[str, object]:
     return {
         "feedback_id": feedback.feedback_id,
@@ -1242,6 +1269,11 @@ class LocalApiApplication:
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
                 "note": self._note_projection(video.video_id),
+                "intelligence_result": _distillation_execution_dto(
+                    self._repository.latest_distillation_execution_for_video(
+                        video.video_id
+                    )
+                ),
                 "history": self._history_projection(video.video_id),
             }
         if route.startswith("/api/v1/intelligence/"):

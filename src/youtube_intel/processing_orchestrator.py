@@ -559,7 +559,10 @@ class DurableProcessingOrchestrator:
             result = self._distillation.continue_reserved_distillation(
                 child.distillation_execution_id
             )
-            if result.status is DistillationExecutionStatus.SUCCEEDED:
+            if result.status in {
+                DistillationExecutionStatus.SUCCEEDED,
+                DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE,
+            }:
                 self._transition_pending_child(
                     run,
                     video_id=child.video_id,
@@ -647,12 +650,20 @@ class DurableProcessingOrchestrator:
             execution = self._repository.get_distillation_execution(
                 child.distillation_execution_id
             )
-            if (
-                execution is None
-                or execution.status != DistillationExecutionStatus.SUCCEEDED.value
-                or execution.intelligence_id is None
-                or execution.revision_id is None
-            ):
+            admitted = (
+                execution is not None
+                and execution.status == DistillationExecutionStatus.SUCCEEDED.value
+                and execution.intelligence_id is not None
+                and execution.revision_id is not None
+            )
+            no_new = (
+                execution is not None
+                and execution.status
+                == DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE.value
+                and execution.intelligence_id is None
+                and execution.revision_id is None
+            )
+            if not (admitted or no_new):
                 return False
         return True
 
@@ -668,7 +679,20 @@ class DurableProcessingOrchestrator:
                 execution = self._repository.get_distillation_execution(
                     child.distillation_execution_id
                 )
-                if execution is None or execution.intelligence_id is None:
+                if execution is None:
+                    return False
+                if (
+                    execution.status
+                    == DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE.value
+                    and execution.intelligence_id is None
+                    and execution.revision_id is None
+                ):
+                    continue
+                if (
+                    execution.status != DistillationExecutionStatus.SUCCEEDED.value
+                    or execution.intelligence_id is None
+                    or execution.revision_id is None
+                ):
                     return False
                 self._topic_updater.update(
                     source_run=run, intelligence_id=execution.intelligence_id

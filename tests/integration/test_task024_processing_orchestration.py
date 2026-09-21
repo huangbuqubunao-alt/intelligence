@@ -59,6 +59,7 @@ from youtube_intel.state import (
     LiveStatus,
     PolicyOverrideMode,
     SQLiteStateRepository,
+    StateStoreError,
     TimedTranscriptCueWrite,
     TimedTranscriptWrite,
     TopicAssociationKind,
@@ -127,6 +128,33 @@ class _UnknownTransport(_Transport):
         raise RuntimeError("outcome unknown")
 
 
+class _NoNewTransport(_Transport):
+    def generate(self, command: DistillationCommand) -> DistillationTransportResult:
+        self.calls += 1
+        evidence_id = command.evidence_ids[0]
+        return DistillationTransportResult(
+            raw=json.dumps(
+                {
+                    "result": "NO_NEW_INTELLIGENCE",
+                    "evidence": [
+                        {
+                            "evidence_id": evidence_id,
+                            "start_ms": 1_000,
+                            "end_ms": 1_500,
+                        }
+                    ],
+                },
+                separators=(",", ":"),
+            ),
+            actual_provider=self.actual_provider,
+            actual_model=self.actual_model,
+            input_tokens=100,
+            output_tokens=12,
+            cost_microunits=3,
+            duration_ms=5,
+        )
+
+
 class _BlockingTransport(_Transport):
     def __init__(self) -> None:
         super().__init__()
@@ -141,7 +169,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 19
+    assert repository.initialize(now=NOW).version == 20
     return repository
 
 
@@ -392,6 +420,94 @@ def test_full_run_reserves_binds_continues_and_delegates_trusted_topic_update(
     assert len(topic_service.read_topic(topic.topic_id).timeline) == 1
 
 
+def test_source_run_with_no_new_intelligence_completes_without_topic_mutation(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="zero")
+    _video_with_evidence(repository, source_id, suffix="zero")
+    topic_service = TopicApplicationService(repository, now=lambda: NOW)
+    topic = topic_service.create_topic(command_id="topic-zero", name="Zero result")
+    transport = _NoNewTransport()
+    service = _orchestrator(
+        repository,
+        transport,
+        topic_updater=TopicAssociationUpdater(
+            topic_service,
+            topic_id=topic.topic_id,
+            kind=TopicAssociationKind.NEW_INFORMATION,
+        ),
+    )
+    run = service.enqueue_manual_check_now(
+        source_id=source_id, command_id="check-zero", priority=SourceRunPriority.P0
+    )
+
+    completed = service.resume(run.run_id)
+
+    assert completed.state is SourceRunState.COMPLETED
+    child = repository.list_source_run_children(run.run_id)[0]
+    assert child.state is SourceRunChildState.COMPLETED
+    assert child.distillation_execution_id is not None
+    execution = repository.get_distillation_execution(child.distillation_execution_id)
+    assert execution is not None
+    assert execution.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    assert execution.intelligence_id is None
+    assert repository.list_current_intelligence_ids() == ()
+    assert topic_service.read_topic(topic.topic_id).contributions == ()
+    assert transport.calls == 1
+
+    reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    assert reopened.initialize(now=NOW).version == 20
+    restarted = _orchestrator(reopened, transport)
+    assert restarted.resume(run.run_id).state is SourceRunState.COMPLETED
+    assert transport.calls == 1
+
+
+def test_tampered_no_new_authority_cannot_complete_source_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository, suffix="zero-tamper")
+    _video_with_evidence(repository, source_id, suffix="zero-tamper")
+    service = _orchestrator(repository, _NoNewTransport())
+    run = service.enqueue_manual_check_now(
+        source_id=source_id,
+        command_id="check-zero-tamper",
+        priority=SourceRunPriority.P0,
+    )
+    original = repository.complete_source_run_checkpoint
+    tampered = False
+
+    def tamper_before_distillation_checkpoint(
+        run_id: str, checkpoint: SourceRunCheckpoint, *, now: datetime
+    ) -> object:
+        nonlocal tampered
+        if checkpoint is SourceRunCheckpoint.DISTILLATION and not tampered:
+            with repository._connect() as connection:
+                connection.execute(
+                    "DROP TRIGGER distillation_no_new_result_immutable_update"
+                )
+                connection.execute(
+                    "UPDATE distillation_no_new_intelligence_results "
+                    "SET evidence_set_hash = ?",
+                    ("0" * 64,),
+                )
+            tampered = True
+        return original(run_id, checkpoint, now=now)
+
+    monkeypatch.setattr(
+        repository,
+        "complete_source_run_checkpoint",
+        tamper_before_distillation_checkpoint,
+    )
+
+    with pytest.raises(StateStoreError, match="Evidence hash"):
+        service.resume(run.run_id)
+
+    assert tampered is True
+    assert service.get_run(run.run_id).state is not SourceRunState.COMPLETED
+
+
 def _authorized_nvidia_transport(
     *,
     available: bool = True,
@@ -500,7 +616,7 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
 
     assert service.resume(run.run_id) == completed
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 19
+    assert reopened.initialize(now=NOW).version == 20
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == completed
     assert credential_resolutions == 1
@@ -629,7 +745,7 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 19
+    assert reopened.initialize(now=NOW).version == 20
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
@@ -650,7 +766,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 19
+    assert reopened.initialize(now=NOW).version == 20
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -861,7 +977,7 @@ def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Pa
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
@@ -990,7 +1106,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 19
+    assert reopened.initialize(now=NOW).version == 20
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

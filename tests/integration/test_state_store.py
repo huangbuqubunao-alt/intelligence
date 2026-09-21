@@ -88,6 +88,7 @@ EXPECTED_TABLES = {
     "current_content_summaries",
     "distillation_cards",
     "distillation_execution_checkpoints",
+    "distillation_no_new_intelligence_results",
     "distillation_resource_usage",
     "job_attempts",
     "jobs",
@@ -813,12 +814,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "019_add_evidence_excerpt_stance.sql")
+        .joinpath("migrations", "020_add_no_new_intelligence_result.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 19
-    assert first.name == "019_add_evidence_excerpt_stance.sql"
+    assert first.version == 20
+    assert first.name == "020_add_no_new_intelligence_result.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -833,7 +834,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 19
+    assert migration_count == 20
 
 
 def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
@@ -853,6 +854,51 @@ def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) 
         }
     assert "source_excerpt" in evidence_columns
     assert "stance" in relation_columns
+
+
+def test_m020_adds_immutable_no_new_result_without_rewriting_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _database_path(tmp_path)
+    original = SQLiteStateRepository._load_migrations
+
+    monkeypatch.setattr(
+        SQLiteStateRepository,
+        "_load_migrations",
+        lambda self: original(self)[:19],
+    )
+    legacy = SQLiteStateRepository(path)
+    assert legacy.initialize(now=NOW).version == 19
+    with _raw_connection(path) as connection:
+        historical_rows = connection.execute(
+            "SELECT COUNT(*) FROM distillation_execution_checkpoints"
+        ).fetchone()[0]
+
+    monkeypatch.undo()
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 20
+
+    with _raw_connection(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
+        assert connection.execute(
+            "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM distillation_execution_checkpoints"
+        ).fetchone()[0] == historical_rows
+        triggers = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger' "
+                "AND name LIKE 'distillation_no_new_%'"
+            )
+        }
+    assert triggers == {
+        "distillation_no_new_result_requires_claimed_checkpoint",
+        "distillation_no_new_result_immutable_update",
+        "distillation_no_new_result_immutable_delete",
+        "distillation_no_new_checkpoint_terminal",
+    }
 
 
 def test_global_output_language_persists_and_rejects_unsupported_values(
