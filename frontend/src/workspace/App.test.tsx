@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { App } from "./App";
+import { App, intelligenceValidationCopy } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
 const intelligence = {
@@ -314,6 +314,17 @@ test("PO demo can direct the development proxy to its owned loopback API", () =>
   expect(apiProxyTarget("http://127.0.0.1:8766")).toBe("http://127.0.0.1:8766");
 });
 
+test.each([
+  ["NEW", "New Intelligence. It has not reached a confirmed validation state yet."],
+  ["PENDING_CONFIRMATION", "Still needs validation. Review the cited Evidence before relying on it."],
+  ["CONFIRMED", "Current trusted state: confirmed."],
+  ["DISPUTED", "Still needs validation. Conflicting Evidence or interpretation remains unresolved."],
+  ["UPDATED", "Updated. This is the current revision; older revisions are historical."],
+  ["", "Validation state is unavailable."],
+])("maps %s to honest validation posture copy", (state, expected) => {
+  expect(intelligenceValidationCopy(state)).toBe(expected);
+});
+
 test("frozen product IA exposes exactly its six first-level destinations", async () => {
   render(<App />);
   await screen.findByText("What matters now");
@@ -616,14 +627,21 @@ test("an empty Dashboard explains the next useful step in ordinary language", as
   expect(screen.getByRole("button", { name: "Add Following" })).toBeTruthy();
 });
 
-test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
+test("verified Intelligence explains its disputed validation posture without inventing confidence", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
   expect(screen.queryByText("This Intelligence is not available as current information."))
     .toBeNull();
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
-  expect(screen.getByText("Sources disagree")).toBeTruthy();
+  expect(screen.getByText("Disputed")).toBeTruthy();
+  expect(
+    screen.getByText(
+      /Still needs validation\. Conflicting Evidence or interpretation remains unresolved\./,
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText(/not a numeric confidence score/)).toBeTruthy();
+  expect(screen.queryByText(/\b\d+(?:\.\d+)?%\b/)).toBeNull();
   fireEvent.click(screen.getByText("Evidence and source"));
   expect(screen.getByText("Contradicting")).toBeTruthy();
   expect(screen.getByText("3Blue1Brown")).toBeTruthy();
