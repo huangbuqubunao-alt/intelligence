@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from hashlib import sha256
+from http import HTTPStatus
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -141,6 +142,24 @@ def test_intelligence_card_projects_readable_persisted_provenance(
             excerpt="Attention lets each token weigh relevant context from other tokens.",
         )
     )
+    app._repository.list_intelligence_revision_evidence_relations = lambda revision_id: (  # type: ignore[method-assign]
+        SimpleNamespace(
+            revision_id=revision_id,
+            evidence_id="evidence-1",
+            stance=SimpleNamespace(value="supporting"),
+        ),
+    )
+    app._repository.get_evidence = lambda evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id=evidence_id,
+        video_id="wjZofJX0v4M",
+        artifact_id="transcript-artifact-1",
+        start_ms=18_000,
+        end_ms=42_000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+        source_excerpt=None,
+    )
 
     projection = app._intelligence_projection("intel-1")
 
@@ -153,9 +172,16 @@ def test_intelligence_card_projects_readable_persisted_provenance(
     )
     assert cast(list[dict[str, object]], projected_card["evidence_links"])[0] == {
         "evidence_id": "evidence-1",
+        "artifact_id": "transcript-artifact-1",
         "start_ms": 18_000,
         "end_ms": 42_000,
-        "excerpt": "Attention lets each token weigh relevant context from other tokens.",
+        "language": "en",
+        "lineage_kind": "ORIGINAL_TRANSCRIPT",
+        "role": "PRIMARY_ORIGINAL",
+        "original_excerpt": "Attention lets each token weigh relevant context from other tokens.",
+        "translated_excerpt": None,
+        "translated_language": None,
+        "stance": "supporting",
     }
 
 
@@ -181,6 +207,57 @@ def test_frontend_cannot_submit_provider_authority(
         )
 
     assert captured.value.status == 422
+
+
+def test_output_language_uses_bootstrap_default_then_persists_user_choice(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+
+    status, before = app.handle("GET", "/api/v1/settings")
+    assert status == 200
+    assert before["general"]["output_language"] == "zh-CN"
+    assert before["general"]["output_language_source"] == "BOOTSTRAP_DEFAULT"
+
+    status, saved = app.handle(
+        "PUT",
+        "/api/v1/settings/output-language",
+        json.dumps({"output_language": "en"}).encode(),
+    )
+    assert status == 200
+    assert saved["output_language"] == "en"
+    assert saved["source"] == "USER_PREFERENCE"
+
+    _, after = app.handle("GET", "/api/v1/settings")
+    assert after["general"]["output_language"] == "en"
+    assert after["general"]["output_language_source"] == "USER_PREFERENCE"
+
+    repository = app._repository
+    reloaded = LocalApiApplication(
+        repository,
+        ProductOrchestrationService(
+            repository, now=lambda: datetime(2026, 9, 1, tzinfo=UTC)
+        ),
+        output_language_default="zh-CN",
+        now=lambda: datetime(2026, 9, 1, tzinfo=UTC),
+    )
+    _, restarted = reloaded.handle("GET", "/api/v1/settings")
+    assert restarted["general"]["output_language"] == "en"
+
+
+def test_output_language_rejects_unsupported_values(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+
+    with pytest.raises(ApiError) as rejected:
+        app.handle(
+            "PUT",
+            "/api/v1/settings/output-language",
+            json.dumps({"output_language": "fr"}).encode(),
+        )
+
+    assert rejected.value.status == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert rejected.value.code == "VALIDATION_ERROR"
+    assert app.handle("GET", "/api/v1/settings")[1]["general"]["output_language"] == "zh-CN"
 
 
 def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> None:
@@ -326,10 +403,254 @@ def test_content_projection_defaults_to_truthful_unavailable_states(
         "status": "NOT_PROCESSED",
         "reason": "No canonical transcript has been recorded for this video.",
     }
-    assert app._note_projection() == {
+    assert app._note_projection("abcdefghijk") == {
         "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
-        "v2": {"status": "UNAVAILABLE", "code": "NOTE_V2_UNAVAILABLE"},
+        "v2": {"status": "UNAVAILABLE", "code": "CONTENT_NOT_FOUND"},
     }
+
+
+def test_note_projection_exposes_bounded_verified_summary_content(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    summary_section = SimpleNamespace(
+        kind=SimpleNamespace(value="SUMMARY"),
+        entries=(SimpleNamespace(text="One sentence.", evidence_ids=("e1",)),),
+    )
+    points_section = SimpleNamespace(
+        kind=SimpleNamespace(value="CORE_POINTS"),
+        entries=(
+            SimpleNamespace(text="Point one.", evidence_ids=("e1",)),
+            SimpleNamespace(text="Point two.", evidence_ids=("e2",)),
+        ),
+    )
+    references = (
+        SimpleNamespace(
+            evidence_id="e1",
+            source="transcript",
+            excerpt="Evidence one.",
+            start_seconds=12.0,
+            end_seconds=18.0,
+        ),
+        SimpleNamespace(
+            evidence_id="e2",
+            source="transcript",
+            excerpt="Evidence two.",
+            start_seconds=30.0,
+            end_seconds=35.0,
+        ),
+    )
+    app._content_summary_reader.read_current = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        result_identity="a" * 64,
+        note=SimpleNamespace(
+            identity="note-identity",
+            language="zh-CN",
+            sections=(summary_section, points_section),
+            evidence_references=references,
+        ),
+    )
+
+    projection = app._note_projection("abcdefghijk")
+
+    assert projection["v2"] == {
+        "status": "AVAILABLE",
+        "note_identity": "note-identity",
+        "result_identity": "a" * 64,
+        "language": "zh-CN",
+        "summary": "One sentence.",
+        "core_points": ["Point one.", "Point two."],
+        "timestamped_key_points": [
+            {
+                "text": "Point one.",
+                "start_seconds": 12.0,
+                "end_seconds": 18.0,
+                "evidence_ids": ["e1"],
+            },
+            {
+                "text": "Point two.",
+                "start_seconds": 30.0,
+                "end_seconds": 35.0,
+                "evidence_ids": ["e2"],
+            },
+        ],
+        "evidence_references": [
+            {
+                "evidence_id": "e1",
+                "source": "transcript",
+                "excerpt": "Evidence one.",
+                "start_seconds": 12.0,
+                "end_seconds": 18.0,
+            },
+            {
+                "evidence_id": "e2",
+                "source": "transcript",
+                "excerpt": "Evidence two.",
+                "start_seconds": 30.0,
+                "end_seconds": 35.0,
+            },
+        ],
+    }
+
+
+def test_note_projection_never_invents_timestamped_key_points(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    summary_section = SimpleNamespace(
+        kind=SimpleNamespace(value="SUMMARY"),
+        entries=(SimpleNamespace(text="One sentence.", evidence_ids=("e1",)),),
+    )
+    points_section = SimpleNamespace(
+        kind=SimpleNamespace(value="CORE_POINTS"),
+        entries=(SimpleNamespace(text="Untimed point.", evidence_ids=("e1",)),),
+    )
+    references = (
+        SimpleNamespace(
+            evidence_id="e1",
+            source="description",
+            excerpt="Untimed evidence.",
+            start_seconds=None,
+            end_seconds=None,
+        ),
+    )
+    app._content_summary_reader.read_current = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        result_identity="b" * 64,
+        note=SimpleNamespace(
+            identity="note-untimed",
+            language="en",
+            sections=(summary_section, points_section),
+            evidence_references=references,
+        ),
+    )
+
+    projection = app._note_projection("abcdefghijk")
+
+    assert projection["v2"]["timestamped_key_points"] == []
+
+
+def test_intelligence_projection_exposes_excerpt_stance_and_persisted_provenance(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-1",
+        revision_id="revision-1",
+        claim_kind=SimpleNamespace(value="FACT"),
+        state=SimpleNamespace(value="CONFIRMED"),
+        evidence_ids=("evidence-1",),
+        is_confirmed=True,
+    )
+    app._intelligence_reader.read_current = lambda _intelligence_id: verified  # type: ignore[method-assign]
+    app._intelligence_reader.read_current_card = lambda _intelligence_id: SimpleNamespace(  # type: ignore[method-assign]
+        verified=verified,
+        core_conclusion="Trusted conclusion.",
+        user_relevant_information=("Relevant.",),
+        important_new_information=(),
+        meaningful_details=(),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="abcdefghijk",
+        preference_ids=(),
+        source_policy_revision_id=None,
+    )
+    app._repository.get_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        source_url="https://www.youtube.com/watch?v=abcdefghijk",
+        channel_name="Fixture channel",
+        title="Fixture video",
+    )
+    app._repository.list_intelligence_revision_evidence_relations = lambda _revision_id: (  # type: ignore[method-assign]
+        SimpleNamespace(
+            revision_id="revision-1",
+            evidence_id="evidence-1",
+            stance=SimpleNamespace(value="contradicting"),
+        ),
+    )
+    app._repository.get_evidence = lambda _evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id="evidence-1",
+        video_id="abcdefghijk",
+        artifact_id="transcript-artifact-1",
+        start_ms=1000,
+        end_ms=2000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+        source_excerpt="The source directly disputes the claim.",
+    )
+
+    projection = app._intelligence_projection("intel-1")
+
+    assert projection["card"]["evidence_links"] == [
+        {
+            "evidence_id": "evidence-1",
+            "artifact_id": "transcript-artifact-1",
+            "start_ms": 1000,
+            "end_ms": 2000,
+            "language": "en",
+            "lineage_kind": "ORIGINAL_TRANSCRIPT",
+            "role": "PRIMARY_ORIGINAL",
+            "original_excerpt": "The source directly disputes the claim.",
+            "translated_excerpt": None,
+            "translated_language": None,
+            "stance": "contradicting",
+        }
+    ]
+
+
+def test_intelligence_projection_keeps_legacy_excerpt_and_stance_truthfully_unavailable(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    verified = SimpleNamespace(
+        intelligence_id="intel-legacy",
+        revision_id="revision-legacy",
+        claim_kind=SimpleNamespace(value="FACT"),
+        state=SimpleNamespace(value="CONFIRMED"),
+        evidence_ids=("evidence-legacy",),
+        is_confirmed=True,
+    )
+    app._intelligence_reader.read_current = lambda _intelligence_id: verified  # type: ignore[method-assign]
+    app._intelligence_reader.read_current_card = lambda _intelligence_id: SimpleNamespace(  # type: ignore[method-assign]
+        verified=verified,
+        core_conclusion="Legacy conclusion.",
+        user_relevant_information=(),
+        important_new_information=(),
+        meaningful_details=(),
+        filtered_noise=(),
+        source_id="source-1",
+        video_id="abcdefghijk",
+        preference_ids=(),
+        source_policy_revision_id=None,
+    )
+    app._repository.get_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        source_url=None,
+        channel_name="Fixture channel",
+        title="Fixture video",
+    )
+    app._repository.list_intelligence_revision_evidence_relations = lambda _revision_id: (  # type: ignore[method-assign]
+        SimpleNamespace(
+            revision_id="revision-legacy",
+            evidence_id="evidence-legacy",
+            stance=None,
+        ),
+    )
+    app._repository.get_evidence = lambda _evidence_id: SimpleNamespace(  # type: ignore[method-assign]
+        evidence_id="evidence-legacy",
+        video_id="abcdefghijk",
+        artifact_id="artifact-legacy",
+        start_ms=1000,
+        end_ms=2000,
+        language="en",
+        lineage_kind=SimpleNamespace(value="ORIGINAL_TRANSCRIPT"),
+        role=SimpleNamespace(value="PRIMARY_ORIGINAL"),
+        source_excerpt=None,
+    )
+
+    projection = app._intelligence_projection("intel-legacy")
+
+    link = projection["card"]["evidence_links"][0]
+    assert link["original_excerpt"] is None
+    assert link["stance"] is None
+    assert link["translated_excerpt"] is None
 
 
 def test_intelligence_feed_rechecks_each_identity_and_never_emits_raw_content(

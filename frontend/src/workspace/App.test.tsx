@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
@@ -22,13 +22,20 @@ const intelligence = {
     source_url: "https://youtube.test/source",
     video_id: "video-1",
     video_title: "Transformers, the tech behind LLMs | Deep Learning Chapter 5",
-    original_video_url: "https://youtube.test/video",
+    original_video_url: "https://www.youtube.com/watch?v=video-1",
     evidence_links: [{
       evidence_id: "evidence-1",
+      artifact_id: "artifact-1",
       start_ms: 1000,
       end_ms: 2000,
-      excerpt:
+      language: "en",
+      lineage_kind: "ORIGINAL_TRANSCRIPT",
+      role: "PRIMARY_ORIGINAL",
+      original_excerpt:
         "Attention lets each token weigh relevant context from other tokens.",
+      translated_excerpt: null,
+      translated_language: null,
+      stance: "contradicting",
     }],
   },
 };
@@ -80,6 +87,44 @@ beforeEach(() => {
       }
       if (input.endsWith("/intelligence/intel-1")) {
         return response({ intelligence });
+      }
+      if (input.endsWith("/videos/video-1")) {
+        return response({
+          video: {
+            video_id: "video-1",
+            channel_id: "channel-1",
+            channel_name: "3Blue1Brown",
+            title: "Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+            source_url: "https://youtube.test/video",
+            published_at: "2026-09-01T00:00:00Z",
+            processing_status: "TRANSCRIPT_READY",
+            last_updated: "2026-09-01T00:00:00Z",
+          },
+          transcript: {
+            status: "AVAILABLE",
+            text: "Attention lets each token weigh relevant context from other tokens.",
+            created_at: "2026-09-01T00:00:00Z",
+          },
+          note: {
+            v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" },
+            v2: { status: "UNAVAILABLE", code: "NOTE_V2_UNAVAILABLE" },
+          },
+          history: [],
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return response({
+          videos: [{
+            video_id: "video-1",
+            channel_id: "channel-1",
+            channel_name: "3Blue1Brown",
+            title: "Transformers, the tech behind LLMs | Deep Learning Chapter 5",
+            source_url: "https://youtube.test/video",
+            published_at: "2026-09-01T00:00:00Z",
+            processing_status: "TRANSCRIPT_READY",
+            last_updated: "2026-09-01T00:00:00Z",
+          }],
+        });
       }
       if (input.endsWith("/saved-intelligence")) {
         return response({
@@ -237,6 +282,12 @@ beforeEach(() => {
       }
       if (input.endsWith("/settings")) {
         return response({
+          general: {
+            timezone: "Asia/Shanghai",
+            output_language: "zh-CN",
+            output_language_source: "BOOTSTRAP_DEFAULT",
+            output_language_updated_at: null,
+          },
           providers: [{
             provider: "NVIDIA NIM",
             model: "moonshotai/kimi-k3",
@@ -268,12 +319,15 @@ test("frozen product IA exposes exactly its six first-level destinations", async
   await screen.findByText("What matters now");
   expect(
     screen.getAllByRole("button", {
-      name: /^(Dashboard|Intelligence|Topics|Sources|Investigations|Settings)$/,
+      name: /^(Home|Following|Content|Intelligence|Topics|Settings)$/,
     }),
   ).toHaveLength(6);
   for (
     const legacy of [
       "Videos",
+      "Dashboard",
+      "Sources",
+      "Investigations",
       "Activity",
       "Saved",
       "Weekly",
@@ -288,6 +342,203 @@ test("frozen product IA exposes exactly its six first-level destinations", async
   }
   expect(screen.getByText("Video analysis is paused.")).toBeTruthy();
   expect(screen.queryByText("MODEL_UNAVAILABLE")).toBeNull();
+});
+
+test("Content renders only the explicit current verified Summary and its trusted timed Evidence", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string) => {
+      if (input.endsWith("/videos/video-1")) {
+        return response({
+          video: {
+            video_id: "video-1",
+            channel_id: "channel-1",
+            channel_name: "Fixture channel",
+            title: "Evidence-led product lesson",
+            source_url: "https://www.youtube.com/watch?v=video-1",
+            published_at: "2026-09-01T00:00:00Z",
+            processing_status: "COMPLETE",
+            last_updated: "2026-09-01T00:00:00Z",
+          },
+          transcript: {
+            status: "AVAILABLE",
+            text: "Original transcript evidence.",
+            created_at: "2026-09-01T00:00:00Z",
+          },
+          note: {
+            v1: { status: "UNAVAILABLE", code: "NOTE_REF_NOT_PERSISTED" },
+            v2: {
+              status: "AVAILABLE",
+              note_identity: "note-1",
+              result_identity: "result-1",
+              language: "zh-CN",
+              summary: "这是当前正式摘要。",
+              core_points: ["第一点。", "第二点。"],
+              timestamped_key_points: [{
+                text: "第一点。",
+                start_seconds: 12,
+                end_seconds: 18,
+                evidence_ids: ["e1"],
+              }],
+              evidence_references: [{
+                evidence_id: "e1",
+                source: "transcript",
+                excerpt: "Original transcript evidence.",
+                start_seconds: 12,
+                end_seconds: 18,
+              }],
+            },
+          },
+          history: [],
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return response({
+          videos: [{
+            video_id: "video-1",
+            channel_id: "channel-1",
+            channel_name: "Fixture channel",
+            title: "Evidence-led product lesson",
+            source_url: "https://www.youtube.com/watch?v=video-1",
+            published_at: "2026-09-01T00:00:00Z",
+            processing_status: "COMPLETE",
+            last_updated: "2026-09-01T00:00:00Z",
+          }],
+        });
+      }
+      return response({});
+    }),
+  );
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Evidence-led product lesson/ }),
+  );
+  expect(await screen.findByText("这是当前正式摘要。")).toBeTruthy();
+  expect(screen.getByText("Timestamped key points")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "0:12" }).getAttribute("href"))
+    .toContain("t=12");
+  const evidenceDetails = screen.getByText("Evidence references").closest("details");
+  expect(evidenceDetails).toBeInstanceOf(HTMLDetailsElement);
+  if (!(evidenceDetails instanceof HTMLDetailsElement)) {
+    throw new Error("Evidence references must render inside details.");
+  }
+  fireEvent.click(screen.getByText("Evidence references"));
+  expect(within(evidenceDetails).getByText("Original transcript evidence."))
+    .toBeTruthy();
+});
+
+test("Settings persists output language for future processing without rewriting history", async () => {
+  let language: "zh-CN" | "en" = "zh-CN";
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/settings/output-language") && init?.method === "PUT") {
+      language = JSON.parse(String(init.body)).output_language;
+      return response({
+        output_language: language,
+        source: "USER_PREFERENCE",
+        updated_at: "2026-09-01T00:00:00Z",
+      });
+    }
+    if (input.endsWith("/settings")) {
+      return response({
+        general: {
+          timezone: "Asia/Shanghai",
+          output_language: language,
+          output_language_source: language === "zh-CN"
+            ? "BOOTSTRAP_DEFAULT"
+            : "USER_PREFERENCE",
+          output_language_updated_at: null,
+        },
+        providers: [],
+      });
+    }
+    if (input.endsWith("/settings/preferences")) {
+      return response({ active: [], history: [] });
+    }
+    if (input.endsWith("/settings/source-policy")) {
+      return response({
+        policy: {
+          initial_history_count: 5,
+          per_run_max_new_videos: 5,
+          focus_rules: [],
+          ignore_rules: [],
+          distillation_style: "BALANCED",
+        },
+      });
+    }
+    if (input.endsWith("/settings/resource-usage")) {
+      return response({ usage: [] });
+    }
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  const select = await screen.findByLabelText("Preferred output language");
+  expect((select as HTMLSelectElement).value).toBe("zh-CN");
+  expect(screen.getByText(/New processing batches use this language/)).toBeTruthy();
+  expect(screen.getByText(/historical records stay unchanged/)).toBeTruthy();
+  fireEvent.change(select, { target: { value: "en" } });
+  await waitFor(() =>
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/settings/output-language",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ output_language: "en" }),
+      }),
+    )
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Preferred output language") as HTMLSelectElement)
+        .value,
+    ).toBe("en")
+  );
+  expect(screen.getByText("Saved locally on this Mac.")).toBeTruthy();
+});
+
+test("Evidence stance and availability states are rendered without inference", async () => {
+  const evidenceState = {
+    ...intelligence,
+    card: {
+      ...intelligence.card,
+      evidence_links: [
+        { ...intelligence.card.evidence_links[0], evidence_id: "supporting", stance: "supporting" },
+        { ...intelligence.card.evidence_links[0], evidence_id: "contradicting", stance: "contradicting" },
+        { ...intelligence.card.evidence_links[0], evidence_id: "conditional", stance: "conditional" },
+        {
+          ...intelligence.card.evidence_links[0],
+          evidence_id: "legacy",
+          stance: null,
+          original_excerpt: null,
+        },
+      ],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string) => {
+      if (input.endsWith("/intelligence")) {
+        return response({ intelligence: [evidenceState] });
+      }
+      if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
+      if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
+      return response({});
+    }),
+  );
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByText("Evidence and source"));
+  expect(screen.getByText("Supporting")).toBeTruthy();
+  expect(screen.getByText("Contradicting")).toBeTruthy();
+  expect(screen.getByText("Conditional")).toBeTruthy();
+  expect(screen.getByText("Relation not determined")).toBeTruthy();
+  expect(screen.getByText(/Source excerpt unavailable for this historical Evidence/))
+    .toBeTruthy();
+  expect(screen.getAllByText(/Translation is not available/)).toHaveLength(4);
 });
 
 test("Dashboard leads with meaningful Intelligence and keeps attention subordinate", async () => {
@@ -361,8 +612,8 @@ test("an empty Dashboard explains the next useful step in ordinary language", as
   render(<App />);
   expect(await screen.findByText("No important new intelligence yet."))
     .toBeTruthy();
-  expect(screen.getByText(/Add a Source to start monitoring/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Add Source" })).toBeTruthy();
+  expect(screen.getByText(/Add a Following to start monitoring/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Add Following" })).toBeTruthy();
 });
 
 test("verified Intelligence preserves rumor, dispute, and evidence without watch-score language", async () => {
@@ -373,7 +624,8 @@ test("verified Intelligence preserves rumor, dispute, and evidence without watch
     .toBeNull();
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
   expect(screen.getByText("Sources disagree")).toBeTruthy();
-  expect(screen.getByRole("heading", { name: "Evidence" })).toBeTruthy();
+  fireEvent.click(screen.getByText("Evidence and source"));
+  expect(screen.getByText("Contradicting")).toBeTruthy();
   expect(screen.getByText("3Blue1Brown")).toBeTruthy();
   expect(
     screen.getByText(
@@ -387,10 +639,10 @@ test("verified Intelligence preserves rumor, dispute, and evidence without watch
     ),
   ).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: "Open video at 0:01" }).getAttribute(
+    screen.getByRole("link", { name: "Open original at timestamp" }).getAttribute(
       "href",
     ),
-  ).toBe("https://youtube.test/video?t=1");
+  ).toBe("https://www.youtube.com/watch?v=video-1&t=1");
   expect(screen.queryByText(/Worth Watching|Watch Score|Should I watch/))
     .toBeNull();
 });
@@ -401,7 +653,7 @@ test("Intelligence hierarchy labels relevance, new information, and supporting d
   const why = await screen.findByText("Why this matters");
   const changed = screen.getByText("What is new");
   const details = screen.getByText("Important details");
-  const evidence = screen.getByRole("heading", { name: "Evidence" });
+  const evidence = screen.getByText("Evidence and source");
   expect(
     why.compareDocumentPosition(changed) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
@@ -443,13 +695,9 @@ test("Save uses the persisted command rather than browser-only state", async () 
   );
 });
 
-test("Investigations and Deep Analysis remain truthful V1-unavailable states", async () => {
+test("Deep Analysis remains truthful and Investigations stays outside V1 navigation", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Investigations" }));
-  expect(await screen.findByText("Investigations are not active in V1"))
-    .toBeTruthy();
-  expect(screen.getByText(/Evidence Expansion, external validation/))
-    .toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Investigations" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByText(/this screen cannot enable it/))
     .toBeTruthy();
@@ -486,7 +734,7 @@ test("Settings presents Kimi scope truthfully and keeps provider mechanics colla
 
 test("Sources prefer a persisted friendly name while keeping the canonical URL accessible", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   expect(await screen.findByText("Marques Brownlee")).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Open Source" }).getAttribute("href"),
@@ -498,7 +746,7 @@ test("Sources prefer a persisted friendly name while keeping the canonical URL a
 
 test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as failure or Retry", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(
     await screen.findByRole("button", {
       name: /Marques Brownlee.*Monitoring new videos/,
@@ -514,7 +762,7 @@ test("legal NOT_RELEVANT filtering is shown as Skipped with Analyze, not as fail
 
 test("Check Now preserves a legal guarded state without inventing a Source Run or Retry", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(
     await screen.findByRole("button", {
       name: /Marques Brownlee.*Monitoring new videos/,
@@ -529,7 +777,7 @@ test("Check Now preserves a legal guarded state without inventing a Source Run o
 
 test("stopping a Source uses the legal enabled command and is not historical deletion", async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(
     await screen.findByRole("button", {
       name: /Marques Brownlee.*Monitoring new videos/,
@@ -570,7 +818,7 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
     }),
   );
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
   fireEvent.click(screen.getAllByRole("button", { name: "Add Source" })[1]);
 
@@ -645,7 +893,7 @@ test("Source setup writes only through the existing Source, policy, and schedule
     }),
   );
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
   fireEvent.click(
     (await screen.findAllByRole("button", { name: "Add Source" }))[1],
   );

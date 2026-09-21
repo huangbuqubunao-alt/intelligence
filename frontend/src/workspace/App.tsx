@@ -1,12 +1,14 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { api, patch, post, put } from "../api/client";
+import { Logo } from "./Logo";
+import { FirstRunOnboarding } from "./Onboarding";
 
 type Page =
-  | "Dashboard"
+  | "Home"
+  | "Following"
+  | "Content"
   | "Intelligence"
   | "Topics"
-  | "Sources"
-  | "Investigations"
   | "Settings";
 type Intelligence = {
   status: string;
@@ -28,9 +30,16 @@ type Intelligence = {
     original_video_url: string | null;
     evidence_links: {
       evidence_id: string;
+      artifact_id: string;
       start_ms: number | null;
       end_ms: number | null;
-      excerpt: string;
+      language: string;
+      lineage_kind: string;
+      role: string;
+      original_excerpt: string | null;
+      translated_excerpt: string | null;
+      translated_language: string | null;
+      stance: "supporting" | "contradicting" | "conditional" | null;
     }[];
   };
 };
@@ -130,22 +139,67 @@ type ResourceUsage = {
   duration_ms: number | null;
   budget_state: string;
 };
+type ContentItem = {
+  video_id: string;
+  channel_id: string;
+  channel_name: string;
+  title: string | null;
+  source_url: string | null;
+  published_at: string;
+  processing_status: string;
+  last_updated: string;
+};
+type ContentDetail = {
+  video: ContentItem;
+  transcript: {
+    status: string;
+    text?: string;
+    reason?: string;
+    created_at?: string;
+  };
+  note: {
+    v1?: { status: string; code?: string };
+    v2?: {
+      status: string;
+      code?: string;
+      note_identity?: string;
+      result_identity?: string;
+      language?: string;
+      summary?: string | null;
+      core_points?: string[];
+      timestamped_key_points?: {
+        text: string;
+        start_seconds: number;
+        end_seconds: number;
+        evidence_ids: string[];
+      }[];
+      evidence_references?: {
+        evidence_id: string;
+        source: string;
+        excerpt: string;
+        start_seconds: number | null;
+        end_seconds: number | null;
+      }[];
+    };
+  };
+  history: { timestamp: string; status: string; summary: string }[];
+};
 
 const pages: Page[] = [
-  "Dashboard",
+  "Home",
+  "Following",
+  "Content",
   "Intelligence",
   "Topics",
-  "Sources",
-  "Investigations",
   "Settings",
 ];
 const subtitles: Record<Page, string> = {
-  Dashboard: "What changed that matters to you.",
-  Intelligence: "Verified, evidence-linked intelligence.",
-  Topics: "Current understanding and its history.",
-  Sources: "Choose what the app monitors and how it processes new videos.",
-  Investigations: "Reserved V2 capability.",
-  Settings: "Preferences, model readiness, resource truth, and privacy.",
+  Home: "What changed across the knowledge you follow.",
+  Following: "Choose what Intelligence should keep watching.",
+  Content: "Read ingested content, transcript state, and processing history.",
+  Intelligence: "Revisable, evidence-linked judgments worth tracking.",
+  Topics: "Current understanding built from related Intelligence.",
+  Settings: "Language, model readiness, resource truth, and data control.",
 };
 const commandId = () =>
   `ui:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -168,6 +222,17 @@ const STYLES = [[
   "Trend and opinion",
   "Lead with the wider trend and attributed viewpoints.",
 ]] as const;
+
+function initialPage(): Page {
+  const raw = location.hash.slice(1);
+  const legacy: Record<string, Page> = {
+    Dashboard: "Home",
+    Sources: "Following",
+    Investigations: "Home",
+  };
+  const candidate = legacy[raw] ?? raw;
+  return pages.includes(candidate as Page) ? candidate as Page : "Home";
+}
 
 function useRemote<T>(path: string, refresh = 0) {
   const [data, setData] = useState<T | null>(null);
@@ -339,7 +404,43 @@ function timestampRange(start: number | null, end: number | null) {
 }
 function videoAt(url: string, start: number | null) {
   if (start === null) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}t=${Math.floor(start / 1000)}`;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "youtu.be" || host === "youtube.com" ||
+      host.endsWith(".youtube.com")
+    ) {
+      parsed.searchParams.set("t", String(Math.max(0, Math.floor(start / 1000))));
+      return parsed.toString();
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+function evidenceLineageLabel(value: string) {
+  return ({
+    ORIGINAL_TRANSCRIPT: "Original transcript",
+    TRANSLATION: "Translation lineage",
+    EXTRACTION: "Extracted evidence",
+  } as Record<string, string>)[value] ?? "Recorded provenance";
+}
+function evidenceRoleLabel(value: string) {
+  return ({
+    PRIMARY_ORIGINAL: "Primary original",
+    INDEPENDENT_VERIFICATION: "Independent verification",
+    ANALYSIS_COMMENTARY: "Analysis commentary",
+    SECONDARY_RELAY: "Secondary relay",
+  } as Record<string, string>)[value] ?? "Recorded source role";
+}
+function stanceLabel(
+  value: "supporting" | "contradicting" | "conditional" | null,
+) {
+  if (value === "supporting") return "Supporting";
+  if (value === "contradicting") return "Contradicting";
+  if (value === "conditional") return "Conditional";
+  return "Relation not determined";
 }
 
 export function ScoringTab(
@@ -365,67 +466,107 @@ export function ScoringTab(
     </div>
   );
 }
-function Evidence({ item }: { item: Intelligence }) {
+function Evidence(
+  { item, onOpenContent }: {
+    item: Intelligence;
+    onOpenContent?: (videoId: string) => void;
+  },
+) {
   const card = item.card;
   const links = card?.evidence_links ?? [];
   if (!card || !links.length) return null;
   return (
-    <section
-      className="evidence-block"
-      aria-labelledby={`evidence-${item.intelligence_id}`}
-    >
-      <h3 id={`evidence-${item.intelligence_id}`}>Evidence</h3>
+    <details className="evidence-block evidence-trace">
+      <summary>Evidence and source</summary>
       <div className="evidence-origin">
         <div>
           <span>Source</span>
-          <strong>
-            {card.source_display_name || "Source name unavailable"}
-          </strong>
+          <strong>{card.source_display_name || "Source name unavailable"}</strong>
+          <small>{card.source_id} · {card.video_id}</small>
           {card.source_url
-            ? (
-              <a href={card.source_url} target="_blank" rel="noreferrer">
-                Open Source
-              </a>
-            )
+            ? <a href={card.source_url} target="_blank" rel="noreferrer">Open Source</a>
             : null}
         </div>
         <div>
-          <span>Video</span>
+          <span>Content</span>
           <strong>{card.video_title || card.video_id}</strong>
         </div>
       </div>
-      {links.map((link) => (
-        <figure className="evidence-item" key={link.evidence_id}>
-          <figcaption>
-            <strong>{timestampRange(link.start_ms, link.end_ms)}</strong>
-            {card.original_video_url
-              ? (
-                <a
-                  href={videoAt(card.original_video_url, link.start_ms)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open video at{" "}
-                  {link.start_ms === null ? "source" : timestamp(link.start_ms)}
-                </a>
-              )
-              : null}
-          </figcaption>
-          <blockquote>{link.excerpt}</blockquote>
-          <details className="provenance">
-            <summary>Technical provenance</summary>
-            <p>{link.evidence_id} · {card.source_id} · {card.video_id}</p>
-          </details>
-        </figure>
-      ))}
-    </section>
+      <div className="evidence-trace-list">
+        {links.map((link) => (
+          <article className="evidence-item evidence-trace-item" key={link.evidence_id}>
+            <div className="reading-meta">
+              <Status value={stanceLabel(link.stance)} />
+              <span>{link.language}</span>
+            </div>
+            <div>
+              <strong>Original excerpt</strong>
+              {link.original_excerpt
+                ? <blockquote>{link.original_excerpt}</blockquote>
+                : (
+                  <p className="hint">
+                    Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.
+                  </p>
+                )}
+            </div>
+            <div>
+              <strong>Translation</strong>
+              {link.translated_excerpt
+                ? <blockquote>{link.translated_excerpt}</blockquote>
+                : (
+                  <p className="hint">
+                    Translation is not available for this Evidence yet. The original remains authoritative.
+                  </p>
+                )}
+            </div>
+            <div>
+              <strong>Source position</strong>
+              <p>{timestampRange(link.start_ms, link.end_ms)}</p>
+            </div>
+            <div>
+              <strong>Provenance</strong>
+              <p>{evidenceLineageLabel(link.lineage_kind)} · {evidenceRoleLabel(link.role)}</p>
+              <small>{link.artifact_id}</small>
+            </div>
+            <div className="evidence-actions">
+              {onOpenContent
+                ? (
+                  <button
+                    className="button button-secondary button-small"
+                    onClick={() => onOpenContent(card.video_id)}
+                  >
+                    Open Content
+                  </button>
+                )
+                : null}
+              {card.original_video_url
+                ? (
+                  <a
+                    className="button button-ghost button-small evidence-source-link"
+                    href={videoAt(card.original_video_url, link.start_ms)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open original{link.start_ms === null ? "" : " at timestamp"}
+                  </a>
+                )
+                : null}
+            </div>
+          </article>
+        ))}
+      </div>
+      <p className="hint">
+        Supporting, contradicting, and conditional describe this Evidence only in relation to this specific Intelligence revision. Missing relations are shown as undetermined rather than inferred.
+      </p>
+    </details>
   );
 }
 function IntelligenceCard(
-  { item, saved, onSaved }: {
+  { item, saved, onSaved, onOpenContent }: {
     item: Intelligence;
     saved: boolean;
     onSaved: () => void;
+    onOpenContent?: (videoId: string) => void;
   },
 ) {
   const [busy, setBusy] = useState(false);
@@ -484,7 +625,7 @@ function IntelligenceCard(
         <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
         <Status value={item.state ?? "AVAILABLE"} />
       </div>
-      <Evidence item={item} />
+      <Evidence item={item} onOpenContent={onOpenContent} />
       <button
         className="button button-secondary"
         disabled={busy}
@@ -497,21 +638,26 @@ function IntelligenceCard(
 }
 
 export function App() {
-  const [page, setPage] = useState<Page>(
-    (location.hash.slice(1) as Page) || "Dashboard",
-  );
+  const [page, setPage] = useState<Page>(initialPage);
   const [refresh, setRefresh] = useState(0);
+  const [contentTarget, setContentTarget] = useState<string | null>(null);
   const navigate = (next: Page) => {
+    setContentTarget(null);
     location.hash = next;
     setPage(next);
+  };
+  const openContent = (videoId: string) => {
+    setContentTarget(videoId);
+    location.hash = "Content";
+    setPage("Content");
   };
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">YI</span>
+          <Logo className="brand-logo" />
           <div>
-            <strong>YouTube Intelligence Agent</strong>
+            <strong>Intelligence</strong>
             <small>Local-first workspace</small>
           </div>
         </div>
@@ -533,30 +679,42 @@ export function App() {
       <main className="workspace-main">
         <header className="page-header">
           <div>
-            <p className="eyebrow">YOUTUBE INTELLIGENCE AGENT</p>
+            <p className="eyebrow">INTELLIGENCE</p>
             <h1>{page}</h1>
             <p className="page-subtitle">{subtitles[page]}</p>
           </div>
         </header>
-        {page === "Dashboard" && (
-          <Dashboard refresh={refresh} navigate={navigate} />
+        {page === "Home" && (
+          <Dashboard
+            refresh={refresh}
+            navigate={navigate}
+            openContent={openContent}
+          />
         )}
-        {page === "Intelligence" && <IntelligencePage refresh={refresh} />}
-        {page === "Topics" && <Topics refresh={refresh} />}
-        {page === "Sources" && (
+        {page === "Following" && (
           <Sources
             refresh={refresh}
             onRefresh={() => setRefresh((value) => value + 1)}
           />
         )}
-        {page === "Investigations" && <Investigations />}
+        {page === "Content" && (
+          <ContentPage refresh={refresh} targetVideoId={contentTarget} />
+        )}
+        {page === "Intelligence" && (
+          <IntelligencePage refresh={refresh} openContent={openContent} />
+        )}
+        {page === "Topics" && <Topics refresh={refresh} />}
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
     </div>
   );
 }
 function Dashboard(
-  { refresh, navigate }: { refresh: number; navigate: (page: Page) => void },
+  { refresh, navigate, openContent }: {
+    refresh: number;
+    navigate: (page: Page) => void;
+    openContent: (videoId: string) => void;
+  },
 ) {
   const { data, error } = useRemote<
     {
@@ -564,32 +722,35 @@ function Dashboard(
       pinned_topics?: Topic[];
       weekly_v1?: Weekly[];
       needs_attention?: SourceRun[];
+      operations?: { source_count?: number };
     }
   >("/dashboard", refresh);
   if (error) return <ErrorState error={error} />;
-  if (!data) return <Empty>Loading dashboard…</Empty>;
+  if (!data) return <Empty>Loading Home…</Empty>;
   const intelligence = (data.intelligence ?? []).filter((item) =>
       item.status === "AVAILABLE" && item.trusted
     ),
     attention = data.needs_attention ?? [],
     topics = data.pinned_topics ?? [],
     weekly = data.weekly_v1 ?? [];
-  if (
-    !intelligence.length && !topics.length && !weekly.length &&
-    !attention.length
-  ) {
+  const isFreshLibrary = data.operations?.source_count === 0 &&
+    !intelligence.length && !topics.length && !weekly.length && !attention.length;
+  if (isFreshLibrary) {
+    return <FirstRunOnboarding onAddFollowing={() => navigate("Following")} />;
+  }
+  if (!intelligence.length && !topics.length && !weekly.length && !attention.length) {
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet.">
           <p>
-            Add a Source to start monitoring videos that matter. New conclusions
+            Add a Following to start monitoring videos that matter. New conclusions
             will appear here with their Evidence.
           </p>
           <button
             className="button button-primary"
-            onClick={() => navigate("Sources")}
+            onClick={() => navigate("Following")}
           >
-            Add Source
+            Add Following
           </button>
         </Panel>
       </div>
@@ -605,6 +766,7 @@ function Dashboard(
               item={item}
               saved={false}
               onSaved={() => undefined}
+              onOpenContent={openContent}
             />
           ))
           : <Empty>No important new intelligence yet.</Empty>}
@@ -668,7 +830,12 @@ function Attention({ run }: { run: SourceRun }) {
     </article>
   );
 }
-function IntelligencePage({ refresh }: { refresh: number }) {
+function IntelligencePage(
+  { refresh, openContent }: {
+    refresh: number;
+    openContent: (videoId: string) => void;
+  },
+) {
   const [view, setView] = useState<"Current" | "Saved" | "Weekly">("Current");
   const [revision, setRevision] = useState(0);
   const current = useRemote<{ intelligence: Intelligence[] }>(
@@ -713,6 +880,7 @@ function IntelligencePage({ refresh }: { refresh: number }) {
             item={item}
             saved={false}
             onSaved={() => setRevision((value) => value + 1)}
+            onOpenContent={openContent}
           />
         ))
         : <Empty>No verified Intelligence yet.</Empty>)}
@@ -726,6 +894,7 @@ function IntelligencePage({ refresh }: { refresh: number }) {
             revision={revision}
             onChanged={() =>
               setRevision((value) => value + 1)}
+            onOpenContent={openContent}
           />
         ))
         : <Empty>No saved Intelligence.</Empty>)}
@@ -740,10 +909,11 @@ function IntelligencePage({ refresh }: { refresh: number }) {
   );
 }
 function SavedCard(
-  { item, revision, onChanged }: {
+  { item, revision, onChanged, onOpenContent }: {
     item: Saved;
     revision: number;
     onChanged: () => void;
+    onOpenContent: (videoId: string) => void;
   },
 ) {
   const detail = useRemote<{ intelligence: Intelligence }>(
@@ -779,6 +949,7 @@ function SavedCard(
       item={detail.data.intelligence}
       saved
       onSaved={onChanged}
+      onOpenContent={onOpenContent}
     />
   );
 }
@@ -808,6 +979,159 @@ function WeeklyCard({ brief }: { brief: Weekly }) {
         ))}
       <small>Historical weekly content remains unchanged.</small>
     </Panel>
+  );
+}
+function ContentPage(
+  { refresh, targetVideoId }: {
+    refresh: number;
+    targetVideoId?: string | null;
+  },
+) {
+  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh);
+  const [selected, setSelected] = useState<string | null>(targetVideoId ?? null);
+  useEffect(() => {
+    if (targetVideoId) setSelected(targetVideoId);
+  }, [targetVideoId]);
+  if (list.error) return <ErrorState error={list.error} />;
+  if (!list.data) return <Empty>Loading Content…</Empty>;
+  if (selected) {
+    return <ContentDetailPanel id={selected} onClose={() => setSelected(null)} />;
+  }
+  return list.data.videos.length
+    ? (
+      <div className="compact-list">
+        {list.data.videos.map((item) => (
+          <button
+            className="list-row"
+            key={item.video_id}
+            onClick={() => setSelected(item.video_id)}
+          >
+            <span>
+              <strong>{item.title ?? item.video_id}</strong>
+              <small>{item.channel_name} · {humanDate(item.published_at)}</small>
+            </span>
+            <Status value={item.processing_status} />
+          </button>
+        ))}
+      </div>
+    )
+    : (
+      <Empty>
+        No Content yet. Add a Following and ingested items will appear here without mixing in Demo fixtures.
+      </Empty>
+    );
+}
+function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data, error } = useRemote<ContentDetail>(`/videos/${id}`);
+  if (error) return <ErrorState error={error} />;
+  if (!data) return <Empty>Loading Content detail…</Empty>;
+  const transcript = data.transcript;
+  const note = data.note.v2;
+  return (
+    <div className="dashboard-stack">
+      <button className="button button-ghost" onClick={onClose}>Back to Content</button>
+      <Panel title={data.video.title ?? data.video.video_id}>
+        <div className="reading-meta">
+          <Status value={data.video.processing_status} />
+          <span>{data.video.channel_name} · {humanDate(data.video.published_at)}</span>
+        </div>
+        {data.video.source_url
+          ? (
+            <a className="source-link" href={data.video.source_url} target="_blank" rel="noreferrer">
+              Open original source
+            </a>
+          )
+          : null}
+      </Panel>
+      <Panel title="Transcript">
+        {transcript.status === "AVAILABLE" && transcript.text
+          ? <div className="transcript-copy">{transcript.text}</div>
+          : (
+            <div className="semantic-state state-neutral">
+              <Status value={transcript.status} />
+              <p>{transcript.reason ?? "A readable transcript is not available yet."}</p>
+            </div>
+          )}
+      </Panel>
+      <Panel title="Summary / Video Notes">
+        {note?.status === "AVAILABLE"
+          ? (
+            <div className="summary-note">
+              <div className="reading-meta">
+                <Status value="AVAILABLE" />
+                <span>{note.language ?? "Language unavailable"}</span>
+              </div>
+              {note.summary ? <><h3>Summary</h3><p>{note.summary}</p></> : null}
+              {note.core_points?.length
+                ? <><h3>Key points</h3><ul>{note.core_points.map((point) => <li key={point}>{point}</li>)}</ul></>
+                : null}
+              {note.timestamped_key_points?.length
+                ? (
+                  <>
+                    <h3>Timestamped key points</h3>
+                    <ol>
+                      {note.timestamped_key_points.map((point) => (
+                        <li key={`${point.start_seconds}:${point.text}`}>
+                          {data.video.source_url
+                            ? (
+                              <a
+                                className="source-link"
+                                href={videoAt(data.video.source_url, point.start_seconds * 1000)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {timestamp(point.start_seconds * 1000)}
+                              </a>
+                            )
+                            : <strong>{timestamp(point.start_seconds * 1000)}</strong>} · {point.text}
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="hint">
+                      Timestamps appear only when the cited trusted Evidence has a timed-subtitle position.
+                    </p>
+                  </>
+                )
+                : null}
+              {note.evidence_references?.length
+                ? (
+                  <details className="provenance">
+                    <summary>Evidence references</summary>
+                    <ul>
+                      {note.evidence_references.map((reference) => (
+                        <li key={reference.evidence_id}>
+                          <strong>{reference.evidence_id}</strong>
+                          {reference.start_seconds === null ? "" : ` · ${Math.round(reference.start_seconds)}s`}
+                          <p>{reference.excerpt}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )
+                : null}
+              <p className="hint">
+                This is the current verified version for this Content. Failed or unverified newer attempts do not replace it.
+              </p>
+            </div>
+          )
+          : (
+            <div className="semantic-state state-neutral">
+              <Status value="UNAVAILABLE" />
+              <p>Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.</p>
+            </div>
+          )}
+      </Panel>
+      <Panel title="Processing history">
+        {data.history.length
+          ? data.history.slice(0, 12).map((event) => (
+            <div className="metadata-row" key={`${event.timestamp}:${event.summary}`}>
+              <span>{humanDate(event.timestamp)}</span>
+              <div><Status value={event.status} /><p>{event.summary}</p></div>
+            </div>
+          ))
+          : <Empty>No processing history yet.</Empty>}
+      </Panel>
+    </div>
   );
 }
 function Topics({ refresh }: { refresh: number }) {
@@ -1550,9 +1874,20 @@ function usageReason(value: string) {
   } as Record<string, string>)[value] ?? "Recorded work";
 }
 function Settings({ refresh }: { refresh: number }) {
-  const settings = useRemote<{ providers: ProviderStatus[] }>(
+  const [revision, setRevision] = useState(0);
+  const [savingLanguage, setSavingLanguage] = useState(false);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  const settings = useRemote<{
+    general: {
+      timezone: string;
+      output_language: "zh-CN" | "en";
+      output_language_source: string;
+      output_language_updated_at: string | null;
+    };
+    providers: ProviderStatus[];
+  }>(
     "/settings",
-    refresh,
+    refresh + revision,
   );
   const prefs = useRemote<{ active: Preference[]; history: Preference[] }>(
     "/settings/preferences",
@@ -1585,8 +1920,48 @@ function Settings({ refresh }: { refresh: number }) {
   const otherProviders = settings.data.providers.filter((provider) =>
     provider !== videoDistillation
   );
+  const saveLanguage = async (value: "zh-CN" | "en") => {
+    setSavingLanguage(true);
+    setLanguageError(null);
+    try {
+      await put("/settings/output-language", { output_language: value });
+      setRevision((current) => current + 1);
+    } catch (reason) {
+      setLanguageError(
+        reason instanceof Error
+          ? reason.message
+          : "Output language could not be saved.",
+      );
+    } finally {
+      setSavingLanguage(false);
+    }
+  };
   return (
     <div className="settings-stack">
+      <Panel title="Output language">
+        <label className="field">
+          Preferred output language
+          <select
+            aria-label="Preferred output language"
+            value={settings.data.general.output_language}
+            disabled={savingLanguage}
+            onChange={(event) =>
+              saveLanguage(event.target.value as "zh-CN" | "en")}
+          >
+            <option value="zh-CN">Chinese (Simplified)</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <p>
+          New processing batches use this language for generated output. Existing Summary, Evidence, Intelligence, Topic, and historical records stay unchanged.
+        </p>
+        <p className="hint">
+          {settings.data.general.output_language_source === "USER_PREFERENCE"
+            ? "Saved locally on this Mac."
+            : "Using the app default until you choose a preference."}
+        </p>
+        {languageError ? <p className="form-error">{languageError}</p> : null}
+      </Panel>
       <Panel title="Preference Center">
         <p className="hint">
           Explicit means you directly chose it. Derived means the app inferred

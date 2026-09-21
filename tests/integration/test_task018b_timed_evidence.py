@@ -31,7 +31,7 @@ NOW = datetime(2026, 9, 12, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     return repository
 
 
@@ -68,7 +68,7 @@ def _timed(repository: SQLiteStateRepository, *, video_id: str = "video-018b") -
     return artifact_id, timed.timed_transcript_id
 
 
-def test_v014_upgrade_reaches_v16_without_backfilling_legacy_evidence(
+def test_v014_upgrade_reaches_v19_without_backfilling_legacy_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
@@ -84,8 +84,31 @@ def test_v014_upgrade_reaches_v16_without_backfilling_legacy_evidence(
         lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT, role=EvidenceRole.PRIMARY_ORIGINAL,
         language="en", availability=EvidenceAvailability.AVAILABLE,
     )
-    repository.create_evidence(evidence, now=NOW)
-    assert repository.initialize(now=NOW).version == 16
+    connection = repository._connect()
+    try:
+        connection.execute(
+            """
+            INSERT INTO evidence (
+                evidence_id, video_id, artifact_id, start_ms, end_ms,
+                lineage_kind, role, language, availability, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                evidence.evidence_id,
+                evidence.video_id,
+                evidence.artifact_id,
+                evidence.start_ms,
+                evidence.end_ms,
+                evidence.lineage_kind.value,
+                evidence.role.value,
+                evidence.language,
+                evidence.availability.value,
+                "2026-09-12T09:00:00.000000Z",
+            ),
+        )
+    finally:
+        connection.close()
+    assert repository.initialize(now=NOW).version == 19
     assert repository.resolve_verified_evidence_text(evidence.evidence_id) is None
 
 

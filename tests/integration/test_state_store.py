@@ -85,6 +85,7 @@ EXPECTED_TABLES = {
     "artifacts",
     "channel_cursors",
     "deep_analysis_persisted_results",
+    "current_content_summaries",
     "distillation_cards",
     "distillation_execution_checkpoints",
     "distillation_resource_usage",
@@ -104,6 +105,7 @@ EXPECTED_TABLES = {
     "weekly_brief_preference_projections",
     "brief_item_markers",
     "global_model_preferences",
+    "global_user_settings",
     "evidence",
     "intelligences",
     "intelligence_revisions",
@@ -145,6 +147,8 @@ EXPECTED_COLUMNS = {
         "end_cue_index", "excerpt", "excerpt_hash", "timed_transcript_hash",
         "created_at",
     ),
+    "global_user_settings": ("settings_key", "output_language", "updated_at"),
+    "current_content_summaries": ("video_id", "result_identity", "updated_at"),
     "schema_migrations": ("version", "name", "checksum", "applied_at"),
     "videos": (
         "video_id",
@@ -809,12 +813,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "016_add_ambiguous_resource_ledger_outcome.sql")
+        .joinpath("migrations", "019_add_evidence_excerpt_stance.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 16
-    assert first.name == "016_add_ambiguous_resource_ledger_outcome.sql"
+    assert first.version == 19
+    assert first.name == "019_add_evidence_excerpt_stance.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -829,7 +833,52 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 16
+    assert migration_count == 19
+
+
+def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        evidence_columns = {
+            row["name"] for row in connection.execute('PRAGMA table_info("evidence")')
+        }
+        relation_columns = {
+            row["name"]
+            for row in connection.execute(
+                'PRAGMA table_info("intelligence_revision_evidence")'
+            )
+        }
+    assert "source_excerpt" in evidence_columns
+    assert "stance" in relation_columns
+
+
+def test_global_output_language_persists_and_rejects_unsupported_values(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+
+    assert repository.get_global_user_settings() is None
+
+    saved = repository.save_global_output_language(
+        output_language="en", now=NOW
+    )
+    assert saved.output_language == "en"
+    assert repository.get_global_user_settings() == saved
+
+    replaced = repository.save_global_output_language(
+        output_language="zh-CN", now=NOW + td(minutes=1)
+    )
+    assert replaced.output_language == "zh-CN"
+    assert repository.get_global_user_settings() == replaced
+
+    with pytest.raises(ValueError, match="output language is unsupported"):
+        repository.save_global_output_language(
+            output_language="fr", now=NOW + td(minutes=2)
+        )
 
 
 def test_file_database_enforces_required_pragmas_and_wal(tmp_path: Path) -> None:
@@ -873,6 +922,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
     assert actual_columns == EXPECTED_COLUMNS
     assert explicit_indexes == {
         "idx_saved_intelligences_order",
+        "idx_current_content_summaries_result",
         "idx_artifacts_retention",
         "idx_artifacts_video_kind_created",
         "idx_brief_item_markers_item",

@@ -113,7 +113,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     return repository
 
 
@@ -221,7 +221,14 @@ def _raw(evidence_id: str, *, claim_kind: str = "EVIDENCE_BACKED_STATEMENT") -> 
             "meaningful_details": ["Evidence is retained."],
             "filtered_noise": ["Sponsor omitted."],
             "claim_kind": claim_kind,
-            "evidence": [{"evidence_id": evidence_id, "start_ms": 1_000, "end_ms": 1_500}],
+            "evidence": [
+                {
+                    "evidence_id": evidence_id,
+                    "start_ms": 1_000,
+                    "end_ms": 1_500,
+                    "stance": "supporting",
+                }
+            ],
         },
         separators=(",", ":"),
     )
@@ -344,7 +351,7 @@ def test_reopen_continues_only_from_persisted_reservation_state(tmp_path: Path) 
         source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 16
+    assert reopened.initialize(now=NOW).version == 19
     transport = _Transport(_raw(evidence_id))
 
     result = _service(reopened, transport).continue_reserved_distillation(reservation.execution_id)
@@ -526,10 +533,15 @@ def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_pat
     assert alternate_transport.calls == 0
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
     assert "013_add_weekly_brief_foundation.sql" in migrations
-    assert any(name.startswith("015_") for name in migrations)
-    assert any(name.startswith("016_") for name in migrations)
+    assert {
+        "015_add_timed_transcript_evidence_bindings.sql",
+        "016_add_ambiguous_resource_ledger_outcome.sql",
+        "017_add_current_content_summary.sql",
+        "018_add_global_output_language.sql",
+        "019_add_evidence_excerpt_stance.sql",
+    } <= set(migrations)

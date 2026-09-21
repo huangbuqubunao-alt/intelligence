@@ -48,6 +48,7 @@ from youtube_intel.domain import (
     ScoringEvidenceSource,
     ScoringInput,
     ScoringOutcome,
+    ScoringOutputLanguage,
     SourceProvider,
     TranscriptionRequired,
     TranscriptReady,
@@ -84,6 +85,7 @@ from youtube_intel.h2_evidence import (
 from youtube_intel.h2_jcs import jcs_loads_strict
 from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
+from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.pipeline import PipelineOrchestrator, StageDisposition
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
@@ -263,16 +265,19 @@ def _build_quality_provenance_authority(
     )
 
 
-def _build_trusted_scoring_context(config: AppConfig) -> TrustedScoringContext:
-    """Mint scoring provenance from the validated runtime configuration only."""
+def _build_trusted_scoring_context(
+    config: AppConfig, output_language: ScoringOutputLanguage | None = None
+) -> TrustedScoringContext:
+    """Mint one batch-stable scoring context from config + effective preference."""
 
     local_scoring = config.settings.local_scoring
+    effective_language = output_language or config.settings.general.output_language
     return _mint_trusted_scoring_context(
         sentinel=_TRUSTED_SCORING_CONTEXT_SENTINEL,
         scoring_provider=_JUDGE_PROVIDER,
         scoring_model=local_scoring.model,
         scoring_model_digest=local_scoring.expected_model_digest,
-        output_language=config.settings.general.output_language,
+        output_language=effective_language,
         scoring_schema_version=_SCORING_SCHEMA_VERSION,
         scoring_prompt_version=_SCORING_PROMPT_VERSION,
         scoring_operation=_SCORING_OPERATION,
@@ -407,7 +412,16 @@ class RuntimeOperations(Operations):
         self._quality_provenance_authority = _build_quality_provenance_authority(
             config.settings.local_scoring
         )
-        self._trusted_scoring_context = _build_trusted_scoring_context(config)
+        self._output_language_service = OutputLanguagePreferenceService(
+            self._repository,
+            bootstrap_default=config.settings.general.output_language,
+        )
+        self._effective_output_language = (
+            self._output_language_service.effective().value
+        )
+        self._trusted_scoring_context = _build_trusted_scoring_context(
+            config, self._effective_output_language
+        )
         self._discovery = DiscoveryService(
             self._dependencies.discovery_source,
             self._repository,
@@ -1213,11 +1227,20 @@ class RuntimeOperations(Operations):
             summary_threshold=self._config.settings.thresholds.summary_score,
             pipeline_version=PIPELINE_VERSION,
             current_model=self._config.settings.local_scoring.model,
-            current_output_language=self._config.settings.general.output_language,
         )
 
     def _load_scoring(self, video_id: str) -> ScoringOutcome:
         return self._scoring_reader().read(video_id).scoring_outcome
+
+    def _downstream_output_language(
+        self, video_id: str
+    ) -> ScoringOutputLanguage:
+        """Once scoring succeeds, downstream generation keeps that language."""
+
+        language = self._load_scoring(video_id).result.output_language
+        if language not in {"zh-CN", "en"}:
+            raise ValueError("authoritative scoring language is unsupported")
+        return language
 
     def _load_analysis(self, video_id: str) -> AnalysisOutcome:
         if not self._config.settings.cloud.enabled:
@@ -1315,12 +1338,11 @@ class RuntimeOperations(Operations):
                 artifact,
                 max_bytes=4_000_000,
             ).decode("utf-8")
-            configured_output_language = self._config.settings.general.output_language
             scoring_input = build_scoring_input(
                 video=video,
                 transcript_text=text,
                 language=transcript.language,
-                output_language=configured_output_language,
+                output_language=self._effective_output_language,
                 settings=self._config.settings.local_scoring,
             )
             admission = self._scoring_admission_for(job.job_id)
@@ -2359,6 +2381,7 @@ class RuntimeOperations(Operations):
             text = self._verified_artifact(artifact, max_bytes=4_000_000).decode(
                 "utf-8"
             )
+            scoring_language = self._downstream_output_language(video.video_id)
             return RepositoryBackedAnalysisService(
                 provider=self._dependencies.analysis_provider_factory(),
                 settings=self._config.settings.cloud,
@@ -2373,7 +2396,7 @@ class RuntimeOperations(Operations):
                 video=video,
                 transcript_text=text,
                 language=transcript.language,
-                output_language=self._config.settings.general.output_language,
+                output_language=scoring_language,
             )
 
         def note_stage(job: JobRecord, record: VideoRecord) -> None:
@@ -2464,8 +2487,18 @@ class RuntimeOperations(Operations):
             ),
         )
 
+    def _refresh_output_language_for_new_batch(self) -> None:
+        """Freeze the latest preference for the next processing batch only."""
+
+        effective = self._output_language_service.effective().value
+        self._effective_output_language = effective
+        self._trusted_scoring_context = _build_trusted_scoring_context(
+            self._config, effective
+        )
+
     def process(self, *, video: str | None, resume: bool) -> CommandOutcome:
         del resume
+        self._refresh_output_language_for_new_batch()
         selected: tuple[VideoRecord, ...]
         if video is not None:
             candidate = self._repository.get_video(video)
@@ -2615,7 +2648,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 16:
+        if integrity != ("ok",) or version != 19:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)

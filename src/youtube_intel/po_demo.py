@@ -599,7 +599,12 @@ def _seed_verified_intelligence(
             "filtered_noise": ["Qualification transcript body intentionally excluded."],
             "claim_kind": case.claim_kind.value,
             "evidence": [
-                {"evidence_id": evidence_id, "start_ms": 18_000, "end_ms": 42_000}
+                {
+                    "evidence_id": evidence_id,
+                    "start_ms": 18_000,
+                    "end_ms": 42_000,
+                    "stance": "supporting",
+                }
             ],
         },
         separators=(",", ":"),
@@ -716,9 +721,34 @@ def _seed_weekly_correction(
 ) -> None:
     """Create a later legal revision and let TASK-025 add its marker."""
 
-    verified = AuthoritativeIntelligenceReader(repository).read_current(intelligence_id)
+    card = AuthoritativeIntelligenceReader(repository).read_current_card(intelligence_id)
+    verified = card.verified
     prior = repository.get_intelligence_revision(verified.revision_id)
     assert prior is not None
+    legacy_evidence = []
+    for evidence_id in verified.evidence_ids:
+        evidence = repository.get_evidence(evidence_id)
+        assert evidence is not None
+        legacy_evidence.append(
+            {
+                "evidence_id": evidence_id,
+                "start_ms": evidence.start_ms,
+                "end_ms": evidence.end_ms,
+            }
+        )
+    legacy_content = json.dumps(
+        {
+            "core_conclusion": card.core_conclusion,
+            "user_relevant_information": list(card.user_relevant_information),
+            "important_new_information": list(card.important_new_information),
+            "meaningful_details": list(card.meaningful_details),
+            "filtered_noise": list(card.filtered_noise),
+            "claim_kind": verified.claim_kind.value,
+            "evidence": legacy_evidence,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     revision_id = "po-demo-weekly-correction"
     corrected_at = _NOW + timedelta(days=7)
     repository.append_intelligence_revision(
@@ -727,7 +757,7 @@ def _seed_weekly_correction(
             revision_id=revision_id,
             interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
             claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
-            content_hash=prior.content_hash,
+            content_hash=hashlib.sha256(legacy_content).hexdigest(),
             state=IntelligenceState.UPDATED,
             reason="Synthetic correction after the frozen Weekly snapshot.",
             evidence_ids=verified.evidence_ids,
@@ -1332,7 +1362,6 @@ def _open_demo(root: Path) -> DemoRuntime:
         summary_threshold=7.0,
         pipeline_version=_PIPELINE_VERSION,
         current_model=_MODEL,
-        current_output_language="zh-CN",
     )
     application = LocalApiApplication(
         repository,

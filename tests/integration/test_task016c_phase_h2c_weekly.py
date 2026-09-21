@@ -139,7 +139,6 @@ def _authoritative_reader(repository: Any, data_root: Path) -> AuthoritativeScor
         summary_threshold=7.0,
         pipeline_version=_PIPELINE_VERSION,
         current_model=_MODEL,
-        current_output_language="en",
     )
 
 

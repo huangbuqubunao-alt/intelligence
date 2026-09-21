@@ -106,6 +106,7 @@ class _Transport:
                             "evidence_id": evidence_id,
                             "start_ms": 1_000,
                             "end_ms": 1_500,
+                            "stance": "supporting",
                         }
                     ],
                 },
@@ -140,7 +141,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 16
+    assert repository.initialize(now=NOW).version == 19
     return repository
 
 
@@ -440,6 +441,7 @@ def _nvidia_success_response(request: object) -> dict[str, object]:
                                     "evidence_id": evidence["evidence_id"],
                                     "start_ms": evidence["start_ms"],
                                     "end_ms": evidence["end_ms"],
+                                    "stance": "supporting",
                                 }
                             ],
                         },
@@ -498,7 +500,7 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
 
     assert service.resume(run.run_id) == completed
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 16
+    assert reopened.initialize(now=NOW).version == 19
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == completed
     assert credential_resolutions == 1
@@ -627,7 +629,7 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 16
+    assert reopened.initialize(now=NOW).version == 19
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
@@ -648,7 +650,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 16
+    assert reopened.initialize(now=NOW).version == 19
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -859,7 +861,7 @@ def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Pa
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 19
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
@@ -867,6 +869,11 @@ def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Pa
     assert "013_add_weekly_brief_foundation.sql" in migrations
     assert "015_add_timed_transcript_evidence_bindings.sql" in migrations
     assert "016_add_ambiguous_resource_ledger_outcome.sql" in migrations
+    assert {
+        "017_add_current_content_summary.sql",
+        "018_add_global_output_language.sql",
+        "019_add_evidence_excerpt_stance.sql",
+    } <= set(migrations)
 
 
 def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
@@ -983,7 +990,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 16
+    assert reopened.initialize(now=NOW).version == 19
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)
