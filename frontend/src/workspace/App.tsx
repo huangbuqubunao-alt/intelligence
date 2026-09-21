@@ -343,6 +343,28 @@ function Claim({ kind }: { kind: string }) {
   };
   return <Status value={labels[kind] ?? kind} />;
 }
+export function intelligenceValidationCopy(state: string) {
+  return ({
+    NEW:
+      "New Intelligence. It has not reached a confirmed validation state yet.",
+    PENDING_CONFIRMATION:
+      "Still needs validation. Review the cited Evidence before relying on it.",
+    CONFIRMED: "Current trusted state: confirmed.",
+    DISPUTED:
+      "Still needs validation. Conflicting Evidence or interpretation remains unresolved.",
+    UPDATED:
+      "Updated. This is the current revision; older revisions are historical.",
+  } as Record<string, string>)[state] ?? "Validation state is unavailable.";
+}
+function intelligenceStateLabel(state?: string) {
+  return ({
+    NEW: "New",
+    PENDING_CONFIRMATION: "Pending confirmation",
+    CONFIRMED: "Confirmed",
+    DISPUTED: "Disputed",
+    UPDATED: "Updated",
+  } as Record<string, string>)[state ?? ""] ?? "Validation state unavailable";
+}
 function filterReason(reason?: string) {
   return ({
     IGNORE_RULE_MATCH: "Excluded by your ignore rules.",
@@ -623,8 +645,15 @@ function IntelligenceCard(
         : null}
       <div className="reading-meta" aria-label="Claim type and current state">
         <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
-        <Status value={item.state ?? "AVAILABLE"} />
+        <Status value={intelligenceStateLabel(item.state)} />
       </div>
+      <section className="intelligence-section">
+        <h3>Validation posture</h3>
+        <p>{intelligenceValidationCopy(item.state ?? "")}</p>
+        <p className="hint">
+          This is a validation posture, not a numeric confidence score.
+        </p>
+      </section>
       <Evidence item={item} onOpenContent={onOpenContent} />
       <button
         className="button button-secondary"
