@@ -51,7 +51,12 @@ _SAFE_HOST_RE: Final = re.compile(
 )
 _USER_AGENT: Final = "youtube-intel/0.1 (+local subtitle fetch; no media)"
 _READ_CHUNK_BYTES: Final = 64 * 1024
+_MAX_LANGUAGE_BUCKET_COUNT: Final = 512
+# yt-dlp lists unsupported output formats alongside the three formats accepted
+# by this adapter. Keep the accepted resource bound frozen while bounding the
+# larger raw directory scan independently.
 _MAX_TRACK_COUNT: Final = 512
+_MAX_DIRECTORY_ENTRY_COUNT: Final = 4_096
 _MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
 _MAX_LANGUAGE_CODE_POINTS: Final = 128
 _MAX_EXTENSION_CODE_POINTS: Final = 32
@@ -828,6 +833,7 @@ def _map_directory(
     *,
     source_type: TranscriptSourceType,
     start_position: int,
+    start_track_count: int,
     start_bucket_count: int,
     video_id: str,
     manual_directory: _DirectoryShape,
@@ -886,7 +892,7 @@ def _map_directory(
                 _TrackEntryShape.NOT_EVALUATED,
                 _RequiredMembersShape.NOT_EVALUATED,
             )
-            if bucket_count > _MAX_TRACK_COUNT:
+            if bucket_count > _MAX_LANGUAGE_BUCKET_COUNT:
                 raise _directory_structure_error(
                     _DirectoryStructureState.UNKNOWN,
                     _DIRECTORY_UNKNOWN_DIAGNOSTIC,
@@ -939,11 +945,11 @@ def _map_directory(
                     _TrackEntryShape.UNKNOWN,
                     _RequiredMembersShape.NOT_EVALUATED,
                 )
-                if position >= _MAX_TRACK_COUNT:
+                if position >= _MAX_DIRECTORY_ENTRY_COUNT:
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
                         _DIRECTORY_UNKNOWN_DIAGNOSTIC,
-                        "subtitle track directory exceeds its track limit",
+                        "subtitle track directory exceeds its entry limit",
                         video_id=video_id,
                         contract_state=contract_state,
                     )
@@ -1064,6 +1070,14 @@ def _map_directory(
                 source_format = _format_from_extension(raw_extension)
                 if source_format is None:
                     continue
+                if start_track_count + len(tracks) >= _MAX_TRACK_COUNT:
+                    raise _directory_structure_error(
+                        _DirectoryStructureState.UNKNOWN,
+                        _DIRECTORY_UNKNOWN_DIAGNOSTIC,
+                        "subtitle track directory exceeds its supported track limit",
+                        video_id=video_id,
+                        contract_state=contract_state,
+                    )
                 tracks.append(
                     SubtitleTrack(
                         source_type=source_type,
@@ -1405,6 +1419,7 @@ class YtDlpSubtitleAdapter:
                 manual_payload,
                 source_type=TranscriptSourceType.MANUAL_SUBTITLE,
                 start_position=0,
+                start_track_count=0,
                 start_bucket_count=0,
                 video_id=video_id,
                 manual_directory=manual_shape,
@@ -1414,6 +1429,7 @@ class YtDlpSubtitleAdapter:
                 automatic_payload,
                 source_type=TranscriptSourceType.AUTO_SUBTITLE,
                 start_position=manual.next_position,
+                start_track_count=len(manual.tracks),
                 start_bucket_count=manual.bucket_count,
                 video_id=video_id,
                 manual_directory=manual_shape,

@@ -842,6 +842,82 @@ def test_directory_track_count_accepts_512_and_rejects_513() -> None:
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
 
 
+def test_directory_track_count_is_cumulative_across_caption_sources() -> None:
+    at_boundary, _ = _adapter_for_info(
+        {
+            "id": "video123",
+            "subtitles": {"en": [_directory_entry()] * 256},
+            "automatic_captions": {"en": [_directory_entry()] * 256},
+        }
+    )
+    assert len(at_boundary.enumerate_tracks("video123").tracks) == 512
+
+    over_boundary, _ = _adapter_for_info(
+        {
+            "id": "video123",
+            "subtitles": {"en": [_directory_entry()] * 256},
+            "automatic_captions": {"en": [_directory_entry()] * 257},
+        }
+    )
+    with pytest.raises(TranscriptError) as exc_info:
+        over_boundary.enumerate_tracks("video123")
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+def test_directory_track_limit_counts_only_supported_ytdlp_formats() -> None:
+    formats = ("json3", "srv1", "srv2", "srv3", "ttml", "vtt", "srt")
+    automatic_captions = {
+        f"lang-{index}": [
+            _directory_entry(source_format=source_format)
+            for source_format in formats
+        ]
+        for index in range(157)
+    }
+    adapter, _ = _adapter_for_info(
+        {
+            "id": "video123",
+            "subtitles": {},
+            "automatic_captions": automatic_captions,
+        }
+    )
+
+    listing = adapter.enumerate_tracks("video123")
+
+    assert len(listing.tracks) == 471
+    assert {track.source_format for track in listing.tracks} == {
+        SubtitleFormat.JSON3,
+        SubtitleFormat.VTT,
+        SubtitleFormat.SRT,
+    }
+    assert listing.tracks[-1].provider_position == 1_098
+
+
+def test_directory_raw_entry_scan_remains_finitely_bounded() -> None:
+    at_boundary, _ = _adapter_for_info(
+        _directory_payload(
+            [
+                *[_directory_entry(source_format="ttml")] * 4_095,
+                _directory_entry(source_format="json3"),
+            ]
+        )
+    )
+    listing = at_boundary.enumerate_tracks("video123")
+    assert len(listing.tracks) == 1
+    assert listing.tracks[0].provider_position == 4_095
+
+    over_boundary, _ = _adapter_for_info(
+        _directory_payload(
+            [
+                *[_directory_entry(source_format="ttml")] * 4_096,
+                _directory_entry(source_format="json3"),
+            ]
+        )
+    )
+    with pytest.raises(TranscriptError) as exc_info:
+        over_boundary.enumerate_tracks("video123")
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
 def test_structurally_invalid_unsupported_track_invalidates_mixed_directory() -> None:
     payload = _directory_payload(
         [
