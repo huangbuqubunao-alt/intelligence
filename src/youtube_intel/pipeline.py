@@ -130,8 +130,32 @@ class PipelineOrchestrator:
         self.planner.ensure_next_job(video_id, now=timestamp)
         self._drain(timestamp, video_id=video_id)
 
-    def _drain(self, now: datetime, *, video_id: str | None = None) -> None:
+    def resume_video_through_transcript(
+        self, video_id: str, *, now: datetime | None = None
+    ) -> None:
+        """Run only the ingestion stages needed to persist a transcript body."""
+
+        timestamp = self._now(now)
+        self.planner.recover(now=timestamp)
+        self.planner.ensure_next_job(video_id, now=timestamp)
+        self._drain(
+            timestamp,
+            video_id=video_id,
+            stop_at_status=PipelineStatus.TRANSCRIPT_READY,
+        )
+
+    def _drain(
+        self,
+        now: datetime,
+        *,
+        video_id: str | None = None,
+        stop_at_status: PipelineStatus | None = None,
+    ) -> None:
         while True:
+            if video_id is not None and stop_at_status is not None:
+                current = self.repository.get_video(video_id)
+                if current is not None and current.pipeline_status is stop_at_status:
+                    return
             claimed = self.repository.claim_next_job(
                 owner=self.owner,
                 lease_until=now + timedelta(seconds=self.lease_seconds),

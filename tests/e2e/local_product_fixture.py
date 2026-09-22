@@ -13,10 +13,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+from youtube_intel.distillation import (
+    BudgetDecision,
+    DistillationCommand,
+    DistillationTransportResult,
+    PersonalizedDistillationService,
+)
 from youtube_intel.domain import Availability, LiveStatus, VideoMetadata
 from youtube_intel.local_api import LocalApiApplication, serve_loopback
 from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
 from youtube_intel.scoring import AuthoritativeScoringReader
+from youtube_intel.source_policy import SourcePolicyApplicationService
 from youtube_intel.state import SQLiteStateRepository
 
 _NOW = datetime(2026, 9, 1, tzinfo=UTC)
@@ -41,6 +49,23 @@ class _FixtureVerifiedReader:
             ),
             scoring_success_provenance="VERIFIED_FIXTURE",
         )
+
+
+class _UnavailableTransport:
+    is_offline_test_transport = True
+    available = False
+    actual_provider = "offline-e2e"
+    actual_model = "unavailable"
+
+    def generate(self, command: DistillationCommand) -> DistillationTransportResult:
+        del command
+        raise AssertionError("browser fixture must not dispatch a model")
+
+
+class _FixtureBudget:
+    def check(self, command: DistillationCommand) -> BudgetDecision:
+        del command
+        return BudgetDecision(allowed=True, state="FIXTURE_ADMITTED")
 
 
 def main() -> None:
@@ -86,11 +111,30 @@ def main() -> None:
         pipeline_version="fixture-v1",
         now=_NOW,
     )
-    service = ProductOrchestrationService(repository, now=lambda: _NOW)
+    source_policy = SourcePolicyApplicationService(repository, now=lambda: _NOW)
+    distillation = PersonalizedDistillationService(
+        repository,
+        source_policy,
+        _UnavailableTransport(),
+        _FixtureBudget(),
+        now=lambda: _NOW,
+    )
+    orchestrator = DurableProcessingOrchestrator(
+        repository,
+        source_policy=source_policy,
+        distillation=distillation,
+        now=lambda: _NOW,
+    )
+    service = ProductOrchestrationService(
+        repository,
+        source_run_submitter=orchestrator,
+        now=lambda: _NOW,
+    )
     application = LocalApiApplication(
         repository,
         service,
         scoring_reader=cast(AuthoritativeScoringReader, _FixtureVerifiedReader()),
+        processing_orchestrator=orchestrator,
         timezone="Asia/Shanghai",
         now=lambda: _NOW,
     )

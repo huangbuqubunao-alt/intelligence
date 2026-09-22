@@ -1674,6 +1674,7 @@ function SourceDetail(
     onRefresh: () => void;
   },
 ) {
+  const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<
     {
       source: Source;
@@ -1687,37 +1688,57 @@ function SourceDetail(
       }[];
       source_runs: SourceRun[];
     }
-  >(`/sources/${id}`, 0);
+  >(`/sources/${id}`, refresh);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    if (
+      !data?.source_runs.some((run) =>
+        ["QUEUED", "RUNNING", "WAITING", "PARTIAL"].includes(run.state)
+      )
+    ) return;
+    const timer = window.setTimeout(() => setRefresh((value) => value + 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
   const check = async () => {
-    const result = await post<
-      { source_run?: SourceRun; status?: string; message?: string }
-    >(`/sources/${id}/check`, { command_id: commandId() });
-    if (result.source_run) {
+    if (checking || !data.source.enabled) return;
+    setChecking(true);
+    try {
+      const result = await post<
+        { source_run?: SourceRun; status?: string; message?: string }
+      >(`/sources/${id}/check`, { command_id: commandId() });
+      if (result.source_run) {
+        setMessage(
+          "Your durable Source Run was accepted. Progress and any required attention appear below.",
+        );
+        setRefresh((value) => value + 1);
+        return;
+      }
+      if (result.status === "BLOCKED") {
+        setMessage(
+          "This Following is disabled, so no new Source Run was started. Resume monitoring before checking again.",
+        );
+        return;
+      }
+      if (result.status === "FAILED_FINAL") {
+        setMessage(
+          "The Source check did not complete. Your Source configuration and existing Intelligence are unchanged.",
+        );
+        return;
+      }
       setMessage(
-        "Your check was accepted and is waiting to run. Review this Source for its current progress.",
+        "The Source check completed. Review recent videos and Source status for the outcome.",
       );
-      onRefresh();
-      return;
-    }
-    if (result.status === "BLOCKED") {
+    } catch {
       setMessage(
-        "Check Now cannot start in this local demo because processing is intentionally disabled. No Source Run was created and your existing data is unchanged.",
+        "The Source Run could not be submitted. No completion was recorded; try again after checking local service availability.",
       );
-      return;
+    } finally {
+      setChecking(false);
     }
-    if (result.status === "FAILED_FINAL") {
-      setMessage(
-        "The Source check did not complete. Your Source configuration and existing Intelligence are unchanged.",
-      );
-      return;
-    }
-    setMessage(
-      "The Source check completed. Review recent videos and Source status for the outcome.",
-    );
   };
   return (
     <div className="overlay">
@@ -1806,15 +1827,21 @@ function SourceDetail(
               </Empty>
             )}
         </Panel>
-        <button className="button button-primary" onClick={check}>
-          Check Now
+        <button
+          className="button button-primary"
+          onClick={check}
+          disabled={checking || !data.source.enabled}
+          aria-busy={checking}
+        >
+          {checking ? "Starting Source Run…" : "Check Now"}
         </button>
         <p className="hint">
-          Checks follow the existing safe processing path. This is not a retry
-          action.
+          {data.source.enabled
+            ? "Checks enter the durable processing path. Repeated clicks reuse active work."
+            : "Resume monitoring to start a new check. Historical data remains available."}
         </p>
         {message && (
-          <div className="semantic-state state-neutral">
+          <div className="semantic-state state-neutral" role="status" aria-live="polite">
             <p>{message}</p>
           </div>
         )}

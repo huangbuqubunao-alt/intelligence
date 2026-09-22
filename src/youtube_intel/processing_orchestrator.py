@@ -57,6 +57,16 @@ class SourceRunDiscovery(Protocol):
     def discover(self, source_id: str) -> tuple[MetadataFilterCandidate, ...]: ...
 
 
+class SourceRunIngestion(Protocol):
+    """Persist one bounded provider ingestion before durable candidate reads."""
+
+    def ingest(self, source_id: str) -> None: ...
+
+
+class SourceRunDiscoveryError(RuntimeError):
+    """A bounded production ingestion attempt failed before durable discovery."""
+
+
 @dataclass(frozen=True, slots=True)
 class TopicAssociationUpdater:
     """Delegate one configured association to the trusted TASK-023 service.
@@ -120,6 +130,7 @@ class DurableProcessingOrchestrator:
         source_policy: SourcePolicyApplicationService,
         distillation: PersonalizedDistillationService,
         discovery: SourceRunDiscovery | None = None,
+        ingestion: SourceRunIngestion | None = None,
         topic_updater: TopicAssociationUpdater | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
@@ -127,6 +138,7 @@ class DurableProcessingOrchestrator:
         self._source_policy = source_policy
         self._distillation = distillation
         self._discovery = discovery or PersistedSourceRunDiscovery(repository)
+        self._ingestion = ingestion
         if topic_updater is not None and not isinstance(
             topic_updater, TopicAssociationUpdater
         ):
@@ -141,7 +153,7 @@ class DurableProcessingOrchestrator:
         command_id: str,
         priority: SourceRunPriority = SourceRunPriority.P0,
     ) -> SourceRunRecord:
-        return self._admit(
+        return self._repository.create_or_reuse_active_manual_source_run(
             SourceRunWrite.manual_check_now(
                 source_id=source_id,
                 command_id=command_id,
@@ -233,6 +245,15 @@ class DurableProcessingOrchestrator:
         queued = self.queued_runs(limit=1)
         return None if not queued else self.resume(queued[0].run_id)
 
+    def interrupted_runs(self) -> tuple[SourceRunRecord, ...]:
+        """Return runs left RUNNING by an interrupted owning API process."""
+
+        return tuple(
+            run
+            for run in self._repository.list_source_runs()
+            if run.state is SourceRunState.RUNNING
+        )
+
     def resume(self, run_id: str) -> SourceRunRecord:
         """Continue exactly the next legal persisted Source Run stage.
 
@@ -272,7 +293,15 @@ class DurableProcessingOrchestrator:
             if checkpoint is None:
                 return self.get_run(run.run_id)
             if checkpoint is SourceRunCheckpoint.DISCOVERY:
-                self._discover_candidates(run)
+                try:
+                    if self._ingestion is not None:
+                        self._ingestion.ingest(run.source_id)
+                    self._discover_candidates(run)
+                except SourceRunDiscoveryError:
+                    return self._needs_attention(
+                        run,
+                        reason=SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED,
+                    )
                 self._complete_checkpoint(run, checkpoint)
             elif checkpoint is SourceRunCheckpoint.SELECTION:
                 self._selected_candidates(run)

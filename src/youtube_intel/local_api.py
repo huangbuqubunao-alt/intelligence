@@ -364,6 +364,8 @@ class LocalApiApplication:
         timezone: str = "Asia/Shanghai",
         output_language_default: ScoringOutputLanguage = "zh-CN",
         now: Callable[[], datetime] | None = None,
+        source_run_wakeup: Callable[[], None] | None = None,
+        nvidia_distillation_available: bool | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
     ) -> None:
@@ -378,6 +380,8 @@ class LocalApiApplication:
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._source_run_wakeup = source_run_wakeup
+        self._nvidia_distillation_available = nvidia_distillation_available
         self._output_language_service = OutputLanguagePreferenceService(
             repository,
             bootstrap_default=output_language_default,
@@ -999,15 +1003,18 @@ class LocalApiApplication:
                 and route.startswith("/api/v1/sources/")
             ):
                 source_id = route.split("/")[-2]
-                if self._processing_orchestrator is not None:
-                    self._only_keys(data, {"command_id"})
-                    run = self._processing_orchestrator.enqueue_manual_check_now(
-                        source_id=source_id,
-                        command_id=self._string(data, "command_id", required=True)
-                        or "",
-                    )
-                    return HTTPStatus.ACCEPTED, {"source_run": _source_run_dto(run)}
-                result = self._service.check_source(source_id)
+                self._only_keys(data, {"command_id"})
+                result = self._service.check_source(
+                    source_id,
+                    command_id=self._string(data, "command_id"),
+                )
+                if result.source_run is not None:
+                    if self._source_run_wakeup is not None:
+                        self._source_run_wakeup()
+                    return HTTPStatus.ACCEPTED, {
+                        "source_run": _source_run_dto(result.source_run),
+                        "message": result.safe_message,
+                    }
                 return HTTPStatus.OK, {
                     "status": result.status.value,
                     "message": result.safe_message,
@@ -1353,6 +1360,7 @@ class LocalApiApplication:
                     for item in provider_model_statuses(
                         None if preference is None else preference.desired_provider,
                         None if preference is None else preference.desired_model,
+                        nvidia_runtime_available=self._nvidia_distillation_available,
                     )
                 ],
             }

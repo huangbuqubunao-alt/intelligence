@@ -83,7 +83,48 @@ def test_unqualified_desired_model_never_becomes_active(tmp_path: Path) -> None:
 def test_scheduler_tick_cli_is_bounded_and_defaults_to_guarded_execution(
     tmp_path: Path,
 ) -> None:
+    (tmp_path / "config").mkdir()
+    (tmp_path / "vault").mkdir()
+    (tmp_path / "config" / "channels.yaml").write_text(
+        "channels:\n"
+        "  - channel_id: UC1234567890123456789012\n"
+        "    enabled: false\n"
+        "    priority: 1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "config" / "settings.yaml").write_text(
+        f"""\
+general:
+  transcript_languages: [en]
+local_scoring:
+  model: qwen3:8b
+  expected_model_digest: sha256:{"1" * 64}
+local_analysis:
+  model: qwen3:8b
+  expected_model_digest: sha256:{"1" * 64}
+cloud:
+  enabled: false
+storage:
+  data_dir: data
+  logs_dir: logs
+  templates_dir: templates
+  vault_root: {tmp_path / "vault"}
+  vault_subdir: YouTube Intel
+""",
+        encoding="utf-8",
+    )
     database = tmp_path / "tick.sqlite3"
     assert (
-        main(["scheduler-tick", "--database", str(database), "--limit", "1"]).value == 0
+        main(
+            [
+                "--project-root",
+                str(tmp_path),
+                "scheduler-tick",
+                "--database",
+                str(database),
+                "--limit",
+                "1",
+            ]
+        ).value
+        == 0
     )

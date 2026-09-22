@@ -259,7 +259,11 @@ def _video_with_evidence(
     timed = TimedTranscriptWrite.from_cues(
         video_id=video_id,
         canonical_artifact_id=artifact_id,
-        cues=(TimedTranscriptCueWrite(start_ms=1_000, end_ms=1_500, text="Fixture canonical evidence."),),
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=1_000, end_ms=1_500, text="Fixture canonical evidence."
+            ),
+        ),
     )
     repository.create_timed_transcript(timed, now=NOW)
     repository.create_evidence_with_text_binding(
@@ -376,9 +380,14 @@ def test_manual_scheduled_and_manual_analyze_use_one_durable_trigger_core(
     assert manual_analyze.trigger is SourceRunTrigger.MANUAL_ANALYZE_VIDEO
     assert manual_analyze.manual_analyze_override_id is not None
     assert manual_analyze.manual_command_id == "analyze-command"
-    assert service.enqueue_manual_check_now(
-        source_id=source_id, command_id="check-command", priority=SourceRunPriority.P0
-    ) == manual
+    assert (
+        service.enqueue_manual_check_now(
+            source_id=source_id,
+            command_id="check-command",
+            priority=SourceRunPriority.P0,
+        )
+        == manual
+    )
 
 
 def test_full_run_reserves_binds_continues_and_delegates_trusted_topic_update(
@@ -406,7 +415,10 @@ def test_full_run_reserves_binds_continues_and_delegates_trusted_topic_update(
     completed = service.resume(run.run_id)
 
     assert completed.state is SourceRunState.COMPLETED
-    assert repository.source_run_checkpoint_progress(run.run_id).completed == SOURCE_RUN_CHECKPOINT_ORDER
+    assert (
+        repository.source_run_checkpoint_progress(run.run_id).completed
+        == SOURCE_RUN_CHECKPOINT_ORDER
+    )
     child = repository.list_source_run_children(run.run_id)
     assert len(child) == 1
     assert child[0].video_id == video_id
@@ -537,7 +549,9 @@ def _nvidia_success_response(request: object) -> dict[str, object]:
     assert isinstance(request, dict)
     messages = request["messages"]
     assert isinstance(messages, list)
-    source = json.loads(messages[2]["content"].removeprefix("UNTRUSTED_SOURCE_EVIDENCE="))
+    source = json.loads(
+        messages[2]["content"].removeprefix("UNTRUSTED_SOURCE_EVIDENCE=")
+    )
     evidence = source["evidence"][0]
     return {
         "model": "moonshotai/kimi-k3",
@@ -595,7 +609,9 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
     )
     service = _orchestrator(repository, transport)  # type: ignore[arg-type]
     run = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="task-022d-success", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="task-022d-success",
+        priority=SourceRunPriority.P0,
     )
 
     completed = service.resume(run.run_id)
@@ -705,7 +721,9 @@ def test_authorization_cannot_bypass_budget_or_resolve_credential_early(
         budget=_Budget(allowed=False, state="EXHAUSTED"),
     )
     run = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="task-022d-budget", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="task-022d-budget",
+        priority=SourceRunPriority.P0,
     )
 
     blocked = service.resume(run.run_id)
@@ -735,13 +753,18 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     )
     service = _orchestrator(repository, transport)  # type: ignore[arg-type]
     run = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="task-022d-ambiguous", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="task-022d-ambiguous",
+        priority=SourceRunPriority.P0,
     )
 
     attention = service.resume(run.run_id)
 
     assert attention.state is SourceRunState.NEEDS_ATTENTION
-    assert attention.attention_reason is SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
+    assert (
+        attention.attention_reason
+        is SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
+    )
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
@@ -755,14 +778,16 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
-    source_id = _source(repository)
-    _video_with_evidence(repository, source_id)
+    low_source_id = _source(repository, suffix="priority-low")
+    high_source_id = _source(repository, suffix="priority-high")
+    _video_with_evidence(repository, low_source_id, suffix="priority-low")
+    _video_with_evidence(repository, high_source_id, suffix="priority-high")
     service = _orchestrator(repository, _Transport())
     low = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="low", priority=SourceRunPriority.P3
+        source_id=low_source_id, command_id="low", priority=SourceRunPriority.P3
     )
     high = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="high", priority=SourceRunPriority.P0
+        source_id=high_source_id, command_id="high", priority=SourceRunPriority.P0
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
@@ -782,7 +807,9 @@ def test_disabled_source_and_budget_block_are_durable_non_dispatch_states(
     source_id = _source(repository)
     _video_with_evidence(repository, source_id)
     transport = _Transport()
-    service = _orchestrator(repository, transport, budget=_Budget(allowed=False, state="EXHAUSTED"))
+    service = _orchestrator(
+        repository, transport, budget=_Budget(allowed=False, state="EXHAUSTED")
+    )
     run = service.enqueue_manual_check_now(
         source_id=source_id, command_id="budget", priority=SourceRunPriority.P0
     )
@@ -792,7 +819,10 @@ def test_disabled_source_and_budget_block_are_durable_non_dispatch_states(
     assert blocked.state is SourceRunState.NEEDS_ATTENTION
     assert blocked.attention_reason is SourceRunAttentionReason.BUDGET_BLOCKED
     assert transport.calls == 0
-    assert repository.list_source_run_children(run.run_id)[0].state is SourceRunChildState.WAITING
+    assert (
+        repository.list_source_run_children(run.run_id)[0].state
+        is SourceRunChildState.WAITING
+    )
     assert service.resume(run.run_id) == blocked
     assert transport.calls == 0
 
@@ -800,7 +830,9 @@ def test_disabled_source_and_budget_block_are_durable_non_dispatch_states(
     disabled_run = service.enqueue_manual_check_now(
         source_id=disabled, command_id="disabled", priority=SourceRunPriority.P0
     )
-    ProductOrchestrationService(repository, now=lambda: NOW).update_source(disabled, enabled=False)
+    ProductOrchestrationService(repository, now=lambda: NOW).update_source(
+        disabled, enabled=False
+    )
     result = service.resume(disabled_run.run_id)
     assert result.state is SourceRunState.NEEDS_ATTENTION
     assert result.attention_reason is SourceRunAttentionReason.USER_DECISION_REQUIRED
@@ -832,8 +864,14 @@ def test_skipped_and_manual_override_children_remain_distinct_and_manual_cannot_
     )
     attention = manual_service.resume(manual_run.run_id)
     assert attention.state is SourceRunState.NEEDS_ATTENTION
-    assert attention.attention_reason is SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
-    assert repository.list_source_run_children(manual_run.run_id)[0].state is SourceRunChildState.AMBIGUOUS
+    assert (
+        attention.attention_reason
+        is SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME
+    )
+    assert (
+        repository.list_source_run_children(manual_run.run_id)[0].state
+        is SourceRunChildState.AMBIGUOUS
+    )
     assert unknown_transport.calls == 1
     assert manual_service.resume(manual_run.run_id) == attention
     assert unknown_transport.calls == 1
@@ -860,7 +898,9 @@ def test_per_run_limit_preserves_overflow_for_a_later_bounded_run(
     newest, _ = _video_with_evidence(
         repository, source_id, suffix="new", published_at=NOW + timedelta(minutes=1)
     )
-    older, _ = _video_with_evidence(repository, source_id, suffix="old", published_at=NOW)
+    older, _ = _video_with_evidence(
+        repository, source_id, suffix="old", published_at=NOW
+    )
     # A completed initial history makes this a recurring Check Now, so the
     # per-run cap (rather than the initial-history cap) is the legal selector.
     repository.record_source_check(source_id, now=NOW, succeeded=True)
@@ -876,11 +916,16 @@ def test_per_run_limit_preserves_overflow_for_a_later_bounded_run(
     )
 
     assert service.resume(manual.run_id).state is SourceRunState.COMPLETED
-    assert [child.video_id for child in repository.list_source_run_children(manual.run_id)] == [newest]
+    assert [
+        child.video_id for child in repository.list_source_run_children(manual.run_id)
+    ] == [newest]
     assert service.resume(scheduled.run_id).state is SourceRunState.COMPLETED
     assert transport.calls == 2
     assert repository.source_has_video(source_id, older)
-    assert [child.video_id for child in repository.list_source_run_children(scheduled.run_id)] == [older]
+    assert [
+        child.video_id
+        for child in repository.list_source_run_children(scheduled.run_id)
+    ] == [older]
 
 
 def test_manual_and_schedule_overlap_never_create_a_second_provider_effect(
@@ -918,11 +963,16 @@ def test_one_source_run_preserves_distinct_completed_and_skipped_children(
     transport = _Transport()
     service = _orchestrator(repository, transport)
     run = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="partial-children", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="partial-children",
+        priority=SourceRunPriority.P0,
     )
 
     assert service.resume(run.run_id).state is SourceRunState.COMPLETED
-    children = {child.video_id: child for child in repository.list_source_run_children(run.run_id)}
+    children = {
+        child.video_id: child
+        for child in repository.list_source_run_children(run.run_id)
+    }
     assert children[completed_video].state is SourceRunChildState.COMPLETED
     assert children[skipped_video].state is SourceRunChildState.SKIPPED
     assert children[skipped_video].distillation_execution_id is None
@@ -932,7 +982,11 @@ def test_one_source_run_preserves_distinct_completed_and_skipped_children(
 @pytest.mark.parametrize(
     ("budget", "available", "reason"),
     [
-        (_Budget(allowed=False, state="EXHAUSTED"), True, SourceRunAttentionReason.BUDGET_BLOCKED),
+        (
+            _Budget(allowed=False, state="EXHAUSTED"),
+            True,
+            SourceRunAttentionReason.BUDGET_BLOCKED,
+        ),
         (_Budget(), False, SourceRunAttentionReason.MODEL_UNAVAILABLE),
     ],
 )
@@ -945,7 +999,9 @@ def test_manual_analyze_bypasses_relevance_only_not_budget_or_model_authorizatio
     repository = _repository(tmp_path)
     source_id = _source(repository)
     video_id, _ = _video_with_evidence(repository, source_id, title="sponsor update")
-    SourcePolicyApplicationService(repository, now=lambda: NOW).evaluate_and_record_stage_one(
+    SourcePolicyApplicationService(
+        repository, now=lambda: NOW
+    ).evaluate_and_record_stage_one(
         source_id,
         MetadataFilterCandidate(
             video_id=video_id,
@@ -969,16 +1025,24 @@ def test_manual_analyze_bypasses_relevance_only_not_budget_or_model_authorizatio
 
     assert attention.state is SourceRunState.NEEDS_ATTENTION
     assert attention.attention_reason is reason
-    assert repository.list_source_run_children(run.run_id)[0].state is SourceRunChildState.WAITING
+    assert (
+        repository.list_source_run_children(run.run_id)[0].state
+        is SourceRunChildState.WAITING
+    )
     assert transport.calls == 0
 
 
-def test_database_version_and_predecessor_migrations_stay_preserved(tmp_path: Path) -> None:
+def test_database_version_and_predecessor_migrations_stay_preserved(
+    tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
-        migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
+        migrations = tuple(
+            row["name"]
+            for row in connection.execute("SELECT name FROM schema_migrations")
+        )
     finally:
         connection.close()
     assert "012_add_source_run_orchestration.sql" in migrations
@@ -1043,6 +1107,37 @@ def test_existing_manual_and_scheduler_entrypoints_only_admit_the_shared_core(
     assert scheduled[0].state is SourceRunState.QUEUED
 
 
+def test_scheduler_does_not_submit_a_disabled_source(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    orchestrator = _orchestrator(repository, _Transport())
+    product = ProductOrchestrationService(
+        repository,
+        source_run_submitter=orchestrator,
+        now=lambda: NOW,
+    )
+    source_id = _source(repository, suffix="scheduled-disabled")
+    repository.record_source_check(
+        source_id, now=NOW - timedelta(days=2), succeeded=True
+    )
+    product.save_schedule(
+        schedule_id=None,
+        target_type=AutomationTargetType.SOURCE_CHECK,
+        target_id=source_id,
+        frequency=ScheduleFrequency.DAILY,
+        weekday=None,
+        local_time="12:00",
+        timezone="UTC",
+        enabled=True,
+    )
+    product.update_source(source_id, enabled=False)
+
+    assert product.scheduler_tick() == ()
+    assert repository.list_source_runs() == ()
+    assert repository.list_automation_runs() == ()
+
+
 def test_local_api_exposes_only_durable_trigger_and_status_when_core_is_injected(
     tmp_path: Path,
 ) -> None:
@@ -1069,10 +1164,41 @@ def test_local_api_exposes_only_durable_trigger_and_status_when_core_is_injected
     assert status == 202
     assert queued["source_run"]["trigger"] == "MANUAL_CHECK_NOW"
     run_id = queued["source_run"]["run_id"]
+
+    duplicate_status, duplicate = app.handle(
+        "POST",
+        f"/api/v1/sources/{source_id}/check",
+        b'{"command_id":"api-check-double-click"}',
+    )
+    assert duplicate_status == 202
+    assert duplicate["source_run"]["run_id"] == run_id
+    assert (
+        len(
+            [run for run in repository.list_source_runs() if run.source_id == source_id]
+        )
+        == 1
+    )
+
     status, projected = app.handle("GET", f"/api/v1/source-runs/{run_id}")
     assert status == 200
     assert projected["source_run"]["state"] == "QUEUED"
     assert "attention_detail" not in projected["source_run"]
+
+    product.update_source(source_id, enabled=False)
+    blocked_status, blocked = app.handle(
+        "POST",
+        f"/api/v1/sources/{source_id}/check",
+        b'{"command_id":"api-check-disabled"}',
+    )
+    assert blocked_status == 200
+    assert blocked["status"] == "BLOCKED"
+    assert "source_run" not in blocked
+    assert (
+        len(
+            [run for run in repository.list_source_runs() if run.source_id == source_id]
+        )
+        == 1
+    )
 
 
 def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
@@ -1084,7 +1210,9 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     transport = _Transport()
     service = _orchestrator(repository, transport)
     run = service.enqueue_manual_check_now(
-        source_id=source_id, command_id="restart-reservation", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="restart-reservation",
+        priority=SourceRunPriority.P0,
     )
 
     def crash_before_transport(execution_id: str) -> object:
@@ -1137,14 +1265,19 @@ def test_uncertain_filter_never_calls_stage_two_or_transport(tmp_path: Path) -> 
 
     assert attention.state is SourceRunState.NEEDS_ATTENTION
     assert attention.attention_reason is SourceRunAttentionReason.MODEL_UNAVAILABLE
-    assert repository.list_source_run_children(run.run_id)[0].state is SourceRunChildState.WAITING
+    assert (
+        repository.list_source_run_children(run.run_id)[0].state
+        is SourceRunChildState.WAITING
+    )
     assert transport.calls == 0
     progress = repository.source_run_checkpoint_progress(run.run_id)
     assert progress.completed[-1].value == "FILTERING"
     assert progress.next_checkpoint.value == "SOURCE_PREPARATION"
 
 
-def test_untrusted_topic_callback_is_not_an_orchestrator_authority(tmp_path: Path) -> None:
+def test_untrusted_topic_callback_is_not_an_orchestrator_authority(
+    tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id = _source(repository)
     _video_with_evidence(repository, source_id)
@@ -1180,7 +1313,9 @@ def test_concurrent_resume_never_redispatches_or_breaks_source_run_idempotency(
     first_transport = _BlockingTransport()
     first = _orchestrator(repository, first_transport)
     run = first.enqueue_manual_check_now(
-        source_id=source_id, command_id="concurrent-resume", priority=SourceRunPriority.P0
+        source_id=source_id,
+        command_id="concurrent-resume",
+        priority=SourceRunPriority.P0,
     )
     worker_results: list[object] = []
     worker_errors: list[BaseException] = []
@@ -1207,7 +1342,10 @@ def test_concurrent_resume_never_redispatches_or_breaks_source_run_idempotency(
     assert len(worker_results) == 1
     assert second.state is SourceRunState.NEEDS_ATTENTION
     assert worker_results[0] == second
-    assert repository.list_source_run_children(run.run_id)[0].state is SourceRunChildState.AMBIGUOUS
+    assert (
+        repository.list_source_run_children(run.run_id)[0].state
+        is SourceRunChildState.AMBIGUOUS
+    )
     assert first_transport.calls == 1
     assert second_transport.calls == 0
 

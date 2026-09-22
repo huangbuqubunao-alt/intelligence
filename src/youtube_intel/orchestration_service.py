@@ -58,6 +58,7 @@ class SourceRunSubmitter(Protocol):
 class SourceCheckResult:
     status: AutomationRunStatus
     safe_message: str
+    source_run: SourceRunRecord | None = None
 
 
 class ProductOrchestrationService:
@@ -192,14 +193,15 @@ class ProductOrchestrationService:
         if self._source_run_submitter is not None:
             if not isinstance(command_id, str) or not command_id.strip():
                 raise ValueError("Check Now requires a durable command identity")
-            self._source_run_submitter.enqueue_manual_check_now(
+            run = self._source_run_submitter.enqueue_manual_check_now(
                 source_id=source.source_id,
                 command_id=command_id,
                 priority=SourceRunPriority.P0,
             )
             return SourceCheckResult(
                 AutomationRunStatus.SUCCEEDED,
-                "Full Source Run was durably queued.",
+                "Source Run submission is durably persisted.",
+                run,
             )
         if not self._execution_enabled or self._source_check_executor is None:
             self._repository.record_source_check(
@@ -282,7 +284,13 @@ class ProductOrchestrationService:
                 continue
             if schedule.target_type is AutomationTargetType.SOURCE_CHECK:
                 assert schedule.target_id is not None
-                if self._source_run_submitter is not None:
+                source = self._repository.get_source_subscription(schedule.target_id)
+                if source is None or not source.enabled:
+                    result = SourceCheckResult(
+                        AutomationRunStatus.BLOCKED,
+                        "Source is disabled; no scheduled Source Run was started.",
+                    )
+                elif self._source_run_submitter is not None:
                     self._source_run_submitter.enqueue_scheduled_source_run(
                         source_id=schedule.target_id,
                         automation_run_id=run.run_id,

@@ -764,10 +764,17 @@ class DistillationBudget(Protocol):
 class DistillationTransport(Protocol):
     """A deliberately offline deterministic transport used only in this task."""
 
-    is_offline_test_transport: bool
-    available: bool
-    actual_provider: str
-    actual_model: str
+    @property
+    def is_offline_test_transport(self) -> bool: ...
+
+    @property
+    def available(self) -> bool: ...
+
+    @property
+    def actual_provider(self) -> str: ...
+
+    @property
+    def actual_model(self) -> str: ...
 
     def generate(self, verified_input: VerifiedDistillationInput) -> DistillationTransportResult: ...
 
