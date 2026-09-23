@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from dataclasses import asdict
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -13,6 +14,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
+from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
 from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
@@ -381,6 +383,7 @@ class LocalApiApplication:
         evidence_translation_service: EvidenceTranslationPresentationService | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
+        backup_restore_service: BackupRestoreService | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -414,6 +417,7 @@ class LocalApiApplication:
         )
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
+        self._backup_restore_service = backup_restore_service
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
@@ -539,11 +543,54 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if method == "GET" and route == "/api/v1/backup-restore/status":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                return HTTPStatus.OK, {"status": self._backup_restore_service.readiness()}
+            if method == "POST" and route == "/api/v1/backup-restore/restore/stage":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                staged = self._backup_restore_service.stage_restore(body)
+                return HTTPStatus.OK, {
+                    "restore": {
+                        "restore_id": staged.restore_id,
+                        "archive_sha256": staged.archive_sha256,
+                        "preview": staged.preview,
+                    }
+                }
             if method == "GET" and route == "/api/v1/saved-intelligence":
                 return HTTPStatus.OK, self._saved_list(path)
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            if method == "POST" and route == "/api/v1/backup-restore/backups":
+                service = self._require_backup_restore()
+                self._only_keys(data, set())
+                backup_result = service.create_backup()
+                return HTTPStatus.CREATED, {
+                    "backup": {
+                        "backup_id": backup_result.backup_id,
+                        "file_name": backup_result.file_name,
+                        "size_bytes": backup_result.size_bytes,
+                        "created_at": backup_result.created_at,
+                        "preview": backup_result.preview,
+                    }
+                }
+            if method == "POST" and route == "/api/v1/backup-restore/restore/confirm":
+                service = self._require_backup_restore()
+                self._only_keys(data, {"restore_id"})
+                restore_id = self._string(data, "restore_id", required=True) or ""
+                return HTTPStatus.ACCEPTED, {
+                    "restore": service.confirm_restore(restore_id)
+                }
+            if method == "POST" and route == "/api/v1/backup-restore/restore/cancel":
+                service = self._require_backup_restore()
+                self._only_keys(data, {"restore_id"})
+                restore_id = self._string(data, "restore_id", required=True) or ""
+                cancelled = service.cancel_restore(restore_id)
+                if not cancelled:
+                    raise ApiError(HTTPStatus.CONFLICT, "RESTORE_CANNOT_CANCEL", "Inspected Restore is no longer available.")
+                return HTTPStatus.OK, {"cancelled": True}
             translation_route = self._translation_route(route)
             if method == "POST" and translation_route is not None:
                 self._only_keys(data, set())
@@ -1096,12 +1143,44 @@ class LocalApiApplication:
                 "CONFLICT",
                 "Preference or feedback command conflicts with existing history.",
             ) from error
+        except BackupRestoreError as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "BACKUP_RESTORE_REJECTED",
+                str(error),
+            ) from error
         except (ValueError, KeyError) as error:
             raise ApiError(
                 HTTPStatus.UNPROCESSABLE_ENTITY,
                 "VALIDATION_ERROR",
                 "Request values are invalid or unavailable.",
             ) from error
+
+    def _require_backup_restore(self) -> BackupRestoreService:
+        if self._backup_restore_service is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+        return self._backup_restore_service
+
+    def backup_download(self, path: str) -> tuple[int, dict[str, str], bytes] | None:
+        if self._backup_restore_service is None:
+            return None
+        match = re.fullmatch(
+            r"/api/v1/backup-restore/backups/([a-f0-9]{32})/download",
+            urlparse(path).path.rstrip("/"),
+        )
+        if match is None:
+            return None
+        found = self._backup_restore_service.backup_download(match.group(1))
+        if found is None:
+            return int(HTTPStatus.NOT_FOUND), {"Content-Type": "application/json; charset=utf-8"}, b'{"error":{"message":"Backup was not found."}}'
+        archive_path, file_name = found
+        data = archive_path.read_bytes()
+        if len(data) > 512 * 1024 * 1024:
+            return int(HTTPStatus.INTERNAL_SERVER_ERROR), {"Content-Type": "application/json; charset=utf-8"}, b'{"error":{"message":"Backup exceeds the supported size."}}'
+        return int(HTTPStatus.OK), {
+            "Content-Type": "application/zip",
+            "Content-Disposition": f'attachment; filename="{file_name}"',
+        }, data
 
     def _saved_list(self, path: str) -> dict[str, object]:
         query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=3)
@@ -2227,8 +2306,14 @@ def serve_loopback(
 
         def _send(self, status: int, payload: dict[str, object]) -> None:
             encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self._send_bytes(status, {"Content-Type": "application/json; charset=utf-8"}, encoded)
+
+        def _send_bytes(
+            self, status: int, headers: dict[str, str], encoded: bytes
+        ) -> None:
             self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
+            for name, value in headers.items():
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(encoded)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -2256,12 +2341,35 @@ def serve_loopback(
                     },
                 )
                 return
-            length = int(self.headers.get("Content-Length", "0")) if is_mutation else 0
+            if self.command == "GET":
+                binary = application.backup_download(self.path)
+                if binary is not None:
+                    status, headers, binary_payload = binary
+                    self._send_bytes(status, headers, binary_payload)
+                    return
+            length = 0
+            if is_mutation:
+                raw_length = self.headers.get("Content-Length", "0")
+                if not raw_length.isdecimal():
+                    self._send(HTTPStatus.BAD_REQUEST, {"error": {"code": "INVALID_LENGTH", "message": "Request size is invalid."}})
+                    return
+                length = int(raw_length)
+                is_stage = urlparse(self.path).path.rstrip("/") == "/api/v1/backup-restore/restore/stage"
+                maximum = 512 * 1024 * 1024 if is_stage else 2 * 1024 * 1024
+                if length > maximum:
+                    self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": {"code": "REQUEST_TOO_LARGE", "message": "Request exceeds the supported size."}})
+                    return
+                if is_stage and self.headers.get_content_type() != "application/zip":
+                    self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": {"code": "INVALID_CONTENT_TYPE", "message": "Choose a ZIP backup archive."}})
+                    return
             try:
-                status, payload = application.handle(
+                status, response_payload = application.handle(
                     self.command, self.path, self.rfile.read(length)
                 )
-                self._send(status, payload)
+                self._send(status, response_payload)
+                restore = response_payload.get("restore")
+                if isinstance(restore, dict) and restore.get("restart_required") is True:
+                    threading.Timer(0.25, self.server.shutdown).start()
             except ApiError as error:
                 self._send(
                     error.status,

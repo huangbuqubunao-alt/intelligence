@@ -201,12 +201,25 @@ def _trusted_success(
     return result.success
 
 
+def _seed_summary_content(repository: SQLiteStateRepository) -> None:
+    connection = repository._connect()
+    try:
+        connection.execute(
+            "INSERT OR IGNORE INTO videos "
+            "(video_id, channel_id, pipeline_status, pipeline_version, availability, discovered_at, updated_at) "
+            "VALUES ('video-1', 'UC_TEST', 'DISCOVERED', 'fixture-v1', 'public', ?, ?)",
+            (NOW.isoformat(), NOW.isoformat()),
+        )
+    finally:
+        connection.close()
+
+
 def test_fresh_database_has_provider_aware_persistence_schema(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
 
     version = repository.initialize(now=NOW)
 
-    assert version.version == 23
+    assert version.version == 24
     store = DeepAnalysisPersistenceStore(repository)
     assert store.lookup_deep_analysis_cache(cache_identity="a" * 64) is None
 
@@ -216,6 +229,7 @@ def test_verified_persistence_promotes_one_explicit_current_summary_pointer(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     store = DeepAnalysisPersistenceStore(repository)
 
     persisted = store.persist_trusted_deep_analysis_success(
@@ -235,6 +249,7 @@ def test_tampered_current_summary_target_fails_closed_without_raw_fallback(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(
         success=_trusted_success(), now=NOW
@@ -262,6 +277,7 @@ def test_runtime_verified_success_persists_and_reloads_by_exact_cache_identity(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     store = DeepAnalysisPersistenceStore(repository)
 
@@ -282,6 +298,7 @@ def test_persisted_verified_read_builds_deterministic_traceable_note_v2(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     persisted = DeepAnalysisPersistenceStore(
         repository
@@ -310,6 +327,7 @@ def test_persisted_verified_read_builds_deterministic_traceable_note_v2(
 def test_note_v2_rejects_raw_or_reconstructed_persisted_read(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     persisted = DeepAnalysisPersistenceStore(
         repository
     ).persist_trusted_deep_analysis_success(success=_trusted_success(), now=NOW)
@@ -325,6 +343,7 @@ def test_note_v2_rejects_raw_or_reconstructed_persisted_read(tmp_path: Path) -> 
 def test_tampered_persisted_result_is_rejected_before_note_v2(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(
         success=_trusted_success(), now=NOW
@@ -353,6 +372,7 @@ def test_failed_new_attempt_cannot_displace_last_verified_current_summary(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     store = DeepAnalysisPersistenceStore(repository)
     real = _trusted_success()
     current = store.persist_trusted_deep_analysis_success(success=real, now=NOW)
@@ -381,6 +401,7 @@ def test_forged_or_reconstructed_success_cannot_write_authoritative_row(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     real = _trusted_success()
     forged = object.__new__(type(real))
     for name in (
@@ -431,6 +452,7 @@ def test_tampered_row_is_never_returned_as_exact_cache_hit(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
@@ -461,6 +483,7 @@ def test_secret_and_unselected_transcript_are_absent_from_persisted_record(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     DeepAnalysisPersistenceStore(repository).persist_trusted_deep_analysis_success(
         success=success, now=NOW
@@ -485,6 +508,7 @@ def test_cache_eligibility_must_match_the_persisted_model_identity_class(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)
@@ -510,6 +534,7 @@ def test_same_cache_identity_with_different_content_is_rejected_by_sqlite(
 ) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
+    _seed_summary_content(repository)
     success = _trusted_success()
     store = DeepAnalysisPersistenceStore(repository)
     persisted = store.persist_trusted_deep_analysis_success(success=success, now=NOW)

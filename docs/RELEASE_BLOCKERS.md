@@ -210,11 +210,21 @@
 ### 3.1 Backup & Recovery Drill (Real Environment)
 
 - **Status**: Automated drill v3 remediated and passing on `workbuddy/fix-rc-p1`.
+- **Current M10 disposition (2026-09-24): PASS** for the owner-authorized
+  Intelligence-managed core scope on a task-owned clone of real pipeline data.
+  The full round-trip, controlled restart, corrupt-archive rejection, restored
+  M8 Evidence translation, and Vault exclusion are recorded in
+  [`M10_BACKUP_RESTORE_ACCEPTANCE.md`](M10_BACKUP_RESTORE_ACCEPTANCE.md) and
+  [Issue #10](https://github.com/huangbuqubunao-alt/intelligence/issues/10).
+  This closes the M10 backup/restore gate for that scope; it does not change the
+  overall public-distribution `BLOCKED` status or other release gates.
 - **Decision maker**: PO for the current one-owner posture; separate QA/TL
   review is conditional on a future applicable trigger.
 - **Risk**: The automated drill (`scripts/backup_recovery_drill.sh`)
-  validates temporary environments. A real drill requires temporary
-  SQLite/DATA/Vault with real pipeline data.
+  validates temporary environments. The M10 drill separately validates the
+  real-data SQLite + Intelligence-owned DATA loop. Vault content is outside its
+  restore guarantee. Physical power loss and arbitrary external concurrent
+  writers were not simulated; see the M10 acceptance record.
 - **Required input**: Authorization to run the drill in a controlled
   temporary environment and record results.
 - **Pass criteria**: Drill commands, versions, schema, results, and

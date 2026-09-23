@@ -287,6 +287,13 @@ class DeepAnalysisPersistenceStore:
         connection = self._repository._connect()
         try:
             with connection:
+                content = connection.execute(
+                    "SELECT 1 FROM videos WHERE video_id = ?", (video_id,)
+                ).fetchone()
+                if content is None:
+                    raise DeepAnalysisPersistenceError(
+                        "current Summary promotion requires existing Content"
+                    )
                 connection.execute(
                     "INSERT INTO current_content_summaries "
                     "(video_id, result_identity, updated_at) VALUES (?, ?, ?) "

@@ -1594,6 +1594,7 @@ class SQLiteStateRepository:
             "021_seal_distillation_output_language.sql",
             "022_bind_current_local_summary.sql",
             "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):

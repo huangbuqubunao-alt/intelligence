@@ -817,12 +817,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "023_add_evidence_translation_presentation.sql")
+        .joinpath("migrations", "024_bind_current_summary_to_content.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 23
-    assert first.name == "023_add_evidence_translation_presentation.sql"
+    assert first.version == 24
+    assert first.name == "024_bind_current_summary_to_content.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -837,7 +837,21 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 23
+    assert migration_count == 24
+
+
+def test_m024_rejects_current_summary_for_missing_content(tmp_path: Path) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    repository.initialize(now=NOW)
+
+    with _raw_connection(path) as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="requires existing Content"):
+            connection.execute(
+                "INSERT INTO current_content_summaries "
+                "(video_id, result_identity, analysis_artifact_id, output_language, updated_at) "
+                "VALUES ('missing-content', NULL, NULL, NULL, '2026-09-23T00:00:00Z')"
+            )
 
 
 def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
@@ -875,7 +889,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 23
+    assert upgraded.initialize(now=NOW).version == 24
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -904,10 +918,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 23
+    assert upgraded.initialize(now=NOW).version == 24
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 23
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 24
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0

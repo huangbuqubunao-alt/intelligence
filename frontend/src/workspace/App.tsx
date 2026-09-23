@@ -1,5 +1,5 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { api, patch, post, put } from "../api/client";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { api, patch, post, put, uploadZip } from "../api/client";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
 
@@ -2308,6 +2308,273 @@ function usageReason(value: string) {
     MANUAL_DISTILLATION: "Manual analysis",
   } as Record<string, string>)[value] ?? "Recorded work";
 }
+type BackupPreview = {
+  backup_date: string;
+  application_version: string;
+  schema_version: number;
+  following_count: number;
+  content_count: number;
+  summary_count: number;
+  evidence_count: number;
+  intelligence_count: number;
+  topic_count: number;
+  settings_included: boolean;
+  data_artifact_count: number;
+  data_size_bytes: number;
+  vault_excluded: boolean;
+};
+
+type BackupRestoreStatus = {
+  ready: boolean;
+  reasons: string[];
+  message: string;
+  restore_pending: boolean;
+  last_restore?: { state: string; message: string } | null;
+};
+
+function byteSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function BackupRestorePanel() {
+  const [status, setStatus] = useState<BackupRestoreStatus | null>(null);
+  const [backup, setBackup] = useState<{
+    backup_id: string;
+    file_name: string;
+    size_bytes: number;
+    created_at: string;
+    preview: BackupPreview;
+  } | null>(null);
+  const [restore, setRestore] = useState<{
+    restore_id: string;
+    preview: BackupPreview;
+  } | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirmationDialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = confirmationDialog.current;
+    if (!dialog) return;
+    if (showConfirm && !dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    } else if (!showConfirm && dialog.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+  }, [showConfirm]);
+
+  const refreshStatus = async () => {
+    try {
+      const result = await api<{ status: BackupRestoreStatus }>("/backup-restore/status");
+      setStatus(result.status);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Backup status is unavailable.");
+    }
+  };
+
+  useEffect(() => {
+    void refreshStatus();
+    const timer = window.setInterval(() => void refreshStatus(), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const createBackup = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await post<{ backup: NonNullable<typeof backup> }>(
+        "/backup-restore/backups",
+        {},
+      );
+      setBackup(result.backup);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Backup could not be created.");
+    } finally {
+      setBusy(false);
+      await refreshStatus();
+    }
+  };
+
+  const chooseBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      setError("Choose an Intelligence ZIP backup.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setRestore(null);
+    try {
+      const result = await uploadZip<{
+        restore: { restore_id: string; preview: BackupPreview };
+      }>("/backup-restore/restore/stage", file);
+      setRestore(result.restore);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Backup inspection failed.");
+    } finally {
+      setBusy(false);
+      await refreshStatus();
+    }
+  };
+
+  const cancelRestore = async () => {
+    if (!restore) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await post("/backup-restore/restore/cancel", { restore_id: restore.restore_id });
+      setRestore(null);
+      setShowConfirm(false);
+      setConfirmation("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Restore inspection could not be cancelled.");
+    } finally {
+      setBusy(false);
+      await refreshStatus();
+    }
+  };
+
+  const confirmRestore = async () => {
+    if (!restore || confirmation !== "RESTORE") return;
+    setBusy(true);
+    setError(null);
+    try {
+      await post("/backup-restore/restore/confirm", { restore_id: restore.restore_id });
+      setShowConfirm(false);
+      setRestore(null);
+      setConfirmation("");
+      setStatus((current) => current ? {
+        ...current,
+        ready: false,
+        restore_pending: true,
+        reasons: ["RESTORE_PENDING"],
+        message: "Restore is pending. Intelligence will restart before processing resumes.",
+      } : current);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Restore confirmation failed.");
+    } finally {
+      setBusy(false);
+      await refreshStatus();
+    }
+  };
+
+  const preview = (value: BackupPreview) => (
+    <dl className="metadata-grid">
+      <div><dt>Backup date</dt><dd>{humanDate(value.backup_date)}</dd></div>
+      <div><dt>App / schema</dt><dd>{value.application_version} · {value.schema_version}</dd></div>
+      <div><dt>Following</dt><dd>{value.following_count}</dd></div>
+      <div><dt>Content</dt><dd>{value.content_count}</dd></div>
+      <div><dt>Current Summaries</dt><dd>{value.summary_count}</dd></div>
+      <div><dt>Evidence</dt><dd>{value.evidence_count}</dd></div>
+      <div><dt>Intelligence</dt><dd>{value.intelligence_count}</dd></div>
+      <div><dt>Topics</dt><dd>{value.topic_count}</dd></div>
+      <div><dt>Settings</dt><dd>{value.settings_included ? "Included" : "Not included"}</dd></div>
+      <div><dt>DATA artifacts</dt><dd>{value.data_artifact_count} · {byteSize(value.data_size_bytes)}</dd></div>
+    </dl>
+  );
+
+  return (
+    <Panel title="Backup and Restore">
+      <p>Backups include Intelligence core data and persisted settings. External Vault content, credentials, and model files are excluded.</p>
+      <p className="hint" role="status">{status?.message ?? "Checking whether core data is safe to back up…"}</p>
+      <div className="button-row">
+        <button type="button" onClick={createBackup} disabled={busy || !status?.ready}>
+          {busy ? "Working…" : "Create Backup"}
+        </button>
+        <label className="button secondary-button">
+          Choose backup
+          <input
+            aria-label="Choose backup file"
+            type="file"
+            accept=".zip,application/zip"
+            disabled={busy || status?.restore_pending}
+            onChange={chooseBackup}
+          />
+        </label>
+      </div>
+      {backup ? (
+        <article className="metadata-row" aria-label="Backup result">
+          <div>
+            <strong>{backup.file_name}</strong>
+            <p>{humanDate(backup.created_at)} · {byteSize(backup.size_bytes)}</p>
+            {preview(backup.preview)}
+            <a href={`/api/v1/backup-restore/backups/${backup.backup_id}/download`}>
+              Save backup file
+            </a>
+          </div>
+        </article>
+      ) : null}
+      {restore ? (
+        <article className="metadata-row" aria-label="Inspected backup preview">
+          <div>
+            <strong>Backup inspected</strong>
+            <p>Nothing has changed yet. Review this backup before continuing.</p>
+            {preview(restore.preview)}
+            <p className="hint">External Vault content is excluded and will not be overwritten.</p>
+            <div className="button-row">
+              <button type="button" className="danger-button" disabled={busy} onClick={() => setShowConfirm(true)}>
+                Restore this backup…
+              </button>
+              <button type="button" className="secondary-button" disabled={busy} onClick={cancelRestore}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </article>
+      ) : null}
+      {status?.last_restore?.state === "APPLIED" ? (
+        <p className="success-message" role="status">{status.last_restore.message}</p>
+      ) : null}
+      {status?.restore_pending ? (
+        <p role="status">Restore is pending. Intelligence will restart and validate the restored data before processing resumes.</p>
+      ) : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {showConfirm && restore ? (
+        <dialog
+          ref={confirmationDialog}
+          aria-labelledby="restore-confirm-title"
+          aria-modal="true"
+          onCancel={(event) => {
+            event.preventDefault();
+            setShowConfirm(false);
+            setConfirmation("");
+          }}
+        >
+          <h2 id="restore-confirm-title">Replace Intelligence core data?</h2>
+          <p>This replaces the current core database and DATA artifacts at restart. Your external Vault remains untouched.</p>
+          <label className="field">
+            Type RESTORE to confirm
+            <input
+              autoFocus
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <div className="button-row">
+            <button type="button" className="danger-button" disabled={busy || confirmation !== "RESTORE"} onClick={confirmRestore}>
+              Confirm Restore and restart
+            </button>
+            <button type="button" className="secondary-button" disabled={busy} onClick={() => { setShowConfirm(false); setConfirmation(""); }}>
+              Go back
+            </button>
+          </div>
+        </dialog>
+      ) : null}
+    </Panel>
+  );
+}
+
 function Settings({ refresh }: { refresh: number }) {
   const [revision, setRevision] = useState(0);
   const [savingLanguage, setSavingLanguage] = useState(false);
@@ -2514,6 +2781,7 @@ function Settings({ refresh }: { refresh: number }) {
             </Empty>
           )}
       </Panel>
+      <BackupRestorePanel />
       <Panel title="Data and privacy">
         <p>
           Local-first means local persistence by default. Credential values are
