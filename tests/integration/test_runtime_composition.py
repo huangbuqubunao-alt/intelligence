@@ -18,6 +18,8 @@ import pytest
 from youtube_intel.cli import ExitCode, main
 from youtube_intel.config import load_app_config
 from youtube_intel.domain import (
+    AnalysisCompleted,
+    AnalysisResult,
     Availability,
     ChannelRef,
     ContentQualityConfidence,
@@ -28,6 +30,7 @@ from youtube_intel.domain import (
     ContentQualityStatus,
     DiscoveryBatch,
     DiscoveryCursor,
+    EvidenceSource,
     LiveStatus,
     ProviderCallMetadata,
     QualityJudgeOperationInput,
@@ -42,6 +45,7 @@ from youtube_intel.quality import QualityProvenanceAuthority
 from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
 from youtube_intel.runtime_composition import build_local_source_run_runtime
 from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_attempt
+from youtube_intel.source_policy import PolicyOverrideMode
 from youtube_intel.source_run import SourceRunAttentionReason, SourceRunState
 from youtube_intel.state import ArtifactKind, PipelineStatus, SQLiteStateRepository
 from youtube_intel.transcripts import (
@@ -162,6 +166,31 @@ class _SubtitleAdapter:
         )
 
 
+class _TimedSubtitleAdapter(_SubtitleAdapter):
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        result = super().read_track(track)
+        cues = (
+            "This manual subtitle contains enough meaningful text for validation.",
+            "This public product lesson explains the reliable product workflow.",
+            "Useful details remain grounded in the original English transcript.",
+        )
+        return SubtitleReadResult(
+            body=json.dumps(
+                {
+                    "events": [
+                        {
+                            "tStartMs": index * 2500,
+                            "dDurationMs": 1800,
+                            "segs": [{"utf8": cue}],
+                        }
+                        for index, cue in enumerate(cues)
+                    ]
+                }
+            ).encode("utf-8"),
+            call=result.call,
+        )
+
+
 class _NoSubtitleAdapter(_SubtitleAdapter):
     def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
         assert video_id == VIDEO_ID
@@ -259,10 +288,50 @@ class _QualityJudgeProvider:
                 "candidate_hash": operation_input.candidate_hash,
                 "quality_input_hash": operation_input.quality_input_hash,
                 "scoring_request_hash": operation_input.scoring_request_hash,
+                "prompt_version": operation_input.prompt_version,
                 "judge_provider": operation_input.judge_provider,
                 "judge_model": operation_input.judge_model,
                 "judge_model_digest": operation_input.judge_model_digest,
             }
+        )
+
+
+class _SummaryProvider:
+    def summarize(self, analysis_input: object) -> AnalysisResult:
+        payload = getattr(analysis_input, "payload")
+        return AnalysisResult.model_validate(
+            {
+                "one_sentence_summary": "该视频介绍了一个产品观点。"
+                if payload.output_language == "zh-CN"
+                else "The video presents a product idea.",
+                "core_points": [
+                    {
+                        "text": "内容围绕产品展开。"
+                        if payload.output_language == "zh-CN"
+                        else "The content focuses on a product.",
+                        "kind": "fact",
+                        "evidence_ids": ["title-e1"],
+                    }
+                ],
+                "keywords": [
+                    "产品" if payload.output_language == "zh-CN" else "product"
+                ],
+                "evidence": [
+                    {
+                        "evidence_id": "title-e1",
+                        "source": EvidenceSource.TITLE,
+                        "excerpt": payload.title,
+                    }
+                ],
+                "provider": "ollama",
+                "model": "qwen3:8b",
+                "prompt_version": "analysis-prompt-v4",
+                "request_hash": getattr(analysis_input, "request_hash"),
+            }
+        )
+
+    def consume_raw_response(self, *, request_hash: str) -> str:
+        return json.dumps({"model": "qwen3:8b", "request_hash": request_hash}
         )
 
 
@@ -357,23 +426,20 @@ def test_default_cli_builds_production_composition_and_persists_discovery(
     assert output.err == ""
 
 
-def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
+def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
     source = _SingleVideoDiscoverySource()
     metadata = _MetadataProvider()
-    subtitle = _SubtitleAdapter()
+    subtitle = _TimedSubtitleAdapter()
     dependencies = RuntimeDependencies(
         discovery_source=source,
         metadata_provider=metadata,
         subtitle_adapter_factory=lambda: subtitle,
-        scoring_provider_factory=lambda: pytest.fail(
-            "GUI ingestion must stop before local model dispatch"
-        ),
-        analysis_provider_factory=lambda: pytest.fail(
-            "GUI ingestion must not call a cloud provider"
-        ),
+        scoring_provider_factory=_ScoringProvider,
+        analysis_provider_factory=_SummaryProvider,
+        quality_judge_provider_factory=_QualityJudgeProvider,
     )
     config = load_app_config(
         project / "config" / "channels.yaml",
@@ -390,6 +456,18 @@ def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
     following = first.product.add_source(
         url=f"https://www.youtube.com/channel/{CHANNEL_ID}",
         processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    first.source_policy.update_source(
+        source_id=following.source_id,
+        command_id="qualification-focus-policy",
+        initial_history_count=None,
+        per_run_max_new_videos=None,
+        focus_mode=PolicyOverrideMode.OVERRIDE,
+        focus_rules=("product",),
+        ignore_mode=PolicyOverrideMode.INHERIT,
+        ignore_rules=(),
+        distillation_style_mode=PolicyOverrideMode.INHERIT,
+        distillation_style=None,
     )
     status, accepted = first.application.handle(
         "POST",
@@ -427,7 +505,7 @@ def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
         if provider["provider"] == "NVIDIA NIM"
     )
     assert nvidia["production_eligible"] is False
-    assert nvidia["credential_status"] == "NOT_CONFIGURED"
+    assert nvidia["credential_status"] == "BLOCKED"
 
     restarted.worker.start()
     deadline = time.monotonic() + 5
@@ -449,6 +527,37 @@ def test_gui_runtime_uses_durable_run_and_ingests_body_before_model_work(
     assert transcript_path.is_file()
     assert transcript_path.read_text(encoding="utf-8").strip()
     assert (source.calls, metadata.calls, subtitle.read_calls) == (1, 1, 1)
+    assert restarted.repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.COMPLETE
+    analysis = restarted.runtime._load_analysis(VIDEO_ID)
+    assert isinstance(analysis, AnalysisCompleted)
+    assert analysis.result.provider == "ollama"
+    assert analysis.result.one_sentence_summary == "该视频介绍了一个产品观点。"
+    notes = list((project / "vault" / "YouTube Intel" / "Videos").glob(f"*{VIDEO_ID}.md"))
+    assert len(notes) == 1
+    assert "该视频介绍了一个产品观点。" in notes[0].read_text(encoding="utf-8")
+    detail_status, detail = restarted.application.handle(
+        "GET", f"/api/v1/videos/{VIDEO_ID}"
+    )
+    assert detail_status == 200
+    projected_note = detail["note"]["v2"]
+    assert projected_note["status"] == "AVAILABLE"
+    assert projected_note["language"] == "zh-CN"
+    assert projected_note["summary"] == "该视频介绍了一个产品观点。"
+    assert projected_note["timestamped_key_points"] == []
+    assert projected_note["evidence_references"]
+    assert any(
+        reference["source"] == "title"
+        and reference["excerpt"] == "A short public product lesson"
+        for reference in projected_note["evidence_references"]
+    )
+    evidence_ids = restarted.repository.list_available_canonical_evidence_ids(VIDEO_ID)
+    assert evidence_ids
+    evidence = restarted.repository.get_evidence(evidence_ids[0])
+    assert evidence is not None
+    assert evidence.language == "en"
+    verified_text = restarted.repository.resolve_verified_evidence_text(evidence_ids[0])
+    assert verified_text is not None
+    assert verified_text.excerpt
 
     api_status, projected = restarted.application.handle(
         "GET", f"/api/v1/source-runs/{run_id}"
@@ -545,9 +654,7 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
             metadata_provider=metadata,
             subtitle_adapter_factory=lambda: subtitle,
             scoring_provider_factory=lambda: scoring,
-            analysis_provider_factory=lambda: pytest.fail(
-                "cloud-disabled composition called the cloud provider"
-            ),
+            analysis_provider_factory=_SummaryProvider,
             quality_judge_provider_factory=lambda: judge,
         ),
     )

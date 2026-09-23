@@ -179,7 +179,7 @@ def test_finalizer_accepts_only_runtime_bound_pass_material(tmp_path: Path) -> N
             "candidate_hash": candidate_hash,
             "quality_input_hash": quality_input_hash,
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": settings.model,
@@ -190,7 +190,7 @@ def test_finalizer_accepts_only_runtime_bound_pass_material(tmp_path: Path) -> N
         {
             "schema_version": "content-quality-result-v1",
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "status": "PASS",
             "decision_source": "LOCAL_JUDGE",
             "decision_confidence": "HIGH",

@@ -261,6 +261,11 @@ def _judge_materials(*, attempt_role=QualityJudgeAttemptRole.PRIMARY, raw_status
                     source=ScoringEvidenceSource.TITLE,
                     excerpt="excerpt for title-1",
                 ),
+                ScoringEvidence(
+                    evidence_id="transcript-head-1",
+                    source=ScoringEvidenceSource.TRANSCRIPT_HEAD,
+                    excerpt="trusted canonical transcript sample",
+                ),
             ),
             "policy_version": "content-quality-policy-v1",
         }
@@ -273,7 +278,7 @@ def _judge_materials(*, attempt_role=QualityJudgeAttemptRole.PRIMARY, raw_status
             "candidate_hash": _HASH_A,
             "quality_input_hash": qih,
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": _MODEL,
@@ -288,7 +293,7 @@ def _judge_materials(*, attempt_role=QualityJudgeAttemptRole.PRIMARY, raw_status
         model=_MODEL,
         model_digest=_JUDGE_DIGEST,
         policy_version="content-quality-policy-v1",
-        prompt_version="content-quality-prompt-v1",
+        prompt_version="content-quality-prompt-v3",
         operation_schema_version="content-quality-result-v1",
     )
     return operation, content, raw, judge_ctx
@@ -347,7 +352,7 @@ def _valid_judge_evidence(
         model=_MODEL,
         model_digest=_JUDGE_DIGEST,
         policy_version="content-quality-policy-v1",
-        prompt_version="content-quality-prompt-v1",
+        prompt_version="content-quality-prompt-v3",
         operation_schema_version="content-quality-result-v1",
     )
     return evidence, judge_ctx

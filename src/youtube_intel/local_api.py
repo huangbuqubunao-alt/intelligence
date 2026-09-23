@@ -19,7 +19,13 @@ from youtube_intel.content_summary_read import (
     ContentSummaryReadRejected,
 )
 from youtube_intel.distillation import PersonalizedDistillationService
-from youtube_intel.domain import JobStatus, ProcessingStage, ScoringOutputLanguage
+from youtube_intel.domain import (
+    AnalysisCompleted,
+    AnalysisOutcome,
+    JobStatus,
+    ProcessingStage,
+    ScoringOutputLanguage,
+)
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -227,6 +233,7 @@ def _distillation_execution_dto(execution: object | None) -> dict[str, object]:
     return {
         "status": status,
         "execution_id": str(getattr(execution, "execution_id")),
+        "output_language": getattr(execution, "output_language"),
         "has_new_intelligence": (
             True
             if status == "SUCCEEDED"
@@ -365,7 +372,8 @@ class LocalApiApplication:
         output_language_default: ScoringOutputLanguage = "zh-CN",
         now: Callable[[], datetime] | None = None,
         source_run_wakeup: Callable[[], None] | None = None,
-        nvidia_distillation_available: bool | None = None,
+        local_distillation_available: bool | None = None,
+        analysis_reader: Callable[[str, str], AnalysisOutcome] | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
     ) -> None:
@@ -381,7 +389,8 @@ class LocalApiApplication:
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
         self._source_run_wakeup = source_run_wakeup
-        self._nvidia_distillation_available = nvidia_distillation_available
+        self._local_distillation_available = local_distillation_available
+        self._analysis_reader = analysis_reader
         self._output_language_service = OutputLanguagePreferenceService(
             repository,
             bootstrap_default=output_language_default,
@@ -1360,7 +1369,7 @@ class LocalApiApplication:
                     for item in provider_model_statuses(
                         None if preference is None else preference.desired_provider,
                         None if preference is None else preference.desired_model,
-                        nvidia_runtime_available=self._nvidia_distillation_available,
+                        local_runtime_available=self._local_distillation_available,
                     )
                 ],
             }
@@ -1629,6 +1638,45 @@ class LocalApiApplication:
     def _note_projection(self, video_id: str) -> dict[str, object]:
         """Project only the explicit current verified Summary result."""
 
+        local_pointer = self._repository.current_local_summary_pointer(video_id)
+        if local_pointer is not None:
+            if self._analysis_reader is None:
+                return {
+                    "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                    "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_INVALID"},
+                }
+            try:
+                outcome = self._analysis_reader(video_id, local_pointer.artifact_id)
+            except (ValueError, OSError):
+                outcome = None
+            if not isinstance(outcome, AnalysisCompleted):
+                return {
+                    "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                    "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_INVALID"},
+                }
+            result = outcome.result
+            return {
+                "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                "v2": {
+                    "status": "AVAILABLE",
+                    "note_identity": f"analysis/{result.request_hash}/structured",
+                    "result_identity": result.request_hash,
+                    "language": local_pointer.output_language,
+                    "summary": result.one_sentence_summary,
+                    "core_points": [point.text for point in result.core_points],
+                    "timestamped_key_points": [],
+                    "evidence_references": [
+                        {
+                            "evidence_id": item.evidence_id,
+                            "source": item.source.value,
+                            "excerpt": item.excerpt,
+                            "start_seconds": None,
+                            "end_seconds": None,
+                        }
+                        for item in result.evidence
+                    ],
+                },
+            }
         try:
             current = self._content_summary_reader.read_current(video_id)
         except ContentSummaryReadRejected as error:

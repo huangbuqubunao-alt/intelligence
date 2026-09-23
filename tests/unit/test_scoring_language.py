@@ -12,12 +12,14 @@ from youtube_intel.domain import (
     Availability,
     LiveStatus,
     ScoreResult,
+    ScoringCandidate,
     ScoringLanguageValidation,
     ScoringOutputLanguage,
     VideoMetadata,
     detect_scoring_language_violation,
     validate_score_result,
 )
+from youtube_intel.quality import build_content_quality_input
 from youtube_intel.scoring import (
     InMemoryScoringCache,
     ScoringService,
@@ -57,6 +59,39 @@ def test_scoring_input_contains_output_language(output_language: str) -> None:
     )
 
     assert scoring_input.output_language == output_language
+
+
+def test_quality_judge_input_contains_bounded_canonical_transcript_sample() -> None:
+    scoring_input = build_scoring_input(
+        video=_video(),
+        transcript_text="HEAD-" + ("x" * 20_000) + "-TAIL",
+        language="en",
+        output_language="en",
+        settings=_settings(),
+    )
+    candidate = ScoringCandidate(
+        score=9.0,
+        reason="The video explains a useful API workflow.",
+        topics=("API workflow",),
+        should_summarize=True,
+    )
+
+    quality_input = build_content_quality_input(
+        scoring_input=scoring_input,
+        candidate=candidate,
+        candidate_hash="b" * 64,
+    )
+
+    transcript_evidence = tuple(
+        item for item in quality_input.evidence_registry if item.source.value.startswith("TRANSCRIPT_")
+    )
+    by_source = {item.source.value: item for item in transcript_evidence}
+    assert set(by_source) == {"TRANSCRIPT_HEAD", "TRANSCRIPT_BODY", "TRANSCRIPT_TAIL"}
+    assert all(len(item.excerpt) <= 1200 for item in transcript_evidence)
+    assert by_source["TRANSCRIPT_HEAD"].excerpt == scoring_input.sample.head[:1200]
+    assert "HEAD-" in by_source["TRANSCRIPT_HEAD"].excerpt
+    assert "TAIL" in by_source["TRANSCRIPT_TAIL"].excerpt
+    assert sum(len(item.excerpt) for item in transcript_evidence) <= 3600
 
 
 def test_output_language_changes_request_hash() -> None:

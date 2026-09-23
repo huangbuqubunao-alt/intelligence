@@ -19,11 +19,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path
-from typing import Any, Final, Protocol
+from typing import Any, Final, Literal, Protocol, cast
 
 import tiktoken
 
-from youtube_intel.config import CloudSettings
+from youtube_intel.config import CloudSettings, LocalAnalysisSettings
 from youtube_intel.domain import (
     AnalysisCompleted,
     AnalysisInput,
@@ -56,6 +56,8 @@ from youtube_intel.state import (
 
 _PROVIDER: Final = "openai"
 _OPERATION: Final = "cloud-analysis"
+_LOCAL_PROVIDER: Final = "ollama"
+_LOCAL_OPERATION: Final = "local-analysis"
 _SAMPLING_VERSION: Final = "cloud-token-sampling-v1"
 _PRIVACY_VERSION: Final = "cloud-privacy-v1"
 O200K_BASE_FILENAME: Final = "o200k_base.tiktoken"
@@ -206,8 +208,10 @@ def _analysis_schema() -> dict[str, object]:
         "additionalProperties": False,
         "required": ["one_sentence_summary", "core_points", "keywords", "evidence"],
         "properties": {
-            "one_sentence_summary": {"type": "string", "minLength": 1, "maxLength": 500},
-            "core_points": {"type": "array", "minItems": 1, "maxItems": 10, "items": point},
+            "one_sentence_summary": {"type": "string", "minLength": 1, "maxLength": 500,
+            },
+            "core_points": {"type": "array", "minItems": 1, "maxItems": 10, "items": point,
+            },
             "key_facts": {"type": "array", "maxItems": 20, "items": point},
             "product_opportunities": {"type": "array", "maxItems": 10, "items": point},
             "business_opportunities": {"type": "array", "maxItems": 10, "items": point},
@@ -215,7 +219,8 @@ def _analysis_schema() -> dict[str, object]:
             "hypotheses_to_validate": {"type": "array", "maxItems": 10, "items": point},
             "action_recommendations": {"type": "array", "maxItems": 10, "items": point},
             "risks": {"type": "array", "maxItems": 10, "items": point},
-            "keywords": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "string", "minLength": 1}},
+            "keywords": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "string", "minLength": 1},
+            },
             "evidence": {
                 "type": "array", "maxItems": 20,
                 "items": {
@@ -223,8 +228,10 @@ def _analysis_schema() -> dict[str, object]:
                     "required": ["evidence_id", "source", "excerpt"],
                     "properties": {
                         "evidence_id": {"type": "string", "minLength": 1},
-                        "source": {"enum": ["title", "channel_name", "description", "transcript_sample"]},
-                        "excerpt": {"type": "string", "minLength": 1, "maxLength": 2000},
+                        "source": {"enum": ["title", "channel_name", "description", "transcript_sample",
+                            ]},
+                        "excerpt": {"type": "string", "minLength": 1, "maxLength": 2000,
+                        },
                     },
                 },
             },
@@ -233,7 +240,9 @@ def _analysis_schema() -> dict[str, object]:
 
 
 def _request_parts(payload: AnalysisPayload) -> _RequestParts:
-    prompt = resources.files("youtube_intel").joinpath("prompts", "summary.md").read_text("utf-8")
+    prompt = (
+        resources.files("youtube_intel").joinpath("prompts", "summary.md").read_text("utf-8")
+    )
     if "analysis-prompt-v1" not in prompt:
         msg = "summary prompt must declare analysis-prompt-v1"
         raise ValueError(msg)
@@ -282,9 +291,7 @@ def _read_provisioned_o200k(data_root: Path) -> bytes:
     path = _provisioned_o200k_path(data_root)
     if not hasattr(os, "O_NOFOLLOW"):
         raise LocalTokenizerResourceError("local o200k asset path is unsafe")
-    directory_flags = (
-        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
-    )
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
     file_flags = os.O_RDONLY | os.O_NOFOLLOW
     try:
         directory_descriptor = os.open(path.parent, directory_flags)
@@ -364,7 +371,8 @@ def _input_tokens(parts: _RequestParts, data_root: Path | None) -> int:
     encoding = load_provisioned_o200k_encoding(data_root)
     return sum(
         len(encoding.encode(part, disallowed_special=()))
-        for part in (parts.system, parts.developer, _canonical_json(parts.schema), parts.payload_json)
+        for part in (parts.system, parts.developer, _canonical_json(parts.schema), parts.payload_json,
+        )
     )
 
 
@@ -374,13 +382,19 @@ def build_analysis_input(
     transcript_text: str,
     language: str,
     output_language: str,
-    settings: CloudSettings,
+    settings: CloudSettings | LocalAnalysisSettings,
+    provider: str = _PROVIDER,
+    operation: str = _OPERATION,
+    prompt_version: str | None = None,
 ) -> AnalysisInput:
     """Build the sole outbound object and its complete, deterministic cache key."""
 
     if settings.model is None:
         msg = "cloud model is required to build an analysis input"
         raise ValueError(msg)
+    transcript_sample = sample_transcript_for_cloud(transcript_text)
+    if provider == _LOCAL_PROVIDER:
+        transcript_sample = " ".join(transcript_sample.split())
     payload = AnalysisPayload(
         video_id=video.video_id,
         title=video.title,
@@ -391,36 +405,56 @@ def build_analysis_input(
         description=video.description[: settings.max_description_chars],
         transcript_language=language,
         output_language=output_language,
-        transcript_sample=sample_transcript_for_cloud(transcript_text),
+        transcript_sample=transcript_sample,
     )
+    resolved_prompt = cast(
+        Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"],
+        prompt_version
+        or (
+            "analysis-prompt-v4"
+            if provider == _LOCAL_PROVIDER
+            else settings.prompt_version
+        ),
+    )
+    resolved_schema: Literal["analysis-result-v1"] = "analysis-result-v1"
     normalized_input_hash = _normalized_input_hash(
-        payload=payload, transcript_text=transcript_text, settings=settings
+        payload=payload,
+        transcript_text=transcript_text,
+        settings=settings,
+        model_digest=(
+            settings.expected_model_digest
+            if isinstance(settings, LocalAnalysisSettings)
+            else None
+        ),
     )
     request_hash = build_provider_request_hash(
-        operation=_OPERATION, normalized_input_hash=normalized_input_hash,
-        provider=_PROVIDER, model=settings.model, prompt_version=settings.prompt_version,
-        schema_version=settings.schema_version,
+        operation=operation,
+        normalized_input_hash=normalized_input_hash,
+        provider=provider,
+        model=settings.model, prompt_version=resolved_prompt,
+        schema_version=resolved_schema,
     )
     return AnalysisInput(
         payload=payload, transcript_content_hash=_sha256_text(transcript_text),
-        request_hash=request_hash, prompt_version=settings.prompt_version,
-        schema_version=settings.schema_version, sampling_version=settings.sampling_version,
+        request_hash=request_hash, prompt_version=resolved_prompt,
+        schema_version=resolved_schema, sampling_version=settings.sampling_version,
         privacy_version=settings.privacy_version,
     )
 
 
-def _normalized_input_hash(*, payload: AnalysisPayload, transcript_text: str, settings: CloudSettings) -> str:
-    return _sha256_text(
-        _canonical_json(
-            {
-                "payload": payload.model_dump(mode="json"),
-                "transcript_content_hash": _sha256_text(transcript_text),
-                "sampling_version": settings.sampling_version,
-                "privacy_version": settings.privacy_version,
-                "max_output_tokens": settings.max_output_tokens,
-            }
-        )
-    )
+def _normalized_input_hash(*, payload: AnalysisPayload, transcript_text: str, settings: CloudSettings | LocalAnalysisSettings,
+    model_digest: str | None = None,
+) -> str:
+    identity = {
+        "payload": payload.model_dump(mode="json"),
+        "transcript_content_hash": _sha256_text(transcript_text),
+        "sampling_version": settings.sampling_version,
+        "privacy_version": settings.privacy_version,
+        "max_output_tokens": settings.max_output_tokens,
+    }
+    if model_digest is not None:
+        identity["model_digest"] = model_digest
+    return _sha256_text(_canonical_json(identity))
 
 
 class AnalysisService:
@@ -471,23 +505,31 @@ class AnalysisService:
                 output_language=self._output_language, settings=self._settings,
             )
             parts = _request_parts(analysis_input.payload)
-            if _input_tokens(parts, self._tokenizer_data_root) > self._settings.max_local_input_tokens_per_video:
-                return self._skipped(AnalysisSkipReason.INPUT_TOO_LARGE, "local input token limit exceeded")
+            if (
+                _input_tokens(parts, self._tokenizer_data_root) > self._settings.max_local_input_tokens_per_video
+            ):
+                return self._skipped(AnalysisSkipReason.INPUT_TOO_LARGE, "local input token limit exceeded",
+                )
         except ValueError as exc:
             raise AnalysisPolicyError(
-                AppError(code=ErrorCode.CONFIG_INVALID, message="cloud analysis local configuration is invalid", retryable=False, video_id=video.video_id, stage=ProcessingStage.ANALYSIS)
+                AppError(code=ErrorCode.CONFIG_INVALID, message="cloud analysis local configuration is invalid", retryable=False, video_id=video.video_id, stage=ProcessingStage.ANALYSIS,
+                )
             ) from exc
         cached = self._cache.get(analysis_input.request_hash)
         if cached is not None:
             return AnalysisCompleted(
                 result=cached,
-                call=ProviderCallMetadata(provider=cached.provider, model=cached.model, started_at=self._clock(), finished_at=self._clock(), diagnostics=(DiagnosticEntry(code="CACHE_HIT", message="reused cached structured cloud analysis"),)),
+                call=ProviderCallMetadata(provider=cached.provider, model=cached.model, started_at=self._clock(), finished_at=self._clock(), diagnostics=(DiagnosticEntry(code="CACHE_HIT", message="reused cached structured cloud analysis",
+                        ),
+                    ),
+                ),
             )
         if self._budget.remaining == 0:
             return self._skipped(AnalysisSkipReason.BUDGET_EXHAUSTED, "cloud call budget is exhausted")
         credential = self._credential_resolver.resolve(self._settings.api_key_env)
         if not credential:
-            return self._skipped(AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, "cloud credential is unavailable")
+            return self._skipped(AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, "cloud credential is unavailable",
+            )
         # A call is consumed at the last possible moment, immediately before transport.
         if not self._budget.try_consume():
             return self._skipped(AnalysisSkipReason.BUDGET_EXHAUSTED, "cloud call budget is exhausted")
@@ -502,20 +544,24 @@ class AnalysisService:
         except Exception as exc:
             candidate = getattr(exc, "error", None)
             if getattr(exc, "refusal", False):
-                return self._skipped(AnalysisSkipReason.PROVIDER_REFUSAL, "cloud analysis request was refused")
+                return self._skipped(AnalysisSkipReason.PROVIDER_REFUSAL, "cloud analysis request was refused",
+                )
             if isinstance(candidate, AppError):
                 raise AnalysisPolicyError(candidate) from None
             raise AnalysisPolicyError(
-                AppError(code=ErrorCode.INVALID_RESPONSE, message="cloud analysis provider failed", retryable=True, video_id=video.video_id, stage=ProcessingStage.ANALYSIS)
+                AppError(code=ErrorCode.INVALID_RESPONSE, message="cloud analysis provider failed", retryable=True, video_id=video.video_id, stage=ProcessingStage.ANALYSIS,
+                )
             ) from None
         finally:
             credential = ""
         if result.request_hash != analysis_input.request_hash:
-            raise AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE, message="cloud analysis result belongs to a different request", retryable=True, video_id=video.video_id, stage=ProcessingStage.ANALYSIS))
+            raise AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE, message="cloud analysis result belongs to a different request", retryable=True, video_id=video.video_id, stage=ProcessingStage.ANALYSIS,
+                ))
         self._cache.put(result)
         return AnalysisCompleted(
             result=result,
-            call=ProviderCallMetadata(provider=result.provider, model=result.model, started_at=started_at, finished_at=self._clock()),
+            call=ProviderCallMetadata(provider=result.provider, model=result.model, started_at=started_at, finished_at=self._clock(),
+            ),
         )
 
 
@@ -529,9 +575,10 @@ class AnalysisJobContext:
 class RepositoryBackedAnalysisService:
     """Persist a successful analysis and its provider call in one repository transaction."""
 
-    def __init__(self, *, provider: Any, settings: CloudSettings, repository: Any,
+    def __init__(self, *, provider: Any, settings: CloudSettings | LocalAnalysisSettings, repository: Any,
                  context: AnalysisJobContext, artifact_root: Path,
-                 credential_resolver: CredentialResolver, budget: CloudCallBudget) -> None:
+                 credential_resolver: CredentialResolver, budget: CloudCallBudget,
+    ) -> None:
         self.provider, self.settings, self.repository = provider, settings, repository
         self.context, self.artifact_root = context, artifact_root
         self.credential_resolver, self.budget = credential_resolver, budget
@@ -576,15 +623,17 @@ class RepositoryBackedAnalysisService:
     def _cache_error(video_id: str) -> AnalysisPolicyError:
         return AnalysisPolicyError(AppError(code=ErrorCode.INVALID_RESPONSE,
             message="persisted cloud analysis cache is invalid", retryable=True,
-            video_id=video_id, stage=ProcessingStage.ANALYSIS))
+            video_id=video_id, stage=ProcessingStage.ANALYSIS,
+            ))
 
     def _read_verified_artifact(
         self, *, artifact: Any, request: ProviderCallRequest, video_id: str,
         name: str, kind: ArtifactKind, retention: RetentionClass,
         expires_at: datetime | None, job_id: str | None = None,
     ) -> bytes:
-        key = request.deterministic_artifact_key if name == "raw" else (
-            f"analysis/{request.request_hash}/structured"
+        key = (
+            request.deterministic_artifact_key if name == "raw" else (
+            f"analysis/{request.request_hash}/structured")
         )
         relative_path = artifact.relative_path if artifact is not None else None
         if (
@@ -656,35 +705,64 @@ class RepositoryBackedAnalysisService:
         self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
             video_id=video_id, expected_status=PipelineStatus.SCORED,
             target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
-            artifacts=(), provider_call=None, now=now)
+            artifacts=(), provider_call=None, now=now,
+        )
         return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
-            model=result.model, started_at=now, finished_at=_utcnow(), diagnostics=(DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted cloud analysis"),)))
+            model=result.model, started_at=now, finished_at=_utcnow(), diagnostics=(DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted cloud analysis",
+                    ),
+                ),
+            ),
+        )
 
     def analyze(self, *, video: VideoMetadata, transcript_text: str, language: str,
-                output_language: str = "zh-CN") -> AnalysisOutcome | None:
+                output_language: str = "zh-CN",
+    ) -> AnalysisOutcome | None:
         if not self._validate_upstream(video=video, transcript_text=transcript_text):
             return None
-        if not self.settings.enabled:
+        local_mode = isinstance(self.settings, LocalAnalysisSettings)
+        cloud_settings = cast(CloudSettings, self.settings)
+        local_settings = cast(LocalAnalysisSettings, self.settings)
+        if not local_mode and not cloud_settings.enabled:
             return AnalysisSkipped(reason=AnalysisSkipReason.CLOUD_DISABLED, call=None,
-                safe_message="cloud analysis is disabled")
+                safe_message="cloud analysis is disabled",
+            )
         analysis_input = build_analysis_input(video=video, transcript_text=transcript_text,
-            language=language, output_language=output_language, settings=self.settings)
-        if _input_tokens(
+            language=language, output_language=output_language, settings=self.settings,
+            provider=_LOCAL_PROVIDER if local_mode else _PROVIDER,
+            operation=_LOCAL_OPERATION if local_mode else _OPERATION,
+            prompt_version=(
+                "analysis-prompt-v4" if local_mode else cloud_settings.prompt_version
+            ),
+        )
+        oversized = (
+            len(transcript_text) > local_settings.max_transcript_chars
+            if local_mode
+            else _input_tokens(
             _request_parts(analysis_input.payload), self.artifact_root
-        ) > self.settings.max_local_input_tokens_per_video:
+        ) > cloud_settings.max_local_input_tokens_per_video
+        )
+        if oversized:
             return AnalysisSkipped(reason=AnalysisSkipReason.INPUT_TOO_LARGE, call=None,
-                safe_message="local input token limit exceeded")
-        request = ProviderCallRequest(operation=_OPERATION,
+                safe_message="local input token limit exceeded",
+            )
+        provider_name = _LOCAL_PROVIDER if local_mode else _PROVIDER
+        operation = _LOCAL_OPERATION if local_mode else _OPERATION
+        request = ProviderCallRequest(operation=operation,
             normalized_input_hash=_normalized_input_hash(payload=analysis_input.payload,
-                transcript_text=transcript_text, settings=self.settings), provider=_PROVIDER,
-            model=self.settings.model, prompt_version=self.settings.prompt_version,
-            schema_version=self.settings.schema_version,
-            deterministic_artifact_key=f"analysis/{analysis_input.request_hash}/raw")
+                transcript_text=transcript_text, settings=self.settings,
+                model_digest=(
+                    local_settings.expected_model_digest if local_mode else None
+                ),
+            ), provider=provider_name,
+            model=self.settings.model, prompt_version=analysis_input.prompt_version,
+            schema_version=analysis_input.schema_version,
+            deterministic_artifact_key=f"analysis/{analysis_input.request_hash}/raw",
+        )
         now = _utcnow()
         existing = self.repository.get_provider_call(request.request_hash)
         if existing is not None and existing.status is ProviderCallStatus.SUCCEEDED:
             return self._reuse_persisted_result(
-                request=request, provider_call=existing, video_id=video.video_id, now=now
+                request=request, provider_call=existing, video_id=video.video_id, now=now,
             )
         dispatch = self.repository.recover_provider_dispatch(
             request.request_hash, now=now
@@ -692,7 +770,11 @@ class RepositoryBackedAnalysisService:
         if dispatch is not None and dispatch.status is ProviderDispatchStatus.AMBIGUOUS:
             raise AnalysisPolicyError(AppError(
                 code=ErrorCode.PROVIDER_UNAVAILABLE,
-                message="cloud provider dispatch outcome is ambiguous; operator resolution required",
+                message=(
+                        "local Summary dispatch outcome is ambiguous; operator resolution required"
+                        if local_mode
+                        else "cloud provider dispatch outcome is ambiguous; operator resolution required"
+                    ),
                 retryable=False,
                 video_id=video.video_id,
                 stage=ProcessingStage.ANALYSIS,
@@ -703,45 +785,75 @@ class RepositoryBackedAnalysisService:
         }:
             raise AnalysisPolicyError(AppError(
                 code=ErrorCode.PROVIDER_UNAVAILABLE,
-                message="cloud provider dispatch is still owned by an active lease",
+                message=(
+                        "local Summary dispatch is still owned by an active lease"
+                        if local_mode
+                        else "cloud provider dispatch is still owned by an active lease"
+                    ),
                 retryable=True,
                 video_id=video.video_id,
                 stage=ProcessingStage.ANALYSIS,
             ))
         if self.budget.remaining == 0:
             return AnalysisSkipped(reason=AnalysisSkipReason.BUDGET_EXHAUSTED, call=None,
-                safe_message="cloud call budget is exhausted")
-        credential = self.credential_resolver.resolve(self.settings.api_key_env)
-        if not credential:
+                safe_message="cloud call budget is exhausted",
+            )
+        credential = (
+            None
+            if local_mode
+            else self.credential_resolver.resolve(cloud_settings.api_key_env)
+        )
+        if not local_mode and not credential:
             return AnalysisSkipped(reason=AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, call=None,
-                safe_message="cloud credential is unavailable")
+                safe_message="cloud credential is unavailable",
+            )
         reservation = self.repository.reserve_provider_call(request, owner=self.context.owner,
             lease_until=now + timedelta(seconds=300), available_at=now, now=now,
-            fail_closed_on_ambiguous_dispatch=True)
+            fail_closed_on_ambiguous_dispatch=True,
+        )
         if not reservation.acquired:
             if reservation.record.status is not ProviderCallStatus.SUCCEEDED:
                 raise AnalysisPolicyError(AppError(code=ErrorCode.PROVIDER_UNAVAILABLE,
                     message="cloud analysis call is already reserved", retryable=True,
-                    video_id=video.video_id, stage=ProcessingStage.ANALYSIS))
+                    video_id=video.video_id, stage=ProcessingStage.ANALYSIS,
+                    ))
             return self._reuse_persisted_result(
-                request=request, provider_call=reservation.record, video_id=video.video_id, now=now
+                request=request, provider_call=reservation.record, video_id=video.video_id, now=now,
             )
         if not self.budget.try_consume():
             self.repository.fail_provider_call(request.request_hash, owner=self.context.owner,
                 retryable=True, available_at=now, error_code=ErrorCode.LOCAL_RESOURCE,
-                error_message="cloud analysis could not start", now=now)
+                error_message="cloud analysis could not start", now=now,
+            )
             raise AnalysisPolicyError(AppError(code=ErrorCode.LOCAL_RESOURCE,
                 message="cloud analysis could not start", retryable=True, video_id=video.video_id,
-                stage=ProcessingStage.ANALYSIS))
+                stage=ProcessingStage.ANALYSIS,
+                ))
         self.repository.record_provider_dispatch_intent(
             request.request_hash, owner=self.context.owner, now=now
         )
         try:
-            result = self.provider.summarize_with_credential(analysis_input, credential)
+            if local_mode:
+                result = self.provider.summarize(analysis_input)
+            else:
+                result = self.provider.summarize_with_credential(
+                    analysis_input, credential
+                )
             self.repository.record_provider_dispatch_result_unknown(
                 request.request_hash, owner=self.context.owner, now=now
             )
             raw = self.provider.consume_raw_response(request_hash=request.request_hash).encode()
+            input_tokens: int | None = None
+            output_tokens: int | None = None
+            if local_mode:
+                envelope = json.loads(raw)
+                for field, target in (("prompt_eval_count", "input"), ("eval_count", "output")):
+                    count = envelope.get(field)
+                    if type(count) is int and count >= 0:
+                        if target == "input":
+                            input_tokens = count
+                        else:
+                            output_tokens = count
             structured = _canonical_json(result.model_dump(mode="json")).encode()
             artifacts = self._artifacts(request, video.video_id, raw, structured, now)
             paths = self._write(artifacts, (raw, structured))
@@ -749,8 +861,10 @@ class RepositoryBackedAnalysisService:
                 video_id=video.video_id, expected_status=PipelineStatus.SCORED,
                 target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
                 artifacts=artifacts, provider_call=ProviderCallCompletion(request_hash=request.request_hash,
-                response_artifact_id=artifacts[0].artifact_id, input_tokens=None, output_tokens=None,
-                cost_microusd=None), now=now)
+                response_artifact_id=artifacts[0].artifact_id, input_tokens=input_tokens, output_tokens=output_tokens,
+                cost_microusd=None,
+                ), now=now,
+            )
         except Exception as exc:
             for path in locals().get("paths", ()):
                 path.unlink(missing_ok=True)
@@ -781,24 +895,32 @@ class RepositoryBackedAnalysisService:
                 )
             raise
         finally:
-            credential = ""
+            credential = None
         return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
-            model=result.model, started_at=now, finished_at=_utcnow()))
+            model=result.model, started_at=now, finished_at=_utcnow(),
+            ),
+        )
 
     def _artifacts(self, request: ProviderCallRequest, video_id: str, raw: bytes, structured: bytes,
-                   now: datetime) -> tuple[ArtifactWrite, ArtifactWrite]:
-        values = (("raw", raw, ArtifactKind.ANALYSIS_RAW, RetentionClass.RAW_RESPONSE_30D, now),
-                  ("structured", structured, ArtifactKind.ANALYSIS_STRUCTURED, RetentionClass.LONG_LIVED, None))
+                   now: datetime,
+    ) -> tuple[ArtifactWrite, ArtifactWrite]:
+        values = (("raw", raw, ArtifactKind.ANALYSIS_RAW, RetentionClass.RAW_RESPONSE_30D, now,
+            ),
+                  ("structured", structured, ArtifactKind.ANALYSIS_STRUCTURED, RetentionClass.LONG_LIVED, None,
+            ),
+        )
         return tuple(ArtifactWrite(artifact_id=f"analysis-{name}-{_sha256_text(key + hashlib.sha256(data).hexdigest())}",
             artifact_key=key, video_id=video_id, job_id=self.context.job_id, kind=kind,
             storage_root=StorageRoot.DATA, relative_path=f"analysis/{request.request_hash}/{name}.json",
-            content_hash=hashlib.sha256(data).hexdigest(), provider=_PROVIDER, model=request.model,
+            content_hash=hashlib.sha256(data).hexdigest(), provider=request.provider, model=request.model,
             producer_version=f"analysis-{name}-v1", retention_class=retention,
-            expires_at=None if expires is None else expires + timedelta(days=30))
+            expires_at=None if expires is None else expires + timedelta(days=30),
+            )
             for name, data, kind, retention, expires in values
             for key in (request.deterministic_artifact_key if name == "raw" else f"analysis/{request.request_hash}/structured",))  # type: ignore[return-value]
 
-    def _write(self, artifacts: tuple[ArtifactWrite, ArtifactWrite], contents: tuple[bytes, bytes]) -> tuple[Path, ...]:
+    def _write(self, artifacts: tuple[ArtifactWrite, ArtifactWrite], contents: tuple[bytes, bytes],
+    ) -> tuple[Path, ...]:
         paths = []
         for artifact, content in zip(artifacts, contents, strict=True):
             path = self.artifact_root / artifact.relative_path

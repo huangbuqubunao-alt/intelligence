@@ -258,7 +258,7 @@ def _quality_materials(
             "candidate_hash": candidate_hash,
             "quality_input_hash": quality_input_hash,
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": _MODEL,
@@ -269,7 +269,7 @@ def _quality_materials(
         {
             "schema_version": "content-quality-result-v1",
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "status": ContentQualityStatus.PASS.value,
             "decision_source": ContentQualityDecisionSource.LOCAL_JUDGE.value,
             "decision_confidence": ContentQualityConfidence.HIGH.value,

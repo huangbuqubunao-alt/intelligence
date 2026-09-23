@@ -65,6 +65,7 @@ from youtube_intel.providers.ollama import (
 )
 from youtube_intel.quality import (
     TrustedScoreResult,
+    build_content_quality_input,
     build_content_quality_input_hash,
     build_judge_h1_h2,
     build_scoring_candidate_hash,
@@ -368,25 +369,15 @@ def _build_quality_input(
     """Deterministically build the content-quality input from trusted inputs.
 
     This mirrors the canonical runtime construction: the candidate supplies the
-    reason/topics, the scoring input supplies the request hash, output language,
-    and the title evidence excerpt.  No caller-provided judge input is accepted.
+    reason/topics, while the scoring input supplies the request hash, output
+    language, title, and bounded canonical transcript sample. No caller-provided
+    Judge input is accepted.
     """
 
-    return ContentQualityInput.model_validate(
-        {
-            "scoring_request_hash": scoring_input.request_hash,
-            "candidate_hash": candidate_hash,
-            "output_language": scoring_input.output_language,
-            "reason": candidate.reason,
-            "topics": list(candidate.topics),
-            "evidence_registry": [
-                {
-                    "evidence_id": "title-1",
-                    "source": ScoringEvidenceSource.TITLE.value,
-                    "excerpt": scoring_input.video.title,
-                }
-            ],
-        }
+    return build_content_quality_input(
+        scoring_input=scoring_input,
+        candidate=candidate,
+        candidate_hash=candidate_hash,
     )
 
 
@@ -732,7 +723,9 @@ class JudgeEvidence(BaseModel):
 
     @model_validator(mode="after")
     def _derived_result_is_local_judge(self) -> "JudgeEvidence":
-        if self.derived_result.decision_source is not ContentQualityDecisionSource.LOCAL_JUDGE:
+        if (
+            self.derived_result.decision_source is not ContentQualityDecisionSource.LOCAL_JUDGE
+        ):
             msg = "JudgeEvidence derived_result must have decision_source=LOCAL_JUDGE"
             raise ValueError(msg)
         return self
@@ -1063,7 +1056,9 @@ def verify_language_evidence_replay(
     """
 
     if evidence.validator_contract != _LANGUAGE_VALIDATOR_CONTRACT:
-        msg = "language_evidence validator_contract is not the frozen TASK-016B contract"
+        msg = (
+            "language_evidence validator_contract is not the frozen TASK-016B contract"
+        )
         raise ValueError(msg)
     if evidence.output_language != output_language:
         msg = "language_evidence output_language does not match the scoring context"
@@ -1093,8 +1088,10 @@ def _verify_pfe_provenance(
     """
 
     scalar_bindings = (
-        (evidence.primary_attempt_identity, _PRIMARY_ATTEMPT_IDENTITY, "primary_attempt_identity"),
-        (evidence.primary_request_hash, trusted_context.request_hash, "primary_request_hash"),
+        (evidence.primary_attempt_identity, _PRIMARY_ATTEMPT_IDENTITY, "primary_attempt_identity",
+        ),
+        (evidence.primary_request_hash, trusted_context.request_hash, "primary_request_hash",
+        ),
         (
             evidence.primary_normalized_input_hash,
             trusted_context.normalized_input_hash,
@@ -1102,15 +1099,19 @@ def _verify_pfe_provenance(
         ),
         (evidence.primary_provider, trusted_context.provider, "primary_provider"),
         (evidence.primary_model, trusted_context.model, "primary_model"),
-        (evidence.primary_model_digest, trusted_context.model_digest, "primary_model_digest"),
-        (evidence.primary_prompt_version, trusted_context.prompt_version, "primary_prompt_version"),
-        (evidence.primary_schema_version, trusted_context.schema_version, "primary_schema_version"),
+        (evidence.primary_model_digest, trusted_context.model_digest, "primary_model_digest",
+        ),
+        (evidence.primary_prompt_version, trusted_context.prompt_version, "primary_prompt_version",
+        ),
+        (evidence.primary_schema_version, trusted_context.schema_version, "primary_schema_version",
+        ),
         (
             evidence.primary_output_language,
             trusted_context.output_language,
             "primary_output_language",
         ),
-        (evidence.primary_temperature, trusted_context.temperature, "primary_temperature"),
+        (evidence.primary_temperature, trusted_context.temperature, "primary_temperature",
+        ),
         (
             evidence.primary_max_output_tokens,
             trusted_context.max_output_tokens,
@@ -1170,7 +1171,9 @@ def _bind_candidate_to_raw(
         msg = "primary_raw_utf8 does not parse to a scoring candidate"
         raise ValueError(msg) from exc
     if parsed != candidate:
-        msg = "embedded candidate does not match the canonical parse of primary_raw_utf8"
+        msg = (
+            "embedded candidate does not match the canonical parse of primary_raw_utf8"
+        )
         raise ValueError(msg)
     if build_scoring_candidate_hash(candidate) != candidate_evidence.candidate_sha256:
         msg = "candidate_sha256 does not match the canonical candidate"
@@ -1364,7 +1367,9 @@ def verify_judge_evidence_replay(
         raise ValueError(msg)
     rederived_input_hash = build_content_quality_input_hash(judge_input)
     if rederived_input_hash != evidence.judge_input_sha256:
-        msg = "JudgeEvidence judge_input_sha256 does not match the canonical judge input"
+        msg = (
+            "JudgeEvidence judge_input_sha256 does not match the canonical judge input"
+        )
         raise ValueError(msg)
     if evidence.judge_input_sha256 != ctx.quality_input_hash:
         msg = "JudgeEvidence judge_input_sha256 does not match the trusted quality input hash"
@@ -1597,7 +1602,9 @@ class H2CSettingsProvenance(BaseModel):
     judge_model: str = Field(min_length=1)
     judge_model_digest: str = Field(pattern=_MODEL_DIGEST)
     quality_policy_version: Literal["content-quality-policy-v1"]
-    quality_prompt_version: Literal["content-quality-prompt-v1"]
+    quality_prompt_version: Literal[
+        "content-quality-prompt-v1", "content-quality-prompt-v2", "content-quality-prompt-v3"
+    ]
     quality_schema_version: Literal["content-quality-result-v1"]
     language_validator_contract: Literal["task016b-scoring-language-validator-v1"]
 
@@ -1798,7 +1805,9 @@ class RepairPersistenceGraphIdentityV2(BaseModel):
     envelope_schema: Literal["trusted-scoring-repair-envelope-v1"]
     repair_provider_evidence_schema: Literal["task016c-repair-provider-evidence-v2"]
     quality_policy_version: Literal["content-quality-policy-v1"]
-    quality_prompt_version: Literal["content-quality-prompt-v1"]
+    quality_prompt_version: Literal[
+        "content-quality-prompt-v1", "content-quality-prompt-v2", "content-quality-prompt-v3"
+    ]
     quality_schema_version: Literal["content-quality-result-v1"]
 
 

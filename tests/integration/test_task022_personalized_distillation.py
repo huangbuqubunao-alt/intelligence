@@ -409,6 +409,7 @@ def _verified_input_for_cloud_test():
         selected_provider="openai",
         selected_model="gpt-test",
         semantic_hash="a" * 64,
+        output_language="zh-CN",
     )
 
 
@@ -440,6 +441,7 @@ def _verified_input_for_nvidia_nim_test():
         selected_provider="nvidia_nim",
         selected_model="moonshotai/kimi-k3",
         semantic_hash="b" * 64,
+        output_language="zh-CN",
     )
 
 
@@ -466,7 +468,7 @@ def _normal_nvidia_authorization(
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 20
+    assert repository.initialize(now=NOW).version == 22
     return repository
 
 
@@ -655,6 +657,7 @@ def _command(source_id: str, video_id: str, evidence_id: str, *, execution_id: s
         use_case="PERSONALIZED_INTELLIGENCE",
         selected_provider="test-transport",
         selected_model="deterministic-v1",
+        output_language="zh-CN",
     )
 
 
@@ -686,7 +689,7 @@ def test_successful_no_new_intelligence_is_durable_and_non_redispatchable(
     assert usage.actual_model == "deterministic-v1"
 
     restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted.initialize(now=NOW).version == 20
+    assert restarted.initialize(now=NOW).version == 22
     persisted = restarted.get_distillation_execution("exec-no-new")
     assert persisted is not None
     assert persisted.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
@@ -875,6 +878,7 @@ def _nvidia_nim_command(
         use_case="PERSONALIZED_INTELLIGENCE",
         selected_provider="nvidia_nim",
         selected_model="moonshotai/kimi-k3",
+        output_language="zh-CN",
     )
 
 
@@ -1115,12 +1119,12 @@ def test_nvidia_nim_default_http_boundary_is_fully_mocked_and_bounded(
     assert body["stream"] is False
 
 
-def test_fresh_database_reaches_exactly_v020_with_integrated_schema(tmp_path: Path) -> None:
+def test_fresh_database_reaches_exactly_v021_with_integrated_schema(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -1134,13 +1138,15 @@ def test_fresh_database_reaches_exactly_v020_with_integrated_schema(tmp_path: Pa
     finally:
         connection.close()
 
-    assert migrations[-6:] == (
+    assert migrations[-8:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
         "018_add_global_output_language.sql",
         "019_add_evidence_excerpt_stance.sql",
         "020_add_no_new_intelligence_result.sql",
+        "021_seal_distillation_output_language.sql",
+        "022_bind_current_local_summary.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:
@@ -1174,7 +1180,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 20
+    assert upgraded.initialize(now=NOW).version == 22
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
@@ -1234,7 +1240,7 @@ def test_v015_upgrade_preserves_ledger_rows_constraints_and_immutability(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 20
+    assert upgraded.initialize(now=NOW).version == 22
     connection = upgraded._connect()
     try:
         after_row = tuple(
@@ -1420,7 +1426,7 @@ def test_v018_legacy_null_stance_keeps_old_card_hash_readable(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 20
+    assert upgraded.initialize(now=NOW).version == 22
     relations = upgraded.list_intelligence_revision_evidence_relations(
         "legacy-revision-v18"
     )
@@ -1835,6 +1841,7 @@ def test_unbounded_evidence_request_is_rejected_before_transport(tmp_path: Path)
         use_case=command.use_case,
         selected_provider=command.selected_provider,
         selected_model=command.selected_model,
+        output_language=command.output_language,
     )
 
     result = _service(repository, transport).distill(command)

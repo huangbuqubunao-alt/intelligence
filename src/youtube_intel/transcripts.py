@@ -45,6 +45,11 @@ from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
     ArtifactWrite,
+    EvidenceAvailability,
+    EvidenceLineageKind,
+    EvidenceRole,
+    EvidenceTextBindingWrite,
+    EvidenceWrite,
     JobRecord,
     ProviderCallCompletion,
     ProviderCallRecord,
@@ -58,6 +63,7 @@ from youtube_intel.state import (
     TimedTranscriptWrite,
     VerifiedArtifact,
     VideoRecord,
+    build_evidence_id,
 )
 from youtube_intel.transcription import (
     AudioArtifact,
@@ -373,6 +379,79 @@ def normalize_language_tag(value: str) -> str:
         msg = "language tags must be non-empty"
         raise ValueError(msg)
     return normalized
+
+
+def _persist_original_transcript_evidence(
+    repository: object,
+    *,
+    timed: TimedTranscriptWrite,
+    language: str,
+    now: datetime,
+) -> None:
+    """Bind bounded, contiguous Evidence spans to the canonical timed transcript."""
+    create = getattr(repository, "create_evidence_with_text_binding", None)
+    get_evidence = getattr(repository, "get_evidence", None)
+    resolve_text = getattr(repository, "resolve_verified_evidence_text", None)
+    if not (callable(create) and callable(get_evidence) and callable(resolve_text)):
+        return
+
+    first = 0
+    while first < len(timed.cues):
+        last = first + 1
+        excerpt_chars = len(timed.cues[first].text)
+        while (
+            last < len(timed.cues)
+            and excerpt_chars + 1 + len(timed.cues[last].text) <= 800
+        ):
+            excerpt_chars += 1 + len(timed.cues[last].text)
+            last += 1
+        cues = timed.cues[first:last]
+        excerpt = "\n".join(cue.text for cue in cues)
+        start_ms = cues[0].start_ms
+        end_ms = cues[-1].end_ms
+        evidence_id = build_evidence_id(
+            video_id=timed.video_id,
+            artifact_id=timed.canonical_artifact_id,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+            role=EvidenceRole.PRIMARY_ORIGINAL,
+        )
+        evidence = EvidenceWrite(
+            evidence_id=evidence_id,
+            video_id=timed.video_id,
+            artifact_id=timed.canonical_artifact_id,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+            role=EvidenceRole.PRIMARY_ORIGINAL,
+            language=language,
+            availability=EvidenceAvailability.AVAILABLE,
+        )
+        existing = get_evidence(evidence_id)
+        if existing is None:
+            create(
+                evidence,
+                EvidenceTextBindingWrite.from_timed_transcript(
+                    evidence=evidence,
+                    timed_transcript_id=timed.timed_transcript_id,
+                    start_cue_index=first,
+                    end_cue_index=last,
+                    excerpt=excerpt,
+                ),
+                now=now,
+            )
+        elif (
+            existing.video_id != evidence.video_id
+            or existing.artifact_id != evidence.artifact_id
+            or existing.start_ms != evidence.start_ms
+            or existing.end_ms != evidence.end_ms
+            or existing.language != evidence.language
+            or (verified := resolve_text(evidence_id)) is None
+            or verified.excerpt != excerpt
+        ):
+            raise ValueError("existing transcript Evidence conflicts with canonical cues")
+        first = last
 
 
 def _language_match_rank(actual: str, requested: str) -> int | None:
@@ -2559,8 +2638,7 @@ class SubtitleAcquisitionService:
                 )
                 persist_timed = getattr(self._repository, "create_timed_transcript", None)
                 if callable(persist_timed) and normalized.timed_cues:
-                    persist_timed(
-                        TimedTranscriptWrite.from_cues(
+                    timed = TimedTranscriptWrite.from_cues(
                             video_id=video_id,
                             canonical_artifact_id=canonical_artifact_id,
                             cues=tuple(
@@ -2571,7 +2649,12 @@ class SubtitleAcquisitionService:
                                 )
                                 for cue in normalized.timed_cues
                             ),
-                        ),
+                        )
+                    persist_timed(timed, now=now)
+                    _persist_original_transcript_evidence(
+                        self._repository,
+                        timed=timed,
+                        language=candidate.track.language,
                         now=now,
                     )
             except Exception:

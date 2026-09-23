@@ -63,6 +63,12 @@ class SourceRunIngestion(Protocol):
     def ingest(self, source_id: str) -> None: ...
 
 
+class SourceRunPreparation(Protocol):
+    """Run trusted scoring and Summary for one relevant, transcript-ready video."""
+
+    def prepare(self, video_id: str) -> bool: ...
+
+
 class SourceRunDiscoveryError(RuntimeError):
     """A bounded production ingestion attempt failed before durable discovery."""
 
@@ -131,6 +137,7 @@ class DurableProcessingOrchestrator:
         distillation: PersonalizedDistillationService,
         discovery: SourceRunDiscovery | None = None,
         ingestion: SourceRunIngestion | None = None,
+        preparation: SourceRunPreparation | None = None,
         topic_updater: TopicAssociationUpdater | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
@@ -139,6 +146,7 @@ class DurableProcessingOrchestrator:
         self._distillation = distillation
         self._discovery = discovery or PersistedSourceRunDiscovery(repository)
         self._ingestion = ingestion
+        self._preparation = preparation
         if topic_updater is not None and not isinstance(
             topic_updater, TopicAssociationUpdater
         ):
@@ -543,6 +551,10 @@ class DurableProcessingOrchestrator:
             decision = self._repository.current_filter_decision(run.source_id, candidate.video_id)
             if decision is None or decision.outcome is not FilterOutcome.RELEVANT:
                 return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
+            if self._preparation is not None and not self._preparation.prepare(
+                candidate.video_id
+            ):
+                return SourceRunAttentionReason.MODEL_UNAVAILABLE
             evidence_ids = self._repository.list_available_canonical_evidence_ids(
                 candidate.video_id
             )

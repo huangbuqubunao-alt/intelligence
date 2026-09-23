@@ -935,7 +935,7 @@ def _judge_operation_input(
             "candidate_hash": "a" * 64,
             "quality_input_hash": quality_input_hash,
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": "qwen3:8b",

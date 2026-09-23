@@ -30,6 +30,8 @@ from youtube_intel.domain import (
     QualityPassAttestation,
     ScoreResult,
     ScoringCandidate,
+    ScoringEvidence,
+    ScoringEvidenceSource,
     ScoringInput,
 )
 from youtube_intel.scoring import build_scoring_request_identity
@@ -39,7 +41,7 @@ _JUDGE_PROVIDER: Final[str] = "ollama"
 _QUALITY_JUDGE_OPERATION: Final[str] = "local-content-quality-v1"
 _QUALITY_POLICY_VERSION: Final[str] = "content-quality-policy-v1"
 _QUALITY_SCHEMA_VERSION: Final[str] = "content-quality-result-v1"
-_QUALITY_PROMPT_VERSION: Final[str] = "content-quality-prompt-v1"
+_QUALITY_PROMPT_VERSION: Final[str] = "content-quality-prompt-v3"
 _SCORING_SCHEMA_VERSION: Final[str] = "scoring-schema-v1"
 _SCORING_PROMPT_VERSION: Final[str] = "scoring-prompt-v1"
 
@@ -461,7 +463,7 @@ class DeterministicContentQualityGate:
             {
                 "schema_version": "content-quality-result-v1",
                 "policy_version": "content-quality-policy-v1",
-                "prompt_version": "content-quality-prompt-v1",
+                "prompt_version": _QUALITY_PROMPT_VERSION,
                 "status": ContentQualityStatus.REJECT.value,
                 "decision_source": ContentQualityDecisionSource.DETERMINISTIC_GATE.value,
                 "decision_confidence": ContentQualityConfidence.HIGH.value,
@@ -607,6 +609,61 @@ def build_content_quality_input_hash(content_input: ContentQualityInput) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def build_content_quality_input(
+    *, scoring_input: ScoringInput, candidate: ScoringCandidate, candidate_hash: str
+) -> ContentQualityInput:
+    """Build canonical Judge Evidence from trusted, bounded scoring material."""
+
+    evidence = [
+        ScoringEvidence(
+            evidence_id="title-1",
+            source=ScoringEvidenceSource.TITLE,
+            excerpt=scoring_input.video.title,
+        )
+    ]
+    sample = scoring_input.sample
+    transcript_parts: tuple[tuple[str, str], ...] = (
+        ("TRANSCRIPT_HEAD", sample.head[:1200]),
+        ("TRANSCRIPT_BODY", sample.body[:1200]),
+        ("TRANSCRIPT_TAIL", sample.tail[-1200:]),
+    )
+    if not sample.body and not sample.tail and len(sample.head) > 1200:
+        length = len(sample.head)
+        starts = (
+            (0, max(0, length - 1200))
+            if length <= 2400
+            else (0, (length - 1200) // 2, length - 1200)
+        )
+        sources = (
+            ("TRANSCRIPT_HEAD", "TRANSCRIPT_TAIL")
+            if length <= 2400
+            else ("TRANSCRIPT_HEAD", "TRANSCRIPT_BODY", "TRANSCRIPT_TAIL")
+        )
+        transcript_parts = tuple(
+            (source, sample.head[start : start + 1200])
+            for source, start in zip(sources, starts, strict=True)
+        )
+    for source, excerpt in transcript_parts:
+        if excerpt.strip():
+            evidence.append(
+                ScoringEvidence(
+                    evidence_id=f"transcript-{source.removeprefix('TRANSCRIPT_').lower()}-1",
+                    source=ScoringEvidenceSource(source),
+                    excerpt=excerpt,
+                )
+            )
+    return ContentQualityInput.model_validate(
+        {
+            "scoring_request_hash": scoring_input.request_hash,
+            "candidate_hash": candidate_hash,
+            "output_language": scoring_input.output_language,
+            "reason": candidate.reason,
+            "topics": list(candidate.topics),
+            "evidence_registry": evidence,
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # Phase D: canonical result hash and PASS attestation
 # ---------------------------------------------------------------------------
@@ -630,10 +687,7 @@ def _reconstruct(
         return model.model_validate(dict(value))
     if isinstance(value, (str, bytes, bytearray)):
         return model.model_validate_json(value)
-    msg = (
-        f"expected {model.__name__}, Mapping, or JSON; "
-        f"got {type(value).__name__}"
-    )
+    msg = f"expected {model.__name__}, Mapping, or JSON; got {type(value).__name__}"
     raise ValueError(msg)
 
 
@@ -714,10 +768,7 @@ def _verify_cross_bindings(
     ]
     for field_name, left, right in _bindings:
         if left != right:
-            msg = (
-                f"{field_name} mismatch: "
-                f"quality_result={left!r}, trusted={right!r}"
-            )
+            msg = f"{field_name} mismatch: quality_result={left!r}, trusted={right!r}"
             raise ValueError(msg)
 
 
@@ -1087,9 +1138,12 @@ class TrustedScoringFinalizer:
                 validated_operation.scoring_request_hash,
                 identity.request_hash,
             ),
-            ("output_language", validated_quality_input.output_language, scoring_context.output_language),
-            ("candidate reason", validated_quality_input.reason, validated_candidate.reason),
-            ("candidate topics", validated_quality_input.topics, validated_candidate.topics),
+            ("output_language", validated_quality_input.output_language, scoring_context.output_language,
+            ),
+            ("candidate reason", validated_quality_input.reason, validated_candidate.reason,
+            ),
+            ("candidate topics", validated_quality_input.topics, validated_candidate.topics,
+            ),
         )
         for name, actual, expected in bindings:
             if actual != expected:
@@ -1344,9 +1398,7 @@ class RepairTrustedScoringFinalizer:
         )
         if gate_reject is not None:
             gate_reason = gate_reject.reason
-            reason_literal = (
-                gate_reason.value if gate_reason is not None else "UNKNOWN"
-            )
+            reason_literal = gate_reason.value if gate_reason is not None else "UNKNOWN"
             raise ValueError(
                 f"REPAIR deterministic gate replay rejected: {reason_literal}"
             )
@@ -1355,7 +1407,9 @@ class RepairTrustedScoringFinalizer:
         # replay the Judge raw; require PASS.  No caller JudgeTrustedContext
         # authority is accepted.
         verify_judge_evidence_replay(validated_judge_evidence, derived_ctx)
-        if validated_judge_evidence.derived_result.status is not ContentQualityStatus.PASS:
+        if (
+            validated_judge_evidence.derived_result.status is not ContentQualityStatus.PASS
+        ):
             raise ValueError("REPAIR Judge replay must produce PASS")
         if validated_quality_result != validated_judge_evidence.derived_result:
             raise ValueError(
@@ -1425,7 +1479,9 @@ class RepairTrustedScoringFinalizer:
             raise ValueError("REPAIR request hash mismatches the canonical RNI identity")
         if validated_rni.primary_request_hash != identity.request_hash:
             raise ValueError("RNI primary_request_hash mismatches the PRIMARY identity")
-        if validated_rni.primary_normalized_input_hash != identity.normalized_input_hash:
+        if (
+            validated_rni.primary_normalized_input_hash != identity.normalized_input_hash
+        ):
             raise ValueError(
                 "RNI primary_normalized_input_hash mismatches the PRIMARY identity"
             )
@@ -1435,13 +1491,17 @@ class RepairTrustedScoringFinalizer:
             raise ValueError("RNI video_id mismatches the original scoring input")
         if validated_rni.repair_model != validated_settings.model:
             raise ValueError("RNI repair_model mismatches the validated settings")
-        if validated_rni.repair_model_digest != validated_settings.expected_model_digest:
+        if (
+            validated_rni.repair_model_digest != validated_settings.expected_model_digest
+        ):
             raise ValueError("RNI repair_model_digest mismatches the validated settings")
         if validated_rni.temperature != validated_settings.temperature:
             raise ValueError("RNI temperature mismatches the validated settings")
         if validated_rni.max_output_tokens != validated_settings.max_output_tokens:
             raise ValueError("RNI max_output_tokens mismatches the validated settings")
-        if validated_rni.max_description_chars != validated_settings.max_description_chars:
+        if (
+            validated_rni.max_description_chars != validated_settings.max_description_chars
+        ):
             raise ValueError(
                 "RNI max_description_chars mismatches the validated settings"
             )

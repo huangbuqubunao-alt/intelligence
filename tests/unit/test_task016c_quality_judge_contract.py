@@ -95,7 +95,7 @@ def _operation_input(
     candidate_hash: str = VALID_HASH,
     quality_input_hash: str = VALID_HASH,
     policy_version: str = "content-quality-policy-v1",
-    prompt_version: str = "content-quality-prompt-v1",
+    prompt_version: str = "content-quality-prompt-v3",
     schema_version: str = "content-quality-result-v1",
     judge_provider: str = "ollama",
     judge_model: str = "qwen3:8b",
@@ -215,7 +215,7 @@ class TestJudgeIdentity:
             ("candidate_hash", OTHER_HASH),
             ("quality_input_hash", OTHER_HASH),
             ("policy_version", "content-quality-policy-v2"),
-            ("prompt_version", "content-quality-prompt-v2"),
+            ("prompt_version", "content-quality-prompt-v1"),
             ("schema_version", "content-quality-result-v2"),
             ("judge_provider", "other-provider"),
             ("judge_model", "other-model"),
@@ -403,7 +403,7 @@ class TestJudgeConfigBinding:
             ("judge_model_digest", OTHER_DIGEST),
             ("judge_provider", "openai"),
             ("policy_version", "content-quality-policy-v2"),
-            ("prompt_version", "content-quality-prompt-v2"),
+            ("prompt_version", "content-quality-prompt-v1"),
             ("schema_version", "content-quality-result-v2"),
         ],
     )
@@ -956,6 +956,16 @@ class TestJudgeRequest:
         generate_payload = json.loads(transport.requests[1][2] or b"{}")
         h1, _ = build_judge_h1_h2(operation_input)
         assert h1 in generate_payload["prompt"]
+        prompt = generate_payload["prompt"]
+        assert "content-quality-prompt-v3" in prompt
+        assert (
+            "IDENTIFIER_ONLY, ENTITY_ONLY, LOW_INFORMATION, MINIMAL_CLAIM_MISSING"
+            in prompt
+        )
+        assert (
+            "GROUNDING_INSUFFICIENT, JUDGE_UNAVAILABLE, or JUDGE_INVALID_RESPONSE"
+            in prompt
+        )
 
     def test_judge_request_payload_contains_bounded_evaluation_content(self) -> None:
         transport = _FakeTransport(

@@ -70,9 +70,11 @@ class _Transport:
         self.actual_provider = "test-transport"
         self.actual_model = model
         self.calls = 0
+        self.last_input: object | None = None
 
     def generate(self, command: DistillationCommand) -> DistillationTransportResult:
         self.calls += 1
+        self.last_input = command
         return DistillationTransportResult(
             raw=self.raw,
             actual_provider=self.actual_provider,
@@ -113,7 +115,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 20
+    assert repository.initialize(now=NOW).version == 22
     return repository
 
 
@@ -169,7 +171,8 @@ def _source_video_evidence(repository: SQLiteStateRepository) -> tuple[str, str,
             "INSERT INTO artifacts (artifact_id, artifact_key, video_id, job_id, kind, storage_root, relative_path, content_hash, provider, model, producer_version, retention_class, created_at, expires_at, deleted_at) "
             "VALUES (?, ?, ?, NULL, ?, 'DATA', ?, ?, NULL, NULL, 'v1', 'LONG_LIVED', ?, NULL, NULL)",
             (artifact_id, f"key-{video_id}", video_id, ArtifactKind.TRANSCRIPT_CANONICAL.value,
-             f"{video_id}.txt", "a" * 64, "2026-09-08T10:00:00.000000Z"),
+             f"{video_id}.txt", "a" * 64, "2026-09-08T10:00:00.000000Z",
+            ),
         )
     finally:
         connection.close()
@@ -235,7 +238,7 @@ def _raw(evidence_id: str, *, claim_kind: str = "EVIDENCE_BACKED_STATEMENT") -> 
 
 
 def _service(
-    repository: SQLiteStateRepository, transport: _Transport, budget: _Budget | None = None
+    repository: SQLiteStateRepository, transport: _Transport, budget: _Budget | None = None,
 ) -> PersonalizedDistillationService:
     return PersonalizedDistillationService(
         repository,
@@ -246,7 +249,8 @@ def _service(
     )
 
 
-def test_reserve_mints_one_canonical_pre_dispatch_execution_without_side_effects(tmp_path: Path) -> None:
+def test_reserve_mints_one_canonical_pre_dispatch_execution_without_side_effects(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     transport = _Transport(_raw(evidence_id))
@@ -260,7 +264,7 @@ def test_reserve_mints_one_canonical_pre_dispatch_execution_without_side_effects
     )
 
     assert first == second
-    assert first.execution_id.startswith("distillation:reservation:v2:")
+    assert first.execution_id.startswith("distillation:reservation:v3:")
     checkpoint = repository.get_distillation_execution(first.execution_id)
     assert checkpoint is not None
     assert checkpoint.status == "PENDING"
@@ -272,7 +276,8 @@ def test_reserve_mints_one_canonical_pre_dispatch_execution_without_side_effects
         repository.get_distillation_resource_usage(first.execution_id)
 
 
-def test_reserve_rejects_foreign_or_noncanonical_evidence_without_execution(tmp_path: Path) -> None:
+def test_reserve_rejects_foreign_or_noncanonical_evidence_without_execution(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     service = _service(repository, _Transport(_raw(evidence_id)))
@@ -284,12 +289,15 @@ def test_reserve_rejects_foreign_or_noncanonical_evidence_without_execution(tmp_
     assert repository.list_distillation_cards() == ()
     connection = repository._connect()
     try:
-        assert connection.execute("SELECT COUNT(*) FROM distillation_execution_checkpoints").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM distillation_execution_checkpoints").fetchone()[0] == 0
+        )
     finally:
         connection.close()
 
 
-def test_reserved_identity_binds_m012_child_and_cannot_be_replaced(tmp_path: Path) -> None:
+def test_reserved_identity_binds_m012_child_and_cannot_be_replaced(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
@@ -297,7 +305,7 @@ def test_reserved_identity_binds_m012_child_and_cannot_be_replaced(tmp_path: Pat
     )
     run = repository.create_source_run(
         SourceRunWrite.manual_check_now(
-            source_id=source_id, command_id="check-023b", priority=SourceRunPriority.P0, created_at=NOW
+            source_id=source_id, command_id="check-023b", priority=SourceRunPriority.P0, created_at=NOW,
         )
     )
     child = repository.record_source_run_child(
@@ -320,7 +328,8 @@ def test_reserved_identity_binds_m012_child_and_cannot_be_replaced(tmp_path: Pat
         connection.close()
 
 
-def test_continue_uses_exact_reserved_identity_once_and_recovers_success(tmp_path: Path) -> None:
+def test_continue_uses_exact_reserved_identity_once_and_recovers_success(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     transport = _Transport(_raw(evidence_id))
@@ -335,11 +344,17 @@ def test_continue_uses_exact_reserved_identity_once_and_recovers_success(tmp_pat
     assert first.status is DistillationExecutionStatus.SUCCEEDED
     assert second == first
     assert transport.calls == 1
-    assert repository.get_distillation_resource_usage(reservation.execution_id).execution_id == reservation.execution_id
+    assert (
+        repository.get_distillation_resource_usage(reservation.execution_id).execution_id == reservation.execution_id
+    )
     connection = repository._connect()
     try:
-        assert connection.execute("SELECT COUNT(*) FROM intelligences").fetchone()[0] == 1
-        assert connection.execute("SELECT COUNT(*) FROM dependency_edges").fetchone()[0] == 1
+        assert (
+            connection.execute("SELECT COUNT(*) FROM intelligences").fetchone()[0] == 1
+        )
+        assert (
+            connection.execute("SELECT COUNT(*) FROM dependency_edges").fetchone()[0] == 1
+        )
     finally:
         connection.close()
 
@@ -351,7 +366,7 @@ def test_reopen_continues_only_from_persisted_reservation_state(tmp_path: Path) 
         source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     transport = _Transport(_raw(evidence_id))
 
     result = _service(reopened, transport).continue_reserved_distillation(reservation.execution_id)
@@ -360,17 +375,108 @@ def test_reopen_continues_only_from_persisted_reservation_state(tmp_path: Path) 
     assert transport.calls == 1
 
 
-def test_budget_is_checked_before_claim_or_transport_and_preserves_identity(tmp_path: Path) -> None:
+def test_reserved_language_survives_preference_change_and_repository_restart(tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    repository.save_global_output_language(output_language="zh-CN", now=NOW)
+    source_id, video_id, evidence_id = _source_video_evidence(repository)
+    first_transport = _Transport(_raw(evidence_id))
+    first_service = PersonalizedDistillationService(
+        repository,
+        SourcePolicyApplicationService(repository, now=lambda: NOW),
+        first_transport,
+        _Budget(),
+        now=lambda: NOW,
+        output_language_for_video=lambda _video: (
+            repository.get_global_user_settings().output_language
+        ),
+    )
+    reservation = first_service.reserve_distillation_execution(
+        source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
+    )
+    checkpoint = repository.get_distillation_execution(reservation.execution_id)
+    assert checkpoint is not None and checkpoint.output_language == "zh-CN"
+
+    repository.save_global_output_language(output_language="en", now=NOW)
+    reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    second_transport = _Transport(_raw(evidence_id))
+    resumed_service = PersonalizedDistillationService(
+        reopened,
+        SourcePolicyApplicationService(reopened, now=lambda: NOW),
+        second_transport,
+        _Budget(),
+        now=lambda: NOW,
+        output_language_for_video=lambda _video: (
+            reopened.get_global_user_settings().output_language
+        ),
+    )
+
+    result = resumed_service.continue_reserved_distillation(
+        reservation.execution_id
+    )
+
+    assert result.status is DistillationExecutionStatus.SUCCEEDED
+    assert second_transport.last_input is not None
+    assert second_transport.last_input.output_language == "zh-CN"
+
+    future = resumed_service.reserve_distillation_execution(
+        source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
+    )
+    future_record = reopened.get_distillation_execution(future.execution_id)
+    assert future_record is not None and future_record.output_language == "en"
+    assert future.execution_id != reservation.execution_id
+
+
+def test_v020_upgrade_keeps_historical_distillation_language_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "state.sqlite3"
+    v20 = SQLiteStateRepository(path)
+    migrations = v20._load_migrations()
+    monkeypatch.setattr(v20, "_load_migrations", lambda: migrations[:20])
+    assert v20.initialize(now=NOW).version == 20
+    source_id, video_id, _evidence_id = _source_video_evidence(v20)
+    historical = v20.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="historical-v020-execution",
+            source_id=source_id,
+            video_id=video_id,
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="test-transport",
+            selected_model="deterministic-v1",
+        ),
+        now=NOW,
+    )
+    assert historical.output_language is None
+
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 22
+    preserved = upgraded.get_distillation_execution("historical-v020-execution")
+    assert preserved is not None and preserved.output_language is None
+    with upgraded._connect() as connection:
+        row = connection.execute(
+            "SELECT output_language FROM distillation_execution_checkpoints WHERE execution_id=?",
+            ("historical-v020-execution",),
+        ).fetchone()
+    assert row is not None and row["output_language"] is None
+
+
+def test_budget_is_checked_before_claim_or_transport_and_preserves_identity(
+    tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
-    reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
+    reservation = _service(
+        repository, _Transport(_raw(evidence_id))
+    ).reserve_distillation_execution(
         source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
     transport = _Transport(_raw(evidence_id))
 
-    result = _service(repository, transport, _Budget(False, "EXHAUSTED")).continue_reserved_distillation(
-        reservation.execution_id
-    )
+    result = _service(
+        repository, transport, _Budget(False, "EXHAUSTED")
+    ).continue_reserved_distillation(reservation.execution_id)
 
     assert result.status is DistillationExecutionStatus.WAITING_BUDGET
     assert result.execution_id == reservation.execution_id
@@ -378,7 +484,8 @@ def test_budget_is_checked_before_claim_or_transport_and_preserves_identity(tmp_
     assert transport.calls == 0
 
 
-def test_ambiguous_or_claimed_execution_never_redispatches_after_restart(tmp_path: Path) -> None:
+def test_ambiguous_or_claimed_execution_never_redispatches_after_restart(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
@@ -397,7 +504,8 @@ def test_ambiguous_or_claimed_execution_never_redispatches_after_restart(tmp_pat
     assert restarted_transport.calls == 0
 
 
-def test_dispatch_claim_without_response_is_persisted_as_ambiguous_not_safe_to_continue(tmp_path: Path) -> None:
+def test_dispatch_claim_without_response_is_persisted_as_ambiguous_not_safe_to_continue(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
@@ -422,7 +530,8 @@ def test_dispatch_claim_without_response_is_persisted_as_ambiguous_not_safe_to_c
     assert transport.calls == 0
 
 
-def test_claimed_execution_cannot_be_represented_as_a_second_reservation(tmp_path: Path) -> None:
+def test_claimed_execution_cannot_be_represented_as_a_second_reservation(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     service = _service(repository, _Transport(_raw(evidence_id)))
@@ -446,7 +555,8 @@ def test_claimed_execution_cannot_be_represented_as_a_second_reservation(tmp_pat
         )
 
 
-def test_legacy_pending_checkpoint_is_not_a_reservation_or_dispatch_authority(tmp_path: Path) -> None:
+def test_legacy_pending_checkpoint_is_not_a_reservation_or_dispatch_authority(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     transport = _Transport(_raw(evidence_id))
@@ -469,7 +579,8 @@ def test_legacy_pending_checkpoint_is_not_a_reservation_or_dispatch_authority(tm
     assert transport.calls == 0
 
 
-def test_overlapping_continuations_claim_once_and_never_dispatch_twice(tmp_path: Path) -> None:
+def test_overlapping_continuations_claim_once_and_never_dispatch_twice(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
@@ -520,7 +631,8 @@ def test_terminal_validation_failures_cannot_be_retried_by_continuation(tmp_path
     assert transport.calls == 1
 
 
-def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_path: Path) -> None:
+def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_path: Path,
+) -> None:
     repository = _repository(tmp_path)
     source_id, video_id, evidence_id = _source_video_evidence(repository)
     reservation = _service(repository, _Transport(_raw(evidence_id))).reserve_distillation_execution(
@@ -533,7 +645,7 @@ def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_pat
     assert alternate_transport.calls == 0
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()
@@ -544,4 +656,6 @@ def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_pat
         "017_add_current_content_summary.sql",
         "018_add_global_output_language.sql",
         "019_add_evidence_excerpt_stance.sql",
+        "020_add_no_new_intelligence_result.sql",
+        "021_seal_distillation_output_language.sql",
     } <= set(migrations)

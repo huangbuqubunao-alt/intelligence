@@ -29,8 +29,6 @@ from youtube_intel.domain import (
     AnalysisCompleted,
     AnalysisOutcome,
     AnalysisResult,
-    AnalysisSkipped,
-    AnalysisSkipReason,
     AppError,
     ChannelRef,
     ContentQualityInput,
@@ -45,7 +43,6 @@ from youtube_intel.domain import (
     QualityJudgeAttemptRole,
     QualityJudgeOperationInput,
     ScoringCandidate,
-    ScoringEvidenceSource,
     ScoringInput,
     ScoringOutcome,
     ScoringOutputLanguage,
@@ -87,7 +84,6 @@ from youtube_intel.jobs import PipelineJobPlanner
 from youtube_intel.operations import CommandOutcome, ExitCode, Operations
 from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.pipeline import PipelineOrchestrator, StageDisposition
-from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.providers.obsidian import NoteWriteContext, ObsidianNoteSink
 from youtube_intel.providers.ollama import (
     OllamaQualityJudgeProvider,
@@ -101,6 +97,7 @@ from youtube_intel.providers.ollama import (
     seal_primary_raw_capture,
     verify_judge_model_content,
 )
+from youtube_intel.providers.ollama_analysis import OllamaSummaryProvider
 from youtube_intel.providers.subtitles import YtDlpSubtitleAdapter
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.quality import (
@@ -121,6 +118,7 @@ from youtube_intel.quality import (
     TrustedScoringContext,
     _mint_quality_provenance_authority,
     _mint_trusted_scoring_context,
+    build_content_quality_input,
     build_content_quality_input_hash,
     build_quality_pass_attestation,
     build_scoring_candidate_hash,
@@ -380,7 +378,6 @@ def _production_dependencies(config: AppConfig) -> RuntimeDependencies:
         .joinpath("prompts", "scoring.md")
         .read_text(encoding="utf-8")
     )
-    cloud = config.settings.cloud
     return RuntimeDependencies(
         discovery_source=YouTubeRssSourceProvider(timeout_seconds=timeout),
         metadata_provider=YtDlpMetadataProvider(timeout_seconds=timeout),
@@ -389,9 +386,8 @@ def _production_dependencies(config: AppConfig) -> RuntimeDependencies:
             settings=config.settings.local_scoring,
             prompt=scoring_prompt,
         ),
-        analysis_provider_factory=lambda: OpenAIResponsesProvider(
-            model=cloud.model or "cloud-disabled",
-            max_output_tokens=cloud.max_output_tokens,
+        analysis_provider_factory=lambda: OllamaSummaryProvider(
+            settings=config.settings.local_analysis,
         ),
         quality_judge_provider_factory=lambda: OllamaQualityJudgeProvider(
             settings=config.settings.local_scoring,
@@ -560,21 +556,10 @@ class RuntimeOperations(Operations):
             raise _KnownPrimaryFailure()
 
         # Build the content-quality input from the candidate and scoring input.
-        quality_input = ContentQualityInput.model_validate(
-            {
-                "scoring_request_hash": scoring_input.request_hash,
-                "candidate_hash": candidate_hash,
-                "output_language": scoring_input.output_language,
-                "reason": attempt.candidate.reason,
-                "topics": list(attempt.candidate.topics),
-                "evidence_registry": [
-                    {
-                        "evidence_id": "title-1",
-                        "source": ScoringEvidenceSource.TITLE.value,
-                        "excerpt": scoring_input.video.title,
-                    }
-                ],
-            }
+        quality_input = build_content_quality_input(
+            scoring_input=scoring_input,
+            candidate=attempt.candidate,
+            candidate_hash=candidate_hash,
         )
         quality_input_hash = build_content_quality_input_hash(quality_input)
 
@@ -966,21 +951,10 @@ class RuntimeOperations(Operations):
         candidate: ScoringCandidate,
         candidate_hash: str,
     ) -> ContentQualityInput:
-        return ContentQualityInput.model_validate(
-            {
-                "scoring_request_hash": scoring_input.request_hash,
-                "candidate_hash": candidate_hash,
-                "output_language": scoring_input.output_language,
-                "reason": candidate.reason,
-                "topics": list(candidate.topics),
-                "evidence_registry": [
-                    {
-                        "evidence_id": "title-1",
-                        "source": ScoringEvidenceSource.TITLE.value,
-                        "excerpt": scoring_input.video.title,
-                    }
-                ],
-            }
+        return build_content_quality_input(
+            scoring_input=scoring_input,
+            candidate=candidate,
+            candidate_hash=candidate_hash,
         )
 
     def _h2b_known_terminal_failure(
@@ -1160,7 +1134,8 @@ class RuntimeOperations(Operations):
         return body
 
     def _validate_analysis_provenance(
-        self, artifact: ArtifactRecord, result: AnalysisResult, video_id: str
+        self, artifact: ArtifactRecord, result: AnalysisResult, video_id: str,
+        *, require_current_model: bool = True,
     ) -> None:
         """Fail-closed provenance check before Runtime reuses persisted analysis."""
 
@@ -1169,7 +1144,7 @@ class RuntimeOperations(Operations):
             or artifact.kind is not ArtifactKind.ANALYSIS_STRUCTURED
             or artifact.artifact_key != f"analysis/{result.request_hash}/structured"
             or artifact.producer_version != "analysis-structured-v1"
-            or artifact.provider != self._config.settings.cloud.provider
+            or artifact.provider not in {"openai", "ollama"}
             or artifact.provider != result.provider
             or artifact.model is None
             or artifact.model != result.model
@@ -1186,14 +1161,27 @@ class RuntimeOperations(Operations):
         ):
             raise ValueError("persisted analysis job provenance is invalid")
         provider_call = self._repository.get_provider_call(result.request_hash)
+        expected_local = artifact.provider == "ollama"
+        expected_model = (
+            self._config.settings.local_analysis.model
+            if expected_local
+            else self._config.settings.cloud.model
+        )
+        expected_operation = "local-analysis" if expected_local else "cloud-analysis"
+        expected_prompt = (
+            "analysis-prompt-v4" if expected_local else "analysis-prompt-v1"
+        )
+        expected_provider = (
+            "ollama" if expected_local else self._config.settings.cloud.provider
+        )
         if (
             provider_call is None
             or provider_call.status is not ProviderCallStatus.SUCCEEDED
-            or provider_call.operation != "cloud-analysis"
-            or provider_call.provider != "openai"
+            or provider_call.operation != expected_operation
+            or provider_call.provider != expected_provider
             or provider_call.provider != result.provider
             or provider_call.model != result.model
-            or provider_call.prompt_version != "analysis-prompt-v1"
+            or provider_call.prompt_version != expected_prompt
             or provider_call.prompt_version != result.prompt_version
             or provider_call.schema_version != "analysis-result-v1"
             or provider_call.schema_version != result.schema_version
@@ -1217,11 +1205,11 @@ class RuntimeOperations(Operations):
             or raw.producer_version != "analysis-raw-v1"
         ):
             raise ValueError("persisted analysis raw artifact provenance is invalid")
-        if result.model != self._config.settings.cloud.model:
+        if require_current_model and result.model != expected_model:
             raise ValueError(
                 "persisted analysis model does not match current configuration"
             )
-        if result.provider != self._config.settings.cloud.provider:
+        if require_current_model and result.provider != expected_provider:
             raise ValueError(
                 "persisted analysis provider does not match current configuration"
             )
@@ -1249,22 +1237,25 @@ class RuntimeOperations(Operations):
             raise ValueError("authoritative scoring language is unsupported")
         return language
 
-    def _load_analysis(self, video_id: str) -> AnalysisOutcome:
-        if not self._config.settings.cloud.enabled:
-            return AnalysisSkipped(
-                reason=AnalysisSkipReason.CLOUD_DISABLED,
-                call=None,
-                safe_message="cloud analysis is disabled",
+    def _load_analysis(
+        self, video_id: str, artifact_id: str | None = None
+    ) -> AnalysisOutcome:
+        artifact = (
+            self._repository.get_artifact(artifact_id)
+            if artifact_id is not None
+            else self._repository.latest_artifact(
+                video_id, ArtifactKind.ANALYSIS_STRUCTURED
             )
-        artifact = self._repository.latest_artifact(
-            video_id, ArtifactKind.ANALYSIS_STRUCTURED
         )
         if artifact is None:
             raise ValueError("persisted analysis is unavailable")
         result = AnalysisResult.model_validate_json(
             self._verified_artifact(artifact, max_bytes=1_000_000)
         )
-        self._validate_analysis_provenance(artifact, result, video_id)
+        self._validate_analysis_provenance(
+            artifact, result, video_id,
+            require_current_model=artifact_id is None,
+        )
         return AnalysisCompleted(
             result=result,
             call=ProviderCallMetadata(
@@ -2372,12 +2363,6 @@ class RuntimeOperations(Operations):
         def analysis_stage(
             job: JobRecord, record: VideoRecord
         ) -> AnalysisOutcome | None:
-            if not self._config.settings.cloud.enabled:
-                return AnalysisSkipped(
-                    reason=AnalysisSkipReason.CLOUD_DISABLED,
-                    call=None,
-                    safe_message="cloud analysis is disabled",
-                )
             video = self._video_metadata(record)
             transcript = self._load_transcript(job, video).artifact
             artifact = self._repository.latest_artifact(
@@ -2389,9 +2374,9 @@ class RuntimeOperations(Operations):
                 "utf-8"
             )
             scoring_language = self._downstream_output_language(video.video_id)
-            return RepositoryBackedAnalysisService(
+            outcome = RepositoryBackedAnalysisService(
                 provider=self._dependencies.analysis_provider_factory(),
-                settings=self._config.settings.cloud,
+                settings=self._config.settings.local_analysis,
                 repository=self._repository,
                 context=AnalysisJobContext(job.job_id, owner, PIPELINE_VERSION),
                 artifact_root=self._data_root,
@@ -2405,10 +2390,12 @@ class RuntimeOperations(Operations):
                 language=transcript.language,
                 output_language=scoring_language,
             )
+            return outcome
 
         def note_stage(job: JobRecord, record: VideoRecord) -> None:
             video = self._video_metadata(record)
             transcript = self._load_transcript(job, video).artifact
+            analysis = self._load_analysis(video.video_id)
             ObsidianNoteSink(
                 vault_root=Path(self._config.settings.storage.vault_root),
                 vault_subdir=self._config.settings.storage.vault_subdir,
@@ -2418,10 +2405,22 @@ class RuntimeOperations(Operations):
                 video=video,
                 transcript=transcript,
                 scoring=self._load_scoring(video.video_id),
-                analysis=self._load_analysis(video.video_id),
+                analysis=analysis,
                 processed_at=_utcnow(),
                 pipeline_version=PIPELINE_VERSION,
             )
+            if isinstance(analysis, AnalysisCompleted):
+                artifact = self._repository.get_artifact_by_key(
+                    f"analysis/{analysis.result.request_hash}/structured"
+                )
+                if artifact is None:
+                    raise ValueError("verified analysis artifact disappeared")
+                self._repository.promote_current_local_summary(
+                    video_id=video.video_id,
+                    artifact_id=artifact.artifact_id,
+                    output_language=self._downstream_output_language(video.video_id),
+                    now=_utcnow(),
+                )
 
         retry = self._config.settings.retry
         return PipelineOrchestrator(
@@ -2697,7 +2696,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 20:
+        if integrity != ("ok",) or version != 22:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)

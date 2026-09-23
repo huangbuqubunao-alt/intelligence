@@ -149,7 +149,9 @@ EXPECTED_COLUMNS = {
         "created_at",
     ),
     "global_user_settings": ("settings_key", "output_language", "updated_at"),
-    "current_content_summaries": ("video_id", "result_identity", "updated_at"),
+    "current_content_summaries": (
+        "video_id", "result_identity", "analysis_artifact_id", "output_language", "updated_at"
+    ),
     "schema_migrations": ("version", "name", "checksum", "applied_at"),
     "videos": (
         "video_id",
@@ -814,12 +816,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "020_add_no_new_intelligence_result.sql")
+        .joinpath("migrations", "022_bind_current_local_summary.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 20
-    assert first.name == "020_add_no_new_intelligence_result.sql"
+    assert first.version == 22
+    assert first.name == "022_bind_current_local_summary.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -834,7 +836,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 20
+    assert migration_count == 22
 
 
 def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
@@ -854,6 +856,31 @@ def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) 
         }
     assert "source_excerpt" in evidence_columns
     assert "stance" in relation_columns
+
+
+def test_m022_upgrades_v021_without_inventing_current_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _database_path(tmp_path)
+    original = SQLiteStateRepository._load_migrations
+    monkeypatch.setattr(
+        SQLiteStateRepository, "_load_migrations", lambda self: original(self)[:21]
+    )
+    legacy = SQLiteStateRepository(path)
+    assert legacy.initialize(now=NOW).version == 21
+    legacy.save_discovery_batch(
+        _batch("video-1"), expected_cursor=None, expected_revision=0,
+        pipeline_version="pipeline-v1", now=NOW,
+    )
+    monkeypatch.undo()
+    upgraded = SQLiteStateRepository(path)
+    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.get_video("video-1") is not None
+    assert upgraded.current_local_summary_pointer("video-1") is None
+    with _raw_connection(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM current_content_summaries"
+        ).fetchone()[0] == 0
 
 
 def test_m020_adds_immutable_no_new_result_without_rewriting_history(
@@ -876,10 +903,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 20
+    assert upgraded.initialize(now=NOW).version == 22
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0
@@ -969,6 +996,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
     assert explicit_indexes == {
         "idx_saved_intelligences_order",
         "idx_current_content_summaries_result",
+        "idx_current_content_summaries_analysis",
         "idx_artifacts_retention",
         "idx_artifacts_video_kind_created",
         "idx_brief_item_markers_item",
@@ -1018,6 +1046,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_topic_timeline_events_topic",
         "idx_topics_pinned_updated",
         "idx_timed_transcripts_video",
+        "distillation_one_pending_reservation_per_content",
     }
     assert "scope_key, pipeline_version" in active_job_index
     assert "PENDING" in active_job_index
@@ -1501,6 +1530,39 @@ def test_artifact_upsert_is_idempotent_and_rejects_key_corruption(
             _artifact(artifact_id="artifact-other", content_hash=HASH_B),
             now=NOW + td(minutes=2),
         )
+
+
+def test_current_local_summary_pointer_keeps_verified_selection_and_language(
+    tmp_path: Path,
+) -> None:
+    repository = _repository_with_video(tmp_path)
+    first = repository.upsert_artifact(
+        _artifact(artifact_id="analysis-one", artifact_key="analysis/one/structured",
+                  kind=ArtifactKind.ANALYSIS_STRUCTURED),
+        now=NOW,
+    )
+    repository.promote_current_local_summary(
+        video_id="video-1", artifact_id=first.artifact_id,
+        output_language="zh-CN", now=NOW,
+    )
+    assert repository.current_local_summary_pointer("video-1") is not None
+    assert repository.current_local_summary_pointer("video-1").artifact_id == first.artifact_id
+    with pytest.raises(IntegrityConflict):
+        repository.promote_current_local_summary(
+            video_id="another-video", artifact_id=first.artifact_id,
+            output_language="en", now=NOW,
+        )
+    with repository._connect() as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "UPDATE current_content_summaries SET output_language = 'en' "
+                "WHERE video_id = 'video-1'"
+            )
+    reopened = SQLiteStateRepository(_database_path(tmp_path))
+    reopened.initialize(now=NOW)
+    pointer = reopened.current_local_summary_pointer("video-1")
+    assert pointer is not None
+    assert (pointer.artifact_id, pointer.output_language) == ("analysis-one", "zh-CN")
 
 
 def test_provider_call_reservation_is_exclusive_and_owner_checked(

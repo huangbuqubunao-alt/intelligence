@@ -248,48 +248,46 @@ def provider_model_statuses(
     desired_provider: str | None,
     desired_model: str | None,
     *,
-    nvidia_runtime_available: bool | None = None,
+    local_runtime_available: bool | None = None,
 ) -> tuple[ProviderModelStatus, ...]:
-    """Static safe projections of the currently approved qualification facts."""
+    """Project only the bounded local V1 route as production eligible."""
     return (
+        ProviderModelStatus(
+            provider="Local",
+            model="qwen3:8b",
+            configured=desired_provider == "Local" and desired_model == "qwen3:8b",
+            credential_status=(
+                "NOT_REQUIRED"
+            ),
+            adapter_available=local_runtime_available is not False,
+            qualification_status="QUALIFIED",
+            authorized=True,
+            production_eligible=local_runtime_available is not False,
+            scope="V1_VIDEO_DISTILLATION_ONLY",
+            reason=(
+                "Qualified local Ollama model is available for V1 Video Distillation only."
+                if local_runtime_available is not False
+                else "The qualified local model is unavailable; Source Runs pause for attention."
+            ),
+        ),
         ProviderModelStatus(
             provider="NVIDIA NIM",
             model="moonshotai/kimi-k3",
             configured=desired_provider == "NVIDIA NIM"
             and desired_model == "moonshotai/kimi-k3",
-            credential_status=(
-                "AVAILABLE"
-                if nvidia_runtime_available is not False
-                else "NOT_CONFIGURED"
-            ),
-            adapter_available=True,
-            qualification_status="QUALIFIED",
-            authorized=True,
-            production_eligible=nvidia_runtime_available is not False,
-            scope="V1_VIDEO_DISTILLATION_ONLY",
-            reason=(
-                "Approved for V1 Video Distillation only."
-                if nvidia_runtime_available is not False
-                else "The approved model is unavailable in this local runtime."
-            ),
-        ),
-        ProviderModelStatus(
-            provider="OpenAI",
-            model=desired_model if desired_provider == "OpenAI" else None,
-            configured=desired_provider == "OpenAI",
             credential_status="BLOCKED",
             adapter_available=True,
             qualification_status="UNQUALIFIED",
             authorized=False,
             production_eligible=False,
             scope="NONE",
-            reason="Not approved for production use.",
+            reason="Cloud inference is disabled for V1 local-first execution.",
         ),
         ProviderModelStatus(
-            provider="Local",
-            model=desired_model if desired_provider == "Local" else None,
-            configured=desired_provider == "Local",
-            credential_status="NOT_CONFIGURED",
+            provider="OpenAI",
+            model=desired_model if desired_provider == "OpenAI" else None,
+            configured=desired_provider == "OpenAI",
+            credential_status="BLOCKED",
             adapter_available=True,
             qualification_status="UNQUALIFIED",
             authorized=False,

@@ -490,7 +490,7 @@ def _judge_fixture(raw_status: str = "PASS"):
             "candidate_hash": _HASH_B,
             "quality_input_hash": qih,
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": _MODEL,
@@ -506,7 +506,7 @@ def _judge_fixture(raw_status: str = "PASS"):
         model=_MODEL,
         model_digest=_JUDGE_DIGEST,
         policy_version="content-quality-policy-v1",
-        prompt_version="content-quality-prompt-v1",
+        prompt_version="content-quality-prompt-v3",
         operation_schema_version="content-quality-result-v1",
     )
     judge_ctx = build_judge_trusted_context(
@@ -516,7 +516,7 @@ def _judge_fixture(raw_status: str = "PASS"):
         model=_MODEL,
         model_digest=_JUDGE_DIGEST,
         policy_version="content-quality-policy-v1",
-        prompt_version="content-quality-prompt-v1",
+        prompt_version="content-quality-prompt-v3",
         operation_schema_version="content-quality-result-v1",
     )
     return operation, content, evidence, judge_ctx
@@ -563,7 +563,7 @@ def _judge_raw_for_status(status: str) -> str:
         ("model", "attacker-model"),
         ("model_digest", "sha256:" + "c" * 64),
         ("policy_version", "content-quality-policy-v2"),
-        ("prompt_version", "content-quality-prompt-v2"),
+            ("prompt_version", "content-quality-prompt-v4"),
         ("operation_schema_version", "content-quality-result-v2"),
     ],
 )
@@ -628,7 +628,7 @@ def test_primary_judge_evidence_on_repair_operation_rejected() -> None:
             "candidate_hash": _HASH_B,
             "quality_input_hash": build_content_quality_input_hash(content),
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": _MODEL,
