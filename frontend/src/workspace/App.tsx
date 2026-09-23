@@ -10,6 +10,7 @@ type Page =
   | "Intelligence"
   | "Topics"
   | "Settings";
+type EvidenceDisplayMode = "译文" | "双语" | "原文";
 type Intelligence = {
   status: string;
   trusted: boolean;
@@ -39,6 +40,7 @@ type Intelligence = {
       original_excerpt: string | null;
       translated_excerpt: string | null;
       translated_language: string | null;
+      translation_target_language?: "zh-CN" | "en";
       stance: "supporting" | "contradicting" | "conditional" | null;
     }[];
   };
@@ -191,6 +193,23 @@ type ContentDetail = {
     updated_at: string | null;
   };
   history: { timestamp: string; status: string; summary: string }[];
+};
+type ContentEvidence = {
+  evidence_id: string;
+  artifact_id: string;
+  lineage_kind: string;
+  role: string;
+  source_language: string;
+  language: string;
+  original_excerpt: string;
+  translated_excerpt: string | null;
+  translated_language: "zh-CN" | "en" | null;
+  translation_target_language: "zh-CN" | "en";
+  translation_status: string;
+  start_ms: number | null;
+  end_ms: number | null;
+  created_at: string | null;
+  source_url: string | null;
 };
 
 const pages: Page[] = [
@@ -512,15 +531,85 @@ export function ScoringTab(
     </div>
   );
 }
+
+function evidenceSourceMatchesTarget(
+  sourceLanguage: string,
+  targetLanguage: string,
+): boolean {
+  const source = sourceLanguage.trim().replace(/_/g, "-").toLowerCase();
+  if (targetLanguage === "en") return source === "en" || source.startsWith("en-");
+  if (targetLanguage === "zh-CN") {
+    return ["zh-cn", "zh-hans", "zh-hans-cn"].includes(source);
+  }
+  return false;
+}
+
 function Evidence(
   { item, onOpenContent }: {
     item: Intelligence;
     onOpenContent?: (videoId: string) => void;
   },
 ) {
+  const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
+  const [translationBusy, setTranslationBusy] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [createdTranslations, setCreatedTranslations] = useState<Record<
+    string,
+    { excerpt: string; language: "zh-CN" | "en" }
+  >>({});
   const card = item.card;
   const links = card?.evidence_links ?? [];
   if (!card || !links.length) return null;
+  const hasPreferredTranslation = links.some((link) => {
+    const localTranslation = createdTranslations[link.evidence_id];
+    const target = link.translation_target_language
+      ?? localTranslation?.language
+      ?? link.translated_language;
+    return Boolean(
+      (localTranslation?.excerpt ?? link.translated_excerpt)
+      && target
+      && (localTranslation?.language ?? link.translated_language) === target
+      && !evidenceSourceMatchesTarget(link.language, target),
+    );
+  });
+  const mode = selectedMode ?? (hasPreferredTranslation ? "译文" : "原文");
+  const generateTranslation = async (evidenceId: string) => {
+    if (!item.intelligence_id) return;
+    setTranslationBusy(true);
+    setTranslationError(null);
+    try {
+      const result = await post<{
+        evidence_id: string;
+        translated_excerpt: string | null;
+        translated_language: "zh-CN" | "en" | null;
+        translation_target_language: "zh-CN" | "en";
+      }>(
+        `/intelligence/${encodeURIComponent(item.intelligence_id)}/evidence/${encodeURIComponent(evidenceId)}/translation`,
+        {},
+      );
+      const translatedExcerpt = result.translated_excerpt;
+      const translatedLanguage = result.translated_language;
+      if (
+        result.evidence_id !== evidenceId
+        || !translatedExcerpt
+        || translatedLanguage !== result.translation_target_language
+      ) {
+        throw new Error("The local translation response is incomplete.");
+      }
+      setCreatedTranslations((current) => ({
+        ...current,
+        [evidenceId]: {
+          excerpt: translatedExcerpt,
+          language: translatedLanguage,
+        },
+      }));
+      setSelectedMode("译文");
+    } catch {
+      setTranslationError("Could not create a verified local translation. Original Evidence is still available.");
+    } finally {
+      setTranslationBusy(false);
+    }
+  };
   return (
     <details className="evidence-block evidence-trace">
       <summary>Evidence and source</summary>
@@ -545,26 +634,94 @@ function Evidence(
               <Status value={stanceLabel(link.stance)} />
               <span>{link.language}</span>
             </div>
-            <div>
-              <strong>Original excerpt</strong>
-              {link.original_excerpt
-                ? <blockquote>{link.original_excerpt}</blockquote>
-                : (
-                  <p className="hint">
-                    Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.
-                  </p>
-                )}
-            </div>
-            <div>
-              <strong>Translation</strong>
-              {link.translated_excerpt
-                ? <blockquote>{link.translated_excerpt}</blockquote>
-                : (
-                  <p className="hint">
-                    Translation is not available for this Evidence yet. The original remains authoritative.
-                  </p>
-                )}
-            </div>
+            {(() => {
+              const localTranslation = createdTranslations[link.evidence_id];
+              const translatedExcerpt = localTranslation?.excerpt
+                ?? link.translated_excerpt;
+              const translatedLanguage = localTranslation?.language
+                ?? link.translated_language;
+              const target = link.translation_target_language
+                ?? translatedLanguage
+                ?? "zh-CN";
+              const translationAvailable = Boolean(
+                translatedExcerpt
+                && translatedLanguage === target
+                && !evidenceSourceMatchesTarget(link.language, target),
+              );
+              const sourceMatchesTarget = evidenceSourceMatchesTarget(
+                link.language,
+                target,
+              );
+              const showTranslation = mode !== "原文";
+              const showOriginal = mode !== "译文" || !translationAvailable;
+              return (
+                <>
+                  <div className="segmented evidence-display-modes" role="group" aria-label="Evidence presentation mode">
+                    {(["译文", "双语", "原文"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={mode === option}
+                        className={mode === option ? "active" : ""}
+                        onClick={() => setSelectedMode(option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                  {showTranslation
+                    ? (
+                      <div>
+                        <strong>译文 · {target}</strong>
+                        {translationAvailable
+                          ? <blockquote>{translatedExcerpt}</blockquote>
+                          : sourceMatchesTarget
+                          ? <p className="hint">Original Evidence already matches the requested output language.</p>
+                          : (
+                            <>
+                              <p className="hint">Translation unavailable. Original Evidence remains authoritative.</p>
+                              {item.intelligence_id && link.original_excerpt && !translationBusy
+                                ? (
+                                  <button
+                                    type="button"
+                                    className="button button-secondary button-small"
+                                    onClick={() => void generateTranslation(link.evidence_id)}
+                                  >
+                                    生成译文
+                                  </button>
+                                )
+                                : null}
+                            </>
+                          )}
+                        {translationBusy
+                          ? <p className="hint" role="status">Generating a local translation…</p>
+                          : null}
+                        {translationError
+                          ? <p className="hint" role="alert">{translationError}</p>
+                          : null}
+                      </div>
+                    )
+                    : null}
+                  {showOriginal
+                    ? (
+                      <div>
+                        <strong>原文 · {link.language}（权威原文）</strong>
+                        {link.original_excerpt
+                          ? <blockquote>{link.original_excerpt}</blockquote>
+                          : (
+                            <p className="hint">
+                              Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.
+                            </p>
+                          )}
+                      </div>
+                    )
+                    : null}
+                  {mode === "原文" && !translationAvailable && !sourceMatchesTarget
+                    ? <p className="hint">Translation unavailable.</p>
+                    : null}
+                </>
+              );
+            })()}
             <div>
               <strong>Source position</strong>
               <p>{timestampRange(link.start_ms, link.end_ms)}</p>
@@ -1174,6 +1331,10 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
+      <ContentEvidencePanel
+        videoId={data.video.video_id}
+        sourceUrl={data.video.source_url}
+      />
       <Panel title="Intelligence result">
         <div className="semantic-state state-neutral">
           <Status value={data.intelligence_result.status} />
@@ -1189,8 +1350,8 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       </Panel>
       <Panel title="Processing history">
         {data.history.length
-          ? data.history.slice(0, 12).map((event) => (
-            <div className="metadata-row" key={`${event.timestamp}:${event.summary}`}>
+          ? data.history.slice(0, 12).map((event, index) => (
+            <div className="metadata-row" key={`${event.timestamp}:${event.summary}:${index}`}>
               <span>{humanDate(event.timestamp)}</span>
               <div><Status value={event.status} /><p>{event.summary}</p></div>
             </div>
@@ -1198,6 +1359,187 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : <Empty>No processing history yet.</Empty>}
       </Panel>
     </div>
+  );
+}
+
+function ContentEvidencePanel(
+  { videoId, sourceUrl }: { videoId: string; sourceUrl: string | null },
+) {
+  const { data, error } = useRemote<{ evidence: ContentEvidence[] }>(
+    `/videos/${encodeURIComponent(videoId)}/evidence`,
+  );
+  const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
+  const [translationBusy, setTranslationBusy] = useState<string | null>(null);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [createdTranslations, setCreatedTranslations] = useState<Record<
+    string,
+    { excerpt: string; language: "zh-CN" | "en" }
+  >>({});
+  if (error) {
+    return (
+      <Panel title="Evidence · source transcript">
+        <p className="hint">Canonical Evidence could not be loaded. The Summary remains available with its own recorded references.</p>
+      </Panel>
+    );
+  }
+  if (!data) {
+    return <Panel title="Evidence · source transcript"><Empty>Loading canonical Evidence…</Empty></Panel>;
+  }
+  const evidence = data.evidence ?? [];
+  const hasPreferredTranslation = evidence.some((item) => {
+    const local = createdTranslations[item.evidence_id];
+    const language = local?.language ?? item.translated_language;
+    const excerpt = local?.excerpt ?? item.translated_excerpt;
+    return Boolean(
+      excerpt
+      && language === item.translation_target_language
+      && !evidenceSourceMatchesTarget(item.source_language, item.translation_target_language),
+    );
+  });
+  const mode = selectedMode ?? (hasPreferredTranslation ? "译文" : "原文");
+  const generateTranslation = async (item: ContentEvidence) => {
+    setTranslationBusy(item.evidence_id);
+    setTranslationError(null);
+    try {
+      const result = await post<{
+        evidence_id: string;
+        translated_excerpt: string | null;
+        translated_language: "zh-CN" | "en" | null;
+        translation_target_language: "zh-CN" | "en";
+      }>(
+        `/videos/${encodeURIComponent(videoId)}/evidence/${encodeURIComponent(item.evidence_id)}/translation`,
+        {},
+      );
+      if (
+        result.evidence_id !== item.evidence_id
+        || !result.translated_excerpt
+        || result.translated_language !== result.translation_target_language
+      ) {
+        throw new Error("The local translation response is incomplete.");
+      }
+      setCreatedTranslations((current) => ({
+        ...current,
+        [item.evidence_id]: {
+          excerpt: result.translated_excerpt!,
+          language: result.translated_language!,
+        },
+      }));
+      setSelectedMode("译文");
+    } catch {
+      setTranslationError("Could not create a verified local translation. Original Evidence is still available.");
+    } finally {
+      setTranslationBusy(null);
+    }
+  };
+  return (
+    <Panel title="Evidence · source transcript">
+      {evidence.length
+        ? (
+          <div className="evidence-trace-list">
+            {evidence.map((item) => {
+              const local = createdTranslations[item.evidence_id];
+              const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
+              const translatedLanguage = local?.language ?? item.translated_language;
+              const target = item.translation_target_language;
+              const sourceMatchesTarget = evidenceSourceMatchesTarget(
+                item.source_language,
+                target,
+              );
+              const translationAvailable = Boolean(
+                translatedExcerpt
+                && translatedLanguage === target
+                && !sourceMatchesTarget,
+              );
+              const showTranslation = mode !== "原文";
+              const showOriginal = mode !== "译文" || !translationAvailable;
+              return (
+                <article className="evidence-item evidence-trace-item" key={item.evidence_id}>
+                  <div className="reading-meta">
+                    <span>{item.source_language} · {evidenceLineageLabel(item.lineage_kind)}</span>
+                    <strong>{item.evidence_id}</strong>
+                  </div>
+                  <div className="segmented evidence-display-modes" role="group" aria-label="Evidence presentation mode">
+                    {(["译文", "双语", "原文"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={mode === option}
+                        className={mode === option ? "active" : ""}
+                        onClick={() => setSelectedMode(option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                  {showTranslation
+                    ? (
+                      <div>
+                        <strong>译文 · {target}</strong>
+                        {translationAvailable
+                          ? <blockquote>{translatedExcerpt}</blockquote>
+                          : sourceMatchesTarget
+                          ? <p className="hint">Original Evidence already matches the requested output language.</p>
+                          : (
+                            <>
+                              <p className="hint">Translation unavailable. Original Evidence remains authoritative.</p>
+                              {translationBusy === null
+                                ? (
+                                  <button
+                                    type="button"
+                                    className="button button-secondary button-small"
+                                    onClick={() => void generateTranslation(item)}
+                                  >
+                                    生成译文
+                                  </button>
+                                )
+                                : translationBusy === item.evidence_id
+                                ? <p className="hint" role="status">Generating a local translation…</p>
+                                : null}
+                            </>
+                          )}
+                      </div>
+                    )
+                    : null}
+                  {showOriginal
+                    ? (
+                      <div>
+                        <strong>原文 · {item.source_language}（权威原文）</strong>
+                        <blockquote>{item.original_excerpt}</blockquote>
+                      </div>
+                    )
+                    : null}
+                  {mode === "原文" && !translationAvailable && !sourceMatchesTarget
+                    ? <p className="hint">Translation unavailable.</p>
+                    : null}
+                  {translationError ? <p className="hint" role="alert">{translationError}</p> : null}
+                  <div>
+                    <strong>Source position</strong>
+                    <p>{timestampRange(item.start_ms, item.end_ms)}</p>
+                  </div>
+                  <div>
+                    <strong>Provenance</strong>
+                    <p>{evidenceLineageLabel(item.lineage_kind)} · {evidenceRoleLabel(item.role)}</p>
+                    <small>{item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
+                  </div>
+                  {sourceUrl
+                    ? (
+                      <a
+                        className="button button-ghost button-small evidence-source-link"
+                        href={videoAt(sourceUrl, item.start_ms)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open original{item.start_ms === null ? "" : " at timestamp"}
+                      </a>
+                    )
+                    : <p className="hint">Source URL unavailable.</p>}
+                </article>
+              );
+            })}
+          </div>
+        )
+        : <Empty>No available, verified canonical transcript Evidence is recorded for this Content.</Empty>}
+    </Panel>
   );
 }
 function Topics({ refresh }: { refresh: number }) {

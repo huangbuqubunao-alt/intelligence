@@ -468,7 +468,7 @@ def _normal_nvidia_authorization(
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 22
+    assert repository.initialize(now=NOW).version == 23
     return repository
 
 
@@ -689,7 +689,7 @@ def test_successful_no_new_intelligence_is_durable_and_non_redispatchable(
     assert usage.actual_model == "deterministic-v1"
 
     restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted.initialize(now=NOW).version == 22
+    assert restarted.initialize(now=NOW).version == 23
     persisted = restarted.get_distillation_execution("exec-no-new")
     assert persisted is not None
     assert persisted.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
@@ -1119,12 +1119,12 @@ def test_nvidia_nim_default_http_boundary_is_fully_mocked_and_bounded(
     assert body["stream"] is False
 
 
-def test_fresh_database_reaches_exactly_v021_with_integrated_schema(tmp_path: Path) -> None:
+def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 23
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -1138,7 +1138,7 @@ def test_fresh_database_reaches_exactly_v021_with_integrated_schema(tmp_path: Pa
     finally:
         connection.close()
 
-    assert migrations[-8:] == (
+    assert migrations[-9:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -1147,6 +1147,7 @@ def test_fresh_database_reaches_exactly_v021_with_integrated_schema(tmp_path: Pa
         "020_add_no_new_intelligence_result.sql",
         "021_seal_distillation_output_language.sql",
         "022_bind_current_local_summary.sql",
+        "023_add_evidence_translation_presentation.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:
@@ -1180,7 +1181,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.initialize(now=NOW).version == 23
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
@@ -1240,7 +1241,7 @@ def test_v015_upgrade_preserves_ledger_rows_constraints_and_immutability(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.initialize(now=NOW).version == 23
     connection = upgraded._connect()
     try:
         after_row = tuple(
@@ -1426,7 +1427,7 @@ def test_v018_legacy_null_stance_keeps_old_card_hash_readable(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.initialize(now=NOW).version == 23
     relations = upgraded.list_intelligence_revision_evidence_relations(
         "legacy-revision-v18"
     )
@@ -2214,6 +2215,7 @@ def test_loopback_manual_admission_accepts_no_raw_model_fields_and_reads_card_th
             "original_excerpt": "Fixture canonical evidence.",
             "translated_excerpt": None,
             "translated_language": None,
+            "translation_target_language": "zh-CN",
             "stance": "supporting",
         }
     ]

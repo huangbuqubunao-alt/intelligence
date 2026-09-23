@@ -15,6 +15,7 @@ from youtube_intel.distillation import (
     OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
 )
+from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
@@ -22,6 +23,7 @@ from youtube_intel.processing_orchestrator import (
     PersistedSourceRunDiscovery,
     SourceRunDiscoveryError,
 )
+from youtube_intel.providers.ollama_evidence_translation import OllamaEvidenceTranslator
 from youtube_intel.runtime import (
     PIPELINE_VERSION,
     RuntimeDependencies,
@@ -183,6 +185,11 @@ def build_local_source_run_runtime(
         now=now_fn,
         output_language_for_video=runtime._downstream_output_language,
     )
+    evidence_translation = EvidenceTranslationPresentationService(
+        repository,
+        OllamaEvidenceTranslator(settings=config.settings.local_analysis),
+        now=now_fn,
+    )
     orchestrator = DurableProcessingOrchestrator(
         repository,
         source_policy=source_policy,
@@ -223,6 +230,7 @@ def build_local_source_run_runtime(
         source_run_wakeup=worker.notify,
         local_distillation_available=transport.available,
         analysis_reader=runtime._load_analysis,
+        evidence_translation_service=evidence_translation,
     )
     return LocalSourceRunRuntime(
         repository=repository,
