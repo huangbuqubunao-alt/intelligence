@@ -1286,3 +1286,126 @@ td small {
     gap: 3px;
   }
 }
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0;
+}
+.button-row .secondary-button,
+.secondary-button {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+}
+.button-row .danger-button,
+.danger-button {
+  border: 1px solid rgba(220, 109, 114, 0.55);
+  background: rgba(220, 109, 114, 0.16);
+  color: #ffdfe0;
+}
+.danger-button:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(220, 109, 114, 0.28);
+}
+.button-row button:disabled,
+.button-row .button:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.button-row .button:has(input[type="file"]) {
+  position: relative;
+  overflow: hidden;
+}
+.button-row input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+.metadata-grid > div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  padding: 10px 12px;
+}
+.metadata-grid dt {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.metadata-grid dd {
+  margin: 4px 0 0;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.metadata-row[aria-label="Backup result"],
+.metadata-row[aria-label="Inspected backup preview"] {
+  display: block;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  padding: 16px;
+}
+.metadata-row[aria-label="Backup result"] > div,
+.metadata-row[aria-label="Inspected backup preview"] > div {
+  min-width: 0;
+}
+.metadata-row[aria-label="Backup result"] > div > p:first-of-type {
+  color: var(--text-muted);
+}
+.success-message {
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+  background: rgba(69, 189, 131, 0.1);
+  padding: 10px 12px;
+  color: var(--success);
+}
+.form-error {
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: rgba(220, 109, 114, 0.1);
+  padding: 10px 12px;
+  color: #ffdfe0;
+}
+dialog[open] {
+  position: fixed;
+  z-index: 60;
+  inset: 50% auto auto 50%;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  padding: 22px;
+  color: var(--text);
+  box-shadow: var(--shadow), 0 0 0 100vmax rgba(4, 6, 10, 0.62);
+}
+dialog::backdrop {
+  background: rgba(4, 6, 10, 0.62);
+}
+dialog h2 {
+  margin: 0 0 10px;
+  color: var(--text-strong);
+}
+dialog p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}

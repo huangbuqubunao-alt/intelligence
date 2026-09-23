@@ -1237,6 +1237,27 @@ class RuntimeOperations(Operations):
             raise ValueError("authoritative scoring language is unsupported")
         return language
 
+    @classmethod
+    def validate_persisted_analysis_pointer(
+        cls,
+        *,
+        config: AppConfig,
+        repository: SQLiteStateRepository,
+        data_root: Path,
+        video_id: str,
+        artifact_id: str,
+    ) -> AnalysisCompleted:
+        """Validate one explicit current local Summary without starting runtime services."""
+
+        reader = cls.__new__(cls)
+        reader._config = config
+        reader._repository = repository
+        reader._data_root = data_root.resolve()
+        outcome = reader._load_analysis(video_id, artifact_id)
+        if not isinstance(outcome, AnalysisCompleted):
+            raise ValueError("current local Summary did not resolve to a verified result")
+        return outcome
+
     def _load_analysis(
         self, video_id: str, artifact_id: str | None = None
     ) -> AnalysisOutcome:
@@ -2696,7 +2717,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 23:
+        if integrity != ("ok",) or version != 24:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)

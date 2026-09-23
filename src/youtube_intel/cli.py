@@ -133,21 +133,24 @@ def main(
                 return ExitCode.USAGE_OR_CONFIGURATION
             project_root = _project_root(args.project_root)
             config = _load_config(project_root, args.settings, args.channels)
-            composition = build_local_source_run_runtime(
-                config=config,
-                project_root=project_root,
-                database=args.database,
-            )
-            server = serve_loopback(
-                composition.application,
-                port=args.port,
-            )
-            composition.worker.start()
-            try:
-                server.serve_forever()
-            finally:
-                server.server_close()
-                composition.worker.stop()
+            while True:
+                composition = build_local_source_run_runtime(
+                    config=config,
+                    project_root=project_root,
+                    database=args.database,
+                )
+                server = serve_loopback(
+                    composition.application,
+                    port=args.port,
+                )
+                composition.worker.start()
+                try:
+                    server.serve_forever()
+                finally:
+                    server.server_close()
+                    composition.worker.stop()
+                if not composition.backup_restore.restart_requested:
+                    break
             return ExitCode.OK
         project_root = _project_root(args.project_root)
         config = _load_config(project_root, args.settings, args.channels)

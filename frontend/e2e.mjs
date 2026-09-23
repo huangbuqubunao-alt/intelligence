@@ -8,6 +8,11 @@ const browser = await chromium.launch({
 });
 const consoleErrors = [];
 const externalRequests = [];
+const failedResponses = [];
+
+const observeResponses = (page, name) => page.on("response", (response) => {
+  if (response.status() >= 400) failedResponses.push(`${name} ${response.status()} ${response.url()}`);
+});
 const baseUrl = process.env.YIA_E2E_BASE_URL ?? "http://127.0.0.1:5174/";
 const screenshotRoot = new URL("../.var/task-026a-audit/final/", import.meta.url).pathname;
 const frozenNav = ["Home", "Following", "Content", "Intelligence", "Topics", "Settings"];
@@ -30,6 +35,22 @@ mkdirSync(screenshotRoot, { recursive: true });
 for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 }]) {
   const page = await browser.newPage({ viewport });
   const viewportName = `${viewport.width}x${viewport.height}`;
+  observeResponses(page, viewportName);
+  await page.route("**/api/v1/backup-restore/status", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: {
+          ready: false,
+          reasons: ["DEMO_UNAVAILABLE"],
+          message: "Backup and Restore is not configured for the offline review demo.",
+          restore_pending: false,
+          last_restore: null,
+        },
+      }),
+    });
+  });
   page.setDefaultTimeout(7000);
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(`${viewportName}: ${message.text()}`);
@@ -161,6 +182,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
 }
 
 const stancePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+observeResponses(stancePage, "stance");
 stancePage.setDefaultTimeout(7000);
 stancePage.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(`stance: ${message.text()}`);
@@ -241,6 +263,7 @@ await stancePage.getByText("But what is a neural network? | Deep learning chapte
 await stancePage.close();
 
 const summaryPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+observeResponses(summaryPage, "summary");
 summaryPage.setDefaultTimeout(7000);
 summaryPage.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(`summary: ${message.text()}`);
@@ -409,5 +432,9 @@ await admittedPage.close();
 
 await browser.close();
 if (externalRequests.length) throw new Error(`External browser network requests: ${externalRequests.join(" | ")}`);
-if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
+if (consoleErrors.length) {
+  throw new Error(
+    `Browser console errors: ${consoleErrors.join(" | ")}; HTTP failures: ${failedResponses.join(" | ")}`,
+  );
+}
 console.log("Browser E2E passed at 1440×900 and 768×900: integrated IA, Content, explicit not-processed/admitted/no-new Intelligence results, Evidence 译文/双语/原文 plus explicit generation, all stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors.");

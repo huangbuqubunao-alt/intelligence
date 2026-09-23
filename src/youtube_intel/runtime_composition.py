@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
+from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.config import AppConfig
 from youtube_intel.distillation import (
     BudgetDecision,
@@ -152,6 +153,7 @@ class LocalSourceRunRuntime:
     product: ProductOrchestrationService
     worker: DurableSourceRunWorker
     application: LocalApiApplication
+    backup_restore: BackupRestoreService
 
 
 def build_local_source_run_runtime(
@@ -165,6 +167,28 @@ def build_local_source_run_runtime(
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority."""
 
     now_fn = now or (lambda: datetime.now(UTC))
+    data_root = (project_root / config.settings.storage.data_dir).resolve()
+
+    def validate_current_local_summary(
+        repository: SQLiteStateRepository,
+        artifact_data_root: Path,
+        video_id: str,
+        artifact_id: str,
+    ) -> object:
+        return RuntimeOperations.validate_persisted_analysis_pointer(
+            config=config,
+            repository=repository,
+            data_root=artifact_data_root,
+            video_id=video_id,
+            artifact_id=artifact_id,
+        )
+
+    backup_restore = BackupRestoreService(
+        database=database,
+        data_root=data_root,
+        current_local_summary_validator=validate_current_local_summary,
+    )
+    backup_restore.recover_and_apply_pending_restore()
     repository = SQLiteStateRepository(database)
     repository.initialize(now=now_fn())
     runtime = RuntimeOperations(
@@ -205,7 +229,6 @@ def build_local_source_run_runtime(
         now=now_fn,
     )
     worker = DurableSourceRunWorker(orchestrator)
-    data_root = (project_root / config.settings.storage.data_dir).resolve()
     reader = AuthoritativeScoringReader(
         repository=repository,
         data_root=data_root,
@@ -231,6 +254,7 @@ def build_local_source_run_runtime(
         local_distillation_available=transport.available,
         analysis_reader=runtime._load_analysis,
         evidence_translation_service=evidence_translation,
+        backup_restore_service=backup_restore,
     )
     return LocalSourceRunRuntime(
         repository=repository,
@@ -241,4 +265,5 @@ def build_local_source_run_runtime(
         product=product,
         worker=worker,
         application=application,
+        backup_restore=backup_restore,
     )

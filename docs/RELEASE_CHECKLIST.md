@@ -34,7 +34,7 @@
 | SDK 隔离导入与匿名管道密钥 | BLOCKED | 确认主进程不导入 SDK；子进程仅白名单环境；密钥不进入 env/argv/文件/异常/日志。 |
 | Vault、模板和日志边界 | PASS（技术证据；命名 Privacy Reviewer 当前 DEFERRED） | [Vault/template privacy review](VAULT_TEMPLATE_PRIVACY_REVIEW.md) 以临时 Vault、静态模板、合成哨兵和新鲜离线归档确认无真实 Vault/用户内容、无用户模板、无敏感日志/凭据值进入 wheel/sdist；当前不要求额外命名 Privacy Reviewer 签字，未来触发时重新评估。 |
 | at-most-once 风险披露 | PASS（有限 PO 决定；Window 1 已修复） | PO 拒绝 Provider→SQLite 自动重复并授权完成 fail-closed remediation；replace→SQLite 与音频 cleanup 最终 CAS 仅在当前受控姿态接受。不得声明 exactly-once；实时 Provider qualification、真实输出接受和运行验证仍独立 BLOCKED。 |
-| 备份/恢复演练 | BLOCKED | 在隔离临时 SQLite/DATA/Vault 完成、保留命令/结果；绝不覆盖真实数据或 Vault。 |
+| 备份/恢复演练 | PASS（M10 core；真实 pipeline 数据克隆） | [M10 验收记录](M10_BACKUP_RESTORE_ACCEPTANCE.md)。范围为 Intelligence 管理的 SQLite + DATA；Vault 明确排除。未执行物理断电演练，不据此宣称整个发行已 GO。 |
 
 ## 验证与 smoke
 
