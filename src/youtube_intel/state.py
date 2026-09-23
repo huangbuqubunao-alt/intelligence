@@ -365,6 +365,38 @@ class EvidenceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class EvidenceTranslationPresentationWrite:
+    evidence_id: str
+    source_excerpt_hash: str
+    source_language: str
+    target_language: str
+    translated_excerpt: str
+    translated_excerpt_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    prompt_version: str
+    schema_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceTranslationPresentationRecord:
+    translation_id: str
+    evidence_id: str
+    source_excerpt_hash: str
+    source_language: str
+    target_language: str
+    translated_excerpt: str
+    translated_excerpt_hash: str
+    provider: str
+    model: str
+    model_digest: str
+    prompt_version: str
+    schema_version: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class EvidenceRelationRecord:
     revision_id: str
     evidence_id: str
@@ -1561,6 +1593,7 @@ class SQLiteStateRepository:
             "020_add_no_new_intelligence_result.sql",
             "021_seal_distillation_output_language.sql",
             "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -6701,6 +6734,134 @@ class SQLiteStateRepository:
             return None if row is None else self._evidence_from_row(row)
         finally:
             connection.close()
+
+    def create_evidence_translation_presentation(
+        self,
+        translation: EvidenceTranslationPresentationWrite,
+        *,
+        now: datetime,
+    ) -> EvidenceTranslationPresentationRecord:
+        if translation.target_language not in {"zh-CN", "en"}:
+            raise ValueError("translation target language is unsupported")
+        if not translation.source_language.strip():
+            raise ValueError("translation source language is required")
+        if not translation.translated_excerpt.strip() or len(
+            translation.translated_excerpt
+        ) > 4000:
+            raise ValueError("translated excerpt is invalid")
+        if _sha256_text(translation.translated_excerpt) != translation.translated_excerpt_hash:
+            raise ValueError("translated excerpt hash does not match its text")
+        if (
+            len(translation.source_excerpt_hash) != 64
+            or any(char not in "0123456789abcdef" for char in translation.source_excerpt_hash)
+        ):
+            raise ValueError("source excerpt hash is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                verified_source = self.resolve_verified_evidence_text(
+                    translation.evidence_id
+                )
+                evidence = connection.execute(
+                    "SELECT language, availability FROM evidence WHERE evidence_id = ?",
+                    (translation.evidence_id,),
+                ).fetchone()
+                if (
+                    verified_source is None
+                    or evidence is None
+                    or evidence["availability"] != EvidenceAvailability.AVAILABLE.value
+                    or evidence["language"] != translation.source_language
+                    or verified_source.excerpt_hash != translation.source_excerpt_hash
+                ):
+                    raise IntegrityConflict(
+                        "Evidence source changed or is unavailable for translation"
+                    )
+                identity = json.dumps(
+                    [
+                        translation.evidence_id,
+                        translation.target_language,
+                        translation.source_excerpt_hash,
+                        translation.translated_excerpt_hash,
+                        translation.model_digest,
+                        translation.prompt_version,
+                    ],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                translation_id = f"evidence-translation:v1:{_sha256_text(identity)}"
+                connection.execute(
+                    "INSERT INTO evidence_translation_presentations (translation_id, evidence_id, source_excerpt_hash, source_language, target_language, translated_excerpt, translated_excerpt_hash, provider, model, model_digest, prompt_version, schema_version, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        translation_id,
+                        translation.evidence_id,
+                        translation.source_excerpt_hash,
+                        translation.source_language,
+                        translation.target_language,
+                        translation.translated_excerpt,
+                        translation.translated_excerpt_hash,
+                        translation.provider,
+                        translation.model,
+                        translation.model_digest,
+                        translation.prompt_version,
+                        translation.schema_version,
+                        format_utc_datetime(now),
+                    ),
+                )
+                row = connection.execute(
+                    "SELECT * FROM evidence_translation_presentations WHERE translation_id = ?",
+                    (translation_id,),
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("Evidence translation was not saved")
+                return self._evidence_translation_from_row(row)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict(
+                "Evidence translation identity or provenance is invalid"
+            ) from error
+        finally:
+            connection.close()
+
+    def get_evidence_translation_presentation(
+        self, evidence_id: str, target_language: str
+    ) -> EvidenceTranslationPresentationRecord | None:
+        if target_language not in {"zh-CN", "en"}:
+            return None
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM evidence_translation_presentations WHERE evidence_id = ? AND target_language = ?",
+                (evidence_id, target_language),
+            ).fetchone()
+            return (
+                None
+                if row is None
+                else self._evidence_translation_from_row(row)
+            )
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _evidence_translation_from_row(
+        row: sqlite3.Row,
+    ) -> EvidenceTranslationPresentationRecord:
+        return EvidenceTranslationPresentationRecord(
+            translation_id=str(row["translation_id"]),
+            evidence_id=str(row["evidence_id"]),
+            source_excerpt_hash=str(row["source_excerpt_hash"]),
+            source_language=str(row["source_language"]),
+            target_language=str(row["target_language"]),
+            translated_excerpt=str(row["translated_excerpt"]),
+            translated_excerpt_hash=str(row["translated_excerpt_hash"]),
+            provider=str(row["provider"]),
+            model=str(row["model"]),
+            model_digest=str(row["model_digest"]),
+            prompt_version=str(row["prompt_version"]),
+            schema_version=str(row["schema_version"]),
+            created_at=datetime.fromisoformat(
+                str(row["created_at"]).replace("Z", "+00:00")
+            ),
+        )
 
     def list_available_canonical_evidence_ids(self, video_id: str) -> tuple[str, ...]:
         """Return the stable evidence set eligible for a restart-safe reservation.

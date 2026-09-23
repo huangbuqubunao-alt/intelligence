@@ -76,8 +76,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("What is new", { exact: true }).first().waitFor();
   await page.getByText("Important details", { exact: true }).first().waitFor();
   await page.getByText("Evidence and source", { exact: true }).first().click();
+  await page.getByRole("button", { name: "译文", exact: true }).first().click();
   await page.getByText("Relation not determined", { exact: true }).waitFor();
-  await page.getByText("Translation is not available for this Evidence yet. The original remains authoritative.", { exact: true }).first().waitFor();
+  await page.getByText("Translation unavailable. Original Evidence remains authoritative.", { exact: true }).first().waitFor();
   await page.getByText("3Blue1Brown", { exact: true }).first().waitFor();
   await page.getByText("But what is a neural network? | Deep learning chapter 1", { exact: true }).waitFor();
   await page.getByText("0:18–0:42", { exact: true }).first().waitFor();
@@ -149,10 +150,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await providerDetails.waitFor();
   if (await providerDetails.locator("xpath=..").evaluate((node) => node.hasAttribute("open"))) throw new Error("Provider details should be collapsed by default");
   await providerDetails.click();
-  await page.getByText("NVIDIA NIM · moonshotai/kimi-k3", { exact: true }).waitFor();
+  await page.getByText("Local · qwen3:8b", { exact: true }).waitFor();
   await page.getByText("Scope: Video Distillation only.", { exact: true }).waitFor();
-  await page.getByText(/Token usage: Unavailable/).first().waitFor();
-  await page.getByText(/Cost: Unavailable/).first().waitFor();
+  await page.getByText(/Qualified local Ollama model/).waitFor();
   await assertPrimaryLanguage("Settings");
   await capture("settings");
 
@@ -169,6 +169,22 @@ stancePage.on("request", (request) => {
   const url = request.url();
   if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url);
 });
+await stancePage.route("**/api/v1/intelligence/*/evidence/*/translation", async (route) => {
+  const evidenceId = decodeURIComponent(
+    new URL(route.request().url()).pathname.split("/").at(-2) ?? "",
+  );
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      evidence_id: evidenceId,
+      translated_excerpt: "第二条 Evidence 在原文之外拥有单独的本地译文。",
+      translated_language: "zh-CN",
+      translation_target_language: "zh-CN",
+      translation_status: "AVAILABLE",
+    }),
+  });
+});
 await stancePage.route("**/api/v1/intelligence", async (route) => {
   const response = await route.fetch();
   const payload = await response.json();
@@ -177,7 +193,7 @@ await stancePage.route("**/api/v1/intelligence", async (route) => {
   const base = available.card.evidence_links[0];
   available.card.evidence_links = [
     ["supporting", "Trusted fixture source excerpt."],
-    ["contradicting", null],
+    ["contradicting", "A separate English source excerpt can be translated on request."],
     ["conditional", null],
     [null, null],
   ].map(([stance, original_excerpt], index) => ({
@@ -186,6 +202,11 @@ await stancePage.route("**/api/v1/intelligence", async (route) => {
     artifact_id: `${base.artifact_id}-stance-${index}`,
     stance,
     original_excerpt,
+    translated_excerpt: index === 0
+      ? "可信的中文译文只展示同一 Evidence。"
+      : null,
+    translated_language: index === 0 ? "zh-CN" : null,
+    translation_target_language: "zh-CN",
   }));
   await route.fulfill({ response, json: payload });
 });
@@ -196,9 +217,18 @@ const stanceTrace = stancePage.locator("details.evidence-trace").first();
 for (const label of ["Supporting", "Contradicting", "Conditional", "Relation not determined"]) {
   await stanceTrace.getByText(label, { exact: true }).waitFor();
 }
+await stanceTrace.getByText("可信的中文译文只展示同一 Evidence。", { exact: true }).waitFor();
+if (await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).count()) throw new Error("Default translated mode also rendered the original excerpt");
+await stanceTrace.getByRole("button", { name: "双语", exact: true }).first().click();
 await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).waitFor();
-if (await stanceTrace.getByText("Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.", { exact: true }).count() !== 3) throw new Error("Evidence excerpt unavailable state count is wrong");
-if (await stanceTrace.getByText("Translation is not available for this Evidence yet. The original remains authoritative.", { exact: true }).count() !== 4) throw new Error("Evidence translation unavailable state count is wrong");
+await stanceTrace.getByRole("button", { name: "原文", exact: true }).first().click();
+await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).waitFor();
+if (await stanceTrace.getByText("可信的中文译文只展示同一 Evidence。", { exact: true }).count()) throw new Error("Original mode rendered translated text");
+await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "译文", exact: true }).click();
+await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "生成译文", exact: true }).click();
+await stanceTrace.getByText("第二条 Evidence 在原文之外拥有单独的本地译文。", { exact: true }).waitFor();
+if (await stanceTrace.getByText("Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.", { exact: true }).count() !== 2) throw new Error("Evidence excerpt unavailable state count is wrong");
+if (await stanceTrace.getByText("Translation unavailable. Original Evidence remains authoritative.", { exact: true }).count() !== 2) throw new Error("Evidence translation unavailable state count is wrong");
 if (await stanceTrace.getByText("source-ai · aircAruvnKk", { exact: true }).count() !== 1) throw new Error("Evidence source identity is wrong");
 if (await stanceTrace.getByText("0:18–0:42", { exact: true }).count() !== 4) throw new Error("Evidence source position count is wrong");
 if (await stanceTrace.getByText("Original transcript · Primary original", { exact: true }).count() !== 4) throw new Error("Evidence lineage and role count is wrong");
@@ -265,6 +295,49 @@ resultPage.on("request", (request) => {
   const url = request.url();
   if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url);
 });
+const contentEvidenceOriginal = "OpenAI introduced GPT-4 on March 14, 2023.";
+const contentEvidenceTranslation = "OpenAI 于 2023 年 3 月 14 日推出了 GPT-4。";
+let contentEvidenceTranslated = false;
+await resultPage.route("**/api/v1/videos/product-evidence/evidence", async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      evidence: [{
+        evidence_id: "browser-content-evidence",
+        artifact_id: "browser-content-transcript",
+        lineage_kind: "ORIGINAL_TRANSCRIPT",
+        role: "PRIMARY_ORIGINAL",
+        source_language: "en",
+        language: "en",
+        original_excerpt: contentEvidenceOriginal,
+        translated_excerpt: contentEvidenceTranslated ? contentEvidenceTranslation : null,
+        translated_language: contentEvidenceTranslated ? "zh-CN" : null,
+        translation_target_language: "zh-CN",
+        translation_status: contentEvidenceTranslated ? "AVAILABLE" : "UNAVAILABLE",
+        start_ms: 12000,
+        end_ms: 18000,
+        created_at: "2026-09-21T00:00:00Z",
+        source_url: "https://www.youtube.com/watch?v=product-evidence",
+      }],
+    }),
+  });
+});
+await resultPage.route("**/api/v1/videos/product-evidence/evidence/browser-content-evidence/translation", async (route) => {
+  if (route.request().method() !== "POST") throw new Error("Content translation must be explicit POST");
+  contentEvidenceTranslated = true;
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      evidence_id: "browser-content-evidence",
+      translated_excerpt: contentEvidenceTranslation,
+      translated_language: "zh-CN",
+      translation_target_language: "zh-CN",
+      translation_status: "AVAILABLE",
+    }),
+  });
+});
 await resultPage.route("**/api/v1/videos/product-evidence", async (route) => {
   const response = await route.fetch();
   const payload = await response.json();
@@ -287,6 +360,22 @@ await resultPage.locator("button.list-row").filter({ hasText: "Research evidence
 await resultPage.getByText("Analysis complete — no new Intelligence.", { exact: false }).waitFor();
 await resultPage.getByText("Existing Intelligence is unchanged.", { exact: false }).waitFor();
 await resultPage.getByText("not an Intelligence validation posture or numeric confidence score", { exact: false }).waitFor();
+await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
+await resultPage.getByText("Translation unavailable.", { exact: true }).waitFor();
+const contentSourceTrace = resultPage.getByRole("link", { name: "Open original at timestamp", exact: true });
+if (!((await contentSourceTrace.getAttribute("href")) ?? "").includes("t=12")) throw new Error("Content Evidence timestamp does not preserve source trace");
+await resultPage.getByRole("button", { name: "译文", exact: true }).first().click();
+await resultPage.getByRole("button", { name: "生成译文", exact: true }).click();
+await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
+if (await resultPage.getByText(contentEvidenceOriginal, { exact: true }).count()) throw new Error("Content translated mode also displayed the original excerpt");
+await resultPage.getByRole("button", { name: "双语", exact: true }).click();
+await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
+await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
+await resultPage.getByRole("button", { name: "原文", exact: true }).click();
+await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
+if (await resultPage.getByText(contentEvidenceTranslation, { exact: true }).count()) throw new Error("Content original mode displayed the translation");
+await resultPage.getByRole("button", { name: "译文", exact: true }).click();
+await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
 const resultText = await resultPage.locator("body").innerText();
 if (/\b\d+%\b/.test(resultText)) throw new Error("Zero result invented a confidence percentage");
 if (/\b(low|medium|high) confidence\b/i.test(resultText)) throw new Error("Zero result invented a confidence label");
@@ -321,4 +410,4 @@ await admittedPage.close();
 await browser.close();
 if (externalRequests.length) throw new Error(`External browser network requests: ${externalRequests.join(" | ")}`);
 if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
-console.log("Browser E2E passed at 1440×900 and 768×900: integrated IA, Content, explicit not-processed/admitted/no-new Intelligence results, all Evidence stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors.");
+console.log("Browser E2E passed at 1440×900 and 768×900: integrated IA, Content, explicit not-processed/admitted/no-new Intelligence results, Evidence 译文/双语/原文 plus explicit generation, all stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors.");

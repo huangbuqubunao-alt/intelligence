@@ -242,6 +242,7 @@ def test_intelligence_card_projects_readable_persisted_provenance(
         "original_excerpt": "Attention lets each token weigh relevant context from other tokens.",
         "translated_excerpt": None,
         "translated_language": None,
+        "translation_target_language": "zh-CN",
         "stance": "supporting",
     }
 
@@ -694,6 +695,7 @@ def test_intelligence_projection_exposes_excerpt_stance_and_persisted_provenance
             "original_excerpt": "The source directly disputes the claim.",
             "translated_excerpt": None,
             "translated_language": None,
+            "translation_target_language": "zh-CN",
             "stance": "contradicting",
         }
     ]

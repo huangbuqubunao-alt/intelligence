@@ -511,6 +511,116 @@ test("Content renders only the explicit current verified Summary and its trusted
     .toBeTruthy();
 });
 
+test("Content Evidence supports translated, bilingual, and original modes with source trace", async () => {
+  let generated = false;
+  const originalExcerpt = "OpenAI introduced GPT-4 on March 14, 2023.";
+  const translatedExcerpt = "OpenAI 于 2023 年 3 月 14 日推出了 GPT-4。";
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/videos/video-content/evidence")) {
+      return response({
+        evidence: [{
+          evidence_id: "evidence-content-1",
+          artifact_id: "artifact-content-1",
+          lineage_kind: "ORIGINAL_TRANSCRIPT",
+          role: "PRIMARY_ORIGINAL",
+          source_language: "en",
+          language: "en",
+          original_excerpt: originalExcerpt,
+          translated_excerpt: generated ? translatedExcerpt : null,
+          translated_language: generated ? "zh-CN" : null,
+          translation_target_language: "zh-CN",
+          translation_status: generated ? "AVAILABLE" : "UNAVAILABLE",
+          start_ms: 12_000,
+          end_ms: 18_000,
+          created_at: "2026-09-01T00:00:00Z",
+          source_url: "https://www.youtube.com/watch?v=video-content",
+        }],
+      });
+    }
+    if (input.endsWith("/videos/video-content/evidence/evidence-content-1/translation")) {
+      expect(init?.method).toBe("POST");
+      generated = true;
+      return response({
+        evidence_id: "evidence-content-1",
+        translated_excerpt: translatedExcerpt,
+        translated_language: "zh-CN",
+        translation_target_language: "zh-CN",
+        translation_status: "AVAILABLE",
+      });
+    }
+    if (input.endsWith("/videos/video-content")) {
+      return response({
+        video: {
+          video_id: "video-content",
+          channel_id: "channel-openai",
+          channel_name: "OpenAI",
+          title: "Introducing GPT-4",
+          source_url: "https://www.youtube.com/watch?v=video-content",
+          published_at: "2026-09-01T00:00:00Z",
+          processing_status: "COMPLETE",
+          last_updated: "2026-09-01T00:00:00Z",
+        },
+        transcript: { status: "AVAILABLE", text: originalExcerpt },
+        note: { v2: { status: "AVAILABLE", language: "zh-CN", summary: "GPT-4 摘要。" } },
+        intelligence_result: {
+          status: "SUCCEEDED_NO_NEW_INTELLIGENCE",
+          execution_id: "execution-1",
+          has_new_intelligence: false,
+          intelligence_id: null,
+          revision_id: null,
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+        history: [],
+      });
+    }
+    if (input.endsWith("/videos")) {
+      return response({
+        videos: [{
+          video_id: "video-content",
+          channel_id: "channel-openai",
+          channel_name: "OpenAI",
+          title: "Introducing GPT-4",
+          source_url: "https://www.youtube.com/watch?v=video-content",
+          published_at: "2026-09-01T00:00:00Z",
+          processing_status: "COMPLETE",
+          last_updated: "2026-09-01T00:00:00Z",
+        }],
+      });
+    }
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Introducing GPT-4/ }));
+  const evidencePanel = (await screen.findByText("Evidence · source transcript")).closest("section");
+  if (!evidencePanel) throw new Error("Canonical Content Evidence panel is missing.");
+  const evidenceContent = within(evidencePanel);
+  expect(await evidenceContent.findByText(originalExcerpt)).toBeTruthy();
+  expect(evidenceContent.getByText("Translation unavailable.")).toBeTruthy();
+  expect(evidenceContent.getByRole("link", { name: "Open original at timestamp" })
+    .getAttribute("href")).toContain("t=12");
+
+  fireEvent.click(evidenceContent.getByRole("button", { name: "译文" }));
+  fireEvent.click(await evidenceContent.findByRole("button", { name: "生成译文" }));
+  expect(await evidenceContent.findByText(translatedExcerpt)).toBeTruthy();
+  expect(generated).toBe(true);
+  expect(evidenceContent.queryByText(originalExcerpt)).toBeNull();
+
+  fireEvent.click(evidenceContent.getByRole("button", { name: "双语" }));
+  expect(evidenceContent.getByText(translatedExcerpt)).toBeTruthy();
+  expect(evidenceContent.getByText(originalExcerpt)).toBeTruthy();
+
+  fireEvent.click(evidenceContent.getByRole("button", { name: "原文" }));
+  expect(evidenceContent.getByText(originalExcerpt)).toBeTruthy();
+  expect(evidenceContent.queryByText(translatedExcerpt)).toBeNull();
+
+  fireEvent.click(evidenceContent.getByRole("button", { name: "译文" }));
+  expect(evidenceContent.getByText(translatedExcerpt)).toBeTruthy();
+  expect(evidenceContent.queryByText(originalExcerpt)).toBeNull();
+});
+
 test("Settings persists output language for future processing without rewriting history", async () => {
   let language: "zh-CN" | "en" = "zh-CN";
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
@@ -614,13 +724,117 @@ test("Evidence stance and availability states are rendered without inference", a
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   fireEvent.click(await screen.findByText("Evidence and source"));
+  fireEvent.click(screen.getAllByRole("button", { name: "译文" })[0]);
   expect(screen.getByText("Supporting")).toBeTruthy();
   expect(screen.getByText("Contradicting")).toBeTruthy();
   expect(screen.getByText("Conditional")).toBeTruthy();
   expect(screen.getByText("Relation not determined")).toBeTruthy();
   expect(screen.getByText(/Source excerpt unavailable for this historical Evidence/))
     .toBeTruthy();
-  expect(screen.getAllByText(/Translation is not available/)).toHaveLength(4);
+  expect(screen.getAllByText(/Translation unavailable/)).toHaveLength(4);
+});
+
+test("Evidence can switch between translated, bilingual, and authoritative original views", async () => {
+  const translatedIntelligence = {
+    ...intelligence,
+    card: {
+      ...intelligence.card,
+      evidence_links: [{
+        ...intelligence.card.evidence_links[0],
+        translated_excerpt: "译文：每个词元都可以关注其他词元的相关上下文。",
+        translated_language: "zh-CN",
+        translation_target_language: "zh-CN",
+      }],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string) => {
+      if (input.endsWith("/intelligence")) {
+        return response({ intelligence: [translatedIntelligence] });
+      }
+      if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
+      if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
+      return response({});
+    }),
+  );
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByText("Evidence and source"));
+  expect(
+    await screen.findByText("译文：每个词元都可以关注其他词元的相关上下文。"),
+  ).toBeTruthy();
+  expect(screen.queryByText(intelligence.card.evidence_links[0].original_excerpt))
+    .toBeNull();
+
+  fireEvent.click(screen.getAllByRole("button", { name: "双语" })[0]);
+  expect(screen.getByText(intelligence.card.evidence_links[0].original_excerpt))
+    .toBeTruthy();
+  expect(
+    screen.getByText("译文：每个词元都可以关注其他词元的相关上下文。"),
+  ).toBeTruthy();
+  expect(screen.getByText("Provenance")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Open original at timestamp" }))
+    .toBeTruthy();
+
+  fireEvent.click(screen.getAllByRole("button", { name: "原文" })[0]);
+  expect(screen.getByText(intelligence.card.evidence_links[0].original_excerpt))
+    .toBeTruthy();
+  expect(
+    screen.queryByText("译文：每个词元都可以关注其他词元的相关上下文。"),
+  ).toBeNull();
+});
+
+test("Evidence translation is generated only by an explicit UI action", async () => {
+  const translatedIntelligence = {
+    ...intelligence,
+    card: {
+      ...intelligence.card,
+      evidence_links: [{
+        ...intelligence.card.evidence_links[0],
+        translated_excerpt: "译文：每个词元都可以关注其他词元的相关上下文。",
+        translated_language: "zh-CN",
+        translation_target_language: "zh-CN",
+      }],
+    },
+  };
+  let generated = false;
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/evidence/evidence-1/translation")) {
+      expect(init?.method).toBe("POST");
+      generated = true;
+      return response({
+        evidence_id: "evidence-1",
+        translated_excerpt: "译文：每个词元都可以关注其他词元的相关上下文。",
+        translated_language: "zh-CN",
+        translation_target_language: "zh-CN",
+        translation_status: "AVAILABLE",
+      });
+    }
+    if (input.endsWith("/intelligence")) {
+      return response({
+        intelligence: [generated ? translatedIntelligence : intelligence],
+      });
+    }
+    if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
+    if (input.endsWith("/weekly/v1")) return response({ weekly_v1: [] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByText("Evidence and source"));
+  expect(fetchMock.mock.calls.some(([input]) =>
+    String(input).endsWith("/evidence/evidence-1/translation")
+  )).toBe(false);
+  fireEvent.click(screen.getAllByRole("button", { name: "译文" })[0]);
+  fireEvent.click(await screen.findByRole("button", { name: "生成译文" }));
+  expect(
+    await screen.findByText("译文：每个词元都可以关注其他词元的相关上下文。"),
+  ).toBeTruthy();
+  expect(generated).toBe(true);
 });
 
 test("Dashboard leads with meaningful Intelligence and keeps attention subordinate", async () => {

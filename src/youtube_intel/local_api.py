@@ -26,6 +26,10 @@ from youtube_intel.domain import (
     ProcessingStage,
     ScoringOutputLanguage,
 )
+from youtube_intel.evidence_translation import (
+    EvidenceTranslationPresentationService,
+    source_matches_target,
+)
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -374,6 +378,7 @@ class LocalApiApplication:
         source_run_wakeup: Callable[[], None] | None = None,
         local_distillation_available: bool | None = None,
         analysis_reader: Callable[[str, str], AnalysisOutcome] | None = None,
+        evidence_translation_service: EvidenceTranslationPresentationService | None = None,
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
     ) -> None:
@@ -391,6 +396,7 @@ class LocalApiApplication:
         self._source_run_wakeup = source_run_wakeup
         self._local_distillation_available = local_distillation_available
         self._analysis_reader = analysis_reader
+        self._evidence_translation_service = evidence_translation_service
         self._output_language_service = OutputLanguagePreferenceService(
             repository,
             bootstrap_default=output_language_default,
@@ -538,6 +544,20 @@ class LocalApiApplication:
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            translation_route = self._translation_route(route)
+            if method == "POST" and translation_route is not None:
+                self._only_keys(data, set())
+                return HTTPStatus.OK, self._translate_presented_evidence(
+                    intelligence_id=translation_route[0],
+                    evidence_id=translation_route[1],
+                )
+            content_translation_route = self._content_translation_route(route)
+            if method == "POST" and content_translation_route is not None:
+                self._only_keys(data, set())
+                return HTTPStatus.OK, self._translate_content_evidence(
+                    video_id=content_translation_route[0],
+                    evidence_id=content_translation_route[1],
+                )
             if method == "POST" and route in {
                 "/api/v1/saved-intelligence/save",
                 "/api/v1/saved-intelligence/unsave",
@@ -1274,6 +1294,15 @@ class LocalApiApplication:
                     _video_dto(video) for video in self._repository.list_videos()
                 ]
             }
+        if route.startswith("/api/v1/videos/") and route.endswith("/evidence"):
+            video_id = route.removeprefix("/api/v1/videos/").removesuffix(
+                "/evidence"
+            )
+            if not video_id or "/" in video_id:
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
+            return self._content_evidence_projection(video_id)
         if route.startswith("/api/v1/videos/"):
             video = self._repository.get_video(route.rsplit("/", 1)[1])
             if video is None:
@@ -1416,6 +1445,7 @@ class LocalApiApplication:
         }
         if set(relations) != set(card.verified.evidence_ids):
             return projection
+        target_language = self._output_language_service.effective().value
         evidence_links = []
         for evidence_id in card.verified.evidence_ids:
             evidence = self._repository.get_evidence(evidence_id)
@@ -1427,6 +1457,14 @@ class LocalApiApplication:
                 or evidence.video_id != card.video_id
             ):
                 return projection
+            translation = None
+            if self._evidence_translation_service is not None and not source_matches_target(
+                evidence.language, target_language
+            ):
+                translation = self._evidence_translation_service.read(
+                    evidence_id=evidence_id,
+                    target_language=target_language,
+                )
             evidence_links.append(
                 {
                     "evidence_id": evidence.evidence_id,
@@ -1441,8 +1479,13 @@ class LocalApiApplication:
                         if verified_text is not None
                         else evidence.source_excerpt
                     ),
-                    "translated_excerpt": None,
-                    "translated_language": None,
+                    "translated_excerpt": (
+                        None if translation is None else translation.translated_excerpt
+                    ),
+                    "translated_language": (
+                        None if translation is None else translation.target_language
+                    ),
+                    "translation_target_language": target_language,
                     "stance": None
                     if relation.stance is None
                     else relation.stance.value,
@@ -1472,6 +1515,227 @@ class LocalApiApplication:
             "source_policy_revision_id": card.source_policy_revision_id,
         }
         return projection
+
+    @staticmethod
+    def _translation_route(route: str) -> tuple[str, str] | None:
+        parts = route.split("/")
+        if (
+            len(parts) == 8
+            and parts[1:4] == ["api", "v1", "intelligence"]
+            and parts[5] == "evidence"
+            and parts[7] == "translation"
+            and all(parts[index] for index in (4, 6))
+        ):
+            return parts[4], parts[6]
+        return None
+
+    @staticmethod
+    def _content_translation_route(route: str) -> tuple[str, str] | None:
+        parts = route.split("/")
+        if (
+            len(parts) == 8
+            and parts[1:4] == ["api", "v1", "videos"]
+            and parts[5] == "evidence"
+            and parts[7] == "translation"
+            and all(parts[index] for index in (4, 6))
+        ):
+            return parts[4], parts[6]
+        return None
+
+    def _content_evidence_projection(self, video_id: str) -> dict[str, object]:
+        video = self._repository.get_video(video_id)
+        if video is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
+        target_language = self._output_language_service.effective().value
+        evidence_cards: list[dict[str, object]] = []
+        for evidence_id in self._repository.list_available_canonical_evidence_ids(
+            video_id
+        ):
+            evidence = self._repository.get_evidence(evidence_id)
+            verified = self._repository.resolve_verified_evidence_text(evidence_id)
+            if (
+                evidence is None
+                or evidence.video_id != video_id
+                or verified is None
+                or verified.video_id != video_id
+                or verified.evidence_id != evidence_id
+            ):
+                continue
+            translated_excerpt: str | None = None
+            translated_language: str | None = None
+            translation_status = "NOT_REQUIRED" if source_matches_target(
+                evidence.language, target_language
+            ) else "UNAVAILABLE"
+            if (
+                translation_status != "NOT_REQUIRED"
+                and self._evidence_translation_service is not None
+            ):
+                try:
+                    presentation = self._evidence_translation_service.read(
+                        evidence_id=evidence_id,
+                        target_language=target_language,
+                    )
+                except (IntegrityConflict, ValueError):
+                    presentation = None
+                if presentation is not None:
+                    translated_excerpt = presentation.translated_excerpt
+                    translated_language = presentation.target_language
+                    translation_status = "AVAILABLE"
+            evidence_cards.append(
+                {
+                    "evidence_id": evidence.evidence_id,
+                    "artifact_id": evidence.artifact_id,
+                    "lineage_kind": evidence.lineage_kind.value,
+                    "role": evidence.role.value,
+                    "source_language": evidence.language,
+                    "language": evidence.language,
+                    "original_excerpt": verified.excerpt,
+                    "translated_excerpt": translated_excerpt,
+                    "translated_language": translated_language,
+                    "translation_target_language": target_language,
+                    "translation_status": translation_status,
+                    "start_ms": verified.start_ms,
+                    "end_ms": verified.end_ms,
+                    "created_at": _timestamp(evidence.created_at),
+                    "source_url": video.source_url,
+                }
+            )
+        return {"evidence": evidence_cards}
+
+    def _translate_content_evidence(
+        self, *, video_id: str, evidence_id: str
+    ) -> dict[str, object]:
+        service = self._evidence_translation_service
+        if service is None:
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "LOCAL_TRANSLATION_UNAVAILABLE",
+                "The local Evidence translation path is not configured.",
+            )
+        if self._repository.get_video(video_id) is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
+        if evidence_id not in self._repository.list_available_canonical_evidence_ids(
+            video_id
+        ):
+            raise ApiError(
+                HTTPStatus.NOT_FOUND,
+                "EVIDENCE_NOT_AVAILABLE",
+                "Available canonical Evidence was not found for this Content.",
+            )
+        verified = self._repository.resolve_verified_evidence_text(evidence_id)
+        evidence = self._repository.get_evidence(evidence_id)
+        if (
+            verified is None
+            or verified.video_id != video_id
+            or evidence is None
+            or evidence.video_id != video_id
+        ):
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "EVIDENCE_TRANSLATION_INVALID",
+                "The original Evidence is unavailable or no longer matches this Content.",
+            )
+        target_language = self._output_language_service.effective().value
+        try:
+            presentation = service.present(
+                evidence_id=evidence_id,
+                target_language=target_language,
+            )
+        except IntegrityConflict as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "EVIDENCE_TRANSLATION_INVALID",
+                "The Evidence translation could not be safely presented.",
+            ) from error
+        except ValueError as error:
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "EVIDENCE_TRANSLATION_REJECTED",
+                "The local translation failed Evidence validation.",
+            ) from error
+        except RuntimeError as error:
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "LOCAL_TRANSLATION_UNAVAILABLE",
+                "The qualified local Evidence translation model is unavailable.",
+            ) from error
+        return {
+            "evidence_id": evidence_id,
+            "translated_excerpt": (
+                None if presentation is None else presentation.translated_excerpt
+            ),
+            "translated_language": (
+                None if presentation is None else presentation.target_language
+            ),
+            "translation_target_language": target_language,
+            "translation_status": (
+                "NOT_REQUIRED" if presentation is None else "AVAILABLE"
+            ),
+        }
+
+    def _translate_presented_evidence(
+        self, *, intelligence_id: str, evidence_id: str
+    ) -> dict[str, object]:
+        service = self._evidence_translation_service
+        if service is None:
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "LOCAL_TRANSLATION_UNAVAILABLE",
+                "The local Evidence translation path is not configured.",
+            )
+        try:
+            card = self._intelligence_reader.read_current_card(intelligence_id)
+        except IntelligenceReadRejected as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "INTELLIGENCE_UNAVAILABLE",
+                "Current Intelligence is unavailable for Evidence presentation.",
+            ) from error
+        if evidence_id not in card.verified.evidence_ids:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND,
+                "EVIDENCE_NOT_LINKED",
+                "Evidence is not linked to this current Intelligence.",
+            )
+        target_language = self._output_language_service.effective().value
+        try:
+            presentation = service.present(
+                evidence_id=evidence_id,
+                target_language=target_language,
+            )
+        except IntegrityConflict as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "EVIDENCE_TRANSLATION_INVALID",
+                "The Evidence translation could not be safely presented.",
+            ) from error
+        except ValueError as error:
+            raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "EVIDENCE_TRANSLATION_REJECTED",
+                "The local translation failed Evidence validation.",
+            ) from error
+        except RuntimeError as error:
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "LOCAL_TRANSLATION_UNAVAILABLE",
+                "The qualified local Evidence translation model is unavailable.",
+            ) from error
+        return {
+            "evidence_id": evidence_id,
+            "translated_excerpt": (
+                None
+                if presentation is None
+                else presentation.translated_excerpt
+            ),
+            "translated_language": (
+                None if presentation is None else presentation.target_language
+            ),
+            "translation_target_language": target_language,
+            "translation_status": (
+                "NOT_REQUIRED" if presentation is None else "AVAILABLE"
+            ),
+        }
 
     def _source_projection(self, source: SourceSubscriptionRecord) -> dict[str, object]:
         """Project the best persisted public Source name without network lookup."""

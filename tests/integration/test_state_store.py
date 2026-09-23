@@ -79,6 +79,7 @@ REQUEST_HASH = build_provider_request_hash(
 
 EXPECTED_TABLES = {
     "saved_intelligences",
+    "evidence_translation_presentations",
     "timed_transcripts",
     "timed_transcript_cues",
     "evidence_text_bindings",
@@ -816,12 +817,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "022_bind_current_local_summary.sql")
+        .joinpath("migrations", "023_add_evidence_translation_presentation.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 22
-    assert first.name == "022_bind_current_local_summary.sql"
+    assert first.version == 23
+    assert first.name == "023_add_evidence_translation_presentation.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -836,7 +837,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 22
+    assert migration_count == 23
 
 
 def test_m019_adds_nullable_immutable_excerpt_and_finite_stance(tmp_path: Path) -> None:
@@ -874,7 +875,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.initialize(now=NOW).version == 23
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -903,10 +904,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 22
+    assert upgraded.initialize(now=NOW).version == 23
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 23
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0
@@ -1019,6 +1020,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
         "idx_automation_runs_schedule_time",
         "uq_automation_schedule_target",
         "idx_evidence_video_availability",
+        "idx_evidence_translation_evidence_target",
         "idx_evidence_text_bindings_timed",
         "idx_intelligence_revisions_identity",
         "idx_intelligence_revision_evidence_evidence",
