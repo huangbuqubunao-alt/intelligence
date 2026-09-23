@@ -279,6 +279,31 @@ class _AnalysisProvider:
     def __init__(self) -> None:
         self.calls = 0
 
+    def summarize(self, analysis_input: object) -> AnalysisResult:
+        self.calls += 1
+        return AnalysisResult(
+            one_sentence_summary="Fixture analysis.",
+            core_points=[
+                {
+                    "text": "A core point.",
+                    "kind": "fact",
+                    "evidence_ids": ["title-1"],
+                }
+            ],
+            keywords=["fixture"],
+            evidence=[
+                {
+                    "evidence_id": "title-1",
+                    "source": "title",
+                    "excerpt": "Fixture title",
+                }
+            ],
+            provider="ollama",
+            model="qwen3:8b",
+            prompt_version="analysis-prompt-v4",
+            request_hash=getattr(analysis_input, "request_hash"),
+        )
+
     def summarize_with_credential(
         self, analysis_input: object, credential: str
     ) -> AnalysisResult:
@@ -340,6 +365,7 @@ class _QualityJudgeProvider:
                 "judge_provider": operation_input.judge_provider,
                 "judge_model": operation_input.judge_model,
                 "judge_model_digest": operation_input.judge_model_digest,
+                "prompt_version": "content-quality-prompt-v3",
             }
         )
 

@@ -292,6 +292,7 @@ class DeepAnalysisPersistenceStore:
                     "(video_id, result_identity, updated_at) VALUES (?, ?, ?) "
                     "ON CONFLICT(video_id) DO UPDATE SET "
                     "result_identity=excluded.result_identity, "
+                    "analysis_artifact_id=NULL, output_language=NULL, "
                     "updated_at=excluded.updated_at",
                     (
                         video_id,

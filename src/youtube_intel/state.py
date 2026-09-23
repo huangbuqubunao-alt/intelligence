@@ -105,6 +105,12 @@ class ArtifactKind(str, Enum):
     WEEKLY_REPORT = "weekly_report"
 
 
+@dataclass(frozen=True, slots=True)
+class CurrentLocalSummaryPointer:
+    artifact_id: str
+    output_language: str
+
+
 class StorageRoot(str, Enum):
     DATA = "DATA"
     VAULT = "VAULT"
@@ -538,6 +544,7 @@ class DistillationExecutionWrite:
     use_case: str
     selected_provider: str
     selected_model: str
+    output_language: str = "zh-CN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -549,6 +556,7 @@ class DistillationExecutionRecord:
     use_case: str
     selected_provider: str
     selected_model: str
+    output_language: str | None
     status: str
     budget_state: str
     invocation_count: int
@@ -1551,6 +1559,8 @@ class SQLiteStateRepository:
             "018_add_global_output_language.sql",
             "019_add_evidence_excerpt_stance.sql",
             "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
         )
         migrations: list[_Migration] = []
         for version, name in enumerate(names, start=1):
@@ -3104,6 +3114,59 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def current_local_summary_pointer(
+        self, video_id: str
+    ) -> CurrentLocalSummaryPointer | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT analysis_artifact_id, output_language "
+                "FROM current_content_summaries WHERE video_id = ?",
+                (video_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None or row["analysis_artifact_id"] is None:
+            return None
+        return CurrentLocalSummaryPointer(
+            artifact_id=str(row["analysis_artifact_id"]),
+            output_language=str(row["output_language"]),
+        )
+
+    def promote_current_local_summary(
+        self, *, video_id: str, artifact_id: str, output_language: str,
+        now: datetime,
+    ) -> None:
+        """Bind a caller-verified M1 Analysis artifact as the current Summary."""
+        if output_language not in {"zh-CN", "en"}:
+            raise ValueError("current Summary language is invalid")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                artifact = connection.execute(
+                    "SELECT video_id, kind, deleted_at FROM artifacts WHERE artifact_id = ?",
+                    (artifact_id,),
+                ).fetchone()
+                if (
+                    artifact is None
+                    or artifact["video_id"] != video_id
+                    or artifact["kind"] != ArtifactKind.ANALYSIS_STRUCTURED.value
+                    or artifact["deleted_at"] is not None
+                ):
+                    raise IntegrityConflict("current Summary target is invalid")
+                connection.execute(
+                    "INSERT INTO current_content_summaries "
+                    "(video_id, result_identity, analysis_artifact_id, output_language, updated_at) "
+                    "VALUES (?, NULL, ?, ?, ?) ON CONFLICT(video_id) DO UPDATE SET "
+                    "result_identity=NULL, analysis_artifact_id=excluded.analysis_artifact_id, "
+                    "output_language=excluded.output_language, updated_at=excluded.updated_at",
+                    (video_id, artifact_id, output_language, format_utc_datetime(now)),
+                )
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("current Summary pointer is invalid") from error
+        finally:
+            connection.close()
+
     def mark_artifact_deleted(
         self,
         artifact_id: str,
@@ -4623,19 +4686,19 @@ class SQLiteStateRepository:
             raise ValueError("source policy revision identity is invalid")
         if revision.policy_scope not in {"GLOBAL", "SOURCE"}:
             raise ValueError("source policy scope must be finite")
-        if not isinstance(revision.focus_mode, PolicyOverrideMode) or not isinstance(
-            revision.ignore_mode, PolicyOverrideMode
-        ) or not isinstance(revision.distillation_style_mode, PolicyOverrideMode):
+        if (
+            not isinstance(revision.focus_mode, PolicyOverrideMode)
+            or not isinstance(revision.ignore_mode, PolicyOverrideMode)
+            or not isinstance(revision.distillation_style_mode, PolicyOverrideMode)
+        ):
             raise ValueError("source policy override mode must be finite")
-        if (
-            isinstance(revision.initial_history_count, bool)
-            or revision.initial_history_count not in {None, 0, 1, 3, 5, 10}
-        ):
+        if isinstance(
+            revision.initial_history_count, bool
+        ) or revision.initial_history_count not in {None, 0, 1, 3, 5, 10}:
             raise ValueError("initial history count must be one of the V1 values")
-        if (
-            isinstance(revision.per_run_max_new_videos, bool)
-            or revision.per_run_max_new_videos not in {None, 1, 3, 5, 10}
-        ):
+        if isinstance(
+            revision.per_run_max_new_videos, bool
+        ) or revision.per_run_max_new_videos not in {None, 1, 3, 5, 10}:
             raise ValueError("per-run new video limit must be one of the V1 values")
         SQLiteStateRepository._validate_policy_rules(
             revision.focus_rules, field_name="focus rules"
@@ -4813,9 +4876,11 @@ class SQLiteStateRepository:
             or not decision.video_id.strip()
         ):
             raise ValueError("filter decision identity is invalid")
-        if not isinstance(decision.stage, FilterStage) or not isinstance(
+        if (
+            not isinstance(decision.stage, FilterStage) or not isinstance(
             decision.outcome, FilterOutcome
-        ) or not isinstance(decision.reason, FilterReason):
+        ) or not isinstance(decision.reason, FilterReason)
+        ):
             raise ValueError("filter decision fields must be finite")
         stage_contract = {
             (FilterStage.STAGE_1, FilterOutcome.RELEVANT): {
@@ -4845,7 +4910,9 @@ class SQLiteStateRepository:
         ):
             raise ValueError("filter outcome and reason are not an approved pair")
         if decision.stage is FilterStage.MANUAL_OVERRIDE:
-            if decision.manual_override_id is None or decision.prior_decision_id is None:
+            if (
+                decision.manual_override_id is None or decision.prior_decision_id is None
+            ):
                 raise ValueError("manual override decision requires immutable context")
         elif (
             decision.manual_override_id is not None
@@ -5000,7 +5067,9 @@ class SQLiteStateRepository:
                     "ORDER BY decision_order DESC LIMIT 1",
                     {"source_id": override.source_id, "video_id": override.video_id},
                 ).fetchone()
-                if current is None or str(current["decision_id"]) != override.prior_decision_id:
+                if (
+                    current is None or str(current["decision_id"]) != override.prior_decision_id
+                ):
                     raise ValueError("manual analyze requires a currently skipped video")
                 connection.execute(
                     "INSERT INTO manual_analyze_overrides "
@@ -5220,9 +5289,8 @@ class SQLiteStateRepository:
     def _validate_source_run_write(run: SourceRunWrite) -> None:
         if not isinstance(run, SourceRunWrite):
             raise ValueError("Source Run write is invalid")
-        if (
-            not isinstance(run.trigger, SourceRunTrigger)
-            or not isinstance(run.priority, SourceRunPriority)
+        if not isinstance(run.trigger, SourceRunTrigger) or not isinstance(
+            run.priority, SourceRunPriority
         ):
             raise ValueError("Source Run trigger and priority must be finite")
         identity_fields = (
@@ -5261,7 +5329,9 @@ class SQLiteStateRepository:
             trigger=run.trigger,
             trigger_reference=run.trigger_reference,
         )
-        if run.run_id != expected_run_id or run.idempotency_key != expected_idempotency_key:
+        if (
+            run.run_id != expected_run_id or run.idempotency_key != expected_idempotency_key
+        ):
             raise ValueError("Source Run identity must be derived from its bound trigger")
         if run.trigger is SourceRunTrigger.MANUAL_CHECK_NOW:
             context_is_legal = (
@@ -5445,7 +5515,7 @@ class SQLiteStateRepository:
         try:
             with _immediate_transaction(connection):
                 row = connection.execute(
-                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id},
                 ).fetchone()
                 if row is None:
                     raise ValueError("Source Run does not exist")
@@ -5465,7 +5535,7 @@ class SQLiteStateRepository:
                     },
                 )
                 saved = connection.execute(
-                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                    "SELECT * FROM source_runs WHERE run_id = :run_id", {"run_id": run_id},
                 ).fetchone()
                 if saved is None:
                     raise StateStoreError("Source Run state was not saved")
@@ -5552,7 +5622,7 @@ class SQLiteStateRepository:
         try:
             with _immediate_transaction(connection):
                 row = connection.execute(
-                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id},
                 ).fetchone()
                 if row is None:
                     raise ValueError("Source Run does not exist")
@@ -5589,7 +5659,7 @@ class SQLiteStateRepository:
         try:
             with _immediate_transaction(connection):
                 row = connection.execute(
-                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id}
+                    "SELECT state FROM source_runs WHERE run_id = :run_id", {"run_id": run_id},
                 ).fetchone()
                 if row is None:
                     raise ValueError("Source Run does not exist")
@@ -5627,7 +5697,9 @@ class SQLiteStateRepository:
         distillation_execution_id: str | None,
         now: datetime,
     ) -> SourceRunChildRecord:
-        if not isinstance(state, SourceRunChildState) or state is not SourceRunChildState.PENDING:
+        if (
+            not isinstance(state, SourceRunChildState) or state is not SourceRunChildState.PENDING
+        ):
             raise ValueError("Source Run child must begin in finite PENDING state")
         if (
             not isinstance(video_id, str)
@@ -6425,12 +6497,14 @@ class SQLiteStateRepository:
                     return timed
                 connection.execute(
                     "INSERT INTO timed_transcripts (timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (timed.timed_transcript_id, timed.video_id, timed.canonical_artifact_id, timed.timed_transcript_hash, format_utc_datetime(now)),
+                    (timed.timed_transcript_id, timed.video_id, timed.canonical_artifact_id, timed.timed_transcript_hash, format_utc_datetime(now),
+                    ),
                 )
                 connection.executemany(
                     "INSERT INTO timed_transcript_cues (timed_transcript_id, cue_index, start_ms, end_ms, cue_text, cue_text_hash) VALUES (?, ?, ?, ?, ?, ?)",
                     [
-                        (timed.timed_transcript_id, index, cue.start_ms, cue.end_ms, cue.text, cue.text_hash)
+                        (timed.timed_transcript_id, index, cue.start_ms, cue.end_ms, cue.text, cue.text_hash,
+                        )
                         for index, cue in enumerate(timed.cues)
                     ],
                 )
@@ -6448,7 +6522,9 @@ class SQLiteStateRepository:
         *,
         now: datetime,
     ) -> None:
-        if binding.evidence_id != evidence.evidence_id or _sha256_text(binding.excerpt) != binding.excerpt_hash:
+        if (
+            binding.evidence_id != evidence.evidence_id or _sha256_text(binding.excerpt) != binding.excerpt_hash
+        ):
             raise IntegrityConflict("evidence text binding identity is invalid")
         timed = connection.execute(
             "SELECT timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash FROM timed_transcripts WHERE timed_transcript_id = ?",
@@ -6462,7 +6538,8 @@ class SQLiteStateRepository:
             raise IntegrityConflict("evidence text binding is foreign to its evidence")
         cues = connection.execute(
             "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
-            (binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index),
+            (binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index,
+            ),
         ).fetchall()
         if len(cues) != binding.end_cue_index - binding.start_cue_index:
             raise IntegrityConflict("evidence text binding cue set is incomplete")
@@ -6475,14 +6552,15 @@ class SQLiteStateRepository:
         ):
             raise IntegrityConflict("evidence range must align to full canonical cues")
         expected_excerpt = "\n".join(str(cue["cue_text"]) for cue in cues)
-        if (
-            expected_excerpt != binding.excerpt
-            or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
+        if expected_excerpt != binding.excerpt or any(
+            _sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"]
+            for cue in cues
         ):
             raise IntegrityConflict("evidence text binding does not match canonical cues")
         connection.execute(
             "INSERT INTO evidence_text_bindings (evidence_id, timed_transcript_id, start_cue_index, end_cue_index, excerpt, excerpt_hash, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (binding.evidence_id, binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index, binding.excerpt, binding.excerpt_hash, timed["timed_transcript_hash"], format_utc_datetime(now)),
+            (binding.evidence_id, binding.timed_transcript_id, binding.start_cue_index, binding.end_cue_index, binding.excerpt, binding.excerpt_hash, timed["timed_transcript_hash"], format_utc_datetime(now),
+            ),
         )
 
     def create_evidence_text_binding(
@@ -6506,9 +6584,10 @@ class SQLiteStateRepository:
             connection.close()
 
     def create_evidence_with_text_binding(
-        self, evidence: EvidenceWrite, binding: EvidenceTextBindingWrite, *, now: datetime
+        self, evidence: EvidenceWrite, binding: EvidenceTextBindingWrite, *, now: datetime,
     ) -> EvidenceRecord:
-        expected_id = build_evidence_id(video_id=evidence.video_id, artifact_id=evidence.artifact_id, start_ms=evidence.start_ms, end_ms=evidence.end_ms, lineage_kind=evidence.lineage_kind, role=evidence.role)
+        expected_id = build_evidence_id(video_id=evidence.video_id, artifact_id=evidence.artifact_id, start_ms=evidence.start_ms, end_ms=evidence.end_ms, lineage_kind=evidence.lineage_kind, role=evidence.role,
+        )
         if evidence.evidence_id != expected_id or not evidence.language.strip():
             raise ValueError("evidence identity is invalid")
         connection = self._connect()
@@ -6516,10 +6595,12 @@ class SQLiteStateRepository:
             with _immediate_transaction(connection):
                 connection.execute(
                     "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (evidence.evidence_id, evidence.video_id, evidence.artifact_id, evidence.start_ms, evidence.end_ms, evidence.lineage_kind.value, evidence.role.value, evidence.language, evidence.availability.value, format_utc_datetime(now)),
+                    (evidence.evidence_id, evidence.video_id, evidence.artifact_id, evidence.start_ms, evidence.end_ms, evidence.lineage_kind.value, evidence.role.value, evidence.language, evidence.availability.value, format_utc_datetime(now),
+                    ),
                 )
                 self._insert_evidence_text_binding_in_transaction(connection, evidence, binding, now=now)
-                row = connection.execute("SELECT * FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,)).fetchone()
+                row = connection.execute("SELECT * FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,),
+                ).fetchone()
                 if row is None:
                     raise StateStoreError("evidence was not saved")
                 return self._evidence_from_row(row)
@@ -6546,7 +6627,8 @@ class SQLiteStateRepository:
                 return None
             cues = connection.execute(
                 "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
-                (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"]),
+                (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"],
+                ),
             ).fetchall()
             if (
                 len(cues) != row["end_cue_index"] - row["start_cue_index"] or not cues
@@ -6555,7 +6637,8 @@ class SQLiteStateRepository:
                 or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
             ):
                 return None
-            return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]))
+            return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]),
+            )
         finally:
             connection.close()
 
@@ -6691,7 +6774,9 @@ class SQLiteStateRepository:
                     "SELECT current_revision_id FROM intelligences WHERE intelligence_id = ?",
                     (intelligence_id,),
                 ).fetchone()
-                if current is None or current["current_revision_id"] != expected_revision_id:
+                if (
+                    current is None or current["current_revision_id"] != expected_revision_id
+                ):
                     raise IntegrityConflict("saved target changed after admission")
                 connection.execute(
                     "INSERT INTO saved_intelligences (intelligence_id, saved_at) VALUES (?, ?) "
@@ -6848,7 +6933,9 @@ class SQLiteStateRepository:
                         {"revision_id": prior_revision_id},
                     ).fetchone()
                 )
-                if prior_revision_id is None and revision.state is not IntelligenceState.NEW:
+                if (
+                    prior_revision_id is None and revision.state is not IntelligenceState.NEW
+                ):
                     raise StateStoreError("first intelligence revision must begin in NEW state")
                 if prior_revision_id is not None and prior_state_row is None:
                     raise StateStoreError("current intelligence revision lacks state history")
@@ -6875,7 +6962,8 @@ class SQLiteStateRepository:
                 for evidence_id in evidence_ids:
                     connection.execute(
                         "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id) VALUES (:revision_id, :evidence_id)",
-                        {"revision_id": revision.revision_id, "evidence_id": evidence_id},
+                        {"revision_id": revision.revision_id, "evidence_id": evidence_id,
+                        },
                     )
                 connection.execute(
                     "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) "
@@ -6895,7 +6983,8 @@ class SQLiteStateRepository:
                 )
                 connection.execute(
                     "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
-                    {"revision_id": revision.revision_id, "intelligence_id": intelligence_id},
+                    {"revision_id": revision.revision_id, "intelligence_id": intelligence_id,
+                    },
                 )
                 row = connection.execute(
                     "SELECT * FROM intelligence_revisions WHERE revision_id = :revision_id",
@@ -7023,10 +7112,11 @@ class SQLiteStateRepository:
         if not edge.edge_id.strip() or not edge.dependent_revision_id.strip():
             raise ValueError("dependency edge identities must be non-empty")
         is_evidence_edge = edge.relation is DependencyRelation.EVIDENCE_SUPPORT
-        if is_evidence_edge != (edge.input_evidence_id is not None) or (
+        if (
+            is_evidence_edge != (edge.input_evidence_id is not None) or (
             is_evidence_edge and edge.input_revision_id is not None
         ) or (not is_evidence_edge and edge.input_revision_id is None) or (
-            not is_evidence_edge and edge.input_evidence_id is not None
+            not is_evidence_edge and edge.input_evidence_id is not None)
         ):
             raise StateStoreError("dependency relation requires exactly one valid input")
         connection = self._connect()
@@ -7201,13 +7291,17 @@ class SQLiteStateRepository:
 
     @staticmethod
     def _topic_identity(value: str, *, field_name: str) -> str:
-        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512:
+        if (
+            not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512
+        ):
             raise ValueError(f"{field_name} is invalid")
         return value
 
     @staticmethod
     def _topic_name(value: str) -> str:
-        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 240:
+        if (
+            not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 240
+        ):
             raise ValueError("topic name is invalid")
         return value
 
@@ -7218,17 +7312,18 @@ class SQLiteStateRepository:
         try:
             with _immediate_transaction(connection):
                 existing = connection.execute(
-                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
                 ).fetchone()
                 if existing is not None:
                     return self._topic_from_row(existing)
                 connection.execute(
                     "INSERT INTO topics (topic_id, name, pinned, lifecycle, merged_into_topic_id, current_event_id, created_at, updated_at) "
                     "VALUES (:topic_id, :name, 0, 'ACTIVE', NULL, NULL, :now, :now)",
-                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now)},
+                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now),
+                    },
                 )
                 row = connection.execute(
-                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("topic was not saved")
@@ -7242,7 +7337,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
             ).fetchone()
             return None if row is None else self._topic_from_row(row)
         finally:
@@ -7265,12 +7360,13 @@ class SQLiteStateRepository:
             with _immediate_transaction(connection):
                 changed = connection.execute(
                     "UPDATE topics SET name = :name, updated_at = :now WHERE topic_id = :topic_id",
-                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now)},
+                    {"topic_id": topic_id, "name": name, "now": format_utc_datetime(now),
+                    },
                 ).rowcount
                 if changed != 1:
                     raise StateStoreError("topic does not exist")
                 row = connection.execute(
-                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("topic was not saved")
@@ -7286,12 +7382,13 @@ class SQLiteStateRepository:
             with _immediate_transaction(connection):
                 changed = connection.execute(
                     "UPDATE topics SET pinned = :pinned, updated_at = :now WHERE topic_id = :topic_id",
-                    {"topic_id": topic_id, "pinned": int(pinned), "now": format_utc_datetime(now)},
+                    {"topic_id": topic_id, "pinned": int(pinned), "now": format_utc_datetime(now),
+                    },
                 ).rowcount
                 if changed != 1:
                     raise StateStoreError("topic does not exist")
                 row = connection.execute(
-                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("topic was not saved")
@@ -7337,7 +7434,9 @@ class SQLiteStateRepository:
                 "SELECT * FROM topic_memberships WHERE membership_id = :membership_id",
                 {"membership_id": membership_id},
             ).fetchone()
-            return None if row is None else self._topic_membership_from_row(connection, row)
+            return (
+                None if row is None else self._topic_membership_from_row(connection, row)
+            )
         finally:
             connection.close()
 
@@ -7387,13 +7486,17 @@ class SQLiteStateRepository:
 
     @staticmethod
     def _weekly_brief_identity(value: str, *, field_name: str) -> str:
-        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512:
+        if (
+            not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 512
+        ):
             raise ValueError(f"{field_name} is invalid")
         return value
 
     @staticmethod
     def _weekly_brief_summary(value: str) -> str:
-        if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 4_000:
+        if (
+            not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 4_000
+        ):
             raise ValueError("weekly brief summary is invalid")
         return value
 
@@ -7411,15 +7514,17 @@ class SQLiteStateRepository:
         ):
             self._weekly_brief_identity(value, field_name=field_name)
         _validate_sha256(
-            brief.preference_projection_hash, field_name="weekly preference projection hash"
+            brief.preference_projection_hash, field_name="weekly preference projection hash",
         )
         start_text = format_utc_datetime(brief.period_start)
         end_text = format_utc_datetime(brief.period_end)
         if start_text >= end_text or brief.no_important_information != (not items):
             raise ValueError("weekly brief finalization shape is invalid")
-        if len({item.brief_item_id for item in items}) != len(items) or len(
+        if (
+            len({item.brief_item_id for item in items}) != len(items) or len(
             {item.topic_id for item in items}
-        ) != len(items) or {item.position for item in items} != set(range(1, len(items) + 1)):
+        ) != len(items) or {item.position for item in items} != set(range(1, len(items) + 1))
+        ):
             raise ValueError("weekly brief items must have distinct identities and topics")
         if len({item.preference_id for item in preferences}) != len(preferences):
             raise ValueError("weekly brief preference projections must be unique")
@@ -7457,7 +7562,7 @@ class SQLiteStateRepository:
                         item.brief_item_id, field_name="weekly brief item identity"
                     )
                     self._weekly_brief_identity(
-                        item.membership_id, field_name="weekly brief membership identity"
+                        item.membership_id, field_name="weekly brief membership identity",
                     )
                     self._weekly_brief_identity(item.topic_id, field_name="weekly topic identity")
                     self._weekly_brief_identity(
@@ -7479,7 +7584,7 @@ class SQLiteStateRepository:
                     ):
                         raise ValueError("weekly brief item semantics are invalid")
                     _validate_sha256(
-                        item.source_content_hash, field_name="weekly source content hash"
+                        item.source_content_hash, field_name="weekly source content hash",
                     )
                     evidence_ids = tuple(sorted(item.evidence_ids))
                     if not evidence_ids or len(set(evidence_ids)) != len(evidence_ids):
@@ -7519,14 +7624,14 @@ class SQLiteStateRepository:
                         )
                 for preference in preferences:
                     self._weekly_brief_identity(
-                        preference.preference_id, field_name="weekly preference identity"
+                        preference.preference_id, field_name="weekly preference identity",
                     )
                     if not isinstance(preference.horizon, PreferenceHorizon) or not isinstance(
                         preference.provenance, PreferenceProvenance
                     ):
                         raise ValueError("weekly preference projection semantics are invalid")
                     _validate_sha256(
-                        preference.statement_hash, field_name="weekly preference statement hash"
+                        preference.statement_hash, field_name="weekly preference statement hash",
                     )
                     connection.execute(
                         "INSERT INTO weekly_brief_preference_projections "
@@ -7556,7 +7661,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT * FROM weekly_briefs WHERE brief_id = :brief_id", {"brief_id": brief_id}
+                "SELECT * FROM weekly_briefs WHERE brief_id = :brief_id", {"brief_id": brief_id},
             ).fetchone()
             return None if row is None else self._weekly_brief_from_row(row)
         finally:
@@ -7654,7 +7759,9 @@ class SQLiteStateRepository:
     ) -> bool:
         self._weekly_brief_identity(marker.marker_id, field_name="weekly marker identity")
         self._weekly_brief_identity(marker.brief_item_id, field_name="weekly marker item identity")
-        if not isinstance(marker.kind, WeeklyBriefMarkerKind) or not marker.reason.strip():
+        if (
+            not isinstance(marker.kind, WeeklyBriefMarkerKind) or not marker.reason.strip()
+        ):
             raise ValueError("weekly marker semantics are invalid")
         if marker.kind is WeeklyBriefMarkerKind.SUPERSEDED:
             if marker.current_revision_id is None or marker.evidence_id is not None:
@@ -7677,10 +7784,12 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
-                if connection.execute(
+                if (
+                    connection.execute(
                     "SELECT 1 FROM brief_item_markers WHERE marker_id = :marker_id",
                     {"marker_id": marker.marker_id},
-                ).fetchone() is not None:
+                ).fetchone() is not None
+                ):
                     return False
                 connection.execute(
                     "INSERT INTO brief_item_markers (marker_id, brief_item_id, marker_kind, reason, "
@@ -7763,7 +7872,8 @@ class SQLiteStateRepository:
                     connection.execute(
                         "INSERT INTO topic_membership_evidence (membership_id, evidence_id) "
                         "VALUES (:membership_id, :evidence_id)",
-                        {"membership_id": membership.membership_id, "evidence_id": evidence_id},
+                        {"membership_id": membership.membership_id, "evidence_id": evidence_id,
+                        },
                     )
                 row = connection.execute(
                     "SELECT * FROM topic_memberships WHERE membership_id = :membership_id",
@@ -7846,7 +7956,7 @@ class SQLiteStateRepository:
                 if changed != 1:
                     raise StateStoreError("topic does not exist")
                 row = connection.execute(
-                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id}
+                    "SELECT * FROM topics WHERE topic_id = :topic_id", {"topic_id": topic_id},
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("topic was not saved")
@@ -7987,6 +8097,11 @@ class SQLiteStateRepository:
             use_case=str(row["use_case"]),
             selected_provider=str(row["selected_provider"]),
             selected_model=str(row["selected_model"]),
+            output_language=(
+                None
+                if "output_language" not in row.keys() or row["output_language"] is None
+                else str(row["output_language"])
+            ),
             status=str(row["status"]) if status_override is None else status_override,
             budget_state=str(row["budget_state"]),
             invocation_count=int(row["invocation_count"]),
@@ -7999,7 +8114,8 @@ class SQLiteStateRepository:
         )
 
     @staticmethod
-    def _distillation_usage_from_row(row: sqlite3.Row) -> DistillationResourceUsageRecord:
+    def _distillation_usage_from_row(row: sqlite3.Row,
+    ) -> DistillationResourceUsageRecord:
         return DistillationResourceUsageRecord(
             execution_id=str(row["execution_id"]),
             reason=str(row["reason"]),
@@ -8125,6 +8241,35 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def find_reserved_distillation_execution(
+        self,
+        *,
+        source_id: str,
+        video_id: str,
+        selected_provider: str,
+        selected_model: str,
+    ) -> DistillationExecutionRecord | None:
+        """Find the sole pre-dispatch reservation without consulting mutable preferences."""
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints "
+                "WHERE source_id = :source_id AND video_id = :video_id "
+                "AND selected_provider = :selected_provider "
+                "AND selected_model = :selected_model AND status = 'PENDING' "
+                "AND budget_state = 'RESERVED_NOT_DISPATCHED' "
+                "AND invocation_count = 0 ORDER BY created_at DESC LIMIT 1",
+                {
+                    "source_id": source_id,
+                    "video_id": video_id,
+                    "selected_provider": selected_provider,
+                    "selected_model": selected_model,
+                },
+            ).fetchone()
+            return None if row is None else self._distillation_execution_from_row(row)
+        finally:
+            connection.close()
+
     def latest_distillation_execution_for_video(
         self, video_id: str
     ) -> DistillationExecutionRecord | None:
@@ -8172,28 +8317,55 @@ class SQLiteStateRepository:
             execution.use_case,
             execution.selected_provider,
             execution.selected_model,
+            execution.output_language,
         )
         if any(not value.strip() or len(value) > 512 for value in fields):
             raise ValueError("distillation execution identity is invalid")
+        if execution.output_language not in {"zh-CN", "en"}:
+            raise ValueError("distillation output language is invalid")
         timestamp = format_utc_datetime(now)
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
-                connection.execute(
-                    "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
-                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, 'PENDING', 'NOT_CHECKED', 0, NULL, NULL, :created_at, :updated_at)",
-                    {
-                        "execution_id": execution.execution_id,
-                        "source_id": execution.source_id,
-                        "video_id": execution.video_id,
-                        "reason": execution.reason,
-                        "use_case": execution.use_case,
-                        "selected_provider": execution.selected_provider,
-                        "selected_model": execution.selected_model,
-                        "created_at": timestamp,
-                        "updated_at": timestamp,
-                    },
+                has_language_column = any(
+                    row["name"] == "output_language"
+                    for row in connection.execute(
+                        'PRAGMA table_info("distillation_execution_checkpoints")'
+                    )
                 )
+                if has_language_column:
+                    connection.execute(
+                        "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, output_language, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
+                        "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, :output_language, 'PENDING', 'NOT_CHECKED', 0, NULL, NULL, :created_at, :updated_at)",
+                        {
+                            "execution_id": execution.execution_id,
+                            "source_id": execution.source_id,
+                            "video_id": execution.video_id,
+                            "reason": execution.reason,
+                            "use_case": execution.use_case,
+                            "selected_provider": execution.selected_provider,
+                            "selected_model": execution.selected_model,
+                            "output_language": execution.output_language,
+                            "created_at": timestamp,
+                            "updated_at": timestamp,
+                        },
+                    )
+                else:
+                    connection.execute(
+                        "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
+                        "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, 'PENDING', 'NOT_CHECKED', 0, NULL, NULL, :created_at, :updated_at)",
+                        {
+                            "execution_id": execution.execution_id,
+                            "source_id": execution.source_id,
+                            "video_id": execution.video_id,
+                            "reason": execution.reason,
+                            "use_case": execution.use_case,
+                            "selected_provider": execution.selected_provider,
+                            "selected_model": execution.selected_model,
+                            "created_at": timestamp,
+                            "updated_at": timestamp,
+                        },
+                    )
                 row = connection.execute(
                     "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
                     {"execution_id": execution.execution_id},
@@ -8223,16 +8395,19 @@ class SQLiteStateRepository:
             execution.use_case,
             execution.selected_provider,
             execution.selected_model,
+            execution.output_language,
         )
         if any(not value.strip() or len(value) > 512 for value in fields):
             raise ValueError("distillation execution identity is invalid")
+        if execution.output_language not in {"zh-CN", "en"}:
+            raise ValueError("distillation output language is invalid")
         timestamp = format_utc_datetime(now)
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
                 connection.execute(
-                    "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
-                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, 'PENDING', 'RESERVED_NOT_DISPATCHED', 0, NULL, NULL, :created_at, :updated_at)",
+                    "INSERT INTO distillation_execution_checkpoints (execution_id, source_id, video_id, reason, use_case, selected_provider, selected_model, output_language, status, budget_state, invocation_count, intelligence_id, revision_id, created_at, updated_at) "
+                    "VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, :selected_provider, :selected_model, :output_language, 'PENDING', 'RESERVED_NOT_DISPATCHED', 0, NULL, NULL, :created_at, :updated_at)",
                     {
                         "execution_id": execution.execution_id,
                         "source_id": execution.source_id,
@@ -8241,6 +8416,7 @@ class SQLiteStateRepository:
                         "use_case": execution.use_case,
                         "selected_provider": execution.selected_provider,
                         "selected_model": execution.selected_model,
+                        "output_language": execution.output_language,
                         "created_at": timestamp,
                         "updated_at": timestamp,
                     },
@@ -8267,6 +8443,7 @@ class SQLiteStateRepository:
         use_case: str,
         selected_provider: str,
         selected_model: str,
+        output_language: str = "zh-CN",
         now: datetime,
     ) -> bool:
         """Atomically claim the one permitted external dispatch boundary.
@@ -8283,6 +8460,7 @@ class SQLiteStateRepository:
             use_case,
             selected_provider,
             selected_model,
+            output_language,
         )
         if any(not isinstance(value, str) or not value.strip() or len(value) > 512 for value in fields):
             raise ValueError("distillation execution identity is invalid")
@@ -8296,6 +8474,7 @@ class SQLiteStateRepository:
                     "AND source_id = :source_id AND video_id = :video_id "
                     "AND reason = :reason AND use_case = :use_case "
                     "AND selected_provider = :selected_provider AND selected_model = :selected_model "
+                    "AND output_language = :output_language "
                     "AND status = 'PENDING' AND budget_state = 'RESERVED_NOT_DISPATCHED' "
                     "AND invocation_count = 0",
                     {
@@ -8306,6 +8485,7 @@ class SQLiteStateRepository:
                         "use_case": use_case,
                         "selected_provider": selected_provider,
                         "selected_model": selected_model,
+                        "output_language": output_language,
                         "updated_at": format_utc_datetime(now),
                     },
                 ).rowcount
@@ -8323,6 +8503,7 @@ class SQLiteStateRepository:
         use_case: str,
         selected_provider: str,
         selected_model: str,
+        output_language: str = "zh-CN",
         now: datetime,
     ) -> bool:
         """Claim a directly-started execution before its one transport call."""
@@ -8334,6 +8515,7 @@ class SQLiteStateRepository:
             use_case,
             selected_provider,
             selected_model,
+            output_language,
         )
         if any(
             not isinstance(value, str)
@@ -8354,6 +8536,7 @@ class SQLiteStateRepository:
                     "AND reason = :reason AND use_case = :use_case "
                     "AND selected_provider = :selected_provider "
                     "AND selected_model = :selected_model "
+                    "AND output_language = :output_language "
                     "AND status = 'PENDING' AND budget_state = 'NOT_CHECKED' "
                     "AND invocation_count = 0",
                     {
@@ -8364,6 +8547,7 @@ class SQLiteStateRepository:
                         "use_case": use_case,
                         "selected_provider": selected_provider,
                         "selected_model": selected_model,
+                        "output_language": output_language,
                         "updated_at": format_utc_datetime(now),
                     },
                 ).rowcount
@@ -8479,10 +8663,12 @@ class SQLiteStateRepository:
         duration_ms: int | None,
         now: datetime,
     ) -> DistillationExecutionRecord:
-        if status not in {
+        if (
+            status not in {
             "WAITING_BUDGET", "WAITING_MODEL", "REJECTED_INELIGIBLE", "REJECTED_EVIDENCE",
             "REJECTED_OUTPUT", "AMBIGUOUS",
-        } or not budget_state.strip() or not outcome.strip():
+        } or not budget_state.strip() or not outcome.strip()
+        ):
             raise ValueError("distillation terminal status is invalid")
         connection = self._connect()
         try:
@@ -8744,19 +8930,20 @@ class SQLiteStateRepository:
             raise ValueError("distillation card conclusion is invalid")
         encoded_card = {
             "user_relevant_information_json": json.dumps(
-                self._distillation_strings(list(card.user_relevant_information), field_name="user relevance"), separators=(",", ":")
+                self._distillation_strings(list(card.user_relevant_information), field_name="user relevance"), separators=(",", ":"),
             ),
             "important_new_information_json": json.dumps(
-                self._distillation_strings(list(card.important_new_information), field_name="important information"), separators=(",", ":")
+                self._distillation_strings(list(card.important_new_information), field_name="important information",
+                ), separators=(",", ":"),
             ),
             "meaningful_details_json": json.dumps(
-                self._distillation_strings(list(card.meaningful_details), field_name="details"), separators=(",", ":")
+                self._distillation_strings(list(card.meaningful_details), field_name="details"), separators=(",", ":"),
             ),
             "filtered_noise_json": json.dumps(
-                self._distillation_strings(list(card.filtered_noise), field_name="noise"), separators=(",", ":")
+                self._distillation_strings(list(card.filtered_noise), field_name="noise"), separators=(",", ":"),
             ),
             "preference_ids_json": json.dumps(
-                self._distillation_strings(list(card.preference_ids), field_name="preferences"), separators=(",", ":")
+                self._distillation_strings(list(card.preference_ids), field_name="preferences"), separators=(",", ":"),
             ),
         }
         connection = self._connect()
@@ -8768,7 +8955,9 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely admissible")
-                if card.source_id != checkpoint["source_id"] or card.video_id != checkpoint["video_id"]:
+                if (
+                    card.source_id != checkpoint["source_id"] or card.video_id != checkpoint["video_id"]
+                ):
                     raise StateStoreError("distillation card target does not match execution")
                 evidence_rows = connection.execute(
                     "SELECT evidence_id, video_id, availability FROM evidence WHERE evidence_id IN ("
@@ -8790,7 +8979,8 @@ class SQLiteStateRepository:
                 )
                 connection.execute(
                     "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) VALUES (:revision_id, :intelligence_id, 1, NULL, 'DISTILLATION', :claim_kind, :content_hash, :created_at)",
-                    {"revision_id": revision_id, "intelligence_id": intelligence_id, "claim_kind": claim_kind.value, "content_hash": content_hash, "created_at": timestamp},
+                    {"revision_id": revision_id, "intelligence_id": intelligence_id, "claim_kind": claim_kind.value, "content_hash": content_hash, "created_at": timestamp,
+                    },
                 )
                 for evidence_id in evidence_ids:
                     connection.execute(
@@ -8804,7 +8994,8 @@ class SQLiteStateRepository:
                     )
                 connection.execute(
                     "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
-                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": supporting_evidence_ids[0], "created_at": timestamp},
+                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": supporting_evidence_ids[0], "created_at": timestamp,
+                    },
                 )
                 connection.execute(
                     "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
@@ -8816,15 +9007,18 @@ class SQLiteStateRepository:
                 for evidence_id in evidence_ids:
                     connection.execute(
                         "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) VALUES (:edge_id, :revision_id, 'EVIDENCE_SUPPORT', :evidence_id, NULL, :created_at)",
-                        {"edge_id": f"support:{revision_id}:{evidence_id}", "revision_id": revision_id, "evidence_id": evidence_id, "created_at": timestamp},
+                        {"edge_id": f"support:{revision_id}:{evidence_id}", "revision_id": revision_id, "evidence_id": evidence_id, "created_at": timestamp,
+                        },
                     )
                 connection.execute(
                     "INSERT INTO distillation_cards (revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, important_new_information_json, meaningful_details_json, filtered_noise_json, preference_ids_json, source_policy_revision_id, created_at) VALUES (:revision_id, :source_id, :video_id, :core_conclusion, :user_relevant_information_json, :important_new_information_json, :meaningful_details_json, :filtered_noise_json, :preference_ids_json, :source_policy_revision_id, :created_at)",
-                    {"revision_id": revision_id, "source_id": card.source_id, "video_id": card.video_id, "core_conclusion": card.core_conclusion.strip(), "source_policy_revision_id": card.source_policy_revision_id, "created_at": timestamp, **encoded_card},
+                    {"revision_id": revision_id, "source_id": card.source_id, "video_id": card.video_id, "core_conclusion": card.core_conclusion.strip(), "source_policy_revision_id": card.source_policy_revision_id, "created_at": timestamp, **encoded_card,
+                    },
                 )
                 connection.execute(
                     "UPDATE distillation_execution_checkpoints SET status = 'SUCCEEDED', budget_state = 'ADMITTED', invocation_count = 1, intelligence_id = :intelligence_id, revision_id = :revision_id, updated_at = :updated_at WHERE execution_id = :execution_id",
-                    {"intelligence_id": intelligence_id, "revision_id": revision_id, "updated_at": timestamp, "execution_id": execution_id},
+                    {"intelligence_id": intelligence_id, "revision_id": revision_id, "updated_at": timestamp, "execution_id": execution_id,
+                    },
                 )
                 self._insert_distillation_usage(
                     connection,
@@ -8902,7 +9096,9 @@ class SQLiteStateRepository:
         self, *, limit: int = 100
     ) -> tuple[DistillationResourceUsageRecord, ...]:
         """Return a bounded immutable TASK-022/M5B ledger projection."""
-        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+        if (
+            not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100
+        ):
             raise ValueError("distillation resource usage limit is invalid")
         connection = self._connect()
         try:

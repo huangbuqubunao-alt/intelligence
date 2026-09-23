@@ -195,19 +195,22 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert weekly["weekly"][0]["linkage"]["status"] == "UNAVAILABLE_IN_CURRENT_AUTHORITY"
 
     settings = runtime.application.handle("GET", "/api/v1/settings")[1]
-    kimi = settings["providers"][0]
-    assert kimi == {
-        "provider": "NVIDIA NIM",
-        "model": "moonshotai/kimi-k3",
+    local = settings["providers"][0]
+    assert local == {
+        "provider": "Local",
+        "model": "qwen3:8b",
         "configured": False,
-        "credential_status": "AVAILABLE",
+        "credential_status": "NOT_REQUIRED",
         "adapter_available": True,
         "qualification_status": "QUALIFIED",
         "authorized": True,
         "production_eligible": True,
         "scope": "V1_VIDEO_DISTILLATION_ONLY",
-        "reason": "Approved for V1 Video Distillation only.",
+        "reason": "Qualified local Ollama model is available for V1 Video Distillation only.",
     }
+    nim = settings["providers"][1]
+    assert nim["provider"] == "NVIDIA NIM"
+    assert nim["production_eligible"] is False
 
     reopened = prepare_demo(tmp_path)
     assert reopened.application.handle("GET", "/api/v1/videos/aircAruvnKk")[1][

@@ -73,7 +73,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 20
+    assert repository.initialize(now=NOW).version == 22
     return repository
 
 
@@ -206,6 +206,7 @@ def test_offline_transport_receives_only_task018b_verified_exact_evidence(tmp_pa
         use_case="PERSONALIZED_INTELLIGENCE",
         selected_provider="task-022b-offline",
         selected_model="deterministic-v1",
+        output_language="zh-CN",
     ))
 
     assert result.status is DistillationExecutionStatus.SUCCEEDED

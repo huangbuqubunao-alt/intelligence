@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from youtube_intel.config import LocalScoringSettings
 from youtube_intel.distillation import (
     BudgetDecision,
     CloudDistillationAuthorization,
@@ -17,6 +18,7 @@ from youtube_intel.distillation import (
     DistillationTransportResult,
     NormalV1ProductionAuthorizationAuthority,
     NvidiaNimCloudDistillationTransport,
+    OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
 )
 from youtube_intel.local_api import LocalApiApplication
@@ -169,7 +171,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 20
+    assert repository.initialize(now=NOW).version == 22
     return repository
 
 
@@ -469,7 +471,7 @@ def test_source_run_with_no_new_intelligence_completes_without_topic_mutation(
     assert transport.calls == 1
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     restarted = _orchestrator(reopened, transport)
     assert restarted.resume(run.run_id).state is SourceRunState.COMPLETED
     assert transport.calls == 1
@@ -632,7 +634,7 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
 
     assert service.resume(run.run_id) == completed
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == completed
     assert credential_resolutions == 1
@@ -768,7 +770,7 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
@@ -791,7 +793,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -1032,13 +1034,59 @@ def test_manual_analyze_bypasses_relevance_only_not_budget_or_model_authorizatio
     assert transport.calls == 0
 
 
+def test_local_model_unavailability_pauses_source_run_without_fallback(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    video_id, evidence_id = _video_with_evidence(repository, source_id)
+    transport = OllamaLocalDistillationTransport(
+        settings=LocalScoringSettings(
+            model="qwen3:8b",
+            expected_model_digest="sha256:" + "0" * 64,
+        )
+    )
+    policy = SourcePolicyApplicationService(repository, now=lambda: NOW)
+    service = DurableProcessingOrchestrator(
+        repository,
+        source_policy=policy,
+        distillation=PersonalizedDistillationService(
+            repository,
+            policy,
+            transport,
+            _Budget(),
+            now=lambda: NOW,
+        ),
+        now=lambda: NOW,
+    )
+    run = service.enqueue_manual_check_now(
+        source_id=source_id,
+        command_id="local-model-unavailable",
+        priority=SourceRunPriority.P0,
+    )
+
+    result = service.resume(run.run_id)
+
+    assert result.state is SourceRunState.NEEDS_ATTENTION
+    assert result.attention_reason is SourceRunAttentionReason.MODEL_UNAVAILABLE
+    child = repository.list_source_run_children(run.run_id)[0]
+    assert child.state is SourceRunChildState.WAITING
+    execution = repository.latest_distillation_execution_for_video(video_id)
+    assert execution is not None
+    assert execution.status == "WAITING_MODEL"
+    assert execution.output_language == "zh-CN"
+    assert repository.resolve_verified_evidence_text(evidence_id) is not None
+    with repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM provider_calls").fetchone()[0] == 0
+
+
 def test_database_version_and_predecessor_migrations_stay_preserved(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 20
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 22
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations")
@@ -1234,7 +1282,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 20
+    assert reopened.initialize(now=NOW).version == 22
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

@@ -529,9 +529,8 @@ def _nominal_argument_has_natural_structure(token: _DependencyToken) -> bool:
             return True
     modifiers = {child.dep_ for child in children}
     related = (token, *children)
-    if (
-        {"amod", "compound"} <= modifiers
-        and all(item.ent_iob_ == "O" for item in related)
+    if {"amod", "compound"} <= modifiers and all(
+        item.ent_iob_ == "O" for item in related
     ):
         return True
     return False
@@ -953,11 +952,16 @@ class AnalysisContent(_UpdateProtectedAnalysisContract):
         kind_rules = (
             ("core_points", self.core_points, {PointKind.FACT, PointKind.INFERENCE}),
             ("key_facts", self.key_facts, {PointKind.FACT}),
-            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE}),
-            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE}),
-            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION}),
-            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE}),
-            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION}),
+            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE},
+            ),
+            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE},
+            ),
+            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION},
+            ),
+            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE},
+            ),
+            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION},
+            ),
             ("risks", self.risks, {PointKind.INFERENCE}),
         )
         for field_name, points, allowed_kinds in kind_rules:
@@ -989,7 +993,9 @@ class AnalysisResult(AnalysisContent):
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
     provider: str = Field(min_length=1, pattern=r"\S")
     model: str = Field(min_length=1, pattern=r"\S")
-    prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"] = (
+        "analysis-prompt-v1"
+    )
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
@@ -1164,14 +1170,21 @@ class KnowledgeContent(_UpdateProtectedAnalysisContract):
             ("why_it_matters", (self.why_it_matters,), {PointKind.INFERENCE}),
             ("core_points", self.core_points, {PointKind.FACT, PointKind.INFERENCE}),
             ("key_facts", self.key_facts, {PointKind.FACT}),
-            ("important_concepts", self.important_concepts, {PointKind.FACT, PointKind.INFERENCE}),
-            ("key_arguments", self.key_arguments, {PointKind.FACT, PointKind.INFERENCE}),
+            ("important_concepts", self.important_concepts, {PointKind.FACT, PointKind.INFERENCE},
+            ),
+            ("key_arguments", self.key_arguments, {PointKind.FACT, PointKind.INFERENCE},
+            ),
             ("counterpoints", self.counterpoints, {PointKind.INFERENCE}),
-            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE}),
-            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE}),
-            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION}),
-            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE}),
-            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION}),
+            ("product_opportunities", self.product_opportunities, {PointKind.INFERENCE},
+            ),
+            ("business_opportunities", self.business_opportunities, {PointKind.INFERENCE},
+            ),
+            ("actionable_directions", self.actionable_directions, {PointKind.RECOMMENDATION},
+            ),
+            ("hypotheses_to_validate", self.hypotheses_to_validate, {PointKind.INFERENCE},
+            ),
+            ("action_recommendations", self.action_recommendations, {PointKind.RECOMMENDATION},
+            ),
             ("risks", self.risks, {PointKind.INFERENCE}),
         )
         for field_name, points, allowed_kinds in kind_rules:
@@ -1250,12 +1263,8 @@ class WeeklyKnowledgeProvenance(_UpdateProtectedAnalysisContract):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     output_language: str = Field(min_length=1, max_length=40, pattern=r"\S")
-    prompt_version: Literal["weekly-knowledge-prompt-v2"] = (
-        "weekly-knowledge-prompt-v2"
-    )
-    schema_version: Literal["weekly-knowledge-result-v2"] = (
-        "weekly-knowledge-result-v2"
-    )
+    prompt_version: Literal["weekly-knowledge-prompt-v2"] = "weekly-knowledge-prompt-v2"
+    schema_version: Literal["weekly-knowledge-result-v2"] = "weekly-knowledge-result-v2"
     sampling_version: Literal["weekly-knowledge-sampling-v2"] = (
         "weekly-knowledge-sampling-v2"
     )
@@ -1329,9 +1338,7 @@ class WeeklyKnowledgeContent(_UpdateProtectedAnalysisContract):
 
 
 class WeeklyKnowledgeResult(WeeklyKnowledgeContent):
-    schema_version: Literal["weekly-knowledge-result-v2"] = (
-        "weekly-knowledge-result-v2"
-    )
+    schema_version: Literal["weekly-knowledge-result-v2"] = "weekly-knowledge-result-v2"
     provenance: WeeklyKnowledgeProvenance
 
 
@@ -1520,10 +1527,16 @@ class AnalysisInput(_UpdateProtectedAnalysisContract):
     payload: AnalysisPayload
     transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    prompt_version: Literal["analysis-prompt-v1"] = "analysis-prompt-v1"
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"] = (
+        "analysis-prompt-v1"
+    )
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
-    sampling_version: Literal["cloud-token-sampling-v1"] = "cloud-token-sampling-v1"
-    privacy_version: Literal["cloud-privacy-v1"] = "cloud-privacy-v1"
+    sampling_version: Literal["cloud-token-sampling-v1", "knowledge-sampling-v2"] = (
+        "cloud-token-sampling-v1"
+    )
+    privacy_version: Literal["cloud-privacy-v1", "knowledge-privacy-v2"] = (
+        "cloud-privacy-v1"
+    )
 
 
 class NotAvailable(_DomainModel):
@@ -2091,7 +2104,9 @@ class ContentQualityResult(_UpdateProtectedQualityContract):
 
     schema_version: Literal["content-quality-result-v1"] = "content-quality-result-v1"
     policy_version: Literal["content-quality-policy-v1"] = "content-quality-policy-v1"
-    prompt_version: Literal["content-quality-prompt-v1"] = "content-quality-prompt-v1"
+    prompt_version: Literal[
+        "content-quality-prompt-v1", "content-quality-prompt-v2", "content-quality-prompt-v3"
+    ] = "content-quality-prompt-v1"
     status: ContentQualityStatus
     decision_source: ContentQualityDecisionSource
     decision_confidence: ContentQualityConfidence
@@ -2352,23 +2367,21 @@ class QualityPassAttestation(_UpdateProtectedQualityContract):
     quality_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     quality_result_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     scoring_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    policy_version: Literal["content-quality-policy-v1"] = (
-        "content-quality-policy-v1"
-    )
+    policy_version: Literal["content-quality-policy-v1"] = "content-quality-policy-v1"
     scoring_schema_version: str = Field(min_length=1)
     scoring_prompt_version: str = Field(min_length=1)
     quality_schema_version: Literal["content-quality-result-v1"] = (
         "content-quality-result-v1"
     )
-    quality_prompt_version: Literal["content-quality-prompt-v1"] = (
-        "content-quality-prompt-v1"
-    )
+    quality_prompt_version: Literal[
+        "content-quality-prompt-v1",
+        "content-quality-prompt-v2",
+        "content-quality-prompt-v3",
+    ] = "content-quality-prompt-v1"
     judge_provider: Literal["ollama"] = "ollama"
     judge_model: str = Field(min_length=1)
     judge_model_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    judge_operation: Literal["local-content-quality-v1"] = (
-        "local-content-quality-v1"
-    )
+    judge_operation: Literal["local-content-quality-v1"] = "local-content-quality-v1"
     judge_request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     attempt_role: QualityJudgeAttemptRole
     decision_confidence: Literal[ContentQualityConfidence.HIGH]

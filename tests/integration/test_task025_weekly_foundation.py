@@ -92,7 +92,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=WEEK_START).version == 20
+    assert repository.initialize(now=WEEK_START).version == 22
     return repository
 
 
@@ -309,6 +309,7 @@ def _admit(
             use_case="PERSONALIZED_INTELLIGENCE",
             selected_provider="weekly-test-transport",
             selected_model="deterministic-fixture",
+            output_language="zh-CN",
         )
     )
     assert transport.calls == 1

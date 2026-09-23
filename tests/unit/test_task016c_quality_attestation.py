@@ -105,7 +105,7 @@ def _operation_input(
     candidate_hash: str = VALID_HASH,
     quality_input_hash: str = VALID_HASH,
     policy_version: str = "content-quality-policy-v1",
-    prompt_version: str = "content-quality-prompt-v1",
+    prompt_version: str = "content-quality-prompt-v3",
     schema_version: str = "content-quality-result-v1",
     judge_provider: str = "ollama",
     judge_model: str = "qwen3:8b",
@@ -145,7 +145,7 @@ def _pass_result(
     decision_source: str = "LOCAL_JUDGE",
     schema_version: str = "content-quality-result-v1",
     policy_version: str = "content-quality-policy-v1",
-    prompt_version: str = "content-quality-prompt-v1",
+    prompt_version: str = "content-quality-prompt-v3",
 ) -> ContentQualityResult:
     return ContentQualityResult.model_validate(
         {
@@ -397,7 +397,7 @@ class TestQualityResultHashFieldSensitivity:
             ("judge_provider", "openai"),
             ("schema_version", "content-quality-result-v2"),
             ("policy_version", "content-quality-policy-v2"),
-            ("prompt_version", "content-quality-prompt-v2"),
+            ("prompt_version", "content-quality-prompt-v4"),
         ],
     )
     def test_field_change_causes_validation_failure(
@@ -486,7 +486,7 @@ class TestQualityResultHashFailClosed:
             {
                 "schema_version": "content-quality-result-v1",
                 "policy_version": "content-quality-policy-v1",
-                "prompt_version": "content-quality-prompt-v1",
+                "prompt_version": "content-quality-prompt-v3",
                 "status": "REJECT",
                 "decision_source": "LOCAL_JUDGE",
                 "decision_confidence": "HIGH",
@@ -521,7 +521,7 @@ class TestQualityResultHashFailClosed:
                 {
                     "schema_version": "content-quality-result-v1",
                     "policy_version": "content-quality-policy-v1",
-                    "prompt_version": "content-quality-prompt-v1",
+                    "prompt_version": "content-quality-prompt-v3",
                     "status": "PASS",
                     "decision_source": "LOCAL_JUDGE",
                     "decision_confidence": "HIGH",
@@ -676,8 +676,26 @@ class TestQualityPassAttestationConstruction:
             authority=_current_authority(),
         )
         assert attestation.quality_schema_version == "content-quality-result-v1"
-        assert attestation.quality_prompt_version == "content-quality-prompt-v1"
+        assert attestation.quality_prompt_version == "content-quality-prompt-v3"
         assert attestation.policy_version == "content-quality-policy-v1"
+
+    def test_historical_v2_attestation_remains_readable(self) -> None:
+        payload = _build_valid_attestation().model_dump(mode="json")
+        payload["quality_prompt_version"] = "content-quality-prompt-v2"
+        payload.pop("attestation_hash")
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        payload["attestation_hash"] = hashlib.sha256(
+            canonical.encode("utf-8")
+        ).hexdigest()
+
+        restored = QualityPassAttestation.model_validate(payload)
+
+        assert restored.quality_prompt_version == "content-quality-prompt-v2"
 
     def test_attestation_hash_covers_full_payload_excluding_itself(self) -> None:
         attestation = _build_valid_attestation()
@@ -711,7 +729,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
             {
                 "schema_version": "content-quality-result-v1",
                 "policy_version": "content-quality-policy-v1",
-                "prompt_version": "content-quality-prompt-v1",
+                "prompt_version": "content-quality-prompt-v3",
                 "status": "REJECT",
                 "decision_source": "LOCAL_JUDGE",
                 "decision_confidence": "HIGH",
@@ -806,7 +824,7 @@ class TestQualityPassAttestationBuildBindingMismatches:
             ("judge_model", "other-model"),
             ("judge_model_digest", OTHER_DIGEST),
             ("policy_version", "content-quality-policy-v2"),
-            ("prompt_version", "content-quality-prompt-v2"),
+            ("prompt_version", "content-quality-prompt-v4"),
             ("schema_version", "content-quality-result-v2"),
         ],
     )
@@ -1100,7 +1118,7 @@ class TestQualityPassAttestationReconstruction:
                 scoring_request_hash=VALID_HASH,
                 policy_version="content-quality-policy-v1",
                 quality_schema_version="content-quality-result-v1",
-                quality_prompt_version="content-quality-prompt-v1",
+                quality_prompt_version="content-quality-prompt-v3",
                 judge_provider="ollama",
                 judge_model="qwen3:8b",
                 judge_model_digest=DIGEST,
@@ -1440,7 +1458,7 @@ class TestTrustedProvenanceBinding:
                 scoring_schema_version=SCORING_SCHEMA_VERSION,
                 scoring_prompt_version=SCORING_PROMPT_VERSION,
                 quality_schema_version="content-quality-result-v1",
-                quality_prompt_version="content-quality-prompt-v1",
+                quality_prompt_version="content-quality-prompt-v3",
                 quality_policy_version="content-quality-policy-v1",
                 judge_operation="local-content-quality-v1",
             )
@@ -1679,7 +1697,7 @@ class _ModelOverrideAuthority(QualityProvenanceAuthority):
         self._scoring_prompt_version = SCORING_PROMPT_VERSION
         self._quality_policy_version = "content-quality-policy-v1"
         self._quality_schema_version = "content-quality-result-v1"
-        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._quality_prompt_version = "content-quality-prompt-v3"
         self._judge_operation = "local-content-quality-v1"
         self._spoofed_model = UNAUTHORIZED_MODEL
 
@@ -1699,7 +1717,7 @@ class _DigestOverrideAuthority(QualityProvenanceAuthority):
         self._scoring_prompt_version = SCORING_PROMPT_VERSION
         self._quality_policy_version = "content-quality-policy-v1"
         self._quality_schema_version = "content-quality-result-v1"
-        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._quality_prompt_version = "content-quality-prompt-v3"
         self._judge_operation = "local-content-quality-v1"
         self._spoofed_digest = UNAUTHORIZED_DIGEST
 
@@ -1719,7 +1737,7 @@ class _SchemaPromptOverrideAuthority(QualityProvenanceAuthority):
         self._scoring_prompt_version = SCORING_PROMPT_VERSION
         self._quality_policy_version = "content-quality-policy-v1"
         self._quality_schema_version = "content-quality-result-v1"
-        self._quality_prompt_version = "content-quality-prompt-v1"
+        self._quality_prompt_version = "content-quality-prompt-v3"
         self._judge_operation = "local-content-quality-v1"
         self._spoofed_schema = OTHER_SCORING_SCHEMA
         self._spoofed_prompt = OTHER_SCORING_PROMPT
@@ -1932,7 +1950,7 @@ class TestQualityProvenanceAuthorityMintingBoundary:
             scoring_schema_version = SCORING_SCHEMA_VERSION
             scoring_prompt_version = SCORING_PROMPT_VERSION
             quality_schema_version = "content-quality-result-v1"
-            quality_prompt_version = "content-quality-prompt-v1"
+            quality_prompt_version = "content-quality-prompt-v3"
             quality_policy_version = "content-quality-policy-v1"
             judge_operation = "local-content-quality-v1"
 

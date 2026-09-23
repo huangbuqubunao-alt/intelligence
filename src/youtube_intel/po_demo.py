@@ -641,6 +641,7 @@ def _seed_verified_intelligence(
             use_case="PERSONALIZED_INTELLIGENCE",
             selected_provider="po-demo-offline",
             selected_model="deterministic-v1",
+            output_language="en",
         )
     )
     if result.intelligence_id is None:

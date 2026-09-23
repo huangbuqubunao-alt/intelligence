@@ -11,9 +11,8 @@ from typing import Callable
 from youtube_intel.config import AppConfig
 from youtube_intel.distillation import (
     BudgetDecision,
-    CloudDistillationAuthorization,
     DistillationCommand,
-    NvidiaNimCloudDistillationTransport,
+    OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
 )
 from youtube_intel.local_api import LocalApiApplication
@@ -55,7 +54,20 @@ class RuntimeSourceRunIngestion:
                 limit=policy.per_run_max_new_videos,
             )
         except Exception as error:
+            if isinstance(error, SourceRunDiscoveryError):
+                raise
             raise SourceRunDiscoveryError("Source ingestion failed safely") from error
+
+
+class RuntimeSourceRunPreparation:
+    """Run the existing M1 pipeline only after durable filtering marks content relevant."""
+
+    def __init__(self, runtime: RuntimeOperations) -> None:
+        self._runtime = runtime
+
+    def prepare(self, video_id: str) -> bool:
+        outcome = self._runtime.process(video=video_id, resume=True)
+        return not outcome.failed
 
 
 class ProductionDistillationBudget:
@@ -160,14 +172,8 @@ def build_local_source_run_runtime(
         repository=repository,
     )
     source_policy = SourcePolicyApplicationService(repository, now=now_fn)
-    authorization = CloudDistillationAuthorization()
-
-    def unavailable_credential() -> str:
-        raise RuntimeError("cloud credentials are not enabled for local GUI execution")
-
-    transport = NvidiaNimCloudDistillationTransport(
-        authorization=authorization,
-        credential_resolver=unavailable_credential,
+    transport = OllamaLocalDistillationTransport(
+        settings=config.settings.local_scoring,
     )
     distillation = PersonalizedDistillationService(
         repository,
@@ -175,6 +181,7 @@ def build_local_source_run_runtime(
         transport,
         ProductionDistillationBudget(),
         now=now_fn,
+        output_language_for_video=runtime._downstream_output_language,
     )
     orchestrator = DurableProcessingOrchestrator(
         repository,
@@ -182,6 +189,7 @@ def build_local_source_run_runtime(
         distillation=distillation,
         discovery=PersistedSourceRunDiscovery(repository),
         ingestion=RuntimeSourceRunIngestion(runtime, source_policy),
+        preparation=RuntimeSourceRunPreparation(runtime),
         now=now_fn,
     )
     product = ProductOrchestrationService(
@@ -213,7 +221,8 @@ def build_local_source_run_runtime(
         output_language_default=config.settings.general.output_language,
         now=now_fn,
         source_run_wakeup=worker.notify,
-        nvidia_distillation_available=transport.available,
+        local_distillation_available=transport.available,
+        analysis_reader=runtime._load_analysis,
     )
     return LocalSourceRunRuntime(
         repository=repository,

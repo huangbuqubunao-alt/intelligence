@@ -432,7 +432,12 @@ def _judge_materials() -> tuple[QualityJudgeOperationInput, ContentQualityInput]
                     "evidence_id": "title-1",
                     "source": ScoringEvidenceSource.TITLE.value,
                     "excerpt": "excerpt for title-1",
-                }
+                },
+                {
+                    "evidence_id": "transcript-head-1",
+                    "source": ScoringEvidenceSource.TRANSCRIPT_HEAD.value,
+                    "excerpt": "trusted canonical transcript sample",
+                },
             ],
         }
     )
@@ -443,7 +448,7 @@ def _judge_materials() -> tuple[QualityJudgeOperationInput, ContentQualityInput]
             "candidate_hash": "b" * 64,
             "quality_input_hash": build_content_quality_input_hash(content),
             "policy_version": "content-quality-policy-v1",
-            "prompt_version": "content-quality-prompt-v1",
+            "prompt_version": "content-quality-prompt-v3",
             "schema_version": "content-quality-result-v1",
             "judge_provider": "ollama",
             "judge_model": _MODEL,
@@ -471,6 +476,17 @@ def test_role_neutral_judge_transport_returns_exact_outer_body() -> None:
         model=_MODEL,
         max_output_tokens=1200,
     )
+    payload = json.loads(body)
+    assert "content-quality-prompt-v3" in payload["prompt"]
+    assert "PASS requires HIGH decision confidence" in payload["prompt"]
+    assert "and at least one evidence ID" in payload["prompt"]
+    assert "UNCERTAIN is the fail-closed choice" in payload["prompt"]
+    assert "trusted canonical transcript sample" in payload["prompt"]
+    assert payload["format"]["properties"]["status"]["enum"] == [
+        "PASS",
+        "REJECT",
+        "UNCERTAIN",
+    ]
 
     returned = provider.dispatch_exact_generate(
         body=body,

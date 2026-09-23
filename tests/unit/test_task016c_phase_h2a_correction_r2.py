@@ -67,7 +67,7 @@ _HASH_C = "c" * 64
 _HASH_D = "d" * 64
 
 _JUDGE_POLICY = "content-quality-policy-v1"
-_JUDGE_PROMPT = "content-quality-prompt-v1"
+_JUDGE_PROMPT = "content-quality-prompt-v3"
 _JUDGE_SCHEMA = "content-quality-result-v1"
 
 

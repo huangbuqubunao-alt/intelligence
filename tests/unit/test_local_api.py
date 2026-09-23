@@ -8,7 +8,15 @@ from typing import cast
 
 import pytest
 
-from youtube_intel.domain import Availability, JobStatus, LiveStatus, VideoMetadata
+from youtube_intel.domain import (
+    AnalysisCompleted,
+    AnalysisResult,
+    Availability,
+    JobStatus,
+    LiveStatus,
+    ProviderCallMetadata,
+    VideoMetadata,
+)
 from youtube_intel.local_api import _LOCAL_ORIGIN, ApiError, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.scoring import AuthoritativeScoringReader
@@ -79,6 +87,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
     app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
         execution_id="exec-admitted",
         status="SUCCEEDED",
+        output_language="zh-CN",
         intelligence_id="intel-1",
         revision_id="revision-1",
         updated_at=datetime(2026, 9, 1, 1, tzinfo=UTC),
@@ -89,6 +98,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
     app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
         execution_id="exec-zero",
         status="SUCCEEDED_NO_NEW_INTELLIGENCE",
+        output_language="zh-CN",
         intelligence_id=None,
         revision_id=None,
         updated_at=datetime(2026, 9, 1, 2, tzinfo=UTC),
@@ -97,6 +107,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
     assert no_new["intelligence_result"] == {
         "status": "SUCCEEDED_NO_NEW_INTELLIGENCE",
         "execution_id": "exec-zero",
+        "output_language": "zh-CN",
         "has_new_intelligence": False,
         "intelligence_id": None,
         "revision_id": None,
@@ -124,18 +135,23 @@ def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
     )
 
 
-def test_safe_provider_projection_has_no_secret_or_active_model(tmp_path: Path) -> None:
+def test_safe_provider_projection_reports_bounded_local_authority(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200
     assert payload["model_preference"]["active_production_default"] is None
-    kimi = payload["providers"][0]
-    assert kimi["provider"] == "NVIDIA NIM"
-    assert kimi["model"] == "moonshotai/kimi-k3"
-    assert kimi["adapter_available"] is True
-    assert kimi["qualification_status"] == "QUALIFIED"
-    assert kimi["authorized"] is True
-    assert kimi["production_eligible"] is True
-    assert kimi["scope"] == "V1_VIDEO_DISTILLATION_ONLY"
+    local = payload["providers"][0]
+    assert local["provider"] == "Local"
+    assert local["model"] == "qwen3:8b"
+    assert local["credential_status"] == "NOT_REQUIRED"
+    assert local["qualification_status"] == "QUALIFIED"
+    assert local["authorized"] is True
+    assert local["production_eligible"] is True
+    assert local["scope"] == "V1_VIDEO_DISTILLATION_ONLY"
+    nim = payload["providers"][1]
+    assert nim["provider"] == "NVIDIA NIM"
+    assert nim["qualification_status"] == "UNQUALIFIED"
+    assert nim["authorized"] is False
+    assert nim["production_eligible"] is False
     assert "secret" not in str(payload).lower()
 
 
@@ -571,6 +587,48 @@ def test_note_projection_never_invents_timestamped_key_points(
     projection = app._note_projection("abcdefghijk")
 
     assert projection["v2"]["timestamped_key_points"] == []
+
+
+def test_local_summary_reads_only_explicit_artifact_and_sealed_language(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    result = AnalysisResult.model_validate({
+        "one_sentence_summary": "忠实摘要。",
+        "core_points": [{"text": "有证据的要点。", "kind": "fact", "evidence_ids": ["e1"]}],
+        "keywords": ["主题"],
+        "evidence": [{"evidence_id": "e1", "source": "title", "excerpt": "English title"}],
+        "provider": "ollama", "model": "qwen3:8b",
+        "prompt_version": "analysis-prompt-v4", "request_hash": "a" * 64,
+    })
+    outcome = AnalysisCompleted(
+        result=result,
+        call=ProviderCallMetadata(
+            provider="ollama", model="qwen3:8b",
+            started_at=datetime(2026, 9, 1, tzinfo=UTC),
+            finished_at=datetime(2026, 9, 1, tzinfo=UTC),
+        ),
+    )
+    app._repository.current_local_summary_pointer = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
+        artifact_id="selected-artifact", output_language="zh-CN"
+    )
+    requested: list[tuple[str, str]] = []
+
+    def read_selected(video_id: str, artifact_id: str) -> AnalysisCompleted:
+        requested.append((video_id, artifact_id))
+        return outcome
+
+    app._analysis_reader = read_selected
+    projection = app._note_projection("abcdefghijk")
+    assert requested == [("abcdefghijk", "selected-artifact")]
+    assert projection["v2"]["language"] == "zh-CN"
+    assert projection["v2"]["summary"] == "忠实摘要。"
+    assert projection["v2"]["evidence_references"][0]["excerpt"] == "English title"
+
+    app._analysis_reader = lambda _video_id, _artifact_id: (_ for _ in ()).throw(  # type: ignore[assignment]
+        ValueError("selected artifact failed verification")
+    )
+    assert app._note_projection("abcdefghijk")["v2"]["status"] == "UNAVAILABLE"
 
 
 def test_intelligence_projection_exposes_excerpt_stance_and_persisted_provenance(
