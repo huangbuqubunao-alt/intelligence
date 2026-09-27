@@ -148,7 +148,7 @@ def _provider_evidence(chain: dict[str, Any]) -> RepairProviderEvidence:
             "provider": "ollama",
             "model": settings.model,
             "model_digest": settings.expected_model_digest,
-            "prompt_version": "scoring-prompt-v2",
+            "prompt_version": "scoring-prompt-v3",
             "operation_schema_version": "score-result-v2",
             "output_language": "en",
             "temperature": settings.temperature,
@@ -286,7 +286,7 @@ def test_settings_provenance_mutation_changes_identity() -> None:
     assert _mutated(max_output_tokens=1300) != base_hash
     assert _mutated(max_transcript_chars=48) != base_hash
     assert _mutated(summary_score_threshold=8.0) != base_hash
-    assert _mutated(scoring_prompt_version="scoring-prompt-v2") == base_hash
+    assert _mutated(scoring_prompt_version="scoring-prompt-v2") != base_hash
 
 
 def test_settings_provenance_rejects_invalid_bounds() -> None:
@@ -582,7 +582,7 @@ def test_success_carrier_mint_seals_self_consistent_data() -> None:
     chain = _valid_chain()
     success = _mint_valid_success(chain)
     assert success.job_id == "h2c-job"
-    assert success.prompt_version == "scoring-prompt-v2"
+    assert success.prompt_version == "scoring-prompt-v3"
     assert success.schema_version == "score-result-v2"
     assert (
         hashlib.sha256(success.repair_composite_envelope_bytes).hexdigest()

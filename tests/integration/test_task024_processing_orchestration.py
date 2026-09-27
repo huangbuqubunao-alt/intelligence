@@ -171,7 +171,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 24
+    assert repository.initialize(now=NOW).version == 28
     return repository
 
 
@@ -471,7 +471,7 @@ def test_source_run_with_no_new_intelligence_completes_without_topic_mutation(
     assert transport.calls == 1
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 24
+    assert reopened.initialize(now=NOW).version == 28
     restarted = _orchestrator(reopened, transport)
     assert restarted.resume(run.run_id).state is SourceRunState.COMPLETED
     assert transport.calls == 1
@@ -559,6 +559,7 @@ def _nvidia_success_response(request: object) -> dict[str, object]:
         "model": "moonshotai/kimi-k3",
         "choices": [
             {
+                "finish_reason": "stop",
                 "message": {
                     "content": json.dumps(
                         {
@@ -610,6 +611,14 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
         wire_transport=wire,
     )
     service = _orchestrator(repository, transport)  # type: ignore[arg-type]
+    reserve = service._distillation.reserve_distillation_execution
+
+    def reserve_with_explicit_consent(**kwargs):
+        reservation = reserve(**kwargs)
+        service._distillation.authorize_reserved_cloud_execution(reservation.execution_id)
+        return reservation
+
+    service._distillation.reserve_distillation_execution = reserve_with_explicit_consent  # type: ignore[method-assign]
     run = service.enqueue_manual_check_now(
         source_id=source_id,
         command_id="task-022d-success",
@@ -619,7 +628,7 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
     completed = service.resume(run.run_id)
 
     assert completed.state is SourceRunState.COMPLETED
-    assert credential_resolutions == 1
+    assert credential_resolutions == 2  # pre-claim presence check, then dispatch boundary
     assert len(wire_calls) == 1
     assert wire_calls[0][0] == "https://integrate.api.nvidia.com/v1/chat/completions"
     assert wire_calls[0][2:] == (120.0, 0)
@@ -634,10 +643,10 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
 
     assert service.resume(run.run_id) == completed
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 24
+    assert reopened.initialize(now=NOW).version == 28
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == completed
-    assert credential_resolutions == 1
+    assert credential_resolutions == 2
     assert len(wire_calls) == 1
 
 
@@ -754,6 +763,14 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
         wire_transport=wire,
     )
     service = _orchestrator(repository, transport)  # type: ignore[arg-type]
+    reserve = service._distillation.reserve_distillation_execution
+
+    def reserve_with_explicit_consent(**kwargs):
+        reservation = reserve(**kwargs)
+        service._distillation.authorize_reserved_cloud_execution(reservation.execution_id)
+        return reservation
+
+    service._distillation.reserve_distillation_execution = reserve_with_explicit_consent  # type: ignore[method-assign]
     run = service.enqueue_manual_check_now(
         source_id=source_id,
         command_id="task-022d-ambiguous",
@@ -770,7 +787,7 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 24
+    assert reopened.initialize(now=NOW).version == 28
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
@@ -793,7 +810,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 24
+    assert reopened.initialize(now=NOW).version == 28
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -1080,13 +1097,54 @@ def test_local_model_unavailability_pauses_source_run_without_fallback(
         assert connection.execute("SELECT COUNT(*) FROM provider_calls").fetchone()[0] == 0
 
 
+def test_unqualified_local_intelligence_pauses_without_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    video_id, evidence_id = _video_with_evidence(repository, source_id)
+    transport = OllamaLocalDistillationTransport(
+        settings=LocalScoringSettings(
+            model="qwen3:8b",
+            expected_model_digest="sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        )
+    )
+    monkeypatch.setattr(
+        transport, "generate", lambda _verified: pytest.fail("local Intelligence dispatched")
+    )
+    policy = SourcePolicyApplicationService(repository, now=lambda: NOW)
+    service = DurableProcessingOrchestrator(
+        repository,
+        source_policy=policy,
+        distillation=PersonalizedDistillationService(
+            repository, policy, transport, _Budget(), now=lambda: NOW
+        ),
+        now=lambda: NOW,
+    )
+    run = service.enqueue_manual_check_now(
+        source_id=source_id,
+        command_id="local-intelligence-not-qualified",
+        priority=SourceRunPriority.P0,
+    )
+
+    result = service.resume(run.run_id)
+
+    assert result.state is SourceRunState.NEEDS_ATTENTION
+    assert result.attention_reason is SourceRunAttentionReason.MODEL_UNAVAILABLE
+    execution = repository.latest_distillation_execution_for_video(video_id)
+    assert execution is not None
+    assert execution.status == "WAITING_MODEL"
+    assert execution.invocation_count == 0
+    assert repository.resolve_verified_evidence_text(evidence_id) is not None
+
+
 def test_database_version_and_predecessor_migrations_stay_preserved(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 24
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations")
@@ -1283,7 +1341,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 24
+    assert reopened.initialize(now=NOW).version == 28
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

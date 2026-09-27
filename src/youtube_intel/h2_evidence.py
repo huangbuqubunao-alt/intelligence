@@ -567,7 +567,7 @@ class RepairTrustedConfig:
     provider: Literal["ollama"]
     model: str
     model_digest: str
-    prompt_version: Literal["scoring-prompt-v2"]
+    prompt_version: Literal["scoring-prompt-v2", "scoring-prompt-v3"]
     schema_version: Literal["score-result-v2"]
     temperature: float
     max_output_tokens: int
@@ -591,7 +591,7 @@ def build_repair_trusted_config(settings: LocalScoringSettings) -> RepairTrusted
         provider="ollama",
         model=settings.model,
         model_digest=settings.expected_model_digest,
-        prompt_version="scoring-prompt-v2",
+        prompt_version=PROMPT_VERSION,
         schema_version="score-result-v2",
         temperature=settings.temperature,
         max_output_tokens=settings.max_output_tokens,
@@ -864,7 +864,7 @@ class RepairNormalizedInput(BaseModel):
     repair_provider: Literal["ollama"]
     repair_model: str = Field(min_length=1)
     repair_model_digest: str = Field(pattern=_MODEL_DIGEST)
-    repair_prompt_version: Literal["scoring-prompt-v2"]
+    repair_prompt_version: Literal["scoring-prompt-v2", "scoring-prompt-v3"]
     repair_schema_version: Literal["score-result-v2"]
     output_language: Literal["zh-CN", "en"]
     temperature: float = Field(ge=0, le=2, allow_inf_nan=False)
@@ -1587,10 +1587,10 @@ class H2CSettingsProvenance(BaseModel):
     output_language: Literal["zh-CN", "en"]
     summary_score_threshold: float = Field(ge=0, le=10, allow_inf_nan=False)
     scoring_operation: Literal["local-scoring"]
-    scoring_prompt_version: Literal["scoring-prompt-v2"]
+    scoring_prompt_version: Literal["scoring-prompt-v2", "scoring-prompt-v3"]
     scoring_schema_version: Literal["score-result-v2"]
     repair_operation: Literal["local-scoring-repair-v1"]
-    repair_prompt_version: Literal["scoring-prompt-v2"]
+    repair_prompt_version: Literal["scoring-prompt-v2", "scoring-prompt-v3"]
     repair_schema_version: Literal["score-result-v2"]
     repair_stream: Literal[False]
     repair_think: Literal[False]
@@ -1759,7 +1759,7 @@ class RepairFinalizerBinding(BaseModel):
     structured_result_sha256: str = Field(pattern=_SHA256_HEX)
     structured_result_length: StrictInt = Field(ge=0)
     structured_result_schema_version: Literal["score-result-v2"]
-    structured_result_prompt_version: Literal["scoring-prompt-v2"]
+    structured_result_prompt_version: Literal["scoring-prompt-v2", "scoring-prompt-v3"]
     primary_request_hash: str = Field(pattern=_SHA256_HEX)
     repair_request_hash: str = Field(pattern=_SHA256_HEX)
     repair_judge_request_hash: str = Field(pattern=_SHA256_HEX)

@@ -407,7 +407,7 @@ def test_trusted_rni_always_reflects_validated_settings() -> None:
     assert rni.temperature == settings.temperature
     assert rni.max_output_tokens == settings.max_output_tokens
     assert rni.max_description_chars == settings.max_description_chars
-    assert rni.repair_prompt_version == "scoring-prompt-v2"
+    assert rni.repair_prompt_version == "scoring-prompt-v3"
     assert rni.repair_schema_version == "score-result-v2"
     assert rni.operation == "local-scoring-repair-v1"
 

@@ -202,13 +202,13 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
         "configured": False,
         "credential_status": "NOT_REQUIRED",
         "adapter_available": True,
-        "qualification_status": "QUALIFIED",
-        "authorized": True,
-        "production_eligible": True,
-        "scope": "V1_VIDEO_DISTILLATION_ONLY",
-        "reason": "Qualified local Ollama model is available for V1 Video Distillation only.",
+        "qualification_status": "INTELLIGENCE_UNQUALIFIED",
+        "authorized": False,
+        "production_eligible": False,
+        "scope": "SCORING_SUMMARY_ONLY",
+        "reason": "Local Scoring and Summary are available; this model is not qualified for Intelligence.",
     }
-    nim = settings["providers"][1]
+    nim = next(item for item in settings["providers"] if item["provider"] == "NVIDIA NIM")
     assert nim["provider"] == "NVIDIA NIM"
     assert nim["production_eligible"] is False
 

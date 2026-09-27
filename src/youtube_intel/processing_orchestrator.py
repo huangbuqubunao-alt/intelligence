@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from youtube_intel.distillation import (
+    CloudConsentRequiredError,
     DistillationExecutionStatus,
     PersonalizedDistillationService,
 )
@@ -597,9 +598,16 @@ class DurableProcessingOrchestrator:
             if child.distillation_execution_id is None:
                 has_failure = True
                 continue
-            result = self._distillation.continue_reserved_distillation(
-                child.distillation_execution_id
-            )
+            try:
+                result = self._distillation.continue_reserved_distillation(
+                    child.distillation_execution_id
+                )
+            except CloudConsentRequiredError:
+                self._transition_pending_child(
+                    run, video_id=child.video_id, to_state=SourceRunChildState.WAITING
+                )
+                attention = SourceRunAttentionReason.MODEL_UNAVAILABLE
+                continue
             if result.status in {
                 DistillationExecutionStatus.SUCCEEDED,
                 DistillationExecutionStatus.SUCCEEDED_NO_NEW_INTELLIGENCE,

@@ -58,6 +58,7 @@ _PROVIDER: Final = "openai"
 _OPERATION: Final = "cloud-analysis"
 _LOCAL_PROVIDER: Final = "ollama"
 _LOCAL_OPERATION: Final = "local-analysis"
+LOCAL_ANALYSIS_CONTEXT_TOKENS: Final = 8_192
 _SAMPLING_VERSION: Final = "cloud-token-sampling-v1"
 _PRIVACY_VERSION: Final = "cloud-privacy-v1"
 O200K_BASE_FILENAME: Final = "o200k_base.tiktoken"
@@ -89,6 +90,31 @@ class AnalysisPolicyError(Exception):
     def __init__(self, error: AppError) -> None:
         super().__init__(error.message)
         self.error = error
+
+
+class KnownLocalSummaryResponseError(ValueError):
+    """A complete local HTTP response that cannot become a trusted Summary."""
+
+    def __init__(
+        self, reason: str, *, prompt_eval_count: object = None,
+        eval_count: object = None, done: object = None,
+        done_reason: object = None, response_length: int | None = None,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.prompt_eval_count = prompt_eval_count if type(prompt_eval_count) is int and 0 <= prompt_eval_count <= 1_000_000 else None
+        self.eval_count = eval_count if type(eval_count) is int and 0 <= eval_count <= 1_000_000 else None
+        self.done = done if type(done) is bool else None
+        self.done_reason = done_reason[:64] if isinstance(done_reason, str) else None
+        self.response_length = response_length if response_length is not None and 0 <= response_length <= 1_000_000 else None
+
+    def diagnostic(self) -> str:
+        return (
+            f"local Summary known response rejected: {self.reason}; "
+            f"prompt_eval_count={self.prompt_eval_count}; eval_count={self.eval_count}; "
+            f"done={self.done}; done_reason={self.done_reason}; "
+            f"response_length={self.response_length}"
+        )
 
 
 class LocalTokenizerResourceError(ValueError):
@@ -454,6 +480,7 @@ def _normalized_input_hash(*, payload: AnalysisPayload, transcript_text: str, se
     }
     if model_digest is not None:
         identity["model_digest"] = model_digest
+        identity["context_tokens"] = LOCAL_ANALYSIS_CONTEXT_TOKENS
     return _sha256_text(_canonical_json(identity))
 
 
@@ -807,12 +834,41 @@ class RepositoryBackedAnalysisService:
             return AnalysisSkipped(reason=AnalysisSkipReason.CREDENTIAL_UNAVAILABLE, call=None,
                 safe_message="cloud credential is unavailable",
             )
+        if local_mode:
+            preflight = getattr(self.provider, "preflight", None)
+            if callable(preflight):
+                try:
+                    preflight()
+                except (OSError, ValueError):
+                    # Availability and exact-digest checks are known pre-dispatch
+                    # failures. They must happen before reserving the durable call.
+                    raise AnalysisPolicyError(
+                        AppError(
+                            code=ErrorCode.PROVIDER_UNAVAILABLE,
+                            message="local Summary model is unavailable",
+                            retryable=True,
+                            video_id=video.video_id,
+                            stage=ProcessingStage.ANALYSIS,
+                        )
+                    ) from None
         reservation = self.repository.reserve_provider_call(request, owner=self.context.owner,
             lease_until=now + timedelta(seconds=300), available_at=now, now=now,
             fail_closed_on_ambiguous_dispatch=True,
         )
         if not reservation.acquired:
             if reservation.record.status is not ProviderCallStatus.SUCCEEDED:
+                if local_mode and reservation.record.status is ProviderCallStatus.FAILED_FINAL:
+                    raise AnalysisPolicyError(AppError(
+                        code=(
+                            ErrorCode.INVALID_RESPONSE
+                            if reservation.record.last_error_code == ErrorCode.INVALID_RESPONSE.value
+                            else ErrorCode.PROVIDER_UNAVAILABLE
+                        ),
+                        message="local Summary prior call ended without trusted output",
+                        retryable=False,
+                        video_id=video.video_id,
+                        stage=ProcessingStage.ANALYSIS,
+                    ))
                 raise AnalysisPolicyError(AppError(code=ErrorCode.PROVIDER_UNAVAILABLE,
                     message="cloud analysis call is already reserved", retryable=True,
                     video_id=video.video_id, stage=ProcessingStage.ANALYSIS,
@@ -869,6 +925,26 @@ class RepositoryBackedAnalysisService:
             for path in locals().get("paths", ()):
                 path.unlink(missing_ok=True)
             error = getattr(exc, "error", None)
+            if local_mode and isinstance(exc, KnownLocalSummaryResponseError):
+                self.repository.record_provider_dispatch_known_failure(
+                    request.request_hash, owner=self.context.owner, now=now
+                )
+                self.repository.fail_provider_call(
+                    request.request_hash,
+                    owner=self.context.owner,
+                    retryable=False,
+                    available_at=now,
+                    error_code=ErrorCode.INVALID_RESPONSE,
+                    error_message=exc.diagnostic(),
+                    now=now,
+                )
+                raise AnalysisPolicyError(AppError(
+                    code=ErrorCode.INVALID_RESPONSE,
+                    message="local Summary returned incomplete or invalid output",
+                    retryable=False,
+                    video_id=video.video_id,
+                    stage=ProcessingStage.ANALYSIS,
+                )) from None
             if (
                 isinstance(error, AppError)
                 and error.code is ErrorCode.PERMISSION_DENIED

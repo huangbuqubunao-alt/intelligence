@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from youtube_intel.analysis import build_analysis_input
+from youtube_intel.analysis import KnownLocalSummaryResponseError, build_analysis_input
 from youtube_intel.config import LocalAnalysisSettings
 from youtube_intel.domain import Availability, LiveStatus, VideoMetadata
 from youtube_intel.providers.ollama_analysis import OllamaSummaryProvider
@@ -74,6 +74,18 @@ def test_local_summary_request_identity_binds_language_and_model_digest() -> Non
     assert english.request_hash != other_model_identity.request_hash
 
 
+def test_local_summary_request_identity_binds_context_size(monkeypatch) -> None:
+    kwargs = dict(
+        video=_video(), transcript_text="A real transcript.", language="en",
+        output_language="en", settings=_settings(), provider="ollama",
+        operation="local-analysis", prompt_version="analysis-prompt-v4",
+    )
+    before = build_analysis_input(**kwargs)
+    monkeypatch.setattr("youtube_intel.analysis.LOCAL_ANALYSIS_CONTEXT_TOKENS", 4_096)
+    after = build_analysis_input(**kwargs)
+    assert before.request_hash != after.request_hash
+
+
 def test_local_transcript_sample_normalizes_only_whitespace_for_grounding() -> None:
     request = build_analysis_input(
         video=_video(),
@@ -94,13 +106,11 @@ def test_unqualified_local_summary_model_is_rejected_before_transport() -> None:
         model="other-model", expected_model_digest="sha256:" + "6" * 64
     )
     provider = OllamaSummaryProvider(settings=settings)
-    request = build_analysis_input(
-        video=_video(), transcript_text="Trusted source text.", language="en",
-        output_language="en", settings=settings, provider="ollama",
-        operation="local-analysis", prompt_version="analysis-prompt-v4",
-    )
+    requests: list[object] = []
+    provider._read = lambda request: requests.append(request)  # type: ignore[method-assign]
     with pytest.raises(ValueError, match="not qualified"):
-        provider.summarize(request)
+        provider.preflight()
+    assert requests == []
 
 
 def test_local_summary_uses_loopback_digest_preflight_and_grounded_structured_result() -> (
@@ -143,6 +153,7 @@ def test_local_summary_uses_loopback_digest_preflight_and_grounded_structured_re
             return {"models": [{"name": "qwen3:8b", "digest": _settings().expected_model_digest}]}
         body = json.loads(request.data)
         assert body["stream"] is False
+        assert body["options"]["num_ctx"] == 8_192
         assert body["format"]["type"] == "object"
         schema_text = json.dumps(body["format"])
         assert "minLength" not in schema_text
@@ -163,8 +174,33 @@ def test_local_summary_uses_loopback_digest_preflight_and_grounded_structured_re
         operation="local-analysis",
         prompt_version="analysis-prompt-v4",
     )
+    provider.preflight()
+    assert len(requests) == 1
     result = provider.summarize(value)
     assert result.provider == "ollama"
     assert result.prompt_version == "analysis-prompt-v4"
     assert len(requests) == 2
     assert provider.consume_raw_response(request_hash=value.request_hash)
+
+
+def test_definite_truncated_ollama_response_is_known_invalid() -> None:
+    provider = OllamaSummaryProvider(settings=_settings())
+    provider._read = lambda _request: {  # type: ignore[method-assign]
+        "model": "qwen3:8b", "message": {"content": '{"one_sentence_summary":'},
+        "done": True, "done_reason": "length",
+        "prompt_eval_count": 3_850, "eval_count": 1_200,
+    }
+    value = build_analysis_input(
+        video=_video(), transcript_text="A real transcript.", language="en",
+        output_language="en", settings=_settings(), provider="ollama",
+        operation="local-analysis", prompt_version="analysis-prompt-v4",
+    )
+
+    with pytest.raises(KnownLocalSummaryResponseError) as raised:
+        provider.summarize(value)
+
+    assert raised.value.reason == "generation truncated"
+    assert raised.value.prompt_eval_count == 3_850
+    assert raised.value.eval_count == 1_200
+    assert raised.value.done_reason == "length"
+    assert raised.value.response_length == 24

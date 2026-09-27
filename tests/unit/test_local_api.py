@@ -143,16 +143,36 @@ def test_safe_provider_projection_reports_bounded_local_authority(tmp_path: Path
     assert local["provider"] == "Local"
     assert local["model"] == "qwen3:8b"
     assert local["credential_status"] == "NOT_REQUIRED"
-    assert local["qualification_status"] == "QUALIFIED"
-    assert local["authorized"] is True
-    assert local["production_eligible"] is True
-    assert local["scope"] == "V1_VIDEO_DISTILLATION_ONLY"
-    nim = payload["providers"][1]
+    assert local["qualification_status"] == "INTELLIGENCE_UNQUALIFIED"
+    assert local["authorized"] is False
+    assert local["production_eligible"] is False
+    assert local["scope"] == "SCORING_SUMMARY_ONLY"
+    nim = next(item for item in payload["providers"] if item["provider"] == "NVIDIA NIM")
     assert nim["provider"] == "NVIDIA NIM"
-    assert nim["qualification_status"] == "UNQUALIFIED"
+    assert nim["qualification_status"] == "M12_REQUALIFICATION_REQUIRED"
     assert nim["authorized"] is False
     assert nim["production_eligible"] is False
     assert "secret" not in str(payload).lower()
+
+
+def test_qualified_moonshot_projection_keeps_consent_per_execution() -> None:
+    from youtube_intel.orchestration import provider_model_statuses
+
+    ready = next(
+        item for item in provider_model_statuses(
+            None, None, moonshot_qualified=True, moonshot_credential_available=True
+        ) if item.provider == "moonshot"
+    )
+    assert ready.model == "kimi-k2.6"
+    assert ready.production_eligible is True
+    assert ready.authorized is False
+    assert ready.credential_status == "AVAILABLE"
+    missing_credential = next(
+        item for item in provider_model_statuses(
+            None, None, moonshot_qualified=True, moonshot_credential_available=False
+        ) if item.provider == "moonshot"
+    )
+    assert missing_credential.production_eligible is False
 
 
 def test_intelligence_card_projects_readable_persisted_provenance(

@@ -53,9 +53,10 @@ _USER_AGENT: Final = "youtube-intel/0.1 (+local subtitle fetch; no media)"
 _READ_CHUNK_BYTES: Final = 64 * 1024
 _MAX_LANGUAGE_BUCKET_COUNT: Final = 512
 # yt-dlp lists unsupported output formats alongside the three formats accepted
-# by this adapter. Keep the accepted resource bound frozen while bounding the
-# larger raw directory scan independently.
-_MAX_TRACK_COUNT: Final = 512
+# by this adapter. Keep the accepted resource bound finite while bounding the
+# larger raw directory scan independently. A real YouTube directory with 17
+# manual and 157 automatic languages has 522 supported tracks.
+_MAX_TRACK_COUNT: Final = 1_024
 _MAX_DIRECTORY_ENTRY_COUNT: Final = 4_096
 _MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
 _MAX_LANGUAGE_CODE_POINTS: Final = 128

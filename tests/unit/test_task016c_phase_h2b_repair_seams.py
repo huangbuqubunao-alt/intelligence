@@ -47,7 +47,9 @@ from youtube_intel.providers.ollama import (
     OllamaScoringProvider,
     PrimaryRawCapture,
     build_task016c_repair_generate_body,
+    build_task016c_repair_generate_body_v3,
     render_task016c_repair_prompt_v2,
+    render_task016c_repair_prompt_v3,
 )
 from youtube_intel.quality import build_content_quality_input_hash, build_judge_h1_h2
 from youtube_intel.scoring import build_scoring_input
@@ -62,7 +64,7 @@ from youtube_intel.state import JobRecord, JobStatus, JobType, ProcessingStage
 _NOW = datetime(2026, 8, 25, 12, 0, tzinfo=UTC)
 _MODEL = "qwen3:8b"
 _DIGEST = "sha256:" + "4" * 64
-_PROMPT = "prompt_version: scoring-prompt-v2\nYou are a strict scorer."
+_PROMPT = "prompt_version: scoring-prompt-v3\nYou are a strict scorer."
 _EN_REASON = "This repaired response explains a concrete product strategy clearly."
 
 
@@ -232,6 +234,42 @@ def test_repair_prompt_v2_null_blocks_use_literal_null() -> None:
     assert "The reason field MUST use output language: zh-CN." in prompt.splitlines()
 
 
+def test_repair_prompt_v3_keeps_full_input_once_with_explicit_language() -> None:
+    scoring_input = '{"transcript_sample":"' + ("substantive-source-" * 1_100) + '"}'
+    invalid_content = '{"reason":"broken primary result"}'
+
+    prompt = render_task016c_repair_prompt_v3(
+        output_language="zh-CN",
+        repair_request_hash="c" * 64,
+        scoring_input_jcs_utf8=scoring_input,
+        extracted_model_content=invalid_content,
+    )
+
+    assert "prompt_version: scoring-prompt-v3" in prompt.splitlines()
+    assert "The reason field MUST use output language: zh-CN." in prompt.splitlines()
+    assert prompt.count(scoring_input) == 1
+    assert prompt.count(json.dumps(invalid_content, ensure_ascii=False)) == 1
+    assert "REPAIR normalized input:" not in prompt
+    assert "PRIMARY failure evidence:" not in prompt
+    assert "PRIMARY raw body:" not in prompt
+
+
+def test_repair_generate_body_v3_binds_8192_context() -> None:
+    body = build_task016c_repair_generate_body_v3(
+        model=_MODEL,
+        prompt="prompt_version: scoring-prompt-v3\nP",
+        temperature=0.0,
+        max_output_tokens=1200,
+    )
+    payload = json.loads(body.decode("utf-8"))
+
+    assert payload["options"] == {
+        "temperature": 0.0,
+        "num_ctx": 8_192,
+        "num_predict": 1200,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Frozen Ollama REPAIR payload
 # ---------------------------------------------------------------------------
@@ -397,6 +435,16 @@ def test_primary_attempt_exposes_no_capture_after_successful_parse() -> None:
 
     assert attempt.attempt_role == "PRIMARY"
     assert provider.consume_primary_parse_failure_capture() is None
+
+
+def test_primary_scoring_generate_binds_8192_context() -> None:
+    transport = _FakeTransport([_tags_payload(), _generate_body(_valid_candidate_inner())])
+    provider = _scoring_provider(transport)
+
+    provider.primary_attempt(_scoring_input())
+
+    payload = json.loads(transport.requests[1][2].decode("utf-8"))
+    assert payload["options"]["num_ctx"] == 8_192
 
 
 def test_primary_attempt_duplicate_outer_response_key_stays_uncapturable() -> None:

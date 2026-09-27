@@ -48,3 +48,17 @@ m006–m013 remain unchanged.
 # TASK-018B amendment: m015 adds immutable cue-level timed transcript and
 # exact Evidence text binding authority.  It never backfills legacy plain
 # transcripts/Evidence; legacy records remain unbound for exact disclosure.
+
+## M12 addendum — explicit Owner approval, 2026-09-25
+
+The original table above records the frozen task sequence at its approval date.
+The repository subsequently advanced through continuous, checksum-verified
+migrations 017–024. The next legal number is **025**. The Owner specifically
+approved a narrow additive M12 migration for one-execution NVIDIA Intelligence
+authorization and honest accounting of a definite HTTP response whose model
+identity is unknown. `025_add_explicit_cloud_execution_audit.sql` adds two
+immutable sidecars; it does not edit a prior migration, rewrite the m010/m016
+ledger, store a credential, infer standing consent, or backfill old outcomes.
+The loader applies SQL and the history/user-version update in one immediate
+transaction. Backup/Restore validates v025 and carries both sidecars; restart
+must never redispatch a claimed execution.

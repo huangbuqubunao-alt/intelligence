@@ -5,13 +5,27 @@ import io
 import json
 import sqlite3
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
-from youtube_intel.state import SQLiteStateRepository
+from youtube_intel.distillation import PersonalizedDistillationService
+from youtube_intel.orchestration import ProcessingPolicy, SourceType
+from youtube_intel.source_run import (
+    SourceRunAttentionReason,
+    SourceRunChildState,
+    SourceRunPriority,
+    SourceRunState,
+    SourceRunWrite,
+)
+from youtube_intel.state import (
+    DistillationExecutionWrite,
+    SourceSubscriptionRecord,
+    SQLiteStateRepository,
+)
 
 NOW = datetime(2026, 9, 23, 8, 0, tzinfo=UTC)
 
@@ -51,6 +65,118 @@ def _workspace(tmp_path: Path) -> tuple[Path, Path, Path, SQLiteStateRepository,
 
 def _service(tmp_path: Path) -> BackupRestoreService:
     return BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path / "data")
+
+
+def _add_source(repository: SQLiteStateRepository) -> None:
+    repository.create_source_subscription(
+        SourceSubscriptionRecord(
+            source_id="source-1",
+            source_type=SourceType.CHANNEL,
+            canonical_url="https://www.youtube.com/channel/UC_TEST",
+            channel_id="UC_TEST",
+            video_id=None,
+            display_name="Public source",
+            enabled=True,
+            processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+            last_checked_at=None,
+            last_success_at=None,
+            last_error_code=None,
+            last_error_message=None,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    repository.link_source_video("source-1", "video-1", discovered_at=NOW)
+
+
+def _reserve_ambiguous_execution(
+    repository: SQLiteStateRepository, *, execution_id: str = "execution-ambiguous"
+) -> str:
+    reason = PersonalizedDistillationService._RESERVATION_REASON
+    use_case = PersonalizedDistillationService._RESERVATION_USE_CASE
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=execution_id,
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id=execution_id,
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="ollama",
+        selected_model="qwen3:8b",
+        output_language="en",
+        now=NOW,
+    )
+    return execution_id
+
+
+def _finish_ambiguous_execution(
+    repository: SQLiteStateRepository, *, execution_id: str
+) -> None:
+    repository.finish_distillation_without_admission(
+        execution_id=execution_id,
+        status="AMBIGUOUS",
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        outcome="TRANSPORT_OUTCOME_UNKNOWN",
+        invocation_count=1,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+def _ambiguous_parent_source_run(
+    repository: SQLiteStateRepository, *, execution_id: str
+) -> str:
+    run = repository.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id="source-1",
+            command_id="manual-check-ambiguous",
+            priority=SourceRunPriority.P2,
+            created_at=NOW,
+        )
+    )
+    repository.transition_source_run(
+        run.run_id, to_state=SourceRunState.RUNNING, now=NOW
+    )
+    repository.record_source_run_child(
+        run.run_id,
+        video_id="video-1",
+        state=SourceRunChildState.PENDING,
+        distillation_execution_id=execution_id,
+        now=NOW,
+    )
+    return run.run_id
+
+
+def _finish_ambiguous_parent_source_run(
+    repository: SQLiteStateRepository, *, run_id: str
+) -> None:
+    repository.transition_source_run_child(
+        run_id,
+        video_id="video-1",
+        to_state=SourceRunChildState.AMBIGUOUS,
+        now=NOW,
+    )
+    repository.transition_source_run(
+        run_id,
+        to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.AMBIGUOUS_EXTERNAL_OUTCOME,
+        now=NOW,
+    )
 
 
 def _install_current_local_summary(database: Path, data_root: Path) -> None:
@@ -141,6 +267,215 @@ def test_create_backup_stage_confirm_restart_round_trip_and_vault_exclusion(
     assert not service.restore_pending
 
 
+def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
+    tmp_path: Path,
+) -> None:
+    database, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = "execution-cloud-response-unknown-model"
+    reason = PersonalizedDistillationService._RESERVATION_REASON
+    use_case = PersonalizedDistillationService._RESERVATION_USE_CASE
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=execution_id,
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="nvidia_nim",
+            selected_model="moonshotai/kimi-k3",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    authorization = repository.authorize_cloud_execution(
+        authorization_id="authorization-backup-restore-1",
+        execution_id=execution_id,
+        provider="nvidia_nim",
+        model="moonshotai/kimi-k3",
+        verified_input_hash="a" * 64,
+        consent_kind="USER_CONFIRMATION",
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id=execution_id,
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="nvidia_nim",
+        selected_model="moonshotai/kimi-k3",
+        output_language="en",
+        now=NOW,
+    )
+    repository.finish_distillation_unidentified_http_response(
+        execution_id=execution_id,
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        now=NOW,
+    )
+    usage = repository.get_distillation_resource_usage(execution_id)
+    assert usage.status == "REJECTED_OUTPUT"
+    assert usage.outcome == "HTTP_RESPONSE_MODEL_IDENTITY_UNKNOWN"
+    assert usage.actual_model is None
+    assert usage.cost_microunits is None
+
+    openai_execution_id = "execution-openai-cloud-consent-backup"
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=openai_execution_id,
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="openai",
+            selected_model="gpt-4.1",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    openai_authorization = repository.authorize_cloud_execution(
+        authorization_id="authorization-openai-backup-restore-1",
+        execution_id=openai_execution_id,
+        provider="openai",
+        model="gpt-4.1",
+        verified_input_hash="b" * 64,
+        consent_kind="USER_CONFIRMATION",
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id=openai_execution_id,
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="openai",
+        selected_model="gpt-4.1",
+        output_language="en",
+        now=NOW,
+    )
+    repository.finish_distillation_unidentified_http_response(
+        execution_id=openai_execution_id,
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        now=NOW,
+    )
+    openai_usage = repository.get_distillation_resource_usage(openai_execution_id)
+    assert openai_usage.status == "REJECTED_OUTPUT"
+    assert openai_usage.outcome == "HTTP_RESPONSE_MODEL_IDENTITY_UNKNOWN"
+    assert openai_usage.actual_provider == "openai"
+
+    moonshot_execution_id = "execution-moonshot-k2-6-consent-backup"
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=moonshot_execution_id,
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="moonshot",
+            selected_model="kimi-k2.6",
+            output_language="zh-CN",
+        ),
+        now=NOW,
+    )
+    moonshot_authorization = repository.authorize_cloud_execution(
+        authorization_id="authorization-moonshot-backup-restore-1",
+        execution_id=moonshot_execution_id,
+        provider="moonshot",
+        model="kimi-k2.6",
+        verified_input_hash="d" * 64,
+        consent_kind="USER_CONFIRMATION",
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id=moonshot_execution_id,
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="moonshot",
+        selected_model="kimi-k2.6",
+        output_language="zh-CN",
+        now=NOW,
+    )
+    repository.finish_distillation_unidentified_http_response(
+        execution_id=moonshot_execution_id,
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        now=NOW,
+    )
+    moonshot_usage = repository.get_distillation_resource_usage(moonshot_execution_id)
+    assert moonshot_usage.status == "REJECTED_OUTPUT"
+    assert moonshot_usage.actual_provider == "moonshot"
+    assert moonshot_usage.actual_model is None
+
+    failure_execution_id = "execution-moonshot-http-error-backup"
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=failure_execution_id,
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="moonshot",
+            selected_model="kimi-k2.6",
+            output_language="zh-CN",
+        ),
+        now=NOW,
+    )
+    failure_authorization = repository.authorize_cloud_execution(
+        authorization_id="authorization-moonshot-http-error-backup",
+        execution_id=failure_execution_id,
+        provider="moonshot",
+        model="kimi-k2.6",
+        verified_input_hash="e" * 64,
+        consent_kind="USER_CONFIRMATION",
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id=failure_execution_id,
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="moonshot",
+        selected_model="kimi-k2.6",
+        output_language="zh-CN",
+        now=NOW,
+    )
+    repository.finish_distillation_cloud_response_failure(
+        execution_id=failure_execution_id,
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        outcome="CLOUD_HTTP_ERROR",
+        http_status_code=429,
+        now=NOW,
+    )
+    failure_usage = repository.get_distillation_resource_usage(failure_execution_id)
+    assert failure_usage.outcome == "CLOUD_HTTP_ERROR"
+    assert failure_usage.http_status_code == 429
+
+    service = _service(tmp_path)
+    backup = service.create_backup()
+    archive_path, _ = service.backup_download(backup.backup_id) or (None, None)
+    assert archive_path is not None
+    staged = service.stage_restore(archive_path.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+
+    restored = SQLiteStateRepository(database)
+    assert restored.initialize(now=NOW).version == 28
+    assert restored.get_cloud_execution_authorization(execution_id) == authorization
+    assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
+    assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization
+    assert restored.get_distillation_resource_usage(execution_id) == usage
+    assert restored.get_distillation_execution(execution_id).status == "REJECTED_OUTPUT"
+    assert restored.get_distillation_resource_usage(openai_execution_id) == openai_usage
+    assert restored.get_distillation_execution(openai_execution_id).status == "REJECTED_OUTPUT"
+    assert restored.get_distillation_resource_usage(moonshot_execution_id) == moonshot_usage
+    assert restored.get_distillation_execution(moonshot_execution_id).status == "REJECTED_OUTPUT"
+    assert restored.get_cloud_execution_authorization(failure_execution_id) == failure_authorization
+    assert restored.get_distillation_resource_usage(failure_execution_id) == failure_usage
+    assert service.readiness()["last_restore"]["state"] == "APPLIED"  # type: ignore[index]
+
+
 def test_download_rejects_tampered_content_disposition_filename(tmp_path: Path) -> None:
     _workspace(tmp_path)
     service = _service(tmp_path)
@@ -172,7 +507,7 @@ def _mutate_archive(source: bytes, mutation: str) -> bytes:
             database.write(value)
             database.close()
             with sqlite3.connect(database.name) as connection:
-                connection.execute("PRAGMA user_version=25")
+                connection.execute("PRAGMA user_version=26")
             value = Path(database.name).read_bytes()
             Path(database.name).unlink()
             manifest["database"]["size_bytes"] = len(value)
@@ -535,3 +870,176 @@ def test_applied_restore_recovers_after_rollback_retirement_interruption(
     assert (data_root / "transcripts/video-1.txt").read_bytes() == artifact
     assert not service.restore_pending
     assert service.readiness()["last_restore"]["state"] == "APPLIED"  # type: ignore[index]
+
+
+def test_quiescence_accepts_terminal_ambiguous_execution_and_its_exact_parent(
+    tmp_path: Path,
+) -> None:
+    database, data_root, _vault, repository, _artifact = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _reserve_ambiguous_execution(repository)
+    run_id = _ambiguous_parent_source_run(repository, execution_id=execution_id)
+    _finish_ambiguous_execution(repository, execution_id=execution_id)
+    _finish_ambiguous_parent_source_run(repository, run_id=run_id)
+
+    service = BackupRestoreService(database=database, data_root=data_root)
+    readiness = service.readiness()
+
+    assert readiness["ready"] is True
+    usage = repository.get_distillation_resource_usage(execution_id)
+    assert usage.status == "AMBIGUOUS"
+    assert usage.outcome == "TRANSPORT_OUTCOME_UNKNOWN"
+    assert usage.actual_provider is None
+    assert usage.actual_model is None
+    assert usage.cost_microunits is None
+    backup = service.create_backup()
+    assert backup.size_bytes > 0
+
+
+def test_quiescence_fails_closed_for_legacy_source_run_schema_with_active_state(
+    tmp_path: Path,
+) -> None:
+    database, data_root, _vault, repository, _artifact = _workspace(tmp_path)
+    connection = repository._connect()
+    try:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("DROP TABLE source_runs")
+        connection.execute("CREATE TABLE source_runs (state TEXT NOT NULL)")
+        connection.execute("INSERT INTO source_runs (state) VALUES ('RUNNING')")
+    finally:
+        connection.close()
+
+    service = BackupRestoreService(database=database, data_root=data_root)
+    connection = repository._connect()
+    try:
+        reasons = service._quiescence_reasons(connection)
+    finally:
+        connection.close()
+
+    assert "SOURCE_RUN_ACTIVE" in reasons
+
+
+def test_quiescence_fails_closed_for_tampered_ambiguous_resource_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database, data_root, _vault, repository, _artifact = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _reserve_ambiguous_execution(repository)
+    run_id = _ambiguous_parent_source_run(repository, execution_id=execution_id)
+    _finish_ambiguous_execution(repository, execution_id=execution_id)
+    _finish_ambiguous_parent_source_run(repository, run_id=run_id)
+    original_get_usage = SQLiteStateRepository.get_distillation_resource_usage
+
+    def forged_usage(
+        current: SQLiteStateRepository, current_execution_id: str
+    ):
+        usage = original_get_usage(current, current_execution_id)
+        if current_execution_id == execution_id:
+            return replace(usage, outcome="FABRICATED_SUCCESS")
+        return usage
+
+    monkeypatch.setattr(
+        SQLiteStateRepository, "get_distillation_resource_usage", forged_usage
+    )
+
+    readiness = BackupRestoreService(database=database, data_root=data_root).readiness()
+
+    assert readiness["ready"] is False
+    assert readiness["reasons"] == ["DATABASE_UNAVAILABLE"]
+
+
+def test_quiescence_keeps_resumable_model_work_and_other_attention_runs_blocked(
+    tmp_path: Path,
+) -> None:
+    database, data_root, _vault, repository, _artifact = _workspace(tmp_path)
+    _add_source(repository)
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-waiting-model",
+            source_id="source-1",
+            video_id="video-1",
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    repository.finish_distillation_without_admission(
+        execution_id="execution-waiting-model",
+        status="WAITING_MODEL",
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+        invocation_count=0,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-waiting-budget",
+            source_id="source-1",
+            video_id="video-1",
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    repository.finish_distillation_without_admission(
+        execution_id="execution-waiting-budget",
+        status="WAITING_BUDGET",
+        budget_state="RUNTIME_BUDGET_BLOCKED",
+        outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
+        invocation_count=0,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-reserved-active",
+            source_id="source-1",
+            video_id="video-1",
+            reason=PersonalizedDistillationService._RESERVATION_REASON,
+            use_case=PersonalizedDistillationService._RESERVATION_USE_CASE,
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    run = repository.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id="source-1",
+            command_id="manual-check-model-unavailable",
+            priority=SourceRunPriority.P2,
+            created_at=NOW,
+        )
+    )
+    repository.transition_source_run(
+        run.run_id, to_state=SourceRunState.RUNNING, now=NOW
+    )
+    repository.transition_source_run(
+        run.run_id,
+        to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE,
+        now=NOW,
+    )
+
+    readiness = BackupRestoreService(database=database, data_root=data_root).readiness()
+
+    assert readiness["ready"] is False
+    assert "DISTILLATION_ACTIVE" in readiness["reasons"]
+    assert "SOURCE_RUN_ACTIVE" in readiness["reasons"]

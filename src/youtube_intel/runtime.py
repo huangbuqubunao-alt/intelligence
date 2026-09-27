@@ -90,9 +90,9 @@ from youtube_intel.providers.ollama import (
     OllamaScoringProvider,
     PrimaryRawCapture,
     build_quality_judge_generate_body,
-    build_task016c_repair_generate_body,
+    build_task016c_repair_generate_body_v3,
     parse_scoring_candidate,
-    render_task016c_repair_prompt_v2,
+    render_task016c_repair_prompt_v3,
     seal_judge_raw_capture,
     seal_primary_raw_capture,
     verify_judge_model_content,
@@ -1415,27 +1415,17 @@ class RuntimeOperations(Operations):
                     rni_hash_local = repair_normalized_input_hash(rni_local)
                     request_hash_local = build_repair_request_hash(rni_local)
                     rni_bytes_local = h2_canonical_bytes(rni_local)
-                    pfe_bytes_local = h2_canonical_bytes(pfe)
                     si_bytes_local = h2_canonical_bytes(rni_local.scoring_input)
-                    cand_ev_local: str | None = None
-                    if isinstance(pfe.primary_candidate, CandidateEvidence):
-                        cand_ev_local = h2_canonical_bytes(
-                            pfe.primary_candidate
-                        ).decode("utf-8")
                     extracted_local = self._h2b_extract_model_content(
                         pfe.primary_raw_utf8
                     )
-                    prompt_local = render_task016c_repair_prompt_v2(
+                    prompt_local = render_task016c_repair_prompt_v3(
                         output_language=rni_local.output_language,
                         repair_request_hash=request_hash_local,
-                        rni_jcs_utf8=rni_bytes_local.decode("utf-8"),
-                        pfe_jcs_utf8=pfe_bytes_local.decode("utf-8"),
                         scoring_input_jcs_utf8=si_bytes_local.decode("utf-8"),
-                        primary_raw_utf8=pfe.primary_raw_utf8,
-                        candidate_evidence_jcs_utf8=cand_ev_local,
                         extracted_model_content=extracted_local,
                     )
-                    body_local = build_task016c_repair_generate_body(
+                    body_local = build_task016c_repair_generate_body_v3(
                         model=rni_local.repair_model,
                         prompt=prompt_local,
                         temperature=rni_local.temperature,
@@ -1785,7 +1775,7 @@ class RuntimeOperations(Operations):
                     ),
                     model=settings.model,
                     model_digest=settings.expected_model_digest,
-                    prompt_version="scoring-prompt-v2",
+                    prompt_version=PROMPT_VERSION,
                     schema_version="score-result-v2",
                     policy_version=_QUALITY_POLICY_VERSION,
                     quality_prompt_version=_QUALITY_PROMPT_VERSION,
@@ -1894,31 +1884,19 @@ class RuntimeOperations(Operations):
                     replayed_request_hash = build_repair_request_hash(replayed_rni)
                     if replayed_request_hash != aggregate.repair_request_hash:
                         _invalid("REPAIR_REQUEST_MISMATCH")
-                    replayed_prompt = render_task016c_repair_prompt_v2(
+                    replayed_prompt = render_task016c_repair_prompt_v3(
                         output_language=replayed_rni.output_language,
                         repair_request_hash=replayed_request_hash,
-                        rni_jcs_utf8=h2_canonical_bytes(replayed_rni).decode("utf-8"),
-                        pfe_jcs_utf8=h2_canonical_bytes(replayed_pfe).decode("utf-8"),
                         scoring_input_jcs_utf8=h2_canonical_bytes(
                             replayed_rni.scoring_input
                         ).decode("utf-8"),
-                        primary_raw_utf8=replayed_pfe.primary_raw_utf8,
-                        candidate_evidence_jcs_utf8=(
-                            h2_canonical_bytes(replayed_pfe.primary_candidate).decode(
-                                "utf-8"
-                            )
-                            if isinstance(
-                                replayed_pfe.primary_candidate, CandidateEvidence
-                            )
-                            else None
-                        ),
                         extracted_model_content=self._h2b_extract_model_content(
                             replayed_pfe.primary_raw_utf8
                         ),
                     )
                     if replayed_prompt != aggregate.repair_prompt:
                         _invalid("REPAIR_PAYLOAD_MISMATCH")
-                    replayed_body = build_task016c_repair_generate_body(
+                    replayed_body = build_task016c_repair_generate_body_v3(
                         model=replayed_rni.repair_model,
                         prompt=replayed_prompt,
                         temperature=replayed_rni.temperature,
@@ -2717,7 +2695,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 24:
+        if integrity != ("ok",) or version != 28:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)

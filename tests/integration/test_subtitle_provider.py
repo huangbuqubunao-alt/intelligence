@@ -828,14 +828,14 @@ def test_directory_field_limits_accept_boundary_and_reject_first_invalid(
     assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
 
 
-def test_directory_track_count_accepts_512_and_rejects_513() -> None:
+def test_directory_track_count_accepts_1024_and_rejects_1025() -> None:
     at_boundary, _ = _adapter_for_info(
-        _directory_payload([_directory_entry()] * 512)
+        _directory_payload([_directory_entry()] * 1_024)
     )
-    assert len(at_boundary.enumerate_tracks("video123").tracks) == 512
+    assert len(at_boundary.enumerate_tracks("video123").tracks) == 1_024
 
     over_boundary, _ = _adapter_for_info(
-        _directory_payload([_directory_entry()] * 513)
+        _directory_payload([_directory_entry()] * 1_025)
     )
     with pytest.raises(TranscriptError) as exc_info:
         over_boundary.enumerate_tracks("video123")
@@ -846,17 +846,17 @@ def test_directory_track_count_is_cumulative_across_caption_sources() -> None:
     at_boundary, _ = _adapter_for_info(
         {
             "id": "video123",
-            "subtitles": {"en": [_directory_entry()] * 256},
-            "automatic_captions": {"en": [_directory_entry()] * 256},
+            "subtitles": {"en": [_directory_entry()] * 512},
+            "automatic_captions": {"en": [_directory_entry()] * 512},
         }
     )
-    assert len(at_boundary.enumerate_tracks("video123").tracks) == 512
+    assert len(at_boundary.enumerate_tracks("video123").tracks) == 1_024
 
     over_boundary, _ = _adapter_for_info(
         {
             "id": "video123",
-            "subtitles": {"en": [_directory_entry()] * 256},
-            "automatic_captions": {"en": [_directory_entry()] * 257},
+            "subtitles": {"en": [_directory_entry()] * 512},
+            "automatic_captions": {"en": [_directory_entry()] * 513},
         }
     )
     with pytest.raises(TranscriptError) as exc_info:

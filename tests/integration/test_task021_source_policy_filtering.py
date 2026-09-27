@@ -37,7 +37,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 24
+    assert repository.initialize(now=NOW).version == 28
     return repository
 
 
@@ -104,7 +104,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 24
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
         migrations = tuple(
             row["name"]
             for row in connection.execute(
@@ -113,7 +113,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
         )
     finally:
         connection.close()
-    assert migrations[-10:] == (
+    assert migrations[-14:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -124,6 +124,10 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
         "022_bind_current_local_summary.sql",
         "023_add_evidence_translation_presentation.sql",
         "024_bind_current_summary_to_content.sql",
+        "025_add_explicit_cloud_execution_audit.sql",
+        "026_add_openai_cloud_execution_audit.sql",
+        "027_add_moonshot_cloud_execution_audit.sql",
+        "028_add_cloud_response_failure_ledger.sql",
     )
 
 
@@ -156,7 +160,7 @@ def test_v008_upgrade_preserves_source_automation_and_preference_data(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 24
+    assert upgraded.initialize(now=NOW).version == 28
     assert upgraded.get_source_subscription(source_id) is not None
     assert len(upgraded.list_automation_schedules()) == 1
     assert len(upgraded.list_preferences()) == 1

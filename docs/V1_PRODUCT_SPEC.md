@@ -1,6 +1,6 @@
 # V1_PRODUCT_SPEC.md
 
-Status: DRAFT — Owner decisions applied 2026-09-17 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
+Status: DRAFT — Owner decisions applied through 2026-09-25 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
 Product: **Intelligence** (Working Product Name)
 Document authority rank: **2** — below `PRODUCT_CONSTITUTION.md`, above `V1_IMPLEMENTATION_ROADMAP.md` and the Demo.
 Purpose: the authoritative **frozen V1 scope**.
@@ -121,6 +121,7 @@ These are launch-critical. V1 does not ship without all of them working on **rea
 - Simplified model policy (recommended = local-first).
 - No silent local→cloud fallback.
 - No surprise paid calls.
+- Cloud Intelligence requires a separate, affirmative data-and-cost authorization before dispatch; selecting Quality-first is not consent.
 - Honest error states; retry / recovery.
 
 **Language**
@@ -209,12 +210,12 @@ It must **not** require: merge, split, lifecycle automation, complex governance,
 
 ## 12. Model strategy — V1
 
-- Normal users do not configure routing. The default is **推荐 (recommended) = 本地优先 = no cloud spend without consent = pause-and-explain on insufficient quality, never silent degrade**.
-- If the local model cannot safely produce reliable Intelligence, show an honest state — e.g. **"本地模型不足以生成可靠洞察 / the local model is insufficient to produce reliable Intelligence."** — then allow: enable cloud once, change model, or retry later.
-- Never: silently call paid cloud, silently lower quality, or silently fabricate a result.
-- **V1 launch must not depend on a cloud Provider being available** (Owner ruling 2026-09-17). The local-first V1 must **qualify at least one usable local model path** for its required tasks.
-- **Cloud models are optional enhancement paths**, activated explicitly by the user — never a launch prerequisite, never a silent default.
-- If local quality is insufficient for a task: **pause + explain**; do not silently use cloud.
+- **Owner ruling 2026-09-25: Local-first does not mean Intelligence must be Local-only.** Ingestion support where applicable, Scoring, Summary / Video Notes, Evidence extraction/binding/validation, persistence, and provenance retain usable local paths. The already qualified local `qwen3:8b` path may continue to serve Scoring and Summary. No local model is currently qualified for V1 Intelligence Distillation.
+- Normal users do not configure routing internals. **Recommended / Local-first** is the default: local work proceeds; when no qualified local Intelligence model exists, Intelligence pauses honestly while Summary and Evidence remain readable. It never auto-switches to cloud.
+- **Quality-first** may select a qualified high-quality cloud model for Intelligence only after a separate affirmative cloud-data authorization. Scoring and Summary still use their proven local paths. **Cost-first** retains its existing bounded semantics and never implies cloud consent.
+- Before any verified Evidence/task context leaves the device, show the exact provider and model, the bounded outgoing data, that original local Evidence remains authoritative, and cost as known, free, estimated, or `UNKNOWN`. The user must explicitly confirm. Consent is not inferred from Recommended, Auto, startup, a local failure, or Quality-first selection. The backend persists the authorization with the provider/model, verified input identity, output language, and execution.
+- If the local model cannot reliably produce Intelligence and the user has not authorized cloud, show **"本地模型不足以生成可靠洞察 / the local model is insufficient to produce reliable Intelligence"** with explicit enable-high-quality, supported model-change, and retry-later actions. This is an honest paused/unavailable Intelligence state, not a failed Summary or fabricated positive-zero.
+- A cloud model still requires separate quality qualification on real Evidence, including restraint and a semantically valid admitted Intelligence. Admission remains evidence-first and threshold-based; zero Intelligence remains a legal success. No full database, unrelated Content, arbitrary file, or credential is sent. No silent paid call, model substitution, duplicate dispatch, or quality downgrade is allowed.
 - Advanced routing lives behind progressive disclosure / V1.x.
 
 ## 12b. Multilingual — V1
@@ -244,6 +245,7 @@ Fresh normal user
 → transcript / text is acquired
 → summary appears
 → Evidence is inspectable
+→ if cloud Intelligence is chosen, the user explicitly reviews provider/model, outgoing Evidence scope, and cost before authorization
 → at least one eligible Intelligence appears
 → user traces a claim back to source
 → app restarts
@@ -290,7 +292,7 @@ V1 is **NOT** launch-ready unless **all** are true on **real data**:
 - **E. Failure handling** — no-captions, offline, rate-limit, model-too-weak, transient failure all produce honest recoverable states.
 - **F. Persistence** — restart preserves user data.
 - **G. Backup** — backup + restore verified on real data.
-- **H. Cost/privacy** — no hidden paid cloud call; local-first default.
+- **H. Cost/privacy** — local-first default; no cloud request before explicit provider/model, data-scope, and cost disclosure/confirmation; no hidden paid call or silent fallback.
 - **I. Language** — chosen output language works on a real non-Chinese source.
 - **J. Product usability** — a user can understand what the product does without developer explanation.
 
@@ -384,7 +386,7 @@ The Spec is a target, not a claim of current state. As of anchor commit `41233ee
 
 - **Demo is fixture-driven.** `frontend/src/demo-v1/` never calls `/api`, invokes no cloud/local model, writes no SQLite, creates no backup, and restores nothing. All content comes from `fixtures.ts`. The Demo carries the "Intelligence" brand and the Following/Content/Evidence/Intelligence/Topic/Research IA, but it is a **vision prototype**, not a working product.
 - **Real YouTube ingestion has never read a real subtitle/transcript body.** The furthest real smoke result is `metadata=1 / enumerate=1 / read=0` (directory enumeration only). Body reads are always zero; several real samples returned `INVALID_RESPONSE` / `CONTENT_UNAVAILABLE`. A real four-phase body-read smoke is **NOT AUTHORIZED / NOT EXECUTED** (`docs/SMOKE_AUTHORIZATION_MATRIX.md`). Real ingestion is **unproven**, not merely untested at scale.
-- **No live analysis provider is qualified.** OpenAI adapter is live-credential-blocked (`0/2`); Kimi/Moonshot production adapter `1/2` (`SCHEMA_INVALID`); local Ollama unqualified. The provider-qualification gate is frozen (`docs/LIVE_PROVIDER_QUALIFICATION_PREREQUISITE.md`). **Clarification (Owner ruling 2026-09-17):** the launch-critical qualification is at least one usable **local** model path (§12); cloud providers are optional explicit enhancements, so the frozen *cloud*-provider qualification gate does not by itself block V1 Functional Ready (Gate A).
+- **No live analysis provider was qualified at this historical anchor.** OpenAI adapter was live-credential-blocked (`0/2`); Kimi/Moonshot production adapter was `1/2` (`SCHEMA_INVALID`); local Ollama was unqualified. The provider-qualification gate was frozen (`docs/LIVE_PROVIDER_QUALIFICATION_PREREQUISITE.md`). The 2026-09-17 local-only launch interpretation is superseded for Intelligence by the 2026-09-25 Owner ruling in §12; this dated baseline does not describe current M12 qualification.
 - **The production GUI is real but read/config-only.** `frontend/src/workspace/App.tsx` connects to a real loopback backend (`127.0.0.1:8765`, `youtube-intel serve-api`), but real execution is fail-closed behind a runtime side-effect guard: `POST /sources/{id}/check`, weekly generation, and Deep Analysis return `EXECUTION_GUARD_BLOCKED` (`src/youtube_intel/orchestration_service.py`). There is no credential/API-key input; Deep Analysis is hard-blocked. The production workspace still presents the **older** "YouTube Intelligence Agent" IA, not the Demo IA.
 - **M10 real-data core Backup / Restore now passes.** The controlled drill on an isolated clone of persisted pipeline data verifies SQLite + referenced Intelligence-owned DATA, explicit restart-boundary confirmation, rollback and corrupt-archive safety, M8 translation survival, and Vault exclusion. Physical power-loss behavior was not simulated. See [`docs/M10_BACKUP_RESTORE_ACCEPTANCE.md`](M10_BACKUP_RESTORE_ACCEPTANCE.md). This updates the M10 evidence only; the overall release remains **NO-GO** until its independent gates pass.
 - **Public distribution is blocked.** No open-source license (proprietary `NOTICE`, pseudonymous owner); `mutagen` GPL-2.0-or-later blocks bundled forms; `o200k_base.tiktoken` BPE redistribution is class C (no downstream grant); secrets scanner exits `1` on 11 accepted synthetic fixtures; residual privacy P2 (historical absolute paths + commit identity). **macOS code signing / notarization is not addressed anywhere** — a genuine gap.
@@ -416,7 +418,7 @@ No new requirements may be silently invented. Anything important not covered her
 
 ## RESOLVED OWNER DECISIONS (Spec-level)
 
-All Spec-level Open Owner Decisions were ruled by the Owner on **2026-09-17** and are now **closed**. No Spec-level Open Owner Decisions remain.
+Spec-level Owner Decisions were ruled through **2026-09-25** and are now **closed**. No Spec-level Open Owner Decisions remain.
 
 - **OD-S1 — Vocabulary rename scope. RESOLVED.** Product vocabulary is authoritative for user-facing UX and Specs; legacy code names may remain internally; **no large V1 code rename required**; mapping maintained. Applied in §6 (and Constitution §2b).
 - **OD-S2 — Brief / Weekly in V1. RESOLVED.** No dedicated Brief object/pipeline in V1; optional lightweight Home surface only if it cheaply reuses Content/Intelligence; standalone Daily/Weekly Brief = V1.x. Applied in §5, §6, §8, §9.
@@ -425,3 +427,4 @@ All Spec-level Open Owner Decisions were ruled by the Owner on **2026-09-17** an
 - **OD-S5 — Dogfood source selection. RESOLVED.** Specific channel names are not frozen now; Owner selects ~6–8 real sources before M13 (≥1 non-Chinese, ≥1 unreliable-caption, several stable); an execution detail, not a freeze blocker. Applied in §16b.
 - **OD-S6 — Global search. RESOLVED.** Basic Global Search remains **KEEP IF CHEAP** and non-launch-blocking; scope = locate + navigate local objects; no RAG/AI answers/semantic Q&A/web/saved search/complex syntax/advanced ranking. Applied in §5, §7, §8, §9.
 - **OD-S7 — Distribution in V1 scope. RESOLVED.** Two distinct gates: Gate A Functional Ready / Private Dogfood & Pilot vs Gate B Public Distribution Ready (adds licensing, redistribution, privacy, security-scan, signing/notarization, packaging, other M0-identified blockers). Functional Ready must never be described as Public Release Ready. Applied in §16c, §17.
+- **OD-S8 — Task-specific local-first model strategy. RESOLVED 2026-09-25.** Qualified local Scoring and Summary plus local Evidence authority remain required. Intelligence may use a separately qualified, explicitly authorized cloud model when no local Intelligence model meets the existing admission threshold. Quality-first selection never implies consent; exact provider/model, bounded Evidence scope, and cost status must be disclosed and confirmed before dispatch. This supersedes the 2026-09-17 local-only Intelligence launch interpretation. Applied in §§7, 12, 13, and 16.

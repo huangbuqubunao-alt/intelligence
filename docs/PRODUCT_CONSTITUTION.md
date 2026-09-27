@@ -1,6 +1,6 @@
 # PRODUCT_CONSTITUTION.md
 
-Status: DRAFT — Owner decisions applied 2026-09-17 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
+Status: DRAFT — Owner decisions applied through 2026-09-25 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
 Product: **Intelligence** (Working Product Name)
 Document authority rank: **1 (highest)** — see the authority note immediately below and `V1_PRODUCT_SPEC.md` §19.
 Scope of this document: long-lived product rules and non-negotiable principles.
@@ -85,7 +85,8 @@ Following / 关注 → Content / 内容 → Summary / Video Notes → Evidence
 ## 7. Local-first
 
 - Local-first means **locally persisted by default**, not "never leaves the device." Structured state is the user's local source of truth (SQLite); large text/artifacts live in local files under the app's data directory.
-- Any cloud-backed execution must **declare what leaves the device and to which provider** before it happens.
+- Local paths remain required for ingestion support where applicable, Scoring, Summary / Video Notes, Evidence extraction and binding, persistence, and provenance. Original Evidence remains the local authority even when Intelligence is generated in the cloud.
+- Any cloud-backed execution must **declare what leaves the device, the exact provider/model, and the cost status**, then obtain the user's affirmative authorization before data leaves. Only the bounded verified Evidence and task context needed for that Intelligence execution may be sent; the database, unrelated content, local files, and credentials may not be uploaded.
 - Backup ≠ cloud sync. A corrupt backup must never overwrite current data; integrity is checked before restore.
 - Publishing targets (e.g. an Obsidian Vault) are **one-way outputs**, never a runtime database and never a bidirectional sync. Intelligence retains complete local operating data independent of any publish target.
 
@@ -117,18 +118,17 @@ Rules:
 - Normal users must not need to understand model routing. Default product behavior is: **推荐 (recommended) = 本地优先 (local-first) = 不未经用户同意产生云端费用 (no cloud spend without consent) = 质量不足时暂停并解释，而不是偷偷降级 (pause and explain on insufficient quality, never silently degrade).**
 - A model may only be used when it is **AVAILABLE + QUALIFIED + AUTHORIZED/PRODUCTION_ELIGIBLE**. `CONFIGURED ≠ AVAILABLE ≠ QUALIFIED ≠ PRODUCTION_ELIGIBLE`.
 - Trust mechanisms are guarantees, **not user-facing switches**. Users cannot override the trust gate to force an unqualified path.
-- When no qualified model can safely produce reliable Intelligence, the product shows an honest state such as **"本地模型不足以生成可靠洞察 / the local model is insufficient to produce reliable Intelligence,"** and offers: enable cloud once, change model, or retry later.
+- When no qualified local model can safely produce reliable Intelligence, the product shows an honest unavailable/paused state such as **"本地模型不足以生成可靠洞察 / the local model is insufficient to produce reliable Intelligence,"** and offers an explicit high-quality cloud authorization, a supported model change, or retry later. Summary and Evidence remain usable without cloud consent.
 - Routing escalates only when policy demands (rule → cheap → standard → strong). The actual provider/model identity used is always recorded.
-- **V1 launch must NOT depend on a cloud Provider being available.** The local-first V1 must qualify **at least one usable local model path** for its required tasks.
-- **Cloud models are optional enhancement paths**, activated explicitly by the user — never a launch prerequisite and never a silent default.
-- If local quality is insufficient for a task: **pause + explain**. Do not silently use cloud.
+- **Owner ruling 2026-09-25: Local-first does not mean Intelligence must be Local-only.** V1 requires qualified local paths for its foundational tasks; Intelligence Distillation may use a qualified local model or an explicitly authorized, qualified high-quality cloud model. No model gains production authority merely by being configured or installed.
+- If local Intelligence quality is insufficient: **pause + explain**. A local failure, startup default, Auto/Recommended policy, or Quality-first selection never grants cloud consent or starts a cloud call.
 - Advanced model routing UI belongs behind progressive disclosure / V1.x.
 
 ## 11. No silent cloud spend
 
 - The product never silently calls a paid cloud provider.
 - The product never silently falls back from local to cloud, never silently switches model, and never silently increases spend.
-- A fallback is legal **only** if the user pre-configured that exact approved model/provider.
+- Cloud Intelligence is legal only after the UI discloses the exact approved provider/model, bounded outgoing Evidence/task context, and cost as known, estimated, free, or `UNKNOWN`, and the user explicitly confirms. Prior policy selection alone is insufficient. The backend seals the authorized provider/model, input identity, output language, and consent with the execution; no later retry or resume may substitute a model.
 - Unavailable / quota-exceeded / budget-exhausted conditions **pause the matching step** with a truthful reason; they do not degrade quality, spend more, or fabricate a result. "Functional pause is preferred to hidden degradation."
 - **Real-call authorization scope.** Once the Owner gives **"APPROVED — proceed to production implementation,"** that approval authorizes **non-destructive real YouTube ingestion verification against public sources** as part of implementation and testing, without requiring Owner approval for every individual public ingestion test. It does **not** authorize paid cloud-model calls, surprise billing, credential changes, destructive external actions, external writes, or public distribution. **Paid/cloud use remains explicit opt-in.**
 
@@ -184,8 +184,9 @@ The measure of the product is a **cumulative** body of traceable knowledge the u
 
 ## RESOLVED OWNER DECISIONS (Constitution-level)
 
-All Constitution-level Open Owner Decisions were ruled by the Owner on **2026-09-17** and are now **closed**. No Constitution-level Open Owner Decisions remain.
+Constitution-level Owner Decisions were ruled through **2026-09-25** and are now **closed**. No Constitution-level Open Owner Decisions remain.
 
 - **OD-C1 — Object vocabulary authority. RESOLVED.** Product-facing canonical vocabulary (Following/关注 → Content/内容 → Summary/Video Notes → Evidence → Intelligence/洞察 → Topic/主题 → Research/调研) is authoritative for user-facing UX and Product Specs. Legacy implementation vocabulary (Source, Video, Note, Investigation, Brief) may remain internally; **no large V1 code rename is required**; an explicit product↔legacy mapping is maintained. Applied in §2b and `V1_PRODUCT_SPEC.md` §6.
 - **OD-C2 — "Brief / Weekly" in V1. RESOLVED.** No dedicated Brief product object or Brief pipeline in V1. A lightweight Home surface reusing existing Content/Intelligence is permitted only if cheap; a standalone Daily/Weekly Brief system is V1.x and not launch-critical. Applied in §6.
 - **OD-C3 — Brand name finalization. RESOLVED.** "Intelligence" remains the Working Product Name. Final commercial branding is not a V1 implementation blocker and not part of the Launch Gate; no rebrand is required before Dogfood or Private Pilot. Applied in §2.
+- **OD-C4 — Local-first Intelligence model authority. RESOLVED 2026-09-25.** Local Scoring, Summary, and Evidence authority remain required. Intelligence may use a qualified cloud model only after explicit user authorization with provider/model, data scope, and cost disclosure. This supersedes the 2026-09-17 local-only Intelligence launch interpretation without weakening admission, Evidence provenance, positive-zero, or no-silent-cloud rules. Applied in §§7, 10, and 11.

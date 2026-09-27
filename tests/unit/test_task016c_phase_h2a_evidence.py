@@ -472,7 +472,7 @@ def test_rni_request_hash_via_unchanged_builder() -> None:
         normalized_input_hash=repair_normalized_input_hash(rni),
         provider="ollama",
         model=_MODEL,
-        prompt_version="scoring-prompt-v2",
+        prompt_version=PROMPT_VERSION,
         schema_version="score-result-v2",
     )
     assert build_repair_request_hash(rni) == expected

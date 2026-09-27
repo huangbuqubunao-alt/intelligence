@@ -105,22 +105,6 @@ type Schedule = {
   timezone?: string;
   enabled: boolean;
 };
-type Weekly = {
-  brief_id: string;
-  version: string;
-  period_start: string;
-  no_important_information: boolean;
-  items: {
-    topic_name: string;
-    intelligence_id: string;
-    claim_kind: string;
-    source_state: string;
-    summary: string;
-    evidence_ids: string[];
-    markers: { kind: string; reason: string }[];
-  }[];
-  weekly_v2: { status: string };
-};
 type Preference = {
   preference_id: string;
   horizon: string;
@@ -153,6 +137,7 @@ type ContentItem = {
 };
 type ContentDetail = {
   video: ContentItem;
+  cloud_intelligence_available?: boolean;
   transcript: {
     status: string;
     text?: string;
@@ -387,7 +372,7 @@ export function intelligenceResultCopy(status: string) {
   return ({
     NOT_PROCESSED: "This Content has not been processed for Intelligence yet.",
     PENDING: "Analysis has not reached a trusted terminal result.",
-    WAITING_MODEL: "Analysis is waiting for an approved model.",
+    WAITING_MODEL: "The current local model cannot reliably create high-quality Intelligence. Your Summary and original Evidence remain available. Cloud Intelligence requires a separate review and explicit authorization.",
     WAITING_BUDGET: "Analysis is waiting for approved budget or resources.",
     REJECTED_INELIGIBLE: "This Content was not eligible for this Intelligence run.",
     REJECTED_EVIDENCE: "Analysis could not proceed with trusted Evidence.",
@@ -773,6 +758,11 @@ function IntelligenceCard(
   },
 ) {
   const [busy, setBusy] = useState(false);
+  const [showTopicForm, setShowTopicForm] = useState(false);
+  const [topicName, setTopicName] = useState(item.card?.video_title ?? "");
+  const [topicBusy, setTopicBusy] = useState(false);
+  const [topicError, setTopicError] = useState<string | null>(null);
+  const [createdTopic, setCreatedTopic] = useState<string | null>(null);
   const toggle = async () => {
     setBusy(true);
     try {
@@ -843,6 +833,51 @@ function IntelligenceCard(
       >
         {busy ? "Saving…" : saved ? "Unsave" : "Save"}
       </button>
+      {item.intelligence_id && !createdTopic
+        ? (
+          <div className="intelligence-section">
+            <button type="button" className="button button-secondary"
+              onClick={() => setShowTopicForm((current) => !current)}>
+              Add to a Topic
+            </button>
+            {showTopicForm
+              ? (
+                <form onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!topicName.trim() || !item.intelligence_id) return;
+                  setTopicBusy(true);
+                  setTopicError(null);
+                  try {
+                    const created = await post<{ topic: Topic }>("/topics", {
+                      command_id: `from-intelligence:${item.intelligence_id}`,
+                      name: topicName.trim(),
+                    });
+                    await post(`/topics/${created.topic.topic_id}/associations`, {
+                      intelligence_id: item.intelligence_id,
+                      association_kind: "NEW_INFORMATION",
+                    });
+                    setCreatedTopic(created.topic.name);
+                  } catch (reason) {
+                    setTopicError((reason as Error).message);
+                  } finally {
+                    setTopicBusy(false);
+                  }
+                }}>
+                  <label className="field">Topic name
+                    <input value={topicName} maxLength={120} required
+                      onChange={(event) => setTopicName(event.target.value)} />
+                  </label>
+                  <button type="submit" className="button" disabled={topicBusy}>
+                    {topicBusy ? "Adding…" : "Create Topic and link Intelligence"}
+                  </button>
+                  {topicError && <p className="form-error" role="alert">{topicError}</p>}
+                </form>
+              )
+              : null}
+          </div>
+        )
+        : null}
+      {createdTopic && <p className="hint">Linked to Topic: {createdTopic}</p>}
     </article>
   );
 }
@@ -930,7 +965,7 @@ function Dashboard(
     {
       intelligence?: Intelligence[];
       pinned_topics?: Topic[];
-      weekly_v1?: Weekly[];
+      weekly_v1?: unknown[];
       needs_attention?: SourceRun[];
       operations?: { source_count?: number };
     }
@@ -942,13 +977,13 @@ function Dashboard(
     ),
     attention = data.needs_attention ?? [],
     topics = data.pinned_topics ?? [],
-    weekly = data.weekly_v1 ?? [];
+    hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0;
   const isFreshLibrary = data.operations?.source_count === 0 &&
-    !intelligence.length && !topics.length && !weekly.length && !attention.length;
+    !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
   if (isFreshLibrary) {
     return <FirstRunOnboarding onAddFollowing={() => navigate("Following")} />;
   }
-  if (!intelligence.length && !topics.length && !weekly.length && !attention.length) {
+  if (!intelligence.length && !topics.length && !attention.length) {
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet.">
@@ -996,30 +1031,6 @@ function Dashboard(
           ))
           : <Empty>No important Topic changes since you last checked.</Empty>}
       </Panel>
-      <Panel title="This week">
-        {weekly.length
-          ? weekly.map((brief) => (
-            <div key={brief.brief_id}>
-              {brief.no_important_information
-                ? <p>No important changes this week.</p>
-                : brief.items.slice(0, 2).map((item) => (
-                  <p className="dashboard-weekly-item" key={item.intelligence_id}>
-                    <strong>{item.summary}</strong>
-                    <small>
-                      {item.topic_name} · {humanDate(brief.period_start)}
-                    </small>
-                  </p>
-                ))}
-            </div>
-          ))
-          : <Empty>No finalized weekly brief yet.</Empty>}
-        <button
-          className="button button-ghost"
-          onClick={() => navigate("Intelligence")}
-        >
-          Open Weekly
-        </button>
-      </Panel>
       {attention.length
         ? (
           <Panel title="Needs Attention">
@@ -1046,7 +1057,7 @@ function IntelligencePage(
     openContent: (videoId: string) => void;
   },
 ) {
-  const [view, setView] = useState<"Current" | "Saved" | "Weekly">("Current");
+  const [view, setView] = useState<"Current" | "Saved">("Current");
   const [revision, setRevision] = useState(0);
   const current = useRemote<{ intelligence: Intelligence[] }>(
     "/intelligence",
@@ -1056,12 +1067,9 @@ function IntelligencePage(
     "/saved-intelligence",
     refresh + revision,
   );
-  const weekly = useRemote<{ weekly_v1: Weekly[] }>("/weekly/v1", refresh);
   const source = view === "Current"
     ? current
-    : view === "Saved"
-    ? saved
-    : weekly;
+    : saved;
   const currentAvailable = (current.data?.intelligence ?? []).filter((item) =>
     item.status === "AVAILABLE" && item.trusted
   );
@@ -1069,7 +1077,7 @@ function IntelligencePage(
   return (
     <>
       <div className="segmented">
-        {(["Current", "Saved", "Weekly"] as const).map((item) => (
+        {(["Current", "Saved"] as const).map((item) => (
           <button
             key={item}
             type="button"
@@ -1108,13 +1116,6 @@ function IntelligencePage(
           />
         ))
         : <Empty>No saved Intelligence.</Empty>)}
-      {view === "Weekly" && (!weekly.data
-        ? <Empty>Loading weekly digest…</Empty>
-        : weekly.data.weekly_v1.length
-        ? weekly.data.weekly_v1.map((brief) => (
-          <WeeklyCard key={brief.brief_id} brief={brief} />
-        ))
-        : <Empty>No finalized weekly digest. An empty week is valid.</Empty>)}
     </>
   );
 }
@@ -1163,34 +1164,6 @@ function SavedCard(
     />
   );
 }
-function WeeklyCard({ brief }: { brief: Weekly }) {
-  return (
-    <Panel title={`What mattered · ${humanDate(brief.period_start)}`}>
-      {brief.no_important_information
-        ? <Empty>No important information this week.</Empty>
-        : brief.items.map((item) => (
-          <article className="weekly-item" key={item.intelligence_id}>
-            <p className="weekly-summary">{item.summary}</p>
-            <strong>{item.topic_name}</strong>
-            <div className="reading-meta">
-              <Claim kind={item.claim_kind} />
-              <Status value={item.source_state} />
-            </div>
-            {item.markers.map((marker) => (
-              <p key={marker.kind}>
-                <Status value="CORRECTED" /> {marker.reason}
-              </p>
-            ))}
-            <details className="provenance">
-              <summary>Evidence references</summary>
-              <p>{item.evidence_ids.join(", ")}</p>
-            </details>
-          </article>
-        ))}
-      <small>Historical weekly content remains unchanged.</small>
-    </Panel>
-  );
-}
 function ContentPage(
   { refresh, targetVideoId }: {
     refresh: number;
@@ -1232,7 +1205,20 @@ function ContentPage(
     );
 }
 function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data, error } = useRemote<ContentDetail>(`/videos/${id}`);
+  const [refresh, setRefresh] = useState(0);
+  const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
+  const [showCloudTerms, setShowCloudTerms] = useState(false);
+  const [cloudReview, setCloudReview] = useState<{
+    execution_id: string;
+    verified_input_hash: string;
+    source_id: string;
+    provider: string;
+    model: string;
+    evidence_ids: string[];
+    cost_status: string;
+  } | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Content detail…</Empty>;
   const transcript = data.transcript;
@@ -1344,6 +1330,72 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
               <p className="hint">
                 This is a completed processing result, not an Intelligence validation posture or numeric confidence score.
               </p>
+            )
+            : null}
+          {data.intelligence_result.status === "WAITING_MODEL" && note?.status === "AVAILABLE"
+            ? (
+              <div>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setShowCloudTerms((current) => !current)}
+                >
+                  Review high-quality Intelligence
+                </button>
+                {showCloudTerms
+                  ? (
+                    <div className="semantic-state state-neutral">
+                      <h3>Cloud Intelligence disclosure</h3>
+                      <p>Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).</p>
+                      <p>Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.</p>
+                      <p>Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.</p>
+                      {data.cloud_intelligence_available
+                        ? (
+                          <>
+                            <p>Preparing a review stores a local reservation only. Confirming authorizes exactly one request for the reviewed Evidence and task context.</p>
+                            <button type="button" className="button button-secondary" disabled={cloudBusy}
+                              onClick={async () => {
+                                setCloudBusy(true);
+                                setCloudError(null);
+                                try {
+                                  const response = await post<{ review: NonNullable<typeof cloudReview> }>(
+                                    `/videos/${id}/cloud-intelligence/review`, {},
+                                  );
+                                  setCloudReview(response.review);
+                                } catch (reason) {
+                                  setCloudError((reason as Error).message);
+                                } finally { setCloudBusy(false); }
+                              }}>Prepare one request for review</button>
+                            {cloudReview && (
+                              <div>
+                                <p>Source: {cloudReview.source_id}. Evidence items: {cloudReview.evidence_ids.length}. Provider/model: {cloudReview.provider} · {cloudReview.model}. Cost: {cloudReview.cost_status}.</p>
+                                <p>Review the original Evidence on this Content page before confirming. This permission applies only to this execution.</p>
+                                <button type="button" className="button" disabled={cloudBusy}
+                                  onClick={async () => {
+                                    setCloudBusy(true);
+                                    setCloudError(null);
+                                    try {
+                                      await post(`/videos/${id}/cloud-intelligence/confirm`, {
+                                        execution_id: cloudReview.execution_id,
+                                        review_hash: cloudReview.verified_input_hash,
+                                        authorize: true,
+                                      });
+                                      setCloudReview(null);
+                                      setRefresh((value) => value + 1);
+                                    } catch (reason) {
+                                      setCloudError((reason as Error).message);
+                                    } finally { setCloudBusy(false); }
+                                  }}>Authorize this one cloud execution</button>
+                              </div>
+                            )}
+                            {cloudError && <p role="alert">{cloudError}</p>}
+                          </>
+                        )
+                        : <p>Cloud execution is currently unavailable. This review does not authorize a request or send data.</p>}
+                    </div>
+                  )
+                  : null}
+              </div>
             )
             : null}
         </div>
@@ -2616,8 +2668,11 @@ function Settings({ refresh }: { refresh: number }) {
   }
   const globalPolicy = policy.data.policy;
   const videoDistillation = settings.data.providers.find((provider) =>
-    provider.production_eligible && provider.authorized &&
+    provider.production_eligible &&
     provider.scope === "V1_VIDEO_DISTILLATION_ONLY"
+  );
+  const localFoundation = settings.data.providers.find((provider) =>
+    provider.provider === "Local" && provider.scope === "SCORING_SUMMARY_ONLY"
   );
   const otherProviders = settings.data.providers.filter((provider) =>
     provider !== videoDistillation
@@ -2700,15 +2755,26 @@ function Settings({ refresh }: { refresh: number }) {
       </Panel>
       <Panel title="Models and cost">
         <div className="capability-grid">
+          {localFoundation && (
+            <article className="capability-card">
+              <div className="capability-heading">
+                <h3>Scoring and Summary</h3>
+                <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
+              </div>
+              <p>{localFoundation.adapter_available
+                ? `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
+                : "The local model is unavailable; existing Content and Evidence remain readable."}</p>
+            </article>
+          )}
           <article className="capability-card">
             <div className="capability-heading">
-              <h3>Video Distillation</h3>
+              <h3>Intelligence</h3>
               <Status value={videoDistillation ? "AVAILABLE" : "UNAVAILABLE"} />
             </div>
             <p>
               {videoDistillation
-                ? "Available for V1 video analysis only."
-                : "No approved model is currently available for video analysis."}
+                ? "Qualified for V1 video analysis. Each cloud execution requires your separate consent."
+                : "No qualified Intelligence model is currently available. Local Summary and Evidence remain usable; cloud execution requires a separate explicit authorization."}
             </p>
             {videoDistillation && (
               <details className="provenance">

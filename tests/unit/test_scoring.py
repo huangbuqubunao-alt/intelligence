@@ -581,7 +581,7 @@ def test_scoring_input_hash_separates_every_frozen_cache_dimension(
         ),
     )
     assert all(item.request_hash != baseline for item in variants)
-    monkeypatch.setattr(scoring_module, "PROMPT_VERSION", "scoring-prompt-v3")
+    monkeypatch.setattr(scoring_module, "PROMPT_VERSION", "scoring-prompt-v2")
     assert (
         build_scoring_input(
             video=_video(),

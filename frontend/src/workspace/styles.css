@@ -482,13 +482,6 @@ small, .hint, .muted {
   display: grid;
   gap: 16px;
 }
-.dashboard-weekly-item strong,
-.dashboard-weekly-item small {
-  display: block;
-}
-.dashboard-weekly-item small {
-  margin-top: 5px;
-}
 .attention-strip {
   display: flex;
   align-items: center;

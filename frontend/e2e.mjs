@@ -9,6 +9,7 @@ const browser = await chromium.launch({
 const consoleErrors = [];
 const externalRequests = [];
 const failedResponses = [];
+const weeklyApiRequests = [];
 
 const observeResponses = (page, name) => page.on("response", (response) => {
   if (response.status() >= 400) failedResponses.push(`${name} ${response.status()} ${response.url()}`);
@@ -58,6 +59,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   page.on("request", (request) => {
     const url = request.url();
     if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) externalRequests.push(url);
+    if (url.includes("/api/v1/weekly/v1")) weeklyApiRequests.push(url);
   });
 
   const capture = async (name) => {
@@ -84,6 +86,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   }
   await page.getByText("What matters now", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "Neural networks learn through layers that transform inputs into useful representations.", exact: true }).waitFor();
+  if (await page.getByText("This week", { exact: true }).count()) throw new Error(`${viewportName} Home exposes the Weekly panel`);
+  if (await page.getByRole("button", { name: "Open Weekly", exact: true }).count()) throw new Error(`${viewportName} Home exposes Open Weekly`);
   const intelligenceY = await page.getByText("What matters now", { exact: true }).evaluate((node) => node.getBoundingClientRect().top);
   const attentionY = await page.getByText("Needs Attention", { exact: true }).evaluate((node) => node.getBoundingClientRect().top);
   if (attentionY <= intelligenceY) throw new Error("Needs Attention dominates Dashboard hierarchy");
@@ -91,7 +95,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await capture("home");
 
   await page.getByRole("button", { name: "Intelligence", exact: true }).click();
+  if (await page.getByRole("button", { name: "Weekly", exact: true }).count()) throw new Error(`${viewportName} Intelligence exposes a Weekly segment`);
   await page.getByText("Supported statement", { exact: true }).first().waitFor();
+  if (weeklyApiRequests.length) throw new Error(`${viewportName} requested the hidden Weekly API: ${weeklyApiRequests.join(", ")}`);
   await page.getByText("Attributed opinion", { exact: true }).waitFor();
   await page.getByText("Why this matters", { exact: true }).first().waitFor();
   await page.getByText("What is new", { exact: true }).first().waitFor();
@@ -116,12 +122,6 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   if (await page.getByText("Neural networks learn through layers", { exact: false }).count()) throw new Error("Unavailable Saved target leaked stale content");
   await assertPrimaryLanguage("Saved");
   await capture("saved");
-
-  await page.getByRole("button", { name: "Weekly", exact: true }).click();
-  await page.getByText(/What mattered ·/).waitFor();
-  await page.getByText("Evidence references", { exact: true }).waitFor();
-  await assertPrimaryLanguage("Weekly");
-  await capture("weekly");
 
   await page.getByRole("button", { name: "Topics", exact: true }).click();
   await page.locator("button.list-row").filter({ hasText: "Decision-system practice" }).click();
@@ -163,17 +163,13 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByLabel("Preferred output language", { exact: true }).waitFor();
   await page.getByText(/New processing batches use this language for generated output/).waitFor();
   await page.getByText(/historical records stay unchanged/).waitFor();
-  await page.getByText("Video Distillation", { exact: true }).waitFor();
-  await page.getByText("Available for V1 video analysis only.", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Scoring and Summary", exact: true }).waitFor();
+  await page.getByText("Runs locally with qwen3:8b. Original Evidence remains on this Mac.", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Intelligence", exact: true }).waitFor();
+  await page.getByText(/No qualified Intelligence model is currently available/).waitFor();
   await page.getByText("Deep Analysis is unavailable.", { exact: true }).waitFor();
   await page.getByText(/Kimi is not authorized for this capability/).waitFor();
-  const providerDetails = page.getByText("Provider and model details", { exact: true });
-  await providerDetails.waitFor();
-  if (await providerDetails.locator("xpath=..").evaluate((node) => node.hasAttribute("open"))) throw new Error("Provider details should be collapsed by default");
-  await providerDetails.click();
-  await page.getByText("Local · qwen3:8b", { exact: true }).waitFor();
-  await page.getByText("Scope: Video Distillation only.", { exact: true }).waitFor();
-  await page.getByText(/Qualified local Ollama model/).waitFor();
+  if (await page.getByText("Provider and model details", { exact: true }).count()) throw new Error("An unqualified model must not show production provider details");
   await assertPrimaryLanguage("Settings");
   await capture("settings");
 

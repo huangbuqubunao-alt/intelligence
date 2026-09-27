@@ -70,6 +70,7 @@ from youtube_intel.state import (
     FeedbackRecord,
     FeedbackWrite,
     FilterDecisionRecord,
+    FilterOutcome,
     IntegrityConflict,
     PolicyOverrideMode,
     PreferenceRecord,
@@ -371,6 +372,9 @@ class LocalApiApplication:
         *,
         scoring_reader: AuthoritativeScoringReader | None = None,
         distillation_service: PersonalizedDistillationService | None = None,
+        cloud_distillation_service: PersonalizedDistillationService | None = None,
+        cloud_intelligence_qualified: bool = False,
+        cloud_credential_available: bool = False,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
@@ -389,6 +393,9 @@ class LocalApiApplication:
         self._service = service
         self._scoring_reader = scoring_reader
         self._distillation_service = distillation_service
+        self._cloud_distillation_service = cloud_distillation_service
+        self._cloud_intelligence_qualified = cloud_intelligence_qualified
+        self._cloud_credential_available = cloud_credential_available
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._content_summary_reader = AuthoritativeContentSummaryReader(repository)
@@ -563,6 +570,70 @@ class LocalApiApplication:
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            cloud_prefix = "/api/v1/videos/"
+            if method == "POST" and route.startswith(cloud_prefix) and (
+                route.endswith("/cloud-intelligence/review")
+                or route.endswith("/cloud-intelligence/confirm")
+            ):
+                if (
+                    not self._cloud_intelligence_qualified
+                    or not self._cloud_credential_available
+                    or self._cloud_distillation_service is None
+                ):
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
+                                   "Qualified Cloud Intelligence requires an available backend credential.")
+                video_id, _, cloud_action = route.removeprefix(cloud_prefix).partition("/")
+                if cloud_action not in {"cloud-intelligence/review", "cloud-intelligence/confirm"}:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Cloud Intelligence route was not found.")
+                if not video_id or self._repository.get_video(video_id) is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
+                if route.endswith("/cloud-intelligence/review"):
+                    self._only_keys(data, set())
+                    candidates = tuple(
+                        source.source_id for source in self._repository.list_source_subscriptions()
+                        if source.enabled and self._repository.source_has_video(source.source_id, video_id)
+                        and (
+                            (decision := self._repository.current_filter_decision(source.source_id, video_id))
+                            is not None and decision.outcome is FilterOutcome.RELEVANT
+                        )
+                    )
+                    if not candidates:
+                        raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
+                                       "No eligible source and Evidence are available for this Content.")
+                    cloud_evidence_ids = self._repository.list_available_canonical_evidence_ids(video_id)
+                    reservation = self._cloud_distillation_service.reserve_distillation_execution(
+                        source_id=sorted(candidates)[0], video_id=video_id,
+                        evidence_ids=cloud_evidence_ids,
+                    )
+                    return HTTPStatus.CREATED, {
+                        "review": self._cloud_distillation_service.review_reserved_cloud_execution(
+                            reservation.execution_id
+                        )
+                    }
+                self._only_keys(data, {"execution_id", "review_hash", "authorize"})
+                if data.get("authorize") is not True:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONSENT_REQUIRED",
+                                   "Cloud execution requires affirmative confirmation.")
+                execution_id = self._string(data, "execution_id", required=True) or ""
+                review_hash = self._string(data, "review_hash", required=True) or ""
+                review = self._cloud_distillation_service.review_reserved_cloud_execution(execution_id)
+                if review["video_id"] != video_id or review["verified_input_hash"] != review_hash:
+                    raise ApiError(HTTPStatus.CONFLICT, "REVIEW_STALE",
+                                   "Cloud review changed; review the current Evidence again.")
+                authorization_id = self._cloud_distillation_service.authorize_reserved_cloud_execution(
+                    execution_id
+                )
+                cloud_result = self._cloud_distillation_service.continue_reserved_distillation(execution_id)
+                return HTTPStatus.ACCEPTED, {
+                    "authorization_id": authorization_id,
+                    "execution": {
+                        "execution_id": cloud_result.execution_id,
+                        "status": cloud_result.status.value,
+                        "invocation_count": cloud_result.invocation_count,
+                        "intelligence_id": cloud_result.intelligence_id,
+                        "revision_id": cloud_result.revision_id,
+                    },
+                }
             if method == "POST" and route == "/api/v1/backup-restore/backups":
                 service = self._require_backup_restore()
                 self._only_keys(data, set())
@@ -1398,6 +1469,9 @@ class LocalApiApplication:
                         video.video_id
                     )
                 ),
+                "cloud_intelligence_available": (
+                    self._cloud_intelligence_qualified and self._cloud_credential_available
+                ),
                 "history": self._history_projection(video.video_id),
             }
         if route.startswith("/api/v1/intelligence/"):
@@ -1478,6 +1552,8 @@ class LocalApiApplication:
                         None if preference is None else preference.desired_provider,
                         None if preference is None else preference.desired_model,
                         local_runtime_available=self._local_distillation_available,
+                        moonshot_qualified=self._cloud_intelligence_qualified,
+                        moonshot_credential_available=self._cloud_credential_available,
                     )
                 ],
             }

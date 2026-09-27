@@ -79,7 +79,7 @@ from youtube_intel.state import (
     format_utc_datetime,
 )
 
-PROMPT_VERSION: Final = "scoring-prompt-v2"
+PROMPT_VERSION: Final = "scoring-prompt-v3"
 SCHEMA_VERSION: Final = "score-result-v2"
 SAMPLING_VERSION: Final = "sampling-v1"
 _SCORING_OPERATION: Final = "local-scoring"

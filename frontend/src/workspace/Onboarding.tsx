@@ -72,12 +72,15 @@ export function FirstRunOnboarding({ onAddFollowing }: FirstRunOnboardingProps) 
           <p className="eyebrow">FIRST RUN · 3 / 3</p>
           <h2 id="onboarding-title">Add your first Following.</h2>
           <p className="onboarding-lede">
-            Start with a public YouTube channel or source. Adding it uses the existing production Following configuration path.
+            Start with a public YouTube source. Choose how many recent videos to include and add it to Following.
           </p>
           <div className="semantic-state state-neutral">
-            <strong>Runtime qualification is separate.</strong>
+            <strong>Local-first processing</strong>
             <p>
-              This setup does not claim that real transcript processing or a local analysis model is already qualified. If runtime processing is unavailable, the app must stay honest and keep your configuration unchanged.
+              A public YouTube source is processed locally first. Getting a transcript and local summary can take a little time.
+            </p>
+            <p>
+              If captions, the local model, or network access are unavailable, processing pauses and explains why. It will not silently switch to a cloud model.
             </p>
           </div>
           <div className="onboarding-actions">
