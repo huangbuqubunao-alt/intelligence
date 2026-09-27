@@ -1,8 +1,8 @@
 # M12 Golden UI Acceptance
 
-**Current status: Fresh M12 Golden GUI and final validation PASS; PR and merge pending.** The earlier NVIDIA, OpenAI, and Moonshot history is retained below. The selected route is the independently qualified non-thinking Moonshot K2.6 profile with separate consent for every execution. This is not a Gate A or Public Distribution Ready claim.
+**Current status: M12 Golden UI PASS and merged via PR #48 at 6841c96288cd5c4714593831cc2de8388d38895a. M13 7-Day Dogfood has not started. This is not Public Distribution Ready.** The earlier NVIDIA, OpenAI, and Moonshot history is retained below. The selected route is the independently qualified non-thinking Moonshot K2.6 profile with separate consent for every execution. This is not a Gate A claim.
 
-The opening status snapshot predates the Moonshot China-endpoint correction and single K2.6 attempt recorded in the final dated addendum below.
+Historical status snapshots below predate the Moonshot China-endpoint correction and single K2.6 attempt recorded in the final dated addendum below.
 
 
 ## Owner stop on NVIDIA; OpenAI GPT-4.1 offline preparation — 2026-09-25
