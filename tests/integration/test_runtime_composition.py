@@ -17,6 +17,7 @@ import pytest
 
 from youtube_intel.cli import ExitCode, main
 from youtube_intel.config import load_app_config
+from youtube_intel.distillation import MoonshotK26NonThinkingCloudDistillationTransport
 from youtube_intel.domain import (
     AnalysisCompleted,
     AnalysisResult,
@@ -427,8 +428,9 @@ def test_default_cli_builds_production_composition_and_persists_discovery(
 
 
 def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("MOONSHOT_API_KEY", "synthetic-runtime-test-only")
     project = _project(tmp_path)
     source = _SingleVideoDiscoverySource()
     metadata = _MetadataProvider()
@@ -491,6 +493,11 @@ def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
         dependencies=dependencies,
         now=lambda: NOW,
     )
+    assert isinstance(
+        restarted.cloud_distillation._transport,
+        MoonshotK26NonThinkingCloudDistillationTransport,
+    )
+    assert restarted.cloud_distillation._transport._authorization.production_eligible
     duplicate_status, duplicate = restarted.application.handle(
         "POST",
         f"/api/v1/sources/{following.source_id}/check",
@@ -499,6 +506,12 @@ def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
     assert duplicate_status == 202
     assert duplicate["source_run"]["run_id"] == run_id
     _, settings = restarted.application.handle("GET", "/api/v1/settings")
+    moonshot = next(
+        provider for provider in settings["providers"]
+        if provider["provider"] == "moonshot"
+    )
+    assert moonshot["qualification_status"] == "QUALIFIED"
+    assert moonshot["authorized"] is False
     nvidia = next(
         provider
         for provider in settings["providers"]
@@ -539,6 +552,7 @@ def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
         "GET", f"/api/v1/videos/{VIDEO_ID}"
     )
     assert detail_status == 200
+    assert detail["cloud_intelligence_available"] is True
     projected_note = detail["note"]["v2"]
     assert projected_note["status"] == "AVAILABLE"
     assert projected_note["language"] == "zh-CN"

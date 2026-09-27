@@ -1,5 +1,5 @@
 ---
-prompt_version: scoring-prompt-v2
+prompt_version: scoring-prompt-v3
 schema_version: score-result-v2
 ---
 

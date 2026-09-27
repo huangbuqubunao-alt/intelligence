@@ -1,6 +1,6 @@
 # V1_IMPLEMENTATION_ROADMAP.md
 
-Status: DRAFT — Owner decisions applied 2026-09-17 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
+Status: DRAFT — Owner decisions applied through 2026-09-25 — WAITING FOR FINAL PRODUCT FREEZE APPROVAL
 Product: **Intelligence** (Working Product Name)
 Document authority rank: **3** — below `PRODUCT_CONSTITUTION.md` and `V1_PRODUCT_SPEC.md`, above the Demo.
 Purpose: the production **execution order** for V1.
@@ -129,11 +129,11 @@ Dependency spine: `M0 → M1 → {M2, M3}`; `M3 → M4 → M5 → M7`; `M6` unde
 
 **Out of scope.** User feedback learning (V1.x). Advanced confidence/source profiles (RESERVE_V2). Deep Analysis / Investigation activation.
 
-**Dependencies.** M4; a **qualified analysis model**. Per Owner ruling 2026-09-17, **V1 launch must not depend on a cloud Provider** — the local-first V1 must **qualify at least one usable local model path** for its required tasks (this is the launch-critical qualification). Cloud models are optional explicit enhancements; live-credential cloud provider tests remain separately gated and explicit opt-in.
+**Dependencies.** M4; qualified local paths for Scoring and Summary and local Evidence authority; a **qualified Intelligence model**. Owner ruling 2026-09-25 permits a separately qualified cloud model for Intelligence when no local model meets the unchanged admission threshold. Cloud qualification and any charge-bearing live call still require explicit data/cost authorization; no installed or configured model gains production authority by default.
 
 **Acceptance criteria.** Spec §16 criterion C (Intelligence) + criterion D (trust): Intelligence cites Evidence; confidence is bounded language (no invented percentages); a content yielding zero Intelligence renders as a positive success; no admitted Intelligence exists without supporting evidence; unsupported/ambiguous/budget-paused/model-unavailable states remain truthful.
 
-**Stop condition / rollback.** If no **local** model path can be qualified for a required task, **do not fabricate Intelligence and do not silently fall back to cloud** — pause + explain ("本地模型不足以生成可靠洞察") with enable-cloud-once / change-model / retry-later. V1 launch must not be made dependent on a cloud Provider. The trust gate is frozen; retries/fallback/substitution are forbidden without material external change + PO authorization.
+**Stop condition / rollback.** If local Intelligence is unqualified, preserve the local Summary/Evidence path and pause Intelligence with an honest explanation. Offer explicit high-quality cloud authorization, a supported model change, or retry later. A cloud route remains blocked until its exact provider/model, minimal Evidence scope, cost status, credential, consent, and real quality qualification are proven. Never silently fall back, fabricate an Intelligence, weaken admission, substitute a model, or retry an ambiguous dispatch.
 
 ---
 
@@ -237,13 +237,13 @@ Dependency spine: `M0 → M1 → {M2, M3}`; `M3 → M4 → M5 → M7`; `M6` unde
 
 **Objective.** Prove the authoritative Golden UI Path end-to-end for a real normal user.
 
-**In scope.** The full Spec §13 path: install/open → ≤4-step onboarding → add real YouTube source → content → transcript → summary → inspectable Evidence → ≥1 eligible Intelligence → trace claim to source (<10s) → restart → data present. No Terminal, no YAML, no developer assistance.
+**In scope.** The full Spec §13 path: install/open → ≤4-step onboarding → add real YouTube source → content → transcript → locally produced summary → inspectable original Evidence → explicit cloud provider/model/data/cost authorization if the qualified Intelligence route is cloud → ≥1 eligible Intelligence → trace claim to source (<10s) → restart → data present. No Terminal, no YAML, no developer assistance. First prove Local-first with no cloud consent produces Summary/Evidence and a truthful Intelligence pause, then prove no cloud request occurs before the user's confirmation.
 
 **Out of scope.** Demo-only future concepts.
 
 **Dependencies.** All MUST-HAVE milestones (M1–M8, M10).
 
-**Acceptance criteria.** The Golden UI Path completes on **real data** by a non-developer, with source-trace in <10 seconds and data surviving restart. Sample/seed experience is clearly marked and never mixes invisibly with real data.
+**Acceptance criteria.** The Golden UI Path completes on **real data** by a non-developer, with source-trace in <10 seconds and data surviving restart. The record identifies local Scoring/Summary models, the cloud Intelligence provider/model and explicit consent if used, exact execution and usage/cost truth, and confirms no cloud call before consent or duplicate call after restart. Sample/seed experience is clearly marked and never mixes invisibly with real data.
 
 **Stop condition / rollback.** If any step requires Terminal/YAML/developer help, V1 is **not** ready — STOP and fix the offending milestone. Do not paper over with Demo fixtures.
 
@@ -311,11 +311,12 @@ The universal per-task gate still applies to every implementation task: focused 
 
 ## RESOLVED OWNER DECISIONS (Roadmap-level)
 
-All Roadmap-level Open Owner Decisions were ruled by the Owner on **2026-09-17** and are now **closed**. No Roadmap-level Open Owner Decisions remain.
+Roadmap-level Owner Decisions were ruled through **2026-09-25** and are now **closed**. No Roadmap-level Open Owner Decisions remain.
 
 - **OD-R1 — Real-call authorization timing. RESOLVED.** After the Owner gives "APPROVED — proceed to production implementation," non-destructive real YouTube ingestion verification against public sources is authorized for implementation/testing without per-test approval; paid cloud, billing, credential changes, destructive/external-write actions, and public distribution are NOT auto-authorized (paid/cloud = explicit opt-in). Applied in the Hard-constraints preamble and M1.
-- **OD-R2 — Provider qualification path. RESOLVED.** V1 launch must not depend on a cloud Provider; the local-first V1 must qualify at least one usable local model path for its required tasks; cloud models are optional explicit enhancements; local-insufficient → pause + explain, never silent cloud. Applied in M5 (and Constitution §10, Spec §12).
+- **OD-R2 — Provider qualification path. SUPERSEDED FOR INTELLIGENCE 2026-09-25.** The 2026-09-17 ruling required a launch-critical local model for every required task. OD-R7 replaces that absolute Intelligence requirement; the local-first and no-silent-cloud safeguards remain.
 - **OD-R3 — Distribution inside V1? RESOLVED.** Two distinct gates: Gate A Functional Ready / Private Dogfood & Pilot (M0–M13) vs Gate B Public Distribution Ready (M14). Functional Ready must never be described as Public Release Ready. Applied in the milestone index, M14, and Spec §16c.
 - **OD-R4 — Signing/notarization ownership. RESOLVED.** Signing/notarization belongs to Gate B (Public Distribution) only, does not block core implementation or private Dogfood, and must be resolved before public Mac distribution; ownership = Release Engineering + Owner Release Approval (no specific person invented). Applied in M14.
 - **OD-R5 — Vocabulary rename execution window. RESOLVED.** No large V1 code rename; product vocabulary is authoritative for user-facing UX/Specs and legacy names remain internal, so GUI copy adopts product vocabulary without a code-rename prerequisite. Applied in M0 and Spec §6 / Constitution §2b.
 - **OD-R6 — Brief/Weekly execution slot. RESOLVED.** No dedicated Brief object/pipeline in V1, so no Brief milestone is required; a lightweight Home surface reusing Content/Intelligence is an optional KEEP-IF-CHEAP item in M11; a standalone Daily/Weekly Brief system is V1.x. Applied in M11 and Spec §5/§6/§8/§9.
+- **OD-R7 — Explicit cloud Intelligence qualification. RESOLVED 2026-09-25.** Keep local Scoring, Summary, and Evidence authority; qualify one existing high-quality cloud Intelligence route on real Evidence for both restraint and admitted capability before production use. Local-first without consent pauses Intelligence honestly. Quality-first never grants consent by itself; provider/model, bounded outgoing data, and cost must be disclosed and confirmed before dispatch. Paid calls and credential changes remain separately gated. Applied in M5 and M12.

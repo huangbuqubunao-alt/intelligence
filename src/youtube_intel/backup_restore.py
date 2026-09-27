@@ -33,7 +33,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 24
+LATEST_SCHEMA_VERSION = 28
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -50,6 +50,13 @@ _TERMINAL_JOBS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_PROVIDER_CALLS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_DISPATCH = {"SUCCESS_DURABLY_RECORDED", "FAILED_KNOWN"}
 _TERMINAL_SOURCE_RUNS = {"COMPLETED", "FAILED", "CANCELLED"}
+_TERMINAL_SOURCE_RUN_CHILDREN = {"COMPLETED", "SKIPPED", "FAILED", "AMBIGUOUS"}
+_AMBIGUOUS_DISTILLATION_OUTCOMES = {
+    "TRANSPORT_OUTCOME_UNKNOWN": {1},
+    "RESERVED_DISPATCH_OUTCOME_UNKNOWN": {1},
+    "DISPATCH_CLAIM_STATE_UNKNOWN": {0, 1},
+    "PRIOR_ATTEMPT_STATE_UNKNOWN": {0, 1},
+}
 _REQUIRED_TABLES = {
     "schema_migrations",
     "source_subscriptions",
@@ -66,6 +73,13 @@ _REQUIRED_TABLES = {
     "source_runs",
     "distillation_execution_checkpoints",
     "distillation_no_new_intelligence_results",
+    "distillation_cloud_authorizations",
+    "distillation_openai_cloud_authorizations",
+    "distillation_moonshot_cloud_authorizations",
+    "distillation_unidentified_http_responses",
+    "distillation_openai_unidentified_http_responses",
+    "distillation_moonshot_unidentified_http_responses",
+    "distillation_cloud_response_failures",
     "evidence_translation_presentations",
 }
 
@@ -1055,6 +1069,7 @@ class BackupRestoreService:
         self, connection: sqlite3.Connection, *, repository: SQLiteStateRepository | None = None
     ) -> list[str]:
         reasons: list[str] = []
+        repository = repository or SQLiteStateRepository(self.database)
         for (status,) in connection.execute("SELECT DISTINCT status FROM jobs"):
             if status not in _TERMINAL_JOBS:
                 reasons.append("JOBS_ACTIVE")
@@ -1067,14 +1082,35 @@ class BackupRestoreService:
             if status not in _TERMINAL_DISPATCH:
                 reasons.append("PROVIDER_DISPATCH_UNRESOLVED")
                 break
-        if "state" in {
+        source_run_columns = {
             str(row[1]) for row in connection.execute('PRAGMA table_info("source_runs")')
-        }:
-            for (state,) in connection.execute("SELECT DISTINCT state FROM source_runs"):
-                if state not in _TERMINAL_SOURCE_RUNS:
+        }
+        if "state" in source_run_columns:
+            if {"run_id", "source_id", "attention_reason"} <= source_run_columns:
+                for run in connection.execute(
+                    "SELECT run_id, source_id, state, attention_reason FROM source_runs"
+                ):
+                    state = str(run["state"])
+                    if state in _TERMINAL_SOURCE_RUNS:
+                        continue
+                    if self._is_terminal_ambiguous_source_run(
+                        connection, repository, run
+                    ):
+                        continue
+                    if self._is_cloud_completed_local_wait_source_run(connection, run):
+                        continue
                     reasons.append("SOURCE_RUN_ACTIVE")
                     break
-        repository = repository or SQLiteStateRepository(self.database)
+            else:
+                # Older databases lack the identity and attention fields needed
+                # to prove the narrow terminal-ambiguous exception. Preserve the
+                # prior fail-closed state-only check for those schemas.
+                for (state,) in connection.execute(
+                    "SELECT DISTINCT state FROM source_runs"
+                ):
+                    if state not in _TERMINAL_SOURCE_RUNS:
+                        reasons.append("SOURCE_RUN_ACTIVE")
+                        break
         for (execution_id,) in connection.execute(
             "SELECT execution_id FROM distillation_execution_checkpoints"
         ):
@@ -1085,10 +1121,206 @@ class BackupRestoreService:
             if execution is None:
                 raise BackupRestoreError("A distillation checkpoint is missing its authority.")
             status = getattr(execution.status, "value", str(execution.status))
-            if status in {"PENDING", "RUNNING", "WAITING_BUDGET", "WAITING_MODEL", "AMBIGUOUS"}:
+            if status in {"PENDING", "RUNNING", "WAITING_BUDGET", "WAITING_MODEL"}:
+                if status == "WAITING_MODEL" and self._is_cloud_completed_local_wait(
+                    connection, str(execution_id)
+                ):
+                    continue
                 reasons.append("DISTILLATION_ACTIVE")
                 break
+            if status == "AMBIGUOUS" and not self._is_terminal_ambiguous_execution(
+                repository, str(execution_id)
+            ):
+                raise BackupRestoreError("An ambiguous distillation checkpoint failed validation.")
         return reasons
+
+    def _is_cloud_completed_local_wait_source_run(
+        self, connection: sqlite3.Connection, run: sqlite3.Row
+    ) -> bool:
+        if (
+            str(run["state"]) != "NEEDS_ATTENTION"
+            or run["attention_reason"] != "MODEL_UNAVAILABLE"
+        ):
+            return False
+        children = connection.execute(
+            "SELECT video_id, state, distillation_execution_id "
+            "FROM source_run_video_executions WHERE run_id = ?",
+            (str(run["run_id"]),),
+        ).fetchall()
+        if not children:
+            return False
+        has_waiting_child = False
+        for child in children:
+            if child["state"] in _TERMINAL_SOURCE_RUN_CHILDREN:
+                continue
+            if child["state"] != "WAITING" or not isinstance(
+                child["distillation_execution_id"], str
+            ):
+                return False
+            has_waiting_child = True
+            if not self._is_cloud_completed_local_wait(
+                connection,
+                child["distillation_execution_id"],
+                source_id=str(run["source_id"]),
+                video_id=str(child["video_id"]),
+            ):
+                return False
+        return has_waiting_child
+
+    @staticmethod
+    def _is_cloud_completed_local_wait(
+        connection: sqlite3.Connection,
+        local_execution_id: str,
+        *,
+        source_id: str | None = None,
+        video_id: str | None = None,
+    ) -> bool:
+        # The local wait remains immutable history. Treat it as quiescent only
+        # when a later, separately consented cloud execution for that exact
+        # Source and Video has an admitted card and a confirmed HTTP response.
+        return connection.execute(
+            "SELECT 1 FROM distillation_execution_checkpoints AS local "
+            "JOIN distillation_resource_usage AS local_usage "
+            "ON local_usage.execution_id = local.execution_id "
+            "JOIN source_run_video_executions AS child "
+            "ON child.distillation_execution_id = local.execution_id "
+            "JOIN source_runs AS run ON run.run_id = child.run_id "
+            "JOIN distillation_execution_checkpoints AS cloud "
+            "ON cloud.source_id = local.source_id AND cloud.video_id = local.video_id "
+            "JOIN distillation_moonshot_cloud_authorizations AS consent "
+            "ON consent.execution_id = cloud.execution_id "
+            "JOIN distillation_resource_usage AS cloud_usage "
+            "ON cloud_usage.execution_id = cloud.execution_id "
+            "JOIN distillation_cards AS card ON card.revision_id = cloud.revision_id "
+            "WHERE local.execution_id = :execution_id "
+            "AND (:source_id IS NULL OR local.source_id = :source_id) "
+            "AND (:video_id IS NULL OR local.video_id = :video_id) "
+            "AND local.selected_provider = 'ollama' "
+            "AND local.status = 'WAITING_MODEL' AND local.invocation_count = 0 "
+            "AND local_usage.status = 'WAITING_MODEL' "
+            "AND local_usage.invocation_count = 0 "
+            "AND local_usage.actual_provider IS NULL "
+            "AND run.source_id = local.source_id "
+            "AND run.state = 'NEEDS_ATTENTION' "
+            "AND run.attention_reason = 'MODEL_UNAVAILABLE' "
+            "AND child.video_id = local.video_id AND child.state = 'WAITING' "
+            "AND cloud.execution_id != local.execution_id "
+            "AND cloud.created_at >= local.created_at "
+            "AND cloud.selected_provider = 'moonshot' "
+            "AND cloud.selected_model = 'kimi-k2.6' "
+            "AND cloud.status = 'SUCCEEDED' "
+            "AND cloud.budget_state = 'ADMITTED' "
+            "AND cloud.invocation_count = 1 "
+            "AND consent.consent_kind = 'USER_CONFIRMATION' "
+            "AND consent.provider = cloud.selected_provider "
+            "AND consent.model = cloud.selected_model "
+            "AND cloud_usage.status = 'SUCCEEDED' "
+            "AND cloud_usage.outcome = 'ADMITTED' "
+            "AND cloud_usage.invocation_count = 1 "
+            "AND cloud_usage.actual_provider = cloud.selected_provider "
+            "AND cloud_usage.actual_model = cloud.selected_model "
+            "AND cloud_usage.http_status_code = 200 "
+            "AND cloud_usage.revision_id = cloud.revision_id "
+            "AND card.source_id = local.source_id "
+            "AND card.video_id = local.video_id LIMIT 1",
+            {
+                "execution_id": local_execution_id,
+                "source_id": source_id,
+                "video_id": video_id,
+            },
+        ).fetchone() is not None
+
+    @staticmethod
+    def _execution_status(execution: object) -> str:
+        status = getattr(execution, "status", "")
+        return str(getattr(status, "value", status))
+
+    def _is_terminal_ambiguous_execution(
+        self,
+        repository: SQLiteStateRepository,
+        execution_id: str,
+        *,
+        source_id: str | None = None,
+        video_id: str | None = None,
+    ) -> bool:
+        try:
+            execution = repository.get_distillation_execution(execution_id)
+        except Exception as error:
+            raise BackupRestoreError("An ambiguous distillation checkpoint failed validation.") from error
+        if execution is None or self._execution_status(execution) != "AMBIGUOUS":
+            return False
+        try:
+            usage = repository.get_distillation_resource_usage(execution_id)
+        except Exception as error:
+            raise BackupRestoreError("An ambiguous distillation resource record is missing.") from error
+
+        allowed_invocations = _AMBIGUOUS_DISTILLATION_OUTCOMES.get(usage.outcome)
+        if (
+            usage.execution_id != execution.execution_id
+            or usage.status != "AMBIGUOUS"
+            or usage.invocation_count not in (allowed_invocations or set())
+            or usage.invocation_count != execution.invocation_count
+            or usage.budget_state != execution.budget_state
+            or not usage.budget_state.strip()
+            or usage.reason != execution.reason
+            or usage.use_case != execution.use_case
+            or usage.source_id != execution.source_id
+            or usage.video_id != execution.video_id
+            or usage.selected_provider != execution.selected_provider
+            or usage.selected_model != execution.selected_model
+            or execution.intelligence_id is not None
+            or execution.revision_id is not None
+            or usage.intelligence_id is not None
+            or usage.revision_id is not None
+            or usage.actual_provider is not None
+            or usage.actual_model is not None
+            or usage.input_tokens is not None
+            or usage.output_tokens is not None
+            or usage.cost_microunits is not None
+            or usage.duration_ms is not None
+            or (source_id is not None and execution.source_id != source_id)
+            or (video_id is not None and execution.video_id != video_id)
+        ):
+            raise BackupRestoreError("An ambiguous distillation resource record failed validation.")
+        return True
+
+    def _is_terminal_ambiguous_source_run(
+        self,
+        connection: sqlite3.Connection,
+        repository: SQLiteStateRepository,
+        run: sqlite3.Row,
+    ) -> bool:
+        if (
+            str(run["state"]) != "NEEDS_ATTENTION"
+            or run["attention_reason"] != "AMBIGUOUS_EXTERNAL_OUTCOME"
+        ):
+            return False
+        children = connection.execute(
+            "SELECT video_id, state, distillation_execution_id "
+            "FROM source_run_video_executions WHERE run_id = :run_id ORDER BY video_id",
+            {"run_id": str(run["run_id"])},
+        ).fetchall()
+        if not children:
+            return False
+        has_ambiguous_child = False
+        for child in children:
+            state = str(child["state"])
+            if state not in _TERMINAL_SOURCE_RUN_CHILDREN:
+                return False
+            if state != "AMBIGUOUS":
+                continue
+            execution_id = child["distillation_execution_id"]
+            if not isinstance(execution_id, str) or not execution_id:
+                return False
+            has_ambiguous_child = True
+            if not self._is_terminal_ambiguous_execution(
+                repository,
+                execution_id,
+                source_id=str(run["source_id"]),
+                video_id=str(child["video_id"]),
+            ):
+                return False
+        return has_ambiguous_child
 
     def _live_transaction(self) -> Any:
         service = self

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -12,7 +13,11 @@ from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.config import AppConfig
 from youtube_intel.distillation import (
     BudgetDecision,
+    CloudDistillationAuthorization,
+    DistillationCapabilityScope,
     DistillationCommand,
+    M12QualifiedCloudProductionAuthorizationAuthority,
+    MoonshotK26NonThinkingCloudDistillationTransport,
     OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
 )
@@ -149,6 +154,7 @@ class LocalSourceRunRuntime:
     runtime: RuntimeOperations
     source_policy: SourcePolicyApplicationService
     distillation: PersonalizedDistillationService
+    cloud_distillation: PersonalizedDistillationService
     orchestrator: DurableProcessingOrchestrator
     product: ProductOrchestrationService
     worker: DurableSourceRunWorker
@@ -200,6 +206,7 @@ def build_local_source_run_runtime(
     source_policy = SourcePolicyApplicationService(repository, now=now_fn)
     transport = OllamaLocalDistillationTransport(
         settings=config.settings.local_scoring,
+        production_qualified=False,
     )
     distillation = PersonalizedDistillationService(
         repository,
@@ -208,6 +215,25 @@ def build_local_source_run_runtime(
         ProductionDistillationBudget(),
         now=now_fn,
         output_language_for_video=runtime._downstream_output_language,
+    )
+    # One independently reviewed K2.6 qualification passed. The UI still
+    # requires a separate consent for each normal cloud execution.
+    m12_moonshot_qualified = True
+    eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
+        provider="moonshot", model="kimi-k2.6",
+        capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
+        available=True,
+    )
+    cloud_transport = MoonshotK26NonThinkingCloudDistillationTransport.with_environment_credential(
+        authorization=CloudDistillationAuthorization.for_normal_production(
+            eligibility=eligibility,
+            cloud_enabled=m12_moonshot_qualified,
+            credential_available=bool(os.environ.get("MOONSHOT_API_KEY")),
+        )
+    )
+    cloud_distillation = PersonalizedDistillationService(
+        repository, source_policy, cloud_transport, ProductionDistillationBudget(),
+        now=now_fn, output_language_for_video=runtime._downstream_output_language,
     )
     evidence_translation = EvidenceTranslationPresentationService(
         repository,
@@ -241,6 +267,9 @@ def build_local_source_run_runtime(
         product,
         scoring_reader=reader,
         distillation_service=distillation,
+        cloud_distillation_service=cloud_distillation,
+        cloud_intelligence_qualified=m12_moonshot_qualified,
+        cloud_credential_available=bool(os.environ.get("MOONSHOT_API_KEY")),
         processing_orchestrator=orchestrator,
         data_root=data_root,
         vault_root=(
@@ -261,6 +290,7 @@ def build_local_source_run_runtime(
         runtime=runtime,
         source_policy=source_policy,
         distillation=distillation,
+        cloud_distillation=cloud_distillation,
         orchestrator=orchestrator,
         product=product,
         worker=worker,

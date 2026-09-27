@@ -249,8 +249,10 @@ def provider_model_statuses(
     desired_model: str | None,
     *,
     local_runtime_available: bool | None = None,
+    moonshot_qualified: bool = False,
+    moonshot_credential_available: bool = False,
 ) -> tuple[ProviderModelStatus, ...]:
-    """Project only the bounded local V1 route as production eligible."""
+    """Report capability without implying persistent cloud consent."""
     return (
         ProviderModelStatus(
             provider="Local",
@@ -260,14 +262,30 @@ def provider_model_statuses(
                 "NOT_REQUIRED"
             ),
             adapter_available=local_runtime_available is not False,
-            qualification_status="QUALIFIED",
-            authorized=True,
-            production_eligible=local_runtime_available is not False,
-            scope="V1_VIDEO_DISTILLATION_ONLY",
+            qualification_status="INTELLIGENCE_UNQUALIFIED",
+            authorized=False,
+            production_eligible=False,
+            scope="SCORING_SUMMARY_ONLY",
             reason=(
-                "Qualified local Ollama model is available for V1 Video Distillation only."
+                "Local Scoring and Summary are available; this model is not qualified for Intelligence."
                 if local_runtime_available is not False
-                else "The qualified local model is unavailable; Source Runs pause for attention."
+                else "The local model is unavailable; Scoring and Summary pause for attention."
+            ),
+        ),
+        ProviderModelStatus(
+            provider="moonshot",
+            model="kimi-k2.6",
+            configured=desired_provider == "moonshot" and desired_model == "kimi-k2.6",
+            credential_status="AVAILABLE" if moonshot_credential_available else "BLOCKED",
+            adapter_available=True,
+            qualification_status="QUALIFIED" if moonshot_qualified else "UNQUALIFIED",
+            authorized=False,
+            production_eligible=moonshot_qualified and moonshot_credential_available,
+            scope="V1_VIDEO_DISTILLATION_ONLY" if moonshot_qualified else "NONE",
+            reason=(
+                "K2.6 non-thinking is qualified for explicit-consent Video Intelligence; each execution requires separate authorization."
+                if moonshot_qualified and moonshot_credential_available
+                else "Cloud Intelligence requires qualification and an available backend credential."
             ),
         ),
         ProviderModelStatus(
@@ -277,11 +295,11 @@ def provider_model_statuses(
             and desired_model == "moonshotai/kimi-k3",
             credential_status="BLOCKED",
             adapter_available=True,
-            qualification_status="UNQUALIFIED",
+            qualification_status="M12_REQUALIFICATION_REQUIRED",
             authorized=False,
             production_eligible=False,
             scope="NONE",
-            reason="Cloud inference is disabled for V1 local-first execution.",
+            reason="Cloud Intelligence requires current quality qualification, an available backend credential, and explicit user consent.",
         ),
         ProviderModelStatus(
             provider="OpenAI",

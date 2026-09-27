@@ -9,7 +9,11 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-from youtube_intel.analysis import _analysis_schema
+from youtube_intel.analysis import (
+    LOCAL_ANALYSIS_CONTEXT_TOKENS,
+    KnownLocalSummaryResponseError,
+    _analysis_schema,
+)
 from youtube_intel.config import LocalAnalysisSettings, _validate_loopback_http_base_url
 from youtube_intel.domain import AnalysisInput, AnalysisResult, EvidenceSource
 
@@ -47,10 +51,14 @@ class OllamaSummaryProvider:
         self._raw: str | None = None
         self._request_hash: str | None = None
 
+    def preflight(self) -> None:
+        """Verify the configured loopback model before a durable dispatch claim."""
+
+        self._preflight()
+
     def summarize(self, analysis_input: AnalysisInput) -> AnalysisResult:
         if analysis_input.prompt_version != _PROMPT_VERSION:
             raise ValueError("local Summary prompt identity is invalid")
-        self._preflight()
         payload = analysis_input.payload
         task = {
             "video_id": payload.video_id,
@@ -83,6 +91,7 @@ class OllamaSummaryProvider:
                     "think": False,
                     "options": {
                         "temperature": 0.0,
+                        "num_ctx": LOCAL_ANALYSIS_CONTEXT_TOKENS,
                         "num_predict": self._settings.max_output_tokens,
                     },
                 },
@@ -95,12 +104,25 @@ class OllamaSummaryProvider:
         response = self._read(request)
         message = response.get("message")
         raw = message.get("content") if isinstance(message, Mapping) else None
+        response_length = len(raw) if isinstance(raw, str) else None
+        def rejected(reason: str) -> KnownLocalSummaryResponseError:
+            return KnownLocalSummaryResponseError(
+                reason,
+                prompt_eval_count=response.get("prompt_eval_count"),
+                eval_count=response.get("eval_count"),
+                done=response.get("done"),
+                done_reason=response.get("done_reason"),
+                response_length=response_length,
+            )
+
+        if response.get("done") is False or response.get("done_reason") == "length":
+            raise rejected("generation truncated")
         if (
             response.get("model") != self._settings.model
             or not isinstance(raw, str)
             or not raw
         ):
-            raise ValueError("local Summary response envelope is invalid")
+            raise rejected("response envelope is invalid")
         try:
             parsed = json.loads(raw)
             if not isinstance(parsed, Mapping):
@@ -120,11 +142,9 @@ class OllamaSummaryProvider:
                 "/".join(str(part) for part in item["loc"])
                 for item in error.errors(include_input=False)
             )
-            raise ValueError(
-                f"local Summary failed domain validation at: {locations}"
-            ) from None
+            raise rejected(f"domain validation failed at: {locations}") from None
         except (json.JSONDecodeError, TypeError, ValueError):
-            raise ValueError("local Summary failed structured or grounding validation") from None
+            raise rejected("structured or grounding validation failed") from None
         self._raw = json.dumps(
             response, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         )
@@ -152,13 +172,13 @@ class OllamaSummaryProvider:
         except (TimeoutError, OSError, urllib.error.URLError):
             raise RuntimeError("local Summary model is unavailable") from None
         if len(raw) > _MAX_RESPONSE_BYTES:
-            raise ValueError("local Summary response exceeded its bound")
+            raise KnownLocalSummaryResponseError("response exceeded its bound")
         try:
             value = json.loads(raw.decode("utf-8", errors="strict"))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ValueError("local Summary response envelope is invalid") from None
+            raise KnownLocalSummaryResponseError("response envelope is invalid") from None
         if not isinstance(value, Mapping):
-            raise ValueError("local Summary response envelope is invalid")
+            raise KnownLocalSummaryResponseError("response envelope is invalid")
         return value
 
     def _preflight(self) -> None:

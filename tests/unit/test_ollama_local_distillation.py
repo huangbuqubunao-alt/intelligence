@@ -111,15 +111,24 @@ def test_local_distillation_is_exact_digest_loopback_and_structured(
             outbound = json.loads(request.data)
             assert outbound["model"] == "qwen3:8b"
             assert outbound["stream"] is False
+            assert outbound["options"]["num_ctx"] == 8_192
             schemas = outbound["format"]["anyOf"]
             assert len(schemas) == 2
             intelligence_schema, zero_schema = schemas
             assert "result" not in intelligence_schema["properties"]
             assert intelligence_schema["additionalProperties"] is False
+            assert intelligence_schema["properties"]["evidence"]["items"]["properties"]["stance"]["enum"] == [
+                "supporting", "contradicting", "conditional"
+            ]
             assert zero_schema["properties"]["result"]["enum"] == [
                 "NO_NEW_INTELLIGENCE"
             ]
-            assert "in en" in outbound["messages"][0]["content"]
+            prompt = outbound["messages"][0]["content"]
+            assert "in en" in prompt
+            assert "Admission is a threshold, not a quota" in prompt
+            assert "attribute it and do not present it as established fact" in prompt
+            assert "cite only relevant supplied Evidence" in prompt
+            assert "every supplied Evidence ID and timestamp once" in prompt
             body = {
                 "model": "qwen3:8b",
                 "message": {"content": '{"result":"NO_NEW_INTELLIGENCE"}'},
@@ -131,12 +140,18 @@ def test_local_distillation_is_exact_digest_loopback_and_structured(
 
     monkeypatch.setattr("youtube_intel.distillation.urllib.request.urlopen", urlopen)
     assert transport.transport_kind is DistillationTransportKind.LOCAL_PRODUCTION
-    assert transport.is_authorized_for_normal_production(_input())
+    assert transport.is_authorized_for_qualification(_input())
+    assert not transport.is_authorized_for_normal_production(_input())
+    assert transport.available
     result = transport.generate(_input())
     assert result.actual_provider == "ollama"
     assert result.actual_model == "qwen3:8b"
     assert result.input_tokens == 400 and result.output_tokens == 50
     assert result.cost_microunits is None
+    assert [request.full_url.rsplit("/", 1)[-1] for request in requests] == [
+        "tags",
+        "chat",
+    ]
     assert len(requests) == 2
     assert all(
         request.full_url.startswith("http://127.0.0.1:11434/") for request in requests
@@ -150,3 +165,13 @@ def test_local_distillation_refuses_same_model_name_with_unexpected_digest() -> 
     transport = OllamaLocalDistillationTransport(settings=settings)
     assert transport.is_authorized_for_normal_production(_input()) is False
     assert transport.available is False
+
+
+def test_qualified_summary_model_is_not_automatically_qualified_for_intelligence() -> None:
+    transport = OllamaLocalDistillationTransport(
+        settings=LocalScoringSettings(
+            model="qwen3:8b", expected_model_digest=_DIGEST
+        )
+    )
+    assert transport.is_authorized_for_qualification(_input()) is True
+    assert transport.is_authorized_for_normal_production(_input()) is False

@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
 from datetime import timedelta as td
 from importlib import resources
@@ -90,6 +91,13 @@ EXPECTED_TABLES = {
     "distillation_cards",
     "distillation_execution_checkpoints",
     "distillation_no_new_intelligence_results",
+    "distillation_cloud_authorizations",
+    "distillation_openai_cloud_authorizations",
+    "distillation_moonshot_cloud_authorizations",
+    "distillation_unidentified_http_responses",
+    "distillation_openai_unidentified_http_responses",
+    "distillation_moonshot_unidentified_http_responses",
+    "distillation_cloud_response_failures",
     "distillation_resource_usage",
     "job_attempts",
     "jobs",
@@ -817,12 +825,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "024_bind_current_summary_to_content.sql")
+        .joinpath("migrations", "028_add_cloud_response_failure_ledger.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 24
-    assert first.name == "024_bind_current_summary_to_content.sql"
+    assert first.version == 28
+    assert first.name == "028_add_cloud_response_failure_ledger.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -837,7 +845,152 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 24
+    assert migration_count == 28
+    with _raw_connection(path) as connection:
+        failure_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(distillation_cloud_response_failures)"
+            )
+        }
+        usage_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(distillation_resource_usage)")
+        }
+    assert "http_status_code" in failure_columns
+    assert "http_status_code" in usage_columns
+
+
+def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    migrations = repository._load_migrations()
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:27])
+    assert repository.initialize(now=NOW).version == 27
+    with _raw_connection(path) as connection:
+        history_before = tuple(
+            tuple(row)
+            for row in connection.execute(
+                "SELECT version, name, checksum, applied_at "
+                "FROM schema_migrations ORDER BY version"
+            )
+        )
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
+
+    assert repository.initialize(now=NOW).version == 28
+    with _raw_connection(path) as connection:
+        history_after = tuple(
+            tuple(row)
+            for row in connection.execute(
+                "SELECT version, name, checksum, applied_at "
+                "FROM schema_migrations ORDER BY version"
+            )
+        )
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
+    assert history_after[:27] == history_before
+    assert history_after[27][0:2] == (
+        28,
+        "028_add_cloud_response_failure_ledger.sql",
+    )
+
+
+def test_m028_failure_rolls_back_schema_history_and_user_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _database_path(tmp_path)
+    repository = SQLiteStateRepository(path)
+    migrations = repository._load_migrations()
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:27])
+    assert repository.initialize(now=NOW).version == 27
+    malformed = replace(
+        migrations[27],
+        sql=(
+            "CREATE TABLE m028_partial_probe (id TEXT);\n"
+            "CREATE TABLE bad_syntax(;"
+        ),
+        checksum="8" * 64,
+    )
+    monkeypatch.setattr(
+        repository, "_load_migrations", lambda: (*migrations[:27], malformed)
+    )
+    with pytest.raises(MigrationError, match="failed to apply migration 28"):
+        repository.initialize(now=NOW)
+    with _raw_connection(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 27
+        assert connection.execute(
+            "SELECT COUNT(*) FROM schema_migrations"
+        ).fetchone()[0] == 27
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'm028_partial_probe'"
+        ).fetchone() is None
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(distillation_resource_usage)")
+        }
+        assert "http_status_code" not in columns
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
+    assert repository.initialize(now=NOW).version == 28
+
+
+def test_m026_failure_rolls_back_schema_history_and_user_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    migrations = repository._load_migrations()
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:25])
+    assert repository.initialize(now=NOW).version == 25
+    malformed = replace(
+        migrations[25],
+        sql="CREATE TABLE m026_partial_probe (id TEXT);\nCREATE TABLE bad_syntax(;",
+        checksum="e" * 64,
+    )
+    monkeypatch.setattr(repository, "_load_migrations", lambda: (*migrations[:25], malformed))
+    with pytest.raises(MigrationError, match="failed to apply migration 26"):
+        repository.initialize(now=NOW)
+    with _raw_connection(_database_path(tmp_path)) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 25
+        assert connection.execute(
+            "SELECT COUNT(*) FROM schema_migrations"
+        ).fetchone()[0] == 25
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'm026_partial_probe'"
+        ).fetchone() is None
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
+    assert repository.initialize(now=NOW).version == 28
+
+
+def test_m027_failure_rolls_back_schema_history_and_user_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    migrations = repository._load_migrations()
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:26])
+    assert repository.initialize(now=NOW).version == 26
+
+    malformed = replace(
+        migrations[26],
+        sql="CREATE TABLE m027_partial_probe (id TEXT);\nCREATE TABLE bad_syntax(;",
+        checksum="f" * 64,
+    )
+    monkeypatch.setattr(
+        repository, "_load_migrations", lambda: (*migrations[:26], malformed)
+    )
+    with pytest.raises(MigrationError, match="failed to apply migration 27"):
+        repository.initialize(now=NOW)
+    with _raw_connection(_database_path(tmp_path)) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 26
+        assert connection.execute(
+            "SELECT COUNT(*) FROM schema_migrations"
+        ).fetchone()[0] == 26
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'm027_partial_probe'"
+        ).fetchone() is None
+
+    monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
+    assert repository.initialize(now=NOW).version == 28
+    assert repository.initialize(now=NOW).version == 28
 
 
 def test_m024_rejects_current_summary_for_missing_content(tmp_path: Path) -> None:
@@ -889,7 +1042,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 24
+    assert upgraded.initialize(now=NOW).version == 28
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -918,10 +1071,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 24
+    assert upgraded.initialize(now=NOW).version == 28
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 24
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 28
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0
@@ -940,6 +1093,7 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
         "distillation_no_new_result_immutable_update",
         "distillation_no_new_result_immutable_delete",
         "distillation_no_new_checkpoint_terminal",
+        "distillation_no_new_http_status_bound",
     }
 
 

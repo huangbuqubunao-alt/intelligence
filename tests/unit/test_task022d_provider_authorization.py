@@ -7,6 +7,7 @@ import pytest
 from youtube_intel.distillation import (
     CloudDistillationAuthorization,
     DistillationCapabilityScope,
+    M12QualifiedCloudProductionAuthorizationAuthority,
     NormalV1ProductionAuthorizationAuthority,
     ProviderProductionEligibility,
 )
@@ -95,3 +96,27 @@ def test_backend_authority_mints_normal_production_state_without_forcing_cloud()
     assert disabled.production_eligible is True
     assert disabled.cloud_enabled is False
     assert enabled.cloud_enabled is True
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "scope", "expected"),
+    [
+        ("moonshot", "kimi-k2.6", DistillationCapabilityScope.V1_VIDEO_DISTILLATION, True),
+        ("moonshot", "kimi-k3", DistillationCapabilityScope.V1_VIDEO_DISTILLATION, False),
+        ("nvidia_nim", "moonshotai/kimi-k3", DistillationCapabilityScope.V1_VIDEO_DISTILLATION, False),
+        ("openai", "gpt-4.1", DistillationCapabilityScope.V1_VIDEO_DISTILLATION, False),
+        ("moonshot", "kimi-k2.6", DistillationCapabilityScope.DEEP_ANALYSIS, False),
+    ],
+)
+def test_m12_selected_cloud_authority_is_exact(
+    provider: str,
+    model: str,
+    scope: DistillationCapabilityScope,
+    expected: bool,
+) -> None:
+    eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
+        provider=provider, model=model, capability_scope=scope, available=True,
+    )
+    assert eligibility.qualified is expected
+    assert eligibility.authorized is expected
+    assert eligibility.production_eligible is expected

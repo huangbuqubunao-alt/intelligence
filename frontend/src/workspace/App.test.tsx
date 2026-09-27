@@ -303,10 +303,10 @@ beforeEach(() => {
             output_language_updated_at: null,
           },
           providers: [{
-            provider: "NVIDIA NIM",
-            model: "moonshotai/kimi-k3",
+            provider: "moonshot",
+            model: "kimi-k2.6",
             adapter_available: true,
-            authorized: true,
+            authorized: false,
             production_eligible: true,
             qualification_status: "QUALIFIED",
             scope: "V1_VIDEO_DISTILLATION_ONLY",
@@ -370,6 +370,50 @@ test("Content shows explicit no-new Intelligence success without confidence", as
   expect(screen.getByText(/nothing reached the threshold for adding new Intelligence/i)).toBeTruthy();
   expect(screen.queryByText(/\b\d+%\b/)).toBeNull();
   expect(screen.queryByText(/low confidence|medium confidence|high confidence/i)).toBeNull();
+});
+
+test("local Intelligence pause discloses cloud scope without sending data", async () => {
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/videos/video-1")) {
+      return response({
+        video: {
+          video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
+          title: "Local-first Content", source_url: "https://youtube.test/video-1",
+          published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
+          last_updated: "2026-09-01T00:00:00Z",
+        },
+        transcript: { status: "AVAILABLE", text: "Original transcript." },
+        note: { v2: { status: "AVAILABLE", language: "zh-CN", summary: "Local Summary." } },
+        intelligence_result: {
+          status: "WAITING_MODEL", execution_id: "local-waiting", has_new_intelligence: false,
+          intelligence_id: null, revision_id: null, updated_at: "2026-09-01T00:00:00Z",
+        },
+        history: [],
+      });
+    }
+    if (input.endsWith("/videos")) {
+      return response({ videos: [{
+        video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
+        title: "Local-first Content", source_url: "https://youtube.test/video-1",
+        published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
+        last_updated: "2026-09-01T00:00:00Z",
+      }] });
+    }
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Local-first Content/ }));
+  expect(await screen.findByText("Local Summary.")).toBeTruthy();
+  expect(screen.getByText(/current local model cannot reliably create high-quality Intelligence/i)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Review high-quality Intelligence" }));
+  expect(screen.getByText(/Provider: Moonshot · Model: kimi-k2.6 \(thinking disabled\)/)).toBeTruthy();
+  expect(screen.getByText(/Moonshot API usage is billed separately/)).toBeTruthy();
+  expect(screen.getByText(/Cost for this execution: UNKNOWN/)).toBeTruthy();
+  expect(screen.getByText(/does not authorize a request or send data/)).toBeTruthy();
+  expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -912,6 +956,126 @@ test("an empty Dashboard explains the next useful step in ordinary language", as
   expect(screen.getByRole("button", { name: "Add Following" })).toBeTruthy();
 });
 
+test("fresh onboarding explains local-first processing and keeps its sample UI-only", async () => {
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/dashboard")) {
+      return response({
+        intelligence: [],
+        pinned_topics: [],
+        weekly_v1: [],
+        needs_attention: [],
+        operations: { source_count: 0 },
+      });
+    }
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  expect(await screen.findByText("FIRST RUN · 1 / 3")).toBeTruthy();
+  expect(screen.getByText("Turn what you follow into traceable knowledge.")).toBeTruthy();
+  const productConcepts = document.querySelector(".onboarding-value-grid");
+  for (const concept of ["Following", "Content", "Intelligence"]) {
+    expect(productConcepts?.textContent).toContain(concept);
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByText("FIRST RUN · 2 / 3")).toBeTruthy();
+  expect(screen.getByText("Recommended")).toBeTruthy();
+  expect(screen.getByText(
+    "Use local capability first. Never make a paid cloud call unless you explicitly opt in.",
+  )).toBeTruthy();
+  expect(screen.getByText(/instead of silently falling back/)).toBeTruthy();
+  expect(screen.getByText("SYNTHETIC SAMPLE")).toBeTruthy();
+  expect(screen.getByText(
+    "UI-only example · not written to your library · no network or model call",
+  )).toBeTruthy();
+  const sample = screen.getByLabelText("Synthetic sample experience");
+  for (const stage of ["Content", "Summary", "Evidence · supporting", "Intelligence", "Topic"]) {
+    expect(within(sample).getByText(stage)).toBeTruthy();
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByText("FIRST RUN · 3 / 3")).toBeTruthy();
+  expect(screen.getByText("Local-first processing")).toBeTruthy();
+  expect(screen.getByText(/public YouTube source is processed locally first/i))
+    .toBeTruthy();
+  expect(screen.getByText(/can take a little time/i)).toBeTruthy();
+  expect(screen.getByText(/pauses and explains why/i)).toBeTruthy();
+  expect(screen.getByText(/will not silently switch to a cloud model/i))
+    .toBeTruthy();
+  expect(screen.queryByText(/Runtime qualification is separate/)).toBeNull();
+  expect(screen.queryByText(/production Following configuration path/))
+    .toBeNull();
+  expect(fetchMock.mock.calls.some(([, init]) =>
+    ["POST", "PUT", "PATCH", "DELETE"].includes(init?.method ?? "GET")
+  )).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add first Following" }));
+  expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
+});
+
+test("historical Weekly data does not show a Brief or trigger first-run onboarding", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string) => {
+      if (input.endsWith("/dashboard")) {
+        return response({
+          intelligence: [],
+          pinned_topics: [],
+          weekly_v1: [{
+            brief_id: "historic-week-1",
+            version: "V1",
+            period_start: "2026-09-01T00:00:00Z",
+            no_important_information: false,
+            items: [{
+              topic_name: "Topic",
+              intelligence_id: "historic-intel-1",
+              claim_kind: "FACT",
+              source_state: "AVAILABLE",
+              summary: "An old weekly summary.",
+              evidence_ids: [],
+              markers: [],
+            }],
+          }],
+          needs_attention: [],
+          operations: { source_count: 0 },
+        });
+      }
+      return response({});
+    }),
+  );
+  render(<App />);
+
+  expect(await screen.findByText("No important new intelligence yet."))
+    .toBeTruthy();
+  expect(screen.queryByText("This week")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Open Weekly" })).toBeNull();
+  expect(screen.queryByText("An old weekly summary.")).toBeNull();
+  expect(screen.queryByText("Turn what you follow into traceable knowledge."))
+    .toBeNull();
+});
+
+test("Intelligence keeps Current and Saved while omitting the Weekly read surface", async () => {
+  const fetchMock = vi.fn((input: string) => {
+    if (input.endsWith("/intelligence")) {
+      return response({ intelligence: [intelligence] });
+    }
+    if (input.endsWith("/saved-intelligence")) return response({ saved: [] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+
+  expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Current" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Saved" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Weekly" })).toBeNull();
+  expect(fetchMock.mock.calls.some(([input]) =>
+    String(input).endsWith("/weekly/v1")
+  )).toBe(false);
+});
+
 test("verified Intelligence explains its disputed validation posture without inventing confidence", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
@@ -1024,14 +1188,14 @@ test("Settings preserves preference provenance and renders unknown resource valu
 test("Settings presents Kimi scope truthfully and keeps provider mechanics collapsed", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-  expect(await screen.findByText("Video Distillation")).toBeTruthy();
-  expect(screen.getByText("Available for V1 video analysis only."))
+  expect(await screen.findByRole("heading", { name: "Intelligence" })).toBeTruthy();
+  expect(screen.getByText("Qualified for V1 video analysis. Each cloud execution requires your separate consent."))
     .toBeTruthy();
   expect(screen.getByText("Deep Analysis is unavailable.")).toBeTruthy();
   const disclosure =
     screen.getByText("Provider and model details").parentElement;
   expect(disclosure?.hasAttribute("open")).toBe(false);
-  expect(screen.getByText("NVIDIA NIM · moonshotai/kimi-k3")).toBeTruthy();
+  expect(screen.getByText("moonshot · kimi-k2.6")).toBeTruthy();
   expect(screen.getByText("Scope: Video Distillation only.")).toBeTruthy();
 });
 
@@ -1263,24 +1427,51 @@ test("Source setup writes only through the existing Source, policy, and schedule
   );
 });
 
-test("Saved, Topic, and Weekly keep trust meaning while hiding backend codes from primary reading", async () => {
+test("Saved and Topic keep trust meaning while hiding backend codes from primary reading", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   fireEvent.click(await screen.findByRole("button", { name: "Saved" }));
   expect(await screen.findByText(/no longer available as current Intelligence/))
     .toBeTruthy();
   expect(screen.queryByText("CURRENT_NOT_ACTIVE")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
-  expect(await screen.findByText(/What mattered · Sep 1, 2026/)).toBeTruthy();
-  const summary = screen.getByText("A factual weekly change.");
-  const fact = screen.getByText("Fact");
-  expect(
-    summary.compareDocumentPosition(fact) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).not.toBe(0);
-  expect(
-    screen.getByText("Evidence references").parentElement?.hasAttribute("open"),
-  ).toBe(false);
+  expect(screen.queryByRole("button", { name: "Weekly" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Topics" }));
   expect(await screen.findByText(/Some support is unavailable/)).toBeTruthy();
   expect(screen.queryByText("DEGRADED")).toBeNull();
+});
+
+test("an admitted Intelligence can create and link a Topic through the UI", async () => {
+  const baseline = fetch;
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/topics") && init?.method === "POST") {
+      return response({ topic: { ...topic, topic_id: "topic:from-intelligence:intel-1", name: "Transformer research" } });
+    }
+    if (input.endsWith("/topics/topic:from-intelligence:intel-1/associations")) {
+      return response({ association: { topic_id: "topic:from-intelligence:intel-1" } });
+    }
+    return baseline(input, init);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add to a Topic" }));
+  fireEvent.change(screen.getByLabelText("Topic name"), {
+    target: { value: "Transformer research" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create Topic and link Intelligence" }));
+  expect(await screen.findByText("Linked to Topic: Transformer research")).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/topics",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ command_id: "from-intelligence:intel-1", name: "Transformer research" }),
+    }),
+  );
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/topics/topic:from-intelligence:intel-1/associations",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ intelligence_id: "intel-1", association_kind: "NEW_INFORMATION" }),
+    }),
+  );
 });
