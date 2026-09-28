@@ -6,6 +6,11 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-first-run", "--no-default-browser-check"],
 });
+const newEnglishPage = async (viewport) => {
+  const page = await browser.newPage({ viewport });
+  await page.addInitScript(() => localStorage.setItem("yia.ui-language", "en"));
+  return page;
+};
 const consoleErrors = [];
 const externalRequests = [];
 const failedResponses = [];
@@ -15,7 +20,8 @@ const observeResponses = (page, name) => page.on("response", (response) => {
   if (response.status() >= 400) failedResponses.push(`${name} ${response.status()} ${response.url()}`);
 });
 const baseUrl = process.env.YIA_E2E_BASE_URL ?? "http://127.0.0.1:5174/";
-const screenshotRoot = new URL("../.var/task-026a-audit/final/", import.meta.url).pathname;
+const screenshotRoot = process.env.YIA_E2E_SCREENSHOT_ROOT
+  ?? new URL("../.var/task-026a-audit/final/", import.meta.url).pathname;
 const frozenNav = ["Home", "Following", "Content", "Intelligence", "Topics", "Settings"];
 const forbiddenPrimaryTerms = [
   "TASK-",
@@ -34,7 +40,7 @@ const forbiddenPrimaryTerms = [
 mkdirSync(screenshotRoot, { recursive: true });
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 }]) {
-  const page = await browser.newPage({ viewport });
+  const page = await newEnglishPage(viewport);
   const viewportName = `${viewport.width}x${viewport.height}`;
   observeResponses(page, viewportName);
   await page.route("**/api/v1/backup-restore/status", async (route) => {
@@ -103,7 +109,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.getByText("What is new", { exact: true }).first().waitFor();
   await page.getByText("Important details", { exact: true }).first().waitFor();
   await page.getByText("Evidence and source", { exact: true }).first().click();
-  await page.getByRole("button", { name: "译文", exact: true }).first().click();
+  await page.getByRole("button", { name: "Translation", exact: true }).first().click();
   await page.getByText("Relation not determined", { exact: true }).waitFor();
   await page.getByText("Translation unavailable. Original Evidence remains authoritative.", { exact: true }).first().waitFor();
   await page.getByText("3Blue1Brown", { exact: true }).first().waitFor();
@@ -177,7 +183,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
   await page.close();
 }
 
-const stancePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const stancePage = await newEnglishPage({ width: 1440, height: 900 });
 observeResponses(stancePage, "stance");
 stancePage.setDefaultTimeout(7000);
 stancePage.on("console", (message) => {
@@ -237,13 +243,13 @@ for (const label of ["Supporting", "Contradicting", "Conditional", "Relation not
 }
 await stanceTrace.getByText("可信的中文译文只展示同一 Evidence。", { exact: true }).waitFor();
 if (await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).count()) throw new Error("Default translated mode also rendered the original excerpt");
-await stanceTrace.getByRole("button", { name: "双语", exact: true }).first().click();
+await stanceTrace.getByRole("button", { name: "Bilingual", exact: true }).first().click();
 await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).waitFor();
-await stanceTrace.getByRole("button", { name: "原文", exact: true }).first().click();
+await stanceTrace.getByRole("button", { name: "Original", exact: true }).first().click();
 await stanceTrace.getByText("Trusted fixture source excerpt.", { exact: true }).waitFor();
 if (await stanceTrace.getByText("可信的中文译文只展示同一 Evidence。", { exact: true }).count()) throw new Error("Original mode rendered translated text");
-await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "译文", exact: true }).click();
-await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "生成译文", exact: true }).click();
+await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "Translation", exact: true }).click();
+await stanceTrace.locator(".evidence-trace-item").nth(1).getByRole("button", { name: "Generate translation", exact: true }).click();
 await stanceTrace.getByText("第二条 Evidence 在原文之外拥有单独的本地译文。", { exact: true }).waitFor();
 if (await stanceTrace.getByText("Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.", { exact: true }).count() !== 2) throw new Error("Evidence excerpt unavailable state count is wrong");
 if (await stanceTrace.getByText("Translation unavailable. Original Evidence remains authoritative.", { exact: true }).count() !== 2) throw new Error("Evidence translation unavailable state count is wrong");
@@ -258,7 +264,7 @@ await stancePage.getByRole("heading", { name: "Content", exact: true }).waitFor(
 await stancePage.getByText("But what is a neural network? | Deep learning chapter 1", { exact: true }).waitFor();
 await stancePage.close();
 
-const summaryPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const summaryPage = await newEnglishPage({ width: 1440, height: 900 });
 observeResponses(summaryPage, "summary");
 summaryPage.setDefaultTimeout(7000);
 summaryPage.on("console", (message) => {
@@ -305,7 +311,7 @@ await summaryPage.getByText("Evidence references", { exact: true }).click();
 await summaryPage.getByText("browser-evidence", { exact: true }).waitFor();
 await summaryPage.close();
 
-const resultPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const resultPage = await newEnglishPage({ width: 1440, height: 900 });
 resultPage.setDefaultTimeout(7000);
 resultPage.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(`result: ${message.text()}`);
@@ -383,24 +389,24 @@ await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
 await resultPage.getByText("Translation unavailable.", { exact: true }).waitFor();
 const contentSourceTrace = resultPage.getByRole("link", { name: "Open original at timestamp", exact: true });
 if (!((await contentSourceTrace.getAttribute("href")) ?? "").includes("t=12")) throw new Error("Content Evidence timestamp does not preserve source trace");
-await resultPage.getByRole("button", { name: "译文", exact: true }).first().click();
-await resultPage.getByRole("button", { name: "生成译文", exact: true }).click();
+await resultPage.getByRole("button", { name: "Translation", exact: true }).first().click();
+await resultPage.getByRole("button", { name: "Generate translation", exact: true }).click();
 await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
 if (await resultPage.getByText(contentEvidenceOriginal, { exact: true }).count()) throw new Error("Content translated mode also displayed the original excerpt");
-await resultPage.getByRole("button", { name: "双语", exact: true }).click();
+await resultPage.getByRole("button", { name: "Bilingual", exact: true }).click();
 await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
 await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
-await resultPage.getByRole("button", { name: "原文", exact: true }).click();
+await resultPage.getByRole("button", { name: "Original", exact: true }).click();
 await resultPage.getByText(contentEvidenceOriginal, { exact: true }).waitFor();
 if (await resultPage.getByText(contentEvidenceTranslation, { exact: true }).count()) throw new Error("Content original mode displayed the translation");
-await resultPage.getByRole("button", { name: "译文", exact: true }).click();
+await resultPage.getByRole("button", { name: "Translation", exact: true }).click();
 await resultPage.getByText(contentEvidenceTranslation, { exact: true }).waitFor();
 const resultText = await resultPage.locator("body").innerText();
 if (/\b\d+%\b/.test(resultText)) throw new Error("Zero result invented a confidence percentage");
 if (/\b(low|medium|high) confidence\b/i.test(resultText)) throw new Error("Zero result invented a confidence label");
 await resultPage.close();
 
-const admittedPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const admittedPage = await newEnglishPage({ width: 1440, height: 900 });
 admittedPage.setDefaultTimeout(7000);
 admittedPage.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(`admitted: ${message.text()}`);

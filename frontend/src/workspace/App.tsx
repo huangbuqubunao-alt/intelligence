@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "
 import { api, patch, post, put, uploadZip } from "../api/client";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
-import { UiLanguageProvider, useUiLanguage } from "./uiLanguage";
+import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 
 type Page =
   | "Home"
@@ -178,7 +178,14 @@ type ContentDetail = {
     revision_id: string | null;
     updated_at: string | null;
   };
-  history: { timestamp: string; status: string; summary: string }[];
+  history: {
+    timestamp: string;
+    type?: string;
+    status: string;
+    summary: string;
+    code?: string | null;
+    context?: { stage?: string };
+  }[];
 };
 type ContentEvidence = {
   evidence_id: string;
@@ -272,6 +279,7 @@ function statusLabel(value: string) {
     BLOCKED: "Unavailable",
     NEEDS_ATTENTION: "Needs attention",
     SUCCEEDED: "Completed",
+    NOT_PROCESSED: "Not processed",
     PENDING: "Waiting",
     RUNNING: "Running",
     NOT_RELEVANT: "Skipped",
@@ -297,6 +305,26 @@ function statusLabel(value: string) {
     ACTIVE: "Active",
     VERIFIED: "Verified",
     SKIPPED: "Skipped",
+    DISCOVERED: "Discovered",
+    METADATA_READY: "Metadata ready",
+    DEFERRED: "Deferred",
+    TRANSCRIPT_READY: "Transcript ready",
+    SCORED: "Scored",
+    LOW_VALUE_READY: "Low-value content",
+    ANALYSIS_READY: "Analysis ready",
+    NOTE_WRITTEN: "Summary ready",
+    COMPLETE: "Complete",
+    SKIPPED_DURATION_LIMIT: "Skipped: duration limit",
+    QUEUED: "Queued",
+    WAITING: "Waiting",
+    PARTIAL: "Partially complete",
+    COMPLETED: "Completed",
+    FAILED: "Failed",
+    FAILED_FINAL: "Failed",
+    FAILED_RETRYABLE: "Retry pending",
+    CANCELLED: "Cancelled",
+    SOURCE_CHECK_FAILED: "Source check failed",
+    UNCERTAIN: "Needs a relevance decision",
   };
   return labels[value] ??
     value.replaceAll("_", " ").toLowerCase().replace(
@@ -344,7 +372,7 @@ function ErrorState({ error }: { error: string }) {
 }
 function humanDate(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat("en", {
+  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(savedLanguage(), {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -401,6 +429,7 @@ function intelligenceStateLabel(state?: string) {
 }
 function filterReason(reason?: string) {
   return ({
+    NO_FOCUS_RULES: "No focus words were set, so this video's relevance could not be decided. It remains unprocessed. Add focus words in this Following's configuration for future checks.",
     IGNORE_RULE_MATCH: "Excluded by your ignore rules.",
     FOCUS_MATCH: "Matched your focus.",
     FOCUS_MISMATCH: "Outside your current focus.",
@@ -431,7 +460,7 @@ function attentionCopy(reason: string | null) {
       "Review the Source configuration to choose the next step.",
     ],
     EXECUTION_CONDITION_UNRESOLVED: [
-      "This run is waiting for a clear decision.",
+      "This run needs a relevance or execution decision.",
       "Your existing Intelligence is unchanged.",
       "Review the Source details to decide what should happen next.",
     ],
@@ -937,7 +966,7 @@ function Workspace() {
       <main className="workspace-main">
         <header className="page-header">
           <div>
-            <p className="eyebrow">INTELLIGENCE</p>
+            <p className="eyebrow">{t("INTELLIGENCE")}</p>
             <h1>{t(page)}</h1>
             <p className="page-subtitle">{t(subtitles[page])}</p>
           </div>
@@ -1144,6 +1173,7 @@ function SavedCard(
     onOpenContent: (videoId: string) => void;
   },
 ) {
+  const { t } = useUiLanguage();
   const detail = useRemote<{ intelligence: Intelligence }>(
     `/intelligence/${item.intelligence_id}`,
     revision,
@@ -1153,8 +1183,7 @@ function SavedCard(
       <div className="semantic-state state-neutral">
         <Status value="UNAVAILABLE" />
         <p>
-          This saved item is no longer available as current Intelligence. Its
-          saved reference remains until you choose Unsave.
+          {t("This saved item is no longer available as current Intelligence. Its saved reference remains until you choose Unsave.")}
         </p>
         <button
           className="button button-secondary"
@@ -1165,7 +1194,7 @@ function SavedCard(
             onChanged();
           }}
         >
-          Unsave
+          {t("Unsave")}
         </button>
       </div>
     );
@@ -1241,6 +1270,9 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   if (!data) return <Empty>Loading Content detail…</Empty>;
   const transcript = data.transcript;
   const note = data.note.v2;
+  const visibleHistory = data.history.filter((event) =>
+    event.type === "JOB_STATUS" || !event.type
+  );
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
@@ -1389,7 +1421,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                               }}>{t("Prepare one request for review")}</button>
                             {cloudReview && (
                               <div>
-                                <p>Source: {cloudReview.source_id}. Evidence items: {cloudReview.evidence_ids.length}. Provider/model: {cloudReview.provider} · {cloudReview.model}. Cost: {cloudReview.cost_status}.</p>
+                                <p>{t("Source")}: {cloudReview.source_id}. {t("Evidence items")}: {cloudReview.evidence_ids.length}. {t("Provider/model")}: {cloudReview.provider} · {cloudReview.model}. {t("Cost")}: {t(cloudReview.cost_status)}.</p>
                                 <p>{t("Review the original Evidence on this Content page before confirming. This permission applies only to this execution.")}</p>
                                 <button type="button" className="button" disabled={cloudBusy}
                                   onClick={async () => {
@@ -1422,11 +1454,15 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         </div>
       </Panel>
       <Panel title="Processing history">
-        {data.history.length
-          ? data.history.slice(0, 12).map((event, index) => (
+        {visibleHistory.length
+          ? visibleHistory.slice(0, 12).map((event, index) => (
             <div className="metadata-row" key={`${event.timestamp}:${event.summary}:${index}`}>
               <span>{humanDate(event.timestamp)}</span>
-              <div><Status value={event.status} /><p>{event.summary}</p></div>
+              <div><Status value={event.status} /><p>{event.code === "INVALID_RESPONSE" && event.context?.stage === "ANALYSIS"
+                ? t("The local Summary did not pass output checks. The transcript remains available; no Summary or Evidence was invented. Check Settings for local model readiness.")
+                : event.type === "JOB_STATUS"
+                  ? <>{t(({ METADATA: "Source metadata", TRANSCRIPT: "Transcript", SCORING: "Scoring", ANALYSIS: "Summary" } as Record<string, string>)[event.context?.stage ?? ""] ?? "Processing")}: {t(statusLabel(event.status))}.</>
+                  : t(event.summary)}</p></div>
             </div>
           ))
           : <Empty>No processing history yet.</Empty>}
@@ -1844,6 +1880,10 @@ function SourceForm(
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (processingPolicy === "STANDARD_INTELLIGENCE" && !ruleList(focus).length) {
+      setError(t("Add at least one focus word to let the app select relevant videos for insight extraction."));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -1990,6 +2030,9 @@ function SourceForm(
                 placeholder={t("Comma-separated terms")}
               />
               <small>{t("Use simple terms that help choose what is relevant.")}</small>
+              {processingPolicy === "STANDARD_INTELLIGENCE" && !ruleList(focus).length
+                ? <small>{t("Add at least one focus word to let the app select relevant videos for insight extraction.")}</small>
+                : null}
             </label>
             <label className="field">
               {t("Ignore")}<input
@@ -2270,6 +2313,7 @@ function SourceDetail(
           {data.recent_videos.length
             ? data.recent_videos.map((video) => {
               const skipped = video.filter?.outcome === "NOT_RELEVANT";
+              const uncertain = video.filter?.outcome === "UNCERTAIN";
               return (
                 <div className="metadata-row" key={video.video_id}>
                   <span>{video.title ?? video.video_id}</span>
@@ -2308,6 +2352,7 @@ function SourceDetail(
                       )
                       : (
                         <p>
+                          {uncertain ? <>{t(filterReason(video.filter?.reason))} </> : null}
                           {t("Current processing state")}: {t(statusLabel(video.processing_status))}.
                         </p>
                       )}
@@ -2790,11 +2835,9 @@ function Settings({ refresh }: { refresh: number }) {
       <Panel title="Source policy (read-only here)">
         <p className="hint">{t("Edit a Following to change its own processing policy.")}</p>
         <p>
-          {t("Default for Followings without their own configuration: initial history")}{" "}
-          {globalPolicy.initial_history_count}, per-run limit{" "}
-          {globalPolicy.per_run_max_new_videos},{" "}
-          {STYLES.find(([value]) => value === globalPolicy.distillation_style)
-            ?.[1] ?? "Balanced"} style.
+          {language === "zh-CN"
+            ? `未单独配置的关注默认采用：首次纳入 ${globalPolicy.initial_history_count} 个视频，每次检查最多 ${globalPolicy.per_run_max_new_videos} 个新视频，提炼方式为${t(STYLES.find(([value]) => value === globalPolicy.distillation_style)?.[1] ?? "Balanced")}。`
+            : `Default for Followings without their own configuration: initial history ${globalPolicy.initial_history_count}, per-run limit ${globalPolicy.per_run_max_new_videos}, ${STYLES.find(([value]) => value === globalPolicy.distillation_style)?.[1] ?? "Balanced"} style.`}
         </p>
       </Panel>
       <Panel title="Models and cost (read-only)">
@@ -2805,9 +2848,11 @@ function Settings({ refresh }: { refresh: number }) {
                 <h3>{t("Scoring and Summary")}</h3>
                 <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
               </div>
-              <p>{t(localFoundation.adapter_available
-                ? `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
-                : "The local model is unavailable; existing Content and Evidence remain readable.")}</p>
+              <p>{localFoundation.adapter_available
+                ? language === "zh-CN"
+                  ? `使用本地模型 ${localFoundation.model} 运行；原始证据保留在这台 Mac 上。`
+                  : `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
+                : t("The local model is unavailable; existing Content and Evidence remain readable.")}</p>
             </article>
           )}
           <article className="capability-card">

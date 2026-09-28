@@ -454,6 +454,47 @@ test.each([
   expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
 });
 
+test("Chinese Content explains an invalid local Summary without leaking job codes", async () => {
+  localStorage.removeItem("yia.ui-language");
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (input.endsWith("/videos/video-1")) return response({
+      video: {
+        video_id: "video-1", channel_id: "channel-1", channel_name: "English source",
+        title: "An English video", source_url: "https://youtube.test/video-1",
+        published_at: "2026-09-01T00:00:00Z", processing_status: "SCORED",
+        last_updated: "2026-09-01T00:00:00Z",
+      },
+      transcript: { status: "AVAILABLE", text: "Original English transcript." },
+      note: { v2: { status: "UNAVAILABLE", code: "CURRENT_SUMMARY_MISSING" } },
+      intelligence_result: {
+        status: "NOT_PROCESSED", execution_id: null, has_new_intelligence: null,
+        intelligence_id: null, revision_id: null, updated_at: null,
+      },
+      history: [{
+        timestamp: "2026-09-01T00:00:00Z", type: "JOB_STATUS", status: "FAILED_FINAL",
+        summary: "ANALYSIS processing is FAILED_FINAL.", code: "INVALID_RESPONSE",
+        context: { stage: "ANALYSIS" },
+      }],
+    });
+    if (input.endsWith("/videos")) return response({ videos: [{
+      video_id: "video-1", channel_id: "channel-1", channel_name: "English source",
+      title: "An English video", source_url: "https://youtube.test/video-1",
+      published_at: "2026-09-01T00:00:00Z", processing_status: "SCORED",
+      last_updated: "2026-09-01T00:00:00Z",
+    }] });
+    return response({});
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /An English video/ }));
+  expect(await screen.findByText(/本地摘要未通过输出检查/)).toBeTruthy();
+  expect(screen.getByText("尚未处理")).toBeTruthy();
+  expect(screen.getAllByText(/2026年9月1日/).length).toBeGreaterThan(0);
+  expect(screen.getByText("Original English transcript.")).toBeTruthy();
+  expect(screen.queryByText(/FAILED_FINAL|INVALID_RESPONSE/)).toBeNull();
+});
+
 test("Content shows explicit no-new Intelligence success without confidence", async () => {
   vi.stubGlobal("fetch", vi.fn((input: string) => {
     if (input.endsWith("/videos/video-1")) {
@@ -1066,7 +1107,7 @@ test("Needs Attention explains every legal category without primary runtime lang
   expect(screen.getByText("This run reached its budget limit.")).toBeTruthy();
   expect(screen.getByText("An external result could not be confirmed.")).toBeTruthy();
   expect(screen.getByText("Your decision is required.")).toBeTruthy();
-  expect(screen.getByText("This run is waiting for a clear decision.")).toBeTruthy();
+  expect(screen.getByText("This run needs a relevance or execution decision.")).toBeTruthy();
   for (const reason of reasons) expect(screen.queryByText(reason)).toBeNull();
   expect(screen.queryByText("Retry", { exact: true })).toBeNull();
 });
@@ -1467,6 +1508,16 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
     "PRODUCT_CASE_FIRST",
     "TREND_OPINION_FIRST",
   ]);
+  expect(screen.getByText(/Add at least one focus word/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Source URL"), {
+    target: { value: "https://youtube.test/new" },
+  });
+  fireEvent.click(screen.getAllByRole("button", { name: "Add Source" }).at(-1)!);
+  expect(screen.getAllByText(/Add at least one focus word/).length).toBeGreaterThan(1);
+  expect(fetch).not.toHaveBeenCalledWith(
+    "/api/v1/sources",
+    expect.objectContaining({ method: "POST" }),
+  );
 });
 
 test("Source setup writes only through the existing Source, policy, and schedule commands", async () => {

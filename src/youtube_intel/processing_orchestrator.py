@@ -537,7 +537,10 @@ class DurableProcessingOrchestrator:
             child = children.get(candidate.video_id)
             if child is not None:
                 if child.state is SourceRunChildState.WAITING:
-                    return SourceRunAttentionReason.MODEL_UNAVAILABLE
+                    # At SOURCE_PREPARATION, WAITING was recorded by an
+                    # uncertain relevance decision during FILTERING. No model
+                    # has been attempted yet.
+                    return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
                 if child.state in {
                     SourceRunChildState.SKIPPED,
                     SourceRunChildState.COMPLETED,
@@ -555,7 +558,10 @@ class DurableProcessingOrchestrator:
             if self._preparation is not None and not self._preparation.prepare(
                 candidate.video_id
             ):
-                return SourceRunAttentionReason.MODEL_UNAVAILABLE
+                # Preparation can fail after a transcript or scoring succeeds,
+                # including an invalid local Summary result. Do not claim the
+                # model is unavailable without that specific evidence.
+                return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
             evidence_ids = self._repository.list_available_canonical_evidence_ids(
                 candidate.video_id
             )

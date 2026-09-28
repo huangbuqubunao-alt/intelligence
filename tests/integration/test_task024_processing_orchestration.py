@@ -30,6 +30,7 @@ from youtube_intel.orchestration import (
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
     DurableProcessingOrchestrator,
+    SourceRunPreparation,
     TopicAssociationUpdater,
 )
 from youtube_intel.source_policy import (
@@ -288,6 +289,7 @@ def _orchestrator(
     *,
     budget: _Budget | None = None,
     topic_updater: TopicAssociationUpdater | None = None,
+    preparation: SourceRunPreparation | None = None,
 ) -> DurableProcessingOrchestrator:
     policy = SourcePolicyApplicationService(repository, now=lambda: NOW)
     return DurableProcessingOrchestrator(
@@ -301,6 +303,7 @@ def _orchestrator(
             now=lambda: NOW,
         ),
         topic_updater=topic_updater,
+        preparation=preparation,
         now=lambda: NOW,
     )
 
@@ -1371,7 +1374,10 @@ def test_uncertain_filter_never_calls_stage_two_or_transport(tmp_path: Path) -> 
     attention = service.resume(run.run_id)
 
     assert attention.state is SourceRunState.NEEDS_ATTENTION
-    assert attention.attention_reason is SourceRunAttentionReason.MODEL_UNAVAILABLE
+    assert (
+        attention.attention_reason
+        is SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
+    )
     assert (
         repository.list_source_run_children(run.run_id)[0].state
         is SourceRunChildState.WAITING
@@ -1380,6 +1386,35 @@ def test_uncertain_filter_never_calls_stage_two_or_transport(tmp_path: Path) -> 
     progress = repository.source_run_checkpoint_progress(run.run_id)
     assert progress.completed[-1].value == "FILTERING"
     assert progress.next_checkpoint.value == "SOURCE_PREPARATION"
+
+
+def test_failed_local_preparation_does_not_falsely_report_model_unavailable(
+    tmp_path: Path,
+) -> None:
+    class FailedPreparation:
+        def prepare(self, video_id: str) -> bool:
+            assert video_id == "video-024-one"
+            return False
+
+    repository = _repository(tmp_path)
+    source_id = _source(repository)
+    video_id, _ = _video_with_evidence(repository, source_id)
+    transport = _Transport()
+    service = _orchestrator(repository, transport, preparation=FailedPreparation())
+    run = service.enqueue_manual_check_now(
+        source_id=source_id, command_id="preparation-failed", priority=SourceRunPriority.P0
+    )
+
+    result = service.resume(run.run_id)
+
+    assert video_id == "video-024-one"
+    assert result.state is SourceRunState.NEEDS_ATTENTION
+    assert (
+        result.attention_reason
+        is SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
+    )
+    assert transport.calls == 0
+    assert repository.source_run_checkpoint_progress(run.run_id).next_checkpoint is SourceRunCheckpoint.SOURCE_PREPARATION
 
 
 def test_untrusted_topic_callback_is_not_an_orchestrator_authority(
