@@ -1,6 +1,6 @@
 # M13 — Real 7-Day Owner Dogfood
 
-**Status: SETUP READY; Day 1 has not been counted.** M13 requires one meaningful normal-user Owner session on each of seven distinct local calendar days. Codex setup, health checks, and historical M12 use do not count.
+**Status: M13_DOGFOOD_IN_PROGRESS; Day 1 / 7 complete, P1 remediation open.** M13 requires one meaningful normal-user Owner session on each of seven distinct local calendar days. Codex setup, health checks, and historical M12 use do not count.
 
 ## Starting authority
 
@@ -10,8 +10,8 @@
 - Product profile: local-first; local Scoring, Summary/Video Notes, and Evidence authority; selected optional Intelligence cloud route `moonshot / kimi-k2.6`, thinking disabled, non-streaming, with explicit UI consent for every execution. No K3 qualification or model-strategy change is part of M13.
 - Dogfood workspace: `/Users/hua/Library/Application Support/Intelligence-M13-Dogfood` (one persistent task-owned workspace; runtime data outside Git). Initial GUI Following state is empty. The disabled legacy CLI sample channel in local configuration is not a Following or dogfood data.
 - Local timezone: `Asia/Shanghai`.
-- Actual Day 1 calendar date: **PENDING first real Owner session**.
-- Intended Day 1–Day 7 window: **PENDING**. If the first real Owner session occurs on 2026-09-27, the earliest Day 7 is 2026-10-03; otherwise derive the window from the actual first session and never backdate it.
+- Actual Day 1 calendar date: **2026-09-27**, based on the real Owner-added Following persisted at 20:12:42 Asia/Shanghai, after setup. Feedback was reported on 2026-09-28; the date is grounded in the actual user action, not the app preparation date.
+- Earliest seven-day window: **2026-09-27–2026-10-03**, subject to one meaningful Owner session on each distinct local calendar day. Day 2 has not been counted.
 - Historical M12 interactions, demo fixtures, automated browser actions, and Codex interaction contribute **zero** M13 sessions or usage counts.
 
 ## Setup verification — 2026-09-27
@@ -30,7 +30,40 @@
 
 ## Daily Owner sessions
 
-No Day 1 session has been reported. After the Owner finishes each day's natural use, append a dated section with the session, approximate actions, new and cumulative counts, source traces, restarts, Backup, cloud executions/cost, friction, failures, severity, interventions, and bounded fixes. Do not include credentials, raw transcripts, private unrelated content, or model reasoning text.
+### Day 1 — 2026-09-27
+
+- Session happened: **YES**. The Owner added a real enabled channel Following at 20:12:42 local time and reported the following normal-use feedback on 2026-09-28. The persisted Following action establishes the Day 1 date.
+- Original Owner feedback, preserved before fixes:
+
+```text
+1. Settings → language currently appears to expose only one output-language setting.
+
+Owner expected the product language model to distinguish:
+
+- UI/interface language
+- preferred generated/output language
+- source/content language
+
+2. Preferences / Settings Center is effectively not configurable.
+
+Owner can enter Settings but says almost nothing useful can actually be changed.
+
+3. Add Following → Processing level contains wording similar to:
+
+“将相关视频处理为情报”
+
+Owner does not understand what this means.
+
+4. Owner wants a usable Chinese interface.
+
+5. Owner added a real Following but no Intelligence/洞察 was generated.
+```
+
+- Severity at report: **P1** — core Settings preferences cannot be configured; Chinese UI unavailable; the Following has no visible Intelligence and the Owner cannot tell why. **P2** — Processing level wording is unclear.
+- Approximate actions: Add Following, inspect Settings/language and Processing level, look for Intelligence. Followings added/used: **1**. Contents encountered in persisted state: **0**; new Summaries: **0**; admitted Intelligence: **0**; positive-zero: **0**; Topic changes: **0**; source traces: **0**. Restart: **NO evidence of Owner restart**. Backup: **NO evidence of Owner Backup**. Cloud executions: **0** in the M13 ledger; cost: **UNKNOWN** (no monetary amount asserted).
+- Initial read-only state before remediation: the Following is enabled with `DISCOVER_ONLY` processing policy, no last check, and no source run; Videos, Artifacts, Evidence, Intelligence, Topics, and distillation usage are all zero. The task backend's cloud credential status was `Blocked` at setup. Root-cause analysis and any fixes belong in a separate dated remediation note below; this feedback record must remain intact.
+
+After each later Owner session, append a dated section with actions, new and cumulative counts, source traces, restarts, Backup, cloud executions/cost, friction, failures, severity, interventions, and bounded fixes. Do not include credentials, raw transcripts, private unrelated content, or model reasoning text.
 
 ## Final reconciliation
 
