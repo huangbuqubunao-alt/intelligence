@@ -60,6 +60,7 @@ const response = (value: object) =>
 
 beforeEach(() => {
   location.hash = "";
+  localStorage.setItem("yia.ui-language", "en");
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string, init?: RequestInit) => {
@@ -321,6 +322,136 @@ beforeEach(() => {
       return response({});
     }),
   );
+});
+
+test("UI language defaults to Chinese and a saved English choice survives remount", async () => {
+  localStorage.removeItem("yia.ui-language");
+  const first = render(<App />);
+  expect(screen.getByRole("button", { name: "关注" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  const uiLanguage = await screen.findByLabelText("界面语言");
+  expect((uiLanguage as HTMLSelectElement).value).toBe("zh-CN");
+  fireEvent.change(uiLanguage, { target: { value: "en" } });
+  expect(screen.getByRole("button", { name: "Following" })).toBeTruthy();
+  expect(localStorage.getItem("yia.ui-language")).toBe("en");
+  first.unmount();
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
+  expect((await screen.findByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
+});
+
+test("Chinese Settings separates editable languages from factual and read-only status", async () => {
+  localStorage.removeItem("yia.ui-language");
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  expect((await screen.findByLabelText("界面语言") as HTMLSelectElement).value).toBe("zh-CN");
+  expect((screen.getByLabelText("默认输出语言") as HTMLSelectElement).value).toBe("zh-CN");
+  expect(screen.queryByLabelText("来源语言")).toBeNull();
+  expect(screen.getByText(/原始字幕和证据始终是溯源依据/)).toBeTruthy();
+  expect(screen.getByText("偏好记录（只读）")).toBeTruthy();
+  expect(screen.getByText("来源策略（此处只读）")).toBeTruthy();
+  expect(screen.getByText("模型与费用（只读）")).toBeTruthy();
+  expect(screen.getByText("备份与恢复")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "创建备份" })).toBeTruthy();
+});
+
+test("Chinese Settings reports a qualified cloud model with a blocked runtime credential", async () => {
+  localStorage.removeItem("yia.ui-language");
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.endsWith("/settings")) return response({
+      general: { timezone: "Asia/Shanghai", output_language: "zh-CN", output_language_source: "USER_PREFERENCE", output_language_updated_at: null },
+      providers: [{
+        provider: "moonshot", model: "kimi-k2.6", adapter_available: true,
+        configured: false, credential_status: "BLOCKED", authorized: false,
+        production_eligible: false, qualification_status: "QUALIFIED",
+        scope: "V1_VIDEO_DISTILLATION_ONLY",
+        reason: "Cloud Intelligence requires qualification and an available backend credential.",
+      }],
+    });
+    return defaultFetch(input, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  expect(await screen.findByText(/运行环境缺少凭据/)).toBeTruthy();
+  expect(screen.getByText(/每次云端执行仍需单独同意/)).toBeTruthy();
+});
+
+test("Chinese Following explains discovery-only state and the insight processing choice", async () => {
+  localStorage.removeItem("yia.ui-language");
+  vi.stubGlobal("fetch", vi.fn((input: string) => {
+    if (input.endsWith("/sources/source-1")) return response({
+      source: {
+        source_id: "source-1", channel_id: "channel-1", canonical_url: "https://youtube.test/source",
+        enabled: true, processing_policy: "DISCOVER_ONLY", last_error: null,
+      },
+      policy: { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: [], ignore_rules: [], distillation_style: "BALANCED" },
+      schedules: [], recent_videos: [], source_runs: [],
+    });
+    if (input.endsWith("/sources")) return response({ sources: [{
+      source_id: "source-1", channel_id: "channel-1", canonical_url: "https://youtube.test/source",
+      enabled: true, processing_policy: "DISCOVER_ONLY", last_error: null,
+    }] });
+    return response({});
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "关注" }));
+  fireEvent.click(await screen.findByRole("button", { name: /channel-1/ }));
+  expect(await screen.findByText(/仅发现新视频.*尚未检查/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "编辑设置" }));
+  expect(screen.getByRole("option", { name: "从相关视频中提炼洞察" })).toBeTruthy();
+  expect(screen.getByText(/不是每个视频都会产生洞察/)).toBeTruthy();
+});
+
+test.each([
+  ["SUCCEEDED_NO_NEW_INTELLIGENCE", false, /本次内容没有形成值得长期保留的新洞察/],
+  ["WAITING_MODEL", false, /服务商或运行环境中的凭据不可用/],
+  ["WAITING_MODEL", true, /请先查看数据与费用说明并确认本次执行/],
+  ["REJECTED_EVIDENCE", false, /请检查原始字幕和来源/],
+] as const)("Chinese Content explains %s with cloud availability %s", async (status, cloudAvailable, expected) => {
+  localStorage.removeItem("yia.ui-language");
+  const fetchMock = vi.fn((input: string, _init?: RequestInit) => {
+    if (input.endsWith("/videos/video-1/evidence")) return response({ evidence: [{
+      evidence_id: "evidence-1", artifact_id: "artifact-1", source_language: "en",
+      lineage_kind: "ORIGINAL_TRANSCRIPT", role: "PRIMARY_ORIGINAL",
+      original_excerpt: "The original English Evidence stays unchanged.",
+      translated_excerpt: null, translated_language: null,
+      translation_target_language: "zh-CN", start_ms: 1000, end_ms: 2000,
+      created_at: "2026-09-01T00:00:00Z",
+    }] });
+    if (input.endsWith("/videos/video-1")) return response({
+      video: {
+        video_id: "video-1", channel_id: "channel-1", channel_name: "English source",
+        title: "A real content title", source_url: "https://youtube.test/video-1",
+        published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
+        last_updated: "2026-09-01T00:00:00Z",
+      },
+      cloud_intelligence_available: cloudAvailable,
+      transcript: { status: "AVAILABLE", text: "The original English transcript stays unchanged." },
+      note: { v2: { status: "AVAILABLE", language: "zh-CN", summary: "中文摘要。" } },
+      intelligence_result: {
+        status, execution_id: null, has_new_intelligence: false,
+        intelligence_id: null, revision_id: null, updated_at: null,
+      },
+      history: [],
+    });
+    if (input.endsWith("/videos")) return response({ videos: [{
+      video_id: "video-1", channel_id: "channel-1", channel_name: "English source",
+      title: "A real content title", source_url: "https://youtube.test/video-1",
+      published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
+      last_updated: "2026-09-01T00:00:00Z",
+    }] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /A real content title/ }));
+  expect(await screen.findByText(expected)).toBeTruthy();
+  expect(screen.getByText("The original English transcript stays unchanged.")).toBeTruthy();
+  expect(await screen.findByText("The original English Evidence stays unchanged.")).toBeTruthy();
+  expect(screen.getByText(/来源语言: en/)).toBeTruthy();
+  expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
 });
 
 test("Content shows explicit no-new Intelligence success without confidence", async () => {
@@ -646,21 +777,21 @@ test("Content Evidence supports translated, bilingual, and original modes with s
   expect(evidenceContent.getByRole("link", { name: "Open original at timestamp" })
     .getAttribute("href")).toContain("t=12");
 
-  fireEvent.click(evidenceContent.getByRole("button", { name: "译文" }));
-  fireEvent.click(await evidenceContent.findByRole("button", { name: "生成译文" }));
+  fireEvent.click(evidenceContent.getByRole("button", { name: "Translation" }));
+  fireEvent.click(await evidenceContent.findByRole("button", { name: "Generate translation" }));
   expect(await evidenceContent.findByText(translatedExcerpt)).toBeTruthy();
   expect(generated).toBe(true);
   expect(evidenceContent.queryByText(originalExcerpt)).toBeNull();
 
-  fireEvent.click(evidenceContent.getByRole("button", { name: "双语" }));
+  fireEvent.click(evidenceContent.getByRole("button", { name: "Bilingual" }));
   expect(evidenceContent.getByText(translatedExcerpt)).toBeTruthy();
   expect(evidenceContent.getByText(originalExcerpt)).toBeTruthy();
 
-  fireEvent.click(evidenceContent.getByRole("button", { name: "原文" }));
+  fireEvent.click(evidenceContent.getByRole("button", { name: "Original" }));
   expect(evidenceContent.getByText(originalExcerpt)).toBeTruthy();
   expect(evidenceContent.queryByText(translatedExcerpt)).toBeNull();
 
-  fireEvent.click(evidenceContent.getByRole("button", { name: "译文" }));
+  fireEvent.click(evidenceContent.getByRole("button", { name: "Translation" }));
   expect(evidenceContent.getByText(translatedExcerpt)).toBeTruthy();
   expect(evidenceContent.queryByText(originalExcerpt)).toBeNull();
 });
@@ -710,10 +841,11 @@ test("Settings persists output language for future processing without rewriting 
   });
   vi.stubGlobal("fetch", fetchMock);
 
-  render(<App />);
+  const view = render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   const select = await screen.findByLabelText("Preferred output language");
   expect((select as HTMLSelectElement).value).toBe("zh-CN");
+  expect((screen.getByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
   expect(screen.getByText(/New processing batches use this language/)).toBeTruthy();
   expect(screen.getByText(/historical records stay unchanged/)).toBeTruthy();
   fireEvent.change(select, { target: { value: "en" } });
@@ -733,6 +865,11 @@ test("Settings persists output language for future processing without rewriting 
     ).toBe("en")
   );
   expect(screen.getByText("Saved locally on this Mac.")).toBeTruthy();
+  view.unmount();
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  expect((await screen.findByLabelText("Preferred output language") as HTMLSelectElement).value).toBe("en");
+  expect((screen.getByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
 });
 
 test("Evidence stance and availability states are rendered without inference", async () => {
@@ -768,7 +905,7 @@ test("Evidence stance and availability states are rendered without inference", a
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   fireEvent.click(await screen.findByText("Evidence and source"));
-  fireEvent.click(screen.getAllByRole("button", { name: "译文" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Translation" })[0]);
   expect(screen.getByText("Supporting")).toBeTruthy();
   expect(screen.getByText("Contradicting")).toBeTruthy();
   expect(screen.getByText("Conditional")).toBeTruthy();
@@ -812,7 +949,7 @@ test("Evidence can switch between translated, bilingual, and authoritative origi
   expect(screen.queryByText(intelligence.card.evidence_links[0].original_excerpt))
     .toBeNull();
 
-  fireEvent.click(screen.getAllByRole("button", { name: "双语" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Bilingual" })[0]);
   expect(screen.getByText(intelligence.card.evidence_links[0].original_excerpt))
     .toBeTruthy();
   expect(
@@ -822,7 +959,7 @@ test("Evidence can switch between translated, bilingual, and authoritative origi
   expect(screen.getByRole("link", { name: "Open original at timestamp" }))
     .toBeTruthy();
 
-  fireEvent.click(screen.getAllByRole("button", { name: "原文" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Original" })[0]);
   expect(screen.getByText(intelligence.card.evidence_links[0].original_excerpt))
     .toBeTruthy();
   expect(
@@ -873,8 +1010,8 @@ test("Evidence translation is generated only by an explicit UI action", async ()
   expect(fetchMock.mock.calls.some(([input]) =>
     String(input).endsWith("/evidence/evidence-1/translation")
   )).toBe(false);
-  fireEvent.click(screen.getAllByRole("button", { name: "译文" })[0]);
-  fireEvent.click(await screen.findByRole("button", { name: "生成译文" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "Translation" })[0]);
+  fireEvent.click(await screen.findByRole("button", { name: "Generate translation" }));
   expect(
     await screen.findByText("译文：每个词元都可以关注其他词元的相关上下文。"),
   ).toBeTruthy();
@@ -1179,7 +1316,7 @@ test("Settings preserves preference provenance and renders unknown resource valu
   expect(screen.getByText("Derived")).toBeTruthy();
   expect(screen.getByText("Temporary")).toBeTruthy();
   expect(screen.getByText(/Expires Sep 2, 2026/)).toBeTruthy();
-  expect(screen.getByText("Resource Usage")).toBeTruthy();
+  expect(screen.getByText("Resource Usage (read-only)")).toBeTruthy();
   expect(screen.getByText(/Token usage: Unavailable/)).toBeTruthy();
   expect(screen.getByText(/Cost: Unavailable/)).toBeTruthy();
   expect(screen.queryByText(/estimated/i)).toBeNull();
@@ -1301,12 +1438,12 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
   expect(screen.getByLabelText("Distillation style")).toBeTruthy();
   expect(
     screen.getByText(
-      /recent existing videos are considered when this Source is first added/i,
+      /recent existing videos are considered when this Following is first added/i,
     ),
   ).toBeTruthy();
   expect(
     screen.getByText(
-      /maximum number of new videos processed in one Source Run/i,
+      /maximum number of new videos processed in one check/i,
     ),
   ).toBeTruthy();
   expect(
