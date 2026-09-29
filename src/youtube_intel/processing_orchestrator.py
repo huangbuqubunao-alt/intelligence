@@ -562,7 +562,7 @@ class DurableProcessingOrchestrator:
                 # including an invalid local Summary result. Do not claim the
                 # model is unavailable without that specific evidence.
                 return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
-            evidence_ids = self._repository.list_available_canonical_evidence_ids(
+            evidence_ids = self._repository.list_canonical_coverage_evidence_ids(
                 candidate.video_id
             )
             if not evidence_ids:

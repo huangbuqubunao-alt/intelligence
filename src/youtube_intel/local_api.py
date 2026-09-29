@@ -600,7 +600,7 @@ class LocalApiApplication:
                     if not candidates:
                         raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
                                        "No eligible source and Evidence are available for this Content.")
-                    cloud_evidence_ids = self._repository.list_available_canonical_evidence_ids(video_id)
+                    cloud_evidence_ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
                     reservation = self._cloud_distillation_service.reserve_distillation_execution(
                         source_id=sorted(candidates)[0], video_id=video_id,
                         evidence_ids=cloud_evidence_ids,
@@ -1703,7 +1703,7 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
         target_language = self._output_language_service.effective().value
         evidence_cards: list[dict[str, object]] = []
-        for evidence_id in self._repository.list_available_canonical_evidence_ids(
+        for evidence_id in self._repository.list_evidence_for_presentation(
             video_id
         ):
             evidence = self._repository.get_evidence(evidence_id)
@@ -1769,7 +1769,7 @@ class LocalApiApplication:
             )
         if self._repository.get_video(video_id) is None:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
-        if evidence_id not in self._repository.list_available_canonical_evidence_ids(
+        if evidence_id not in self._repository.list_translatable_evidence_ids(
             video_id
         ):
             raise ApiError(

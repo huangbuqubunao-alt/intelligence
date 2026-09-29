@@ -7206,6 +7206,25 @@ class SQLiteStateRepository:
             video_id, lineage_kinds=(EvidenceLineageKind.EXTRACTION,)
         )
 
+    def list_translatable_evidence_ids(self, video_id: str) -> tuple[str, ...]:
+        """Evidence eligible for presentation-only translation.
+
+        Translation is a reading aid, never an Evidence authority, so
+        eligibility is about *presentable verified source text* rather than a
+        single lineage. Both canonical ``ORIGINAL_TRANSCRIPT`` coverage and
+        Summary-promoted ``EXTRACTION`` spans are source-derived and must pass
+        ``resolve_verified_evidence_text`` to translate, so both are eligible.
+        This is deliberately separate from the Intelligence candidate policy,
+        which stays ``ORIGINAL_TRANSCRIPT`` only.
+        """
+        return self._evidence_ids_for_lineages(
+            video_id,
+            lineage_kinds=(
+                EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+                EvidenceLineageKind.EXTRACTION,
+            ),
+        )
+
     def list_evidence_for_presentation(self, video_id: str) -> tuple[str, ...]:
         """Deterministic Content Evidence presentation order.
 

@@ -2541,8 +2541,13 @@ class PersonalizedDistillationService:
         normalized = tuple(sorted(evidence_ids))
         if len(normalized) > 20 or len(set(normalized)) != len(normalized):
             raise ValueError("reservation evidence is invalid")
-        canonical = self._repository.list_available_canonical_evidence_ids(video_id)
-        if normalized != canonical:
+        canonical = self._repository.list_canonical_coverage_evidence_ids(video_id)
+        # The contract is set equality: the caller must supply exactly the
+        # canonical coverage set. Compare as sets so a reader that orders by
+        # meaningful source range (rather than lexical id) still satisfies it.
+        # Both sides are already unique, so this is not weaker than the
+        # previous positional comparison.
+        if set(normalized) != set(canonical):
             raise ValueError("reservation requires the current canonical evidence set")
         return canonical
 
@@ -3117,7 +3122,7 @@ class PersonalizedDistillationService:
             or record.output_language not in {"zh-CN", "en"}
         ):
             raise ValueError("reserved execution model identity does not match TASK-022 transport")
-        evidence_ids = self._repository.list_available_canonical_evidence_ids(record.video_id)
+        evidence_ids = self._repository.list_canonical_coverage_evidence_ids(record.video_id)
         command, verified_input = self._reserved_command(
             source_id=record.source_id,
             video_id=record.video_id,
