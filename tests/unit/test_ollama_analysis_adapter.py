@@ -94,7 +94,7 @@ def _input(**kwargs: object):
         settings=_settings(),
         provider="ollama",
         operation="local-analysis",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=kwargs.pop("registry", _registry()),
     )
 
@@ -109,7 +109,7 @@ def test_local_summary_request_identity_binds_language_and_model_digest() -> Non
         settings=settings,
         provider="ollama",
         operation="local-analysis",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=_registry(),
     )
     chinese = build_analysis_input(output_language="zh-CN", **common)
@@ -125,7 +125,7 @@ def test_local_summary_request_identity_binds_language_and_model_digest() -> Non
         settings=other_digest,
         provider="ollama",
         operation="local-analysis",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=_registry(),
     )
     assert chinese.request_hash != english.request_hash
@@ -141,7 +141,7 @@ def test_local_summary_request_identity_binds_context_size(monkeypatch) -> None:
         settings=_settings(),
         provider="ollama",
         operation="local-analysis",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=_registry(),
     )
     before = build_analysis_input(**kwargs)

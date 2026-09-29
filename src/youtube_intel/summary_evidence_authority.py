@@ -15,16 +15,29 @@ the hydrated result is taken from the backend-issued
 that was actually presented to the model for this request. A ref the backend
 never issued fails closed; the model cannot widen its own authority.
 
+The candidate ``ref`` is a *temporary model-facing* identifier. It exists only
+across the model interaction boundary. This module resolves every selected ref
+to the durable ``build_evidence_id`` identity that promotion persists, and the
+hydrated result carries only that durable identity, so no temporary ref can
+survive into a persisted or user-visible authoritative Evidence citation.
+
+Metadata candidates (title, channel name, description) are legitimate Summary
+context but have no timed-cue identity and therefore no durable Evidence
+identity. Citing one as evidence fails closed as a known response validation
+failure; no timestamp is fabricated and no Evidence row is minted.
+
 Promotion of a selected timed-transcript span into the durable
 ``evidence`` / ``evidence_text_bindings`` substrate is expressed as a
 :class:`SummaryEvidencePromotion` plan. Executing that plan against the
 repository is a separate, later concern so it can be composed into the
-ANALYSIS stage transaction.
+ANALYSIS stage transaction. The durable identity is deterministic, so it is
+known before any row is committed.
 """
 
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
@@ -47,6 +60,15 @@ SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE: Final = (
     "SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE"
 )
 
+SUMMARY_EVIDENCE_REF_NOT_CITABLE: Final = "SUMMARY_EVIDENCE_REF_NOT_CITABLE"
+
+#: Candidate sources that are legitimate Summary context but are never
+#: authoritative Evidence.  They have no timed-cue identity, so no durable
+#: ``evidence_id`` exists for them and none is fabricated.
+_NON_CITABLE_SOURCES: Final = frozenset(
+    {EvidenceSource.TITLE, EvidenceSource.CHANNEL_NAME, EvidenceSource.DESCRIPTION}
+)
+
 
 class SummaryEvidenceAuthorityError(ValueError):
     """The draft cannot be hydrated into authoritative Evidence. Fail closed."""
@@ -59,6 +81,15 @@ class SummaryEvidenceAuthorityUnavailable(SummaryEvidenceAuthorityError):
     the durable Evidence substrate requires timed-cue identity. Rather than
     fabricate timestamps or fall back to legacy model-authored excerpt
     grounding, promotion fails closed. Owner decision: no migration in V1.
+    """
+
+
+class SummaryEvidenceRefNotCitable(SummaryEvidenceAuthorityError):
+    """The provider cited a non-citable context ref as authoritative Evidence.
+
+    This is a known response validation failure: the model answered, the answer
+    is simply illegal.  It is never a dispatch ambiguity and never a silent
+    drop of the offending ref from the claim.
     """
 
 
@@ -114,11 +145,17 @@ class SummaryEvidencePromotion:
 
 @dataclass(frozen=True, slots=True)
 class HydratedSummaryEvidence:
-    """Backend-owned Evidence plus the exact spans that must be promoted."""
+    """Backend-owned Evidence plus the exact spans that must be promoted.
+
+    ``durable_by_ref`` is the temporary-ref to durable-identity resolution.  The
+    ref exists only across the model interaction boundary; every persisted
+    citation must carry the durable ``evidence_id`` from this map.
+    """
 
     evidence: tuple[EvidenceExcerpt, ...]
     promotions: tuple[SummaryEvidencePromotion, ...]
     refs: tuple[str, ...]
+    durable_by_ref: Mapping[str, str]
 
 
 def _plan_promotion(
@@ -191,6 +228,7 @@ def hydrate_summary_evidence(
 
     evidence: list[EvidenceExcerpt] = []
     promotions: list[SummaryEvidencePromotion] = []
+    durable_by_ref: dict[str, str] = {}
     seen: set[str] = set()
     for ref in cited:
         candidate = issued.get(ref)
@@ -201,36 +239,49 @@ def hydrate_summary_evidence(
         if ref in seen:
             continue
         seen.add(ref)
-        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE:
-            if timed_transcript_id is None or timed_transcript_hash is None:
-                msg = SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE
-                raise SummaryEvidenceAuthorityUnavailable(msg)
-            promotions.append(
-                _plan_promotion(
-                    candidate,
-                    video_id=video_id,
-                    canonical_artifact_id=canonical_artifact_id,
-                    timed_transcript_id=timed_transcript_id,
-                    timed_transcript_hash=timed_transcript_hash,
-                    language=language,
-                )
-            )
+        if candidate.source in _NON_CITABLE_SOURCES:
+            # Metadata is legitimate background context but is never
+            # authoritative Evidence.  Fail closed rather than dropping the ref
+            # from the claim or minting a durable row with no timed identity.
+            msg = SUMMARY_EVIDENCE_REF_NOT_CITABLE
+            raise SummaryEvidenceRefNotCitable(msg)
+        if timed_transcript_id is None or timed_transcript_hash is None:
+            msg = SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE
+            raise SummaryEvidenceAuthorityUnavailable(msg)
+        promotion = _plan_promotion(
+            candidate,
+            video_id=video_id,
+            canonical_artifact_id=canonical_artifact_id,
+            timed_transcript_id=timed_transcript_id,
+            timed_transcript_hash=timed_transcript_hash,
+            language=language,
+        )
+        promotions.append(promotion)
+        durable_by_ref[ref] = promotion.evidence_id
         evidence.append(
-            # Excerpt is backend-owned text; the ref is backend-issued.
+            # Excerpt is backend-owned text; the identity is the durable one
+            # promotion persists, never the temporary model-facing ref.
             EvidenceExcerpt(
-                evidence_id=ref, source=candidate.source, excerpt=candidate.text
+                evidence_id=promotion.evidence_id,
+                source=candidate.source,
+                excerpt=candidate.text,
             )
         )
     return HydratedSummaryEvidence(
-        evidence=tuple(evidence), promotions=tuple(promotions), refs=cited
+        evidence=tuple(evidence),
+        promotions=tuple(promotions),
+        refs=cited,
+        durable_by_ref=durable_by_ref,
     )
 
 
 __all__: Final = [
     "SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE",
+    "SUMMARY_EVIDENCE_REF_NOT_CITABLE",
     "HydratedSummaryEvidence",
     "SummaryEvidenceAuthorityError",
     "SummaryEvidenceAuthorityUnavailable",
     "SummaryEvidencePromotion",
+    "SummaryEvidenceRefNotCitable",
     "hydrate_summary_evidence",
 ]

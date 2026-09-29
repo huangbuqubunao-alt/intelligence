@@ -70,7 +70,8 @@ def test_B3_model_facing_schema_contains_no_offsets_or_timestamps() -> None:
 
 
 def test_schema_identity_is_distinct_from_persisted_contract() -> None:
-    assert SUMMARY_DRAFT_PROMPT_VERSION == "analysis-prompt-v5"
+    assert SUMMARY_DRAFT_PROMPT_VERSION == "analysis-prompt-v6"
+    assert SUMMARY_DRAFT_PROMPT_VERSION != "analysis-prompt-v5"
     assert SUMMARY_DRAFT_PROMPT_VERSION != "analysis-prompt-v4"
     assert SUMMARY_DRAFT_SCHEMA_VERSION == "summary-draft-v1"
     assert SUMMARY_DRAFT_SCHEMA_VERSION != "analysis-result-v1"
@@ -206,10 +207,20 @@ def test_draft_is_frozen_and_model_copy_update_is_disabled() -> None:
 
 
 def test_instructions_never_ask_the_model_to_quote_source() -> None:
-    text = summary_draft_instructions((REF,)).lower()
+    text = summary_draft_instructions(citable_refs=(REF,), context_refs=()).lower()
     assert "never reproduce" in text
     assert "verbatim substrings" not in text
-    assert REF in summary_draft_instructions((REF,))
+    assert REF in summary_draft_instructions(citable_refs=(REF,), context_refs=())
+
+
+def test_instructions_separate_citable_refs_from_context_refs() -> None:
+    text = summary_draft_instructions(
+        citable_refs=("t0-2-aaa",), context_refs=("mtitle-0-1-bbb",)
+    )
+    assert "t0-2-aaa" in text
+    assert "mtitle-0-1-bbb" in text
+    assert "ONLY refs allowed in evidence_refs" in text
+    assert "Never cite a context ref as evidence" in text
 
 
 def test_excerpt_bound_is_shared_with_the_evidence_contract() -> None:

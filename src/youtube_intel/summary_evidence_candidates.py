@@ -89,6 +89,23 @@ class TrustedEvidenceCandidate:
         last = self.end_ms if self.end_ms is not None else (self.end_offset or 0)
         return (self.source.value, first, last, self.ref)
 
+    @property
+    def is_citable(self) -> bool:
+        """Whether this candidate may back a durable Evidence citation.
+
+        A citation is only durable when the candidate carries a real timed
+        span identity.  Metadata and canonical-text windows inform generation
+        but have no timed-cue authority, so they may never appear in an
+        authoritative ``evidence_refs``.
+        """
+
+        return (
+            self.start_ms is not None
+            and self.end_ms is not None
+            and self.start_cue_index is not None
+            and self.end_cue_index is not None
+        )
+
     def canonical_form(self) -> dict[str, object]:
         return {
             "ref": self.ref,
@@ -126,6 +143,20 @@ class TrustedEvidenceRegistry:
 
     def by_ref(self) -> Mapping[str, TrustedEvidenceCandidate]:
         return {candidate.ref: candidate for candidate in self.candidates}
+
+    def citable_refs(self) -> tuple[str, ...]:
+        """Refs the model may legally place in ``evidence_refs``."""
+
+        return tuple(
+            candidate.ref for candidate in self.candidates if candidate.is_citable
+        )
+
+    def context_refs(self) -> tuple[str, ...]:
+        """Refs that are visible background context and never citable."""
+
+        return tuple(
+            candidate.ref for candidate in self.candidates if not candidate.is_citable
+        )
 
     def canonical_serialization(self) -> str:
         """Deterministic serialization suitable for future request identity."""
@@ -165,8 +196,24 @@ class TrustedEvidenceRegistry:
         identity hash of the complete canonical form.  A provider therefore
         receives no offset, timestamp, or cue authority to echo, while the
         request identity still changes whenever any of it changes.
+
+        Only *citable* candidates are offered.  Metadata has no timed-cue
+        identity and therefore no durable ``evidence_id``, so offering it as a
+        citation target would be offering a reference the backend must refuse.
+        Metadata still informs generation through the request's own task
+        context, and its change still moves ``registry_identity`` because the
+        identity covers the complete canonical form.
+
+        When no candidate is citable at all (canonical-only Content) the full
+        set is still projected, so the request stays well-formed and the
+        hydrator raises its existing, honest
+        ``SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE`` instead of a schema error.
         """
 
+        citable = tuple(
+            candidate for candidate in self.candidates if candidate.is_citable
+        )
+        offered = citable or self.candidates
         return TrustedEvidenceOffer(
             registry_identity=self.identity_hash(),
             cue_group_policy=self.cue_group_policy,
@@ -175,7 +222,7 @@ class TrustedEvidenceRegistry:
                 TrustedEvidenceCandidateView(
                     ref=candidate.ref, source=candidate.source, text=candidate.text
                 )
-                for candidate in self.candidates
+                for candidate in offered
             ),
         )
 

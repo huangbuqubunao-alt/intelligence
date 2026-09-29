@@ -14,7 +14,7 @@ import hashlib
 import json
 import os
 import stat
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from importlib import resources
@@ -37,6 +37,7 @@ from youtube_intel.domain import (
     DiagnosticEntry,
     ErrorCode,
     EvidenceExcerpt,
+    EvidenceSource,
     JobStatus,
     PipelineStatus,
     ProcessingStage,
@@ -368,7 +369,7 @@ def summary_draft_request(analysis_input: AnalysisInput) -> SummaryDraftRequest:
     """Build the one model-facing Summary request for both providers."""
 
     if analysis_input.prompt_version != SUMMARY_DRAFT_PROMPT_VERSION:
-        msg = "Summary request prompt identity is not the backend-authoritative v5 contract"
+        msg = "Summary request prompt identity is not the backend-authoritative v6 contract"
         raise ValueError(msg)
     offer = require_trusted_evidence_offer(analysis_input)
     payload = analysis_input.payload
@@ -382,10 +383,20 @@ def summary_draft_request(analysis_input: AnalysisInput) -> SummaryDraftRequest:
         "transcript_language": payload.transcript_language,
         "transcript_sample": payload.transcript_sample,
     }
+    citable = tuple(
+        candidate.ref
+        for candidate in offer.candidates
+        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+    )
+    context = tuple(
+        candidate.ref
+        for candidate in offer.candidates
+        if candidate.source is not EvidenceSource.TRANSCRIPT_SAMPLE
+    )
     return SummaryDraftRequest(
         output_language=payload.output_language,
         instructions=summary_draft_instructions(
-            tuple(candidate.ref for candidate in offer.candidates)
+            citable_refs=citable, context_refs=context
         ),
         content_json=_canonical_json(task),
         trusted_evidence_json=_canonical_json(
@@ -573,7 +584,7 @@ def build_analysis_input(
         transcript_sample=transcript_sample,
     )
     resolved_prompt = cast(
-        Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"],
+        Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5", "analysis-prompt-v6"],
         prompt_version
         or (
             SUMMARY_DRAFT_PROMPT_VERSION
@@ -796,6 +807,7 @@ def _summary_result_from_draft(
     draft: SummaryDraft,
     hydrated_evidence: tuple[EvidenceExcerpt, ...],
     *,
+    durable_by_ref: Mapping[str, str],
     provider: str,
     model: str,
     prompt_version: str,
@@ -804,7 +816,10 @@ def _summary_result_from_draft(
     """Compose the persisted ``analysis-result-v1`` from a hydrated draft.
 
     Only the backend-resolved Evidence tuple is used; no model-authored
-    excerpt, offset, or timestamp has a field to live in.
+    excerpt, offset, or timestamp has a field to live in.  Every persisted
+    citation resolves the temporary model-facing ref to the durable
+    ``evidence_id`` that promotion persists, so no temporary ref can reach the
+    structured artifact.
     """
 
     def points(
@@ -812,7 +827,11 @@ def _summary_result_from_draft(
     ) -> tuple[AnalysisPoint, ...]:
         return tuple(
             AnalysisPoint(
-                text=point.text, kind=point.kind, evidence_ids=point.evidence_refs
+                text=point.text,
+                kind=point.kind,
+                evidence_ids=tuple(
+                    durable_by_ref[ref] for ref in point.evidence_refs
+                ),
             )
             for point in group
         )
@@ -1309,6 +1328,7 @@ class RepositoryBackedAnalysisService:
             result = _summary_result_from_draft(
                 draft,
                 hydrated.evidence,
+                durable_by_ref=hydrated.durable_by_ref,
                 provider=provider,
                 model=model,
                 prompt_version=analysis_input.prompt_version,

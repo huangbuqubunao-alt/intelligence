@@ -347,7 +347,7 @@ def test_cached_analysis_recovery_preserves_verified_artifacts_and_schedules_not
         language="en",
         output_language="zh-CN",
         settings=initial_service.settings,
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=_analysis_registry(repository),
     ).request_hash
     raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")

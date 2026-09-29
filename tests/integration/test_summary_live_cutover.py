@@ -964,7 +964,7 @@ def test_live_request_offers_refs_and_text_only(tmp_path: Path) -> None:
     assert "evidence" not in draft_request.schema["properties"]  # type: ignore[operator]
     assert "excerpt" not in json.dumps(draft_request.schema)
     assert SUMMARY_DRAFT_SCHEMA_VERSION == "summary-draft-v1"
-    assert analysis_input.prompt_version == "analysis-prompt-v5"
+    assert analysis_input.prompt_version == "analysis-prompt-v6"
 
 
 def test_no_migration_is_required_for_the_cutover() -> None:

@@ -129,7 +129,7 @@ def _request_hash(
         language="en",
         output_language="zh-CN",
         settings=settings,
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=build_summary_evidence_registry(
             verified=verified,
             video_id="video-123",
@@ -199,7 +199,7 @@ def _input(registry: object | None = None) -> object:
         video=video, transcript_text="transcript evidence", language="en",
         output_language="zh-CN",
         settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         registry=_offline_registry() if registry is None else registry,
     )
 
@@ -337,7 +337,7 @@ def test_cloud_summary_without_a_trusted_evidence_offer_fails_closed(
         language="en",
         output_language="zh-CN",
         settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
     )
 
     with pytest.raises(CloudProviderError) as exc_info:

@@ -409,8 +409,12 @@ def test_the_same_selection_now_succeeds_with_backend_owned_excerpts(
     # The excerpt is the backend's text, byte for byte.
     assert outcome.result.evidence[0].excerpt == issued.text
     assert FABRICATED_EXCERPT not in outcome.result.evidence[0].excerpt
-    # The model's own selection was honoured exactly.
-    assert outcome.result.core_points[0].evidence_ids == (ref,)
+    # The model's own selection was honoured exactly, but persisted under the
+    # DURABLE identity, never the temporary model-facing ref.
+    durable = outcome.result.evidence[0].evidence_id
+    assert outcome.result.core_points[0].evidence_ids == (durable,)
+    assert durable != ref
+    assert ref not in durable
 
 
 def test_no_model_authored_excerpt_can_reach_a_persisted_artifact(
@@ -420,11 +424,7 @@ def test_no_model_authored_excerpt_can_reach_a_persisted_artifact(
 
     repository = _seed(tmp_path)
     registry = _registry(repository)
-    provider = _Provider(
-        [
-            _draft(*tuple(candidate.ref for candidate in registry.candidates))
-        ]
-    )
+    provider = _Provider([_draft(*registry.citable_refs())])
 
     outcome = _analyze(_service(repository, provider, tmp_path))
     assert isinstance(outcome, AnalysisCompleted)
@@ -442,8 +442,13 @@ def test_no_model_authored_excerpt_can_reach_a_persisted_artifact(
     for evidence in persisted.evidence:
         assert evidence.excerpt in issued
     assert FABRICATED_EXCERPT.encode() not in body
-    # A point carries only a ref; the excerpt lives only on backend Evidence.
+    # A point carries only a durable id; the excerpt lives only on backend
+    # Evidence, and no temporary model-facing ref may survive serialization.
     assert all(point.evidence_ids for point in persisted.core_points)
+    for candidate in registry.candidates:
+        assert candidate.ref.encode() not in body
+    for evidence in persisted.evidence:
+        assert len(evidence.evidence_id) == 64
     assert "excerpt" not in persisted.core_points[0].model_dump_json()
 
 
@@ -462,10 +467,15 @@ def test_model_selects_refs_and_the_backend_owns_every_excerpt(
     assert isinstance(outcome, AnalysisCompleted)
     offer = getattr(provider.seen[0], "trusted_evidence")
     assert offer is not None
-    # The model received refs and trusted text, and no range authority.
-    assert [candidate.ref for candidate in offer.candidates] == [
-        candidate.ref for candidate in registry.candidates
-    ]
+    # The model received citable refs and trusted text, no range authority,
+    # and no metadata ref it could only have had rejected.
+    assert [candidate.ref for candidate in offer.candidates] == list(
+        registry.citable_refs()
+    )
+    assert all(
+        candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+        for candidate in offer.candidates
+    )
     assert SUMMARY_DRAFT_SCHEMA_VERSION == "summary-draft-v1"
     request_schema = summary_draft_request(provider.seen[0]).schema
     assert "excerpt" not in json.dumps(request_schema)

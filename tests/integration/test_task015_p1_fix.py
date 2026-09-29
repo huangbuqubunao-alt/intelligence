@@ -308,7 +308,7 @@ class _AnalysisProvider:
         ref = next(
             candidate.ref
             for candidate in offer.candidates
-            if candidate.source is EvidenceSource.TITLE
+            if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
         )
         return SummaryDraft(
             one_sentence_summary="Fixture analysis.",
@@ -767,7 +767,7 @@ def _build_analysis_fixture(
         ],
         provider="openai",
         model="gpt-4.1-mini",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         request_hash=request_hash,
     )
     raw_content = _canonical_json({"raw": "fixture analysis response"}).encode("utf-8")
@@ -827,7 +827,7 @@ def _persist_analysis_provenance(
         normalized_input_hash=request_hash,
         provider="openai",
         model="gpt-4.1-mini",
-        prompt_version="analysis-prompt-v5",
+        prompt_version="analysis-prompt-v6",
         schema_version="analysis-result-v1",
         deterministic_artifact_key=f"analysis/{request_hash}/raw",
     )

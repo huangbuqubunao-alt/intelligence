@@ -28,8 +28,10 @@ from youtube_intel.state import (
 from youtube_intel.summary_draft import SummaryDraft, SummaryDraftPoint
 from youtube_intel.summary_evidence_authority import (
     SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE,
+    SUMMARY_EVIDENCE_REF_NOT_CITABLE,
     SummaryEvidenceAuthorityError,
     SummaryEvidenceAuthorityUnavailable,
+    SummaryEvidenceRefNotCitable,
     hydrate_summary_evidence,
 )
 from youtube_intel.summary_evidence_candidates import (
@@ -105,6 +107,12 @@ def _hydrate(draft, **kwargs):
     return hydrate_summary_evidence(draft, _registry(), **base)
 
 
+def _durable(ref: str) -> str:
+    """The durable ``build_evidence_id`` the temporary ref resolves to."""
+
+    return _hydrate(_draft(ref)).durable_by_ref[ref]
+
+
 # --- D1 -------------------------------------------------------------------
 
 
@@ -112,10 +120,33 @@ def test_D1_known_ref_hydrates_backend_owned_excerpt() -> None:
     ref = _transcript_ref()
     issued = _registry().by_ref()[ref]
     result = _hydrate(_draft(ref))
-    assert [item.evidence_id for item in result.evidence] == [ref]
+    # The persisted identity is the DURABLE one, never the temporary ref.
+    assert [item.evidence_id for item in result.evidence] != [ref]
+    assert result.evidence[0].evidence_id == result.promotions[0].evidence_id
+    assert len(result.evidence[0].evidence_id) == 64
     # The excerpt is byte-identical to the backend-issued candidate text.
     assert result.evidence[0].excerpt == issued.text
     assert result.refs == (ref,)
+
+
+def test_D1b_temporary_ref_resolves_to_the_promoted_durable_id() -> None:
+    """Requirement: backend resolves a selected ref to the SAME durable id
+    that promotion persists."""
+
+    ref = _transcript_ref()
+    result = _hydrate(_draft(ref))
+    assert result.durable_by_ref == {ref: result.promotions[0].evidence_id}
+    assert result.promotions[0].as_evidence_write().evidence_id == (
+        result.durable_by_ref[ref]
+    )
+    assert result.promotions[0].as_text_binding().evidence_id == (
+        result.durable_by_ref[ref]
+    )
+
+
+def test_D1c_durable_id_is_deterministic_across_hydrations() -> None:
+    ref = _transcript_ref()
+    assert _durable(ref) == _durable(ref)
 
 
 # --- D2 / D3: unissued and foreign refs fail closed -----------------------
@@ -167,17 +198,60 @@ def test_D3_foreign_video_ref_fails_closed() -> None:
         _hydrate(_draft(ref))
 
 
-# --- D4: metadata --------------------------------------------------------
+# --- D4: metadata is context, never citable Evidence ---------------------
 
 
-def test_D4_metadata_ref_hydrates_only_backend_candidate_text() -> None:
+def test_D4_metadata_ref_fails_closed_and_is_never_citable() -> None:
+    """Metadata may inform the Summary but may never back a citation."""
+
     ref = _metadata_ref()
-    issued = _registry().by_ref()[ref]
-    result = _hydrate(_draft(ref))
-    assert result.evidence[0].source is EvidenceSource.TITLE
-    assert result.evidence[0].excerpt == issued.text == "The Phone Number puzzle"
-    # Metadata never needs a durable promotion.
-    assert result.promotions == ()
+    with pytest.raises(SummaryEvidenceRefNotCitable) as caught:
+        _hydrate(_draft(ref))
+    assert SUMMARY_EVIDENCE_REF_NOT_CITABLE in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        EvidenceSource.TITLE,
+        EvidenceSource.CHANNEL_NAME,
+        EvidenceSource.DESCRIPTION,
+    ],
+)
+def test_D4b_every_metadata_source_is_non_citable(source: EvidenceSource) -> None:
+    ref = next(c.ref for c in _registry().candidates if c.source is source)
+    with pytest.raises(SummaryEvidenceRefNotCitable):
+        _hydrate(_draft(ref))
+
+
+def test_D4c_metadata_ref_mixed_with_a_legal_ref_still_fails_closed() -> None:
+    """No silent dropping of the offending ref from the claim."""
+
+    with pytest.raises(SummaryEvidenceRefNotCitable):
+        _hydrate(_draft(_transcript_ref(), _metadata_ref()))
+
+
+def test_D4d_metadata_is_not_a_citable_ref_and_is_not_offered() -> None:
+    registry = _registry()
+    assert _metadata_ref() in registry.context_refs()
+    assert _metadata_ref() not in registry.citable_refs()
+    assert _transcript_ref() in registry.citable_refs()
+    # A ref the backend would have to refuse is never offered as a target.
+    offered = {c.ref for c in registry.offer().candidates}
+    assert _metadata_ref() not in offered
+    assert _transcript_ref() in offered
+
+
+def test_D4e_metadata_citation_is_known_response_not_dispatch_ambiguity() -> None:
+    """The failure family must map onto KnownSummaryResponseError."""
+
+    from youtube_intel.analysis import KnownSummaryResponseError
+
+    assert issubclass(SummaryEvidenceRefNotCitable, SummaryEvidenceAuthorityError)
+    assert issubclass(SummaryEvidenceAuthorityError, ValueError)
+    # KnownSummaryResponseError is what the hydrator's caller raises, and the
+    # refusal must never be reported as an ambiguous dispatch.
+    assert not issubclass(SummaryEvidenceRefNotCitable, KnownSummaryResponseError)
 
 
 # --- D5 -------------------------------------------------------------------
@@ -192,6 +266,8 @@ def test_D5_model_text_can_never_become_evidence() -> None:
     assert result.evidence[0].excerpt == issued.text
     # No path lets claim text become the excerpt.
     assert "要点" not in result.evidence[0].excerpt
+    # And the persisted identity is durable, not the temporary ref.
+    assert ref not in result.evidence[0].evidence_id
 
 
 # --- D6 / D7: promotion plan --------------------------------------------
@@ -246,10 +322,15 @@ def test_D10_hydrated_evidence_is_analysis_result_compatible() -> None:
     ref = _transcript_ref()
     result = _hydrate(_draft(ref))
     draft = _draft(ref)
+    durable = result.durable_by_ref[ref]
     analysis = AnalysisResult(
         one_sentence_summary=draft.one_sentence_summary,
         core_points=tuple(
-            AnalysisPoint(text=point.text, kind=point.kind, evidence_ids=(ref,))
+            AnalysisPoint(
+                text=point.text,
+                kind=point.kind,
+                evidence_ids=tuple(result.durable_by_ref[r] for r in point.evidence_refs),
+            )
             for point in draft.core_points
         ),
         keywords=draft.keywords,
@@ -260,8 +341,11 @@ def test_D10_hydrated_evidence_is_analysis_result_compatible() -> None:
         schema_version="analysis-result-v1",
         request_hash="0" * 64,
     )
-    # Downstream consumers render evidence_id / source / excerpt unchanged.
-    assert analysis.evidence[0].evidence_id == ref
+    # Downstream consumers render evidence_id / source / excerpt unchanged, and
+    # every persisted citation is the durable identity.
+    assert analysis.evidence[0].evidence_id == durable
+    assert analysis.core_points[0].evidence_ids == (durable,)
+    assert ref not in analysis.evidence[0].evidence_id
     assert analysis.evidence[0].excerpt
 
 
@@ -453,7 +537,11 @@ def test_promoted_analysis_result_can_carry_prompt_v5() -> None:
     result = _hydrate(_draft(ref))
     analysis = AnalysisResult(
         one_sentence_summary="s",
-        core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
+        core_points=(
+            AnalysisPoint(
+                text="t", kind="fact", evidence_ids=(result.durable_by_ref[ref],)
+            ),
+        ),
         keywords=("k",),
         evidence=result.evidence,
         provider="ollama",
@@ -482,7 +570,11 @@ def test_historical_prompt_versions_remain_valid(historical: str) -> None:
     result = _hydrate(_draft(ref))
     analysis = AnalysisResult(
         one_sentence_summary="s",
-        core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
+        core_points=(
+            AnalysisPoint(
+                text="t", kind="fact", evidence_ids=(result.durable_by_ref[ref],)
+            ),
+        ),
         keywords=("k",),
         evidence=result.evidence,
         provider="ollama",
@@ -504,12 +596,16 @@ def test_unknown_prompt_version_is_still_rejected() -> None:
     with pytest.raises(_ValidationError, match="prompt_version"):
         AnalysisResult(
             one_sentence_summary="s",
-            core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
+            core_points=(
+                AnalysisPoint(
+                    text="t", kind="fact", evidence_ids=(result.durable_by_ref[ref],)
+                ),
+            ),
             keywords=("k",),
             evidence=result.evidence,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="analysis-prompt-v6",
+            prompt_version="analysis-prompt-v7",
             schema_version="analysis-result-v1",
             request_hash="0" * 64,
         )

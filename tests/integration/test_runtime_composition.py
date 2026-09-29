@@ -308,7 +308,7 @@ class _SummaryProvider:
         ref = next(
             candidate.ref
             for candidate in offer.candidates
-            if candidate.source is EvidenceSource.TITLE
+            if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
         )
         return SummaryDraft(
             one_sentence_summary="该视频介绍了一个产品观点。"
@@ -554,11 +554,32 @@ def test_gui_runtime_scores_and_writes_summary_note_before_local_distillation(
     assert projected_note["summary"] == "该视频介绍了一个产品观点。"
     assert projected_note["timestamped_key_points"] == []
     assert projected_note["evidence_references"]
-    assert any(
-        reference["source"] == "title"
-        and reference["excerpt"] == "A short public product lesson"
+    # Metadata is context, never a citation, so no title/channel/description
+    # reference may appear in the persisted Summary authority.
+    assert all(
+        reference["source"] != "title" for reference in projected_note["evidence_references"]
+    )
+    assert all(
+        not reference["evidence_id"].startswith(("t", "m")) or len(
+            reference["evidence_id"]
+        )
+        == 64
         for reference in projected_note["evidence_references"]
     )
+    # Every persisted Summary citation is a DURABLE Evidence identity that
+    # resolves through both public repository APIs.
+    cited_ids = {
+        reference["evidence_id"] for reference in projected_note["evidence_references"]
+    }
+    assert all(len(evidence_id) == 64 for evidence_id in cited_ids)
+    for evidence_id in cited_ids:
+        assert restarted.repository.get_evidence(evidence_id) is not None
+        assert (
+            restarted.repository.resolve_verified_evidence_text(evidence_id) is not None
+        )
+    # And the Summary surface correlates with the Evidence surface by identity.
+    presented = set(restarted.repository.list_evidence_for_presentation(VIDEO_ID))
+    assert cited_ids <= presented
     evidence_ids = restarted.repository.list_available_canonical_evidence_ids(VIDEO_ID)
     assert evidence_ids
     evidence = restarted.repository.get_evidence(evidence_ids[0])

@@ -299,27 +299,29 @@ class _AnalysisProvider:
             raise RuntimeError("injected cloud analysis outage")
         offer = getattr(analysis_input, "trusted_evidence")
         assert offer is not None
-        # A real model can only cite refs the backend actually issued.
-        title_ref = next(
+        # A real model may only cite *citable* refs the backend actually issued.
+        # Metadata (title/channel/description) is context and is never legal
+        # Evidence, so the fixture cites a timed transcript span.
+        citable_ref = next(
             candidate.ref
             for candidate in offer.candidates
-            if candidate.source is EvidenceSource.TITLE
+            if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
         )
         self._raw = '{"offline":"analysis"}'
         return SummaryDraft(
             one_sentence_summary="The offline fixture identifies one useful product direction.",
             core_points=(
                 SummaryDraftPoint(
-                    text="The title states the user-facing product topic.",
+                    text="The transcript states the user-facing product topic.",
                     kind=PointKind.FACT,
-                    evidence_refs=(title_ref,),
+                    evidence_refs=(citable_ref,),
                 ),
             ),
             actionable_directions=(
                 SummaryDraftPoint(
                     text="Validate the product direction with users.",
                     kind=PointKind.RECOMMENDATION,
-                    evidence_refs=(title_ref,),
+                    evidence_refs=(citable_ref,),
                 ),
             ),
             keywords=("product",),

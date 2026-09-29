@@ -1168,7 +1168,10 @@ class RuntimeOperations(Operations):
             else self._config.settings.cloud.model
         )
         expected_operation = "local-analysis" if expected_local else "cloud-analysis"
-        expected_prompt = "analysis-prompt-v5"
+        # Historical Summary prompt identities stay readable.  Only the
+        # trusted-persistence validator is version-aware; it must never reject a
+        # previously committed artifact.
+        expected_prompts = {"analysis-prompt-v5", "analysis-prompt-v6"}
         expected_provider = (
             "ollama" if expected_local else self._config.settings.cloud.provider
         )
@@ -1179,7 +1182,7 @@ class RuntimeOperations(Operations):
             or provider_call.provider != expected_provider
             or provider_call.provider != result.provider
             or provider_call.model != result.model
-            or provider_call.prompt_version != expected_prompt
+            or provider_call.prompt_version not in expected_prompts
             or provider_call.prompt_version != result.prompt_version
             or provider_call.schema_version != "analysis-result-v1"
             or provider_call.schema_version != result.schema_version

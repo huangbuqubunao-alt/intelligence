@@ -993,7 +993,7 @@ class AnalysisResult(AnalysisContent):
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
     provider: str = Field(min_length=1, pattern=r"\S")
     model: str = Field(min_length=1, pattern=r"\S")
-    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"] = (
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5", "analysis-prompt-v6"] = (
         "analysis-prompt-v1"
     )
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -1569,7 +1569,7 @@ class AnalysisInput(_UpdateProtectedAnalysisContract):
     payload: AnalysisPayload
     transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"] = (
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5", "analysis-prompt-v6"] = (
         "analysis-prompt-v1"
     )
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
