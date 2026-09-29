@@ -16,16 +16,23 @@ import sys
 import time
 from typing import BinaryIO, Final, Protocol, cast
 
-from pydantic import ValidationError
-
-from youtube_intel.analysis import _analysis_schema, _canonical_json, _request_parts
+from youtube_intel.analysis import (
+    SUMMARY_DRAFT_SYSTEM_PROMPT,
+    _canonical_json,
+    require_trusted_evidence_offer,
+    summary_draft_request,
+)
 from youtube_intel.domain import (
     AnalysisInput,
-    AnalysisResult,
     AppError,
     ErrorCode,
-    EvidenceSource,
     ProcessingStage,
+)
+from youtube_intel.summary_draft import (
+    SUMMARY_DRAFT_PROMPT_VERSION,
+    SummaryDraft,
+    SummaryDraftError,
+    parse_summary_draft,
 )
 
 _PROVIDER: Final = "openai"
@@ -207,15 +214,16 @@ def _isolated_transport(request: dict[str, object], credential: str) -> dict[str
 
 
 def _request(analysis_input: AnalysisInput, *, model: str, max_output_tokens: int) -> dict[str, object]:
-    parts = _request_parts(analysis_input.payload)
+    # The same closed model-facing contract the local route uses: no excerpt,
+    # no offset, no timestamp, and only backend-issued refs to cite.
+    draft_request = summary_draft_request(analysis_input)
     return {
         "model": model,
         "input": [
-            {"role": "system", "content": parts.system},
-            {"role": "developer", "content": parts.developer},
-            {"role": "user", "content": parts.payload_json},
+            {"role": "system", "content": SUMMARY_DRAFT_SYSTEM_PROMPT},
+            {"role": "user", "content": draft_request.user_prompt()},
         ],
-        "text": {"format": {"type": "json_schema", "name": "analysis_result", "strict": True, "schema": _analysis_schema()}},
+        "text": {"format": {"type": "json_schema", "name": "summary_draft", "strict": True, "schema": draft_request.schema}},
         "store": False,
         "truncation": "disabled",
         "max_output_tokens": max_output_tokens,
@@ -225,7 +233,7 @@ def _request(analysis_input: AnalysisInput, *, model: str, max_output_tokens: in
 
 
 class OpenAIResponsesProvider:
-    """One-request strict Structured Outputs provider with an injected transport seam."""
+    """One-request strict Structured Outputs provider returning a SummaryDraft."""
 
     def __init__(self, *, model: str, max_output_tokens: int = 4_000, transport: _Transport = _isolated_transport) -> None:
         if not model.strip() or not 256 <= max_output_tokens <= 8_000:
@@ -237,14 +245,20 @@ class OpenAIResponsesProvider:
         self._last_raw_response: str | None = None
         self._last_request_hash: str | None = None
 
-    def summarize(self, analysis_input: AnalysisInput) -> AnalysisResult:
+    def summarize(self, analysis_input: AnalysisInput) -> SummaryDraft:
         """The public provider protocol cannot supply credentials; fail closed."""
 
         raise _safe_error(ErrorCode.PERMISSION_DENIED, "cloud credential was not provided", video_id=analysis_input.payload.video_id, retryable=False)
 
-    def summarize_with_credential(self, analysis_input: AnalysisInput, credential: str) -> AnalysisResult:
+    def summarize_with_credential(self, analysis_input: AnalysisInput, credential: str) -> SummaryDraft:
         if not credential:
             raise _safe_error(ErrorCode.PERMISSION_DENIED, "cloud credential was not provided", video_id=analysis_input.payload.video_id, retryable=False)
+        if analysis_input.prompt_version != SUMMARY_DRAFT_PROMPT_VERSION:
+            raise _safe_error(ErrorCode.CONFIG_INVALID, "cloud Summary prompt identity is invalid", video_id=analysis_input.payload.video_id, retryable=False)
+        try:
+            require_trusted_evidence_offer(analysis_input)
+        except ValueError:
+            raise _safe_error(ErrorCode.LOCAL_RESOURCE, "cloud Summary trusted Evidence offer is unavailable", video_id=analysis_input.payload.video_id, retryable=False) from None
         try:
             response = self._transport(_request(analysis_input, model=self._model, max_output_tokens=self._max_output_tokens), credential)
         except TimeoutError:
@@ -267,13 +281,14 @@ class OpenAIResponsesProvider:
         if not isinstance(raw_content, dict):
             raise _safe_error(ErrorCode.INVALID_RESPONSE, "cloud analysis returned an invalid response", video_id=analysis_input.payload.video_id, retryable=True)
         try:
-            result = AnalysisResult.model_validate({**raw_content, "provider": _PROVIDER, "model": self._model, "request_hash": analysis_input.request_hash})
-            self._validate_grounding(result, analysis_input)
-        except (ValidationError, ValueError, TypeError):
+            draft = parse_summary_draft(_canonical_json(raw_content))
+        except SummaryDraftError:
+            # A response was definitely received; it simply is not a trusted
+            # Summary.  An unsupported excerpt field is rejected, never ignored.
             raise _safe_error(ErrorCode.INVALID_RESPONSE, "cloud analysis response failed validation", video_id=analysis_input.payload.video_id, retryable=True) from None
         self._last_raw_response = _canonical_json(response)
         self._last_request_hash = analysis_input.request_hash
-        return result
+        return draft
 
     def consume_raw_response(self, *, request_hash: str) -> str:
         if self._last_request_hash != request_hash or self._last_raw_response is None:
@@ -282,20 +297,6 @@ class OpenAIResponsesProvider:
         self._last_raw_response = None
         self._last_request_hash = None
         return value
-
-    @staticmethod
-    def _validate_grounding(result: AnalysisResult, analysis_input: AnalysisInput) -> None:
-        payload = analysis_input.payload
-        allowed = {
-            EvidenceSource.TITLE: payload.title,
-            EvidenceSource.CHANNEL_NAME: payload.channel_name,
-            EvidenceSource.DESCRIPTION: payload.description,
-            EvidenceSource.TRANSCRIPT_SAMPLE: payload.transcript_sample,
-        }
-        for evidence in result.evidence:
-            source = allowed[evidence.source]
-            if evidence.excerpt not in source:
-                raise ValueError("analysis evidence is not grounded in the outbound payload")
 
 
 __all__ = ["CloudProviderError", "OpenAIResponsesProvider"]

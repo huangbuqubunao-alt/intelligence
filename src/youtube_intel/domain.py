@@ -993,7 +993,7 @@ class AnalysisResult(AnalysisContent):
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
     provider: str = Field(min_length=1, pattern=r"\S")
     model: str = Field(min_length=1, pattern=r"\S")
-    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"] = (
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"] = (
         "analysis-prompt-v1"
     )
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -1523,11 +1523,53 @@ class ScoringOutcome(_UpdateProtectedScoringContract):
         return self
 
 
+class TrustedEvidenceCandidateView(_UpdateProtectedAnalysisContract):
+    """One backend-issued citation target as the model is allowed to see it.
+
+    It carries a reference and the trusted text only.  There is deliberately no
+    offset, timestamp, cue index, or lineage field, so the outbound request has
+    no surface through which a span authority could be transported or echoed.
+    """
+
+    ref: str = Field(min_length=1, pattern=r"\S")
+    source: EvidenceSource
+    text: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+
+
+class TrustedEvidenceOffer(_UpdateProtectedAnalysisContract):
+    """The exact candidate set bound to one Summary request identity.
+
+    ``registry_identity`` is the hash of the *full* candidate canonical form,
+    including the backend-owned ranges the model never sees.  Binding it into
+    the request identity is what makes a changed range, a changed excerpt, or a
+    changed authoritative source a different request even when the visible
+    ``ref`` strings are unchanged.
+    """
+
+    registry_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
+    cue_group_policy: str = Field(min_length=1, pattern=r"\S")
+    metadata_span_policy: str = Field(min_length=1, pattern=r"\S")
+    candidates: tuple[TrustedEvidenceCandidateView, ...] = Field(
+        min_length=1, max_length=512
+    )
+
+    @field_validator("candidates")
+    @classmethod
+    def _unique_refs(
+        cls, value: tuple[TrustedEvidenceCandidateView, ...]
+    ) -> tuple[TrustedEvidenceCandidateView, ...]:
+        refs = [candidate.ref for candidate in value]
+        if len(refs) != len(set(refs)):
+            msg = "trusted Evidence candidate refs must be unique"
+            raise ValueError(msg)
+        return value
+
+
 class AnalysisInput(_UpdateProtectedAnalysisContract):
     payload: AnalysisPayload
     transcript_content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     request_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"] = (
+    prompt_version: Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"] = (
         "analysis-prompt-v1"
     )
     schema_version: Literal["analysis-result-v1"] = "analysis-result-v1"
@@ -1537,6 +1579,7 @@ class AnalysisInput(_UpdateProtectedAnalysisContract):
     privacy_version: Literal["cloud-privacy-v1", "knowledge-privacy-v2"] = (
         "cloud-privacy-v1"
     )
+    trusted_evidence: TrustedEvidenceOffer | None = None
 
 
 class NotAvailable(_DomainModel):

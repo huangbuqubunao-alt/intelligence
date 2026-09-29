@@ -3848,15 +3848,31 @@ class SQLiteStateRepository:
     def record_provider_dispatch_known_failure(
         self, request_hash: str, *, owner: str, now: datetime
     ) -> ProviderDispatchRecord:
-        """Record a provider outcome proven not to be an unknown success."""
+        """Record a provider outcome proven not to be an unknown success.
 
-        return self._update_provider_dispatch_owned(
-            request_hash,
-            owner=owner,
-            expected=ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
-            target=ProviderDispatchStatus.FAILED_KNOWN,
-            now=now,
-        )
+        A response that was definitely received is still a *known* failure
+        when local contract or Evidence-authority validation rejects it, so
+        this transition is valid from a durable dispatch intent and from an
+        already-recorded returned-but-uncommitted result. A genuine transport
+        ambiguity has neither state and is still rejected here.
+        """
+
+        for expected in (
+            ProviderDispatchStatus.DISPATCH_INTENT_DURABLE,
+            ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN,
+        ):
+            try:
+                return self._update_provider_dispatch_owned(
+                    request_hash,
+                    owner=owner,
+                    expected=expected,
+                    target=ProviderDispatchStatus.FAILED_KNOWN,
+                    now=now,
+                )
+            except LeaseConflict:
+                continue
+        msg = "provider dispatch is not owned or is not in the expected state"
+        raise LeaseConflict(msg)
 
     def mark_provider_dispatch_ambiguous(
         self, request_hash: str, *, owner: str, now: datetime

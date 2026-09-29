@@ -29,29 +29,52 @@ from youtube_intel.domain import (
     AnalysisInput,
     AnalysisOutcome,
     AnalysisPayload,
+    AnalysisPoint,
     AnalysisResult,
     AnalysisSkipped,
     AnalysisSkipReason,
     AppError,
     DiagnosticEntry,
     ErrorCode,
+    EvidenceExcerpt,
     JobStatus,
     PipelineStatus,
     ProcessingStage,
     ProviderCallMetadata,
     SummaryProvider,
+    TrustedEvidenceOffer,
     VideoMetadata,
 )
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
+    EvidenceTextBindingWrite,
+    EvidenceWrite,
     ProviderCallCompletion,
     ProviderCallRequest,
     ProviderCallStatus,
     ProviderDispatchStatus,
     RetentionClass,
     StorageRoot,
+    VerifiedTimedTranscript,
     build_provider_request_hash,
+)
+from youtube_intel.summary_draft import (
+    SUMMARY_DRAFT_PROMPT_VERSION,
+    SummaryDraft,
+    SummaryDraftPoint,
+    summary_draft_instructions,
+    summary_draft_schema,
+)
+from youtube_intel.summary_evidence_authority import (
+    HydratedSummaryEvidence,
+    SummaryEvidenceAuthorityError,
+    hydrate_summary_evidence,
+)
+from youtube_intel.summary_evidence_candidates import (
+    TrustedEvidenceRegistry,
+    build_trusted_evidence_registry,
+    select_length_bounded_candidates,
 )
 
 _PROVIDER: Final = "openai"
@@ -70,6 +93,12 @@ PACKAGED_O200K_RESOURCE: Final = (
     Path(__file__).parent / "resources" / O200K_BASE_FILENAME
 )
 _MAX_SAMPLE_CODEPOINTS: Final = 4_000
+#: Shared, provider-neutral framing for the backend-authoritative Summary
+#: request. It says nothing about how Evidence is produced: the only
+#: citation surface is the backend-issued ref list.
+SUMMARY_DRAFT_SYSTEM_PROMPT: Final = (
+    "You are a precise research analyst. Return only the declared JSON schema."
+)
 _O200K_PAT_STR: Final = "|".join(
     (
         r"""[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?""",
@@ -115,6 +144,19 @@ class KnownLocalSummaryResponseError(ValueError):
             f"done={self.done}; done_reason={self.done_reason}; "
             f"response_length={self.response_length}"
         )
+
+
+class KnownSummaryResponseError(ValueError):
+    """A provider response that was definitely received but cannot be trusted.
+
+    Every instance of this family proves the model answered.  Local contract
+    rejection, forbidden-field rejection, unknown/foreign ref rejection, and
+    Summary Evidence hydration failure therefore belong here and must never be
+    recorded as an ambiguous provider dispatch.
+    """
+
+    def diagnostic(self) -> str:
+        return f"Summary known response rejected: {self}"
 
 
 class LocalTokenizerResourceError(ValueError):
@@ -180,6 +222,31 @@ class _RequestParts:
     developer: str
     schema: dict[str, object]
     payload_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryDraftRequest:
+    """The complete, provider-neutral, backend-authoritative Summary request.
+
+    It is derived only from the outbound payload and the backend-issued
+    :class:`TrustedEvidenceOffer`.  There is deliberately no excerpt-bearing
+    instruction and no way to express a range, so no provider adapter can ask a
+    model to reproduce authoritative Evidence text.
+    """
+
+    output_language: str
+    instructions: str
+    content_json: str
+    trusted_evidence_json: str
+    schema: dict[str, object]
+
+    def user_prompt(self) -> str:
+        return (
+            f"{self.instructions} "
+            f"Write all generated text in {self.output_language}. "
+            f"Content={self.content_json} "
+            f"TrustedEvidence={self.trusted_evidence_json}"
+        )
 
 
 def _utcnow() -> datetime:
@@ -273,10 +340,61 @@ def _request_parts(payload: AnalysisPayload) -> _RequestParts:
         msg = "summary prompt must declare analysis-prompt-v1"
         raise ValueError(msg)
     return _RequestParts(
-        system="You are a precise research analyst. Return only the declared JSON schema.",
+        system=SUMMARY_DRAFT_SYSTEM_PROMPT,
         developer=prompt,
         schema=_analysis_schema(),
         payload_json=_canonical_json(payload.model_dump(mode="json")),
+    )
+
+
+def require_trusted_evidence_offer(
+    analysis_input: AnalysisInput,
+) -> TrustedEvidenceOffer:
+    """Return the bound backend-issued candidate set, or fail closed.
+
+    A Summary request without the offer carries no citation authority at all,
+    so a provider adapter must refuse it rather than fall back to any
+    model-authored Evidence.
+    """
+
+    offer = analysis_input.trusted_evidence
+    if offer is None:
+        msg = "Summary request carries no backend-issued trusted Evidence offer"
+        raise ValueError(msg)
+    return offer
+
+
+def summary_draft_request(analysis_input: AnalysisInput) -> SummaryDraftRequest:
+    """Build the one model-facing Summary request for both providers."""
+
+    if analysis_input.prompt_version != SUMMARY_DRAFT_PROMPT_VERSION:
+        msg = "Summary request prompt identity is not the backend-authoritative v5 contract"
+        raise ValueError(msg)
+    offer = require_trusted_evidence_offer(analysis_input)
+    payload = analysis_input.payload
+    task = {
+        "video_id": payload.video_id,
+        "title": payload.title,
+        "channel_name": payload.channel_name,
+        "published_at": payload.published_at.isoformat(),
+        "duration_seconds": payload.duration_seconds,
+        "description": payload.description,
+        "transcript_language": payload.transcript_language,
+        "transcript_sample": payload.transcript_sample,
+    }
+    return SummaryDraftRequest(
+        output_language=payload.output_language,
+        instructions=summary_draft_instructions(
+            tuple(candidate.ref for candidate in offer.candidates)
+        ),
+        content_json=_canonical_json(task),
+        trusted_evidence_json=_canonical_json(
+            [
+                {"ref": candidate.ref, "text": candidate.text}
+                for candidate in offer.candidates
+            ]
+        ),
+        schema=summary_draft_schema(),
     )
 
 
@@ -402,6 +520,18 @@ def _input_tokens(parts: _RequestParts, data_root: Path | None) -> int:
     )
 
 
+def _summary_draft_token_parts(analysis_input: AnalysisInput) -> _RequestParts:
+    """Token-account the real v5 Summary request, not a superseded contract."""
+
+    draft_request = summary_draft_request(analysis_input)
+    return _RequestParts(
+        system=SUMMARY_DRAFT_SYSTEM_PROMPT,
+        developer=draft_request.user_prompt(),
+        schema=draft_request.schema,
+        payload_json=draft_request.content_json,
+    )
+
+
 def build_analysis_input(
     *,
     video: VideoMetadata,
@@ -412,8 +542,17 @@ def build_analysis_input(
     provider: str = _PROVIDER,
     operation: str = _OPERATION,
     prompt_version: str | None = None,
+    registry: TrustedEvidenceRegistry | None = None,
 ) -> AnalysisInput:
-    """Build the sole outbound object and its complete, deterministic cache key."""
+    """Build the sole outbound object and its complete, deterministic cache key.
+
+    When a backend-issued :class:`TrustedEvidenceRegistry` is supplied, its
+    identity is bound into the normalized input hash *and* offered to the
+    provider.  Two requests over identical visible content are therefore still
+    different requests whenever the trusted candidate text, its authoritative
+    range, or its underlying source identity differs, and the same registry
+    always reproduces the same request hash across restarts.
+    """
 
     if settings.model is None:
         msg = "cloud model is required to build an analysis input"
@@ -434,10 +573,10 @@ def build_analysis_input(
         transcript_sample=transcript_sample,
     )
     resolved_prompt = cast(
-        Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4"],
+        Literal["analysis-prompt-v1", "analysis-prompt-v2", "analysis-prompt-v3", "analysis-prompt-v4", "analysis-prompt-v5"],
         prompt_version
         or (
-            "analysis-prompt-v4"
+            SUMMARY_DRAFT_PROMPT_VERSION
             if provider == _LOCAL_PROVIDER
             else settings.prompt_version
         ),
@@ -452,6 +591,7 @@ def build_analysis_input(
             if isinstance(settings, LocalAnalysisSettings)
             else None
         ),
+        registry_identity=None if registry is None else registry.identity_hash(),
     )
     request_hash = build_provider_request_hash(
         operation=operation,
@@ -465,11 +605,12 @@ def build_analysis_input(
         request_hash=request_hash, prompt_version=resolved_prompt,
         schema_version=resolved_schema, sampling_version=settings.sampling_version,
         privacy_version=settings.privacy_version,
+        trusted_evidence=None if registry is None else registry.offer(),
     )
 
 
 def _normalized_input_hash(*, payload: AnalysisPayload, transcript_text: str, settings: CloudSettings | LocalAnalysisSettings,
-    model_digest: str | None = None,
+    model_digest: str | None = None, registry_identity: str | None = None,
 ) -> str:
     identity = {
         "payload": payload.model_dump(mode="json"),
@@ -481,6 +622,10 @@ def _normalized_input_hash(*, payload: AnalysisPayload, transcript_text: str, se
     if model_digest is not None:
         identity["model_digest"] = model_digest
         identity["context_tokens"] = LOCAL_ANALYSIS_CONTEXT_TOKENS
+    if registry_identity is not None:
+        # The offered candidate set is part of the request's meaning: two
+        # candidate registries are two different questions to the model.
+        identity["trusted_evidence_registry_identity"] = registry_identity
     return _sha256_text(_canonical_json(identity))
 
 
@@ -599,6 +744,99 @@ class AnalysisJobContext:
     pipeline_version: str
 
 
+#: The live Summary request is bounded by the same existing deterministic
+#: long-input policy that bounds the outbound transcript sample, so the offered
+#: candidate set reuses the project's established head/middle/tail selection
+#: rather than introducing a new budget.
+SUMMARY_CANDIDATE_CHARACTER_BUDGET: Final = _MAX_SAMPLE_CODEPOINTS
+
+
+def build_summary_evidence_registry(
+    *,
+    verified: VerifiedTimedTranscript,
+    video_id: str,
+    title: str,
+    channel_name: str,
+    description: str,
+    transcript_text: str,
+) -> TrustedEvidenceRegistry:
+    """The one deterministic registry a Summary request may be built from.
+
+    It is a pure projection over the verified timed transcript plus
+    backend-owned metadata.  Because it is deterministic, the same authoritative
+    inputs always produce the same registry identity before and after a
+    restart, and any change to candidate text, cue range, or authoritative
+    identity produces a different one.
+    """
+
+    input_identity = _sha256_text(
+        _canonical_json(
+            {
+                "video_id": video_id,
+                "transcript_content_hash": _sha256_text(transcript_text),
+                "title": title,
+                "channel_name": channel_name,
+                "description": description,
+            }
+        )
+    )
+    registry = build_trusted_evidence_registry(
+        transcript=verified,
+        title=title,
+        channel_name=channel_name,
+        description=description,
+        input_identity=input_identity,
+    )
+    return select_length_bounded_candidates(
+        registry, character_budget=SUMMARY_CANDIDATE_CHARACTER_BUDGET
+    )
+
+
+def _summary_result_from_draft(
+    draft: SummaryDraft,
+    hydrated_evidence: tuple[EvidenceExcerpt, ...],
+    *,
+    provider: str,
+    model: str,
+    prompt_version: str,
+    request_hash: str,
+) -> AnalysisResult:
+    """Compose the persisted ``analysis-result-v1`` from a hydrated draft.
+
+    Only the backend-resolved Evidence tuple is used; no model-authored
+    excerpt, offset, or timestamp has a field to live in.
+    """
+
+    def points(
+        group: tuple[SummaryDraftPoint, ...],
+    ) -> tuple[AnalysisPoint, ...]:
+        return tuple(
+            AnalysisPoint(
+                text=point.text, kind=point.kind, evidence_ids=point.evidence_refs
+            )
+            for point in group
+        )
+
+    return AnalysisResult(
+        one_sentence_summary=draft.one_sentence_summary,
+        core_points=points(draft.core_points),
+        key_facts=points(draft.key_facts),
+        product_opportunities=points(draft.product_opportunities),
+        business_opportunities=points(draft.business_opportunities),
+        actionable_directions=points(draft.actionable_directions),
+        hypotheses_to_validate=points(draft.hypotheses_to_validate),
+        action_recommendations=points(draft.action_recommendations),
+        risks=points(draft.risks),
+        keywords=draft.keywords,
+        evidence=hydrated_evidence,
+        provider=provider,
+        model=model,
+        prompt_version=cast(Any, prompt_version),
+        schema_version="analysis-result-v1",
+        request_hash=request_hash,
+    )
+
+
 class RepositoryBackedAnalysisService:
     """Persist a successful analysis and its provider call in one repository transaction."""
 
@@ -652,6 +890,56 @@ class RepositoryBackedAnalysisService:
             message="persisted cloud analysis cache is invalid", retryable=True,
             video_id=video_id, stage=ProcessingStage.ANALYSIS,
             ))
+
+    def _verified_timed_transcript(self, video_id: str) -> VerifiedTimedTranscript:
+        """Read the one trusted timed transcript, or fail closed.
+
+        Canonical-only Content has no cue-level authority, so it cannot produce
+        a Summary promotion.  There is deliberately no legacy excerpt fallback
+        and no fabricated timestamp: the Summary stage simply does not run.
+        """
+
+        verified: VerifiedTimedTranscript | None = cast(
+            VerifiedTimedTranscript | None,
+            self.repository.get_verified_timed_transcript(video_id=video_id),
+        )
+        if verified is None or verified.video_id != video_id:
+            raise AnalysisPolicyError(AppError(
+                code=ErrorCode.LOCAL_RESOURCE,
+                message="local Summary timed Evidence authority is unavailable",
+                retryable=True,
+                video_id=video_id,
+                stage=ProcessingStage.ANALYSIS,
+            ))
+        return verified
+
+    def _trusted_evidence_registry(
+        self, *, video: VideoMetadata, transcript_text: str,
+    ) -> tuple[TrustedEvidenceRegistry, VerifiedTimedTranscript]:
+        """Build the exact candidate set before any provider is contacted."""
+
+        verified = self._verified_timed_transcript(video.video_id)
+        record = self.repository.get_video(video.video_id)
+        if record is None:
+            raise AnalysisPolicyError(AppError(
+                code=ErrorCode.LOCAL_RESOURCE,
+                message="cloud analysis upstream state is invalid",
+                retryable=True,
+                video_id=video.video_id,
+                stage=ProcessingStage.ANALYSIS,
+            ))
+        # Backend-owned metadata only: the persisted record, never anything the
+        # model or a caller may have authored.
+        return build_summary_evidence_registry(
+            verified=verified,
+            video_id=record.video_id,
+            title=record.title or "",
+            channel_name=record.channel_name or "",
+            description=(record.description or "")[
+                : self.settings.max_description_chars
+            ],
+            transcript_text=transcript_text,
+        ), verified
 
     def _read_verified_artifact(
         self, *, artifact: Any, request: ProviderCallRequest, video_id: str,
@@ -729,10 +1017,9 @@ class RepositoryBackedAnalysisService:
             or result.model != request.model
         ):
             raise self._cache_error(video_id)
-        self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
-            video_id=video_id, expected_status=PipelineStatus.SCORED,
-            target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
-            artifacts=(), provider_call=None, now=now,
+        self.repository.complete_analysis_stage(job_id=self.context.job_id, owner=self.context.owner,
+            video_id=video_id, pipeline_version=self.context.pipeline_version,
+            artifacts=(), provider_call=None, summary_promotions=(), now=now,
         )
         return AnalysisCompleted(result=result, call=ProviderCallMetadata(provider=result.provider,
             model=result.model, started_at=now, finished_at=_utcnow(), diagnostics=(DiagnosticEntry(code="PERSISTED_CACHE_HIT", message="reused persisted cloud analysis",
@@ -753,19 +1040,24 @@ class RepositoryBackedAnalysisService:
             return AnalysisSkipped(reason=AnalysisSkipReason.CLOUD_DISABLED, call=None,
                 safe_message="cloud analysis is disabled",
             )
+        # The trusted Evidence registry is a precondition of the request, not a
+        # result of it: it is assembled before any provider, cache, credential,
+        # or reservation state is touched.
+        registry, verified = self._trusted_evidence_registry(
+            video=video, transcript_text=transcript_text
+        )
         analysis_input = build_analysis_input(video=video, transcript_text=transcript_text,
             language=language, output_language=output_language, settings=self.settings,
             provider=_LOCAL_PROVIDER if local_mode else _PROVIDER,
             operation=_LOCAL_OPERATION if local_mode else _OPERATION,
-            prompt_version=(
-                "analysis-prompt-v4" if local_mode else cloud_settings.prompt_version
-            ),
+            prompt_version=SUMMARY_DRAFT_PROMPT_VERSION,
+            registry=registry,
         )
         oversized = (
             len(transcript_text) > local_settings.max_transcript_chars
             if local_mode
             else _input_tokens(
-            _request_parts(analysis_input.payload), self.artifact_root
+            _summary_draft_token_parts(analysis_input), self.artifact_root
         ) > cloud_settings.max_local_input_tokens_per_video
         )
         if oversized:
@@ -780,6 +1072,7 @@ class RepositoryBackedAnalysisService:
                 model_digest=(
                     local_settings.expected_model_digest if local_mode else None
                 ),
+                registry_identity=registry.identity_hash(),
             ), provider=provider_name,
             model=self.settings.model, prompt_version=analysis_input.prompt_version,
             schema_version=analysis_input.schema_version,
@@ -890,11 +1183,14 @@ class RepositoryBackedAnalysisService:
         )
         try:
             if local_mode:
-                result = self.provider.summarize(analysis_input)
+                draft = self.provider.summarize(analysis_input)
             else:
-                result = self.provider.summarize_with_credential(
+                draft = self.provider.summarize_with_credential(
                     analysis_input, credential
                 )
+            # A response was definitely received from here on.  Everything below
+            # is local contract/authority validation and must be classified as a
+            # known failure, never as an ambiguous external dispatch.
             self.repository.record_provider_dispatch_result_unknown(
                 request.request_hash, owner=self.context.owner, now=now
             )
@@ -910,22 +1206,34 @@ class RepositoryBackedAnalysisService:
                             input_tokens = count
                         else:
                             output_tokens = count
+            result, hydrated = self._hydrate_summary_result(
+                draft, registry=registry, verified=verified, analysis_input=analysis_input,
+                provider=provider_name, model=cast(str, self.settings.model),
+                language=language,
+            )
+            # Hydration is complete before the structured artifact bytes and
+            # their hash exist, so a persisted Summary can never carry an
+            # unhydrated, model-authored Evidence excerpt.
             structured = _canonical_json(result.model_dump(mode="json")).encode()
             artifacts = self._artifacts(request, video.video_id, raw, structured, now)
             paths = self._write(artifacts, (raw, structured))
-            self.repository.complete_stage(job_id=self.context.job_id, owner=self.context.owner,
-                video_id=video.video_id, expected_status=PipelineStatus.SCORED,
-                target_status=PipelineStatus.ANALYSIS_READY, pipeline_version=self.context.pipeline_version,
+            self.repository.complete_analysis_stage(job_id=self.context.job_id, owner=self.context.owner,
+                video_id=video.video_id, pipeline_version=self.context.pipeline_version,
                 artifacts=artifacts, provider_call=ProviderCallCompletion(request_hash=request.request_hash,
-                response_artifact_id=artifacts[0].artifact_id, input_tokens=input_tokens, output_tokens=output_tokens,
-                cost_microusd=None,
-                ), now=now,
+                    response_artifact_id=artifacts[0].artifact_id, input_tokens=input_tokens, output_tokens=output_tokens,
+                    cost_microusd=None,
+                    ), summary_promotions=self._summary_promotions(hydrated),
+                now=now,
             )
         except Exception as exc:
             for path in locals().get("paths", ()):
                 path.unlink(missing_ok=True)
             error = getattr(exc, "error", None)
-            if local_mode and isinstance(exc, KnownLocalSummaryResponseError):
+            if self._is_known_summary_response_failure(
+                exc, local_mode=local_mode
+            ):
+                # The model answered; the answer cannot become a trusted
+                # Summary.  This is a definite, non-retryable local failure.
                 self.repository.record_provider_dispatch_known_failure(
                     request.request_hash, owner=self.context.owner, now=now
                 )
@@ -935,12 +1243,16 @@ class RepositoryBackedAnalysisService:
                     retryable=False,
                     available_at=now,
                     error_code=ErrorCode.INVALID_RESPONSE,
-                    error_message=exc.diagnostic(),
+                    error_message=self._known_response_diagnostic(exc),
                     now=now,
                 )
                 raise AnalysisPolicyError(AppError(
                     code=ErrorCode.INVALID_RESPONSE,
-                    message="local Summary returned incomplete or invalid output",
+                    message=(
+                        "local Summary returned incomplete or invalid output"
+                        if local_mode
+                        else "cloud Summary returned incomplete or invalid output"
+                    ),
                     retryable=False,
                     video_id=video.video_id,
                     stage=ProcessingStage.ANALYSIS,
@@ -977,6 +1289,76 @@ class RepositoryBackedAnalysisService:
             ),
         )
 
+    def _hydrate_summary_result(
+        self, draft: SummaryDraft, *, registry: TrustedEvidenceRegistry,
+        verified: VerifiedTimedTranscript, analysis_input: AnalysisInput,
+        provider: str, model: str, language: str,
+    ) -> tuple[AnalysisResult, HydratedSummaryEvidence]:
+        """Turn the provider draft into backend-owned, persisted Evidence."""
+
+        try:
+            hydrated = hydrate_summary_evidence(
+                draft,
+                registry,
+                video_id=verified.video_id,
+                canonical_artifact_id=verified.canonical_artifact_id,
+                language=language,
+                timed_transcript_id=verified.timed_transcript_id,
+                timed_transcript_hash=verified.timed_transcript_hash,
+            )
+            result = _summary_result_from_draft(
+                draft,
+                hydrated.evidence,
+                provider=provider,
+                model=model,
+                prompt_version=analysis_input.prompt_version,
+                request_hash=analysis_input.request_hash,
+            )
+        except SummaryEvidenceAuthorityError as failure:
+            # Unknown ref, foreign ref, forbidden excerpt, or missing timed
+            # authority: a known local authority failure, not a dispatch one.
+            raise KnownSummaryResponseError(str(failure)) from None
+        except (ValueError, TypeError) as failure:
+            raise KnownSummaryResponseError(
+                "hydrated Summary failed the persisted result contract"
+            ) from failure
+        return result, hydrated
+
+    @staticmethod
+    def _summary_promotions(
+        hydrated: HydratedSummaryEvidence,
+    ) -> tuple[tuple[EvidenceWrite, EvidenceTextBindingWrite], ...]:
+        """Only the selected timed spans become durable promotion plans."""
+
+        return tuple(
+            (promotion.as_evidence_write(), promotion.as_text_binding())
+            for promotion in hydrated.promotions
+        )
+
+    @staticmethod
+    def _is_known_summary_response_failure(
+        exc: BaseException, *, local_mode: bool
+    ) -> bool:
+        if local_mode and isinstance(exc, KnownLocalSummaryResponseError):
+            return True
+        if isinstance(exc, KnownSummaryResponseError):
+            return True
+        # The cloud adapter only raises INVALID_RESPONSE once a response object
+        # was actually received, so it is equally a known-response failure.
+        error = getattr(exc, "error", None)
+        return (
+            isinstance(error, AppError)
+            and error.code is ErrorCode.INVALID_RESPONSE
+            and not getattr(exc, "refusal", False)
+        )
+
+    @staticmethod
+    def _known_response_diagnostic(exc: BaseException) -> str:
+        diagnostic = getattr(exc, "diagnostic", None)
+        if callable(diagnostic):
+            return cast(str, diagnostic())
+        return "Summary known response rejected"
+
     def _artifacts(self, request: ProviderCallRequest, video_id: str, raw: bytes, structured: bytes,
                    now: datetime,
     ) -> tuple[ArtifactWrite, ArtifactWrite]:
@@ -1009,5 +1391,9 @@ class RepositoryBackedAnalysisService:
 __all__ = [
     "AnalysisCache", "AnalysisPolicyError", "AnalysisService", "CloudCallBudget",
     "CredentialResolver", "EnvironmentCredentialResolver", "InMemoryAnalysisCache",
-    "build_analysis_input", "sample_transcript_for_cloud",
+    "KnownLocalSummaryResponseError", "KnownSummaryResponseError",
+    "SUMMARY_CANDIDATE_CHARACTER_BUDGET", "SUMMARY_DRAFT_SYSTEM_PROMPT",
+    "SummaryDraftRequest", "build_analysis_input", "build_summary_evidence_registry",
+    "require_trusted_evidence_offer",
+    "sample_transcript_for_cloud", "summary_draft_request",
 ]

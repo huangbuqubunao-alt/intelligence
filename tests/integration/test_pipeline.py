@@ -16,6 +16,7 @@ from youtube_intel.analysis import (
     AnalysisJobContext,
     CloudCallBudget,
     RepositoryBackedAnalysisService,
+    build_summary_evidence_registry,
 )
 from youtube_intel.config import CloudSettings, load_app_config
 from youtube_intel.domain import (
@@ -349,9 +350,93 @@ class _StageFailure(Exception):
         super().__init__(error.message)
 
 
+ANALYSIS_CUE_TEXTS = (
+    "The transcript supplies one real sentence about the topic.",
+    "A second cue names the pricing model in detail.",
+)
+
+
+def _seed_analysis_timed_transcript(
+    repository: SQLiteStateRepository, video_id: str
+) -> None:
+    """Give the ANALYSIS stage real cue-level transcript authority."""
+
+    from youtube_intel.state import (
+        ArtifactWrite,
+        RetentionClass,
+        StorageRoot,
+        TimedTranscriptCueWrite,
+        TimedTranscriptWrite,
+    )
+
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id=f"artifact-{video_id}",
+            artifact_key=f"transcript/{video_id}",
+            video_id=video_id,
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path=f"transcripts/{video_id}/canonical.txt",
+            content_hash=hashlib.sha256(
+                "".join(ANALYSIS_CUE_TEXTS).encode()
+            ).hexdigest(),
+            provider="fixture",
+            model=None,
+            producer_version="fixture-v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=NOW,
+    )
+    repository.create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id=video_id,
+            canonical_artifact_id=f"artifact-{video_id}",
+            cues=tuple(
+                TimedTranscriptCueWrite(
+                    start_ms=index * 1000,
+                    end_ms=(index + 1) * 1000,
+                    text=text,
+                )
+                for index, text in enumerate(ANALYSIS_CUE_TEXTS)
+            ),
+        ),
+        now=NOW,
+    )
+
+
+def _analysis_transcript_ref(repository: SQLiteStateRepository, video_id: str) -> str:
+    from youtube_intel.domain import EvidenceSource
+
+    verified = repository.get_verified_timed_transcript(video_id=video_id)
+    assert verified is not None
+    registry = build_summary_evidence_registry(
+        verified=verified,
+        video_id=video_id,
+        title="Video high",
+        channel_name="Test channel",
+        description="Offline fixture",
+        transcript_text="transcript evidence",
+    )
+    return next(
+        candidate.ref
+        for candidate in registry.candidates
+        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+    )
+
+
 class _AnalysisTransport:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, video_id: str = "high", repository: SQLiteStateRepository | None = None
+    ) -> None:
         self.requests: list[dict[str, object]] = []
+        self._video_id = video_id
+        self._ref = (
+            _analysis_transcript_ref(repository, video_id)
+            if repository is not None
+            else "t0-2-unknown"
+        )
 
     def __call__(
         self, request: dict[str, object], credential: str
@@ -365,17 +450,10 @@ class _AnalysisTransport:
                     {
                         "text": "Video high is named.",
                         "kind": "fact",
-                        "evidence_ids": ["title-1"],
+                        "evidence_refs": [self._ref],
                     }
                 ],
                 "keywords": ["high"],
-                "evidence": [
-                    {
-                        "evidence_id": "title-1",
-                        "source": "title",
-                        "excerpt": "Video high",
-                    }
-                ],
             },
             "input_tokens": 24,
             "output_tokens": 18,
@@ -470,6 +548,7 @@ def _prepare_high_value_analysis(
     saved = repository.get_video(video_id)
     assert saved is not None and saved.pipeline_status is PipelineStatus.SCORED
     assert saved.should_summarize is True
+    _seed_analysis_timed_transcript(repository, video_id)
 
 
 def _analysis_pipeline(
@@ -623,7 +702,9 @@ def test_repository_backed_analysis_completion_schedules_one_note_write(
     _prepare_high_value_analysis(repository, stages, "high")
     _assert_trusted_scoring_outputs(runtime, "high")
     pipeline, note_writes = _analysis_pipeline(
-        repository, _AnalysisTransport(), tmp_path / "analysis-data"
+        repository,
+        _AnalysisTransport(repository=repository),
+        tmp_path / "analysis-data",
     )
 
     pipeline.resume_video("high", now=NOW)

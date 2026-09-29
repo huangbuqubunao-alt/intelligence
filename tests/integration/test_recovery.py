@@ -15,6 +15,7 @@ from youtube_intel.analysis import (
     CloudCallBudget,
     RepositoryBackedAnalysisService,
     build_analysis_input,
+    build_summary_evidence_registry,
 )
 from youtube_intel.config import CloudSettings
 from youtube_intel.domain import (
@@ -23,6 +24,7 @@ from youtube_intel.domain import (
     AppError,
     Availability,
     ErrorCode,
+    EvidenceSource,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
@@ -35,7 +37,13 @@ from youtube_intel.pipeline import (
 )
 from youtube_intel.providers.cloud_llm import OpenAIResponsesProvider
 from youtube_intel.retry import RetryPolicy
-from youtube_intel.state import JobRecord, JobType, SQLiteStateRepository, VideoRecord
+from youtube_intel.state import (
+    ArtifactKind,
+    JobRecord,
+    JobType,
+    SQLiteStateRepository,
+    VideoRecord,
+)
 
 PIPELINE_VERSION = "pipeline-v1"
 
@@ -64,9 +72,85 @@ def _metadata() -> VideoMetadata:
     )
 
 
+ANALYSIS_CUE_TEXTS = (
+    "The transcript supplies one real sentence about the topic.",
+    "A second cue names the pricing model in detail.",
+)
+
+
+def _seed_timed_transcript(repository: SQLiteStateRepository) -> None:
+    """Give ANALYSIS real cue-level transcript authority."""
+
+    from youtube_intel.state import (
+        ArtifactWrite,
+        RetentionClass,
+        StorageRoot,
+        TimedTranscriptCueWrite,
+        TimedTranscriptWrite,
+    )
+
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id="artifact-high",
+            artifact_key="transcript/high",
+            video_id="high",
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path="transcripts/high/canonical.txt",
+            content_hash=hashlib.sha256(
+                "".join(ANALYSIS_CUE_TEXTS).encode()
+            ).hexdigest(),
+            provider="fixture",
+            model=None,
+            producer_version="fixture-v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=datetime.now(UTC),
+    )
+    repository.create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id="high",
+            canonical_artifact_id="artifact-high",
+            cues=tuple(
+                TimedTranscriptCueWrite(
+                    start_ms=index * 1000,
+                    end_ms=(index + 1) * 1000,
+                    text=text,
+                )
+                for index, text in enumerate(ANALYSIS_CUE_TEXTS)
+            ),
+        ),
+        now=datetime.now(UTC),
+    )
+
+
+def _analysis_registry(repository: SQLiteStateRepository):
+    verified = repository.get_verified_timed_transcript(video_id="high")
+    assert verified is not None
+    return build_summary_evidence_registry(
+        verified=verified,
+        video_id="high",
+        title="Video high",
+        channel_name="Test channel",
+        description="Offline fixture",
+        transcript_text="transcript evidence",
+    )
+
+
 class _AnalysisTransport:
-    def __init__(self) -> None:
+    def __init__(self, repository: SQLiteStateRepository | None = None) -> None:
         self.requests: list[dict[str, object]] = []
+        self._ref = (
+            next(
+                candidate.ref
+                for candidate in _analysis_registry(repository).candidates
+                if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+            )
+            if repository is not None
+            else "t0-2-unknown"
+        )
 
     def __call__(
         self, request: dict[str, object], credential: str
@@ -80,17 +164,10 @@ class _AnalysisTransport:
                     {
                         "text": "Video high is named.",
                         "kind": "fact",
-                        "evidence_ids": ["title-1"],
+                        "evidence_refs": [self._ref],
                     }
                 ],
                 "keywords": ["high"],
-                "evidence": [
-                    {
-                        "evidence_id": "title-1",
-                        "source": "title",
-                        "excerpt": "Video high",
-                    }
-                ],
             },
             "input_tokens": 24,
             "output_tokens": 18,
@@ -232,7 +309,8 @@ def test_cached_analysis_recovery_preserves_verified_artifacts_and_schedules_not
 ) -> None:
     now = datetime.now(UTC)
     repository = _repository_at_scored_state(tmp_path, now)
-    transport = _AnalysisTransport()
+    _seed_timed_transcript(repository)
+    transport = _AnalysisTransport(repository)
     artifact_root = tmp_path / "analysis-data"
     repository.create_job(
         job_id="initial-analysis",
@@ -269,6 +347,8 @@ def test_cached_analysis_recovery_preserves_verified_artifacts_and_schedules_not
         language="en",
         output_language="zh-CN",
         settings=initial_service.settings,
+        prompt_version="analysis-prompt-v5",
+        registry=_analysis_registry(repository),
     ).request_hash
     raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
     structured = repository.get_artifact_by_key(

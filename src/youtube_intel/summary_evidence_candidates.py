@@ -31,7 +31,11 @@ import json
 from dataclasses import dataclass
 from typing import Final, Iterable, Mapping
 
-from youtube_intel.domain import EvidenceSource
+from youtube_intel.domain import (
+    EvidenceSource,
+    TrustedEvidenceCandidateView,
+    TrustedEvidenceOffer,
+)
 from youtube_intel.state import VerifiedTimedTranscript, VerifiedTimedTranscriptCue
 from youtube_intel.summary_draft import EVIDENCE_EXCERPT_MAX_LENGTH
 
@@ -153,6 +157,27 @@ class TrustedEvidenceRegistry:
             {"ref": candidate.ref, "text": candidate.text}
             for candidate in self.candidates
         ]
+
+    def offer(self) -> TrustedEvidenceOffer:
+        """Project the registry onto the one outbound Summary request shape.
+
+        The projection is a *view*: it drops every range field and keeps the
+        identity hash of the complete canonical form.  A provider therefore
+        receives no offset, timestamp, or cue authority to echo, while the
+        request identity still changes whenever any of it changes.
+        """
+
+        return TrustedEvidenceOffer(
+            registry_identity=self.identity_hash(),
+            cue_group_policy=self.cue_group_policy,
+            metadata_span_policy=self.metadata_span_policy,
+            candidates=tuple(
+                TrustedEvidenceCandidateView(
+                    ref=candidate.ref, source=candidate.source, text=candidate.text
+                )
+                for candidate in self.candidates
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------

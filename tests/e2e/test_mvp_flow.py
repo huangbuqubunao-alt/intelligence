@@ -9,6 +9,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Final
 
 import pytest
 import yaml
@@ -22,10 +23,8 @@ from youtube_intel.analysis import (
 from youtube_intel.config import CloudSettings, load_app_config
 from youtube_intel.domain import (
     AnalysisCompleted,
-    AnalysisPoint,
     AnalysisResult,
     Availability,
-    EvidenceExcerpt,
     EvidenceSource,
     LiveStatus,
     PointKind,
@@ -69,6 +68,7 @@ from youtube_intel.state import (
     SQLiteStateRepository,
     StorageRoot,
 )
+from youtube_intel.summary_draft import SummaryDraft, SummaryDraftPoint
 from youtube_intel.transcription import AudioResourceSnapshot
 from youtube_intel.transcripts import (
     LocalTranscriptionService,
@@ -106,6 +106,29 @@ SCENARIOS = (
     _Scenario("low-value", TranscriptSourceType.MANUAL_SUBTITLE, 4.0),
     _Scenario("high-value", TranscriptSourceType.AUTO_SUBTITLE, 9.4),
 )
+
+#: Managed audio transcription carries no cue-level transcript authority, so the
+#: backend-authoritative Summary stage fails closed for it instead of
+#: fabricating a span. Every subtitle scenario below has real timed cues.
+SCENARIOS_WITHOUT_TIMED_AUTHORITY: Final = frozenset({"whisper-high"})
+
+
+def expected_final_status(video_id: str) -> PipelineStatus:
+    return (
+        PipelineStatus.SCORED
+        if video_id in SCENARIOS_WITHOUT_TIMED_AUTHORITY
+        else PipelineStatus.COMPLETE
+    )
+
+
+def expected_summarised_video_ids() -> tuple[str, ...]:
+    """Scenarios that reach a Summary at all, in scenario order."""
+
+    return tuple(
+        scenario.video_id
+        for scenario in SCENARIOS
+        if scenario.video_id not in SCENARIOS_WITHOUT_TIMED_AUTHORITY
+    )
 
 
 class _SubtitleAdapter:
@@ -259,46 +282,47 @@ class _FakeQualityTransport:
 
 
 class _AnalysisProvider:
+    """The live provider contract: a backend-authoritative Summary draft."""
+
     def __init__(self, *, fail_once: bool = False) -> None:
         self.fail_once = fail_once
         self.calls = 0
         self._raw: str | None = None
 
-    def summarize_with_credential(self, analysis_input: object, credential: str) -> AnalysisResult:
+    def summarize_with_credential(
+        self, analysis_input: object, credential: str
+    ) -> SummaryDraft:
         assert credential == "offline-test-credential"
         self.calls += 1
         if self.fail_once:
             self.fail_once = False
             raise RuntimeError("injected cloud analysis outage")
-        payload = getattr(analysis_input, "payload")
+        offer = getattr(analysis_input, "trusted_evidence")
+        assert offer is not None
+        # A real model can only cite refs the backend actually issued.
+        title_ref = next(
+            candidate.ref
+            for candidate in offer.candidates
+            if candidate.source is EvidenceSource.TITLE
+        )
         self._raw = '{"offline":"analysis"}'
-        return AnalysisResult(
+        return SummaryDraft(
             one_sentence_summary="The offline fixture identifies one useful product direction.",
             core_points=(
-                AnalysisPoint(
+                SummaryDraftPoint(
                     text="The title states the user-facing product topic.",
                     kind=PointKind.FACT,
-                    evidence_ids=("title-1",),
+                    evidence_refs=(title_ref,),
                 ),
             ),
             actionable_directions=(
-                AnalysisPoint(
+                SummaryDraftPoint(
                     text="Validate the product direction with users.",
                     kind=PointKind.RECOMMENDATION,
-                    evidence_ids=("title-1",),
+                    evidence_refs=(title_ref,),
                 ),
             ),
             keywords=("product",),
-            evidence=(
-                EvidenceExcerpt(
-                    evidence_id="title-1",
-                    source=EvidenceSource.TITLE,
-                    excerpt=payload.title,
-                ),
-            ),
-            provider="openai",
-            model="gpt-4.1-mini",
-            request_hash=getattr(analysis_input, "request_hash"),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
@@ -751,17 +775,18 @@ def test_mvp_service_flow_covers_five_user_scenarios_and_is_idempotent(tmp_path:
 
     flow.run()
 
-    assert all(
-        flow.repository.get_video(scenario.video_id).pipeline_status is PipelineStatus.COMPLETE  # type: ignore[union-attr]
-        for scenario in SCENARIOS
-    )
     assert flow.transcripts["manual-high"].artifact.source_type is TranscriptSourceType.MANUAL_SUBTITLE
     assert flow.transcripts["auto-high"].artifact.source_type is TranscriptSourceType.AUTO_SUBTITLE
     assert flow.transcripts["whisper-high"].artifact.source_type is TranscriptSourceType.WHISPER
     assert flow.whisper.calls == 1
-    assert flow.analysis.calls == 4
-    assert flow.credentials.calls == 4
+    # Three of the four admitted videos carry cue-level authority; the
+    # Whisper transcription has none, so it is never dispatched.
+    assert flow.analysis.calls == 3
+    assert flow.credentials.calls == 3
     assert flow.repository.get_video("low-value").should_summarize is False  # type: ignore[union-attr]
+    for scenario in SCENARIOS:
+        status = flow.repository.get_video(scenario.video_id).pipeline_status
+        assert status is expected_final_status(scenario.video_id)  # type: ignore[union-attr]
 
     report = flow.weekly_service().generate(now=NOW)
     report_path = flow.vault_root / "Knowledge" / report.note_ref.relative_path

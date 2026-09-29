@@ -95,6 +95,8 @@ from youtube_intel.domain import (
     TranscriptReady,
     TranscriptSample,
     TranscriptSourceType,
+    TrustedEvidenceCandidateView,
+    TrustedEvidenceOffer,
     VideoMetadata,
     WeeklyReportInput,
     WeeklyReportItem,
@@ -1224,11 +1226,27 @@ def test_analysis_input_is_limited_to_payload_and_local_audit_fields() -> None:
         "schema_version",
         "sampling_version",
         "privacy_version",
+        # The backend-issued candidate set bound to this request identity.
+        # It carries only refs and trusted text: no offset, timestamp, or
+        # excerpt authority of its own.
+        "trusted_evidence",
     }
     assert analysis_input.prompt_version == "analysis-prompt-v1"
     assert analysis_input.schema_version == "analysis-result-v1"
     assert analysis_input.sampling_version == "cloud-token-sampling-v1"
     assert analysis_input.privacy_version == "cloud-privacy-v1"
+    assert analysis_input.trusted_evidence is None
+    assert set(TrustedEvidenceOffer.model_fields) == {
+        "registry_identity",
+        "cue_group_policy",
+        "metadata_span_policy",
+        "candidates",
+    }
+    assert set(TrustedEvidenceCandidateView.model_fields) == {
+        "ref",
+        "source",
+        "text",
+    }
     for forbidden in ("video", "transcript_text", "score", "language"):
         assert not hasattr(analysis_input, forbidden)
 

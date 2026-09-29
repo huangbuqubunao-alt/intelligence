@@ -1,1 +1,1 @@
-{"events":[{"segs":[{"utf8":"Alice: This manual subtitle contains enough meaningful text for validation."}]}]}
+{"events":[{"tStartMs":0,"dDurationMs":1800,"segs":[{"utf8":"Alice: This manual subtitle contains enough meaningful text for validation."}]},{"tStartMs":2500,"dDurationMs":1800,"segs":[{"utf8":"This public product lesson explains the reliable product workflow."}]},{"tStartMs":5000,"dDurationMs":1800,"segs":[{"utf8":"Useful details remain grounded in the original English transcript."}]}]}

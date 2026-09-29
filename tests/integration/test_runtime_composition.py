@@ -20,7 +20,6 @@ from youtube_intel.config import load_app_config
 from youtube_intel.distillation import MoonshotK26NonThinkingCloudDistillationTransport
 from youtube_intel.domain import (
     AnalysisCompleted,
-    AnalysisResult,
     Availability,
     ChannelRef,
     ContentQualityConfidence,
@@ -49,6 +48,7 @@ from youtube_intel.scoring import PrimaryScoringAttempt, build_primary_scoring_a
 from youtube_intel.source_policy import PolicyOverrideMode
 from youtube_intel.source_run import SourceRunAttentionReason, SourceRunState
 from youtube_intel.state import ArtifactKind, PipelineStatus, SQLiteStateRepository
+from youtube_intel.summary_draft import SummaryDraft, SummaryDraftPoint
 from youtube_intel.transcripts import (
     SubtitleReadResult,
     SubtitleTrack,
@@ -298,37 +298,32 @@ class _QualityJudgeProvider:
 
 
 class _SummaryProvider:
-    def summarize(self, analysis_input: object) -> AnalysisResult:
+    """The live provider contract: a backend-authoritative Summary draft."""
+
+    def summarize(self, analysis_input: object) -> SummaryDraft:
         payload = getattr(analysis_input, "payload")
-        return AnalysisResult.model_validate(
-            {
-                "one_sentence_summary": "该视频介绍了一个产品观点。"
-                if payload.output_language == "zh-CN"
-                else "The video presents a product idea.",
-                "core_points": [
-                    {
-                        "text": "内容围绕产品展开。"
-                        if payload.output_language == "zh-CN"
-                        else "The content focuses on a product.",
-                        "kind": "fact",
-                        "evidence_ids": ["title-e1"],
-                    }
-                ],
-                "keywords": [
-                    "产品" if payload.output_language == "zh-CN" else "product"
-                ],
-                "evidence": [
-                    {
-                        "evidence_id": "title-e1",
-                        "source": EvidenceSource.TITLE,
-                        "excerpt": payload.title,
-                    }
-                ],
-                "provider": "ollama",
-                "model": "qwen3:8b",
-                "prompt_version": "analysis-prompt-v4",
-                "request_hash": getattr(analysis_input, "request_hash"),
-            }
+        offer = getattr(analysis_input, "trusted_evidence")
+        assert offer is not None
+        # A real model can only cite refs the backend actually issued.
+        ref = next(
+            candidate.ref
+            for candidate in offer.candidates
+            if candidate.source is EvidenceSource.TITLE
+        )
+        return SummaryDraft(
+            one_sentence_summary="该视频介绍了一个产品观点。"
+            if payload.output_language == "zh-CN"
+            else "The video presents a product idea.",
+            core_points=(
+                SummaryDraftPoint(
+                    text="内容围绕产品展开。"
+                    if payload.output_language == "zh-CN"
+                    else "The content focuses on a product.",
+                    kind="fact",
+                    evidence_refs=(ref,),
+                ),
+            ),
+            keywords=("产品" if payload.output_language == "zh-CN" else "product",),
         )
 
     def consume_raw_response(self, *, request_hash: str) -> str:
@@ -657,7 +652,9 @@ def test_default_cli_runs_persistent_caption_to_note_and_weekly_flow(
     project = _project(tmp_path)
     source = _DiscoverySource()
     metadata = _MetadataProvider()
-    subtitle = _SubtitleAdapter()
+    # Timed cues are required: canonical-only Content has no Summary Evidence
+    # authority and the ANALYSIS stage now fails closed without them.
+    subtitle = _TimedSubtitleAdapter()
     scoring = _ScoringProvider()
     judge = _QualityJudgeProvider()
 

@@ -1168,9 +1168,7 @@ class RuntimeOperations(Operations):
             else self._config.settings.cloud.model
         )
         expected_operation = "local-analysis" if expected_local else "cloud-analysis"
-        expected_prompt = (
-            "analysis-prompt-v4" if expected_local else "analysis-prompt-v1"
-        )
+        expected_prompt = "analysis-prompt-v5"
         expected_provider = (
             "ollama" if expected_local else self._config.settings.cloud.provider
         )

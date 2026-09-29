@@ -439,24 +439,69 @@ def test_promotion_rejects_non_extraction_lineage(tmp_path: Path) -> None:
         repository.promote_summary_evidence(bad, promotion.as_text_binding(), now=NOW)
 
 
-def test_promoted_analysis_result_cannot_carry_prompt_v5_yet() -> None:
-    """Documents a live-cutover blocker discovered during Authority Wiring.
+def test_promoted_analysis_result_can_carry_prompt_v5() -> None:
+    """The live cutover widened the persisted identity in the same change.
 
-    ``AnalysisResult.prompt_version`` is a Literal capped at
-    ``analysis-prompt-v4``. A hydrated result produced under
-    ``analysis-prompt-v5`` therefore cannot yet be constructed, so the
-    production cutover must widen this persisted identity in the same change
-    that actually performs the cutover. Foundation deliberately did not widen
-    it, because a v5-capable persisted contract with no v5 producer would be
-    a half-migrated runtime.
+    ``AnalysisResult.prompt_version`` now accepts ``analysis-prompt-v5``, so a
+    hydrated result produced under the backend-authoritative contract can be
+    constructed and persisted. Foundation deliberately did not widen it, because
+    a v5-capable persisted contract with no v5 producer would be a half-migrated
+    runtime.
     """
 
-    import pytest as _pytest
+    ref = _transcript_ref()
+    result = _hydrate(_draft(ref))
+    analysis = AnalysisResult(
+        one_sentence_summary="s",
+        core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
+        keywords=("k",),
+        evidence=result.evidence,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="analysis-prompt-v5",
+        schema_version="analysis-result-v1",
+        request_hash="0" * 64,
+    )
+    assert analysis.prompt_version == "analysis-prompt-v5"
+    assert analysis.evidence == result.evidence
+
+
+@pytest.mark.parametrize(
+    "historical",
+    [
+        "analysis-prompt-v1",
+        "analysis-prompt-v2",
+        "analysis-prompt-v3",
+        "analysis-prompt-v4",
+    ],
+)
+def test_historical_prompt_versions_remain_valid(historical: str) -> None:
+    """Widening v5 must not invalidate any already-persisted Summary."""
+
+    ref = _transcript_ref()
+    result = _hydrate(_draft(ref))
+    analysis = AnalysisResult(
+        one_sentence_summary="s",
+        core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
+        keywords=("k",),
+        evidence=result.evidence,
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version=historical,
+        schema_version="analysis-result-v1",
+        request_hash="0" * 64,
+    )
+    assert analysis.prompt_version == historical
+
+
+def test_unknown_prompt_version_is_still_rejected() -> None:
+    """The identity remains a closed set, not an open string."""
+
     from pydantic import ValidationError as _ValidationError
 
     ref = _transcript_ref()
     result = _hydrate(_draft(ref))
-    with _pytest.raises(_ValidationError, match="prompt_version"):
+    with pytest.raises(_ValidationError, match="prompt_version"):
         AnalysisResult(
             one_sentence_summary="s",
             core_points=(AnalysisPoint(text="t", kind="fact", evidence_ids=(ref,)),),
@@ -464,7 +509,7 @@ def test_promoted_analysis_result_cannot_carry_prompt_v5_yet() -> None:
             evidence=result.evidence,
             provider="ollama",
             model="qwen3:8b",
-            prompt_version="analysis-prompt-v5",
+            prompt_version="analysis-prompt-v6",
             schema_version="analysis-result-v1",
             request_hash="0" * 64,
         )

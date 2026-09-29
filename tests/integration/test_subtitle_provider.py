@@ -1454,9 +1454,22 @@ def test_first_success_writes_two_artifacts_and_completes_real_sqlite(
     assert all(row[4] == "LONG_LIVED" and row[5] is None for row in artifact_rows)
     assert provider_row is not None
     assert provider_row[0] == ProviderCallStatus.SUCCEEDED.value
+    with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
+        cue_texts = [
+            str(row[0])
+            for row in connection.execute(
+                "SELECT cue_text FROM timed_transcript_cues ORDER BY cue_index"
+            )
+        ]
     database_bytes = (tmp_path / "state.sqlite3").read_bytes()
+    # The provider URL and the raw subtitle payload are never persisted.
     assert b"api/timedtext" not in database_bytes
-    assert b"This manual subtitle contains" not in database_bytes
+    assert (FIXTURES / "manual_en.json3").read_bytes() not in database_bytes
+    assert b"tStartMs" not in database_bytes
+    # The verified cue text that *is* present is the trusted cue-level
+    # authority, not a copy of the provider response.
+    assert cue_texts
+    assert cue_texts[0].encode() in database_bytes
 
 
 def test_sqlite_repository_satisfies_static_and_runtime_transcript_wiring(

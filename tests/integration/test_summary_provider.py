@@ -19,12 +19,14 @@ from youtube_intel.analysis import (
     CloudCallBudget,
     RepositoryBackedAnalysisService,
     build_analysis_input,
+    build_summary_evidence_registry,
 )
 from youtube_intel.config import CloudSettings
 from youtube_intel.domain import (
     AnalysisSkipReason,
     Availability,
     ErrorCode,
+    EvidenceSource,
     LiveStatus,
     PipelineStatus,
     ProcessingStage,
@@ -34,12 +36,23 @@ from youtube_intel.providers.cloud_llm import (
     CloudProviderError,
     OpenAIResponsesProvider,
 )
+from youtube_intel.providers.ollama_analysis import _ollama_schema
 from youtube_intel.state import (
+    ArtifactKind,
+    ArtifactWrite,
     JobType,
     ProviderCallStatus,
     ProviderDispatchStatus,
+    RetentionClass,
     SQLiteStateRepository,
+    StorageRoot,
+    TimedTranscriptCueWrite,
+    TimedTranscriptWrite,
+    VerifiedTimedTranscript,
+    VerifiedTimedTranscriptCue,
+    build_timed_transcript_hash,
 )
+from youtube_intel.summary_draft import SummaryDraft, summary_draft_schema
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +62,132 @@ def _persistence_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(analysis_mod, "_input_tokens", lambda _parts, _root: 2)
 
 
-def _input() -> object:
+CUE_TEXTS = (
+    "The transcript supplies one real sentence.",
+    "A second cue names the pricing model.",
+)
+
+
+def _seed_timed_transcript(repository: SQLiteStateRepository) -> None:
+    """Give the repository real cue-level transcript authority."""
+
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id="artifact-1",
+            artifact_key="transcript/video-123",
+            video_id="video-123",
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path="transcripts/video-123/canonical.txt",
+            content_hash=hashlib.sha256("".join(CUE_TEXTS).encode()).hexdigest(),
+            provider="fixture",
+            model=None,
+            producer_version="fixture-v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=datetime.now(UTC),
+    )
+    repository.create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id="video-123",
+            canonical_artifact_id="artifact-1",
+            cues=tuple(
+                TimedTranscriptCueWrite(
+                    start_ms=index * 1000,
+                    end_ms=(index + 1) * 1000,
+                    text=text,
+                )
+                for index, text in enumerate(CUE_TEXTS)
+            ),
+        ),
+        now=datetime.now(UTC),
+    )
+
+
+def _registry(repository: SQLiteStateRepository):
+    return build_summary_evidence_registry(
+        verified=_verified(repository),
+        video_id="video-123",
+        title="Useful title",
+        channel_name="Example Channel",
+        description="public description",
+        transcript_text="transcript evidence",
+    )
+
+
+def _request_hash(
+    repository: SQLiteStateRepository,
+    settings: CloudSettings,
+    transcript_text: str = "transcript evidence",
+) -> str:
+    verified = _verified(repository)
+    return build_analysis_input(
+        video=_video(),
+        transcript_text=transcript_text,
+        language="en",
+        output_language="zh-CN",
+        settings=settings,
+        prompt_version="analysis-prompt-v5",
+        registry=build_summary_evidence_registry(
+            verified=verified,
+            video_id="video-123",
+            title="Useful title",
+            channel_name="Example Channel",
+            description="public description",
+            transcript_text=transcript_text,
+        ),
+    ).request_hash
+
+
+def _transcript_ref(repository: SQLiteStateRepository) -> str:
+    return next(
+        candidate.ref
+        for candidate in _registry(repository).candidates
+        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+    )
+
+
+def _verified_from_cues() -> VerifiedTimedTranscript:
+    """A verified timed transcript constructed exactly as the repository would."""
+
+    cues = tuple(
+        TimedTranscriptCueWrite(
+            start_ms=index * 1000, end_ms=(index + 1) * 1000, text=text
+        )
+        for index, text in enumerate(CUE_TEXTS)
+    )
+    return VerifiedTimedTranscript(
+        timed_transcript_id="timed-transcript:v1:offline",
+        video_id="video-123",
+        canonical_artifact_id="artifact-1",
+        timed_transcript_hash=build_timed_transcript_hash(cues),
+        cues=tuple(
+            VerifiedTimedTranscriptCue(
+                cue_index=index,
+                start_ms=index * 1000,
+                end_ms=(index + 1) * 1000,
+                text=text,
+                text_hash=hashlib.sha256(text.encode()).hexdigest(),
+            )
+            for index, text in enumerate(CUE_TEXTS)
+        ),
+    )
+
+
+def _offline_registry():
+    return build_summary_evidence_registry(
+        verified=_verified_from_cues(),
+        video_id="video-123",
+        title="Useful title",
+        channel_name="Example Channel",
+        description="public description",
+        transcript_text="transcript evidence",
+    )
+
+
+def _input(registry: object | None = None) -> object:
     video = VideoMetadata(
         video_id="video-123", channel_id="channel-123", channel_name="Example Channel",
         title="Useful title", description="public description",
@@ -59,8 +197,17 @@ def _input() -> object:
     )
     return build_analysis_input(
         video=video, transcript_text="transcript evidence", language="en",
-        output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+        output_language="zh-CN",
+        settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+        prompt_version="analysis-prompt-v5",
+        registry=_offline_registry() if registry is None else registry,
     )
+
+
+def _verified(repository: SQLiteStateRepository):
+    verified = repository.get_verified_timed_transcript(video_id="video-123")
+    assert verified is not None
+    return verified
 
 
 def _video() -> VideoMetadata:
@@ -81,13 +228,44 @@ class _Transport:
         return self.response
 
 
-def _valid_response() -> dict[str, object]:
+def _offline_ref() -> str:
+    return next(
+        candidate.ref
+        for candidate in _offline_registry().candidates
+        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+    )
+
+
+def _valid_response_offline() -> dict[str, object]:
     return {
         "output_text": {
             "one_sentence_summary": "The transcript supplies evidence.",
-            "core_points": [{"text": "Useful title is named.", "kind": "fact", "evidence_ids": ["title-1"]}],
+            "core_points": [
+                {
+                    "text": "The transcript names the pricing model.",
+                    "kind": "fact",
+                    "evidence_refs": [_offline_ref()],
+                }
+            ],
             "keywords": ["useful"],
-            "evidence": [{"evidence_id": "title-1", "source": "title", "excerpt": "Useful title"}],
+        },
+        "input_tokens": 24,
+        "output_tokens": 18,
+    }
+
+
+def _valid_response(repository: SQLiteStateRepository) -> dict[str, object]:
+    return {
+        "output_text": {
+            "one_sentence_summary": "The transcript supplies evidence.",
+            "core_points": [
+                {
+                    "text": "The transcript names the pricing model.",
+                    "kind": "fact",
+                    "evidence_refs": [_transcript_ref(repository)],
+                }
+            ],
+            "keywords": ["useful"],
         },
         "input_tokens": 24,
         "output_tokens": 18,
@@ -95,18 +273,77 @@ def _valid_response() -> dict[str, object]:
 
 
 def test_fake_transport_uses_one_strict_non_stored_responses_request() -> None:
-    transport = _Transport(_valid_response())
+    transport = _Transport(_valid_response_offline())
     provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport)
 
-    result = provider.summarize_with_credential(_input(), "synthetic-key")
+    draft = provider.summarize_with_credential(_input(), "synthetic-key")
 
-    assert result.provider == "openai"
+    assert isinstance(draft, SummaryDraft)
+    assert not hasattr(draft, "evidence")
     request = transport.requests[0]
     assert request["store"] is False
     assert request["max_retries"] == 0
     assert request["truncation"] == "disabled"
     assert request["text"]["format"]["strict"] is True
     assert "base_url" not in request
+
+
+def test_cloud_uses_the_same_summary_draft_contract_as_the_local_route() -> None:
+    """Parser parity with no network: the fake transport is the only boundary."""
+
+    transport = _Transport(_valid_response_offline())
+    provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport)
+
+    draft = provider.summarize_with_credential(_input(), "synthetic-key")
+
+    assert transport.requests[0]["text"]["format"]["schema"] == summary_draft_schema()
+    assert _ollama_schema(summary_draft_schema()) == _ollama_schema(
+        transport.requests[0]["text"]["format"]["schema"]
+    )
+    assert draft.cited_refs() == (_offline_ref(),)
+    assert "excerpt" not in json.dumps(transport.requests[0]["text"]["format"])
+
+
+def test_cloud_model_attempting_an_excerpt_fails_closed() -> None:
+    response = _valid_response_offline()
+    response["output_text"] = {
+        **response["output_text"],  # type: ignore[dict-item]
+        "evidence": [
+            {
+                "evidence_id": _offline_ref(),
+                "source": "transcript_sample",
+                "excerpt": "private path /tmp/nope",
+            }
+        ],
+    }
+    provider = OpenAIResponsesProvider(
+        model="gpt-4.1-mini", transport=_Transport(response)
+    )
+
+    with pytest.raises(CloudProviderError) as exc_info:
+        provider.summarize_with_credential(_input(), "synthetic-key")
+
+    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+
+
+def test_cloud_summary_without_a_trusted_evidence_offer_fails_closed(
+) -> None:
+    provider = OpenAIResponsesProvider(
+        model="gpt-4.1-mini", transport=_Transport(_valid_response_offline())
+    )
+    without_offer = build_analysis_input(
+        video=_video(),
+        transcript_text="transcript evidence",
+        language="en",
+        output_language="zh-CN",
+        settings=CloudSettings(enabled=True, model="gpt-4.1-mini"),
+        prompt_version="analysis-prompt-v5",
+    )
+
+    with pytest.raises(CloudProviderError) as exc_info:
+        provider.summarize_with_credential(without_offer, "synthetic-key")
+
+    assert exc_info.value.error.code is ErrorCode.LOCAL_RESOURCE
 
 
 @pytest.mark.parametrize("response, code", [
@@ -122,21 +359,6 @@ def test_fake_transport_maps_failures_to_named_safe_errors(response: dict[str, o
         provider.summarize_with_credential(_input(), "synthetic-key")
 
     assert exc_info.value.error.code is code
-
-
-def test_evidence_must_be_an_exact_substring_of_the_outbound_payload() -> None:
-    response = _valid_response()
-    response["output_text"] = {**response["output_text"], "evidence": [
-        {"evidence_id": "bad", "source": "title", "excerpt": "private path /tmp/nope"},
-    ], "core_points": [
-        {"text": "Unsupported.", "kind": "fact", "evidence_ids": ["bad"]},
-    ]}
-    provider = OpenAIResponsesProvider(model="gpt-4.1-mini", transport=_Transport(response))
-
-    with pytest.raises(CloudProviderError) as exc_info:
-        provider.summarize_with_credential(_input(), "synthetic-key")
-
-    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
 
 
 class _Resolver:
@@ -162,10 +384,11 @@ def _repository_service(tmp_path: Path) -> tuple[SQLiteStateRepository, Reposito
         connection.execute("UPDATE videos SET should_summarize = 1 WHERE video_id = ?", (metadata.video_id,))
     finally:
         connection.close()
+    _seed_timed_transcript(repository)
     repository.create_job(job_id="analysis-job", scope_key="video:video-123:ANALYSIS", video_id=metadata.video_id,
         job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
     assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
-    transport = _Transport(_valid_response())
+    transport = _Transport(_valid_response(repository))
     service = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=transport),
         settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository,
         context=AnalysisJobContext("analysis-job", "worker", "pipeline-v1"), artifact_root=tmp_path / "data",
@@ -176,7 +399,7 @@ def _repository_service(tmp_path: Path) -> tuple[SQLiteStateRepository, Reposito
 def test_repository_completion_persists_both_artifacts_and_exact_raw_retention(tmp_path: Path) -> None:
     repository, service, _ = _repository_service(tmp_path)
     service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
-    request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
+    request_hash = _request_hash(repository, service.settings)
     raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
     assert raw is not None and raw.expires_at == raw.created_at + timedelta(days=30)
 
@@ -205,10 +428,9 @@ def test_persistent_token_limit_has_no_credential_provider_or_sqlite_side_effect
     assert outcome.reason.value == "INPUT_TOO_LARGE"
     assert resolver.calls == 0
     assert transport.requests == []
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
-        output_language="zh-CN", settings=limited.settings,
-    ).request_hash
+    request_hash = _request_hash(
+        repository, limited.settings, "ordinary synthetic transcript"
+    )
     assert repository.get_provider_call(request_hash) is None
     assert repository.get_video("video-123").pipeline_status is PipelineStatus.SCORED
     assert repository.get_job("analysis-job").status.value == "RUNNING"
@@ -239,10 +461,9 @@ def test_persistent_exhausted_budget_has_no_credential_provider_or_sqlite_side_e
     assert outcome.call is None
     assert resolver.calls == 0
     assert transport.requests == []
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
-        output_language="zh-CN", settings=exhausted.settings,
-    ).request_hash
+    request_hash = _request_hash(
+        repository, exhausted.settings, "ordinary synthetic transcript"
+    )
     assert repository.get_provider_call(request_hash) is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
@@ -268,10 +489,9 @@ def test_persistent_disabled_policy_has_no_side_effects(tmp_path: Path) -> None:
     assert outcome.reason is AnalysisSkipReason.CLOUD_DISABLED
     assert resolver.calls == 0
     assert transport.requests == []
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
-        output_language="zh-CN", settings=disabled.settings,
-    ).request_hash
+    request_hash = _request_hash(
+        repository, disabled.settings, "ordinary synthetic transcript"
+    )
     assert repository.get_provider_call(request_hash) is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
@@ -294,10 +514,9 @@ def test_persistent_low_value_policy_has_no_side_effects(tmp_path: Path) -> None
     assert outcome is None
     assert service.credential_resolver.calls == 0
     assert transport.requests == []
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
-        output_language="zh-CN", settings=service.settings,
-    ).request_hash
+    request_hash = _request_hash(
+        repository, service.settings, "ordinary synthetic transcript"
+    )
     assert repository.get_provider_call(request_hash) is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
@@ -323,10 +542,9 @@ def test_persistent_missing_credential_has_no_side_effects(tmp_path: Path) -> No
     assert outcome.reason is AnalysisSkipReason.CREDENTIAL_UNAVAILABLE
     assert resolver.calls == 1
     assert transport.requests == []
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="ordinary synthetic transcript", language="en",
-        output_language="zh-CN", settings=unavailable.settings,
-    ).request_hash
+    request_hash = _request_hash(
+        repository, unavailable.settings, "ordinary synthetic transcript"
+    )
     assert repository.get_provider_call(request_hash) is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
@@ -347,7 +565,9 @@ def test_stage_transaction_failure_rolls_back_indexes_and_cleans_new_files(
     with pytest.raises(RuntimeError, match="injected transaction failure"):
         service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
 
-    request_hash = build_analysis_input(video=_video(), transcript_text="transcript evidence", language="en", output_language="zh-CN", settings=CloudSettings(enabled=True, model="gpt-4.1-mini")).request_hash
+    request_hash = _request_hash(
+        repository, CloudSettings(enabled=True, model="gpt-4.1-mini")
+    )
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/raw") is None
     assert repository.get_artifact_by_key(f"analysis/{request_hash}/structured") is None
     assert repository.get_provider_call(request_hash).status is ProviderCallStatus.FAILED_FINAL
@@ -372,10 +592,7 @@ def test_crashed_returned_cloud_result_is_not_redispatched_or_credential_recheck
     with pytest.raises(SystemExit, match="simulated process crash"):
         service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
 
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="transcript evidence", language="en",
-        output_language="zh-CN", settings=service.settings,
-    ).request_hash
+    request_hash = _request_hash(repository, service.settings)
     assert len(transport.requests) == 1
     assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN
     assert service.credential_resolver.calls == 1
@@ -403,10 +620,7 @@ def test_explicit_provider_refusal_is_recorded_as_known_failure_not_ambiguity(
     with pytest.raises(CloudProviderError):
         service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
 
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="transcript evidence", language="en",
-        output_language="zh-CN", settings=service.settings,
-    ).request_hash
+    request_hash = _request_hash(repository, service.settings)
     assert len(transport.requests) == 1
     assert repository.get_provider_call(request_hash).status is ProviderCallStatus.FAILED_FINAL
     assert repository.get_provider_dispatch(request_hash).status is ProviderDispatchStatus.FAILED_KNOWN
@@ -417,10 +631,7 @@ def test_reordered_job_reuses_succeeded_provider_call_without_transport(
 ) -> None:
     repository, service, transport = _repository_service(tmp_path)
     service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="transcript evidence", language="en",
-        output_language="zh-CN", settings=service.settings,
-    ).request_hash
+    request_hash = _request_hash(repository, service.settings)
     cached_call = repository.get_provider_call(request_hash)
     cached_raw = repository.get_artifact_by_key(f"analysis/{request_hash}/raw")
     cached_structured = repository.get_artifact_by_key(f"analysis/{request_hash}/structured")
@@ -435,7 +646,7 @@ def test_reordered_job_reuses_succeeded_provider_call_without_transport(
         connection.close()
     repository.create_job(job_id="analysis-reordered", scope_key="video:video-123:ANALYSIS", video_id="video-123", job_type=JobType.VIDEO_STAGE, target_stage=ProcessingStage.ANALYSIS, pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
     assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
-    reordered_transport = _Transport(_valid_response())
+    reordered_transport = _Transport(_valid_response(repository))
     reordered_resolver = _Resolver()
     reordered = RepositoryBackedAnalysisService(provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport), settings=CloudSettings(enabled=True, model="gpt-4.1-mini"), repository=repository, context=AnalysisJobContext("analysis-reordered", "worker", "pipeline-v1"), artifact_root=tmp_path / "data", credential_resolver=reordered_resolver, budget=CloudCallBudget(limit=5))
     result = reordered.analyze(video=_video(), transcript_text="transcript evidence", language="en")
@@ -468,10 +679,7 @@ def test_reordered_job_fails_closed_when_persisted_cache_is_not_complete_and_mat
 ) -> None:
     repository, service, transport = _repository_service(tmp_path)
     service.analyze(video=_video(), transcript_text="transcript evidence", language="en")
-    request_hash = build_analysis_input(
-        video=_video(), transcript_text="transcript evidence", language="en",
-        output_language="zh-CN", settings=service.settings,
-    ).request_hash
+    request_hash = _request_hash(repository, service.settings)
     raw_key = f"analysis/{request_hash}/raw"
     structured_key = f"analysis/{request_hash}/structured"
     raw = repository.get_artifact_by_key(raw_key)
@@ -547,7 +755,7 @@ def test_reordered_job_fails_closed_when_persisted_cache_is_not_complete_and_mat
         pipeline_version="pipeline-v1", max_attempts=3, available_at=now, now=now)
     assert repository.claim_next_job(owner="worker", lease_until=now + timedelta(minutes=5), now=now)
     resolver = _Resolver()
-    reordered_transport = _Transport(_valid_response())
+    reordered_transport = _Transport(_valid_response(repository))
     reordered = RepositoryBackedAnalysisService(
         provider=OpenAIResponsesProvider(model="gpt-4.1-mini", transport=reordered_transport),
         settings=service.settings, repository=repository,
@@ -658,19 +866,17 @@ def test_isolated_transport_returns_normal_response_and_reaps_child(
 ) -> None:
     child = _FakeChild(
         b'{"kind":"ready"}\n'
-        b'{"output_text":{"one_sentence_summary":"The transcript supplies evidence.",'
-        b'"core_points":[{"text":"Useful title is named.","kind":"fact",'
-        b'"evidence_ids":["title-1"]}],"keywords":["useful"],'
-        b'"evidence":[{"evidence_id":"title-1","source":"title",'
-        b'"excerpt":"Useful title"}]},"input_tokens":24,"output_tokens":18}\n',
+        + json.dumps({"output_text": _valid_response_offline()["output_text"],
+                      "input_tokens": 24, "output_tokens": 18}).encode()
+        + b'\n',
         returncode=0,
     )
     monkeypatch.setattr(cloud_llm, "_TIMEOUT_SECONDS", 0.01)
     monkeypatch.setattr(cloud_llm.subprocess, "Popen", lambda *args, **kwargs: child)
 
-    result = _isolated_provider().summarize_with_credential(_input(), "synthetic-key")
+    draft = _isolated_provider().summarize_with_credential(_input(), "synthetic-key")
 
-    assert result.provider == "openai"
+    assert draft.cited_refs() == (_offline_ref(),)
     assert child.wait_timeouts == [pytest.approx(0.01, abs=0.01)]
     assert child.terminate_calls == 0 and child.kill_calls == 0
     assert child.stdin.closed and child.stdout.closed

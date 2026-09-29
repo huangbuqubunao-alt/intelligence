@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,12 +21,19 @@ from youtube_intel.domain import (
     LiveStatus,
     VideoMetadata,
 )
-from youtube_intel.state import ProviderCallStatus, ProviderDispatchStatus
+from youtube_intel.state import (
+    ProviderCallStatus,
+    ProviderDispatchStatus,
+    VerifiedTimedTranscript,
+    VerifiedTimedTranscriptCue,
+)
+
+VIDEO_ID = "video-local-analysis"
 
 
 def _video() -> VideoMetadata:
     return VideoMetadata(
-        video_id="video-local-analysis",
+        video_id=VIDEO_ID,
         channel_id="channel-local-analysis",
         channel_name="Example Channel",
         title="A real and substantive topic",
@@ -36,6 +44,26 @@ def _video() -> VideoMetadata:
         default_language="en",
         live_status=LiveStatus.NONE,
         availability=Availability.PUBLIC,
+    )
+
+
+def _verified_timed_transcript() -> VerifiedTimedTranscript:
+    texts = ("A substantive local transcript", "about a useful topic")
+    return VerifiedTimedTranscript(
+        timed_transcript_id="tt-local-analysis",
+        video_id=VIDEO_ID,
+        canonical_artifact_id="artifact-local-analysis",
+        timed_transcript_hash="b" * 64,
+        cues=tuple(
+            VerifiedTimedTranscriptCue(
+                cue_index=index,
+                start_ms=index * 1000,
+                end_ms=(index + 1) * 1000,
+                text=text,
+                text_hash=sha256(text.encode()).hexdigest(),
+            )
+            for index, text in enumerate(texts)
+        ),
     )
 
 
@@ -51,6 +79,25 @@ class _Repository:
         self.events: list[str] = []
         self.dispatch_status: ProviderDispatchStatus | None = None
         self.failed_final = False
+        self.timed_transcript: VerifiedTimedTranscript | None = (
+            _verified_timed_transcript()
+        )
+
+    def get_video(self, _video_id: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            video_id=VIDEO_ID,
+            title="A real and substantive topic",
+            channel_name="Example Channel",
+            description="A public description",
+        )
+
+    def get_verified_timed_transcript(
+        self, *, video_id: str
+    ) -> VerifiedTimedTranscript | None:
+        self.events.append("read-timed-transcript")
+        if self.timed_transcript is None or self.timed_transcript.video_id != video_id:
+            return None
+        return self.timed_transcript
 
     def get_provider_call(self, _request_hash: str) -> SimpleNamespace | None:
         self.events.append("read-provider-call")
@@ -165,7 +212,10 @@ def test_local_model_preflight_failure_is_known_before_provider_reservation(
 
     assert raised.value.error.code is ErrorCode.PROVIDER_UNAVAILABLE
     assert raised.value.error.retryable is True
+    # The trusted Evidence registry is read first: it is a precondition of the
+    # request, not a result of it, and it never reaches a provider call.
     assert repository.events == [
+        "read-timed-transcript",
         "read-provider-call",
         "read-dispatch",
         "preflight",

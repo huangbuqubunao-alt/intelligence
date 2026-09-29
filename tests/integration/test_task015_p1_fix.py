@@ -65,6 +65,7 @@ from youtube_intel.state import (
     SQLiteStateRepository,
     StorageRoot,
 )
+from youtube_intel.summary_draft import SummaryDraft, SummaryDraftPoint
 from youtube_intel.transcripts import (
     SubtitleReadResult,
     SubtitleTrack,
@@ -221,8 +222,26 @@ class _SubtitleAdapter:
     def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
         assert track.language == "en"
         self.read_calls += 1
+        # Timed cues are required: the live ANALYSIS stage now needs real
+        # cue-level transcript authority, and fails closed without it.
+        cues = (
+            "This manual subtitle contains enough meaningful text for validation.",
+            "This public product lesson explains the reliable product workflow.",
+            "Useful details remain grounded in the original English transcript.",
+        )
         return SubtitleReadResult(
-            body=(FIXTURES / "manual_en.json3").read_bytes(),
+            body=json.dumps(
+                {
+                    "events": [
+                        {
+                            "tStartMs": index * 2500,
+                            "dDurationMs": 1800,
+                            "segs": [{"utf8": cue}],
+                        }
+                        for index, cue in enumerate(cues)
+                    ]
+                }
+            ).encode("utf-8"),
             call=self._call,
         )
 
@@ -276,60 +295,41 @@ class _ScoringProvider:
 
 
 class _AnalysisProvider:
+    """The live provider contract: a backend-authoritative Summary draft."""
+
     def __init__(self) -> None:
         self.calls = 0
 
-    def summarize(self, analysis_input: object) -> AnalysisResult:
-        self.calls += 1
-        return AnalysisResult(
-            one_sentence_summary="Fixture analysis.",
-            core_points=[
-                {
-                    "text": "A core point.",
-                    "kind": "fact",
-                    "evidence_ids": ["title-1"],
-                }
-            ],
-            keywords=["fixture"],
-            evidence=[
-                {
-                    "evidence_id": "title-1",
-                    "source": "title",
-                    "excerpt": "Fixture title",
-                }
-            ],
-            provider="ollama",
-            model="qwen3:8b",
-            prompt_version="analysis-prompt-v4",
-            request_hash=getattr(analysis_input, "request_hash"),
+    @staticmethod
+    def _draft(analysis_input: object) -> SummaryDraft:
+        offer = getattr(analysis_input, "trusted_evidence")
+        assert offer is not None
+        # A real model can only cite refs the backend actually issued.
+        ref = next(
+            candidate.ref
+            for candidate in offer.candidates
+            if candidate.source is EvidenceSource.TITLE
         )
+        return SummaryDraft(
+            one_sentence_summary="Fixture analysis.",
+            core_points=(
+                SummaryDraftPoint(
+                    text="A core point.", kind="fact", evidence_refs=(ref,)
+                ),
+            ),
+            keywords=("fixture",),
+        )
+
+    def summarize(self, analysis_input: object) -> SummaryDraft:
+        self.calls += 1
+        return self._draft(analysis_input)
 
     def summarize_with_credential(
         self, analysis_input: object, credential: str
-    ) -> AnalysisResult:
+    ) -> SummaryDraft:
         self.calls += 1
         assert credential == "synthetic-key"
-        return AnalysisResult(
-            one_sentence_summary="Fixture analysis.",
-            core_points=[
-                {
-                    "text": "A core point.",
-                    "kind": "fact",
-                    "evidence_ids": ["title-1"],
-                }
-            ],
-            keywords=["fixture"],
-            evidence=[
-                {
-                    "evidence_id": "title-1",
-                    "source": "title",
-                    "excerpt": "Fixture title",
-                }
-            ],
-            provider="openai",
-            model="gpt-4.1-mini",
-            request_hash=getattr(analysis_input, "request_hash"),
-        )
+        return self._draft(analysis_input)
 
     def consume_raw_response(self, *, request_hash: str) -> str:
         assert request_hash
@@ -767,6 +767,7 @@ def _build_analysis_fixture(
         ],
         provider="openai",
         model="gpt-4.1-mini",
+        prompt_version="analysis-prompt-v5",
         request_hash=request_hash,
     )
     raw_content = _canonical_json({"raw": "fixture analysis response"}).encode("utf-8")
@@ -826,7 +827,7 @@ def _persist_analysis_provenance(
         normalized_input_hash=request_hash,
         provider="openai",
         model="gpt-4.1-mini",
-        prompt_version="analysis-prompt-v1",
+        prompt_version="analysis-prompt-v5",
         schema_version="analysis-result-v1",
         deterministic_artifact_key=f"analysis/{request_hash}/raw",
     )
