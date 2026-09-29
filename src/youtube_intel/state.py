@@ -7079,6 +7079,147 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def promote_summary_evidence(
+        self, evidence: EvidenceWrite, binding: EvidenceTextBindingWrite, *, now: datetime
+    ) -> EvidenceRecord:
+        """Idempotently promote one selected Summary span into durable Evidence.
+
+        A content-addressed id alone is **not** idempotency: a blind INSERT
+        raises on UNIQUE conflict. This follows the existing transcript
+        Evidence pattern — derive the expected id, read, create only when
+        absent, and otherwise re-resolve the persisted record and verify every
+        field of authority. Any mismatch fails closed rather than being treated
+        as success.
+
+        Lineage is ``EXTRACTION`` because the *range* is extracted for Summary
+        use; the *text* remains verbatim primary original transcript, so the
+        role stays ``PRIMARY_ORIGINAL``.
+        """
+        expected_id = build_evidence_id(
+            video_id=evidence.video_id,
+            artifact_id=evidence.artifact_id,
+            start_ms=evidence.start_ms,
+            end_ms=evidence.end_ms,
+            lineage_kind=evidence.lineage_kind,
+            role=evidence.role,
+        )
+        if evidence.evidence_id != expected_id:
+            raise ValueError("promoted Evidence identity does not match its provenance")
+        if evidence.lineage_kind is not EvidenceLineageKind.EXTRACTION:
+            raise ValueError("Summary promotion requires EXTRACTION lineage")
+        if evidence.role is not EvidenceRole.PRIMARY_ORIGINAL:
+            raise ValueError("Summary promotion requires the PRIMARY_ORIGINAL role")
+        if not evidence.language.strip():
+            raise ValueError("promoted Evidence language must be non-empty")
+        if binding.evidence_id != evidence.evidence_id:
+            raise ValueError("promoted Evidence binding identity is invalid")
+        if _sha256_text(binding.excerpt) != binding.excerpt_hash:
+            raise ValueError("promoted Evidence binding text does not match its hash")
+
+        existing = self.get_evidence(evidence.evidence_id)
+        if existing is None:
+            return self.create_evidence_with_text_binding(evidence, binding, now=now)
+
+        # Present: re-resolve through the trusted reader and verify authority.
+        if (
+            existing.video_id != evidence.video_id
+            or existing.artifact_id != evidence.artifact_id
+            or existing.start_ms != evidence.start_ms
+            or existing.end_ms != evidence.end_ms
+            or existing.lineage_kind is not evidence.lineage_kind
+            or existing.role is not evidence.role
+            or existing.language != evidence.language
+            or existing.availability is not evidence.availability
+        ):
+            raise IntegrityConflict(
+                "existing promoted Evidence conflicts with the selected span"
+            )
+        verified = self.resolve_verified_evidence_text(evidence.evidence_id)
+        if verified is None:
+            raise IntegrityConflict(
+                "existing promoted Evidence could not be re-resolved"
+            )
+        if (
+            verified.video_id != evidence.video_id
+            or verified.start_ms != evidence.start_ms
+            or verified.end_ms != evidence.end_ms
+            or verified.excerpt != binding.excerpt
+            or verified.excerpt_hash != binding.excerpt_hash
+            or verified.timed_transcript_id != binding.timed_transcript_id
+        ):
+            # The binding record carries no transcript hash field: transcript
+            # authority is enforced against the ``timed_transcripts`` row by
+            # ``_insert_evidence_text_binding_in_transaction`` and again by
+            # ``resolve_verified_evidence_text``.
+            raise IntegrityConflict(
+                "existing promoted Evidence text authority conflicts with the selected span"
+            )
+        return existing
+
+    def _evidence_ids_for_lineages(
+        self, video_id: str, *, lineage_kinds: tuple[EvidenceLineageKind, ...]
+    ) -> tuple[str, ...]:
+        if not lineage_kinds:
+            return ()
+        placeholders = ", ".join("?" for _ in lineage_kinds)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT evidence.evidence_id FROM evidence "
+                "JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id "
+                f"WHERE evidence.video_id = ? "
+                "AND evidence.availability = ? "
+                "AND artifacts.video_id = ? "
+                "AND artifacts.deleted_at IS NULL "
+                "AND artifacts.kind = ? "
+                f"AND evidence.lineage_kind IN ({placeholders}) "
+                "ORDER BY evidence.start_ms ASC, evidence.evidence_id ASC LIMIT 21",
+                (
+                    video_id,
+                    EvidenceAvailability.AVAILABLE.value,
+                    video_id,
+                    ArtifactKind.TRANSCRIPT_CANONICAL.value,
+                    *(kind.value for kind in lineage_kinds),
+                ),
+            ).fetchall()
+            return tuple(str(row["evidence_id"]) for row in rows)
+        finally:
+            connection.close()
+
+    def list_canonical_coverage_evidence_ids(self, video_id: str) -> tuple[str, ...]:
+        """Canonical source coverage only (``ORIGINAL_TRANSCRIPT``).
+
+        This is the purpose-specific reader for the consumers that predate
+        Summary promotion — local and cloud Intelligence candidate selection,
+        restart-safe reservation identity, and the Evidence translation gate.
+        It deliberately reproduces the set those consumers have always seen, so
+        promoting Summary ``EXTRACTION`` spans cannot silently enter, displace,
+        or starve their candidate set.
+        """
+        return self._evidence_ids_for_lineages(
+            video_id, lineage_kinds=(EvidenceLineageKind.ORIGINAL_TRANSCRIPT,)
+        )
+
+    def list_summary_promoted_evidence_ids(self, video_id: str) -> tuple[str, ...]:
+        """Spans a Summary actually cited (``EXTRACTION``), in range order."""
+        return self._evidence_ids_for_lineages(
+            video_id, lineage_kinds=(EvidenceLineageKind.EXTRACTION,)
+        )
+
+    def list_evidence_for_presentation(self, video_id: str) -> tuple[str, ...]:
+        """Deterministic Content Evidence presentation order.
+
+        Both lineages are authoritative source Evidence, so neither is hidden.
+        Summary-selected ``EXTRACTION`` spans are presented first because they
+        are the citations a reader actually followed, followed by full
+        ``ORIGINAL_TRANSCRIPT`` canonical coverage. Within each group the order
+        is by source range, never by lexical id, so the list is stable across
+        restarts and does not depend on SHA ordering.
+        """
+        return self.list_summary_promoted_evidence_ids(
+            video_id
+        ) + self.list_canonical_coverage_evidence_ids(video_id)
+
     def set_evidence_availability(
         self, *, evidence_id: str, availability: EvidenceAvailability
     ) -> EvidenceRecord:
