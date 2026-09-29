@@ -584,6 +584,34 @@ class VerifiedEvidenceText:
 
 
 @dataclass(frozen=True, slots=True)
+class VerifiedTimedTranscriptCue:
+    """One hash-verified canonical cue; immutable and read-only."""
+
+    cue_index: int
+    start_ms: int
+    end_ms: int
+    text: str
+    text_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedTimedTranscript:
+    """A fully re-verified canonical timed transcript and its contiguous cues.
+
+    This is trusted source authority, not a provider request.  Every cue hash
+    and the ordered transcript hash are recomputed on read, so a partially
+    written, tampered, or foreign transcript can never be presented as
+    authoritative Evidence.
+    """
+
+    timed_transcript_id: str
+    video_id: str
+    canonical_artifact_id: str
+    timed_transcript_hash: str
+    cues: tuple[VerifiedTimedTranscriptCue, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class SavedIntelligenceRecord:
     """Raw local organization metadata; never an Intelligence authority."""
 
@@ -6754,6 +6782,77 @@ class SQLiteStateRepository:
             ):
                 return None
             return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]),
+            )
+        finally:
+            connection.close()
+
+    def get_verified_timed_transcript(
+        self, *, video_id: str
+    ) -> VerifiedTimedTranscript | None:
+        """Return the fully re-verified canonical timed transcript for one video.
+
+        Trust discipline matches :meth:`resolve_verified_evidence_text`: the
+        canonical artifact must exist, be undeleted, belong to this video, and
+        carry the cue-level text authority; every ``cue_text_hash`` and the
+        ordered ``timed_transcript_hash`` are recomputed on read.  Any missing,
+        reordered, tampered, or foreign state returns ``None`` rather than a
+        partially trusted transcript.
+        """
+        if not isinstance(video_id, str) or not video_id.strip() or video_id != video_id.strip() or len(video_id) > 512:
+            raise ValueError("video identity is invalid")
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT t.timed_transcript_id, t.video_id, t.canonical_artifact_id, t.timed_transcript_hash, a.kind, a.deleted_at, a.video_id AS artifact_video_id FROM timed_transcripts t JOIN artifacts a ON a.artifact_id = t.canonical_artifact_id WHERE t.video_id = ?",
+                (video_id,),
+            ).fetchone()
+            if (
+                row is None
+                or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
+                or row["deleted_at"] is not None
+                or row["video_id"] != video_id
+                or row["artifact_video_id"] != video_id
+            ):
+                return None
+            cue_rows = connection.execute(
+                "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? ORDER BY cue_index ASC",
+                (row["timed_transcript_id"],),
+            ).fetchall()
+            if not cue_rows:
+                return None
+            cues: list[VerifiedTimedTranscriptCue] = []
+            for expected_index, cue in enumerate(cue_rows):
+                text = str(cue["cue_text"])
+                text_hash = _sha256_text(text)
+                if int(cue["cue_index"]) != expected_index or text_hash != cue["cue_text_hash"]:
+                    return None
+                cues.append(
+                    VerifiedTimedTranscriptCue(
+                        cue_index=expected_index,
+                        start_ms=int(cue["start_ms"]),
+                        end_ms=int(cue["end_ms"]),
+                        text=text,
+                        text_hash=str(text_hash),
+                    )
+                )
+            if any(cues[i].start_ms >= cues[i + 1].start_ms for i in range(len(cues) - 1)):
+                return None
+            actual_hash = build_timed_transcript_hash(
+                tuple(
+                    TimedTranscriptCueWrite(
+                        start_ms=cue.start_ms, end_ms=cue.end_ms, text=cue.text
+                    )
+                    for cue in cues
+                )
+            )
+            if actual_hash != row["timed_transcript_hash"]:
+                return None
+            return VerifiedTimedTranscript(
+                timed_transcript_id=str(row["timed_transcript_id"]),
+                video_id=str(row["video_id"]),
+                canonical_artifact_id=str(row["canonical_artifact_id"]),
+                timed_transcript_hash=str(actual_hash),
+                cues=tuple(cues),
             )
         finally:
             connection.close()
