@@ -1434,6 +1434,7 @@ class StageCompletionResult:
     video: VideoRecord
     artifacts: tuple[ArtifactRecord, ...]
     provider_call: ProviderCallRecord | None
+    promoted_evidence: tuple[EvidenceRecord, ...] = ()
 
 
 def format_utc_datetime(value: datetime) -> str:
@@ -4156,6 +4157,139 @@ class SQLiteStateRepository:
             raise StateStoreError(msg)
         return SQLiteStateRepository._job_from_row(saved)
 
+    def complete_analysis_stage(
+        self,
+        *,
+        job_id: str,
+        owner: str,
+        video_id: str,
+        pipeline_version: str,
+        artifacts: tuple[ArtifactWrite, ...],
+        provider_call: ProviderCallCompletion | None,
+        summary_promotions: tuple[tuple[EvidenceWrite, EvidenceTextBindingWrite], ...],
+        now: datetime,
+    ) -> StageCompletionResult:
+        """Atomically commit the real ANALYSIS transition ``SCORED -> ANALYSIS_READY``.
+
+        Narrow trusted-persistence entry for the verified Summary Evidence
+        authority path. It is deliberately valid **only** for that transition:
+        Summary Evidence promotion is never reachable through a generic stage
+        completion, so an unrelated transition cannot acquire Summary Evidence
+        authority.
+
+        Within one authoritative SQLite transaction:
+
+        1. verify the owned running job, scope, lease owner and target stage
+        2. get/create/verify every selected Summary Evidence promotion
+        3. ``stage.after_summary_promotion`` fault seam
+        4. register the Analysis artifact records
+        5. ``stage.after_artifacts`` fault seam
+        6. complete the provider call
+        7. ``stage.after_provider_call`` fault seam
+        8. advance the video pipeline to ``ANALYSIS_READY``
+        9. ``stage.after_pipeline`` fault seam
+        10. finish the job and COMMIT
+
+        There is therefore no committed successful Summary stage in which the
+        selected EXTRACTION authority is absent, and no committed promoted
+        Evidence presented as successful Summary authority after a rollback.
+
+        The ANALYSIS cache-reuse path is a valid call: ``artifacts=()``,
+        ``provider_call=None`` and ``summary_promotions=()`` still complete the
+        pipeline and job transition without a fresh provider call.
+        """
+        expected_status = PipelineStatus.SCORED
+        target_status = PipelineStatus.ANALYSIS_READY
+        transition_pipeline(expected_status, target_status)
+        if _processing_stage_for_transition(expected_status, target_status) is not ProcessingStage.ANALYSIS:
+            raise IntegrityConflict("ANALYSIS completion requires the SCORED -> ANALYSIS_READY transition")
+        if any(
+            artifact.job_id != job_id or artifact.video_id != video_id
+            for artifact in artifacts
+        ):
+            msg = "stage artifacts must reference the completed job and video"
+            raise IntegrityConflict(msg)
+        now_text = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                job_row = self._owned_running_job(
+                    connection, job_id=job_id, owner=owner, now=now_text
+                )
+                if (
+                    job_row["video_id"] != video_id
+                    or job_row["pipeline_version"] != pipeline_version
+                ):
+                    msg = "job scope does not match ANALYSIS stage completion"
+                    raise ConcurrencyConflict(msg)
+                if job_row["target_stage"] != ProcessingStage.ANALYSIS.value:
+                    msg = "job target stage is not ANALYSIS"
+                    raise ConcurrencyConflict(msg)
+                promoted: list[EvidenceRecord] = []
+                for evidence, binding in summary_promotions:
+                    if evidence.video_id != video_id:
+                        msg = "promoted Evidence belongs to a foreign video"
+                        raise ConcurrencyConflict(msg)
+                    promoted.append(
+                        self._promote_summary_evidence_in_transaction(
+                            connection, evidence, binding, now=now
+                        )
+                    )
+                self._inject_failure("stage.after_summary_promotion")
+                stored_artifacts = tuple(
+                    self._upsert_artifact_in_transaction(
+                        connection, artifact, now=now_text
+                    )
+                    for artifact in artifacts
+                )
+                self._inject_failure("stage.after_artifacts")
+                completed_call = (
+                    None
+                    if provider_call is None
+                    else self._complete_provider_call_in_transaction(
+                        connection, provider_call, owner=owner, now=now_text
+                    )
+                )
+                self._inject_failure("stage.after_provider_call")
+                changed = connection.execute(
+                    "UPDATE videos SET pipeline_status = :target_status, "
+                    "updated_at = :now, completed_at = NULL "
+                    "WHERE video_id = :video_id "
+                    "AND pipeline_status = :expected_status "
+                    "AND pipeline_version = :pipeline_version",
+                    {
+                        "target_status": target_status.value,
+                        "now": now_text,
+                        "video_id": video_id,
+                        "expected_status": expected_status.value,
+                        "pipeline_version": pipeline_version,
+                    },
+                ).rowcount
+                if changed != 1:
+                    msg = "video did not advance to ANALYSIS_READY"
+                    raise ConcurrencyConflict(msg)
+                self._inject_failure("stage.after_pipeline")
+                job = self._finish_job_success_in_transaction(
+                    connection, job_id=job_id, owner=owner, now=now_text
+                )
+                video_row = connection.execute(
+                    "SELECT * FROM videos WHERE video_id = :video_id",
+                    {"video_id": video_id},
+                ).fetchone()
+                if video_row is None:
+                    raise StateStoreError("completed video could not be read")
+                return StageCompletionResult(
+                    job=job,
+                    video=self._video_from_row(video_row),
+                    artifacts=stored_artifacts,
+                    provider_call=completed_call,
+                    promoted_evidence=tuple(promoted),
+                )
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("ANALYSIS stage completion is invalid") from error
+        finally:
+            connection.close()
+
     def complete_stage(
         self,
         *,
@@ -6757,34 +6891,48 @@ class SQLiteStateRepository:
         """Return exact persisted cue-bound text, or ``None`` for legacy/unbound/invalid Evidence."""
         connection = self._connect()
         try:
-            row = connection.execute(
-                "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
-                (evidence_id,),
-            ).fetchone()
-            if (
-                row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
-                or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
-                or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
-                or row["timed_transcript_hash"] != row["actual_timed_hash"]
-                or _sha256_text(str(row["excerpt"])) != row["excerpt_hash"]
-            ):
-                return None
-            cues = connection.execute(
-                "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
-                (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"],
-                ),
-            ).fetchall()
-            if (
-                len(cues) != row["end_cue_index"] - row["start_cue_index"] or not cues
-                or cues[0]["start_ms"] != row["start_ms"] or cues[-1]["end_ms"] != row["end_ms"]
-                or "\n".join(str(cue["cue_text"]) for cue in cues) != row["excerpt"]
-                or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
-            ):
-                return None
-            return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]),
+            return self._resolve_verified_evidence_text_in_transaction(
+                connection, evidence_id
             )
         finally:
             connection.close()
+
+    def _resolve_verified_evidence_text_in_transaction(
+        self, connection: sqlite3.Connection, evidence_id: str
+    ) -> VerifiedEvidenceText | None:
+        """Shared resolver core so composed transactions never diverge.
+
+        Callers that already own a transaction (for example the atomic
+        ANALYSIS trusted-persistence entry) must verify through this on their
+        own connection rather than opening a second one, which would not
+        observe the uncommitted writes of the surrounding transaction.
+        """
+        row = connection.execute(
+            "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
+            (evidence_id,),
+        ).fetchone()
+        if (
+            row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
+            or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
+            or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
+            or row["timed_transcript_hash"] != row["actual_timed_hash"]
+            or _sha256_text(str(row["excerpt"])) != row["excerpt_hash"]
+        ):
+            return None
+        cues = connection.execute(
+            "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
+            (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"],
+            ),
+        ).fetchall()
+        if (
+            len(cues) != row["end_cue_index"] - row["start_cue_index"] or not cues
+            or cues[0]["start_ms"] != row["start_ms"] or cues[-1]["end_ms"] != row["end_ms"]
+            or "\n".join(str(cue["cue_text"]) for cue in cues) != row["excerpt"]
+            or any(_sha256_text(str(cue["cue_text"])) != cue["cue_text_hash"] for cue in cues)
+        ):
+            return None
+        return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]),
+        )
 
     def get_verified_timed_transcript(
         self, *, video_id: str
@@ -7084,16 +7232,43 @@ class SQLiteStateRepository:
     ) -> EvidenceRecord:
         """Idempotently promote one selected Summary span into durable Evidence.
 
+        Thin wrapper for isolated callers and focused tests. The shared
+        semantics live in :meth:`_promote_summary_evidence_in_transaction` so
+        the atomic ANALYSIS trusted-persistence entry cannot diverge from it.
+        """
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                return self._promote_summary_evidence_in_transaction(
+                    connection, evidence, binding, now=now
+                )
+        finally:
+            connection.close()
+
+    def _promote_summary_evidence_in_transaction(
+        self,
+        connection: sqlite3.Connection,
+        evidence: EvidenceWrite,
+        binding: EvidenceTextBindingWrite,
+        *,
+        now: datetime,
+    ) -> EvidenceRecord:
+        """Shared promotion core, run on a caller-owned connection.
+
         A content-addressed id alone is **not** idempotency: a blind INSERT
         raises on UNIQUE conflict. This follows the existing transcript
         Evidence pattern — derive the expected id, read, create only when
-        absent, and otherwise re-resolve the persisted record and verify every
-        field of authority. Any mismatch fails closed rather than being treated
-        as success.
+        absent, and otherwise re-resolve the persisted record through the
+        trusted reader and verify every field of authority. Any mismatch fails
+        closed rather than being treated as success.
 
         Lineage is ``EXTRACTION`` because the *range* is extracted for Summary
         use; the *text* remains verbatim primary original transcript, so the
         role stays ``PRIMARY_ORIGINAL``.
+
+        ``binding.start_cue_index`` is inclusive and ``end_cue_index`` is
+        exclusive, matching ``evidence_text_bindings``, so a promoted span
+        binds exactly the cues its excerpt was assembled from.
         """
         expected_id = build_evidence_id(
             video_id=evidence.video_id,
@@ -7115,26 +7290,43 @@ class SQLiteStateRepository:
             raise ValueError("promoted Evidence binding identity is invalid")
         if _sha256_text(binding.excerpt) != binding.excerpt_hash:
             raise ValueError("promoted Evidence binding text does not match its hash")
+        if binding.end_cue_index <= binding.start_cue_index:
+            raise ValueError("promoted Evidence cue range must be a non-empty half-open range")
 
-        existing = self.get_evidence(evidence.evidence_id)
-        if existing is None:
-            return self.create_evidence_with_text_binding(evidence, binding, now=now)
-
-        # Present: re-resolve through the trusted reader and verify authority.
-        if (
-            existing.video_id != evidence.video_id
-            or existing.artifact_id != evidence.artifact_id
-            or existing.start_ms != evidence.start_ms
-            or existing.end_ms != evidence.end_ms
-            or existing.lineage_kind is not evidence.lineage_kind
-            or existing.role is not evidence.role
-            or existing.language != evidence.language
-            or existing.availability is not evidence.availability
-        ):
-            raise IntegrityConflict(
-                "existing promoted Evidence conflicts with the selected span"
+        existing_row = connection.execute(
+            "SELECT * FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,)
+        ).fetchone()
+        if existing_row is None:
+            connection.execute(
+                "INSERT INTO evidence (evidence_id, video_id, artifact_id, start_ms, end_ms, lineage_kind, role, language, availability, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    evidence.evidence_id,
+                    evidence.video_id,
+                    evidence.artifact_id,
+                    evidence.start_ms,
+                    evidence.end_ms,
+                    evidence.lineage_kind.value,
+                    evidence.role.value,
+                    evidence.language,
+                    evidence.availability.value,
+                    format_utc_datetime(now),
+                ),
             )
-        verified = self.resolve_verified_evidence_text(evidence.evidence_id)
+            self._insert_evidence_text_binding_in_transaction(
+                connection, evidence, binding, now=now
+            )
+            row = connection.execute(
+                "SELECT * FROM evidence WHERE evidence_id = ?", (evidence.evidence_id,)
+            ).fetchone()
+            if row is None:
+                raise StateStoreError("promoted Evidence was not saved")
+            return self._evidence_from_row(row)
+
+        # Present: re-resolve through the trusted reader on this same
+        # connection so the verification observes the surrounding transaction.
+        verified = self._resolve_verified_evidence_text_in_transaction(
+            connection, evidence.evidence_id
+        )
         if verified is None:
             raise IntegrityConflict(
                 "existing promoted Evidence could not be re-resolved"
@@ -7150,9 +7342,21 @@ class SQLiteStateRepository:
             # The binding record carries no transcript hash field: transcript
             # authority is enforced against the ``timed_transcripts`` row by
             # ``_insert_evidence_text_binding_in_transaction`` and again by
-            # ``resolve_verified_evidence_text``.
+            # the resolver.
             raise IntegrityConflict(
                 "existing promoted Evidence text authority conflicts with the selected span"
+            )
+        existing = self._evidence_from_row(existing_row)
+        if (
+            existing.video_id != evidence.video_id
+            or existing.artifact_id != evidence.artifact_id
+            or existing.lineage_kind is not evidence.lineage_kind
+            or existing.role is not evidence.role
+            or existing.language != evidence.language
+            or existing.availability is not evidence.availability
+        ):
+            raise IntegrityConflict(
+                "existing promoted Evidence conflicts with the selected span"
             )
         return existing
 
