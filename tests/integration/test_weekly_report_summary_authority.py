@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -206,11 +206,11 @@ def _analysis(
 
 def _candidate(
     root: Path,
-    *,
     video_id: str,
     citation: str,
     summary_text: str,
     prompt_version: str,
+    *,
     score: float = 8.0,
 ) -> WeeklyCandidateRecord:
     analysis = _analysis(
@@ -667,3 +667,279 @@ def test_15_the_shared_gate_is_reused_not_duplicated() -> None:
     assert "require_current_summary_authority" in source
     assert "CURRENT_SUMMARY_PROMPT_VERSION" not in source
     assert "prompt_version !=" not in source
+
+
+# ---------------------------------------------------------------------------
+# Candidate-local isolation: malformed / semantically invalid Summary payloads
+# ---------------------------------------------------------------------------
+
+
+def _corrupt_with(
+    workspace: Path, candidate: WeeklyCandidateRecord, payload: bytes
+) -> WeeklyCandidateRecord:
+    """Write a hash-valid corrupt payload and return the updated candidate.
+
+    The corruption is candidate-local: storage integrity stays intact, so only
+    Summary semantics are wrong.
+    """
+
+    assert candidate.analysis_artifact is not None
+    (workspace / "artifacts" / candidate.analysis_artifact.relative_path).write_bytes(
+        payload
+    )
+    return replace(
+        candidate,
+        analysis_artifact=replace(
+            candidate.analysis_artifact,
+            content_hash=hashlib.sha256(payload).hexdigest(),
+        ),
+    )
+
+
+def _doc(workspace: Path, candidate: WeeklyCandidateRecord) -> dict:
+    assert candidate.analysis_artifact is not None
+    return json.loads(
+        (workspace / "artifacts" / candidate.analysis_artifact.relative_path).read_bytes()
+    )
+
+
+def test_6_point_citing_an_absent_evidence_id_is_excluded(workspace: Path) -> None:
+    """Requirement 6: the stray point ref fails parsing, not the report."""
+
+    candidate = _candidate(
+        workspace, "video-stray", DURABLE, "STRAY-POINT-TEXT",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    doc = _doc(workspace, candidate)
+    doc["core_points"][0]["evidence_ids"] = ["d" * 64]
+    corrupt = _corrupt_with(
+        workspace, candidate, json.dumps(doc).encode()
+    )
+    repository = _Repository(candidates=(corrupt,))
+    generated = _generate(workspace, (corrupt,), repository)
+    rendered = render_weekly_report(generated.report)
+    assert len(generated.report.items) == 0
+    assert "STRAY-POINT-TEXT" not in rendered
+
+
+def test_7_valid_plus_stray_point_reference_publishes_only_valid(workspace: Path) -> None:
+    """Requirement 7."""
+
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED-V6-SUMMARY",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=9.0,
+    )
+    stray = _candidate(
+        workspace, "video-stray", DURABLE, "STRAY-POINT-TEXT",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=8.0,
+    )
+    doc = _doc(workspace, stray)
+    doc["core_points"][0]["evidence_ids"] = ["e" * 64]
+    corrupt = _corrupt_with(workspace, stray, json.dumps(doc).encode())
+    candidates = (trusted, corrupt)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    rendered = render_weekly_report(generated.report)
+    assert len(generated.report.items) == 1
+    assert "TRUSTED-V6-SUMMARY" in rendered
+    assert "STRAY-POINT-TEXT" not in rendered
+
+
+def test_8_valid_plus_malformed_json_publishes_only_valid(workspace: Path) -> None:
+    """Requirement 8: malformed, hash-valid Summary content is candidate-local."""
+
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED-V6-SUMMARY",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=9.0,
+    )
+    broken = _candidate(
+        workspace, "video-broken", DURABLE, "MALFORMED",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=8.0,
+    )
+    corrupt = _corrupt_with(workspace, broken, b'{"one_sentence_summary": not-json')
+    candidates = (trusted, corrupt)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    rendered = render_weekly_report(generated.report)
+    assert len(generated.report.items) == 1
+    assert "TRUSTED-V6-SUMMARY" in rendered
+    assert "not-json" not in rendered
+
+
+def test_9_all_candidate_local_invalid_yields_the_empty_report(workspace: Path) -> None:
+    """Requirements 9 and 10."""
+
+    legacy = _candidate(
+        workspace, "video-legacy", LEGACY_T_REF, "LEGACY-TEXT", "analysis-prompt-v5",
+        score=9.0,
+    )
+    stray = _candidate(
+        workspace, "video-stray", DURABLE, "STRAY-TEXT",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=8.0,
+    )
+    doc = _doc(workspace, stray)
+    doc["core_points"][0]["evidence_ids"] = ["f" * 64]
+    corrupt = _corrupt_with(workspace, stray, json.dumps(doc).encode())
+    broken = _candidate(
+        workspace, "video-broken", DURABLE, "MALFORMED-TEXT",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=7.0,
+    )
+    corrupt_broken = _corrupt_with(workspace, broken, b"[]not-an-object")
+    candidates = (legacy, corrupt, corrupt_broken)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    rendered = render_weekly_report(generated.report)
+    report = generated.report
+    assert len(report.items) == 0
+    assert getattr(report, "analysis_results", ()) == ()
+    for leaked in ("LEGACY-TEXT", "STRAY-TEXT", "MALFORMED-TEXT"):
+        assert leaked not in rendered
+    assert len(repository.reports) == 1
+
+
+def test_10_no_provider_call_and_no_regeneration(workspace: Path) -> None:
+    """Requirements 11, 12 and 13."""
+
+    import youtube_intel.analysis as analysis_module
+
+    calls: list[str] = []
+    original = getattr(analysis_module, "AnalysisService", None)
+    if original is not None:
+        analysis_module.AnalysisService = lambda *a, **k: calls.append("provider")
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED-V6-SUMMARY",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=9.0,
+    )
+    stray = _candidate(
+        workspace, "video-stray", DURABLE, "STRAY", CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    doc = _doc(workspace, stray)
+    doc["core_points"][0]["evidence_ids"] = ["9" * 64]
+    corrupt = _corrupt_with(workspace, stray, json.dumps(doc).encode())
+    repository = _Repository(candidates=(trusted, corrupt))
+    try:
+        generated = _generate(workspace, (trusted, corrupt), repository)
+    finally:
+        if original is not None:
+            analysis_module.AnalysisService = original
+    assert calls == []
+    assert len(generated.report.items) == 1
+    # The corrupt artifact is untouched on disk; nothing regenerated or deleted.
+    assert (workspace / "artifacts" / corrupt.analysis_artifact.relative_path).exists()
+
+
+# ---------------------------------------------------------------------------
+# FATAL: storage / security failures must still refuse the whole report
+# ---------------------------------------------------------------------------
+
+
+def test_14_artifact_hash_mismatch_is_still_fatal(workspace: Path) -> None:
+    """Requirement 14: bytes that do not match the recorded hash are fatal."""
+
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    candidate = _candidate(
+        workspace, "video-tampered", DURABLE, "TAMPERED",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    assert candidate.analysis_artifact is not None
+    # Write different bytes WITHOUT updating the recorded hash.
+    (workspace / "artifacts" / candidate.analysis_artifact.relative_path).write_bytes(
+        b"different bytes entirely"
+    )
+    repository = _Repository(candidates=(candidate,))
+    with pytest.raises(WeeklyReportValidationError):
+        _generate(workspace, (candidate,), repository)
+    assert repository.reports == []
+
+
+def test_15_artifact_path_escape_is_still_fatal(workspace: Path) -> None:
+    """Requirement 15."""
+
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    candidate = _candidate(
+        workspace, "video-escape", DURABLE, "ESCAPE", CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    assert candidate.analysis_artifact is not None
+    escaping = replace(
+        candidate,
+        analysis_artifact=replace(
+            candidate.analysis_artifact, relative_path="../../etc/structured.json"
+        ),
+    )
+    repository = _Repository(candidates=(escaping,))
+    with pytest.raises(WeeklyReportValidationError):
+        _generate(workspace, (escaping,), repository)
+    assert repository.reports == []
+
+
+def test_16_artifact_provenance_tamper_is_still_fatal(workspace: Path) -> None:
+    """Requirement 16: artifact_key / provider / model identity mismatch."""
+
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    candidate = _candidate(
+        workspace, "video-provenance", DURABLE, "PROVENANCE",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    assert candidate.analysis_artifact is not None
+    for attribute, value in (
+        ("artifact_key", "analysis/not-the-result/structured"),
+        ("provider", "someone-else"),
+        ("model", "someone-elses-model"),
+    ):
+        tampered = replace(
+            candidate,
+            analysis_artifact=replace(
+                candidate.analysis_artifact, **{attribute: value}
+            ),
+        )
+        repository = _Repository(candidates=(tampered,))
+        with pytest.raises(WeeklyReportValidationError):
+            _generate(workspace, (tampered,), repository)
+        assert repository.reports == []
+
+
+def test_17_tampered_note_is_still_fatal(workspace: Path) -> None:
+    """Requirement 17: note integrity failures are not candidate exclusions."""
+
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    candidate = _candidate(
+        workspace, "video-note", DURABLE, "TRUSTED", CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    _write_note(workspace, candidate)
+    note = candidate.note_artifact
+    assert note is not None
+    (workspace / "vault" / VAULT_SUBDIR / note.relative_path).write_bytes(b"tampered")
+    repository = _Repository(candidates=(candidate,))
+    with pytest.raises(WeeklyReportValidationError):
+        _service(workspace, (candidate,), repository).generate(now=NOW)
+    assert repository.reports == []
+
+
+def test_18_a_fatal_failure_still_aborts_even_beside_a_valid_candidate(
+    workspace: Path,
+) -> None:
+    """One storage failure must not be diluted by an excluded sibling."""
+
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED-V6-SUMMARY",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=9.0,
+    )
+    broken = _candidate(
+        workspace, "video-broken", DURABLE, "BROKEN", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=8.0,
+    )
+    assert broken.analysis_artifact is not None
+    (workspace / "artifacts" / broken.analysis_artifact.relative_path).write_bytes(
+        b"hash no longer matches"
+    )
+    candidates = (trusted, broken)
+    repository = _Repository(candidates=candidates)
+    with pytest.raises(WeeklyReportValidationError):
+        _generate(workspace, candidates, repository)
+    assert repository.reports == []

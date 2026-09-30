@@ -191,12 +191,11 @@ class WeeklyReportService:
                     self._repository,
                 )
             )
-        except (LegacySummaryNotCurrentAuthority, SummaryCitationNotDurable):
-            # A readable historical or corrupt Summary is never Weekly Report
-            # input.  Its text and Evidence ids stay unpublished; the artifact
-            # itself is neither deleted nor rewritten.
-            raise _WeeklySummaryNotTrusted from None
         except (OSError, TypeError, ValueError):
+            # _WeeklySummaryNotTrusted is not a ValueError, so the candidate-local
+            # boundary established in _verified_analysis propagates untouched.
+            # Everything else here is storage, score, or provenance failure and
+            # stays fatal for the whole report.
             raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
         try:
             note = candidate.note_artifact
@@ -393,8 +392,31 @@ def _normalized_text(value: str) -> str:
 def _verified_analysis(
     root: Path, artifact: Any, video_id: str, repository: _WeeklyRepository
 ) -> AnalysisResult:
+    """Verify one Summary artifact, separating candidate-local from fatal.
+
+    The boundary is deliberately narrow and ordered:
+
+    1. artifact/storage/file provenance (:func:`_verified_data_artifact`) and the
+       ``artifact_key`` / ``relative_path`` / ``provider`` / ``model`` identity
+       check stay **fatal** — those indicate storage or security corruption,
+       not bad Summary semantics, and must refuse the whole report;
+    2. a Summary payload that cannot be parsed or that violates the persisted
+       contract (including a point citing an id absent from its own
+       ``evidence``) is **candidate-local** and excludes one candidate;
+    3. current Summary authority uses the shared gate and is likewise
+       **candidate-local**.
+    """
+
+    # (1a) FATAL: storage / file / bytes provenance.
     content = _verified_data_artifact(root, artifact, video_id, ArtifactKind.ANALYSIS_STRUCTURED)
-    result = AnalysisResult.model_validate_json(content)
+    # (2) CANDIDATE-LOCAL: the Summary payload itself is malformed.
+    try:
+        result = AnalysisResult.model_validate_json(content)
+    except (TypeError, ValueError):
+        raise _WeeklySummaryNotTrusted(
+            "weekly Summary payload is not a valid persisted contract"
+        ) from None
+    # (1b) FATAL: artifact identity / provenance tampering.
     if (
         artifact.artifact_key != f"analysis/{result.request_hash}/structured"
         or artifact.relative_path != f"analysis/{result.request_hash}/structured.json"
@@ -402,12 +424,15 @@ def _verified_analysis(
         or artifact.model != result.model
     ):
         raise ValueError("analysis artifact provenance is invalid")
-    # SAME authority semantics as RuntimeOperations._load_analysis.  Weekly
-    # reporting reuses the shared current-Summary gate rather than restating
-    # the prompt-version and citation-resolution rules, so the two trusted read
-    # paths cannot drift apart.  A historical or unresolvable Summary is
-    # excluded before any of its text or Evidence ids can reach the report.
-    require_current_summary_authority(result, repository)
+    # (3) CANDIDATE-LOCAL: same authority semantics as
+    # RuntimeOperations._load_analysis, via the shared gate rather than a
+    # locally restated trust rule.
+    try:
+        require_current_summary_authority(result, repository)
+    except (LegacySummaryNotCurrentAuthority, SummaryCitationNotDurable):
+        raise _WeeklySummaryNotTrusted(
+            "weekly Summary is not current trusted Summary authority"
+        ) from None
     return result
 
 
