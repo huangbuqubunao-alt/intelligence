@@ -23,6 +23,12 @@ from youtube_intel.analysis import (
     RepositoryBackedAnalysisService,
     tokenizer_resource_status,
 )
+from youtube_intel.analysis_provenance import (
+    AnalysisProviderCallProvenanceError,
+    analysis_operation_for,
+    require_analysis_call_matches_payload,
+    require_analysis_provider_call,
+)
 from youtube_intel.config import AppConfig, LocalScoringSettings
 from youtube_intel.discovery import DiscoveryService, YouTubeRssSourceProvider
 from youtube_intel.domain import (
@@ -163,7 +169,6 @@ from youtube_intel.state import (
     ArtifactRecord,
     JobRecord,
     LeaseConflict,
-    ProviderCallStatus,
     SQLiteStateRepository,
     StorageRoot,
     VideoRecord,
@@ -1184,31 +1189,39 @@ class RuntimeOperations(Operations):
             if expected_local
             else self._config.settings.cloud.model
         )
-        expected_operation = "local-analysis" if expected_local else "cloud-analysis"
-        # LAYERING: every caller of this validator consumes the result as
-        # CURRENT trusted Summary authority (the API current-Summary pointer,
-        # the Note V2 projection, and the Obsidian publish).  Historical
-        # analysis-prompt-v1..v5 artifacts stay *parseable* through the
-        # persisted AnalysisResult contract and remain inspectable as artifacts,
-        # but only the live durable-citation contract may be reused here.
-        # Widening this set would make temporary t*/m* refs trusted citations.
-        expected_prompts = {CURRENT_SUMMARY_PROMPT_VERSION}
+        expected_operation = analysis_operation_for(artifact.provider)
         expected_provider = (
             "ollama" if expected_local else self._config.settings.cloud.provider
         )
+        # SHARED CONTRACT: the ledger-level Analysis provenance predicates live in
+        # youtube_intel.analysis_provenance, which the Weekly Report trusted read
+        # also calls, so the two cannot drift apart.  The configuration binding
+        # below (expected_provider / expected_model) stays runtime-specific.
+        try:
+            require_analysis_provider_call(
+                provider_call,
+                request_hash=result.request_hash,
+                provider=result.provider,
+                model=result.model,
+            )
+            require_analysis_call_matches_payload(
+                provider_call,
+                request_hash=result.request_hash,
+                provider=result.provider,
+                model=result.model,
+                prompt_version=result.prompt_version,
+                schema_version=result.schema_version,
+            )
+        except AnalysisProviderCallProvenanceError as error:
+            raise ValueError(
+                "persisted analysis provider call provenance is invalid"
+            ) from error
         if (
             provider_call is None
-            or provider_call.status is not ProviderCallStatus.SUCCEEDED
             or provider_call.operation != expected_operation
             or provider_call.provider != expected_provider
-            or provider_call.provider != result.provider
-            or provider_call.model != result.model
-            or provider_call.prompt_version not in expected_prompts
-            or provider_call.prompt_version != result.prompt_version
-            or provider_call.schema_version != "analysis-result-v1"
-            or provider_call.schema_version != result.schema_version
-            or provider_call.request_hash != result.request_hash
-            or not provider_call.response_artifact_id
+            or require_current_model
+            and (result.model != expected_model or result.provider != expected_provider)
         ):
             raise ValueError("persisted analysis provider call provenance is invalid")
         raw = self._repository.get_artifact_by_key(

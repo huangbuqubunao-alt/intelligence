@@ -58,17 +58,35 @@ class _VerifiedText:
         self.excerpt = "Verified excerpt."
 
 
-#: Provider-call authority captured when each fixture candidate is built, so a
-#: later artifact-row tamper is detectable.  Derived from the tampered row it
-#: could never fail.
-EXPECTED_PROVIDER_CALLS: dict[str, tuple[str, str]] = {}
+#: Provider-call ledger rows captured when each fixture candidate is built, so a
+#: later artifact-row tamper or a redirected ledger entry stays detectable.
+EXPECTED_PROVIDER_CALLS: dict[str, "_ProviderCall"] = {}
 
 
 class _ProviderCall:
-    def __init__(self, provider: str, model: str) -> None:
+    """One Analysis dispatch in the provider-call ledger."""
+
+    def __init__(
+        self,
+        request_hash: str,
+        provider: str,
+        model: str,
+        *,
+        operation: str = "local-analysis",
+        prompt_version: str = CURRENT_SUMMARY_PROMPT_VERSION,
+        schema_version: str = "analysis-result-v1",
+        status: ProviderCallStatus = ProviderCallStatus.SUCCEEDED,
+        response_artifact_id: str | None = "raw-response",
+    ) -> None:
+        self.request_hash = request_hash
+        self.operation = operation
         self.provider = provider
         self.model = model
-        self.status = ProviderCallStatus.SUCCEEDED
+        self.prompt_version = prompt_version
+        self.schema_version = schema_version
+        self.status = status
+        self.response_artifact_id = response_artifact_id
+
 
 @dataclass
 class _Repository:
@@ -98,8 +116,7 @@ class _Repository:
         )
 
     def get_provider_call(self, request_hash: str) -> _ProviderCall | None:
-        expected = EXPECTED_PROVIDER_CALLS.get(request_hash)
-        return None if expected is None else _ProviderCall(*expected)
+        return EXPECTED_PROVIDER_CALLS.get(request_hash)
 
     def upsert_report(self, report: object, *, now: datetime) -> object:
         del now
@@ -164,9 +181,11 @@ def _candidate(
     )
     score_bytes = score_result.model_dump_json().encode()
     analysis_bytes = analysis_result.model_dump_json().encode()
-    EXPECTED_PROVIDER_CALLS[analysis_result.request_hash] = (
+    EXPECTED_PROVIDER_CALLS[analysis_result.request_hash] = _ProviderCall(
+        analysis_result.request_hash,
         analysis_result.provider,
         analysis_result.model,
+        prompt_version=analysis_result.prompt_version,
     )
     score_path = f"scoring/{score_result.request_hash}/structured.json"
     analysis_path = f"analysis/{analysis_result.request_hash}/structured.json"

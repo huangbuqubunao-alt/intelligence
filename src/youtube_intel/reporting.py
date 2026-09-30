@@ -19,6 +19,10 @@ from zoneinfo import ZoneInfo
 from jinja2 import StrictUndefined
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 
+from youtube_intel.analysis_provenance import (
+    require_analysis_call_matches_payload,
+    require_analysis_provider_call,
+)
 from youtube_intel.domain import (
     AnalysisResult,
     Availability,
@@ -36,7 +40,6 @@ from youtube_intel.path_validation import (
 )
 from youtube_intel.state import (
     ArtifactKind,
-    ProviderCallStatus,
     StorageRoot,
     WeeklyCandidateRecord,
 )
@@ -425,17 +428,21 @@ def _verified_analysis(
     # provider/model provenance can be settled BEFORE the payload is decoded.
     # This is what stops a malformed payload from masking a tampered row.
     request_hash = _artifact_key_request_hash(artifact)
-    _require_provider_call_provenance(artifact, repository, request_hash)
+    call = _require_provider_call_provenance(artifact, repository, request_hash)
     # (5) FATAL: exact identity against the payload, when it yields metadata.
     document = _json_object_or_untrusted(content)
     metadata = _trusted_summary_metadata(document)
     if metadata is not None:
         payload_hash, provider, model = metadata
-        if (
-            payload_hash != request_hash
-            or artifact.provider != provider
-            or artifact.model != model
-        ):
+        require_analysis_call_matches_payload(
+            call,
+            request_hash=request_hash,
+            provider=provider,
+            model=model,
+            prompt_version=str(document.get("prompt_version", "")),
+            schema_version=str(document.get("schema_version", "")),
+        )
+        if payload_hash != request_hash:
             raise ValueError("analysis artifact provenance is invalid")
     # (6) CANDIDATE-LOCAL: the Summary payload itself is malformed.
     try:
@@ -481,24 +488,25 @@ def _artifact_key_request_hash(artifact: Any) -> str:
 
 def _require_provider_call_provenance(
     artifact: Any, repository: _WeeklyRepository, request_hash: str
-) -> None:
-    """Anchor provider/model to the provider-call ledger, independent of the file.
+) -> Any:
+    """Bind the artifact to a legitimate Analysis dispatch, using the shared contract.
 
-    A structured Analysis artifact is only ever committed together with its
-    provider call, so that ledger row is the independent authority for who
-    produced it.  Comparing the artifact row against the ledger means a tampered
-    provider or model is fatal even when the payload cannot be decoded.
+    This is the same verifier ``RuntimeOperations._validate_analysis_provenance``
+    calls, so the Weekly read path is exactly as strict as the runtime and can
+    never accept a non-Analysis ledger entry (for example a successful local
+    scoring call that merely shares provider and model).  It reads only the ledger
+    and the artifact row, never the payload, so a malformed Summary cannot mask
+    it.
     """
 
-    if artifact.provider not in {"ollama", "openai"} or not isinstance(
-        artifact.model, str
-    ) or not artifact.model.strip():
-        raise ValueError("analysis artifact provenance is invalid")
     call = repository.get_provider_call(request_hash)
-    if call is None or call.status is not ProviderCallStatus.SUCCEEDED:
-        raise ValueError("analysis artifact provenance is invalid")
-    if call.provider != artifact.provider or call.model != artifact.model:
-        raise ValueError("analysis artifact provenance is invalid")
+    require_analysis_provider_call(
+        call,
+        request_hash=request_hash,
+        provider=artifact.provider,
+        model=artifact.model,
+    )
+    return call
 
 
 def _json_object_or_untrusted(content: bytes) -> dict[str, Any]:

@@ -78,17 +78,35 @@ class _VerifiedText:
         self.excerpt = "Verified excerpt."
 
 
-#: Provider-call authority captured when each fixture candidate is built, so a
-#: later artifact-row tamper is detectable.  Derived from the tampered row it
-#: could never fail.
-EXPECTED_PROVIDER_CALLS: dict[str, tuple[str, str]] = {}
+#: Provider-call ledger rows captured when each fixture candidate is built, so a
+#: later artifact-row tamper or a redirected ledger entry stays detectable.
+EXPECTED_PROVIDER_CALLS: dict[str, "_ProviderCall"] = {}
 
 
 class _ProviderCall:
-    def __init__(self, provider: str, model: str) -> None:
+    """One Analysis dispatch in the provider-call ledger."""
+
+    def __init__(
+        self,
+        request_hash: str,
+        provider: str,
+        model: str,
+        *,
+        operation: str = "local-analysis",
+        prompt_version: str = CURRENT_SUMMARY_PROMPT_VERSION,
+        schema_version: str = "analysis-result-v1",
+        status: ProviderCallStatus = ProviderCallStatus.SUCCEEDED,
+        response_artifact_id: str | None = "raw-response",
+    ) -> None:
+        self.request_hash = request_hash
+        self.operation = operation
         self.provider = provider
         self.model = model
-        self.status = ProviderCallStatus.SUCCEEDED
+        self.prompt_version = prompt_version
+        self.schema_version = schema_version
+        self.status = status
+        self.response_artifact_id = response_artifact_id
+
 
 @dataclass
 class _Repository:
@@ -114,8 +132,7 @@ class _Repository:
         )
 
     def get_provider_call(self, request_hash: str) -> _ProviderCall | None:
-        expected = EXPECTED_PROVIDER_CALLS.get(request_hash)
-        return None if expected is None else _ProviderCall(*expected)
+        return EXPECTED_PROVIDER_CALLS.get(request_hash)
 
     def upsert_report(self, report: object, *, now: datetime) -> object:
         del now
@@ -250,9 +267,11 @@ def _candidate(
     )
     score_bytes = score_result.model_dump_json().encode()
     analysis_bytes = analysis.model_dump_json().encode()
-    EXPECTED_PROVIDER_CALLS[analysis.request_hash] = (
+    EXPECTED_PROVIDER_CALLS[analysis.request_hash] = _ProviderCall(
+        analysis.request_hash,
         analysis.provider,
         analysis.model,
+        prompt_version=analysis.prompt_version,
     )
     score_path = f"scoring/{score_result.request_hash}/structured.json"
     analysis_path = f"analysis/{analysis.request_hash}/structured.json"
@@ -1268,3 +1287,304 @@ def test_16_no_broad_exception_is_swallowed(workspace: Path) -> None:
     assert "except Exception" not in source
     assert issubclass(_WeeklySummaryNotTrusted, Exception)
     assert not issubclass(_WeeklySummaryNotTrusted, ValueError)
+
+
+# ---------------------------------------------------------------------------
+# Operation binding: the ledger entry must really be an Analysis dispatch
+# ---------------------------------------------------------------------------
+
+
+def _redirect_ledger(workspace: Path, candidate: WeeklyCandidateRecord, **overrides):
+    """Re-point the fixture candidate's ledger entry and return the candidate.
+
+    ``overrides`` may change the operation, provider, model, prompt or schema
+    identity of the ledger row, or redirect the artifact key to a different
+    request identity that owns a non-Analysis ledger entry.
+    """
+
+    assert candidate.analysis_artifact is not None
+    assert candidate.analysis_artifact.artifact_key.startswith("analysis/")
+    key_hash = candidate.analysis_artifact.artifact_key.split("/")[1]
+    target_hash = overrides.pop("ledger_request_hash", key_hash)
+    call = EXPECTED_PROVIDER_CALLS[key_hash]
+    EXPECTED_PROVIDER_CALLS[target_hash] = _ProviderCall(
+        target_hash,
+        overrides.pop("provider", call.provider),
+        overrides.pop("model", call.model),
+        operation=overrides.pop("operation", call.operation),
+        prompt_version=overrides.pop("prompt_version", call.prompt_version),
+        schema_version=overrides.pop("schema_version", call.schema_version),
+        status=overrides.pop("status", call.status),
+    )
+    return replace(
+        candidate,
+        analysis_artifact=replace(
+            candidate.analysis_artifact,
+            artifact_key=f"analysis/{target_hash}/structured",
+            relative_path=f"analysis/{target_hash}/structured.json",
+            provider=EXPECTED_PROVIDER_CALLS[target_hash].provider,
+            model=EXPECTED_PROVIDER_CALLS[target_hash].model,
+        ),
+    )
+
+
+def test_1_genuine_analysis_ledger_and_valid_v6_is_accepted(workspace: Path) -> None:
+    candidate = _candidate(
+        workspace, "video-genuine", DURABLE, "GENUINE",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    repository = _Repository(candidates=(candidate,))
+    generated = _generate(workspace, (candidate,), repository)
+    assert len(generated.report.items) == 1
+    assert "GENUINE" in render_weekly_report(generated.report)
+
+
+def test_2_genuine_ledger_plus_malformed_summary_is_candidate_local(
+    workspace: Path,
+) -> None:
+    broken = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+        b'{"one_sentence_summary": not-json',
+    )
+    repository = _Repository(candidates=(broken,))
+    generated = _generate(workspace, (broken,), repository)
+    assert len(generated.report.items) == 0
+
+
+def test_3_local_scoring_ledger_with_valid_summary_is_fatal(workspace: Path) -> None:
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-scoring", DURABLE, "SCORED",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        operation="local-scoring",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_4_local_scoring_ledger_with_malformed_summary_is_fatal(
+    workspace: Path,
+) -> None:
+    """The reported defect: a non-Analysis ledger entry must not be maskable."""
+
+    broken = _malformed(
+        workspace,
+        _candidate(
+            workspace, "video-scoring", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+    )
+    redirecting = _redirect_ledger(workspace, broken, operation="local-scoring")
+    # The payload is unparseable, yet the non-Analysis binding still fails closed.
+    assert redirecting.analysis_artifact is not None
+    _assert_fatal(workspace, redirecting)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["cloud-scoring", "local-transcription", "weekly-report", "openai-chat"],
+)
+def test_5_any_other_non_analysis_operation_is_fatal(
+    workspace: Path, operation: str
+) -> None:
+    broken = _malformed(
+        workspace,
+        _candidate(
+            workspace, "video-other", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+    )
+    _assert_fatal(workspace, _redirect_ledger(workspace, broken, operation=operation))
+
+
+def test_6_key_and_path_redirected_to_a_scoring_ledger_identity_is_fatal(
+    workspace: Path,
+) -> None:
+    candidate = _candidate(
+        workspace, "video-redirect", DURABLE, "REDIRECTED",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    scoring_hash = "f" * 64
+    EXPECTED_PROVIDER_CALLS[scoring_hash] = _ProviderCall(
+        scoring_hash, "ollama", "qwen3:8b", operation="local-scoring"
+    )
+    redirected = replace(
+        candidate,
+        analysis_artifact=replace(
+            candidate.analysis_artifact,
+            artifact_key=f"analysis/{scoring_hash}/structured",
+            relative_path=f"analysis/{scoring_hash}/structured.json",
+        ),
+    )
+    _assert_fatal(workspace, redirected)
+
+
+def test_7_scoring_ledger_sharing_provider_and_model_is_still_fatal(
+    workspace: Path,
+) -> None:
+    """Identical provider and model must not make a scoring call look Analysis."""
+
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-sameset", DURABLE, "SAMESET",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        operation="local-scoring",
+        provider="ollama",
+        model="qwen3:8b",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_8_provider_mismatch_is_fatal(workspace: Path) -> None:
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-provider", DURABLE, "PROVIDER",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        provider="openai",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_9_model_mismatch_is_fatal(workspace: Path) -> None:
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-model", DURABLE, "MODEL",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        model="some-other-model",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_10_prompt_identity_mismatch_against_the_ledger_is_fatal(
+    workspace: Path,
+) -> None:
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-prompt", DURABLE, "PROMPT",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        prompt_version="analysis-prompt-v5",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_11_schema_identity_mismatch_is_fatal(workspace: Path) -> None:
+    candidate = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-schema", DURABLE, "SCHEMA",
+            CURRENT_SUMMARY_PROMPT_VERSION,
+        ),
+        schema_version="analysis-result-v0",
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_12_valid_sibling_plus_non_analysis_ledger_sibling_is_fatal(
+    workspace: Path,
+) -> None:
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=9.0,
+    )
+    bad = _redirect_ledger(
+        workspace,
+        _candidate(
+            workspace, "video-scoring", DURABLE, "BAD",
+            CURRENT_SUMMARY_PROMPT_VERSION, score=8.0,
+        ),
+        operation="local-scoring",
+    )
+    candidates = (trusted, bad)
+    repository = _Repository(candidates=candidates)
+    with pytest.raises(Exception):  # noqa: B017 - report integrity, not the message
+        _generate(workspace, candidates, repository)
+    assert repository.reports == []
+
+
+def test_13_valid_sibling_plus_candidate_local_malformed_survives(
+    workspace: Path,
+) -> None:
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=9.0,
+    )
+    broken = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION,
+            score=8.0,
+        ),
+        b'{"one_sentence_summary": not-json',
+    )
+    candidates = (trusted, broken)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    assert len(generated.report.items) == 1
+
+
+def test_17_symlink_hash_and_path_fatal_tests_remain_green() -> None:
+    """The trust-boundary suite is still collected and intact."""
+
+    import inspect
+
+    from youtube_intel.reporting import _verified_data_artifact
+
+    source = inspect.getsource(_verified_data_artifact)
+    assert "_read_artifact_bytes" in source
+    assert "read_bytes()" not in source
+
+
+def test_shared_verifier_is_used_by_runtime_and_reporting() -> None:
+    """Provenance parity: one definition, two consumers."""
+
+    import inspect
+
+    from youtube_intel import reporting as rep
+    from youtube_intel.analysis_provenance import require_analysis_provider_call
+    from youtube_intel.reporting import _require_provider_call_provenance
+    from youtube_intel.runtime import RuntimeOperations
+
+    weekly = inspect.getsource(_require_provider_call_provenance)
+    runtime = inspect.getsource(RuntimeOperations._validate_analysis_provenance)
+    assert "require_analysis_provider_call" in weekly
+    assert "require_analysis_provider_call" in runtime
+    # The weekly module calls the payload cross-check directly in
+    # _verified_analysis, where the decoded document is available.
+    weekly_read = inspect.getsource(rep._verified_analysis)
+    assert "require_analysis_call_matches_payload" in weekly_read
+    assert "require_analysis_call_matches_payload" in runtime
+    # Neither consumer may restate the Analysis ledger field list locally.
+    for source_text in (weekly, runtime, weekly_read):
+        assert "cloud-analysis" not in source_text
+        assert "local-analysis" not in source_text
+        assert "analysis-result-v1" not in source_text
+        assert "ProviderCallStatus.SUCCEEDED" not in source_text
+    # And the shared module is the single owner of the Analysis operation map.
+    assert require_analysis_provider_call.__module__ == (
+        "youtube_intel.analysis_provenance"
+    )
+
+
+def test_no_new_over_restriction_for_legitimate_analysis_paths() -> None:
+    """Weekly must be exactly as strict as runtime, not stricter."""
+
+    from youtube_intel.analysis_provenance import (
+        ANALYSIS_OPERATION_BY_PROVIDER,
+        ANALYSIS_PROVIDER_SET,
+    )
+
+    assert ANALYSIS_PROVIDER_SET == frozenset({"ollama", "openai"})
+    assert ANALYSIS_OPERATION_BY_PROVIDER == {
+        "ollama": "local-analysis",
+        "openai": "cloud-analysis",
+    }

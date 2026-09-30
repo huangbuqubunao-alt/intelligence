@@ -478,8 +478,12 @@ def test_16_runtime_provenance_requires_only_the_current_contract() -> None:
     from youtube_intel.runtime import RuntimeOperations
 
     source = inspect.getsource(RuntimeOperations._validate_analysis_provenance)
-    assert "expected_prompts = {CURRENT_SUMMARY_PROMPT_VERSION}" in source
+    # The current-contract requirement now lives in the shared Analysis
+    # provenance verifier, which runtime and Weekly both call.
+    assert "require_analysis_call_matches_payload" in source
+    assert "require_analysis_provider_call" in source
     assert '"analysis-prompt-v5"' not in source
+    assert "CURRENT_SUMMARY_PROMPT_VERSION" in source
     load_source = inspect.getsource(RuntimeOperations._load_analysis)
     assert "require_current_summary_authority" in load_source
 
