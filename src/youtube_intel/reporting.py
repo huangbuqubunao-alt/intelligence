@@ -47,6 +47,7 @@ from youtube_intel.summary_evidence_authority import (
     LegacySummaryNotCurrentAuthority,
     SummaryCitationNotDurable,
     require_current_summary_authority,
+    require_current_summary_prompt_identity,
 )
 
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
@@ -421,37 +422,44 @@ def _verified_analysis(
        authority gate — both candidate-local.
     """
 
-    # (1-3) FATAL: storage / path confinement / filesystem safety / bytes.
+    # (1-4) FATAL: storage / path confinement / filesystem safety / bytes.
     content = _verified_data_artifact(root, artifact, video_id, ArtifactKind.ANALYSIS_STRUCTURED)
-    # (4) FATAL: row-level provenance that needs no payload at all.  The
-    # request identity is carried by the artifact key, so key/path agreement and
-    # provider/model provenance can be settled BEFORE the payload is decoded.
-    # This is what stops a malformed payload from masking a tampered row.
+    # (5) FATAL: artifact row identity and the ledger-only Analysis binding.
+    # These need no payload at all, so a malformed Summary can never mask them.
     request_hash = _artifact_key_request_hash(artifact)
     call = _require_provider_call_provenance(artifact, repository, request_hash)
-    # (5) FATAL: exact identity against the payload, when it yields metadata.
+    # (6) CANDIDATE-LOCAL: the Summary payload itself.
     document = _json_object_or_untrusted(content)
-    metadata = _trusted_summary_metadata(document)
-    if metadata is not None:
-        payload_hash, provider, model = metadata
-        require_analysis_call_matches_payload(
-            call,
-            request_hash=request_hash,
-            provider=provider,
-            model=model,
-            prompt_version=str(document.get("prompt_version", "")),
-            schema_version=str(document.get("schema_version", "")),
-        )
-        if payload_hash != request_hash:
-            raise ValueError("analysis artifact provenance is invalid")
-    # (6) CANDIDATE-LOCAL: the Summary payload itself is malformed.
     try:
         result = AnalysisResult.model_validate(document)
     except (TypeError, ValueError):
         raise _WeeklySummaryNotTrusted(
             "weekly Summary payload is not a valid persisted contract"
         ) from None
-    # (7) CANDIDATE-LOCAL: same authority semantics as
+    # (7) ELIGIBILITY BEFORE INTEGRITY, exactly as
+    # RuntimeOperations._validate_analysis_provenance orders it.  A readable
+    # historical Summary -- including one whose prompt_version was omitted and
+    # therefore defaulted by the domain contract -- is stale, not forged, and
+    # must not be reported as a provenance forgery.
+    try:
+        require_current_summary_prompt_identity(result)
+    except LegacySummaryNotCurrentAuthority:
+        raise _WeeklySummaryNotTrusted(
+            "weekly Summary is not current trusted Summary authority"
+        ) from None
+    # (8) FATAL: payload <-> ledger binding, evaluated on the PARSED result.
+    # AnalysisResult owns its own field defaults, so an omitted
+    # schema_version/prompt_version is resolved exactly as runtime resolves it
+    # rather than being treated as an empty string here.
+    require_analysis_call_matches_payload(
+        call,
+        request_hash=result.request_hash,
+        provider=result.provider,
+        model=result.model,
+        prompt_version=result.prompt_version,
+        schema_version=result.schema_version,
+    )
+    # (9) CANDIDATE-LOCAL: same authority semantics as
     # RuntimeOperations._load_analysis, via the shared gate rather than a
     # locally restated trust rule.
     try:
@@ -527,24 +535,6 @@ def _json_object_or_untrusted(content: bytes) -> dict[str, Any]:
             "weekly Summary payload is not a JSON object"
         )
     return document
-
-
-def _trusted_summary_metadata(
-    document: dict[str, Any],
-) -> tuple[str, str, str] | None:
-    """Return ``(request_hash, provider, model)`` only when all three are sound.
-
-    When they are not, the payload is malformed rather than tampered, so the
-    caller must not raise a fatal provenance error on their account.
-    """
-
-    values = (document.get("request_hash"), document.get("provider"), document.get("model"))
-    if not all(isinstance(value, str) and value.strip() for value in values):
-        return None
-    request_hash, provider, model = cast("tuple[str, str, str]", values)
-    if len(request_hash) != 64 or not all(c in "0123456789abcdef" for c in request_hash):
-        return None
-    return request_hash, provider, model
 
 
 def _read_artifact_bytes(root: Path, parts: tuple[str, ...], limit: int) -> bytes:

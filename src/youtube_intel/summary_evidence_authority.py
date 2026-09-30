@@ -435,3 +435,32 @@ __all__: Final = [
     "hydrate_summary_evidence",
     "require_current_summary_authority",
 ]
+
+
+def require_current_summary_prompt_identity(result: object) -> None:
+    """Classify prompt eligibility on its own, before any integrity check.
+
+    Runtime decides *eligibility* before *integrity* so a genuine historical
+    Summary surfaces its truthful regeneration-required state instead of a
+    generic provenance failure.  A consumer that validates provenance on bytes
+    it parsed itself must reach the same verdict, so this is the single
+    classification rule both sides use:
+
+    * the current identity passes;
+    * a historical identity raises
+      :class:`LegacySummaryNotCurrentAuthority` -- stale, not forged;
+    * any other identity is an integrity fault and stays a fatal ``ValueError``.
+
+    Only the prompt identity is judged.  Durable-citation eligibility is a
+    separate concern, resolved by :func:`require_current_summary_authority`.
+    """
+
+    prompt_version = getattr(result, "prompt_version", None)
+    if prompt_version == CURRENT_SUMMARY_PROMPT_VERSION:
+        return
+    if prompt_version in HISTORICAL_SUMMARY_PROMPT_VERSIONS:
+        raise LegacySummaryNotCurrentAuthority(
+            "persisted Summary uses a historical citation contract and is "
+            "not current trusted Summary authority"
+        )
+    raise ValueError("persisted analysis prompt identity is unknown")
