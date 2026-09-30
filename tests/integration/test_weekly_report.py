@@ -33,8 +33,28 @@ from youtube_intel.state import (
     VideoRecord,
     WeeklyCandidateRecord,
 )
+from youtube_intel.summary_evidence_authority import CURRENT_SUMMARY_PROMPT_VERSION
 
 NOW = datetime(2026, 1, 2, 12, tzinfo=UTC)
+
+
+#: A durable Evidence identity, exactly as the shared current-Summary gate
+#: requires: 64 hex characters that resolve through both repository readers.
+DURABLE_EVIDENCE_ID = "a" * 64
+
+
+class _Evidence:
+    """The minimum a current-authority check needs from an Evidence record."""
+
+    def __init__(self, evidence_id: str) -> None:
+        self.evidence_id = evidence_id
+        self.availability = "AVAILABLE"
+
+
+class _VerifiedText:
+    def __init__(self, evidence_id: str) -> None:
+        self.evidence_id = evidence_id
+        self.excerpt = "Verified excerpt."
 
 
 @dataclass
@@ -42,12 +62,27 @@ class _Repository:
     candidates: tuple[WeeklyCandidateRecord, ...]
     reports: list[object] = field(default_factory=list)
     fail_next_upsert: bool = False
+    durable_evidence_ids: frozenset[str] = frozenset({DURABLE_EVIDENCE_ID})
 
     def list_weekly_candidates(
         self, *, start_utc: datetime, end_utc: datetime
     ) -> tuple[WeeklyCandidateRecord, ...]:
         del start_utc, end_utc
         return self.candidates
+
+    def get_evidence(self, evidence_id: str) -> _Evidence | None:
+        return (
+            _Evidence(evidence_id)
+            if evidence_id in self.durable_evidence_ids
+            else None
+        )
+
+    def resolve_verified_evidence_text(self, evidence_id: str) -> _VerifiedText | None:
+        return (
+            _VerifiedText(evidence_id)
+            if evidence_id in self.durable_evidence_ids
+            else None
+        )
 
     def upsert_report(self, report: object, *, now: datetime) -> object:
         del now
@@ -87,26 +122,27 @@ def _candidate(
             AnalysisPoint(
                 text="Verified local fact.",
                 kind=PointKind.FACT,
-                evidence_ids=("evidence-1",),
+                evidence_ids=(DURABLE_EVIDENCE_ID,),
             ),
         ),
         actionable_directions=(
             AnalysisPoint(
                 text=direction,
                 kind=PointKind.RECOMMENDATION,
-                evidence_ids=("evidence-1",),
+                evidence_ids=(DURABLE_EVIDENCE_ID,),
             ),
         ),
         keywords=analysis_keywords or (analysis_keyword or topic,),
         evidence=(
             EvidenceExcerpt(
-                evidence_id="evidence-1",
+                evidence_id=DURABLE_EVIDENCE_ID,
                 source=EvidenceSource.TRANSCRIPT_SAMPLE,
                 excerpt="Verified excerpt.",
             ),
         ),
         provider="fixture-analysis",
         model="fixture-model",
+        prompt_version=CURRENT_SUMMARY_PROMPT_VERSION,
         request_hash=hashlib.sha256(f"analysis:{video_id}".encode()).hexdigest(),
     )
     score_bytes = score_result.model_dump_json().encode()

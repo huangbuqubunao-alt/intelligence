@@ -33,6 +33,11 @@ from youtube_intel.path_validation import (
     validate_video_note_relative_path,
 )
 from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
+from youtube_intel.summary_evidence_authority import (
+    LegacySummaryNotCurrentAuthority,
+    SummaryCitationNotDurable,
+    require_current_summary_authority,
+)
 
 _TEMPLATE_RESOURCE = ("templates", "weekly.md")
 _MAX_ARTIFACT_BYTES = 5 << 20
@@ -45,6 +50,10 @@ class _WeeklyRepository(Protocol):
         self, *, start_utc: datetime, end_utc: datetime
     ) -> tuple[WeeklyCandidateRecord, ...]: ...
 
+    def get_evidence(self, evidence_id: str) -> Any: ...
+
+    def resolve_verified_evidence_text(self, evidence_id: str) -> Any: ...
+
 
 class _WeeklySink(Protocol):
     def upsert_weekly_report(self, report: WeeklyReportInput) -> NoteRef: ...
@@ -52,6 +61,15 @@ class _WeeklySink(Protocol):
 
 class WeeklyReportValidationError(ValueError):
     """Raised before writing when a report input lacks verified local facts."""
+
+
+class _WeeklySummaryNotTrusted(Exception):
+    """Internal signal: this candidate's Summary is not current trusted authority.
+
+    It excludes one candidate and lets the report continue with the remaining
+    trusted candidates.  It is never a regeneration signal: nothing here calls a
+    provider, rewrites the historical artifact, or falls back to cloud.
+    """
 
 
 class _VerifiedWeeklyReport(WeeklyReportInput):
@@ -116,10 +134,14 @@ class WeeklyReportService:
     def generate(self, *, now: datetime) -> GeneratedWeeklyReport:
         period = week_period_for(now, timezone=self._timezone)
         verified = tuple(
-            self._verified_item(candidate)
-            for candidate in self._repository.list_weekly_candidates(
-                start_utc=period.start_utc, end_utc=period.end_utc
+            item
+            for item in (
+                self._verified_or_excluded(candidate)
+                for candidate in self._repository.list_weekly_candidates(
+                    start_utc=period.start_utc, end_utc=period.end_utc
+                )
             )
+            if item is not None
         )[: self._top_n]
         report = _VerifiedWeeklyReport(
             iso_year=period.iso_year,
@@ -137,6 +159,22 @@ class WeeklyReportService:
             note_ref=self._sink.upsert_weekly_report(report),
         )
 
+    def _verified_or_excluded(
+        self, candidate: WeeklyCandidateRecord
+    ) -> tuple[WeeklyReportItem, AnalysisResult | None] | None:
+        """Return the verified item, or ``None`` when its Summary is untrusted.
+
+        Only the Summary-authority failure excludes a single candidate.  Every
+        other validation failure keeps its existing behaviour of refusing the
+        whole report, so this gate cannot be used to launder a bad note or
+        score past validation.
+        """
+
+        try:
+            return self._verified_item(candidate)
+        except _WeeklySummaryNotTrusted:
+            return None
+
     def _verified_item(
         self, candidate: WeeklyCandidateRecord
     ) -> tuple[WeeklyReportItem, AnalysisResult | None]:
@@ -150,8 +188,14 @@ class WeeklyReportService:
                     self._artifact_root,
                     candidate.analysis_artifact,
                     video.video_id,
+                    self._repository,
                 )
             )
+        except (LegacySummaryNotCurrentAuthority, SummaryCitationNotDurable):
+            # A readable historical or corrupt Summary is never Weekly Report
+            # input.  Its text and Evidence ids stay unpublished; the artifact
+            # itself is neither deleted nor rewritten.
+            raise _WeeklySummaryNotTrusted from None
         except (OSError, TypeError, ValueError):
             raise WeeklyReportValidationError("weekly analysis inputs are invalid") from None
         try:
@@ -346,7 +390,9 @@ def _normalized_text(value: str) -> str:
     return normalized
 
 
-def _verified_analysis(root: Path, artifact: Any, video_id: str) -> AnalysisResult:
+def _verified_analysis(
+    root: Path, artifact: Any, video_id: str, repository: _WeeklyRepository
+) -> AnalysisResult:
     content = _verified_data_artifact(root, artifact, video_id, ArtifactKind.ANALYSIS_STRUCTURED)
     result = AnalysisResult.model_validate_json(content)
     if (
@@ -356,6 +402,12 @@ def _verified_analysis(root: Path, artifact: Any, video_id: str) -> AnalysisResu
         or artifact.model != result.model
     ):
         raise ValueError("analysis artifact provenance is invalid")
+    # SAME authority semantics as RuntimeOperations._load_analysis.  Weekly
+    # reporting reuses the shared current-Summary gate rather than restating
+    # the prompt-version and citation-resolution rules, so the two trusted read
+    # paths cannot drift apart.  A historical or unresolvable Summary is
+    # excluded before any of its text or Evidence ids can reach the report.
+    require_current_summary_authority(result, repository)
     return result
 
 

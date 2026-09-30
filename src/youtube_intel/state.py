@@ -4592,8 +4592,30 @@ class SQLiteStateRepository:
                 score = _latest_weekly_artifact(
                     connection, video.video_id, ArtifactKind.SCORING_STRUCTURED
                 )
-                analysis = _latest_weekly_artifact(
-                    connection, video.video_id, ArtifactKind.ANALYSIS_STRUCTURED
+                # The weekly Summary input is the Content's explicit current
+                # Summary authority pointer, never merely the newest structured
+                # Analysis artifact by chronology.  A newer historical artifact
+                # must not be able to displace the trusted current Summary, and
+                # a Deep-Analysis-backed pointer simply has no local structured
+                # artifact here (no Summary text is invented for it).
+                pointer = connection.execute(
+                    "SELECT analysis_artifact_id FROM current_content_summaries "
+                    "WHERE video_id = ?",
+                    (video.video_id,),
+                ).fetchone()
+                analysis = (
+                    None
+                    if pointer is None or pointer["analysis_artifact_id"] is None
+                    else connection.execute(
+                        "SELECT * FROM artifacts WHERE artifact_id = :artifact_id "
+                        "AND kind = :kind AND storage_root = :root "
+                        "AND deleted_at IS NULL",
+                        {
+                            "artifact_id": pointer["analysis_artifact_id"],
+                            "kind": ArtifactKind.ANALYSIS_STRUCTURED.value,
+                            "root": StorageRoot.DATA.value,
+                        },
+                    ).fetchone()
                 )
                 if note is not None and score is not None:
                     candidates.append(
