@@ -28,6 +28,7 @@ from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
     PipelineStatus,
+    ProviderCallStatus,
     RetentionClass,
     StorageRoot,
     VideoRecord,
@@ -57,6 +58,18 @@ class _VerifiedText:
         self.excerpt = "Verified excerpt."
 
 
+#: Provider-call authority captured when each fixture candidate is built, so a
+#: later artifact-row tamper is detectable.  Derived from the tampered row it
+#: could never fail.
+EXPECTED_PROVIDER_CALLS: dict[str, tuple[str, str]] = {}
+
+
+class _ProviderCall:
+    def __init__(self, provider: str, model: str) -> None:
+        self.provider = provider
+        self.model = model
+        self.status = ProviderCallStatus.SUCCEEDED
+
 @dataclass
 class _Repository:
     candidates: tuple[WeeklyCandidateRecord, ...]
@@ -83,6 +96,10 @@ class _Repository:
             if evidence_id in self.durable_evidence_ids
             else None
         )
+
+    def get_provider_call(self, request_hash: str) -> _ProviderCall | None:
+        expected = EXPECTED_PROVIDER_CALLS.get(request_hash)
+        return None if expected is None else _ProviderCall(*expected)
 
     def upsert_report(self, report: object, *, now: datetime) -> object:
         del now
@@ -111,7 +128,7 @@ def _candidate(
         topics=(topic,),
         should_summarize=True,
         provider="fixture-score",
-        model="fixture-model",
+        model="qwen3:8b",
         prompt_version="scoring-prompt-v2",
         request_hash=hashlib.sha256(f"score:{video_id}".encode()).hexdigest(),
         output_language="en",
@@ -140,13 +157,17 @@ def _candidate(
                 excerpt="Verified excerpt.",
             ),
         ),
-        provider="fixture-analysis",
-        model="fixture-model",
+        provider="ollama",
+        model="qwen3:8b",
         prompt_version=CURRENT_SUMMARY_PROMPT_VERSION,
         request_hash=hashlib.sha256(f"analysis:{video_id}".encode()).hexdigest(),
     )
     score_bytes = score_result.model_dump_json().encode()
     analysis_bytes = analysis_result.model_dump_json().encode()
+    EXPECTED_PROVIDER_CALLS[analysis_result.request_hash] = (
+        analysis_result.provider,
+        analysis_result.model,
+    )
     score_path = f"scoring/{score_result.request_hash}/structured.json"
     analysis_path = f"analysis/{analysis_result.request_hash}/structured.json"
     artifacts = [(score_path, score_bytes)]
@@ -186,7 +207,7 @@ def _candidate(
         analysis_artifact=(
             _artifact(
                 video_id, ArtifactKind.ANALYSIS_STRUCTURED, analysis_path, analysis_bytes,
-                f"analysis/{analysis_result.request_hash}/structured", "fixture-analysis",
+                f"analysis/{analysis_result.request_hash}/structured", "ollama",
             )
             if with_analysis
             else None
@@ -212,7 +233,7 @@ def _artifact(
         artifact_id=f"{kind.value}-{video_id}", artifact_key=artifact_key, video_id=video_id,
         job_id="job-1", kind=kind, storage_root=root_type, relative_path=relative_path,
         content_hash=hashlib.sha256(content).hexdigest(), provider=provider,
-        model="fixture-model" if provider else None, producer_version="fixture-v1",
+        model="qwen3:8b" if provider == "ollama" else None, producer_version="fixture-v1",
         retention_class=RetentionClass.LONG_LIVED, created_at=NOW, expires_at=None, deleted_at=None,
     )
 

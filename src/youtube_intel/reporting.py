@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import stat
 import unicodedata
 from collections.abc import Callable
@@ -32,7 +34,12 @@ from youtube_intel.path_validation import (
     InvalidNotePathError,
     validate_video_note_relative_path,
 )
-from youtube_intel.state import ArtifactKind, StorageRoot, WeeklyCandidateRecord
+from youtube_intel.state import (
+    ArtifactKind,
+    ProviderCallStatus,
+    StorageRoot,
+    WeeklyCandidateRecord,
+)
 from youtube_intel.summary_evidence_authority import (
     LegacySummaryNotCurrentAuthority,
     SummaryCitationNotDurable,
@@ -51,6 +58,8 @@ class _WeeklyRepository(Protocol):
     ) -> tuple[WeeklyCandidateRecord, ...]: ...
 
     def get_evidence(self, evidence_id: str) -> Any: ...
+
+    def get_provider_call(self, request_hash: str) -> Any: ...
 
     def resolve_verified_evidence_text(self, evidence_id: str) -> Any: ...
 
@@ -394,37 +403,48 @@ def _verified_analysis(
 ) -> AnalysisResult:
     """Verify one Summary artifact, separating candidate-local from fatal.
 
-    The boundary is deliberately narrow and ordered:
+    Ordering is load-bearing.  Every candidate-independent fatal trust check
+    runs BEFORE a parse failure is allowed to become candidate-local, so a
+    tampered artifact row can never be masked by malformed Summary content:
 
-    1. artifact/storage/file provenance (:func:`_verified_data_artifact`) and the
-       ``artifact_key`` / ``relative_path`` / ``provider`` / ``model`` identity
-       check stay **fatal** — those indicate storage or security corruption,
-       not bad Summary semantics, and must refuse the whole report;
-    2. a Summary payload that cannot be parsed or that violates the persisted
-       contract (including a point citing an id absent from its own
-       ``evidence``) is **candidate-local** and excludes one candidate;
-    3. current Summary authority uses the shared gate and is likewise
-       **candidate-local**.
+    1. storage-root, path confinement, and artifact kind / deleted / video
+       identity;
+    2. symlink-free, dir-FD anchored file read (no traversal out of the
+       artifact authority root);
+    3. file size and bytes-vs-recorded-hash integrity;
+    4. ``artifact_key`` / ``relative_path`` / ``provider`` / ``model`` identity,
+       checked against the minimum trusted metadata read from the payload;
+    5. ONLY THEN the full persisted contract, and the shared current-Summary
+       authority gate — both candidate-local.
     """
 
-    # (1a) FATAL: storage / file / bytes provenance.
+    # (1-3) FATAL: storage / path confinement / filesystem safety / bytes.
     content = _verified_data_artifact(root, artifact, video_id, ArtifactKind.ANALYSIS_STRUCTURED)
-    # (2) CANDIDATE-LOCAL: the Summary payload itself is malformed.
+    # (4) FATAL: row-level provenance that needs no payload at all.  The
+    # request identity is carried by the artifact key, so key/path agreement and
+    # provider/model provenance can be settled BEFORE the payload is decoded.
+    # This is what stops a malformed payload from masking a tampered row.
+    request_hash = _artifact_key_request_hash(artifact)
+    _require_provider_call_provenance(artifact, repository, request_hash)
+    # (5) FATAL: exact identity against the payload, when it yields metadata.
+    document = _json_object_or_untrusted(content)
+    metadata = _trusted_summary_metadata(document)
+    if metadata is not None:
+        payload_hash, provider, model = metadata
+        if (
+            payload_hash != request_hash
+            or artifact.provider != provider
+            or artifact.model != model
+        ):
+            raise ValueError("analysis artifact provenance is invalid")
+    # (6) CANDIDATE-LOCAL: the Summary payload itself is malformed.
     try:
-        result = AnalysisResult.model_validate_json(content)
+        result = AnalysisResult.model_validate(document)
     except (TypeError, ValueError):
         raise _WeeklySummaryNotTrusted(
             "weekly Summary payload is not a valid persisted contract"
         ) from None
-    # (1b) FATAL: artifact identity / provenance tampering.
-    if (
-        artifact.artifact_key != f"analysis/{result.request_hash}/structured"
-        or artifact.relative_path != f"analysis/{result.request_hash}/structured.json"
-        or artifact.provider != result.provider
-        or artifact.model != result.model
-    ):
-        raise ValueError("analysis artifact provenance is invalid")
-    # (3) CANDIDATE-LOCAL: same authority semantics as
+    # (7) CANDIDATE-LOCAL: same authority semantics as
     # RuntimeOperations._load_analysis, via the shared gate rather than a
     # locally restated trust rule.
     try:
@@ -434,6 +454,136 @@ def _verified_analysis(
             "weekly Summary is not current trusted Summary authority"
         ) from None
     return result
+
+
+_ANALYSIS_KEY_PATTERN = re.compile(r"\Aanalysis/([0-9a-f]{64})/structured\Z")
+
+
+def _artifact_key_request_hash(artifact: Any) -> str:
+    """Read the request identity out of the row, or fail closed.
+
+    The artifact key is the row's own claim about which request produced it, and
+    the relative path must name the same request.  Checking them against each
+    other needs no payload, so a corrupt payload cannot mask a tampered row.
+    """
+
+    key = artifact.artifact_key
+    if not isinstance(key, str):
+        raise ValueError("analysis artifact provenance is invalid")
+    matched = _ANALYSIS_KEY_PATTERN.match(key)
+    if matched is None:
+        raise ValueError("analysis artifact provenance is invalid")
+    request_hash = str(matched.group(1))
+    if artifact.relative_path != f"analysis/{request_hash}/structured.json":
+        raise ValueError("analysis artifact provenance is invalid")
+    return request_hash
+
+
+def _require_provider_call_provenance(
+    artifact: Any, repository: _WeeklyRepository, request_hash: str
+) -> None:
+    """Anchor provider/model to the provider-call ledger, independent of the file.
+
+    A structured Analysis artifact is only ever committed together with its
+    provider call, so that ledger row is the independent authority for who
+    produced it.  Comparing the artifact row against the ledger means a tampered
+    provider or model is fatal even when the payload cannot be decoded.
+    """
+
+    if artifact.provider not in {"ollama", "openai"} or not isinstance(
+        artifact.model, str
+    ) or not artifact.model.strip():
+        raise ValueError("analysis artifact provenance is invalid")
+    call = repository.get_provider_call(request_hash)
+    if call is None or call.status is not ProviderCallStatus.SUCCEEDED:
+        raise ValueError("analysis artifact provenance is invalid")
+    if call.provider != artifact.provider or call.model != artifact.model:
+        raise ValueError("analysis artifact provenance is invalid")
+
+
+def _json_object_or_untrusted(content: bytes) -> dict[str, Any]:
+    """Decode trusted artifact bytes into a JSON object, or exclude the candidate.
+
+    The bytes already passed the recorded-hash integrity check, so a decode
+    failure is Summary content invalidity, never a storage fault.
+    """
+
+    try:
+        document = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise _WeeklySummaryNotTrusted(
+            "weekly Summary payload is not valid JSON"
+        ) from None
+    if not isinstance(document, dict):
+        raise _WeeklySummaryNotTrusted(
+            "weekly Summary payload is not a JSON object"
+        )
+    return document
+
+
+def _trusted_summary_metadata(
+    document: dict[str, Any],
+) -> tuple[str, str, str] | None:
+    """Return ``(request_hash, provider, model)`` only when all three are sound.
+
+    When they are not, the payload is malformed rather than tampered, so the
+    caller must not raise a fatal provenance error on their account.
+    """
+
+    values = (document.get("request_hash"), document.get("provider"), document.get("model"))
+    if not all(isinstance(value, str) and value.strip() for value in values):
+        return None
+    request_hash, provider, model = cast("tuple[str, str, str]", values)
+    if len(request_hash) != 64 or not all(c in "0123456789abcdef" for c in request_hash):
+        return None
+    return request_hash, provider, model
+
+
+def _read_artifact_bytes(root: Path, parts: tuple[str, ...], limit: int) -> bytes:
+    """Read one artifact through a dir-FD anchored, symlink-free traversal.
+
+    Every component is opened with ``O_NOFOLLOW`` against the previously opened
+    descriptor, so neither a leaf nor an intermediate symlink can redirect the
+    read, and there is no resolve-then-reopen window.  This mirrors the vault
+    writer's existing trust model in this module.
+    """
+
+    if not parts:
+        raise ValueError("artifact path is empty")
+    root_fd = _open_directory(root)
+    current_fd = root_fd
+    leaf_fd: int | None = None
+    try:
+        for part in parts[:-1]:
+            next_fd = _open_directory(part, dir_fd=current_fd)
+            if current_fd != root_fd:
+                os.close(current_fd)
+            current_fd = next_fd
+        try:
+            leaf_fd = os.open(
+                parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=current_fd
+            )
+        except OSError:
+            raise ValueError("artifact is not a regular trusted file") from None
+        if not stat.S_ISREG(os.fstat(leaf_fd).st_mode):
+            raise ValueError("artifact is not a regular trusted file")
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            chunk = os.read(leaf_fd, min(65536, limit + 1 - size))
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > limit:
+                raise ValueError("artifact is too large")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        if leaf_fd is not None:
+            os.close(leaf_fd)
+        if current_fd != root_fd:
+            os.close(current_fd)
+        os.close(root_fd)
 
 
 def _verified_data_artifact(root: Path, artifact: Any, video_id: str, kind: ArtifactKind) -> bytes:
@@ -448,8 +598,11 @@ def _verified_data_artifact(root: Path, artifact: Any, video_id: str, kind: Arti
         or any(part in {"", ".", ".."} for part in path.parts)
     ):
         raise ValueError("artifact is invalid")
-    content = (root / Path(*path.parts)).read_bytes()
-    if len(content) > _MAX_ARTIFACT_BYTES or hashlib.sha256(content).hexdigest() != artifact.content_hash:
+    # Symlink-free anchored read: a leaf or intermediate symlink cannot redirect
+    # the read outside the artifact authority root, even when the target bytes
+    # would match the recorded hash.
+    content = _read_artifact_bytes(root, path.parts, _MAX_ARTIFACT_BYTES)
+    if hashlib.sha256(content).hexdigest() != artifact.content_hash:
         raise ValueError("artifact contents are invalid")
     return content
 

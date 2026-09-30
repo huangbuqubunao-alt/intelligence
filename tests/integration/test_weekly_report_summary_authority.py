@@ -46,6 +46,7 @@ from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
     PipelineStatus,
+    ProviderCallStatus,
     RetentionClass,
     StorageRoot,
     VideoRecord,
@@ -77,6 +78,18 @@ class _VerifiedText:
         self.excerpt = "Verified excerpt."
 
 
+#: Provider-call authority captured when each fixture candidate is built, so a
+#: later artifact-row tamper is detectable.  Derived from the tampered row it
+#: could never fail.
+EXPECTED_PROVIDER_CALLS: dict[str, tuple[str, str]] = {}
+
+
+class _ProviderCall:
+    def __init__(self, provider: str, model: str) -> None:
+        self.provider = provider
+        self.model = model
+        self.status = ProviderCallStatus.SUCCEEDED
+
 @dataclass
 class _Repository:
     candidates: tuple[WeeklyCandidateRecord, ...]
@@ -99,6 +112,10 @@ class _Repository:
             if evidence_id in self.durable_evidence_ids
             else None
         )
+
+    def get_provider_call(self, request_hash: str) -> _ProviderCall | None:
+        expected = EXPECTED_PROVIDER_CALLS.get(request_hash)
+        return None if expected is None else _ProviderCall(*expected)
 
     def upsert_report(self, report: object, *, now: datetime) -> object:
         del now
@@ -164,7 +181,7 @@ def _artifact(
         relative_path=relative_path,
         content_hash=hashlib.sha256(content).hexdigest(),
         provider=provider,
-        model="fixture-model" if provider else None,
+        model="qwen3:8b" if provider == "ollama" else None,
         producer_version="fixture-v1",
         retention_class=RetentionClass.LONG_LIVED,
         created_at=NOW,
@@ -197,8 +214,8 @@ def _analysis(
                 excerpt="Verified excerpt.",
             ),
         ),
-        provider="fixture-analysis",
-        model="fixture-model",
+        provider="ollama",
+        model="qwen3:8b",
         prompt_version=prompt_version,
         request_hash=hashlib.sha256(f"analysis:{video_id}".encode()).hexdigest(),
     )
@@ -233,6 +250,10 @@ def _candidate(
     )
     score_bytes = score_result.model_dump_json().encode()
     analysis_bytes = analysis.model_dump_json().encode()
+    EXPECTED_PROVIDER_CALLS[analysis.request_hash] = (
+        analysis.provider,
+        analysis.model,
+    )
     score_path = f"scoring/{score_result.request_hash}/structured.json"
     analysis_path = f"analysis/{analysis.request_hash}/structured.json"
     for relative, content in ((score_path, score_bytes), (analysis_path, analysis_bytes)):
@@ -276,7 +297,7 @@ def _candidate(
             analysis_path,
             analysis_bytes,
             f"analysis/{analysis.request_hash}/structured",
-            "fixture-analysis",
+            "ollama",
         ),
         note_artifact=_artifact(
             video_id,
@@ -943,3 +964,307 @@ def test_18_a_fatal_failure_still_aborts_even_beside_a_valid_candidate(
     with pytest.raises(WeeklyReportValidationError):
         _generate(workspace, candidates, repository)
     assert repository.reports == []
+
+
+# ---------------------------------------------------------------------------
+# COMBINATION: a fatal provenance fault must never be masked by bad content
+# ---------------------------------------------------------------------------
+
+
+def _malformed(workspace: Path, candidate: WeeklyCandidateRecord):
+    """Hash-valid but unparseable Summary content."""
+
+    return _corrupt_with(workspace, candidate, b'{"one_sentence_summary": not-json')
+
+
+def _assert_fatal(workspace: Path, candidate: WeeklyCandidateRecord) -> None:
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    repository = _Repository(candidates=(candidate,))
+    with pytest.raises(WeeklyReportValidationError):
+        _generate(workspace, (candidate,), repository)
+    assert repository.reports == []
+
+
+def test_1_malformed_json_alone_is_candidate_local(workspace: Path) -> None:
+    candidate = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+        b'{"one_sentence_summary": not-json',
+    )
+    repository = _Repository(candidates=(candidate,))
+    generated = _generate(workspace, (candidate,), repository)
+    assert len(generated.report.items) == 0
+
+
+def test_2_malformed_json_with_valid_sibling_keeps_the_sibling(workspace: Path) -> None:
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED-V6-SUMMARY",
+        CURRENT_SUMMARY_PROMPT_VERSION, score=9.0,
+    )
+    broken = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION,
+            score=8.0,
+        ),
+        b'{"one_sentence_summary": not-json',
+    )
+    candidates = (trusted, broken)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    assert len(generated.report.items) == 1
+    assert "TRUSTED-V6-SUMMARY" in render_weekly_report(generated.report)
+
+
+@pytest.mark.parametrize(
+    ("attribute", "value"),
+    [
+        ("artifact_key", "analysis/not-the-result/structured"),
+        ("provider", "someone-else"),
+        ("model", "someone-elses-model"),
+    ],
+)
+def test_3_4_5_malformed_json_plus_provenance_tamper_still_fails_the_report(
+    workspace: Path, attribute: str, value: str
+) -> None:
+    """Requirements 3, 4 and 5: the parse failure must not mask the tamper."""
+
+    broken = _malformed(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+    )
+    assert broken.analysis_artifact is not None
+    tampered = replace(
+        broken,
+        analysis_artifact=replace(broken.analysis_artifact, **{attribute: value}),
+    )
+    _assert_fatal(workspace, tampered)
+
+
+def test_6_malformed_json_plus_hash_mismatch_still_fails_the_report(
+    workspace: Path,
+) -> None:
+    """Requirement 6."""
+
+    candidate = _candidate(
+        workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+    )
+    assert candidate.analysis_artifact is not None
+    # Write malformed bytes but leave the recorded hash pointing elsewhere.
+    (workspace / "artifacts" / candidate.analysis_artifact.relative_path).write_bytes(
+        b'{"one_sentence_summary": not-json'
+    )
+    _assert_fatal(workspace, candidate)
+
+
+def test_7_malformed_json_plus_path_traversal_still_fails_the_report(
+    workspace: Path,
+) -> None:
+    """Requirement 7."""
+
+    broken = _malformed(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+    )
+    assert broken.analysis_artifact is not None
+    escaping = replace(
+        broken,
+        analysis_artifact=replace(
+            broken.analysis_artifact, relative_path="../../etc/structured.json"
+        ),
+    )
+    _assert_fatal(workspace, escaping)
+
+
+def test_8_malformed_json_plus_symlink_escape_still_fails_the_report(
+    workspace: Path,
+) -> None:
+    """Requirement 8."""
+
+    broken = _malformed(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+    )
+    _symlink_leaf_to_outside(workspace, broken, payload=b'{"one_sentence_summary": not-json')
+    _assert_fatal(workspace, broken)
+
+
+# ---------------------------------------------------------------------------
+# Symlink escape: a trusted artifact read must not leave the artifact root
+# ---------------------------------------------------------------------------
+
+
+def _symlink_leaf_to_outside(
+    workspace: Path, candidate: WeeklyCandidateRecord, *, payload: bytes
+) -> Path:
+    """Replace the leaf artifact file with a symlink to an outside file."""
+
+    outside = workspace / "outside" / "payload.json"
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    outside.write_bytes(payload)
+    assert candidate.analysis_artifact is not None
+    link = workspace / "artifacts" / candidate.analysis_artifact.relative_path
+    link.unlink()
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(outside)
+    # The recorded hash deliberately MATCHES the outside target.
+    return outside
+
+
+def test_9_valid_summary_with_leaf_symlink_outside_root_fails(workspace: Path) -> None:
+    """Requirement 9."""
+
+    candidate = _candidate(
+        workspace, "video-link", DURABLE, "LINKED", CURRENT_SUMMARY_PROMPT_VERSION
+    )
+    assert candidate.analysis_artifact is not None
+    original = (
+        workspace / "artifacts" / candidate.analysis_artifact.relative_path
+    ).read_bytes()
+    _symlink_leaf_to_outside(workspace, candidate, payload=original)
+    _assert_fatal(workspace, candidate)
+
+
+def test_10_valid_summary_with_intermediate_directory_symlink_fails(
+    workspace: Path,
+) -> None:
+    """Requirement 10."""
+
+    candidate = _candidate(
+        workspace, "video-dirlink", DURABLE, "DIRLINKED",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    assert candidate.analysis_artifact is not None
+    relative = candidate.analysis_artifact.relative_path
+    head, _, leaf = relative.rpartition("/")
+    real_dir = workspace / "outside_dir"
+    real_dir.mkdir(parents=True, exist_ok=True)
+    (real_dir / leaf).write_bytes((workspace / "artifacts" / relative).read_bytes())
+    original_dir = workspace / "artifacts" / head
+    original_dir.rename(workspace / "artifacts" / (head + "-moved"))
+    original_dir.symlink_to(real_dir)
+    _assert_fatal(workspace, candidate)
+
+
+def test_11_symlink_with_matching_bytes_and_hash_is_still_fatal(workspace: Path) -> None:
+    """Requirement 11: identical bytes do not make the path trusted."""
+
+    from youtube_intel.reporting import _verified_data_artifact
+
+    candidate = _candidate(
+        workspace, "video-match", DURABLE, "MATCHED", CURRENT_SUMMARY_PROMPT_VERSION
+    )
+    assert candidate.analysis_artifact is not None
+    original = (
+        workspace / "artifacts" / candidate.analysis_artifact.relative_path
+    ).read_bytes()
+    _symlink_leaf_to_outside(workspace, candidate, payload=original)
+    # The recorded hash matches the outside target byte for byte.
+    assert candidate.analysis_artifact.content_hash == hashlib.sha256(original).hexdigest()
+    with pytest.raises(ValueError):
+        _verified_data_artifact(
+            workspace / "artifacts",
+            candidate.analysis_artifact,
+            candidate.video.video_id,
+            ArtifactKind.ANALYSIS_STRUCTURED,
+        )
+
+
+def test_12_a_valid_regular_file_artifact_is_accepted(workspace: Path) -> None:
+    """Requirement 12."""
+
+    candidate = _candidate(
+        workspace, "video-regular", DURABLE, "REGULAR",
+        CURRENT_SUMMARY_PROMPT_VERSION,
+    )
+    repository = _Repository(candidates=(candidate,))
+    generated = _generate(workspace, (candidate,), repository)
+    assert len(generated.report.items) == 1
+    assert "REGULAR" in render_weekly_report(generated.report)
+
+
+def test_13_valid_sibling_plus_fatal_candidate_fails_the_report(workspace: Path) -> None:
+    """Requirement 13."""
+
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=9.0,
+    )
+    fatal = _candidate(
+        workspace, "video-fatal", DURABLE, "FATAL", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=8.0,
+    )
+    assert fatal.analysis_artifact is not None
+    (workspace / "artifacts" / fatal.analysis_artifact.relative_path).write_bytes(
+        b"bytes no longer match"
+    )
+    from youtube_intel.reporting import WeeklyReportValidationError
+
+    candidates = (trusted, fatal)
+    repository = _Repository(candidates=candidates)
+    with pytest.raises(WeeklyReportValidationError):
+        _generate(workspace, candidates, repository)
+    assert repository.reports == []
+
+
+def test_14_valid_sibling_plus_candidate_local_bad_summary_survives(
+    workspace: Path,
+) -> None:
+    """Requirement 14 (unchanged isolation)."""
+
+    trusted = _candidate(
+        workspace, "video-ok", DURABLE, "TRUSTED", CURRENT_SUMMARY_PROMPT_VERSION,
+        score=9.0,
+    )
+    broken = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION,
+            score=8.0,
+        ),
+        b'{"one_sentence_summary": not-json',
+    )
+    candidates = (trusted, broken)
+    repository = _Repository(candidates=candidates)
+    generated = _generate(workspace, candidates, repository)
+    assert len(generated.report.items) == 1
+
+
+def test_15_all_candidate_local_invalid_keeps_the_empty_report(workspace: Path) -> None:
+    """Requirement 15 (unchanged behaviour)."""
+
+    broken = _corrupt_with(
+        workspace,
+        _candidate(
+            workspace, "video-bad", DURABLE, "BAD", CURRENT_SUMMARY_PROMPT_VERSION
+        ),
+        b"[]not-an-object",
+    )
+    repository = _Repository(candidates=(broken,))
+    generated = _generate(workspace, (broken,), repository)
+    assert len(generated.report.items) == 0
+    assert len(repository.reports) == 1
+
+
+def test_16_no_broad_exception_is_swallowed(workspace: Path) -> None:
+    """The candidate loop still catches only the project-local signal."""
+
+    import inspect
+
+    from youtube_intel.reporting import WeeklyReportService, _WeeklySummaryNotTrusted
+
+    source = inspect.getsource(WeeklyReportService._verified_or_excluded)
+    assert "_WeeklySummaryNotTrusted" in source
+    assert "WeeklyReportValidationError" not in source
+    assert "except Exception" not in source
+    assert issubclass(_WeeklySummaryNotTrusted, Exception)
+    assert not issubclass(_WeeklySummaryNotTrusted, ValueError)
