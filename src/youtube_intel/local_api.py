@@ -83,6 +83,9 @@ from youtube_intel.state import (
     TopicMembershipRecord,
     VideoRecord,
 )
+from youtube_intel.summary_evidence_authority import (
+    LegacySummaryNotCurrentAuthority,
+)
 from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
 
 
@@ -2066,6 +2069,18 @@ class LocalApiApplication:
                 }
             try:
                 outcome = self._analysis_reader(video_id, local_pointer.artifact_id)
+            except LegacySummaryNotCurrentAuthority:
+                # The stored Summary is readable but its citations are temporary
+                # model-facing refs, so it is not current trusted authority.
+                # Surface a truthful regeneration-required state; never render a
+                # t*/m* ref as if it were an Evidence id.
+                return {
+                    "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
+                    "v2": {
+                        "status": "UNAVAILABLE",
+                        "code": "CURRENT_SUMMARY_LEGACY_REGENERATION_REQUIRED",
+                    },
+                }
             except (ValueError, OSError):
                 outcome = None
             if not isinstance(outcome, AnalysisCompleted):

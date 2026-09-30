@@ -740,6 +740,99 @@ def test_trusted_scoring_repeat_has_no_duplicate_outputs(tmp_path: Path, monkeyp
     )
 
 
+def _promote_fixture_evidence(
+    repository: SQLiteStateRepository, video_id: str, now: datetime
+) -> str:
+    """Promote one real durable EXTRACTION span and return its identity.
+
+    A current-authority Summary must cite ids that resolve through the
+    repository, so this fixture builds genuine Evidence instead of a
+    placeholder string.
+    """
+
+    from youtube_intel.state import (
+        ArtifactKind,
+        ArtifactWrite,
+        RetentionClass,
+        StorageRoot,
+        TimedTranscriptCueWrite,
+        TimedTranscriptWrite,
+    )
+    from youtube_intel.summary_draft import SummaryDraft, SummaryDraftPoint
+    from youtube_intel.summary_evidence_authority import hydrate_summary_evidence
+    from youtube_intel.summary_evidence_candidates import (
+        build_trusted_evidence_registry,
+    )
+
+    cues = tuple(
+        TimedTranscriptCueWrite(
+            start_ms=index * 1000,
+            end_ms=(index + 1) * 1000,
+            text=f"fixture cue {index}",
+        )
+        for index in range(4)
+    )
+    artifact_id = f"analysis-fixture-transcript-{video_id}"
+    repository.upsert_artifact(
+        ArtifactWrite(
+            artifact_id=artifact_id,
+            artifact_key=f"transcript/{video_id}",
+            video_id=video_id,
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path=f"transcripts/{video_id}/canonical.txt",
+            content_hash=hashlib.sha256(b"fixture").hexdigest(),
+            provider="fixture",
+            model=None,
+            producer_version="fixture-v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=now,
+    )
+    repository.create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id=video_id, canonical_artifact_id=artifact_id, cues=cues
+        ),
+        now=now,
+    )
+    verified = repository.get_verified_timed_transcript(video_id=video_id)
+    assert verified is not None
+    registry = build_trusted_evidence_registry(
+        transcript=verified,
+        title=f"Video {video_id}",
+        channel_name="Test channel",
+        description="Fixture",
+        input_identity="d" * 64,
+    )
+    ref = next(
+        candidate.ref
+        for candidate in registry.candidates
+        if candidate.source is EvidenceSource.TRANSCRIPT_SAMPLE
+    )
+    hydrated = hydrate_summary_evidence(
+        SummaryDraft(
+            one_sentence_summary="fixture",
+            core_points=(
+                SummaryDraftPoint(text="t", kind="fact", evidence_refs=(ref,)),
+            ),
+            keywords=("fixture",),
+        ),
+        registry,
+        video_id=video_id,
+        canonical_artifact_id=artifact_id,
+        language="en",
+        timed_transcript_id=verified.timed_transcript_id,
+        timed_transcript_hash=verified.timed_transcript_hash,
+    )
+    promotion = hydrated.promotions[0]
+    repository.promote_summary_evidence(
+        promotion.as_evidence_write(), promotion.as_text_binding(), now=now
+    )
+    return promotion.evidence_id
+
+
 def _build_analysis_fixture(
     repository: SQLiteStateRepository,
     data_root: Path,
@@ -748,21 +841,22 @@ def _build_analysis_fixture(
     request_hash: str,
     now: datetime,
 ) -> tuple[ArtifactWrite, ArtifactWrite, AnalysisResult]:
+    durable_evidence_id = _promote_fixture_evidence(repository, video_id, now)
     result = AnalysisResult(
         one_sentence_summary="Fixture analysis summary.",
         core_points=[
             {
                 "text": "A core point.",
                 "kind": PointKind.FACT.value,
-                "evidence_ids": ["title-1"],
+                "evidence_ids": [durable_evidence_id],
             }
         ],
         keywords=["fixture"],
         evidence=[
             {
-                "evidence_id": "title-1",
-                "source": EvidenceSource.TITLE.value,
-                "excerpt": "Fixture title",
+                "evidence_id": durable_evidence_id,
+                "source": EvidenceSource.TRANSCRIPT_SAMPLE.value,
+                "excerpt": "fixture cue 0",
             }
         ],
         provider="openai",

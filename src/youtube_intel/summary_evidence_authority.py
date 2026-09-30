@@ -39,7 +39,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Protocol
 
 from youtube_intel.domain import EvidenceExcerpt, EvidenceSource
 from youtube_intel.state import (
@@ -50,7 +50,7 @@ from youtube_intel.state import (
     EvidenceWrite,
     build_evidence_id,
 )
-from youtube_intel.summary_draft import SummaryDraft
+from youtube_intel.summary_draft import SUMMARY_DRAFT_PROMPT_VERSION, SummaryDraft
 from youtube_intel.summary_evidence_candidates import (
     TrustedEvidenceCandidate,
     TrustedEvidenceRegistry,
@@ -61,6 +61,22 @@ SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE: Final = (
 )
 
 SUMMARY_EVIDENCE_REF_NOT_CITABLE: Final = "SUMMARY_EVIDENCE_REF_NOT_CITABLE"
+
+#: The live Summary write contract.  Only a result produced under this prompt
+#: identity carries durable Evidence citations, so only this identity is
+#: eligible to be *current trusted Summary authority*.
+CURRENT_SUMMARY_PROMPT_VERSION: Final = SUMMARY_DRAFT_PROMPT_VERSION
+
+#: Every Summary prompt identity the persisted parser still accepts.  This is a
+#: READABILITY set only.  Widening it must never make an old citation trusted.
+HISTORICAL_SUMMARY_PROMPT_VERSIONS: Final = (
+    "analysis-prompt-v1",
+    "analysis-prompt-v2",
+    "analysis-prompt-v3",
+    "analysis-prompt-v4",
+    "analysis-prompt-v5",
+    CURRENT_SUMMARY_PROMPT_VERSION,
+)
 
 #: Candidate sources that are legitimate Summary context but are never
 #: authoritative Evidence.  They have no timed-cue identity, so no durable
@@ -90,6 +106,26 @@ class SummaryEvidenceRefNotCitable(SummaryEvidenceAuthorityError):
     This is a known response validation failure: the model answered, the answer
     is simply illegal.  It is never a dispatch ambiguity and never a silent
     drop of the offending ref from the claim.
+    """
+
+
+class LegacySummaryNotCurrentAuthority(SummaryEvidenceAuthorityError):
+    """A readable historical Summary is not eligible as current authority.
+
+    Historical ``analysis-prompt-v1``..``v5`` artifacts stay parseable and
+    inspectable.  They are *not* eligible to be the current trusted Summary,
+    because their citations are temporary model-facing refs rather than durable
+    ``evidence.evidence_id`` values.  The narrow response is a truthful
+    regeneration-required state, never a rewrite of the stored artifact.
+    """
+
+
+class SummaryCitationNotDurable(SummaryEvidenceAuthorityError):
+    """A current-identity Summary carries a citation that does not resolve.
+
+    This is defense in depth.  Even a result whose ``prompt_version`` claims the
+    current contract must prove every authoritative citation resolves through
+    the repository before it may be reused as current trusted Summary authority.
     """
 
 
@@ -275,13 +311,127 @@ def hydrate_summary_evidence(
     )
 
 
+# ---------------------------------------------------------------------------
+# Historical readability vs current trusted Summary authority
+# ---------------------------------------------------------------------------
+
+
+class _EvidenceReader(Protocol):
+    """The narrow repository surface current-authority eligibility needs."""
+
+    def get_evidence(self, evidence_id: str) -> object | None: ...
+
+    def resolve_verified_evidence_text(self, evidence_id: str) -> object | None: ...
+
+
+def current_summary_authority_defects(
+    result: object, repository: _EvidenceReader
+) -> tuple[str, ...]:
+    """Why ``result`` may not act as CURRENT trusted Summary authority.
+
+    Returns an ordered, deduplicated tuple of human-readable defects.  An empty
+    tuple means the result is eligible.
+
+    The checks are deliberately layered:
+
+    1. the live write contract must be the one that persists durable citations;
+    2. every ``AnalysisPoint`` citation must belong to the result's own
+       authoritative Evidence collection (the persisted-shape invariant);
+    3. every authoritative citation must resolve through ``get_evidence``;
+    4. every authoritative citation must resolve through
+       ``resolve_verified_evidence_text``;
+    5. no identifier may look like a temporary model-facing candidate ref.
+
+    Historical artifacts are never mutated, aliased, or rewritten.  They simply
+    fail step 1 and are reported as needing regeneration.
+    """
+
+    defects: list[str] = []
+    prompt_version = getattr(result, "prompt_version", None)
+    if prompt_version != CURRENT_SUMMARY_PROMPT_VERSION:
+        defects.append(
+            f"summary_prompt_identity_is_legacy:{prompt_version}"
+        )
+
+    evidence = tuple(getattr(result, "evidence", ()) or ())
+    authoritative_ids: list[str] = [
+        str(getattr(item, "evidence_id", "")) for item in evidence
+    ]
+
+    for group in _point_groups(result):
+        for point in group:
+            for cited in tuple(getattr(point, "evidence_ids", ()) or ()):
+                if str(cited) not in authoritative_ids:
+                    defects.append(f"summary_citation_is_not_authoritative:{cited}")
+
+    for evidence_id in dict.fromkeys(authoritative_ids):
+        if not evidence_id:
+            defects.append("summary_citation_is_empty")
+            continue
+        # Shape and resolution are checked independently: a temporary ref is
+        # exactly the diagnostic that matters for a legacy artifact, so it must
+        # not be suppressed by the "does not resolve" finding.
+        if evidence_id[:1] in ("t", "m"):
+            defects.append(f"summary_citation_is_temporary_ref:{evidence_id}")
+        if repository.get_evidence(evidence_id) is None:
+            defects.append(f"summary_citation_is_not_durable:{evidence_id}")
+        elif repository.resolve_verified_evidence_text(evidence_id) is None:
+            defects.append(f"summary_citation_text_is_unresolvable:{evidence_id}")
+
+    return tuple(dict.fromkeys(defects))
+
+
+def require_current_summary_authority(
+    result: object, repository: _EvidenceReader
+) -> None:
+    """Fail closed unless ``result`` is eligible as current trusted Summary.
+
+    A legacy readable artifact raises :class:`LegacySummaryNotCurrentAuthority`
+    so callers can surface a truthful regeneration-required state.  A
+    current-identity result whose citations do not resolve raises
+    :class:`SummaryCitationNotDurable`, which is corruption, not staleness.
+    """
+
+    defects = current_summary_authority_defects(result, repository)
+    if not defects:
+        return
+    legacy = any(
+        defect.startswith("summary_prompt_identity_is_legacy") for defect in defects
+    )
+    if legacy:
+        raise LegacySummaryNotCurrentAuthority("; ".join(defects))
+    raise SummaryCitationNotDurable("; ".join(defects))
+
+
+def _point_groups(result: object) -> tuple[tuple[object, ...], ...]:
+    return tuple(
+        tuple(getattr(result, name, ()) or ())
+        for name in (
+            "core_points",
+            "key_facts",
+            "product_opportunities",
+            "business_opportunities",
+            "actionable_directions",
+            "hypotheses_to_validate",
+            "action_recommendations",
+            "risks",
+        )
+    )
+
+
 __all__: Final = [
+    "CURRENT_SUMMARY_PROMPT_VERSION",
+    "HISTORICAL_SUMMARY_PROMPT_VERSIONS",
     "SUMMARY_EVIDENCE_AUTHORITY_UNAVAILABLE",
     "SUMMARY_EVIDENCE_REF_NOT_CITABLE",
     "HydratedSummaryEvidence",
+    "LegacySummaryNotCurrentAuthority",
+    "SummaryCitationNotDurable",
     "SummaryEvidenceAuthorityError",
     "SummaryEvidenceAuthorityUnavailable",
     "SummaryEvidencePromotion",
     "SummaryEvidenceRefNotCitable",
+    "current_summary_authority_defects",
     "hydrate_summary_evidence",
+    "require_current_summary_authority",
 ]

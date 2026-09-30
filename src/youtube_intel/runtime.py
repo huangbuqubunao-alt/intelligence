@@ -168,6 +168,12 @@ from youtube_intel.state import (
     StorageRoot,
     VideoRecord,
 )
+from youtube_intel.summary_evidence_authority import (
+    CURRENT_SUMMARY_PROMPT_VERSION,
+    HISTORICAL_SUMMARY_PROMPT_VERSIONS,
+    LegacySummaryNotCurrentAuthority,
+    require_current_summary_authority,
+)
 from youtube_intel.transcripts import (
     SubtitleAcquisitionService,
     SubtitleAdapter,
@@ -1160,6 +1166,17 @@ class RuntimeOperations(Operations):
             or job.status is not JobStatus.SUCCEEDED
         ):
             raise ValueError("persisted analysis job provenance is invalid")
+        # Decide *eligibility* before *integrity*.  A readable historical
+        # Summary is stale, not corrupt, and must surface its own truthful
+        # regeneration-required state rather than a generic provenance failure.
+        # An identity outside the known set is a genuine integrity problem.
+        if result.prompt_version != CURRENT_SUMMARY_PROMPT_VERSION:
+            if result.prompt_version in HISTORICAL_SUMMARY_PROMPT_VERSIONS:
+                raise LegacySummaryNotCurrentAuthority(
+                    "persisted Summary uses a historical citation contract and is "
+                    "not current trusted Summary authority"
+                )
+            raise ValueError("persisted analysis prompt identity is unknown")
         provider_call = self._repository.get_provider_call(result.request_hash)
         expected_local = artifact.provider == "ollama"
         expected_model = (
@@ -1168,10 +1185,14 @@ class RuntimeOperations(Operations):
             else self._config.settings.cloud.model
         )
         expected_operation = "local-analysis" if expected_local else "cloud-analysis"
-        # Historical Summary prompt identities stay readable.  Only the
-        # trusted-persistence validator is version-aware; it must never reject a
-        # previously committed artifact.
-        expected_prompts = {"analysis-prompt-v5", "analysis-prompt-v6"}
+        # LAYERING: every caller of this validator consumes the result as
+        # CURRENT trusted Summary authority (the API current-Summary pointer,
+        # the Note V2 projection, and the Obsidian publish).  Historical
+        # analysis-prompt-v1..v5 artifacts stay *parseable* through the
+        # persisted AnalysisResult contract and remain inspectable as artifacts,
+        # but only the live durable-citation contract may be reused here.
+        # Widening this set would make temporary t*/m* refs trusted citations.
+        expected_prompts = {CURRENT_SUMMARY_PROMPT_VERSION}
         expected_provider = (
             "ollama" if expected_local else self._config.settings.cloud.provider
         )
@@ -1278,6 +1299,11 @@ class RuntimeOperations(Operations):
             artifact, result, video_id,
             require_current_model=artifact_id is None,
         )
+        # Defense in depth: the prompt identity alone is not authority.  Every
+        # citation must resolve through the repository, so a corrupt
+        # current-identity artifact carrying a temporary t*/m* ref is rejected
+        # rather than published or shown as trusted Evidence.
+        require_current_summary_authority(result, self._repository)
         return AnalysisCompleted(
             result=result,
             call=ProviderCallMetadata(
