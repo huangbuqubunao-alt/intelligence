@@ -11,6 +11,12 @@ from typing import Callable
 
 from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.config import AppConfig
+from youtube_intel.deep_analysis_service import (
+    DeepAnalysisCapability,
+    DeepAnalysisRoute,
+    DeepAnalysisService,
+    build_local_ollama_route,
+)
 from youtube_intel.distillation import (
     BudgetDecision,
     CloudDistillationAuthorization,
@@ -162,6 +168,18 @@ class LocalSourceRunRuntime:
     backup_restore: BackupRestoreService
 
 
+def _deep_analysis_local_qualified() -> bool:
+    """Whether an explicit local Deep Analysis qualification record is present.
+
+    Qualification is an activation gate, not an architecture gate. Nothing is
+    qualified implicitly, so the default product state is an honest
+    NOT_QUALIFIED Deep Analysis. Setting the flag is an explicit, reviewable
+    qualification act and never implies cloud consent.
+    """
+
+    return os.environ.get("YIA_DEEP_ANALYSIS_LOCAL_QUALIFIED") == "1"
+
+
 def build_local_source_run_runtime(
     *,
     config: AppConfig,
@@ -262,6 +280,23 @@ def build_local_source_run_runtime(
         pipeline_version=PIPELINE_VERSION,
         current_model=config.settings.local_scoring.model,
     )
+    # V1.x Content Deep Analysis. Per V1X-DR-001 no route is production
+    # qualified by default: `qwen2.5-coder:7b` is a dev/test candidate and must
+    # not be treated as production-qualified. The capability is therefore empty
+    # unless an explicit qualification record is present, and an empty registry
+    # yields a truthful NOT_QUALIFIED state rather than a weaker silent model.
+    deep_analysis_routes: tuple[DeepAnalysisRoute, ...] = ()
+    if _deep_analysis_local_qualified():
+        deep_analysis_routes = (build_local_ollama_route(),)
+    deep_analysis = DeepAnalysisService(
+        repository=repository,
+        capability=DeepAnalysisCapability(deep_analysis_routes),
+        scoring_reader=reader.read,
+        transcript_reader=repository.get_verified_timed_transcript,
+        evidence_reader=repository.list_canonical_coverage_evidence_ids,
+        evidence_text_reader=repository.resolve_verified_evidence_text,
+        now=now_fn,
+    )
     application = LocalApiApplication(
         repository,
         product,
@@ -284,6 +319,7 @@ def build_local_source_run_runtime(
         analysis_reader=runtime._load_analysis,
         evidence_translation_service=evidence_translation,
         backup_restore_service=backup_restore,
+        deep_analysis_service=deep_analysis,
     )
     return LocalSourceRunRuntime(
         repository=repository,

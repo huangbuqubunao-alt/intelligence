@@ -20,6 +20,10 @@ from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
     ContentSummaryReadRejected,
 )
+from youtube_intel.deep_analysis_service import (
+    DeepAnalysisRejected,
+    DeepAnalysisService,
+)
 from youtube_intel.distillation import PersonalizedDistillationService
 from youtube_intel.domain import (
     AnalysisCompleted,
@@ -174,7 +178,12 @@ def _source_run_dto(run: SourceRunRecord) -> dict[str, object]:
     }
 
 
-def _video_dto(video: VideoRecord) -> dict[str, object]:
+def _video_dto(
+    video: VideoRecord,
+    *,
+    deep_analysis_status: str = "NOT_QUALIFIED",
+    deep_analysis_reason: str | None = None,
+) -> dict[str, object]:
     # Do not expose raw scoring/analysis artifacts.  Score authority is read by
     # AuthoritativeScoringReader only and intentionally omitted until that safe
     # reader is wired to a dedicated projection service.
@@ -188,7 +197,10 @@ def _video_dto(video: VideoRecord) -> dict[str, object]:
         "processing_status": video.pipeline_status.value,
         "scoring": {"status": "NOT_AVAILABLE"},
         "note": {"status": "UNAVAILABLE"},
-        "deep_analysis": {"status": "BLOCKED", "reason": "No qualified live provider."},
+        "deep_analysis": {
+            "status": deep_analysis_status,
+            "reason": deep_analysis_reason,
+        },
         "last_updated": _timestamp(video.updated_at),
     }
 
@@ -391,11 +403,13 @@ class LocalApiApplication:
         runtime_mode: str = "STANDARD_LOCAL",
         demo_data: bool = False,
         backup_restore_service: BackupRestoreService | None = None,
+        deep_analysis_service: DeepAnalysisService | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
         self._scoring_reader = scoring_reader
         self._distillation_service = distillation_service
+        self._deep_analysis_service = deep_analysis_service
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
@@ -636,6 +650,48 @@ class LocalApiApplication:
                         "intelligence_id": cloud_result.intelligence_id,
                         "revision_id": cloud_result.revision_id,
                     },
+                }
+            if (
+                method == "GET"
+                and route == "/api/v1/deep-analysis/capability"
+            ):
+                return HTTPStatus.OK, {
+                    "capability": self._require_deep_analysis().capability_report()
+                }
+            deep_analysis_prefix = "/api/v1/videos/"
+            if (
+                method == "POST"
+                and route.startswith(deep_analysis_prefix)
+                and route.endswith("/deep-analysis")
+            ):
+                deep_analysis_service = self._require_deep_analysis()
+                video_id, _, tail = route.removeprefix(
+                    deep_analysis_prefix
+                ).partition("/")
+                if tail != "deep-analysis" or not video_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND,
+                        "NOT_FOUND",
+                        "Deep Analysis route was not found.",
+                    )
+                if self._repository.get_video(video_id) is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Content was not found."
+                    )
+                self._only_keys(data, {"authorize_cloud"})
+                authorize_cloud = data.get("authorize_cloud") is True
+                try:
+                    deep_analysis_run = deep_analysis_service.run(
+                        content_id=video_id, cloud_consent=authorize_cloud
+                    )
+                except DeepAnalysisRejected as rejection:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        f"DEEP_ANALYSIS_{rejection.status.availability.value}",
+                        rejection.status.reason or "Deep Analysis is unavailable.",
+                    ) from None
+                return HTTPStatus.CREATED, {
+                    "deep_analysis": {"result": deep_analysis_run.as_dict()}
                 }
             if method == "POST" and route == "/api/v1/backup-restore/backups":
                 service = self._require_backup_restore()
@@ -1235,6 +1291,36 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
         return self._backup_restore_service
 
+    def _video_dto_with_deep_analysis(self, video: VideoRecord) -> dict[str, object]:
+        """Project a Content row with its truthful Deep Analysis availability.
+
+        Deep Analysis stays a separate capability: this only reports whether the
+        action is currently usable for that Content.  It never implies Summary
+        or Evidence authority was changed.
+        """
+
+        if self._deep_analysis_service is None:
+            return _video_dto(
+                video,
+                deep_analysis_status="UNAVAILABLE",
+                deep_analysis_reason="Deep Analysis is unavailable.",
+            )
+        status = self._deep_analysis_service.status(content_id=video.video_id)
+        return _video_dto(
+            video,
+            deep_analysis_status=status.availability.value,
+            deep_analysis_reason=status.reason,
+        )
+
+    def _require_deep_analysis(self) -> DeepAnalysisService:
+        if self._deep_analysis_service is None:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND,
+                "DEEP_ANALYSIS_UNAVAILABLE",
+                "Deep Analysis is unavailable.",
+            )
+        return self._deep_analysis_service
+
     def backup_download(self, path: str) -> tuple[int, dict[str, str], bytes] | None:
         if self._backup_restore_service is None:
             return None
@@ -1444,8 +1530,36 @@ class LocalApiApplication:
         if route == "/api/v1/videos":
             return {
                 "videos": [
-                    _video_dto(video) for video in self._repository.list_videos()
+                    self._video_dto_with_deep_analysis(video)
+                    for video in self._repository.list_videos()
                 ]
+            }
+        if route == "/api/v1/deep-analysis/capability":
+            return {"capability": self._require_deep_analysis().capability_report()}
+        if route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis"):
+            deep_analysis_service = self._require_deep_analysis()
+            video_id = route.removeprefix("/api/v1/videos/").removesuffix(
+                "/deep-analysis"
+            )
+            if not video_id or "/" in video_id:
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                )
+            if self._repository.get_video(video_id) is None:
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "Content was not found."
+                )
+            deep_analysis_state = deep_analysis_service.status(content_id=video_id)
+            deep_analysis_read = deep_analysis_service.read(content_id=video_id)
+            return {
+                "deep_analysis": {
+                    "status": deep_analysis_state.as_dict(),
+                    "result": (
+                        None
+                        if deep_analysis_read is None
+                        else deep_analysis_read.as_dict()
+                    ),
+                }
             }
         if route.startswith("/api/v1/videos/") and route.endswith("/evidence"):
             video_id = route.removeprefix("/api/v1/videos/").removesuffix(
@@ -1463,7 +1577,7 @@ class LocalApiApplication:
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found."
                 )
             return {
-                "video": _video_dto(video),
+                "video": self._video_dto_with_deep_analysis(video),
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
                 "note": self._note_projection(video.video_id),

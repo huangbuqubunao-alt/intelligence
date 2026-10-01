@@ -187,6 +187,43 @@ type ContentDetail = {
     context?: { stage?: string };
   }[];
 };
+type DeepAnalysisRole = {
+  role: string;
+  text: string;
+  point_kind: string;
+  confidence: string;
+};
+const DEEP_ANALYSIS_ROLE_ORDER = [
+  "CORE_CONCLUSION",
+  "KEY_EVIDENCE",
+  "UNCERTAINTY",
+  "RELEVANCE_TO_USER",
+  "NEXT_QUESTION",
+] as const;
+type DeepAnalysisPayload = {
+  content_id: string;
+  result_identity: string;
+  content_identity: string;
+  output_language: string;
+  generated_at: string;
+  evidence_citation_status: string;
+  roles: DeepAnalysisRole[];
+};
+type DeepAnalysisState = {
+  status: {
+    availability: string;
+    reason: string | null;
+    route_id: string | null;
+    model_id: string | null;
+    provider_id: string | null;
+    qualified: boolean;
+    consent_required: boolean;
+  };
+  result: DeepAnalysisPayload | null;
+};
+type DeepAnalysisEnvelope = {
+  deep_analysis: DeepAnalysisState;
+};
 type ContentEvidence = {
   evidence_id: string;
   artifact_id: string;
@@ -1367,6 +1404,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
+      <DeepAnalysisPanel videoId={data.video.video_id} />
       <ContentEvidencePanel
         videoId={data.video.video_id}
         sourceUrl={data.video.source_url}
@@ -1468,6 +1506,136 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : <Empty>No processing history yet.</Empty>}
       </Panel>
     </div>
+  );
+}
+
+function deepAnalysisRoleLabel(role: string) {
+  const labels: Record<string, string> = {
+    CORE_CONCLUSION: "核心结论",
+    KEY_EVIDENCE: "关键证据",
+    UNCERTAINTY: "不确定性",
+    RELEVANCE_TO_USER: "对我的意义",
+    NEXT_QUESTION: "下一步追问",
+  };
+  return labels[role] ?? role;
+}
+
+function deepAnalysisAvailabilityCopy(availability: string) {
+  const copy: Record<string, string> = {
+    NOT_REQUESTED:
+      "Deep Analysis has not been run for this Content. It is an on-demand action and runs nothing until you ask for it.",
+    NOT_QUALIFIED:
+      "Deep Analysis is unavailable because no model is currently qualified for it. Nothing is downgraded silently, and Summary and Evidence stay usable.",
+    CONTENT_UNAVAILABLE: "This Content is not available.",
+    SCORING_UNAVAILABLE:
+      "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.",
+    EVIDENCE_UNAVAILABLE:
+      "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably. No timestamp is invented and no result is produced.",
+    CLOUD_CONSENT_REQUIRED:
+      "This route would send bounded data to a cloud provider and needs your explicit consent for this run.",
+    FAILED:
+      "Deep Analysis did not produce a trusted result. No partial or invented result is shown.",
+  };
+  return (
+    copy[availability] ??
+    "Deep Analysis is unavailable for this Content right now."
+  );
+}
+
+function DeepAnalysisPanel({ videoId }: { videoId: string }) {
+  const { t } = useUiLanguage();
+  const [refresh, setRefresh] = useState(0);
+  const { data, error } = useRemote<DeepAnalysisEnvelope>(
+    `/videos/${videoId}/deep-analysis`,
+    refresh,
+  );
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await post(`/videos/${videoId}/deep-analysis`, {});
+      setRefresh((value) => value + 1);
+    } catch (reason) {
+      setActionError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // A missing or partial projection must never break the Content page; the
+  // panel simply reports that Deep Analysis is unavailable.
+  const status = data?.deep_analysis?.status;
+  const result = data?.deep_analysis?.result;
+  const availability = status?.availability ?? "NOT_REQUESTED";
+  const canRun = status?.qualified === true && !busy;
+
+  return (
+    <Panel title={t("Deep Analysis")}>
+      <p className="hint">
+        {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
+      </p>
+      {error ? <ErrorState error={error} /> : null}
+      {actionError ? (
+        <p className="semantic-state state-neutral">{actionError}</p>
+      ) : null}
+      {result ? (
+        <div className="summary-note">
+          <div className="reading-meta">
+            <Status value="AVAILABLE" />
+            <span>{result.output_language}</span>
+            <span>{humanDate(result.generated_at)}</span>
+          </div>
+          {DEEP_ANALYSIS_ROLE_ORDER.map((role) => {
+            const claims = result.roles.filter((item) => item.role === role);
+            if (claims.length === 0) return null;
+            return (
+              <section className="intelligence-section" key={role}>
+                <p className="section-label">{deepAnalysisRoleLabel(role)}</p>
+                <ul>
+                  {claims.map((claim, index) => (
+                    <li key={`${role}-${index}`}>
+                      <p>{claim.text}</p>
+                      {claim.confidence ? (
+                        <p className="hint">
+                          {t("Confidence")}: {claim.confidence}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+          <p className="hint">
+            {t("Per-claim Evidence citations are not shown yet. Deep Analysis never presents an unverified reference as an authoritative citation.")}
+          </p>
+        </div>
+      ) : (
+        <div className="semantic-state state-neutral">
+          <Status value={availability} />
+          <p>{t(deepAnalysisAvailabilityCopy(availability))}</p>
+          {status?.reason ? <p className="hint">{status.reason}</p> : null}
+        </div>
+      )}
+      <div className="reading-meta">
+        <button
+          type="button"
+          className="button button-primary"
+          onClick={run}
+          disabled={!canRun}
+        >
+          {busy ? t("Working…") : t("Run Deep Analysis")}
+        </button>
+        {status && !status.qualified ? (
+          <span className="hint">
+            {t("Unavailable until a model is qualified for Deep Analysis.")}
+          </span>
+        ) : null}
+      </div>
+    </Panel>
   );
 }
 

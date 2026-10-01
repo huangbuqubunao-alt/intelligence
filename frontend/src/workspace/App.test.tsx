@@ -1663,3 +1663,227 @@ test("an admitted Intelligence can create and link a Topic through the UI", asyn
     }),
   );
 });
+
+const daVideoList = {
+  videos: [{
+    video_id: "video-1",
+    channel_id: "channel-1",
+    channel_name: "Fixture channel",
+    title: "Deep Analysis fixture",
+    source_url: "https://www.youtube.com/watch?v=video-1",
+    published_at: "2026-09-01T00:00:00Z",
+    processing_status: "COMPLETE",
+    last_updated: "2026-09-01T00:00:00Z",
+    deep_analysis: { status: "NOT_REQUESTED", reason: null },
+  }],
+};
+
+const daVideoDetail = {
+  video: daVideoList.videos[0],
+  transcript: {
+    status: "AVAILABLE",
+    text: "Original transcript evidence.",
+    created_at: "2026-09-01T00:00:00Z",
+  },
+  note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+  intelligence_result: {
+    status: "NOT_PROCESSED",
+    execution_id: null,
+    has_new_intelligence: null,
+    intelligence_id: null,
+    revision_id: null,
+    updated_at: null,
+  },
+  history: [],
+};
+
+const daResult = {
+  content_id: "video-1",
+  result_identity: "result-1",
+  content_identity: "content-1",
+  output_language: "zh-CN",
+  generated_at: "2026-10-01T00:00:00Z",
+  evidence_citation_status: "PENDING_DURABLE_EVIDENCE_CONVERGENCE",
+  roles: [
+    { role: "CORE_CONCLUSION", text: "核心结论内容。", point_kind: "inference", confidence: "HIGH" },
+    { role: "KEY_EVIDENCE", text: "关键证据内容。", point_kind: "fact", confidence: "HIGH" },
+    { role: "UNCERTAINTY", text: "不确定性内容。", point_kind: "inference", confidence: "LOW" },
+    { role: "RELEVANCE_TO_USER", text: "对我的意义。", point_kind: "inference", confidence: "MEDIUM" },
+    { role: "NEXT_QUESTION", text: "下一步追问。", point_kind: "inference", confidence: "MEDIUM" },
+  ],
+};
+
+function stubDeepAnalysis(
+  state: { status: Record<string, unknown>; result: unknown },
+  options: { onPost?: () => void } = {},
+) {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (init?.method === "POST") {
+      options.onPost?.();
+      return response({ deep_analysis: { result: state.result } });
+    }
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return response({ deep_analysis: state });
+    }
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    if (url.endsWith("/videos")) return response(daVideoList);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+async function openDeepAnalysisContent() {
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Deep Analysis fixture/ }),
+  );
+  // Wait for the Deep Analysis projection to resolve. Before it resolves the
+  // panel renders the Run button but no availability state.
+  await screen.findByRole("button", { name: "Run Deep Analysis" });
+  await waitFor(() => {
+    const panel = screen.getByRole("button", { name: "Run Deep Analysis" })
+      .closest("section, div");
+    expect(panel).not.toBeNull();
+  });
+}
+
+test("Deep Analysis is a Content-level action and adds no top-level navigation", async () => {
+  stubDeepAnalysis({
+    status: {
+      availability: "NOT_REQUESTED",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: null,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  expect(await screen.findByText("Deep Analysis")).toBeTruthy();
+  // The frozen IA keeps exactly six first-level destinations.
+  expect(
+    screen.getAllByRole("button", {
+      name: /^(Home|Following|Content|Intelligence|Topics|Settings)$/,
+    }),
+  ).toHaveLength(6);
+  expect(screen.queryByRole("button", { name: "Deep Analysis" })).toBeNull();
+});
+
+test("Deep Analysis is unavailable and honest when no model is qualified", async () => {
+  stubDeepAnalysis({
+    status: {
+      availability: "NOT_QUALIFIED",
+      reason: "No Deep Analysis model is currently qualified.",
+      route_id: null,
+      model_id: null,
+      provider_id: null,
+      qualified: false,
+      consent_required: false,
+    },
+    result: null,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  expect(
+    await screen.findByText(/no model is currently qualified for it/i),
+  ).toBeTruthy();
+  const runButton = screen.getByRole("button", { name: "Run Deep Analysis" });
+  expect((runButton as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("Deep Analysis renders the five product roles in order", async () => {
+  stubDeepAnalysis({
+    status: {
+      availability: "AVAILABLE",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: daResult,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  expect(await screen.findByText("核心结论内容。")).toBeTruthy();
+  for (const label of [
+    "核心结论",
+    "关键证据",
+    "不确定性",
+    "对我的意义",
+    "下一步追问",
+  ]) {
+    expect(screen.getByText(label)).toBeTruthy();
+  }
+  // Deferred roles are never shown.
+  expect(screen.queryByText("与已有知识的关系")).toBeNull();
+  expect(screen.queryByText("知识增量")).toBeNull();
+  // Phase 1A never presents unverified refs as citations.
+  expect(
+    screen.getByText(/never presents an unverified reference as an authoritative citation/i),
+  ).toBeTruthy();
+});
+
+test("Deep Analysis run is an explicit user-initiated POST", async () => {
+  let posted = false;
+  stubDeepAnalysis(
+    {
+      status: {
+        availability: "AVAILABLE",
+        reason: null,
+        route_id: "local-ollama-qwen25-coder-7b",
+        model_id: "qwen2.5-coder:7b",
+        provider_id: "ollama-local",
+        qualified: true,
+        consent_required: false,
+      },
+      result: daResult,
+    },
+    { onPost: () => { posted = true; } },
+  );
+
+  render(<App />);
+  await openDeepAnalysisContent();
+  // Nothing runs on load.
+  expect(posted).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Run Deep Analysis" }));
+  await waitFor(() => expect(posted).toBe(true));
+});
+
+test("Deep Analysis keeps Summary and Deep Analysis as distinct capabilities", async () => {
+  stubDeepAnalysis({
+    status: {
+      availability: "NOT_REQUESTED",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: null,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  expect(await screen.findByText("Summary / Video Notes")).toBeTruthy();
+  expect(screen.getByText("Deep Analysis")).toBeTruthy();
+  expect(
+    screen.getByText(/Summary explains what this content says/i),
+  ).toBeTruthy();
+});

@@ -40,4 +40,5 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-024](ADR-024-scoring-language-validator-scope.md) | Accepted | 2026-08-13 | 冻结评分语言校验器的可判定职责边界，实体与内容质量识别移交独立后续任务 |
 | [ADR-025](ADR-025-content-quality-layer-scope-boundary.md) | Accepted；Phase F APPROVED；Phase G design ready / implementation not authorized | 2026-08-13 | 冻结 TASK-016C 窄 Deterministic Gate、可信 Finalizer、PASS attestation、F→G sealed continuation、pre-write/persistence 与 cache recovery 边界 |
 | [ADR-026](ADR-026-task-016c-phase-d-provenance-authority-boundary.md) | Accepted | 2026-08-15 | 狭义修订 Phase D：已加载当前 AppConfig 仅能在 runtime composition 铸造 PASS attestation provenance capability |
+| [V1X-DR-001](V1X-DR-001-content-deep-analysis.md) | Accepted | 2026-10-01 | 冻结 V1.x Content 级深度分析：五角色产品契约、RELATION_TO_KNOWLEDGE/KNOWLEDGE_DELTA 延后、Phase 1B 后端 durable Evidence 收敛、无通用 router、资格门为激活门、Obsidian merge key 纠正、M13 分支与迁移序号隔离 |
 | [ADR-028](ADR-028-external-o200k-provisioning.md) | Accepted | 2026-08-31 | 以显式管理员预置、固定哈希验证的本地资源替代 ADR-008 A-16 的包内 BPE 存储细节；无运行时网络或 fallback |

@@ -162,7 +162,10 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert golden["scoring"]["trusted"] is True
     assert golden["note"]["v1"]["status"] == "UNAVAILABLE"
     assert golden["note"]["v2"]["status"] == "UNAVAILABLE"
-    assert golden["video"]["deep_analysis"]["status"] == "BLOCKED"
+    # The demo runtime wires no qualified Deep Analysis route, so the product
+    # must report an honest unavailable state rather than a fabricated result.
+    assert golden["video"]["deep_analysis"]["status"] == "UNAVAILABLE"
+    assert golden["video"]["deep_analysis"]["reason"]
     assert golden["history"]
     assert unverified["scoring"]["status"] == "NOT_AVAILABLE"
     assert "score" not in unverified["scoring"]

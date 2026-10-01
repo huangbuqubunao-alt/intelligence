@@ -143,8 +143,20 @@ class DeepAnalysisPersistenceStore:
         self._repository = repository
 
     def persist_trusted_deep_analysis_success(
-        self, *, success: object, now: datetime
+        self,
+        *,
+        success: object,
+        now: datetime,
+        promote_current_summary: bool = True,
     ) -> VerifiedPersistedDeepAnalysisRead:
+        """Persist one runtime-admitted success and return its verified read.
+
+        ``promote_current_summary`` exists for the V1.x Content-level Deep
+        Analysis action.  Deep Analysis is a distinct product capability and must
+        never replace or rewrite Summary / Video Notes authority, so the V1.x
+        caller passes ``False`` and the result stays a Deep Analysis record only.
+        The default preserves the frozen Summary cutover behavior.
+        """
         material = _capture_trusted_success_for_persistence(success)
         if material is None or type(success) is not TrustedDeepAnalysisSuccess:
             raise DeepAnalysisPersistenceError(
@@ -247,7 +259,8 @@ class DeepAnalysisPersistenceStore:
                     raise DeepAnalysisPersistenceError(
                         "existing cache row fails verification"
                     )
-                self._promote_current_content_summary(found, now=now)
+                if promote_current_summary:
+                    self._promote_current_content_summary(found, now=now)
                 return found
             columns = ", ".join(values)
             placeholders = ", ".join(f":{key}" for key in values)
@@ -267,7 +280,8 @@ class DeepAnalysisPersistenceStore:
         )
         if result is None:
             raise DeepAnalysisPersistenceError("new cache row fails verification")
-        self._promote_current_content_summary(result, now=now)
+        if promote_current_summary:
+            self._promote_current_content_summary(result, now=now)
         return result
 
     def _promote_current_content_summary(
@@ -311,6 +325,43 @@ class DeepAnalysisPersistenceStore:
             raise DeepAnalysisPersistenceError(
                 "current Summary pointer violates persistence integrity"
             ) from error
+
+    def read_deep_analysis_result_for_content(
+        self, *, video_id: str
+    ) -> VerifiedPersistedDeepAnalysisRead | None:
+        """Read the most recent verified Deep Analysis record for one Content.
+
+        This is the V1.x Content-level Deep Analysis read seam.  It is
+        deliberately independent of ``current_content_summaries``: Deep Analysis
+        is a separate product capability and must not be read as, or write to,
+        Summary / Video Notes authority.
+
+        Selection is the newest ``validated_at``/``created_at`` row whose
+        canonical input names this exact Content.  The winner is fully
+        re-verified by the same integrity path used for every other read, and a
+        row that fails verification is skipped rather than returned.
+        """
+
+        if not isinstance(video_id, str) or not video_id.strip():
+            raise ValueError("video_id must be non-empty")
+        connection = self._repository._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM deep_analysis_persisted_results "
+                "WHERE json_extract(canonical_input_json, '$.video_identity') = ? "
+                "ORDER BY validated_at DESC, created_at DESC, result_identity ASC",
+                (video_id,),
+            ).fetchall()
+        finally:
+            connection.close()
+        for row in rows:
+            try:
+                result = self._verify_row(row)
+            except DeepAnalysisPersistenceError:
+                continue
+            if result.canonical_input.video_identity == video_id:
+                return result
+        return None
 
     def read_current_content_summary_result(
         self, *, video_id: str
