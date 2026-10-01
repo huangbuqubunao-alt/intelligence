@@ -331,16 +331,23 @@ class DeepAnalysisResultView:
         }
 
 
-def _confidence_label(point: KnowledgeEvidence | Any) -> str:
-    """Map a bounded internal confidence value to honest language.
+#: Confidence codes the Phase-1A projection may emit. These are stable machine
+#: codes; the user interface localizes them and must never display the raw enum.
+CONFIDENCE_INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
-    Never invents a percentage.  Anything unrecognized stays unknown.
+
+def _confidence_label(point: KnowledgeEvidence | Any) -> str:
+    """Return a stable confidence code for one projected claim.
+
+    The frozen carrier carries no per-claim confidence value, so Phase 1A
+    honestly reports ``INSUFFICIENT_EVIDENCE`` rather than inventing a
+    precision. Never returns a percentage.
     """
 
     raw = getattr(point, "confidence", None)
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
-    return "INSUFFICIENT_EVIDENCE"
+    return CONFIDENCE_INSUFFICIENT_EVIDENCE
 
 
 def project_deep_analysis_result(
@@ -419,12 +426,32 @@ def _map_phase_1a_response(
     response: UntrustedDeepAnalysisResponseV1,
     *,
     evidence_refs: tuple[str, ...],
-) -> UntrustedDeepAnalysisResponseV1:
-    """Translate the five-concept model payload into the frozen structure.
+) -> UntrustedDeepAnalysisResponseV1 | None:
+    """Translate the five-concept model payload into the frozen carrier.
 
-    The runtime's only trust boundary parses ``KnowledgeContent``. The Phase-1A
-    model is asked for five concepts instead, so this compatibility seam maps
-    that output deterministically before validation.
+    Every model response entering the Phase-1A live path **must** validate as
+    :class:`DeepAnalysisPhase1AModelOutput` first. There is deliberately no
+    pass-through for a historical ``KnowledgeContent`` payload: such a response
+    could carry model-authored ``entities``, ``related_themes``,
+    ``future_watch_topics``, or other deferred structure and would bypass the
+    five-role boundary.
+
+    Correct flow:
+
+        raw provider response
+        -> five-role parsing/validation (extra fields rejected)
+        -> deterministic backend compatibility mapping
+        -> historical KnowledgeContent carrier
+        -> existing runtime finalizer
+
+    The carrier is *output* of this mapper and is never an alternate admission
+    contract. A rejected payload is forwarded unchanged so the runtime produces
+    its own authoritative failure; it is never repaired or passed through.
+
+    Returns ``None`` when the payload fails five-role admission. The caller must
+    then fail the run; the response is never forwarded, because a historical
+    ``KnowledgeContent`` payload is itself schema-valid for the frozen carrier
+    and would otherwise be admitted.
 
     It performs no trust decision: the mapping is pure, the returned object is
     still untrusted, and the runtime finalizer remains the sole minter of
@@ -435,20 +462,19 @@ def _map_phase_1a_response(
         try:
             decoded = json.loads(response.structured_payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            # Leave malformed payloads untouched so the runtime fails closed.
-            return response
+            return None
     else:
         decoded = response.structured_payload
     if not isinstance(decoded, Mapping):
-        return response
-    # A payload that already satisfies the frozen contract is passed through.
-    if "one_sentence_summary" in decoded and "knowledge_graph" in decoded:
-        return response
+        return None
     try:
+        # Strict five-role admission: extra="forbid" rejects any historical or
+        # deferred field the model must not author.
         model_output = DeepAnalysisPhase1AModelOutput.model_validate(decoded)
     except ValueError:
-        # Let the runtime produce its own authoritative failure.
-        return response
+        # Explicitly rejected: the payload is NOT passed through, so a historical
+        # KnowledgeContent shape cannot survive into persistence.
+        return None
     content = map_phase_1a_output_to_knowledge_content(
         model_output, summary_evidence_ids=evidence_refs
     )
@@ -504,6 +530,15 @@ class DeepAnalysisService:
         self._evidence_text_reader = evidence_text_reader
         self._clock = now or (lambda: datetime.now(UTC))
         self._store = DeepAnalysisPersistenceStore(repository)
+        # The Phase-1A validation policy carries an explicit marker so persisted
+        # Phase-1A results stay identifiable as transitional after restart, and
+        # can be kept out of trusted Evidence-bearing projections. Every other
+        # dimension stays identical to the frozen default, so the qualified
+        # adapter's provenance binding continues to hold.
+        # The frozen default validation policy is used unchanged: the qualified
+        # adapter binds its identity, so substituting a policy here would break
+        # provenance. Phase-1A transitional state is instead derived from the
+        # persisted Phase-1A prompt identity (see ``is_phase_1a_result``).
         self._runtime = DeepAnalysisRuntime()
 
     # -- status ------------------------------------------------------------
@@ -770,9 +805,27 @@ class DeepAnalysisService:
             ),
         )
         response = route.dispatch(prepared_dispatch=prepared)
+        admitted_response = _map_phase_1a_response(
+            response, evidence_refs=selected_refs
+        )
+        if admitted_response is None:
+            # The model response failed five-role admission. Fail closed before
+            # the runtime sees it: a historical KnowledgeContent payload is
+            # schema-valid for the frozen carrier and must never be admitted.
+            raise DeepAnalysisRejected(
+                DeepAnalysisStatus(
+                    availability=DeepAnalysisAvailability.FAILED,
+                    reason_code=DeepAnalysisReasonCode.VALIDATION_FAILED,
+                    reason=(
+                        "The model response did not satisfy the five-role "
+                        "Deep Analysis contract and was rejected. Nothing was "
+                        "persisted."
+                    ),
+                )
+            )
         validation = self._runtime.validation_finalizer().finalize(
             prepared_dispatch=prepared,
-            response=_map_phase_1a_response(response, evidence_refs=selected_refs),
+            response=admitted_response,
         )
         if validation.success is None:
             failure = validation.failure
@@ -832,7 +885,9 @@ class DeepAnalysisService:
         return language if language in {"zh-CN", "en"} else "zh-CN"
 
     def _source_language(self, content_id: str) -> str:
-        transcript = self._transcript_reader(content_id)
+        # The repository reader is keyword-only; calling it positionally would
+        # raise TypeError on the real production path.
+        transcript = self._transcript_reader(video_id=content_id)
         language = getattr(transcript, "language", None) if transcript else None
         return language if isinstance(language, str) and language.strip() else "und"
 

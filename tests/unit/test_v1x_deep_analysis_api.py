@@ -73,25 +73,39 @@ def _scoring_read(_video_id: str) -> VerifiedScoringRead:
 
 
 def _content() -> dict[str, object]:
-    def point(text: str, kind: str) -> dict[str, object]:
-        return {"text": text, "kind": kind, "evidence_ids": ["e1"]}
+    """A Phase-1A five-role model response.
+
+    The live path admits only the five-role contract; a historical
+    KnowledgeContent payload is rejected.
+    """
+
+    def claim(text: str, point_kind: str) -> dict[str, object]:
+        return {"text": text, "point_kind": point_kind}
 
     return {
-        "one_sentence_summary": "The API fixture states one clear conclusion.",
-        "summary_evidence_ids": ["e1"],
-        "why_it_matters": point("The API fixture explains why it matters.", "inference"),
-        "core_points": [point("The API fixture asserts one core fact.", "fact")],
-        "key_facts": [point("The API fixture records one key fact.", "fact")],
-        "key_arguments": [point("The API fixture advances one argument.", "inference")],
-        "counterpoints": [point("The API fixture notes one counterpoint.", "inference")],
-        "risks": [point("The API fixture names one risk.", "inference")],
-        "actionable_directions": [
-            point("The API fixture suggests one direction.", "recommendation")
+        "schema_version": "v1x-content-deep-analysis-model-output-v1",
+        "core_conclusion": [
+            claim(
+                "The API fixture shows that this content supports one clear conclusion.",
+                "inference",
+            )
         ],
-        "hypotheses_to_validate": [
-            point("The API fixture leaves one hypothesis open.", "inference")
+        "key_evidence": [claim("The available evidence supports this conclusion.", "fact")],
+        "uncertainty": [
+            claim("This remains unverified and should not be relied on yet.", "inference")
         ],
-        "knowledge_graph": {"topics": ["workflow"]},
+        "relevance_to_user": [
+            claim(
+                "This matters because it changes how you should plan the next review.",
+                "inference",
+            )
+        ],
+        "next_question": [
+            claim(
+                "Check whether the second claim is corroborated by another source.",
+                "inference",
+            )
+        ],
     }
 
 
@@ -140,7 +154,7 @@ def _app(tmp_path: Path, *, qualified: bool = True) -> LocalApiApplication:
             (build_local_ollama_route(transport=_transport),) if qualified else ()
         ),
         scoring_reader=_scoring_read,
-        transcript_reader=lambda _video_id: None,
+        transcript_reader=lambda *, video_id: None,
         evidence_reader=lambda _video_id: ("e1",),
         evidence_text_reader=lambda evidence_id: _VerifiedEvidence(evidence_id),
         now=lambda: NOW,

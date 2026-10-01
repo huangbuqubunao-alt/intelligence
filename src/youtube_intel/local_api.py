@@ -94,8 +94,17 @@ from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelatio
 
 
 class ApiError(Exception):
-    def __init__(self, status: HTTPStatus, code: str, message: str) -> None:
+    def __init__(
+        self,
+        status: HTTPStatus,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+    ) -> None:
         self.status, self.code, self.message = status, code, message
+        # Optional machine-readable context (e.g. a stable reason_code) so the
+        # user interface can localize without parsing English prose.
+        self.details = details
         super().__init__(message)
 
 
@@ -685,10 +694,21 @@ class LocalApiApplication:
                         content_id=video_id, cloud_consent=authorize_cloud
                     )
                 except DeepAnalysisRejected as rejection:
+                    # The stable machine code drives localized UI copy; the
+                    # English prose is a developer diagnostic only.
                     raise ApiError(
                         HTTPStatus.CONFLICT,
                         f"DEEP_ANALYSIS_{rejection.status.availability.value}",
                         rejection.status.reason or "Deep Analysis is unavailable.",
+                        details={
+                            "reason_code": (
+                                None
+                                if rejection.status.reason_code is None
+                                else rejection.status.reason_code.value
+                            ),
+                            "availability": rejection.status.availability.value,
+                            "consent_required": rejection.status.consent_required,
+                        },
                     ) from None
                 return HTTPStatus.CREATED, {
                     "deep_analysis": {"result": deep_analysis_run.as_dict()}

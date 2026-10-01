@@ -1705,11 +1705,11 @@ const daResult = {
   generated_at: "2026-10-01T00:00:00Z",
   evidence_citation_status: "PENDING_DURABLE_EVIDENCE_CONVERGENCE",
   roles: [
-    { role: "CORE_CONCLUSION", text: "核心结论内容。", point_kind: "inference", confidence: "HIGH" },
-    { role: "KEY_EVIDENCE", text: "关键证据内容。", point_kind: "fact", confidence: "HIGH" },
-    { role: "UNCERTAINTY", text: "不确定性内容。", point_kind: "inference", confidence: "LOW" },
-    { role: "RELEVANCE_TO_USER", text: "对我的意义。", point_kind: "inference", confidence: "MEDIUM" },
-    { role: "NEXT_QUESTION", text: "下一步追问。", point_kind: "inference", confidence: "MEDIUM" },
+    { role: "CORE_CONCLUSION", text: "核心结论内容。", point_kind: "inference", confidence: "INSUFFICIENT_EVIDENCE" },
+    { role: "KEY_EVIDENCE", text: "关键证据内容。", point_kind: "fact", confidence: "INSUFFICIENT_EVIDENCE" },
+    { role: "UNCERTAINTY", text: "不确定性内容。", point_kind: "inference", confidence: "INSUFFICIENT_EVIDENCE" },
+    { role: "RELEVANCE_TO_USER", text: "对我的意义。", point_kind: "inference", confidence: "INSUFFICIENT_EVIDENCE" },
+    { role: "NEXT_QUESTION", text: "下一步追问。", point_kind: "inference", confidence: "INSUFFICIENT_EVIDENCE" },
   ],
 };
 
@@ -1960,4 +1960,123 @@ test("English Deep Analysis UI remains correct after localization fix", async ()
   // The run action stays disabled while nothing is qualified.
   const runButton = screen.getByRole("button", { name: "Run Deep Analysis" });
   expect((runButton as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("Chinese Deep Analysis POST failure is localized by machine code", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const englishProse = "No Deep Analysis model is currently qualified. Deep Analysis is unavailable.";
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (init?.method === "POST") {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "DEEP_ANALYSIS_NOT_QUALIFIED",
+            message: englishProse,
+            details: { reason_code: "NO_QUALIFIED_MODEL", availability: "NOT_QUALIFIED" },
+          },
+        }),
+      });
+    }
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return response({
+        deep_analysis: {
+          status: {
+            availability: "AVAILABLE",
+            reason_code: "RESULT_AVAILABLE",
+            reason: null,
+            route_id: "local-ollama-qwen25-coder-7b",
+            model_id: "qwen2.5-coder:7b",
+            provider_id: "ollama-local",
+            qualified: true,
+            consent_required: false,
+          },
+          result: daResult,
+        },
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  // Navigate using the Chinese UI labels.
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+  const runButton = await screen.findByRole("button", { name: "开始深度分析" });
+  expect((runButton as HTMLButtonElement).disabled).toBe(false);
+  await fireEvent.click(runButton);
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const posts = fetchMock.mock.calls.filter((c: any[]) => c[1]?.method === "POST");
+  if (posts.length === 0) throw new Error("no POST was issued to the backend");
+  await waitFor(() =>
+    expect(
+      (document.body.textContent ?? "").includes("因此无法运行深度分析"),
+    ).toBe(true),
+  );
+  const localizedBody = document.body.textContent ?? "";
+  expect(localizedBody).not.toContain("No Deep Analysis model is currently qualified");
+  const localized = document.body.textContent ?? "";
+  expect(localized).not.toContain("No Deep Analysis model is currently qualified");
+  // The backend English prose must not appear.
+  const body = document.body.textContent ?? "";
+  expect(body).not.toContain("No Deep Analysis model is currently qualified");
+  expect(body).not.toContain("NO_QUALIFIED_MODEL");
+  expect(body).not.toContain("DEEP_ANALYSIS_NOT_QUALIFIED");
+});
+
+test("Chinese Deep Analysis confidence is localized, not a raw enum", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({
+    status: {
+      availability: "AVAILABLE",
+      reason_code: "RESULT_AVAILABLE",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: daResult,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  const matches = await screen.findAllByText((_c, el) =>
+    el?.textContent === "置信度: 证据不足");
+  expect(matches.length).toBeGreaterThan(0);
+  const body = document.body.textContent ?? "";
+  expect(body).not.toContain("INSUFFICIENT_EVIDENCE");
+});
+
+test("English confidence and run-failure copy remain correct", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  stubDeepAnalysis({
+    status: {
+      availability: "AVAILABLE",
+      reason_code: "RESULT_AVAILABLE",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: daResult,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  const englishConfidence = await screen.findAllByText((_c, el) =>
+    el?.textContent === "Confidence: Insufficient Evidence");
+  expect(englishConfidence.length).toBeGreaterThan(0);
 });

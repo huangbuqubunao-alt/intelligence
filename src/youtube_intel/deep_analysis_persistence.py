@@ -67,6 +67,54 @@ class VerifiedPersistedDeepAnalysisRead:
     validated_at: datetime
 
 
+#: Phase-1A results are persisted under this request prompt identity. It is the
+#: unambiguous, durable discriminator used to keep Phase-1A results out of
+#: trusted Evidence-bearing projections. See :func:`is_phase_1a_result`.
+PHASE_1A_PROMPT_IDENTITY = "v1x-content-deep-analysis-phase1a-prompt-v1"
+
+
+def is_phase_1a_result(source: object) -> bool:
+    """Whether one verified Deep Analysis read is a Phase-1A transitional result.
+
+    Phase 1A has not yet converged transient candidate refs onto durable
+    ``evidence.evidence_id``. Its persisted results therefore carry candidate
+    refs, and must never be treated as trusted Evidence-bearing authority.
+
+    The state is derived from the durable persisted request projection rather
+    than a caller-supplied flag, so it survives restart and cannot be forged by
+    the caller. It is intentionally fail-closed: anything not positively
+    identified as a later, Evidence-converged contract stays ineligible.
+    """
+
+    if type(source) is not VerifiedPersistedDeepAnalysisRead:
+        return False
+    projection = source.request_projection
+    if projection.prompt_identity != PHASE_1A_PROMPT_IDENTITY:
+        return False
+    # The five-concept provider-facing schema is the second, independent signal.
+    return projection.knowledge_content_schema_identity == (
+        "v1x-content-deep-analysis-model-output-v1"
+    )
+
+
+def require_trusted_note_eligibility(source: object) -> None:
+    """Fail closed for Phase-1A results used as trusted Note / export authority.
+
+    Phase-1A Deep Analysis results may be persisted, read after restart, and
+    shown in the Content panel. They may **not** act as a trusted Note V2
+    source, an Obsidian source, an Evidence-bearing export source, or any other
+    durable citation authority, because their Evidence refs are transitional
+    candidate refs rather than durable Evidence identity.
+    """
+
+    if is_phase_1a_result(source):
+        raise DeepAnalysisPersistenceError(
+            "Phase-1A Deep Analysis results are not eligible as trusted "
+            "Evidence-bearing Note or export authority until Phase-1B "
+            "durable-Evidence convergence is complete"
+        )
+
+
 _verified_reads: dict[
     int,
     tuple[weakref.ReferenceType[VerifiedPersistedDeepAnalysisRead], str],
@@ -141,22 +189,31 @@ def _load_json(value: object) -> object:
 def _parse_persisted_timestamp(value: object) -> datetime:
     """Parse one persisted UTC timestamp, rejecting anything ambiguous.
 
-    A read must never substitute the current time for a missing or malformed
-    stored value, so an unusable timestamp fails verification instead.
+    Trusted Deep Analysis timestamps must be timezone-aware. A timezone-free
+    value is ambiguous rather than implicitly UTC, so it fails verification:
+
+        2035-06-07T12:34:56Z          -> valid
+        2035-06-07T12:34:56+00:00     -> valid
+        2035-06-07T12:34:56           -> invalid
+
+    On corruption this never substitutes the current time and never assumes UTC,
+    so no forged ``generated_at`` can be served.
     """
 
     text = str(value).strip()
     if not text:
         raise DeepAnalysisPersistenceError("persisted timestamp is empty")
+    candidate = text[:-1] + "+00:00" if text.endswith("Z") else text
     try:
-        # Matches the repository's own ``format_utc_datetime`` round trip.
-        parsed = datetime.fromisoformat(text.removesuffix("Z") + "+00:00")
+        parsed = datetime.fromisoformat(candidate)
     except ValueError as error:
         raise DeepAnalysisPersistenceError(
             "persisted timestamp is malformed"
         ) from error
     if parsed.tzinfo is None:
-        raise DeepAnalysisPersistenceError("persisted timestamp is not UTC-aware")
+        raise DeepAnalysisPersistenceError(
+            "persisted timestamp is not timezone-aware"
+        )
     return parsed.astimezone(UTC)
 
 

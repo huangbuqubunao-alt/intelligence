@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { api, patch, post, put, uploadZip } from "../api/client";
+import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
@@ -1567,6 +1567,36 @@ function deepAnalysisReasonCopy(
   );
 }
 
+function deepAnalysisRunErrorCopy(reasonCode: string | null, availability: string) {
+  // Localize on the stable machine reason_code; never on backend English prose.
+  const byCode: Record<string, string> = {
+    NO_QUALIFIED_MODEL:
+      "Deep Analysis could not run because no model is currently qualified for it.",
+    CONTENT_NOT_FOUND: "This Content is not available.",
+    SCORING_UNAVAILABLE:
+      "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.",
+    NO_TIMED_TRANSCRIPT_EVIDENCE:
+      "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably.",
+    CLOUD_CONSENT_REQUIRED:
+      "This route would send bounded data to a cloud provider and needs your explicit consent for this run.",
+    VALIDATION_FAILED:
+      "Deep Analysis did not produce a trusted result. No partial or invented result is shown. You can retry.",
+  };
+  if (reasonCode && byCode[reasonCode]) return byCode[reasonCode];
+  if (availability === "FAILED") {
+    return "Deep Analysis did not produce a trusted result. No partial or invented result is shown. You can retry.";
+  }
+  return "Deep Analysis could not run for this Content right now. You can retry.";
+}
+
+function deepAnalysisConfidenceCopy(code: string) {
+  // Stable machine confidence codes; unknown codes stay honestly unknown.
+  const known: Record<string, string> = {
+    INSUFFICIENT_EVIDENCE: "Insufficient Evidence",
+  };
+  return known[code] ?? code;
+}
+
 function DeepAnalysisStatusLabel({ value }: { value: string }) {
   const { t } = useUiLanguage();
   // Source text is English; Chinese is the translation, matching the existing
@@ -1601,7 +1631,16 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
       await post(`/videos/${videoId}/deep-analysis`, {});
       setRefresh((value) => value + 1);
     } catch (reason) {
-      setActionError((reason as Error).message);
+      if (reason instanceof ApiRequestError) {
+        setActionError(
+          deepAnalysisRunErrorCopy(
+            reason.details?.reason_code ?? null,
+            reason.details?.availability ?? "",
+          ),
+        );
+      } else {
+        setActionError(deepAnalysisRunErrorCopy(null, ""));
+      }
     } finally {
       setBusy(false);
     }
@@ -1621,7 +1660,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
       </p>
       {error ? <ErrorState error={error} /> : null}
       {actionError ? (
-        <p className="semantic-state state-neutral">{actionError}</p>
+        <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
       {result ? (
         <div className="summary-note">
@@ -1642,7 +1681,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
                       <p>{claim.text}</p>
                       {claim.confidence ? (
                         <p className="hint">
-                          {t("Confidence")}: {claim.confidence}
+                          {t("Confidence")}: {t(deepAnalysisConfidenceCopy(claim.confidence))}
                         </p>
                       ) : null}
                     </li>

@@ -124,6 +124,21 @@ relationship. In Phase 1A the contract that actually holds is narrower:
 No alias, backfill, or synthetic promotion is introduced to paper over this gap.
 The gap closes in Phase 1B, not in the presentation layer.
 
+**Phase-1A results are not trusted Note / export authority.** Until Phase-1B
+durable-Evidence convergence completes, a Phase-1A result is categorically
+ineligible as a trusted Note V2 source, Obsidian source, Evidence-bearing export
+source, durable citation authority, Topic authority, or Knowledge Delta fact
+source. This is a **fail-closed compatibility gate**, derived from the durable
+persisted request projection so it survives restart and cannot be forged by a
+caller. Phase-1A results may be persisted, read after restart, and shown in the
+Content panel.
+
+**Compatibility `knowledge_graph.topics` is inert carrier data only.** It exists
+solely because the frozen historical validator requires compatibility material.
+It is not a product Topic, not a relation to existing user knowledge, not
+Intelligence, and not Knowledge Delta. Because trusted Note/export eligibility is
+disabled, it never reaches any trusted projection.
+
 For the first version:
 
 - **Citable:** trusted timed-transcript Evidence only.
@@ -136,17 +151,32 @@ because a model cited it.
 ### 4a. The five-concept model boundary holds at the provider (Phase 1A)
 
 Hiding a field in the UI is not sufficient. The **live** activated provider
-request must not ask the model to author it either.
+request must not ask the model to author it either, and neither may a response
+bypass the contract on the way back.
 
 The Phase-1A model contract requests exactly the five first-version concepts and
 nothing else. `RELATION_TO_KNOWLEDGE`, `KNOWLEDGE_DELTA`, and
-`knowledge_graph.related_themes` / `future_watch_topics` are **not** requested,
-because the model is not given the personal knowledge context they would require.
+`knowledge_graph.related_themes` / `future_watch_topics` / `entities` are **not
+requested**, because the model is not given the personal knowledge context they
+would require.
 
-Where the frozen dormant persistence structure still requires those fields, the
-backend fills them deterministically as empty compatibility values. They are never
-model-authored and never presented to users. The final versioned five-role durable
-contract remains Phase 1B work.
+**Every model response entering the live path must validate as the five-role
+contract.** There is no pass-through for a historical `KnowledgeContent` payload:
+such a response is itself schema-valid for the frozen carrier and would otherwise
+be admitted. A response that fails five-role admission is rejected outright,
+persists nothing, and cannot be resurrected by a restart. The historical carrier
+is *output* of the compatibility mapper, never an alternate admission contract.
+
+Where the frozen structure still requires deferred fields, the backend fills them
+deterministically as empty compatibility values; they are never model-authored and
+never presented. The final versioned five-role durable contract remains Phase 1B
+work.
+
+**Epistemic meaning is never rewritten.** Each role is routed to a carrier field
+that accepts its permitted claim kinds. A payload the carrier cannot represent
+faithfully — or that exceeds a carrier field's capacity — is rejected by the
+Phase-1A schema itself with an explicit contract rule, rather than crashing the
+mapper, being silently truncated, or being relabelled.
 
 ### 4b. Qualification is never configuration truth
 
@@ -170,7 +200,16 @@ with a fabricated time.
 
 The backend exposes a stable machine `reason_code` alongside its developer
 diagnostic prose. The user interface localizes on the code, so Chinese mode never
-surfaces raw English status or reason text.
+surfaces raw English status, reason, POST-error, or confidence text. This applies
+to read states, run failures, and per-claim confidence codes alike; localization
+never relies on string-matching arbitrary backend prose.
+
+### 4e. Trusted timestamps must be timezone-aware
+
+Persisted Deep Analysis timestamps (`created_at`, `validated_at`) must carry an
+explicit offset. A timezone-free value is ambiguous rather than implicitly UTC
+and fails verification, so no forged generation time is ever served. On corruption
+the product substitutes neither the current time nor an assumed UTC offset.
 
 ### 5. Canonical-only / no-timed-Evidence Content fails closed
 

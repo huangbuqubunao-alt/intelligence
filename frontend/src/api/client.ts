@@ -1,4 +1,21 @@
-export type ApiError = { code: string; message: string };
+export type ApiError = {
+  code: string;
+  message: string;
+  /** Optional machine-readable context for localized UI copy. */
+  details?: { reason_code?: string | null; availability?: string; consent_required?: boolean };
+};
+
+/** An API failure that keeps its machine code so callers can localize by code. */
+export class ApiRequestError extends Error {
+  readonly code: string;
+  readonly details?: ApiError["details"];
+  constructor(error: ApiError) {
+    super(error.message);
+    this.name = "ApiRequestError";
+    this.code = error.code;
+    this.details = error.details;
+  }
+}
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
@@ -10,7 +27,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     }
   });
   const body = (await response.json()) as T & { error?: ApiError };
-  if (!response.ok) throw new Error(body.error?.message ?? "The local service rejected this request.");
+  if (!response.ok) throw new ApiRequestError(body.error ?? { code: "REQUEST_REJECTED", message: "The local service rejected this request." });
   return body;
 }
 

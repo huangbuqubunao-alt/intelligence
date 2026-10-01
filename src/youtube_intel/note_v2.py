@@ -17,6 +17,7 @@ from youtube_intel.deep_analysis_contracts import (
 )
 from youtube_intel.deep_analysis_persistence import (
     VerifiedPersistedDeepAnalysisRead,
+    is_phase_1a_result,
     verify_persisted_deep_analysis_read,
 )
 from youtube_intel.deep_analysis_runtime import _capture_trusted_success_for_persistence
@@ -244,6 +245,14 @@ def _authoritative_source(source: object) -> _AuthoritativeNoteSource:
     if type(source) is VerifiedPersistedDeepAnalysisRead:
         if not verify_persisted_deep_analysis_read(source):
             raise NoteV2Error("authoritative Deep Analysis persisted read is untrusted")
+        # Fail-closed transitional gate. Phase-1A results carry candidate
+        # Evidence refs rather than durable ``evidence.evidence_id``, so they
+        # may never act as trusted Note / export authority. See V1X-DR-001 §4.
+        if is_phase_1a_result(source):
+            raise NoteV2Error(
+                "Phase-1A Deep Analysis results are not eligible as trusted Note "
+                "authority until Phase-1B durable-Evidence convergence completes"
+            )
         return _AuthoritativeNoteSource(
             result_identity=source.result_identity,
             content_identity=source.content_identity,

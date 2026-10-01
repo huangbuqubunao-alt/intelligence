@@ -51,7 +51,7 @@ from youtube_intel.ollama_deep_analysis import (
     OllamaDeepAnalysisProviderAdapter,
     build_ollama_local_context_budget,
     build_ollama_local_execution_profile,
-    build_ollama_local_phase1a_request_projection,
+    build_ollama_local_request_projection,
 )
 from youtube_intel.scoring import VerifiedScoringRead
 from youtube_intel.state import SQLiteStateRepository
@@ -122,6 +122,43 @@ def _summary_knowledge_content() -> dict[str, object]:
 
 
 def _knowledge_content() -> dict[str, object]:
+    """A Phase-1A five-role model response in the fixture output language (en)."""
+
+    def claim(text: str, point_kind: str) -> dict[str, object]:
+        return {"text": text, "point_kind": point_kind}
+
+    return {
+        "schema_version": "v1x-content-deep-analysis-model-output-v1",
+        "core_conclusion": [
+            claim(
+                "The fixture shows that this content supports one clear conclusion.",
+                "inference",
+            )
+        ],
+        "key_evidence": [
+            claim("The available evidence supports this conclusion.", "fact")
+        ],
+        "uncertainty": [
+            claim("This remains unverified and should not be relied on yet.", "inference")
+        ],
+        "relevance_to_user": [
+            claim(
+                "This matters because it changes how you should plan the next review.",
+                "inference",
+            )
+        ],
+        "next_question": [
+            claim(
+                "Check whether the second claim is corroborated by another source.",
+                "inference",
+            )
+        ],
+    }
+
+
+def _summary_knowledge_content() -> dict[str, object]:
+    """A frozen-contract KnowledgeContent payload in the fixture language (en)."""
+
     def point(text: str, kind: str) -> dict[str, object]:
         return {"text": text, "kind": kind, "evidence_ids": ["e1"]}
 
@@ -133,25 +170,18 @@ def _knowledge_content() -> dict[str, object]:
         ),
         "core_points": [point("The fixture asserts one core supporting fact.", "fact")],
         "key_facts": [point("The fixture records one key measured fact.", "fact")],
-        "key_arguments": [point("The fixture advances one central argument.", "inference")],
         "counterpoints": [point("The fixture notes one real counterpoint.", "inference")],
-        "risks": [point("The fixture names one genuine risk.", "inference")],
-        "actionable_directions": [
-            point("The fixture suggests one concrete next direction.", "recommendation")
-        ],
-        "hypotheses_to_validate": [
-            point("The fixture leaves one hypothesis to validate.", "inference")
-        ],
         "knowledge_graph": {"topics": ["workflow"]},
     }
 
 
 def _summary_promoting_success(video_id: str):
-    """Build a runtime-admitted Deep Analysis success via the public API.
+    """Build a runtime-admitted success through the frozen ADR-027 contract.
 
-    Used to prove Summary-separation behavior. Built locally rather than by
-    importing another test module, because ``tests`` is not an importable
-    package.
+    Proves Summary-separation behavior. It deliberately uses the frozen request
+    projection, so the result is *not* a Phase-1A transitional result. Built
+    locally rather than by importing another test module, because ``tests`` is
+    not an importable package.
     """
 
     from youtube_intel.deep_analysis_runtime import DeepAnalysisRuntime
@@ -187,16 +217,6 @@ def _summary_promoting_success(video_id: str):
     admitted = runtime.admit_verified_scoring_read(
         verified_scoring_read=read, canonical_input=canonical
     )
-    registry = EvidenceRegistry(
-        items=(
-            KnowledgeEvidence(
-                evidence_id="e1",
-                source=EvidenceSource.TRANSCRIPT_SAMPLE,
-                excerpt="A verified transcript excerpt for the fixture.",
-                source_content_hash="d" * 64,
-            ),
-        )
-    )
     consent = PayloadConsentIdentityV1(
         schema_version="payload-consent-identity-v1",
         consent_mode=PayloadConsentMode.LOCAL_ONLY,
@@ -208,7 +228,16 @@ def _summary_promoting_success(video_id: str):
     )
     payload = runtime.authorize_payload(
         authoritative_input=admitted,
-        evidence_registry=registry,
+        evidence_registry=EvidenceRegistry(
+            items=(
+                KnowledgeEvidence(
+                    evidence_id="e1",
+                    source=EvidenceSource.TRANSCRIPT_SAMPLE,
+                    excerpt="A verified transcript excerpt for the fixture.",
+                    source_content_hash="d" * 64,
+                ),
+            )
+        ),
         payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
         payload_consent=consent,
         video_title="Fixture title",
@@ -217,7 +246,7 @@ def _summary_promoting_success(video_id: str):
         duration_seconds=60,
         source_language="en",
     )
-    request = build_ollama_local_phase1a_request_projection(
+    request = build_ollama_local_request_projection(
         canonical_input=canonical,
         authorized_payload=payload.payload,
         payload_consent=consent,
@@ -251,12 +280,7 @@ def _summary_promoting_success(video_id: str):
 
 
 def _seed_content(repository: SQLiteStateRepository, video_id: str = VIDEO_ID) -> None:
-    """Seed one scored Content with an explicit English output language.
-
-    The fixture's model output is English, so the authoritative output language
-    must be English. The product default is zh-CN; this sets the real
-    authoritative preference rather than weakening language validation.
-    """
+    """Seed one scored Content with an explicit English output language."""
 
     connection = repository._connect()
     try:
@@ -310,7 +334,7 @@ def _service(
         repository=repository,
         capability=capability,
         scoring_reader=_scoring_read,
-        transcript_reader=lambda _video_id: None,
+        transcript_reader=lambda *, video_id: None,
         evidence_reader=lambda _video_id: evidence_ids,
         evidence_text_reader=lambda evidence_id: _VerifiedEvidence(
             evidence_id, "A verified transcript excerpt for the fixture."
@@ -519,7 +543,7 @@ def test_unverifiable_evidence_text_is_not_offered_to_the_provider(
             (build_local_ollama_route(transport=_transport()),)
         ),
         scoring_reader=_scoring_read,
-        transcript_reader=lambda _video_id: None,
+        transcript_reader=lambda *, video_id: None,
         evidence_reader=lambda _video_id: ("e1",),
         # Legacy or unbound Evidence resolves to None and must not be used.
         evidence_text_reader=lambda _evidence_id: None,
