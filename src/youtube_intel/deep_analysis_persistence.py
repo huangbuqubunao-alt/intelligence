@@ -7,7 +7,7 @@ import sqlite3
 import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -61,6 +61,10 @@ class VerifiedPersistedDeepAnalysisRead:
     request_projection: DeepAnalysisRequestProjectionV1
     execution_profile: DeepAnalysisExecutionProfileV1
     validation_policy: DeepAnalysisValidationPolicyIdentityV1
+    #: Authoritative persisted timestamps. These come from the durable row, so a
+    #: read or restart can never make an old result look newly generated.
+    created_at: datetime
+    validated_at: datetime
 
 
 _verified_reads: dict[
@@ -82,6 +86,8 @@ def _read_snapshot(value: VerifiedPersistedDeepAnalysisRead) -> str:
             "request_projection": _model_json(value.request_projection),
             "execution_profile": _model_json(value.execution_profile),
             "validation_policy": _model_json(value.validation_policy),
+            "created_at": format_utc_datetime(value.created_at),
+            "validated_at": format_utc_datetime(value.validated_at),
         }
     )
 
@@ -130,6 +136,28 @@ def _load_json(value: object) -> object:
         return json.loads(str(value))
     except (TypeError, json.JSONDecodeError) as error:
         raise DeepAnalysisPersistenceError("persisted JSON is invalid") from error
+
+
+def _parse_persisted_timestamp(value: object) -> datetime:
+    """Parse one persisted UTC timestamp, rejecting anything ambiguous.
+
+    A read must never substitute the current time for a missing or malformed
+    stored value, so an unusable timestamp fails verification instead.
+    """
+
+    text = str(value).strip()
+    if not text:
+        raise DeepAnalysisPersistenceError("persisted timestamp is empty")
+    try:
+        # Matches the repository's own ``format_utc_datetime`` round trip.
+        parsed = datetime.fromisoformat(text.removesuffix("Z") + "+00:00")
+    except ValueError as error:
+        raise DeepAnalysisPersistenceError(
+            "persisted timestamp is malformed"
+        ) from error
+    if parsed.tzinfo is None:
+        raise DeepAnalysisPersistenceError("persisted timestamp is not UTC-aware")
+    return parsed.astimezone(UTC)
 
 
 def _model_json(value: BaseModel) -> str:
@@ -645,6 +673,8 @@ class DeepAnalysisPersistenceStore:
             request_projection=request,
             execution_profile=execution,
             validation_policy=policy,
+            created_at=_parse_persisted_timestamp(row["created_at"]),
+            validated_at=_parse_persisted_timestamp(row["validated_at"]),
         )
         _record_verified_read(verified)
         return verified

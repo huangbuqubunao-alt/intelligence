@@ -19,6 +19,14 @@ from pathlib import Path
 
 import pytest
 
+from youtube_intel.deep_analysis_contracts import (
+    CanonicalDeepAnalysisInputV1,
+    CredentialExecutionProfileIdentityV1,
+    DeepAnalysisPayloadScope,
+    DeepAnalysisProviderKind,
+    PayloadConsentIdentityV1,
+    PayloadConsentMode,
+)
 from youtube_intel.deep_analysis_persistence import DeepAnalysisPersistenceStore
 from youtube_intel.deep_analysis_service import (
     DEEP_ANALYSIS_ROLES,
@@ -30,10 +38,20 @@ from youtube_intel.deep_analysis_service import (
     build_local_ollama_route,
 )
 from youtube_intel.domain import (
+    EvidenceRegistry,
+    EvidenceSource,
+    KnowledgeEvidence,
     ProviderCallMetadata,
     ScoreResult,
     ScoringDecision,
     ScoringOutcome,
+)
+from youtube_intel.ollama_deep_analysis import (
+    OLLAMA_LOCAL_DEEP_ANALYSIS_PROFILE,
+    OllamaDeepAnalysisProviderAdapter,
+    build_ollama_local_context_budget,
+    build_ollama_local_execution_profile,
+    build_ollama_local_phase1a_request_projection,
 )
 from youtube_intel.scoring import VerifiedScoringRead
 from youtube_intel.state import SQLiteStateRepository
@@ -84,6 +102,25 @@ def _scoring_read(video_id: str = VIDEO_ID) -> VerifiedScoringRead:
     )
 
 
+def _summary_knowledge_content() -> dict[str, object]:
+    """A valid KnowledgeContent payload in the fixture output language (en)."""
+
+    def point(text: str, kind: str) -> dict[str, object]:
+        return {"text": text, "kind": kind, "evidence_ids": ["e1"]}
+
+    return {
+        "one_sentence_summary": "The fixture states one clear conclusion for testing.",
+        "summary_evidence_ids": ["e1"],
+        "why_it_matters": point(
+            "The fixture explains why this matters to the reader.", "inference"
+        ),
+        "core_points": [point("The fixture asserts one core supporting fact.", "fact")],
+        "key_facts": [point("The fixture records one key measured fact.", "fact")],
+        "counterpoints": [point("The fixture notes one real counterpoint.", "inference")],
+        "knowledge_graph": {"topics": ["workflow"]},
+    }
+
+
 def _knowledge_content() -> dict[str, object]:
     def point(text: str, kind: str) -> dict[str, object]:
         return {"text": text, "kind": kind, "evidence_ids": ["e1"]}
@@ -107,6 +144,110 @@ def _knowledge_content() -> dict[str, object]:
         ],
         "knowledge_graph": {"topics": ["workflow"]},
     }
+
+
+def _summary_promoting_success(video_id: str):
+    """Build a runtime-admitted Deep Analysis success via the public API.
+
+    Used to prove Summary-separation behavior. Built locally rather than by
+    importing another test module, because ``tests`` is not an importable
+    package.
+    """
+
+    from youtube_intel.deep_analysis_runtime import DeepAnalysisRuntime
+
+    runtime = DeepAnalysisRuntime()
+    read = _scoring_read(video_id)
+    canonical = CanonicalDeepAnalysisInputV1.from_verified_scoring_read(
+        verified_scoring_read=read,
+        schema_version="canonical-deep-analysis-input-v1",
+        operation="deep-analysis",
+        input_schema_version="input-v1",
+        video_identity=video_id,
+        transcript_identity="transcript-summary-fixture",
+        transcript_language="en",
+        transcript_normalization_version="normalized-v1",
+        evidence_registry_identity="registry-summary-fixture-v1",
+        selected_evidence=(
+            {
+                "schema_version": "selected-evidence-projection-v1",
+                "evidence_id": "e1",
+                "source": EvidenceSource.TRANSCRIPT_SAMPLE.value,
+                "excerpt": "A verified transcript excerpt for the fixture.",
+            },
+        ),
+        selection_policy_identity="selection-v1",
+        coverage_policy_identity="coverage-v1",
+        coverage_complete=False,
+        output_language="en",
+        knowledge_content_schema_version="knowledge-v1",
+        prompt_version="prompt-v1",
+        operation_version="operation-v1",
+    )
+    admitted = runtime.admit_verified_scoring_read(
+        verified_scoring_read=read, canonical_input=canonical
+    )
+    registry = EvidenceRegistry(
+        items=(
+            KnowledgeEvidence(
+                evidence_id="e1",
+                source=EvidenceSource.TRANSCRIPT_SAMPLE,
+                excerpt="A verified transcript excerpt for the fixture.",
+                source_content_hash="d" * 64,
+            ),
+        )
+    )
+    consent = PayloadConsentIdentityV1(
+        schema_version="payload-consent-identity-v1",
+        consent_mode=PayloadConsentMode.LOCAL_ONLY,
+        authorization_record_identity="summary-fixture-consent-v1",
+        named_provider_id="ollama-local",
+        provider_kind=DeepAnalysisProviderKind.LOCAL,
+        payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
+        allowed_model_constraint=OLLAMA_LOCAL_DEEP_ANALYSIS_PROFILE.model_id,
+    )
+    payload = runtime.authorize_payload(
+        authoritative_input=admitted,
+        evidence_registry=registry,
+        payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
+        payload_consent=consent,
+        video_title="Fixture title",
+        channel_name="Fixture channel",
+        published_at="2026-10-01T00:00:00Z",
+        duration_seconds=60,
+        source_language="en",
+    )
+    request = build_ollama_local_phase1a_request_projection(
+        canonical_input=canonical,
+        authorized_payload=payload.payload,
+        payload_consent=consent,
+    )
+    execution = build_ollama_local_execution_profile(
+        request_projection=request,
+        credential_execution_profile=CredentialExecutionProfileIdentityV1(
+            schema_version="credential-execution-profile-v1",
+            provider_id="ollama-local",
+            execution_profile_identity="b" * 64,
+        ),
+    )
+    prepared = runtime.prepare_dispatch(
+        authoritative_input=admitted,
+        authorized_payload=payload,
+        request_projection=request,
+        execution_profile=execution,
+        payload_consent=consent,
+        context_budget_profile=build_ollama_local_context_budget(input_budget=1024),
+        timeout_profile_identity="fixture-timeout-v1",
+        fallback_policy_identity="c" * 64,
+    )
+    response = OllamaDeepAnalysisProviderAdapter(
+        transport=_transport(_summary_knowledge_content())
+    ).dispatch(prepared_dispatch=prepared)
+    validation = runtime.validation_finalizer().finalize(
+        prepared_dispatch=prepared, response=response
+    )
+    assert validation.success is not None
+    return validation.success
 
 
 def _seed_content(repository: SQLiteStateRepository, video_id: str = VIDEO_ID) -> None:
@@ -471,17 +612,13 @@ def test_default_persistence_behavior_still_promotes_current_summary(
 ) -> None:
     """The Phase 1A seam must not change the frozen Summary cutover default."""
 
-    from tests.integration.test_deep_analysis_persistence import (  # noqa: PLC0415
-        _trusted_success,
-    )
-
     repository = SQLiteStateRepository(tmp_path / "state.sqlite")
     repository.initialize(now=NOW)
     _seed_content(repository, video_id="video-1")
     store = DeepAnalysisPersistenceStore(repository)
 
     persisted = store.persist_trusted_deep_analysis_success(
-        success=_trusted_success(video_id="video-1"), now=NOW
+        success=_summary_promoting_success("video-1"), now=NOW
     )
 
     current = store.read_current_content_summary_result(video_id="video-1")
@@ -492,17 +629,13 @@ def test_default_persistence_behavior_still_promotes_current_summary(
 def test_deep_analysis_does_not_overwrite_an_existing_summary_pointer(
     tmp_path: Path,
 ) -> None:
-    from tests.integration.test_deep_analysis_persistence import (  # noqa: PLC0415
-        _trusted_success,
-    )
-
     database = tmp_path / "state.sqlite"
     repository = SQLiteStateRepository(database)
     repository.initialize(now=NOW)
     _seed_content(repository, video_id="video-1")
     store = DeepAnalysisPersistenceStore(repository)
     summary = store.persist_trusted_deep_analysis_success(
-        success=_trusted_success(video_id="video-1"), now=NOW
+        success=_summary_promoting_success("video-1"), now=NOW
     )
     assert store.read_current_content_summary_result(video_id="video-1") is not None
 

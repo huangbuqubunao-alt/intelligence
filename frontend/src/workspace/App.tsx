@@ -212,6 +212,7 @@ type DeepAnalysisPayload = {
 type DeepAnalysisState = {
   status: {
     availability: string;
+    reason_code: string | null;
     reason: string | null;
     route_id: string | null;
     model_id: string | null;
@@ -1520,8 +1521,31 @@ function deepAnalysisRoleLabel(role: string) {
   return labels[role] ?? role;
 }
 
-function deepAnalysisAvailabilityCopy(availability: string) {
-  const copy: Record<string, string> = {
+function deepAnalysisReasonCopy(
+  availability: string,
+  reasonCode: string | null,
+) {
+  // Localize on the stable machine code. Backend English prose is a developer
+  // diagnostic and must never be the Chinese product text.
+  const byCode: Record<string, string> = {
+    NO_QUALIFIED_MODEL:
+      "Deep Analysis is unavailable because no model is currently qualified for it. Nothing is downgraded silently, and Summary and Evidence stay usable.",
+    CONTENT_NOT_FOUND: "This Content is not available.",
+    NOT_REQUESTED:
+      "Deep Analysis has not been run for this Content. It is an on-demand action and runs nothing until you ask for it.",
+    RESULT_AVAILABLE: "A Deep Analysis result is available for this Content.",
+    SCORING_UNAVAILABLE:
+      "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.",
+    NO_TIMED_TRANSCRIPT_EVIDENCE:
+      "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably. No timestamp is invented and no result is produced.",
+    CLOUD_CONSENT_REQUIRED:
+      "This route would send bounded data to a cloud provider and needs your explicit consent for this run.",
+    VALIDATION_FAILED:
+      "Deep Analysis did not produce a trusted result. No partial or invented result is shown.",
+    SERVICE_UNAVAILABLE: "Deep Analysis is unavailable for this Content right now.",
+  };
+  if (reasonCode && byCode[reasonCode]) return byCode[reasonCode];
+  const byAvailability: Record<string, string> = {
     NOT_REQUESTED:
       "Deep Analysis has not been run for this Content. It is an on-demand action and runs nothing until you ask for it.",
     NOT_QUALIFIED:
@@ -1535,11 +1559,29 @@ function deepAnalysisAvailabilityCopy(availability: string) {
       "This route would send bounded data to a cloud provider and needs your explicit consent for this run.",
     FAILED:
       "Deep Analysis did not produce a trusted result. No partial or invented result is shown.",
+    AVAILABLE: "A Deep Analysis result is available for this Content.",
   };
   return (
-    copy[availability] ??
+    byAvailability[availability] ??
     "Deep Analysis is unavailable for this Content right now."
   );
+}
+
+function DeepAnalysisStatusLabel({ value }: { value: string }) {
+  const { t } = useUiLanguage();
+  // Source text is English; Chinese is the translation, matching the existing
+  // localization convention.
+  const labels: Record<string, string> = {
+    AVAILABLE: "Completed",
+    NOT_REQUESTED: "Not run yet",
+    NOT_QUALIFIED: "Not qualified",
+    CONTENT_UNAVAILABLE: "Unavailable",
+    SCORING_UNAVAILABLE: "Unavailable",
+    EVIDENCE_UNAVAILABLE: "Unavailable",
+    CLOUD_CONSENT_REQUIRED: "Consent required",
+    FAILED: "Failed",
+  };
+  return <>{t(labels[value] ?? value)}</>;
 }
 
 function DeepAnalysisPanel({ videoId }: { videoId: string }) {
@@ -1615,9 +1657,10 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
         </div>
       ) : (
         <div className="semantic-state state-neutral">
-          <Status value={availability} />
-          <p>{t(deepAnalysisAvailabilityCopy(availability))}</p>
-          {status?.reason ? <p className="hint">{status.reason}</p> : null}
+          <span className="status status-neutral">
+            <DeepAnalysisStatusLabel value={availability} />
+          </span>
+          <p>{t(deepAnalysisReasonCopy(availability, status?.reason_code ?? null))}</p>
         </div>
       )}
       <div className="reading-meta">

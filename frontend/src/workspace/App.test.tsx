@@ -1736,18 +1736,17 @@ function stubDeepAnalysis(
 }
 
 async function openDeepAnalysisContent() {
-  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  const savedLanguage = localStorage.getItem("yia.ui-language");
+  const contentNav =
+    savedLanguage === "zh-CN" ? "内容" : "Content";
+  fireEvent.click(screen.getByRole("button", { name: contentNav }));
   fireEvent.click(
     await screen.findByRole("button", { name: /Deep Analysis fixture/ }),
   );
-  // Wait for the Deep Analysis projection to resolve. Before it resolves the
-  // panel renders the Run button but no availability state.
-  await screen.findByRole("button", { name: "Run Deep Analysis" });
-  await waitFor(() => {
-    const panel = screen.getByRole("button", { name: "Run Deep Analysis" })
-      .closest("section, div");
-    expect(panel).not.toBeNull();
-  });
+  const runLabel =
+    savedLanguage === "zh-CN" ? "开始深度分析" : "Run Deep Analysis";
+  // Wait for the Deep Analysis projection to resolve before asserting on it.
+  await screen.findByRole("button", { name: runLabel });
 }
 
 test("Deep Analysis is a Content-level action and adds no top-level navigation", async () => {
@@ -1886,4 +1885,79 @@ test("Deep Analysis keeps Summary and Deep Analysis as distinct capabilities", a
   expect(
     screen.getByText(/Summary explains what this content says/i),
   ).toBeTruthy();
+});
+
+test("Chinese Deep Analysis UI never leaks raw English backend status text", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (init?.method === "POST") return response({});
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return response({
+        deep_analysis: {
+          status: {
+            availability: "NOT_QUALIFIED",
+            reason_code: "NO_QUALIFIED_MODEL",
+            // English diagnostic prose must not become Chinese product text.
+            reason: "No Deep Analysis model is currently qualified.",
+            route_id: null,
+            model_id: null,
+            provider_id: null,
+            qualified: false,
+            consent_required: false,
+          },
+          result: null,
+        },
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  // Chinese product copy is shown, localized from the stable machine code.
+  expect(await screen.findByText("未通过资格")).toBeTruthy();
+  expect(
+    screen.getByText("当前没有通过深度分析资格的模型，因此深度分析不可用。系统不会静默降级，摘要与证据仍可正常使用。"),
+  ).toBeTruthy();
+  // The raw English backend reason must not appear anywhere.
+  expect(screen.queryByText(/No Deep Analysis model is currently qualified/)).toBeNull();
+  const body = document.body.textContent ?? "";
+  expect(body).not.toContain("No Deep Analysis model is currently qualified");
+  // No engineering enum leaks into the Chinese UI.
+  expect(body).not.toContain("NOT_QUALIFIED");
+  expect(body).not.toContain("NO_QUALIFIED_MODEL");
+});
+
+test("English Deep Analysis UI remains correct after localization fix", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  stubDeepAnalysis({
+    status: {
+      availability: "NOT_QUALIFIED",
+      reason_code: "NO_QUALIFIED_MODEL",
+      reason: "No Deep Analysis model is currently qualified.",
+      route_id: null,
+      model_id: null,
+      provider_id: null,
+      qualified: false,
+      consent_required: false,
+    },
+    result: null,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  expect(await screen.findByText("Not qualified")).toBeTruthy();
+  expect(
+    screen.getByText(/no model is currently qualified for it/i),
+  ).toBeTruthy();
+  // The run action stays disabled while nothing is qualified.
+  const runButton = screen.getByRole("button", { name: "Run Deep Analysis" });
+  expect((runButton as HTMLButtonElement).disabled).toBe(true);
 });

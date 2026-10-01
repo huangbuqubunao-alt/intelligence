@@ -29,6 +29,7 @@ from youtube_intel.deep_analysis_contracts import (
     PostResponseUsageEvidenceV1,
     UntrustedDeepAnalysisResponseV1,
 )
+from youtube_intel.deep_analysis_phase1a_contract import build_phase_1a_prompt
 from youtube_intel.deep_analysis_runtime import (
     DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     DeepAnalysisResponseMetadataV1,
@@ -124,6 +125,39 @@ def build_ollama_local_request_projection(*, canonical_input: object, authorized
         structured_output=DeepAnalysisStructuredOutputV1(schema_version="deep-analysis-structured-output-v1", mode=DeepAnalysisStructuredOutputMode.PROVIDER_JSON_MODE, dialect_id="ollama-json", dialect_version="0.32.1", settings={"format": "json"}),
         generation_semantics=_generation(), prompt_identity="ollama-local-deep-analysis-prompt-v1",
         knowledge_content_schema_identity="knowledge-content-pydantic-v1", output_language=authorized_payload.output_language,
+        payload_projection_version="authorized-provider-payload-projection-v1",
+    )
+
+
+def build_ollama_local_phase1a_request_projection(*, canonical_input: object, authorized_payload: AuthorizedProviderPayloadProjectionV1, payload_consent: PayloadConsentIdentityV1) -> DeepAnalysisRequestProjectionV1:
+    """Render the V1.x Phase-1A five-concept request.
+
+    This is the live model boundary for the activated Content Deep Analysis
+    path.  It differs from the frozen ADR-027 qualified projection in exactly one
+    respect: the model is asked only for the five first-version concepts and is
+    explicitly told not to infer relation-to-knowledge or knowledge-delta
+    content.  The frozen builder above is left untouched for the existing
+    qualification path.
+    """
+
+    if authorized_payload.payload_scope is not DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY:
+        raise ValueError("the qualified Ollama profile permits selected evidence only")
+    a1_identity = getattr(canonical_input, "a1_identity", None)
+    if not isinstance(a1_identity, str):
+        raise ValueError("canonical input must provide a Deep Analysis A1 identity")
+    prompt = build_phase_1a_prompt(
+        output_language=authorized_payload.output_language,
+        payload_json=json.dumps(authorized_payload.model_dump(mode="json"), separators=(",", ":"), sort_keys=True),
+    )
+    return DeepAnalysisRequestProjectionV1(
+        schema_version="deep-analysis-request-projection-v1", operation="content-deep-analysis", a1_identity=a1_identity,
+        payload_consent_identity=payload_consent.identity, payload_scope=authorized_payload.payload_scope,
+        authorized_payload=authorized_payload,
+        provider_visible_messages=(DeepAnalysisMessageV1(schema_version="deep-analysis-message-v1", role="user", content=prompt),),
+        provider_visible_request_shape=_request_shape(),
+        structured_output=DeepAnalysisStructuredOutputV1(schema_version="deep-analysis-structured-output-v1", mode=DeepAnalysisStructuredOutputMode.PROVIDER_JSON_MODE, dialect_id="ollama-json", dialect_version="0.32.1", settings={"format": "json"}),
+        generation_semantics=_generation(), prompt_identity="v1x-content-deep-analysis-phase1a-prompt-v1",
+        knowledge_content_schema_identity="v1x-content-deep-analysis-model-output-v1", output_language=authorized_payload.output_language,
         payload_projection_version="authorized-provider-payload-projection-v1",
     )
 

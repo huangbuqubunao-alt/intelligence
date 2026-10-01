@@ -285,3 +285,34 @@ def test_content_detail_keeps_summary_and_deep_analysis_distinct(
     # Summary is a separate capability with its own authority.
     assert "note" in payload
     assert payload["video"]["deep_analysis"]["status"] == "AVAILABLE"
+
+
+def test_api_exposes_stable_reason_code_for_localization(tmp_path: Path) -> None:
+    app = _app(tmp_path, qualified=False)
+
+    _, payload = app.handle("GET", f"/api/v1/videos/{VIDEO_ID}/deep-analysis")
+
+    status = payload["deep_analysis"]["status"]
+    assert status["reason_code"] == "NO_QUALIFIED_MODEL"
+    assert status["availability"] == "NOT_QUALIFIED"
+    # The English prose remains available as a developer diagnostic only.
+    assert isinstance(status["reason"], str)
+
+
+def test_api_never_exposes_candidate_refs_or_citations(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    app.handle("POST", f"/api/v1/videos/{VIDEO_ID}/deep-analysis")
+
+    _, payload = app.handle("GET", f"/api/v1/videos/{VIDEO_ID}/deep-analysis")
+
+    result = payload["deep_analysis"]["result"]
+    serialized = json.dumps(result, ensure_ascii=False)
+    # No Evidence identifier may be exposed at all: the candidate ref must not
+    # appear as a value, and no citation field may exist.
+    assert '"e1"' not in serialized
+    assert "evidence_ids" not in serialized
+    assert "evidence_refs" not in serialized
+    assert "evidence_id" not in serialized
+    assert result["evidence_citation_status"] == (
+        "PENDING_DURABLE_EVIDENCE_CONVERGENCE"
+    )

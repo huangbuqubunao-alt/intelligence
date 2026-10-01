@@ -78,9 +78,11 @@ Each projected claim carries text, epistemic type, confidence, and output
 language. Stance is claim-relative. No single global result-level stance may
 override claim-level semantics.
 
-The five roles are a **user-facing projection** of the existing frozen
-`KnowledgeContent` contract. They are not a second persistence schema, and they
-do not weaken or fork the existing validated content contract.
+The five roles are enforced at the **model boundary**, not only in the UI: the
+live provider request asks for these five concepts and nothing else (§4a). They
+are carried in the existing frozen `KnowledgeContent` structure through a
+deterministic compatibility mapping. They are not a second persistence schema,
+and they do not weaken or fork the existing validated content contract.
 
 ### 3. RELATION_TO_KNOWLEDGE and KNOWLEDGE_DELTA are deferred
 
@@ -99,10 +101,28 @@ The dormant Deep Analysis `EvidenceRegistry` must **not** remain an independent
 provenance authority. It is demoted: it may exist only as an internal transient
 candidate set inside the admission boundary.
 
-Before persistence or any user-visible projection, a transient ref must be
-resolved through backend validation into durable Evidence identity
-(`evidence.evidence_id`, minted deterministically by
-`state.build_evidence_id`).
+**Phase 1B final requirement (unchanged and not weakened).** A transient ref must
+be resolved through backend validation into durable Evidence identity
+(`evidence.evidence_id`, minted deterministically by `state.build_evidence_id`)
+**before** it becomes a persisted authoritative citation.
+
+**Phase 1A transitional reality (recorded honestly).** Phase 1A does **not** yet
+add `deep_analysis_evidence`, so it cannot mint or persist that durable
+relationship. In Phase 1A the contract that actually holds is narrower:
+
+- Transient candidate refs exist only inside the admission boundary.
+- They are **never** user-facing: no API, frontend, Note, or Obsidian projection
+  exposes a candidate ref, and no projection labels one as `evidence_id`.
+- They are **never** authoritative provenance. Nothing reads them as Evidence
+  authority; `evidence_citation_status` stays
+  `PENDING_DURABLE_EVIDENCE_CONVERGENCE` until Phase 1B.
+- The frozen dormant persistence contract still stores the model-visible registry
+  internally for compatibility. Those stored ids are marked
+  `TRANSITIONAL_NON_AUTHORITATIVE` and no trusted read path treats them as
+  durable Evidence.
+
+No alias, backfill, or synthetic promotion is introduced to paper over this gap.
+The gap closes in Phase 1B, not in the presentation layer.
 
 For the first version:
 
@@ -112,6 +132,45 @@ For the first version:
 
 No fabricated timestamps. No fabricated Evidence. No metadata promoted merely
 because a model cited it.
+
+### 4a. The five-concept model boundary holds at the provider (Phase 1A)
+
+Hiding a field in the UI is not sufficient. The **live** activated provider
+request must not ask the model to author it either.
+
+The Phase-1A model contract requests exactly the five first-version concepts and
+nothing else. `RELATION_TO_KNOWLEDGE`, `KNOWLEDGE_DELTA`, and
+`knowledge_graph.related_themes` / `future_watch_topics` are **not** requested,
+because the model is not given the personal knowledge context they would require.
+
+Where the frozen dormant persistence structure still requires those fields, the
+backend fills them deterministically as empty compatibility values. They are never
+model-authored and never presented to users. The final versioned five-role durable
+contract remains Phase 1B work.
+
+### 4b. Qualification is never configuration truth
+
+`CONFIGURED != AVAILABLE != QUALIFIED != PRODUCTION_ELIGIBLE`.
+
+Phase 1A ships no qualification authority or receipt, so production composition
+resolves to an **empty capability** and the product reports a truthful
+`NOT_QUALIFIED` state. A raw environment variable may not mint qualification
+truth; the retired `YIA_DEEP_ANALYSIS_LOCAL_QUALIFIED` flag no longer registers
+any route. Tests and local development inject a route explicitly through the
+service constructor. `qwen2.5-coder:7b` remains a dev/test candidate.
+
+### 4c. Generation time is authoritative
+
+A result's generation time is read from the persisted row, never from the current
+read time, so repeated reads and a full restart report the same value. A missing
+or malformed persisted timestamp fails verification instead of being replaced
+with a fabricated time.
+
+### 4d. Reason codes drive localized copy
+
+The backend exposes a stable machine `reason_code` alongside its developer
+diagnostic prose. The user interface localizes on the code, so Chinese mode never
+surfaces raw English status or reason text.
 
 ### 5. Canonical-only / no-timed-Evidence Content fails closed
 

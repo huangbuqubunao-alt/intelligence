@@ -13,9 +13,7 @@ from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.config import AppConfig
 from youtube_intel.deep_analysis_service import (
     DeepAnalysisCapability,
-    DeepAnalysisRoute,
     DeepAnalysisService,
-    build_local_ollama_route,
 )
 from youtube_intel.distillation import (
     BudgetDecision,
@@ -168,16 +166,25 @@ class LocalSourceRunRuntime:
     backup_restore: BackupRestoreService
 
 
-def _deep_analysis_local_qualified() -> bool:
-    """Whether an explicit local Deep Analysis qualification record is present.
+def _deep_analysis_production_capability() -> DeepAnalysisCapability:
+    """Resolve the production Deep Analysis capability.
 
-    Qualification is an activation gate, not an architecture gate. Nothing is
-    qualified implicitly, so the default product state is an honest
-    NOT_QUALIFIED Deep Analysis. Setting the flag is an explicit, reviewable
-    qualification act and never implies cloud consent.
+    Qualification is an activation gate, not an architecture gate, and it is
+    **never** a configuration fact:
+
+        CONFIGURED != AVAILABLE != QUALIFIED != PRODUCTION_ELIGIBLE
+
+    Phase 1A ships no qualification authority or receipt, so this resolves to an
+    empty capability. An empty registry yields a truthful ``NOT_QUALIFIED``
+    product state; it never promotes a dev/test candidate such as
+    ``qwen2.5-coder:7b`` into a production-qualified route.
+
+    Environment variables, model presence, and configuration are deliberately
+    ignored here. Real model qualification is Phase 1C work and must arrive as a
+    reviewed authority, not as an environment flag.
     """
 
-    return os.environ.get("YIA_DEEP_ANALYSIS_LOCAL_QUALIFIED") == "1"
+    return DeepAnalysisCapability()
 
 
 def build_local_source_run_runtime(
@@ -280,17 +287,15 @@ def build_local_source_run_runtime(
         pipeline_version=PIPELINE_VERSION,
         current_model=config.settings.local_scoring.model,
     )
-    # V1.x Content Deep Analysis. Per V1X-DR-001 no route is production
-    # qualified by default: `qwen2.5-coder:7b` is a dev/test candidate and must
-    # not be treated as production-qualified. The capability is therefore empty
-    # unless an explicit qualification record is present, and an empty registry
-    # yields a truthful NOT_QUALIFIED state rather than a weaker silent model.
-    deep_analysis_routes: tuple[DeepAnalysisRoute, ...] = ()
-    if _deep_analysis_local_qualified():
-        deep_analysis_routes = (build_local_ollama_route(),)
+    # V1.x Content Deep Analysis. Per V1X-DR-001 and the frozen
+    # CONFIGURED != QUALIFIED != PRODUCTION_ELIGIBLE rule, no route is
+    # production-qualified in Phase 1A. `qwen2.5-coder:7b` stays a dev/test
+    # candidate, so the production capability is empty and the product reports a
+    # truthful NOT_QUALIFIED state. Tests and local development inject a route
+    # explicitly through the service constructor instead of an env flag.
     deep_analysis = DeepAnalysisService(
         repository=repository,
-        capability=DeepAnalysisCapability(deep_analysis_routes),
+        capability=_deep_analysis_production_capability(),
         scoring_reader=reader.read,
         transcript_reader=repository.get_verified_timed_transcript,
         evidence_reader=repository.list_canonical_coverage_evidence_ids,

@@ -55,6 +55,10 @@ from youtube_intel.deep_analysis_persistence import (
     VerifiedPersistedDeepAnalysisRead,
     verify_persisted_deep_analysis_read,
 )
+from youtube_intel.deep_analysis_phase1a_contract import (
+    DeepAnalysisPhase1AModelOutput,
+    map_phase_1a_output_to_knowledge_content,
+)
 from youtube_intel.deep_analysis_runtime import DeepAnalysisRuntime
 from youtube_intel.domain import (
     EvidenceRegistry,
@@ -68,10 +72,10 @@ from youtube_intel.ollama_deep_analysis import (
     _OllamaTransport,
     build_ollama_local_context_budget,
     build_ollama_local_execution_profile,
-    build_ollama_local_request_projection,
+    build_ollama_local_phase1a_request_projection,
 )
 from youtube_intel.scoring import VerifiedScoringRead
-from youtube_intel.state import SQLiteStateRepository
+from youtube_intel.state import SQLiteStateRepository, format_utc_datetime
 
 #: V1.x Deep Analysis prompt/policy identities.  These are part of the A1/A2
 #: request identity, so changing them cannot alias an older cached result.
@@ -88,6 +92,23 @@ _REGISTRY_IDENTITY_SUFFIX = "transient-candidate-refs"
 #: provider input budget without sending an unrestricted full transcript.
 _MAX_SELECTED_EVIDENCE = 24
 _MAX_EXCERPT_CHARS = 2000
+
+#: User-facing Evidence citation state.
+#:
+#: Phase 1A is transitional: internal candidate refs exist only inside the
+#: admission boundary and are **not** durable Evidence identity. They are never
+#: projected to the user, so no citation can be presented as authoritative.
+#: Phase 1B resolves transient ref -> backend validation -> durable
+#: ``evidence.evidence_id`` before any persisted authoritative citation exists.
+EVIDENCE_CITATION_STATUS_PENDING = "PENDING_DURABLE_EVIDENCE_CONVERGENCE"
+
+#: Explicit non-authoritative marker for compatibility persistence.
+#:
+#: The frozen dormant contract persists the model-visible Evidence registry
+#: internally. Those ids are backend-issued candidate refs scoped to one request,
+#: not durable Evidence, so this constant records that transitional status and is
+#: what every trusted read path must treat them as.
+TRANSIENT_EVIDENCE_REF_AUTHORITY = "TRANSITIONAL_NON_AUTHORITATIVE"
 
 #: The five first-version product roles.  Order is the user-facing order.
 DEEP_ANALYSIS_ROLES: tuple[str, ...] = (
@@ -178,7 +199,7 @@ def build_local_ollama_route(
         qualified_capability_profile_identity=profile.qualified_capability_profile_identity,
         is_local=True,
         dispatch=adapter.dispatch,
-        build_request_projection=build_ollama_local_request_projection,
+        build_request_projection=build_ollama_local_phase1a_request_projection,
         build_execution_profile=build_ollama_local_execution_profile,
         build_context_budget=build_ollama_local_context_budget,
         input_budget=8192,
@@ -215,12 +236,31 @@ class DeepAnalysisCapability:
         return [route.describe() for route in self._routes]
 
 
+class DeepAnalysisReasonCode(str, Enum):
+    """Stable machine reason codes for Deep Analysis states.
+
+    The user interface localizes on these codes. Free-form English prose is a
+    developer diagnostic only and must never be the Chinese product text.
+    """
+
+    NO_QUALIFIED_MODEL = "NO_QUALIFIED_MODEL"
+    CONTENT_NOT_FOUND = "CONTENT_NOT_FOUND"
+    NOT_REQUESTED = "NOT_REQUESTED"
+    RESULT_AVAILABLE = "RESULT_AVAILABLE"
+    SCORING_UNAVAILABLE = "SCORING_UNAVAILABLE"
+    NO_TIMED_TRANSCRIPT_EVIDENCE = "NO_TIMED_TRANSCRIPT_EVIDENCE"
+    CLOUD_CONSENT_REQUIRED = "CLOUD_CONSENT_REQUIRED"
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+
+
 @dataclass(frozen=True, slots=True)
 class DeepAnalysisStatus:
     """One truthful, user-facing Deep Analysis state for a Content."""
 
     availability: DeepAnalysisAvailability
     reason: str | None = None
+    reason_code: DeepAnalysisReasonCode | None = None
     route_id: str | None = None
     model_id: str | None = None
     provider_id: str | None = None
@@ -230,6 +270,11 @@ class DeepAnalysisStatus:
     def as_dict(self) -> dict[str, object]:
         return {
             "availability": self.availability.value,
+            # Machine code drives localized user-facing copy.
+            "reason_code": (
+                None if self.reason_code is None else self.reason_code.value
+            ),
+            # English diagnostic text for developers; not product copy.
             "reason": self.reason,
             "route_id": self.route_id,
             "model_id": self.model_id,
@@ -362,10 +407,65 @@ def project_deep_analysis_result(
         content_identity=result.content_identity,
         output_language=output_language,
         roles=tuple(claims),
-        generated_at=datetime.now(UTC).isoformat(timespec="seconds").replace(
-            "+00:00", "Z"
-        ),
-        evidence_citation_status="PENDING_DURABLE_EVIDENCE_CONVERGENCE",
+        # Authoritative: the durable row's own persisted creation time. It is
+        # never derived from the current read time, so repeated reads and a full
+        # restart always report the same generation time.
+        generated_at=format_utc_datetime(result.created_at),
+        evidence_citation_status=EVIDENCE_CITATION_STATUS_PENDING,
+    )
+
+
+def _map_phase_1a_response(
+    response: UntrustedDeepAnalysisResponseV1,
+    *,
+    evidence_refs: tuple[str, ...],
+) -> UntrustedDeepAnalysisResponseV1:
+    """Translate the five-concept model payload into the frozen structure.
+
+    The runtime's only trust boundary parses ``KnowledgeContent``. The Phase-1A
+    model is asked for five concepts instead, so this compatibility seam maps
+    that output deterministically before validation.
+
+    It performs no trust decision: the mapping is pure, the returned object is
+    still untrusted, and the runtime finalizer remains the sole minter of
+    ``TrustedDeepAnalysisSuccess``.
+    """
+
+    if isinstance(response.structured_payload, bytes):
+        try:
+            decoded = json.loads(response.structured_payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            # Leave malformed payloads untouched so the runtime fails closed.
+            return response
+    else:
+        decoded = response.structured_payload
+    if not isinstance(decoded, Mapping):
+        return response
+    # A payload that already satisfies the frozen contract is passed through.
+    if "one_sentence_summary" in decoded and "knowledge_graph" in decoded:
+        return response
+    try:
+        model_output = DeepAnalysisPhase1AModelOutput.model_validate(decoded)
+    except ValueError:
+        # Let the runtime produce its own authoritative failure.
+        return response
+    content = map_phase_1a_output_to_knowledge_content(
+        model_output, summary_evidence_ids=evidence_refs
+    )
+    mapped = content.model_dump(mode="json")
+    return UntrustedDeepAnalysisResponseV1(
+        schema_version="untrusted-deep-analysis-response-v1",
+        expected_dispatch_identity=response.expected_dispatch_identity,
+        provider_envelope_bytes=response.provider_envelope_bytes,
+        structured_payload=json.dumps(
+            mapped, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8"),
+        structured_output_mode=response.structured_output_mode,
+        provider_request_id=response.provider_request_id,
+        finish_reason=response.finish_reason,
+        delivery_certainty=response.delivery_certainty,
+        response_metadata=response.response_metadata,
+        usage_evidence=response.usage_evidence,
     )
 
 
@@ -428,12 +528,14 @@ class DeepAnalysisService:
         if content is None:
             return DeepAnalysisStatus(
                 availability=DeepAnalysisAvailability.CONTENT_UNAVAILABLE,
+                reason_code=DeepAnalysisReasonCode.CONTENT_NOT_FOUND,
                 reason="Content does not exist.",
             )
         route = self._capability.local_route()
         if route is None:
             return DeepAnalysisStatus(
                 availability=DeepAnalysisAvailability.NOT_QUALIFIED,
+                reason_code=DeepAnalysisReasonCode.NO_QUALIFIED_MODEL,
                 reason=(
                     "No Deep Analysis model is currently qualified. "
                     "Deep Analysis is unavailable; Summary and Evidence remain usable."
@@ -443,6 +545,7 @@ class DeepAnalysisService:
         if existing is not None:
             return DeepAnalysisStatus(
                 availability=DeepAnalysisAvailability.AVAILABLE,
+                reason_code=DeepAnalysisReasonCode.RESULT_AVAILABLE,
                 route_id=route.route_id,
                 model_id=route.model_id,
                 provider_id=route.provider_id,
@@ -450,6 +553,7 @@ class DeepAnalysisService:
             )
         return DeepAnalysisStatus(
             availability=DeepAnalysisAvailability.NOT_REQUESTED,
+            reason_code=DeepAnalysisReasonCode.NOT_REQUESTED,
             route_id=route.route_id,
             model_id=route.model_id,
             provider_id=route.provider_id,
@@ -496,6 +600,7 @@ class DeepAnalysisService:
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
                     availability=DeepAnalysisAvailability.NOT_QUALIFIED,
+                    reason_code=DeepAnalysisReasonCode.NO_QUALIFIED_MODEL,
                     reason="No qualified Deep Analysis route is available.",
                 )
             )
@@ -503,6 +608,7 @@ class DeepAnalysisService:
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
                     availability=DeepAnalysisAvailability.CLOUD_CONSENT_REQUIRED,
+                    reason_code=DeepAnalysisReasonCode.CLOUD_CONSENT_REQUIRED,
                     reason=(
                         "This route would send bounded data to a cloud provider "
                         "and requires explicit per-run consent."
@@ -520,6 +626,7 @@ class DeepAnalysisService:
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
                     availability=DeepAnalysisAvailability.SCORING_UNAVAILABLE,
+                    reason_code=DeepAnalysisReasonCode.SCORING_UNAVAILABLE,
                     reason=(
                         "Deep Analysis requires a verified scoring read for this "
                         "Content. It is unavailable right now."
@@ -532,6 +639,7 @@ class DeepAnalysisService:
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
                     availability=DeepAnalysisAvailability.EVIDENCE_UNAVAILABLE,
+                    reason_code=DeepAnalysisReasonCode.NO_TIMED_TRANSCRIPT_EVIDENCE,
                     reason=(
                         "This Content has no trusted timed transcript Evidence, "
                         "so Deep Analysis cannot cite anything durably. No "
@@ -541,6 +649,7 @@ class DeepAnalysisService:
             )
 
         output_language = self._output_language()
+        selected_refs = tuple(item["evidence_id"] for item in selection)
         registry = EvidenceRegistry(
             items=tuple(
                 KnowledgeEvidence(
@@ -662,13 +771,15 @@ class DeepAnalysisService:
         )
         response = route.dispatch(prepared_dispatch=prepared)
         validation = self._runtime.validation_finalizer().finalize(
-            prepared_dispatch=prepared, response=response
+            prepared_dispatch=prepared,
+            response=_map_phase_1a_response(response, evidence_refs=selected_refs),
         )
         if validation.success is None:
             failure = validation.failure
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
                     availability=DeepAnalysisAvailability.FAILED,
+                    reason_code=DeepAnalysisReasonCode.VALIDATION_FAILED,
                     reason=(
                         "Deep Analysis did not produce a trusted result. "
                         f"{failure.stage.value if failure else 'VALIDATION_FAILED'}"
