@@ -6,12 +6,13 @@ import hashlib
 import json
 import re
 import threading
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import Callable
+from typing import Callable, Final
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
@@ -106,6 +107,40 @@ class ApiError(Exception):
         # user interface can localize without parsing English prose.
         self.details = details
         super().__init__(message)
+
+
+#: Error-detail keys safe to expose over the local HTTP boundary.
+#:
+#: Only stable, non-secret machine fields are allowed. Stack traces, file
+#: paths, credentials, and free-form internal diagnostics are never serialized.
+_PUBLIC_ERROR_DETAIL_KEYS: Final = frozenset(
+    {"reason_code", "availability", "consent_required"}
+)
+
+
+def _error_body(error: ApiError) -> dict[str, object]:
+    """Serialize an :class:`ApiError` for the real local HTTP boundary.
+
+    The machine ``code`` is always present. Safe machine-readable ``details``
+    are preserved so the user interface can localize by code instead of parsing
+    English prose. Anything outside the allowlist is dropped rather than
+    forwarded.
+    """
+
+    body: dict[str, object] = {
+        "error": {"code": error.code, "message": error.message}
+    }
+    details = error.details
+    if isinstance(details, Mapping):
+        safe = {
+            key: value
+            for key, value in details.items()
+            if key in _PUBLIC_ERROR_DETAIL_KEYS
+            and isinstance(value, (str, bool, int, float, type(None)))
+        }
+        if safe:
+            body["error"]["details"] = safe  # type: ignore[index]
+    return body
 
 
 def _timestamp(value: datetime | None) -> str | None:
@@ -2596,10 +2631,7 @@ def serve_loopback(
                 if isinstance(restore, dict) and restore.get("restart_required") is True:
                     threading.Timer(0.25, self.server.shutdown).start()
             except ApiError as error:
-                self._send(
-                    error.status,
-                    {"error": {"code": error.code, "message": error.message}},
-                )
+                self._send(error.status, _error_body(error))
             except Exception:
                 self._send(
                     HTTPStatus.INTERNAL_SERVER_ERROR,

@@ -383,18 +383,16 @@ def project_deep_analysis_result(
             )
         )
 
-    add(content.one_sentence_summary, "CORE_CONCLUSION", content.why_it_matters)
+    # Every role is projected from exactly one carrier field, so the projection
+    # is a lossless 1:1 view of what the model authored. Reading a role from a
+    # field the mapper does not populate would silently drop claims.
     for point in content.core_points:
         add(point.text, "CORE_CONCLUSION", point)
-    for point in (*content.key_facts, *content.key_arguments):
+    for point in content.key_facts:
         add(point.text, "KEY_EVIDENCE", point)
-    for point in (*content.counterpoints, *content.risks):
+    for point in content.counterpoints:
         add(point.text, "UNCERTAINTY", point)
-    add(content.why_it_matters.text, "RELEVANCE_TO_USER", content.why_it_matters)
-    for point in (
-        *content.actionable_directions,
-        *content.action_recommendations,
-    ):
+    for point in content.product_opportunities:
         add(point.text, "RELEVANCE_TO_USER", point)
     for point in content.hypotheses_to_validate:
         add(point.text, "NEXT_QUESTION", point)

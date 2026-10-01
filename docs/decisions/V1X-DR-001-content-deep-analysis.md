@@ -176,7 +176,29 @@ work.
 that accepts its permitted claim kinds. A payload the carrier cannot represent
 faithfully — or that exceeds a carrier field's capacity — is rejected by the
 Phase-1A schema itself with an explicit contract rule, rather than crashing the
-mapper, being silently truncated, or being relabelled.
+mapper, being silently truncated, or being relabelled. `why_it_matters` is
+derived only from genuinely inference-typed material; a fact conclusion is never
+relabelled as an inference to satisfy a historical validator.
+
+**Phase-1A provider contract limits are intentionally bounded by the lossless
+capacity of the historical compatibility carrier.** Phase 1A is a compatibility
+activation layer, so its provider-facing schema is deliberately narrower than the
+future durable schema: a `core_conclusion` claim is capped at the carrier's
+500-character summary limit, and each role's cardinality is capped at its carrier
+target's capacity. This narrowing is **temporary and deliberate** — it guarantees
+that anything the Phase-1A model contract accepts is representable without
+truncation or claim loss. Phase 1B may introduce a native durable five-role
+contract with independently chosen limits.
+
+**Accepted input must always map.** If `DeepAnalysisPhase1AModelOutput` accepts a
+payload, the deterministic compatibility mapping MUST succeed. No schema-valid
+input may crash mapping.
+
+**No public projection loss.** Each of the five public roles is projected from
+exactly one carrier field, so the round trip model output → mapping → persistence
+→ restart → API → frontend preserves claim count, text, epistemic kind, and
+ordering. Nothing is silently dropped, and a plural role is never reduced to its
+first element.
 
 ### 4b. Qualification is never configuration truth
 
@@ -203,6 +225,13 @@ diagnostic prose. The user interface localizes on the code, so Chinese mode neve
 surfaces raw English status, reason, POST-error, or confidence text. This applies
 to read states, run failures, and per-claim confidence codes alike; localization
 never relies on string-matching arbitrary backend prose.
+
+The local HTTP boundary preserves safe machine-readable error details
+(`reason_code`, `availability`, `consent_required`) so real loopback clients
+localize by code rather than prose, and `ErrorState` renders the backend message
+as diagnostic text instead of primary product copy. Role headings use the same
+UI-language mechanism in both directions: no hardcoded Chinese label leaks into
+English mode, and no engineering enum name is ever shown.
 
 ### 4e. Trusted timestamps must be timezone-aware
 

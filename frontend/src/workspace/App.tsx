@@ -295,18 +295,24 @@ function initialPage(): Page {
 function useRemote<T>(path: string, refresh = 0) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Keep the stable machine code so failures can be localized by code instead of
+  // rendering backend English prose.
+  const [errorCode, setErrorCode] = useState<string | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     setData(null);
     setError(null);
-    api<T>(path).then((value) => alive && setData(value)).catch((
-      reason: Error,
-    ) => alive && setError(reason.message));
+    setErrorCode(undefined);
+    api<T>(path).then((value) => alive && setData(value)).catch((reason: Error) => {
+      if (!alive) return;
+      setError(reason.message);
+      setErrorCode(reason instanceof ApiRequestError ? reason.code : undefined);
+    });
     return () => {
       alive = false;
     };
   }, [path, refresh]);
-  return { data, error };
+  return { data, error, errorCode };
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
@@ -398,15 +404,50 @@ function Empty({ children }: { children: ReactNode }) {
   const { t } = useUiLanguage();
   return <div className="empty-state">{typeof children === "string" ? t(children) : children}</div>;
 }
-function ErrorState({ error }: { error: string }) {
+function ErrorState({ error, code }: { error: string; code?: string }) {
   const { language, t } = useUiLanguage();
+  // When a stable machine code is known, localized copy is shown as the primary
+  // product text and the backend prose is diagnostic only. Localizing never
+  // relies on matching arbitrary English strings.
+  const localized = code ? localizedApiErrorCopy(code) : undefined;
+  // Preserve the established DOM shape: the raw backend message is shown once as
+  // diagnostic text, and localized copy replaces it as the primary product text
+  // whenever a stable machine code is known.
   return (
     <div className="semantic-state state-danger">
       <Status value="Blocked" />
-      {language === "zh-CN" ? <p>{t("The operation could not be completed.")}</p> : null}
-      <p>{error}</p>
+      {localized ? (
+        <>
+          <p>{t(localized)}</p>
+          <p className="hint">{error}</p>
+        </>
+      ) : (
+        <>
+          {language === "zh-CN" ? <p>{t("The operation could not be completed.")}</p> : null}
+          <p>{error}</p>
+        </>
+      )}
     </div>
   );
+}
+
+/** Stable API error codes that have localized product copy. */
+function localizedApiErrorCopy(code: string): string | undefined {
+  const known: Record<string, string> = {
+    DEEP_ANALYSIS_NOT_QUALIFIED:
+      "Deep Analysis could not run because no model is currently qualified for it.",
+    DEEP_ANALYSIS_CLOUD_CONSENT_REQUIRED:
+      "This route would send bounded data to a cloud provider and needs your explicit consent for this run.",
+    DEEP_ANALYSIS_EVIDENCE_UNAVAILABLE:
+      "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably.",
+    DEEP_ANALYSIS_CONTENT_UNAVAILABLE: "This Content is not available.",
+    DEEP_ANALYSIS_SCORING_UNAVAILABLE:
+      "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.",
+    DEEP_ANALYSIS_FAILED:
+      "Deep Analysis did not produce a trusted result. No partial or invented result is shown.",
+    DEEP_ANALYSIS_UNAVAILABLE: "Deep Analysis is unavailable right now.",
+  };
+  return known[code];
 }
 function humanDate(value: string) {
   const date = new Date(value);
@@ -1510,13 +1551,14 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   );
 }
 
+/** English source labels; Chinese is provided by the UI-language mechanism. */
 function deepAnalysisRoleLabel(role: string) {
   const labels: Record<string, string> = {
-    CORE_CONCLUSION: "核心结论",
-    KEY_EVIDENCE: "关键证据",
-    UNCERTAINTY: "不确定性",
-    RELEVANCE_TO_USER: "对我的意义",
-    NEXT_QUESTION: "下一步追问",
+    CORE_CONCLUSION: "Core conclusion",
+    KEY_EVIDENCE: "Key evidence",
+    UNCERTAINTY: "Uncertainty",
+    RELEVANCE_TO_USER: "Relevance to you",
+    NEXT_QUESTION: "Next question",
   };
   return labels[role] ?? role;
 }
@@ -1617,7 +1659,7 @@ function DeepAnalysisStatusLabel({ value }: { value: string }) {
 function DeepAnalysisPanel({ videoId }: { videoId: string }) {
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
-  const { data, error } = useRemote<DeepAnalysisEnvelope>(
+  const { data, error, errorCode } = useRemote<DeepAnalysisEnvelope>(
     `/videos/${videoId}/deep-analysis`,
     refresh,
   );
@@ -1658,7 +1700,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
       <p className="hint">
         {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
       </p>
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} code={errorCode} /> : null}
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
@@ -1674,7 +1716,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
             if (claims.length === 0) return null;
             return (
               <section className="intelligence-section" key={role}>
-                <p className="section-label">{deepAnalysisRoleLabel(role)}</p>
+                <p className="section-label">{t(deepAnalysisRoleLabel(role))}</p>
                 <ul>
                   {claims.map((claim, index) => (
                     <li key={`${role}-${index}`}>

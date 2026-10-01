@@ -1818,18 +1818,19 @@ test("Deep Analysis renders the five product roles in order", async () => {
   await openDeepAnalysisContent();
 
   expect(await screen.findByText("核心结论内容。")).toBeTruthy();
+  // English mode must render English role headings, not hardcoded Chinese.
   for (const label of [
-    "核心结论",
-    "关键证据",
-    "不确定性",
-    "对我的意义",
-    "下一步追问",
+    "Core conclusion",
+    "Key evidence",
+    "Uncertainty",
+    "Relevance to you",
+    "Next question",
   ]) {
     expect(screen.getByText(label)).toBeTruthy();
   }
   // Deferred roles are never shown.
-  expect(screen.queryByText("与已有知识的关系")).toBeNull();
-  expect(screen.queryByText("知识增量")).toBeNull();
+  expect(screen.queryByText("Relation to existing knowledge")).toBeNull();
+  expect(screen.queryByText("Knowledge delta")).toBeNull();
   // Phase 1A never presents unverified refs as citations.
   expect(
     screen.getByText(/never presents an unverified reference as an authoritative citation/i),
@@ -2079,4 +2080,154 @@ test("English confidence and run-failure copy remain correct", async () => {
   const englishConfidence = await screen.findAllByText((_c, el) =>
     el?.textContent === "Confidence: Insufficient Evidence");
   expect(englishConfidence.length).toBeGreaterThan(0);
+});
+
+test("Chinese mode renders all five Chinese role headings and no English enum names", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({
+    status: {
+      availability: "AVAILABLE",
+      reason_code: "RESULT_AVAILABLE",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: daResult,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  for (const label of ["核心结论", "关键证据", "不确定性", "对我的意义", "下一步追问"]) {
+    expect(screen.getByText(label)).toBeTruthy();
+  }
+  const body = document.body.textContent ?? "";
+  for (const enumName of [
+    "CORE_CONCLUSION",
+    "KEY_EVIDENCE",
+    "UNCERTAINTY",
+    "RELEVANCE_TO_USER",
+    "NEXT_QUESTION",
+  ]) {
+    expect(body).not.toContain(enumName);
+  }
+});
+
+test("English mode renders no hardcoded Chinese role headings", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  stubDeepAnalysis({
+    status: {
+      availability: "AVAILABLE",
+      reason_code: "RESULT_AVAILABLE",
+      reason: null,
+      route_id: "local-ollama-qwen25-coder-7b",
+      model_id: "qwen2.5-coder:7b",
+      provider_id: "ollama-local",
+      qualified: true,
+      consent_required: false,
+    },
+    result: daResult,
+  });
+
+  render(<App />);
+  await openDeepAnalysisContent();
+
+  for (const label of [
+    "Core conclusion",
+    "Key evidence",
+    "Uncertainty",
+    "Relevance to you",
+    "Next question",
+  ]) {
+    expect(screen.getByText(label)).toBeTruthy();
+  }
+  // No heading may be rendered with the hardcoded Chinese source labels.
+  for (const chinese of ["核心结论", "关键证据", "不确定性", "对我的意义", "下一步追问"]) {
+    const headings = Array.from(
+      document.querySelectorAll(".section-label"),
+    ).map((el) => el.textContent ?? "");
+    expect(headings).not.toContain(chinese);
+  }
+});
+
+test("Chinese GET failure does not render raw backend English prose", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const backendProse =
+    "The local service rejected this request because the Content state is invalid.";
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "DEEP_ANALYSIS_NOT_QUALIFIED",
+            message: backendProse,
+            details: { reason_code: "NO_QUALIFIED_MODEL", availability: "NOT_QUALIFIED" },
+          },
+        }),
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+  await screen.findByRole("button", { name: "开始深度分析" });
+
+  await waitFor(() =>
+    expect(
+      (document.body.textContent ?? "").includes(
+        "当前没有通过深度分析资格的模型，因此无法运行深度分析。",
+      ),
+    ).toBe(true),
+  );
+  // The localized copy is the primary text; the raw prose is diagnostic only.
+  const body = document.body.textContent ?? "";
+  expect(body).not.toContain("DEEP_ANALYSIS_NOT_QUALIFIED");
+  expect(body).not.toContain("NO_QUALIFIED_MODEL");
+});
+
+test("English mode renders the English equivalent for a GET failure", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "DEEP_ANALYSIS_NOT_QUALIFIED",
+            message: "backend prose that must not be primary copy",
+            details: { reason_code: "NO_QUALIFIED_MODEL" },
+          },
+        }),
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+
+  expect(
+    await screen.findByText(
+      "Deep Analysis could not run because no model is currently qualified for it.",
+    ),
+  ).toBeTruthy();
 });

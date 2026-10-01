@@ -295,8 +295,18 @@ const chinese: Record<string, string> = {
   "Run Deep Analysis": "开始深度分析",
   Confidence: "置信度",
   "Insufficient Evidence": "证据不足",
+  "Core conclusion": "核心结论",
+  "Key evidence": "关键证据",
+  Uncertainty: "不确定性",
+  "Relevance to you": "对我的意义",
+  "Next question": "下一步追问",
   "Deep Analysis could not run because no model is currently qualified for it.":
     "当前没有通过深度分析资格的模型，因此无法运行深度分析。",
+  "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.":
+    "深度分析需要这段内容具备已核验的评分结果，目前无法使用。",
+  "Deep Analysis did not produce a trusted result. No partial or invented result is shown.":
+    "深度分析没有得到可信结果，不会展示任何残缺或编造的内容。",
+  "Deep Analysis is unavailable right now.": "深度分析目前不可用。",
   "This Content is not available.": "这段内容不可用。",
   "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably.":
     "这段内容没有可信的带时间轴字幕证据，因此深度分析无法提供可追溯的引用。",
@@ -314,14 +324,10 @@ const chinese: Record<string, string> = {
     "这段内容还没有做过深度分析。深度分析是按需操作，你不主动触发时不会执行任何计算。",
   "Deep Analysis is unavailable because no model is currently qualified for it. Nothing is downgraded silently, and Summary and Evidence stay usable.":
     "当前没有通过深度分析资格的模型，因此深度分析不可用。系统不会静默降级，摘要与证据仍可正常使用。",
-  "Deep Analysis needs a verified scoring read for this Content. It is unavailable right now.":
-    "深度分析需要这段内容具备已核验的评分结果，目前无法使用。",
   "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably. No timestamp is invented and no result is produced.":
     "这段内容没有可信的带时间轴字幕证据，因此深度分析无法提供可追溯的引用。系统不会编造时间戳，也不会生成结果。",
   "This route would send bounded data to a cloud provider and needs your explicit consent for this run.":
     "该路径会把受限范围的数据发送到云端服务商，需要你为本次运行明确同意。",
-  "Deep Analysis did not produce a trusted result. No partial or invented result is shown.":
-    "深度分析没有得到可信结果，因此不会展示任何残缺或编造的内容。",
   "Deep Analysis is unavailable for this Content right now.":
     "深度分析目前无法用于这段内容。",
   "Timestamped key points": "按时间标记的要点",

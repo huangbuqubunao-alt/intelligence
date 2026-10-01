@@ -22,7 +22,7 @@ makes the activated production path honest today.
 from __future__ import annotations
 
 import json
-from typing import Literal, Self
+from typing import Final, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -55,12 +55,27 @@ DEFERRED_MODEL_FIELDS: frozenset[str] = frozenset(
 )
 
 
+#: Maximum characters a ``core_conclusion`` claim may carry.
+#:
+#: The first conclusion claim becomes the frozen carrier's
+#: ``one_sentence_summary``, whose limit is 500. Phase 1A is a compatibility
+#: activation layer, so its provider contract is bounded by what the carrier can
+#: represent losslessly. Text is never silently truncated.
+MAX_CORE_CONCLUSION_CHARS: Final = 500
+
+#: Maximum characters for a non-summary claim.
+#:
+#: The frozen ``AnalysisPoint.text`` limit is 2000, so any claim mapped into an
+#: AnalysisPoint field is representable up to this length.
+MAX_CLAIM_CHARS: Final = 2000
+
+
 class DeepAnalysisClaimV1(BaseModel):
     """One model-authored claim: text plus an honest epistemic type."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    text: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    text: str = Field(min_length=1, max_length=MAX_CLAIM_CHARS, pattern=r"\S")
     point_kind: Literal["fact", "inference", "recommendation"]
 
 
@@ -77,13 +92,15 @@ class DeepAnalysisPhase1AModelOutput(BaseModel):
     schema_version: Literal["v1x-content-deep-analysis-model-output-v1"] = (
         "v1x-content-deep-analysis-model-output-v1"
     )
+    # Cardinalities are bounded by the frozen carrier targets so that every
+    # accepted claim is persisted losslessly and reaches the public projection.
     core_conclusion: tuple[DeepAnalysisClaimV1, ...] = Field(min_length=1, max_length=10)
     key_evidence: tuple[DeepAnalysisClaimV1, ...] = Field(min_length=1, max_length=20)
-    uncertainty: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=20)
+    uncertainty: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=10)
     relevance_to_user: tuple[DeepAnalysisClaimV1, ...] = Field(
-        default=(), max_length=20
+        default=(), max_length=10
     )
-    next_question: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=20)
+    next_question: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=10)
 
     @model_validator(mode="after")
     def _carrier_compatible(self) -> Self:
@@ -186,6 +203,14 @@ def _validate_carrier_compatibility(output: DeepAnalysisPhase1AModelOutput) -> N
     ``ValidationError`` and without changing any claim's epistemic meaning.
     """
 
+    for index, claim in enumerate(output.core_conclusion):
+        if len(claim.text) > MAX_CORE_CONCLUSION_CHARS:
+            msg = (
+                f"core_conclusion[{index}] is {len(claim.text)} characters but the "
+                f"compatibility carrier summary field holds at most "
+                f"{MAX_CORE_CONCLUSION_CHARS}; text is never truncated"
+            )
+            raise ValueError(msg)
     for role, limit in ROLE_MAX_CLAIMS.items():
         count = len(getattr(output, role))
         if count > limit:
@@ -195,6 +220,18 @@ def _validate_carrier_compatibility(output: DeepAnalysisPhase1AModelOutput) -> N
                 "silently"
             )
             raise ValueError(msg)
+    has_inference = any(
+        claim.point_kind == "inference"
+        for role in ("core_conclusion", "uncertainty", "relevance_to_user", "next_question")
+        for claim in getattr(output, role)
+    )
+    if not has_inference:
+        msg = (
+            "the frozen carrier requires an inference-typed why_it_matters field; "
+            "this payload has no inference-typed claim and point_kind is never "
+            "rewritten to satisfy it"
+        )
+        raise ValueError(msg)
     for role, (field_name, allowed) in _CARRIER_RULES.items():
         for index, claim in enumerate(getattr(output, role)):
             if claim.point_kind not in allowed:
@@ -214,6 +251,34 @@ def _validate_carrier_compatibility(output: DeepAnalysisPhase1AModelOutput) -> N
             )
             raise ValueError(msg)
 
+
+
+def _why_it_matters_source(
+    output: DeepAnalysisPhase1AModelOutput,
+) -> DeepAnalysisClaimV1:
+    """Choose the inference-typed claim that may back ``why_it_matters``.
+
+    The frozen carrier requires this field to be an inference. Preference order
+    keeps the meaning honest:
+
+    1. an explicit ``relevance_to_user`` claim (inference by contract);
+    2. otherwise the first inference-typed claim among conclusion, uncertainty,
+       and next question.
+
+    A ``fact`` conclusion is never relabelled. When the payload contains no
+    inference-typed material at all, the schema rejects it up front, so this
+    helper always finds a compatible claim.
+    """
+
+    if output.relevance_to_user:
+        return output.relevance_to_user[0]
+    for role in ("core_conclusion", "uncertainty", "next_question"):
+        for claim in getattr(output, role):
+            if isinstance(claim, DeepAnalysisClaimV1) and claim.point_kind == "inference":
+                return claim
+    # Unreachable: _validate_carrier_compatibility rejects this payload.
+    msg = "no inference-typed claim is available for why_it_matters"
+    raise ValueError(msg)
 
 
 def map_phase_1a_output_to_knowledge_content(
@@ -254,13 +319,11 @@ def map_phase_1a_output_to_knowledge_content(
     return KnowledgeContent(
         one_sentence_summary=output.core_conclusion[0].text,
         summary_evidence_ids=summary_evidence_ids,
-        # Relevance to the user is an inference about the reader, represented by
-        # the same inference-typed carrier fields the frozen contract allows.
-        why_it_matters=point(
-            output.relevance_to_user[0]
-            if output.relevance_to_user
-            else output.core_conclusion[0]
-        ),
+        # ``why_it_matters`` is a required frozen-carrier field typed as an
+        # inference. It is derived only from semantically compatible Phase-1A
+        # material; a fact conclusion is never relabelled as an inference to
+        # satisfy the validator.
+        why_it_matters=point(_why_it_matters_source(output)),
         core_points=tuple(point(claim) for claim in output.core_conclusion),
         key_facts=tuple(point(claim) for claim in output.key_evidence),
         key_arguments=(),
