@@ -11,6 +11,7 @@ from typing import Callable
 
 from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.config import AppConfig
+from youtube_intel.deep_analysis_obsidian import DeepAnalysisObsidianPublisher
 from youtube_intel.deep_analysis_service import (
     DeepAnalysisCapability,
     DeepAnalysisService,
@@ -325,6 +326,11 @@ def build_local_source_run_runtime(
         evidence_translation_service=evidence_translation,
         backup_restore_service=backup_restore,
         deep_analysis_service=deep_analysis,
+        deep_analysis_publisher=DeepAnalysisObsidianPublisher(
+            repository,
+            vault_root=Path(config.settings.storage.vault_root),
+            vault_subdir=config.settings.storage.vault_subdir,
+        ),
     )
     return LocalSourceRunRuntime(
         repository=repository,

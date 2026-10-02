@@ -1798,7 +1798,56 @@ function DeepAnalysisPanel(
           </span>
         ) : null}
       </div>
+      <DeepAnalysisPublishAction
+        key={`${videoId}:${result?.result_identity ?? "none"}`}
+        videoId={videoId}
+        resultIdentity={durableCitations ? result?.result_identity ?? null : null}
+      />
     </Panel>
+  );
+}
+
+function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: string; resultIdentity: string | null }) {
+  const { t } = useUiLanguage();
+  type PublishState = { state: string; result_identity?: string; relative_path?: string };
+  const path = `/videos/${videoId}/deep-analysis/obsidian`;
+  const { data, error } = useRemote<{ publish: PublishState }>(path);
+  const [outcome, setOutcome] = useState<PublishState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const status = data?.publish;
+  const canPublish = !busy && resultIdentity !== null && status?.state === "AVAILABLE" && status.result_identity === resultIdentity;
+  const copy: Record<string, string> = {
+    NO_VAULT: "No Obsidian vault is configured.",
+    RESULT_INELIGIBLE: "Only a verified durable Deep Analysis result can be published.",
+    RESULT_CHANGED: "The Deep Analysis result changed. Reopen this Content before publishing.",
+    PUBLISHED: "Published to Obsidian.",
+    UPDATED: "Updated in Obsidian.",
+    UNCHANGED: "The Obsidian note is already up to date.",
+    WRITE_FAILED: "The write did not complete. Check vault permissions, paths, or file conflicts and retry.",
+  };
+  const state = outcome?.state ?? (error ? "WRITE_FAILED" : status?.state);
+  async function publish() {
+    if (!canPublish) return;
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const response = await post<{ publish: PublishState }>(path, { result_identity: resultIdentity });
+      setOutcome(response.publish);
+    } catch (reason) {
+      setOutcome({ state: reason instanceof ApiRequestError ? reason.code : "WRITE_FAILED" });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="deep-analysis-publish">
+      <button type="button" className="button button-secondary" onClick={publish} disabled={!canPublish}>
+        {busy ? t("Working…") : t("Publish to Obsidian")}
+      </button>
+      <p className="hint">{t("Publishing updates the managed note. Your My thoughts section is preserved.")}</p>
+      {state && state !== "AVAILABLE" ? <p role="status" className="hint">{t(copy[state] ?? copy.WRITE_FAILED)}</p> : null}
+      {outcome?.relative_path ? <p className="hint deep-analysis-publish-path">{outcome.relative_path}</p> : null}
+    </div>
   );
 }
 

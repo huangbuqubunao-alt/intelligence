@@ -4,6 +4,15 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Publish to Obsidian": "发布到 Obsidian",
+  "No Obsidian vault is configured.": "尚未配置 Obsidian 笔记库。",
+  "Only a verified durable Deep Analysis result can be published.": "仅经过核验的持久化深度分析结果可以发布。",
+  "The Deep Analysis result changed. Reopen this Content before publishing.": "深度分析结果已更新。请重新打开此内容后再发布。",
+  "Published to Obsidian.": "已发布到 Obsidian。",
+  "Updated in Obsidian.": "已更新 Obsidian 笔记。",
+  "The Obsidian note is already up to date.": "Obsidian 笔记已是最新版本。",
+  "The write did not complete. Check vault permissions, paths, or file conflicts and retry.": "写入未完成。请检查笔记库权限、路径或文件冲突后重试。",
+  "Publishing updates the managed note. Your My thoughts section is preserved.": "发布会更新受管笔记，并保留「我的思考」区域。",
   Home: "首页",
   Following: "关注",
   Content: "内容",

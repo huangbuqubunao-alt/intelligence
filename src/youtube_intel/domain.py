@@ -142,6 +142,7 @@ class NotAvailableReason(str, Enum):
 class NoteKind(str, Enum):
     VIDEO = "video"
     WEEKLY = "weekly"
+    DEEP_ANALYSIS = "deep-analysis"
 
 
 class PipelineStatus(str, Enum):

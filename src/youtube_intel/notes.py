@@ -242,8 +242,7 @@ def _safe_inline(value: str) -> str:
     normalized = unicodedata.normalize("NFC", value)
     cleaned = "".join(character for character in normalized if unicodedata.category(character) != "Cc")
     collapsed = " ".join(cleaned.split())
-    escaped = html.escape(collapsed, quote=True)
-    for old, new in (
+    escapes = dict((
         ("[", "&#91;"),
         ("]", "&#93;"),
         ("!", "&#33;"),
@@ -252,9 +251,10 @@ def _safe_inline(value: str) -> str:
         ("|", "&#124;"),
         ("*", "&#42;"),
         ("_", "&#95;"),
-    ):
-        escaped = escaped.replace(old, new)
-    return escaped
+    ))
+    # Escape primitives before HTML encoding; otherwise '#' inside an HTML
+    # entity (e.g. an apostrophe's &#x27;) is escaped a second time.
+    return "".join(escapes.get(character, html.escape(character, quote=True)) for character in collapsed)
 
 
 def _safe_block(value: str) -> str:
@@ -295,14 +295,14 @@ def _safe_block(value: str) -> str:
     return "\n".join(escaped_lines)
 
 
-def _template() -> Template:
+def _template(resource: tuple[str, str] = _TEMPLATE_RESOURCE) -> Template:
     environment = ImmutableSandboxedEnvironment(
         autoescape=False,
         undefined=StrictUndefined,
         loader=None,
     )
     environment.globals.clear()
-    source = resources.files("youtube_intel").joinpath(*_TEMPLATE_RESOURCE).read_text(
+    source = resources.files("youtube_intel").joinpath(*resource).read_text(
         encoding="utf-8"
     )
     return environment.from_string(source)
