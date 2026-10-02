@@ -196,6 +196,14 @@
   letter-spacing: .06em;
   text-transform: uppercase;
 }
+/* Durable citation identities and multiple per-claim links must wrap on mobile. */
+.deep-analysis-result .reading-meta, .evidence-trace-item .reading-meta {
+  flex-wrap: wrap;
+}
+.evidence-trace-item .reading-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .evidence-trace-item p {
   margin: 0;
   overflow-wrap: anywhere;

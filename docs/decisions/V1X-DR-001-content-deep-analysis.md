@@ -363,3 +363,11 @@ Generic router; Deep Analysis of Intelligence/Topic; persisted Knowledge Delta;
 read watermarks; durable Research diff; Obsidian→SQLite round-trip; per-Following
 output-language override; non-YouTube Evidence types (structurally impossible
 under the current `evidence` schema and requiring a Constitution-level decision).
+
+## Phase 1B implementation record
+
+The accepted Phase 1A closure remains frozen. The subsequent native durable
+contract, exact Evidence membership, result-specific Note gate and migration /
+Backup-Restore behavior are recorded in
+[V1X-DR-002](V1X-DR-002-durable-deep-analysis-evidence.md). Its native persistence
+is explicitly versioned; it does not reinterpret historical Phase 1A rows.

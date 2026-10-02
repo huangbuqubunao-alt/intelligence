@@ -318,6 +318,9 @@ const chinese: Record<string, string> = {
     "深度分析目前无法用于这段内容，你可以重试。",
   "Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.":
     "摘要说明这段内容讲了什么。深度分析是独立的按需操作，用于给出结论、证据、不确定性、对你的意义，以及下一步该追问什么。",
+  "Evidence citations have been verified against this Content’s original transcript.":
+    "证据引用已与这段内容的原始字幕核验。",
+  "Output language could not be fully verified.": "输出语言尚未完全核验。",
   "Per-claim Evidence citations are not shown yet. Deep Analysis never presents an unverified reference as an authoritative citation.":
     "逐条证据引用尚未展示。深度分析绝不会把未经核验的引用当作权威证据。",
   "Unavailable until a model is qualified for Deep Analysis.":

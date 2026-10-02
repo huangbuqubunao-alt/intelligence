@@ -1706,9 +1706,10 @@ class SQLiteStateRepository:
             "026_add_openai_cloud_execution_audit.sql",
             "027_add_moonshot_cloud_execution_audit.sql",
             "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
         )
         migrations: list[_Migration] = []
-        for version, name in enumerate(names, start=1):
+        for name in names:
             sql_bytes = (
                 resources.files("youtube_intel")
                 .joinpath("migrations", name)
@@ -1716,7 +1717,7 @@ class SQLiteStateRepository:
             )
             migrations.append(
                 _Migration(
-                    version=version,
+                    version=int(name.split("_", 1)[0]),
                     name=name,
                     sql=sql_bytes.decode("utf-8"),
                     checksum=hashlib.sha256(sql_bytes).hexdigest(),
@@ -6988,60 +6989,66 @@ class SQLiteStateRepository:
             raise ValueError("video identity is invalid")
         connection = self._connect()
         try:
-            row = connection.execute(
-                "SELECT t.timed_transcript_id, t.video_id, t.canonical_artifact_id, t.timed_transcript_hash, a.kind, a.deleted_at, a.video_id AS artifact_video_id FROM timed_transcripts t JOIN artifacts a ON a.artifact_id = t.canonical_artifact_id WHERE t.video_id = ?",
-                (video_id,),
-            ).fetchone()
-            if (
-                row is None
-                or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
-                or row["deleted_at"] is not None
-                or row["video_id"] != video_id
-                or row["artifact_video_id"] != video_id
-            ):
-                return None
-            cue_rows = connection.execute(
-                "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? ORDER BY cue_index ASC",
-                (row["timed_transcript_id"],),
-            ).fetchall()
-            if not cue_rows:
-                return None
-            cues: list[VerifiedTimedTranscriptCue] = []
-            for expected_index, cue in enumerate(cue_rows):
-                text = str(cue["cue_text"])
-                text_hash = _sha256_text(text)
-                if int(cue["cue_index"]) != expected_index or text_hash != cue["cue_text_hash"]:
-                    return None
-                cues.append(
-                    VerifiedTimedTranscriptCue(
-                        cue_index=expected_index,
-                        start_ms=int(cue["start_ms"]),
-                        end_ms=int(cue["end_ms"]),
-                        text=text,
-                        text_hash=str(text_hash),
-                    )
-                )
-            if any(cues[i].start_ms >= cues[i + 1].start_ms for i in range(len(cues) - 1)):
-                return None
-            actual_hash = build_timed_transcript_hash(
-                tuple(
-                    TimedTranscriptCueWrite(
-                        start_ms=cue.start_ms, end_ms=cue.end_ms, text=cue.text
-                    )
-                    for cue in cues
-                )
-            )
-            if actual_hash != row["timed_transcript_hash"]:
-                return None
-            return VerifiedTimedTranscript(
-                timed_transcript_id=str(row["timed_transcript_id"]),
-                video_id=str(row["video_id"]),
-                canonical_artifact_id=str(row["canonical_artifact_id"]),
-                timed_transcript_hash=str(actual_hash),
-                cues=tuple(cues),
-            )
+            return self._get_verified_timed_transcript_in_transaction(connection, video_id)
         finally:
             connection.close()
+
+    def _get_verified_timed_transcript_in_transaction(
+        self, connection: sqlite3.Connection, video_id: str
+    ) -> VerifiedTimedTranscript | None:
+        """Resolve timed authority in the caller's write/read snapshot."""
+        row = connection.execute(
+            "SELECT t.timed_transcript_id, t.video_id, t.canonical_artifact_id, t.timed_transcript_hash, a.kind, a.deleted_at, a.video_id AS artifact_video_id FROM timed_transcripts t JOIN artifacts a ON a.artifact_id = t.canonical_artifact_id WHERE t.video_id = ?",
+            (video_id,),
+        ).fetchone()
+        if (
+            row is None
+            or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
+            or row["deleted_at"] is not None
+            or row["video_id"] != video_id
+            or row["artifact_video_id"] != video_id
+        ):
+            return None
+        cue_rows = connection.execute(
+            "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? ORDER BY cue_index ASC",
+            (row["timed_transcript_id"],),
+        ).fetchall()
+        if not cue_rows:
+            return None
+        cues: list[VerifiedTimedTranscriptCue] = []
+        for expected_index, cue in enumerate(cue_rows):
+            text = str(cue["cue_text"])
+            text_hash = _sha256_text(text)
+            if int(cue["cue_index"]) != expected_index or text_hash != cue["cue_text_hash"]:
+                return None
+            cues.append(
+                VerifiedTimedTranscriptCue(
+                    cue_index=expected_index,
+                    start_ms=int(cue["start_ms"]),
+                    end_ms=int(cue["end_ms"]),
+                    text=text,
+                    text_hash=str(text_hash),
+                )
+            )
+        if any(cues[i].start_ms >= cues[i + 1].start_ms for i in range(len(cues) - 1)):
+            return None
+        actual_hash = build_timed_transcript_hash(
+            tuple(
+                TimedTranscriptCueWrite(
+                    start_ms=cue.start_ms, end_ms=cue.end_ms, text=cue.text
+                )
+                for cue in cues
+            )
+        )
+        if actual_hash != row["timed_transcript_hash"]:
+            return None
+        return VerifiedTimedTranscript(
+            timed_transcript_id=str(row["timed_transcript_id"]),
+            video_id=str(row["video_id"]),
+            canonical_artifact_id=str(row["canonical_artifact_id"]),
+            timed_transcript_hash=str(actual_hash),
+            cues=tuple(cues),
+        )
 
     def create_evidence(self, evidence: EvidenceWrite, *, now: datetime) -> EvidenceRecord:
         expected_id = build_evidence_id(

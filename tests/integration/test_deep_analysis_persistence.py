@@ -219,7 +219,7 @@ def test_fresh_database_has_provider_aware_persistence_schema(tmp_path: Path) ->
 
     version = repository.initialize(now=NOW)
 
-    assert version.version == 28
+    assert version.version == 30
     store = DeepAnalysisPersistenceStore(repository)
     assert store.lookup_deep_analysis_cache(cache_identity="a" * 64) is None
 
@@ -551,7 +551,7 @@ def test_same_cache_identity_with_different_content_is_rejected_by_sqlite(
                 "canonical_input_json, evidence_registry_json, authorized_payload_json, request_projection_json, "
                 "execution_profile_json, payload_consent_json, context_budget_json, response_metadata_json, "
                 "knowledge_content_json, fallback_attempts_json, fallback_policy_identity, timeout_profile_identity, "
-                "response_envelope_bytes, structured_payload_kind, structured_payload_bytes, created_at, validated_at "
+                "response_envelope_bytes, structured_payload_kind, structured_payload_bytes, created_at, validated_at, persistence_version, durable_authority_identity "
                 "FROM deep_analysis_persisted_results WHERE result_identity = ?",
                 ("b" * 64, "c" * 64, "d" * 64, persisted.result_identity),
             )

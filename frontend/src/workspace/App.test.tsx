@@ -2347,3 +2347,49 @@ test("English DA GET failure shows no raw backend prose", async () => {
   ).toBeTruthy();
   expect(document.body.textContent ?? "").not.toContain(backendProse);
 });
+
+const durableDaResult = {
+  ...daResult,
+  evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED",
+  roles: daResult.roles.map((claim, index) => ({
+    ...claim,
+    evidence_ids: ["a".repeat(64)],
+    language_validation: index === 4 ? "UNCERTAIN" : "VALID",
+  })),
+};
+
+test.each(["en", "zh-CN"])("durable DA citations and uncertain language are truthful in %s UI", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: durableDaResult });
+  render(<App />);
+  await openDeepAnalysisContent();
+  const citationLabel = language === "en" ? "Evidence 1" : "证据 1";
+  const citations = await screen.findAllByRole("link", { name: citationLabel });
+  expect(citations).toHaveLength(5);
+  expect(citations.every((link) => link.getAttribute("href") === `#content-evidence-${"a".repeat(64)}`)).toBe(true);
+  expect(screen.getByText(language === "en"
+    ? "Evidence citations have been verified against this Content’s original transcript."
+    : "证据引用已与这段内容的原始字幕核验。")).toBeTruthy();
+  expect(screen.getByText(language === "en" ? "Output language could not be fully verified." : "输出语言尚未完全核验。")).toBeTruthy();
+  expect(screen.queryByText(/Per-claim Evidence citations are not shown yet/)).toBeNull();
+});
+
+test("legacy DA never renders refs even if a partial payload supplies them", async () => {
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: {
+    ...durableDaResult, evidence_citation_status: "PENDING_DURABLE_EVIDENCE_CONVERGENCE",
+  } });
+  render(<App />);
+  await openDeepAnalysisContent();
+  expect(await screen.findByText(/never presents an unverified reference/)).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Evidence 1" })).toBeNull();
+  expect(screen.queryByText("Output language could not be fully verified.")).toBeNull();
+});
+
+test("running DA refreshes the existing Content Evidence view", async () => {
+  const fetchMock = stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: true }, result: durableDaResult });
+  render(<App />);
+  await openDeepAnalysisContent();
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/evidence"))).toHaveLength(1));
+  fireEvent.click(screen.getByRole("button", { name: "Run Deep Analysis" }));
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/evidence"))).toHaveLength(2));
+});

@@ -37,6 +37,13 @@ from youtube_intel.deep_analysis_contracts import (
     UntrustedDeepAnalysisResponseV1,
     dacs1_sha256,
 )
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_MODEL_SCHEMA,
+    PHASE_1B_PROMPT_IDENTITY,
+    PHASE_1B_VALIDATION_POLICY,
+    DeepAnalysisPhase1BModelOutput,
+    claim_language,
+)
 from youtube_intel.domain import (
     EvidenceRegistry,
     KnowledgeContent,
@@ -182,7 +189,7 @@ class _PersistedSuccessMaterial:
     envelope: DeepAnalysisDispatchEnvelopeV1
     evidence_registry: EvidenceRegistry
     response: UntrustedDeepAnalysisResponseV1
-    content: KnowledgeContent
+    content: KnowledgeContent | DeepAnalysisPhase1BModelOutput
     validation_policy: DeepAnalysisValidationPolicyIdentityV1
     cache_decision: DeepAnalysisCacheDecisionV1
     attempt_history: tuple[DeepAnalysisFallbackAttemptProvenanceV1, ...]
@@ -485,7 +492,14 @@ class DeepAnalysisValidationFinalizer:
         if isinstance(extracted, DeepAnalysisFailureV1):
             return DeepAnalysisValidationResult(failure=extracted)
         try:
-            content = KnowledgeContent.model_validate(extracted)
+            content: KnowledgeContent | DeepAnalysisPhase1BModelOutput
+            if envelope.request_projection.knowledge_content_schema_identity == PHASE_1B_MODEL_SCHEMA:
+                if (envelope.request_projection.prompt_identity != PHASE_1B_PROMPT_IDENTITY
+                    or admission.validation_policy != PHASE_1B_VALIDATION_POLICY):
+                    return _failure(DeepAnalysisFailureStage.PROVENANCE, DeepAnalysisFailureCode.PROVENANCE_INVALID)
+                content = DeepAnalysisPhase1BModelOutput.model_validate(extracted)
+            else:
+                content = KnowledgeContent.model_validate(extracted)
         except Exception:
             return _failure(DeepAnalysisFailureStage.SCHEMA, DeepAnalysisFailureCode.SCHEMA_INVALID)
         if not _grounded_in_registry(content, admission.evidence_registry):
@@ -542,32 +556,7 @@ class DeepAnalysisValidationFinalizer:
             "content_identity": content_identity,
         }))
         object.__setattr__(success, "_sealed", True)
-        attempt = DeepAnalysisFallbackAttemptProvenanceV1(
-            schema_version="deep-analysis-fallback-attempt-provenance-v1",
-            ordinal=1,
-            fallback_node_identity=dacs1_sha256({
-                "schema_version": "deep-analysis-fallback-node-identity-v1",
-                "provider_id": envelope.execution_profile.provider_id,
-                "provider_kind": envelope.execution_profile.provider_kind.value,
-                "adapter_identity": envelope.execution_profile.adapter_identity,
-                "endpoint_deployment_profile_identity": envelope.execution_profile.endpoint_deployment_profile_identity,
-                "model_selection_identity": envelope.execution_profile.model_selection.identity,
-                "credential_execution_profile_identity": envelope.execution_profile.credential_execution_profile.identity,
-                "structured_output_profile_identity": envelope.execution_profile.structured_output_profile_identity,
-                "generation_profile_identity": envelope.execution_profile.generation_profile_identity,
-                "context_authority_identity": envelope.execution_profile.context_authority_identity,
-                "qualified_capability_profile_identity": envelope.execution_profile.qualified_capability_profile_identity,
-                "payload_scope": envelope.request_projection.payload_scope.value,
-            }),
-            provider_id=envelope.execution_profile.provider_id,
-            model_selection_identity=envelope.execution_profile.model_selection.identity,
-            payload_scope=envelope.request_projection.payload_scope,
-            consent_identity=envelope.payload_consent.identity,
-            a1_identity=envelope.a1_identity,
-            a2_identity=envelope.a2_identity,
-            a3_identity=envelope.a3_identity,
-            transport_result_identity=response.provider_envelope_identity,
-        )
+        attempt = _single_attempt_provenance(envelope, response)
         _record_success(success, _TrustedAdmission(
             content_identity=content_identity,
             cache_identity=cache_identity,
@@ -682,15 +671,19 @@ def _parse_strict_json(payload: bytes) -> object | DeepAnalysisFailureV1:
         return _failure_value(DeepAnalysisFailureStage.STRUCTURED_OUTPUT, DeepAnalysisFailureCode.STRUCTURED_OUTPUT_INVALID)
 
 
-def _grounded_in_registry(content: KnowledgeContent, registry: EvidenceRegistry) -> bool:
+def _grounded_in_registry(content: KnowledgeContent | DeepAnalysisPhase1BModelOutput, registry: EvidenceRegistry) -> bool:
     allowed = {item.evidence_id for item in registry.items}
+    if isinstance(content, DeepAnalysisPhase1BModelOutput):
+        return set(content.cited_refs()).issubset(allowed)
     references = set(content.summary_evidence_ids)
     for point in (content.why_it_matters, *content.core_points, *content.key_facts, *content.important_concepts, *content.key_arguments, *content.counterpoints, *content.product_opportunities, *content.business_opportunities, *content.actionable_directions, *content.hypotheses_to_validate, *content.action_recommendations, *content.risks):
         references.update(point.evidence_ids)
     return references.issubset(allowed)
 
 
-def _kg2_valid(content: KnowledgeContent) -> bool:
+def _kg2_valid(content: KnowledgeContent | DeepAnalysisPhase1BModelOutput) -> bool:
+    if isinstance(content, DeepAnalysisPhase1BModelOutput):
+        return True  # This contract has no knowledge-graph fields.
     try:
         type(content.knowledge_graph).model_validate(content.knowledge_graph.model_dump(mode="python"))
         return True
@@ -698,9 +691,12 @@ def _kg2_valid(content: KnowledgeContent) -> bool:
         return False
 
 
-def _language_valid(content: KnowledgeContent, output_language: str) -> bool:
+def _language_valid(content: KnowledgeContent | DeepAnalysisPhase1BModelOutput, output_language: str) -> bool:
     if output_language not in {"en", "zh-CN"}:
         return False
+    if isinstance(content, DeepAnalysisPhase1BModelOutput):
+        return all(claim_language(claim.text, output_language) is not ScoringLanguageValidation.INVALID
+                   for _, claim in content.claims_by_role())
     text = " ".join((
         content.one_sentence_summary,
         content.why_it_matters.text,
@@ -726,3 +722,36 @@ def _final_provenance_matches(
 
 def _verify_trusted_deep_analysis_success(value: object) -> bool:
     return _verify_finalized_success(value)
+
+
+def _single_attempt_provenance(
+    envelope: DeepAnalysisDispatchEnvelopeV1,
+    response: UntrustedDeepAnalysisResponseV1,
+) -> DeepAnalysisFallbackAttemptProvenanceV1:
+    """Shared construction/replay of the bounded, no-fallback execution record."""
+    return DeepAnalysisFallbackAttemptProvenanceV1(
+        schema_version="deep-analysis-fallback-attempt-provenance-v1",
+        ordinal=1,
+        fallback_node_identity=dacs1_sha256({
+            "schema_version": "deep-analysis-fallback-node-identity-v1",
+            "provider_id": envelope.execution_profile.provider_id,
+            "provider_kind": envelope.execution_profile.provider_kind.value,
+            "adapter_identity": envelope.execution_profile.adapter_identity,
+            "endpoint_deployment_profile_identity": envelope.execution_profile.endpoint_deployment_profile_identity,
+            "model_selection_identity": envelope.execution_profile.model_selection.identity,
+            "credential_execution_profile_identity": envelope.execution_profile.credential_execution_profile.identity,
+            "structured_output_profile_identity": envelope.execution_profile.structured_output_profile_identity,
+            "generation_profile_identity": envelope.execution_profile.generation_profile_identity,
+            "context_authority_identity": envelope.execution_profile.context_authority_identity,
+            "qualified_capability_profile_identity": envelope.execution_profile.qualified_capability_profile_identity,
+            "payload_scope": envelope.request_projection.payload_scope.value,
+        }),
+        provider_id=envelope.execution_profile.provider_id,
+        model_selection_identity=envelope.execution_profile.model_selection.identity,
+        payload_scope=envelope.request_projection.payload_scope,
+        consent_identity=envelope.payload_consent.identity,
+        a1_identity=envelope.a1_identity,
+        a2_identity=envelope.a2_identity,
+        a3_identity=envelope.a3_identity,
+        transport_result_identity=response.provider_envelope_identity,
+    )

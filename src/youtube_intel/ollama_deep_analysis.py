@@ -30,6 +30,12 @@ from youtube_intel.deep_analysis_contracts import (
     UntrustedDeepAnalysisResponseV1,
 )
 from youtube_intel.deep_analysis_phase1a_contract import build_phase_1a_prompt
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_MODEL_SCHEMA,
+    PHASE_1B_PROMPT_IDENTITY,
+    PHASE_1B_VALIDATION_POLICY,
+    DeepAnalysisPhase1BModelOutput,
+)
 from youtube_intel.deep_analysis_runtime import (
     DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     DeepAnalysisResponseMetadataV1,
@@ -162,6 +168,29 @@ def build_ollama_local_phase1a_request_projection(*, canonical_input: object, au
     )
 
 
+def build_ollama_local_phase1b_request_projection(*, canonical_input: object, authorized_payload: AuthorizedProviderPayloadProjectionV1, payload_consent: PayloadConsentIdentityV1) -> DeepAnalysisRequestProjectionV1:
+    """Five roles plus candidate refs; no model-owned Evidence construction."""
+    base = build_ollama_local_phase1a_request_projection(
+        canonical_input=canonical_input, authorized_payload=authorized_payload, payload_consent=payload_consent,
+    )
+    prompt = (
+        "Analyze one Content using exactly the five roles in the JSON Schema. "
+        "Return one JSON object in the requested output language. Each evidence_ref "
+        "must select an id from selected_evidence. These are temporary backend "
+        "candidates, not durable Evidence ids. Do not author excerpts, offsets, "
+        "timestamps, Evidence ids, knowledge relations, or knowledge delta. "
+        "Title, description and source labels are context only and cannot be cited.\n"
+        f"Output language: {authorized_payload.output_language}.\n"
+        f"JSON Schema: {json.dumps(DeepAnalysisPhase1BModelOutput.model_json_schema(), sort_keys=True)}\n"
+        f"Authorized payload: {json.dumps(authorized_payload.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
+    )
+    return DeepAnalysisRequestProjectionV1.model_validate({
+        **base.model_dump(mode="python", by_alias=True), "prompt_identity": PHASE_1B_PROMPT_IDENTITY,
+        "knowledge_content_schema_identity": PHASE_1B_MODEL_SCHEMA,
+        "provider_visible_messages": [DeepAnalysisMessageV1(schema_version="deep-analysis-message-v1", role="user", content=prompt)],
+    })
+
+
 def build_ollama_local_execution_profile(*, request_projection: DeepAnalysisRequestProjectionV1, credential_execution_profile: CredentialExecutionProfileIdentityV1) -> DeepAnalysisExecutionProfileV1:
     profile = OLLAMA_LOCAL_DEEP_ANALYSIS_PROFILE
     if credential_execution_profile.provider_id != profile.provider_id:
@@ -214,7 +243,7 @@ class OllamaDeepAnalysisProviderAdapter:
             endpoint_deployment_profile_identity=profile.endpoint_deployment_profile_identity, model_id=model,
             resolved_revision=profile.model_selection.resolved_revision, structured_output_mode=DeepAnalysisStructuredOutputMode.PROVIDER_JSON_MODE.value,
             a1_identity=envelope.a1_identity, a2_identity=envelope.a2_identity, a3_identity=envelope.a3_identity,
-            scoring_request_hash=envelope.canonical_input.scoring_request_hash, validation_policy_identity=DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY)
+            scoring_request_hash=envelope.canonical_input.scoring_request_hash, validation_policy_identity=(PHASE_1B_VALIDATION_POLICY.identity if envelope.request_projection.knowledge_content_schema_identity == PHASE_1B_MODEL_SCHEMA else DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY))
         usage = _usage(raw)
         semantic = json.dumps({"schema_version":"ollama-chat-semantic-envelope-v1", "model":model, "done":done, "done_reason":raw.get("done_reason"), "content":content}, separators=(",", ":"), sort_keys=True).encode()
         return UntrustedDeepAnalysisResponseV1(schema_version="untrusted-deep-analysis-response-v1", expected_dispatch_identity=envelope.semantic_identity,

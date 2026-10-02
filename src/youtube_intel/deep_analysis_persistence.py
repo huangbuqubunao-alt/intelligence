@@ -28,6 +28,16 @@ from youtube_intel.deep_analysis_contracts import (
     UntrustedDeepAnalysisResponseV1,
     dacs1_sha256,
 )
+from youtube_intel.deep_analysis_evidence import resolve_deep_analysis_authority
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_MODEL_SCHEMA,
+    PHASE_1B_PERSISTENCE_VERSION,
+    PHASE_1B_PROMPT_IDENTITY,
+    PHASE_1B_VALIDATION_POLICY,
+    DeepAnalysisDurableResult,
+    DeepAnalysisPhase1BModelOutput,
+    durable_compatibility_content,
+)
 from youtube_intel.deep_analysis_runtime import (
     DeepAnalysisResponseMetadataV1,
     _capture_trusted_success_for_persistence,
@@ -36,6 +46,7 @@ from youtube_intel.deep_analysis_runtime import (
     _kg2_valid,
     _language_valid,
     _matches_early_dispatch_binding,
+    _single_attempt_provenance,
 )
 from youtube_intel.domain import EvidenceRegistry, KnowledgeContent
 from youtube_intel.state import IntegrityConflict, StateStoreError, format_utc_datetime
@@ -65,6 +76,7 @@ class VerifiedPersistedDeepAnalysisRead:
     #: read or restart can never make an old result look newly generated.
     created_at: datetime
     validated_at: datetime
+    durable_result: DeepAnalysisDurableResult | None = None
 
 
 #: Phase-1A results are persisted under this request prompt identity. It is the
@@ -107,12 +119,18 @@ def require_trusted_note_eligibility(source: object) -> None:
     candidate refs rather than durable Evidence identity.
     """
 
-    if is_phase_1a_result(source):
+    if type(source) is VerifiedPersistedDeepAnalysisRead and (
+        is_phase_1a_result(source)
+        or source.canonical_input.operation == "content-deep-analysis"
+        and source.durable_result is None
+    ):
         raise DeepAnalysisPersistenceError(
             "Phase-1A Deep Analysis results are not eligible as trusted "
             "Evidence-bearing Note or export authority until Phase-1B "
             "durable-Evidence convergence is complete"
         )
+    if type(source) is VerifiedPersistedDeepAnalysisRead and source.durable_result is not None and not verify_persisted_deep_analysis_read(source):
+        raise DeepAnalysisPersistenceError("durable Note eligibility requires a verified read")
 
 
 _verified_reads: dict[
@@ -136,6 +154,7 @@ def _read_snapshot(value: VerifiedPersistedDeepAnalysisRead) -> str:
             "validation_policy": _model_json(value.validation_policy),
             "created_at": format_utc_datetime(value.created_at),
             "validated_at": format_utc_datetime(value.validated_at),
+            "durable_result": None if value.durable_result is None else _model_json(value.durable_result),
         }
     )
 
@@ -221,6 +240,16 @@ def _model_json(value: BaseModel) -> str:
     return _json(value.model_dump(mode="python", by_alias=True))
 
 
+def _durable_authority_identity(values: Mapping[str, object]) -> str:
+    return dacs1_sha256({
+        "schema_version": PHASE_1B_PERSISTENCE_VERSION,
+        **{key: values[key] for key in (
+            "result_identity", "content_identity", "validation_policy_identity",
+            "knowledge_content_json", "created_at", "validated_at",
+        )},
+    })
+
+
 class DeepAnalysisPersistenceStore:
     """Append-only writer and integrity-verifying exact cache reader."""
 
@@ -250,6 +279,9 @@ class DeepAnalysisPersistenceStore:
         envelope = material.envelope
         response = material.response
         trusted = success
+        phase1b = isinstance(material.content, DeepAnalysisPhase1BModelOutput)
+        if phase1b and promote_current_summary:
+            raise DeepAnalysisPersistenceError("Content Deep Analysis cannot promote Summary authority")
         cache_identity = material.cache_decision.cache_identity
         if response.response_metadata is None:
             raise DeepAnalysisPersistenceError(
@@ -323,14 +355,11 @@ class DeepAnalysisPersistenceStore:
         connection = self._repository._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
-            existing = (
-                None
-                if cache_identity is None
-                else connection.execute(
-                    "SELECT result_identity, content_identity FROM deep_analysis_persisted_results WHERE cache_identity = ?",
-                    (cache_identity.identity,),
-                ).fetchone()
-            )
+            existing = connection.execute(
+                "SELECT result_identity, content_identity FROM deep_analysis_persisted_results "
+                "WHERE result_identity = ? OR cache_identity = ?",
+                (trusted.provenance_identity, None if cache_identity is None else cache_identity.identity),
+            ).fetchone()
             if existing is not None:
                 if existing["content_identity"] != trusted.content_identity:
                     raise IntegrityConflict(
@@ -347,12 +376,34 @@ class DeepAnalysisPersistenceStore:
                 if promote_current_summary:
                     self._promote_current_content_summary(found, now=now)
                 return found
+            if phase1b:
+                if material.validation_policy != PHASE_1B_VALIDATION_POLICY:
+                    raise DeepAnalysisPersistenceError("unsupported durable validation policy")
+                assert isinstance(material.content, DeepAnalysisPhase1BModelOutput)
+                durable, _ = resolve_deep_analysis_authority(
+                    connection=connection, repository=self._repository,
+                    canonical=envelope.canonical_input, request=envelope.request_projection,
+                    registry=material.evidence_registry, output=material.content, promote_at=now,
+                )
+                values["knowledge_content_json"] = _model_json(durable)
+                values["persistence_version"] = PHASE_1B_PERSISTENCE_VERSION
+                values["durable_authority_identity"] = _durable_authority_identity(values)
             columns = ", ".join(values)
             placeholders = ", ".join(f":{key}" for key in values)
             connection.execute(
                 f"INSERT INTO deep_analysis_persisted_results ({columns}) VALUES ({placeholders})",
                 values,
             )
+            if phase1b:
+                ids = {ref for claim in durable.claims for ref in claim.evidence_refs}
+                connection.executemany(
+                    "INSERT INTO deep_analysis_evidence (result_identity, evidence_id, created_at) VALUES (?, ?, ?)",
+                    [(trusted.provenance_identity, eid, format_utc_datetime(now)) for eid in sorted(ids)],
+                )
+                row = connection.execute("SELECT * FROM deep_analysis_persisted_results WHERE result_identity = ?", (trusted.provenance_identity,)).fetchone()
+                if row is None:
+                    raise DeepAnalysisPersistenceError("trusted result did not persist")
+                self._verify_row(row, connection)
             connection.execute("COMMIT")
         except BaseException:
             if connection.in_transaction:
@@ -378,6 +429,8 @@ class DeepAnalysisPersistenceStore:
             raise DeepAnalysisPersistenceError(
                 "current Summary promotion requires a verified persisted result"
             )
+        if result.durable_result is not None or is_phase_1a_result(result):
+            raise DeepAnalysisPersistenceError("Content Deep Analysis cannot become Summary authority")
         video_id = result.canonical_input.video_identity
         if not video_id.strip():
             raise DeepAnalysisPersistenceError(
@@ -433,7 +486,7 @@ class DeepAnalysisPersistenceStore:
         try:
             rows = connection.execute(
                 "SELECT * FROM deep_analysis_persisted_results "
-                "WHERE json_extract(canonical_input_json, '$.video_identity') = ? "
+                "WHERE CASE WHEN json_valid(canonical_input_json) THEN json_extract(canonical_input_json, '$.video_identity') END = ? "
                 "ORDER BY validated_at DESC, created_at DESC, result_identity ASC",
                 (video_id,),
             ).fetchall()
@@ -472,6 +525,8 @@ class DeepAnalysisPersistenceStore:
         if result is None:
             return None
         if result.canonical_input.video_identity != video_id:
+            return None
+        if result.durable_result is not None:
             return None
         return result
 
@@ -517,8 +572,27 @@ class DeepAnalysisPersistenceStore:
         except DeepAnalysisPersistenceError:
             return None
 
-    @staticmethod
-    def _verify_row(row: sqlite3.Row) -> VerifiedPersistedDeepAnalysisRead:
+    def _verify_row(self, row: sqlite3.Row, connection: sqlite3.Connection | None = None) -> VerifiedPersistedDeepAnalysisRead:
+        if connection is None:
+            owned = self._repository._connect()
+            try:
+                owned.execute("BEGIN")
+                fresh = owned.execute("SELECT * FROM deep_analysis_persisted_results WHERE result_identity = ?", (row["result_identity"],)).fetchone()
+                if fresh is None:
+                    raise DeepAnalysisPersistenceError("persisted result disappeared")
+                return self._verify_row(fresh, owned)
+            except DeepAnalysisPersistenceError:
+                raise
+            except Exception as error:
+                # Corrupt encodings or structures must obey the same rejection
+                # semantics as bad hashes, allowing an older verified result.
+                raise DeepAnalysisPersistenceError("persisted record integrity failed") from error
+            finally:
+                owned.close()
+        persistence_version = row["persistence_version"]
+        if persistence_version not in {"deep-analysis-persistence-v1", PHASE_1B_PERSISTENCE_VERSION}:
+            raise DeepAnalysisPersistenceError("unsupported persistence version")
+        phase1b = persistence_version == PHASE_1B_PERSISTENCE_VERSION
         try:
             canonical_data = _load_json(row["canonical_input_json"])
             if not isinstance(canonical_data, dict):
@@ -555,9 +629,7 @@ class DeepAnalysisPersistenceStore:
             )
             metadata_data = _load_json(row["response_metadata_json"])
             metadata = DeepAnalysisResponseMetadataV1.model_validate(metadata_data)
-            content = KnowledgeContent.model_validate(
-                _load_json(row["knowledge_content_json"])
-            )
+            persisted_content = _load_json(row["knowledge_content_json"])
             attempts_data = _load_json(row["fallback_attempts_json"])
             if not isinstance(attempts_data, list):
                 raise ValueError("attempt history is invalid")
@@ -644,24 +716,51 @@ class DeepAnalysisPersistenceStore:
                 "response does not bind to the persisted dispatch"
             )
         extracted = _extract_payload(envelope, metadata, response)
-        if (
-            not isinstance(extracted, dict)
-            or KnowledgeContent.model_validate(extracted) != content
-        ):
-            raise DeepAnalysisPersistenceError(
-                "KnowledgeContent does not match response"
-            )
+        durable_result = None
+        try:
+            admitted_content: KnowledgeContent | DeepAnalysisPhase1BModelOutput
+            if phase1b:
+                if (request.prompt_identity != PHASE_1B_PROMPT_IDENTITY
+                    or request.knowledge_content_schema_identity != PHASE_1B_MODEL_SCHEMA
+                    or policy != PHASE_1B_VALIDATION_POLICY):
+                    raise ValueError("unsupported Phase-1B schema/policy")
+                admitted_content = DeepAnalysisPhase1BModelOutput.model_validate(extracted)
+                durable_result = DeepAnalysisDurableResult.model_validate(persisted_content)
+                expected, durable_registry = resolve_deep_analysis_authority(
+                    connection=connection, repository=self._repository,
+                    canonical=canonical, request=request, registry=registry, output=admitted_content,
+                )
+                members = connection.execute("SELECT evidence_id, created_at FROM deep_analysis_evidence WHERE result_identity = ?", (row["result_identity"],)).fetchall()
+                if (durable_result != expected
+                    or {m["evidence_id"] for m in members} != {ref for claim in expected.claims for ref in claim.evidence_refs}
+                    or len(members) != len({ref for claim in expected.claims for ref in claim.evidence_refs})
+                    or _parse_persisted_timestamp(row["validated_at"]) != _parse_persisted_timestamp(row["created_at"])
+                    or any(m["created_at"] != row["created_at"] for m in members)
+                    or row["durable_authority_identity"] != _durable_authority_identity(dict(row))):
+                    raise ValueError("durable claim/membership authority mismatch")
+                content = durable_compatibility_content(durable_result)
+            else:
+                if request.knowledge_content_schema_identity == PHASE_1B_MODEL_SCHEMA or request.prompt_identity == PHASE_1B_PROMPT_IDENTITY:
+                    raise ValueError("durable schema cannot be a legacy row")
+                if row["durable_authority_identity"] is not None or connection.execute("SELECT 1 FROM deep_analysis_evidence WHERE result_identity = ?", (row["result_identity"],)).fetchone():
+                    raise ValueError("legacy result cannot acquire durable memberships")
+                admitted_content = KnowledgeContent.model_validate(extracted)
+                content = KnowledgeContent.model_validate(persisted_content)
+                if admitted_content != content:
+                    raise ValueError("KnowledgeContent does not match response")
+        except Exception as error:
+            raise DeepAnalysisPersistenceError("persisted result authority failed") from error
         content_identity = dacs1_sha256(
             {
                 "schema_version": "trusted-deep-analysis-content-v1",
-                "content": content.model_dump(mode="json"),
+                "content": admitted_content.model_dump(mode="json"),
             }
         )
         if (
             content_identity != row["content_identity"]
-            or not _grounded_in_registry(content, registry)
-            or not _kg2_valid(content)
-            or not _language_valid(content, request.output_language)
+            or not _grounded_in_registry(admitted_content, registry)
+            or not _kg2_valid(admitted_content)
+            or not _language_valid(admitted_content, request.output_language)
         ):
             raise DeepAnalysisPersistenceError("KnowledgeContent validation failed")
         if (
@@ -700,6 +799,8 @@ class DeepAnalysisPersistenceStore:
             )
         ):
             raise DeepAnalysisPersistenceError("attempt provenance failed")
+        if phase1b and attempts != (_single_attempt_provenance(envelope, response),):
+            raise DeepAnalysisPersistenceError("durable attempt provenance failed replay")
         cache = DeepAnalysisCacheIdentityV1(
             schema_version="deep-analysis-cache-identity-v1",
             a1_identity=canonical.a1_identity,
@@ -726,12 +827,13 @@ class DeepAnalysisPersistenceStore:
             content_identity=content_identity,
             content=content,
             canonical_input=canonical,
-            evidence_registry=registry,
+            evidence_registry=durable_registry if phase1b else registry,
             request_projection=request,
             execution_profile=execution,
             validation_policy=policy,
             created_at=_parse_persisted_timestamp(row["created_at"]),
             validated_at=_parse_persisted_timestamp(row["validated_at"]),
+            durable_result=durable_result,
         )
         _record_verified_read(verified)
         return verified

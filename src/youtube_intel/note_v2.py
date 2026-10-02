@@ -18,7 +18,12 @@ from youtube_intel.deep_analysis_contracts import (
 from youtube_intel.deep_analysis_persistence import (
     VerifiedPersistedDeepAnalysisRead,
     is_phase_1a_result,
+    require_trusted_note_eligibility,
     verify_persisted_deep_analysis_read,
+)
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_VALIDATION_POLICY,
+    DeepAnalysisPhase1BModelOutput,
 )
 from youtube_intel.deep_analysis_runtime import _capture_trusted_success_for_persistence
 from youtube_intel.domain import EvidenceRegistry, KnowledgeContent, KnowledgeEvidence
@@ -145,7 +150,7 @@ def build_note_v2(source: object) -> NoteV2:
     """Build Note V2 from a runtime-verified or persisted-verified result only."""
 
     authoritative = _authoritative_source(source)
-    sections = _sections(authoritative.content)
+    sections = _sections(authoritative.content, native=authoritative.validation_policy == PHASE_1B_VALIDATION_POLICY)
     referenced_ids = _referenced_evidence_ids(sections)
     references = _evidence_references(authoritative.registry, referenced_ids)
     provenance = _provenance(authoritative)
@@ -232,6 +237,8 @@ def _authoritative_source(source: object) -> _AuthoritativeNoteSource:
             raise NoteV2Error(
                 "authoritative Deep Analysis runtime material is unavailable"
             )
+        if isinstance(material.content, DeepAnalysisPhase1BModelOutput) or material.envelope.canonical_input.operation == "content-deep-analysis":
+            raise NoteV2Error("Content Deep Analysis requires persisted durable Evidence authority")
         return _AuthoritativeNoteSource(
             result_identity=source.provenance_identity,
             content_identity=source.content_identity,
@@ -253,6 +260,10 @@ def _authoritative_source(source: object) -> _AuthoritativeNoteSource:
                 "Phase-1A Deep Analysis results are not eligible as trusted Note "
                 "authority until Phase-1B durable-Evidence convergence completes"
             )
+        try:
+            require_trusted_note_eligibility(source)
+        except ValueError as error:
+            raise NoteV2Error(str(error)) from error
         return _AuthoritativeNoteSource(
             result_identity=source.result_identity,
             content_identity=source.content_identity,
@@ -266,7 +277,7 @@ def _authoritative_source(source: object) -> _AuthoritativeNoteSource:
     raise NoteV2Error("Note V2 requires authoritative Deep Analysis input")
 
 
-def _sections(content: KnowledgeContent) -> tuple[NoteV2Section, ...]:
+def _sections(content: KnowledgeContent, *, native: bool = False) -> tuple[NoteV2Section, ...]:
     sections = [
         NoteV2Section(
             NoteV2SectionKind.SUMMARY,
@@ -286,7 +297,7 @@ def _sections(content: KnowledgeContent) -> tuple[NoteV2Section, ...]:
             sections.append(
                 NoteV2Section(kind, tuple(_entry(point) for point in points))
             )
-    graph_entries = tuple(
+    graph_entries = () if native else tuple(
         NoteV2Entry(f"{label}: {value}", ())
         for label, values in (
             ("Topics", content.knowledge_graph.topics),
@@ -426,7 +437,9 @@ def _validate_note(note: NoteV2, source: _AuthoritativeNoteSource | None) -> Non
     if any(
         not section.entries
         for section in note.sections
-        if section.kind not in {NoteV2SectionKind.EVIDENCE}
+        if section.kind not in ({NoteV2SectionKind.EVIDENCE, NoteV2SectionKind.KNOWLEDGE_GRAPH}
+                                if note.provenance.validation_policy_identity == PHASE_1B_VALIDATION_POLICY.identity
+                                else {NoteV2SectionKind.EVIDENCE})
     ):
         raise NoteV2Error("Note V2 required section is empty")
     evidence_ids = {reference.evidence_id for reference in note.evidence_references}
@@ -441,7 +454,7 @@ def _validate_note(note: NoteV2, source: _AuthoritativeNoteSource | None) -> Non
             or note.language != source.canonical_input.output_language
             or note.provenance != _provenance(source)
             or note.provenance.knowledge_content_identity != source.content_identity
-            or note.sections != _sections(source.content)
+            or note.sections != _sections(source.content, native=source.validation_policy == PHASE_1B_VALIDATION_POLICY)
             or note.evidence_references
             != _evidence_references(
                 source.registry,

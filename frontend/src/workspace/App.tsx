@@ -192,6 +192,8 @@ type DeepAnalysisRole = {
   text: string;
   point_kind: string;
   confidence: string;
+  evidence_ids?: string[];
+  language_validation?: "VALID" | "UNCERTAIN";
 };
 const DEEP_ANALYSIS_ROLE_ORDER = [
   "CORE_CONCLUSION",
@@ -1347,6 +1349,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
+  const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const [showCloudTerms, setShowCloudTerms] = useState(false);
   const [cloudReview, setCloudReview] = useState<{
     execution_id: string;
@@ -1460,10 +1463,14 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
-      <DeepAnalysisPanel videoId={data.video.video_id} />
+      <DeepAnalysisPanel
+        videoId={data.video.video_id}
+        onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+      />
       <ContentEvidencePanel
         videoId={data.video.video_id}
         sourceUrl={data.video.source_url}
+        refresh={evidenceRefresh}
       />
       <Panel title="Intelligence result">
         <div className="semantic-state state-neutral">
@@ -1670,7 +1677,9 @@ function DeepAnalysisStatusLabel({ value }: { value: string }) {
   return <>{t(labels[value] ?? value)}</>;
 }
 
-function DeepAnalysisPanel({ videoId }: { videoId: string }) {
+function DeepAnalysisPanel(
+  { videoId, onCompleted }: { videoId: string; onCompleted: () => void },
+) {
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode } = useRemote<DeepAnalysisEnvelope>(
@@ -1686,6 +1695,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
     try {
       await post(`/videos/${videoId}/deep-analysis`, {});
       setRefresh((value) => value + 1);
+      onCompleted();
     } catch (reason) {
       if (reason instanceof ApiRequestError) {
         setActionError(
@@ -1706,6 +1716,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
   // panel simply reports that Deep Analysis is unavailable.
   const status = data?.deep_analysis?.status;
   const result = data?.deep_analysis?.result;
+  const durableCitations = result?.evidence_citation_status === "DURABLE_EVIDENCE_VERIFIED";
   const availability = status?.availability ?? "NOT_REQUESTED";
   const canRun = status?.qualified === true && !busy;
 
@@ -1719,7 +1730,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
       {result ? (
-        <div className="summary-note">
+        <div className="summary-note deep-analysis-result">
           <div className="reading-meta">
             <Status value="AVAILABLE" />
             <span>{result.output_language}</span>
@@ -1735,6 +1746,18 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
                   {claims.map((claim, index) => (
                     <li key={`${role}-${index}`}>
                       <p>{claim.text}</p>
+                      {durableCitations ? (
+                        <p className="reading-meta">
+                          {(claim.evidence_ids ?? []).map((id, citationIndex) => (
+                            <a href={`#content-evidence-${encodeURIComponent(id)}`} key={id}>
+                              {t("Evidence")} {citationIndex + 1}
+                            </a>
+                          ))}
+                        </p>
+                      ) : null}
+                      {durableCitations && claim.language_validation === "UNCERTAIN" ? (
+                        <p className="hint">{t("Output language could not be fully verified.")}</p>
+                      ) : null}
                       {claim.confidence ? (
                         <p className="hint">
                           {t("Confidence")}: {t(deepAnalysisConfidenceCopy(claim.confidence))}
@@ -1747,7 +1770,9 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
             );
           })}
           <p className="hint">
-            {t("Per-claim Evidence citations are not shown yet. Deep Analysis never presents an unverified reference as an authoritative citation.")}
+            {t(durableCitations
+              ? "Evidence citations have been verified against this Content’s original transcript."
+              : "Per-claim Evidence citations are not shown yet. Deep Analysis never presents an unverified reference as an authoritative citation.")}
           </p>
         </div>
       ) : (
@@ -1778,11 +1803,12 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
 }
 
 function ContentEvidencePanel(
-  { videoId, sourceUrl }: { videoId: string; sourceUrl: string | null },
+  { videoId, sourceUrl, refresh }: { videoId: string; sourceUrl: string | null; refresh: number },
 ) {
   const { language, t } = useUiLanguage();
   const { data, error } = useRemote<{ evidence: ContentEvidence[] }>(
     `/videos/${encodeURIComponent(videoId)}/evidence`,
+    refresh,
   );
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
@@ -1869,7 +1895,7 @@ function ContentEvidencePanel(
               const showTranslation = mode !== "原文";
               const showOriginal = mode !== "译文" || !translationAvailable;
               return (
-                <article className="evidence-item evidence-trace-item" key={item.evidence_id}>
+                <article className="evidence-item evidence-trace-item" id={`content-evidence-${encodeURIComponent(item.evidence_id)}`} key={item.evidence_id}>
                   <div className="reading-meta">
                     <span>{t("Source language")}: {item.source_language} · {t(evidenceLineageLabel(item.lineage_kind))}</span>
                     <strong>{item.evidence_id}</strong>

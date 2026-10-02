@@ -25,6 +25,7 @@ from .content_summary_read import (
     AuthoritativeContentSummaryReader,
     ContentSummaryReadRejected,
 )
+from .deep_analysis_persistence import DeepAnalysisPersistenceStore
 from .evidence_translation import (
     EvidenceTranslationPresentationService,
     EvidenceTranslator,
@@ -33,7 +34,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 28
+LATEST_SCHEMA_VERSION = 30
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -57,6 +58,11 @@ _AMBIGUOUS_DISTILLATION_OUTCOMES = {
     "DISPATCH_CLAIM_STATE_UNKNOWN": {0, 1},
     "PRIOR_ATTEMPT_STATE_UNKNOWN": {0, 1},
 }
+DEEP_ANALYSIS_AUTHORITY_TABLES = frozenset({
+    "deep_analysis_persisted_results", "deep_analysis_evidence",
+    "evidence", "evidence_text_bindings", "timed_transcripts",
+    "timed_transcript_cues", "artifacts", "videos",
+})
 _REQUIRED_TABLES = {
     "schema_migrations",
     "source_subscriptions",
@@ -81,7 +87,7 @@ _REQUIRED_TABLES = {
     "distillation_moonshot_unidentified_http_responses",
     "distillation_cloud_response_failures",
     "evidence_translation_presentations",
-}
+} | DEEP_ANALYSIS_AUTHORITY_TABLES
 
 
 class BackupRestoreError(ValueError):
@@ -990,14 +996,29 @@ class BackupRestoreService:
                     raise BackupRestoreError("Database schema contains a credential-like field; backup is disabled.")
         repository = SQLiteStateRepository(self.database)
         migrations = repository._load_migrations()
-        if len(migrations) != LATEST_SCHEMA_VERSION:
+        if not migrations or migrations[-1].version != LATEST_SCHEMA_VERSION:
             raise BackupRestoreError("Application migration lineage is inconsistent.")
         try:
             history = repository._verify_history(connection, migrations)
         except Exception as error:
             raise BackupRestoreError("SQLite migration history is incompatible.") from error
-        if len(history) != LATEST_SCHEMA_VERSION:
+        if len(history) != len(migrations):
             raise BackupRestoreError("SQLite migration history is incomplete.")
+        membership_columns = tuple(
+            (row[1], row[2], row[3], row[5])
+            for row in connection.execute("PRAGMA table_info(deep_analysis_evidence)")
+        )
+        membership_foreign_keys = {
+            (row[2], row[3], row[4])
+            for row in connection.execute("PRAGMA foreign_key_list(deep_analysis_evidence)")
+        }
+        if membership_columns != (
+            ("result_identity", "TEXT", 1, 1), ("evidence_id", "TEXT", 1, 2), ("created_at", "TEXT", 1, 0),
+        ) or membership_foreign_keys != {
+            ("deep_analysis_persisted_results", "result_identity", "result_identity"),
+            ("evidence", "evidence_id", "evidence_id"),
+        }:
+            raise BackupRestoreError("Deep Analysis membership constraints are incompatible.")
         foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()
         if foreign_key_errors:
             raise BackupRestoreError("SQLite database has broken foreign-key authority.")
@@ -1009,6 +1030,14 @@ class BackupRestoreService:
         repository: SQLiteStateRepository,
         data_root: Path,
     ) -> None:
+        # Reverify every result and its complete membership graph on the staged
+        # snapshot, before any live state is replaced. Legacy rows remain legacy.
+        deep_analysis = DeepAnalysisPersistenceStore(repository)
+        try:
+            for result in connection.execute("SELECT * FROM deep_analysis_persisted_results"):
+                deep_analysis._verify_row(result, connection)
+        except Exception as error:
+            raise BackupRestoreError("Deep Analysis Evidence authority failed validation.") from error
         orphan = connection.execute(
             "SELECT 1 FROM current_content_summaries c LEFT JOIN videos v "
             "ON v.video_id = c.video_id WHERE v.video_id IS NULL LIMIT 1"

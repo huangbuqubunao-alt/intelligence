@@ -21,17 +21,16 @@ Scope and honesty rules enforced here, from ``V1X-DR-001``:
   never mint durable Evidence, so Deep Analysis reports an honest unavailable
   state instead of degrading to metadata-only citation.
 
-Phase 1A boundary: this module does not add ``deep_analysis_evidence`` and does
-not converge transient refs into durable Evidence identity.  Because of that,
-user-facing evidence citations are withheld here; see
-:func:`project_deep_analysis_result`.
+Phase 1A rows remain transitional and withhold citation refs. Explicitly
+injected Phase 1B routes persist native five-role claims through the shared
+Evidence authority; only verified durable reads expose citation ids.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
@@ -49,6 +48,10 @@ from youtube_intel.deep_analysis_contracts import (
     UntrustedDeepAnalysisResponseV1,
     dacs1_sha256,
 )
+from youtube_intel.deep_analysis_evidence import (
+    candidate_projection,
+    deep_analysis_candidates,
+)
 from youtube_intel.deep_analysis_persistence import (
     DeepAnalysisPersistenceError,
     DeepAnalysisPersistenceStore,
@@ -58,6 +61,11 @@ from youtube_intel.deep_analysis_persistence import (
 from youtube_intel.deep_analysis_phase1a_contract import (
     DeepAnalysisPhase1AModelOutput,
     map_phase_1a_output_to_knowledge_content,
+)
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_MODEL_SCHEMA,
+    PHASE_1B_PROMPT_IDENTITY,
+    PHASE_1B_VALIDATION_POLICY,
 )
 from youtube_intel.deep_analysis_runtime import DeepAnalysisRuntime
 from youtube_intel.domain import (
@@ -73,6 +81,7 @@ from youtube_intel.ollama_deep_analysis import (
     build_ollama_local_context_budget,
     build_ollama_local_execution_profile,
     build_ollama_local_phase1a_request_projection,
+    build_ollama_local_phase1b_request_projection,
 )
 from youtube_intel.scoring import VerifiedScoringRead
 from youtube_intel.state import SQLiteStateRepository, format_utc_datetime
@@ -160,6 +169,7 @@ class DeepAnalysisRoute:
     build_execution_profile: Callable[..., DeepAnalysisExecutionProfileV1]
     build_context_budget: Callable[..., ContextBudgetProfileV1]
     input_budget: int
+    model_output_schema_identity: str = "v1x-content-deep-analysis-model-output-v1"
 
     def describe(self) -> dict[str, object]:
         return {
@@ -203,6 +213,18 @@ def build_local_ollama_route(
         build_execution_profile=build_ollama_local_execution_profile,
         build_context_budget=build_ollama_local_context_budget,
         input_budget=8192,
+    )
+
+
+def build_local_ollama_phase1b_route(
+    *, transport: _OllamaTransport | None = None,
+) -> DeepAnalysisRoute:
+    """Explicit dev/test injection only; this does not qualify production."""
+    return replace(
+        build_local_ollama_route(transport=transport),
+        route_id="local-ollama-phase1b-dev-test",
+        build_request_projection=build_ollama_local_phase1b_request_projection,
+        model_output_schema_identity=PHASE_1B_MODEL_SCHEMA,
     )
 
 
@@ -297,6 +319,8 @@ class DeepAnalysisClaim:
     role: str
     point_kind: str
     confidence: str
+    evidence_ids: tuple[str, ...] = ()
+    language_validation: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +349,8 @@ class DeepAnalysisResultView:
                     "text": claim.text,
                     "point_kind": claim.point_kind,
                     "confidence": claim.confidence,
+                    **({"evidence_ids": list(claim.evidence_ids), "language_validation": claim.language_validation}
+                       if self.evidence_citation_status == "DURABLE_EVIDENCE_VERIFIED" else {}),
                 }
                 for claim in self.roles
             ],
@@ -366,6 +392,22 @@ def project_deep_analysis_result(
     content: KnowledgeContent = result.content
     output_language = result.request_projection.output_language
     claims: list[DeepAnalysisClaim] = []
+    if not verify_persisted_deep_analysis_read(result):
+        raise DeepAnalysisPersistenceError("projection requires a verified result")
+    if result.durable_result is not None:
+        return DeepAnalysisResultView(
+            content_id=result.canonical_input.video_identity,
+            result_identity=result.result_identity,
+            content_identity=result.content_identity,
+            output_language=output_language,
+            roles=tuple(DeepAnalysisClaim(
+                text=c.text, role=c.role, point_kind=c.point_kind,
+                confidence=CONFIDENCE_INSUFFICIENT_EVIDENCE,
+                evidence_ids=c.evidence_refs, language_validation=c.language_validation,
+            ) for c in result.durable_result.claims),
+            generated_at=format_utc_datetime(result.created_at),
+            evidence_citation_status="DURABLE_EVIDENCE_VERIFIED",
+        )
 
     def add(text: str, role: str, point: Any) -> None:
         # No projection-time trimming: claim text was canonicalized once at the
@@ -669,7 +711,13 @@ class DeepAnalysisService:
                 )
             ) from None
 
-        selection = self._select_evidence(content_id)
+        phase1b = route.model_output_schema_identity == PHASE_1B_MODEL_SCHEMA
+        runtime = DeepAnalysisRuntime(validation_policy=PHASE_1B_VALIDATION_POLICY) if phase1b else self._runtime
+        transcript = self._repository.get_verified_timed_transcript(video_id=content_id) if phase1b else None
+        candidates = deep_analysis_candidates(transcript) if transcript is not None else None
+        native_registry = candidate_projection(candidates) if candidates is not None else None
+        selection = ([{"evidence_id": c.evidence_id, "excerpt": c.excerpt, "excerpt_hash": c.source_content_hash}
+                      for c in native_registry.items] if native_registry is not None else []) if phase1b else self._select_evidence(content_id)
         if not selection:
             raise DeepAnalysisRejected(
                 DeepAnalysisStatus(
@@ -698,13 +746,15 @@ class DeepAnalysisService:
         )
         registry_identity = f"{_REGISTRY_IDENTITY_PREFIX}-{content_id}-"\
             f"{_REGISTRY_IDENTITY_SUFFIX}"
+        if candidates is not None:
+            registry_identity = candidates.identity_hash()
         canonical = CanonicalDeepAnalysisInputV1.from_verified_scoring_read(
             verified_scoring_read=read,
             schema_version="canonical-deep-analysis-input-v1",
             operation="content-deep-analysis",
             input_schema_version=_INPUT_SCHEMA_VERSION,
             video_identity=content_id,
-            transcript_identity=registry_identity,
+            transcript_identity=transcript.timed_transcript_id if transcript is not None else registry_identity,
             transcript_language=self._source_language(content_id),
             transcript_normalization_version="v1x-content-deep-analysis-norm-v1",
             evidence_registry_identity=registry_identity,
@@ -721,12 +771,12 @@ class DeepAnalysisService:
             coverage_policy_identity=_COVERAGE_POLICY_IDENTITY,
             coverage_complete=False,
             output_language=output_language,
-            knowledge_content_schema_version="knowledge-content-pydantic-v1",
-            prompt_version=_DEEP_ANALYSIS_PROMPT_IDENTITY,
+            knowledge_content_schema_version=PHASE_1B_MODEL_SCHEMA if phase1b else "knowledge-content-pydantic-v1",
+            prompt_version=PHASE_1B_PROMPT_IDENTITY if phase1b else _DEEP_ANALYSIS_PROMPT_IDENTITY,
             operation_version=_OPERATION_VERSION,
         )
 
-        admitted = self._runtime.admit_verified_scoring_read(
+        admitted = runtime.admit_verified_scoring_read(
             verified_scoring_read=read, canonical_input=canonical
         )
         consent = PayloadConsentIdentityV1(
@@ -744,7 +794,7 @@ class DeepAnalysisService:
             allowed_model_constraint=route.model_id,
         )
         content = self._repository.get_video(content_id)
-        payload = self._runtime.authorize_payload(
+        payload = runtime.authorize_payload(
             authoritative_input=admitted,
             evidence_registry=registry,
             payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
@@ -783,7 +833,7 @@ class DeepAnalysisService:
                 ),
             ),
         )
-        prepared = self._runtime.prepare_dispatch(
+        prepared = runtime.prepare_dispatch(
             authoritative_input=admitted,
             authorized_payload=payload,
             request_projection=request,
@@ -805,7 +855,7 @@ class DeepAnalysisService:
             ),
         )
         response = route.dispatch(prepared_dispatch=prepared)
-        admitted_response = _map_phase_1a_response(
+        admitted_response = response if phase1b else _map_phase_1a_response(
             response, evidence_refs=selected_refs
         )
         if admitted_response is None:
@@ -823,7 +873,7 @@ class DeepAnalysisService:
                     ),
                 )
             )
-        validation = self._runtime.validation_finalizer().finalize(
+        validation = runtime.validation_finalizer().finalize(
             prepared_dispatch=prepared,
             response=admitted_response,
         )
@@ -908,6 +958,8 @@ class DeepAnalysisService:
                     "text": claim.text,
                     "point_kind": claim.point_kind,
                     "confidence": claim.confidence,
+                    **({"evidence_ids": list(claim.evidence_ids), "language_validation": claim.language_validation}
+                       if view.evidence_citation_status == "DURABLE_EVIDENCE_VERIFIED" else {}),
                 }
                 for claim in view.roles
             ],
