@@ -404,29 +404,41 @@ function Empty({ children }: { children: ReactNode }) {
   const { t } = useUiLanguage();
   return <div className="empty-state">{typeof children === "string" ? t(children) : children}</div>;
 }
-function ErrorState({ error, code }: { error: string; code?: string }) {
+function ErrorState(
+  { error, code, hideRawMessage }: {
+    error: string;
+    code?: string;
+    /** Hide raw backend prose; used by normal Deep Analysis product UI. */
+    hideRawMessage?: boolean;
+  },
+) {
   const { language, t } = useUiLanguage();
-  // When a stable machine code is known, localized copy is shown as the primary
-  // product text and the backend prose is diagnostic only. Localizing never
-  // relies on matching arbitrary English strings.
+  // When a stable machine code is known, localized copy is the product text.
+  // Localizing never relies on matching arbitrary English strings.
   const localized = code ? localizedApiErrorCopy(code) : undefined;
-  // Preserve the established DOM shape: the raw backend message is shown once as
-  // diagnostic text, and localized copy replaces it as the primary product text
-  // whenever a stable machine code is known.
+  if (localized) {
+    // Normal product UI shows localized copy only. The backend message stays on
+    // the error object, in logs, and in debug instrumentation.
+    return (
+      <div className="semantic-state state-danger">
+        <Status value="Blocked" />
+        <p>{t(localized)}</p>
+      </div>
+    );
+  }
+  if (hideRawMessage) {
+    return (
+      <div className="semantic-state state-danger">
+        <Status value="Blocked" />
+        <p>{t("The operation could not be completed.")}</p>
+      </div>
+    );
+  }
   return (
     <div className="semantic-state state-danger">
       <Status value="Blocked" />
-      {localized ? (
-        <>
-          <p>{t(localized)}</p>
-          <p className="hint">{error}</p>
-        </>
-      ) : (
-        <>
-          {language === "zh-CN" ? <p>{t("The operation could not be completed.")}</p> : null}
-          <p>{error}</p>
-        </>
-      )}
+      {language === "zh-CN" ? <p>{t("The operation could not be completed.")}</p> : null}
+      <p>{error}</p>
     </div>
   );
 }
@@ -446,6 +458,8 @@ function localizedApiErrorCopy(code: string): string | undefined {
     DEEP_ANALYSIS_FAILED:
       "Deep Analysis did not produce a trusted result. No partial or invented result is shown.",
     DEEP_ANALYSIS_UNAVAILABLE: "Deep Analysis is unavailable right now.",
+    INTERNAL_ERROR:
+      "Deep Analysis could not complete because the local service failed. No result was produced.",
   };
   return known[code];
 }
@@ -1700,7 +1714,7 @@ function DeepAnalysisPanel({ videoId }: { videoId: string }) {
       <p className="hint">
         {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
       </p>
-      {error ? <ErrorState error={error} code={errorCode} /> : null}
+      {error ? <ErrorState error={error} code={errorCode} hideRawMessage /> : null}
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}

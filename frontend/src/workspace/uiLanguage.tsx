@@ -307,6 +307,8 @@ const chinese: Record<string, string> = {
   "Deep Analysis did not produce a trusted result. No partial or invented result is shown.":
     "深度分析没有得到可信结果，不会展示任何残缺或编造的内容。",
   "Deep Analysis is unavailable right now.": "深度分析目前不可用。",
+  "Deep Analysis could not complete because the local service failed. No result was produced.":
+    "深度分析因本地服务失败而无法完成，没有生成任何结果。",
   "This Content is not available.": "这段内容不可用。",
   "This Content has no trusted timed transcript Evidence, so Deep Analysis cannot cite anything durably.":
     "这段内容没有可信的带时间轴字幕证据，因此深度分析无法提供可追溯的引用。",

@@ -194,6 +194,25 @@ contract with independently chosen limits.
 payload, the deterministic compatibility mapping MUST succeed. No schema-valid
 input may crash mapping.
 
+**`why_it_matters` derives only from `relevance_to_user`.** The frozen historical
+carrier requires a semantically valid `why_it_matters`, and in the Phase-1A
+five-role contract only relevance material may supply it. `relevance_to_user` is
+therefore **required and must contain at least one claim**. A payload without it
+is rejected by the Phase-1A schema. No conclusion, uncertainty, or next-question
+claim is ever relabelled as a relevance inference, and relevance is never
+synthesized. This is a **temporary compatibility constraint forced by the frozen
+carrier**, not a statement about the product: Phase 1B may define a native
+five-role contract without it.
+
+**Text is canonicalized at the admission boundary.** Leading and trailing Unicode
+whitespace is trimmed exactly once, when the Phase-1A model contract accepts a
+claim. Length limits are evaluated on the canonical value, text that becomes
+empty is rejected, and the accepted model object already holds its final text.
+Mapping, persistence, restart, and public projection then preserve that value
+verbatim; no further trimming or truncation happens at read time. This keeps the
+accepted-input mapping invariant and the round trip lossless in the same
+boundary.
+
 **No public projection loss.** Each of the five public roles is projected from
 exactly one carrier field, so the round trip model output → mapping → persistence
 → restart → API → frontend preserves claim count, text, epistemic kind, and
@@ -229,9 +248,12 @@ never relies on string-matching arbitrary backend prose.
 The local HTTP boundary preserves safe machine-readable error details
 (`reason_code`, `availability`, `consent_required`) so real loopback clients
 localize by code rather than prose, and `ErrorState` renders the backend message
-as diagnostic text instead of primary product copy. Role headings use the same
-UI-language mechanism in both directions: no hardcoded Chinese label leaks into
-English mode, and no engineering enum name is ever shown.
+as diagnostic text instead of primary product copy. Normal Deep Analysis UI does
+not render raw backend prose at all: the backend message stays on the error
+object, in logs, and in debug instrumentation, while the panel shows localized
+copy only. Role headings use the same UI-language mechanism in both directions: no
+hardcoded Chinese label leaks into English mode, and no engineering enum name is
+ever shown.
 
 ### 4e. Trusted timestamps must be timezone-aware
 

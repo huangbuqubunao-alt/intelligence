@@ -87,6 +87,11 @@ def claim(text: str, point_kind: str = "inference") -> dict[str, object]:
     return {"text": text, "point_kind": point_kind}
 
 
+def relevance_claim(text: str = "This changes how you should plan the review.") -> dict[str, object]:
+    """Relevance material, required by the Phase-1A compatibility contract."""
+    return claim(text)
+
+
 def _transport(payload: object):
     body = json.dumps(payload, ensure_ascii=False)
 
@@ -137,8 +142,11 @@ def _service(
                         payload
                         if payload is not None
                         else {
-                            "core_conclusion": [claim("The content shows a clear result.")],
+                            "core_conclusion": [
+                                claim("The content shows a clear result.")
+                            ],
                             "key_evidence": [claim("Evidence supports it.", "fact")],
+                            "relevance_to_user": [relevance_claim()],
                         }
                     )
                 ),
@@ -163,6 +171,7 @@ def test_max_length_conclusion_is_accepted_and_maps() -> None:
             claim("x" * MAX_CORE_CONCLUSION_CHARS, "inference")
         ],
         "key_evidence": [claim("The available evidence supports this.", "fact")],
+        "relevance_to_user": [relevance_claim()],
     }
 
     parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
@@ -190,16 +199,22 @@ def test_one_over_max_length_conclusion_is_rejected_before_mapping() -> None:
         DeepAnalysisPhase1AModelOutput.model_validate(payload)
 
 
-def test_fact_conclusion_without_inference_is_rejected_not_crashed() -> None:
+def test_fact_conclusion_with_relevance_is_accepted_and_not_relabelled() -> None:
+    """The old inference-fallback rule is gone: only relevance backs why_it_matters."""
+
     payload = {
-        "core_conclusion": [claim("A stated fact with no inference anywhere.", "fact")],
+        "core_conclusion": [claim("A stated fact about the content.", "fact")],
         "key_evidence": [claim("The available evidence supports this.", "fact")],
+        "relevance_to_user": [relevance_claim()],
     }
 
-    with pytest.raises(ValueError) as error:
-        DeepAnalysisPhase1AModelOutput.model_validate(payload)
+    parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
+    content = map_phase_1a_output_to_knowledge_content(
+        parsed, summary_evidence_ids=(REF,)
+    )
 
-    assert "why_it_matters" in str(error.value) or "inference" in str(error.value)
+    assert {point.kind.value for point in content.core_points} == {"fact"}
+    assert content.why_it_matters.kind.value == "inference"
 
 
 def test_fact_conclusion_with_inference_material_is_accepted_and_faithful() -> None:
@@ -207,6 +222,7 @@ def test_fact_conclusion_with_inference_material_is_accepted_and_faithful() -> N
         "core_conclusion": [claim("A stated fact conclusion.", "fact")],
         "key_evidence": [claim("The available evidence supports this.", "fact")],
         "uncertainty": [claim("This part remains unverified right now.", "inference")],
+        "relevance_to_user": [relevance_claim()],
     }
 
     parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
@@ -244,6 +260,7 @@ def test_max_relevance_count_all_map_and_one_more_is_rejected() -> None:
     base = {
         "core_conclusion": [claim("The content shows a clear result.")],
         "key_evidence": [claim("The available evidence supports this.", "fact")],
+        "relevance_to_user": [relevance_claim()],
     }
 
     at_limit = DeepAnalysisPhase1AModelOutput.model_validate(
@@ -287,9 +304,13 @@ def test_role_limit_is_enforced_for_every_role(role: str, kind: str) -> None:
     base = {
         "core_conclusion": [claim("The content shows a clear result.")],
         "key_evidence": [claim("The available evidence supports this.", "fact")],
+        "relevance_to_user": [relevance_claim()],
     }
     if role == "key_evidence":
-        base = {"core_conclusion": [claim("The content shows a clear result.")]}
+        base = {
+            "core_conclusion": [claim("The content shows a clear result.")],
+            "relevance_to_user": [relevance_claim()],
+        }
 
     def build(count: int) -> dict[str, object]:
         return {**base, role: [claim(f"Claim {i} is concrete.", kind) for i in range(count)]}
@@ -309,6 +330,7 @@ def test_non_summary_claim_text_limit_is_the_carrier_limit() -> None:
     payload = {
         "core_conclusion": [claim("The content shows a clear result.")],
         "key_evidence": [claim("y" * MAX_CLAIM_CHARS, "fact")],
+        "relevance_to_user": [relevance_claim()],
     }
     parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
     content = map_phase_1a_output_to_knowledge_content(
@@ -342,22 +364,31 @@ def test_every_schema_valid_fixture_maps_without_uncaught_validation_error(
             claim(f"Evidence number {i} is concrete and verifiable.", "fact")
             for i in range(evidence)
         ],
+        "relevance_to_user": [relevance_claim()],
     }
     if uncertainty:
         payload["uncertainty"] = [
             claim(f"Uncertainty number {i} is concrete.")
             for i in range(uncertainty)
         ]
-    if relevance:
-        payload["relevance_to_user"] = [
-            claim(f"Relevance number {i} is concrete.") for i in range(relevance)
-        ]
+    # relevance_to_user is required by the Phase-1A compatibility contract, so a
+    # zero-relevance case is rejected by the schema instead of mapping.
+    payload["relevance_to_user"] = (
+        [claim(f"Relevance number {i} is concrete.") for i in range(relevance)]
+        if relevance
+        else []
+    )
     if questions:
         payload["next_question"] = [
             claim(f"Question number {i} is concrete.") for i in range(questions)
         ]
 
-    parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
+    try:
+        parsed = DeepAnalysisPhase1AModelOutput.model_validate(payload)
+    except ValueError:
+        # Rejected by an explicit contract rule (relevance is required).
+        assert relevance == 0
+        return
     # Must never raise.
     content = map_phase_1a_output_to_knowledge_content(
         parsed, summary_evidence_ids=(REF,)

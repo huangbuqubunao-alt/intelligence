@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 from typing import Final, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from youtube_intel.domain import (
     AnalysisPoint,
@@ -55,7 +55,13 @@ DEFERRED_MODEL_FIELDS: frozenset[str] = frozenset(
 )
 
 
-#: Maximum characters a ``core_conclusion`` claim may carry.
+#: Maximum characters a non-summary claim may carry.
+#:
+#: The frozen ``AnalysisPoint.text`` limit is 2000, so any claim mapped into an
+#: AnalysisPoint field is representable up to this length.
+MAX_CLAIM_CHARS: Final = 2000
+
+#: Maximum length of a ``core_conclusion`` claim.
 #:
 #: The first conclusion claim becomes the frozen carrier's
 #: ``one_sentence_summary``, whose limit is 500. Phase 1A is a compatibility
@@ -63,20 +69,38 @@ DEFERRED_MODEL_FIELDS: frozenset[str] = frozenset(
 #: represent losslessly. Text is never silently truncated.
 MAX_CORE_CONCLUSION_CHARS: Final = 500
 
-#: Maximum characters for a non-summary claim.
-#:
-#: The frozen ``AnalysisPoint.text`` limit is 2000, so any claim mapped into an
-#: AnalysisPoint field is representable up to this length.
-MAX_CLAIM_CHARS: Final = 2000
+
+def _canonicalize(text: str) -> str:
+    """Canonical claim text, frozen at the admission boundary.
+
+    Leading and trailing Unicode whitespace is removed exactly once, here. The
+    accepted model object therefore already holds the final text, so mapping,
+    persistence, restart, and public projection all preserve it verbatim. Text
+    that is only whitespace canonicalizes to empty and is rejected rather than
+    stored as a blank claim.
+    """
+
+    return text.strip()
 
 
 class DeepAnalysisClaimV1(BaseModel):
-    """One model-authored claim: text plus an honest epistemic type."""
+    """One model-authored claim: canonical text plus an honest epistemic type.
+
+    ``text`` is canonicalized on admission, before any length rule is applied, so
+    a value wrapped in whitespace is measured by its canonical length.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    text: str = Field(min_length=1, max_length=MAX_CLAIM_CHARS, pattern=r"\S")
+    text: str = Field(min_length=1, max_length=MAX_CLAIM_CHARS)
     point_kind: Literal["fact", "inference", "recommendation"]
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _canonicalize_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class DeepAnalysisPhase1AModelOutput(BaseModel):
@@ -97,8 +121,12 @@ class DeepAnalysisPhase1AModelOutput(BaseModel):
     core_conclusion: tuple[DeepAnalysisClaimV1, ...] = Field(min_length=1, max_length=10)
     key_evidence: tuple[DeepAnalysisClaimV1, ...] = Field(min_length=1, max_length=20)
     uncertainty: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=10)
+    # Required with at least one claim: the frozen historical carrier requires a
+    # semantically valid why_it_matters, and only relevance material may supply
+    # it. A payload without relevance is rejected rather than having another role
+    # relabelled to fill the field.
     relevance_to_user: tuple[DeepAnalysisClaimV1, ...] = Field(
-        default=(), max_length=10
+        min_length=1, max_length=10
     )
     next_question: tuple[DeepAnalysisClaimV1, ...] = Field(default=(), max_length=10)
 
@@ -220,18 +248,6 @@ def _validate_carrier_compatibility(output: DeepAnalysisPhase1AModelOutput) -> N
                 "silently"
             )
             raise ValueError(msg)
-    has_inference = any(
-        claim.point_kind == "inference"
-        for role in ("core_conclusion", "uncertainty", "relevance_to_user", "next_question")
-        for claim in getattr(output, role)
-    )
-    if not has_inference:
-        msg = (
-            "the frozen carrier requires an inference-typed why_it_matters field; "
-            "this payload has no inference-typed claim and point_kind is never "
-            "rewritten to satisfy it"
-        )
-        raise ValueError(msg)
     for role, (field_name, allowed) in _CARRIER_RULES.items():
         for index, claim in enumerate(getattr(output, role)):
             if claim.point_kind not in allowed:
@@ -256,29 +272,19 @@ def _validate_carrier_compatibility(output: DeepAnalysisPhase1AModelOutput) -> N
 def _why_it_matters_source(
     output: DeepAnalysisPhase1AModelOutput,
 ) -> DeepAnalysisClaimV1:
-    """Choose the inference-typed claim that may back ``why_it_matters``.
+    """Return the only claim permitted to back ``why_it_matters``.
 
-    The frozen carrier requires this field to be an inference. Preference order
-    keeps the meaning honest:
+    The frozen historical carrier requires this field to be an inference about
+    the reader. In the Phase-1A five-role contract that meaning belongs
+    exclusively to ``relevance_to_user``. No other role is consulted: a conclusion,
+    uncertainty, or next question is never relabelled as a relevance inference,
+    and relevance is never synthesized.
 
-    1. an explicit ``relevance_to_user`` claim (inference by contract);
-    2. otherwise the first inference-typed claim among conclusion, uncertainty,
-       and next question.
-
-    A ``fact`` conclusion is never relabelled. When the payload contains no
-    inference-typed material at all, the schema rejects it up front, so this
-    helper always finds a compatible claim.
+    ``relevance_to_user`` is validated as non-empty at the schema boundary, so
+    this accessor is always satisfied.
     """
 
-    if output.relevance_to_user:
-        return output.relevance_to_user[0]
-    for role in ("core_conclusion", "uncertainty", "next_question"):
-        for claim in getattr(output, role):
-            if isinstance(claim, DeepAnalysisClaimV1) and claim.point_kind == "inference":
-                return claim
-    # Unreachable: _validate_carrier_compatibility rejects this payload.
-    msg = "no inference-typed claim is available for why_it_matters"
-    raise ValueError(msg)
+    return output.relevance_to_user[0]
 
 
 def map_phase_1a_output_to_knowledge_content(

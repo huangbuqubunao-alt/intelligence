@@ -2231,3 +2231,119 @@ test("English mode renders the English equivalent for a GET failure", async () =
     ),
   ).toBeTruthy();
 });
+
+test("Chinese DA GET failure shows no raw backend prose", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const backendProse = "Local service failed safely.";
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "DEEP_ANALYSIS_NOT_QUALIFIED",
+            message: backendProse,
+            details: { reason_code: "NO_QUALIFIED_MODEL" },
+          },
+        }),
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+
+  await waitFor(() =>
+    expect(
+      (document.body.textContent ?? "").includes(
+        "当前没有通过深度分析资格的模型，因此无法运行深度分析。",
+      ),
+    ).toBe(true),
+  );
+  // Raw backend prose must not appear anywhere in normal DA product UI.
+  expect(document.body.textContent ?? "").not.toContain(backendProse);
+  expect(document.body.textContent ?? "").not.toContain("Local service failed safely");
+  expect(document.body.textContent ?? "").not.toContain("NO_QUALIFIED_MODEL");
+});
+
+test("Chinese INTERNAL_ERROR is localized and never shows raw prose", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const backendProse = "Local service failed safely.";
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          error: { code: "INTERNAL_ERROR", message: backendProse },
+        }),
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "内容" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+
+  await waitFor(() =>
+    expect(
+      (document.body.textContent ?? "").includes(
+        "深度分析因本地服务失败而无法完成，没有生成任何结果。",
+      ),
+    ).toBe(true),
+  );
+  const body = document.body.textContent ?? "";
+  expect(body).not.toContain(backendProse);
+  expect(body).not.toContain("INTERNAL_ERROR");
+});
+
+test("English DA GET failure shows no raw backend prose", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  const backendProse = "Local service failed safely.";
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/videos/video-1/deep-analysis")) {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "DEEP_ANALYSIS_NOT_QUALIFIED",
+            message: backendProse,
+            details: { reason_code: "NO_QUALIFIED_MODEL" },
+          },
+        }),
+      });
+    }
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1/evidence")) return response({ evidence: [] });
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Content" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
+
+  expect(
+    await screen.findByText(
+      "Deep Analysis could not run because no model is currently qualified for it.",
+    ),
+  ).toBeTruthy();
+  expect(document.body.textContent ?? "").not.toContain(backendProse);
+});

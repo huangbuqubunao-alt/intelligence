@@ -368,15 +368,17 @@ def project_deep_analysis_result(
     claims: list[DeepAnalysisClaim] = []
 
     def add(text: str, role: str, point: Any) -> None:
-        cleaned = text.strip()
-        if not cleaned:
+        # No projection-time trimming: claim text was canonicalized once at the
+        # Phase-1A admission boundary, so the accepted value is projected
+        # verbatim. Re-stripping here would silently change accepted content.
+        if not text:
             return
         kind = getattr(point, "kind", None)
         kind_value = getattr(kind, "value", None)
         point_kind = kind_value if isinstance(kind_value, str) else ""
         claims.append(
             DeepAnalysisClaim(
-                text=cleaned,
+                text=text,
                 role=role,
                 point_kind=str(point_kind),
                 confidence=_confidence_label(point),
