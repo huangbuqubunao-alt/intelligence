@@ -31,6 +31,30 @@
   font-synthesis: none;
 }
 
+.knowledge-delta { min-width: 0; }
+.delta-window, .delta-more, .delta-facts, .delta-item-top time {
+  color: var(--text-muted); font-size: 12px; line-height: 1.6;
+}
+.delta-window { margin: 0 0 16px; overflow-wrap: anywhere; }
+.delta-empty { color: var(--text-muted); font-size: 14px; }
+.delta-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
+.delta-counts div { min-width: 0; padding: 12px; border-radius: var(--radius-sm); background: var(--input); }
+.delta-counts dt { color: var(--text-muted); font-size: 12px; }
+.delta-counts dd { margin: 8px 0 0; font-size: 18px; font-weight: 600; }
+.delta-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.delta-groups h3 { font-size: 13px; margin: 0 0 8px; }
+.delta-items { list-style: none; padding: 0; margin: 0; }
+.delta-items li { border-top: 1px solid var(--border); padding: 12px 0; }
+.delta-item-top strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.delta-item-top time { display: block; margin-top: 4px; }
+.delta-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; }
+.delta-open { padding: 4px 0; font-size: 12px; }
+@media (max-width: 1024px) { .delta-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px) {
+  .delta-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .delta-groups { grid-template-columns: minmax(0, 1fr); }
+}
+
 .brand-logo {
   width: 22px;
   height: 22px;

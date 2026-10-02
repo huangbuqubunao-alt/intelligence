@@ -1633,9 +1633,11 @@ class SQLiteStateRepository:
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self, *, read_only: bool = False) -> sqlite3.Connection:
         connection = sqlite3.connect(
-            self._database_path,
+            self._database_path.resolve().as_uri() + "?mode=ro"
+            if read_only else self._database_path,
+            uri=read_only,
             isolation_level=None,
             timeout=5.0,
         )
