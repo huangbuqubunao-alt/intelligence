@@ -170,6 +170,7 @@ class DeepAnalysisRoute:
     build_context_budget: Callable[..., ContextBudgetProfileV1]
     input_budget: int
     model_output_schema_identity: str = "v1x-content-deep-analysis-model-output-v1"
+    profile_identity: str = "legacy-developer-injection"
 
     def describe(self) -> dict[str, object]:
         return {
