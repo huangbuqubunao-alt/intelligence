@@ -1825,7 +1825,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
     UNCHANGED: "The Obsidian note is already up to date.",
     WRITE_FAILED: "The write did not complete. Check vault permissions, paths, or file conflicts and retry.",
   };
-  const state = outcome?.state ?? (error ? "WRITE_FAILED" : status?.state);
+  const state = outcome?.state ?? (error ? "WRITE_FAILED" : status?.state === "AVAILABLE" && resultIdentity !== null && status.result_identity !== resultIdentity ? "RESULT_CHANGED" : status?.state);
   async function publish() {
     if (!canPublish) return;
     setBusy(true);

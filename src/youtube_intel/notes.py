@@ -240,7 +240,7 @@ def _safe_inline(value: str) -> str:
     form links, images, headings, code, or table separators.
     """
     normalized = unicodedata.normalize("NFC", value)
-    cleaned = "".join(character for character in normalized if unicodedata.category(character) != "Cc")
+    cleaned = "".join(" " if character.isspace() else character for character in normalized if unicodedata.category(character) != "Cc" or character.isspace())
     collapsed = " ".join(cleaned.split())
     escapes = dict((
         ("[", "&#91;"),

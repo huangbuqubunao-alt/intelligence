@@ -33,6 +33,8 @@ from youtube_intel.domain import (
 from youtube_intel.notes import (
     NoteRenderingError,
     RenderedVideoNote,
+    _validate_marker_shape,
+    build_video_note_filename,
     is_video_note_candidate,
     render_video_note,
 )
@@ -134,6 +136,10 @@ class ObsidianNoteSink(KnowledgeSink):
                 if len(candidates) > 1:
                     raise _failure(ErrorCode.INVALID_RESPONSE, "multiple notes claim this Deep Analysis", None)
                 filename = candidates[0] if candidates else rendered.relative_path.removeprefix("Deep Analysis/")
+                base = filename.rsplit("--", 1)[0]
+                safe_filename = build_video_note_filename(base, "deep-analysis").removesuffix("--deep-analysis.md") + suffix
+                if filename != safe_filename:
+                    raise _failure(ErrorCode.INVALID_RESPONSE, "Deep Analysis note filename is unsafe", None)
                 existing = _read_regular_file(directory_fd, filename)
                 if existing is not None:
                     _validate_managed_note(existing.content, source.canonical_input.video_identity)
@@ -549,6 +555,10 @@ def _validate_managed_note(content: bytes, video_id: str) -> None:
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note is not valid UTF-8", video_id) from None
     if "\r" in text:
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id)
+    try:
+        _validate_marker_shape(text)
+    except NoteRenderingError:
+        raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id) from None
     markers = (_MANAGED_START, _MANAGED_END, _USER_START, _USER_END)
     if any(text.count(marker) != 1 for marker in markers):
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id)
@@ -573,6 +583,7 @@ def _atomic_replace(
     expected: _ExistingFile | None,
 ) -> None:
     temporary = f".youtube-intel-{secrets.token_hex(16)}.tmp"
+    previous = f"{temporary}.previous"
     fd: int | None = None
     try:
         fd = os.open(
@@ -598,13 +609,38 @@ def _atomic_replace(
             or current.content != expected.content
         ):
             raise _failure(ErrorCode.INVALID_RESPONSE, "managed note changed during write", None)
-        os.replace(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        if expected is None:
+            # Atomic no-replace publication closes the check→replace window
+            # where a newly-created unrelated user file could be overwritten.
+            os.link(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+        else:
+            # Keep the prior inode until the directory commit is durable. A
+            # post-replace fsync error must not discard the previous valid note.
+            os.link(filename, previous, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+            saved = _read_regular_file(directory_fd, previous)
+            if saved != expected:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "managed note changed during write", None)
+            os.replace(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            current = _read_regular_file(directory_fd, filename)
+            # Never roll back over a concurrent owner's edit after publication.
+            if current == verified:
+                if expected is None:
+                    os.unlink(filename, dir_fd=directory_fd)
+                else:
+                    os.replace(previous, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            raise
     finally:
         if fd is not None:
             os.close(fd)
         try:
             os.unlink(temporary, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
+        try:
+            os.unlink(previous, dir_fd=directory_fd)
         except FileNotFoundError:
             pass
 

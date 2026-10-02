@@ -2,12 +2,13 @@
 
 from pathlib import Path
 
+from youtube_intel.deep_analysis_note import require_deep_analysis_publish_eligibility
 from youtube_intel.deep_analysis_persistence import (
     DeepAnalysisPersistenceError,
     DeepAnalysisPersistenceStore,
     VerifiedPersistedDeepAnalysisRead,
-    require_trusted_note_eligibility,
 )
+from youtube_intel.notes import NoteRenderingError
 from youtube_intel.providers.obsidian import (
     NotePersistenceError,
     NoteWriteContext,
@@ -34,12 +35,12 @@ class DeepAnalysisObsidianPublisher:
 
     def _eligible_read(self, content_id: str) -> VerifiedPersistedDeepAnalysisRead:
         source = self._store.read_deep_analysis_result_for_content(video_id=content_id)
-        try:
-            require_trusted_note_eligibility(source)
-        except DeepAnalysisPersistenceError:
-            raise DeepAnalysisPublishError("RESULT_INELIGIBLE") from None
-        if source is None or source.durable_result is None:
+        if source is None:
             raise DeepAnalysisPublishError("RESULT_INELIGIBLE")
+        try:
+            require_deep_analysis_publish_eligibility(source)
+        except (DeepAnalysisPersistenceError, NoteRenderingError):
+            raise DeepAnalysisPublishError("RESULT_INELIGIBLE") from None
         return source
 
     def status(self, *, content_id: str) -> dict[str, object]:

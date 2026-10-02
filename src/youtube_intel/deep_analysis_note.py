@@ -41,12 +41,22 @@ def deep_analysis_note_identity(
     })
 
 
-def render_deep_analysis_note(source: VerifiedPersistedDeepAnalysisRead, *, title: str) -> RenderedVideoNote:
+def require_deep_analysis_publish_eligibility(source: VerifiedPersistedDeepAnalysisRead) -> None:
     if not verify_persisted_deep_analysis_read(source):
         raise NoteRenderingError("Deep Analysis requires a verified persisted read")
     require_trusted_note_eligibility(source)
     if source.durable_result is None:
         raise NoteRenderingError("Deep Analysis requires native durable authority")
+    # Citation binding is verified by Phase 1B. Also reject prompt labels
+    # echoed into canonical prose rather than silently modifying claim text.
+    candidates = tuple(item.evidence_id for item in source.canonical_input.selected_evidence)
+    if any(candidate in claim.text for claim in source.durable_result.claims for candidate in candidates):
+        raise NoteRenderingError("Deep Analysis prose exposes a temporary reference")
+
+
+def render_deep_analysis_note(source: VerifiedPersistedDeepAnalysisRead, *, title: str) -> RenderedVideoNote:
+    require_deep_analysis_publish_eligibility(source)
+    assert source.durable_result is not None
     # Reuse the trusted Note gate and its exact verified-original Evidence
     # resolver. No prompt candidate registry is ever rendered.
     note = build_note_v2(source)

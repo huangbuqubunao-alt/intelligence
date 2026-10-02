@@ -1715,7 +1715,7 @@ const daResult = {
 
 function stubDeepAnalysis(
   state: { status: Record<string, unknown>; result: unknown },
-  options: { onPost?: () => void; publishState?: string; publishError?: string } = {},
+  options: { onPost?: () => void; publishState?: string; publishError?: string; publishResult?: string } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : String(input);
@@ -1725,7 +1725,7 @@ function stubDeepAnalysis(
           ? { error: { code: options.publishError, message: "Raw backend English failure" } }
           : { publish: { state: "PUBLISHED", relative_path: `Deep Analysis/${"a".repeat(240)}.md` } }) });
       }
-      return response({ publish: { state: options.publishState ?? "AVAILABLE", result_identity: "result-1" } });
+      return response({ publish: { state: options.publishState ?? "AVAILABLE", result_identity: options.publishResult ?? "result-1" } });
     }
     if (init?.method === "POST") {
       options.onPost?.();
@@ -1817,6 +1817,15 @@ test("Obsidian write failure is localized in Chinese", async () => {
   fireEvent.click(button);
   expect(await screen.findByText("写入未完成。请检查笔记库权限、路径或文件冲突后重试。")).toBeTruthy();
   expect(screen.queryByText("Raw backend English failure")).toBeNull();
+});
+
+test("Obsidian stale displayed result is disabled with a truthful localized state", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: { ...daResult, evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED" } }, { publishResult: "newer-result" });
+  render(<App />);
+  await openDeepAnalysisContent();
+  expect(await screen.findByText("深度分析结果已更新。请重新打开此内容后再发布。")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "发布到 Obsidian" }).hasAttribute("disabled")).toBe(true);
 });
 
 test("Deep Analysis is unavailable and honest when no model is qualified", async () => {
