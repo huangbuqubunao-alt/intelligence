@@ -3820,6 +3820,64 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def record_deep_analysis_usage(
+        self, request_hash: str, *, owner: str,
+        input_tokens: int | None, output_tokens: int | None, now: datetime,
+    ) -> None:
+        """Provider-reported observation only; absent counts stay NULL, no price."""
+        for value in (input_tokens, output_tokens):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError("invalid provider-reported usage")
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                changed = connection.execute(
+                    "UPDATE provider_calls SET input_tokens=?, output_tokens=? WHERE request_hash=? "
+                    "AND operation='content-deep-analysis-cloud' AND status='PENDING' "
+                    "AND reservation_owner=? AND lease_until>?",
+                    (input_tokens, output_tokens, request_hash, owner, format_utc_datetime(now)),
+                ).rowcount
+                if changed != 1:
+                    raise LeaseConflict("Deep Analysis usage reservation unavailable")
+        finally:
+            connection.close()
+
+    def complete_deep_analysis_dispatch(
+        self, request_hash: str, *, owner: str, result_identity: str, authorization_identity: str, now: datetime,
+    ) -> None:
+        """Complete the existing dispatch ledger after durable DA result commit.
+
+        DA has its own immutable result audit instead of a response artifact.
+        A crash between result and ledger commits remains conservatively ambiguous.
+        """
+        connection = self._connect()
+        timestamp = format_utc_datetime(now)
+        try:
+            with _immediate_transaction(connection):
+                result = connection.execute(
+                    "SELECT provider_id, model_id, payload_consent_json FROM deep_analysis_persisted_results WHERE result_identity=?",
+                    (result_identity,),
+                ).fetchone()
+                call = connection.execute("SELECT * FROM provider_calls WHERE request_hash=?", (request_hash,)).fetchone()
+                dispatch = self._dispatch_state_in_transaction(connection, request_hash)
+                if (result is None or call is None or call["operation"] != "content-deep-analysis-cloud"
+                    or call["provider"] != result["provider_id"] or call["model"] != result["model_id"]
+                    or json.loads(result["payload_consent_json"]).get("authorization_record_identity") != authorization_identity
+                    or call["status"] != "PENDING" or call["reservation_owner"] != owner
+                    or call["lease_until"] <= timestamp or dispatch is None
+                    or dispatch.status is not ProviderDispatchStatus.DISPATCHED_RESULT_UNKNOWN):
+                    raise IntegrityConflict("Deep Analysis dispatch cannot complete")
+                connection.execute(
+                    "UPDATE provider_calls SET status='SUCCEEDED', reservation_owner=NULL, lease_until=NULL, "
+                    "finished_at=?, updated_at=? WHERE request_hash=?", (timestamp, timestamp, request_hash),
+                )
+                connection.execute(
+                    "UPDATE provider_dispatch_states SET status='SUCCESS_DURABLY_RECORDED', updated_at=? WHERE request_hash=?",
+                    (timestamp, request_hash),
+                )
+        finally:
+            connection.close()
+
     def record_provider_dispatch_intent(
         self, request_hash: str, *, owner: str, now: datetime
     ) -> ProviderDispatchRecord:

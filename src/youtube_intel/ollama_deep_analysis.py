@@ -266,9 +266,9 @@ class OllamaDeepAnalysisProviderAdapter:
 
 def _usage(response: Mapping[str, object]) -> PostResponseUsageEvidenceV1 | None:
     prompt, output = response.get("prompt_eval_count"), response.get("eval_count")
-    if prompt is not None and (not isinstance(prompt, int) or prompt < 0):
+    if prompt is not None and (type(prompt) is not int or prompt < 0):
         return None
-    if output is not None and (not isinstance(output, int) or output < 0):
+    if output is not None and (type(output) is not int or output < 0):
         return None
     return PostResponseUsageEvidenceV1(schema_version="deep-analysis-post-response-usage-evidence-v1", provider_reported_input_tokens=prompt, provider_reported_output_tokens=output)
 

@@ -12,6 +12,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol
+from urllib.request import Request, urlopen
 
 from youtube_intel.deep_analysis_contracts import (
     AuthorizedProviderPayloadProjectionV1,
@@ -35,12 +36,21 @@ from youtube_intel.deep_analysis_contracts import (
     PostResponseUsageEvidenceV1,
     UntrustedDeepAnalysisResponseV1,
 )
+from youtube_intel.deep_analysis_phase1b_contract import (
+    PHASE_1B_MODEL_SCHEMA,
+    PHASE_1B_PROMPT_IDENTITY,
+    PHASE_1B_VALIDATION_POLICY,
+    DeepAnalysisPhase1BModelOutput,
+)
 from youtube_intel.deep_analysis_runtime import (
     DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
     DeepAnalysisResponseMetadataV1,
     PreparedDeepAnalysisDispatch,
 )
 from youtube_intel.domain import KnowledgeContent
+from youtube_intel.ollama_deep_analysis import (
+    build_ollama_local_phase1b_request_projection,
+)
 
 _TIMEOUT_SECONDS: Final = 30.0
 _MAX_RETRIES: Final = 0
@@ -249,6 +259,28 @@ def build_openai_reference_request_projection(
     )
 
 
+def build_openai_phase1b_request_projection(
+    *, canonical_input: object, authorized_payload: AuthorizedProviderPayloadProjectionV1,
+    payload_consent: PayloadConsentIdentityV1,
+) -> DeepAnalysisRequestProjectionV1:
+    base = build_openai_reference_request_projection(
+        canonical_input=canonical_input, authorized_payload=authorized_payload, payload_consent=payload_consent,
+    )
+    five_role = build_ollama_local_phase1b_request_projection(
+        canonical_input=canonical_input, authorized_payload=authorized_payload, payload_consent=payload_consent,
+    )
+    structured = base.structured_output.model_dump(mode="python", by_alias=True)
+    structured["settings"] = {"name": "content_deep_analysis_v2", "strict": True}
+    structured["schema"] = _strict_openai_schema(DeepAnalysisPhase1BModelOutput.model_json_schema())
+    return DeepAnalysisRequestProjectionV1.model_validate({
+        **base.model_dump(mode="python", by_alias=True),
+        "operation": "content-deep-analysis", "prompt_identity": PHASE_1B_PROMPT_IDENTITY,
+        "knowledge_content_schema_identity": PHASE_1B_MODEL_SCHEMA,
+        "provider_visible_messages": five_role.provider_visible_messages,
+        "structured_output": structured,
+    })
+
+
 def build_openai_reference_execution_profile(
     *,
     request_projection: DeepAnalysisRequestProjectionV1,
@@ -338,6 +370,23 @@ def _isolated_openai_transport(
     return result if isinstance(result, dict) else {"kind": "error", "category": "UNKNOWN"}
 
 
+def probe_openai_model(credential: str | None) -> str:
+    """Non-generating model-read probe; no Content, request body, price or log.
+
+    Called by production only after a current live qualification is present.
+    Unknown or rejected credentials cannot claim reachability.
+    """
+    if not credential:
+        return "NOT_CHECKED"
+    request = Request(f"https://api.openai.com/v1/models/{_MODEL_ID}", headers={"Authorization": f"Bearer {credential}"})
+    try:
+        with urlopen(request, timeout=4) as response:
+            value = json.loads(response.read(16_384))
+        return "REACHABLE" if isinstance(value, dict) and value.get("id") == _MODEL_ID else "UNREACHABLE"
+    except Exception:
+        return "UNREACHABLE"
+
+
 def _provider_error(result: Mapping[str, object]) -> OpenAIDeepAnalysisProviderError:
     category = result.get("category")
     if category == "TIMEOUT":
@@ -382,7 +431,7 @@ def _response_metadata(prepared: PreparedDeepAnalysisDispatch, response: Mapping
         a2_identity=envelope.a2_identity,
         a3_identity=envelope.a3_identity,
         scoring_request_hash=envelope.canonical_input.scoring_request_hash,
-        validation_policy_identity=DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY,
+        validation_policy_identity=(PHASE_1B_VALIDATION_POLICY.identity if envelope.request_projection.knowledge_content_schema_identity == PHASE_1B_MODEL_SCHEMA else DEFAULT_DEEP_ANALYSIS_VALIDATION_POLICY_IDENTITY),
     )
 
 
@@ -392,9 +441,9 @@ def _usage(response: Mapping[str, object]) -> PostResponseUsageEvidenceV1 | None
         return None
     input_tokens = usage.get("input_tokens")
     output_tokens = usage.get("output_tokens")
-    if input_tokens is not None and (not isinstance(input_tokens, int) or input_tokens < 0):
+    if input_tokens is not None and (type(input_tokens) is not int or input_tokens < 0):
         return None
-    if output_tokens is not None and (not isinstance(output_tokens, int) or output_tokens < 0):
+    if output_tokens is not None and (type(output_tokens) is not int or output_tokens < 0):
         return None
     return PostResponseUsageEvidenceV1(
         schema_version="deep-analysis-post-response-usage-evidence-v1",
@@ -479,6 +528,9 @@ class OpenAIDeepAnalysisProviderAdapter:
         execution_profile = envelope.execution_profile
         context = envelope.context_budget_profile
         profile = OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE
+        phase1b = request_projection.knowledge_content_schema_identity == PHASE_1B_MODEL_SCHEMA
+        schema_name = "content_deep_analysis_v2" if phase1b else "deep_analysis_knowledge_content_v1"
+        schema = DeepAnalysisPhase1BModelOutput.model_json_schema() if phase1b else KnowledgeContent.model_json_schema()
         expected = (
             execution_profile.provider_kind is profile.provider_kind
             and execution_profile.provider_id == profile.provider_id
@@ -507,10 +559,10 @@ class OpenAIDeepAnalysisProviderAdapter:
             and request_projection.structured_output.mode is DeepAnalysisStructuredOutputMode.PROVIDER_JSON_SCHEMA
             and request_projection.structured_output.dialect_id == "openai-responses-text-json-schema"
             and request_projection.structured_output.dialect_version == "v1"
-            and request_projection.structured_output.settings == {"name": "deep_analysis_knowledge_content_v1", "strict": True}
+            and request_projection.structured_output.settings == {"name": schema_name, "strict": True}
             and request_projection.structured_output.schema_object is not None
             and _thaw_json(request_projection.structured_output.schema_object)
-            == _strict_openai_schema(KnowledgeContent.model_json_schema())
+            == _strict_openai_schema(schema)
             and request_projection.payload_scope is DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY
             and request_projection.authorized_payload.payload_scope
             is DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY
@@ -529,7 +581,7 @@ class OpenAIDeepAnalysisProviderAdapter:
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "deep_analysis_knowledge_content_v1",
+                    "name": schema_name,
                     "strict": True,
                     "schema": _thaw_json(request_projection.structured_output.schema_object),
                 }

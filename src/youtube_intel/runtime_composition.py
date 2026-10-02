@@ -167,24 +167,11 @@ class LocalSourceRunRuntime:
 
 
 def _deep_analysis_production_capability() -> DeepAnalysisCapability:
-    """Resolve the production Deep Analysis capability.
-
-    Qualification is an activation gate, not an architecture gate, and it is
-    **never** a configuration fact:
-
-        CONFIGURED != AVAILABLE != QUALIFIED != PRODUCTION_ELIGIBLE
-
-    Phase 1A ships no qualification authority or receipt, so this resolves to an
-    empty capability. An empty registry yields a truthful ``NOT_QUALIFIED``
-    product state; it never promotes a dev/test candidate such as
-    ``qwen2.5-coder:7b`` into a production-qualified route.
-
-    Environment variables, model presence, and configuration are deliberately
-    ignored here. Real model qualification is Phase 1C work and must arrive as a
-    reviewed authority, not as an environment flag.
-    """
-
-    return DeepAnalysisCapability()
+    """Configured/reachable candidates are distinct from reviewed qualification."""
+    from youtube_intel.deep_analysis_activation import (
+        production_deep_analysis_capability,
+    )
+    return production_deep_analysis_capability()
 
 
 def build_local_source_run_runtime(
