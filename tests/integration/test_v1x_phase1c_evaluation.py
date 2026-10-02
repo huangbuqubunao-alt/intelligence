@@ -126,12 +126,13 @@ def test_qualification_rejects_product_contract_failures(tmp_path, attack):
     assert not QualificationAuthority((receipt,)).qualified(route)
 
 
-def test_live_cloud_evaluation_has_separate_paid_authorization_gate(tmp_path):
+@pytest.mark.parametrize("mode", ["LIVE_MODEL", "FIXTURE_CONTRACT"])
+def test_cloud_evaluation_has_separate_authorization_gate_in_every_mode(tmp_path, mode):
     calls = []
     route = build_openai_phase1b_route(
         transport=lambda *args: calls.append(args),
         credential_resolver=lambda: "test-only",
     )
     with pytest.raises(ValueError, match="separately authorized"):
-        evaluate_route(route=route, root=tmp_path, mode="LIVE_MODEL")
+        evaluate_route(route=route, root=tmp_path, mode=mode)
     assert calls == []

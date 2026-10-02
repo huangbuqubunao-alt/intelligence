@@ -13,11 +13,11 @@
       "prompt_identity": "v1x-content-deep-analysis-phase1b-prompt-v1",
       "validation_policy_identity": "59461202677ec9d5cf31a7237de56cfece219bf8bf688c658e65e54c3b8e336e",
       "evidence_contract_identity": "add257111e394c2200ac19c9a5f2cdeaf34e7a61668ca1751cf6f3b53159ab63",
-      "contract_identity": "119ca1a31dd0010b6462ce7e39d7a35908ce8960247094f2bf29a5b701084f75",
+      "contract_identity": "c471e5038785c0ac79131e7c16e0efe55f6386fbefefec61284f0ce22b274d50",
       "fixture_identity": "9bbe9a4c1abd232cebabba0480624be3a6fb6c7fff1c0f4e1257584fcc356670"
     },
     "mode": "LIVE_MODEL",
-    "generated_at": "2026-10-02T22:39:21.586803Z",
+    "generated_at": "2026-10-02T22:51:55.268212Z",
     "checks": [
       {
         "case_id": "straightforward",
@@ -109,6 +109,6 @@
       "Automated source-specific expectations supplement exact schema, candidate, language and durable-restart checks; semantic review is required before registry activation.",
       "A proposal is not production authority; only a reviewed repository registry record may activate a route."
     ],
-    "record_identity": "93acc54babdb28f15fee94ea4b69b2128bbd7ee9e998d558b0757c8e7450203a"
+    "record_identity": "821e7658c72e3359ffd3f95eea970ca7c79ab62dacf0998f34cc20518657cc3b"
   }
 ]

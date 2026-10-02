@@ -111,7 +111,8 @@ before every generation,
 requires fresh isolated output/data paths, and stops after the first failed case
 with the remaining checks explicitly NOT_RUN_AFTER_FAILURE. It emits a proposal,
 not an activation. The harness supports caller-injected cloud adapters but rejects
-LIVE_MODEL cloud evaluation without a separate explicit authorization argument.
+cloud evaluation in either mode without a separate explicit authorization argument.
+Calling a real adapter a fixture cannot bypass the cloud authorization gate.
 The normal suite uses deterministic fakes and never obtains cloud credentials.
 
 ## Credentials and M13 integration boundary
@@ -224,7 +225,7 @@ The available pinned `ollama-local / qwen2.5-coder:7b` model with digest
 `sha256:dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`
 failed the first actual English straightforward case: VALIDATION_FAILED. Thirteen
 remaining cases are explicitly not run after failure. Reviewed negative record
-identity is `93acc54babdb28f15fee94ea4b69b2128bbd7ee9e998d558b0757c8e7450203a`.
+identity is `821e7658c72e3359ffd3f95eea970ca7c79ab62dacf0998f34cc20518657cc3b`.
 It is FAILED, not live-qualified, despite being reachable and contract-capable.
 Other installed models are discovery only and are not new qualified routes.
 

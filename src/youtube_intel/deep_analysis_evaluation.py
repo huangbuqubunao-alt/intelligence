@@ -153,9 +153,9 @@ def evaluate_route(
     Evaluation is a nonproduction injection seam. Cloud adapters are provided
     by the caller only after separate paid authorization, never selected here.
     """
-    if not route.is_local and mode == "LIVE_MODEL" and not cloud_evaluation_authorized:
+    if not route.is_local and not cloud_evaluation_authorized:
         raise ValueError(
-            "Live cloud evaluation requires separately authorized paid execution"
+            "Cloud evaluation requires separately authorized execution in every mode"
         )
     now = datetime.now(UTC)
     checks: list[QualificationCheck] = []
