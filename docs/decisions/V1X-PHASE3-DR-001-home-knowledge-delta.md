@@ -1,4 +1,4 @@
-# V1X-DR-003: Phase 3 Home Knowledge Delta
+# V1X-PHASE3-DR-001: Home Knowledge Delta
 
 Status: Owner-frozen Phase 3 implementation decision. Base:
 `432f085d76824dfa51a447622aa2dba23ff8bfc8` (accepted Phase 1B).
