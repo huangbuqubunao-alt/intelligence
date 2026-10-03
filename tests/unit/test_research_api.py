@@ -59,3 +59,32 @@ def test_api_rejects_unsupported_topic_source_history_and_diff(tmp_path):
         with pytest.raises(ApiError) as rejected:
             application.handle("GET", "/api/v1/research/" + suffix)
         assert rejected.value.status == 404
+
+
+def test_history_api_exact_packet_wrong_owner_and_codes(tmp_path):
+    application = app(tmp_path)
+    payload = json.dumps({"question": "sentence1", "content_ids": [authority.VIDEO]}).encode()
+    _, first = application.handle("POST", "/api/v1/research", payload)
+    identity = first["research"]["packet"]["research_id"]
+    revision = first["research"]["result_identity"]
+    path = f"/api/v1/research/{identity}/history"
+    assert application.handle("GET", path)[1]["revisions"] == []
+    _, current = application.handle("POST", "/api/v1/research", payload)
+    status, history = application.handle("GET", path)
+    assert status == 200
+    assert history["revisions"][0]["revision_id"] == revision
+    assert application.handle("GET", f"{path}/{revision}")[1] == {**first, "is_current": False}
+    assert application.handle("GET", f"{path}/{current["research"]["result_identity"]}")[1]["is_current"] is True
+    assert application.handle("GET", f"/api/v1/research/{identity}")[1] == current
+    for url, code, status in [
+        (f"{path}/{'f' * 64}", "RESEARCH_REVISION_NOT_FOUND", 404),
+        (f"/api/v1/research/{'f' * 64}/history/{revision}", "RESEARCH_REVISION_NOT_FOUND", 404),
+        (path + "?cursor=bad", "RESEARCH_INVALID_CURSOR", 422),
+        (path + "?cursor=1&cursor=2", "RESEARCH_INVALID_CURSOR", 422),
+        (path + "?offset=1", "RESEARCH_INVALID_CURSOR", 422),
+        (f"{path}/{revision}?cursor=bad", "RESEARCH_INVALID_CURSOR", 422),
+        (f"/api/v1/research/{identity}/diff", "RESEARCH_NOT_FOUND", 404),
+    ]:
+        with pytest.raises(ApiError) as rejected:
+            application.handle("GET", url)
+        assert rejected.value.code == code and rejected.value.status == status

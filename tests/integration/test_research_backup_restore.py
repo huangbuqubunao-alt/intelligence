@@ -87,3 +87,41 @@ def test_corrupt_research_archive_preserves_valid_state(tmp_path, attack):
     assert hashlib.sha256((tmp_path / "state.sqlite3").read_bytes()).hexdigest() == before
     assert ResearchLiteService(repo).read(first.packet.research_id).as_dict() == current
     assert not service.restore_pending
+
+
+def test_three_revision_history_restores_exact_packets_and_order(tmp_path):
+    repo = support.authority.seed(tmp_path)
+    results = [support.run(repo) for _ in range(3)]
+    identity = results[0].packet.research_id
+    research = ResearchLiteService(repo)
+    history = research.history(identity)
+    service = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path / "data")
+    created = service.create_backup()
+    path, _ = service.backup_download(created.backup_id)
+    staged = service.stage_restore(path.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    restored = ResearchLiteService(SQLiteStateRepository(tmp_path / "state.sqlite3"))
+    assert restored.history(identity) == history
+    assert restored.read(identity).as_dict() == results[-1].as_dict()
+    for result in results:
+        actual = restored.read_revision(identity, result.result_identity)
+        assert actual.as_dict() == result.as_dict()
+        for ref in actual.packet.evidence:
+            assert repo.resolve_verified_evidence_text(ref.evidence_id).excerpt == ref.excerpt
+
+
+def test_corrupt_only_old_revision_archive_is_rejected_preserving_valid_current(tmp_path):
+    repo, first, service, raw = backup(tmp_path)
+    current = ResearchLiteService(repo).read(first.packet.research_id)
+    def mutate(db):
+        trigger = db.execute("SELECT sql FROM sqlite_master WHERE name='research_results_immutable_update'").fetchone()[0]
+        db.execute("DROP TRIGGER research_results_immutable_update")
+        db.execute("UPDATE research_results SET payload_json='{}' WHERE result_identity=?", (first.result_identity,))
+        db.execute(trigger)
+    corrupt = archive_support.alter_archive(tmp_path, raw, mutate)
+    before = hashlib.sha256((tmp_path / "state.sqlite3").read_bytes()).hexdigest()
+    with pytest.raises(BackupRestoreError):
+        service.stage_restore(corrupt)
+    assert hashlib.sha256((tmp_path / "state.sqlite3").read_bytes()).hexdigest() == before
+    assert ResearchLiteService(repo).read(first.packet.research_id).as_dict() == current.as_dict()

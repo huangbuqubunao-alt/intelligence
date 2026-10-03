@@ -70,6 +70,7 @@ def _terms(question: str) -> tuple[str, ...]:
 class ResearchRead:
     result_identity: str
     packet: ResearchPacket
+    is_current: bool | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {"result_identity": self.result_identity, "provenance_status": "VERIFIED",
@@ -237,7 +238,8 @@ class ResearchLiteService:
         assert row is not None
         return self.verify_row(connection, row)
 
-    def verify_row(self, connection: sqlite3.Connection, row: sqlite3.Row) -> ResearchRead:
+    def verify_row(self, connection: sqlite3.Connection, row: sqlite3.Row, *,
+                   evidence_cache: dict[str, ResearchEvidence] | None = None) -> ResearchRead:
         """Shared restart/backup validator. Hash shape alone never grants trust."""
         try:
             packet = ResearchPacket.model_validate_json(row["payload_json"])
@@ -275,9 +277,12 @@ class ResearchLiteService:
         # refresh must not destroy a correctly bound Research artifact.
         if [c.content_id for c in scope] != request.content_ids:
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
-        actual_evidence = self._evidence_many(connection, [e.evidence_id for e in packet.evidence], request.content_ids)
+        if evidence_cache is None:
+            actual_evidence = self._evidence_many(connection, [e.evidence_id for e in packet.evidence], request.content_ids)
+        else:
+            actual_evidence = [evidence_cache[e.evidence_id] for e in packet.evidence]
         for reference, actual in zip(packet.evidence, actual_evidence, strict=True):
-            if actual != reference or _timestamp(actual.created_at) > _timestamp(packet.assembled_at):
+            if actual.content_id not in request.content_ids or actual != reference or _timestamp(actual.created_at) > _timestamp(packet.assembled_at):
                 raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         evidence_by_id = {e.evidence_id: e for e in packet.evidence}
         for finding in packet.intelligence:
@@ -305,6 +310,116 @@ class ResearchLiteService:
             if row["execution_number"] != latest:
                 raise ResearchRejected("RESEARCH_CORRUPTED_RESULT")
             return self.verify_row(connection, row)
+        except ResearchRejected:
+            raise
+        except (ValueError, sqlite3.Error) as error:
+            raise ResearchRejected("RESEARCH_CORRUPTED_RESULT") from error
+        finally:
+            connection.close()
+
+    def read_revision(self, research_id: str, revision_id: str) -> ResearchRead:
+        """A revision id is the existing immutable result identity, never current."""
+        connection = self._repository._connect(read_only=True)
+        try:
+            connection.execute("BEGIN")
+            row = connection.execute(
+                "SELECT * FROM research_results WHERE research_id=? AND result_identity=?",
+                (research_id, revision_id),
+            ).fetchone()
+            if row is None:
+                raise ResearchRejected("RESEARCH_REVISION_NOT_FOUND")
+            result = self.verify_row(connection, row)
+            is_current = bool(connection.execute(
+                "SELECT current_result_identity=? AND NOT EXISTS (SELECT 1 FROM research_results "
+                "WHERE research_id=? AND execution_number>?) FROM research_items WHERE research_id=?",
+                (revision_id, research_id, row["execution_number"], research_id),
+            ).fetchone()[0])
+            return ResearchRead(result.result_identity, result.packet, is_current=is_current)
+        except ResearchRejected:
+            raise
+        except (ValueError, sqlite3.Error) as error:
+            raise ResearchRejected("RESEARCH_CORRUPTED_RESULT") from error
+        finally:
+            connection.close()
+
+    def history(self, research_id: str, *, cursor: str | None = None, limit: int = 25) -> dict[str, object]:
+        """Bounded trusted previous revisions, ordered by immutable execution sequence.
+
+        Cursor pins the initial current sequence so concurrent reruns do not shift
+        pages. Unavailable counts describe this page only, never a trusted total.
+        """
+        if not 1 <= limit <= 25:
+            raise ResearchRejected("RESEARCH_INVALID_CURSOR")
+        connection = self._repository._connect(read_only=True)
+        try:
+            connection.execute("BEGIN")
+            item = connection.execute("SELECT * FROM research_items WHERE research_id=?", (research_id,)).fetchone()
+            if item is None:
+                raise ResearchRejected("RESEARCH_NOT_FOUND")
+            latest = connection.execute(
+                "SELECT max(execution_number) FROM research_results WHERE research_id=?", (research_id,)
+            ).fetchone()[0]
+            current = connection.execute(
+                "SELECT * FROM research_results WHERE research_id=? AND result_identity=?",
+                (research_id, item["current_result_identity"]),
+            ).fetchone()
+            current_id = None
+            if current is not None and current["execution_number"] == latest:
+                try:
+                    current_id = self.verify_row(connection, current).result_identity
+                except ResearchRejected:
+                    pass  # A broken current result does not conceal valid older authority.
+            anchor = int(latest or 0)
+            before = anchor + 1
+            if cursor is not None:
+                if len(cursor) > 120 or re.fullmatch(r"[a-f0-9]{64}:[0-9]{1,12}:[0-9]{1,12}", cursor) is None:
+                    raise ResearchRejected("RESEARCH_INVALID_CURSOR")
+                owner, raw_anchor, raw_before = cursor.split(":")
+                anchor, before = int(raw_anchor), int(raw_before)
+                if owner != research_id or not 0 < before <= anchor <= int(latest or 0):
+                    raise ResearchRejected("RESEARCH_INVALID_CURSOR")
+            rows = connection.execute(
+                "SELECT * FROM research_results WHERE research_id=? AND execution_number<=? "
+                "AND execution_number<? AND result_identity!=? ORDER BY execution_number DESC LIMIT ?",
+                (research_id, anchor, before, current_id or "", limit + 1),
+            ).fetchall()
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+            # Resolve shared Evidence across the bounded page once. Packet parsing
+            # here grants no trust; every row still passes the complete validator.
+            evidence_cache = None
+            try:
+                packets = []
+                for row in rows:
+                    try:
+                        packets.append(ResearchPacket.model_validate_json(row["payload_json"]))
+                    except ValueError:
+                        pass
+                evidence_ids = sorted({e.evidence_id for p in packets for e in p.evidence})
+                scope_ids = sorted({c.content_id for p in packets for c in p.scope})
+                evidence_cache = {e.evidence_id: e for e in self._evidence_many(connection, evidence_ids, scope_ids)}
+            except ResearchRejected:
+                pass  # Isolate unavailable references via individual verification.
+            revisions = []
+            unavailable = 0
+            for row in rows:
+                try:
+                    result = self.verify_row(connection, row, evidence_cache=evidence_cache)
+                    packet = result.packet
+                    revisions.append({
+                        "revision_id": result.result_identity, "assembled_at": packet.assembled_at,
+                        "question": packet.question, "output_language": packet.output_language,
+                        "scope_count": len(packet.scope), "evidence_count": len(packet.evidence),
+                        "intelligence_count": len(packet.intelligence), "status": packet.material_status,
+                    })
+                except (ResearchRejected, KeyError):
+                    unavailable += 1
+            return {
+                "revisions": revisions, "current_revision_id": current_id,
+                "current_available": current_id is not None, "unavailable_count": unavailable,
+                "has_more": has_more, "limit": limit,
+                "next_cursor": f"{research_id}:{anchor}:{rows[-1]['execution_number']}" if has_more else None,
+            }
         except ResearchRejected:
             raise
         except (ValueError, sqlite3.Error) as error:
