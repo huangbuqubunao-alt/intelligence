@@ -173,6 +173,18 @@ def test_failure_retry_new_attempt_no_fallback(setup):
     wait_for(lambda: jobs.status(cid)["status"] == "FAILED")
     assert jobs.status(cid)["last_failure_category"] == "EXECUTOR_TIMEOUT"
     assert jobs.repository.get_verified_timed_transcript(video_id=cid) is None
+    from youtube_intel.local_api import LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    app = LocalApiApplication(
+        jobs.repository,
+        ProductOrchestrationService(jobs.repository),
+        data_root=jobs.data_root,
+        transcription_jobs=jobs,
+    )
+    status, detail = app.handle("GET", f"/api/v1/videos/{cid}")
+    assert status == 200
+    assert detail["video"]["processing_status"] == "TRANSCRIPTION_FAILED"
     executor.failure = None
     second = jobs.start(cid, IDENTITY)["attempt_id"]
     assert first != second

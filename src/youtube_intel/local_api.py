@@ -1538,7 +1538,7 @@ class LocalApiApplication:
             try:
                 state = self._transcription_jobs.status(video.video_id)["status"]
                 if state in {"RUNNING", "FAILED", "INTERRUPTED"}:
-                    projection["processing_status"] = state
+                    projection["processing_status"] = "TRANSCRIPTION_FAILED" if state == "FAILED" else state
             except OfflineError:
                 projection["processing_status"] = "SOURCE_UNAVAILABLE"
         return projection
