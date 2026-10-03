@@ -44,11 +44,14 @@ from youtube_intel.evidence_translation import (
     EvidenceTranslationPresentationService,
     source_matches_target,
 )
+from youtube_intel.extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
+from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
 )
 from youtube_intel.knowledge_delta import KnowledgeDeltaService
+from youtube_intel.local_content import LocalContentProvider, LocalImportError
 from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
 from youtube_intel.orchestration import (
     AutomationTargetType,
@@ -70,6 +73,12 @@ from youtube_intel.saved_intelligence import (
     UnsaveIntelligence,
 )
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
+from youtube_intel.source_authority import (
+    MAX_MEDIA_BYTES,
+    MAX_TEXT_BYTES,
+    safe_filename,
+    verify_source,
+)
 from youtube_intel.source_policy import (
     EffectiveSourcePolicy,
     SourcePolicyApplicationService,
@@ -195,6 +204,7 @@ def _saved_item_dto(item: SavedIntelligenceItem) -> dict[str, object]:
 def _source_dto(source: SourceSubscriptionRecord) -> dict[str, object]:
     return {
         "source_id": source.source_id,
+        "provider": source.provider,
         "source_type": source.source_type.value,
         "canonical_url": source.canonical_url,
         "channel_id": source.channel_id,
@@ -244,7 +254,8 @@ def _video_dto(
     # reader is wired to a dedicated projection service.
     return {
         "video_id": video.video_id,
-        "channel_id": video.channel_id,
+        "provider": video.provider,
+        "channel_id": video.channel_id if video.provider == "YOUTUBE" else None,
         "channel_name": video.channel_name,
         "title": video.title,
         "source_url": video.source_url,
@@ -480,6 +491,10 @@ class LocalApiApplication:
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._content_summary_reader = AuthoritativeContentSummaryReader(repository)
         self._data_root = None if data_root is None else data_root.resolve()
+        if self._data_root is not None:
+            repository.bind_source_storage(self._data_root)
+        self._local_import_slot = threading.BoundedSemaphore(1)
+        self._local_provider = None if self._data_root is None else LocalContentProvider(repository, self._data_root, now=now)
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
@@ -634,6 +649,18 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if method == "POST" and route == "/api/v1/local/imports":
+                if self._local_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
+                query = parse_qs(urlparse(path).query, keep_blank_values=True)
+                names = query.get("filename", [])
+                if set(query) != {"filename"} or len(names) != 1 or len(names[0]) > 1024:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,"LOCAL_INVALID_FILENAME","Select a supported file.")
+                try:
+                    import_result = self._local_provider.import_bytes(names[0], body)
+                except LocalImportError as rejection:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,rejection.code,"The selected file could not be imported.") from None
+                return HTTPStatus.OK if import_result.duplicate else HTTPStatus.CREATED, {"import":import_result.as_dict()}
             if route == "/api/v1/research" or route.startswith("/api/v1/research/"):
                 return self._research_route(method, path, body)
             if method == "GET" and route == "/api/v1/backup-restore/status":
@@ -655,6 +682,15 @@ class LocalApiApplication:
                 return HTTPStatus.OK, self._saved_list(path)
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
+            # Local provider capability is explicit: source material never
+            # enters YouTube ingestion or external Intelligence transports.
+            local_target = re.fullmatch(r'/api/v1/videos/([^/]+)/cloud-intelligence/(?:review|confirm)',route)
+            source_target = re.fullmatch(r'/api/v1/sources/([^/]+)/videos/([^/]+)/(?:manual-analyze|distill)',route)
+            if local_target is not None or source_target is not None:
+                content_id=local_target[1] if local_target is not None else source_target[2] if source_target is not None else ''
+                selected_local_content=self._repository.get_video(content_id)
+                if selected_local_content is not None and selected_local_content.provider=='LOCAL':
+                    raise ApiError(HTTPStatus.CONFLICT,'LOCAL_PROVIDER_CAPABILITY_UNAVAILABLE','Local Content uses on-device source processing.')
             data = self._body(body)
             if route in {"/api/v1/settings/cloud-credential", "/api/v1/settings/cloud-credential/delete"}:
                 if self._model_settings is None:
@@ -1478,17 +1514,18 @@ class LocalApiApplication:
         """
 
         if self._deep_analysis_service is None:
-            return _video_dto(
-                video,
-                deep_analysis_status="UNAVAILABLE",
-                deep_analysis_reason="Deep Analysis is unavailable.",
-            )
-        status = self._deep_analysis_service.status(content_id=video.video_id)
-        return _video_dto(
-            video,
-            deep_analysis_status=status.availability.value,
-            deep_analysis_reason=status.reason,
-        )
+            projection = _video_dto(video,deep_analysis_status="UNAVAILABLE",deep_analysis_reason="Deep Analysis is unavailable.")
+        else:
+            status = self._deep_analysis_service.status(content_id=video.video_id)
+            projection = _video_dto(video,deep_analysis_status=status.availability.value,deep_analysis_reason=status.reason)
+        if video.provider == "LOCAL":
+            with self._repository._connect() as connection:
+                source = verify_source(self._repository,connection,video.video_id)
+                if source is None:
+                    projection["processing_status"] = "SOURCE_UNAVAILABLE"
+                else:
+                    projection.update({"processing_status":source["status"],"filename":source["filename"],"media_kind":source["media_kind"],"format":source["format"],"imported_at":source["imported_at"],"source_language":source["language"],"duration_seconds":source["duration_seconds"]})
+        return projection
 
     def _obsidian_content_id(self, route: str) -> str:
         content_id = route.removeprefix("/api/v1/videos/").removesuffix("/deep-analysis/obsidian")
@@ -1786,7 +1823,7 @@ class LocalApiApplication:
                     )
                 ),
                 "cloud_intelligence_available": (
-                    self._cloud_intelligence_qualified and self._cloud_credential_available
+                    video.provider == "YOUTUBE" and self._cloud_intelligence_qualified and self._cloud_credential_available
                 ),
                 "history": self._history_projection(video.video_id),
             }
@@ -1903,6 +1940,16 @@ class LocalApiApplication:
             "evidence_ids": list(verified.evidence_ids),
             "confirmed": verified.is_confirmed,
         }
+        provenance = []
+        for evidence_id in verified.evidence_ids:
+            evidence = self._repository.get_evidence(evidence_id)
+            text = self._repository.resolve_verified_evidence_text(evidence_id)
+            if evidence is None or text is None:
+                continue
+            content = self._repository.get_video(evidence.video_id)
+            provenance.append({"evidence_id":evidence_id,"content_id":evidence.video_id,"provider":None if content is None else getattr(content,"provider","YOUTUBE"),"locator_type":getattr(text,"locator_type","TIMED_MEDIA"),"start_ms":text.start_ms,"end_ms":text.end_ms,"start_line":getattr(text,"start_line",None),"end_line":getattr(text,"end_line",None),"excerpt":text.excerpt})
+        if provenance:
+            projection["source_provenance"] = provenance
         try:
             card = self._intelligence_reader.read_current_card(intelligence_id)
         except IntelligenceReadRejected:
@@ -2068,6 +2115,12 @@ class LocalApiApplication:
                     "translation_status": translation_status,
                     "start_ms": verified.start_ms,
                     "end_ms": verified.end_ms,
+                    "locator_type": verified.locator_type,
+                    "start_offset": verified.start_offset,
+                    "end_offset": verified.end_offset,
+                    "start_line": verified.start_line,
+                    "end_line": verified.end_line,
+                    "provider": video.provider,
                     "created_at": _timestamp(evidence.created_at),
                     "source_url": video.source_url,
                 }
@@ -2328,6 +2381,14 @@ class LocalApiApplication:
             return None
 
     def _transcript_projection(self, video_id: str) -> dict[str, object]:
+        video = self._repository.get_video(video_id)
+        if video is not None and video.provider == "LOCAL":
+            with self._repository._connect() as connection:
+                source = verify_source(self._repository, connection, video_id)
+                if source is None:
+                    return {"status":"UNAVAILABLE","code":"LOCAL_SOURCE_UNTRUSTED"}
+                if source["status"] != "READY":
+                    return {"status":source["status"],"code":source["status"]}
         artifact = self._repository.latest_artifact(
             video_id, ArtifactKind.TRANSCRIPT_CANONICAL
         )
@@ -2375,14 +2436,18 @@ class LocalApiApplication:
         """Project only the explicit current verified Summary result."""
 
         local_pointer = self._repository.current_local_summary_pointer(video_id)
+        analysis_reader = self._analysis_reader
         if local_pointer is not None:
-            if self._analysis_reader is None:
+            artifact = self._repository.get_artifact(local_pointer.artifact_id)
+            if artifact is not None and artifact.provider == EXTRACTIVE_PROVIDER and self._data_root is not None:
+                analysis_reader = ExtractiveSummaryService(self._repository,self._data_root).read
+            if analysis_reader is None:
                 return {
                     "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
                     "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_INVALID"},
                 }
             try:
-                outcome = self._analysis_reader(video_id, local_pointer.artifact_id)
+                outcome = analysis_reader(video_id, local_pointer.artifact_id)
             except LegacySummaryNotCurrentAuthority:
                 # The stored Summary is readable but its citations are temporary
                 # model-facing refs, so it is not current trusted authority.
@@ -2403,14 +2468,19 @@ class LocalApiApplication:
                     "v2": {"status": "UNAVAILABLE", "code": "CURRENT_SUMMARY_INVALID"},
                 }
             result = outcome.result
+            summary_language = local_pointer.output_language
+            if result.provider == EXTRACTIVE_PROVIDER:
+                content = self._repository.get_video(video_id)
+                summary_language = "und" if content is None else content.default_language or "und"
             return {
                 "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
                 "v2": {
                     "status": "AVAILABLE",
                     "note_identity": f"analysis/{result.request_hash}/structured",
                     "result_identity": result.request_hash,
-                    "language": local_pointer.output_language,
+                    "language": summary_language,
                     "summary": result.one_sentence_summary,
+                    "method": "SOURCE_EXCERPTS" if result.provider == EXTRACTIVE_PROVIDER else "MODEL_SUMMARY",
                     "core_points": [point.text for point in result.core_points],
                     "timestamped_key_points": [],
                     "evidence_references": [
@@ -2633,7 +2703,7 @@ class LocalApiApplication:
             "video_id": video.video_id,
             "title": video.title,
             "published_at": _timestamp(video.published_at),
-            "processing_status": video.pipeline_status.value,
+            "processing_status": self._video_dto_with_deep_analysis(video)["processing_status"],
             "filter": None if decision is None else _filter_decision_dto(decision),
             "navigation": {"video_id": video.video_id},
         }
@@ -2753,6 +2823,7 @@ def serve_loopback(
                     self._send_bytes(status, headers, binary_payload)
                     return
             length = 0
+            is_local_import = False
             if is_mutation:
                 raw_length = self.headers.get("Content-Length", "0")
                 if not raw_length.isdecimal():
@@ -2760,16 +2831,34 @@ def serve_loopback(
                     return
                 length = int(raw_length)
                 is_stage = urlparse(self.path).path.rstrip("/") == "/api/v1/backup-restore/restore/stage"
-                maximum = 512 * 1024 * 1024 if is_stage else 2 * 1024 * 1024
+                is_local_import = urlparse(self.path).path.rstrip("/") == "/api/v1/local/imports"
+                maximum = 512 * 1024 * 1024 if is_stage else MAX_MEDIA_BYTES if is_local_import else 2 * 1024 * 1024
+                if is_local_import:
+                    names=parse_qs(urlparse(self.path).query).get('filename',[])
+                    if len(names)==1 and Path(safe_filename(names[0])).suffix.lower() in {'.txt','.md'}:
+                        maximum=MAX_TEXT_BYTES
+                if is_local_import and self.headers.get_content_type() != "application/octet-stream":
+                    self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE,{"error":{"code":"LOCAL_INVALID_CONTENT_TYPE","message":"Select a supported file."}})
+                    return
                 if length > maximum:
-                    self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": {"code": "REQUEST_TOO_LARGE", "message": "Request exceeds the supported size."}})
+                    self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": {"code": "LOCAL_FILE_TOO_LARGE" if is_local_import else "REQUEST_TOO_LARGE", "message": "Request exceeds the supported size."}})
                     return
                 if is_stage and self.headers.get_content_type() != "application/zip":
                     self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": {"code": "INVALID_CONTENT_TYPE", "message": "Choose a ZIP backup archive."}})
                     return
+            acquired = False
+            if is_local_import:
+                acquired=application._local_import_slot.acquire(blocking=False)
+                if not acquired:
+                    self._send(HTTPStatus.TOO_MANY_REQUESTS,{"error":{"code":"LOCAL_IMPORT_BUSY","message":"Another local import is processing. Try again shortly."}})
+                    return
+                self.connection.settimeout(30)
             try:
+                request_body=self.rfile.read(length)
+                if len(request_body)!=length:
+                    raise ApiError(HTTPStatus.BAD_REQUEST,'INVALID_LENGTH','Selected file upload is incomplete.')
                 status, response_payload = application.handle(
-                    self.command, self.path, self.rfile.read(length)
+                    self.command, self.path, request_body
                 )
                 self._send(status, response_payload)
                 restore = response_payload.get("restore")
@@ -2787,6 +2876,10 @@ def serve_loopback(
                         }
                     },
                 )
+
+            finally:
+                if acquired:
+                    application._local_import_slot.release()
 
         do_GET = _handle
         do_POST = _handle

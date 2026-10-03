@@ -172,7 +172,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 31
+    assert repository.initialize(now=NOW).version == 32
     return repository
 
 
@@ -474,7 +474,7 @@ def test_source_run_with_no_new_intelligence_completes_without_topic_mutation(
     assert transport.calls == 1
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 31
+    assert reopened.initialize(now=NOW).version == 32
     restarted = _orchestrator(reopened, transport)
     assert restarted.resume(run.run_id).state is SourceRunState.COMPLETED
     assert transport.calls == 1
@@ -646,7 +646,7 @@ def test_authorized_nvidia_normal_source_run_uses_exact_route_once(
 
     assert service.resume(run.run_id) == completed
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 31
+    assert reopened.initialize(now=NOW).version == 32
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == completed
     assert credential_resolutions == 2
@@ -790,7 +790,7 @@ def test_authorized_nvidia_ambiguous_outcome_never_redispatches(
     assert wire_calls == 1
     assert service.resume(run.run_id) == attention
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 31
+    assert reopened.initialize(now=NOW).version == 32
     restarted = _orchestrator(reopened, transport)  # type: ignore[arg-type]
     assert restarted.resume(run.run_id) == attention
     assert wire_calls == 1
@@ -813,7 +813,7 @@ def test_durable_priority_queue_and_restart_recover_the_same_safe_run(
     )
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 31
+    assert reopened.initialize(now=NOW).version == 32
     restarted = _orchestrator(reopened, _Transport())
 
     assert restarted.queued_runs() == (high, low)
@@ -1147,7 +1147,7 @@ def test_database_version_and_predecessor_migrations_stay_preserved(
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 31
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 32
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations")
@@ -1344,7 +1344,7 @@ def test_restart_between_reservation_and_continuation_uses_only_persisted_state(
     assert transport.calls == 0
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 31
+    assert reopened.initialize(now=NOW).version == 32
     restarted_transport = _Transport()
     restarted = _orchestrator(reopened, restarted_transport)
     assert restarted.queued_runs() == (restarted.get_run(run.run_id),)

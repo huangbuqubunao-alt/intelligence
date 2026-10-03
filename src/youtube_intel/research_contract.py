@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 CONTRACT: Final[Literal["research-lite-v1"]] = "research-lite-v1"
 MAX_CONTENT = 20
@@ -67,12 +67,29 @@ class ResearchEvidence(ResearchValue):
     excerpt: str = Field(min_length=1, max_length=4000)
     excerpt_hash: str
     timed_transcript_hash: str
-    start_ms: int = Field(ge=0)
-    end_ms: int = Field(ge=0)
+    start_ms: int | None = Field(ge=0)
+    end_ms: int | None = Field(ge=0)
     source_language: str
     lineage_kind: Literal["ORIGINAL_TRANSCRIPT", "EXTRACTION"]
     role: str
     created_at: str
+    provider: str = "YOUTUBE"
+    locator_type: str = "TIMED_MEDIA"
+    start_offset: int | None = None
+    end_offset: int | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    source_content_hash: str | None = None
+
+    @model_serializer(mode="wrap")
+    def compatible_projection(self, handler: object) -> dict[str, object]:
+        from typing import Any, cast
+        result = cast(dict[str, object], cast(Any, handler)(self))
+        # Historical YouTube packets retain their exact canonical serialization.
+        if self.provider == "YOUTUBE" and self.locator_type == "TIMED_MEDIA":
+            for key in ("provider","locator_type","start_offset","end_offset","start_line","end_line","source_content_hash"):
+                result.pop(key, None)
+        return result
 
 
 class ResearchIntelligence(ResearchValue):

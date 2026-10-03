@@ -89,12 +89,15 @@ class ResearchLiteService:
     def _scope(self, connection: sqlite3.Connection, ids: list[str]) -> list[ResearchContent]:
         marks = ",".join("?" for _ in ids)
         rows = connection.execute(
-            f"SELECT video_id, title, availability FROM videos WHERE video_id IN ({marks}) ORDER BY video_id",
+            f"SELECT video_id, title, availability, provider FROM videos WHERE video_id IN ({marks}) ORDER BY video_id",
             ids,
         ).fetchall()
         if len(rows) != len(ids):
             raise ResearchRejected("RESEARCH_SCOPE_NOT_FOUND")
         if any(row["availability"] != Availability.PUBLIC.value for row in rows):
+            raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
+        from youtube_intel.source_authority import verify_source
+        if any(row["provider"] == "LOCAL" and verify_source(self._repository, connection, row["video_id"]) is None for row in rows):
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         return [ResearchContent(content_id=row["video_id"], title=None if row["title"] is None else row["title"][:240]) for row in rows]
 
@@ -102,11 +105,19 @@ class ResearchLiteService:
         if row is None or verified is None or row["video_id"] not in ids:
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         evidence = self._repository._evidence_from_row(row)
-        expected_id = build_evidence_id(
-            video_id=evidence.video_id, artifact_id=evidence.artifact_id,
-            start_ms=evidence.start_ms, end_ms=evidence.end_ms,
-            lineage_kind=evidence.lineage_kind, role=evidence.role,
-        )
+        from youtube_intel.source_authority import text_evidence_id
+        if evidence.locator_type == "TEXT_RANGE":
+            if evidence.start_offset is None or evidence.end_offset is None:
+                raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
+            expected_id = text_evidence_id(content_id=evidence.video_id, artifact_id=evidence.artifact_id, start_offset=evidence.start_offset, end_offset=evidence.end_offset, lineage_kind=evidence.lineage_kind.value, role=evidence.role.value)
+        else:
+            if evidence.start_ms is None or evidence.end_ms is None:
+                raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
+            expected_id = build_evidence_id(
+                video_id=evidence.video_id, artifact_id=evidence.artifact_id,
+                start_ms=evidence.start_ms, end_ms=evidence.end_ms,
+                lineage_kind=evidence.lineage_kind, role=evidence.role,
+            )
         if expected_id != evidence_id or evidence.lineage_kind.value not in {"ORIGINAL_TRANSCRIPT", "EXTRACTION"}:
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         return ResearchEvidence(
@@ -114,6 +125,9 @@ class ResearchLiteService:
             artifact_id=evidence.artifact_id, excerpt=verified.excerpt,
             excerpt_hash=verified.excerpt_hash, timed_transcript_hash=verified.timed_transcript_hash,
             start_ms=verified.start_ms, end_ms=verified.end_ms,
+            provider=str(row["provider"]),
+            locator_type=verified.locator_type, start_offset=verified.start_offset, end_offset=verified.end_offset,
+            start_line=verified.start_line, end_line=verified.end_line, source_content_hash=verified.source_content_hash,
             source_language=evidence.language, lineage_kind="ORIGINAL_TRANSCRIPT" if evidence.lineage_kind.value == "ORIGINAL_TRANSCRIPT" else "EXTRACTION",
             role=evidence.role.value, created_at=evidence.created_at.isoformat(),
         )
@@ -124,7 +138,7 @@ class ResearchLiteService:
         try:
             verified = self._repository.resolve_verified_evidence_text_batch_in_transaction(connection, tuple(evidence_ids))
             marks = ",".join("?" for _ in evidence_ids)
-            rows = {r["evidence_id"]: r for r in connection.execute(f"SELECT * FROM evidence WHERE evidence_id IN ({marks})", evidence_ids)}
+            rows = {r["evidence_id"]: r for r in connection.execute(f"SELECT e.*,v.provider FROM evidence e JOIN videos v USING(video_id) WHERE evidence_id IN ({marks})", evidence_ids)}
             return [self._evidence_record(rows.get(eid), verified.get(eid), eid, ids) for eid in evidence_ids]
         except (ValueError, TypeError) as error:
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE") from error
@@ -142,11 +156,11 @@ class ResearchLiteService:
             scope = self._scope(connection, request.content_ids)
             connection.create_function("research_score", 1, lambda text: sum(term in str(text).casefold() for term in terms), deterministic=True)
             marks = ",".join("?" for _ in request.content_ids)
-            sql = f"FROM evidence e JOIN evidence_text_bindings b USING(evidence_id) WHERE e.video_id IN ({marks}) AND research_score(b.excerpt)>0"
+            sql = f"FROM evidence e JOIN evidence_search_text b USING(evidence_id) WHERE e.video_id IN ({marks}) AND research_score(b.excerpt)>0"
             count = int(connection.execute("SELECT count(*) " + sql, request.content_ids).fetchone()[0])
             rows = connection.execute(
                 "SELECT e.evidence_id, length(b.excerpt) AS excerpt_length " + sql +
-                " ORDER BY research_score(b.excerpt) DESC, e.video_id, e.start_ms, e.end_ms, e.evidence_id LIMIT ?",
+                " ORDER BY research_score(b.excerpt) DESC, e.video_id, COALESCE(e.start_offset,e.start_ms), COALESCE(e.end_offset,e.end_ms), e.evidence_id LIMIT ?",
                 [*request.content_ids, CANDIDATE_LIMIT],
             ).fetchall()
             evidence_ids = []
@@ -159,7 +173,7 @@ class ResearchLiteService:
             intelligence_sql = (
                 f"FROM distillation_cards c JOIN intelligences i ON i.current_revision_id=c.revision_id "
                 f"WHERE c.video_id IN ({marks}) AND (research_score(c.core_conclusion)>0 OR EXISTS ("
-                "SELECT 1 FROM intelligence_revision_evidence re JOIN evidence_text_bindings b USING(evidence_id) "
+                "SELECT 1 FROM intelligence_revision_evidence re JOIN evidence_search_text b USING(evidence_id) "
                 "WHERE re.revision_id=c.revision_id AND research_score(b.excerpt)>0))"
             )
             intelligence_count = int(connection.execute("SELECT count(*) " + intelligence_sql, request.content_ids).fetchone()[0])
@@ -495,10 +509,10 @@ class ResearchLiteService:
             parameters = [Availability.PUBLIC.value, query, query]
             total = int(connection.execute("SELECT count(*) FROM videos " + where, parameters).fetchone()[0])
             rows = connection.execute(
-                "SELECT video_id,title,coalesce(channel_name,'') AS channel_name FROM videos " + where +
+                "SELECT video_id,title,provider,coalesce(channel_name,'') AS channel_name FROM videos " + where +
                 " ORDER BY published_at DESC,video_id LIMIT ? OFFSET ?", [*parameters, limit, offset],
             ).fetchall()
-            return {"content": [{"content_id": r["video_id"], "title": None if r["title"] is None else r["title"][:240], "channel_name": r["channel_name"][:240]} for r in rows],
+            return {"content": [{"content_id": r["video_id"], "title": None if r["title"] is None else r["title"][:240], "channel_name": r["channel_name"][:240], "provider": r["provider"]} for r in rows],
                     "total": total, "offset": offset, "limit": limit}
         finally:
             connection.close()

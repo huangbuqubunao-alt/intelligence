@@ -40,8 +40,12 @@ class DiffEvidence(ResearchValue):
     content_id: str
     title: str | None
     excerpt: str
-    start_ms: int
-    end_ms: int
+    start_ms: int | None
+    end_ms: int | None
+    locator_type: str = "TIMED_MEDIA"
+    start_line: int | None = None
+    end_line: int | None = None
+    provider: str = "YOUTUBE"
     source_language: str
     lineage_kind: Literal["ORIGINAL_TRANSCRIPT", "EXTRACTION"]
 
@@ -126,6 +130,7 @@ def _evidence(packet: ResearchPacket) -> dict[str, DiffEvidence]:
         id=f"evidence:{e.evidence_id}", evidence_id=e.evidence_id,
         content_id=e.content_id, title=titles[e.content_id], excerpt=e.excerpt,
         start_ms=e.start_ms, end_ms=e.end_ms, source_language=e.source_language,
+        locator_type=e.locator_type,start_line=e.start_line,end_line=e.end_line,provider=e.provider,
         lineage_kind=e.lineage_kind,
     ) for e in packet.evidence}
 

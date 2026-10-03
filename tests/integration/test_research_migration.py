@@ -12,7 +12,7 @@ NOW = datetime(2026, 10, 3, tzinfo=UTC)
 
 def test_upgrade_30_to_31_and_integrity(tmp_path, monkeypatch):
     repo = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    migrations = repo._load_migrations()
+    migrations = tuple(m for m in repo._load_migrations() if m.version <= 31)
     assert [m.version for m in migrations] == [*range(1, 29), 30, 31]
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations[:-1])
     assert repo.initialize(now=NOW).version == 30
@@ -30,7 +30,7 @@ def test_failed_31_is_atomic(tmp_path, monkeypatch):
     from dataclasses import replace
 
     repo = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    migrations = repo._load_migrations()
+    migrations = tuple(m for m in repo._load_migrations() if m.version <= 31)
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations[:-1])
     repo.initialize(now=NOW)
     broken = replace(migrations[-1], sql=migrations[-1].sql + "\nCREATE TABLE broken(;")

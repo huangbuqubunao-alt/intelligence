@@ -190,8 +190,8 @@ class VerifiedEvidenceInput:
     """Exact TASK-018B Evidence projection permitted to reach a transport."""
 
     evidence_id: str
-    start_ms: int
-    end_ms: int
+    start_ms: int | None
+    end_ms: int | None
     excerpt: str
     excerpt_hash: str
     timed_transcript_id: str

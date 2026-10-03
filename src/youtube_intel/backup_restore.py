@@ -35,7 +35,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 31
+LATEST_SCHEMA_VERSION = 32
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -65,6 +65,7 @@ DEEP_ANALYSIS_AUTHORITY_TABLES = frozenset({
     "timed_transcript_cues", "artifacts", "videos",
 })
 _REQUIRED_TABLES = {
+    "content_source_snapshots", "evidence_source_ranges",
     "schema_migrations",
     "source_subscriptions",
     "videos",
@@ -1009,6 +1010,8 @@ class BackupRestoreService:
             raise BackupRestoreError("SQLite migration history is incomplete.")
         try:
             ResearchLiteService(repository).verify_schema(connection)
+            from .source_authority import verify_source_schema
+            verify_source_schema(connection)
         except Exception as error:
             raise BackupRestoreError("Research persistence constraints are incompatible.") from error
         membership_columns = tuple(
@@ -1037,6 +1040,14 @@ class BackupRestoreService:
         repository: SQLiteStateRepository,
         data_root: Path,
     ) -> None:
+        repository.bind_source_storage(data_root)
+        from .source_authority import verify_source
+        for source in connection.execute("SELECT content_id FROM content_source_snapshots"):
+            if verify_source(repository,connection,str(source[0])) is None:
+                raise BackupRestoreError("Imported source snapshot authority failed validation.")
+        for evidence in connection.execute("SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE v.provider='LOCAL' AND e.availability='AVAILABLE'"):
+            if repository._resolve_verified_evidence_text_in_transaction(connection,str(evidence[0])) is None:
+                raise BackupRestoreError('Imported source Evidence failed validation.')
         # Reverify every result and its complete membership graph on the staged
         # snapshot, before any live state is replaced. Legacy rows remain legacy.
         deep_analysis = DeepAnalysisPersistenceStore(repository)
@@ -1080,6 +1091,15 @@ class BackupRestoreService:
                 ).fetchone()
                 if artifact is None:
                     raise BackupRestoreError("A current Summary artifact is missing.")
+                summary_artifact = repository.get_artifact(artifact_id)
+                from .extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
+                from .extractive_summary import ExtractiveSummaryService
+                if summary_artifact is not None and summary_artifact.provider == EXTRACTIVE_PROVIDER:
+                    try:
+                        ExtractiveSummaryService(repository,data_root).read(video_id,artifact_id)
+                    except Exception as error:
+                        raise BackupRestoreError("A source Summary failed authority validation.") from error
+                    continue
                 if self.current_local_summary_validator is None:
                     raise BackupRestoreError(
                         "A current local Summary cannot be validated by the production reader."

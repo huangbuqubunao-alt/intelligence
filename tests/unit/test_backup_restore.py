@@ -461,7 +461,7 @@ def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
     service.recover_and_apply_pending_restore()
 
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 31
+    assert restored.initialize(now=NOW).version == 32
     assert restored.get_cloud_execution_authorization(execution_id) == authorization
     assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
     assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization

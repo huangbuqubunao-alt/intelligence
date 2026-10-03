@@ -223,13 +223,13 @@ class AuthoritativeIntelligenceReader:
                 )
             if not self._repository.source_has_video(card.source_id, card.video_id):
                 raise IntelligenceReadRejected("CARD_SOURCE_INVALID", "card source target is invalid")
-            canonical_evidence: list[dict[str, int | str]] = []
+            canonical_evidence: list[dict[str, int | str | None]] = []
             for evidence_id, evidence, relation in zip(
                 verified.evidence_ids, evidence_records, relations, strict=True
             ):
                 if evidence is None:
                     continue
-                item: dict[str, int | str] = {
+                item: dict[str, int | str | None] = {
                     "evidence_id": evidence_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
@@ -406,3 +406,5 @@ class AuthoritativeIntelligenceReader:
                 or video.availability is not Availability.PUBLIC
             ):
                 raise IntelligenceReadRejected("EVIDENCE_UNAVAILABLE", "evidence provenance is unavailable")
+            if video.provider == "LOCAL" and self._repository.resolve_verified_evidence_text(evidence_id) is None:
+                raise IntelligenceReadRejected("EVIDENCE_UNAVAILABLE", "source snapshot authority is unavailable")

@@ -9,7 +9,7 @@ import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
@@ -420,14 +420,18 @@ class EvidenceRecord:
     evidence_id: str
     video_id: str
     artifact_id: str
-    start_ms: int
-    end_ms: int
+    start_ms: int | None
+    end_ms: int | None
     lineage_kind: EvidenceLineageKind
     role: EvidenceRole
     language: str
     availability: EvidenceAvailability
     created_at: datetime
     source_excerpt: str | None = None
+    locator_type: str = "TIMED_MEDIA"
+    start_offset: int | None = None
+    end_offset: int | None = None
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -577,10 +581,17 @@ class VerifiedEvidenceText:
     video_id: str
     timed_transcript_id: str
     timed_transcript_hash: str
-    start_ms: int
-    end_ms: int
+    start_ms: int | None
+    end_ms: int | None
     excerpt: str
     excerpt_hash: str
+    locator_type: str = "TIMED_MEDIA"
+    start_offset: int | None = None
+    end_offset: int | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    source_content_hash: str | None = None
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -1014,6 +1025,7 @@ class SourceSubscriptionRecord:
     last_error_message: str | None
     created_at: datetime
     updated_at: datetime
+    provider: str = "YOUTUBE"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1200,6 +1212,8 @@ class VideoRecord:
     updated_at: datetime
     completed_at: datetime | None
     authoritative_scoring_job_id: str | None = None
+    provider: str = "YOUTUBE"
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -1629,6 +1643,14 @@ class SQLiteStateRepository:
         database_path: str | Path,
     ) -> None:
         self._database_path = Path(database_path)
+        self._source_data_root: Path | None = None
+
+    def bind_source_storage(self, root: Path) -> None:
+        """Bind trusted DATA explicitly; never infer a private user source path."""
+        resolved = root.absolute()
+        if self._source_data_root is not None and self._source_data_root != resolved:
+            raise ValueError("source storage cannot be rebound")
+        self._source_data_root = resolved
 
     def _inject_failure(self, point: str) -> None:
         """Test seam for proving transaction rollback at named boundaries."""
@@ -1710,6 +1732,7 @@ class SQLiteStateRepository:
             "028_add_cloud_response_failure_ledger.sql",
             "030_add_deep_analysis_durable_evidence.sql",
             "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -1786,6 +1809,11 @@ class SQLiteStateRepository:
                 raise MigrationError(msg)
             rows = self._verify_history(connection, migrations)
             for migration in migrations[len(rows) :]:
+                # SQLite's documented table-rebuild procedure: disable FK enforcement
+                # outside the atomic migration, verify the complete graph before commit.
+                if migration.version == 32:
+                    connection.execute("PRAGMA foreign_keys = OFF")
+                    connection.execute("PRAGMA legacy_alter_table = ON")
                 try:
                     with _immediate_transaction(connection):
                         for statement in _migration_statements(migration.sql):
@@ -1802,9 +1830,14 @@ class SQLiteStateRepository:
                             },
                         )
                         connection.execute(f"PRAGMA user_version = {migration.version}")
+                        if migration.version == 32 and connection.execute("PRAGMA foreign_key_check").fetchall():
+                            raise MigrationError("provider migration broke foreign keys")
                 except (sqlite3.Error, MigrationError) as error:
                     msg = f"failed to apply migration {migration.version}"
                     raise MigrationError(msg) from error
+                finally:
+                    connection.execute("PRAGMA foreign_keys = ON")
+                    connection.execute("PRAGMA legacy_alter_table = OFF")
             self._verify_history(connection, migrations)
             version = self._schema_version(connection)
             if version is None:
@@ -1873,6 +1906,7 @@ class SQLiteStateRepository:
             raise StateStoreError(msg)
         return VideoRecord(
             video_id=str(row["video_id"]),
+            provider=str(row["provider"]) if "provider" in row.keys() else "YOUTUBE",
             channel_id=str(row["channel_id"]),
             channel_name=row["channel_name"],
             title=row["title"],
@@ -4701,6 +4735,7 @@ class SQLiteStateRepository:
         return SourceSubscriptionRecord(
             source_id=str(row["source_id"]),
             source_type=SourceType(row["source_type"]),
+            provider=str(row["provider"]) if "provider" in row.keys() else "YOUTUBE",
             canonical_url=str(row["canonical_url"]),
             channel_id=row["channel_id"],
             video_id=row["video_id"],
@@ -4757,10 +4792,18 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
-                connection.execute(
-                    "INSERT INTO source_subscriptions (source_id, source_type, canonical_url, channel_id, video_id, display_name, enabled, processing_policy, last_checked_at, last_success_at, last_error_code, last_error_message, created_at, updated_at) "
-                    "VALUES (:source_id, :source_type, :canonical_url, :channel_id, :video_id, :display_name, :enabled, :processing_policy, NULL, NULL, NULL, NULL, :created_at, :updated_at)",
+                modern=connection.execute('PRAGMA user_version').fetchone()[0]>=32
+                if not modern and source.provider!='YOUTUBE':
+                    raise ValueError('Local requires source authority migration')
+                sql = (
+                    "INSERT INTO source_subscriptions (source_id, source_type, canonical_url, channel_id, video_id, display_name, enabled, processing_policy, last_checked_at, last_success_at, last_error_code, last_error_message, created_at, updated_at, provider) "
+                    "VALUES (:source_id, :source_type, :canonical_url, :channel_id, :video_id, :display_name, :enabled, :processing_policy, NULL, NULL, NULL, NULL, :created_at, :updated_at, :provider)"
+                )
+                if not modern:
+                    sql=sql.replace(", provider)", ")").replace(", :provider)", ")")
+                connection.execute(sql,
                     {
+                        "provider": source.provider,
                         "source_id": source.source_id,
                         "source_type": source.source_type.value,
                         "canonical_url": source.canonical_url,
@@ -6748,8 +6791,11 @@ class SQLiteStateRepository:
             evidence_id=str(row["evidence_id"]),
             video_id=str(row["video_id"]),
             artifact_id=str(row["artifact_id"]),
-            start_ms=int(row["start_ms"]),
-            end_ms=int(row["end_ms"]),
+            locator_type=str(row["locator_type"]) if "locator_type" in row.keys() else "TIMED_MEDIA",
+            start_offset=row["start_offset"] if "start_offset" in row.keys() else None,
+            end_offset=row["end_offset"] if "end_offset" in row.keys() else None,
+            start_ms=None if row["start_ms"] is None else int(row["start_ms"]),
+            end_ms=None if row["end_ms"] is None else int(row["end_ms"]),
             lineage_kind=EvidenceLineageKind(str(row["lineage_kind"])),
             role=EvidenceRole(str(row["role"])),
             language=str(row["language"]),
@@ -6945,8 +6991,8 @@ class SQLiteStateRepository:
         self, binding: EvidenceTextBindingWrite, *, now: datetime
     ) -> None:
         evidence = self.get_evidence(binding.evidence_id)
-        if evidence is None:
-            raise IntegrityConflict("evidence text binding evidence is missing")
+        if evidence is None or evidence.start_ms is None or evidence.end_ms is None:
+            raise IntegrityConflict("timed evidence text binding evidence is missing")
         write = EvidenceWrite(
             evidence_id=evidence.evidence_id, video_id=evidence.video_id, artifact_id=evidence.artifact_id,
             start_ms=evidence.start_ms, end_ms=evidence.end_ms, lineage_kind=evidence.lineage_kind,
@@ -7007,6 +7053,17 @@ class SQLiteStateRepository:
         own connection rather than opening a second one, which would not
         observe the uncommitted writes of the surrounding transaction.
         """
+        if connection.execute('PRAGMA user_version').fetchone()[0]>=32:
+            from youtube_intel.source_authority import (
+                resolve_source_range,
+                verify_source,
+            )
+            source_range = resolve_source_range(self, connection, evidence_id)
+            if source_range is not None:
+                return source_range
+            local = connection.execute("SELECT e.video_id,e.locator_type FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id=? AND v.provider='LOCAL'", (evidence_id,)).fetchone()
+            if local is not None and (local["locator_type"]!="TIMED_MEDIA" or verify_source(self, connection, local["video_id"]) is None):
+                return None
         row = connection.execute(
             "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, a.video_id AS artifact_video_id, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
             (evidence_id,),
@@ -7018,7 +7075,12 @@ class SQLiteStateRepository:
             (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"],
             ),
         ).fetchall()
-        return self._verified_evidence_text_from_rows(row, cues)
+        verified=self._verified_evidence_text_from_rows(row,cues)
+        if verified is not None and connection.execute('PRAGMA user_version').fetchone()[0]>=32:
+            source=connection.execute('SELECT source_hash FROM content_source_snapshots WHERE content_id=?',(verified.video_id,)).fetchone()
+            if source is not None:
+                verified=replace(verified,source_content_hash=str(source[0]))
+        return verified
 
     @staticmethod
     def _verified_evidence_text_from_rows(
@@ -7026,7 +7088,7 @@ class SQLiteStateRepository:
     ) -> VerifiedEvidenceText | None:
         """One validation implementation for single and bounded batch reads."""
         if (
-            row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
+            row is None or row["start_ms"] is None or row["end_ms"] is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
             or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
             or row["video_id"] != row["artifact_video_id"]
             or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
@@ -7080,6 +7142,13 @@ class SQLiteStateRepository:
             verified = self._verified_evidence_text_from_rows(row, by_id.get(row["evidence_id"], []))
             if verified is not None:
                 result[verified.evidence_id] = verified
+        local_ids = connection.execute(f"SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id IN ({marks}) AND v.provider='LOCAL'",evidence_ids).fetchall()
+        for local in local_ids:
+            evidence_id=str(local[0])
+            verified = self._resolve_verified_evidence_text_in_transaction(connection,evidence_id)
+            result.pop(evidence_id,None)
+            if verified is not None:
+                result[evidence_id]=verified
         return result
 
     def get_verified_timed_transcript(
@@ -7106,6 +7175,12 @@ class SQLiteStateRepository:
         self, connection: sqlite3.Connection, video_id: str
     ) -> VerifiedTimedTranscript | None:
         """Resolve timed authority in the caller's write/read snapshot."""
+        from youtube_intel.source_authority import verify_source
+        provider = connection.execute('SELECT * FROM videos WHERE video_id=?',(video_id,)).fetchone()
+        if provider is not None and 'provider' in provider.keys() and provider['provider']=='LOCAL':
+            source = verify_source(self,connection,video_id)
+            if source is None or source['status']!='READY' or source['media_kind']=='TEXT':
+                return None
         row = connection.execute(
             "SELECT t.timed_transcript_id, t.video_id, t.canonical_artifact_id, t.timed_transcript_hash, a.kind, a.deleted_at, a.video_id AS artifact_video_id FROM timed_transcripts t JOIN artifacts a ON a.artifact_id = t.canonical_artifact_id WHERE t.video_id = ?",
             (video_id,),
@@ -7522,6 +7597,7 @@ class SQLiteStateRepository:
         placeholders = ", ".join("?" for _ in lineage_kinds)
         connection = self._connect()
         try:
+            position='coalesce(evidence.start_offset,evidence.start_ms)' if connection.execute('PRAGMA user_version').fetchone()[0]>=32 else 'evidence.start_ms'
             rows = connection.execute(
                 "SELECT evidence.evidence_id FROM evidence "
                 "JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id "
@@ -7531,7 +7607,7 @@ class SQLiteStateRepository:
                 "AND artifacts.deleted_at IS NULL "
                 "AND artifacts.kind = ? "
                 f"AND evidence.lineage_kind IN ({placeholders}) "
-                "ORDER BY evidence.start_ms ASC, evidence.evidence_id ASC LIMIT 21",
+                f"ORDER BY {position} ASC, evidence.evidence_id ASC LIMIT 21",
                 (
                     video_id,
                     EvidenceAvailability.AVAILABLE.value,
