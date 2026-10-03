@@ -40,9 +40,13 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [ADR-024](ADR-024-scoring-language-validator-scope.md) | Accepted | 2026-08-13 | 冻结评分语言校验器的可判定职责边界，实体与内容质量识别移交独立后续任务 |
 | [ADR-025](ADR-025-content-quality-layer-scope-boundary.md) | Accepted；Phase F APPROVED；Phase G design ready / implementation not authorized | 2026-08-13 | 冻结 TASK-016C 窄 Deterministic Gate、可信 Finalizer、PASS attestation、F→G sealed continuation、pre-write/persistence 与 cache recovery 边界 |
 | [ADR-026](ADR-026-task-016c-phase-d-provenance-authority-boundary.md) | Accepted | 2026-08-15 | 狭义修订 Phase D：已加载当前 AppConfig 仅能在 runtime composition 铸造 PASS attestation provenance capability |
+| [ADR-027](ADR-027-provider-neutral-deep-analysis-contract.md) | Accepted；Correction R2 | 2026-08-28 | 提供方中立的深度分析、输入/资格/授权边界；具体 V1.x 激活遵循 V1X-DR-001～004 |
 | [V1X-DR-001](V1X-DR-001-content-deep-analysis.md) | Accepted | 2026-10-01 | 冻结 V1.x Content 级深度分析：五角色产品契约、RELATION_TO_KNOWLEDGE/KNOWLEDGE_DELTA 延后、Phase 1B 后端 durable Evidence 收敛、无通用 router、资格门为激活门、Obsidian merge key 纠正、M13 分支与迁移序号隔离 |
 | [V1X-DR-002](V1X-DR-002-durable-deep-analysis-evidence.md) | Accepted | 2026-10-02 | Phase 1B：durable Evidence promotion、同 Content membership、持久化与重启核验 |
 | [V1X-DR-003](V1X-DR-003-deep-analysis-qualification-governance.md) | Accepted | 2026-10-03 | Phase 1C：独立资格记录及失效、生产资格、逐次云端授权、最小证据外发、诚实费用与至多一次派发；当前无合格生产路线 |
 | [V1X-DR-004](V1X-DR-004-deep-analysis-obsidian-publish.md) | Accepted | 2026-10-03 | Phase 2：显式单向 Obsidian 投影、稳定语义身份、SQLite 权威与安全原子写入 |
 | [V1X-PHASE3-DR-001](V1X-PHASE3-DR-001-home-knowledge-delta.md) | Accepted | 2026-10-03 | Phase 3：Home 七天确定性 Knowledge Delta、无模型、无持久状态 |
+| [V1X-PHASE4-DR-001](V1X-PHASE4-DR-001-research-lite.md) | Accepted | 2026-10-03 | Phase 4：确定性的资料库优先研究证据包、显式内容范围、稳定语义身份与不可变执行 |
+| [V1X-PHASE5-DR-001](V1X-PHASE5-DR-001-research-history.md) | Accepted | 2026-10-03 | Phase 5：不可变研究版本与历史读取、原子当前指针、无新增迁移 |
+| [V1X-PHASE6-DR-001](V1X-PHASE6-DR-001-research-diff.md) | Accepted | 2026-10-03 | Phase 6：两个可信研究版本的确定性派生对比、无对比持久化或模型调用 |
 | [ADR-028](ADR-028-external-o200k-provisioning.md) | Accepted | 2026-08-31 | 以显式管理员预置、固定哈希验证的本地资源替代 ADR-008 A-16 的包内 BPE 存储细节；无运行时网络或 fallback |

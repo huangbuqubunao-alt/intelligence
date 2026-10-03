@@ -1,0 +1,86 @@
+{
+  "accepted_ancestry": {
+    "432f085d76824dfa51a447622aa2dba23ff8bfc8": true,
+    "72950a559adc153abc9747975668201fe1813afe": true,
+    "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a": true,
+    "795275c3359a808e6faab80e7e35daeb35568024": true,
+    "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b": true,
+    "22ea84a79bba3f27566a221e774c93c3cc797a4f": true,
+    "15f720377b661164a227ba599281b81b33a1e189": true,
+    "b7aa90fd788150acb61f3f258d8353b5ec33edef": true
+  },
+  "main_head": "41233ee9aac647c99ef3c847130ef06624bbeaa5",
+  "main_is_ancestor": true,
+  "authority_files_exactly_unchanged": {
+    "src/youtube_intel/deep_analysis_service.py": true,
+    "src/youtube_intel/deep_analysis_evidence.py": true,
+    "src/youtube_intel/deep_analysis_persistence.py": true,
+    "src/youtube_intel/deep_analysis_qualification.py": true,
+    "src/youtube_intel/deep_analysis_activation.py": true,
+    "src/youtube_intel/deep_analysis_runtime.py": true,
+    "src/youtube_intel/deep_analysis_contracts.py": true,
+    "src/youtube_intel/state.py": true,
+    "src/youtube_intel/backup_restore.py": true,
+    "src/youtube_intel/deep_analysis_obsidian.py": true,
+    "src/youtube_intel/knowledge_delta.py": true,
+    "src/youtube_intel/research_contract.py": true,
+    "src/youtube_intel/research_diff.py": true
+  },
+  "passes": [
+    {
+      "pass": "authority",
+      "findings": "Configuration/reachability remain non-authoritative; DA membership/trust/consent/cost gates, Phase1A exclusion, one-way Obsidian, derived Delta/Diff and immutable History preserved. No new persistence or model dispatch.",
+      "open_p0_p1_material_p2": 0
+    },
+    {
+      "pass": "product",
+      "remediated": [
+        "Settings success state lost during refresh",
+        "Chinese interest validation raw English",
+        "PO demo DA route404",
+        "Research nullable source metadata500"
+      ],
+      "evidence": "166 frontend tests; integrated/unified multilingual narrow and desktop Chrome; real isolated archive/restart and source tracing; prepared private-stage launcher.",
+      "open_p0_p1_material_p2": 0
+    },
+    {
+      "pass": "mainline/M13",
+      "findings": "Zero main-only commits; exact baseline retained. 35 semantic M13 dispositions, no UNKNOWN. Current requirements forwarded, old qualification/schema29 rejected. All8 protected worktree fingerprints match.",
+      "open_p0_p1_material_p2": 0
+    }
+  ],
+  "limits": [
+    "No new owner dogfood day or real model inference",
+    "No public M14/GateB execution",
+    "Native OS dialog automation unavailable; real Keychain and native folder interaction not exercised"
+  ],
+  "forbidden_actions": {
+    "main_updated": false,
+    "source_worktrees_written": false,
+    "M13_merged_committed_modified": false,
+    "push_PR_release": false,
+    "cloud_paid_model_calls": false,
+    "new_dependencies": false,
+    "new_migration": false
+  },
+  "reviewed_code_head": "b4acf400f5ffec862068ca57b4875530f2864746",
+  "final_fresh_acceptance": {
+    "against_main": "41233ee9aac647c99ef3c847130ef06624bbeaa5",
+    "against_exact_v1x": "b7aa90fd788150acb61f3f258d8353b5ec33edef",
+    "against_m13": "all35 dispositions and current forward-ports",
+    "result": "PASS",
+    "unresolved_p0_p1_material_p2": 0,
+    "backend": "3274 passed /1 unchanged optional skip",
+    "frontend": "166 passed /typecheck+build passed",
+    "focused": "665 passed",
+    "database": "fresh31/checksums/quick+integrity+FK pass",
+    "real_restore": "exact DA/Evidence/Research History/Diff/Delta + Settings/Following + Obsidian republish",
+    "standard_owner_launch": "4 real standard-runtime browser flows pass; native dialog automation limited",
+    "main_only_fix_omissions": 0,
+    "critical_m13_requirement_omissions": 0,
+    "obsolete_m13_implementation_imports": 0,
+    "migration_029_imported": false,
+    "new_persistence": false,
+    "live_model_cloud_dependence": false
+  }
+}

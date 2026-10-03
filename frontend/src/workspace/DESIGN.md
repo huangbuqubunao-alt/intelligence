@@ -3,7 +3,7 @@ name: Intelligence workspace
 source: styles.css
 ---
 
-# Workspace design reference: Home Knowledge Delta
+# Workspace design reference
 
 Reuse the live workspace's dark surfaces, green accent, muted typography, Panel
 borders, radius tokens and button styles from styles.css. Do not redesign Home.
@@ -35,7 +35,8 @@ research or imply a new conclusion. Show word-matching and bounded-result limits
 Source quotes remain original text, wrap at narrow widths and carry real timing,
 language and Content links; raw ids are never primary copy. Existing opinions and
 recorded states retain their qualification. Error/loading/empty states are
-localized and accessible. No Diff, chat, export or promotion control.
+localized and accessible. Revision comparison follows the Phase 6 section below;
+no chat, export or promotion control.
 
 
 ## Research History
@@ -50,7 +51,7 @@ versions and current unavailability are localized factual states, never rendered
 payloads or an assertion that all history is empty. Source navigation retains the
 opened packet's own references and return route. Preserve keyboard-accessible
 buttons, semantic lists, wrapped text and zh-CN/en at 320–1440px. No seventh nav
-entry, watermark, unread badge, Diff or generated summary is introduced.
+entry, watermark, unread badge or generated summary is introduced.
 
 ## Research revision comparison
 
@@ -66,3 +67,18 @@ strength inference, raw JSON or execution-noise changes. Empty comparison is
 “无实质变化” / “No material changes”. Authority failures are localized and retryable.
 Original excerpts and qualifications remain unchanged; exact historical source
 ids stay navigable. Wrap quotations, long labels and revision context at 320px.
+
+## Closure Settings and Following
+
+Keep interface language separate from persisted output language. Use the existing
+Panel, fields and buttons for explicit global focus/ignore/style editing. Following
+shows inheritance or an explicit override; labels and errors are localized, while
+source text and model names remain original. Preferences affect future checks,
+never rewrite existing Summary/Evidence/Intelligence or Research snapshots.
+
+Discovery, candidate preference, secure credential presence and read-only model
+capability are distinct. Saving configuration cannot qualify, activate or dispatch
+a model. Keep unavailable generation factual while existing library artifacts
+remain usable. Password fields clear after save; deleting a Keychain credential
+requires explicit confirmation. Keep success feedback visible across refresh.
+Preserve six navigation destinations, wrapped controls and 320px layouts.

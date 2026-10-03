@@ -1,0 +1,486 @@
+{
+  "date": "2026-10-03",
+  "implementation_head": "5d7c219b4d814d52d7873177f00485de71a36223",
+  "evidence": {
+    "backend_full": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 YIA_NETWORK_GUARD_LOG=.var/closure/network-final.jsonl PYTHONPATH=tests/e2e/closure_offline_guard:src .venv/bin/python -m pytest -q -rs --basetemp=.var/closure/final-authority-pytest",
+      "outcome": "3274 passed, 1 skipped, 2 warnings",
+      "log": ".var/closure/backend-final-authority.log",
+      "sha256": "309582dacb9216724466a8885e6b81613c40c3d74bb318b64e38921134422b53",
+      "tail": [
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "=========================== short test summary info ============================",
+        "SKIPPED [1] tests/unit/test_o200k_provisioning.py:134: requires an explicitly provisioned canonical o200k asset",
+        "3274 passed, 1 skipped, 2 warnings in 477.44s (0:07:57)"
+      ]
+    },
+    "backend_focused": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests/e2e/closure_offline_guard:src .venv/bin/python -m pytest -q tests/integration/test_deep_analysis_persistence.py tests/integration/test_research_adversarial.py tests/integration/test_research_backup_restore.py tests/integration/test_research_diff.py tests/integration/test_research_history.py tests/integration/test_research_lite.py tests/integration/test_research_migration.py tests/integration/test_runtime_composition.py tests/integration/test_task021_source_policy_filtering.py tests/integration/test_v1x_deep_analysis_activation.py tests/integration/test_v1x_deep_analysis_boundaries.py tests/integration/test_v1x_deep_analysis_final_closure.py tests/integration/test_v1x_deep_analysis_product_closure.py tests/integration/test_v1x_deep_analysis_semantic_closure.py tests/integration/test_v1x_integrated_artifact_consumption.py tests/integration/test_v1x_knowledge_delta.py tests/integration/test_v1x_phase1b_authority.py tests/integration/test_v1x_phase1b_backup_restore.py tests/integration/test_v1x_phase1b_migration.py tests/integration/test_v1x_phase1c_evaluation.py tests/integration/test_v1x_phase1c_governance.py tests/integration/test_v1x_phase2_obsidian.py tests/unit/test_backup_restore.py tests/unit/test_closure_model_settings.py tests/unit/test_deep_analysis_contracts.py tests/unit/test_deep_analysis_runtime.py tests/unit/test_kimi_deep_analysis_adapter.py tests/unit/test_local_api.py tests/unit/test_ollama_deep_analysis_adapter.py tests/unit/test_openai_deep_analysis_adapter.py tests/unit/test_research_api.py tests/unit/test_research_contract.py tests/unit/test_research_diff_api.py tests/unit/test_research_diff_projection.py tests/unit/test_v1x_deep_analysis_api.py tests/unit/test_v1x_knowledge_delta_api.py tests/unit/test_v1x_phase1b_contract.py tests/unit/test_v1x_phase1c_qualification.py --basetemp=.var/closure/final-focused-authority",
+      "outcome": "665 passed, 1 warning",
+      "log": ".var/closure/focused-authority-final.log",
+      "sha256": "6df866fe05f4cc2ae04886e5d5e82e343a6a9672061041a95d2c8d2b98011160",
+      "tail": [
+        "  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'",
+        "    return self._open_to_write(zinfo, force_zip64=force_zip64)",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "665 passed, 1 warning in 179.96s (0:02:59)"
+      ]
+    },
+    "frontend": {
+      "command": "npm test",
+      "outcome": "166 passed",
+      "log": ".var/closure/frontend-final.log",
+      "sha256": "bda0fa6323236ad881e0919f819ae7bc7ff74209d5f8b7416a0d3126a5c70a62",
+      "tail": [
+        " Test Files  5 passed (5)",
+        "      Tests  166 passed (166)",
+        "   Start at  17:18:14",
+        "   Duration  3.44s (transform 533ms, setup 0ms, collect 1.44s, tests 5.60s, environment 1.76s, prepare 306ms)",
+        ""
+      ]
+    },
+    "frontend_typecheck": {
+      "command": "npm run typecheck",
+      "outcome": "PASS",
+      "log": ".var/closure/typecheck-final.log",
+      "sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+      "tail": [
+        "",
+        "> youtube-intel-workspace@0.1.0 typecheck",
+        "> tsc -b --pretty false",
+        ""
+      ]
+    },
+    "frontend_build": {
+      "command": "npm run build",
+      "outcome": "PASS",
+      "log": ".var/closure/build-final.log",
+      "sha256": "a6ed12f814c575db28c34564a7ad3eea4dd3bdb1e28922f6feb6245c029f6451",
+      "tail": [
+        "computing gzip size...",
+        "dist/index.html                   0.43 kB \u2502 gzip:   0.30 kB",
+        "dist/assets/index-B1qqH7N2.css   26.67 kB \u2502 gzip:   5.75 kB",
+        "dist/assets/index-BhP7VslC.js   308.66 kB \u2502 gzip: 100.71 kB",
+        "\u2713 built in 441ms"
+      ]
+    },
+    "ruff": {
+      "command": "ruff check src tests scripts/owner_launcher.py",
+      "outcome": "All checks passed!",
+      "log": ".var/closure/ruff-final.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "tail": [
+        "All checks passed!"
+      ]
+    },
+    "mypy": {
+      "command": "mypy --strict src",
+      "outcome": "Success: no issues found in 79 source files",
+      "log": ".var/closure/mypy-final.log",
+      "sha256": "ea13de917fec88bface9c85c6d3b4cf4a79eb7aec66c27c95d728a1ac3f68e0b",
+      "tail": [
+        "Success: no issues found in 79 source files"
+      ]
+    },
+    "compileall": {
+      "command": "python -m compileall -q src tests scripts/owner_launcher.py",
+      "outcome": "PASS",
+      "log": ".var/closure/compileall-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": []
+    },
+    "chrome_integrated": {
+      "command": "YIA_INTEGRATION_UI_URL=http://127.0.0.1:5491/ YIA_PHASE2_FIXTURE_ROOT=/Users/hua/Documents/yia-worktrees/v1x-milestone-closure/.var/phase6/closure-integrated node v1x-integration.e2e.mjs",
+      "outcome": "8 flows PASS",
+      "log": ".var/closure/integrated-browser-final.log",
+      "sha256": "82e2e85873abdd5932726b5b80c16f957897a1b4be04e7d17f144dd7ce6d0b2b",
+      "tail": [
+        "8 integrated real HTTP/SQLite/vault flows passed; production NONE, no-result/result/evidence/publish/Home, both languages, four widths, zero console errors or external requests."
+      ]
+    },
+    "chrome_research_history": {
+      "command": "YIA_RESEARCH_UI_URL=http://127.0.0.1:5399/ YIA_RESEARCH_FIXTURE_ROOT=../.var/phase5/closure-research node research-history.e2e.mjs",
+      "outcome": "8 flows PASS",
+      "log": ".var/closure/research-browser.log",
+      "sha256": "ab531918e14f706ca8f466995101873e9b8168af093bc7669e3e56bf6871b0ae",
+      "tail": [
+        "8 real HTTP/SQLite Research flows passed; both languages, four widths, zero console errors/overflow/external requests."
+      ]
+    },
+    "chrome_diff": {
+      "command": "YIA_DIFF_UI_URL=http://127.0.0.1:5419/ YIA_DIFF_FIXTURE_ROOT=../.var/phase6/closure-diff node research-diff.e2e.mjs",
+      "outcome": "8 flows PASS",
+      "log": ".var/closure/diff-browser.log",
+      "sha256": "c2fb0b831ac974bebfc912d0cfd64a78394af1c08f2e3bb8a508b55df85ea632",
+      "tail": [
+        "8 real HTTP/SQLite Diff flows passed (acceptance); both languages, four widths, explicit snapshot/source identities, zero unexpected console errors/overflow/external requests."
+      ]
+    },
+    "chrome_unified": {
+      "command": "node milestone-closure.e2e.mjs",
+      "outcome": "8 flows PASS",
+      "log": ".var/closure/unified-browser-fresh.log",
+      "sha256": "3aaced3eeb625dcd0f3775967d14911476133567ad25cb9ebdc263691f0752ba",
+      "tail": [
+        "8 unified owner flows passed, both languages/four widths; no model/cloud, console errors or overflow."
+      ]
+    },
+    "chrome_restored": {
+      "command": "YIA_CLOSURE_MODE=restored node milestone-closure.e2e.mjs",
+      "outcome": "8 flows PASS",
+      "log": ".var/closure/unified-browser-restored.log",
+      "sha256": "3aaced3eeb625dcd0f3775967d14911476133567ad25cb9ebdc263691f0752ba",
+      "tail": [
+        "8 unified owner flows passed, both languages/four widths; no model/cloud, console errors or overflow."
+      ]
+    },
+    "chrome_product": {
+      "command": "YIA_E2E_BASE_URL=http://127.0.0.1:5495/ node e2e.mjs",
+      "outcome": "desktop/tablet PASS",
+      "log": ".var/closure/demo-browser-acceptance.log",
+      "sha256": "8105b05f8616b0da82cc7c0e0da06f60ff257e29e2098301144f38f9ece59d9a",
+      "tail": [
+        "Browser E2E passed at 1440\u00d7900 and 768\u00d7900: integrated IA, Content, explicit not-processed/admitted/no-new Intelligence results, Evidence \u8bd1\u6587/\u53cc\u8bed/\u539f\u6587 plus explicit generation, all stance states, source trace, output language, Source policy, scoped Kimi capability, zero external requests, and zero console errors."
+      ]
+    },
+    "chrome_standard_owner": {
+      "command": "node owner-launcher.e2e.mjs",
+      "outcome": "4 standard owner flows PASS",
+      "log": ".var/closure/owner-browser.log",
+      "sha256": "2ba279a1d0e767643039d2963c85eb366261ed9510cac77842938eb694775f4a",
+      "tail": [
+        "4 standard-runtime owner launch flows passed; no fixture library/model, console errors, external requests or overflow."
+      ]
+    },
+    "real_restore_stage": {
+      "command": "python tests/e2e/milestone_closure_restore.py stage",
+      "outcome": "PASS corrupt rejected/live unchanged + archive staged",
+      "log": ".var/closure/restore-stage.log",
+      "sha256": "bc6a172afcd767745bbc31d6d93f4c87e256118e58017e82b1938695142aa489",
+      "tail": [
+        "Real archive staged and confirmed; corrupt archive rejected without live mutation. Restart isolated server."
+      ]
+    },
+    "real_restore_verify": {
+      "command": "python tests/e2e/milestone_closure_restore.py verify",
+      "outcome": "PASS exact authority/preferences + republish/DB checks",
+      "log": ".var/closure/restore-verify.log",
+      "sha256": "0eacffc308674137e3c93d5feedd603f4abc27412a96c531711db3546feddaaa",
+      "tail": [
+        "Real archive + restart restores exact DA/Evidence, current/history/revisions; Diff/Delta recompute and Obsidian republishes. Database checks pass."
+      ]
+    },
+    "history_restore_stage": {
+      "command": "YIA_RESEARCH_UI_URL=http://127.0.0.1:5399/ YIA_RESEARCH_FIXTURE_ROOT=../.var/phase5/closure-research node research-history-restore.e2e.mjs",
+      "outcome": "PASS HTTP backup + 25-row pagination",
+      "log": ".var/closure/history-restore-stage.log",
+      "sha256": "57d7a5649d0a03e25533a1f8e6eb4acc0ae94e8a66d2c3fd82331f6cd1a58b5d",
+      "tail": [
+        "Real HTTP archive created, downloaded, staged and confirmed; 25-row browser pagination passed. Restart the isolated backend to apply restore."
+      ]
+    },
+    "history_restore_verify": {
+      "command": "YIA_RESEARCH_UI_URL=http://127.0.0.1:5399/ YIA_RESEARCH_FIXTURE_ROOT=../.var/phase5/closure-research YIA_RESEARCH_RESTORE_ONLY=1 node research-history-restore.e2e.mjs",
+      "outcome": "PASS exact every page/order/packet + source trace",
+      "log": ".var/closure/history-restore-verify.log",
+      "sha256": "7d8b4cad53673df7424eb8ce0d1a3121b572d3a28b5500ce1d8e8055df1ea322",
+      "tail": [
+        "Real archive restore + server restart preserves every page, exact old packet, current pointer and browser source tracing."
+      ]
+    },
+    "owner_launcher": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<absolute closure offline-guard>:<absolute src> .venv/bin/python scripts/owner_launcher.py --stop; repeat with --no-browser and YIA_NETWORK_GUARD_LOG=<absolute closure log>",
+      "outcome": "PASS fresh STANDARD_LOCAL launch/restart",
+      "log": ".var/closure/owner-fresh-launch.log",
+      "sha256": "61dfc0b2bafac0c0e692ed1bd4891463f5a1b081d133be29d81e55c532fc5abe",
+      "tail": [
+        "http://127.0.0.1:5488/"
+      ]
+    },
+    "owner_launcher_build": {
+      "command": "scripts/build_owner_launcher.sh",
+      "outcome": "PASS local native .app; open process verified",
+      "log": ".var/closure/launcher-build.log",
+      "sha256": "a6eddef520a7eda066901709967efc0f6f4e04f143921a14a326f1497381176c",
+      "tail": [
+        "/Users/hua/Documents/yia-worktrees/v1x-milestone-closure/.var/Intelligence.app"
+      ]
+    }
+  },
+  "reports": {
+    "unified_browser": {
+      "scenarios": [
+        "acceptance/zh-CN/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/zh-CN/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/zh-CN/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/zh-CN/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/en/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/en/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/en/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "acceptance/en/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff"
+      ],
+      "errors": [],
+      "external": [],
+      "overflow": 0
+    },
+    "restored_browser": {
+      "scenarios": [
+        "restored/zh-CN/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/zh-CN/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/zh-CN/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/zh-CN/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/en/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/en/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/en/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+        "restored/en/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff"
+      ],
+      "errors": [],
+      "external": [],
+      "overflow": 0
+    },
+    "real_archive": {
+      "corrupt_rejected_live_unchanged": true,
+      "archive_members": [
+        "manifest.json",
+        "database/state.sqlite",
+        "data/transcripts/ausLKMojXaY/canonical.txt"
+      ],
+      "archive_sha256": "075b4d7e21fb8d9bf0ceb3533a8084d9e354cdbbd9ece257251c58b9e893e7f9",
+      "confirmed": {
+        "restore": {
+          "pending": true,
+          "restart_required": true,
+          "restore_id": "f6c0e7a803bb451e8e1cbdd17ba61274",
+          "message": "Restore is ready and will apply before processing resumes."
+        }
+      }
+    },
+    "restore_authority": {
+      "exact_snapshot": true,
+      "trusted_da": true,
+      "durable_evidence": true,
+      "research_current_history_revisions": true,
+      "settings_source_policy_following": true,
+      "diff_recomputed": true,
+      "delta_recomputed": true,
+      "obsidian_republish": {
+        "publish": {
+          "state": "UNCHANGED",
+          "relative_path": "Deep Analysis/The Phone Number puzzle--276aa536be9aa68503b784c680a5fcd1489ef5946e992fe45e51d9982a00729d.md",
+          "note_kind": "deep-analysis"
+        }
+      },
+      "database_checks": {
+        "quick_check": [
+          [
+            "ok"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "foreign_key_check": []
+      }
+    },
+    "history_restore": {
+      "restored": true,
+      "exactPackets": true,
+      "exactOrder": true,
+      "currentPreserved": true,
+      "sourceTracing": true,
+      "consoleErrors": [],
+      "externalRequests": []
+    },
+    "history_browser": {
+      "scenarios": [
+        "zh-CN/320: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "zh-CN/768: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "zh-CN/1024: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "zh-CN/1440: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "en/320: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "en/768: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "en/1024: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient",
+        "en/1440: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient"
+      ],
+      "consoleErrors": [],
+      "externalRequests": []
+    },
+    "diff_browser": {
+      "scenarios": [
+        "zh-CN/320: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "zh-CN/768: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "zh-CN/1024: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "zh-CN/1440: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "en/320: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "en/768: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "en/1024: single/previous/historical/current/three-revision/reverse/self/reload/trace",
+        "en/1440: single/previous/historical/current/three-revision/reverse/self/reload/trace"
+      ],
+      "consoleErrors": [],
+      "externalRequests": [],
+      "overflow": 0,
+      "expectedUnavailableResponses": 1
+    },
+    "standard_owner": {
+      "scenarios": [
+        "zh-CN/320: standard launch/onboarding/all-six-navigation/Settings without model",
+        "zh-CN/1440: standard launch/onboarding/all-six-navigation/Settings without model",
+        "en/320: standard launch/onboarding/all-six-navigation/Settings without model",
+        "en/1440: standard launch/onboarding/all-six-navigation/Settings without model"
+      ],
+      "errors": [],
+      "external": [],
+      "overflow": 0
+    },
+    "design_lint": {
+      "findings": [],
+      "summary": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 0
+      }
+    }
+  },
+  "focused_files": [
+    "tests/integration/test_deep_analysis_persistence.py",
+    "tests/integration/test_research_adversarial.py",
+    "tests/integration/test_research_backup_restore.py",
+    "tests/integration/test_research_diff.py",
+    "tests/integration/test_research_history.py",
+    "tests/integration/test_research_lite.py",
+    "tests/integration/test_research_migration.py",
+    "tests/integration/test_runtime_composition.py",
+    "tests/integration/test_task021_source_policy_filtering.py",
+    "tests/integration/test_v1x_deep_analysis_activation.py",
+    "tests/integration/test_v1x_deep_analysis_boundaries.py",
+    "tests/integration/test_v1x_deep_analysis_final_closure.py",
+    "tests/integration/test_v1x_deep_analysis_product_closure.py",
+    "tests/integration/test_v1x_deep_analysis_semantic_closure.py",
+    "tests/integration/test_v1x_integrated_artifact_consumption.py",
+    "tests/integration/test_v1x_knowledge_delta.py",
+    "tests/integration/test_v1x_phase1b_authority.py",
+    "tests/integration/test_v1x_phase1b_backup_restore.py",
+    "tests/integration/test_v1x_phase1b_migration.py",
+    "tests/integration/test_v1x_phase1c_evaluation.py",
+    "tests/integration/test_v1x_phase1c_governance.py",
+    "tests/integration/test_v1x_phase2_obsidian.py",
+    "tests/unit/test_backup_restore.py",
+    "tests/unit/test_closure_model_settings.py",
+    "tests/unit/test_deep_analysis_contracts.py",
+    "tests/unit/test_deep_analysis_runtime.py",
+    "tests/unit/test_kimi_deep_analysis_adapter.py",
+    "tests/unit/test_local_api.py",
+    "tests/unit/test_ollama_deep_analysis_adapter.py",
+    "tests/unit/test_openai_deep_analysis_adapter.py",
+    "tests/unit/test_research_api.py",
+    "tests/unit/test_research_contract.py",
+    "tests/unit/test_research_diff_api.py",
+    "tests/unit/test_research_diff_projection.py",
+    "tests/unit/test_v1x_deep_analysis_api.py",
+    "tests/unit/test_v1x_knowledge_delta_api.py",
+    "tests/unit/test_v1x_phase1b_contract.py",
+    "tests/unit/test_v1x_phase1c_qualification.py"
+  ],
+  "offline_guard": "tests/e2e/closure_offline_guard/sitecustomize.py",
+  "blocked_socket_attempts": [
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 11434,
+      "blocked": true
+    }
+  ],
+  "cloud_model_paid_dispatches": 0,
+  "unchanged_optional_skip": "tests/unit/test_o200k_provisioning.py:134 canonical o200k asset not provisioned",
+  "warnings": [
+    "Intentional duplicate ZIP fixture",
+    "Intentional Pydantic model_construct serialization fixture"
+  ],
+  "native_validation_limit": "Native dialog automation unavailable; real Keychain and folder-picker interaction not exercised. Local .app build/open, normal runtime launch/restart and 4 real standard owner browser flows passed.",
+  "review_record": "handoffs/V1X-CLOSURE-ACCEPTANCE-REVIEW.json",
+  "database_record": "handoffs/V1X-CLOSURE-DATABASE.json",
+  "preservation_record": "handoffs/V1X-CLOSURE-PRESERVATION-PROOF.json",
+  "docs_lint": {
+    "files": [
+      "docs/decisions/V1X-DR-004-deep-analysis-obsidian-publish.md",
+      "docs/decisions/V1X-PHASE6-DR-001-research-diff.md",
+      "docs/decisions/V1X-PHASE3-DR-001-home-knowledge-delta.md",
+      "docs/decisions/V1X-PHASE5-DR-001-research-history.md",
+      "docs/decisions/V1X-DR-002-durable-deep-analysis-evidence.md",
+      "docs/decisions/V1X-DR-003-deep-analysis-qualification-governance.md",
+      "docs/decisions/V1X-PHASE4-DR-001-research-lite.md",
+      "docs/decisions/V1X-DR-001-content-deep-analysis.md",
+      "docs/decisions/README.md",
+      "docs/PROJECT_STATUS.md",
+      "docs/milestones/V1X_M13_REMEDIATION_AUDIT.md",
+      "docs/milestones/V1X_ADVANCED_INTELLIGENCE_CLOSURE.md",
+      "frontend/src/workspace/DESIGN.md"
+    ],
+    "missing_links": [],
+    "duplicate_ids": {},
+    "decision_count": 8
+  }
+}

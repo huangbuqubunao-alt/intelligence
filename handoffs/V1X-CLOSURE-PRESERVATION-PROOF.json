@@ -1,0 +1,75 @@
+{
+  "worktrees": {
+    "m13-dogfood": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-research-diff": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-research-history": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-research-lite": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-integration": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-deep-analysis": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-obsidian": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    },
+    "v1x-knowledge-delta": {
+      "head": true,
+      "status": true,
+      "status_count": true,
+      "diff_sha256": true,
+      "tree_sha256": true,
+      "dirty_files": true
+    }
+  },
+  "all_equal": true,
+  "m13_029_sha256": "583e5bcaeec9573f6d2ca6cb79fe26a65fa1c83aedc7d656d4cd611b2f6bccf3",
+  "main_preserved": {
+    "head": "41233ee9aac647c99ef3c847130ef06624bbeaa5",
+    "original_worktree_status": "",
+    "main_or_default_tracking_moved": false
+  }
+}

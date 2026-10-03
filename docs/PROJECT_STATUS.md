@@ -1,5 +1,11 @@
 # YouTube Intelligence Agent 项目状态
 
+2026-10-03 本地候选状态：V1.x Advanced Intelligence 里程碑闭合与 M13 补救整合，
+见 [闭合记录](milestones/V1X_ADVANCED_INTELLIGENCE_CLOSURE.md)。候选分支为
+`chatgpt/v1x-milestone-closure`，不是已更新的 main，也不是发行。
+schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 真实主人
+试用日数不增加，M14/Gate B 未执行。以下保留先前发行治理与历史阶段记录。
+
 - 更新时间：2026-08-31
 - 当前阶段：release sign-off completed as `NO-GO`. TASK-014B9 is
   `QUALIFIED / CLOSED`, TASK-014B11 is `INTEGRATED / CLOSED`, and TASK-016
