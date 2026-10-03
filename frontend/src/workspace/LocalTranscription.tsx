@@ -7,6 +7,7 @@ export type TranscriptionCapability = {
   model_present: boolean; executor_compatible: boolean; executor: string;
   model_identity?: string | null; execution_identity?: string | null;
   reason_code?: string | null; checking?: boolean;
+  qualification_state?: string; qualification_identity?: string | null; production_eligible?: boolean;
 };
 type State = {
   status: string; retry_available: boolean; start_available?: boolean; summary_recovery?: boolean;
@@ -16,6 +17,11 @@ const stateCopy: Record<string, string> = {
   PENDING: "Awaiting transcription", RUNNING: "Transcribing…", READY: "Transcription complete",
   RUNTIME_UNAVAILABLE: "Local transcription is unavailable", MODEL_MISSING: "Local model is missing",
   UNSUPPORTED: "Local executor is incompatible", FAILED: "Local transcription failed", INTERRUPTED: "Transcription was interrupted",
+  QUALIFICATION_REQUIRED: "Acoustic qualification required",
+};
+const qualificationCopy: Record<string, string> = {
+  NOT_TESTED: "Not tested", RUNNING: "Qualification running…", PASSED: "Qualification passed",
+  FAILED: "Acoustic qualification failed", STALE: "Qualification stale",
 };
 const reasons: Record<string, string> = {
   CAPABILITY_CHECKING: "Checking local transcription capability…",
@@ -34,6 +40,7 @@ const reasons: Record<string, string> = {
   MEDIA_TOOL_UNAVAILABLE: "Local transcription requires compatible ffmpeg and ffprobe tools.",
   LOCAL_INVALID_MEDIA: "This media file is malformed, has a mismatched format or exceeds two hours.",
   INTERRUPTED: "Transcription was interrupted. You can start a new attempt.",
+  ACOUSTIC_NOT_QUALIFIED: "Installed models require acoustic qualification before new transcription. Existing transcripts remain readable.",
 };
 export const transcriptionCopy = (status: string) => stateCopy[status] ?? "Local transcription is unavailable";
 export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: string; onCompleted: () => void; onStatusChange?: (status: string) => void }) {
@@ -57,7 +64,7 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
         if (response.transcription.status === "READY" && !completed.current) {
           completed.current = true; onComplete.current();
         }
-        if (["RUNNING", "PENDING"].includes(response.transcription.status) && !response.transcription.start_available || response.transcription.capability?.checking) {
+        if (["RUNNING", "PENDING"].includes(response.transcription.status) && !response.transcription.start_available || response.transcription.capability?.checking || response.transcription.capability?.qualification_state === "RUNNING") {
           timer = setTimeout(read, 2000);
         }
       } catch (reason) {
@@ -82,7 +89,7 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
   const active = state?.status === "RUNNING" || capability?.checking;
   return <section className="local-transcription" aria-label={t("Offline transcription")}>
     <p role="status" aria-live="polite">{t(capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(state?.status ?? "PENDING"))}</p>
-    {state?.status !== "READY" && <p className="hint">{t(reasons[state?.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
+    {state?.status !== "READY" && <p className="hint">{t(state?.status === "QUALIFICATION_REQUIRED" ? reasons.ACOUSTIC_NOT_QUALIFIED : reasons[state?.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
     {error && <p role="alert">{t(error)}</p>}
     {(state?.start_available || state?.retry_available) && <button className="button button-primary" disabled={busy || active} onClick={() => void action("start")}>{t(state.summary_recovery ? "Complete Summary" : state.retry_available ? "Retry transcription" : "Start transcription")}</button>}
     <details><summary>{t("Transcription diagnostics")}</summary>
@@ -90,6 +97,7 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
         <dt>{t("Runtime available")}</dt><dd>{t(capability?.runtime_available ? "Yes" : "No")}</dd>
         <dt>{t("Executor")}</dt><dd>{capability?.executor ?? "MLX Whisper"}</dd>
         <dt>{t("Model availability")}</dt><dd>{t(capability?.model_present ? "Available" : "Local model is missing")}</dd>
+        <dt>{t("Acoustic qualification")}</dt><dd>{t(qualificationCopy[capability?.qualification_state ?? "NOT_TESTED"] ?? qualificationCopy.NOT_TESTED)}</dd>
         <dt>{t("Capability")}</dt><dd>{t(capability?.state === "READY" ? "Ready" : capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(capability?.state ?? "RUNTIME_UNAVAILABLE"))}</dd>
         {capability?.model_identity && <><dt>{t("Model identity")}</dt><dd>{capability.model_identity}</dd></>}
         {state?.last_failure_category && <><dt>{t("Failure category")}</dt><dd>{state.last_failure_category}</dd></>}

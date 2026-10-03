@@ -4,6 +4,14 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Acoustic qualification": "语音转写资格",
+  "Acoustic qualification required": "需要语音转写资格验证",
+  "Not tested": "尚未测试",
+  "Qualification running…": "正在进行资格验证…",
+  "Qualification passed": "资格验证通过",
+  "Acoustic qualification failed": "资格验证失败",
+  "Qualification stale": "资格验证已失效",
+  "Installed models require acoustic qualification before new transcription. Existing transcripts remain readable.": "已安装的模型须通过语音转写资格验证才能执行新的转写。现有转录仍可阅读。",
   "Complete Summary": "完成摘要",
   "Awaiting transcription": "待转写",
   "Transcribing…": "正在转写…",

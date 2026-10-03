@@ -51,6 +51,7 @@ SAFE_FAILURES = frozenset(
         "EXECUTOR_IDENTITY_CHANGED",
         "INTERRUPTED",
         "LOCAL_STORAGE_FAILED",
+        "ACOUSTIC_NOT_QUALIFIED",
     }
 )
 
@@ -252,12 +253,16 @@ class LocalTranscriptionJobs:
         capability.update(
             media_tools_available=all(media_tool(n) for n in ("ffmpeg", "ffprobe")),
             checking=self._checking,
+            production_eligible=capability["production_eligible"] is True,
         )
         if capability["state"] == "READY" and not capability["media_tools_available"]:
             capability.update(
                 state="RUNTIME_UNAVAILABLE", reason_code="MEDIA_TOOL_UNAVAILABLE"
             )
         return capability
+
+    def _eligible(self, capability: dict[str, object]) -> bool:
+        return capability["state"] == "READY" and (self._injected or capability["production_eligible"] is True)
 
     def status(self, content_id: str) -> dict[str, object]:
         self._recover()  # reconcile an owner that exited after another app instance started
@@ -288,7 +293,8 @@ class LocalTranscriptionJobs:
                 "attempt_id": None if job is None else job["job_id"],
                 "capability": capability,
             }
-        state = "PENDING" if capability["state"] == "READY" else capability["state"]
+        eligible = self._eligible(capability)
+        state = "PENDING" if eligible else "QUALIFICATION_REQUIRED" if capability["state"] == "READY" else capability["state"]
         code = None
         if job is not None:
             if job["status"] in {"PENDING", "RUNNING"}:
@@ -304,9 +310,9 @@ class LocalTranscriptionJobs:
             "status": state,
             "last_failure_category": code,
             "attempt_id": None if job is None else job["job_id"],
-            "retry_available": capability["state"] == "READY"
+            "retry_available": eligible
             and state not in {"PENDING", "RUNNING"},
-            "start_available": capability["state"] == "READY" and job is None,
+            "start_available": eligible and job is None,
             "capability": capability,
         }
 
@@ -330,9 +336,9 @@ class LocalTranscriptionJobs:
                 if active is not None:
                     return self.status(content_id)
                 capability = self._capability
-                if self.capability()["state"] != "READY":
+                if not self._eligible(self.capability()):
                     raise OfflineError(
-                        str(
+                        "ACOUSTIC_NOT_QUALIFIED" if self.capability()["state"] == "READY" else str(
                             self.capability().get("reason_code")
                             or "RUNTIME_UNAVAILABLE"
                         )
@@ -444,6 +450,7 @@ class LocalTranscriptionJobs:
             if (
                 current.state != "READY"
                 or current.execution_identity != capability.execution_identity
+                or (not self._injected and not current.production_eligible)
             ):
                 raise OfflineError("EXECUTOR_IDENTITY_CHANGED")
             if self.machine_root.resolve() != self.machine_root:

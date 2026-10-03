@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -238,6 +238,9 @@ class TranscriptionCapability:
     model_identity: str | None = None
     execution_identity: str | None = None
     reason_code: str | None = None
+    qualification_state: str = "NOT_TESTED"
+    qualification_identity: str | None = None
+    production_eligible: bool = False
 
     def as_dict(self) -> dict[str, object]:
         return dict(self.__dict__)
@@ -349,6 +352,23 @@ class MlxTimedExecutor:
         self._cached_capability: TranscriptionCapability | None = None
         self._cache_key: object = None
 
+    def qualified_capability(self, capability: TranscriptionCapability) -> TranscriptionCapability:
+        from youtube_intel.acoustic_qualification import (
+            current_tuple,
+            qualification_status,
+        )
+
+        identity = None
+        try:
+            if self.model_path is not None and capability.model_identity is not None:
+                origin = json.loads(read_managed(self.model_path, "model-origin.json", maximum=16384))
+                identity = current_tuple(self.model_path, capability.model_identity, origin)
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            pass
+        status = qualification_status(self.temporary_root.parent, identity)
+        receipt_identity = status.get("identity")
+        return replace(capability, qualification_state=str(status["state"]), qualification_identity=receipt_identity if isinstance(receipt_identity, str) else None, production_eligible=status["production_eligible"] is True)
+
     def _env(self) -> dict[str, str]:
         return {
             "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
@@ -375,15 +395,15 @@ class MlxTimedExecutor:
     def capability(self) -> TranscriptionCapability:
         detected = importlib.util.find_spec("mlx_whisper") is not None
         if not detected:
-            return TranscriptionCapability(
+            return self.qualified_capability(TranscriptionCapability(
                 "RUNTIME_UNAVAILABLE", reason_code="RUNTIME_UNAVAILABLE"
-            )
+            ))
         paths = (
             []
             if self.model_path is None
             else [
                 self.model_path / n
-                for n in ("config.json", "weights.safetensors", "weights.npz")
+                for n in ("config.json", "weights.safetensors", "weights.npz", "model-origin.json")
             ]
         )
         runtime_available = False
@@ -399,7 +419,7 @@ class MlxTimedExecutor:
                 ),
             )
             if self._cached_capability is not None and self._cache_key == key:
-                return self._cached_capability
+                return self.qualified_capability(self._cached_capability)
             raw = run_bounded(
                 self._command("--probe"), timeout=20, maximum=65536, env=self._env()
             )
@@ -453,15 +473,15 @@ class MlxTimedExecutor:
                     execution_identity=sha256(provenance.encode()),
                 )
             self._cached_capability, self._cache_key = result, key
-            return result
+            return self.qualified_capability(result)
         except (OSError, ValueError, KeyError, zipfile.BadZipFile, RecursionError):
-            return TranscriptionCapability(
+            return self.qualified_capability(TranscriptionCapability(
                 "UNSUPPORTED",
                 True,
                 runtime_available,
                 model_present,
                 reason_code="EXECUTOR_INCOMPATIBLE",
-            )
+            ))
 
     validate_result = staticmethod(validate_result)
 

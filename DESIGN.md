@@ -54,3 +54,12 @@ in normal product flow.
 All new controls and capability/status copy have zh-CN and English versions.
 Machine reason codes belong in diagnostics; normal status uses localized copy.
 Source language, output language and UI language remain separate.
+
+## Acoustic qualification diagnostics
+
+Phase 9 adds one acoustic qualification row to the existing Transcript diagnostics
+disclosure: not tested, running, passed, failed or stale. Model availability stays
+separate. Unqualified installed models cannot start new production transcription;
+existing trusted text, Summary and Evidence remain readable. No Settings switch
+or navigation destination issues a qualification receipt. Benchmark detail stays
+in engineering acceptance evidence. All states have zh-CN and English copy.

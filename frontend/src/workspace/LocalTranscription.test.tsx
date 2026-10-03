@@ -6,6 +6,18 @@ import { UiLanguageProvider } from "./uiLanguage";
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const capability = { state: "READY", runtime_detected: true, runtime_available: true, model_present: true, executor_compatible: true, executor: "fixture", execution_identity: "selected-identity", model_identity: "sha256:fixture" };
 const response = (transcription: object) => ({ ok: true, json: async () => ({ transcription }) });
+it.each(["en", "zh-CN"])("distinguishes acoustic qualification from installed assets in %s", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  const labels = language === "en" ? ["Not tested", "Qualification running…", "Qualification passed", "Acoustic qualification failed", "Qualification stale"] : ["尚未测试", "正在进行资格验证…", "资格验证通过", "资格验证失败", "资格验证已失效"];
+  for (const [index, state] of ["NOT_TESTED", "RUNNING", "PASSED", "FAILED", "STALE"].entries()) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ status: "QUALIFICATION_REQUIRED", retry_available: false, capability: { ...capability, qualification_state: state, production_eligible: state === "PASSED" } })));
+    const ui = render(<UiLanguageProvider><LocalTranscription id={`local-${state}`} onCompleted={() => {}} /></UiLanguageProvider>);
+    await screen.findByText(labels[index]);
+    expect(document.body.textContent).toContain(language === "en" ? "Acoustic qualification" : "语音转写资格");
+    expect(screen.queryByRole("button", { name: language === "en" ? "Start transcription" : "开始转写" })).toBeNull();
+    ui.unmount();
+  }
+});
 it.each(["en", "zh-CN"])("localizes missing model and diagnostics in %s", async language => {
   localStorage.setItem("yia.ui-language", language);
   const fetch = vi.fn().mockResolvedValue(response({ status: "MODEL_MISSING", retry_available: false, capability: { ...capability, state: "MODEL_MISSING", model_present: false, reason_code: "MODEL_MISSING" } }));

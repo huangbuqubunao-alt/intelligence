@@ -80,6 +80,7 @@ def main() -> None:
     }
     canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     manifest["manifest_sha256"] = hashlib.sha256(canonical).hexdigest()
+    (model / "model-origin.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (root / "model-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2), flush=True)
 
