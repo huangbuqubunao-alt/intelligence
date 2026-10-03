@@ -12,6 +12,21 @@ from typing import Any
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolated_credential_store(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never read or mutate the owner's Keychain during offline validation."""
+    from youtube_intel.model_settings import (
+        CredentialStoreError,
+        MacOSKeychainCredentialStore,
+    )
+
+    def unavailable(*args: object) -> object:
+        raise CredentialStoreError()
+
+    monkeypatch.setattr(MacOSKeychainCredentialStore, "_libraries", unavailable)
+    monkeypatch.setattr(MacOSKeychainCredentialStore, "get", lambda self: None)
+
+
 def _load_module(name: str) -> Any:
     if name in sys.modules:
         return sys.modules[name]

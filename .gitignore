@@ -1,5 +1,6 @@
 # Virtual environments and build artifacts
 .venv/
+.venv
 dist/
 build/
 *.egg-info/

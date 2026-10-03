@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -28,6 +27,12 @@ from youtube_intel.distillation import (
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
 from youtube_intel.local_api import LocalApiApplication
+from youtube_intel.model_settings import (
+    CredentialStore,
+    MacOSKeychainCredentialStore,
+    ModelSettingsService,
+    local_models,
+)
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
     DurableProcessingOrchestrator,
@@ -181,6 +186,7 @@ def build_local_source_run_runtime(
     project_root: Path,
     database: Path,
     dependencies: RuntimeDependencies | None = None,
+    credential_store: CredentialStore | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> LocalSourceRunRuntime:
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority."""
@@ -237,17 +243,26 @@ def build_local_source_run_runtime(
         capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
         available=True,
     )
-    cloud_transport = MoonshotK26NonThinkingCloudDistillationTransport.with_environment_credential(
-        authorization=CloudDistillationAuthorization.for_normal_production(
-            eligibility=eligibility,
-            cloud_enabled=m12_moonshot_qualified,
-            credential_available=bool(os.environ.get("MOONSHOT_API_KEY")),
+    model_settings = ModelSettingsService(
+        credential_store or MacOSKeychainCredentialStore(),
+        tags_fetch=lambda: local_models(config.settings.local_scoring.base_url),
+    )
+
+    def cloud_service() -> PersonalizedDistillationService:
+        cloud_transport = MoonshotK26NonThinkingCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization.for_normal_production(
+                eligibility=eligibility,
+                cloud_enabled=m12_moonshot_qualified,
+                credential_available=bool(model_settings.credential()),
+            ),
+            credential_resolver=model_settings.credential,
         )
-    )
-    cloud_distillation = PersonalizedDistillationService(
-        repository, source_policy, cloud_transport, ProductionDistillationBudget(),
-        now=now_fn, output_language_for_video=runtime._downstream_output_language,
-    )
+        return PersonalizedDistillationService(
+            repository, source_policy, cloud_transport, ProductionDistillationBudget(),
+            now=now_fn, output_language_for_video=runtime._downstream_output_language,
+        )
+
+    cloud_distillation = cloud_service()
     evidence_translation = EvidenceTranslationPresentationService(
         repository,
         OllamaEvidenceTranslator(settings=config.settings.local_analysis),
@@ -297,7 +312,9 @@ def build_local_source_run_runtime(
         distillation_service=distillation,
         cloud_distillation_service=cloud_distillation,
         cloud_intelligence_qualified=m12_moonshot_qualified,
-        cloud_credential_available=bool(os.environ.get("MOONSHOT_API_KEY")),
+        cloud_credential_available=bool(model_settings.credential()),
+        model_settings=model_settings,
+        refresh_cloud_distillation=cloud_service,
         processing_orchestrator=orchestrator,
         data_root=data_root,
         vault_root=(

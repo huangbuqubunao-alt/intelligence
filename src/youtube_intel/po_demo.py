@@ -18,6 +18,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from youtube_intel.brief import WeeklyBriefService
+from youtube_intel.deep_analysis_service import (
+    DeepAnalysisCapability,
+    DeepAnalysisService,
+)
 from youtube_intel.distillation import (
     BudgetDecision,
     DistillationCommand,
@@ -1407,6 +1411,15 @@ def _open_demo(root: Path) -> DemoRuntime:
         vault_root=root / "vault",
         timezone="Asia/Shanghai",
         now=lambda: _NOW,
+        deep_analysis_service=DeepAnalysisService(
+            repository=repository,
+            capability=DeepAnalysisCapability(()),
+            scoring_reader=reader.read,
+            transcript_reader=repository.get_verified_timed_transcript,
+            evidence_reader=repository.list_canonical_coverage_evidence_ids,
+            evidence_text_reader=repository.resolve_verified_evidence_text,
+            now=lambda: _NOW,
+        ),
         runtime_mode="PO_REVIEW_DEMO",
         demo_data=True,
     )

@@ -61,6 +61,17 @@ def test_missing_scope_is_rejected(tmp_path):
         run(repo, content_ids=["missing"])
 
 
+def test_scope_includes_content_without_channel_metadata(tmp_path):
+    repo = authority.seed(tmp_path)
+    with repo._connect() as db:
+        db.execute("UPDATE videos SET channel_name=NULL WHERE video_id=?", (authority.VIDEO,))
+    result = ResearchLiteService(repo).scope_options()
+    item = next(c for c in result["content"] if c["content_id"] == authority.VIDEO)
+    assert item["channel_name"] == ""
+    assert item["title"] == repo.get_video(authority.VIDEO).title
+    assert result["total"] >= 1
+
+
 def test_only_selected_content_and_no_mutation(tmp_path):
     repo = authority.seed(tmp_path)
     other = authority.seed_other(tmp_path, repo)

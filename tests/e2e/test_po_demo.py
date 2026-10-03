@@ -164,8 +164,12 @@ def test_demo_runtime_is_isolated_and_projects_current_product_truth(
     assert golden["note"]["v2"]["status"] == "UNAVAILABLE"
     # The demo runtime wires no qualified Deep Analysis route, so the product
     # must report an honest unavailable state rather than a fabricated result.
-    assert golden["video"]["deep_analysis"]["status"] == "UNAVAILABLE"
+    assert golden["video"]["deep_analysis"]["status"] == "NOT_QUALIFIED"
     assert golden["video"]["deep_analysis"]["reason"]
+    da_status, da = runtime.application.handle("GET", "/api/v1/videos/aircAruvnKk/deep-analysis")
+    assert da_status == 200
+    assert da["deep_analysis"]["status"]["qualified"] is False
+    assert da["deep_analysis"]["status"]["routes"] == []
     assert golden["history"]
     assert unverified["scoring"]["status"] == "NOT_AVAILABLE"
     assert "score" not in unverified["scoring"]

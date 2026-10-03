@@ -2,6 +2,65 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { App, intelligenceValidationCopy } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
+test("Chinese Settings edits global interests through existing authority", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const defaultFetch = globalThis.fetch;
+  const writes: { path: string; data: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (init?.method === "PUT") {
+      writes.push({ path, data: JSON.parse(String(init.body)) });
+      return response({});
+    }
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.change(await screen.findByLabelText("我重点关注"), { target: { value: "AI Agent，大模型" } });
+  fireEvent.change(screen.getByLabelText("少看／忽略"), { target: { value: "重复新闻" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存偏好" }));
+  await waitFor(() => expect(writes[0]?.data.focus_rules).toEqual(["AI Agent", "大模型"]));
+  expect(writes[0].path).toMatch(/settings\/source-policy$/);
+  expect(writes[0].data.ignore_rules).toEqual(["重复新闻"]);
+  expect(writes.some(write => /confirm|deep-analysis/.test(write.path))).toBe(false);
+});
+
+test("Settings saves discovered candidate and secure credential without generation", async () => {
+  const defaultFetch = globalThis.fetch;
+  const writes: { path: string; data: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/settings/local-models")) return response({ connection: "REACHABLE", models: [{ model: "candidate:7b", qualified: false }] });
+    if (init?.method === "PUT") {
+      writes.push({ path, data: JSON.parse(String(init.body)) });
+      return response({ configured: true, source: "KEYCHAIN" });
+    }
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  fireEvent.change(await screen.findByLabelText("Discovered candidate"), { target: { value: "candidate:7b" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save candidate preference" }));
+  await waitFor(() => expect(writes[0]?.data).toEqual({ provider: "Local", model: "candidate:7b" }));
+  fireEvent.change(screen.getByLabelText("New API credential"), { target: { value: "synthetic-closure-ui" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save credential securely" }));
+  await screen.findByText("Credential saved in macOS Keychain. Every cloud execution still needs separate consent.");
+  expect((screen.getByLabelText("New API credential") as HTMLInputElement).value).toBe("");
+  expect(JSON.stringify(localStorage)).not.toContain("synthetic-closure-ui");
+  expect(writes.map(write => write.path)).toEqual(["/api/v1/settings/model-preference", "/api/v1/settings/cloud-credential"]);
+});
+
+test("Chinese interest validation never displays raw backend prose", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => init?.method === "PUT"
+    ? Promise.resolve({ ok: false, status: 422, json: async () => ({ error: { code: "VALIDATION_ERROR", message: "Backend validation failed." } }) })
+    : defaultFetch(path, init)));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.click(await screen.findByRole("button", { name: "保存偏好" }));
+  expect((await screen.findByRole("alert")).textContent).toContain("偏好未能保存");
+  expect(screen.queryByText("Backend validation failed.")).toBeNull();
+});
+
 it("keeps Research accessible when the independent Intelligence list fails", async () => {
   location.hash = "Intelligence";
   vi.stubGlobal("fetch", vi.fn((path: string) => {
@@ -1496,6 +1555,8 @@ test("a new user can reach a Source setup surface with the bounded V1 controls",
   expect(screen.getByLabelText("Automatic schedule")).toBeTruthy();
   expect(screen.getByLabelText("Initial history")).toBeTruthy();
   expect(screen.getByLabelText("Per-run limit")).toBeTruthy();
+  expect((screen.getByLabelText("Focus preference") as HTMLSelectElement).value).toBe("INHERIT");
+  for (const label of ["Focus preference", "Ignore preference", "Style preference"]) fireEvent.change(screen.getByLabelText(label), { target: { value: "OVERRIDE" } });
   expect(screen.getByLabelText("Focus")).toBeTruthy();
   expect(screen.getByLabelText("Ignore")).toBeTruthy();
   expect(screen.getByLabelText("Distillation style")).toBeTruthy();
@@ -1584,6 +1645,7 @@ test("Source setup writes only through the existing Source, policy, and schedule
   fireEvent.change(screen.getByLabelText("Per-run limit"), {
     target: { value: "10" },
   });
+  for (const label of ["Focus preference", "Ignore preference", "Style preference"]) fireEvent.change(screen.getByLabelText(label), { target: { value: "OVERRIDE" } });
   fireEvent.change(screen.getByLabelText("Focus"), {
     target: { value: "product, AI" },
   });

@@ -1492,3 +1492,6 @@ dialog p {
 .research-diff blockquote { margin-inline: 0; white-space: pre-wrap; }
 .research-diff code { white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .research-diff-direction { grid-template-columns: minmax(0, 1fr); } }
+
+.credential-confirm { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.credential-confirm input { width: 16px; min-height: 16px; margin: 0; }

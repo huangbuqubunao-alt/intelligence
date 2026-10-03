@@ -495,7 +495,7 @@ class ResearchLiteService:
             parameters = [Availability.PUBLIC.value, query, query]
             total = int(connection.execute("SELECT count(*) FROM videos " + where, parameters).fetchone()[0])
             rows = connection.execute(
-                "SELECT video_id,title,channel_name FROM videos " + where +
+                "SELECT video_id,title,coalesce(channel_name,'') AS channel_name FROM videos " + where +
                 " ORDER BY published_at DESC,video_id LIMIT ? OFFSET ?", [*parameters, limit, offset],
             ).fetchall()
             return {"content": [{"content_id": r["video_id"], "title": None if r["title"] is None else r["title"][:240], "channel_name": r["channel_name"][:240]} for r in rows],

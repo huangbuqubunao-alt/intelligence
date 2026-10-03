@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
+import { ModelSettings } from "./ModelSettings";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
@@ -14,6 +15,7 @@ type Page =
   | "Topics"
   | "Research"
   | "Settings";
+type SourcePolicyModes = { focus: "INHERIT" | "OVERRIDE"; ignore: "INHERIT" | "OVERRIDE"; style: "INHERIT" | "OVERRIDE" };
 type EvidenceDisplayMode = "译文" | "双语" | "原文";
 type Intelligence = {
   status: string;
@@ -2374,18 +2376,20 @@ function Sources(
   );
 }
 function ruleList(value: string) {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
 }
 function SourceForm(
-  { onClose, onSaved, source, policy, schedules }: {
+  { onClose, onSaved, source, policy, policyModes, schedules }: {
     onClose: () => void;
     onSaved: () => void;
     source?: Source;
     policy?: SourcePolicy;
+    policyModes?: SourcePolicyModes;
     schedules?: Schedule[];
   },
 ) {
   const { t } = useUiLanguage();
+  const globalPolicy = useRemote<{ policy: SourcePolicy }>("/settings/source-policy", 0);
   const schedule = schedules?.[0];
   const [url, setUrl] = useState(source?.canonical_url ?? "");
   const [enabled, setEnabled] = useState(source?.enabled ?? true);
@@ -2401,6 +2405,9 @@ function SourceForm(
   const [focus, setFocus] = useState(policy?.focus_rules.join(", ") ?? "");
   const [ignore, setIgnore] = useState(policy?.ignore_rules.join(", ") ?? "");
   const [style, setStyle] = useState(policy?.distillation_style ?? "BALANCED");
+  const [focusMode, setFocusMode] = useState<"INHERIT" | "OVERRIDE">(policyModes?.focus ?? (source ? "OVERRIDE" : "INHERIT"));
+  const [ignoreMode, setIgnoreMode] = useState<"INHERIT" | "OVERRIDE">(policyModes?.ignore ?? (source ? "OVERRIDE" : "INHERIT"));
+  const [styleMode, setStyleMode] = useState<"INHERIT" | "OVERRIDE">(policyModes?.style ?? (source ? "OVERRIDE" : "INHERIT"));
   const [frequency, setFrequency] = useState(schedule?.frequency ?? "DAILY");
   const [time, setTime] = useState(schedule?.local_time ?? "09:00");
   const [scheduleEnabled, setScheduleEnabled] = useState(
@@ -2410,7 +2417,8 @@ function SourceForm(
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (processingPolicy === "STANDARD_INTELLIGENCE" && !ruleList(focus).length) {
+    const effectiveFocus = focusMode === "INHERIT" ? globalPolicy.data?.policy?.focus_rules ?? [] : ruleList(focus);
+    if (processingPolicy === "STANDARD_INTELLIGENCE" && !effectiveFocus.length) {
       setError(t("Add at least one focus word to let the app select relevant videos for insight extraction."));
       return;
     }
@@ -2433,12 +2441,12 @@ function SourceForm(
         command_id: commandId(),
         initial_history_count: Number(initialHistory),
         per_run_max_new_videos: Number(perRunLimit),
-        focus_mode: "OVERRIDE",
-        focus_rules: ruleList(focus),
-        ignore_mode: "OVERRIDE",
-        ignore_rules: ruleList(ignore),
-        distillation_style_mode: "OVERRIDE",
-        distillation_style: style,
+        focus_mode: focusMode,
+        focus_rules: focusMode === "INHERIT" ? [] : ruleList(focus),
+        ignore_mode: ignoreMode,
+        ignore_rules: ignoreMode === "INHERIT" ? [] : ruleList(ignore),
+        distillation_style_mode: styleMode,
+        distillation_style: styleMode === "INHERIT" ? null : style,
       });
       if (frequency !== "MANUAL") {
         await post("/automation", {
@@ -2522,6 +2530,7 @@ function SourceForm(
             </small>
           </label>
           <Panel title="What to process">
+            <p className="hint">{t("A Following can use your global interests or its own focus and ignore words. Changes affect future checks and insights only.")}</p>
             <label className="field">
               {t("Initial history")}<select
                 aria-label={t("Initial history")}
@@ -2553,6 +2562,14 @@ function SourceForm(
               </small>
             </label>
             <label className="field">
+              {t("Focus preference")}
+              <select aria-label={t("Focus preference")} value={focusMode} onChange={(event) => setFocusMode(event.target.value as "INHERIT" | "OVERRIDE")}>
+                <option value="INHERIT">{t("Use global interests")}</option>
+                <option value="OVERRIDE">{t("Set for this Following")}</option>
+              </select>
+            </label>
+            {focusMode === "INHERIT" ? <p className="hint">{t("Global focus")}: {globalPolicy.data?.policy?.focus_rules.join("、") || t("Not set")}</p> : null}
+            {focusMode === "OVERRIDE" ? <label className="field">
               {t("Focus")}<input
                 aria-label={t("Focus")}
                 value={focus}
@@ -2563,8 +2580,16 @@ function SourceForm(
               {processingPolicy === "STANDARD_INTELLIGENCE" && !ruleList(focus).length
                 ? <small>{t("Add at least one focus word to let the app select relevant videos for insight extraction.")}</small>
                 : null}
-            </label>
+            </label> : null}
             <label className="field">
+              {t("Ignore preference")}
+              <select aria-label={t("Ignore preference")} value={ignoreMode} onChange={(event) => setIgnoreMode(event.target.value as "INHERIT" | "OVERRIDE")}>
+                <option value="INHERIT">{t("Use global interests")}</option>
+                <option value="OVERRIDE">{t("Set for this Following")}</option>
+              </select>
+            </label>
+            {ignoreMode === "INHERIT" ? <p className="hint">{t("Global ignore")}: {globalPolicy.data?.policy?.ignore_rules.join("、") || t("Not set")}</p> : null}
+            {ignoreMode === "OVERRIDE" ? <label className="field">
               {t("Ignore")}<input
                 aria-label={t("Ignore")}
                 value={ignore}
@@ -2574,8 +2599,15 @@ function SourceForm(
               <small>
                 {t("Use simple terms to exclude videos from automatic relevance selection.")}
               </small>
-            </label>
+            </label> : null}
             <label className="field">
+              {t("Style preference")}
+              <select aria-label={t("Style preference")} value={styleMode} onChange={(event) => setStyleMode(event.target.value as "INHERIT" | "OVERRIDE")}>
+                <option value="INHERIT">{t("Use global interests")}</option>
+                <option value="OVERRIDE">{t("Set for this Following")}</option>
+              </select>
+            </label>
+            {styleMode === "OVERRIDE" ? <label className="field">
               {t("Distillation style")}<select
                 aria-label={t("Distillation style")}
                 value={style}
@@ -2586,7 +2618,7 @@ function SourceForm(
                 ))}
               </select>
               <small>{t(STYLES.find(([value]) => value === style)?.[2] ?? "")}</small>
-            </label>
+            </label> : null}
           </Panel>
           <Panel title="When it runs">
             <label className="field">
@@ -2666,6 +2698,7 @@ function SourceDetail(
     {
       source: Source;
       policy: SourcePolicy;
+      policy_modes?: SourcePolicyModes;
       schedules: Schedule[];
       recent_videos: {
         video_id: string;
@@ -2910,6 +2943,7 @@ function SourceDetail(
         <SourceForm
           source={data.source}
           policy={data.policy}
+          policyModes={data.policy_modes}
           schedules={data.schedules}
           onClose={() => setEditing(false)}
           onSaved={() => {
@@ -3228,7 +3262,53 @@ function BackupRestorePanel() {
   );
 }
 
+function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: () => void }) {
+  const { t } = useUiLanguage();
+  const [focus, setFocus] = useState(policy.focus_rules.join(", "));
+  const [ignore, setIgnore] = useState(policy.ignore_rules.join(", "));
+  const [style, setStyle] = useState(policy.distillation_style);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await put("/settings/source-policy", {
+        command_id: commandId(),
+        initial_history_count: policy.initial_history_count,
+        per_run_max_new_videos: policy.per_run_max_new_videos,
+        focus_rules: ruleList(focus),
+        ignore_rules: ruleList(ignore),
+        distillation_style: style,
+      });
+      onSaved();
+    } catch {
+      setError(t("Preferences could not be saved."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Panel title="My interests">
+    <p className="hint">{t("These are defaults for future insight selection. A Following can use them or set its own focus. Summaries remain faithful to source content; existing insights and Topics do not change.")}</p>
+    <label className="field">{t("What I focus on")}
+      <input aria-label={t("What I focus on")} value={focus} onChange={(event) => setFocus(event.target.value)} placeholder={t("For example: AI Agent, language models, commercialization")} />
+    </label>
+    <label className="field">{t("Less of / ignore")}
+      <input aria-label={t("Less of / ignore")} value={ignore} onChange={(event) => setIgnore(event.target.value)} placeholder={t("For example: repetitive launch news")} />
+    </label>
+    <p className="hint">{t("Separate phrases with commas. These explicit rules apply to future checks and insights only.")}</p>
+    <label className="field">{t("Insight style")}
+      <select aria-label={t("Insight style")} value={style} onChange={(event) => setStyle(event.target.value)}>
+        {STYLES.map(([value, label]) => <option value={value} key={value}>{t(label)}</option>)}
+      </select>
+    </label>
+    <button type="button" className="button button-primary" disabled={busy} onClick={save}>{t(busy ? "Saving…" : "Save preferences")}</button>
+    {error ? <p className="form-error" role="alert">{error}</p> : null}
+  </Panel>;
+}
+
 function Settings({ refresh }: { refresh: number }) {
+  const [modelMessage, setModelMessage] = useState("");
   const { language, setLanguage, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
   const [savingLanguage, setSavingLanguage] = useState(false);
@@ -3241,6 +3321,8 @@ function Settings({ refresh }: { refresh: number }) {
       output_language_updated_at: string | null;
     };
     providers: ProviderStatus[];
+    cloud_credential?: { configured: boolean; source: string };
+    model_preference?: { desired_provider: string | null; desired_model: string | null };
   }>(
     "/settings",
     refresh + revision,
@@ -3251,7 +3333,7 @@ function Settings({ refresh }: { refresh: number }) {
   );
   const policy = useRemote<{ policy: SourcePolicy }>(
     "/settings/source-policy",
-    refresh,
+    refresh + revision,
   );
   const usage = useRemote<{ usage: ResourceUsage[] }>(
     "/settings/resource-usage",
@@ -3336,6 +3418,7 @@ function Settings({ refresh }: { refresh: number }) {
         </p>
         {languageError ? <p className="form-error">{languageError}</p> : null}
       </Panel>
+      <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
       <Panel title="Source language">
         <p>{t("Detected from each Content and its transcript. Original transcript and Evidence remain the provenance authority; this is not a global language preference.")}</p>
       </Panel>
@@ -3370,6 +3453,7 @@ function Settings({ refresh }: { refresh: number }) {
             : `Default for Followings without their own configuration: initial history ${globalPolicy.initial_history_count}, per-run limit ${globalPolicy.per_run_max_new_videos}, ${STYLES.find(([value]) => value === globalPolicy.distillation_style)?.[1] ?? "Balanced"} style.`}
         </p>
       </Panel>
+      <ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} />
       <Panel title="Models and cost (read-only)">
         <div className="capability-grid">
           {localFoundation && (

@@ -49,6 +49,7 @@ from youtube_intel.intelligence_read import (
     IntelligenceReadRejected,
 )
 from youtube_intel.knowledge_delta import KnowledgeDeltaService
+from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
@@ -444,6 +445,8 @@ class LocalApiApplication:
         cloud_distillation_service: PersonalizedDistillationService | None = None,
         cloud_intelligence_qualified: bool = False,
         cloud_credential_available: bool = False,
+        model_settings: ModelSettingsService | None = None,
+        refresh_cloud_distillation: Callable[[], PersonalizedDistillationService] | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
@@ -471,6 +474,8 @@ class LocalApiApplication:
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
+        self._model_settings = model_settings
+        self._refresh_cloud_distillation = refresh_cloud_distillation
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
         self._content_summary_reader = AuthoritativeContentSummaryReader(repository)
@@ -651,6 +656,23 @@ class LocalApiApplication:
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            if route in {"/api/v1/settings/cloud-credential", "/api/v1/settings/cloud-credential/delete"}:
+                if self._model_settings is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CREDENTIAL_STORE_UNAVAILABLE", "System credential store is unavailable.")
+                if method == "PUT" and route == "/api/v1/settings/cloud-credential":
+                    self._only_keys(data, {"credential"})
+                    self._model_settings.save_credential(self._string(data, "credential", required=True) or "")
+                elif method == "POST" and route.endswith("/delete"):
+                    self._only_keys(data, {"confirm"})
+                    if data.get("confirm") != "DELETE":
+                        raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONFIRMATION_REQUIRED", "Confirm credential deletion explicitly.")
+                    self._model_settings.delete_credential()
+                else:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._cloud_credential_available = bool(self._model_settings.credential())
+                if self._refresh_cloud_distillation is not None:
+                    self._cloud_distillation_service = self._refresh_cloud_distillation()
+                return HTTPStatus.OK, self._model_settings.credential_status()
             if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
                 content_id = self._obsidian_content_id(route)
                 self._only_keys(data, {"result_identity"})
@@ -1370,6 +1392,8 @@ class LocalApiApplication:
                 "CONFLICT",
                 "Preference or feedback command conflicts with existing history.",
             ) from error
+        except CredentialStoreError:
+            raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "CREDENTIAL_STORE_UNAVAILABLE", "System credential store is unavailable.") from None
         except BackupRestoreError as error:
             raise ApiError(
                 HTTPStatus.CONFLICT,
@@ -1528,6 +1552,11 @@ class LocalApiApplication:
         }
 
     def _get(self, route: str) -> dict[str, object]:
+        if route == "/api/v1/settings/local-models":
+            if self._model_settings is None:
+                return {"connection": "UNAVAILABLE", "models": []}
+            return self._model_settings.discovered_models()
+
         if route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
             return {"publish": self._deep_analysis_publisher.status(content_id=self._obsidian_content_id(route))}
         if route == "/api/v1/knowledge-delta":
@@ -1669,11 +1698,17 @@ class LocalApiApplication:
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
                 )
+            source_policy_revision = self._repository.get_source_policy_revision(source.source_id)
             return {
                 "source": self._source_projection(source),
                 "policy": _source_policy_dto(
                     self._source_policy_service.effective_policy(source.source_id)
                 ),
+                "policy_modes": {
+                    "focus": "INHERIT" if source_policy_revision is None else source_policy_revision.focus_mode.value,
+                    "ignore": "INHERIT" if source_policy_revision is None else source_policy_revision.ignore_mode.value,
+                    "style": "INHERIT" if source_policy_revision is None else source_policy_revision.distillation_style_mode.value,
+                },
                 "schedules": [
                     self._schedule_dto(item)
                     for item in self._repository.list_automation_schedules()
@@ -1818,6 +1853,7 @@ class LocalApiApplication:
                     "output_language_source": language.source,
                     "output_language_updated_at": _timestamp(language.updated_at),
                 },
+                "cloud_credential": {"configured": self._cloud_credential_available, "source": "ENVIRONMENT" if self._cloud_credential_available else "NONE"} if self._model_settings is None else self._model_settings.credential_status(),
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
