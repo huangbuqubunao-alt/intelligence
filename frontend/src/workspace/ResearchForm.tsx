@@ -49,7 +49,7 @@ export function ResearchForm({ busy, onRun, onCancel }: {
           <input type="checkbox" checked={selected.some(value => value.id === item.content_id)} disabled={selected.length >= 20 && !selected.some(value => value.id === item.content_id)} onChange={event => {
             setSelected(values => event.target.checked ? [...values, { id: item.content_id, title: item.title || t("Untitled Content") }] : values.filter(value => value.id !== item.content_id));
           }} />
-          <span>{item.title || t("Untitled Content")}<small>{item.channel_name}</small></span>
+          <span>{item.title || t("Untitled Content")}<small>{item.provider === "LOCAL" ? t("Local") : item.channel_name}</small></span>
         </label>)}</div>
         <p className="hint">{language === "zh-CN" ? `当前筛选共 ${options.total} 个内容；每页最多 50 个。` : `${options.total} Content items match this filter; at most 50 per page.`}</p>
         <div className="button-row">

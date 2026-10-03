@@ -54,9 +54,9 @@ export function ResearchResult({ result, onOpen }: { result: Result; onOpen: Ope
         {packet.scope.filter(item => packet.evidence.some(ref => ref.content_id === item.content_id)).map(item => <div className="research-source-group" key={item.content_id}>
           <h4>{item.title || t("Untitled Content")}</h4>
           {packet.evidence.filter(ref => ref.content_id === item.content_id).map(ref => <article className="evidence-item" id={`research-evidence-${ref.evidence_id}`} key={ref.evidence_id}>
-            <p className="reading-meta">{t("Evidence")} {packet.evidence.indexOf(ref) + 1} · {clock(ref.start_ms)}–{clock(ref.end_ms)} · {t("Source language")}: {ref.source_language}</p>
+            <p className="reading-meta">{t("Evidence")} {packet.evidence.indexOf(ref) + 1} · {ref.locator_type === "TEXT_RANGE" ? `${t("Lines")} ${ref.start_line}–${ref.end_line}` : ref.start_ms != null && ref.end_ms != null ? `${clock(ref.start_ms)}–${clock(ref.end_ms)}` : t("Position unavailable")} · {ref.provider === "LOCAL" ? t("Local") : "YouTube"} · {t("Source language")}: {ref.source_language}</p>
             <blockquote>{ref.excerpt}</blockquote>
-            <p className="hint">{t(ref.lineage_kind === "EXTRACTION" ? "Extracted evidence" : "Original transcript")}</p>
+            <p className="hint">{t(ref.locator_type === "TEXT_RANGE" ? "Original source text" : ref.lineage_kind === "EXTRACTION" ? "Extracted evidence" : "Original transcript")}</p>
             <button className="button button-secondary" onClick={() => onOpen("content", ref.content_id, ref.evidence_id)}>{t("Open Content and Evidence")}</button>
           </article>)}
         </div>)}

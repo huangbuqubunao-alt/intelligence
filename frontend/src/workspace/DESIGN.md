@@ -82,3 +82,17 @@ a model. Keep unavailable generation factual while existing library artifacts
 remain usable. Password fields clear after save; deleting a Keychain credential
 requires explicit confirmation. Keep success feedback visible across refresh.
 Preserve six navigation destinations, wrapped controls and 320px layouts.
+
+## Local provider imports
+
+Following → Add retains the existing modal and offers YouTube or 本地文件 / Local
+files. Use the native file input, explicit confirmation and individual results.
+One Local library holds imported Content; no new primary navigation or watched
+folder. Preserve snapshot and size-policy copy, filename wrapping, per-file errors,
+and keyboard-accessible controls at 320px. Local collection detail has import and
+Content navigation, without account or monitoring controls. Content uses the same
+Summary/Evidence panels. Extractive Summary identifies original source excerpts;
+media without a provisioned offline transcriber shows truthful unavailable status.
+Text Evidence and Research use line ranges; timed media retains actual positions.
+Provider labels are visible, original text is escaped plain text, and absolute
+paths never appear in product presentation.

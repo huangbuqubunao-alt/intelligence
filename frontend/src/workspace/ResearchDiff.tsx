@@ -83,7 +83,7 @@ export function ResearchDiff({ researchId, baseId, targetId, onOpen, onRevision,
     {diff && <>
       <Changes title="Referenced Content" group={diff.content} renderEntry={entry => <button className="research-source-link" onClick={() => onOpen("content", entry.content_id)}>{entry.title || t("Untitled Content")}</button>} />
       <Changes title="Evidence references" group={diff.evidence} renderEntry={entry => <article className="evidence-item">
-        <p>{entry.title || t("Untitled Content")} · {entry.start_ms / 1000}–{entry.end_ms / 1000}s · {t("Source language")}: {entry.source_language}</p>
+        <p>{entry.title || t("Untitled Content")} · {entry.provider === "LOCAL" ? t("Local") : "YouTube"} · {entry.locator_type === "TEXT_RANGE" ? `${t("Lines")} ${entry.start_line}–${entry.end_line}` : entry.start_ms != null && entry.end_ms != null ? `${entry.start_ms / 1000}–${entry.end_ms / 1000}s` : t("Position unavailable")} · {t("Source language")}: {entry.source_language}</p>
         <blockquote>{entry.excerpt}</blockquote>
         <button className="button button-secondary" onClick={() => onOpen("content", entry.content_id, entry.evidence_id)}>{t("Open Content and Evidence")}</button>
       </article>} />

@@ -1,6 +1,6 @@
 export type ResearchEvidence = {
   evidence_id: string; content_id: string; artifact_id: string; excerpt: string;
-  start_ms: number; end_ms: number; source_language: string;
+  start_ms: number | null; end_ms: number | null; locator_type?: string; start_line?: number | null; end_line?: number | null; provider?: string; source_language: string;
   lineage_kind: string; role: string; created_at: string;
 };
 export type ResearchPacket = {
@@ -22,7 +22,7 @@ export type ResearchItem = {
   assembled_at?: string; output_language?: string; status: string;
 };
 export type ResearchListing = { research: ResearchItem[]; total: number; offset: number; limit: number };
-export type ScopeOptions = { content: { content_id: string; title: string | null; channel_name: string }[]; total: number; offset: number; limit: number };
+export type ScopeOptions = { content: { content_id: string; title: string | null; channel_name: string; provider?: string }[]; total: number; offset: number; limit: number };
 export type OpenResearchSource = (kind: "content" | "intelligence", id: string, evidenceId?: string) => void;
 
 export function researchErrorCopy(code?: string) {
@@ -57,7 +57,7 @@ export type ResearchHistoryPage = {
 
 export type DiffGroup<T> = { added: T[]; removed: T[]; unchanged_count: number };
 export type DiffContent = { id: string; content_id: string; title: string | null };
-export type DiffEvidence = DiffContent & { evidence_id: string; excerpt: string; start_ms: number; end_ms: number; source_language: string; lineage_kind: string };
+export type DiffEvidence = DiffContent & { evidence_id: string; excerpt: string; start_ms: number | null; end_ms: number | null; locator_type?: string; start_line?: number | null; end_line?: number | null; provider?: string; source_language: string; lineage_kind: string };
 export type DiffInterpretation = DiffContent & {
   intelligence_id: string; revision_id: string; conclusion: string; claim_kind: string; state: string;
   citations: { evidence_id: string; stance: string | null }[];

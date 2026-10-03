@@ -1,3 +1,4 @@
+import { LocalImport, localStatus } from "./LocalImport";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
@@ -79,6 +80,7 @@ type Topic = {
   relations: { related_topic_id: string }[];
 };
 type Source = {
+  provider?: "YOUTUBE" | "LOCAL";
   source_id: string;
   display_name: string | null;
   friendly_name?: string | null;
@@ -132,6 +134,13 @@ type ResourceUsage = {
   budget_state: string;
 };
 type ContentItem = {
+  provider?: "YOUTUBE" | "LOCAL";
+  filename?: string;
+  media_kind?: string;
+  format?: string;
+  imported_at?: string;
+  source_language?: string | null;
+  duration_seconds?: number | null;
   video_id: string;
   channel_id: string;
   channel_name: string;
@@ -158,6 +167,7 @@ type ContentDetail = {
       note_identity?: string;
       result_identity?: string;
       language?: string;
+      method?: string;
       summary?: string | null;
       core_points?: string[];
       timestamped_key_points?: {
@@ -245,6 +255,10 @@ type DeepAnalysisEnvelope = {
   deep_analysis: DeepAnalysisState;
 };
 type ContentEvidence = {
+  provider?: "YOUTUBE" | "LOCAL";
+  locator_type?: "TIMED_MEDIA" | "TEXT_RANGE";
+  start_line?: number | null;
+  end_line?: number | null;
   evidence_id: string;
   artifact_id: string;
   lineage_kind: string;
@@ -301,8 +315,15 @@ const STYLES = [[
   "Lead with the wider trend and attributed viewpoints.",
 ]] as const;
 
+function initialContentTarget(): string | null {
+  const match = /^#Content\/([^/]+)$/.exec(location.hash);
+  if (!match) return null;
+  try { const value = decodeURIComponent(match[1]); return value && value.length <= 256 && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null; } catch { return null; }
+}
+
 function initialPage(): Page {
   const raw = location.hash.slice(1);
+  if (raw.startsWith("Content/")) return "Content";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
   const legacy: Record<string, Page> = {
     Dashboard: "Home",
@@ -1041,7 +1062,12 @@ function Workspace() {
   const { t } = useUiLanguage();
   const [page, setPage] = useState<Page>(initialPage);
   const [refresh, setRefresh] = useState(0);
-  const [contentTarget, setContentTarget] = useState<string | null>(null);
+  const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
+  useEffect(() => {
+    const openLinkedContent = () => { const target = initialContentTarget(); if (target) { setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null); } };
+    window.addEventListener("hashchange", openLinkedContent);
+    return () => window.removeEventListener("hashchange", openLinkedContent);
+  }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchEvidence, setResearchEvidence] = useState<string | null>(null);
@@ -1387,6 +1413,7 @@ function ContentPage(
     targetVideoId?: string | null;
   },
 ) {
+  const { t } = useUiLanguage();
   const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh);
   const [selected, setSelected] = useState<string | null>(targetVideoId ?? null);
   useEffect(() => {
@@ -1408,9 +1435,9 @@ function ContentPage(
           >
             <span>
               <strong>{item.title ?? item.video_id}</strong>
-              <small>{item.channel_name} · {humanDate(item.published_at)}</small>
+              <small>{item.provider === "LOCAL" ? t("Local") : item.channel_name} · {humanDate(item.imported_at ?? item.published_at)}</small>
             </span>
-            <Status value={item.processing_status} />
+            <Status value={item.provider === "LOCAL" ? localStatus(item.processing_status) : item.processing_status} />
           </button>
         ))}
       </div>
@@ -1450,8 +1477,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
       <Panel title={data.video.title ?? data.video.video_id}>
         <div className="reading-meta">
-          <Status value={data.video.processing_status} />
-          <span>{data.video.channel_name} · {humanDate(data.video.published_at)}</span>
+          <Status value={data.video.provider === "LOCAL" ? localStatus(data.video.processing_status) : data.video.processing_status} />
+          <span>{data.video.provider === "LOCAL" ? t("Local") : data.video.channel_name} · {humanDate(data.video.imported_at ?? data.video.published_at)}</span>
+          {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])} · {data.video.format}</span>}
+          {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
+          {data.video.duration_seconds != null && <span>{t("Duration")}: {Math.ceil(data.video.duration_seconds)}s</span>}
         </div>
         {data.video.source_url
           ? (
@@ -1461,13 +1491,15 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
-      <Panel title="Transcript">
+      <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {transcript.status === "AVAILABLE" && transcript.text
           ? <div className="transcript-copy">{transcript.text}</div>
           : (
             <div className="semantic-state state-neutral">
-              <Status value={transcript.status} />
+              <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />
               <p>{t(({
+                TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
+                TRANSCRIPTION_FAILED: "Local transcription failed",
                 NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
                 FAILED: "Transcript processing ended without a canonical transcript.",
                 UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
@@ -1475,14 +1507,15 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
-      <Panel title="Summary / Video Notes">
+      <Panel title={data.video.provider === "LOCAL" ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
           ? (
             <div className="summary-note">
               <div className="reading-meta">
                 <Status value="AVAILABLE" />
-                <span>{note.language ?? t("Language unavailable")}</span>
+                <span>{!note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
               </div>
+              {note.method === "SOURCE_EXCERPTS" && <p className="hint">{t("These are original source excerpts, selected deterministically without a model or new interpretation.")}</p>}
               {note.summary ? <><h3>{t("Summary")}</h3><p>{note.summary}</p></> : null}
               {note.core_points?.length
                 ? <><h3>{t("Key points")}</h3><ul>{note.core_points.map((point) => <li key={point}>{point}</li>)}</ul></>
@@ -2017,15 +2050,16 @@ function ContentEvidencePanel(
     string,
     { excerpt: string; language: "zh-CN" | "en" }
   >>({});
+  const evidencePanelTitle = data?.evidence?.some(item => item.locator_type === "TEXT_RANGE") ? "Evidence · source text" : "Evidence · source transcript";
   if (error) {
     return (
-      <Panel title="Evidence · source transcript">
+      <Panel title={evidencePanelTitle}>
         <p className="hint">{t("Canonical Evidence could not be loaded. The Summary remains available with its own recorded references.")}</p>
       </Panel>
     );
   }
   if (!data) {
-    return <Panel title="Evidence · source transcript"><Empty>Loading canonical Evidence…</Empty></Panel>;
+    return <Panel title={evidencePanelTitle}><Empty>Loading canonical Evidence…</Empty></Panel>;
   }
   const evidence = data.evidence ?? [];
   const hasPreferredTranslation = evidence.some((item) => {
@@ -2074,7 +2108,7 @@ function ContentEvidencePanel(
     }
   };
   return (
-    <Panel title="Evidence · source transcript">
+    <Panel title={evidencePanelTitle}>
       {evidence.length
         ? (
           <div className="evidence-trace-list">
@@ -2097,7 +2131,7 @@ function ContentEvidencePanel(
               return (
                 <article className="evidence-item evidence-trace-item" id={`content-evidence-${encodeURIComponent(item.evidence_id)}`} key={item.evidence_id}>
                   <div className="reading-meta">
-                    <span>{t("Source language")}: {item.source_language} · {t(evidenceLineageLabel(item.lineage_kind))}</span>
+                    <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
                     <strong>{item.evidence_id}</strong>
                   </div>
                   <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
@@ -2156,11 +2190,11 @@ function ContentEvidencePanel(
                   {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
                   <div>
                     <strong>{t("Source position")}</strong>
-                    <p>{timestampRange(item.start_ms, item.end_ms)}</p>
+                    <p>{item.locator_type === "TEXT_RANGE" ? `${t("Lines")} ${item.start_line}–${item.end_line}` : timestampRange(item.start_ms, item.end_ms)}</p>
                   </div>
                   <div>
                     <strong>{t("Provenance")}</strong>
-                    <p>{t(evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
+                    <p>{t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
                     <small>{item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
                   </div>
                   {sourceUrl
@@ -2294,6 +2328,7 @@ function Sources(
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [adding, setAdding] = useState(false);
+  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL">("YOUTUBE");
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   return (
@@ -2301,7 +2336,7 @@ function Sources(
       <div className="page-actions">
         <button
           className="button button-primary"
-          onClick={() => setAdding(true)}
+          onClick={() => { setAddProvider("YOUTUBE"); setAdding(true); }}
         >
           {t("Add Source")}
         </button>
@@ -2317,11 +2352,9 @@ function Sources(
                     setSelected(source.source_id)}
                 >
                   <span>
-                    <strong>{sourceLabel(source)}</strong>
+                    <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
                     <small>
-                      {t(source.enabled
-                        ? "Monitoring new videos"
-                        : "Monitoring is paused")}
+                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : "YouTube"}
                     </small>
                   </span>
                 </button>
@@ -2330,13 +2363,13 @@ function Sources(
                     value={source.last_error?.code ??
                       (source.enabled ? "ENABLED" : "DISABLED")}
                   />
-                  <a
+                  {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
                     href={source.canonical_url}
                     target="_blank"
                     rel="noreferrer"
                   >
                     {t("Open Source")}
-                  </a>
+                  </a>}
                 </div>
               </div>
             ))}
@@ -2350,7 +2383,7 @@ function Sources(
             </p>
             <button
               className="button button-primary"
-              onClick={() => setAdding(true)}
+              onClick={() => { setAddProvider("YOUTUBE"); setAdding(true); }}
             >
               {t("Add Source")}
             </button>
@@ -2358,6 +2391,7 @@ function Sources(
         )}
       {adding && (
         <SourceForm
+          initialProvider={addProvider}
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false);
@@ -2379,7 +2413,8 @@ function ruleList(value: string) {
   return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
 }
 function SourceForm(
-  { onClose, onSaved, source, policy, policyModes, schedules }: {
+  { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
+    initialProvider?: "YOUTUBE" | "LOCAL";
     onClose: () => void;
     onSaved: () => void;
     source?: Source;
@@ -2389,6 +2424,7 @@ function SourceForm(
   },
 ) {
   const { t } = useUiLanguage();
+  const [providerChoice,setProviderChoice] = useState(initialProvider);
   const globalPolicy = useRemote<{ policy: SourcePolicy }>("/settings/source-policy", 0);
   const schedule = schedules?.[0];
   const [url, setUrl] = useState(source?.canonical_url ?? "");
@@ -2471,6 +2507,7 @@ function SourceForm(
       setBusy(false);
     }
   };
+  if (providerChoice === "LOCAL") return <LocalImport onClose={onClose} onSaved={onSaved} onYouTube={() => setProviderChoice("YOUTUBE")} />;
   return (
     <div className="overlay">
       <section
@@ -2492,6 +2529,7 @@ function SourceForm(
             {t("Cancel")}
           </button>
         </div>
+        {!source && <div className="button-row" aria-label={t("Source provider")}><button className="button button-primary" aria-pressed="true">YouTube</button><button className="button button-secondary" onClick={() => setProviderChoice("LOCAL")}>{t("Local files")}</button></div>}
         <form onSubmit={submit}>
           <label className="field">
             {t("Source URL")}<input
@@ -2723,6 +2761,12 @@ function SourceDetail(
   }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
+  if (data.source.provider === "LOCAL") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Local library")}>
+    <div className="modal-head"><h2>{t("Local library")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+    <p>{t("Explicit imports only")}</p><button className="button button-primary" onClick={() => setEditing(true)}>{t("Import files")}</button>
+    <ul>{data.recent_videos.map(content => <li key={content.video_id}><a href={`#Content/${content.video_id}`} onClick={onClose}>{content.title}</a> · {t(localStatus(content.processing_status))}</li>)}</ul>
+    {editing && <LocalImport onClose={() => setEditing(false)} onYouTube={() => setEditing(false)} onSaved={() => { setEditing(false);setRefresh(v=>v+1);onRefresh(); }} />}
+  </section></div>;
   const check = async () => {
     if (checking || !data.source.enabled) return;
     setChecking(true);
