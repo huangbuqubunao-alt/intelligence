@@ -25,7 +25,9 @@ try{
  await page.goto(base+'#Content/'+previous);await page.locator('.timed-transcript').waitFor();
  // Import an actual short video through the user-facing picker.
  await page.getByRole('navigation').getByRole('button',{name:'Following',exact:true}).click();await page.getByRole('button',{name:'Add Source',exact:true}).first().click();await page.getByRole('button',{name:'Local files',exact:true}).click();
- const dialog=page.getByRole('dialog');await dialog.getByLabel('Choose local files').setInputFiles({name:'offline-restart-'+Date.now()+'.mp4',mimeType:'video/mp4',buffer:readFileSync(join(root,'restart-video.mp4'))});
+ const nonce=Buffer.from(String(Date.now()));const free=Buffer.alloc(8);free.writeUInt32BE(8+nonce.length);free.write('free',4);
+ const video=Buffer.concat([readFileSync(join(root,'restart-video.mp4')),free,nonce]);
+ const dialog=page.getByRole('dialog');await dialog.getByLabel('Choose local files').setInputFiles({name:'offline-restart-'+Date.now()+'.mp4',mimeType:'video/mp4',buffer:video});
  await dialog.getByRole('button',{name:'Confirm import',exact:true}).click();await dialog.getByRole('link',{name:'Open Content',exact:true}).click();
  const panel=page.getByRole('region',{name:'Offline transcription'});await panel.getByRole('button',{name:'Start transcription',exact:true}).click();
  await panel.getByRole('status').filter({hasText:'Transcribing…'}).waitFor();const id=page.url().split('#Content/')[1];
