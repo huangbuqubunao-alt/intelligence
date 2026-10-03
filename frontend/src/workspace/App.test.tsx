@@ -1836,6 +1836,48 @@ test("Obsidian stale displayed result is disabled with a truthful localized stat
   expect(screen.getByRole("button", { name: "发布到 Obsidian" }).hasAttribute("disabled")).toBe(true);
 });
 
+test.each(["en", "zh-CN"])("%s production NONE retains trusted result, durable citations and explicit publish", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetchMock = stubDeepAnalysis({
+    status: { availability: "NOT_QUALIFIED", reason_code: "NO_QUALIFIED_MODEL", qualified: false, production_eligible: false, route_id: null },
+    result: durableDaResult,
+  });
+  render(<App />);
+  await openDeepAnalysisContent();
+  expect(await screen.findByText(durableDaResult.roles[0].text)).toBeTruthy();
+  expect(screen.getAllByRole("link", { name: language === "en" ? "Evidence 1" : "证据 1" }).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }).hasAttribute("disabled")).toBe(true);
+  const publish = screen.getByRole("button", { name: language === "en" ? "Publish to Obsidian" : "发布到 Obsidian" });
+  await waitFor(() => expect(publish.hasAttribute("disabled")).toBe(false));
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  fireEvent.click(publish);
+  await screen.findByText(language === "en" ? "Published to Obsidian." : "已发布到 Obsidian。", { exact: false });
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(within(screen.getByRole("navigation", { name: language === "en" ? "Primary navigation" : "主导航" })).getAllByRole("button")).toHaveLength(6);
+});
+
+test.each([
+  ["NOT_PROCESSED", "No canonical transcript has been recorded for this video.", "此内容尚未记录原始字幕。"],
+  ["FAILED", "Transcript processing ended without a canonical transcript.", "字幕处理已结束，但未生成原始字幕。"],
+  ["UNAVAILABLE", "The recorded canonical transcript cannot be safely read.", "已记录的原始字幕无法安全读取。"],
+  ["UNKNOWN_BACKEND_STATE", "A readable transcript is not available yet.", "目前没有可阅读的原始字幕。"],
+])("Content transcript %s uses localized state rather than backend prose", async (status, english, chinese) => {
+  for (const [language, copy] of [["en", english], ["zh-CN", chinese]]) {
+    localStorage.setItem("yia.ui-language", language);
+    stubDeepAnalysis({ status: { availability: "NOT_QUALIFIED", qualified: false }, result: null });
+    const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).endsWith("/videos/video-1")
+        ? response({ ...daVideoDetail, transcript: { status, reason: "Raw backend English diagnostic" } })
+        : baseFetch(input, init)));
+    const view = render(<App />);
+    await openDeepAnalysisContent();
+    expect(await screen.findByText(copy)).toBeTruthy();
+    expect(document.body.textContent).not.toContain("Raw backend English diagnostic");
+    view.unmount();
+  }
+});
+
 test("Deep Analysis is unavailable and honest when no model is qualified", async () => {
   stubDeepAnalysis({
     status: {
@@ -2071,9 +2113,7 @@ test("Chinese Deep Analysis POST failure is localized by machine code", async ()
   fireEvent.click(await screen.findByRole("button", { name: /Deep Analysis fixture/ }));
   const runButton = await screen.findByRole("button", { name: "开始深度分析" });
   expect((runButton as HTMLButtonElement).disabled).toBe(false);
-  await fireEvent.click(runButton);
-
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  fireEvent.click(runButton);
   const posts = fetchMock.mock.calls.filter((c: any[]) => c[1]?.method === "POST");
   if (posts.length === 0) throw new Error("no POST was issued to the backend");
   await waitFor(() =>

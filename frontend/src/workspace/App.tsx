@@ -1432,7 +1432,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : (
             <div className="semantic-state state-neutral">
               <Status value={transcript.status} />
-              <p>{transcript.reason ?? t("A readable transcript is not available yet.")}</p>
+              <p>{t(({
+                NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
+                FAILED: "Transcript processing ended without a canonical transcript.",
+                UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
+              } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
             </div>
           )}
       </Panel>
