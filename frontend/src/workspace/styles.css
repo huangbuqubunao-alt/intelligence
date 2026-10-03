@@ -1515,3 +1515,5 @@ dialog p {
 .timed-transcript { padding-left: 1.5rem; }
 .timed-transcript li { margin-bottom: .75rem; overflow-wrap: anywhere; }
 .timed-transcript time { display: block; font-size: .8rem; opacity: .75; }
+.local-media-meta { flex-wrap: wrap; }
+.local-media-meta > span { min-width: 0; }

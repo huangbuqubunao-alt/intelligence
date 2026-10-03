@@ -40,10 +40,13 @@ for(const language of ['zh-CN','en']) for(const width of [320,768,1024,1440]) {
  writeFileSync(join(executor,'result-mode.txt'),'failure');
  await panel.getByRole('button',{name:text('Start transcription','开始转写'),exact:true}).click();
  await panel.getByRole('button',{name:text('Retry transcription','重试转写'),exact:true}).waitFor();
+ await page.locator('.local-media-meta').getByText(text('Local transcription failed','本地转写失败'),{exact:true}).waitFor();
  assert.ok(!(await page.locator('body').innerText()).includes('/Users/'));
  writeFileSync(join(executor,'result-mode.txt'),'slow');
  await panel.getByRole('button',{name:text('Retry transcription','重试转写'),exact:true}).click();
  await panel.getByRole('status').filter({hasText:text('Transcribing…','正在转写…')}).waitFor();
+ await page.locator('.local-media-meta').getByText(text('Transcribing…','正在转写…'),{exact:true}).waitFor();
+ assert.equal(await page.locator('.local-transcription + .semantic-state').count(),0);
  await noOverflow();await page.screenshot({path:join(screenshot,`${language}-${width}-running.png`),fullPage:true});
  await page.locator('.timed-transcript li').first().waitFor();
  await page.locator('[id^="content-evidence-"]').first().waitFor();

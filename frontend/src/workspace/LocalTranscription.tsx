@@ -36,7 +36,7 @@ const reasons: Record<string, string> = {
   INTERRUPTED: "Transcription was interrupted. You can start a new attempt.",
 };
 export const transcriptionCopy = (status: string) => stateCopy[status] ?? "Local transcription is unavailable";
-export function LocalTranscription({ id, onCompleted }: { id: string; onCompleted: () => void }) {
+export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: string; onCompleted: () => void; onStatusChange?: (status: string) => void }) {
   const { t } = useUiLanguage();
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,7 @@ export function LocalTranscription({ id, onCompleted }: { id: string; onComplete
   const [revision, setRevision] = useState(0);
   const completed = useRef(false);
   const onComplete = useRef(onCompleted); onComplete.current = onCompleted;
+  const onStatus = useRef(onStatusChange); onStatus.current = onStatusChange;
   useEffect(() => {
     let active = true; let timer: ReturnType<typeof setTimeout> | undefined;
     const read = async () => {
@@ -52,6 +53,7 @@ export function LocalTranscription({ id, onCompleted }: { id: string; onComplete
         const response = await api<{ transcription: State }>(`/videos/${encodeURIComponent(id)}/transcription`);
         if (!active) return;
         setState(response.transcription); setError(null);
+        onStatus.current?.(response.transcription.status);
         if (response.transcription.status === "READY" && !completed.current) {
           completed.current = true; onComplete.current();
         }

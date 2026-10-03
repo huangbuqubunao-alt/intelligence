@@ -1,5 +1,5 @@
 import { LocalImport, localStatus } from "./LocalImport";
-import { LocalTranscription } from "./LocalTranscription";
+import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
@@ -1456,6 +1456,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [showCloudTerms, setShowCloudTerms] = useState(false);
   const [cloudReview, setCloudReview] = useState<{
     execution_id: string;
@@ -1471,6 +1472,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Content detail…</Empty>;
   const transcript = data.transcript;
+  const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
@@ -1479,8 +1481,8 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
       <Panel title={data.video.title ?? data.video.video_id}>
-        <div className="reading-meta">
-          <Status value={data.video.provider === "LOCAL" ? localStatus(data.video.processing_status) : data.video.processing_status} />
+        <div className={`reading-meta${isLocalMedia ? " local-media-meta" : ""}`}>
+          <Status value={isLocalMedia && transcriptionStatus ? transcriptionCopy(transcriptionStatus) : data.video.provider === "LOCAL" ? localStatus(isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE" ? "IMPORTED" : data.video.processing_status) : data.video.processing_status} />
           <span>{data.video.provider === "LOCAL" ? t("Local") : data.video.channel_name} · {humanDate(data.video.imported_at ?? data.video.published_at)}</span>
           {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])} · {data.video.format}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
@@ -1495,12 +1497,12 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : null}
       </Panel>
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
-        {data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT" && <LocalTranscription id={id} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+        {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {transcript.status === "AVAILABLE" && transcript.text
           ? transcript.timed_segments?.length
             ? <ol className="timed-transcript">{transcript.timed_segments.map((segment, index) => <li key={index}><time>{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
             : <div className="transcript-copy">{transcript.text}</div>
-          : (
+          : isLocalMedia ? null : (
             <div className="semantic-state state-neutral">
               <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />
               <p>{t(({

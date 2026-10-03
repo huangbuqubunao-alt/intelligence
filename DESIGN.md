@@ -30,6 +30,10 @@ existing title/body/hint hierarchy. Transcript words stay exact; source timestam
 use a smaller line above each segment. Long model identities wrap within the
 Content panel.
 
+Local media metadata wraps into readable rows on narrow screens. Its header and
+Transcript panel use the same live transcription status. Suppress the historical
+unavailable placeholder when the live Local transcription surface is present.
+
 ## Layout and spacing
 
 Use the existing dashboard stack and panels. Status and start/retry remain in the

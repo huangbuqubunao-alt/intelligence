@@ -44,8 +44,10 @@ it("refreshes Content exactly once after trusted completion", async () => {
   localStorage.setItem("yia.ui-language", "en");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ status: "READY", retry_available: false, capability })));
   const complete = vi.fn();
-  const ui = render(<UiLanguageProvider><LocalTranscription id="local-id" onCompleted={complete} /></UiLanguageProvider>);
+  const status = vi.fn();
+  const ui = render(<UiLanguageProvider><LocalTranscription id="local-id" onStatusChange={status} onCompleted={complete} /></UiLanguageProvider>);
   await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(status).toHaveBeenCalledWith("READY");
   ui.rerender(<UiLanguageProvider><LocalTranscription id="local-id" onCompleted={complete} /></UiLanguageProvider>);
   expect(complete).toHaveBeenCalledTimes(1);
 });
