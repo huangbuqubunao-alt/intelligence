@@ -64,6 +64,14 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/knowledge-delta")) {
+        return response({ knowledge_delta: {
+          window_start: "2026-09-26T08:00:00.000000Z", window_end: "2026-10-03T08:00:00.000000Z",
+          timezone: "Asia/Shanghai", status: "available", detail_limit: 2,
+          categories: ["content_completed", "intelligence_added", "intelligence_revised", "topic_updated", "source_health"]
+            .map(kind => ({ kind, status: "available", count: 0, items: [] })),
+        } });
+      }
       if (input.endsWith("/dashboard")) {
         return response({
           intelligence: [{
@@ -2511,4 +2519,32 @@ test.each([
   expect((screen.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }) as HTMLButtonElement).disabled).toBe(true);
   expect(document.body.textContent).not.toContain("UNAVAILABLE");
   expect(fetchMock.mock.calls.every(call => !String(call[0]).endsWith("/preflight"))).toBe(true);
+});
+
+
+test.each([
+  ["content", "video-1", "Open Content", "Content", "/videos/video-1"],
+  ["intelligence", "intelligence:fixture", "Open Intelligence", "Intelligence", "/intelligence/intelligence:fixture"],
+  ["topic", "topic-1", "Open Topic", "Topics", "/topics/topic-1"],
+  ["source", "source-1", "Open Following", "Following", "/sources/source-1"],
+])("Home Delta opens the existing %s target without new navigation", async (kind, id, label, page, path) => {
+  const baseFetch = vi.mocked(fetch).getMockImplementation()!;
+  const requests: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    requests.push(input);
+    if (input.endsWith("/knowledge-delta")) return response({ knowledge_delta: {
+      window_start: "2026-09-26T08:00:00.000000Z", window_end: "2026-10-03T08:00:00.000000Z",
+      timezone: "Asia/Shanghai", status: "available", detail_limit: 2,
+      categories: [{ kind: kind === "content" ? "content_completed" : kind === "topic" ? "topic_updated" : kind === "source" ? "source_health" : "intelligence_added",
+        status: "available", count: 1, items: [{ id: "change", kind: "content_completed", label: "Content completed", title: "Delta target",
+          target: { kind, id }, occurred_at: "2026-10-03T08:00:00.000000Z", facts: {} }] }],
+    } });
+    if (input.endsWith("/intelligence/intelligence:fixture")) return response({ intelligence });
+    return baseFetch(input, init);
+  }));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: `${label}: Delta target` }));
+  expect(await screen.findByRole("heading", { name: page, level: 1 })).toBeTruthy();
+  await waitFor(() => expect(requests).toContain(`/api/v1${path}`));
+  expect(within(screen.getByRole("navigation", { name: "Primary navigation" })).getAllByRole("button")).toHaveLength(6);
 });

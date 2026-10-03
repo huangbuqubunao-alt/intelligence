@@ -45,3 +45,5 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [V1X-DR-002](V1X-DR-002-durable-deep-analysis-evidence.md) | Accepted | 2026-10-02 | Phase 1B：durable Evidence promotion、同 Content membership、持久化与重启核验 |
 | [V1X-DR-004](V1X-DR-004-deep-analysis-obsidian-publish.md) | Accepted | 2026-10-03 | Phase 2：显式单向 Obsidian 投影、稳定语义身份、SQLite 权威与安全原子写入 |
 | [ADR-028](ADR-028-external-o200k-provisioning.md) | Accepted | 2026-08-31 | 以显式管理员预置、固定哈希验证的本地资源替代 ADR-008 A-16 的包内 BPE 存储细节；无运行时网络或 fallback |
+
+| [V1X-PHASE3-DR-001](V1X-PHASE3-DR-001-home-knowledge-delta.md) | Accepted | 2026-10-03 | Phase 3：Home 七天确定性 Knowledge Delta、无模型、无持久状态 |

@@ -45,6 +45,7 @@ from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
 )
+from youtube_intel.knowledge_delta import KnowledgeDeltaService
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
@@ -472,6 +473,9 @@ class LocalApiApplication:
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
+        self._knowledge_delta_service = KnowledgeDeltaService(
+            repository, now=self._now, timezone=timezone
+        )
         self._source_run_wakeup = source_run_wakeup
         self._local_distillation_available = local_distillation_available
         self._analysis_reader = analysis_reader
@@ -1461,6 +1465,8 @@ class LocalApiApplication:
     def _get(self, route: str) -> dict[str, object]:
         if route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
             return {"publish": self._deep_analysis_publisher.status(content_id=self._obsidian_content_id(route))}
+        if route == "/api/v1/knowledge-delta":
+            return {"knowledge_delta": self._knowledge_delta_service.read().as_dict()}
         if route == "/api/v1/settings/source-policy":
             return {
                 "policy": _source_policy_dto(

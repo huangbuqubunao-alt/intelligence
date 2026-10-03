@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
+import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 
 type Page =
@@ -1035,15 +1036,27 @@ function Workspace() {
   const [page, setPage] = useState<Page>(initialPage);
   const [refresh, setRefresh] = useState(0);
   const [contentTarget, setContentTarget] = useState<string | null>(null);
+  const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const navigate = (next: Page) => {
     setContentTarget(null);
+    setDeltaTarget(null);
     location.hash = next;
     setPage(next);
   };
   const openContent = (videoId: string) => {
+    setDeltaTarget(null);
     setContentTarget(videoId);
     location.hash = "Content";
     setPage("Content");
+  };
+  const openDelta = (target: DeltaTarget) => {
+    const destinations: Record<DeltaTarget["kind"], Page> = {
+      content: "Content", intelligence: "Intelligence", topic: "Topics", source: "Following",
+    };
+    setDeltaTarget(target);
+    setContentTarget(target.kind === "content" ? target.id : null);
+    location.hash = destinations[target.kind];
+    setPage(destinations[target.kind]);
   };
   return (
     <div className="app-shell">
@@ -1079,25 +1092,27 @@ function Workspace() {
           </div>
         </header>
         {page === "Home" && (
-          <Dashboard
-            refresh={refresh}
-            navigate={navigate}
-            openContent={openContent}
-          />
+          <div className="dashboard-stack">
+            <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
+            <Dashboard refresh={refresh} navigate={navigate} openContent={openContent} />
+          </div>
         )}
         {page === "Following" && (
           <Sources
             refresh={refresh}
             onRefresh={() => setRefresh((value) => value + 1)}
+            targetSourceId={deltaTarget?.kind === "source" ? deltaTarget.id : null}
           />
         )}
         {page === "Content" && (
           <ContentPage refresh={refresh} targetVideoId={contentTarget} />
         )}
         {page === "Intelligence" && (
-          <IntelligencePage refresh={refresh} openContent={openContent} />
+          deltaTarget?.kind === "intelligence"
+            ? <IntelligenceDetail id={deltaTarget.id} openContent={openContent} onBack={() => navigate("Intelligence")} />
+            : <IntelligencePage refresh={refresh} openContent={openContent} />
         )}
-        {page === "Topics" && <Topics refresh={refresh} />}
+        {page === "Topics" && <Topics refresh={refresh} targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null} />}
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
     </div>
@@ -1173,14 +1188,14 @@ function Dashboard(
           {t("See all Intelligence")}
         </button>
       </Panel>
-      <Panel title="Topic changes">
+      <Panel title="Pinned Topics">
         {topics.length
           ? topics.map((topic) => (
             <p key={topic.topic_id}>
               <strong>{topic.name}</strong> · {t(statusLabel(topic.current_state))}
             </p>
           ))
-          : <Empty>No important Topic changes since you last checked.</Empty>}
+          : <Empty>No pinned Topics yet.</Empty>}
       </Panel>
       {attention.length
         ? (
@@ -1202,6 +1217,20 @@ function Attention({ run }: { run: SourceRun }) {
       <p>{t(action)}</p>
     </article>
   );
+}
+function IntelligenceDetail({ id, openContent, onBack }: {
+  id: string; openContent: (videoId: string) => void; onBack: () => void;
+}) {
+  const { t } = useUiLanguage();
+  const [revision, setRevision] = useState(0);
+  const detail = useRemote<{ intelligence: Intelligence }>(`/intelligence/${id}`, revision);
+  return <>
+    <button type="button" className="button button-ghost" onClick={onBack}>{t("Back to Intelligence")}</button>
+    {detail.error ? <ErrorState error={detail.error} code={detail.errorCode} hideRawMessage />
+      : !detail.data ? <Empty>Loading verified Intelligence…</Empty>
+      : <IntelligenceCard item={detail.data.intelligence} saved={false}
+          onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} />}
+  </>;
 }
 function IntelligencePage(
   { refresh, openContent }: {
@@ -2116,10 +2145,10 @@ function ContentEvidencePanel(
     </Panel>
   );
 }
-function Topics({ refresh }: { refresh: number }) {
+function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: string | null }) {
   const { t } = useUiLanguage();
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
   const detail = useRemote<{ topic: Topic }>(
     selected ? `/topics/${selected}` : "/topics",
   );
@@ -2220,11 +2249,11 @@ function Topics({ refresh }: { refresh: number }) {
 }
 
 function Sources(
-  { refresh, onRefresh }: { refresh: number; onRefresh: () => void },
+  { refresh, onRefresh, targetSourceId }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null },
 ) {
   const { t } = useUiLanguage();
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [adding, setAdding] = useState(false);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
