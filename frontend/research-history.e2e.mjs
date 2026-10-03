@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 const base = process.env.YIA_RESEARCH_UI_URL ?? "http://127.0.0.1:5399/";
 const root = resolve(process.env.YIA_RESEARCH_FIXTURE_ROOT ?? "../.var/phase5/browser-fixture");
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+\/$/);
-assert.ok(root.includes("/v1x-research-history/.var/phase5/"));
+assert.ok((root.includes("/v1x-research-history/.var/phase5/") || root.includes("/v1x-milestone-closure/.var/phase5/")));
 const info = JSON.parse(readFileSync(join(root, "browser-fixture.json"), "utf8"));
 assert.equal(info.port, 5398);
 const artifacts = join(root, "screenshots");

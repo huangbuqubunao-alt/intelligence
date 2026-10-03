@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 const base = process.env.YIA_RESEARCH_UI_URL ?? "http://127.0.0.1:5399/";
 const root = resolve(process.env.YIA_RESEARCH_FIXTURE_ROOT ?? "../.var/phase5/browser-acceptance");
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+\/$/);
-assert.ok(root.includes("/v1x-research-history/.var/phase5/"));
+assert.ok((root.includes("/v1x-research-history/.var/phase5/") || root.includes("/v1x-milestone-closure/.var/phase5/")));
 const restoreOnly = process.env.YIA_RESEARCH_RESTORE_ONLY === "1";
 const browser = await chromium.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
 const errors = [], external = [];

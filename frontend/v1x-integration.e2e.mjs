@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 const base = process.env.YIA_INTEGRATION_UI_URL ?? "http://127.0.0.1:5297/";
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+\/$/);
 const root = process.env.YIA_PHASE2_FIXTURE_ROOT;
-assert.ok(root?.startsWith("/tmp/v1x-phase2-integration-") || root?.includes("/v1x-research-diff/.var/phase6/"));
+assert.ok(root?.startsWith("/tmp/v1x-phase2-integration-") || (root?.includes("/v1x-research-diff/.var/phase6/") || root?.includes("/v1x-milestone-closure/.var/phase6/")));
 const info = JSON.parse(readFileSync(join(root, "browser-fixture.json"), "utf8"));
 const artifacts = join(root, "integrated-screenshots");
 mkdirSync(artifacts, { recursive: true });

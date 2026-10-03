@@ -1,0 +1,98 @@
+import assert from "node:assert/strict";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { chromium } from "playwright-core";
+
+const base = "http://127.0.0.1:5493/";
+const root = new URL("../.var/closure/unified/", import.meta.url).pathname;
+const info = JSON.parse(readFileSync(join(root, "fixture.json")));
+const mode = process.env.YIA_CLOSURE_MODE ?? "acceptance";
+const browser = await chromium.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
+const errors = [], external = [], scenarios = [];
+mkdirSync(join(root, "screenshots"), { recursive: true });
+try {
+  for (const language of ["zh-CN", "en"]) for (const width of [320, 768, 1024, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 1000 } });
+    page.on("pageerror", e => errors.push(String(e)));
+    page.on("console", m => { if (["error", "warning"].includes(m.type())) errors.push(m.text()); });
+    page.on("request", r => { if (!r.url().startsWith(base)) external.push(r.url()); });
+    await page.addInitScript(lang => localStorage.setItem("yia.ui-language", lang), language);
+    const text = (en, zh) => language === "en" ? en : zh;
+    const get = async path => { const r = await page.request.get(`${base}api/v1/${path}`); assert.equal(r.status(), 200); return r.json(); };
+    const noOverflow = async () => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.goto(`${base}#Home`);
+    await page.locator(".knowledge-delta").waitFor();
+    assert.equal(await page.locator(".sidebar-nav button").count(), 6);
+    await noOverflow();
+    await page.getByRole("navigation").getByRole("button", { name: text("Settings", "设置"), exact: true }).click();
+    await page.getByLabel(text("What I focus on", "我重点关注")).fill("sentence1，Evidence");
+    await Promise.all([page.waitForResponse(r => r.url().endsWith("/settings/source-policy") && r.request().method() === "GET"), page.getByRole("button", { name: text("Save preferences", "保存偏好"), exact: true }).click()]);
+    assert.deepEqual((await get("settings/source-policy")).policy.focus_rules, ["sentence1", "Evidence"]);
+    await page.getByLabel(text("Preferred output language", "默认输出语言")).selectOption("en");
+    await page.waitForFunction(() => document.querySelector('select[aria-label="Preferred output language"], select[aria-label="默认输出语言"]')?.value === "en");
+    assert.equal((await get("settings")).general.output_language, "en");
+    assert.equal(await page.evaluate(() => localStorage.getItem("yia.ui-language")), language);
+    await page.getByLabel(text("Discovered candidate", "已发现的候选模型")).selectOption("closure-candidate:7b");
+    await page.getByRole("button", { name: text("Save candidate preference", "保存候选偏好"), exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text("Candidate preference saved.", "已保存候选偏好") }).waitFor();
+    await page.getByLabel(text("New API credential", "新的 API 凭据")).fill("synthetic-browser-closure");
+    await page.getByRole("button", { name: text("Save credential securely", "安全保存凭据"), exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text("Credential saved", "凭据已存入") }).waitFor();
+    assert.equal(await page.getByLabel(text("New API credential", "新的 API 凭据")).inputValue(), "");
+    await page.getByLabel(text("Confirm Keychain credential deletion", "确认删除钥匙串凭据")).check();
+    await page.getByRole("button", { name: text("Delete Keychain credential", "删除钥匙串凭据"), exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text("Keychain credential deleted.", "已删除钥匙串凭据") }).waitFor();
+    const settings = await get("settings");
+    assert.equal(settings.model_preference.active_production_default, null);
+    assert.equal(settings.cloud_credential.configured, false);
+    await noOverflow();
+    await page.screenshot({ path: join(root, "screenshots", `${mode}-${language}-${width}-settings.png`), fullPage: true });
+    await page.getByRole("navigation").getByRole("button", { name: text("Following", "关注"), exact: true }).click();
+    await page.getByRole("button", { name: text("Add Source", "添加关注"), exact: true }).first().click();
+    const form = page.getByRole("dialog");
+    await form.getByLabel(text("Source URL", "来源链接")).fill("https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw");
+    assert.equal(await form.getByLabel(text("Focus preference", "关注重点来源")).inputValue(), "INHERIT");
+    await form.getByLabel(text("Automatic schedule", "自动检查计划"), { exact: true }).selectOption("MANUAL");
+    await form.getByRole("button", { name: text("Add Source", "添加关注"), exact: true }).click();
+    await form.waitFor({ state: "hidden" });
+    assert.ok((await get("sources")).sources.length);
+    await noOverflow();
+    await page.getByRole("navigation").getByRole("button", { name: text("Content", "内容"), exact: true }).click();
+    const contentTitle = (await get(`videos/${info.content_id}`)).video.title;
+    await page.getByRole("button", { name: new RegExp(contentTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).first().click();
+    await page.locator(".deep-analysis-result").waitFor();
+    assert.equal(await page.getByRole("button", { name: text("Run Deep Analysis", "开始深度分析"), exact: true }).isDisabled(), true);
+    assert.equal(await page.locator(".deep-analysis-result .intelligence-section").count(), 5);
+    assert.ok(await page.locator('[id^="content-evidence-"]').count());
+    await page.getByRole("button", { name: text("Publish to Obsidian", "发布到 Obsidian"), exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text(/Published to Obsidian|Updated in Obsidian|already up to date/, /已发布到 Obsidian|已更新 Obsidian|已是最新版本/) }).waitFor();
+    await noOverflow();
+    await page.getByRole("navigation").getByRole("button", { name: text("Intelligence", "洞察"), exact: true }).click();
+    await page.getByRole("button", { name: text("Research", "研究"), exact: true }).click();
+    await page.getByRole("button", { name: text("New Research", "新建研究"), exact: true }).click();
+    await page.getByLabel(text("Research question", "研究问题")).fill("sentence1");
+    const scope = (await get("research/scope")).content.find(c => c.content_id === info.content_id);
+    await page.locator(".research-option").filter({ hasText: scope.title }).first().getByRole("checkbox").check();
+    await page.getByRole("button", { name: text("Assemble library packet", "收集资料库证据包"), exact: true }).click();
+    await page.locator(".research-result blockquote").first().waitFor();
+    await Promise.all([
+      page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/api/v1/research") && r.status() === 201),
+      page.getByRole("button", { name: text("Assemble again", "重新收集"), exact: true }).click(),
+    ]);
+    await page.waitForFunction(label => [...document.querySelectorAll("button")].some(b => b.textContent === label && !b.disabled), text("Assemble again", "重新收集"));
+    await page.getByRole("heading", { name: text("Current Research version", "研究当前版本"), exact: true }).waitFor();
+    await page.locator(".research-history-list li").first().waitFor();
+    await page.locator(".research-history-list button").first().click();
+    await page.getByRole("heading", { name: text("Previous Research version", "研究历史版本"), exact: true }).waitFor();
+    await page.getByRole("button", { name: text("Compare with current", "与当前版本对比"), exact: true }).click();
+    await page.getByText(text("No material changes", "无实质变化"), { exact: true }).waitFor();
+    await noOverflow();
+    await page.reload();
+    await page.getByText(text("No material changes", "无实质变化"), { exact: true }).waitFor();
+    scenarios.push(`${mode}/${language}/${width}: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff`);
+    await page.close();
+  }
+  assert.deepEqual(errors, []); assert.deepEqual(external, []);
+  writeFileSync(join(root, `browser-${mode}.json`), JSON.stringify({ scenarios, errors, external, overflow: 0 }, null, 2));
+  console.log(`${scenarios.length} unified owner flows passed, both languages/four widths; no model/cloud, console errors or overflow.`);
+} finally { await browser.close(); }

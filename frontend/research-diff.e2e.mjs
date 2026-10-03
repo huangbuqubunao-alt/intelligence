@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 const base = process.env.YIA_DIFF_UI_URL ?? "http://127.0.0.1:5419/";
 const root = resolve(process.env.YIA_DIFF_FIXTURE_ROOT ?? "../.var/phase6/browser");
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+\/$/);
-assert.ok(root.includes("/v1x-research-diff/.var/phase6/"));
+assert.ok((root.includes("/v1x-research-diff/.var/phase6/") || root.includes("/v1x-milestone-closure/.var/phase6/")));
 const info = JSON.parse(readFileSync(join(root, "diff-fixture.json")));
 const mode = process.env.YIA_DIFF_MODE ?? "acceptance";
 const errors = [], external = [], scenarios = [];

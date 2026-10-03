@@ -146,6 +146,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 900 
 
   await page.getByRole("button", { name: "Add Source", exact: true }).first().click();
   await page.getByRole("heading", { name: "Add a Source", exact: true }).waitFor();
+  for (const preference of ["Focus preference", "Ignore preference", "Style preference"]) await page.getByLabel(preference, { exact: true }).selectOption("OVERRIDE");
   for (const label of ["Source URL", "Monitor this Source", "Automatic schedule", "Initial history", "Per-run limit", "Focus", "Ignore", "Distillation style"]) {
     await page.getByLabel(label, { exact: true }).waitFor();
   }
