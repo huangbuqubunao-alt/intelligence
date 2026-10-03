@@ -486,7 +486,7 @@ class TimedTranscriptCueWrite:
     def __post_init__(self) -> None:
         if self.start_ms < 0 or self.end_ms <= self.start_ms:
             raise ValueError("timed transcript cue range is invalid")
-        if not self.text or self.text.strip() != self.text:
+        if not self.text.strip():
             raise ValueError("timed transcript cue text is invalid")
 
     @property

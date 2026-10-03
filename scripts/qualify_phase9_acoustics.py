@@ -38,6 +38,7 @@ def retained(reference: str, observed: str, language: str) -> float:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
+    parser.add_argument("--run-id", default="initial")
     args = parser.parse_args()
     root = args.root.resolve()
     corpus = root / "corpus"
@@ -45,9 +46,11 @@ def main() -> None:
     manifest = json.loads(manifest_bytes)
     model_info = json.loads((root / "model-manifest.json").read_text())
     model = root / "models" / "whisper-large-v3-turbo" / model_info["revision"]
-    product = root / "real-product"
+    if re.fullmatch(r"[a-z0-9-]{1,64}", args.run_id) is None:
+        raise ValueError("invalid run identity")
+    product = root / ("real-product" if args.run_id == "initial" else "real-product-" + args.run_id)
     product.mkdir(parents=True, exist_ok=True)
-    results = root / "results"
+    results = root / ("results" if args.run_id == "initial" else "results-" + args.run_id)
     results.mkdir(exist_ok=True)
     if (results / "qualification.json").exists():
         raise ValueError("retain existing results; use a distinct run identity")
@@ -77,7 +80,7 @@ def main() -> None:
                 measurements.append(record)
 
     boundary.run_bounded = measured
-    executor = boundary.MlxTimedExecutor(model_path=model, temporary_root=product / "worker-temporary")
+    executor = boundary.MlxTimedExecutor(model_path=model, temporary_root=product / ".local-transcription" / "temporary")
     repo = SQLiteStateRepository(product / "state.sqlite3")
     from datetime import UTC, datetime
     repo.initialize(now=datetime.now(UTC))
@@ -107,6 +110,8 @@ def main() -> None:
         entry = {"id": sample["id"], "content_id": imported.content_id, "media_kind": "VIDEO" if source.suffix == ".mp4" else "AUDIO", "duration_seconds": sample["duration_seconds"], "language_scorer": sample["language"], "expected_sha256": sample["expected_sha256"], "source_sha256": sample["sha256"], "responsiveness_seconds": []}
         if capability["state"] == "READY":
             jobs.start(imported.content_id, capability["execution_identity"])
+            if sample["id"] == "english-repeat":
+                executor.transcribe(source, duration_seconds=sample["duration_seconds"])
             deadline = time.monotonic() + 1950
             while True:
                 read_start = time.monotonic()
@@ -153,7 +158,7 @@ def main() -> None:
             entry["cues"] = [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]
             entry["summary"] = repo.current_local_summary_pointer(imported.content_id) is not None
             evidence = repo.list_evidence_for_presentation(imported.content_id)
-            entry["durable_evidence"] = [e.model_dump(mode="json") for e in evidence]
+            entry["durable_evidence"] = list(evidence)
             entry["evidence_resolves"] = bool(evidence) and all(repo.resolve_verified_evidence_text(e) is not None for e in evidence)
         entry["passed"] = bool(entry.get("accuracy_gate") and entry.get("no_catastrophic_omission") and entry.get("coverage", {}).get("passed") and timed and entry.get("summary") and entry.get("evidence_resolves") and entry["product_wall_seconds"] < 1800)
         report["samples"].append(entry)

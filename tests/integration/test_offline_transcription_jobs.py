@@ -165,6 +165,27 @@ def test_success_restart_summary_evidence_and_idempotency(setup):
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
+def test_real_whisper_spaces_survive_persistence_and_evidence(setup):
+    class SpacedExecutor(Executor):
+        def transcribe(self, snapshot, *, duration_seconds):
+            return validate_result(
+                json.dumps({"language": "en", "segments": [{"start": 0, "end": 1.5, "text": " The local library opens. "}]}).encode(),
+                duration_seconds=duration_seconds,
+                provenance=PROVENANCE,
+            )
+
+    jobs = service(setup, SpacedExecutor())
+    cid = setup[2]
+    jobs.start(cid, IDENTITY)
+    wait_for(lambda: jobs.status(cid)["status"] == "READY")
+    restarted = SQLiteStateRepository(setup[0]._database_path)
+    restarted.bind_source_storage(setup[1].data_root)
+    timed = restarted.get_verified_timed_transcript(video_id=cid)
+    assert timed and timed.cues[0].text == " The local library opens. "
+    assert restarted.current_local_summary_pointer(cid)
+    assert all(restarted.resolve_verified_evidence_text(e) is not None for e in restarted.list_evidence_for_presentation(cid))
+
+
 def test_failure_retry_new_attempt_no_fallback(setup):
     executor = Executor(failure="EXECUTOR_TIMEOUT")
     jobs = service(setup, executor)

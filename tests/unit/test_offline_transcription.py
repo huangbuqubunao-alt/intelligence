@@ -34,6 +34,20 @@ def test_multilingual_timing_and_original_output():
     assert transcript.raw_output == raw
 
 
+def test_real_whisper_boundary_spaces_are_preserved():
+    raw = result([{"start": 0, "end": 1.5, "text": " The library opens. "}], language="en")
+    transcript = validate_result(raw, duration_seconds=2, provenance="fixture-v1")
+    assert transcript.cues[0].text == " The library opens. "
+    assert transcript.raw_output == raw
+
+
+def test_whitespace_only_cue_still_rejected():
+    from youtube_intel.state import TimedTranscriptCueWrite
+
+    with pytest.raises(ValueError):
+        TimedTranscriptCueWrite(start_ms=0, end_ms=1000, text=" \n\t ")
+
+
 @pytest.mark.parametrize(
     "segments",
     [
