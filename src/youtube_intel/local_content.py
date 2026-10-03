@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 import os
-import shutil
 import sqlite3
 import stat
 import subprocess
@@ -69,6 +68,27 @@ class MediaTranscript:
     language: str
     cues: tuple[TimedTranscriptCueWrite, ...]
     provenance: str
+    raw_output: bytes | None = None
+
+
+def validate_media_transcript(transcript: MediaTranscript, duration: float) -> None:
+    if not isinstance(transcript, MediaTranscript) or not 1 <= len(transcript.cues) <= 4096:
+        raise ValueError("invalid transcript")
+    if not isinstance(transcript.language, str) or not transcript.language.strip() or len(transcript.language) > 64:
+        raise ValueError("invalid language")
+    if not isinstance(transcript.provenance, str) or not transcript.provenance.strip() or len(transcript.provenance) > 4096:
+        raise ValueError("invalid provenance")
+    previous = 0
+    for cue in transcript.cues:
+        if (type(cue.start_ms) is not int or type(cue.end_ms) is not int
+            or cue.start_ms < previous or cue.end_ms <= cue.start_ms
+            or cue.end_ms > duration * 1000 + 1000 or not isinstance(cue.text, str)
+            or not cue.text.strip() or len(cue.text) > 2000):
+            raise ValueError("invalid transcript positions")
+        decode_text(cue.text.encode("utf-8", errors="strict"))
+        previous = cue.end_ms
+    if len("\n".join(c.text for c in transcript.cues).encode("utf-8")) > MAX_TEXT_BYTES:
+        raise ValueError("transcript too large")
 
 
 class MediaTranscriber(Protocol):
@@ -110,11 +130,14 @@ def decode_text(payload: bytes) -> str:
 
 def probe_media(path: Path, extension: str) -> float:
     """Bounded OS adapter; no URL, shell, credentials or remote protocols."""
-    executable = shutil.which("ffprobe")
+    from youtube_intel.offline_transcription import media_tool
+    executable = media_tool("ffprobe")
     if executable is None:
         raise LocalImportError("LOCAL_MEDIA_TOOL_UNAVAILABLE")
     try:
-        process = subprocess.run(
+        from youtube_intel.offline_transcription import run_bounded
+
+        output = run_bounded(
             [
                 executable,
                 "-v",
@@ -140,13 +163,10 @@ def probe_media(path: Path, extension: str) -> float:
                 {".mp3": "mp3", ".wav": "wav"}.get(extension, "mov"),
                 str(path),
             ],
-            capture_output=True,
             timeout=20,
-            check=False,
+            maximum=65536,
         )
-        if process.returncode or len(process.stdout) > 65536:
-            raise ValueError("invalid probe")
-        result = json.loads(process.stdout)
+        result = json.loads(output)
         streams = {s["codec_type"] for s in result["streams"]}
         formats = set(result["format"]["format_name"].split(","))
         expected = (
@@ -385,24 +405,7 @@ class LocalContentProvider:
                     transcript = self.transcriber.transcribe(
                         self.data_root / staged_relative, duration_seconds=duration
                     )
-                    if (
-                        not transcript.cues
-                        or len(transcript.cues) > 4096
-                        or not transcript.language.strip()
-                        or not transcript.provenance.strip()
-                    ):
-                        raise ValueError("invalid transcription")
-                    previous_end = 0
-                    for cue in transcript.cues:
-                        if (
-                            cue.start_ms < previous_end
-                            or cue.end_ms <= cue.start_ms
-                            or cue.end_ms > duration * 1000 + 1000
-                            or not cue.text.strip()
-                            or len(cue.text) > 2000
-                        ):
-                            raise ValueError("invalid transcript positions")
-                        previous_end = cue.end_ms
+                    validate_media_transcript(transcript, duration)
                     text = "\n".join(c.text for c in transcript.cues)
                     if len(text.encode("utf-8")) > MAX_TEXT_BYTES:
                         raise ValueError("transcript too large")
@@ -411,78 +414,7 @@ class LocalContentProvider:
                 except Exception:
                     status = "TRANSCRIPTION_FAILED"
         if status == "READY" and text is not None:
-            canonical = self._artifact_write(
-                content_id,
-                "canonical.txt",
-                text.encode("utf-8"),
-                ArtifactKind.TRANSCRIPT_CANONICAL,
-            )
-            provenance = None
-            if transcript is not None:
-                timed = TimedTranscriptWrite.from_cues(
-                    video_id=content_id,
-                    canonical_artifact_id=canonical.artifact_id,
-                    cues=transcript.cues,
-                )
-                from youtube_intel.research_contract import canonical as canonical_json
-
-                envelope = canonical_json(
-                    {
-                        "contract": "source-transcript-provenance-v1",
-                        "content_id": content_id,
-                        "source_hash": digest,
-                        "canonical_text_hash": sha256(text.encode("utf-8")),
-                        "timed_transcript_hash": timed.timed_transcript_hash,
-                        "language": language,
-                        "duration_seconds": duration,
-                        "transcriber": transcript.provenance,
-                    }
-                ).encode("utf-8")
-                provenance = self._artifact_write(
-                    content_id,
-                    "transcript-provenance.json",
-                    envelope,
-                    ArtifactKind.SUBTITLE_SOURCE,
-                )
-            with self.repository._connect() as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                self.repository._upsert_artifact_in_transaction(
-                    connection, canonical, now=timestamp
-                )
-                if provenance is not None:
-                    self.repository._upsert_artifact_in_transaction(
-                        connection, provenance, now=timestamp
-                    )
-                    connection.execute(
-                        "UPDATE content_source_snapshots SET provenance_artifact_id=? WHERE content_id=?",
-                        (provenance.artifact_id, content_id),
-                    )
-                connection.execute(
-                    "UPDATE content_source_snapshots SET canonical_artifact_id=?,canonical_text=?,canonical_text_hash=?,language=?,transcript_provenance=? WHERE content_id=?",
-                    (
-                        canonical.artifact_id,
-                        text,
-                        sha256(text.encode("utf-8")),
-                        language,
-                        "utf-8-exact-v1"
-                        if transcript is None
-                        else transcript.provenance,
-                        content_id,
-                    ),
-                )
-                if transcript is None:
-                    self._text_evidence(
-                        connection, content_id, canonical.artifact_id, text, digest, now
-                    )
-                else:
-                    self._media_evidence(
-                        connection, content_id, canonical.artifact_id, transcript, now
-                    )
-                connection.execute(
-                    "UPDATE content_source_snapshots SET status='READY' WHERE content_id=?",
-                    (content_id,),
-                )
-            self._finish_summary(content_id, now, language)
+            self._persist_source_result(content_id, text, transcript, digest, duration, language, now)
         else:
             with self.repository._connect() as connection:
                 connection.execute(
@@ -490,6 +422,112 @@ class LocalContentProvider:
                     (status, content_id),
                 )
         return LocalImportResult(content_id, name, status, existing is not None)
+
+    def accept_transcript(self, content_id: str, transcript: MediaTranscript) -> None:
+        """Reuse Phase 7 authority publication; never replace a trusted success."""
+        with self.repository._connect() as connection:
+            source = verify_source(self.repository, connection, content_id)
+            if source is None:
+                raise LocalImportError("LOCAL_SOURCE_UNTRUSTED")
+            if source["media_kind"] == "TEXT":
+                raise LocalImportError("LOCAL_NOT_MEDIA")
+            if source["status"] == "READY":
+                self._finish_summary(content_id, self.now(), source["language"])
+                return
+            validate_media_transcript(transcript, source["duration_seconds"])
+            digest, duration = source["source_hash"], source["duration_seconds"]
+        self._persist_source_result(content_id, "\n".join(c.text for c in transcript.cues),
+                                    transcript, digest, duration, transcript.language, self.now())
+
+    def _persist_source_result(self, content_id: str, text: str, transcript: MediaTranscript | None,
+                               digest: str, duration: float | None, language: str, now: datetime) -> None:
+        timestamp = format_utc_datetime(now)
+        canonical = self._artifact_write(
+            content_id,
+            "canonical.txt" if transcript is None else f"canonical-{sha256(text.encode())}.txt",
+            text.encode("utf-8"),
+            ArtifactKind.TRANSCRIPT_CANONICAL,
+        )
+        provenance = None
+        raw_artifact = None
+        if transcript is not None and transcript.raw_output is not None:
+            raw_artifact = self._artifact_write(content_id, f"executor-output-{sha256(transcript.raw_output)}.json", transcript.raw_output, ArtifactKind.SUBTITLE_SOURCE)
+        if transcript is not None:
+            timed = TimedTranscriptWrite.from_cues(
+                video_id=content_id,
+                canonical_artifact_id=canonical.artifact_id,
+                cues=transcript.cues,
+            )
+            from youtube_intel.research_contract import canonical as canonical_json
+
+            envelope = canonical_json(
+                {
+                    "contract": "source-transcript-provenance-v1" if raw_artifact is None else "source-transcript-provenance-v2",
+                    **({} if raw_artifact is None else {"raw_artifact_id": raw_artifact.artifact_id, "raw_output_hash": raw_artifact.content_hash}),
+                    "content_id": content_id,
+                    "source_hash": digest,
+                    "canonical_text_hash": sha256(text.encode("utf-8")),
+                    "timed_transcript_hash": timed.timed_transcript_hash,
+                    "language": language,
+                    "duration_seconds": duration,
+                    "transcriber": transcript.provenance,
+                }
+            ).encode("utf-8")
+            provenance = self._artifact_write(
+                content_id,
+                f"transcript-provenance-{sha256(envelope)}.json",
+                envelope,
+                ArtifactKind.SUBTITLE_SOURCE,
+            )
+        with self.repository._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            source = verify_source(self.repository, connection, content_id)
+            if source is None or source["source_hash"] != digest:
+                raise LocalImportError("LOCAL_SOURCE_UNTRUSTED")
+            if source["status"] == "READY":
+                return
+            if raw_artifact is not None:
+                self.repository._upsert_artifact_in_transaction(connection, raw_artifact, now=timestamp)
+            self.repository._upsert_artifact_in_transaction(
+                connection, canonical, now=timestamp
+            )
+            if provenance is not None:
+                self.repository._upsert_artifact_in_transaction(
+                    connection, provenance, now=timestamp
+                )
+                connection.execute(
+                    "UPDATE content_source_snapshots SET provenance_artifact_id=? WHERE content_id=?",
+                    (provenance.artifact_id, content_id),
+                )
+            connection.execute(
+                "UPDATE content_source_snapshots SET canonical_artifact_id=?,canonical_text=?,canonical_text_hash=?,language=?,transcript_provenance=? WHERE content_id=?",
+                (
+                    canonical.artifact_id,
+                    text,
+                    sha256(text.encode("utf-8")),
+                    language,
+                    "utf-8-exact-v1"
+                    if transcript is None
+                    else transcript.provenance,
+                    content_id,
+                ),
+            )
+            if transcript is None:
+                self._text_evidence(
+                    connection, content_id, canonical.artifact_id, text, digest, now
+                )
+            else:
+                self._media_evidence(
+                    connection, content_id, canonical.artifact_id, transcript, now
+                )
+            connection.execute(
+                "UPDATE content_source_snapshots SET status='READY' WHERE content_id=?",
+                (content_id,),
+            )
+            connection.execute("UPDATE videos SET default_language=? WHERE video_id=?", (language, content_id))
+            if verify_source(self.repository, connection, content_id) is None:
+                raise LocalImportError("LOCAL_SOURCE_UNTRUSTED")
+        self._finish_summary(content_id, now, language)
 
     def _finish_summary(self, content_id: str, now: datetime, language: str) -> None:
         from youtube_intel.extractive_summary import ExtractiveSummaryService

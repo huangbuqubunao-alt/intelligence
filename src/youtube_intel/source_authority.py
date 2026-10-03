@@ -218,7 +218,9 @@ def verify_source(
                 writes = []
                 for index, cue in enumerate(cues):
                     if (
-                        cue["cue_index"] != index
+                        type(cue["start_ms"]) is not int
+                        or type(cue["end_ms"]) is not int
+                        or cue["cue_index"] != index
                         or cue["start_ms"] < previous_end
                         or cue["end_ms"] <= cue["start_ms"]
                         or cue["end_ms"] > row["duration_seconds"] * 1000 + 1000
@@ -264,13 +266,32 @@ def verify_source(
                     "duration_seconds": row["duration_seconds"],
                     "transcriber": row["transcript_provenance"],
                 }
-                if (
-                    sha256(envelope_bytes) != provenance["content_hash"]
-                    or json.loads(envelope_bytes) != expected
-                ):
+                envelope = json.loads(envelope_bytes)
+                if isinstance(envelope, dict) and envelope.get("contract") == "source-transcript-provenance-v2":
+                    from youtube_intel.offline_transcription import (
+                        MAX_RESULT,
+                        validate_result,
+                    )
+                    raw_id = envelope.get("raw_artifact_id")
+                    raw_hash = envelope.get("raw_output_hash")
+                    if not isinstance(raw_id, str) or not isinstance(raw_hash, str):
+                        return None
+                    raw_artifact = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?", (raw_id,)).fetchone()
+                    if (raw_artifact is None or raw_artifact["video_id"] != content_id
+                        or raw_artifact["provider"] != row["provider"] or raw_artifact["storage_root"] != "DATA"
+                        or raw_artifact["deleted_at"] is not None or raw_artifact["content_hash"] != raw_hash):
+                        return None
+                    raw_output = read_managed(root, raw_artifact["relative_path"], maximum=MAX_RESULT)
+                    if sha256(raw_output) != raw_hash:
+                        return None
+                    parsed = validate_result(raw_output, duration_seconds=row["duration_seconds"], provenance=row["transcript_provenance"])
+                    if parsed.cues != tuple(writes) or parsed.language != row["language"]:
+                        return None
+                    expected.update(contract="source-transcript-provenance-v2", raw_artifact_id=raw_id, raw_output_hash=raw_hash)
+                if sha256(envelope_bytes) != provenance["content_hash"] or envelope != expected:
                     return None
         return cast(sqlite3.Row, row)
-    except (OSError, ValueError, UnicodeError):
+    except (OSError, ValueError, UnicodeError, TypeError, KeyError, RecursionError):
         return None
 
 

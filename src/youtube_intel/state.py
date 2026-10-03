@@ -7151,6 +7151,40 @@ class SQLiteStateRepository:
                 result[evidence_id]=verified
         return result
 
+    def get_verified_local_media_evidence(self, video_id: str) -> tuple[tuple[EvidenceRecord, VerifiedEvidenceText], ...] | None:
+        """One source/artifact verification per bounded Local media presentation.
+
+        The existing cue validator owns each Evidence binding. No cache crosses
+        this SQLite read transaction; corrupt or oversized material fails closed.
+        Text and YouTube continue through their existing presentation path.
+        """
+        from youtube_intel.source_authority import verify_source
+        with self._connect() as connection:
+            connection.execute("BEGIN")
+            row = connection.execute("SELECT media_kind FROM content_source_snapshots WHERE content_id=?", (video_id,)).fetchone()
+            if row is None or row["media_kind"] == "TEXT":
+                return None
+            source = verify_source(self, connection, video_id)
+            if source is None or source["status"] != "READY":
+                return ()
+            rows = connection.execute(
+                "SELECT e.*,a.kind,a.deleted_at,a.video_id AS artifact_video_id,b.timed_transcript_id,b.start_cue_index,b.end_cue_index,b.excerpt,b.excerpt_hash,b.timed_transcript_hash,t.video_id AS timed_video_id,t.canonical_artifact_id,t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id=e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id=e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id=b.timed_transcript_id WHERE e.video_id=? AND e.locator_type='TIMED_MEDIA' ORDER BY e.start_ms,e.end_ms,e.evidence_id LIMIT 4103", (video_id,)
+            ).fetchall()
+            cues = connection.execute(
+                "SELECT b.evidence_id,c.cue_index,c.start_ms,c.end_ms,c.cue_text,c.cue_text_hash FROM timed_transcript_cues c JOIN evidence_text_bindings b ON c.timed_transcript_id=b.timed_transcript_id AND c.cue_index>=b.start_cue_index AND c.cue_index<b.end_cue_index JOIN evidence e ON e.evidence_id=b.evidence_id WHERE e.video_id=? ORDER BY b.evidence_id,c.cue_index LIMIT 32769", (video_id,)
+            ).fetchall()
+            if len(rows) > 4102 or len(cues) > 32768:
+                return ()
+            by_id: dict[str, list[sqlite3.Row]] = {}
+            for cue in cues:
+                by_id.setdefault(cue["evidence_id"], []).append(cue)
+            result = []
+            for evidence in rows:
+                verified = self._verified_evidence_text_from_rows(evidence, by_id.get(evidence["evidence_id"], []))
+                if verified is not None and verified.video_id == video_id and evidence["artifact_id"] == source["canonical_artifact_id"]:
+                    result.append((self._evidence_from_row(evidence), replace(verified, source_content_hash=source["source_hash"])))
+            return tuple(result)
+
     def get_verified_timed_transcript(
         self, *, video_id: str
     ) -> VerifiedTimedTranscript | None:

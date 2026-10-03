@@ -52,7 +52,9 @@ from youtube_intel.intelligence_read import (
 )
 from youtube_intel.knowledge_delta import KnowledgeDeltaService
 from youtube_intel.local_content import LocalContentProvider, LocalImportError
+from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
 from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
+from youtube_intel.offline_transcription import OfflineError
 from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
@@ -473,6 +475,7 @@ class LocalApiApplication:
         backup_restore_service: BackupRestoreService | None = None,
         deep_analysis_service: DeepAnalysisService | None = None,
         deep_analysis_publisher: DeepAnalysisObsidianPublisher | None = None,
+        transcription_jobs: LocalTranscriptionJobs | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -493,6 +496,8 @@ class LocalApiApplication:
         self._data_root = None if data_root is None else data_root.resolve()
         if self._data_root is not None:
             repository.bind_source_storage(self._data_root)
+        self._transcription_jobs = transcription_jobs
+        self._transcription_init_lock = threading.Lock()
         self._local_import_slot = threading.BoundedSemaphore(1)
         self._local_provider = None if self._data_root is None else LocalContentProvider(repository, self._data_root, now=now)
         self._vault_root = None if vault_root is None else vault_root.resolve()
@@ -649,6 +654,8 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if route.startswith("/api/v1/local/transcription/") or re.fullmatch(r"/api/v1/videos/[^/]+/transcription", route):
+                return self._transcription_route(method, route, body)
             if method == "POST" and route == "/api/v1/local/imports":
                 if self._local_provider is None:
                     raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
@@ -1420,6 +1427,8 @@ class LocalApiApplication:
                     "reason": "No production-eligible Deep Analysis model is currently available.",
                 }
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+        except OfflineError as error:
+            return HTTPStatus.CONFLICT, {"error": {"code": error.code, "message": "Local transcription is unavailable or could not complete."}}
         except ApiError:
             raise
         except IntegrityConflict as error:
@@ -1525,7 +1534,50 @@ class LocalApiApplication:
                     projection["processing_status"] = "SOURCE_UNAVAILABLE"
                 else:
                     projection.update({"processing_status":source["status"],"filename":source["filename"],"media_kind":source["media_kind"],"format":source["format"],"imported_at":source["imported_at"],"source_language":source["language"],"duration_seconds":source["duration_seconds"]})
+        if video.provider == "LOCAL" and self._transcription_jobs is not None and projection.get("media_kind") in {"AUDIO", "VIDEO"}:
+            try:
+                state = self._transcription_jobs.status(video.video_id)["status"]
+                if state in {"RUNNING", "FAILED", "INTERRUPTED"}:
+                    projection["processing_status"] = state
+            except OfflineError:
+                projection["processing_status"] = "SOURCE_UNAVAILABLE"
         return projection
+
+    def _require_transcription(self) -> LocalTranscriptionJobs:
+        with self._transcription_init_lock:
+            if self._transcription_jobs is None:
+                if self._data_root is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
+                self._transcription_jobs = LocalTranscriptionJobs(self._repository, self._data_root, now=self._now)
+            return self._transcription_jobs
+
+    def _transcription_route(self, method: str, route: str, body: bytes) -> tuple[int, dict[str, object]]:
+        service = self._require_transcription()
+        if route == "/api/v1/local/transcription/capability" and method == "GET":
+            return HTTPStatus.OK, {"capability": service.capability()}
+        if route == "/api/v1/local/transcription/refresh" and method == "POST":
+            self._only_keys(self._body(body), set())
+            service.refresh()
+            return HTTPStatus.ACCEPTED, {"capability": service.capability()}
+        if route == "/api/v1/local/transcription/model" and method == "PUT":
+            data = self._body(body)
+            self._only_keys(data, {"model_path"})
+            path = data.get("model_path")
+            if path is not None and not isinstance(path, str):
+                raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "MODEL_INVALID", "Select a local MLX model directory.")
+            service.configure(path)
+            return HTTPStatus.ACCEPTED, {"capability": service.capability()}
+        match = re.fullmatch(r"/api/v1/videos/([^/]+)/transcription", route)
+        if match is not None:
+            content_id = match[1]
+            if method == "GET":
+                return HTTPStatus.OK, {"transcription": service.status(content_id)}
+            if method == "POST":
+                data = self._body(body)
+                self._only_keys(data, {"execution_identity"})
+                identity = self._string(data, "execution_identity", required=True)
+                return HTTPStatus.ACCEPTED, {"transcription": service.start(content_id, identity or "")}
+        raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
 
     def _obsidian_content_id(self, route: str) -> str:
         content_id = route.removeprefix("/api/v1/videos/").removesuffix("/deep-analysis/obsidian")
@@ -2067,11 +2119,15 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
         target_language = self._output_language_service.effective().value
         evidence_cards: list[dict[str, object]] = []
-        for evidence_id in self._repository.list_evidence_for_presentation(
-            video_id
-        ):
-            evidence = self._repository.get_evidence(evidence_id)
-            verified = self._repository.resolve_verified_evidence_text(evidence_id)
+        local_pairs = self._repository.get_verified_local_media_evidence(video_id) if video.provider == "LOCAL" else None
+        local_verified = {} if local_pairs is None else {e.evidence_id: (e, verified) for e, verified in local_pairs}
+        evidence_ids = self._repository.list_evidence_for_presentation(video_id) if local_pairs is None else tuple(local_verified)
+        for evidence_id in evidence_ids:
+            if local_pairs is None:
+                evidence = self._repository.get_evidence(evidence_id)
+                verified = self._repository.resolve_verified_evidence_text(evidence_id)
+            else:
+                evidence, verified = local_verified[evidence_id]
             if (
                 evidence is None
                 or evidence.video_id != video_id
@@ -2404,11 +2460,12 @@ class LocalApiApplication:
                 text = None
             else:
                 text = self._safe_artifact_text(
-                    self._data_root, artifact, max_bytes=1_000_000
+                    self._data_root, artifact, max_bytes=MAX_TEXT_BYTES if video is not None and video.provider == "LOCAL" else 1_000_000
                 )
             if text is not None:
                 return {
                     "status": "AVAILABLE",
+                    **({"timed_segments": [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]} if video is not None and video.provider == "LOCAL" and (timed := self._repository.get_verified_timed_transcript(video_id=video_id)) is not None else {}),
                     "text": text,
                     "created_at": _timestamp(artifact.created_at),
                     "content_length": len(text),
@@ -2469,9 +2526,17 @@ class LocalApiApplication:
                 }
             result = outcome.result
             summary_language = local_pointer.output_language
+            content = self._repository.get_video(video_id)
             if result.provider == EXTRACTIVE_PROVIDER:
-                content = self._repository.get_video(video_id)
                 summary_language = "und" if content is None else content.default_language or "und"
+            verified_refs = {item.evidence_id: self._repository.resolve_verified_evidence_text(item.evidence_id) for item in result.evidence} if content is not None and content.provider == "LOCAL" else {}
+            timed_points = []
+            for point in result.core_points:
+                spans = [verified_refs[eid] for eid in point.evidence_ids if verified_refs.get(eid) is not None]
+                if spans and all(span is not None and span.video_id == video_id and span.start_ms is not None and span.end_ms is not None for span in spans):
+                    timed_points.append({"text": point.text, "start_seconds": min(span.start_ms for span in spans if span is not None and span.start_ms is not None) / 1000,
+                                         "end_seconds": max(span.end_ms for span in spans if span is not None and span.end_ms is not None) / 1000,
+                                         "evidence_ids": list(point.evidence_ids)})
             return {
                 "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
                 "v2": {
@@ -2482,14 +2547,14 @@ class LocalApiApplication:
                     "summary": result.one_sentence_summary,
                     "method": "SOURCE_EXCERPTS" if result.provider == EXTRACTIVE_PROVIDER else "MODEL_SUMMARY",
                     "core_points": [point.text for point in result.core_points],
-                    "timestamped_key_points": [],
+                    "timestamped_key_points": timed_points,
                     "evidence_references": [
                         {
                             "evidence_id": item.evidence_id,
                             "source": item.source.value,
                             "excerpt": item.excerpt,
-                            "start_seconds": None,
-                            "end_seconds": None,
+                            "start_seconds": None if (ref := verified_refs.get(item.evidence_id)) is None or ref.start_ms is None else ref.start_ms / 1000,
+                            "end_seconds": None if ref is None or ref.end_ms is None else ref.end_ms / 1000,
                         }
                         for item in result.evidence
                     ],

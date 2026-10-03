@@ -96,14 +96,15 @@ def test_real_media_formats_accept_truthful_processing(
         subprocess.run(
             [*command, str(output)], check=True, timeout=20, capture_output=True
         )
-    run = subprocess.run
+    from youtube_intel import offline_transcription
+    run = offline_transcription.run_bounded
     probes = []
 
     def bounded_probe(command, **kwargs):
         probes.append(command)
         return run(command, **kwargs)
 
-    monkeypatch.setattr(subprocess, "run", bounded_probe)
+    monkeypatch.setattr(offline_transcription, "run_bounded", bounded_probe)
     result = local.import_bytes(output.name, output.read_bytes())
     assert len(probes) == 1
     assert probes[0][probes[0].index("-f") + 1] == {".mp3": "mp3", ".wav": "wav"}.get(
