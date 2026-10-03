@@ -31,9 +31,20 @@ export function researchErrorCopy(code?: string) {
     RESEARCH_EMPTY_SCOPE: "Select at least one Content item.",
     RESEARCH_INVALID_SCOPE: "Select up to 20 existing Content items.",
     RESEARCH_SCOPE_NOT_FOUND: "Selected Content no longer exists. Choose the scope again.",
+    RESEARCH_REVISION_NOT_FOUND: "This Research version is unavailable.",
+    RESEARCH_INVALID_CURSOR: "This History page is unavailable. Reopen Research History.",
     RESEARCH_NOT_FOUND: "This Research item is unavailable.",
     RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE: "Source authority is unavailable. This packet cannot be verified. Inspect the selected Content before assembling again.",
     RESEARCH_CORRUPTED_RESULT: "This saved Research result failed integrity checks. It cannot be presented as verified.",
     RESEARCH_EXECUTION_FAILED: "Research could not be assembled. Try again after checking the local library.",
   } as Record<string, string>)[code ?? ""] ?? "Research could not be loaded. Try again.";
 }
+
+// User-facing revision identity is the existing immutable result identity.
+export type ResearchHistoryPage = {
+  revisions: { revision_id: string; assembled_at: string; question: string;
+    output_language: "zh-CN" | "en"; scope_count: number; evidence_count: number;
+    intelligence_count: number; status: "EVIDENCE_AVAILABLE" | "INSUFFICIENT_MATERIAL" }[];
+  current_revision_id: string | null; current_available: boolean; unavailable_count: number;
+  has_more: boolean; next_cursor: string | null; limit: number;
+};

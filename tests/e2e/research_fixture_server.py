@@ -28,8 +28,8 @@ def main() -> None:
     args = parser.parse_args()
     worktree = Path(__file__).resolve().parents[2]
     root = args.root.resolve()
-    if not root.is_relative_to(worktree / ".var" / "phase4"):
-        raise ValueError("fixture root must be isolated inside Phase 4 worktree")
+    if not any(root.is_relative_to(worktree / ".var" / phase) for phase in ("phase4", "phase5")):
+        raise ValueError("fixture root must be isolated inside the current Research worktree")
     root.mkdir(parents=True, exist_ok=True)
     support = _load_module("test_task022_personalized_distillation")
     authority = _load_module("test_v1x_phase1b_authority")
@@ -52,6 +52,8 @@ def main() -> None:
         authority.activation._seed_content(repo, "no-material")
         with repo._connect() as db:
             db.execute("UPDATE videos SET title=? WHERE video_id='no-material'", ("No authoritative material " + "长标题 " * 30,))
+    backup_restore = BackupRestoreService(database=database, data_root=data)
+    backup_restore.recover_and_apply_pending_restore()
     repo = SQLiteStateRepository(database)
     repo.initialize(now=authority.NOW)
     service = ProductOrchestrationService(repo, now=lambda: authority.NOW)
@@ -62,7 +64,7 @@ def main() -> None:
     app = LocalApiApplication(
         repo, service, data_root=data, now=lambda: authority.NOW,
         deep_analysis_service=deep_analysis,
-        backup_restore_service=BackupRestoreService(database=database, data_root=data),
+        backup_restore_service=backup_restore,
     )
     server = serve_loopback(app, port=args.port)
     info = {"port": server.server_port, "root": str(root)}

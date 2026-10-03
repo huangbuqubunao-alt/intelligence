@@ -4,6 +4,20 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Research History": "历史版本",
+  "Previous verified versions of this Research item. Each version keeps its original packet and sources.": "此研究已核验的历史版本。每个版本保留创建时的证据包与来源。",
+  "Verifying Research History\u2026": "正在核验历史版本…",
+  "The current version is unavailable. Verified previous versions remain readable.": "当前版本暂不可用，已核验的历史版本仍可阅读。",
+  "Some versions on this page are unavailable and have been excluded because their authority could not be verified.": "本页部分版本的权威来源未能通过核验，已排除这些不可用版本。",
+  "No verified previous versions on this page.": "本页暂无可核验的历史版本。",
+  "No previous versions yet.": "暂无历史版本。",
+  "Open previous version": "打开历史版本",
+  "Previous Research version": "研究历史版本",
+  "Current Research version": "研究当前版本",
+  "Read-only original packet. Assembling again creates a new version of this Research item.": "原始证据包仅供阅读。重新收集会为此研究创建新版本。",
+  "Open current version": "打开当前版本",
+  "This Research version is unavailable.": "此研究版本暂不可用。",
+  "This History page is unavailable. Reopen Research History.": "此历史版本页面暂不可用，请重新打开历史版本。",
   "Research": "研究",
   "Research result": "研究结果",
   "New Research": "新建研究",

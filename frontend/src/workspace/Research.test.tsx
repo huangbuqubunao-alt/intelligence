@@ -15,7 +15,7 @@ const setup = (override?: (path: string, method?: string) => object | undefined)
     const custom = override?.(path, options?.method);
     const data = custom || (path.startsWith("/api/v1/research/scope") ? { content: [{ content_id: "one", title: "Original Content", channel_name: "Source" }], total: 1, offset: 0, limit: 50 }
       : path === "/api/v1/research" && !options?.method ? { research: [], total: 0, offset: 0, limit: 25 }
-      : envelope());
+      : /\/history(?:\?|$)/.test(path) ? { revisions: [], current_revision_id: "r", current_available: true, unavailable_count: 0, has_more: false, next_cursor: null, limit: 25 } : envelope());
     return { ok: !("error" in data), json: async () => data };
   });
   vi.stubGlobal("fetch", request);
@@ -62,7 +62,8 @@ it("reopens the persisted current result through its route", async () => {
   location.hash = `Research/${packet.research_id}`;
   setup();
   expect(await screen.findByText("Original authority.")).toBeTruthy();
-  expect(screen.queryByText(/History|Compare versions|Diff/)).toBeNull();
+  expect(await screen.findByRole("heading", { name: "Research History" })).toBeTruthy();
+  expect(screen.queryByText(/Compare versions|Diff/)).toBeNull();
 });
 
 it("localizes corrupted results without raw backend diagnostics", async () => {
@@ -110,4 +111,85 @@ it("retains every admitted claim classification without inflating legacy facts",
   expect(document.body.textContent).toContain("未经确认的传闻");
   expect(document.body.textContent).toContain("系统推断");
   expect(document.body.textContent).not.toMatch(/Recorded interpretation|FACT|RUMOR|SYSTEM_INFERENCE/);
+});
+
+it.each(["en", "zh-CN"])("opens an exact read-only old packet and returns to current in %s", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = `Research/${packet.research_id}`;
+  const oldId = "b".repeat(64);
+  const text = (en: string, zh: string) => language === "en" ? en : zh;
+  const { request, onOpen } = setup(path => path.endsWith("/history") ? {
+    revisions: [{ revision_id: oldId, assembled_at: packet.assembled_at, question: packet.question, output_language: "en", scope_count: 1, evidence_count: 1, intelligence_count: 0, status: "EVIDENCE_AVAILABLE" }],
+    current_revision_id: "r", current_available: true, unavailable_count: 0, has_more: false, next_cursor: null, limit: 25,
+  } : path.endsWith(oldId) ? { research: { ...envelope().research, result_identity: oldId, packet: { ...packet, evidence: [{ ...packet.evidence[0], evidence_id: "old-evidence", excerpt: "Exact old source." }] } } } : undefined);
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(text("Open previous version", "打开历史版本")) }));
+  expect(await screen.findByText("Exact old source.")).toBeTruthy();
+  expect(screen.getByRole("heading", { name: text("Previous Research version", "研究历史版本") })).toBeTruthy();
+  expect(screen.queryByText("Original authority.")).toBeNull();
+  expect(location.hash).toBe(`#Research/${packet.research_id}/history/${oldId}`);
+  fireEvent.click(screen.getByRole("button", { name: text("Open Content and Evidence", "打开内容与证据") }));
+  expect(onOpen).toHaveBeenCalledWith("content", "one", "old-evidence");
+  expect(request.mock.calls.some(([path]) => path.endsWith(`/history/${oldId}`))).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: text("Open current version", "打开当前版本") }));
+  expect(await screen.findByText("Original authority.")).toBeTruthy();
+  expect(screen.getByRole("heading", { name: text("Current Research version", "研究当前版本") })).toBeTruthy();
+  if (language === "zh-CN") expect(document.body.textContent).not.toMatch(/Read-only|Research History|EVIDENCE_AVAILABLE|VERIFIED/);
+});
+
+it("reopens a historical deep route explicitly", async () => {
+  const oldId = "b".repeat(64);
+  location.hash = `Research/${packet.research_id}/history/${oldId}`;
+  const { request } = setup();
+  expect(await screen.findByRole("heading", { name: "Previous Research version" })).toBeTruthy();
+  expect(request.mock.calls.some(([path]) => path.endsWith(`/history/${oldId}`))).toBe(true);
+});
+
+it("paginates without accumulating an unbounded rendered list", async () => {
+  location.hash = `Research/${packet.research_id}`;
+  const cursor = `${packet.research_id}:30:5`;
+  setup(path => path.includes("/history") ? {
+    revisions: Array.from({ length: path.includes("?") ? 4 : 25 }, (_, i) => ({ revision_id: String(i), assembled_at: packet.assembled_at, question: packet.question, output_language: "en", scope_count: 1, evidence_count: 1, intelligence_count: 0, status: "EVIDENCE_AVAILABLE" })),
+    current_revision_id: "r", current_available: true, unavailable_count: 0, has_more: !path.includes("?"), next_cursor: cursor, limit: 25,
+  } : undefined);
+  expect((await screen.findAllByRole("button", { name: /Open previous version/ })).length).toBe(25);
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect((await screen.findAllByRole("button", { name: /Open previous version/ })).length).toBe(4);
+  fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+  expect((await screen.findAllByRole("button", { name: /Open previous version/ })).length).toBe(25);
+});
+
+it("discloses excluded corrupt versions without showing their payload or claiming an empty complete history", async () => {
+  location.hash = `Research/${packet.research_id}`;
+  setup(path => path.endsWith("/history") ? { revisions: [], current_revision_id: "r", current_available: true, unavailable_count: 2, has_more: true, next_cursor: "next", limit: 25 } : undefined);
+  expect(await screen.findByText(/Some versions on this page are unavailable/)).toBeTruthy();
+  expect(screen.queryByText("No previous versions yet.")).toBeNull();
+  expect(screen.getByRole("button", { name: "Next" }).hasAttribute("disabled")).toBe(false);
+});
+
+it("follows historical hash navigation while Research is mounted", async () => {
+  location.hash = `Research/${packet.research_id}`;
+  setup();
+  await screen.findByRole("heading", { name: "Current Research version" });
+  location.hash = `Research/${packet.research_id}/history/${"b".repeat(64)}`;
+  fireEvent(window, new HashChangeEvent("hashchange"));
+  expect(await screen.findByRole("heading", { name: "Previous Research version" })).toBeTruthy();
+});
+
+it("labels an explicitly opened current revision correctly without changing its packet", async () => {
+  const id = "b".repeat(64);
+  location.hash = `Research/${packet.research_id}/history/${id}`;
+  setup(path => path.endsWith(id) ? { ...envelope(), is_current: true } : undefined);
+  expect(await screen.findByRole("heading", { name: "Current Research version" })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Previous Research version" })).toBeNull();
+  expect(screen.getByText(/Read-only original packet/)).toBeTruthy();
+  expect(screen.getByText("Original authority.")).toBeTruthy();
+});
+
+it("never displays an unavailable historical packet or raw diagnostics", async () => {
+  const id = "b".repeat(64);
+  location.hash = `Research/${packet.research_id}/history/${id}`;
+  setup(path => path.endsWith(id) ? { error: { code: "RESEARCH_CORRUPTED_RESULT", message: "UNTRUSTED payload diagnostic" } } : undefined);
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.queryByText("Original authority.")).toBeNull();
+  expect(document.body.textContent).not.toMatch(/UNTRUSTED|RESEARCH_CORRUPTED_RESULT/);
 });

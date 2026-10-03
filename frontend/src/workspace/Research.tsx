@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiRequestError, post } from "../api/client";
+import { ResearchHistory } from "./ResearchHistory";
 import { ResearchForm } from "./ResearchForm";
 import { ResearchResult } from "./ResearchResult";
 import { OpenResearchSource, ResearchListing, ResearchResult as Result, researchErrorCopy } from "./ResearchTypes";
@@ -7,8 +8,11 @@ import { useUiLanguage } from "./uiLanguage";
 
 export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
   const { t, language } = useUiLanguage();
-  const initialId = /^#Research\/([a-f0-9]{64})$/.exec(location.hash)?.[1] ?? null;
+  const initialRoute = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64}))?$/.exec(location.hash);
+  const initialId = initialRoute?.[1] ?? null;
+  const [historicalId, setHistoricalId] = useState<string | null>(initialRoute?.[2] ?? null);
   const [activeId, setActiveId] = useState<string | null>(initialId);
+  const [historicalIsCurrent, setHistoricalIsCurrent] = useState(false);
   const [creating, setCreating] = useState(false);
   const [listing, setListing] = useState<ResearchListing | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -17,6 +21,17 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    const followRoute = () => {
+      const route = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64}))?$/.exec(location.hash);
+      if (route && (route[1] !== activeId || (route[2] ?? null) !== historicalId)) {
+        setActiveId(route[1]); setHistoricalId(route[2] ?? null); setCreating(false);
+        setResult(null); setError(null);
+      }
+    };
+    window.addEventListener("hashchange", followRoute);
+    return () => window.removeEventListener("hashchange", followRoute);
+  }, [activeId, historicalId]);
   useEffect(() => {
     let alive = true;
     setListing(null); setListError(null);
@@ -29,13 +44,13 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
     if (!activeId) return;
     let alive = true;
     setResult(null); setError(null);
-    api<{ research: Result }>(`/research/${encodeURIComponent(activeId)}`).then(data => {
-      if (alive) setResult(data.research);
+    api<{ research: Result; is_current?: boolean }>(`/research/${encodeURIComponent(activeId)}${historicalId ? `/history/${encodeURIComponent(historicalId)}` : ""}`).then(data => {
+      if (alive) { setResult(data.research); setHistoricalIsCurrent(data.is_current === true); }
     }).catch(reason => { if (alive) setError(researchErrorCopy(reason instanceof ApiRequestError ? reason.code : undefined)); });
     return () => { alive = false; };
-  }, [activeId, revision]);
-  const open = (id: string) => { setActiveId(id); setCreating(false); location.hash = `Research/${id}`; };
-  const newResearch = () => { setActiveId(null); setResult(null); setError(null); setCreating(true); location.hash = "Research"; };
+  }, [activeId, historicalId, revision]);
+  const open = (id: string) => { setHistoricalId(null); setActiveId(id); setCreating(false); location.hash = `Research/${id}`; };
+  const newResearch = () => { setHistoricalId(null); setActiveId(null); setResult(null); setError(null); setCreating(true); location.hash = "Research"; };
   const run = async (question: string, contentIds: string[]) => {
     setBusy(true); setError(null);
     try {
@@ -49,15 +64,23 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
     <p className="hint">{t("Research uses only your existing library. No web exploration or model call.")}</p>
     {!creating && <div className="button-row">
       <button className="button button-primary" disabled={busy} onClick={newResearch}>{t("New Research")}</button>
-      {activeId && <button className="button button-secondary" disabled={busy} onClick={() => { setActiveId(null); setResult(null); setError(null); location.hash = "Research"; }}>{t("Current Research items")}</button>}
+      {activeId && <button className="button button-secondary" disabled={busy} onClick={() => { setHistoricalId(null); setActiveId(null); setResult(null); setError(null); location.hash = "Research"; }}>{t("Current Research items")}</button>}
     </div>}
     {error && <p className="form-error" role="alert">{t(error)} <button disabled={busy} onClick={() => setRevision(value => value + 1)}>{t("Retry")}</button></p>}
     {creating && <ResearchForm busy={busy} onRun={(question, ids) => void run(question, ids)} onCancel={() => setCreating(false)} />}
     {!creating && activeId && !result && !error && <p role="status">{t("Verifying saved Research…")}</p>}
     {!creating && result && <>
+      <section className="panel" aria-label={t(historicalId && !historicalIsCurrent ? "Previous Research version" : "Current Research version")}>
+        <h2>{t(historicalId && !historicalIsCurrent ? "Previous Research version" : "Current Research version")}</h2>
+        {historicalId && <><p className="hint">{t("Read-only original packet. Assembling again creates a new version of this Research item.")}</p>
+          <button className="button button-secondary" onClick={() => open(result.packet.research_id)}>{t("Open current version")}</button></>}
+      </section>
       <ResearchResult result={result} onOpen={onOpen} />
       <button className="button button-secondary" disabled={busy} onClick={() => void run(result.packet.question, result.packet.scope.map(item => item.content_id))}>{t(busy ? "Assembling library packet…" : "Assemble again")}</button>
     </>}
+    {!creating && activeId && <ResearchHistory key={`${activeId}:${revision}`} researchId={activeId} onOpen={id => {
+      setHistoricalId(id); setResult(null); setError(null); location.hash = `Research/${activeId}/history/${id}`;
+    }} />}
     {!creating && !activeId && <section className="panel" aria-label={t("Current Research items")}>
       <h2>{t("Current Research items")}</h2>
       {listError && <p role="alert">{t(listError)} <button onClick={() => setRevision(value => value + 1)}>{t("Retry")}</button></p>}

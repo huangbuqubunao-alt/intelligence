@@ -20,7 +20,9 @@ source/Evidence membership/stances. Contextual Content titles are frozen labels.
 sealed result identity; execution id retains its accepted backend meaning. No
 redundant table, competing version identity or persisted display ordinal exists.
 Stable semantic identity remains SHA256 of canonical contract/question/scope/
-output-language input. Distinct languages/scopes/questions remain distinct items.
+output-language input. Distinct languages/scopes/questions remain distinct items. Rerun preserves the
+accepted server-configured output-language capture; changing that setting creates
+a distinct semantic item rather than merging cross-language History.
 
 Reuse classification: DIRECT existing SQLite transactions, schema 031, strict
 ResearchPacket, Evidence resolver, recorded Intelligence reader, backup staging,
@@ -50,7 +52,9 @@ GET `/api/v1/research/{research_id}/history` returns lightweight verified previo
 revision metadata: revision id, assembly timestamp, canonical question, language,
 Content/Evidence/Intelligence counts and material status. It excludes verified
 current. GET `.../history/{revision_id}` returns the exact immutable packet using
-the same complete Phase 4 row/provenance verification. Both ids must match the
+the same complete Phase 4 row/provenance verification. Its separate `is_current`
+read-context flag distinguishes an explicit current revision route without
+changing the packet or Phase 4 current-result response. Both ids must match the
 same persisted Research row; SQL values are parameters. Stable not-found,
 corrupt-authority and invalid-cursor codes are localized by the client.
 

@@ -35,4 +35,19 @@ research or imply a new conclusion. Show word-matching and bounded-result limits
 Source quotes remain original text, wrap at narrow widths and carry real timing,
 language and Content links; raw ids are never primary copy. Existing opinions and
 recorded states retain their qualification. Error/loading/empty states are
-localized and accessible. No History, Diff, chat, export or promotion control.
+localized and accessible. No Diff, chat, export or promotion control.
+
+
+## Research History
+
+Keep History inside Research detail. Reuse existing Panel, metadata rows, source
+links and secondary buttons. A current/previous-version heading identifies the
+packet; previous packets are explicitly read-only with a return-to-current action.
+History is timestamp-first metadata, never raw ids or comparison prose. Show at
+most 25 entries with Previous/Next controls; replace the page instead of endlessly
+appending rows. The empty previous-version state is legitimate. Excluded invalid
+versions and current unavailability are localized factual states, never rendered
+payloads or an assertion that all history is empty. Source navigation retains the
+opened packet's own references and return route. Preserve keyboard-accessible
+buttons, semantic lists, wrapped text and zh-CN/en at 320–1440px. No seventh nav
+entry, watermark, unread badge, Diff or generated summary is introduced.
