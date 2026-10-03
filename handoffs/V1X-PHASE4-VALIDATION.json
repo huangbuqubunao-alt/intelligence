@@ -1,0 +1,367 @@
+{
+  "base": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b",
+  "reviewed_code_head": "3c08ec7a1e1c908c284d23a9ff726f943c2b9405",
+  "branch": "chatgpt/v1x-research-lite",
+  "reviewed_files": [
+    "docs/decisions/V1X-PHASE4-DR-001-research-lite.md",
+    "frontend/research-lite.e2e.mjs",
+    "frontend/src/workspace/App.test.tsx",
+    "frontend/src/workspace/App.tsx",
+    "frontend/src/workspace/DESIGN.md",
+    "frontend/src/workspace/Research.test.tsx",
+    "frontend/src/workspace/Research.tsx",
+    "frontend/src/workspace/ResearchForm.tsx",
+    "frontend/src/workspace/ResearchResult.tsx",
+    "frontend/src/workspace/ResearchTypes.ts",
+    "frontend/src/workspace/styles.css",
+    "frontend/src/workspace/uiLanguage.tsx",
+    "src/youtube_intel/backup_restore.py",
+    "src/youtube_intel/intelligence_read.py",
+    "src/youtube_intel/local_api.py",
+    "src/youtube_intel/migrations/031_add_research_lite.sql",
+    "src/youtube_intel/research_contract.py",
+    "src/youtube_intel/research_lite.py",
+    "src/youtube_intel/runtime.py",
+    "src/youtube_intel/state.py",
+    "tests/e2e/research_fixture_server.py",
+    "tests/integration/test_deep_analysis_persistence.py",
+    "tests/integration/test_provider_dispatch_crash_recovery.py",
+    "tests/integration/test_research_adversarial.py",
+    "tests/integration/test_research_backup_restore.py",
+    "tests/integration/test_research_lite.py",
+    "tests/integration/test_research_migration.py",
+    "tests/integration/test_state_store.py",
+    "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "tests/integration/test_task018_domain_persistence.py",
+    "tests/integration/test_task018a_claim_classification.py",
+    "tests/integration/test_task018b_timed_evidence.py",
+    "tests/integration/test_task020_preference_feedback.py",
+    "tests/integration/test_task021_source_policy_filtering.py",
+    "tests/integration/test_task022_personalized_distillation.py",
+    "tests/integration/test_task022b_verified_outbound_input.py",
+    "tests/integration/test_task023_topic_timeline.py",
+    "tests/integration/test_task023a_source_run_persistence.py",
+    "tests/integration/test_task023b_distillation_reservation.py",
+    "tests/integration/test_task024_processing_orchestration.py",
+    "tests/integration/test_task025_weekly_foundation.py",
+    "tests/integration/test_task025a_saved_intelligence.py",
+    "tests/integration/test_v1x_knowledge_delta.py",
+    "tests/integration/test_v1x_phase1b_backup_restore.py",
+    "tests/integration/test_v1x_phase1b_migration.py",
+    "tests/unit/test_backup_restore.py",
+    "tests/unit/test_evidence_translation.py",
+    "tests/unit/test_research_api.py",
+    "tests/unit/test_research_contract.py"
+  ],
+  "schema": 31,
+  "research_tests": 84,
+  "adversarial_tests": 44,
+  "research_backup_tests": 9,
+  "integrated_tests": 401,
+  "backend": {
+    "passed": 3199,
+    "skipped": 1,
+    "warnings": 2,
+    "skip_reason": "Existing optional test requires YOUTUBE_INTEL_O200K_TEST_ASSET; no canonical asset was provisioned for this run."
+  },
+  "frontend": {
+    "passed": 139,
+    "files": 4,
+    "typecheck": "PASS",
+    "production_build": "PASS"
+  },
+  "browser": {
+    "research_flows": 8,
+    "actual_restart": 8,
+    "integrated_regression": 8,
+    "languages": [
+      "zh-CN",
+      "en"
+    ],
+    "widths": [
+      320,
+      768,
+      1024,
+      1440
+    ],
+    "console_errors": 0,
+    "external_requests": 0,
+    "overflow": false
+  },
+  "static": {
+    "ruff": "PASS",
+    "strict_mypy_source_files": 77,
+    "compileall": "PASS",
+    "designmd_errors": 0,
+    "designmd_warnings": 0,
+    "diff_check": "PASS"
+  },
+  "remaining_blockers": [],
+  "fresh_review": {
+    "P0": 0,
+    "P1": 0,
+    "material_Phase4_P2": 0
+  },
+  "logs_sha256": {
+    "capacity-red.log": "199247a4a1cba4bf8e6c163c2b66a541abb15c1bb8ee73eb08f676e53af14eca",
+    "compileall.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "database-final.json": "7a2dab73363a0ebcb70d58102962c8cd09f84af0f862d63853469aadac9359b1",
+    "database-validation.json": "96dfe7376dfbe535aa7575d921068df21fb2eb6364d32bfdd162245392997fe8",
+    "design-lint.log": "79bffc77eb42b79f98f758ae06e0fc43a7040222a6298f5d8719e193489a2cd2",
+    "diff-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final-research.log": "f97c24edd5c98a59429bf29177dec33bfbce7e0550cd3b810ac1633200ac2791",
+    "frontend-build.log": "d9073a4662828054a4f1eb3942005e998ae3a4cfc19722956f8300a4cceabdd2",
+    "frontend-tests.log": "3ccae144a19e2464822fba6dc699d2abf83e3c06bc24c35e69b59d6da343dd95",
+    "frontend-typecheck.log": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+    "full-backend-first.log": "d628093c01811445b6c0c27ddb86058bed8359b681f81c8a35fb4c6dd5bc8abe",
+    "full-backend.log": "df83a21ad2d7516eee8d2f9682e614533cb1a50a74945e454d51ce014ef979a7",
+    "integrated-browser.log": "82e2e85873abdd5932726b5b80c16f957897a1b4be04e7d17f144dd7ce6d0b2b",
+    "integrated-research.log": "2ed0c4f65cf03a67b03042bf320387abb6c0363e59516010526dba0274f20d95",
+    "mypy.log": "6de57c7814104e6de9b6c70898a5f0e106413d679270d2dee07f3e93c936e234",
+    "optional-tokenizer.log": "5f0ae055e84d358280180d48159a84dc0e77e5c6ffdf18dd691e4f618d5de064",
+    "preservation.json": "2a9287c036168c149bef4033623cfcb0cacf09bd846c403f7f09d8429921e239",
+    "research-authority.log": "20a10c4a0cfe6add1ddc446347d19bae2974bf2d33aef8f8c302e0c5ab79b604",
+    "research-browser-restart.log": "ab531918e14f706ca8f466995101873e9b8168af093bc7669e3e56bf6871b0ae",
+    "research-browser.log": "ab531918e14f706ca8f466995101873e9b8168af093bc7669e3e56bf6871b0ae",
+    "research-entry-red.log": "decf0932bd35c79940e5bf2e391879e77e8e12a24390adaf674c3794f6c78cbe",
+    "research-ui-red.log": "240266759b39923c7d6eea105670fefe4fec0e26b6d7572300d3299eb3bd12af",
+    "research-ui.log": "f6378d421f91a57b7457cd29598425797bb6ac4caf552a0d8f645d8de06963ef",
+    "review-probes-red.log": "1b078a199337c5b517e9e3e2203aa15a9f90462630f522b3bfb55df98b855abf",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "schema-regression.log": "1a579fdc70c90087ed6add659a48e965d557d7f4739f53f18664bbeb58b24632",
+    "test-preservation.json": "9a6fc2cae279fa045b0db2baf14d2b3b0d6717b7a138dd8c97522103457c7fff",
+    "unicode-red.log": "dafebdb0016ec0e44036cd54e2bfc20aeccd1695ef4982134fe2b331d5098502"
+  },
+  "preservation": {
+    "before": {
+      "integration": {
+        "head": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b",
+        "dirty_count": 0,
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "m13": {
+        "head": "e228294f705401b0200439076c3378b78f9c9d84",
+        "dirty_count": 35,
+        "status_sha256": "a6d6c733c51bc8cd6d455a3030752aaaa0920536ef4dcf54ecf0765d010ac1bd",
+        "diff_sha256": "75e720ea3e96d659f259aef256bde0cc73ded747b86eb7aa7c223216597f501b",
+        "migration_029_sha256": "583e5bcaeec9573f6d2ca6cb79fe26a65fa1c83aedc7d656d4cd611b2f6bccf3"
+      }
+    },
+    "after": {
+      "integration": {
+        "head": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b",
+        "dirty_count": 0,
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "m13": {
+        "head": "e228294f705401b0200439076c3378b78f9c9d84",
+        "dirty_count": 35,
+        "status_sha256": "7ec523bcf15ebf7da8d204e6cea3a39de863158ef93550cc707775ce094a8625",
+        "diff_sha256": "75e720ea3e96d659f259aef256bde0cc73ded747b86eb7aa7c223216597f501b",
+        "migration_029_sha256": "583e5bcaeec9573f6d2ca6cb79fe26a65fa1c83aedc7d656d4cd611b2f6bccf3"
+      }
+    },
+    "head_dirty_count_tracked_diff_and_029_match": true,
+    "note": "The initial task status fingerprint discrepancy is retained. The accepted integration baseline already stores M13 full status and dirty-file hashes: current M13 matches that status and all 34 recorded dirty file hashes exactly, in addition to unchanged HEAD, dirty count, tracked diff and 029 hash. No Phase 4 task writes occurred in M13.",
+    "accepted_integration_record_m13_status_sha256": "7ec523bcf15ebf7da8d204e6cea3a39de863158ef93550cc707775ce094a8625",
+    "accepted_integration_record_m13_dirty_file_hashes": {
+      "docs/M13_7_DAY_DOGFOOD.md": "b1aee72b389cb54c872db168846eea297e8aea9568016d9fb76b7b2d87535bae",
+      "frontend/m13-preday2.e2e.mjs": "ebd3ef5fcbf1f5043ad722de2faca834a589797e1c627393d2f1d2564c28f99e",
+      "frontend/src/workspace/App.test.tsx": "9359a862344f33bfb95efd6e45a230b5a09a440194935f2afc2a747cb94c4785",
+      "frontend/src/workspace/App.tsx": "6f8c00172a13cb94215f97ef9ed5272d1e35e4897c78c37472ac8fc51a4b9877",
+      "frontend/src/workspace/styles.css": "c200b73f773232894e9d91d24af1ef5911b2f901c312c807169a5939e7f5e156",
+      "frontend/src/workspace/uiLanguage.tsx": "1e56af6c29dfa129942aef52f7535c54ddbdc8746955ad2124cc86d7172d2734",
+      "src/youtube_intel/backup_restore.py": "dad476a182433c5f81509a1d2f48efd80ecd9c8b8dfc468af79e3a7921dcb80a",
+      "src/youtube_intel/local_api.py": "ee2f4307745625ba4d911bb5b793043e1d6f59c3fef90af3aba1c50ea019fb45",
+      "src/youtube_intel/runtime.py": "aea0ca25ed136497fa6dafd54e3d4d614feb0a5210b3407fa1c3ef36645d0d66",
+      "src/youtube_intel/runtime_composition.py": "4aa8ffae4f54774cd075b2ee3be4c92d762ce859e60eaca39e315a18baf07fb4",
+      "src/youtube_intel/state.py": "b5498d2db009911d06d02cab38c165f8f9242e1d72fa6cf353522c2c5e2c1f70",
+      "tests/integration/test_deep_analysis_persistence.py": "9086d43816de85d6424a8d734fa11b4a0f047add4881532304b315934346f4da",
+      "tests/integration/test_provider_dispatch_crash_recovery.py": "6ca36d42fd27522a6a376fc2412aa669ef3b3a4fe9b3a67dcc982ed8f9162714",
+      "tests/integration/test_state_store.py": "86b79fc69b9b572579ae9443ab29465e032701bb7d523a6c20f8f484a1d9ef0a",
+      "tests/integration/test_task016c_phase_h2c_lineage_schema.py": "60b2d02bedf826cd95164f102ce01e9ee1b6702d403497d23a2965af4c3d8024",
+      "tests/integration/test_task018_domain_persistence.py": "a92b0cfd0523e0e2fe99454db1bb6e8fd51f6c12ebeab765a95920e7e9a048f0",
+      "tests/integration/test_task018a_claim_classification.py": "66b92fd8accdc7520827cbaca2727ab1aa8c8712f6acd3f3e8d5a9e8687d3cd7",
+      "tests/integration/test_task018b_timed_evidence.py": "136e7fff0331525293e4e4e404ad18bf32bb376850b7abf4d61694f729747ed8",
+      "tests/integration/test_task020_preference_feedback.py": "8c2992077370f586f03ebce1b6045b26024db81febdd1cd4b294edf1e9cb729d",
+      "tests/integration/test_task021_source_policy_filtering.py": "c59c4706dfb09f508878aa5faa417fc0efb5b50e69805ed77e7511a926599cbc",
+      "tests/integration/test_task022_personalized_distillation.py": "64b93fca1f97cf0367e8a3d4e13fa3bfb9e41203aafc0a341768d8e6b95f283d",
+      "tests/integration/test_task022b_verified_outbound_input.py": "d2c9c568e5b0e8a0042d48769e9a5451aef2b2996eb3a3a38084ad24311e445c",
+      "tests/integration/test_task023_topic_timeline.py": "8fe92d40f60aa4447695c71770a9b5d689e55638bb30345d7bb52c87a54b6351",
+      "tests/integration/test_task023a_source_run_persistence.py": "e79df24e442d0c0d0cfc9f321e09d280a16fa0d032278ea9735fc86e9b6f4838",
+      "tests/integration/test_task023b_distillation_reservation.py": "5e81cc87c94336ee878facbc53d71a92fcfafeb8d15229c61605f4188b989798",
+      "tests/integration/test_task024_processing_orchestration.py": "15c9bda42324697b0f60e8df6f9a6f3af19bff04c9f5ed04587a2fea5c15d59c",
+      "tests/integration/test_task025_weekly_foundation.py": "f1573c08521eff7a8ebb6fbd78c2520bbd8a8e6fc2b55aa3532503596936f996",
+      "tests/integration/test_task025a_saved_intelligence.py": "1c4a2b5f9488c2ec9fb37a69913858bd63ab34b1687c11991504ece99b425397",
+      "tests/unit/test_backup_restore.py": "677eae99a02721bff938f8e62c9422fb44b6728a8390bcc7a6154c3492693dd2",
+      "tests/unit/test_evidence_translation.py": "9b7684f496772c5321f604f3e858b775e8a0a2e442aa9672acc3ca0bee4720c0",
+      "frontend/m13-day2-settings.e2e.mjs": "8039d2c63ecd0361472ded8193f39a9bd99645eba8aaf123dec5e172fdb4f9e6",
+      "src/youtube_intel/migrations/029_add_v1_model_configuration.sql": "583e5bcaeec9573f6d2ca6cb79fe26a65fa1c83aedc7d656d4cd611b2f6bccf3",
+      "src/youtube_intel/model_configuration.py": "68b76516c5988017a7287b24d1d4dab97b06284b4802b4a858296eefc76b395f",
+      "tests/unit/test_model_configuration.py": "7937554ebed73110990786cd35deb3759811312e32192e7762ebf7da0689f3c3"
+    },
+    "accepted_integration_record_m13_exact_status_and_dirty_file_match": true
+  },
+  "database": {
+    "schema": 31,
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "history": [
+      {
+        "version": 1,
+        "name": "001_initial.sql",
+        "checksum": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006"
+      },
+      {
+        "version": 2,
+        "name": "002_add_scoring_lineage.sql",
+        "checksum": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651"
+      },
+      {
+        "version": 3,
+        "name": "003_add_deep_analysis_persistence.sql",
+        "checksum": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe"
+      },
+      {
+        "version": 4,
+        "name": "004_add_provider_dispatch_state.sql",
+        "checksum": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2"
+      },
+      {
+        "version": 5,
+        "name": "005_add_product_orchestration.sql",
+        "checksum": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856"
+      },
+      {
+        "version": 6,
+        "name": "006_add_intelligence_domain.sql",
+        "checksum": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747"
+      },
+      {
+        "version": 7,
+        "name": "007_add_intelligence_claim_classification.sql",
+        "checksum": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a"
+      },
+      {
+        "version": 8,
+        "name": "008_add_preference_feedback.sql",
+        "checksum": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a"
+      },
+      {
+        "version": 9,
+        "name": "009_add_source_policy_filtering.sql",
+        "checksum": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf"
+      },
+      {
+        "version": 10,
+        "name": "010_add_personalized_distillation.sql",
+        "checksum": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba"
+      },
+      {
+        "version": 11,
+        "name": "011_add_topic_timeline.sql",
+        "checksum": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d"
+      },
+      {
+        "version": 12,
+        "name": "012_add_source_run_orchestration.sql",
+        "checksum": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31"
+      },
+      {
+        "version": 13,
+        "name": "013_add_weekly_brief_foundation.sql",
+        "checksum": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106"
+      },
+      {
+        "version": 14,
+        "name": "014_add_saved_intelligence.sql",
+        "checksum": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f"
+      },
+      {
+        "version": 15,
+        "name": "015_add_timed_transcript_evidence_bindings.sql",
+        "checksum": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1"
+      },
+      {
+        "version": 16,
+        "name": "016_add_ambiguous_resource_ledger_outcome.sql",
+        "checksum": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4"
+      },
+      {
+        "version": 17,
+        "name": "017_add_current_content_summary.sql",
+        "checksum": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b"
+      },
+      {
+        "version": 18,
+        "name": "018_add_global_output_language.sql",
+        "checksum": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450"
+      },
+      {
+        "version": 19,
+        "name": "019_add_evidence_excerpt_stance.sql",
+        "checksum": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3"
+      },
+      {
+        "version": 20,
+        "name": "020_add_no_new_intelligence_result.sql",
+        "checksum": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385"
+      },
+      {
+        "version": 21,
+        "name": "021_seal_distillation_output_language.sql",
+        "checksum": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99"
+      },
+      {
+        "version": 22,
+        "name": "022_bind_current_local_summary.sql",
+        "checksum": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749"
+      },
+      {
+        "version": 23,
+        "name": "023_add_evidence_translation_presentation.sql",
+        "checksum": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551"
+      },
+      {
+        "version": 24,
+        "name": "024_bind_current_summary_to_content.sql",
+        "checksum": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472"
+      },
+      {
+        "version": 25,
+        "name": "025_add_explicit_cloud_execution_audit.sql",
+        "checksum": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c"
+      },
+      {
+        "version": 26,
+        "name": "026_add_openai_cloud_execution_audit.sql",
+        "checksum": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5"
+      },
+      {
+        "version": 27,
+        "name": "027_add_moonshot_cloud_execution_audit.sql",
+        "checksum": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8"
+      },
+      {
+        "version": 28,
+        "name": "028_add_cloud_response_failure_ledger.sql",
+        "checksum": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01"
+      },
+      {
+        "version": 30,
+        "name": "030_add_deep_analysis_durable_evidence.sql",
+        "checksum": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87"
+      },
+      {
+        "version": 31,
+        "name": "031_add_research_lite.sql",
+        "checksum": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672"
+      }
+    ],
+    "research_items": 2,
+    "research_results": 24
+  }
+}
