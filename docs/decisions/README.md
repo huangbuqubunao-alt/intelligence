@@ -49,4 +49,5 @@ PROPOSED -> ACCEPTED -> SUPERSEDED | DEPRECATED
 | [V1X-PHASE4-DR-001](V1X-PHASE4-DR-001-research-lite.md) | Accepted | 2026-10-03 | Phase 4：确定性的资料库优先研究证据包、显式内容范围、稳定语义身份与不可变执行 |
 | [V1X-PHASE5-DR-001](V1X-PHASE5-DR-001-research-history.md) | Accepted | 2026-10-03 | Phase 5：不可变研究版本与历史读取、原子当前指针、无新增迁移 |
 | [V1X-PHASE6-DR-001](V1X-PHASE6-DR-001-research-diff.md) | Accepted | 2026-10-03 | Phase 6：两个可信研究版本的确定性派生对比、无对比持久化或模型调用 |
+| [V1X-PHASE7-DR-001](V1X-PHASE7-DR-001-local-provider.md) | Accepted | 2026-10-03 | Phase 7：Local 快照、统一 Following/Content、文本范围 Evidence 与多源 Research 权威 |
 | [ADR-028](ADR-028-external-o200k-provisioning.md) | Accepted | 2026-08-31 | 以显式管理员预置、固定哈希验证的本地资源替代 ADR-008 A-16 的包内 BPE 存储细节；无运行时网络或 fallback |
