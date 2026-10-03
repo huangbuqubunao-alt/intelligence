@@ -1,0 +1,85 @@
+import assert from "node:assert/strict";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { chromium } from "playwright-core";
+
+const base = process.env.YIA_RESEARCH_UI_URL ?? "http://127.0.0.1:5299/";
+const root = resolve(process.env.YIA_RESEARCH_FIXTURE_ROOT ?? "../.var/phase4/browser-fixture");
+assert.match(base, /^http:\/\/127\.0\.0\.1:\d+\/$/);
+assert.ok(root.includes("/v1x-research-lite/.var/phase4/"));
+const info = JSON.parse(readFileSync(join(root, "browser-fixture.json"), "utf8"));
+assert.equal(info.port, 5298);
+const artifacts = join(root, "screenshots");
+mkdirSync(artifacts, { recursive: true });
+const browser = await chromium.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
+const errors = [], external = [], scenarios = [];
+const restartOnly = process.env.YIA_RESEARCH_RESTART_ONLY === "1";
+try {
+  for (const language of ["zh-CN", "en"]) for (const width of [320, 768, 1024, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 1000 } });
+    page.on("pageerror", error => errors.push(String(error)));
+    page.on("console", message => { if (["error", "warning"].includes(message.type())) errors.push(message.text()); });
+    page.on("request", request => { if (!request.url().startsWith(base)) external.push(request.url()); });
+    await page.addInitScript(lang => localStorage.setItem("yia.ui-language", lang), language);
+    const text = (en, zh) => language === "en" ? en : zh;
+    await page.goto(`${base}#Intelligence`);
+    await page.getByRole("button", { name: text("Research", "研究"), exact: true }).click();
+    assert.equal(await page.locator(".sidebar-nav button").count(), 6);
+    if (restartOnly) {
+      await page.getByRole("button", { name: "What can canonical evidence tell me?", exact: true }).click();
+      await page.getByRole("heading", { name: text("Original Evidence by Content", "按内容分组的原始证据") }).waitFor();
+      await page.reload();
+      await page.getByRole("heading", { name: text("Original Evidence by Content", "按内容分组的原始证据") }).waitFor();
+      assert.equal(await page.locator(".research-finding").count(), 1);
+      scenarios.push(`${language}/${width}: restart/current route`);
+      await page.close(); continue;
+    }
+    if (!scenarios.length) await page.getByText(text("No Research yet. Start with a question and selected library Content.", "还没有研究。输入问题，并选择资料库中的内容开始。")).waitFor();
+    await page.getByRole("button", { name: text("New Research", "新建研究"), exact: true }).click();
+    await page.getByRole("button", { name: text("Assemble library packet", "收集资料库证据包"), exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: text("Enter a question", "请输入") }).waitFor();
+    await page.getByLabel(text("Research question", "研究问题")).fill("What can canonical evidence tell me?");
+    await page.getByRole("button", { name: text("Assemble library packet", "收集资料库证据包"), exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: text("Select at least one", "请至少选择") }).waitFor();
+    await page.getByLabel(text("Filter Content by title or source", "按标题或来源筛选内容")).fill("AI Agent product update");
+    await page.getByRole("checkbox", { name: /AI Agent product update/ }).check();
+    await page.getByRole("button", { name: text("Assemble library packet", "收集资料库证据包"), exact: true }).click();
+    await page.getByRole("heading", { name: text("Original Evidence by Content", "按内容分组的原始证据") }).waitFor();
+    assert.equal(await page.locator(".research-finding").count(), 1);
+    assert.equal(await page.locator(".research-result blockquote").count(), 1);
+    assert.ok((await page.locator(".research-result").innerText()).includes("Fixture canonical evidence."));
+    assert.doesNotMatch(await page.locator("body").innerText(), /UNSUPPORTED_MODEL_SYNTHESIS|EVIDENCE_AVAILABLE|PRIMARY_ORIGINAL|Research History|Compare versions/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: join(artifacts, `${language}-${width}-result.png`), fullPage: true });
+    const researchRoute = page.url();
+    await page.getByRole("button", { name: text("Open Content and Evidence", "打开内容与证据"), exact: true }).click();
+    await page.locator('[id^="content-evidence-"]').waitFor();
+    await page.waitForFunction(() => document.activeElement?.id.startsWith("content-evidence-"));
+    await page.getByRole("button", { name: text("Back to Research", "返回研究"), exact: true }).click();
+    await page.locator(".research-finding").waitFor();
+    assert.equal(page.url(), researchRoute);
+    await page.getByRole("button", { name: text("Open Intelligence", "打开洞察"), exact: true }).click();
+    await page.getByText("The release adds evidence-bound execution records.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: text("Back to Research", "返回研究"), exact: true }).click();
+    await page.locator(".research-finding").waitFor();
+    await page.reload();
+    await page.locator(".research-finding").waitFor();
+    await page.getByRole("button", { name: text("Assemble again", "重新收集"), exact: true }).click();
+    await page.locator(".research-finding").waitFor();
+    await page.getByRole("button", { name: text("New Research", "新建研究"), exact: true }).click();
+    await page.getByLabel(text("Research question", "研究问题")).fill("What material supports this question?");
+    await page.getByLabel(text("Filter Content by title or source", "按标题或来源筛选内容")).fill("No authoritative material");
+    await page.getByRole("checkbox", { name: /No authoritative material/ }).check();
+    await page.getByRole("button", { name: text("Assemble library packet", "收集资料库证据包"), exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text("No matching authoritative Evidence", "未找到匹配的权威证据") }).waitFor();
+    assert.equal(await page.locator(".research-result blockquote").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: join(artifacts, `${language}-${width}-insufficient.png`), fullPage: true });
+    scenarios.push(`${language}/${width}: create/invalid/scope/result/source/Intelligence/reload/rerun/insufficient`);
+    await page.close();
+  }
+  assert.deepEqual(errors, []); assert.deepEqual(external, []);
+  const report = { scenarios, consoleErrors: errors, externalRequests: external };
+  writeFileSync(join(root, restartOnly ? "restart-report.json" : "browser-report.json"), JSON.stringify(report, null, 2));
+  console.log(`${scenarios.length} real HTTP/SQLite Research flows passed; both languages, four widths, zero console errors/overflow/external requests.`);
+} finally { await browser.close(); }

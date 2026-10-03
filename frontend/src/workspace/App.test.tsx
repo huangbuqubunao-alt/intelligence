@@ -2,6 +2,20 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { App, intelligenceValidationCopy } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
+it("keeps Research accessible when the independent Intelligence list fails", async () => {
+  location.hash = "Intelligence";
+  vi.stubGlobal("fetch", vi.fn((path: string) => {
+    if (path.endsWith("/intelligence")) return Promise.resolve({ ok: false, json: async () => ({ error: { code: "UNAVAILABLE", message: "List unavailable" } }) });
+    if (path.endsWith("/saved-intelligence")) return response({ saved: [] });
+    return response({ research: [], total: 0, offset: 0, limit: 25 });
+  }));
+  render(<App />);
+  await screen.findByText("List unavailable");
+  fireEvent.click(screen.getByRole("button", { name: "Research", exact: true }));
+  expect(await screen.findByText("No Research yet. Start with a question and selected library Content.")).toBeTruthy();
+  expect(within(screen.getByRole("navigation")).getAllByRole("button")).toHaveLength(6);
+});
+
 const intelligence = {
   status: "AVAILABLE",
   trusted: true,

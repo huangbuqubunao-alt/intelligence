@@ -1458,3 +1458,23 @@ dialog p {
   padding: 0;
   accent-color: var(--accent);
 }
+/* Research reuses the accepted surfaces and type hierarchy. Original text wraps. */
+.research-stack, .research-result { display: grid; gap: 1rem; min-width: 0; }
+.research-question, .research-result blockquote, .research-scope-list, .research-finding, .research-source-group { overflow-wrap: anywhere; white-space: pre-wrap; }
+.research-result .panel > h2, .research-form > h2 { margin-top: 0; }
+.research-finding { padding-block: 1rem; border-bottom: 1px solid var(--border); }
+.research-options { display: grid; gap: .75rem; max-height: 24rem; overflow-y: auto; }
+.research-option { display: flex; align-items: flex-start; gap: .75rem; min-width: 0; }
+.research-option input { flex: 0 0 auto; }
+.research-option span { min-width: 0; overflow-wrap: anywhere; }
+.research-option small { display: block; color: var(--text-muted); }
+.research-scope-picker { min-width: 0; border: 0; margin: 0; padding: 0; }
+.research-selected { padding-left: 1.25rem; overflow-wrap: anywhere; }
+.research-result .button-row { flex-wrap: wrap; }
+
+.research-source-link { border: 0; padding: 4px 0; background: transparent; color: var(--info); text-align: left; cursor: pointer; font: inherit; }
+.research-source-link:hover { text-decoration: underline; }
+.research-result p, .research-result li { line-height: 1.6; }
+.research-result blockquote { margin: 14px 0 4px; line-height: 1.7; }
+.research-stack > .button { justify-self: start; }
+.research-stack button:focus-visible, .research-stack a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

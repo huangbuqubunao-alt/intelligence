@@ -3,6 +3,7 @@ import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client
 import { Logo } from "./Logo";
 import { FirstRunOnboarding } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
+import { Research } from "./Research";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 
 type Page =
@@ -11,6 +12,7 @@ type Page =
   | "Content"
   | "Intelligence"
   | "Topics"
+  | "Research"
   | "Settings";
 type EvidenceDisplayMode = "译文" | "双语" | "原文";
 type Intelligence = {
@@ -272,6 +274,7 @@ const subtitles: Record<Page, string> = {
   Content: "Read ingested content, transcript state, and processing history.",
   Intelligence: "Revisable, evidence-linked judgments worth tracking.",
   Topics: "Current understanding built from related Intelligence.",
+  Research: "Inspect a question within selected local library Content.",
   Settings: "Language, model readiness, resource truth, and data control.",
 };
 const commandId = () =>
@@ -298,6 +301,7 @@ const STYLES = [[
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
+  if (/^Research(?:\/[a-f0-9]{64})?$/.test(raw)) return "Research";
   const legacy: Record<string, Page> = {
     Dashboard: "Home",
     Sources: "Following",
@@ -1037,7 +1041,24 @@ function Workspace() {
   const [refresh, setRefresh] = useState(0);
   const [contentTarget, setContentTarget] = useState<string | null>(null);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
+  const [researchReturn, setResearchReturn] = useState<string | null>(null);
+  const [researchEvidence, setResearchEvidence] = useState<string | null>(null);
+  useEffect(() => {
+    if (page !== "Content" || !researchEvidence) return;
+    const focusEvidence = () => {
+      const element = document.getElementById(`content-evidence-${researchEvidence}`);
+      if (!element) return false;
+      element.scrollIntoView({ block: "center" });
+      element.setAttribute("tabindex", "-1"); element.focus({ preventScroll: true });
+      return true;
+    };
+    if (focusEvidence()) return;
+    const observer = new MutationObserver(() => { if (focusEvidence()) observer.disconnect(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [page, researchEvidence]);
   const navigate = (next: Page) => {
+    setResearchReturn(null); setResearchEvidence(null);
     setContentTarget(null);
     setDeltaTarget(null);
     location.hash = next;
@@ -1073,8 +1094,8 @@ function Workspace() {
             <button
               type="button"
               key={item}
-              className={`nav-item ${page === item ? "active" : ""}`}
-              aria-current={page === item ? "page" : undefined}
+              className={`nav-item ${page === item || (page === "Research" && item === "Intelligence") ? "active" : ""}`}
+              aria-current={page === item || (page === "Research" && item === "Intelligence") ? "page" : undefined}
               onClick={() => navigate(item)}
             >
               {t(item)}
@@ -1090,7 +1111,16 @@ function Workspace() {
             <h1>{t(page)}</h1>
             <p className="page-subtitle">{t(subtitles[page])}</p>
           </div>
+          {researchReturn && page !== "Research" && <button className="button button-secondary" onClick={() => {
+            const target = researchReturn; navigate("Research"); location.hash = target;
+          }}>{t("Back to Research")}</button>}
         </header>
+        {page === "Research" && <Research onOpen={(kind, id, evidenceId) => {
+          const returnTo = location.hash.slice(1);
+          if (kind === "content") { openContent(id); setResearchEvidence(evidenceId ?? null); }
+          else openDelta({ kind: "intelligence", id });
+          setResearchReturn(returnTo);
+        }} />}
         {page === "Home" && (
           <div className="dashboard-stack">
             <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
@@ -1110,7 +1140,7 @@ function Workspace() {
         {page === "Intelligence" && (
           deltaTarget?.kind === "intelligence"
             ? <IntelligenceDetail id={deltaTarget.id} openContent={openContent} onBack={() => navigate("Intelligence")} />
-            : <IntelligencePage refresh={refresh} openContent={openContent} />
+            : <IntelligencePage refresh={refresh} openContent={openContent} openResearch={() => navigate("Research")} />
         )}
         {page === "Topics" && <Topics refresh={refresh} targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null} />}
         {page === "Settings" && <Settings refresh={refresh} />}
@@ -1233,9 +1263,10 @@ function IntelligenceDetail({ id, openContent, onBack }: {
   </>;
 }
 function IntelligencePage(
-  { refresh, openContent }: {
+  { refresh, openContent, openResearch }: {
     refresh: number;
     openContent: (videoId: string) => void;
+    openResearch: () => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1255,9 +1286,11 @@ function IntelligencePage(
   const currentAvailable = (current.data?.intelligence ?? []).filter((item) =>
     item.status === "AVAILABLE" && item.trusted
   );
-  if (source.error) return <ErrorState error={source.error} />;
+  const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
+  if (source.error) return <>{researchEntry}<ErrorState error={source.error} /></>;
   return (
     <>
+      {researchEntry}
       <div className="segmented">
         {(["Current", "Saved"] as const).map((item) => (
           <button
