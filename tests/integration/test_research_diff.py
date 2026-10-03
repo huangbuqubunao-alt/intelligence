@@ -114,7 +114,13 @@ def test_all_domain_tables_unchanged_no_rerun_or_network(tmp_path, monkeypatch):
     monkeypatch.setattr(socket, "create_connection", prohibited)
     monkeypatch.setattr(urllib.request, "urlopen", prohibited)
     monkeypatch.setattr(ResearchLiteService, "assemble", prohibited)
-    monkeypatch.setattr(ResearchLiteService, "_assemble_packet", prohibited, raising=False)
+    import youtube_intel.research_lite as research_module
+    from youtube_intel.deep_analysis_service import DeepAnalysisService
+    from youtube_intel.distillation import PersonalizedDistillationService
+
+    monkeypatch.setattr(research_module, "_terms", prohibited)
+    monkeypatch.setattr(DeepAnalysisService, "run", prohibited)
+    monkeypatch.setattr(PersonalizedDistillationService, "distill", prohibited)
     with repo._connect() as db:
         before = list(db.iterdump())
         tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
