@@ -4,7 +4,8 @@ import { useUiLanguage } from "./uiLanguage";
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 const claimCopy: Record<string, string> = {
   EVIDENCE_BACKED_STATEMENT: "Evidence-backed statement", OPINION: "Attributed opinion",
-  INFERENCE: "Inference", PREDICTION: "Prediction",
+  SYSTEM_INFERENCE: "System inference", PREDICTION: "Prediction",
+  RUMOR: "Unverified rumor", FACT: "Recorded fact classification",
 };
 const stateCopy: Record<string, string> = {
   NEW: "New", PENDING_CONFIRMATION: "Pending confirmation", CONFIRMED: "Confirmed",

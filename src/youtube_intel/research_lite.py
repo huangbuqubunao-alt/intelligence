@@ -151,6 +151,7 @@ class ResearchLiteService:
                     evidence_ids.append(row["evidence_id"])
                 if len(evidence_ids) == MAX_EVIDENCE:
                     break
+            matching_evidence_count = len(evidence_ids)
             intelligence_sql = (
                 f"FROM distillation_cards c JOIN intelligences i ON i.current_revision_id=c.revision_id "
                 f"WHERE c.video_id IN ({marks}) AND (research_score(c.core_conclusion)>0 OR EXISTS ("
@@ -172,7 +173,7 @@ class ResearchLiteService:
                 evidence_ids.extend(additional)
                 findings.append(finding)
             evidence = self._evidence_many(connection, evidence_ids, request.content_ids)
-            truncated = count > len(rows) or count > len(evidence) or intelligence_count > len(findings)
+            truncated = count > matching_evidence_count or intelligence_count > len(findings)
             unresolved: list[ResearchUnresolved] = ["NO_SYNTHESIS", "LEXICAL_RETRIEVAL"]
             if truncated:
                 unresolved.append("BOUNDED_PACKET")

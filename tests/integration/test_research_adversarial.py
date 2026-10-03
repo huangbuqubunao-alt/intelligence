@@ -291,3 +291,20 @@ def test_later_intelligence_revision_preserves_recorded_research(tmp_path):
     # A later legitimate domain revision does not replace the recorded card.
     assert fixture.AuthoritativeIntelligenceReader(repo).read_current(admitted.intelligence_id).revision_id == "recorded-following-revision"
     assert ResearchLiteService(repo).read(result.packet.research_id).as_dict() == result.as_dict()
+
+
+def test_omitted_oversized_candidate_is_disclosed_even_with_extra_intelligence_citation(tmp_path):
+    fixture, repo, _, _ = admitted_packet(tmp_path)
+    with repo._connect() as db:
+        video = db.execute("SELECT video_id FROM distillation_cards").fetchone()[0]
+    oversized = fixture._evidence(repo, video, start_ms=2000, end_ms=2500)
+    with repo._connect() as db:
+        db.execute("DROP TRIGGER evidence_text_bindings_immutable_update")
+        db.execute("UPDATE evidence_text_bindings SET excerpt=? WHERE evidence_id=?", ("execution " * 600, oversized))
+    packet = ResearchLiteService(repo, now=lambda: fixture.NOW).assemble(
+        ResearchRequest(question="execution", content_ids=[video]), output_language="en"
+    ).packet
+    assert packet.evidence_candidates == 1 and len(packet.evidence) == 1
+    assert packet.intelligence and all(e.evidence_id != oversized for e in packet.evidence)
+    assert packet.retrieval_truncated
+    assert "BOUNDED_PACKET" in packet.unresolved

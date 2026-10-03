@@ -92,10 +92,22 @@ it("renders untrusted questions as text", async () => {
 it("localizes interpretation classes, states and every Evidence stance", async () => {
   localStorage.setItem("yia.ui-language", "zh-CN");
   location.hash = `Research/${packet.research_id}`;
-  setup(path => path.endsWith(packet.research_id) ? { research: { ...envelope().research, packet: { ...packet, intelligence: ["supporting", "contradicting", "conditional", null].map((stance, index) => ({ intelligence_id: `i${index}`, revision_id: `r${index}`, content_id: "one", conclusion: "Source interpretation", claim_kind: "INFERENCE", state: "UPDATED", evidence_ids: ["durable"], stances: [stance] })) } } } : undefined);
+  setup(path => path.endsWith(packet.research_id) ? { research: { ...envelope().research, packet: { ...packet, intelligence: ["supporting", "contradicting", "conditional", null].map((stance, index) => ({ intelligence_id: `i${index}`, revision_id: `r${index}`, content_id: "one", conclusion: "Source interpretation", claim_kind: "SYSTEM_INFERENCE", state: "UPDATED", evidence_ids: ["durable"], stances: [stance] })) } } } : undefined);
   await screen.findAllByText("Source interpretation");
   expect(document.body.textContent).not.toMatch(/Supporting|Contradicting|Conditional|Relation not determined|Recorded state|INFERENCE|UPDATED/);
   expect(document.body.textContent).toContain("支持");
   expect(document.body.textContent).toContain("反驳");
   expect(document.body.textContent).toContain("附带条件");
+});
+
+
+it("retains every admitted claim classification without inflating legacy facts", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = `Research/${packet.research_id}`;
+  setup(path => path.endsWith(packet.research_id) ? { research: { ...envelope().research, packet: { ...packet, intelligence: ["FACT", "RUMOR", "SYSTEM_INFERENCE"].map((claim, index) => ({ intelligence_id: `i${index}`, revision_id: `r${index}`, content_id: "one", conclusion: "Recorded source claim", claim_kind: claim, state: "NEW", evidence_ids: ["durable"], stances: [null] })) } } } : undefined);
+  await screen.findAllByText("Recorded source claim");
+  expect(document.body.textContent).toContain("已记录的事实分类");
+  expect(document.body.textContent).toContain("未经确认的传闻");
+  expect(document.body.textContent).toContain("系统推断");
+  expect(document.body.textContent).not.toMatch(/Recorded interpretation|FACT|RUMOR|SYSTEM_INFERENCE/);
 });

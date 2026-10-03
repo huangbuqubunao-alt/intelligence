@@ -11,7 +11,7 @@ it("keeps Research accessible when the independent Intelligence list fails", asy
   }));
   render(<App />);
   await screen.findByText("List unavailable");
-  fireEvent.click(screen.getByRole("button", { name: "Research", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^Research$/ }));
   expect(await screen.findByText("No Research yet. Start with a question and selected library Content.")).toBeTruthy();
   expect(within(screen.getByRole("navigation")).getAllByRole("button")).toHaveLength(6);
 });

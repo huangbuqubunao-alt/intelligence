@@ -28,7 +28,7 @@ class ResearchRequest(ResearchValue):
     @classmethod
     def question_text(cls, value: str) -> str:
         value = value.strip()
-        if not value or any(ord(char) < 32 and char not in "\n\r\t" for char in value):
+        if not value or any((ord(char) < 32 and char not in "\n\r\t") or 0xD800 <= ord(char) <= 0xDFFF for char in value):
             raise ValueError("invalid research question")
         # Retain internal whitespace and exact case: no semantic rewriting.
         return value
@@ -36,7 +36,7 @@ class ResearchRequest(ResearchValue):
     @field_validator("content_ids")
     @classmethod
     def bounded_content(cls, values: list[str]) -> list[str]:
-        if any(not v or v != v.strip() or len(v) > 256 or any(ord(c) < 32 for c in v) for v in values):
+        if any(not v or v != v.strip() or len(v) > 256 or any(ord(c) < 32 or 0xD800 <= ord(c) <= 0xDFFF for c in v) for v in values):
             raise ValueError("invalid content scope")
         return sorted(set(values))
 

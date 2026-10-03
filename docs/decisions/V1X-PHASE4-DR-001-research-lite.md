@@ -44,7 +44,7 @@ seventh primary destination, duplicate Research surface or History UX is added.
 
 An explicit user question is required: 1–2,000 Unicode characters, surrounding
 whitespace trimmed, internal whitespace/case retained, disallowed control bytes
-rejected. It is never rewritten into a different question. Scope is 1–20 explicit
+rejected, including invalid Unicode surrogate code points. It is never rewritten into a different question. Scope is 1–20 explicit
 existing public Content ids, sorted and deduplicated. Raw scope ids are validated
 and always SQL parameters. Empty/missing/oversized scopes fail honestly. Topic,
 Following and “all library” scopes are not supported; compatibility topics and

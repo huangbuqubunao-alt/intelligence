@@ -6,13 +6,13 @@ from pydantic import ValidationError
 from youtube_intel.research_contract import ResearchRequest, semantic_identity
 
 
-@pytest.mark.parametrize("question", ["", " \n\t", "x" * 2001])
+@pytest.mark.parametrize("question", ["", " \n\t", "x" * 2001, "\ud800"])
 def test_invalid_question(question: str) -> None:
     with pytest.raises(ValidationError):
         ResearchRequest(question=question, content_ids=["one"])
 
 
-@pytest.mark.parametrize("scope", [[], [""], ["x" * 257], [str(i) for i in range(21)]])
+@pytest.mark.parametrize("scope", [[], [""], ["x" * 257], [str(i) for i in range(21)], ["\udfff"]])
 def test_scope_is_explicit_and_bounded(scope: list[str]) -> None:
     with pytest.raises(ValidationError):
         ResearchRequest(question="What can I inspect?", content_ids=scope)

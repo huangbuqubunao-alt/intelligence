@@ -37,6 +37,8 @@ def test_create_open_list_and_capability(tmp_path):
 
 
 @pytest.mark.parametrize("payload,code", [
+    ({"question": "\ud800", "content_ids": ["a"]}, "RESEARCH_INVALID_QUESTION"),
+    ({"question": "valid", "content_ids": ["\udfff"]}, "RESEARCH_INVALID_SCOPE"),
     ({"question": "", "content_ids": ["a"]}, "RESEARCH_INVALID_QUESTION"),
     ({"question": "  ", "content_ids": ["a"]}, "RESEARCH_INVALID_QUESTION"),
     ({"question": "x" * 2001, "content_ids": ["a"]}, "RESEARCH_INVALID_QUESTION"),

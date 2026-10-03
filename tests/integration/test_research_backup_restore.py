@@ -1,6 +1,7 @@
 """Research is core authority; corrupt archives must never replace live data."""
 
 import hashlib
+import json
 
 import pytest
 from conftest import _load_module
@@ -10,6 +11,7 @@ from youtube_intel.backup_restore import (
     BackupRestoreError,
     BackupRestoreService,
 )
+from youtube_intel.research_contract import CONTRACT, canonical, digest
 from youtube_intel.research_lite import RESEARCH_AUTHORITY_TABLES, ResearchLiteService
 from youtube_intel.state import SQLiteStateRepository
 
@@ -43,7 +45,7 @@ def test_valid_restore_keeps_current_research_and_all_executions(tmp_path):
         assert discovered <= _REQUIRED_TABLES
 
 
-@pytest.mark.parametrize("attack", ["payload", "missing_table", "pointer", "regressed_pointer", "missing_result", "schema", "missing_trigger"])
+@pytest.mark.parametrize("attack", ["payload", "missing_table", "pointer", "regressed_pointer", "missing_result", "schema", "missing_trigger", "resealed_provenance"])
 def test_corrupt_research_archive_preserves_valid_state(tmp_path, attack):
     repo, first, service, raw = backup(tmp_path)
 
@@ -61,6 +63,15 @@ def test_corrupt_research_archive_preserves_valid_state(tmp_path, attack):
             db.execute("UPDATE research_items SET current_result_identity=?", (first.result_identity,))
         elif attack == "missing_result":
             db.execute("DELETE FROM research_results WHERE result_identity=?", (first.result_identity,))
+        elif attack == "resealed_provenance":
+            for row in db.execute("SELECT result_identity,research_id,execution_id,payload_json FROM research_results").fetchall():
+                payload = json.loads(row[3])
+                payload["evidence"][0]["excerpt"] = "Fabricated transcript quote"
+                payload["evidence"][0]["excerpt_hash"] = hashlib.sha256(b"Fabricated transcript quote").hexdigest()
+                payload_hash = digest(payload)
+                identity = digest({"contract": CONTRACT, "research_id": row[1], "execution_id": row[2], "payload_hash": payload_hash})
+                db.execute("UPDATE research_results SET result_identity=?,payload_json=?,payload_hash=? WHERE result_identity=?", (identity, canonical(payload), payload_hash, row[0]))
+                db.execute("UPDATE research_items SET current_result_identity=? WHERE current_result_identity=?", (identity, row[0]))
         elif attack == "schema":
             db.execute("PRAGMA user_version=30")
         if attack not in {"missing_trigger", "missing_table"}:
