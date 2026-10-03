@@ -83,7 +83,7 @@ def test_history_api_exact_packet_wrong_owner_and_codes(tmp_path):
         (path + "?cursor=1&cursor=2", "RESEARCH_INVALID_CURSOR", 422),
         (path + "?offset=1", "RESEARCH_INVALID_CURSOR", 422),
         (f"{path}/{revision}?cursor=bad", "RESEARCH_INVALID_CURSOR", 422),
-        (f"/api/v1/research/{identity}/diff", "RESEARCH_NOT_FOUND", 404),
+        (f"/api/v1/research/{identity}/diff", "RESEARCH_DIFF_INVALID_REQUEST", 422),
     ]:
         with pytest.raises(ApiError) as rejected:
             application.handle("GET", url)

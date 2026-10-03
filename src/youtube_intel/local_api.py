@@ -1414,6 +1414,13 @@ class LocalApiApplication:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESEARCH_INVALID_SCOPE", "Research retrieval is bounded.")
                 projection = self._research_service.scope_options(query=query, offset=offset) if route.endswith("/scope") else self._research_service.list_current(offset=offset)
                 return HTTPStatus.OK, projection
+            diff = re.fullmatch(r"/api/v1/research/([a-f0-9]{64})/diff", route)
+            if method == "GET" and diff:
+                params = parse_qs(parsed.query, keep_blank_values=True)
+                if set(params) != {"base_revision", "target_revision"} or any(len(v) != 1 for v in params.values()):
+                    raise ResearchRejected("RESEARCH_DIFF_INVALID_REQUEST")
+                comparison = self._research_service.diff(diff[1], params["base_revision"][0], params["target_revision"][0])
+                return HTTPStatus.OK, {"diff": comparison.model_dump(mode="json")}
             history = re.fullmatch(r"/api/v1/research/([a-f0-9]{64})/history(?:/([a-f0-9]{64}))?", route)
             if method == "GET" and history:
                 research_id, revision_id = history.groups()
@@ -1428,7 +1435,7 @@ class LocalApiApplication:
                 return HTTPStatus.OK, {"research": self._research_service.read(route.rsplit("/", 1)[1]).as_dict()}
             raise ApiError(HTTPStatus.NOT_FOUND, "RESEARCH_NOT_FOUND", "Research route was not found.")
         except ResearchRejected as error:
-            status = HTTPStatus.NOT_FOUND if error.code in {"RESEARCH_NOT_FOUND", "RESEARCH_SCOPE_NOT_FOUND", "RESEARCH_REVISION_NOT_FOUND"} else (HTTPStatus.UNPROCESSABLE_ENTITY if error.code == "RESEARCH_INVALID_CURSOR" else HTTPStatus.CONFLICT)
+            status = HTTPStatus.NOT_FOUND if error.code in {"RESEARCH_NOT_FOUND", "RESEARCH_SCOPE_NOT_FOUND", "RESEARCH_REVISION_NOT_FOUND", "RESEARCH_DIFF_BASE_NOT_FOUND", "RESEARCH_DIFF_TARGET_NOT_FOUND"} else (HTTPStatus.UNPROCESSABLE_ENTITY if error.code in {"RESEARCH_INVALID_CURSOR", "RESEARCH_DIFF_INVALID_REQUEST"} else HTTPStatus.CONFLICT)
             raise ApiError(status, error.code, "Research could not be read or assembled.") from None
         except (sqlite3.Error, OSError) as error:
             raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "RESEARCH_EXECUTION_FAILED", "Research library access failed.") from error

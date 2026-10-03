@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from importlib import resources
 from typing import Callable, Literal
 
+from pydantic import ValidationError
+
 from youtube_intel.domain import Availability
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
@@ -30,6 +32,7 @@ from youtube_intel.research_contract import (
     digest,
     semantic_identity,
 )
+from youtube_intel.research_diff import ResearchDiff, project_diff
 from youtube_intel.state import (
     SQLiteStateRepository,
     VerifiedEvidenceText,
@@ -339,6 +342,42 @@ class ResearchLiteService:
             raise
         except (ValueError, sqlite3.Error) as error:
             raise ResearchRejected("RESEARCH_CORRUPTED_RESULT") from error
+        finally:
+            connection.close()
+
+    def diff(self, research_id: str, base_revision: str, target_revision: str) -> ResearchDiff:
+        """Read two trusted authorities in one snapshot; never consult current."""
+        if any(re.fullmatch(r"[a-f0-9]{64}", value) is None for value in (research_id, base_revision, target_revision)):
+            raise ResearchRejected("RESEARCH_DIFF_INVALID_REQUEST")
+        connection = self._repository._connect(read_only=True)
+        try:
+            connection.execute("BEGIN")
+            if connection.execute("SELECT 1 FROM research_items WHERE research_id=?", (research_id,)).fetchone() is None:
+                raise ResearchRejected("RESEARCH_NOT_FOUND")
+            trusted: dict[str, ResearchRead] = {}
+            for side, revision_id in (("BASE", base_revision), ("TARGET", target_revision)):
+                if revision_id in trusted:
+                    continue
+                row = connection.execute("SELECT * FROM research_results WHERE result_identity=?", (revision_id,)).fetchone()
+                if row is None:
+                    raise ResearchRejected(f"RESEARCH_DIFF_{side}_NOT_FOUND")
+                if row["research_id"] != research_id:
+                    raise ResearchRejected("RESEARCH_DIFF_WRONG_RESEARCH")
+                try:
+                    ResearchPacket.model_validate_json(row["payload_json"])
+                except ValidationError as error:
+                    if any(e["loc"] == ("contract",) and e["type"] == "literal_error" for e in error.errors()):
+                        raise ResearchRejected("RESEARCH_DIFF_INCOMPATIBLE_CONTRACT") from None
+                    raise ResearchRejected("RESEARCH_DIFF_UNTRUSTED_REVISION") from None
+                try:
+                    trusted[revision_id] = self.verify_row(connection, row)
+                except ResearchRejected:
+                    raise ResearchRejected("RESEARCH_DIFF_UNTRUSTED_REVISION") from None
+            return project_diff(base_revision, trusted[base_revision].packet, target_revision, trusted[target_revision].packet)
+        except ResearchRejected:
+            raise
+        except (ValueError, TypeError, KeyError, sqlite3.Error):
+            raise ResearchRejected("RESEARCH_DIFF_UNTRUSTED_REVISION") from None
         finally:
             connection.close()
 
