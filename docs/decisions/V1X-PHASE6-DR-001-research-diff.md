@@ -1,6 +1,6 @@
 # V1X-PHASE6-DR-001: Derived Research revision comparison
 
-Status: Phase 6 implementation under the owner's continuous goal, 2026-10-03.
+Status: Implemented and validated under the owner's continuous goal, 2026-10-03.
 Accepted base: `15f720377b661164a227ba599281b81b33a1e189`; schema 31.
 
 ## Definition and authority
