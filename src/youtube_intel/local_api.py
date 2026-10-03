@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import Callable, Final
+from typing import Callable, Final, cast
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
@@ -706,13 +706,13 @@ class LocalApiApplication:
             if (
                 method == "POST"
                 and route.startswith(deep_analysis_prefix)
-                and route.endswith("/deep-analysis")
+                and (route.endswith("/deep-analysis") or route.endswith("/deep-analysis/preflight"))
             ):
                 deep_analysis_service = self._require_deep_analysis()
                 video_id, _, tail = route.removeprefix(
                     deep_analysis_prefix
                 ).partition("/")
-                if tail != "deep-analysis" or not video_id:
+                if tail not in {"deep-analysis", "deep-analysis/preflight"} or not video_id:
                     raise ApiError(
                         HTTPStatus.NOT_FOUND,
                         "NOT_FOUND",
@@ -722,11 +722,23 @@ class LocalApiApplication:
                     raise ApiError(
                         HTTPStatus.NOT_FOUND, "NOT_FOUND", "Content was not found."
                     )
-                self._only_keys(data, {"authorize_cloud"})
+                self._only_keys(data, {"authorize_cloud", "execution_id", "route_id", "acknowledge_unknown_cost", "egress_mode"})
+                for identity in ("execution_id", "route_id", "egress_mode"):
+                    value = data.get(identity)
+                    if identity in data and (not isinstance(value, str) or not value or len(value) > 256):
+                        raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid Deep Analysis identity.")
                 authorize_cloud = data.get("authorize_cloud") is True
                 try:
+                    if tail == "deep-analysis/preflight":
+                        self._only_keys(data, {"route_id"})
+                        if not isinstance(data.get("route_id"), str):
+                            raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "A route is required.")
+                        return HTTPStatus.OK, {"preflight": deep_analysis_service.preflight(content_id=video_id, route_id=cast(str, data["route_id"]))}
                     deep_analysis_run = deep_analysis_service.run(
-                        content_id=video_id, cloud_consent=authorize_cloud
+                        content_id=video_id, cloud_consent=authorize_cloud,
+                        route_id=cast(str | None, data.get("route_id")), execution_id=cast(str | None, data.get("execution_id")),
+                        acknowledge_unknown_cost=data.get("acknowledge_unknown_cost") is True,
+                        egress_mode=cast(str, data.get("egress_mode", "SELECTED_EVIDENCE_ONLY")),
                     )
                 except DeepAnalysisRejected as rejection:
                     # The stable machine code drives localized UI copy; the

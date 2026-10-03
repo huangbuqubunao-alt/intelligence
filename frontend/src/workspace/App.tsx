@@ -211,6 +211,16 @@ type DeepAnalysisPayload = {
   evidence_citation_status: string;
   roles: DeepAnalysisRole[];
 };
+type DeepAnalysisRouteState = {
+  route_id: string; provider_id: string; model_id: string;
+  configured: boolean; credential_configured: boolean; reachability: string;
+  contract_capable: boolean; qualification_status: string; production_eligible: boolean;
+};
+type DeepAnalysisPreflight = {
+  execution_id: string; route_id: string; provider_id: string; model_id: string;
+  credential_configured: boolean; qualification_status: string; data_egress_mode: string;
+  cost: { state: "KNOWN" | "ESTIMATED" | "FREE" | "UNKNOWN"; hard_monetary_cap: boolean; input_characters: number };
+};
 type DeepAnalysisState = {
   status: {
     availability: string;
@@ -221,6 +231,8 @@ type DeepAnalysisState = {
     provider_id: string | null;
     qualified: boolean;
     consent_required: boolean;
+    production_eligible?: boolean;
+    routes?: DeepAnalysisRouteState[];
   };
   result: DeepAnalysisPayload | null;
 };
@@ -1591,6 +1603,9 @@ function deepAnalysisReasonCopy(
   // Localize on the stable machine code. Backend English prose is a developer
   // diagnostic and must never be the Chinese product text.
   const byCode: Record<string, string> = {
+    CREDENTIAL_MISSING: "The model is qualified, but its cloud credential is missing. Configure the runtime credential before requesting Deep Analysis.",
+    ROUTE_UNREACHABLE: "The model is qualified, but the provider is currently unreachable. Deep Analysis cannot run until connectivity is restored.",
+    PRODUCTION_ROUTE_UNAVAILABLE: "The model is qualified, but this route cannot execute in the current environment.",
     NO_QUALIFIED_MODEL:
       "Deep Analysis is unavailable because no model is currently qualified for it. Nothing is downgraded silently, and Summary and Evidence stay usable.",
     CONTENT_NOT_FOUND: "This Content is not available.",
@@ -1632,6 +1647,14 @@ function deepAnalysisReasonCopy(
 
 function deepAnalysisRunErrorCopy(reasonCode: string | null, availability: string) {
   // Localize on the stable machine reason_code; never on backend English prose.
+  if (["CREDENTIAL_MISSING", "ROUTE_UNREACHABLE", "PRODUCTION_ROUTE_UNAVAILABLE"].includes(reasonCode ?? "")) return deepAnalysisReasonCopy(availability, reasonCode);
+  const governance: Record<string, string> = {
+    DISPATCH_AMBIGUOUS: "The cloud request may have been processed. It will not be retried automatically. Check the provider before requesting another run.",
+    EXECUTION_ALREADY_DISPATCHED: "This execution has already been dispatched. It will not be charged again.",
+    PREFLIGHT_CHANGED: "The input or route changed. Review a new preflight before authorizing.",
+    COST_ACKNOWLEDGEMENT_REQUIRED: "Acknowledge the unknown cost before authorizing this execution.",
+  };
+  if (reasonCode && governance[reasonCode]) return governance[reasonCode];
   const byCode: Record<string, string> = {
     NO_QUALIFIED_MODEL:
       "Deep Analysis could not run because no model is currently qualified for it.",
@@ -1666,6 +1689,7 @@ function DeepAnalysisStatusLabel({ value }: { value: string }) {
   // localization convention.
   const labels: Record<string, string> = {
     AVAILABLE: "Completed",
+    UNAVAILABLE: "Unavailable",
     NOT_REQUESTED: "Not run yet",
     NOT_QUALIFIED: "Not qualified",
     CONTENT_UNAVAILABLE: "Unavailable",
@@ -1675,6 +1699,24 @@ function DeepAnalysisStatusLabel({ value }: { value: string }) {
     FAILED: "Failed",
   };
   return <>{t(labels[value] ?? value)}</>;
+}
+
+function qualificationCopy(state: string) {
+  const labels: Record<string, string> = {
+    NOT_TESTED: "Qualification not tested", FAILED: "Qualification failed",
+    STALE: "Qualification needs renewal", CONTRACT_VERIFIED: "Fixture contract verified; live qualification missing",
+    QUALIFIED: "Live model qualified", DEVELOPER_INJECTION: "Development fixture route",
+  };
+  return labels[state] ?? "Qualification unavailable";
+}
+function costDisclosureCopy(state: string) {
+  const labels: Record<string, string> = {
+    UNKNOWN: "The monetary cost is unknown. No hard spending cap is enforced.",
+    FREE: "No cloud model charge applies.",
+    ESTIMATED: "The cost is estimated and may change.",
+    KNOWN: "The disclosed cost is known for this execution.",
+  };
+  return labels[state] ?? labels.UNKNOWN;
 }
 
 function DeepAnalysisPanel(
@@ -1689,23 +1731,40 @@ function DeepAnalysisPanel(
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function run() {
+  const [preflight, setPreflight] = useState<DeepAnalysisPreflight | null>(null);
+  const [costAcknowledged, setCostAcknowledged] = useState(false);
+  const [dispatchBlocked, setDispatchBlocked] = useState(false);
+  useEffect(() => { setPreflight(null); setCostAcknowledged(false); setDispatchBlocked(false); }, [videoId]);
+
+  async function run(authorized?: DeepAnalysisPreflight) {
     setBusy(true);
     setActionError(null);
     try {
-      await post(`/videos/${videoId}/deep-analysis`, {});
+      const status = data?.deep_analysis?.status;
+      if (status?.consent_required && !authorized) {
+        const response = await post<{ preflight: DeepAnalysisPreflight }>(`/videos/${videoId}/deep-analysis/preflight`, { route_id: status.route_id });
+        setCostAcknowledged(false);
+        setPreflight(response.preflight);
+        return;
+      }
+      await post(`/videos/${videoId}/deep-analysis`, authorized ? {
+        route_id: authorized.route_id, execution_id: authorized.execution_id,
+        authorize_cloud: true, acknowledge_unknown_cost: costAcknowledged,
+        egress_mode: authorized.data_egress_mode,
+      } : {});
+      setPreflight(null);
       setRefresh((value) => value + 1);
       onCompleted();
     } catch (reason) {
+      setPreflight(null);
       if (reason instanceof ApiRequestError) {
-        setActionError(
-          deepAnalysisRunErrorCopy(
-            reason.details?.reason_code ?? null,
-            reason.details?.availability ?? "",
-          ),
-        );
+        const code = reason.details?.reason_code ?? null;
+        const uncertainDispatch = authorized && !["CLOUD_CONSENT_REQUIRED", "COST_ACKNOWLEDGEMENT_REQUIRED", "PREFLIGHT_CHANGED", "NO_QUALIFIED_MODEL", "CREDENTIAL_MISSING", "ROUTE_UNREACHABLE", "PRODUCTION_ROUTE_UNAVAILABLE"].includes(code ?? "");
+        if (uncertainDispatch || code === "DISPATCH_AMBIGUOUS" || code === "EXECUTION_ALREADY_DISPATCHED") setDispatchBlocked(true);
+        setActionError(deepAnalysisRunErrorCopy(uncertainDispatch ? "DISPATCH_AMBIGUOUS" : code, reason.details?.availability ?? ""));
       } else {
-        setActionError(deepAnalysisRunErrorCopy(null, ""));
+        if (authorized) setDispatchBlocked(true);
+        setActionError(deepAnalysisRunErrorCopy(authorized ? "DISPATCH_AMBIGUOUS" : null, ""));
       }
     } finally {
       setBusy(false);
@@ -1718,7 +1777,7 @@ function DeepAnalysisPanel(
   const result = data?.deep_analysis?.result;
   const durableCitations = result?.evidence_citation_status === "DURABLE_EVIDENCE_VERIFIED";
   const availability = status?.availability ?? "NOT_REQUESTED";
-  const canRun = status?.qualified === true && !busy;
+  const canRun = (status?.production_eligible ?? status?.qualified) === true && !busy && !dispatchBlocked && !preflight;
 
   return (
     <Panel title={t("Deep Analysis")}>
@@ -1783,11 +1842,35 @@ function DeepAnalysisPanel(
           <p>{t(deepAnalysisReasonCopy(availability, status?.reason_code ?? null))}</p>
         </div>
       )}
+      {(status?.routes ?? []).map((route) => (
+        <div className="semantic-state state-neutral" key={route.route_id}>
+          <p>{route.provider_id} · {route.model_id}</p>
+          <p>{t(route.configured ? "Route configured" : "Route not configured")} · {t(route.credential_configured ? "Credential available" : "Credential missing")}</p>
+          <p>{t(route.reachability === "REACHABLE" ? "Provider reachable" : route.reachability === "NOT_CHECKED" ? "Reachability not checked" : "Provider unavailable")}</p>
+          <p>{t(qualificationCopy(route.qualification_status))} · {t(route.production_eligible ? "Eligible for an explicit run" : "Production activation unavailable")}</p>
+        </div>
+      ))}
+      {preflight ? (
+        <div className="semantic-state state-neutral" role="region" aria-label={t("Cloud Deep Analysis preflight")}>
+          <p>{t("You selected a cloud route for this Content.")}</p>
+          <p>{preflight.provider_id} · {preflight.model_id}</p>
+          <p>{t(preflight.credential_configured ? "Credential available" : "Credential missing")} · {t(qualificationCopy(preflight.qualification_status))}</p>
+          <p>{t("Only selected original Evidence leaves this device. Full transcript mode is unavailable.")}</p>
+          <p>{t(costDisclosureCopy(preflight.cost.state))}</p>
+          <p>{t("Input characters")}: {preflight.cost.input_characters}</p>
+          <p>{t("This approval applies only to this execution.")}</p>
+          <label className="deep-analysis-consent"><input type="checkbox" checked={costAcknowledged} onChange={(event) => setCostAcknowledged(event.target.checked)} />{t("I acknowledge the unknown cost for this execution.")}</label>
+          <div className="reading-meta">
+            <button className="button button-primary" type="button" disabled={busy || !costAcknowledged || !preflight.credential_configured || preflight.qualification_status !== "QUALIFIED" || preflight.data_egress_mode !== "SELECTED_EVIDENCE_ONLY"} onClick={() => run(preflight)}>{t("Authorize this cloud run")}</button>
+            <button className="button button-secondary" type="button" disabled={busy} onClick={() => { setPreflight(null); setCostAcknowledged(false); }}>{t("Cancel cloud run")}</button>
+          </div>
+        </div>
+      ) : null}
       <div className="reading-meta">
         <button
           type="button"
           className="button button-primary"
-          onClick={run}
+          onClick={() => run()}
           disabled={!canRun}
         >
           {busy ? t("Working…") : t("Run Deep Analysis")}

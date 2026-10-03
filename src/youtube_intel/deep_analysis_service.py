@@ -30,11 +30,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime, timedelta
 from enum import Enum
+from threading import Lock
 from typing import Any
+from uuid import uuid4
 
+from youtube_intel.analysis import EnvironmentCredentialResolver
 from youtube_intel.deep_analysis_contracts import (
     CanonicalDeepAnalysisInputV1,
     ContextBudgetProfileV1,
@@ -67,7 +70,14 @@ from youtube_intel.deep_analysis_phase1b_contract import (
     PHASE_1B_PROMPT_IDENTITY,
     PHASE_1B_VALIDATION_POLICY,
 )
-from youtube_intel.deep_analysis_runtime import DeepAnalysisRuntime
+from youtube_intel.deep_analysis_qualification import (
+    QualificationAuthority,
+    qualification_digest,
+)
+from youtube_intel.deep_analysis_runtime import (
+    DeepAnalysisRuntime,
+    PreparedDeepAnalysisDispatch,
+)
 from youtube_intel.domain import (
     EvidenceRegistry,
     EvidenceSource,
@@ -83,8 +93,22 @@ from youtube_intel.ollama_deep_analysis import (
     build_ollama_local_phase1a_request_projection,
     build_ollama_local_phase1b_request_projection,
 )
+from youtube_intel.openai_deep_analysis import (
+    OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE,
+    OpenAIDeepAnalysisProviderAdapter,
+    _OpenAITransport,
+    build_openai_phase1b_request_projection,
+    build_openai_reference_context_budget,
+    build_openai_reference_execution_profile,
+    probe_openai_model,
+)
 from youtube_intel.scoring import VerifiedScoringRead
-from youtube_intel.state import SQLiteStateRepository, format_utc_datetime
+from youtube_intel.state import (
+    ProviderCallRequest,
+    ProviderDispatchStatus,
+    SQLiteStateRepository,
+    format_utc_datetime,
+)
 
 #: V1.x Deep Analysis prompt/policy identities.  These are part of the A1/A2
 #: request identity, so changing them cannot alias an older cached result.
@@ -135,10 +159,18 @@ DEFERRED_DEEP_ANALYSIS_ROLES: frozenset[str] = frozenset(
 )
 
 
+class DeepAnalysisCostState(str, Enum):
+    KNOWN = "KNOWN"
+    ESTIMATED = "ESTIMATED"
+    FREE = "FREE"
+    UNKNOWN = "UNKNOWN"
+
+
 class DeepAnalysisAvailability(str, Enum):
     """Truthful availability states for the Deep Analysis action."""
 
     AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
     NOT_REQUESTED = "NOT_REQUESTED"
     NOT_QUALIFIED = "NOT_QUALIFIED"
     CONTENT_UNAVAILABLE = "CONTENT_UNAVAILABLE"
@@ -150,11 +182,11 @@ class DeepAnalysisAvailability(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class DeepAnalysisRoute:
-    """One narrow, explicitly qualified Deep Analysis execution route.
+    """One narrow Deep Analysis candidate with a concrete provider/model profile.
 
     This is deliberately **not** a generic router.  A route is a concrete
-    (provider, model) pairing that has already passed qualification and is
-    pinned by ADR-027 identities.  There is no policy-driven escalation, no
+    (provider, model) pairing pinned by ADR-027 identities. Qualification is
+    granted separately by reviewed Phase 1C authority. There is no escalation, no
     implicit fallback, and no silent local-to-cloud switch.
     """
 
@@ -170,6 +202,11 @@ class DeepAnalysisRoute:
     build_context_budget: Callable[..., ContextBudgetProfileV1]
     input_budget: int
     model_output_schema_identity: str = "v1x-content-deep-analysis-model-output-v1"
+    profile_identity: str = "legacy-developer-injection"
+    configured: Callable[[], bool] = lambda: True
+    reachability: Callable[[], str] = lambda: "REACHABLE"
+    credential_configured: Callable[[], bool] = lambda: True
+    timeout_profile_identity: str | None = None
 
     def describe(self) -> dict[str, object]:
         return {
@@ -225,37 +262,108 @@ def build_local_ollama_phase1b_route(
         route_id="local-ollama-phase1b-dev-test",
         build_request_projection=build_ollama_local_phase1b_request_projection,
         model_output_schema_identity=PHASE_1B_MODEL_SCHEMA,
+        profile_identity=qualification_digest(asdict(OLLAMA_LOCAL_DEEP_ANALYSIS_PROFILE)),
+    )
+
+
+def build_openai_phase1b_route(
+    *, transport: _OpenAITransport | None = None,
+    credential_resolver: Callable[[], str | None] | None = None,
+    reachability: Callable[[], str] | None = None,
+) -> DeepAnalysisRoute:
+    """Reuse the isolated no-retry SDK adapter and committed environment resolver."""
+    resolve = credential_resolver or (lambda: EnvironmentCredentialResolver().resolve("OPENAI_API_KEY"))
+    adapter = OpenAIDeepAnalysisProviderAdapter() if transport is None else OpenAIDeepAnalysisProviderAdapter(transport=transport)
+    profile = OPENAI_DEEP_ANALYSIS_REFERENCE_PROFILE
+    def dispatch(*, prepared_dispatch: PreparedDeepAnalysisDispatch) -> UntrustedDeepAnalysisResponseV1:
+        secret = resolve()
+        if not secret:
+            raise ValueError("credential unavailable")
+        return adapter.dispatch(prepared_dispatch=prepared_dispatch, credential=secret)
+    return DeepAnalysisRoute(
+        route_id="openai-content-deep-analysis-phase1b", provider_kind=profile.provider_kind,
+        provider_id=profile.provider_id, model_id=profile.model_id,
+        qualified_capability_profile_identity=profile.qualified_capability_profile_identity,
+        is_local=False, dispatch=dispatch, build_request_projection=build_openai_phase1b_request_projection,
+        build_execution_profile=build_openai_reference_execution_profile,
+        build_context_budget=build_openai_reference_context_budget, input_budget=8192,
+        model_output_schema_identity=PHASE_1B_MODEL_SCHEMA,
+        profile_identity=qualification_digest(asdict(profile)),
+        configured=lambda: bool(resolve()), credential_configured=lambda: bool(resolve()),
+        reachability=reachability or (lambda: probe_openai_model(resolve())),
+        timeout_profile_identity=profile.timeout_profile_identity,
     )
 
 
 class DeepAnalysisCapability:
-    """Narrow Deep Analysis qualification authority.
+    """One DA capability registry, with an explicit production authority boundary.
 
-    Routes become available only when an explicit qualification record is
-    registered.  There is no generic router and no automatic model search: an
-    empty registry is the correct default and produces a truthful
-    ``NOT_QUALIFIED`` state.
+    The authority-free constructor is the historical *developer injection* seam
+    for Phase 1A/1B fixtures, never used by production composition. A governed
+    registry reports every candidate separately and exposes only eligible routes.
     """
-
-    def __init__(self, routes: tuple[DeepAnalysisRoute, ...] = ()) -> None:
+    def __init__(self, routes: tuple[DeepAnalysisRoute, ...] = (), *,
+                 authority: QualificationAuthority | None = None) -> None:
         identifiers = [route.route_id for route in routes]
         if len(identifiers) != len(set(identifiers)):
-            msg = "Deep Analysis route identities must be unique"
-            raise ValueError(msg)
-        self._routes = routes
+            raise ValueError("Deep Analysis route identities must be unique")
+        self._candidates = routes
+        self.authority = authority
+
+    def route_state(self, route: DeepAnalysisRoute) -> dict[str, object]:
+        try:
+            configured = route.configured()
+            credential = route.is_local or route.credential_configured()
+            live = self.authority is not None and self.authority.qualified(route)
+            reachable = route.reachability() if configured and credential and (route.is_local or live) else "NOT_CHECKED"
+        except Exception:
+            configured, credential, reachable = False, False, "UNREACHABLE"
+        contract = route.model_output_schema_identity == PHASE_1B_MODEL_SCHEMA
+        qualification = self.authority.state(route) if self.authority else "DEVELOPER_INJECTION"
+        qualified = self.authority.qualified(route) if self.authority else False
+        eligible = configured and credential and reachable == "REACHABLE" and contract and qualified
+        reason = ("CREDENTIAL_MISSING" if not credential else "NOT_CONFIGURED" if not configured
+                  else "ROUTE_UNREACHABLE" if reachable == "UNREACHABLE"
+                  else "REACHABILITY_NOT_CHECKED" if reachable != "REACHABLE"
+                  else "CONTRACT_UNSUPPORTED" if not contract
+                  else "QUALIFICATION_" + qualification if not qualified else "PRODUCTION_ELIGIBLE")
+        return {**route.describe(), "configured": configured, "credential_configured": credential,
+                "reachability": reachable, "contract_capable": contract, "qualification_status": qualification,
+                "qualified": qualified, "production_eligible": eligible, "reason_code": reason,
+                "data_egress_mode": "NONE" if route.is_local else "SELECTED_EVIDENCE_ONLY",
+                "cost_state": DeepAnalysisCostState.FREE.value if route.is_local else DeepAnalysisCostState.UNKNOWN.value,
+                "hard_monetary_cap": False}
 
     @property
     def routes(self) -> tuple[DeepAnalysisRoute, ...]:
-        return self._routes
+        if self.authority is None:
+            # Historical fixture execution is local only. Cloud always needs
+            # reviewed qualification, even in an injected product service.
+            return tuple(r for r in self._candidates if r.is_local)
+        return tuple(r for r in self._candidates if self.route_state(r)["production_eligible"])
 
     def local_route(self) -> DeepAnalysisRoute | None:
-        for route in self._routes:
-            if route.is_local:
-                return route
-        return None
+        return next((r for r in self.routes if r.is_local), None)
+
+    def execution_route(self, route_id: str | None = None) -> DeepAnalysisRoute | None:
+        if route_id is not None:
+            return next((r for r in self.routes if r.route_id == route_id), None)
+        return self.local_route() or next(iter(self.routes), None)
 
     def describe(self) -> list[dict[str, object]]:
-        return [route.describe() for route in self._routes]
+        return [self.route_state(route) for route in self._candidates]
+
+
+@dataclass(frozen=True)
+class _CloudPreflight:
+    content_id: str
+    route: DeepAnalysisRoute
+    prepared: PreparedDeepAnalysisDispatch
+    runtime: DeepAnalysisRuntime
+    selected_refs: tuple[str, ...]
+    context_identity: str
+    cost: dict[str, object]
+    expires_at: datetime
 
 
 class DeepAnalysisReasonCode(str, Enum):
@@ -266,6 +374,9 @@ class DeepAnalysisReasonCode(str, Enum):
     """
 
     NO_QUALIFIED_MODEL = "NO_QUALIFIED_MODEL"
+    CREDENTIAL_MISSING = "CREDENTIAL_MISSING"
+    ROUTE_UNREACHABLE = "ROUTE_UNREACHABLE"
+    PRODUCTION_ROUTE_UNAVAILABLE = "PRODUCTION_ROUTE_UNAVAILABLE"
     CONTENT_NOT_FOUND = "CONTENT_NOT_FOUND"
     NOT_REQUESTED = "NOT_REQUESTED"
     RESULT_AVAILABLE = "RESULT_AVAILABLE"
@@ -274,6 +385,10 @@ class DeepAnalysisReasonCode(str, Enum):
     CLOUD_CONSENT_REQUIRED = "CLOUD_CONSENT_REQUIRED"
     VALIDATION_FAILED = "VALIDATION_FAILED"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    PREFLIGHT_CHANGED = "PREFLIGHT_CHANGED"
+    DISPATCH_AMBIGUOUS = "DISPATCH_AMBIGUOUS"
+    EXECUTION_ALREADY_DISPATCHED = "EXECUTION_ALREADY_DISPATCHED"
+    COST_ACKNOWLEDGEMENT_REQUIRED = "COST_ACKNOWLEDGEMENT_REQUIRED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,6 +403,8 @@ class DeepAnalysisStatus:
     provider_id: str | None = None
     qualified: bool = False
     consent_required: bool = False
+    production_eligible: bool = False
+    routes: tuple[dict[str, object], ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -303,6 +420,8 @@ class DeepAnalysisStatus:
             "provider_id": self.provider_id,
             "qualified": self.qualified,
             "consent_required": self.consent_required,
+            "production_eligible": self.production_eligible,
+            "routes": list(self.routes),
         }
 
 
@@ -582,17 +701,24 @@ class DeepAnalysisService:
         # provenance. Phase-1A transitional state is instead derived from the
         # persisted Phase-1A prompt identity (see ``is_phase_1a_result``).
         self._runtime = DeepAnalysisRuntime()
+        self._preflights: dict[str, _CloudPreflight] = {}
+        self._preflight_lock = Lock()
 
     # -- status ------------------------------------------------------------
 
     def capability_report(self) -> dict[str, object]:
         routes = self._capability.describe()
+        qualified = any(r["qualified"] for r in routes)
+        eligible = bool(self._capability.routes)
         return {
-            "qualified": bool(routes),
+            "qualified": qualified,
+            "production_eligible": eligible,
             "routes": routes,
             "reason": (
                 None
-                if routes
+                if eligible
+                else "No production-eligible Deep Analysis route is available."
+                if qualified
                 else "No Deep Analysis model is currently qualified. "
                 "Deep Analysis stays unavailable until one qualifies."
             ),
@@ -608,12 +734,24 @@ class DeepAnalysisService:
                 reason_code=DeepAnalysisReasonCode.CONTENT_NOT_FOUND,
                 reason="Content does not exist.",
             )
-        route = self._capability.local_route()
+        route = self._capability.execution_route()
         if route is None:
+            states = tuple(self._capability.describe())
+            qualified_route = next((r for r in states if r["qualified"]), None)
+            reason = DeepAnalysisReasonCode.NO_QUALIFIED_MODEL
+            if qualified_route is not None:
+                reason = {
+                    "CREDENTIAL_MISSING": DeepAnalysisReasonCode.CREDENTIAL_MISSING,
+                    "ROUTE_UNREACHABLE": DeepAnalysisReasonCode.ROUTE_UNREACHABLE,
+                }.get(str(qualified_route["reason_code"]), DeepAnalysisReasonCode.PRODUCTION_ROUTE_UNAVAILABLE)
             return DeepAnalysisStatus(
-                availability=DeepAnalysisAvailability.NOT_QUALIFIED,
-                reason_code=DeepAnalysisReasonCode.NO_QUALIFIED_MODEL,
+                availability=DeepAnalysisAvailability.UNAVAILABLE if qualified_route else DeepAnalysisAvailability.NOT_QUALIFIED,
+                reason_code=reason,
+                qualified=qualified_route is not None,
+                routes=states,
                 reason=(
+                    "A qualified Deep Analysis route cannot execute in this environment."
+                    if qualified_route is not None else
                     "No Deep Analysis model is currently qualified. "
                     "Deep Analysis is unavailable; Summary and Evidence remain usable."
                 ),
@@ -627,6 +765,9 @@ class DeepAnalysisService:
                 model_id=route.model_id,
                 provider_id=route.provider_id,
                 qualified=True,
+                production_eligible=self._capability.authority is not None,
+                consent_required=not route.is_local,
+                routes=tuple(self._capability.describe()),
             )
         return DeepAnalysisStatus(
             availability=DeepAnalysisAvailability.NOT_REQUESTED,
@@ -635,6 +776,9 @@ class DeepAnalysisService:
             model_id=route.model_id,
             provider_id=route.provider_id,
             qualified=True,
+            production_eligible=self._capability.authority is not None,
+            consent_required=not route.is_local,
+            routes=tuple(self._capability.describe()),
         )
 
     def read(self, *, content_id: str) -> DeepAnalysisResultView | None:
@@ -656,47 +800,14 @@ class DeepAnalysisService:
 
     # -- execution ---------------------------------------------------------
 
-    def run(
-        self, *, content_id: str, cloud_consent: bool = False
-    ) -> DeepAnalysisResultView:
-        """Run Deep Analysis for one Content after an explicit user request.
+    def _reject(self, code: DeepAnalysisReasonCode) -> DeepAnalysisRejected:
+        return DeepAnalysisRejected(DeepAnalysisStatus(
+            availability=DeepAnalysisAvailability.FAILED, reason_code=code,
+            reason="Deep Analysis execution was refused safely.",
+        ))
 
-        The call fails closed with a truthful status rather than dispatching
-        through an unqualified route, omitting a required consent, or degrading
-        Evidence authority.
-        """
-
-        status = self.status(content_id=content_id)
-        if status.availability in {
-            DeepAnalysisAvailability.CONTENT_UNAVAILABLE,
-            DeepAnalysisAvailability.NOT_QUALIFIED,
-        }:
-            raise DeepAnalysisRejected(status)
-        route = self._capability.local_route()
-        if route is None:
-            raise DeepAnalysisRejected(
-                DeepAnalysisStatus(
-                    availability=DeepAnalysisAvailability.NOT_QUALIFIED,
-                    reason_code=DeepAnalysisReasonCode.NO_QUALIFIED_MODEL,
-                    reason="No qualified Deep Analysis route is available.",
-                )
-            )
-        if not route.is_local and not cloud_consent:
-            raise DeepAnalysisRejected(
-                DeepAnalysisStatus(
-                    availability=DeepAnalysisAvailability.CLOUD_CONSENT_REQUIRED,
-                    reason_code=DeepAnalysisReasonCode.CLOUD_CONSENT_REQUIRED,
-                    reason=(
-                        "This route would send bounded data to a cloud provider "
-                        "and requires explicit per-run consent."
-                    ),
-                    route_id=route.route_id,
-                    model_id=route.model_id,
-                    provider_id=route.provider_id,
-                    consent_required=True,
-                )
-            )
-
+    def _prepare(self, content_id: str, route: DeepAnalysisRoute,
+                 authorization_identity: str | None = None) -> tuple[DeepAnalysisRuntime, PreparedDeepAnalysisDispatch, tuple[str, ...]]:
         try:
             read = self._scoring_reader(content_id)
         except Exception:
@@ -786,12 +897,12 @@ class DeepAnalysisService:
                 if route.is_local
                 else PayloadConsentMode.PER_RUN_CLOUD_APPROVAL
             ),
-            authorization_record_identity=f"v1x-deep-analysis-{content_id}-"
-            f"{canonical.a1_identity[:16]}",
+            authorization_record_identity=authorization_identity or (f"v1x-deep-analysis-{content_id}-" f"{canonical.a1_identity[:16]}"),
             named_provider_id=route.provider_id,
             provider_kind=route.provider_kind,
             payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
             allowed_model_constraint=route.model_id,
+            exact_run_nonce_or_null=None if route.is_local else (authorization_identity or "preflight-preview-only"),
         )
         content = self._repository.get_video(content_id)
         payload = runtime.authorize_payload(
@@ -799,13 +910,13 @@ class DeepAnalysisService:
             evidence_registry=registry,
             payload_scope=DeepAnalysisPayloadScope.SELECTED_EVIDENCE_ONLY,
             payload_consent=consent,
-            video_title=(content.title if content and content.title else ""),
+            video_title=(content.title if route.is_local and content and content.title else "Content"),
             channel_name=(
-                content.channel_name if content and content.channel_name else ""
+                content.channel_name if route.is_local and content and content.channel_name else "Source"
             ),
             published_at=(
                 content.published_at.isoformat()
-                if content is not None and content.published_at is not None
+                if route.is_local and content is not None and content.published_at is not None
                 else "UNKNOWN"
             ),
             duration_seconds=0,
@@ -842,7 +953,7 @@ class DeepAnalysisService:
             context_budget_profile=route.build_context_budget(
                 input_budget=route.input_budget
             ),
-            timeout_profile_identity=f"{route.route_id}-timeout-v1",
+            timeout_profile_identity=route.timeout_profile_identity or f"{route.route_id}-timeout-v1",
             # A V1.x Content Deep Analysis run is a single explicit execution:
             # there is no fallback DAG, so the policy identity records "no
             # fallback" rather than describing any escalation plan.
@@ -854,7 +965,128 @@ class DeepAnalysisService:
                 }
             ),
         )
-        response = route.dispatch(prepared_dispatch=prepared)
+        return runtime, prepared, selected_refs
+
+    def _context_identity(self, content_id: str, route: DeepAnalysisRoute) -> str:
+        runtime, prepared, _ = self._prepare(content_id, route)
+        del runtime
+        return self._prepared_context_identity(prepared, route)
+
+    def _prepared_context_identity(self, prepared: PreparedDeepAnalysisDispatch,
+                                   route: DeepAnalysisRoute) -> str:
+        # Compare complete immutable input/request/profile semantics. Normalize
+        # only the consent digest and its derived A2 link, which differ between
+        # the preview nonce and the final per-execution authorization nonce.
+        context = prepared.envelope.model_dump(mode="python")
+        context.pop("payload_consent")
+        context["request_projection"].pop("payload_consent_identity")
+        context["execution_profile"].pop("a2_identity")
+        return qualification_digest({
+            "dispatch_context": context,
+            "route_profile": route.profile_identity,
+            "provider": route.provider_id, "model": route.model_id,
+            "qualification": self._capability.authority.state(route) if self._capability.authority else "DEVELOPER_INJECTION",
+        })
+
+    def preflight(self, *, content_id: str, route_id: str) -> dict[str, object]:
+        route = self._capability.execution_route(route_id)
+        if route is None or route.is_local:
+            status = self.status(content_id=content_id)
+            if route is None and status.availability is DeepAnalysisAvailability.UNAVAILABLE:
+                raise DeepAnalysisRejected(status)
+            raise self._reject(DeepAnalysisReasonCode.NO_QUALIFIED_MODEL)
+        execution_id = uuid4().hex
+        cost: dict[str, object] = {"state": DeepAnalysisCostState.UNKNOWN.value, "hard_monetary_cap": False,
+                                  "amount": None, "currency": None}
+        _, preview, _ = self._prepare(content_id, route)
+        context_identity = self._prepared_context_identity(preview, route)
+        cost["input_characters"] = sum(len(m.content) for m in preview.envelope.request_projection.provider_visible_messages)
+        authorization = qualification_digest({"execution_id": execution_id,
+            "content_id": content_id, "context": context_identity, "cost": cost,
+            "provider": route.provider_id, "model": route.model_id, "operation": "content-deep-analysis",
+            "egress": "SELECTED_EVIDENCE_ONLY"})
+        runtime, prepared, refs = self._prepare(content_id, route, f"phase1c:{execution_id}:{authorization}")
+        if self._prepared_context_identity(prepared, route) != context_identity:
+            raise self._reject(DeepAnalysisReasonCode.PREFLIGHT_CHANGED)
+        entry = _CloudPreflight(content_id, route, prepared, runtime, refs, context_identity, cost, self._clock() + timedelta(minutes=10))
+        with self._preflight_lock:
+            self._preflights = {k: v for k, v in self._preflights.items() if v.expires_at > self._clock()}
+            if len(self._preflights) >= 256:
+                raise self._reject(DeepAnalysisReasonCode.SERVICE_UNAVAILABLE)
+            self._preflights[execution_id] = entry
+        return {"execution_id": execution_id, "content_id": content_id,
+                "provider_id": route.provider_id, "model_id": route.model_id, "route_id": route.route_id,
+                "operation": "content-deep-analysis", "credential_configured": route.credential_configured(),
+                "qualification_status": "QUALIFIED", "data_egress_mode": "SELECTED_EVIDENCE_ONLY",
+                "cost": dict(cost), "consent_required": True, "reason_code": "EXPLICIT_CLOUD_SELECTION",
+                "expires_at": format_utc_datetime(entry.expires_at)}
+
+    def run(self, *, content_id: str, cloud_consent: bool = False,
+            route_id: str | None = None, execution_id: str | None = None,
+            acknowledge_unknown_cost: bool = False, egress_mode: str = "SELECTED_EVIDENCE_ONLY") -> DeepAnalysisResultView:
+        status = self.status(content_id=content_id)
+        route = self._capability.execution_route(route_id)
+        if route is None or status.availability is DeepAnalysisAvailability.CONTENT_UNAVAILABLE:
+            if route is None and status.availability not in {DeepAnalysisAvailability.NOT_QUALIFIED, DeepAnalysisAvailability.UNAVAILABLE, DeepAnalysisAvailability.CONTENT_UNAVAILABLE}:
+                raise self._reject(DeepAnalysisReasonCode.NO_QUALIFIED_MODEL)
+            raise DeepAnalysisRejected(status)
+        if execution_id is not None and (route_id is None or route.is_local):
+            raise self._reject(DeepAnalysisReasonCode.PREFLIGHT_CHANGED)
+        if egress_mode != "SELECTED_EVIDENCE_ONLY":
+            raise self._reject(DeepAnalysisReasonCode.PREFLIGHT_CHANGED)
+        if route.is_local:
+            runtime, prepared, refs = self._prepare(content_id, route)
+            response = route.dispatch(prepared_dispatch=prepared)
+            return self._persist_response(route, runtime, prepared, refs, response)
+        # A bare boolean never authorizes cloud traffic. Preflight binds all data.
+        if cloud_consent is not True or execution_id is None:
+            raise self._reject(DeepAnalysisReasonCode.CLOUD_CONSENT_REQUIRED)
+        if acknowledge_unknown_cost is not True:
+            raise self._reject(DeepAnalysisReasonCode.COST_ACKNOWLEDGEMENT_REQUIRED)
+        with self._preflight_lock:
+            entry = self._preflights.get(execution_id)
+        try:
+            unchanged = (entry is not None and entry.content_id == content_id and entry.route == route
+                         and entry.expires_at > self._clock()
+                         and entry.context_identity == self._context_identity(content_id, route))
+        except Exception:
+            unchanged = False
+        if not unchanged or entry is None:
+            raise self._reject(DeepAnalysisReasonCode.PREFLIGHT_CHANGED)
+        request = ProviderCallRequest(operation="content-deep-analysis-cloud", normalized_input_hash=qualification_digest({"execution_id": execution_id}),
+            provider=route.provider_id, model=route.model_id, prompt_version=PHASE_1B_PROMPT_IDENTITY,
+            schema_version=PHASE_1B_MODEL_SCHEMA, deterministic_artifact_key=f"deep-analysis-cloud/{execution_id}")
+        owner = uuid4().hex
+        now = self._clock()
+        reservation = self._repository.reserve_provider_call(request, owner=owner,
+            lease_until=now+timedelta(minutes=5), available_at=now, now=now, fail_closed_on_ambiguous_dispatch=True)
+        if not reservation.acquired:
+            dispatch = self._repository.get_provider_dispatch(request.request_hash)
+            code = DeepAnalysisReasonCode.EXECUTION_ALREADY_DISPATCHED if dispatch and dispatch.status is ProviderDispatchStatus.SUCCESS_DURABLY_RECORDED else DeepAnalysisReasonCode.DISPATCH_AMBIGUOUS
+            raise self._reject(code)
+        self._repository.record_provider_dispatch_intent(request.request_hash, owner=owner, now=now)
+        try:
+            response = route.dispatch(prepared_dispatch=entry.prepared)
+            self._repository.record_provider_dispatch_result_unknown(request.request_hash, owner=owner, now=self._clock())
+            usage = response.usage_evidence
+            self._repository.record_deep_analysis_usage(request.request_hash, owner=owner,
+                input_tokens=usage.provider_reported_input_tokens if usage else None,
+                output_tokens=usage.provider_reported_output_tokens if usage else None, now=self._clock())
+            result = self._persist_response(route, entry.runtime, entry.prepared, entry.selected_refs, response)
+            self._repository.complete_deep_analysis_dispatch(request.request_hash, owner=owner, result_identity=result.result_identity, authorization_identity=entry.prepared.envelope.payload_consent.authorization_record_identity, now=self._clock())
+            return result
+        except Exception:
+            # Even local parsing/persistence failures cannot trigger a paid retry.
+            try:
+                self._repository.mark_provider_dispatch_ambiguous(request.request_hash, owner=owner, now=self._clock())
+            except Exception:
+                pass  # Durable intent is already fail-closed across restart.
+            raise self._reject(DeepAnalysisReasonCode.DISPATCH_AMBIGUOUS) from None
+
+    def _persist_response(self, route: DeepAnalysisRoute, runtime: DeepAnalysisRuntime,
+                          prepared: PreparedDeepAnalysisDispatch, selected_refs: tuple[str, ...],
+                          response: UntrustedDeepAnalysisResponseV1) -> DeepAnalysisResultView:
+        phase1b = route.model_output_schema_identity == PHASE_1B_MODEL_SCHEMA
         admitted_response = response if phase1b else _map_phase_1a_response(
             response, evidence_refs=selected_refs
         )

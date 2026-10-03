@@ -1410,3 +1410,19 @@ dialog p {
   color: var(--text-muted);
   line-height: 1.55;
 }
+
+/* Keep per-execution consent controls readable beside their disclosure. */
+.deep-analysis-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+}
+.deep-analysis-consent input[type="checkbox"] {
+  flex: 0 0 18px;
+  width: 18px;
+  min-height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--accent);
+}

@@ -2393,3 +2393,70 @@ test("running DA refreshes the existing Content Evidence view", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Run Deep Analysis" }));
   await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/evidence"))).toHaveLength(2));
 });
+
+test.each(["en", "zh-CN"])("%s cloud Deep Analysis discloses cost before consent and denial sends no execution", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  const executions: unknown[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/deep-analysis/preflight")) return response({ preflight: {
+      execution_id: "one-execution", route_id: "cloud-route", provider_id: "openai", model_id: "qualified-model",
+      credential_configured: true, qualification_status: "QUALIFIED", data_egress_mode: "SELECTED_EVIDENCE_ONLY",
+      cost: { state: "UNKNOWN", hard_monetary_cap: false, input_characters: 1234 },
+    } });
+    if (url.endsWith("/deep-analysis") && init?.method === "POST") {
+      executions.push(JSON.parse(String(init.body))); return response({});
+    }
+    if (url.endsWith("/deep-analysis")) return response({ deep_analysis: { status: {
+      availability: "NOT_REQUESTED", qualified: true, production_eligible: true,
+      consent_required: true, route_id: "cloud-route", provider_id: "openai", model_id: "qualified-model",
+    }, result: null } });
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    if (url.endsWith("/evidence")) return response({ evidence: [] });
+    return response({});
+  }));
+  render(<App />);
+  await openDeepAnalysisContent();
+  const runName = language === "en" ? "Run Deep Analysis" : "开始深度分析";
+  fireEvent.click(screen.getByRole("button", { name: runName }));
+  const disclosure = language === "en" ? "The monetary cost is unknown. No hard spending cap is enforced." : "金额费用未知；本次执行没有强制金额上限。";
+  expect(await screen.findByText(disclosure)).toBeTruthy();
+  expect(executions).toHaveLength(0);
+  const authorizeName = language === "en" ? "Authorize this cloud run" : "授权本次云端执行";
+  expect((screen.getByRole("button", { name: authorizeName }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Cancel cloud run" : "取消云端执行" }));
+  expect(executions).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: runName }));
+  await screen.findByText(disclosure);
+  fireEvent.click(screen.getByRole("checkbox", { name: language === "en" ? "I acknowledge the unknown cost for this execution." : "我已知晓本次执行的费用未知。" }));
+  fireEvent.click(screen.getByRole("button", { name: authorizeName }));
+  await waitFor(() => expect(executions).toEqual([{ route_id: "cloud-route", execution_id: "one-execution", authorize_cloud: true, acknowledge_unknown_cost: true, egress_mode: "SELECTED_EVIDENCE_ONLY" }]));
+});
+
+test.each([
+  ["en", "CREDENTIAL_MISSING", "The model is qualified, but its cloud credential is missing. Configure the runtime credential before requesting Deep Analysis."],
+  ["zh-CN", "CREDENTIAL_MISSING", "模型已通过资格评测，但缺少云端凭据。请配置运行时凭据后再请求深度分析。"],
+  ["en", "ROUTE_UNREACHABLE", "The model is qualified, but the provider is currently unreachable. Deep Analysis cannot run until connectivity is restored."],
+  ["zh-CN", "ROUTE_UNREACHABLE", "模型已通过资格评测，但目前无法连接提供方。恢复连接后才能执行深度分析。"],
+])("%s qualified model with %s stays unavailable with a precise explanation", async (language, reason, copy) => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/deep-analysis")) return response({ deep_analysis: { status: {
+      availability: "UNAVAILABLE", reason_code: reason, qualified: true, production_eligible: false,
+      consent_required: true, route_id: null, provider_id: null, model_id: null,
+    }, result: null } });
+    if (url.endsWith("/videos")) return response(daVideoList);
+    if (url.endsWith("/videos/video-1")) return response(daVideoDetail);
+    if (url.endsWith("/evidence")) return response({ evidence: [] });
+    return response({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  await openDeepAnalysisContent();
+  expect(await screen.findByText(copy)).toBeTruthy();
+  expect((screen.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(document.body.textContent).not.toContain("UNAVAILABLE");
+  expect(fetchMock.mock.calls.every(call => !String(call[0]).endsWith("/preflight"))).toBe(true);
+});
