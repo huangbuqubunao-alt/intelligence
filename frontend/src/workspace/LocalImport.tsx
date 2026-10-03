@@ -14,7 +14,7 @@ const errorCopy: Record<string, string> = {
   LOCAL_SOURCE_UNTRUSTED: "The imported snapshot failed verification. Existing Evidence is unavailable.",
 };
 export function localStatus(status: string) {
-  return ({ READY: "Ready", IMPORTED: "Imported", TRANSCRIPTION_UNAVAILABLE: "Local transcription is unavailable", TRANSCRIPTION_FAILED: "Local transcription failed", FAILED: "Import failed", SOURCE_UNAVAILABLE: "Source verification failed" } as Record<string, string>)[status] ?? status;
+  return ({ RUNNING: "Transcribing…", PENDING: "Awaiting transcription", MODEL_MISSING: "Local model is missing", INTERRUPTED: "Transcription was interrupted", READY: "Ready", IMPORTED: "Imported", TRANSCRIPTION_UNAVAILABLE: "Local transcription is unavailable", TRANSCRIPTION_FAILED: "Local transcription failed", FAILED: "Import failed", SOURCE_UNAVAILABLE: "Source verification failed" } as Record<string, string>)[status] ?? status;
 }
 
 type Result = { content_id: string; filename: string; status: string; duplicate: boolean };

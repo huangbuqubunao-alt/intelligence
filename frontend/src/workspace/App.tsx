@@ -1,4 +1,5 @@
 import { LocalImport, localStatus } from "./LocalImport";
+import { LocalTranscription } from "./LocalTranscription";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
@@ -154,6 +155,7 @@ type ContentDetail = {
   video: ContentItem;
   cloud_intelligence_available?: boolean;
   transcript: {
+    timed_segments?: { start_ms: number; end_ms: number; text: string }[];
     status: string;
     text?: string;
     reason?: string;
@@ -1453,6 +1455,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
+  const transcriptionRefreshId = useRef<string | null>(null);
   const [showCloudTerms, setShowCloudTerms] = useState(false);
   const [cloudReview, setCloudReview] = useState<{
     execution_id: string;
@@ -1492,8 +1495,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : null}
       </Panel>
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+        {data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT" && <LocalTranscription id={id} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {transcript.status === "AVAILABLE" && transcript.text
-          ? <div className="transcript-copy">{transcript.text}</div>
+          ? transcript.timed_segments?.length
+            ? <ol className="timed-transcript">{transcript.timed_segments.map((segment, index) => <li key={index}><time>{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
+            : <div className="transcript-copy">{transcript.text}</div>
           : (
             <div className="semantic-state state-neutral">
               <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />

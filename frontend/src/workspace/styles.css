@@ -1505,3 +1505,13 @@ dialog p {
 
 /* Imported filenames and source excerpts remain readable at narrow widths. */
 .dashboard-stack > .panel, .dashboard-stack > .panel > h2 { min-width: 0; overflow-wrap: anywhere; }
+
+.local-transcription { margin-bottom: 1rem; }
+.local-transcription details { margin-top: .75rem; }
+.local-transcription dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: .5rem; }
+.local-transcription dd { margin: 0; overflow-wrap: anywhere; }
+.local-transcription label { display: grid; gap: .5rem; margin: .75rem 0; }
+.local-transcription input { width: 100%; min-width: 0; }
+.timed-transcript { padding-left: 1.5rem; }
+.timed-transcript li { margin-bottom: .75rem; overflow-wrap: anywhere; }
+.timed-transcript time { display: block; font-size: .8rem; opacity: .75; }
