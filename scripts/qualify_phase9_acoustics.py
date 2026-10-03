@@ -16,23 +16,12 @@ import time
 from pathlib import Path
 
 from youtube_intel import offline_transcription as boundary
-from youtube_intel.acoustic_scoring import POLICY, coverage, score, text_units
+from youtube_intel.acoustic_scoring import POLICY, coverage, score, utterance_recalls
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.local_content import LocalContentProvider
 from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.state import SQLiteStateRepository
-
-
-def retained(reference: str, observed: str, language: str) -> float:
-    expected, actual = text_units(reference, language), text_units(observed, language)
-    row = [0] * (len(actual) + 1)
-    for unit in expected:
-        next_row = [0]
-        for i, candidate in enumerate(actual, 1):
-            next_row.append(row[i - 1] + 1 if unit == candidate else max(row[i], next_row[-1]))
-        row = next_row
-    return row[-1] / len(expected)
 
 
 def main() -> None:
@@ -146,9 +135,9 @@ def main() -> None:
             entry["score"] = score(sample["expected"], actual, sample["language"])
             entry["score_repeat_identical"] = entry["score"] == score(sample["expected"], actual, sample["language"])
             entry["coverage"] = coverage([(r["start"], r["end"]) for r in sample["speech_regions"]], [(s["start"], s["end"]) for s in segments])
-            # LCS recall catches complete meaningful utterance omission even when
+            # Global alignment catches complete meaningful utterance omission even when
             # a broad timestamp spans missing speech and aggregate WER is low.
-            recalls = [retained(r["text"], actual, sample["language"]) for r in sample["speech_regions"]]
+            recalls = utterance_recalls([r["text"] for r in sample["speech_regions"]], actual, sample["language"])
             entry["utterance_recall"] = recalls
             entry["no_catastrophic_omission"] = all(r >= 0.5 for r in recalls)
             entry["accuracy_gate"] = entry["score"]["error_rate"] <= (0.20 if sample["language"] == "mixed" else 0.15)

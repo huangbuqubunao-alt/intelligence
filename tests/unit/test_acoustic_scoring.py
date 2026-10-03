@@ -1,6 +1,11 @@
 import pytest
 
-from youtube_intel.acoustic_scoring import coverage, score, text_units
+from youtube_intel.acoustic_scoring import (
+    coverage,
+    score,
+    text_units,
+    utterance_recalls,
+)
 
 
 def test_english_wer_and_repeatability():
@@ -43,3 +48,24 @@ def test_partial_large_gap_in_speech_fails():
 def test_empty_reference_is_not_a_fake_pass():
     with pytest.raises(ValueError):
         score("...", "hello", "en")
+
+
+def test_omitted_section_cannot_borrow_repeated_words_from_other_sections():
+    lines = [
+        "The first section describes a small library beside the river.",
+        "The second section explains how readers find books on the shelves.",
+        "The third section mentions a quiet room for studying history.",
+        "The fourth section describes a map displayed near the entrance.",
+        "The fifth section introduces a calendar of community activities.",
+        "The sixth section explains the rules for returning borrowed books.",
+        "The seventh section describes a table where visitors read newspapers.",
+        "The eighth section mentions a garden with trees and benches.",
+        "The ninth section explains how volunteers organize the collection.",
+        "The tenth section describes an afternoon workshop about writing.",
+    ]
+    actual = " ".join(lines[:7] + lines[8:])
+    # Aggregate WER alone averages the missing meaningful utterance away.
+    assert score(" ".join(lines), actual, "en")["error_rate"] < 0.15
+    recalls = utterance_recalls(lines, actual, "en")
+    assert recalls[7] < 0.5
+    assert utterance_recalls(lines, " ".join(lines), "en") == [1.0] * len(lines)

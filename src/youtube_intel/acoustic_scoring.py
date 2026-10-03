@@ -52,6 +52,41 @@ def score(reference: str, actual: str, language: str) -> dict[str, object]:
     return result
 
 
+def utterance_recalls(references: Sequence[str], actual: str, language: str) -> list[float]:
+    """One global Levenshtein alignment: an observed unit cannot be reused.
+
+    Deterministic ties prefer diagonal, then deletion, then insertion. Report the
+    fraction of exactly matched units in each predeclared meaningful utterance.
+    This catches omitted sections that share boilerplate with retained sections.
+    """
+    groups = [text_units(text, language) for text in references]
+    if not groups or any(not group for group in groups):
+        raise ValueError("nonempty utterance ground truth required")
+    expected = [unit for group in groups for unit in group]
+    observed = text_units(actual, language)
+    matrix = [list(range(len(observed) + 1))]
+    for i, unit in enumerate(expected, 1):
+        row = [i]
+        for j, candidate in enumerate(observed, 1):
+            row.append(min(matrix[-1][j - 1] + (unit != candidate), matrix[-1][j] + 1, row[-1] + 1))
+        matrix.append(row)
+    matched = [False] * len(expected)
+    i, j = len(expected), len(observed)
+    while i or j:
+        if i and j and matrix[i][j] == matrix[i - 1][j - 1] + (expected[i - 1] != observed[j - 1]):
+            matched[i - 1] = expected[i - 1] == observed[j - 1]
+            i, j = i - 1, j - 1
+        elif i and matrix[i][j] == matrix[i - 1][j] + 1:
+            i -= 1
+        else:
+            j -= 1
+    recalls, cursor = [], 0
+    for group in groups:
+        recalls.append(sum(matched[cursor:cursor + len(group)]) / len(group))
+        cursor += len(group)
+    return recalls
+
+
 def coverage(
     speech_regions: Sequence[tuple[float, float]],
     segments: Sequence[tuple[float, float]],

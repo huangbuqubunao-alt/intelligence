@@ -133,7 +133,7 @@ def current_tuple(model: Path, identity: str, origin: dict[str, JsonValue]) -> d
         "preprocessing_tools": tools,
         # Bind implementation changes even when a developer forgets a version bump.
         "implementation": {
-            **{name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in ("offline_whisper_worker.py", "local_content.py", "source_authority.py", "acoustic_scoring.py")},
+            **{name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in ("offline_whisper_worker.py", "local_content.py", "source_authority.py", "acoustic_scoring.py", "acoustic_qualification.py")},
             **{function.__qualname__: hashlib.sha256(inspect.getsource(function).encode()).hexdigest() for function in (MlxTimedExecutor.transcribe, MlxTimedExecutor._command, MlxTimedExecutor._env, validate_result, model_identity, TimedTranscriptCueWrite)},
         },
     }
