@@ -79,6 +79,7 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
       <button className="button button-secondary" disabled={busy} onClick={() => void run(result.packet.question, result.packet.scope.map(item => item.content_id))}>{t(busy ? "Assembling library packet…" : "Assemble again")}</button>
     </>}
     {!creating && activeId && <ResearchHistory key={`${activeId}:${revision}`} researchId={activeId} onOpen={id => {
+      if (id === historicalId) return;
       setHistoricalId(id); setResult(null); setError(null); location.hash = `Research/${activeId}/history/${id}`;
     }} />}
     {!creating && !activeId && <section className="panel" aria-label={t("Current Research items")}>

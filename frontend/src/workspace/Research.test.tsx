@@ -193,3 +193,16 @@ it("never displays an unavailable historical packet or raw diagnostics", async (
   expect(screen.queryByText("Original authority.")).toBeNull();
   expect(document.body.textContent).not.toMatch(/UNTRUSTED|RESEARCH_CORRUPTED_RESULT/);
 });
+
+it("keeps the loaded packet when reopening the already selected History entry", async () => {
+  const id = "b".repeat(64);
+  location.hash = `Research/${packet.research_id}/history/${id}`;
+  setup(path => path.endsWith("/history") ? {
+    revisions: [{ revision_id: id, assembled_at: packet.assembled_at, question: packet.question, output_language: "en", scope_count: 1, evidence_count: 1, intelligence_count: 0, status: "EVIDENCE_AVAILABLE" }],
+    current_revision_id: "r", current_available: true, unavailable_count: 0, has_more: false, next_cursor: null, limit: 25,
+  } : undefined);
+  await screen.findByText("Original authority.");
+  fireEvent.click(await screen.findByRole("button", { name: /Open previous version/ }));
+  expect(screen.getByText("Original authority.")).toBeTruthy();
+  expect(screen.queryByText("Verifying saved Research…")).toBeNull();
+});

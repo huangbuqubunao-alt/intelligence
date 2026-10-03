@@ -41,6 +41,9 @@ try {
       await page.locator(".research-history-list button").first().click();
       await page.getByRole("heading", { name: text("Previous Research version", "研究历史版本"), exact: true }).waitFor();
       const historicalRoute = page.url();
+      const loadedPacket = await page.locator(".research-result").innerText();
+      await page.locator(".research-history-list button").first().click();
+      assert.equal(await page.locator(".research-result").innerText(), loadedPacket);
       await page.reload();
       await page.getByRole("heading", { name: text("Previous Research version", "研究历史版本"), exact: true }).waitFor();
       assert.equal(page.url(), historicalRoute);
