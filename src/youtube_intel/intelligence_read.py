@@ -36,7 +36,11 @@ _MINT_SENTINEL: Final = object()
 
 
 class VerifiedIntelligenceRead:
-    """A sealed, validated current read minted only by this module."""
+    """A sealed, validated revision read minted only by this module.
+
+    Current consumers use read_current; recorded snapshots use the explicitly
+    named read_recorded_card and must present the recorded state as historical.
+    """
 
     __slots__ = (
         "_claim_kind",
@@ -156,7 +160,44 @@ class AuthoritativeIntelligenceReader:
     def read_current_card(self, intelligence_id: str) -> IntelligenceCard:
         """Return persisted card content only after minting the trusted revision read."""
 
-        verified = self.read_current(intelligence_id)
+        return self._read_card(self.read_current(intelligence_id))
+
+    def read_recorded_card(self, intelligence_id: str, revision_id: str) -> IntelligenceCard:
+        """Reverify an admitted snapshot without relabeling its state as current.
+
+        Research execution provenance may outlive a later Intelligence revision.
+        This does not expose a History API or restore invalidated claims as current.
+        """
+        try:
+            intelligence = self._repository.get_intelligence(intelligence_id)
+            revisions = self._repository.list_intelligence_revisions(intelligence_id)
+            revision = next((r for r in revisions if r.revision_id == revision_id), None)
+            if revision is None or intelligence.current_revision_id is None:
+                raise IntelligenceReadRejected("REVISION_INVALID", "recorded revision is unavailable")
+            current = next((r for r in revisions if r.revision_id == intelligence.current_revision_id), None)
+            if current is None or current.revision_number != max(r.revision_number for r in revisions):
+                raise IntelligenceReadRejected("CURRENT_POINTER_INVALID", "current revision pointer is invalid")
+            state = self._validate_history(revision, revisions)
+            if revision.claim_kind is IntelligenceClaimKind.UNCLASSIFIED or state.state in {
+                IntelligenceState.INVALIDATED, IntelligenceState.OVERTURNED,
+            }:
+                raise IntelligenceReadRejected("CURRENT_NOT_ACTIVE", "recorded revision was not active")
+            evidence_ids = self._repository.list_intelligence_revision_evidence(revision_id)
+            if not evidence_ids or state.evidence_id not in evidence_ids:
+                raise IntelligenceReadRejected("EVIDENCE_MISSING", "recorded evidence is unavailable")
+            self._validate_evidence_dependency_edges(revision_id, evidence_ids)
+            self._validate_evidence(evidence_ids)
+            verified = VerifiedIntelligenceRead(
+                _sentinel=_MINT_SENTINEL, intelligence_id=intelligence_id, revision_id=revision_id,
+                claim_kind=revision.claim_kind, state=state.state, evidence_ids=evidence_ids,
+            )
+            return self._read_card(verified)
+        except IntelligenceReadRejected:
+            raise
+        except (AttributeError, StateStoreError, ValueError) as error:
+            raise IntelligenceReadRejected("PERSISTENCE_INVALID", "recorded card is invalid") from error
+
+    def _read_card(self, verified: VerifiedIntelligenceRead) -> IntelligenceCard:
         try:
             revision = self._repository.get_intelligence_revision(verified.revision_id)
             card = self._repository.get_distillation_card(verified.revision_id)

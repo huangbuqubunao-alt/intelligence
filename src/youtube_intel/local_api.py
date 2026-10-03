@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
 import threading
 from collections.abc import Mapping
 from dataclasses import asdict
@@ -14,6 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Callable, Final, cast
 from urllib.parse import parse_qs, urlparse
+
+from pydantic import ValidationError
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
@@ -57,6 +60,8 @@ from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
+from youtube_intel.research_contract import ResearchRequest
+from youtube_intel.research_lite import ResearchLiteService, ResearchRejected
 from youtube_intel.saved_intelligence import (
     SavedIntelligenceItem,
     SavedIntelligenceService,
@@ -476,6 +481,7 @@ class LocalApiApplication:
         self._knowledge_delta_service = KnowledgeDeltaService(
             repository, now=self._now, timezone=timezone
         )
+        self._research_service = ResearchLiteService(repository, now=self._now)
         self._source_run_wakeup = source_run_wakeup
         self._local_distillation_available = local_distillation_available
         self._analysis_reader = analysis_reader
@@ -623,6 +629,8 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if route == "/api/v1/research" or route.startswith("/api/v1/research/"):
+                return self._research_route(method, path, body)
             if method == "GET" and route == "/api/v1/backup-restore/status":
                 if self._backup_restore_service is None:
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
@@ -1374,6 +1382,46 @@ class LocalApiApplication:
                 "VALIDATION_ERROR",
                 "Request values are invalid or unavailable.",
             ) from error
+
+    def _research_route(self, method: str, path: str, body: bytes) -> tuple[int, dict[str, object]]:
+        parsed = urlparse(path)
+        route = parsed.path.rstrip("/")
+        try:
+            if method == "POST" and route == "/api/v1/research":
+                data = self._body(body)
+                try:
+                    request = ResearchRequest.model_validate(data)
+                except ValidationError as error:
+                    fields = {e["loc"][0] for e in error.errors() if e["loc"]}
+                    code = "RESEARCH_INVALID_QUESTION" if "question" in fields else (
+                        "RESEARCH_EMPTY_SCOPE" if data.get("content_ids") == [] else "RESEARCH_INVALID_SCOPE"
+                    )
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, code, "Research input is invalid.") from None
+                result = self._research_service.assemble(request, output_language=self._output_language_service.effective().value)
+                return HTTPStatus.CREATED, {"research": result.as_dict()}
+            if method == "GET" and route == "/api/v1/research/capability":
+                return HTTPStatus.OK, {"capability": {"mode": "DETERMINISTIC_LIBRARY_PACKET", "scope_types": ["SELECTED_CONTENT"], "synthesis_status": "UNSUPPORTED_MODEL_SYNTHESIS", "provider_dispatch": False}}
+            if method == "GET" and route in {"/api/v1/research", "/api/v1/research/scope"}:
+                params = parse_qs(parsed.query, keep_blank_values=True)
+                if set(params) - {"offset", "query"} or any(len(v) != 1 for v in params.values()):
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESEARCH_INVALID_SCOPE", "Invalid Research pagination.")
+                try:
+                    offset = int(params.get("offset", ["0"])[0])
+                except ValueError:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESEARCH_INVALID_SCOPE", "Invalid Research pagination.") from None
+                query = params.get("query", [""])[0]
+                if offset < 0 or offset > 10000 or len(query) > 120:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESEARCH_INVALID_SCOPE", "Research retrieval is bounded.")
+                projection = self._research_service.scope_options(query=query, offset=offset) if route.endswith("/scope") else self._research_service.list_current(offset=offset)
+                return HTTPStatus.OK, projection
+            if method == "GET" and re.fullmatch(r"/api/v1/research/[a-f0-9]{64}", route):
+                return HTTPStatus.OK, {"research": self._research_service.read(route.rsplit("/", 1)[1]).as_dict()}
+            raise ApiError(HTTPStatus.NOT_FOUND, "RESEARCH_NOT_FOUND", "Research route was not found.")
+        except ResearchRejected as error:
+            status = HTTPStatus.NOT_FOUND if error.code in {"RESEARCH_NOT_FOUND", "RESEARCH_SCOPE_NOT_FOUND"} else HTTPStatus.CONFLICT
+            raise ApiError(status, error.code, "Research could not be read or assembled.") from None
+        except (sqlite3.Error, OSError) as error:
+            raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "RESEARCH_EXECUTION_FAILED", "Research library access failed.") from error
 
     def _require_backup_restore(self) -> BackupRestoreService:
         if self._backup_restore_service is None:

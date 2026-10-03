@@ -13,12 +13,11 @@ NOW = datetime(2026, 10, 2, tzinfo=UTC)
 
 def test_upgrade_028_retry_and_authority_constraints(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    migrations = repository._load_migrations()
+    migrations = tuple(m for m in repository._load_migrations() if m.version <= 30)
     assert [m.version for m in migrations] == [*range(1, 29), 30]
-    original_loader = repository._load_migrations
     repository._load_migrations = lambda: migrations[:-1]
     assert repository.initialize(now=NOW).version == 28
-    repository._load_migrations = original_loader
+    repository._load_migrations = lambda: migrations
     assert repository.initialize(now=NOW).version == 30
     assert repository.initialize(now=NOW).version == 30
     with repository._connect() as connection:
@@ -41,7 +40,7 @@ def test_failed_030_leaves_028_schema_and_history_unchanged(tmp_path: Path, monk
     from youtube_intel.state import MigrationError
 
     repository = SQLiteStateRepository(tmp_path / "rollback.sqlite3")
-    migrations = repository._load_migrations()
+    migrations = tuple(m for m in repository._load_migrations() if m.version <= 30)
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:-1])
     repository.initialize(now=NOW)
     with repository._connect() as connection:
@@ -75,7 +74,7 @@ def test_real_phase1a_row_remains_readable_without_backfill_after_upgrade(tmp_pa
     row.pop("persistence_version")
     row.pop("durable_authority_identity")
     repository = SQLiteStateRepository(tmp_path / "legacy.sqlite3")
-    migrations = repository._load_migrations()
+    migrations = tuple(m for m in repository._load_migrations() if m.version <= 30)
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations[:-1])
     repository.initialize(now=NOW)
     activation._seed_content(repository, "video-1")

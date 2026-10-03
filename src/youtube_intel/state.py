@@ -1709,6 +1709,7 @@ class SQLiteStateRepository:
             "027_add_moonshot_cloud_execution_audit.sql",
             "028_add_cloud_response_failure_ledger.sql",
             "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -7007,22 +7008,32 @@ class SQLiteStateRepository:
         observe the uncommitted writes of the surrounding transaction.
         """
         row = connection.execute(
-            "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
+            "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, a.video_id AS artifact_video_id, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id WHERE e.evidence_id = ?",
             (evidence_id,),
         ).fetchone()
-        if (
-            row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
-            or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
-            or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
-            or row["timed_transcript_hash"] != row["actual_timed_hash"]
-            or _sha256_text(str(row["excerpt"])) != row["excerpt_hash"]
-        ):
+        if row is None:
             return None
         cues = connection.execute(
             "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash FROM timed_transcript_cues WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? ORDER BY cue_index ASC",
             (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"],
             ),
         ).fetchall()
+        return self._verified_evidence_text_from_rows(row, cues)
+
+    @staticmethod
+    def _verified_evidence_text_from_rows(
+        row: sqlite3.Row | None, cues: list[sqlite3.Row]
+    ) -> VerifiedEvidenceText | None:
+        """One validation implementation for single and bounded batch reads."""
+        if (
+            row is None or row["availability"] != EvidenceAvailability.AVAILABLE.value
+            or row["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value or row["deleted_at"] is not None
+            or row["video_id"] != row["artifact_video_id"]
+            or row["video_id"] != row["timed_video_id"] or row["artifact_id"] != row["canonical_artifact_id"]
+            or row["timed_transcript_hash"] != row["actual_timed_hash"]
+            or _sha256_text(str(row["excerpt"])) != row["excerpt_hash"]
+        ):
+            return None
         if (
             len(cues) != row["end_cue_index"] - row["start_cue_index"] or not cues
             or cues[0]["start_ms"] != row["start_ms"] or cues[-1]["end_ms"] != row["end_ms"]
@@ -7032,6 +7043,44 @@ class SQLiteStateRepository:
             return None
         return VerifiedEvidenceText(evidence_id=str(row["evidence_id"]), video_id=str(row["video_id"]), timed_transcript_id=str(row["timed_transcript_id"]), timed_transcript_hash=str(row["actual_timed_hash"]), start_ms=int(row["start_ms"]), end_ms=int(row["end_ms"]), excerpt=str(row["excerpt"]), excerpt_hash=str(row["excerpt_hash"]),
         )
+
+    def resolve_verified_evidence_text_batch_in_transaction(
+        self, connection: sqlite3.Connection, evidence_ids: tuple[str, ...]
+    ) -> dict[str, VerifiedEvidenceText]:
+        """Resolve <=24 bounded excerpts in two queries through the shared validator.
+
+        No new Evidence authority. Invalid/missing entries remain absent and the
+        Research caller must fail closed if any requested reference is absent.
+        """
+        if not evidence_ids:
+            return {}
+        if len(evidence_ids) > 24 or len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("Evidence batch must contain <=24 unique ids")
+        marks = ",".join("?" for _ in evidence_ids)
+        rows = connection.execute(
+            'SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, a.kind, a.deleted_at, a.video_id AS artifact_video_id, b.timed_transcript_id, b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash FROM evidence e JOIN artifacts a ON a.artifact_id = e.artifact_id JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id' + f" WHERE e.evidence_id IN ({marks})",
+            evidence_ids,
+        ).fetchall()
+        if any(len(str(r["excerpt"])) > 4000 or r["end_cue_index"] - r["start_cue_index"] > 4000 for r in rows):
+            return {}
+        cues = connection.execute(
+            "SELECT b.evidence_id,c.cue_index,c.start_ms,c.end_ms,c.cue_text,c.cue_text_hash "
+            "FROM timed_transcript_cues c JOIN evidence_text_bindings b "
+            "ON c.timed_transcript_id=b.timed_transcript_id AND c.cue_index>=b.start_cue_index "
+            f"AND c.cue_index<b.end_cue_index WHERE b.evidence_id IN ({marks}) "
+            "ORDER BY b.evidence_id,c.cue_index LIMIT 96001", evidence_ids,
+        ).fetchall()
+        if len(cues) > 96000:
+            return {}
+        by_id: dict[str, list[sqlite3.Row]] = {}
+        for cue in cues:
+            by_id.setdefault(cue["evidence_id"], []).append(cue)
+        result = {}
+        for row in rows:
+            verified = self._verified_evidence_text_from_rows(row, by_id.get(row["evidence_id"], []))
+            if verified is not None:
+                result[verified.evidence_id] = verified
+        return result
 
     def get_verified_timed_transcript(
         self, *, video_id: str

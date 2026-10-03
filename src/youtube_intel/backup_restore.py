@@ -30,11 +30,12 @@ from .evidence_translation import (
     EvidenceTranslationPresentationService,
     EvidenceTranslator,
 )
+from .research_lite import RESEARCH_AUTHORITY_TABLES, ResearchLiteService
 from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 30
+LATEST_SCHEMA_VERSION = 31
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -87,7 +88,9 @@ _REQUIRED_TABLES = {
     "distillation_moonshot_unidentified_http_responses",
     "distillation_cloud_response_failures",
     "evidence_translation_presentations",
-} | DEEP_ANALYSIS_AUTHORITY_TABLES
+    "intelligence_revisions", "intelligence_revision_evidence",
+    "intelligence_state_history", "distillation_cards", "dependency_edges", "source_video_links",
+} | DEEP_ANALYSIS_AUTHORITY_TABLES | RESEARCH_AUTHORITY_TABLES
 
 
 class BackupRestoreError(ValueError):
@@ -1004,6 +1007,10 @@ class BackupRestoreService:
             raise BackupRestoreError("SQLite migration history is incompatible.") from error
         if len(history) != len(migrations):
             raise BackupRestoreError("SQLite migration history is incomplete.")
+        try:
+            ResearchLiteService(repository).verify_schema(connection)
+        except Exception as error:
+            raise BackupRestoreError("Research persistence constraints are incompatible.") from error
         membership_columns = tuple(
             (row[1], row[2], row[3], row[5])
             for row in connection.execute("PRAGMA table_info(deep_analysis_evidence)")
@@ -1033,6 +1040,10 @@ class BackupRestoreService:
         # Reverify every result and its complete membership graph on the staged
         # snapshot, before any live state is replaced. Legacy rows remain legacy.
         deep_analysis = DeepAnalysisPersistenceStore(repository)
+        try:
+            ResearchLiteService(repository).verify_database(connection)
+        except Exception as error:
+            raise BackupRestoreError("Research provenance failed validation.") from error
         try:
             for result in connection.execute("SELECT * FROM deep_analysis_persisted_results"):
                 deep_analysis._verify_row(result, connection)
