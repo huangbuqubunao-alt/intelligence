@@ -1715,10 +1715,18 @@ const daResult = {
 
 function stubDeepAnalysis(
   state: { status: Record<string, unknown>; result: unknown },
-  options: { onPost?: () => void } = {},
+  options: { onPost?: () => void; publishState?: string; publishError?: string; publishResult?: string } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : String(input);
+    if (url.endsWith("/deep-analysis/obsidian")) {
+      if (init?.method === "POST") {
+        return Promise.resolve({ ok: !options.publishError, json: async () => (options.publishError
+          ? { error: { code: options.publishError, message: "Raw backend English failure" } }
+          : { publish: { state: "PUBLISHED", relative_path: `Deep Analysis/${"a".repeat(240)}.md` } }) });
+      }
+      return response({ publish: { state: options.publishState ?? "AVAILABLE", result_identity: options.publishResult ?? "result-1" } });
+    }
     if (init?.method === "POST") {
       options.onPost?.();
       return response({ deep_analysis: { result: state.result } });
@@ -1774,6 +1782,50 @@ test("Deep Analysis is a Content-level action and adds no top-level navigation",
     }),
   ).toHaveLength(6);
   expect(screen.queryByRole("button", { name: "Deep Analysis" })).toBeNull();
+});
+
+test.each(["en", "zh-CN"])("Obsidian publish is explicit and localized in %s even with generation unqualified", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetchMock = stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: { ...daResult, evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED" } });
+  render(<App />);
+  await openDeepAnalysisContent();
+  const button = await screen.findByRole("button", { name: language === "en" ? "Publish to Obsidian" : "发布到 Obsidian" });
+  await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  fireEvent.click(button);
+  expect(await screen.findByText(language === "en" ? "Published to Obsidian." : "已发布到 Obsidian。", { exact: false })).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith("/api/v1/videos/video-1/deep-analysis/obsidian", expect.objectContaining({ method: "POST", body: JSON.stringify({ result_identity: "result-1" }) }));
+});
+
+test.each(["NO_VAULT", "RESULT_INELIGIBLE"])("Obsidian %s state disables publish without raw backend prose", async (state) => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: daResult }, { publishState: state });
+  render(<App />);
+  await openDeepAnalysisContent();
+  const button = await screen.findByRole("button", { name: "发布到 Obsidian" });
+  expect(button.hasAttribute("disabled")).toBe(true);
+  expect(await screen.findByText(state === "NO_VAULT" ? "尚未配置 Obsidian 笔记库。" : "仅经过核验的持久化深度分析结果可以发布。")).toBeTruthy();
+});
+
+test("Obsidian write failure is localized in Chinese", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: { ...daResult, evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED" } }, { publishError: "WRITE_FAILED" });
+  render(<App />);
+  await openDeepAnalysisContent();
+  const button = await screen.findByRole("button", { name: "发布到 Obsidian" });
+  await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+  fireEvent.click(button);
+  expect(await screen.findByText("写入未完成。请检查笔记库权限、路径或文件冲突后重试。")).toBeTruthy();
+  expect(screen.queryByText("Raw backend English failure")).toBeNull();
+});
+
+test("Obsidian stale displayed result is disabled with a truthful localized state", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  stubDeepAnalysis({ status: { availability: "AVAILABLE", qualified: false }, result: { ...daResult, evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED" } }, { publishResult: "newer-result" });
+  render(<App />);
+  await openDeepAnalysisContent();
+  expect(await screen.findByText("深度分析结果已更新。请重新打开此内容后再发布。")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "发布到 Obsidian" }).hasAttribute("disabled")).toBe(true);
 });
 
 test("Deep Analysis is unavailable and honest when no model is qualified", async () => {

@@ -14,6 +14,8 @@ from typing import Protocol
 
 import yaml  # type: ignore[import-untyped]
 
+from youtube_intel.deep_analysis_note import render_deep_analysis_note
+from youtube_intel.deep_analysis_persistence import VerifiedPersistedDeepAnalysisRead
 from youtube_intel.domain import (
     AnalysisOutcome,
     AppError,
@@ -31,6 +33,8 @@ from youtube_intel.domain import (
 from youtube_intel.notes import (
     NoteRenderingError,
     RenderedVideoNote,
+    _validate_marker_shape,
+    build_video_note_filename,
     is_video_note_candidate,
     render_video_note,
 )
@@ -115,6 +119,67 @@ class ObsidianNoteSink(KnowledgeSink):
         self._vault_subdir = _safe_subdir(vault_subdir)
         self._repository = repository
         self._context = context
+
+    def upsert_deep_analysis_note(
+        self, source: VerifiedPersistedDeepAnalysisRead, *, title: str
+    ) -> tuple[NoteRef, str]:
+        """Explicit projection only; never advance a job or mutate authority."""
+        try:
+            rendered = render_deep_analysis_note(source, title=title)
+            desired = rendered.content.encode("utf-8")
+            identity = rendered.relative_path.rsplit("--", 1)[1].removesuffix(".md")
+            suffix = f"--{identity}.md"
+            opened = self._open_videos_dir(directory="Deep Analysis")
+            try:
+                root_fd, subdir_fd, directory_fd = opened
+                candidates = sorted(name for name in os.listdir(directory_fd) if name.casefold().endswith(suffix))
+                if len(candidates) > 1:
+                    raise _failure(ErrorCode.INVALID_RESPONSE, "multiple notes claim this Deep Analysis", None)
+                filename = candidates[0] if candidates else rendered.relative_path.removeprefix("Deep Analysis/")
+                base = filename.rsplit("--", 1)[0]
+                safe_filename = build_video_note_filename(base, "deep-analysis").removesuffix("--deep-analysis.md") + suffix
+                if filename != safe_filename:
+                    raise _failure(ErrorCode.INVALID_RESPONSE, "Deep Analysis note filename is unsafe", None)
+                existing = _read_regular_file(directory_fd, filename)
+                if existing is not None:
+                    _validate_managed_note(existing.content, source.canonical_input.video_identity)
+                    metadata = yaml.safe_load(existing.content.decode().split("---\n", 2)[1])
+                    expected_metadata = {
+                        "type": NoteKind.DEEP_ANALYSIS.value,
+                        "producer": "youtube-intel",
+                        "schema_version": "deep-analysis-obsidian-v1",
+                        "note_identity": identity,
+                        "content_identity": source.canonical_input.video_identity,
+                        "output_language": source.canonical_input.output_language,
+                        "knowledge_content_schema_identity": source.request_projection.knowledge_content_schema_identity,
+                    }
+                    if any(metadata.get(key) != value for key, value in expected_metadata.items()):
+                        raise _failure(ErrorCode.INVALID_RESPONSE, "Deep Analysis note ownership conflicts", None)
+                    desired = _merge_user_region(existing=existing.content, rendered=desired, video_id=source.canonical_input.video_identity)
+                changed = existing is None or existing.content != desired
+                if changed:
+                    _atomic_replace(directory_fd, filename, desired, expected=existing)
+                reopened = self._open_videos_dir(create_videos=False, directory="Deep Analysis")
+                try:
+                    if tuple((os.fstat(fd).st_dev, os.fstat(fd).st_ino) for fd in opened) != tuple((os.fstat(fd).st_dev, os.fstat(fd).st_ino) for fd in reopened):
+                        raise _failure(ErrorCode.INVALID_RESPONSE, "vault directory changed during note write", None)
+                finally:
+                    for fd in reversed(reopened):
+                        os.close(fd)
+                return NoteRef(
+                    kind=NoteKind.DEEP_ANALYSIS,
+                    relative_path=f"Deep Analysis/{filename}",
+                    content_hash=hashlib.sha256(desired).hexdigest(),
+                ), "PUBLISHED" if existing is None else "UPDATED" if changed else "UNCHANGED"
+            finally:
+                for fd in reversed(opened):
+                    os.close(fd)
+        except NotePersistenceError:
+            raise
+        except OSError as error:
+            raise _failure(_filesystem_error_code(error), "Deep Analysis persistence failed", None) from None
+        except (ValueError, UnicodeError, yaml.YAMLError):
+            raise _failure(ErrorCode.INVALID_RESPONSE, "Deep Analysis note is invalid", None) from None
 
     def _upsert_video_note(
         self,
@@ -342,26 +407,26 @@ class ObsidianNoteSink(KnowledgeSink):
             raise _failure(ErrorCode.INVALID_RESPONSE, "managed note identity conflicts", video_id)
         return candidate
 
-    def _open_videos_dir(self, *, create_videos: bool = True) -> tuple[int, int, int]:
+    def _open_videos_dir(self, *, create_videos: bool = True, directory: str = "Videos") -> tuple[int, int, int]:
         if not self._vault_root.is_absolute():
             raise _failure(ErrorCode.CONFIG_INVALID, "vault root must be absolute", None)
         root_fd = _open_directory(self._vault_root)
+        subdir_fd = os.dup(root_fd)
         try:
-            subdir_fd = root_fd
             for part in self._vault_subdir.parts:
                 next_fd = _open_directory_at(subdir_fd, part)
-                if subdir_fd != root_fd:
-                    os.close(subdir_fd)
+                os.close(subdir_fd)
                 subdir_fd = next_fd
             try:
-                videos_fd = _open_directory_at(subdir_fd, "Videos")
+                videos_fd = _open_directory_at(subdir_fd, directory)
             except FileNotFoundError:
                 if not create_videos:
                     raise
-                os.mkdir("Videos", mode=0o700, dir_fd=subdir_fd)
-                videos_fd = _open_directory_at(subdir_fd, "Videos")
+                os.mkdir(directory, mode=0o700, dir_fd=subdir_fd)
+                videos_fd = _open_directory_at(subdir_fd, directory)
             return root_fd, subdir_fd, videos_fd
         except Exception:
+            os.close(subdir_fd)
             os.close(root_fd)
             raise
 
@@ -490,6 +555,10 @@ def _validate_managed_note(content: bytes, video_id: str) -> None:
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note is not valid UTF-8", video_id) from None
     if "\r" in text:
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id)
+    try:
+        _validate_marker_shape(text)
+    except NoteRenderingError:
+        raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id) from None
     markers = (_MANAGED_START, _MANAGED_END, _USER_START, _USER_END)
     if any(text.count(marker) != 1 for marker in markers):
         raise _failure(ErrorCode.INVALID_RESPONSE, "managed note markers are invalid", video_id)
@@ -514,6 +583,7 @@ def _atomic_replace(
     expected: _ExistingFile | None,
 ) -> None:
     temporary = f".youtube-intel-{secrets.token_hex(16)}.tmp"
+    previous = f"{temporary}.previous"
     fd: int | None = None
     try:
         fd = os.open(
@@ -539,13 +609,38 @@ def _atomic_replace(
             or current.content != expected.content
         ):
             raise _failure(ErrorCode.INVALID_RESPONSE, "managed note changed during write", None)
-        os.replace(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        if expected is None:
+            # Atomic no-replace publication closes the check→replace window
+            # where a newly-created unrelated user file could be overwritten.
+            os.link(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+        else:
+            # Keep the prior inode until the directory commit is durable. A
+            # post-replace fsync error must not discard the previous valid note.
+            os.link(filename, previous, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+            saved = _read_regular_file(directory_fd, previous)
+            if saved != expected:
+                raise _failure(ErrorCode.INVALID_RESPONSE, "managed note changed during write", None)
+            os.replace(temporary, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            current = _read_regular_file(directory_fd, filename)
+            # Never roll back over a concurrent owner's edit after publication.
+            if current == verified:
+                if expected is None:
+                    os.unlink(filename, dir_fd=directory_fd)
+                else:
+                    os.replace(previous, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            raise
     finally:
         if fd is not None:
             os.close(fd)
         try:
             os.unlink(temporary, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
+        try:
+            os.unlink(previous, dir_fd=directory_fd)
         except FileNotFoundError:
             pass
 

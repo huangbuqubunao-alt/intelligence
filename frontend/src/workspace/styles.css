@@ -197,6 +197,14 @@
   text-transform: uppercase;
 }
 /* Durable citation identities and multiple per-claim links must wrap on mobile. */
+.deep-analysis-publish-path {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.deep-analysis-publish .button {
+  max-width: 100%;
+  white-space: normal;
+}
 .deep-analysis-result .reading-meta, .evidence-trace-item .reading-meta {
   flex-wrap: wrap;
 }

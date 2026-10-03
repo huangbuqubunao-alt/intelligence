@@ -21,6 +21,10 @@ from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
     ContentSummaryReadRejected,
 )
+from youtube_intel.deep_analysis_obsidian import (
+    DeepAnalysisObsidianPublisher,
+    DeepAnalysisPublishError,
+)
 from youtube_intel.deep_analysis_service import (
     DeepAnalysisRejected,
     DeepAnalysisService,
@@ -448,12 +452,16 @@ class LocalApiApplication:
         demo_data: bool = False,
         backup_restore_service: BackupRestoreService | None = None,
         deep_analysis_service: DeepAnalysisService | None = None,
+        deep_analysis_publisher: DeepAnalysisObsidianPublisher | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
         self._scoring_reader = scoring_reader
         self._distillation_service = distillation_service
         self._deep_analysis_service = deep_analysis_service
+        self._deep_analysis_publisher = deep_analysis_publisher or DeepAnalysisObsidianPublisher(
+            repository, vault_root=vault_root
+        )
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
@@ -631,6 +639,16 @@ class LocalApiApplication:
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             data = self._body(body)
+            if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
+                content_id = self._obsidian_content_id(route)
+                self._only_keys(data, {"result_identity"})
+                result_identity = self._string(data, "result_identity", required=True)
+                assert result_identity is not None
+                try:
+                    published = self._deep_analysis_publisher.publish(content_id=content_id, result_identity=result_identity)
+                except DeepAnalysisPublishError as rejection:
+                    raise ApiError(HTTPStatus.CONFLICT, rejection.code, "Deep Analysis could not be published to Obsidian.") from None
+                return HTTPStatus.OK, {"publish": published}
             cloud_prefix = "/api/v1/videos/"
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
@@ -1379,6 +1397,12 @@ class LocalApiApplication:
             deep_analysis_reason=status.reason,
         )
 
+    def _obsidian_content_id(self, route: str) -> str:
+        content_id = route.removeprefix("/api/v1/videos/").removesuffix("/deep-analysis/obsidian")
+        if not content_id or "/" in content_id or self._repository.get_video(content_id) is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Content was not found.")
+        return content_id
+
     def _require_deep_analysis(self) -> DeepAnalysisService:
         if self._deep_analysis_service is None:
             raise ApiError(
@@ -1435,6 +1459,8 @@ class LocalApiApplication:
         }
 
     def _get(self, route: str) -> dict[str, object]:
+        if route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
+            return {"publish": self._deep_analysis_publisher.status(content_id=self._obsidian_content_id(route))}
         if route == "/api/v1/settings/source-policy":
             return {
                 "policy": _source_policy_dto(
