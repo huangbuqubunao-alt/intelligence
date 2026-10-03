@@ -1481,3 +1481,14 @@ dialog p {
 
 .research-history-list { list-style: none; padding: 0; margin: 0; }
 .research-history-list .metadata-row { overflow-wrap: anywhere; }
+
+/* Derived revision comparison stays within the Research detail surfaces. */
+.research-diff { display: grid; gap: 1rem; min-width: 0; overflow-wrap: anywhere; }
+.research-diff .panel { min-width: 0; }
+.research-diff-direction { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.research-diff .button-row { flex-wrap: wrap; }
+.research-diff-list { padding-left: 1.2rem; }
+.research-diff-list > li { padding-block: .6rem; }
+.research-diff blockquote { margin-inline: 0; white-space: pre-wrap; }
+.research-diff code { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .research-diff-direction { grid-template-columns: minmax(0, 1fr); } }

@@ -301,7 +301,7 @@ const STYLES = [[
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
-  if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
+  if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
   const legacy: Record<string, Page> = {
     Dashboard: "Home",
     Sources: "Following",

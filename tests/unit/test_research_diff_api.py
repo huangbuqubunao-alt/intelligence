@@ -47,3 +47,28 @@ def test_missing_revision_has_specific_error(tmp_path, side):
         app.handle("GET", f"{path}?base_revision={base}&target_revision={target}")
     assert rejected.value.code == f"RESEARCH_DIFF_{side.upper()}_NOT_FOUND"
     assert rejected.value.status == 404
+
+
+@pytest.mark.parametrize("side", ["base", "target"])
+def test_api_rejects_cross_item_and_corrupt_authority(tmp_path, side):
+    app, path, a, b = fixture(tmp_path)
+    body = json.dumps({"question": "different question", "content_ids": [support.authority.VIDEO]}).encode()
+    other = app.handle("POST", "/api/v1/research", body)[1]["research"]["result_identity"]
+    base, target = (other, b) if side == "base" else (a, other)
+    with pytest.raises(ApiError) as rejected:
+        app.handle("GET", f"{path}?base_revision={base}&target_revision={target}")
+    assert rejected.value.code == "RESEARCH_DIFF_WRONG_RESEARCH" and rejected.value.status == 409
+    import sqlite3
+    with sqlite3.connect(tmp_path / "state.sqlite3") as db:
+        db.execute("DROP TRIGGER research_results_immutable_update")
+        db.execute("UPDATE research_results SET payload_json='{}' WHERE result_identity=?", (a if side == "base" else b,))
+    with pytest.raises(ApiError) as rejected:
+        app.handle("GET", f"{path}?base_revision={a}&target_revision={b}")
+    assert rejected.value.code == "RESEARCH_DIFF_UNTRUSTED_REVISION" and rejected.value.status == 409
+
+
+def test_missing_research_is_distinct(tmp_path):
+    app, _, a, b = fixture(tmp_path)
+    with pytest.raises(ApiError) as rejected:
+        app.handle("GET", f"/api/v1/research/{'f' * 64}/diff?base_revision={a}&target_revision={b}")
+    assert rejected.value.code == "RESEARCH_NOT_FOUND" and rejected.value.status == 404

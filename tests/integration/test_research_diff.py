@@ -183,3 +183,81 @@ def test_intelligence_reference_add_remove_and_later_authority_does_not_leak(tmp
     # Current admission lacks the recorded card for this correction, so it is
     # truthfully omitted rather than substituted for the historical reference.
     assert not new.packet.intelligence
+
+
+def test_newer_stored_intelligence_revision_is_factual_remove_and_add(tmp_path):
+    import hashlib
+    import json
+    from datetime import timedelta
+
+    from youtube_intel.state import (
+        DependencyEdgeWrite,
+        DependencyRelation,
+        IntelligenceInterpretationKind,
+        IntelligenceRevisionWrite,
+        IntelligenceState,
+    )
+
+    hostile = _load_module("test_research_adversarial")
+    fixture, repo, first, admitted = hostile.admitted_packet(tmp_path)
+    old_revision = first.packet.intelligence[0].revision_id
+    old = repo.get_intelligence_revision(old_revision)
+    card = repo.get_distillation_card(old_revision)
+    evidence = [repo.get_evidence(eid) for eid in first.packet.intelligence[0].evidence_ids]
+    payload = {"core_conclusion": card.core_conclusion,
+               "user_relevant_information": list(card.user_relevant_information),
+               "important_new_information": list(card.important_new_information),
+               "meaningful_details": list(card.meaningful_details), "filtered_noise": list(card.filtered_noise),
+               "claim_kind": old.claim_kind.value,
+               "evidence": [{"evidence_id": e.evidence_id, "start_ms": e.start_ms, "end_ms": e.end_ms} for e in evidence]}
+    content_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    newer_id = "diff-recorded-following-revision"
+    repo.append_intelligence_revision(intelligence_id=admitted.intelligence_id,
+        revision=IntelligenceRevisionWrite(revision_id=newer_id, interpretation_kind=IntelligenceInterpretationKind.CORRECTION,
+            claim_kind=old.claim_kind, content_hash=content_hash, state=IntelligenceState.UPDATED,
+            reason="Recorded correction without an evidence stance", evidence_ids=tuple(e.evidence_id for e in evidence)),
+        now=fixture.NOW + timedelta(days=1))
+    for e in evidence:
+        repo.create_dependency_edge(DependencyEdgeWrite(edge_id="diff-later-" + e.evidence_id, dependent_revision_id=newer_id,
+            relation=DependencyRelation.EVIDENCE_SUPPORT, input_evidence_id=e.evidence_id, input_revision_id=None), now=fixture.NOW + timedelta(days=1))
+    with repo._connect() as db:
+        row = db.execute("SELECT * FROM distillation_cards WHERE revision_id=?", (old_revision,)).fetchone()
+        values = [newer_id, *list(row)[1:]]
+        db.execute("INSERT INTO distillation_cards VALUES (" + ",".join("?" for _ in values) + ")", values)
+    request = support.ResearchRequest(question=first.packet.question, content_ids=[c.content_id for c in first.packet.scope])
+    second = ResearchLiteService(repo, now=lambda: fixture.NOW + timedelta(days=2)).assemble(request, output_language="en")
+    assert second.packet.intelligence[0].revision_id == newer_id
+    diff = compare(ResearchLiteService(repo), first, second)
+    assert diff["interpretations"]["removed"][0]["revision_id"] == old_revision
+    assert diff["interpretations"]["added"][0]["revision_id"] == newer_id
+    assert not any(c["field"] == "finding" for c in diff["packet_changes"])
+
+
+def test_later_evidence_and_execution_timestamp_do_not_reinterpret_history(tmp_path):
+    from datetime import timedelta
+
+    fixture = _load_module("test_task022_personalized_distillation")
+    repo = fixture._repository(tmp_path)
+    _, video = fixture._source_and_video(repo)
+    fixture._evidence(repo, video)
+    first = support.run(repo, question="canonical", content_ids=[video])
+    second = append_snapshot(repo, first, assembled_at=(support.authority.NOW + timedelta(days=1)).isoformat())
+    service = ResearchLiteService(repo)
+    before = compare(service, first, second)
+    assert before["no_material_changes"]
+    fixture._evidence(repo, video, start_ms=2000, end_ms=2500)
+    assert compare(service, first, second) == before
+
+
+def test_corrupt_new_current_and_unavailable_sources_cannot_leak(tmp_path):
+    repo = support.authority.seed(tmp_path)
+    first, second, third = [support.run(repo) for _ in range(3)]
+    service = ResearchLiteService(repo)
+    expected = compare(service, first, second)
+    hostile = _load_module("test_research_adversarial")
+    hostile.damage(repo, third, lambda p: p.update({"question": "Fabricated CURRENT"}))
+    assert compare(service, first, second) == expected
+    with repo._connect() as db:
+        db.execute("UPDATE evidence SET availability='UNAVAILABLE' WHERE evidence_id=?", (first.packet.evidence[0].evidence_id,))
+    with pytest.raises(ResearchRejected, match="RESEARCH_DIFF_UNTRUSTED_REVISION"):
+        compare(service, first, second)

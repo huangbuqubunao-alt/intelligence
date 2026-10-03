@@ -51,3 +51,18 @@ payloads or an assertion that all history is empty. Source navigation retains th
 opened packet's own references and return route. Preserve keyboard-accessible
 buttons, semantic lists, wrapped text and zh-CN/en at 320–1440px. No seventh nav
 entry, watermark, unread badge, Diff or generated summary is introduced.
+
+## Research revision comparison
+
+Phase 6 extends History with a derived comparison. Preserve the six destinations,
+dark Panel surfaces and existing buttons. Current compares with the previous
+trusted version on the first History page; opened historical versions compare
+with explicitly resolved current. A single version has no previous action.
+Base → target is always visible through sequence, timestamp and side labels,
+stacked at narrow widths. Explicit comparison routes survive reload and source
+navigation. Render factual added/removed Content, Evidence and recorded
+interpretations separately from changed packet fields. No generated narrative,
+strength inference, raw JSON or execution-noise changes. Empty comparison is
+“无实质变化” / “No material changes”. Authority failures are localized and retryable.
+Original excerpts and qualifications remain unchanged; exact historical source
+ids stay navigable. Wrap quotations, long labels and revision context at 320px.

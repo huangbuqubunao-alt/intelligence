@@ -22,7 +22,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     args = parser.parse_args()
-    if not str(args.root).startswith("/tmp/v1x-phase2-integration-"):
+    args.root = args.root.resolve()
+    if not (str(args.root).startswith("/tmp/v1x-phase2-integration-") or args.root.resolve().is_relative_to(Path(__file__).resolve().parents[2] / ".var" / "phase6")):
         raise ValueError("use a disposable integration fixture root")
     args.root.mkdir(parents=True, exist_ok=True)
     if any(args.root.iterdir()):

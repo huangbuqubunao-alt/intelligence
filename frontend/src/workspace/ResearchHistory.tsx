@@ -3,8 +3,8 @@ import { api, ApiRequestError } from "../api/client";
 import { ResearchHistoryPage, researchErrorCopy } from "./ResearchTypes";
 import { useUiLanguage } from "./uiLanguage";
 
-export function ResearchHistory({ researchId, onOpen }: {
-  researchId: string; onOpen: (revisionId: string) => void;
+export function ResearchHistory({ researchId, selectedRevisionId, onCompare, onOpen }: {
+  researchId: string; selectedRevisionId?: string | null; onCompare?: (base: string, target: string) => void; onOpen: (revisionId: string) => void;
 }) {
   const { t, language } = useUiLanguage();
   const [page, setPage] = useState<ResearchHistoryPage | null>(null);
@@ -26,6 +26,11 @@ export function ResearchHistory({ researchId, onOpen }: {
     {error && <p role="alert">{t(error)} <button onClick={() => setRetry(value => value + 1)}>{t("Retry")}</button></p>}
     {!page && !error && <p role="status">{t("Verifying Research History…")}</p>}
     {page && <>
+      {onCompare && page.current_revision_id && page.current_available && <div className="button-row">
+        {selectedRevisionId && selectedRevisionId !== page.current_revision_id
+          ? <button className="button button-secondary" onClick={() => onCompare(selectedRevisionId, page.current_revision_id!)}>{t("Compare with current")}</button>
+          : !cursor && page.revisions.length > 0 && <button className="button button-secondary" onClick={() => onCompare(page.revisions[0].revision_id, page.current_revision_id!)}>{t("Compare with previous")}</button>}
+      </div>}
       {!page.current_available && <p role="status">{t("The current version is unavailable. Verified previous versions remain readable.")}</p>}
       {page.unavailable_count > 0 && <p role="status">{t("Some versions on this page are unavailable and have been excluded because their authority could not be verified.")}</p>}
       {!page.revisions.length && <p className="empty-state">{t(page.unavailable_count || page.has_more || previous.length ? "No verified previous versions on this page." : "No previous versions yet.")}</p>}
