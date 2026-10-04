@@ -1,0 +1,31 @@
+.............................................F.......F..                 [100%]
+=================================== FAILURES ===================================
+__________________________ test_paid_resource_denied ___________________________
+
+    def test_paid_resource_denied() -> None:
+        data = json.loads(json.dumps(METADATA))
+        data["data"]["rights"]["pay"] = 1
+>       with pytest.raises(BilibiliError, match="ACCESS_DENIED"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'ACCESS_DENIED'
+E         Actual message: 'METADATA_FAILED'
+
+tests/unit/test_bilibili_provider.py:131: AssertionError
+____________________ test_private_dns_is_denied[224.0.0.1] _____________________
+
+address = '224.0.0.1'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1099bba40>
+
+    @pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.1", "172.16.0.1", "192.168.1.1", "::1", "fc00::1", "169.254.1.1", "224.0.0.1"])
+    def test_private_dns_is_denied(address: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", (address, 443))])
+>       with pytest.raises(BilibiliError, match="ACCESS_DENIED"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE BilibiliError
+
+tests/unit/test_bilibili_provider.py:138: Failed
+=========================== short test summary info ============================
+FAILED tests/unit/test_bilibili_provider.py::test_paid_resource_denied - Asse...
+FAILED tests/unit/test_bilibili_provider.py::test_private_dns_is_denied[224.0.0.1]
+2 failed, 54 passed in 1.25s

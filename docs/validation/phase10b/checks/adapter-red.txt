@@ -1,0 +1,16 @@
+
+==================================== ERRORS ====================================
+____________ ERROR collecting tests/unit/test_bilibili_provider.py _____________
+ImportError while importing test module '/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/tests/unit/test_bilibili_provider.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_bilibili_provider.py:9: in <module>
+    from youtube_intel.providers.bilibili import (
+E   ModuleNotFoundError: No module named 'youtube_intel.providers.bilibili'
+=========================== short test summary info ============================
+ERROR tests/unit/test_bilibili_provider.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.07s
