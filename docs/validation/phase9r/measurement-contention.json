@@ -1,0 +1,19 @@
+{
+  "diagnostic_probe_interval": [
+    1791087468.7127206,
+    1791087483.0281084
+  ],
+  "overlapping_samples": [
+    {
+      "profile": "B",
+      "sample": "independent-medium",
+      "overlap_seconds": 6.64958930015564
+    },
+    {
+      "profile": "B",
+      "sample": "boundary-medium",
+      "overlap_seconds": 7.376596689224243
+    }
+  ],
+  "note": "Separate original-profile GreedyDecoder diagnostic overlapped these research measurements. Individual memory counters remain process-specific. Do not treat affected wall times as isolated performance comparisons. Original failing medium comparison is separately checked."
+}

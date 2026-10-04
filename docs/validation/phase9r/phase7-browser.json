@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    "zh-CN/320: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "zh-CN/768: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "zh-CN/1024: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "zh-CN/1440: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "en/320: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "en/768: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "en/1024: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta",
+    "en/1440: picker adapter/import/errors/dedupe/Content/Summary/Evidence/mixed library/Local+mixed Research/Delta"
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "nativePicker": "File adapter; OS dialog not driven"
+}

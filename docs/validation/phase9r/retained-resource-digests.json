@@ -1,0 +1,250 @@
+{
+  "controls/A-noise-short.resource.txt": {
+    "sha256": "0d1468b29a39c8d7261aa63683f4156a5e465712285403975a60befc74b8f571",
+    "bytes": 777
+  },
+  "controls/A-silence-medium.resource.txt": {
+    "sha256": "b8cdcd5547134f1eae6156e813145af7b8241e8fa07bdc035d7dcc9cdf685845",
+    "bytes": 777
+  },
+  "controls/A-silence-short.resource.txt": {
+    "sha256": "1f89a873b33fbdbf04f2e41e601c94198c174b78faae8722aa75ee6eb419c9b2",
+    "bytes": 777
+  },
+  "controls/B-boundary-medium.resource.txt": {
+    "sha256": "b4324e675b4be9da5d55831630d3e735173dca993579d73a785e884fb1c9364c",
+    "bytes": 777
+  },
+  "controls/B-independent-medium.resource.txt": {
+    "sha256": "45caa7a85949e3362ad298c6d977cd5735700f1ef0f06677f320bc3a9e353310",
+    "bytes": 777
+  },
+  "controls/B-noise-short.resource.txt": {
+    "sha256": "41883ffaf82dafbf91166641d8591e77496d329eef587a8446bc88f9c8229bc7",
+    "bytes": 777
+  },
+  "controls/B-silence-medium.resource.txt": {
+    "sha256": "02954f71c7a76e43bdb139fb5f0657fc4ae07b799778a09b8408eb83d0a5b667",
+    "bytes": 777
+  },
+  "controls/B-silence-short.resource.txt": {
+    "sha256": "f9419df35cd65b336d1d5b23e61a9a5203052ee5678fee8c8e17a31a0b11fcd9",
+    "bytes": 777
+  },
+  "controls/C-noise-short.resource.txt": {
+    "sha256": "28f6f06058387b205c0757535ed2eedcc2aecbcfb56794a13da6fa4988147f91",
+    "bytes": 777
+  },
+  "controls/C-silence-medium.resource.txt": {
+    "sha256": "397899b5a23f18f877b04d9d228740b03932631f4d08e1e16368669c381dfd78",
+    "bytes": 777
+  },
+  "controls/C-silence-short.resource.txt": {
+    "sha256": "f115b51d3592748174b67172729850e208520cdd11d9163dc7b4aec77bf79bd2",
+    "bytes": 777
+  },
+  "controls/D-noise-short.resource.txt": {
+    "sha256": "0b83494a67d2ef99c732988c8d3c1d197ad0d71e852122488cf56286bf7c2568",
+    "bytes": 777
+  },
+  "controls/D-silence-medium.resource.txt": {
+    "sha256": "5cc33e7f47fe3ff930d8dc82c4d51683cd084d9eb58629f49c6fa57301b512a1",
+    "bytes": 777
+  },
+  "controls/D-silence-short.resource.txt": {
+    "sha256": "7bca19e0dc96fc3b521bf47835b515200f9a581f972e94ac0fb164759e19c758",
+    "bytes": 777
+  },
+  "matrix/A-boundary-medium.resource.txt": {
+    "sha256": "dfa6ec321df9c0851e363db7cb8363fc593b7eac939caaf79b9cd208a439e70c",
+    "bytes": 777
+  },
+  "matrix/A-designed-pauses.resource.txt": {
+    "sha256": "5ea3deb860657649a78776325437bbbfa93e2b3f1efd8c76c10a4ebf89ff2163",
+    "bytes": 777
+  },
+  "matrix/A-english-clean.resource.txt": {
+    "sha256": "722636c163a57b11563ac38c9db813669c0043ea3d242541c16f704340582895",
+    "bytes": 777
+  },
+  "matrix/A-english-video.resource.txt": {
+    "sha256": "e5ccb69c90dc59818bc4ee141c8e32abfe8c698c34a68f6f3d007b67a6d911c7",
+    "bytes": 777
+  },
+  "matrix/A-independent-medium.resource.txt": {
+    "sha256": "cd3c69466628e7fa1dcbbb82d94eecbbb41a138b0e8431fdfebab2348ab691ce",
+    "bytes": 777
+  },
+  "matrix/A-mandarin-clean.resource.txt": {
+    "sha256": "83eb26411cdbe3bbde79917534f3a892e8bf25d4dedd72360b2f5ee2739ca1a0",
+    "bytes": 777
+  },
+  "matrix/A-medium.resource.txt": {
+    "sha256": "e353b05560c8b7b9cbad551935a724e5ca2a545192a495a9a0e49e2a7c81decc",
+    "bytes": 777
+  },
+  "matrix/A-mild-noise.resource.txt": {
+    "sha256": "94763a5e424889eb744219738c5f6e068773c4c45eb5d7a052db2e8ecedfcb1a",
+    "bytes": 777
+  },
+  "matrix/A-mixed-clean.resource.txt": {
+    "sha256": "ee53d7da9393b10904fa4927480e1cd10167229fa9f0633c6abaf8ed6fc27db6",
+    "bytes": 777
+  },
+  "matrix/A-mixed-medium.resource.txt": {
+    "sha256": "b284d09f4d00a3c9af59adfba91d864a075169ef79f70a36b55f5e69c85e0f56",
+    "bytes": 777
+  },
+  "matrix/A-silence-medium.resource.txt": {
+    "sha256": "d444fd6fcdd2e9dfe12722b1c3a6eaf52324b4609d2235d9513d47dd3e4f0ff2",
+    "bytes": 777
+  },
+  "matrix/A-very-short.resource.txt": {
+    "sha256": "d00f88839d06c762ed20de9ebf6028d3f0d234e1798dcb144136d34272885a6e",
+    "bytes": 777
+  },
+  "matrix/B-boundary-medium.resource.txt": {
+    "sha256": "feabfad8a121f994319b248b1ebbf70d65b67c74b24fdc68f3b16fa54fe012d2",
+    "bytes": 777
+  },
+  "matrix/B-designed-pauses.resource.txt": {
+    "sha256": "899fe2557dfc1da2bb67f953a1a857c4f1ccf1d280512d00cebf36c848b0d0b0",
+    "bytes": 777
+  },
+  "matrix/B-english-clean.resource.txt": {
+    "sha256": "60630289958ec453c71948fd666b9f3cd241b8290e00cbb586a824fd8ff3c6f3",
+    "bytes": 777
+  },
+  "matrix/B-english-video.resource.txt": {
+    "sha256": "9c10066e69f6b50a46c9ef4617663b7e8466f9c8bbb963c720a072d941467e9f",
+    "bytes": 777
+  },
+  "matrix/B-independent-medium.resource.txt": {
+    "sha256": "28c575c01768091dc3c0d589620ea45e63d98f6ad823d94c879df74e460b59e3",
+    "bytes": 777
+  },
+  "matrix/B-mandarin-clean.resource.txt": {
+    "sha256": "c90d0c866869a5ed95f40461166d60154b12a263dbc111625a6521c4d6bff552",
+    "bytes": 777
+  },
+  "matrix/B-medium.resource.txt": {
+    "sha256": "db4ae2d628a30ed66a079759d340e018ceee77deae629940de2ef9cf68cd6bcd",
+    "bytes": 777
+  },
+  "matrix/B-mild-noise.resource.txt": {
+    "sha256": "ff470620056f1d6d0d5f8d7aa2ac86a27b61a655d19885365621930569033920",
+    "bytes": 777
+  },
+  "matrix/B-mixed-clean.resource.txt": {
+    "sha256": "7157cb0a1f6107907fd6d103e963919229cd8620da98cc43c045e0bc7b3860fb",
+    "bytes": 777
+  },
+  "matrix/B-mixed-medium.resource.txt": {
+    "sha256": "a6c87f838768af56e591bdc8f5059231f42ca89fed06ec03502f9edcad1b0ef3",
+    "bytes": 777
+  },
+  "matrix/B-silence-medium.resource.txt": {
+    "sha256": "afa3cb9fde4c924bc1615b39ac3f072d77d272efc64f4dc94897a6bb1532a46d",
+    "bytes": 777
+  },
+  "matrix/B-very-short.resource.txt": {
+    "sha256": "c9fb2ac5a4415f5866ad600e11e7dcadaa0be9cd6d284d4f522019e6e87920ae",
+    "bytes": 777
+  },
+  "matrix/C-boundary-medium.resource.txt": {
+    "sha256": "0c289af4e00cd4bc42a195aa15fe6feeac7f45447941a3b2e7491334240530a8",
+    "bytes": 777
+  },
+  "matrix/C-designed-pauses.resource.txt": {
+    "sha256": "2365192841bc47ad2b811cded949d330723d3e6c2bbb328170bf6db4701ad901",
+    "bytes": 777
+  },
+  "matrix/C-english-clean.resource.txt": {
+    "sha256": "f4026d19afdf45d8eaba108b4f537a1b6020e626ca2dec09d6ccc878def439fa",
+    "bytes": 777
+  },
+  "matrix/C-english-video.resource.txt": {
+    "sha256": "1da2e2820e6c3c4e0b15296e6e78b298442d2a4c78343adf80376203b97eb074",
+    "bytes": 777
+  },
+  "matrix/C-independent-medium.resource.txt": {
+    "sha256": "53136b64062f143ed58411f4bf3ad9cd41ae89058cb7ce0863d5ef4d518e7845",
+    "bytes": 777
+  },
+  "matrix/C-mandarin-clean.resource.txt": {
+    "sha256": "209799e6d3ccb7e19b02a5534ff6b5eb9650dee275934ff3c6872bc1c210ff81",
+    "bytes": 777
+  },
+  "matrix/C-medium.resource.txt": {
+    "sha256": "a5f228d41d7b1a0cf56e440297f994dbf9098168e385c876e6e56983a505a159",
+    "bytes": 777
+  },
+  "matrix/C-mild-noise.resource.txt": {
+    "sha256": "ac77513dc0907300a3a4532535e39df1d706db2a1853f3b041d820483ad72821",
+    "bytes": 777
+  },
+  "matrix/C-mixed-clean.resource.txt": {
+    "sha256": "54573dec5cc210057d66928ed383ccbf49461d2d8f0a6e3d4ea29a34dddd02e6",
+    "bytes": 777
+  },
+  "matrix/C-mixed-medium.resource.txt": {
+    "sha256": "b437e1d5eaa8ae669ab91c0f0d916aa1b365cc946b5144af2a6eb21d8f65b664",
+    "bytes": 777
+  },
+  "matrix/C-silence-medium.resource.txt": {
+    "sha256": "adbafbfa03842cf5cd0197994efc58c14de16246f9e31894ae783fb4a732c7eb",
+    "bytes": 777
+  },
+  "matrix/C-very-short.resource.txt": {
+    "sha256": "ef4efa9e2df5d24d516ac791974b2b2f331b602ac23c7f634960a2dbbf3609d4",
+    "bytes": 777
+  },
+  "matrix/D-boundary-medium.resource.txt": {
+    "sha256": "91f92b4d936474ef3714eb2e7318e9fca1718aba958e70c8dab416c3c9f2c6ea",
+    "bytes": 777
+  },
+  "matrix/D-designed-pauses.resource.txt": {
+    "sha256": "7a48b9d7f05a5d5ffc309425e657a2853f1b5697fa04fff38cd860ad718a00f8",
+    "bytes": 777
+  },
+  "matrix/D-english-clean.resource.txt": {
+    "sha256": "82b5d3655475b968974eeb3cec2e3da7eea290d6ea2a9250652151287245ff74",
+    "bytes": 777
+  },
+  "matrix/D-english-video.resource.txt": {
+    "sha256": "6a50b0e19d28def3bcce17ca29d2f84fdf08e60cf365d7dad7cd5c7171230f7e",
+    "bytes": 777
+  },
+  "matrix/D-independent-medium.resource.txt": {
+    "sha256": "542704032fae9b7a2d45be5fa447ca2f10571f1bf4ce2a48dda5eeeedaa10c08",
+    "bytes": 777
+  },
+  "matrix/D-mandarin-clean.resource.txt": {
+    "sha256": "c2f824e99e9c6f2d803c06334a27103c7a4678e0faa6e83203e59b7c911a8b53",
+    "bytes": 777
+  },
+  "matrix/D-medium.resource.txt": {
+    "sha256": "93c65aef6952c3daa6a2358d7174b03af6a8cb32585db365b6761276f04b647b",
+    "bytes": 777
+  },
+  "matrix/D-mild-noise.resource.txt": {
+    "sha256": "b0b134b4ba028c5baea5585b9fd1da37d64e2f9531ee9304dfac6f03433dcd19",
+    "bytes": 777
+  },
+  "matrix/D-mixed-clean.resource.txt": {
+    "sha256": "a563fdb16fd6f5f02b6aae586041d23c0d15f4d3e6b29ed10402be54dfaa0d3a",
+    "bytes": 777
+  },
+  "matrix/D-mixed-medium.resource.txt": {
+    "sha256": "f3ccbb691447966df89528182a61918b86f87ef06af22ac5edf29669ab18bb09",
+    "bytes": 777
+  },
+  "matrix/D-silence-medium.resource.txt": {
+    "sha256": "55bd243c9b4b24077505ba1045c4c32945e2dd695f98841dcbf38661b59bbce9",
+    "bytes": 777
+  },
+  "matrix/D-very-short.resource.txt": {
+    "sha256": "93721b76df9004680094199abdbf2742015c547e7ab91520ff8b68dce1d327c6",
+    "bytes": 777
+  }
+}

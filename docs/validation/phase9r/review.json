@@ -1,0 +1,42 @@
+{
+  "reviewed_code_head": "103c5f104f4ae54668061de948f220c5c8186a76",
+  "baseline": "0a0eef4b2c5f321f46b2c58ed2535d521af05b5d",
+  "pass1_root_cause": {
+    "actual_raw_and_sdk_filter_trace": true,
+    "primary_cause": "previous-text residual-window hallucination plus conflicting timestamp masks; SDK constructs timestamps outside observed source window",
+    "nonfinite_persistence_gap_fixed": true,
+    "repeated_valid_time_text_not_provably_detectable_from_text_alone": true,
+    "boundary_pcm_bytes_and_offsets_proved": true,
+    "actual_boundary_acoustic_failure_retained": true
+  },
+  "pass2_qualification": {
+    "matrix_fixed_before_selection": true,
+    "profiles": 4,
+    "samples_per_profile": 12,
+    "eligible_profiles": [],
+    "unchanged_thresholds_and_expected_text": true,
+    "no_omission_hidden": true,
+    "all_failures_retained": true,
+    "tuple_changed": true,
+    "historical_failed_preserved": true,
+    "settings_no_pass_tests": true
+  },
+  "pass3_product": {
+    "production_admission_blocked": true,
+    "no_chunked_product_integration": true,
+    "short_real_audio_video_reverified": true,
+    "fresh_restart_and_no_model_restore_verified": true,
+    "source_times_and_evidence_exact": true,
+    "concurrency_and_atomicity_preserved": true,
+    "finite_hallucinations_are_a_qualification_blocker": true
+  },
+  "finding_fixed": "Guard the new generator against overwriting an existing frozen corpus. Re-invocation rejected before voice generation or waveform writes.",
+  "remaining_material_implementation_findings": [],
+  "limitations": [
+    "Synthetic local voices only",
+    "All profiles fail; no successful remediated medium authority or qualified-medium restore can be claimed",
+    "Strict original sub-millisecond float ordering rejects one-ULP SDK adjacency; unchanged as gate preservation, not sufficient explanation for other failures",
+    "Two B medium timing measurements overlapped a diagnostic and were remeasured with identical text/times; primary original-medium comparison unaffected"
+  ],
+  "verdict": "ACOUSTIC_QUALIFICATION_FAILED"
+}

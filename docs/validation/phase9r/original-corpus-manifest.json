@@ -1,0 +1,299 @@
+{
+  "generator": "macos-say-145-mono16k-pcm-v1",
+  "spec_sha256": "d41d1b8a71a8228f9af24109d9fe4a88e2129b0695ee2c946f14dd4346b34143",
+  "synthetic_only": true,
+  "samples": [
+    {
+      "id": "english-clean",
+      "language": "en",
+      "file": "english-clean.wav",
+      "sha256": "a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "bytes": 722118,
+      "duration_seconds": 22.5648125,
+      "expected": "The library opens every morning beside the quiet public garden. Readers can borrow books, study together, and return them at the front desk. This local test records clear speech without sending any media to an external service. After the recording finishes, the application preserves the original words and their timestamps.",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.2564375000000005,
+          "text": "The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start": 4.881875,
+          "end": 9.64,
+          "text": "Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start": 10.2703125,
+          "end": 15.524562499999998,
+          "text": "This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start": 16.1490625,
+          "end": 22.0339375,
+          "text": "After the recording finishes, the application preserves the original words and their timestamps."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "mandarin-clean",
+      "language": "zh",
+      "file": "mandarin-clean.wav",
+      "sha256": "932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "bytes": 789430,
+      "duration_seconds": 24.6683125,
+      "expected": "今天我们介绍一个安静的公共图书馆。 读者可以在这里借书，也可以在阅览室学习。 这个测试只使用本地生成的语音，不包含任何个人录音。 转写完成以后，应用保存原始文字和时间，不把中文内容翻译成英文。",
+      "expected_sha256": "e8dbe7e67788039964ff6538a103735a32a781cb6482dffc01ee5615ad514f84",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.05375,
+          "text": "今天我们介绍一个安静的公共图书馆。"
+        },
+        {
+          "start": 4.6674999999999995,
+          "end": 9.404875,
+          "text": "读者可以在这里借书，也可以在阅览室学习。"
+        },
+        {
+          "start": 10.0168125,
+          "end": 15.7310625,
+          "text": "这个测试只使用本地生成的语音，不包含任何个人录音。"
+        },
+        {
+          "start": 16.3595,
+          "end": 24.148625000000003,
+          "text": "转写完成以后，应用保存原始文字和时间，不把中文内容翻译成英文。"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "mixed-clean",
+      "language": "mixed",
+      "file": "mixed-clean.wav",
+      "sha256": "b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "bytes": 719678,
+      "duration_seconds": 22.4885625,
+      "expected": "今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence.",
+      "expected_sha256": "7ae6229b31fd6d8e68845fa7dcc4b3a75e5c28f4735e432d1dbf7d70391ef104",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 2.9928125,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 3.6109375,
+          "end": 5.6775625000000005,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 6.308625,
+          "end": 9.902625,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 10.509562500000001,
+          "end": 13.310000000000002,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 13.939312500000002,
+          "end": 18.4759375,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 19.089,
+          "end": 21.9658125,
+          "text": "The final summary includes reliable evidence."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "very-short",
+      "language": "en",
+      "file": "very-short.wav",
+      "sha256": "e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "bytes": 108110,
+      "duration_seconds": 3.3770625,
+      "expected": "The local library opens every morning.",
+      "expected_sha256": "99dad18874eb823e700f1e6a4171bde604f17ed23170a2de790062efdb9b9585",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 2.8574375,
+          "text": "The local library opens every morning."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "medium",
+      "language": "en",
+      "file": "medium.wav",
+      "sha256": "41d878e52cc55e7849931dcd25249a56731da0fb6b9750c65e2308ef8922d44f",
+      "bytes": 3931430,
+      "duration_seconds": 122.8558125,
+      "expected": "The first section describes a small library beside the river. The second section explains how readers find books on the shelves. The third section mentions a quiet room for studying history. The fourth section describes a map displayed near the entrance. The fifth section introduces a calendar of community activities. The sixth section explains the rules for returning borrowed books. The seventh section describes a table where visitors read newspapers. The eighth section mentions a garden with trees and benches. The ninth section explains how volunteers organize the collection. The tenth section describes an afternoon workshop about writing. The next section explains that all test audio is generated locally. Another section confirms that no personal recording is included. A later section checks that every meaningful sentence remains present. The following section checks that timestamps preserve the speech order. This section confirms that designed silence is different from missing speech. The next section describes a summary with citations to original words. The following section explains that a saved transcript survives a restart. The final section closes the test and thanks the listener for their attention.",
+      "expected_sha256": "c1c19a025696b334d375bf29712c7be14b09fd9ff1b0c3c73ebabad48b7b27f8",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.061,
+          "text": "The first section describes a small library beside the river."
+        },
+        {
+          "start": 7.0845,
+          "end": 10.87275,
+          "text": "The second section explains how readers find books on the shelves."
+        },
+        {
+          "start": 13.901250000000001,
+          "end": 17.422062500000003,
+          "text": "The third section mentions a quiet room for studying history."
+        },
+        {
+          "start": 20.4393125,
+          "end": 23.980375,
+          "text": "The fourth section describes a map displayed near the entrance."
+        },
+        {
+          "start": 27.000625,
+          "end": 30.988125,
+          "text": "The fifth section introduces a calendar of community activities."
+        },
+        {
+          "start": 34.0146875,
+          "end": 37.783625,
+          "text": "The sixth section explains the rules for returning borrowed books."
+        },
+        {
+          "start": 40.8198125,
+          "end": 44.933625,
+          "text": "The seventh section describes a table where visitors read newspapers."
+        },
+        {
+          "start": 47.961625,
+          "end": 51.178687499999995,
+          "text": "The eighth section mentions a garden with trees and benches."
+        },
+        {
+          "start": 54.208749999999995,
+          "end": 58.119812499999995,
+          "text": "The ninth section explains how volunteers organize the collection."
+        },
+        {
+          "start": 61.14156249999999,
+          "end": 64.77768749999998,
+          "text": "The tenth section describes an afternoon workshop about writing."
+        },
+        {
+          "start": 67.79575,
+          "end": 72.02925,
+          "text": "The next section explains that all test audio is generated locally."
+        },
+        {
+          "start": 75.053625,
+          "end": 78.80975,
+          "text": "Another section confirms that no personal recording is included."
+        },
+        {
+          "start": 81.83393749999999,
+          "end": 85.73837499999999,
+          "text": "A later section checks that every meaningful sentence remains present."
+        },
+        {
+          "start": 88.76525,
+          "end": 92.761,
+          "text": "The following section checks that timestamps preserve the speech order."
+        },
+        {
+          "start": 95.77931249999999,
+          "end": 100.02693749999999,
+          "text": "This section confirms that designed silence is different from missing speech."
+        },
+        {
+          "start": 103.05962499999998,
+          "end": 107.41799999999998,
+          "text": "The next section describes a summary with citations to original words."
+        },
+        {
+          "start": 110.44524999999999,
+          "end": 114.95656249999999,
+          "text": "The following section explains that a saved transcript survives a restart."
+        },
+        {
+          "start": 117.98181249999999,
+          "end": 122.32999999999998,
+          "text": "The final section closes the test and thanks the listener for their attention."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "designed-pauses",
+      "language": "en",
+      "file": "designed-pauses.wav",
+      "sha256": "4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "bytes": 733072,
+      "duration_seconds": 22.907125,
+      "expected": "The library opens every morning beside the quiet public garden. Readers can borrow books, study together, and return them at the front desk. This local test records clear speech without sending any media to an external service.",
+      "expected_sha256": "133cf9658b947f15a047200c9f03d8175f92467f91f61640e0787c334773d996",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.2564375000000005,
+          "text": "The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start": 8.281875,
+          "end": 13.04,
+          "text": "Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start": 17.0703125,
+          "end": 22.38375,
+          "text": "This local test records clear speech without sending any media to an external service."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "mild-noise",
+      "language": "en",
+      "file": "mild-noise.wav",
+      "sha256": "a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "bytes": 722862,
+      "duration_seconds": 22.5880625,
+      "expected": "The library opens every morning beside the quiet public garden. Readers can borrow books, study together, and return them at the front desk. This local test records clear speech without sending any media to an external service. After the recording finishes, the application preserves the original words and their timestamps.",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.2564375000000005,
+          "text": "The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start": 4.881875,
+          "end": 9.64,
+          "text": "Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start": 10.2703125,
+          "end": 15.583749999999998,
+          "text": "This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start": 16.207124999999998,
+          "end": 22.061437499999997,
+          "text": "After the recording finishes, the application preserves the original words and their timestamps."
+        }
+      ],
+      "required": true
+    }
+  ],
+  "corpus_sha256": "3983d004bde935ebfae9de31f0954682e483a57955cc84644a04542ce12f814c"
+}

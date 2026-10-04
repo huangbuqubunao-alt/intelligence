@@ -1,0 +1,14 @@
+{"profile": "B", "sample": "independent-medium", "negative": false, "preprocessing_seconds": 0.07762312493287027, "model_wall_seconds": 7.466467791935429, "same_text_and_source_times": true}
+{"profile": "B", "sample": "boundary-medium", "negative": false, "preprocessing_seconds": 0.07296462496742606, "model_wall_seconds": 8.00647649995517, "same_text_and_source_times": true}
+{"profile": "A", "sample": "silence-short", "negative": true, "preprocessing_seconds": 0.07405416609253734, "model_wall_seconds": 3.8595589169999585, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "A", "sample": "silence-medium", "negative": true, "preprocessing_seconds": 0.0732673330930993, "model_wall_seconds": 6.323429125011899, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "A", "sample": "noise-short", "negative": true, "preprocessing_seconds": 0.0403255409328267, "model_wall_seconds": 4.030777249950916, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "B", "sample": "silence-short", "negative": true, "preprocessing_seconds": 0.036609041038900614, "model_wall_seconds": 3.810892332927324, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "B", "sample": "silence-medium", "negative": true, "preprocessing_seconds": 0.07656079204753041, "model_wall_seconds": 6.312359707895666, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "B", "sample": "noise-short", "negative": true, "preprocessing_seconds": 0.0403271249961108, "model_wall_seconds": 3.8739993339404464, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "C", "sample": "silence-short", "negative": true, "preprocessing_seconds": 0.040523875039070845, "model_wall_seconds": 3.9313254590379074, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "C", "sample": "silence-medium", "negative": true, "preprocessing_seconds": 0.07333820802159607, "model_wall_seconds": 8.892692875000648, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "C", "sample": "noise-short", "negative": true, "preprocessing_seconds": 0.04059637489262968, "model_wall_seconds": 3.8566490840166807, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "D", "sample": "silence-short", "negative": true, "preprocessing_seconds": 0.03998612496070564, "model_wall_seconds": 3.9505929579026997, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "D", "sample": "silence-medium", "negative": true, "preprocessing_seconds": 0.07243183301761746, "model_wall_seconds": 9.13712470792234, "meaningful_speech_emitted": true, "safe_no_transcript": false}
+{"profile": "D", "sample": "noise-short", "negative": true, "preprocessing_seconds": 0.07019437500275671, "model_wall_seconds": 4.221637667040341, "meaningful_speech_emitted": true, "safe_no_transcript": false}

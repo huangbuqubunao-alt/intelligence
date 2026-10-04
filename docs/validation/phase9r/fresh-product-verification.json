@@ -1,0 +1,572 @@
+{
+  "fresh_real_restart": [
+    {
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "cue_count": 4,
+      "language": "zh",
+      "timed_hash": "d9fda804759a3184952b77839946558e11e2a1002e2b37c01f06ba1441e64dff",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "cue_count": 6,
+      "language": "en",
+      "timed_hash": "d0b84ec7c17758fee363bc0001832f66e75ab95daedbc420af029093d6b28d78",
+      "evidence_count": 7,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "cue_count": 1,
+      "language": "en",
+      "timed_hash": "5e9ec69f10a6518fc4b1e5c6941770e59e9c145da14d32bc7c6b5c4049096312",
+      "evidence_count": 2,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "cue_count": 3,
+      "language": "en",
+      "timed_hash": "bb9974939ea1e6a7361b63b6a6ddb7a5ce3a971e28ee4179baff4de68acf9849",
+      "evidence_count": 4,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "67024078953cd461431cfad4454c8dace60200c2e21976416e32935fbdfbcb9b",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    }
+  ],
+  "fresh_no_model_restore": [
+    {
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "cue_count": 4,
+      "language": "zh",
+      "timed_hash": "d9fda804759a3184952b77839946558e11e2a1002e2b37c01f06ba1441e64dff",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "cue_count": 6,
+      "language": "en",
+      "timed_hash": "d0b84ec7c17758fee363bc0001832f66e75ab95daedbc420af029093d6b28d78",
+      "evidence_count": 7,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "cue_count": 1,
+      "language": "en",
+      "timed_hash": "5e9ec69f10a6518fc4b1e5c6941770e59e9c145da14d32bc7c6b5c4049096312",
+      "evidence_count": 2,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "cue_count": 3,
+      "language": "en",
+      "timed_hash": "bb9974939ea1e6a7361b63b6a6ddb7a5ce3a971e28ee4179baff4de68acf9849",
+      "evidence_count": 4,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "67024078953cd461431cfad4454c8dace60200c2e21976416e32935fbdfbcb9b",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    },
+    {
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "cue_count": 4,
+      "language": "en",
+      "timed_hash": "e3117dadad9e73a583bf24b9fab0680e5653849acda853f71198c71f4366c9e8",
+      "evidence_count": 5,
+      "summary": true,
+      "exact_cues": true,
+      "exact_evidence_times_and_text": true
+    }
+  ],
+  "medium_untrusted": true,
+  "capability_without_model": {
+    "state": "MODEL_MISSING",
+    "runtime_detected": true,
+    "runtime_available": true,
+    "model_present": false,
+    "executor_compatible": false,
+    "executor": "mlx-whisper-timed-v1",
+    "model_identity": null,
+    "execution_identity": null,
+    "reason_code": "MODEL_MISSING",
+    "qualification_state": "NOT_TESTED",
+    "qualification_identity": null,
+    "production_eligible": false,
+    "media_tools_available": true,
+    "checking": false
+  },
+  "model_excluded": true,
+  "database": {
+    "fresh": {
+      "quick_check": "ok",
+      "integrity_check": "ok",
+      "foreign_key_check": [],
+      "migrations": [
+        {
+          "version": 1,
+          "name": "001_initial.sql",
+          "checksum": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 2,
+          "name": "002_add_scoring_lineage.sql",
+          "checksum": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 3,
+          "name": "003_add_deep_analysis_persistence.sql",
+          "checksum": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 4,
+          "name": "004_add_provider_dispatch_state.sql",
+          "checksum": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 5,
+          "name": "005_add_product_orchestration.sql",
+          "checksum": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 6,
+          "name": "006_add_intelligence_domain.sql",
+          "checksum": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 7,
+          "name": "007_add_intelligence_claim_classification.sql",
+          "checksum": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 8,
+          "name": "008_add_preference_feedback.sql",
+          "checksum": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 9,
+          "name": "009_add_source_policy_filtering.sql",
+          "checksum": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 10,
+          "name": "010_add_personalized_distillation.sql",
+          "checksum": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 11,
+          "name": "011_add_topic_timeline.sql",
+          "checksum": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 12,
+          "name": "012_add_source_run_orchestration.sql",
+          "checksum": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 13,
+          "name": "013_add_weekly_brief_foundation.sql",
+          "checksum": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 14,
+          "name": "014_add_saved_intelligence.sql",
+          "checksum": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 15,
+          "name": "015_add_timed_transcript_evidence_bindings.sql",
+          "checksum": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 16,
+          "name": "016_add_ambiguous_resource_ledger_outcome.sql",
+          "checksum": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 17,
+          "name": "017_add_current_content_summary.sql",
+          "checksum": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 18,
+          "name": "018_add_global_output_language.sql",
+          "checksum": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 19,
+          "name": "019_add_evidence_excerpt_stance.sql",
+          "checksum": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 20,
+          "name": "020_add_no_new_intelligence_result.sql",
+          "checksum": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 21,
+          "name": "021_seal_distillation_output_language.sql",
+          "checksum": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 22,
+          "name": "022_bind_current_local_summary.sql",
+          "checksum": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 23,
+          "name": "023_add_evidence_translation_presentation.sql",
+          "checksum": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 24,
+          "name": "024_bind_current_summary_to_content.sql",
+          "checksum": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 25,
+          "name": "025_add_explicit_cloud_execution_audit.sql",
+          "checksum": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 26,
+          "name": "026_add_openai_cloud_execution_audit.sql",
+          "checksum": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 27,
+          "name": "027_add_moonshot_cloud_execution_audit.sql",
+          "checksum": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 28,
+          "name": "028_add_cloud_response_failure_ledger.sql",
+          "checksum": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 30,
+          "name": "030_add_deep_analysis_durable_evidence.sql",
+          "checksum": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 31,
+          "name": "031_add_research_lite.sql",
+          "checksum": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 32,
+          "name": "032_add_source_provider_authority.sql",
+          "checksum": "4d6d9abc32f4613d05594d11f263b6125f9d4358d8344a82db48a1111008a3f7",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        }
+      ]
+    },
+    "restored": {
+      "quick_check": "ok",
+      "integrity_check": "ok",
+      "foreign_key_check": [],
+      "migrations": [
+        {
+          "version": 1,
+          "name": "001_initial.sql",
+          "checksum": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 2,
+          "name": "002_add_scoring_lineage.sql",
+          "checksum": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 3,
+          "name": "003_add_deep_analysis_persistence.sql",
+          "checksum": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 4,
+          "name": "004_add_provider_dispatch_state.sql",
+          "checksum": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 5,
+          "name": "005_add_product_orchestration.sql",
+          "checksum": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 6,
+          "name": "006_add_intelligence_domain.sql",
+          "checksum": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 7,
+          "name": "007_add_intelligence_claim_classification.sql",
+          "checksum": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 8,
+          "name": "008_add_preference_feedback.sql",
+          "checksum": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 9,
+          "name": "009_add_source_policy_filtering.sql",
+          "checksum": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 10,
+          "name": "010_add_personalized_distillation.sql",
+          "checksum": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 11,
+          "name": "011_add_topic_timeline.sql",
+          "checksum": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 12,
+          "name": "012_add_source_run_orchestration.sql",
+          "checksum": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 13,
+          "name": "013_add_weekly_brief_foundation.sql",
+          "checksum": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 14,
+          "name": "014_add_saved_intelligence.sql",
+          "checksum": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 15,
+          "name": "015_add_timed_transcript_evidence_bindings.sql",
+          "checksum": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 16,
+          "name": "016_add_ambiguous_resource_ledger_outcome.sql",
+          "checksum": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 17,
+          "name": "017_add_current_content_summary.sql",
+          "checksum": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 18,
+          "name": "018_add_global_output_language.sql",
+          "checksum": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 19,
+          "name": "019_add_evidence_excerpt_stance.sql",
+          "checksum": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 20,
+          "name": "020_add_no_new_intelligence_result.sql",
+          "checksum": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 21,
+          "name": "021_seal_distillation_output_language.sql",
+          "checksum": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 22,
+          "name": "022_bind_current_local_summary.sql",
+          "checksum": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 23,
+          "name": "023_add_evidence_translation_presentation.sql",
+          "checksum": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 24,
+          "name": "024_bind_current_summary_to_content.sql",
+          "checksum": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 25,
+          "name": "025_add_explicit_cloud_execution_audit.sql",
+          "checksum": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 26,
+          "name": "026_add_openai_cloud_execution_audit.sql",
+          "checksum": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 27,
+          "name": "027_add_moonshot_cloud_execution_audit.sql",
+          "checksum": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 28,
+          "name": "028_add_cloud_response_failure_ledger.sql",
+          "checksum": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 30,
+          "name": "030_add_deep_analysis_durable_evidence.sql",
+          "checksum": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 31,
+          "name": "031_add_research_lite.sql",
+          "checksum": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        },
+        {
+          "version": 32,
+          "name": "032_add_source_provider_authority.sql",
+          "checksum": "4d6d9abc32f4613d05594d11f263b6125f9d4358d8344a82db48a1111008a3f7",
+          "applied_at": "2026-10-04T04:22:45.629448Z"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,520 @@
+{
+  "generator": "macos-say-145-mono16k-pcm-v1",
+  "spec_sha256": "f701c86e5cc26f3a688a1663088d7f75d19d104a0dab1bde98582b03599f0378",
+  "synthetic_only": true,
+  "samples": [
+    {
+      "id": "independent-medium",
+      "language": "en",
+      "file": "independent-medium.wav",
+      "sha256": "417db23904b288581f8efccc589873f582133d7cebf6c21a78f14b4fecbc3e92",
+      "bytes": 3897560,
+      "duration_seconds": 121.797375,
+      "expected": "A weather station measures the temperature beside a public walking trail. The brass instrument records air pressure at regular intervals each morning. A wooden shelter protects the thermometer from direct afternoon sunlight. Several glass containers collect rainwater for a simple measurement exercise. The observer writes each reading in a notebook with the date and time. A blue arrow on the roof shows which direction the wind is blowing. The lesson explains why nearby buildings can change the measured wind speed. Students compare observations from the hill and from the open playing field. The next activity uses a paper chart to display temperature changes. Each colored line represents a different day of the same teaching week. A small ruler helps the class draw straight lines across the chart. The instructor asks everyone to check the units before comparing numbers. Warm air can hold more moisture than cold air under similar conditions. Clouds form when moist air rises and cools above the surrounding landscape. A simple experiment places a cool metal lid over a container of warm water. Drops appear on the lid after the water vapor touches the cooler surface. The class discusses the difference between an observation and an explanation. Careful records help another observer repeat the same measurement tomorrow. All spoken material in this exercise was generated locally for software testing. The recording ends after the final explanation without any private information.",
+      "expected_sha256": "cbabe617ecaee3497a60ff79fb33e2e47916daf7fe38525702be16378a2f2260",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.6065625,
+          "text": "A weather station measures the temperature beside a public walking trail."
+        },
+        {
+          "start": 6.128625,
+          "end": 10.353000000000002,
+          "text": "The brass instrument records air pressure at regular intervals each morning."
+        },
+        {
+          "start": 11.874937500000001,
+          "end": 16.107375,
+          "text": "A wooden shelter protects the thermometer from direct afternoon sunlight."
+        },
+        {
+          "start": 17.63125,
+          "end": 22.3239375,
+          "text": "Several glass containers collect rainwater for a simple measurement exercise."
+        },
+        {
+          "start": 23.8570625,
+          "end": 27.404625000000003,
+          "text": "The observer writes each reading in a notebook with the date and time."
+        },
+        {
+          "start": 28.9293125,
+          "end": 32.330062500000004,
+          "text": "A blue arrow on the roof shows which direction the wind is blowing."
+        },
+        {
+          "start": 33.8498125,
+          "end": 38.181375,
+          "text": "The lesson explains why nearby buildings can change the measured wind speed."
+        },
+        {
+          "start": 39.7005625,
+          "end": 43.833375,
+          "text": "Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "start": 45.368937499999994,
+          "end": 49.718062499999995,
+          "text": "The next activity uses a paper chart to display temperature changes."
+        },
+        {
+          "start": 51.25456249999999,
+          "end": 55.13881249999999,
+          "text": "Each colored line represents a different day of the same teaching week."
+        },
+        {
+          "start": 56.67481249999999,
+          "end": 60.64262499999999,
+          "text": "A small ruler helps the class draw straight lines across the chart."
+        },
+        {
+          "start": 62.163499999999985,
+          "end": 66.52093749999999,
+          "text": "The instructor asks everyone to check the units before comparing numbers."
+        },
+        {
+          "start": 68.04843749999999,
+          "end": 72.24149999999999,
+          "text": "Warm air can hold more moisture than cold air under similar conditions."
+        },
+        {
+          "start": 73.77443749999999,
+          "end": 77.9965,
+          "text": "Clouds form when moist air rises and cools above the surrounding landscape."
+        },
+        {
+          "start": 79.5651875,
+          "end": 84.1064375,
+          "text": "A simple experiment places a cool metal lid over a container of warm water."
+        },
+        {
+          "start": 85.62275,
+          "end": 89.8035625,
+          "text": "Drops appear on the lid after the water vapor touches the cooler surface."
+        },
+        {
+          "start": 91.33574999999999,
+          "end": 95.6726875,
+          "text": "The class discusses the difference between an observation and an explanation."
+        },
+        {
+          "start": 97.19812499999999,
+          "end": 101.41824999999999,
+          "text": "Careful records help another observer repeat the same measurement tomorrow."
+        },
+        {
+          "start": 102.94262499999999,
+          "end": 108.14637499999999,
+          "text": "All spoken material in this exercise was generated locally for software testing."
+        },
+        {
+          "start": 109.6679375,
+          "end": 114.2700625,
+          "text": "The recording ends after the final explanation without any private information."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "boundary-medium",
+      "language": "en",
+      "file": "boundary-medium.wav",
+      "sha256": "372d4d968d67ea22396cb87e10c89de3dcaaece46afdc35eba0dc9176731d6f3",
+      "bytes": 3987248,
+      "duration_seconds": 124.600125,
+      "expected": "A weather station measures the temperature beside a public walking trail. The brass instrument records air pressure at regular intervals each morning. A wooden shelter protects the thermometer from direct afternoon sunlight. Several glass containers collect rainwater for a simple measurement exercise. The observer writes each reading in a notebook with the date and time. A blue arrow on the roof shows which direction the wind is blowing. The lesson explains why nearby buildings can change the measured wind speed. Students compare observations from the hill and from the open playing field. The next activity uses a paper chart to display temperature changes. Each colored line represents a different day of the same teaching week. A small ruler helps the class draw straight lines across the chart. The instructor asks everyone to check the units before comparing numbers. Warm air can hold more moisture than cold air under similar conditions. Clouds form when moist air rises and cools above the surrounding landscape. A simple experiment places a cool metal lid over a container of warm water. Drops appear on the lid after the water vapor touches the cooler surface. The class discusses the difference between an observation and an explanation. Careful records help another observer repeat the same measurement tomorrow. All spoken material in this exercise was generated locally for software testing. The recording ends after the final explanation without any private information. The library opens every morning beside the quiet public garden. Readers can borrow books, study together, and return them at the front desk. This local test records clear speech without sending any media to an external service. After the recording finishes, the application preserves the original words and their timestamps. The first section describes a small library beside the river. The second section explains how readers find books on the shelves. The third section mentions a quiet room for studying history. The fourth section describes a map displayed near the entrance. The fifth section introduces a calendar of community activities.",
+      "expected_sha256": "43758f805e6f8d7b79beb0a9afcc578fd6eb559fee6874bfa735e8529bf6b6d7",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.6065625,
+          "text": "A weather station measures the temperature beside a public walking trail."
+        },
+        {
+          "start": 4.628625,
+          "end": 8.853000000000002,
+          "text": "The brass instrument records air pressure at regular intervals each morning."
+        },
+        {
+          "start": 8.874937500000001,
+          "end": 13.107375000000001,
+          "text": "A wooden shelter protects the thermometer from direct afternoon sunlight."
+        },
+        {
+          "start": 13.131250000000001,
+          "end": 17.8239375,
+          "text": "Several glass containers collect rainwater for a simple measurement exercise."
+        },
+        {
+          "start": 17.8570625,
+          "end": 21.404625000000003,
+          "text": "The observer writes each reading in a notebook with the date and time."
+        },
+        {
+          "start": 21.4293125,
+          "end": 24.8300625,
+          "text": "A blue arrow on the roof shows which direction the wind is blowing."
+        },
+        {
+          "start": 24.849812500000002,
+          "end": 29.181375000000003,
+          "text": "The lesson explains why nearby buildings can change the measured wind speed."
+        },
+        {
+          "start": 29.200562500000004,
+          "end": 33.333375000000004,
+          "text": "Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "start": 33.3689375,
+          "end": 37.7180625,
+          "text": "The next activity uses a paper chart to display temperature changes."
+        },
+        {
+          "start": 37.7545625,
+          "end": 41.6388125,
+          "text": "Each colored line represents a different day of the same teaching week."
+        },
+        {
+          "start": 41.6748125,
+          "end": 45.642625,
+          "text": "A small ruler helps the class draw straight lines across the chart."
+        },
+        {
+          "start": 45.6635,
+          "end": 50.0209375,
+          "text": "The instructor asks everyone to check the units before comparing numbers."
+        },
+        {
+          "start": 50.0484375,
+          "end": 54.2415,
+          "text": "Warm air can hold more moisture than cold air under similar conditions."
+        },
+        {
+          "start": 54.2744375,
+          "end": 58.4965,
+          "text": "Clouds form when moist air rises and cools above the surrounding landscape."
+        },
+        {
+          "start": 58.5651875,
+          "end": 63.1064375,
+          "text": "A simple experiment places a cool metal lid over a container of warm water."
+        },
+        {
+          "start": 63.12275,
+          "end": 67.3035625,
+          "text": "Drops appear on the lid after the water vapor touches the cooler surface."
+        },
+        {
+          "start": 67.33575,
+          "end": 71.67268750000001,
+          "text": "The class discusses the difference between an observation and an explanation."
+        },
+        {
+          "start": 71.698125,
+          "end": 75.91825,
+          "text": "Careful records help another observer repeat the same measurement tomorrow."
+        },
+        {
+          "start": 75.942625,
+          "end": 81.146375,
+          "text": "All spoken material in this exercise was generated locally for software testing."
+        },
+        {
+          "start": 81.16793750000001,
+          "end": 85.77006250000001,
+          "text": "The recording ends after the final explanation without any private information."
+        },
+        {
+          "start": 85.797375,
+          "end": 89.5538125,
+          "text": "The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start": 89.57925,
+          "end": 94.33737500000001,
+          "text": "Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start": 94.3676875,
+          "end": 99.68112500000001,
+          "text": "This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start": 99.7045,
+          "end": 105.5588125,
+          "text": "After the recording finishes, the application preserves the original words and their timestamps."
+        },
+        {
+          "start": 105.5854375,
+          "end": 109.14643749999999,
+          "text": "The first section describes a small library beside the river."
+        },
+        {
+          "start": 109.1699375,
+          "end": 112.95818750000001,
+          "text": "The second section explains how readers find books on the shelves."
+        },
+        {
+          "start": 112.9866875,
+          "end": 116.50750000000001,
+          "text": "The third section mentions a quiet room for studying history."
+        },
+        {
+          "start": 116.52475,
+          "end": 120.06581249999999,
+          "text": "The fourth section describes a map displayed near the entrance."
+        },
+        {
+          "start": 120.0860625,
+          "end": 124.0735625,
+          "text": "The fifth section introduces a calendar of community activities."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "silence-medium",
+      "language": "en",
+      "file": "silence-medium.wav",
+      "sha256": "572d267519cf5ddcd14b3cea5bf99f03c476a4ffc6767703d8d565b0d30cec3c",
+      "bytes": 4081594,
+      "duration_seconds": 127.5484375,
+      "expected": "A weather station measures the temperature beside a public walking trail. The brass instrument records air pressure at regular intervals each morning. A wooden shelter protects the thermometer from direct afternoon sunlight. Several glass containers collect rainwater for a simple measurement exercise. The observer writes each reading in a notebook with the date and time. A blue arrow on the roof shows which direction the wind is blowing. The lesson explains why nearby buildings can change the measured wind speed. Students compare observations from the hill and from the open playing field. The next activity uses a paper chart to display temperature changes. Each colored line represents a different day of the same teaching week. A small ruler helps the class draw straight lines across the chart. The instructor asks everyone to check the units before comparing numbers.",
+      "expected_sha256": "6a1322a2eb3a95f9ebbcfa2e1ffff05a4e5b07b2aafb2bb686b05d592f235cb7",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 4.6065625,
+          "text": "A weather station measures the temperature beside a public walking trail."
+        },
+        {
+          "start": 11.628625,
+          "end": 15.853,
+          "text": "The brass instrument records air pressure at regular intervals each morning."
+        },
+        {
+          "start": 22.8749375,
+          "end": 27.107375,
+          "text": "A wooden shelter protects the thermometer from direct afternoon sunlight."
+        },
+        {
+          "start": 34.13125,
+          "end": 38.8239375,
+          "text": "Several glass containers collect rainwater for a simple measurement exercise."
+        },
+        {
+          "start": 45.8570625,
+          "end": 49.404624999999996,
+          "text": "The observer writes each reading in a notebook with the date and time."
+        },
+        {
+          "start": 56.429312499999995,
+          "end": 59.8300625,
+          "text": "A blue arrow on the roof shows which direction the wind is blowing."
+        },
+        {
+          "start": 66.8498125,
+          "end": 71.181375,
+          "text": "The lesson explains why nearby buildings can change the measured wind speed."
+        },
+        {
+          "start": 78.2005625,
+          "end": 82.333375,
+          "text": "Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "start": 89.3689375,
+          "end": 93.7180625,
+          "text": "The next activity uses a paper chart to display temperature changes."
+        },
+        {
+          "start": 100.7545625,
+          "end": 104.6388125,
+          "text": "Each colored line represents a different day of the same teaching week."
+        },
+        {
+          "start": 111.6748125,
+          "end": 115.642625,
+          "text": "A small ruler helps the class draw straight lines across the chart."
+        },
+        {
+          "start": 122.6635,
+          "end": 127.0209375,
+          "text": "The instructor asks everyone to check the units before comparing numbers."
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "mixed-medium",
+      "language": "mixed",
+      "file": "mixed-medium.wav",
+      "sha256": "d0a4d463eb48bddc2eb12df244a2bac12420e4d46fa7b613f7083c605ae1edc7",
+      "bytes": 3914494,
+      "duration_seconds": 122.3265625,
+      "expected": "今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence. 今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence. 今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence. 今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence. 今天我们测试本地模型。 The audio stays on this device. 我们使用中文和英文检查转写结果。 Please keep the original words and timestamps. 所有文件都保存在本地，不需要网络连接。 The final summary includes reliable evidence.",
+      "expected_sha256": "f4e1680141a50747450092b51ac1465da3e79e45f46d4fe2e495cebf7528099a",
+      "speech_regions": [
+        {
+          "start": 0.5,
+          "end": 2.9928125,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 4.0109375,
+          "end": 6.0809999999999995,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 7.108625,
+          "end": 10.702625,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 11.7095625,
+          "end": 14.510000000000002,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 15.539312500000001,
+          "end": 20.075937500000002,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 21.089,
+          "end": 23.938875,
+          "text": "The final summary includes reliable evidence."
+        },
+        {
+          "start": 24.9653125,
+          "end": 27.458125,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 28.47625,
+          "end": 30.5463125,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 31.5739375,
+          "end": 35.1679375,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 36.174875,
+          "end": 38.9753125,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 40.004625,
+          "end": 44.54125,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 45.5543125,
+          "end": 48.4041875,
+          "text": "The final summary includes reliable evidence."
+        },
+        {
+          "start": 49.430625,
+          "end": 51.9234375,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 52.941562499999996,
+          "end": 55.011624999999995,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 56.039249999999996,
+          "end": 59.63325,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 60.640187499999996,
+          "end": 63.440625,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 64.4699375,
+          "end": 69.0065625,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 70.01962499999999,
+          "end": 72.86949999999999,
+          "text": "The final summary includes reliable evidence."
+        },
+        {
+          "start": 73.89593749999999,
+          "end": 76.38874999999999,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 77.40687499999999,
+          "end": 79.47693749999999,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 80.50456249999999,
+          "end": 84.09856249999999,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 85.10549999999999,
+          "end": 87.9059375,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 88.93525,
+          "end": 93.471875,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 94.48493749999999,
+          "end": 97.33481249999998,
+          "text": "The final summary includes reliable evidence."
+        },
+        {
+          "start": 98.36124999999998,
+          "end": 100.85406249999998,
+          "text": "今天我们测试本地模型。"
+        },
+        {
+          "start": 101.87218749999998,
+          "end": 103.94224999999999,
+          "text": "The audio stays on this device."
+        },
+        {
+          "start": 104.96987499999999,
+          "end": 108.56387499999998,
+          "text": "我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start": 109.57081249999999,
+          "end": 112.37124999999999,
+          "text": "Please keep the original words and timestamps."
+        },
+        {
+          "start": 113.40056249999999,
+          "end": 117.9371875,
+          "text": "所有文件都保存在本地，不需要网络连接。"
+        },
+        {
+          "start": 118.95024999999998,
+          "end": 121.80012499999998,
+          "text": "The final summary includes reliable evidence."
+        }
+      ],
+      "required": true
+    }
+  ],
+  "postprocess": {
+    "independent-medium": {
+      "terminal_silence_seconds": 7.0
+    }
+  },
+  "corpus_sha256": "a0aae02743d6a06f7eee12fd1f02b703f6f8f9244c020baf2d2862263de227fc"
+}

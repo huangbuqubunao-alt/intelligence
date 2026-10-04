@@ -1,0 +1,89 @@
+{
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "real_audio": true,
+      "real_video": true,
+      "qualification": "FAILED",
+      "new_transcription_blocked": true,
+      "model_missing_preserves_authority": true,
+      "source_language_preserved_with_english_output": true
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "no_new_navigation": true,
+  "real_acoustic_authority": true
+}

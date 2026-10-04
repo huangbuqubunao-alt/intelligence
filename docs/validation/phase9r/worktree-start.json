@@ -1,0 +1,44 @@
+[
+  {
+    "command": "pwd",
+    "code": 0,
+    "stdout": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation\n",
+    "stderr": ""
+  },
+  {
+    "command": "git rev-parse --show-toplevel",
+    "code": 0,
+    "stdout": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation\n",
+    "stderr": ""
+  },
+  {
+    "command": "git branch --show-current",
+    "code": 0,
+    "stdout": "chatgpt/v1x-acoustic-remediation\n",
+    "stderr": ""
+  },
+  {
+    "command": "git rev-parse HEAD",
+    "code": 0,
+    "stdout": "0a0eef4b2c5f321f46b2c58ed2535d521af05b5d\n",
+    "stderr": ""
+  },
+  {
+    "command": "git status --short",
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": "git worktree list",
+    "code": 0,
+    "stdout": "/Users/hua/youtube-intel                                         3e7eceb [rc4/usability-test]\n/Users/hua/Documents/yia-worktrees/m10-core-backup-restore       075d752 [chatgpt/m10-core-backup-restore]\n/Users/hua/Documents/yia-worktrees/m12-golden-ui                 bfda6c5 [chatgpt/m12-golden-ui]\n/Users/hua/Documents/yia-worktrees/m12-status-finalize           33caf99 [chatgpt/m12-status-finalize]\n/Users/hua/Documents/yia-worktrees/m13-dogfood                   e228294 [chatgpt/m13-7day-dogfood]\n/Users/hua/Documents/yia-worktrees/m5-local-model-qualification  355f22d [chatgpt/m5-local-model-qualification]\n/Users/hua/Documents/yia-worktrees/m8-evidence-translation       6ed0f11 [chatgpt/m8-evidence-translation]\n/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification    0a0eef4 [chatgpt/v1x-acoustic-qualification]\n/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation      0a0eef4 [chatgpt/v1x-acoustic-remediation]\n/Users/hua/Documents/yia-worktrees/v1x-deep-analysis             72950a5 [chatgpt/v1x-deep-analysis]\n/Users/hua/Documents/yia-worktrees/v1x-integration               ba9f27f [chatgpt/v1x-integration]\n/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta           795275c [chatgpt/v1x-knowledge-delta]\n/Users/hua/Documents/yia-worktrees/v1x-local-main                08d62d8 [main]\n/Users/hua/Documents/yia-worktrees/v1x-local-provider            c09a6ae [chatgpt/v1x-local-provider]\n/Users/hua/Documents/yia-worktrees/v1x-milestone-closure         08d62d8 [chatgpt/v1x-milestone-closure]\n/Users/hua/Documents/yia-worktrees/v1x-obsidian                  b9362fb [chatgpt/v1x-obsidian-deep-analysis]\n/Users/hua/Documents/yia-worktrees/v1x-offline-transcription     5324ebb [chatgpt/v1x-offline-transcription]\n/Users/hua/Documents/yia-worktrees/v1x-research-diff             b7aa90f [chatgpt/v1x-research-diff]\n/Users/hua/Documents/yia-worktrees/v1x-research-history          15f7203 [chatgpt/v1x-research-history]\n/Users/hua/Documents/yia-worktrees/v1x-research-lite             22ea84a [chatgpt/v1x-research-lite]\n",
+    "stderr": ""
+  },
+  {
+    "command": "git diff --check",
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

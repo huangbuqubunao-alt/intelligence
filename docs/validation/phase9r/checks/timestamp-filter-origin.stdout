@@ -1,0 +1,1 @@
+{"events": 1, "first_summary": {"sample_begin": 227, "timestamp_begin": 50365, "finite_logits_before": 51778, "finite_logits_after": 0, "timestamp_logprob_before_structural_mask": -1.0542221069335938, "max_text_logprob_before_structural_mask": -1.683457374572754}}

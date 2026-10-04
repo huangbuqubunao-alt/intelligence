@@ -1,0 +1,1169 @@
+{
+  "samples": [
+    {
+      "profile": "A",
+      "id": "english-clean",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "mandarin-clean",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "mixed-clean",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "very-short",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 122.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 123.08,
+          "end": 123.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 123.08,
+          "end": 123.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 123.08,
+          "end": 123.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 123.08,
+          "end": 123.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 123.08,
+          "end": 123.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 123.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.08,
+          "end": 124.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 124.08,
+          "end": 125.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 125.08,
+          "end": 125.08,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 125.08,
+          "end": 125.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 125.08,
+          "end": 126.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 126.08,
+          "end": 127.08,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 127.08,
+          "end": 128.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 128.07999999999998,
+          "end": 129.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 129.07999999999998,
+          "end": 129.07999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.07999999999998,
+          "end": 129.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.07999999999998,
+          "end": 130.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 130.07999999999998,
+          "end": 131.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 131.07999999999998,
+          "end": 131.07999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 131.07999999999998,
+          "end": 131.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 131.07999999999998,
+          "end": 132.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 132.07999999999998,
+          "end": 133.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": " The final section says a few minutes."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.07999999999998,
+          "end": 133.07999999999998,
+          "partition_seconds": 122.8558125,
+          "source_offset": 0.0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "profile": "A",
+      "id": "designed-pauses",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "mild-noise",
+      "violations": []
+    },
+    {
+      "profile": "A",
+      "id": "independent-medium",
+      "violations": [
+        {
+          "kind": "nonmonotonic",
+          "start": 77.74,
+          "previous_end": 77.74000000000001,
+          "source_offset": 0.0,
+          "text": " A simple experiment places a cool metal lid over a container of warm water."
+        },
+        {
+          "kind": "nonmonotonic",
+          "start": 114.02,
+          "previous_end": 114.02000000000001,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 115.02,
+          "end": 115.02,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 115.02,
+          "end": 115.02,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 117.02,
+          "end": 117.02,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 121.02,
+          "end": 122.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 122.02,
+          "end": 123.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.02,
+          "end": 124.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 124.02,
+          "end": 125.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 125.02,
+          "end": 125.02,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 125.02,
+          "end": 125.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 125.02,
+          "end": 126.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 126.02,
+          "end": 127.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 127.02,
+          "end": 127.02,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 127.02,
+          "end": 127.02,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 127.02,
+          "end": 128.01999999999998,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 128.01999999999998,
+          "end": 129.01999999999998,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " The recording ends after the final explanation."
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 129.01999999999998,
+          "end": 129.01999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.01999999999998,
+          "end": 129.01999999999998,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": ""
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 129.01999999999998,
+          "end": 129.01999999999998,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.01999999999998,
+          "end": 129.01999999999998,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "profile": "A",
+      "id": "boundary-medium",
+      "violations": [
+        {
+          "kind": "nonmonotonic",
+          "start": 29.06,
+          "previous_end": 29.060000000000002,
+          "source_offset": 0.0,
+          "text": " Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.8,
+          "end": 130.8,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 131.04,
+          "end": 133.04,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.1,
+          "end": 134.92,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 135.07999999999998,
+          "end": 136.92,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 136.98,
+          "end": 138.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 139.04,
+          "end": 140.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 141.18,
+          "end": 143.04,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 143.1,
+          "end": 145.04,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 145.18,
+          "end": 146.68,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 146.76,
+          "end": 148.18,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 148.4,
+          "end": 148.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 149.14,
+          "end": 149.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 149.98,
+          "end": 150.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 150.98,
+          "end": 151.98,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 151.98,
+          "end": 153.78,
+          "partition_seconds": 124.600125,
+          "source_offset": 0.0,
+          "text": " The fourth section describes a map displayed in the description."
+        }
+      ]
+    },
+    {
+      "profile": "A",
+      "id": "silence-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 127.0,
+          "end": 128.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 128.0,
+          "end": 129.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.0,
+          "end": 130.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 130.0,
+          "end": 131.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 131.0,
+          "end": 132.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 132.0,
+          "end": 133.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.0,
+          "end": 134.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 134.0,
+          "end": 135.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 135.0,
+          "end": 136.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 136.0,
+          "end": 137.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 137.0,
+          "end": 138.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 138.0,
+          "end": 139.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 139.0,
+          "end": 140.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 140.0,
+          "end": 141.0,
+          "partition_seconds": 127.5484375,
+          "source_offset": 0.0,
+          "text": " The next activity uses a different way to the same teaching week."
+        }
+      ]
+    },
+    {
+      "profile": "A",
+      "id": "mixed-medium",
+      "violations": [
+        {
+          "kind": "zero_or_negative",
+          "start": 101.3,
+          "end": 101.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 101.3,
+          "end": 101.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 101.3,
+          "end": 101.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 101.3,
+          "end": 101.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 101.3,
+          "end": 101.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 102.3,
+          "end": 102.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 104.3,
+          "end": 104.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 106.3,
+          "end": 106.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "zero_or_negative",
+          "start": 113.3,
+          "end": 113.3,
+          "source_offset": 0.0
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 122.3,
+          "end": 123.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 123.3,
+          "end": 124.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 124.3,
+          "end": 125.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 125.3,
+          "end": 126.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 126.3,
+          "end": 127.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 127.3,
+          "end": 128.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 128.3,
+          "end": 129.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 129.3,
+          "end": 130.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 130.3,
+          "end": 131.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 131.3,
+          "end": 132.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 132.3,
+          "end": 133.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 133.3,
+          "end": 134.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 134.3,
+          "end": 135.3,
+          "partition_seconds": 122.3265625,
+          "source_offset": 0.0,
+          "text": " 您测试本地模型。"
+        }
+      ]
+    },
+    {
+      "profile": "A",
+      "id": "english-video",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "english-clean",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "mandarin-clean",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "mixed-clean",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "very-short",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "medium",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "designed-pauses",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "mild-noise",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "independent-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 115.1,
+          "end": 145.07999999999998,
+          "partition_seconds": 121.797375,
+          "source_offset": 0.0,
+          "text": " Thank you."
+        }
+      ]
+    },
+    {
+      "profile": "B",
+      "id": "boundary-medium",
+      "violations": [
+        {
+          "kind": "nonmonotonic",
+          "start": 29.06,
+          "previous_end": 29.060000000000002,
+          "source_offset": 0.0,
+          "text": " Students compare observations from the hill and from the open playing field."
+        }
+      ]
+    },
+    {
+      "profile": "B",
+      "id": "silence-medium",
+      "violations": []
+    },
+    {
+      "profile": "B",
+      "id": "mixed-medium",
+      "violations": [
+        {
+          "kind": "nonmonotonic",
+          "start": 112.24,
+          "previous_end": 112.24000000000001,
+          "source_offset": 0.0,
+          "text": " 所有文件都保存在本地,不需要网络连接。"
+        }
+      ]
+    },
+    {
+      "profile": "B",
+      "id": "english-video",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "english-clean",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "mandarin-clean",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "mixed-clean",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "very-short",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "medium",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "designed-pauses",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "mild-noise",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "independent-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 23.2,
+          "end": 25.2,
+          "partition_seconds": 25.0,
+          "source_offset": 0.0,
+          "text": " The observer writes each..."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.22,
+          "end": 25.080000000000002,
+          "partition_seconds": 25.0,
+          "source_offset": 75.0,
+          "text": " Careful records help another observer repeat the..."
+        }
+      ]
+    },
+    {
+      "profile": "C",
+      "id": "boundary-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 21.68,
+          "end": 25.04,
+          "partition_seconds": 25.0,
+          "source_offset": 50.0,
+          "text": " Careful records help another observer repeat the same measure."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 21.68,
+          "end": 34.4,
+          "partition_seconds": 24.600125,
+          "source_offset": 100.0,
+          "text": " a calendar of community activities."
+        }
+      ]
+    },
+    {
+      "profile": "C",
+      "id": "silence-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.0,
+          "end": 29.0,
+          "partition_seconds": 25.0,
+          "source_offset": 0.0,
+          "text": " A wooden shelter protects the thermometer."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.0,
+          "end": 26.0,
+          "partition_seconds": 25.0,
+          "source_offset": 100.0,
+          "text": " The instructor asks everyone to check the"
+        }
+      ]
+    },
+    {
+      "profile": "C",
+      "id": "mixed-medium",
+      "violations": []
+    },
+    {
+      "profile": "C",
+      "id": "english-video",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "english-clean",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "mandarin-clean",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "mixed-clean",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "very-short",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "medium",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "designed-pauses",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "mild-noise",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "independent-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 23.2,
+          "end": 25.2,
+          "partition_seconds": 25.0,
+          "source_offset": 0.0,
+          "text": " The observer writes each..."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.22,
+          "end": 25.080000000000002,
+          "partition_seconds": 25.0,
+          "source_offset": 75.0,
+          "text": " Careful records help another observer repeat the..."
+        }
+      ]
+    },
+    {
+      "profile": "D",
+      "id": "boundary-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 21.68,
+          "end": 25.04,
+          "partition_seconds": 25.0,
+          "source_offset": 50.0,
+          "text": " Careful records help another observer repeat the same measure."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 21.68,
+          "end": 25.84,
+          "partition_seconds": 24.600125,
+          "source_offset": 100.0,
+          "text": " a calendar of community activities."
+        }
+      ]
+    },
+    {
+      "profile": "D",
+      "id": "silence-medium",
+      "violations": [
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.0,
+          "end": 29.0,
+          "partition_seconds": 25.0,
+          "source_offset": 0.0,
+          "text": " A wooden shelter protects the thermometer."
+        },
+        {
+          "kind": "beyond_source_partition",
+          "start": 22.0,
+          "end": 26.0,
+          "partition_seconds": 25.0,
+          "source_offset": 100.0,
+          "text": " The instructor asks everyone to check the"
+        }
+      ]
+    },
+    {
+      "profile": "D",
+      "id": "mixed-medium",
+      "violations": []
+    },
+    {
+      "profile": "D",
+      "id": "english-video",
+      "violations": []
+    }
+  ],
+  "primary_metrics": "matrix-results.json",
+  "note": "Diagnostic projection only; all raw original cue/text values retained locally."
+}

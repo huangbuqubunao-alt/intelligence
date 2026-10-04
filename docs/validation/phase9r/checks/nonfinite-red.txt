@@ -1,0 +1,184 @@
+FFFFFFFFF..                                                              [100%]
+=================================== FAILURES ===================================
+_____ test_nonfinite_metadata_cannot_enter_authoritative_raw[segment-nan] ______
+
+value = nan, location = 'segment'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_____ test_nonfinite_metadata_cannot_enter_authoritative_raw[segment-inf] ______
+
+value = inf, location = 'segment'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_____ test_nonfinite_metadata_cannot_enter_authoritative_raw[segment--inf] _____
+
+value = -inf, location = 'segment'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_______ test_nonfinite_metadata_cannot_enter_authoritative_raw[top-nan] ________
+
+value = nan, location = 'top'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_______ test_nonfinite_metadata_cannot_enter_authoritative_raw[top-inf] ________
+
+value = inf, location = 'top'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_______ test_nonfinite_metadata_cannot_enter_authoritative_raw[top--inf] _______
+
+value = -inf, location = 'top'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+______ test_nonfinite_metadata_cannot_enter_authoritative_raw[nested-nan] ______
+
+value = nan, location = 'nested'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+______ test_nonfinite_metadata_cannot_enter_authoritative_raw[nested-inf] ______
+
+value = inf, location = 'nested'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+_____ test_nonfinite_metadata_cannot_enter_authoritative_raw[nested--inf] ______
+
+value = -inf, location = 'nested'
+
+    @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
+    @pytest.mark.parametrize('location', ['segment', 'top', 'nested'])
+    def test_nonfinite_metadata_cannot_enter_authoritative_raw(value, location):
+        data = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Again again.'}]}
+        if location == 'segment':
+            data['segments'][0]['avg_logprob'] = value
+        elif location == 'top':
+            data['diagnostic'] = value
+        else:
+            data['diagnostic'] = {'nested': [value]}
+>       with pytest.raises(OfflineError, match='TRANSCRIPT_INVALID'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OfflineError
+
+tests/unit/test_acoustic_remediation.py:19: Failed
+=========================== short test summary info ============================
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[segment-nan]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[segment-inf]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[segment--inf]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[top-nan]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[top-inf]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[top--inf]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[nested-nan]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[nested-inf]
+FAILED tests/unit/test_acoustic_remediation.py::test_nonfinite_metadata_cannot_enter_authoritative_raw[nested--inf]
+9 failed, 2 passed in 0.27s

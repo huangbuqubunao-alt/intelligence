@@ -1,0 +1,15 @@
+{
+  "silence-short": {
+    "seconds": 3.5,
+    "amplitude": 0
+  },
+  "silence-medium": {
+    "seconds": 125,
+    "amplitude": 0
+  },
+  "noise-short": {
+    "seconds": 3.5,
+    "seed": 909,
+    "standard_deviation": 0.01
+  }
+}

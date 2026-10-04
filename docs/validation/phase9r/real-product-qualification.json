@@ -1,0 +1,1494 @@
+{
+  "model": {
+    "repository": "mlx-community/whisper-large-v3-turbo",
+    "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+    "files": [
+      {
+        "name": "config.json",
+        "bytes": 268,
+        "sha256": "b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379"
+      },
+      {
+        "name": "weights.safetensors",
+        "bytes": 1613977612,
+        "sha256": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+      }
+    ],
+    "total_bytes": 1613977880,
+    "config": {
+      "n_mels": 128,
+      "n_audio_ctx": 1500,
+      "n_audio_state": 1280,
+      "n_audio_head": 20,
+      "n_audio_layer": 32,
+      "n_vocab": 51866,
+      "n_text_ctx": 448,
+      "n_text_state": 1280,
+      "n_text_head": 20,
+      "n_text_layer": 4,
+      "model_type": "whisper"
+    },
+    "phase8_model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "manifest_sha256": "bc204b003b65c104fb1ae5301c4be03575841b5ee792e232bdfae60e60d27034"
+  },
+  "corpus_sha256": "3983d004bde935ebfae9de31f0954682e483a57955cc84644a04542ce12f814c",
+  "corpus_manifest_sha256": "fa592339ab67bdbadb5eb761c4f108cb7db4223524b549b20873b84039e73041",
+  "scoring_policy": "nfkc-casefold-han-character-latin-word-v1",
+  "capability": {
+    "state": "READY",
+    "runtime_detected": true,
+    "runtime_available": true,
+    "model_present": true,
+    "executor_compatible": true,
+    "executor": "mlx-whisper-timed-v1",
+    "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+    "reason_code": null,
+    "qualification_state": "NOT_TESTED",
+    "qualification_identity": null,
+    "production_eligible": false,
+    "media_tools_available": true,
+    "checking": false
+  },
+  "samples": [
+    {
+      "id": "english-clean",
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "media_kind": "AUDIO",
+      "duration_seconds": 22.5648125,
+      "language_scorer": "en",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "source_sha256": "a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "responsiveness_seconds": [
+        0.0002929579932242632,
+        0.000454624998383224,
+        0.0003100830363109708,
+        0.000372458016499877,
+        0.00044941692613065243,
+        0.0002741249045357108,
+        0.00029637489933520555,
+        0.00029024994000792503,
+        0.00028000003658235073,
+        0.00028516596648842096,
+        0.00037108396645635366,
+        0.00032120791729539633,
+        0.00038037507329136133,
+        0.0003071250393986702,
+        0.00030087505001574755,
+        0.00034208293072879314,
+        0.00044125004205852747,
+        0.00035504100378602743,
+        0.0003826250322163105,
+        0.0003087919903919101
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-93c351be31dc45e39fa3c984c9102329",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.987192749977112,
+      "preprocessing_seconds": 0.19181279093027115,
+      "transcription_seconds": 3.9115889579989016,
+      "rtf": 0.17334905654540236,
+      "peak_rss_bytes": 1864613888,
+      "raw_sha256": "1a65917141aa89c16f40b1707b9baed41c50bdcb91ded17dfbae64d1e7f36525",
+      "actual_text": " The library opens every morning beside the quiet public garden.  Readers can borrow books, study together, and return them at the front desk.  This local test records clear speech without sending any media to an external service.  After the recording finishes, the application preserves the original words and their time stamps.",
+      "detected_language": "en",
+      "score": {
+        "errors": 2,
+        "reference_units": 50,
+        "error_rate": 0.04
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.2564375000000005,
+            "coverage": 0.963679017686305,
+            "uncovered_seconds": 0.13643750000000043,
+            "largest_gap_seconds": 0.13643750000000043,
+            "passed": true
+          },
+          {
+            "start": 4.881875,
+            "end": 9.64,
+            "coverage": 0.9793773807960068,
+            "uncovered_seconds": 0.09812500000000046,
+            "largest_gap_seconds": 0.0600000000000005,
+            "passed": true
+          },
+          {
+            "start": 10.2703125,
+            "end": 15.524562499999998,
+            "coverage": 0.9800994433077987,
+            "uncovered_seconds": 0.10456249999999834,
+            "largest_gap_seconds": 0.10456249999999834,
+            "passed": true
+          },
+          {
+            "start": 16.1490625,
+            "end": 22.0339375,
+            "coverage": 0.9753818050510845,
+            "uncovered_seconds": 0.14487499999999898,
+            "largest_gap_seconds": 0.13393749999999827,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 4120,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start_ms": 4920,
+          "end_ms": 9580,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start_ms": 10260,
+          "end_ms": 15420,
+          "text": " This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start_ms": 16160,
+          "end_ms": 21900,
+          "text": " After the recording finishes, the application preserves the original words and their time stamps."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "0a5a6a8a116046e23cb76b553dc6bc9f1a547e4c58c26f5460ebb1b20abff537",
+        "249daa44ca8f85feb6c42187cfcb5d32deb9abbe0821c26740f93387bebeff02",
+        "d5db1e5e65adc561821f70bd0620bb255535859e8d5ed6cbe3d6bd45fdf77ae5",
+        "6b245647090b609064270a690ea7a33f7ab8c4bacfb53962e812a665cff558dd",
+        "d376361c8386ed518d68c728a3be133752ac9fa7a288319d11df1686eb0c57c8"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "mandarin-clean",
+      "content_id": "local-932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "media_kind": "AUDIO",
+      "duration_seconds": 24.6683125,
+      "language_scorer": "zh",
+      "expected_sha256": "e8dbe7e67788039964ff6538a103735a32a781cb6482dffc01ee5615ad514f84",
+      "source_sha256": "932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "responsiveness_seconds": [
+        0.00024091696832329035,
+        0.00044866593088954687,
+        0.00031279202084988356,
+        0.0003058330621570349,
+        0.0005437500076368451,
+        0.00027595902793109417,
+        0.00028912501875311136,
+        0.00029208301566541195,
+        0.0003111669793725014,
+        0.0002904169959947467,
+        0.00032195798121392727,
+        0.000550542026758194,
+        0.0004072909941896796,
+        0.0003676669439300895,
+        0.0003287500003352761,
+        0.0003347499296069145,
+        0.00034012494143098593,
+        0.00030949991196393967,
+        0.0003452079836279154,
+        0.0002770000137388706,
+        0.0003255419433116913
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-aada08d9556b4ad8892e29c72f2e6426",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 6.321331041981466,
+      "preprocessing_seconds": 0.1979529159143567,
+      "transcription_seconds": 4.029292459017597,
+      "rtf": 0.16333879583443728,
+      "peak_rss_bytes": 1867186176,
+      "raw_sha256": "66973aa3a4ef1ab84d33d9d0ce7defc035076466444d5442513dfec10de48e87",
+      "actual_text": "今天我们介绍一个安静的公共图书馆 读者可以在这里借书,也可以在阅览室学习 这个测试之使用本地生成的语音,不包含任何个人录音 转写完成以后,应用保存原始文字和时间,不把中文内容翻译成英文",
+      "detected_language": "zh",
+      "score": {
+        "errors": 1,
+        "reference_units": 85,
+        "error_rate": 0.011764705882352941
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.05375,
+            "coverage": 1.0,
+            "uncovered_seconds": 0.0,
+            "largest_gap_seconds": 0.0,
+            "passed": true
+          },
+          {
+            "start": 4.6674999999999995,
+            "end": 9.404875,
+            "coverage": 1.0,
+            "uncovered_seconds": 0.0,
+            "largest_gap_seconds": 0.0,
+            "passed": true
+          },
+          {
+            "start": 10.0168125,
+            "end": 15.7310625,
+            "coverage": 1.0,
+            "uncovered_seconds": 0.0,
+            "largest_gap_seconds": 0.0,
+            "passed": true
+          },
+          {
+            "start": 16.3595,
+            "end": 24.148625000000003,
+            "coverage": 0.9860542743889713,
+            "uncovered_seconds": 0.10862500000000352,
+            "largest_gap_seconds": 0.10862500000000352,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        0.9565217391304348,
+        1.0
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 320,
+          "end_ms": 3980,
+          "text": "今天我们介绍一个安静的公共图书馆"
+        },
+        {
+          "start_ms": 3980,
+          "end_ms": 9340,
+          "text": "读者可以在这里借书,也可以在阅览室学习"
+        },
+        {
+          "start_ms": 9340,
+          "end_ms": 15660,
+          "text": "这个测试之使用本地生成的语音,不包含任何个人录音"
+        },
+        {
+          "start_ms": 15660,
+          "end_ms": 24040,
+          "text": "转写完成以后,应用保存原始文字和时间,不把中文内容翻译成英文"
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "b47e5c8ce4183c1d3a8521e252c545904d03b92330b15814991ec39408c88199",
+        "986106b4d8f35938f618a54bb19fde5401e370f1a5f2d3f45890ae949dd7e7fd",
+        "60aa3cf8dbdc0e0425ff61433c08da01cc740ac15554056039705e1ed63553a4",
+        "4db357a2422f49283ac74b959547ed7c81c2da480dc05f89ac5c393a701cfdb1",
+        "3293399f9f908881a874df2f84e1ae8bf250a59879333fec0f4c5c4136619c13"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "mixed-clean",
+      "content_id": "local-b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "media_kind": "AUDIO",
+      "duration_seconds": 22.4885625,
+      "language_scorer": "mixed",
+      "expected_sha256": "7ae6229b31fd6d8e68845fa7dcc4b3a75e5c28f4735e432d1dbf7d70391ef104",
+      "source_sha256": "b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "responsiveness_seconds": [
+        0.0002055000513792038,
+        0.0004887089598923922,
+        0.0003106669755652547,
+        0.0003209169954061508,
+        0.0004296249244362116,
+        0.00029787502717226744,
+        0.0004041669890284538,
+        0.00029270804952830076,
+        0.000380708952434361,
+        0.0002919168910011649,
+        0.00028858298901468515,
+        0.0003112910781055689,
+        0.0004266250180080533,
+        0.000322542036883533,
+        0.0003963749622926116,
+        0.00031237490475177765,
+        0.00028491602279245853,
+        0.00029066705610603094,
+        0.00029120908584445715,
+        0.00028666690923273563
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-bc7b806d19224f95bebb460db1169bf4",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.982780416961759,
+      "preprocessing_seconds": 0.20346554089337587,
+      "transcription_seconds": 3.97811762499623,
+      "rtf": 0.17689514947859517,
+      "peak_rss_bytes": 1867431936,
+      "raw_sha256": "a58f42da25f7b720185b5dde09ca347dbb68674ffbd3a052a2214512ae799c13",
+      "actual_text": " 今天我们测试本地模型。  The audio stays on this device.  我们使用中文和英文检查转写结果。  Please keep the original words and time stamps.  所有文件都保存在本地,不需要网络连接。  The final summary includes reliable evidence.",
+      "detected_language": "en",
+      "score": {
+        "errors": 2,
+        "reference_units": 61,
+        "error_rate": 0.03278688524590164,
+        "han": {
+          "errors": 0,
+          "reference_units": 42,
+          "error_rate": 0.0
+        },
+        "latin": {
+          "errors": 2,
+          "reference_units": 19,
+          "error_rate": 0.10526315789473684
+        }
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 2.9928125,
+            "coverage": 1.0,
+            "uncovered_seconds": 0.0,
+            "largest_gap_seconds": 0.0,
+            "passed": true
+          },
+          {
+            "start": 3.6109375,
+            "end": 5.6775625000000005,
+            "coverage": 0.9624690013911571,
+            "uncovered_seconds": 0.07756249999999998,
+            "largest_gap_seconds": 0.07756249999999998,
+            "passed": true
+          },
+          {
+            "start": 6.308625,
+            "end": 9.902625,
+            "coverage": 0.9968350027824151,
+            "uncovered_seconds": 0.011375000000000135,
+            "largest_gap_seconds": 0.011375000000000135,
+            "passed": true
+          },
+          {
+            "start": 10.509562500000001,
+            "end": 13.310000000000002,
+            "coverage": 0.9607204231481684,
+            "uncovered_seconds": 0.11000000000000121,
+            "largest_gap_seconds": 0.11000000000000121,
+            "passed": true
+          },
+          {
+            "start": 13.939312500000002,
+            "end": 18.4759375,
+            "coverage": 0.8817127269721435,
+            "uncovered_seconds": 0.536624999999999,
+            "largest_gap_seconds": 0.47593750000000057,
+            "passed": true
+          },
+          {
+            "start": 19.089,
+            "end": 21.9658125,
+            "coverage": 0.9562667014273615,
+            "uncovered_seconds": 0.12581249999999855,
+            "largest_gap_seconds": 0.12581249999999855,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0,
+        0.8571428571428571,
+        1.0,
+        1.0
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 3000,
+          "text": " 今天我们测试本地模型。"
+        },
+        {
+          "start_ms": 3000,
+          "end_ms": 5600,
+          "text": " The audio stays on this device."
+        },
+        {
+          "start_ms": 6320,
+          "end_ms": 10000,
+          "text": " 我们使用中文和英文检查转写结果。"
+        },
+        {
+          "start_ms": 10000,
+          "end_ms": 13200,
+          "text": " Please keep the original words and time stamps."
+        },
+        {
+          "start_ms": 14000,
+          "end_ms": 18000,
+          "text": " 所有文件都保存在本地,不需要网络连接。"
+        },
+        {
+          "start_ms": 18760,
+          "end_ms": 21840,
+          "text": " The final summary includes reliable evidence."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "db27d79fee6f6677445c634a82fc71ef4b03595f7d809f3b0799de0209dc3cdb",
+        "51478dbf5c0637f5cf4cce3991bc6c3ae02fd3c2fc774eb582d2c82ed44407fe",
+        "583a58204cec1ce38b9ae3306bb4571be8cccc9edfdef3b2279a057e9b90727f",
+        "4fbc71a8cc0f9c8f34b8428fb9497166f1f9e3bb84e9de7961d18e0f674e1d1c",
+        "6814d5bf1962b1449c55279382b016d07bdff13edd26d57ebdfbd057ce72c5a6",
+        "e1e4f8c6dec5a86884298d74aaa2f0a5a0f38d00ce2928b06a55e8121a5830c5",
+        "e0961c231be13070370f7ceb9e26c8ad0f4893cc21492a627e2e641f670bbdfb"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "very-short",
+      "content_id": "local-e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "media_kind": "AUDIO",
+      "duration_seconds": 3.3770625,
+      "language_scorer": "en",
+      "expected_sha256": "99dad18874eb823e700f1e6a4171bde604f17ed23170a2de790062efdb9b9585",
+      "source_sha256": "e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "responsiveness_seconds": [
+        0.00031991605646908283,
+        0.0004054169403389096,
+        0.0003398749977350235,
+        0.000370207941159606,
+        0.0004806669894605875,
+        0.00027779198717325926,
+        0.00027820898685604334,
+        0.000287041999399662,
+        0.00037395802792161703,
+        0.00031991698779165745,
+        0.0003125830553472042,
+        0.0003035420086234808,
+        0.00027120800223201513,
+        0.0002984580351039767,
+        0.0002953329822048545,
+        0.00028212496545165777,
+        0.0003226250410079956,
+        0.0003034999826923013,
+        0.00027279206551611423
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-4dfc6bfa34f34392984c218ff0393f62",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.6467885409947485,
+      "preprocessing_seconds": 0.19252070889342576,
+      "transcription_seconds": 3.680681207915768,
+      "rtf": 1.0899061559908256,
+      "peak_rss_bytes": 1863614464,
+      "raw_sha256": "04b1cd2826171fb174eb756ac2c6e847a07d129920c7318def7ed7bc9f7ab5f1",
+      "actual_text": " The local library opens every morning.",
+      "detected_language": "en",
+      "score": {
+        "errors": 0,
+        "reference_units": 6,
+        "error_rate": 0.0
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 2.8574375,
+            "coverage": 0.9332166812481774,
+            "uncovered_seconds": 0.1574374999999999,
+            "largest_gap_seconds": 0.1574374999999999,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 2700,
+          "text": " The local library opens every morning."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "808622a164941e4f985a2bbc0b5c89623ae49e34378aecfbcfcf9fe6d61dda0e",
+        "0d7fe456e554a44bbfce08af58468df0610b9ac143a8b1751e15d7bb8e989c80"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "medium",
+      "content_id": "local-41d878e52cc55e7849931dcd25249a56731da0fb6b9750c65e2308ef8922d44f",
+      "media_kind": "AUDIO",
+      "duration_seconds": 122.8558125,
+      "language_scorer": "en",
+      "expected_sha256": "c1c19a025696b334d375bf29712c7be14b09fd9ff1b0c3c73ebabad48b7b27f8",
+      "source_sha256": "41d878e52cc55e7849931dcd25249a56731da0fb6b9750c65e2308ef8922d44f",
+      "responsiveness_seconds": [
+        0.0002072920324280858,
+        0.0005556249525398016,
+        0.0003100000321865082,
+        0.00037454208359122276,
+        0.0005084159784018993,
+        0.00029141700360924006,
+        0.00029687501955777407,
+        0.00028716702945530415,
+        0.00030404189601540565,
+        0.00031645793933421373,
+        0.00032829202245920897,
+        0.00033845799043774605,
+        0.0002867078874260187,
+        0.00032466696575284004,
+        0.0002697920426726341,
+        0.0003219170030206442,
+        0.00034499994944781065,
+        0.00033950002398341894,
+        0.00030499999411404133,
+        0.0003659999929368496,
+        0.0003284580307081342,
+        0.00032750004902482033,
+        0.0003287909785285592,
+        0.0004135420313104987,
+        0.0003411249490454793,
+        0.000341957900673151,
+        0.0003073749830946326,
+        0.0003407079493626952,
+        0.00031395803671330214,
+        0.00031400006264448166,
+        0.00037891604006290436,
+        0.0003842089790850878,
+        0.00036258401814848185,
+        0.00027299998328089714
+      ],
+      "job_status": {
+        "status": "FAILED",
+        "last_failure_category": "EXECUTOR_FAILED",
+        "attempt_id": "local-transcription-e5b5ed17e16f4addadcbe812c18bd50e",
+        "retry_available": true,
+        "start_available": false,
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 10.422993666958064,
+      "preprocessing_seconds": 0.23595695802941918,
+      "transcription_seconds": 9.062115791020915,
+      "rtf": 0.07376220633452663,
+      "peak_rss_bytes": 1878376448,
+      "trusted_timed_transcript": false,
+      "passed": false
+    },
+    {
+      "id": "designed-pauses",
+      "content_id": "local-4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "media_kind": "AUDIO",
+      "duration_seconds": 22.907125,
+      "language_scorer": "en",
+      "expected_sha256": "133cf9658b947f15a047200c9f03d8175f92467f91f61640e0787c334773d996",
+      "source_sha256": "4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "responsiveness_seconds": [
+        0.0004016669699922204,
+        0.0004102499224245548,
+        0.00032112502958625555,
+        0.00032937503419816494,
+        0.0004284579772502184,
+        0.0003375409869477153,
+        0.00028079201001673937,
+        0.0002667080843821168,
+        0.00028566597029566765,
+        0.0002716250019147992,
+        0.0002916670637205243,
+        0.0002716250019147992,
+        0.00029858399648219347,
+        0.00028012506663799286,
+        0.0003180829808115959,
+        0.0003288340521976352,
+        0.00033774995245039463,
+        0.00032470806036144495,
+        0.0003515420248731971,
+        0.0002922080457210541
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-4ffab1b37d894c6aa2113480bc2cd493",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.9447252919198945,
+      "preprocessing_seconds": 0.20023166702594608,
+      "transcription_seconds": 3.784841208020225,
+      "rtf": 0.16522550114954299,
+      "peak_rss_bytes": 1863974912,
+      "raw_sha256": "4c6d08375e65bbca2cc8ce6acda911ef5ddb73f757710a8ec0e88b3825344cc2",
+      "actual_text": " The library opens every morning beside the quiet public garden.  Readers can borrow books, study together, and return them at the front desk.  This local test records clear speech without sending any media to an external service.",
+      "detected_language": "en",
+      "score": {
+        "errors": 0,
+        "reference_units": 37,
+        "error_rate": 0.0
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.2564375000000005,
+            "coverage": 0.9690032111541851,
+            "uncovered_seconds": 0.11643750000000086,
+            "largest_gap_seconds": 0.11643750000000086,
+            "passed": true
+          },
+          {
+            "start": 8.281875,
+            "end": 13.04,
+            "coverage": 0.9915933272034679,
+            "uncovered_seconds": 0.03999999999999915,
+            "largest_gap_seconds": 0.03999999999999915,
+            "passed": true
+          },
+          {
+            "start": 17.0703125,
+            "end": 22.38375,
+            "coverage": 0.984238075633712,
+            "uncovered_seconds": 0.08374999999999844,
+            "largest_gap_seconds": 0.08374999999999844,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 4140,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start_ms": 7880,
+          "end_ms": 13000,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start_ms": 16520,
+          "end_ms": 22300,
+          "text": " This local test records clear speech without sending any media to an external service."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "9abda198bb98093d0bdd5708b95b24f263f34f6684dffcf1d1904a2fa61d1bb3",
+        "6f69368a52ec3631bb897b1a16a8eebccde0809e4296013f27ad1f980797fa21",
+        "aa9ee663687bf7620d9c8a25b784cd27cd1760bf8e6598caa2907327c911b697",
+        "270d765d834b607466f19b35f45b5dd97bcc4388a14bf8e9b95ae5cb70ff891a"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "mild-noise",
+      "content_id": "local-a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "media_kind": "AUDIO",
+      "duration_seconds": 22.5880625,
+      "language_scorer": "en",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "source_sha256": "a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "responsiveness_seconds": [
+        0.00028787506744265556,
+        0.0004455000162124634,
+        0.00035020802170038223,
+        0.00035262503661215305,
+        0.0006325410213321447,
+        0.0003113329876214266,
+        0.0002905000001192093,
+        0.00034691602922976017,
+        0.0002832920290529728,
+        0.00037779100239276886,
+        0.00032020907383412123,
+        0.0003239999059587717,
+        0.00031991698779165745,
+        0.00029445893596857786,
+        0.00031512498389929533,
+        0.00032649992499500513,
+        0.0002507080789655447,
+        0.00031599996145814657,
+        0.00029862497467547655,
+        0.00028833397664129734
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-9eea1953452a410a8994833125451c4b",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.989253457984887,
+      "preprocessing_seconds": 0.18925916613079607,
+      "transcription_seconds": 3.900908207986504,
+      "rtf": 0.1726977782174325,
+      "peak_rss_bytes": 1864515584,
+      "raw_sha256": "658289fe260fdb71898ac84c22840ab5c705452069f08877d0bbf0530e7146fc",
+      "actual_text": " The library opens every morning beside the quiet public garden.  Readers can borrow books, study together, and return them at the front desk.  This local test records clear speech without sending any media to an external service.  After the recording finishes, the application preserves the original words and their time stamps.",
+      "detected_language": "en",
+      "score": {
+        "errors": 2,
+        "reference_units": 50,
+        "error_rate": 0.04
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.2564375000000005,
+            "coverage": 0.963679017686305,
+            "uncovered_seconds": 0.13643750000000043,
+            "largest_gap_seconds": 0.13643750000000043,
+            "passed": true
+          },
+          {
+            "start": 4.881875,
+            "end": 9.64,
+            "coverage": 0.9793773807960068,
+            "uncovered_seconds": 0.09812500000000046,
+            "largest_gap_seconds": 0.0600000000000005,
+            "passed": true
+          },
+          {
+            "start": 10.2703125,
+            "end": 15.583749999999998,
+            "coverage": 0.9804740339940015,
+            "uncovered_seconds": 0.10374999999999801,
+            "largest_gap_seconds": 0.10374999999999801,
+            "passed": true
+          },
+          {
+            "start": 16.207124999999998,
+            "end": 22.061437499999997,
+            "coverage": 0.9736412260192813,
+            "uncovered_seconds": 0.15431249999999608,
+            "largest_gap_seconds": 0.141437499999995,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 4120,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start_ms": 4920,
+          "end_ms": 9580,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start_ms": 10260,
+          "end_ms": 15480,
+          "text": " This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start_ms": 16220,
+          "end_ms": 21920,
+          "text": " After the recording finishes, the application preserves the original words and their time stamps."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "6921c334d9f43241ac2d6bc9c2e0da414c606ab2dd27d05686ad9e4718e5e66f",
+        "ebd94623b77a3807d2fe098b1347489f566e7908a8068c430880ca9361b9669f",
+        "060825b2c238540319d85d7249719496e76e04609a8203f6cf21c5103d078a24",
+        "560b7e474e04da654bdd5312e703c60bce7a32cac34d0d8f307dc1a5313f8811",
+        "876101a5e7ed11817c886393218fe08aa732be0af8db6609d62bf0dad99e6cb0"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "english-video",
+      "content_id": "local-4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283",
+      "media_kind": "VIDEO",
+      "duration_seconds": 22.5648125,
+      "language_scorer": "en",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "source_sha256": "4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283",
+      "responsiveness_seconds": [
+        0.00041625008452683687,
+        0.0004052500007674098,
+        0.0004523330135270953,
+        0.0003169579431414604,
+        0.0005317919421941042,
+        0.00029066705610603094,
+        0.0003099170280620456,
+        0.00033133395481854677,
+        0.00027558300644159317,
+        0.0002751249121502042,
+        0.0003338330425322056,
+        0.00034604198299348354,
+        0.0003262079553678632,
+        0.00029841705691069365,
+        0.0004497920162975788,
+        0.00035520794335752726,
+        0.0003697909414768219,
+        0.0003348750760778785,
+        0.0002964589511975646,
+        0.00026787503156811
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-620bf099d5eb4bc195f07eca60f9dd35",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.980051624937914,
+      "preprocessing_seconds": 0.20142704097088426,
+      "transcription_seconds": 3.897583458106965,
+      "rtf": 0.1727283777831952,
+      "peak_rss_bytes": 1865170944,
+      "raw_sha256": "3380ab7b3ddcb22d0dab7d5fb0a1c10587f73e0615afd0725d403c9e37fb2e3f",
+      "actual_text": " The library opens every morning beside the quiet public garden.  Readers can borrow books, study together, and return them at the front desk.  This local test records clear speech without sending any media to an external service.  After the recording finishes, the application preserves the original words and their time stamps.",
+      "detected_language": "en",
+      "score": {
+        "errors": 2,
+        "reference_units": 50,
+        "error_rate": 0.04
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.2564375000000005,
+            "coverage": 0.963679017686305,
+            "uncovered_seconds": 0.13643750000000043,
+            "largest_gap_seconds": 0.13643750000000043,
+            "passed": true
+          },
+          {
+            "start": 4.881875,
+            "end": 9.64,
+            "coverage": 0.9793773807960068,
+            "uncovered_seconds": 0.09812500000000046,
+            "largest_gap_seconds": 0.0600000000000005,
+            "passed": true
+          },
+          {
+            "start": 10.2703125,
+            "end": 15.524562499999998,
+            "coverage": 0.9800994433077987,
+            "uncovered_seconds": 0.10456249999999834,
+            "largest_gap_seconds": 0.10456249999999834,
+            "passed": true
+          },
+          {
+            "start": 16.1490625,
+            "end": 22.0339375,
+            "coverage": 0.9753818050510845,
+            "uncovered_seconds": 0.14487499999999898,
+            "largest_gap_seconds": 0.13393749999999827,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 4120,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start_ms": 4920,
+          "end_ms": 9580,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start_ms": 10260,
+          "end_ms": 15420,
+          "text": " This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start_ms": 16160,
+          "end_ms": 21900,
+          "text": " After the recording finishes, the application preserves the original words and their time stamps."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "6907bf721b70013ca5d7d4e9a749d1610e56a2b4c430bec75a23bc4db762a984",
+        "002ec324196559b158d6008d373dcbd7ebe43f2c61efbcfc537bfdcc1da03c59",
+        "bb55fc1713dbe11c826870860f5dd71b52159d992bb4cd5b8efbc7ae9d5e22ad",
+        "db10844d3e183593f48ae53d360effef848c50abbfffbc56adfdef4e605f4a57",
+        "5ddfd24c38775c334861ddaa6a0c97e1243ade53eecc1ca46d1edc8939299165"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    },
+    {
+      "id": "english-repeat",
+      "content_id": "local-a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "media_kind": "AUDIO",
+      "duration_seconds": 22.5648125,
+      "language_scorer": "en",
+      "expected_sha256": "42f534193ea3df534dea26d403e12607f07a2e8a8ee0ece92ae97234cd52a3da",
+      "source_sha256": "a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "responsiveness_seconds": [
+        0.00029075006023049355
+      ],
+      "job_status": {
+        "status": "READY",
+        "retry_available": false,
+        "summary_recovery": false,
+        "attempt_id": "local-transcription-93c351be31dc45e39fa3c984c9102329",
+        "capability": {
+          "state": "READY",
+          "runtime_detected": true,
+          "runtime_available": true,
+          "model_present": true,
+          "executor_compatible": true,
+          "executor": "mlx-whisper-timed-v1",
+          "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+          "execution_identity": "4cbbeaf6f5cfba5bda9a150e2d6d42d3d46c2741264ded50b3e74fc36aa744ad",
+          "reason_code": null,
+          "qualification_state": "NOT_TESTED",
+          "qualification_identity": null,
+          "production_eligible": false,
+          "media_tools_available": true,
+          "checking": false
+        }
+      },
+      "product_wall_seconds": 5.759518416947685,
+      "preprocessing_seconds": 0.13327733392361552,
+      "transcription_seconds": 3.9064554170472547,
+      "rtf": 0.1731215545020485,
+      "peak_rss_bytes": 1865039872,
+      "raw_sha256": "1a65917141aa89c16f40b1707b9baed41c50bdcb91ded17dfbae64d1e7f36525",
+      "actual_text": " The library opens every morning beside the quiet public garden.  Readers can borrow books, study together, and return them at the front desk.  This local test records clear speech without sending any media to an external service.  After the recording finishes, the application preserves the original words and their time stamps.",
+      "detected_language": "en",
+      "score": {
+        "errors": 2,
+        "reference_units": 50,
+        "error_rate": 0.04
+      },
+      "score_repeat_identical": true,
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "start": 0.5,
+            "end": 4.2564375000000005,
+            "coverage": 0.963679017686305,
+            "uncovered_seconds": 0.13643750000000043,
+            "largest_gap_seconds": 0.13643750000000043,
+            "passed": true
+          },
+          {
+            "start": 4.881875,
+            "end": 9.64,
+            "coverage": 0.9793773807960068,
+            "uncovered_seconds": 0.09812500000000046,
+            "largest_gap_seconds": 0.0600000000000005,
+            "passed": true
+          },
+          {
+            "start": 10.2703125,
+            "end": 15.524562499999998,
+            "coverage": 0.9800994433077987,
+            "uncovered_seconds": 0.10456249999999834,
+            "largest_gap_seconds": 0.10456249999999834,
+            "passed": true
+          },
+          {
+            "start": 16.1490625,
+            "end": 22.0339375,
+            "coverage": 0.9753818050510845,
+            "uncovered_seconds": 0.14487499999999898,
+            "largest_gap_seconds": 0.13393749999999827,
+            "passed": true
+          }
+        ]
+      },
+      "utterance_recall": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "no_catastrophic_omission": true,
+      "accuracy_gate": true,
+      "trusted_timed_transcript": true,
+      "cues": [
+        {
+          "start_ms": 0,
+          "end_ms": 4120,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start_ms": 4920,
+          "end_ms": 9580,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start_ms": 10260,
+          "end_ms": 15420,
+          "text": " This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start_ms": 16160,
+          "end_ms": 21900,
+          "text": " After the recording finishes, the application preserves the original words and their time stamps."
+        }
+      ],
+      "summary": true,
+      "durable_evidence": [
+        "0a5a6a8a116046e23cb76b553dc6bc9f1a547e4c58c26f5460ebb1b20abff537",
+        "249daa44ca8f85feb6c42187cfcb5d32deb9abbe0821c26740f93387bebeff02",
+        "d5db1e5e65adc561821f70bd0620bb255535859e8d5ed6cbe3d6bd45fdf77ae5",
+        "6b245647090b609064270a690ea7a33f7ab8c4bacfb53962e812a665cff558dd",
+        "d376361c8386ed518d68c728a3be133752ac9fa7a288319d11df1686eb0c57c8"
+      ],
+      "evidence_resolves": true,
+      "passed": true
+    }
+  ],
+  "measurements": [
+    {
+      "sample": "initial-probe",
+      "kind": "probe",
+      "wall_seconds": 2.3453781250864267,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 198557696
+    },
+    {
+      "sample": "initial-probe",
+      "kind": "load",
+      "wall_seconds": 2.2430254159262404,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1823948800
+    },
+    {
+      "sample": "english-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06437795795500278,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06301516701932997,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-clean",
+      "kind": "preprocess",
+      "wall_seconds": 0.0644196659559384,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-clean",
+      "kind": "transcribe",
+      "wall_seconds": 3.9115889579989016,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1864613888
+    },
+    {
+      "sample": "mandarin-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06529404094908386,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mandarin-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06677525001578033,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mandarin-clean",
+      "kind": "preprocess",
+      "wall_seconds": 0.06588362494949251,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mandarin-clean",
+      "kind": "transcribe",
+      "wall_seconds": 4.029292459017597,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1867186176
+    },
+    {
+      "sample": "mixed-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.0709976670332253,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mixed-clean",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06690745789092034,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mixed-clean",
+      "kind": "preprocess",
+      "wall_seconds": 0.06556041596923023,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mixed-clean",
+      "kind": "transcribe",
+      "wall_seconds": 3.97811762499623,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1867431936
+    },
+    {
+      "sample": "very-short",
+      "kind": "ffprobe",
+      "wall_seconds": 0.0652498749550432,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "very-short",
+      "kind": "ffprobe",
+      "wall_seconds": 0.0650912499986589,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "very-short",
+      "kind": "preprocess",
+      "wall_seconds": 0.06217958393972367,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "very-short",
+      "kind": "transcribe",
+      "wall_seconds": 3.680681207915768,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1863614464
+    },
+    {
+      "sample": "medium",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06679525005165488,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "medium",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06715566595084965,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "medium",
+      "kind": "preprocess",
+      "wall_seconds": 0.10200604202691466,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "medium",
+      "kind": "transcribe",
+      "wall_seconds": 9.062115791020915,
+      "outcome": "FAILED",
+      "peak_rss_bytes": 1878376448
+    },
+    {
+      "sample": "designed-pauses",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06865966704208404,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "designed-pauses",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06566025002393872,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "designed-pauses",
+      "kind": "preprocess",
+      "wall_seconds": 0.06591174995992333,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "designed-pauses",
+      "kind": "transcribe",
+      "wall_seconds": 3.784841208020225,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1863974912
+    },
+    {
+      "sample": "mild-noise",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06732899998314679,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mild-noise",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06171150004956871,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mild-noise",
+      "kind": "preprocess",
+      "wall_seconds": 0.060218666098080575,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "mild-noise",
+      "kind": "transcribe",
+      "wall_seconds": 3.900908207986504,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1864515584
+    },
+    {
+      "sample": "english-video",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06924691598396748,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-video",
+      "kind": "ffprobe",
+      "wall_seconds": 0.06471912504639477,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-video",
+      "kind": "preprocess",
+      "wall_seconds": 0.06746099994052202,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-video",
+      "kind": "transcribe",
+      "wall_seconds": 3.897583458106965,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1865170944
+    },
+    {
+      "sample": "english-repeat",
+      "kind": "ffprobe",
+      "wall_seconds": 0.0672504169633612,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-repeat",
+      "kind": "preprocess",
+      "wall_seconds": 0.06602691696025431,
+      "outcome": "SUCCEEDED"
+    },
+    {
+      "sample": "english-repeat",
+      "kind": "transcribe",
+      "wall_seconds": 3.9064554170472547,
+      "outcome": "SUCCEEDED",
+      "peak_rss_bytes": 1865039872
+    }
+  ],
+  "offline": {
+    "native_worker_sandbox": "deny network*",
+    "worker_hf_download_and_socket_connect": "denied",
+    "HF_HUB_OFFLINE": true,
+    "cloud_dispatch": 0,
+    "source_uploads": 0
+  },
+  "verdict": "FAILED"
+}

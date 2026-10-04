@@ -1,0 +1,102 @@
+{
+  "wall_seconds": 6.8990147080039605,
+  "nonfinite": [
+    {
+      "path": "$.segments[18].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[19].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[20].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[21].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[22].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[23].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[24].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[25].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[26].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[27].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[28].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[29].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[30].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[31].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[32].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[33].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[34].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[35].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[36].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[37].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[38].avg_logprob",
+      "value": "nan"
+    },
+    {
+      "path": "$.segments[39].avg_logprob",
+      "value": "nan"
+    }
+  ],
+  "zero_duration": 11,
+  "beyond_duration": 22,
+  "max_end": 133.07999999999998,
+  "score": {
+    "errors": 78,
+    "reference_units": 184,
+    "error_rate": 0.42391304347826086
+  },
+  "windows": 7
+}

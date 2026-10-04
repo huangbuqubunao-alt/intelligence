@@ -1,0 +1,850 @@
+[
+  {
+    "profile": "B",
+    "sample": "independent-medium",
+    "negative": false,
+    "preprocessing_seconds": 0.07762312493287027,
+    "model_wall_seconds": 7.466467791935429,
+    "result": {
+      "profile": "B",
+      "chunked": false,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          1948758
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 4.5,
+          "text": " A weather station measures the temperature beside a public walking trail."
+        },
+        {
+          "start": 5.6000000000000005,
+          "end": 10.200000000000001,
+          "text": " The brass instrument records air pressure at regular intervals each morning."
+        },
+        {
+          "start": 11.200000000000001,
+          "end": 16.0,
+          "text": " A wooden shelter protects the thermometer from direct afternoon sunlight."
+        },
+        {
+          "start": 17.7,
+          "end": 22.2,
+          "text": " Several glass containers collect rainwater for a simple measurement exercise."
+        },
+        {
+          "start": 23.26,
+          "end": 27.32,
+          "text": " The observer writes each reading in a notebook with the date and time."
+        },
+        {
+          "start": 27.32,
+          "end": 32.14,
+          "text": " A blue arrow on the roof shows which direction the wind is blowing."
+        },
+        {
+          "start": 33.84,
+          "end": 38.120000000000005,
+          "text": " The lesson explains why nearby buildings can change the measured wind speed."
+        },
+        {
+          "start": 39.74,
+          "end": 43.760000000000005,
+          "text": " Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "start": 45.36,
+          "end": 49.620000000000005,
+          "text": " The next activity uses a paper chart to display temperature changes."
+        },
+        {
+          "start": 50.82,
+          "end": 55.1,
+          "text": " Each colored line represents a different day of the same teaching week."
+        },
+        {
+          "start": 55.1,
+          "end": 60.56,
+          "text": " A small ruler helps the class draw straight lines across the chart."
+        },
+        {
+          "start": 61.620000000000005,
+          "end": 66.42,
+          "text": " The instructor asks everyone to check the units before comparing numbers."
+        },
+        {
+          "start": 68.08,
+          "end": 72.16,
+          "text": " Warm air can hold more moisture than cold air under similar conditions."
+        },
+        {
+          "start": 73.78,
+          "end": 77.74000000000001,
+          "text": " Clouds form when moist air rises and cools above the surrounding landscape."
+        },
+        {
+          "start": 79.04,
+          "end": 84.0,
+          "text": " A simple experiment places a cool metal lid over a container of warm water."
+        },
+        {
+          "start": 85.1,
+          "end": 89.72,
+          "text": " Drops appear on the lid after the water vapor touches the cooler surface."
+        },
+        {
+          "start": 91.33999999999999,
+          "end": 95.41999999999999,
+          "text": " The class discusses the difference between an observation and an explanation."
+        },
+        {
+          "start": 97.19999999999999,
+          "end": 101.24,
+          "text": " Careful records help another observer repeat the same measurement tomorrow."
+        },
+        {
+          "start": 102.94,
+          "end": 107.97999999999999,
+          "text": " All spoken material in this exercise was generated locally for software testing."
+        },
+        {
+          "start": 109.03999999999999,
+          "end": 114.1,
+          "text": " The recording ends after the final explanation without any private information."
+        },
+        {
+          "start": 115.1,
+          "end": 145.07999999999998,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 5.157193457940593,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        5.157193457940593
+      ]
+    },
+    "same_text_and_source_times": true
+  },
+  {
+    "profile": "B",
+    "sample": "boundary-medium",
+    "negative": false,
+    "preprocessing_seconds": 0.07296462496742606,
+    "model_wall_seconds": 8.00647649995517,
+    "result": {
+      "profile": "B",
+      "chunked": false,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          1993602
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 4.5,
+          "text": " A weather station measures the temperature beside a public walking trail."
+        },
+        {
+          "start": 4.64,
+          "end": 8.72,
+          "text": " The brass instrument records air pressure at regular intervals each morning."
+        },
+        {
+          "start": 8.88,
+          "end": 12.96,
+          "text": " A wooden shelter protects the thermometer from direct afternoon sunlight."
+        },
+        {
+          "start": 13.22,
+          "end": 17.44,
+          "text": " Several glass containers collect rainwater for a simple measurement exercise."
+        },
+        {
+          "start": 17.88,
+          "end": 21.3,
+          "text": " The observer writes each reading in a notebook with the date and time."
+        },
+        {
+          "start": 21.44,
+          "end": 24.6,
+          "text": " A blue arrow on the roof shows which direction the wind is blowing."
+        },
+        {
+          "start": 24.84,
+          "end": 29.060000000000002,
+          "text": " The lesson explains why nearby buildings can change the measured wind speed."
+        },
+        {
+          "start": 29.06,
+          "end": 33.239999999999995,
+          "text": " Students compare observations from the hill and from the open playing field."
+        },
+        {
+          "start": 33.42,
+          "end": 37.62,
+          "text": " The next activity uses a paper chart to display temperature changes."
+        },
+        {
+          "start": 37.78,
+          "end": 41.58,
+          "text": " Each colored line represents a different day of the same teaching week."
+        },
+        {
+          "start": 41.7,
+          "end": 45.519999999999996,
+          "text": " A small ruler helps the class draw straight lines across the chart."
+        },
+        {
+          "start": 45.68,
+          "end": 49.92,
+          "text": " The instructor asks everyone to check the units before comparing numbers."
+        },
+        {
+          "start": 50.099999999999994,
+          "end": 54.099999999999994,
+          "text": " Warm air can hold more moisture than cold air under similar conditions."
+        },
+        {
+          "start": 54.3,
+          "end": 58.22,
+          "text": " Clouds form when moist air rises and cools above the surrounding landscape."
+        },
+        {
+          "start": 58.22,
+          "end": 63.0,
+          "text": " A simple experiment places a cool metal lid over a container of warm water."
+        },
+        {
+          "start": 63.14,
+          "end": 67.2,
+          "text": " Drops appear on the lid after the water vapor touches the cooler surface."
+        },
+        {
+          "start": 67.34,
+          "end": 71.4,
+          "text": " The class discusses the difference between an observation and an explanation."
+        },
+        {
+          "start": 71.72,
+          "end": 75.7,
+          "text": " Careful records help another observer repeat the same measurement tomorrow."
+        },
+        {
+          "start": 75.96000000000001,
+          "end": 80.98,
+          "text": " All spoken material in this exercise was generated locally for software testing."
+        },
+        {
+          "start": 81.16,
+          "end": 85.5,
+          "text": " The recording ends after the final explanation without any private information."
+        },
+        {
+          "start": 85.5,
+          "end": 89.44,
+          "text": " The library opens every morning beside the quiet public garden."
+        },
+        {
+          "start": 89.64,
+          "end": 94.28,
+          "text": " Readers can borrow books, study together, and return them at the front desk."
+        },
+        {
+          "start": 94.4,
+          "end": 99.58,
+          "text": " This local test records clear speech without sending any media to an external service."
+        },
+        {
+          "start": 99.74,
+          "end": 105.42,
+          "text": " After the recording finishes, the application preserves the original words and their time stamps."
+        },
+        {
+          "start": 105.6,
+          "end": 109.02,
+          "text": " The first section describes a small library beside the river."
+        },
+        {
+          "start": 109.18,
+          "end": 112.8,
+          "text": " The second section explains how readers find books on the shelves."
+        },
+        {
+          "start": 112.8,
+          "end": 116.38,
+          "text": " The third section mentions a quiet room for studying history."
+        },
+        {
+          "start": 116.53999999999999,
+          "end": 119.92,
+          "text": " The fourth section describes a map displayed near the entrance."
+        },
+        {
+          "start": 120.1,
+          "end": 123.8,
+          "text": " The fifth section introduces a calendar of community activities."
+        }
+      ],
+      "model_seconds": 5.3998465000186116,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        5.3998465000186116
+      ]
+    },
+    "same_text_and_source_times": true
+  },
+  {
+    "profile": "A",
+    "sample": "silence-short",
+    "negative": true,
+    "preprocessing_seconds": 0.07405416609253734,
+    "model_wall_seconds": 3.8595589169999585,
+    "result": {
+      "profile": "A",
+      "chunked": false,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 1.5185080409282818,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.5185080409282818
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "A",
+    "sample": "silence-medium",
+    "negative": true,
+    "preprocessing_seconds": 0.0732673330930993,
+    "model_wall_seconds": 6.323429125011899,
+    "result": {
+      "profile": "A",
+      "chunked": false,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          2000000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 30.0,
+          "end": 59.980000000000004,
+          "text": " Thank you."
+        },
+        {
+          "start": 60.0,
+          "end": 89.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 90.0,
+          "end": 119.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 120.0,
+          "end": 149.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 4.067366083036177,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        4.067366083036177
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "A",
+    "sample": "noise-short",
+    "negative": true,
+    "preprocessing_seconds": 0.0403255409328267,
+    "model_wall_seconds": 4.030777249950916,
+    "result": {
+      "profile": "A",
+      "chunked": false,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": null,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 2.0,
+          "text": " You"
+        }
+      ],
+      "model_seconds": 1.6589334999443963,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.6589334999443963
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "B",
+    "sample": "silence-short",
+    "negative": true,
+    "preprocessing_seconds": 0.036609041038900614,
+    "model_wall_seconds": 3.810892332927324,
+    "result": {
+      "profile": "B",
+      "chunked": false,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 1.513570790993981,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.513570790993981
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "B",
+    "sample": "silence-medium",
+    "negative": true,
+    "preprocessing_seconds": 0.07656079204753041,
+    "model_wall_seconds": 6.312359707895666,
+    "result": {
+      "profile": "B",
+      "chunked": false,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          2000000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 30.0,
+          "end": 59.980000000000004,
+          "text": " Thank you."
+        },
+        {
+          "start": 60.0,
+          "end": 89.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 90.0,
+          "end": 119.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 120.0,
+          "end": 149.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 4.00248616700992,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        4.00248616700992
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "B",
+    "sample": "noise-short",
+    "negative": true,
+    "preprocessing_seconds": 0.0403271249961108,
+    "model_wall_seconds": 3.8739993339404464,
+    "result": {
+      "profile": "B",
+      "chunked": false,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": null,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 2.0,
+          "text": " You"
+        }
+      ],
+      "model_seconds": 1.5166328749619424,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.5166328749619424
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "C",
+    "sample": "silence-short",
+    "negative": true,
+    "preprocessing_seconds": 0.040523875039070845,
+    "model_wall_seconds": 3.9313254590379074,
+    "result": {
+      "profile": "C",
+      "chunked": true,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 1.5265771669801325,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.5265771669801325
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "C",
+    "sample": "silence-medium",
+    "negative": true,
+    "preprocessing_seconds": 0.07333820802159607,
+    "model_wall_seconds": 8.892692875000648,
+    "result": {
+      "profile": "C",
+      "chunked": true,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          400000
+        ],
+        [
+          400000,
+          800000
+        ],
+        [
+          800000,
+          1200000
+        ],
+        [
+          1200000,
+          1600000
+        ],
+        [
+          1600000,
+          2000000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 25.0,
+          "end": 54.980000000000004,
+          "text": " Thank you."
+        },
+        {
+          "start": 50.0,
+          "end": 79.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 75.0,
+          "end": 104.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 100.0,
+          "end": 129.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 6.566153376130387,
+      "invocations": 5,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.536141833057627,
+        1.2698902919655666,
+        1.2874178750207648,
+        1.249727167072706,
+        1.2229762090137228
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "C",
+    "sample": "noise-short",
+    "negative": true,
+    "preprocessing_seconds": 0.04059637489262968,
+    "model_wall_seconds": 3.8566490840166807,
+    "result": {
+      "profile": "C",
+      "chunked": true,
+      "previous_text": true,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": null,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 2.0,
+          "text": " You"
+        }
+      ],
+      "model_seconds": 1.5472640830557793,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.5472640830557793
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "D",
+    "sample": "silence-short",
+    "negative": true,
+    "preprocessing_seconds": 0.03998612496070564,
+    "model_wall_seconds": 3.9505929579026997,
+    "result": {
+      "profile": "D",
+      "chunked": true,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 1.590091541991569,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.590091541991569
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "D",
+    "sample": "silence-medium",
+    "negative": true,
+    "preprocessing_seconds": 0.07243183301761746,
+    "model_wall_seconds": 9.13712470792234,
+    "result": {
+      "profile": "D",
+      "chunked": true,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          400000
+        ],
+        [
+          400000,
+          800000
+        ],
+        [
+          800000,
+          1200000
+        ],
+        [
+          1200000,
+          1600000
+        ],
+        [
+          1600000,
+          2000000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": "TRANSCRIPT_INVALID",
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 29.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 25.0,
+          "end": 54.980000000000004,
+          "text": " Thank you."
+        },
+        {
+          "start": 50.0,
+          "end": 79.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 75.0,
+          "end": 104.98,
+          "text": " Thank you."
+        },
+        {
+          "start": 100.0,
+          "end": 129.98,
+          "text": " Thank you."
+        }
+      ],
+      "model_seconds": 6.8058700419496745,
+      "invocations": 5,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.8145972919883206,
+        1.2244645419996232,
+        1.2530226249946281,
+        1.2587600409751758,
+        1.2550255419919267
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  },
+  {
+    "profile": "D",
+    "sample": "noise-short",
+    "negative": true,
+    "preprocessing_seconds": 0.07019437500275671,
+    "model_wall_seconds": 4.221637667040341,
+    "result": {
+      "profile": "D",
+      "chunked": true,
+      "previous_text": false,
+      "boundaries": [
+        [
+          0,
+          56000
+        ]
+      ],
+      "nonfinite": [],
+      "validation_error": null,
+      "segments": [
+        {
+          "start": 0.0,
+          "end": 2.0,
+          "text": " You"
+        }
+      ],
+      "model_seconds": 1.5360257920110598,
+      "invocations": 1,
+      "disk_model_loads": 1,
+      "call_seconds": [
+        1.5360257920110598
+      ]
+    },
+    "meaningful_speech_emitted": true,
+    "safe_no_transcript": false
+  }
+]

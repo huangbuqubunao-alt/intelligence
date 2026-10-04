@@ -1,0 +1,23 @@
+[
+  {
+    "value": "nan",
+    "typed_result_failed_closed": true,
+    "no_raw_artifact_or_partial_authority": true,
+    "new_complete_retry_succeeded": true,
+    "model": "explicit test-only fixture, no acoustic qualification claim"
+  },
+  {
+    "value": "inf",
+    "typed_result_failed_closed": true,
+    "no_raw_artifact_or_partial_authority": true,
+    "new_complete_retry_succeeded": true,
+    "model": "explicit test-only fixture, no acoustic qualification claim"
+  },
+  {
+    "value": "negative-inf",
+    "typed_result_failed_closed": true,
+    "no_raw_artifact_or_partial_authority": true,
+    "new_complete_retry_succeeded": true,
+    "model": "explicit test-only fixture, no acoustic qualification claim"
+  }
+]
