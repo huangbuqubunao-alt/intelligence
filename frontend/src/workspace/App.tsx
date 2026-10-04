@@ -1,3 +1,4 @@
+import { CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
@@ -82,6 +83,9 @@ type Topic = {
   relations: { related_topic_id: string }[];
 };
 type Source = {
+  source_type?: string;
+  tracking?: Tracking | null;
+  insight_count?: number;
   provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   source_id: string;
   display_name: string | null;
@@ -1498,6 +1502,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
+      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} />}
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
@@ -2339,6 +2344,12 @@ function Sources(
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState("all");
+  useEffect(() => {
+    const check = () => { if (document.visibilityState !== "hidden") void post("/sources/check-stale", {}).then(onRefresh).catch(() => {}); };
+    check(); window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, []);
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "BILIBILI">("YOUTUBE");
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
@@ -2355,7 +2366,15 @@ function Sources(
       {data.sources.length
         ? (
           <div className="source-list">
-            {data.sources.map((source) => (
+            <label className="field">{t("Following filter")}<select value={filter} onChange={event => setFilter(event.target.value)}>
+              <option value="all">{t("All Following")}</option><option value="updates">{t("Has updates")}</option>
+              <option value="insights">{t("Produces new insights")}</option><option value="attention">{t("Needs attention")}</option>
+              <option value="paused">{t("Paused")}</option>
+            </select></label>
+            {data.sources.filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
+              || (filter === "insights" && (source.insight_count ?? 0) > 0)
+              || (filter === "attention" && Boolean(source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
+              || (filter === "paused" && !source.enabled)).map((source) => (
               <div className="list-row source-row" key={source.source_id}>
                 <button
                   className="source-select"
@@ -2365,13 +2384,13 @@ function Sources(
                   <span>
                     <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
                     <small>
-                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.provider === "BILIBILI" ? "Manually imported video" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
+                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.source_type === "CREATOR" ? source.enabled ? "Monitoring new videos" : "Monitoring is paused" : source.provider === "BILIBILI" ? "Manually imported video" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
                     </small>
                   </span>
                 </button>
                 <div className="source-actions">
                   <Status
-                    value={source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
+                    value={source.source_type === "CREATOR" ? trackingCopy(source.tracking?.health ?? "BASELINE_PENDING") : source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
                       (source.enabled ? "ENABLED" : "DISABLED")}
                   />
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
@@ -2773,6 +2792,7 @@ function SourceDetail(
   }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
+  if (data.source.source_type === "CREATOR") return <CreatorFollowingDetail id={id} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>

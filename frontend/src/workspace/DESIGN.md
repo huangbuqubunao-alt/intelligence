@@ -16,6 +16,20 @@ polling. Root `DESIGN.md` records the persistent import interaction contract.
 Reuse the live workspace's dark surfaces, green accent, muted typography, Panel
 borders, radius tokens and button styles from styles.css. Do not redesign Home.
 
+## Creator Following
+
+Phase 11 keeps “添加一个视频 / Add one video” and “关注一个 UP 主 / Follow a
+creator” distinct inside the existing Bilibili Add modal. Explain following from
+now on, the bounded starting point and application-only checks before submission.
+Content may offer “关注此 UP 主 / Follow this creator” using verified metadata.
+Creator detail uses the same modal, buttons and metadata rows: last check, last
+successful check, human-readable health, cumulative discovered Content, pending
+acquisition, Check Now and pause/resume. Counts are factual, never unread badges.
+Show linked ordinary Content; do not introduce a feed, notification center or
+primary destination. Existing Following filters use durable discoveries, trusted
+Intelligence and actual processing/health states. Wrap titles and health copy at
+320px; preserve plain-text rendering and Chinese/English symmetry.
+
 One Home section headed “最近 7 天发生了什么变化？” / “What changed in the last
 7 days?”. Show the exact localized interval and configured timezone, a compact
 five-category count strip, and at most two factual items per category. On wide
