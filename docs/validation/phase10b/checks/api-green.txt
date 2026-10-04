@@ -23,8 +23,8 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 >       status, rejected = app.handle("POST", "/api/v1/bilibili/imports", b'{"input":"https://localhost/a"}')
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_bilibili_content.py:147: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_bilibili_content.py:147:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.local_api.LocalApiApplication object at 0x108248080>
 method = 'POST', path = '/api/v1/bilibili/imports'

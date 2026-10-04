@@ -57,11 +57,11 @@ monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a2df440>
 >       assert provider.import_input(BV).status == "READY"
                ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_bilibili_content.py:164: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_bilibili_content.py:164:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/bilibili_content.py:82: in import_input
     self.repository.create_source_subscription(SourceSubscriptionRecord(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.state.SQLiteStateRepository object at 0x109730e30>
 source = SourceSubscriptionRecord(source_id='bilibili-video-BV1xx411c7mD', source_type=<SourceType.VIDEO_URL: 'VIDEO_URL'>, can...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI')

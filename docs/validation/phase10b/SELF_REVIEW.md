@@ -73,3 +73,7 @@ Endpoint availability/access policy can change; failures remain truthful and
 stored authority remains portable. No legal entitlement or remote availability
 guarantee is inferred from technical validation. Failed Phase 9/9R artifacts
 remain unchanged; ASR production qualification and production DA route are NONE.
+
+Final evidence diff review found pytest traceback lines with trailing whitespace.
+Only log-line trailing whitespace was normalized; commands, errors, assertions
+and result counts remain intact. Source/caption authority bytes were untouched.

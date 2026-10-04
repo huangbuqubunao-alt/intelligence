@@ -13,7 +13,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
         assert {e.content_id for e in packet.evidence} == set(content_ids)
 >       assert research.assemble(request, output_language="en").packet == packet
 E       AssertionError: assert ResearchPacke...L_RETRIEVAL']) == ResearchPacke...L_RETRIEVAL'])
-E         
+E
 E         Use -v to get more diff
 
 tests/integration/test_bilibili_three_provider.py:58: AssertionError
@@ -40,7 +40,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
         assert {eid: restored.resolve_verified_evidence_text(eid) for eid in before} == before
 >       assert ResearchLiteService(restored, now=lambda: NOW).assemble(request, output_language="en").packet == packet
 E       AssertionError: assert ResearchPacke...L_RETRIEVAL']) == ResearchPacke...L_RETRIEVAL'])
-E         
+E
 E         Use -v to get more diff
 
 tests/integration/test_bilibili_three_provider.py:111: AssertionError

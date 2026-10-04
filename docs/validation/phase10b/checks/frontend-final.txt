@@ -50,4 +50,3 @@ This ensures that you're testing the behavior the user would see in the browser.
       Tests  178 passed (178)
    Start at  17:56:21
    Duration  11.15s (transform 3.48s, setup 0ms, collect 12.03s, tests 18.66s, environment 14.66s, prepare 1.72s)
-

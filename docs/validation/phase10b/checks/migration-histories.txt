@@ -35,7 +35,7 @@ expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -80,7 +80,7 @@ expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -125,7 +125,7 @@ expected_reason = 'CLOUD_OUTPUT_TRUNCATED'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -170,7 +170,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -215,7 +215,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -260,7 +260,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value

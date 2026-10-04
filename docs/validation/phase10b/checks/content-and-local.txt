@@ -23,11 +23,11 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 >       created = backup.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:313: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:313:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10a5d9a60>
 connection = <sqlite3.Connection object at 0x109f6e4d0>
@@ -60,11 +60,11 @@ local = <youtube_intel.local_content.LocalContentProvider object at 0x10a5da7e0>
 >       created = service.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:418: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:418:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10a5d8590>
 connection = <sqlite3.Connection object at 0x109f6fb50>
@@ -95,9 +95,9 @@ attack = 'snapshot_hash'
         local, tmp_path, attack
     ):
         from conftest import _load_module
-    
+
         from youtube_intel.source_authority import sha256
-    
+
         local.transcriber = FakeTimedTranscriber()
         result = (
             local.import_bytes("voice.wav", wav_bytes())
@@ -110,11 +110,11 @@ attack = 'snapshot_hash'
 >       created = backup.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:578: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:578:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x113b21340>
 connection = <sqlite3.Connection object at 0x114b4b790>
@@ -145,9 +145,9 @@ attack = 'range_excerpt'
         local, tmp_path, attack
     ):
         from conftest import _load_module
-    
+
         from youtube_intel.source_authority import sha256
-    
+
         local.transcriber = FakeTimedTranscriber()
         result = (
             local.import_bytes("voice.wav", wav_bytes())
@@ -160,11 +160,11 @@ attack = 'range_excerpt'
 >       created = backup.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:578: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:578:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10eb31130>
 connection = <sqlite3.Connection object at 0x114b4b1f0>
@@ -195,9 +195,9 @@ attack = 'missing_trigger'
         local, tmp_path, attack
     ):
         from conftest import _load_module
-    
+
         from youtube_intel.source_authority import sha256
-    
+
         local.transcriber = FakeTimedTranscriber()
         result = (
             local.import_bytes("voice.wav", wav_bytes())
@@ -210,11 +210,11 @@ attack = 'missing_trigger'
 >       created = backup.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:578: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:578:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x114755040>
 connection = <sqlite3.Connection object at 0x114b4b6a0>
@@ -245,9 +245,9 @@ attack = 'cue_time'
         local, tmp_path, attack
     ):
         from conftest import _load_module
-    
+
         from youtube_intel.source_authority import sha256
-    
+
         local.transcriber = FakeTimedTranscriber()
         result = (
             local.import_bytes("voice.wav", wav_bytes())
@@ -260,11 +260,11 @@ attack = 'cue_time'
 >       created = backup.create_backup()
                   ^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_local_content_adversarial.py:578: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_local_content_adversarial.py:578:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src/youtube_intel/backup_restore.py:222: in create_backup
     self._verify_core_database(connection)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 self = <youtube_intel.backup_restore.BackupRestoreService object at 0x1147c9250>
 connection = <sqlite3.Connection object at 0x114bfcf40>

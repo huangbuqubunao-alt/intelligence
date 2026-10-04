@@ -54,15 +54,15 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 
     def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) -> None:
         repository = SQLiteStateRepository(_database_path(tmp_path))
-    
+
         version = repository.initialize(now=NOW)
-    
+
 >       assert (version.version, version.name) == (
             32,
             "032_add_source_provider_authority.sql",
         )
 E       AssertionError: assert (33, '033_add...provider.sql') == (32, '032_add...uthority.sql')
-E         
+E
 E         At index 0 diff: 33 != 32
 E         Use -v to get more diff
 
@@ -104,7 +104,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             "032_add_source_provider_authority.sql",
         )
 E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
-E         
+E
 E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
 E         Use -v to get more diff
 
@@ -141,7 +141,7 @@ expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -186,7 +186,7 @@ expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -231,7 +231,7 @@ expected_reason = 'CLOUD_OUTPUT_TRUNCATED'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -276,7 +276,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -321,7 +321,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -366,7 +366,7 @@ expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
                 "usage": {"prompt_tokens": 120, "completion_tokens": 32},
             },
         )
-    
+
         with pytest.raises(KnownCloudDistillationResponseError) as captured:
             transport.generate(verified)
         error = captured.value
@@ -385,7 +385,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 
     def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: Path) -> None:
         repository = _repository(tmp_path)
-    
+
         connection = repository._connect()
         try:
             assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
@@ -401,7 +401,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             }
         finally:
             connection.close()
-    
+
 >       assert migrations[-17:] == (
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
@@ -422,7 +422,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             "032_add_source_provider_authority.sql",
         )
 E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
-E         
+E
 E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
 E         Use -v to get more diff
 
@@ -433,7 +433,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 
     def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: Path) -> None:
         repository = _repository(tmp_path)
-    
+
         connection = repository._connect()
         try:
             assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
@@ -447,7 +447,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             }
         finally:
             connection.close()
-    
+
 >       assert migrations[-18:] == (
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
@@ -469,7 +469,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             "033_add_bilibili_provider.sql",
         )
 E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
-E         
+E
 E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
 E         Use -v to get more diff
 
@@ -480,7 +480,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 
     def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: Path) -> None:
         repository = _repository(tmp_path)
-    
+
         connection = repository._connect()
         try:
             assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
@@ -495,7 +495,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             assert connection.execute("SELECT COUNT(*) FROM source_runs").fetchone()[0] == 0
         finally:
             connection.close()
-    
+
 >       assert migrations[-18:] == (
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
@@ -517,7 +517,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
             "033_add_bilibili_provider.sql",
         )
 E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
-E         
+E
 E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
 E         Use -v to get more diff
 
@@ -560,7 +560,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
                 "033_add_bilibili_provider.sql",
             ]
 E           AssertionError: assert ['016_add_amb...age.sql', ...] == ['015_add_tim...ult.sql', ...]
-E             
+E
 E             At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
 E             Use -v to get more diff
 
