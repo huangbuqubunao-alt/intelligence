@@ -1,0 +1,55 @@
+{
+  "starting_head": "bda7e3eeeaf7f71ab243a82bd75dc4995825d06b",
+  "reviewed_acceptance_commit": "ae4b447495245bf96159e8afb576de5dcbbd1c92",
+  "production_code_head": "0153cf8ef0d08e8492683deb2d2287767c061b74",
+  "complete_diff_reviewed": true,
+  "areas": [
+    "Following stable identity and mutable metadata",
+    "initial bounded baseline / no historical enrollment",
+    "atomic observations, pending acquisition, partial failure and traversal hints",
+    "canonical Content dedupe / independent uploader and publication validation",
+    "public DNS/TLS/host/redirect/body/concurrency/retry/risk boundaries",
+    "immutable captions and no acoustic/model fallback",
+    "existing worker / pause / cooldown / application lifecycle",
+    "frontend grouping, factual filters, bilingual source detail, narrow layout",
+    "restart/offline and portable Backup/Restore corruption rejection",
+    "ordinary Summary/Evidence, mixed Intelligence/Research and quiet Knowledge Delta",
+    "migration lineage, adversarial tests, full regressions and protected worktrees"
+  ],
+  "findings": [],
+  "verification": {
+    "backend": {
+      "passed": 3550,
+      "skipped": 1,
+      "warnings": 2,
+      "seconds": 731.13
+    },
+    "frontend": {
+      "passed": 181,
+      "files": 9
+    },
+    "browser": {
+      "creator_online": 9,
+      "creator_restart_offline": 8,
+      "phase10b": 8,
+      "phase7": 8,
+      "phase8": 8,
+      "integrated": 8,
+      "console_errors": 0,
+      "external_requests": 0,
+      "horizontal_overflow": 0
+    },
+    "schema": 34,
+    "database_count": 5,
+    "protected_worktrees": 21,
+    "production_deep_analysis": "NONE",
+    "production_acoustic_asr": "NONE",
+    "large_v3_turbo": "NOT_QUALIFIED / FAILED",
+    "remaining_material_findings": [],
+    "genuine_blockers": [],
+    "reviewed_production_head": "0153cf8ef0d08e8492683deb2d2287767c061b74"
+  },
+  "only_followup": "validation log trailing blank-line normalization and this fresh acceptance record",
+  "accepted_history_unchanged": true,
+  "protected_worktrees_preserved": 21
+}
