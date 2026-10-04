@@ -157,7 +157,18 @@ def validate_result(
             or not 0 < duration_seconds <= 7200
         ):
             raise ValueError("bounds")
-        response = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs)
+        def finite_number(value: str) -> float:
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError("nonfinite JSON number")
+            return number
+
+        response = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_pairs,
+            parse_constant=finite_number,
+            parse_float=finite_number,
+        )
         if not isinstance(response, dict):
             raise ValueError("object")
         segments = response.get("segments")
