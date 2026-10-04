@@ -190,7 +190,7 @@ portable Summary/Evidence authority. No in-scope unresolved implementation
 defect remains. Failed model behavior is the truthful qualification result.
 There was no merge, push, PR, dependency upgrade, migration or protected-tree edit.
 The [fresh code review record](phase9/fresh-review.json) binds the inspected code
-HEAD and final failed receipt. The subsequent scoped documentation commit adds
+HEAD and final failed receipt. The subsequent scoped documentation commits add
 only decision/acceptance records and measured artifacts.
 
 Next phase: bounded investigation of this exact candidate's medium decoder and
