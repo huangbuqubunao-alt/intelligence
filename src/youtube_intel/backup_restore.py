@@ -35,7 +35,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 32
+LATEST_SCHEMA_VERSION = 33
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -1045,7 +1045,7 @@ class BackupRestoreService:
         for source in connection.execute("SELECT content_id FROM content_source_snapshots"):
             if verify_source(repository,connection,str(source[0])) is None:
                 raise BackupRestoreError("Imported source snapshot authority failed validation.")
-        for evidence in connection.execute("SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE v.provider='LOCAL' AND e.availability='AVAILABLE'"):
+        for evidence in connection.execute("SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE v.provider IN ('LOCAL','BILIBILI') AND e.availability='AVAILABLE'"):
             if repository._resolve_verified_evidence_text_in_transaction(connection,str(evidence[0])) is None:
                 raise BackupRestoreError('Imported source Evidence failed validation.')
         # Reverify every result and its complete membership graph on the staged

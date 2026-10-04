@@ -37,7 +37,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 32
+    assert repository.initialize(now=NOW).version == 33
     return repository
 
 
@@ -104,7 +104,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
     repository = _repository(tmp_path)
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 32
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
         migrations = tuple(
             row["name"]
             for row in connection.execute(
@@ -163,7 +163,7 @@ def test_v008_upgrade_preserves_source_automation_and_preference_data(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 32
+    assert upgraded.initialize(now=NOW).version == 33
     assert upgraded.get_source_subscription(source_id) is not None
     assert len(upgraded.list_automation_schedules()) == 1
     assert len(upgraded.list_preferences()) == 1

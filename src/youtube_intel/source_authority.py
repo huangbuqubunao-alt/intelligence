@@ -9,6 +9,7 @@ import re
 import sqlite3
 import stat
 import uuid
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -139,9 +140,9 @@ def verify_source(
             or video["availability"] != "public"
         ):
             return None
-        if row["source_identity"] != "sha256:" + row["source_hash"] or (
+        if row["provider"] != "BILIBILI" and (row["source_identity"] != "sha256:" + row["source_hash"] or (
             row["provider"] == "LOCAL" and content_id != "local-" + row["source_hash"]
-        ):
+        )):
             return None
         artifact = connection.execute(
             "SELECT * FROM artifacts WHERE artifact_id=?",
@@ -159,10 +160,24 @@ def verify_source(
         data = read_managed(
             root,
             artifact["relative_path"],
-            maximum=MAX_MEDIA_BYTES if row["media_kind"] != "TEXT" else MAX_TEXT_BYTES,
+            maximum=(256 * 1024 if row["provider"] == "BILIBILI" else
+                     MAX_MEDIA_BYTES if row["media_kind"] != "TEXT" else MAX_TEXT_BYTES),
         )
         if len(data) != row["byte_count"] or sha256(data) != row["source_hash"]:
             return None
+        network_snapshot = None
+        if row["provider"] == "BILIBILI":
+            from youtube_intel.providers.bilibili import normalize_input
+            network_snapshot = json.loads(data)
+            identity = normalize_input(network_snapshot["bvid"])
+            if (network_snapshot["contract"] != "bilibili-public-metadata-v1"
+                or identity.content_id != content_id or row["source_identity"] != "bvid:" + identity.bvid
+                or network_snapshot["content_id"] != content_id
+                or network_snapshot["canonical_url"] != identity.canonical_url
+                or network_snapshot["duration_seconds"] != row["duration_seconds"]
+                or network_snapshot["title"] != row["filename"]
+                or row["media_kind"] != "VIDEO" or row["format"] != ".json"):
+                return None
         if row["status"] == "READY":
             canonical = connection.execute(
                 "SELECT * FROM artifacts WHERE artifact_id=?",
@@ -267,6 +282,39 @@ def verify_source(
                     "transcriber": row["transcript_provenance"],
                 }
                 envelope = json.loads(envelope_bytes)
+                if isinstance(envelope, dict) and envelope.get("contract") == "source-transcript-provenance-v3":
+                    from youtube_intel.providers.bilibili import (
+                        parse_captions,
+                        validate_request_url,
+                    )
+                    if network_snapshot is None or row["provider"] != "BILIBILI":
+                        return None
+                    raw_id, raw_hash = envelope.get("raw_artifact_id"), envelope.get("raw_output_hash")
+                    acquisition = envelope.get("acquisition")
+                    if not isinstance(raw_id, str) or not isinstance(raw_hash, str) or not isinstance(acquisition, dict):
+                        return None
+                    if (acquisition.get("provider") != "BILIBILI" or acquisition.get("bvid") != network_snapshot["bvid"]
+                        or acquisition.get("cid") != network_snapshot["cid"]
+                        or set(acquisition) != {"provider", "bvid", "cid", "subtitle_id", "language_name", "source_url", "acquired_at"}):
+                        return None
+                    host, _ = validate_request_url(acquisition["source_url"])
+                    if host == "api.bilibili.com" or not isinstance(acquisition["subtitle_id"], str) or not re.fullmatch(r"[0-9]{1,30}", acquisition["subtitle_id"]) or not isinstance(acquisition["language_name"], str) or not isinstance(acquisition["acquired_at"], str):
+                        return None
+                    acquired_at = datetime.fromisoformat(acquisition["acquired_at"].replace("Z", "+00:00"))
+                    if acquired_at.tzinfo is None:
+                        return None
+                    raw_artifact = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?", (raw_id,)).fetchone()
+                    if (raw_artifact is None or raw_artifact["video_id"] != content_id or raw_artifact["provider"] != "BILIBILI"
+                        or raw_artifact["kind"] != "subtitle_source"
+                        or raw_artifact["storage_root"] != "DATA" or raw_artifact["deleted_at"] is not None or raw_artifact["content_hash"] != raw_hash):
+                        return None
+                    raw_output = read_managed(root, raw_artifact["relative_path"], maximum=MAX_TEXT_BYTES)
+                    parsed = parse_captions(raw_output, language=row["language"], duration=row["duration_seconds"])
+                    if sha256(raw_output) != raw_hash or parsed.cues != tuple(writes) or parsed.provenance != row["transcript_provenance"]:
+                        return None
+                    expected.update(contract="source-transcript-provenance-v3", raw_artifact_id=raw_id, raw_output_hash=raw_hash, acquisition=acquisition)
+                elif row["provider"] == "BILIBILI":
+                    return None
                 if isinstance(envelope, dict) and envelope.get("contract") == "source-transcript-provenance-v2":
                     from youtube_intel.offline_transcription import (
                         MAX_RESULT,

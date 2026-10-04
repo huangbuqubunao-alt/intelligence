@@ -213,3 +213,68 @@ def test_redirect_chain_is_never_followed(location: str, monkeypatch: pytest.Mon
     with pytest.raises(BilibiliError, match="UNSUPPORTED_URL"):
         bilibili._fetch_once("https://api.bilibili.com/x/player/v2", bilibili.MAX_METADATA)
     assert requests == ["/x/player/v2"]  # Chain bound zero, even for allowed redirects.
+
+
+def test_dns_timeout_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    release = Event()
+    def stuck(*args: Any, **kwargs: Any) -> list[Any]:
+        release.wait(timeout=1)
+        return []
+    monkeypatch.setattr(socket, "getaddrinfo", stuck)
+    monkeypatch.setattr(bilibili, "DNS_TIMEOUT", 0.02)
+    try:
+        with pytest.raises(BilibiliError, match="NETWORK_UNAVAILABLE"):
+            bilibili.public_addresses("api.bilibili.com")
+    finally:
+        release.set()
+
+
+def test_rate_denial_applies_provider_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(bilibili, "_RATE_UNTIL", 0.0)
+    monkeypatch.setattr(bilibili, "_pace", lambda: None)
+    def limited(url: str, maximum: int) -> bytes:
+        calls.append(url)
+        raise BilibiliError("RATE_LIMITED")
+    monkeypatch.setattr(bilibili, "_fetch_once", limited)
+    for _ in range(2):
+        with pytest.raises(BilibiliError, match="RATE_LIMITED"):
+            bilibili.fetch_public("https://api.bilibili.com/x/player/v2", bilibili.MAX_METADATA)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('headers,payload,code', [
+    ({'Content-Length': str(bilibili.MAX_METADATA + 1)}, b'{}', 'RESPONSE_TOO_LARGE'),
+    ({'Content-Length': '9' * 5000}, b'{}', 'RESPONSE_TOO_LARGE'),
+    ({'Content-Length': '-1'}, b'{}', 'RESPONSE_TOO_LARGE'),
+    ({'Content-Encoding': 'gzip'}, b'compressed', 'METADATA_FAILED'),
+    ({}, b'x' * (bilibili.MAX_METADATA + 1), 'RESPONSE_TOO_LARGE'),
+])
+def test_transport_bounds_body_and_rejects_compression(headers: dict[str, str], payload: bytes,
+    code: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    consumed = 0
+    closed = []
+    class Response:
+        status = 200
+        def getheader(self, key: str, default: str | None = None) -> str | None:
+            return headers.get(key, default)
+        def read1(self, count: int) -> bytes:
+            nonlocal consumed
+            chunk = payload[consumed:consumed + count]
+            consumed += len(chunk)
+            return chunk
+    class Connection:
+        sock = None
+        def __init__(self, host: str, address: str) -> None:
+            pass
+        def request(self, method: str, target: str, headers: dict[str, str]) -> None:
+            assert set(headers) == {'User-Agent', 'Accept', 'Accept-Encoding'}
+        def getresponse(self) -> Response:
+            return Response()
+        def close(self) -> None:
+            closed.append(True)
+    monkeypatch.setattr(bilibili, 'public_addresses', lambda h: ('8.8.8.8',))
+    monkeypatch.setattr(bilibili, '_PinnedHTTPS', Connection)
+    with pytest.raises(BilibiliError, match=code):
+        bilibili._fetch_once('https://api.bilibili.com/x/player/v2', bilibili.MAX_METADATA)
+    assert consumed <= bilibili.MAX_METADATA + 1 and closed == [True]

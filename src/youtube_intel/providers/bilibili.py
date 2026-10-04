@@ -11,6 +11,7 @@ import http.client
 import ipaddress
 import json
 import math
+import queue
 import re
 import socket
 import ssl
@@ -23,18 +24,21 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from youtube_intel.local_content import MediaTranscript
+from youtube_intel.source_transcript import MediaTranscript
 from youtube_intel.state import TimedTranscriptCueWrite
 
 MAX_METADATA = 256 * 1024
 MAX_CAPTION = 2 * 1024 * 1024
 MAX_CUES = 4096
 TIMEOUT = 10.0
+DNS_TIMEOUT = 3.0
 MAX_ATTEMPTS = 3
 _BV = re.compile(r"BV1[1-9A-HJ-NP-Za-km-z]{9}\Z")
 _REQUEST_SLOTS = threading.BoundedSemaphore(2)
 _PACE_LOCK = threading.Lock()
 _NEXT_REQUEST = 0.0
+_RATE_UNTIL = 0.0
+_DNS_SLOTS = threading.BoundedSemaphore(2)
 
 
 class BilibiliError(ValueError):
@@ -103,9 +107,24 @@ def validate_request_url(value: str) -> tuple[str, str]:
 
 
 def public_addresses(host: str) -> tuple[str, ...]:
-    addresses = tuple(dict.fromkeys(
-        str(r[4][0]) for r in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-    ))
+    if not _DNS_SLOTS.acquire(timeout=1):
+        raise BilibiliError("NETWORK_UNAVAILABLE")
+    result: queue.Queue[tuple[str, ...] | OSError] = queue.Queue(maxsize=1)
+    def resolve() -> None:
+        try:
+            result.put(tuple(dict.fromkeys(str(r[4][0]) for r in socket.getaddrinfo(
+                host, 443, type=socket.SOCK_STREAM))))
+        except OSError as error:
+            result.put(error)
+        finally:
+            _DNS_SLOTS.release()
+    threading.Thread(target=resolve, daemon=True, name="bilibili-public-dns").start()
+    try:
+        addresses = result.get(timeout=DNS_TIMEOUT)
+    except queue.Empty:
+        raise BilibiliError("NETWORK_UNAVAILABLE") from None
+    if isinstance(addresses, OSError):
+        raise BilibiliError("NETWORK_UNAVAILABLE") from None
     if not 0 < len(addresses) <= 16 or any(
         not ipaddress.ip_address(a).is_global or ipaddress.ip_address(a).is_multicast
         for a in addresses
@@ -165,7 +184,7 @@ def _fetch_once(url: str, maximum: int) -> bytes:
         if response.getheader("Content-Encoding", "identity").lower() != "identity":
             raise BilibiliError("METADATA_FAILED")
         length = response.getheader("Content-Length")
-        if length is not None and (not length.isdigit() or int(length) > maximum):
+        if length is not None and (not length.isdigit() or len(length) > 20 or int(length) > maximum):
             raise BilibiliError("RESPONSE_TOO_LARGE")
         chunks: list[bytes] = []
         size = 0
@@ -187,9 +206,13 @@ def _fetch_once(url: str, maximum: int) -> bytes:
 
 
 def fetch_public(url: str, maximum: int) -> bytes:
+    global _RATE_UNTIL
     validate_request_url(url)
     if maximum not in {MAX_METADATA, MAX_CAPTION}:
         raise BilibiliError("INVALID_INPUT")
+    with _PACE_LOCK:
+        if time.monotonic() < _RATE_UNTIL:
+            raise BilibiliError("RATE_LIMITED")
     if not _REQUEST_SLOTS.acquire(timeout=1):
         raise BilibiliError("RATE_LIMITED")
     try:
@@ -200,6 +223,9 @@ def fetch_public(url: str, maximum: int) -> bytes:
             except (OSError, http.client.HTTPException):
                 error = BilibiliError("NETWORK_UNAVAILABLE")
             except BilibiliError as failure:
+                if failure.code == "RATE_LIMITED":
+                    with _PACE_LOCK:
+                        _RATE_UNTIL = time.monotonic() + 30
                 if failure.code != "NETWORK_UNAVAILABLE":
                     raise
                 error = failure
@@ -326,7 +352,7 @@ class BilibiliAdapter:
             if data["bvid"] != identity.bvid:
                 raise ValueError()
             rights = data["rights"]
-            if not isinstance(rights, dict) or data["state"] != 0 or any(
+            if not isinstance(rights, dict) or type(data["state"]) is not int or data["state"] != 0 or any(
                 rights.get(key, 0) != 0 for key in ("pay", "ugc_pay", "arc_pay")
             ):
                 raise BilibiliError("ACCESS_DENIED")
@@ -348,6 +374,10 @@ class BilibiliAdapter:
             data = _api_data(self.fetch(
                 f"https://api.bilibili.com/x/player/v2?bvid={metadata.identity.bvid}&cid={metadata.cid}",
                 MAX_METADATA))
+            if data.get("bvid", metadata.identity.bvid) != metadata.identity.bvid or data.get("cid", metadata.cid) != metadata.cid:
+                return CaptionAcquisition("CAPTION_INVALID")
+            if data.get("need_login_subtitle") is True:
+                return CaptionAcquisition("CAPTION_UNAVAILABLE")
             subtitle = data.get("subtitle", {})
             if not isinstance(subtitle, dict):
                 raise BilibiliError("CAPTION_INVALID")
@@ -367,6 +397,8 @@ class BilibiliAdapter:
             if url.startswith("//"):
                 url = "https:" + url
             validate_request_url(url)
+            if urlsplit(url).netloc.lower() == "api.bilibili.com":
+                raise BilibiliError("CAPTION_INVALID")
             transcript = parse_captions(self.fetch(url, MAX_CAPTION), language=language, duration=metadata.duration)
             return CaptionAcquisition("READY", transcript, subtitle_id, language_name, url)
         except BilibiliError as error:

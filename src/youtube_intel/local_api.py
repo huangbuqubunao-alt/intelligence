@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from pydantic import ValidationError
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
 from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
@@ -66,6 +67,7 @@ from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
+from youtube_intel.providers.bilibili import BilibiliAdapter, BilibiliError
 from youtube_intel.research_contract import ResearchRequest
 from youtube_intel.research_lite import ResearchLiteService, ResearchRejected
 from youtube_intel.saved_intelligence import (
@@ -476,6 +478,7 @@ class LocalApiApplication:
         deep_analysis_service: DeepAnalysisService | None = None,
         deep_analysis_publisher: DeepAnalysisObsidianPublisher | None = None,
         transcription_jobs: LocalTranscriptionJobs | None = None,
+        bilibili_adapter: BilibiliAdapter | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -500,6 +503,8 @@ class LocalApiApplication:
         self._transcription_init_lock = threading.Lock()
         self._local_import_slot = threading.BoundedSemaphore(1)
         self._local_provider = None if self._data_root is None else LocalContentProvider(repository, self._data_root, now=now)
+        self._bilibili_provider = None if self._data_root is None else BilibiliContentProvider(repository, self._data_root, adapter=bilibili_adapter, now=now)
+        self._bilibili_import_slot = threading.BoundedSemaphore(1)
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
         self._now = now or (lambda: datetime.now(UTC))
@@ -654,6 +659,28 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
+                if self._bilibili_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, {"input"} if route == "/api/v1/bilibili/imports" else set())
+                if not self._bilibili_import_slot.acquire(blocking=False):
+                    raise ApiError(HTTPStatus.TOO_MANY_REQUESTS, "BILIBILI_RATE_LIMITED", "An import is already processing.")
+                try:
+                    if route == "/api/v1/bilibili/imports":
+                        bilibili_input = self._string(data, "input", required=True)
+                        assert bilibili_input is not None
+                        imported = self._bilibili_provider.import_input(bilibili_input)
+                    else:
+                        imported = self._bilibili_provider.retry(route.split("/")[4])
+                except BilibiliError as rejection:
+                    status = {"RATE_LIMITED": HTTPStatus.TOO_MANY_REQUESTS, "ACCESS_DENIED": HTTPStatus.FORBIDDEN,
+                        "NOT_FOUND": HTTPStatus.NOT_FOUND, "NETWORK_UNAVAILABLE": HTTPStatus.SERVICE_UNAVAILABLE,
+                        "METADATA_FAILED": HTTPStatus.BAD_GATEWAY, "SOURCE_UNTRUSTED": HTTPStatus.CONFLICT}.get(rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY)
+                    raise ApiError(status, "BILIBILI_" + rejection.code, "The public video could not be imported.") from None
+                finally:
+                    self._bilibili_import_slot.release()
+                return HTTPStatus.OK if imported.reused else HTTPStatus.CREATED, {"import": imported.as_dict()}
             if route.startswith("/api/v1/local/transcription/") or re.fullmatch(r"/api/v1/videos/[^/]+/transcription", route):
                 return self._transcription_route(method, route, body)
             if method == "POST" and route == "/api/v1/local/imports":
@@ -698,6 +725,8 @@ class LocalApiApplication:
                 selected_local_content=self._repository.get_video(content_id)
                 if selected_local_content is not None and selected_local_content.provider=='LOCAL':
                     raise ApiError(HTTPStatus.CONFLICT,'LOCAL_PROVIDER_CAPABILITY_UNAVAILABLE','Local Content uses on-device source processing.')
+                if selected_local_content is not None and selected_local_content.provider=='BILIBILI':
+                    raise ApiError(HTTPStatus.CONFLICT,'BILIBILI_PROVIDER_CAPABILITY_UNAVAILABLE','Public caption Content uses stored source processing.')
             data = self._body(body)
             if route in {"/api/v1/settings/cloud-credential", "/api/v1/settings/cloud-credential/delete"}:
                 if self._model_settings is None:
@@ -1527,13 +1556,19 @@ class LocalApiApplication:
         else:
             status = self._deep_analysis_service.status(content_id=video.video_id)
             projection = _video_dto(video,deep_analysis_status=status.availability.value,deep_analysis_reason=status.reason)
-        if video.provider == "LOCAL":
+        if video.provider in {"LOCAL", "BILIBILI"}:
             with self._repository._connect() as connection:
                 source = verify_source(self._repository,connection,video.video_id)
                 if source is None:
                     projection["processing_status"] = "SOURCE_UNAVAILABLE"
                 else:
                     projection.update({"processing_status":source["status"],"filename":source["filename"],"media_kind":source["media_kind"],"format":source["format"],"imported_at":source["imported_at"],"source_language":source["language"],"duration_seconds":source["duration_seconds"]})
+                    if video.provider == "BILIBILI" and self._data_root is not None:
+                        artifact = self._repository.get_artifact(source["snapshot_artifact_id"])
+                        if artifact is not None:
+                            from youtube_intel.source_authority import read_managed
+                            metadata = json.loads(read_managed(self._data_root, artifact.relative_path, maximum=256 * 1024))
+                            projection.update(source_url=metadata["canonical_url"], channel_name=metadata["uploader_name"], uploader_id=metadata["uploader_id"], published_at=metadata["published_at"])
         if video.provider == "LOCAL" and self._transcription_jobs is not None and projection.get("media_kind") in {"AUDIO", "VIDEO"}:
             try:
                 state = self._transcription_jobs.status(video.video_id)["status"]
@@ -2119,7 +2154,7 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
         target_language = self._output_language_service.effective().value
         evidence_cards: list[dict[str, object]] = []
-        local_pairs = self._repository.get_verified_local_media_evidence(video_id) if video.provider == "LOCAL" else None
+        local_pairs = self._repository.get_verified_local_media_evidence(video_id) if video.provider in {"LOCAL", "BILIBILI"} else None
         local_verified = {} if local_pairs is None else {e.evidence_id: (e, verified) for e, verified in local_pairs}
         evidence_ids = self._repository.list_evidence_for_presentation(video_id) if local_pairs is None else tuple(local_verified)
         for evidence_id in evidence_ids:
@@ -2438,11 +2473,11 @@ class LocalApiApplication:
 
     def _transcript_projection(self, video_id: str) -> dict[str, object]:
         video = self._repository.get_video(video_id)
-        if video is not None and video.provider == "LOCAL":
+        if video is not None and video.provider in {"LOCAL", "BILIBILI"}:
             with self._repository._connect() as connection:
                 source = verify_source(self._repository, connection, video_id)
                 if source is None:
-                    return {"status":"UNAVAILABLE","code":"LOCAL_SOURCE_UNTRUSTED"}
+                    return {"status":"UNAVAILABLE","code":f"{video.provider}_SOURCE_UNTRUSTED"}
                 if source["status"] != "READY":
                     return {"status":source["status"],"code":source["status"]}
         artifact = self._repository.latest_artifact(
@@ -2460,12 +2495,12 @@ class LocalApiApplication:
                 text = None
             else:
                 text = self._safe_artifact_text(
-                    self._data_root, artifact, max_bytes=MAX_TEXT_BYTES if video is not None and video.provider == "LOCAL" else 1_000_000
+                    self._data_root, artifact, max_bytes=MAX_TEXT_BYTES if video is not None and video.provider in {"LOCAL", "BILIBILI"} else 1_000_000
                 )
             if text is not None:
                 return {
                     "status": "AVAILABLE",
-                    **({"timed_segments": [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]} if video is not None and video.provider == "LOCAL" and (timed := self._repository.get_verified_timed_transcript(video_id=video_id)) is not None else {}),
+                    **({"timed_segments": [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]} if video is not None and video.provider in {"LOCAL", "BILIBILI"} and (timed := self._repository.get_verified_timed_transcript(video_id=video_id)) is not None else {}),
                     "text": text,
                     "created_at": _timestamp(artifact.created_at),
                     "content_length": len(text),
@@ -2529,7 +2564,7 @@ class LocalApiApplication:
             content = self._repository.get_video(video_id)
             if result.provider == EXTRACTIVE_PROVIDER:
                 summary_language = "und" if content is None else content.default_language or "und"
-            verified_refs = {item.evidence_id: self._repository.resolve_verified_evidence_text(item.evidence_id) for item in result.evidence} if content is not None and content.provider == "LOCAL" else {}
+            verified_refs = {item.evidence_id: self._repository.resolve_verified_evidence_text(item.evidence_id) for item in result.evidence} if content is not None and content.provider in {"LOCAL", "BILIBILI"} else {}
             timed_points = []
             for point in result.core_points:
                 spans = [verified_refs[eid] for eid in point.evidence_ids if verified_refs.get(eid) is not None]

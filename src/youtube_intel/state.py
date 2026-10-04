@@ -1733,6 +1733,7 @@ class SQLiteStateRepository:
             "030_add_deep_analysis_durable_evidence.sql",
             "031_add_research_lite.sql",
             "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -1811,7 +1812,7 @@ class SQLiteStateRepository:
             for migration in migrations[len(rows) :]:
                 # SQLite's documented table-rebuild procedure: disable FK enforcement
                 # outside the atomic migration, verify the complete graph before commit.
-                if migration.version == 32:
+                if migration.version in {32, 33}:
                     connection.execute("PRAGMA foreign_keys = OFF")
                     connection.execute("PRAGMA legacy_alter_table = ON")
                 try:
@@ -1830,7 +1831,7 @@ class SQLiteStateRepository:
                             },
                         )
                         connection.execute(f"PRAGMA user_version = {migration.version}")
-                        if migration.version == 32 and connection.execute("PRAGMA foreign_key_check").fetchall():
+                        if migration.version in {32, 33} and connection.execute("PRAGMA foreign_key_check").fetchall():
                             raise MigrationError("provider migration broke foreign keys")
                 except (sqlite3.Error, MigrationError) as error:
                     msg = f"failed to apply migration {migration.version}"
@@ -7061,7 +7062,7 @@ class SQLiteStateRepository:
             source_range = resolve_source_range(self, connection, evidence_id)
             if source_range is not None:
                 return source_range
-            local = connection.execute("SELECT e.video_id,e.locator_type FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id=? AND v.provider='LOCAL'", (evidence_id,)).fetchone()
+            local = connection.execute("SELECT e.video_id,e.locator_type FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id=? AND v.provider IN ('LOCAL','BILIBILI')", (evidence_id,)).fetchone()
             if local is not None and (local["locator_type"]!="TIMED_MEDIA" or verify_source(self, connection, local["video_id"]) is None):
                 return None
         row = connection.execute(
@@ -7142,7 +7143,7 @@ class SQLiteStateRepository:
             verified = self._verified_evidence_text_from_rows(row, by_id.get(row["evidence_id"], []))
             if verified is not None:
                 result[verified.evidence_id] = verified
-        local_ids = connection.execute(f"SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id IN ({marks}) AND v.provider='LOCAL'",evidence_ids).fetchall()
+        local_ids = connection.execute(f"SELECT e.evidence_id FROM evidence e JOIN videos v USING(video_id) WHERE e.evidence_id IN ({marks}) AND v.provider IN ('LOCAL','BILIBILI')",evidence_ids).fetchall()
         for local in local_ids:
             evidence_id=str(local[0])
             verified = self._resolve_verified_evidence_text_in_transaction(connection,evidence_id)
@@ -7211,7 +7212,7 @@ class SQLiteStateRepository:
         """Resolve timed authority in the caller's write/read snapshot."""
         from youtube_intel.source_authority import verify_source
         provider = connection.execute('SELECT * FROM videos WHERE video_id=?',(video_id,)).fetchone()
-        if provider is not None and 'provider' in provider.keys() and provider['provider']=='LOCAL':
+        if provider is not None and 'provider' in provider.keys() and provider['provider'] in {'LOCAL','BILIBILI'}:
             source = verify_source(self,connection,video_id)
             if source is None or source['status']!='READY' or source['media_kind']=='TEXT':
                 return None

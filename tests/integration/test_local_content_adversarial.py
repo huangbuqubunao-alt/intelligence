@@ -689,6 +689,7 @@ def test_schema31_upgrade_preserves_all_evidence_dependency_guards(
             for r in db.execute("SELECT * FROM schema_migrations ORDER BY version")
         ]
     monkeypatch.undo()
+    monkeypatch.setattr(repo, "_load_migrations", lambda: tuple(m for m in migrations if m.version <= 32))
     assert repo.initialize(now=NOW).version == 32
     with repo._connect() as db:
         current = dict(
@@ -729,8 +730,8 @@ def test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries(
             "SELECT * FROM schema_migrations ORDER BY version"
         ).fetchall()
     broken = replace(
-        migrations[-1],
-        sql=migrations[-1].sql + "\nCREATE TABLE invalid_syntax(;",
+        next(m for m in migrations if m.version == 32),
+        sql=next(m for m in migrations if m.version == 32).sql + "\nCREATE TABLE invalid_syntax(;",
         checksum="f" * 64,
     )
     monkeypatch.setattr(repo, "_load_migrations", lambda: (*previous, broken))
@@ -751,5 +752,5 @@ def test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries(
         assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert db.execute("PRAGMA legacy_alter_table").fetchone()[0] == 0
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
-    monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
+    monkeypatch.setattr(repo, "_load_migrations", lambda: tuple(m for m in migrations if m.version <= 32))
     assert repo.initialize(now=NOW).version == 32

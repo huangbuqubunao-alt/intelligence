@@ -512,7 +512,7 @@ def test_read_is_same_after_restart_and_never_writes_authority(tmp_path: Path) -
     connection = restarted._connect()
     try:
         assert before == tuple(connection.iterdump())
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 32
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
         assert not [
             row[0]
             for row in connection.execute(

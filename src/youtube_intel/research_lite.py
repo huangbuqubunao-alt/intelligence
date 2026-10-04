@@ -97,7 +97,7 @@ class ResearchLiteService:
         if any(row["availability"] != Availability.PUBLIC.value for row in rows):
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         from youtube_intel.source_authority import verify_source
-        if any(row["provider"] == "LOCAL" and verify_source(self._repository, connection, row["video_id"]) is None for row in rows):
+        if any(row["provider"] in {"LOCAL", "BILIBILI"} and verify_source(self._repository, connection, row["video_id"]) is None for row in rows):
             raise ResearchRejected("RESEARCH_SOURCE_AUTHORITY_UNAVAILABLE")
         return [ResearchContent(content_id=row["video_id"], title=None if row["title"] is None else row["title"][:240]) for row in rows]
 

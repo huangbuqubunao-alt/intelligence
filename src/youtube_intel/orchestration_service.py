@@ -147,8 +147,8 @@ class ProductOrchestrationService:
             ):
                 raise ValueError("source schedule target does not exist")
             source=self._repository.get_source_subscription(target_id)
-            if source is not None and source.provider=='LOCAL':
-                raise ValueError('Local collections use explicit file import, not schedules')
+            if source is not None and source.provider in {'LOCAL','BILIBILI'}:
+                raise ValueError('Imported sources use explicit ingestion, not schedules')
         validate_schedule(
             target_type=target_type,
             frequency=frequency,
@@ -189,8 +189,8 @@ class ProductOrchestrationService:
         source = self._repository.get_source_subscription(source_id)
         if source is None:
             raise ValueError("source does not exist")
-        if source.provider == "LOCAL":
-            return SourceCheckResult(AutomationRunStatus.BLOCKED,"Local library accepts explicit file imports only.")
+        if source.provider in {"LOCAL", "BILIBILI"}:
+            return SourceCheckResult(AutomationRunStatus.BLOCKED,"Imported sources use explicit ingestion only.")
         if not source.enabled:
             return SourceCheckResult(
                 AutomationRunStatus.BLOCKED, "Source is disabled; no check was started."
@@ -252,7 +252,7 @@ class ProductOrchestrationService:
             if schedule.target_type is AutomationTargetType.SOURCE_CHECK:
                 assert schedule.target_id is not None
                 source = self._repository.get_source_subscription(schedule.target_id)
-                if source is None or not source.enabled or source.provider == "LOCAL":
+                if source is None or not source.enabled or source.provider in {"LOCAL", "BILIBILI"}:
                     continue
                 last = source.last_checked_at
             else:

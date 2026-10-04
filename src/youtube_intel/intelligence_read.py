@@ -406,5 +406,5 @@ class AuthoritativeIntelligenceReader:
                 or video.availability is not Availability.PUBLIC
             ):
                 raise IntelligenceReadRejected("EVIDENCE_UNAVAILABLE", "evidence provenance is unavailable")
-            if video.provider == "LOCAL" and self._repository.resolve_verified_evidence_text(evidence_id) is None:
+            if video.provider in {"LOCAL", "BILIBILI"} and self._repository.resolve_verified_evidence_text(evidence_id) is None:
                 raise IntelligenceReadRejected("EVIDENCE_UNAVAILABLE", "source snapshot authority is unavailable")
