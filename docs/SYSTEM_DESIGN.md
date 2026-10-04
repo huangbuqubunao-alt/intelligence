@@ -735,3 +735,33 @@ destination dispatch. Full ordered fallback attempt provenance is retained for
 016D; policy identity and history do not replace the exact successful A1/A2/A3
 cache binding. For all provider, consent, fallback, persistence,
 response-identity, and qualification details, Correction R2 is normative.
+
+## V1.x Phase 10B — public network source authority
+
+Bilibili adds a narrow cookie-free public BV-video adapter to the accepted
+multi-source architecture. Its source container is one manual VIDEO_URL
+Following, never an uploader subscription. `bilibili-<BV>` is canonical Content
+identity; URL tracking queries cannot change it. Schema 033 extends existing
+provider constraints and source status values; no provider-specific domain or
+new table is introduced.
+
+Acquisition publishes a canonical immutable metadata snapshot, exact raw caption
+JSON, canonical text/timed cues and a v3 provenance envelope through the shared
+SourceContentPublisher extracted from Local. The envelope binds Content, snapshot
+hash, source language, timed hash, caption artifact/id/path and acquisition time.
+Same-Content Evidence and Summary resolve stored trusted TIMED_MEDIA authority.
+Offline/restore verification revalidates caption bytes, ownership and cues; no
+future provider request reconstructs authority. READY captions cannot be refreshed
+in place. Display metadata also stays at its first acquisition in this slice.
+
+New retrieval is explicit and bounded: fixed public metadata/player API paths,
+three exact HTTPS caption hosts/paths, pinned verified public-address TLS, no
+redirects/compression/cookies/accounts/proxies/browser scraping. Responses cap at
+256 KiB metadata and 2 MiB captions, 4,096 cues, two concurrent requests, finite
+three-attempt transient retries and rate-denial cooldown. Existing two-hour source
+snapshot limit remains. No captions means metadata-only Content, unavailable
+Summary/Evidence, and explicit caption retry. No media archive or ASR fallback.
+Failed Phase 9/9R qualification records are preserved and production ASR/Deep
+Analysis remain NONE. Intelligence, Topic, selected-Content Research and ordinary
+Knowledge Delta reuse their accepted authority/admission contracts across
+YouTube, Local and Bilibili. Acceptance evidence: `validation/phase10b/`.

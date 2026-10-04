@@ -1,0 +1,75 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+_________ test_three_provider_research_sealed_intelligence_topic_delta _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-829/test_three_provider_research_s0')
+
+    def test_three_provider_research_sealed_intelligence_topic_delta(tmp_path: Path) -> None:
+        repo, network, content_ids = seed_three(tmp_path)
+        research = ResearchLiteService(repo, now=lambda: NOW)
+        request = ResearchRequest(question="sentence1", content_ids=content_ids)
+        packet = research.assemble(request, output_language="en").packet
+        assert {e.provider for e in packet.evidence} == {"YOUTUBE", "LOCAL", "BILIBILI"}
+        assert {e.content_id for e in packet.evidence} == set(content_ids)
+>       assert research.assemble(request, output_language="en").packet == packet
+E       AssertionError: assert ResearchPacke...L_RETRIEVAL']) == ResearchPacke...L_RETRIEVAL'])
+E         
+E         Use -v to get more diff
+
+tests/integration/test_bilibili_three_provider.py:58: AssertionError
+__________________ test_three_provider_backup_restore_offline __________________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-829/test_three_provider_backup_res0')
+
+    def test_three_provider_backup_restore_offline(tmp_path: Path) -> None:
+        repo, network, ids = seed_three(tmp_path)
+        request = ResearchRequest(question="sentence1", content_ids=ids)
+        packet = ResearchLiteService(repo, now=lambda: NOW).assemble(request, output_language="en").packet
+        before = {e.evidence_id: repo.resolve_verified_evidence_text(e.evidence_id) for e in packet.evidence}
+        pointer = repo.current_local_summary_pointer(ids[-1])
+        backup = BackupRestoreService(database=repo._database_path, data_root=tmp_path / "data")
+        created = backup.create_backup()
+        path, _ = backup.backup_download(created.backup_id)
+        network.offline = True
+        preview = backup.stage_restore(path.read_bytes())
+        backup.confirm_restore(preview.restore_id)
+        backup.recover_and_apply_pending_restore()
+        restored = SQLiteStateRepository(repo._database_path)
+        restored.bind_source_storage(tmp_path / "data")
+        assert restored.current_local_summary_pointer(ids[-1]) == pointer
+        assert {eid: restored.resolve_verified_evidence_text(eid) for eid in before} == before
+>       assert ResearchLiteService(restored, now=lambda: NOW).assemble(request, output_language="en").packet == packet
+E       AssertionError: assert ResearchPacke...L_RETRIEVAL']) == ResearchPacke...L_RETRIEVAL'])
+E         
+E         Use -v to get more diff
+
+tests/integration/test_bilibili_three_provider.py:111: AssertionError
+________ test_corrupt_backed_up_caption_rejected_with_rehashed_archive _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-829/test_corrupt_backed_up_caption0')
+
+    def test_corrupt_backed_up_caption_rejected_with_rehashed_archive(tmp_path: Path) -> None:
+        repo, network, ids = seed_three(tmp_path)
+        backup = BackupRestoreService(database=repo._database_path, data_root=tmp_path / "data")
+        created = backup.create_backup()
+        path, _ = backup.backup_download(created.backup_id)
+        with zipfile.ZipFile(path) as archive:
+            members = {entry.filename: archive.read(entry) for entry in archive.infolist()}
+        target = next(name for name in members if "bilibili" in name and "executor-output" in name)
+        caption = json.loads(members[target])
+        caption["body"][0]["from"] = -1
+        members[target] = json.dumps(caption).encode()
+        manifest = json.loads(members["manifest.json"])
+        # Keep the portable outer file envelope internally coherent; inner caption
+        # authority must still reject the altered bytes instead of trusting the ZIP.
+        for entry in manifest["data_files"]:
+>           if entry["archive_path"] == target:
+               ^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'archive_path'
+
+tests/integration/test_bilibili_three_provider.py:133: KeyError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_three_provider.py::test_three_provider_research_sealed_intelligence_topic_delta
+FAILED tests/integration/test_bilibili_three_provider.py::test_three_provider_backup_restore_offline
+FAILED tests/integration/test_bilibili_three_provider.py::test_corrupt_backed_up_caption_rejected_with_rehashed_archive
+3 failed, 1 passed in 2.98s

@@ -1,0 +1,361 @@
+........................................................................ [ 65%]
+....................F....F...FFFF...FF                                   [100%]
+=================================== FAILURES ===================================
+____________ test_research_and_backup_restore_preserve_source_text _____________
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x10a0a63c0>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_research_and_backup_resto0')
+
+    def test_research_and_backup_restore_preserve_source_text(local, tmp_path):
+        result = local.import_bytes(
+            "notes.md", b"# Research\nResearch evidence stays on device.\n"
+        )
+        service = ResearchLiteService(local.repository, now=lambda: NOW)
+        request = ResearchRequest(question="research", content_ids=[result.content_id])
+        first = service.assemble(request, output_language="en")
+        assert (
+            first.packet.evidence and first.packet.evidence[0].locator_type == "TEXT_RANGE"
+        )
+        assert service.read(first.packet.research_id).packet == first.packet
+        backup = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = backup.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:313: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10a5d9a60>
+connection = <sqlite3.Connection object at 0x109f6e4d0>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+________ test_media_backup_restore_keeps_real_source_and_timed_evidence ________
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x10a5da7e0>
+
+    def test_media_backup_restore_keeps_real_source_and_timed_evidence(local):
+        local.transcriber = FakeTimedTranscriber()
+        result = local.import_bytes("voice.wav", wav_bytes())
+        eid = local.repository.list_evidence_for_presentation(result.content_id)[0]
+        expected = local.repository.resolve_verified_evidence_text(eid)
+        service = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = service.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10a5d8590>
+connection = <sqlite3.Connection object at 0x109f6fb50>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+_ test_corrupt_archive_source_authority_rejected_without_live_mutation[snapshot_hash] _
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x114701e80>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_corrupt_archive_source_au0')
+attack = 'snapshot_hash'
+
+    @pytest.mark.parametrize(
+        "attack", ["snapshot_hash", "range_excerpt", "missing_trigger", "cue_time"]
+    )
+    def test_corrupt_archive_source_authority_rejected_without_live_mutation(
+        local, tmp_path, attack
+    ):
+        from conftest import _load_module
+    
+        from youtube_intel.source_authority import sha256
+    
+        local.transcriber = FakeTimedTranscriber()
+        result = (
+            local.import_bytes("voice.wav", wav_bytes())
+            if attack == "cue_time"
+            else local.import_bytes("notes.txt", b"Research source authority.\n")
+        )
+        backup = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = backup.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x113b21340>
+connection = <sqlite3.Connection object at 0x114b4b790>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+_ test_corrupt_archive_source_authority_rejected_without_live_mutation[range_excerpt] _
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x11430eed0>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_corrupt_archive_source_au1')
+attack = 'range_excerpt'
+
+    @pytest.mark.parametrize(
+        "attack", ["snapshot_hash", "range_excerpt", "missing_trigger", "cue_time"]
+    )
+    def test_corrupt_archive_source_authority_rejected_without_live_mutation(
+        local, tmp_path, attack
+    ):
+        from conftest import _load_module
+    
+        from youtube_intel.source_authority import sha256
+    
+        local.transcriber = FakeTimedTranscriber()
+        result = (
+            local.import_bytes("voice.wav", wav_bytes())
+            if attack == "cue_time"
+            else local.import_bytes("notes.txt", b"Research source authority.\n")
+        )
+        backup = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = backup.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10eb31130>
+connection = <sqlite3.Connection object at 0x114b4b1f0>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+_ test_corrupt_archive_source_authority_rejected_without_live_mutation[missing_trigger] _
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x10eb6a1e0>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_corrupt_archive_source_au2')
+attack = 'missing_trigger'
+
+    @pytest.mark.parametrize(
+        "attack", ["snapshot_hash", "range_excerpt", "missing_trigger", "cue_time"]
+    )
+    def test_corrupt_archive_source_authority_rejected_without_live_mutation(
+        local, tmp_path, attack
+    ):
+        from conftest import _load_module
+    
+        from youtube_intel.source_authority import sha256
+    
+        local.transcriber = FakeTimedTranscriber()
+        result = (
+            local.import_bytes("voice.wav", wav_bytes())
+            if attack == "cue_time"
+            else local.import_bytes("notes.txt", b"Research source authority.\n")
+        )
+        backup = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = backup.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x114755040>
+connection = <sqlite3.Connection object at 0x114b4b6a0>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+_ test_corrupt_archive_source_authority_rejected_without_live_mutation[cue_time] _
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x114755af0>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_corrupt_archive_source_au3')
+attack = 'cue_time'
+
+    @pytest.mark.parametrize(
+        "attack", ["snapshot_hash", "range_excerpt", "missing_trigger", "cue_time"]
+    )
+    def test_corrupt_archive_source_authority_rejected_without_live_mutation(
+        local, tmp_path, attack
+    ):
+        from conftest import _load_module
+    
+        from youtube_intel.source_authority import sha256
+    
+        local.transcriber = FakeTimedTranscriber()
+        result = (
+            local.import_bytes("voice.wav", wav_bytes())
+            if attack == "cue_time"
+            else local.import_bytes("notes.txt", b"Research source authority.\n")
+        )
+        backup = BackupRestoreService(
+            database=local.repository._database_path, data_root=local.data_root
+        )
+>       created = backup.create_backup()
+                  ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_local_content_adversarial.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/backup_restore.py:222: in create_backup
+    self._verify_core_database(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x1147c9250>
+connection = <sqlite3.Connection object at 0x114bfcf40>
+
+    def _verify_core_database(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            str(row[0])
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if not _REQUIRED_TABLES <= tables:
+            raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
+        version_row = connection.execute("PRAGMA user_version").fetchone()
+        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+>           raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+E           youtube_intel.backup_restore.BackupRestoreError: SQLite database schema is not compatible with this version.
+
+src/youtube_intel/backup_restore.py:995: BackupRestoreError
+________ test_schema31_upgrade_preserves_all_evidence_dependency_guards ________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_schema31_upgrade_preserve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1144b5e50>
+
+    def test_schema31_upgrade_preserves_all_evidence_dependency_guards(
+        tmp_path, monkeypatch
+    ):
+        repo = SQLiteStateRepository(tmp_path / "migration.sqlite")
+        migrations = repo._load_migrations()
+        monkeypatch.setattr(
+            repo,
+            "_load_migrations",
+            lambda: tuple(m for m in migrations if m.version <= 31),
+        )
+        assert repo.initialize(now=NOW).version == 31
+        with repo._connect() as db:
+            previous = dict(
+                db.execute(
+                    "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name IN ('evidence','source_subscriptions','videos')"
+                )
+            )
+            history = [
+                tuple(r)
+                for r in db.execute("SELECT * FROM schema_migrations ORDER BY version")
+            ]
+        monkeypatch.undo()
+>       assert repo.initialize(now=NOW).version == 32
+E       AssertionError: assert 33 == 32
+E        +  where 33 = SchemaVersion(version=33, name='033_add_bilibili_provider.sql', checksum='29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd', applied_at=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc)).version
+E        +    where SchemaVersion(version=33, name='033_add_bilibili_provider.sql', checksum='29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd', applied_at=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc)) = initialize(now=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc))
+E        +      where initialize = <youtube_intel.state.SQLiteStateRepository object at 0x1144b4ad0>.initialize
+
+tests/integration/test_local_content_adversarial.py:692: AssertionError
+____ test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries _____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-823/test_schema32_rebuild_failure_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11480f680>
+
+    def test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries(
+        tmp_path, monkeypatch
+    ):
+        repo = SQLiteStateRepository(tmp_path / "migration.sqlite")
+        migrations = repo._load_migrations()
+        previous = tuple(m for m in migrations if m.version <= 31)
+        monkeypatch.setattr(repo, "_load_migrations", lambda: previous)
+        assert repo.initialize(now=NOW).version == 31
+        with repo._connect() as db:
+            schema = db.execute(
+                "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+            ).fetchall()
+            history = db.execute(
+                "SELECT * FROM schema_migrations ORDER BY version"
+            ).fetchall()
+        broken = replace(
+            migrations[-1],
+            sql=migrations[-1].sql + "\nCREATE TABLE invalid_syntax(;",
+            checksum="f" * 64,
+        )
+        monkeypatch.setattr(repo, "_load_migrations", lambda: (*previous, broken))
+>       with pytest.raises(MigrationError, match="failed to apply migration 32"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'failed to apply migration 32'
+E         Actual message: 'failed to apply migration 33'
+
+tests/integration/test_local_content_adversarial.py:737: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_local_content_adversarial.py::test_research_and_backup_restore_preserve_source_text
+FAILED tests/integration/test_local_content_adversarial.py::test_media_backup_restore_keeps_real_source_and_timed_evidence
+FAILED tests/integration/test_local_content_adversarial.py::test_corrupt_archive_source_authority_rejected_without_live_mutation[snapshot_hash]
+FAILED tests/integration/test_local_content_adversarial.py::test_corrupt_archive_source_authority_rejected_without_live_mutation[range_excerpt]
+FAILED tests/integration/test_local_content_adversarial.py::test_corrupt_archive_source_authority_rejected_without_live_mutation[missing_trigger]
+FAILED tests/integration/test_local_content_adversarial.py::test_corrupt_archive_source_authority_rejected_without_live_mutation[cue_time]
+FAILED tests/integration/test_local_content_adversarial.py::test_schema31_upgrade_preserves_all_evidence_dependency_guards
+FAILED tests/integration/test_local_content_adversarial.py::test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries
+8 failed, 102 passed in 17.80s

@@ -1,0 +1,74 @@
+[
+  {
+    "log": "docs/validation/phase10b/checks/phases-7-8-9-9r-10b.txt",
+    "result_tail": "........................................................................ [ 25%]\n........................................................................ [ 50%]\n........................................................................ [ 76%]\n...................................................................      [100%]\n283 passed in 55.47s\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/phase10b-youtube-final.txt",
+    "result_tail": "........................................................................ [ 45%]\n........................................................................ [ 90%]\n................                                                         [100%]\n160 passed in 7.88s\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/integrated-v1x-final.txt",
+    "result_tail": "........................................................................ [ 43%]\n........................................................................ [ 86%]\n......................                                                   [100%]\n166 passed in 66.76s (0:01:06)\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/frontend-final.txt",
+    "result_tail": "Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/uiLanguage.tsx:835:31)\n    at App\n\n \u2713 src/demo-v1/App.test.tsx (32 tests) 5671ms\n   \u2713 pre-freeze path A keeps 18 Followings findable by group, filter and search 1122ms\n   \u2713 add Following exposes Provider breadth while keeping a complete YouTube mock flow 526ms\n   \u2713 revision 3 paths F and G mock safe backup restore and Obsidian publishing 500ms\n   \u2713 processing recovery remains mock-only without network 304ms\n \u2713 src/workspace/App.test.tsx (94 tests) 6708ms\n   \u2713 Chinese Settings edits global interests through existing authority 521ms\n\n Test Files  8 passed (8)\n      Tests  178 passed (178)\n   Start at  17:56:21\n   Duration  11.15s (transform 3.48s, setup 0ms, collect 12.03s, tests 18.66s, environment 14.66s, prepare 1.72s)\n\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/frontend-final-build.txt",
+    "result_tail": "\n> youtube-intel-workspace@0.1.0 build\n> tsc -b && vite build\n\nvite v5.4.19 building for production...\ntransforming...\n\u2713 46 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.43 kB \u2502 gzip:   0.30 kB\ndist/assets/index-MxIEKeYN.css   27.60 kB \u2502 gzip:   5.93 kB\ndist/assets/index-D1RtZotO.js   337.66 kB \u2502 gzip: 109.79 kB\n\u2713 built in 544ms\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/frontend-typecheck-final.txt",
+    "result_tail": "\n> youtube-intel-workspace@0.1.0 typecheck\n> tsc -b --pretty false\n\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/ruff-acceptance.txt",
+    "result_tail": "All checks passed!\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/mypy-final.txt",
+    "result_tail": "Success: no issues found in 92 source files\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/compileall-acceptance.txt",
+    "result_tail": ""
+  },
+  {
+    "log": "docs/validation/phase10b/checks/design-lint.txt",
+    "result_tail": "{\n  \"findings\": [],\n  \"summary\": {\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"infos\": 0\n  }\n}\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/workspace-design-lint.txt",
+    "result_tail": "{\n  \"findings\": [],\n  \"summary\": {\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"infos\": 0\n  }\n}\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/phase7-browser.txt",
+    "result_tail": "8 Local multi-source real HTTP/SQLite UI flows passed.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/phase8-browser-stable.txt",
+    "result_tail": "8 Phase 8 live HTTP/SQLite browser matrix flows passed.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/integrated-browser.txt",
+    "result_tail": "8 integrated real HTTP/SQLite/vault flows passed; production NONE, no-result/result/evidence/publish/Home, both languages, four widths, zero console errors or external requests.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/bilibili-browser.txt",
+    "result_tail": "8 Bilibili three-provider HTTP/SQLite browser flows passed.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/bilibili-offline-browser.txt",
+    "result_tail": "8 Bilibili three-provider HTTP/SQLite browser flows passed.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/bilibili-production-browser.txt",
+    "result_tail": "8 Bilibili three-provider HTTP/SQLite browser flows passed.\n"
+  },
+  {
+    "log": "docs/validation/phase10b/checks/backend-failures-remediated.txt",
+    "result_tail": "............                                                             [100%]\n12 passed in 3.29s\n"
+  }
+]

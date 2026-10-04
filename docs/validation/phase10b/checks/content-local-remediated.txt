@@ -1,0 +1,56 @@
+........................................F.....                           [100%]
+=================================== FAILURES ===================================
+____ test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries _____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-824/test_schema32_rebuild_failure_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1128e03e0>
+
+    def test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries(
+        tmp_path, monkeypatch
+    ):
+        repo = SQLiteStateRepository(tmp_path / "migration.sqlite")
+        migrations = repo._load_migrations()
+        previous = tuple(m for m in migrations if m.version <= 31)
+        monkeypatch.setattr(repo, "_load_migrations", lambda: previous)
+        assert repo.initialize(now=NOW).version == 31
+        with repo._connect() as db:
+            schema = db.execute(
+                "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+            ).fetchall()
+            history = db.execute(
+                "SELECT * FROM schema_migrations ORDER BY version"
+            ).fetchall()
+        broken = replace(
+            next(m for m in migrations if m.version == 32),
+            sql=next(m for m in migrations if m.version == 32).sql + "\nCREATE TABLE invalid_syntax(;",
+            checksum="f" * 64,
+        )
+        monkeypatch.setattr(repo, "_load_migrations", lambda: (*previous, broken))
+        with pytest.raises(MigrationError, match="failed to apply migration 32"):
+            repo.initialize(now=NOW)
+        with repo._connect() as db:
+            assert [
+                tuple(r)
+                for r in db.execute(
+                    "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+                )
+            ] == [tuple(r) for r in schema]
+            assert [
+                tuple(r)
+                for r in db.execute("SELECT * FROM schema_migrations ORDER BY version")
+            ] == [tuple(r) for r in history]
+            assert db.execute("PRAGMA user_version").fetchone()[0] == 31
+            assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+            assert db.execute("PRAGMA legacy_alter_table").fetchone()[0] == 0
+            assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+        monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
+>       assert repo.initialize(now=NOW).version == 32
+E       AssertionError: assert 33 == 32
+E        +  where 33 = SchemaVersion(version=33, name='033_add_bilibili_provider.sql', checksum='29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd', applied_at=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc)).version
+E        +    where SchemaVersion(version=33, name='033_add_bilibili_provider.sql', checksum='29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd', applied_at=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc)) = initialize(now=datetime.datetime(2026, 10, 3, 0, 0, tzinfo=datetime.timezone.utc))
+E        +      where initialize = <youtube_intel.state.SQLiteStateRepository object at 0x1128e0b60>.initialize
+
+tests/integration/test_local_content_adversarial.py:756: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_local_content_adversarial.py::test_schema32_rebuild_failure_rolls_back_entire_authority_and_retries
+1 failed, 45 passed in 17.21s

@@ -1,0 +1,62 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+_____________ test_shared_api_projects_caption_source_and_failure ______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-826/test_shared_api_projects_capti0')
+
+    def test_shared_api_projects_caption_source_and_failure(tmp_path: Path) -> None:
+        from youtube_intel.local_api import LocalApiApplication
+        from youtube_intel.orchestration_service import ProductOrchestrationService
+        repo, provider, fixture = setup(tmp_path)
+        app = LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=tmp_path / "data",
+            bilibili_adapter=provider.adapter, now=lambda: NOW)
+        status, result = app.handle("POST", "/api/v1/bilibili/imports", json.dumps({"input": BV}).encode())
+        assert status == 201
+        content_id = result["import"]["content_id"]
+        status, detail = app.handle("GET", "/api/v1/videos/" + content_id)
+        assert status == 200
+        assert detail["video"]["provider"] == "BILIBILI"
+        assert detail["video"]["source_url"] == f"https://www.bilibili.com/video/{BV}/"
+        assert detail["video"]["channel_name"] == "Public uploader"
+        assert detail["transcript"]["timed_segments"][0]["text"] == fixture.text
+        assert detail["note"]["v2"]["timestamped_key_points"]
+>       status, rejected = app.handle("POST", "/api/v1/bilibili/imports", b'{"input":"https://localhost/a"}')
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_bilibili_content.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x108248080>
+method = 'POST', path = '/api/v1/bilibili/imports'
+body = b'{"input":"https://localhost/a"}'
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
+                if self._bilibili_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, {"input"} if route == "/api/v1/bilibili/imports" else set())
+                if not self._bilibili_import_slot.acquire(blocking=False):
+                    raise ApiError(HTTPStatus.TOO_MANY_REQUESTS, "BILIBILI_RATE_LIMITED", "An import is already processing.")
+                try:
+                    if route == "/api/v1/bilibili/imports":
+                        value = self._string(data, "input", required=True)
+                        assert value is not None
+                        imported = self._bilibili_provider.import_input(value)
+                    else:
+                        imported = self._bilibili_provider.retry(route.split("/")[4])
+                except BilibiliError as rejection:
+                    status = {"RATE_LIMITED": HTTPStatus.TOO_MANY_REQUESTS, "ACCESS_DENIED": HTTPStatus.FORBIDDEN,
+                        "NOT_FOUND": HTTPStatus.NOT_FOUND, "NETWORK_UNAVAILABLE": HTTPStatus.SERVICE_UNAVAILABLE,
+                        "METADATA_FAILED": HTTPStatus.BAD_GATEWAY, "SOURCE_UNTRUSTED": HTTPStatus.CONFLICT}.get(rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY)
+>                   raise ApiError(status, "BILIBILI_" + rejection.code, "The public video could not be imported.") from None
+E                   youtube_intel.local_api.ApiError: The public video could not be imported.
+
+src/youtube_intel/local_api.py:680: ApiError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_content.py::test_shared_api_projects_caption_source_and_failure
+1 failed, 5 passed in 2.30s

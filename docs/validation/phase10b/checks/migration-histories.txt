@@ -1,0 +1,283 @@
+........................................................................ [ 29%]
+.................FFFFFF................................................. [ 58%]
+........................................................................ [ 87%]
+..............................                                           [100%]
+=================================== FAILURES ===================================
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice0-CLOUD_FINAL_CONTENT_MISSING] _
+
+choice = {'finish_reason': 'stop', 'message': {'content': None, 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_FINAL_CONTENT_MISSING').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice1-CLOUD_FINAL_CONTENT_MISSING] _
+
+choice = {'finish_reason': 'stop', 'message': {'content': '', 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_FINAL_CONTENT_MISSING').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice2-CLOUD_OUTPUT_TRUNCATED] _
+
+choice = {'finish_reason': 'length', 'message': {'content': None, 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_OUTPUT_TRUNCATED'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_OUTPUT_TRUNCATED').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice3-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'finish_reason': 'stop', 'message': 'malformed-message'}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice4-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'finish_reason': ['malformed'], 'message': {'content': '{}'}}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice5-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'message': {'content': '{}'}}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice0-CLOUD_FINAL_CONTENT_MISSING]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice1-CLOUD_FINAL_CONTENT_MISSING]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice2-CLOUD_OUTPUT_TRUNCATED]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice3-CLOUD_HTTP_RESPONSE_INVALID]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice4-CLOUD_HTTP_RESPONSE_INVALID]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice5-CLOUD_HTTP_RESPONSE_INVALID]
+6 failed, 240 passed in 236.07s (0:03:56)

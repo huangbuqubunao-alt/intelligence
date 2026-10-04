@@ -1,0 +1,115 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_crash_before_content_admission_can_retry _________________
+
+self = <youtube_intel.state.SQLiteStateRepository object at 0x109730e30>
+source = SourceSubscriptionRecord(source_id='bilibili-video-BV1xx411c7mD', source_type=<SourceType.VIDEO_URL: 'VIDEO_URL'>, can...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI')
+
+    def create_source_subscription(
+        self, source: SourceSubscriptionRecord
+    ) -> SourceSubscriptionRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                modern=connection.execute('PRAGMA user_version').fetchone()[0]>=32
+                if not modern and source.provider!='YOUTUBE':
+                    raise ValueError('Local requires source authority migration')
+                sql = (
+                    "INSERT INTO source_subscriptions (source_id, source_type, canonical_url, channel_id, video_id, display_name, enabled, processing_policy, last_checked_at, last_success_at, last_error_code, last_error_message, created_at, updated_at, provider) "
+                    "VALUES (:source_id, :source_type, :canonical_url, :channel_id, :video_id, :display_name, :enabled, :processing_policy, NULL, NULL, NULL, NULL, :created_at, :updated_at, :provider)"
+                )
+                if not modern:
+                    sql=sql.replace(", provider)", ")").replace(", :provider)", ")")
+>               connection.execute(sql,
+                    {
+                        "provider": source.provider,
+                        "source_id": source.source_id,
+                        "source_type": source.source_type.value,
+                        "canonical_url": source.canonical_url,
+                        "channel_id": source.channel_id,
+                        "video_id": source.video_id,
+                        "display_name": source.display_name,
+                        "enabled": int(source.enabled),
+                        "processing_policy": source.processing_policy.value,
+                        "created_at": format_utc_datetime(source.created_at),
+                        "updated_at": format_utc_datetime(source.updated_at),
+                    },
+                )
+E               sqlite3.IntegrityError: UNIQUE constraint failed: source_subscriptions.canonical_url
+
+src/youtube_intel/state.py:4805: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-832/test_crash_before_content_admi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a2df440>
+
+    def test_crash_before_content_admission_can_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, provider, fixture = setup(tmp_path)
+        original = provider._artifact_write
+        def failure(*args, **kwargs):
+            raise OSError("staging unavailable")
+        monkeypatch.setattr(provider, "_artifact_write", failure)
+        with pytest.raises(OSError):
+            provider.import_input(BV)
+        assert not repo.list_videos()
+        monkeypatch.setattr(provider, "_artifact_write", original)
+>       assert provider.import_input(BV).status == "READY"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_bilibili_content.py:164: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/youtube_intel/bilibili_content.py:82: in import_input
+    self.repository.create_source_subscription(SourceSubscriptionRecord(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.state.SQLiteStateRepository object at 0x109730e30>
+source = SourceSubscriptionRecord(source_id='bilibili-video-BV1xx411c7mD', source_type=<SourceType.VIDEO_URL: 'VIDEO_URL'>, can...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI')
+
+    def create_source_subscription(
+        self, source: SourceSubscriptionRecord
+    ) -> SourceSubscriptionRecord:
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                modern=connection.execute('PRAGMA user_version').fetchone()[0]>=32
+                if not modern and source.provider!='YOUTUBE':
+                    raise ValueError('Local requires source authority migration')
+                sql = (
+                    "INSERT INTO source_subscriptions (source_id, source_type, canonical_url, channel_id, video_id, display_name, enabled, processing_policy, last_checked_at, last_success_at, last_error_code, last_error_message, created_at, updated_at, provider) "
+                    "VALUES (:source_id, :source_type, :canonical_url, :channel_id, :video_id, :display_name, :enabled, :processing_policy, NULL, NULL, NULL, NULL, :created_at, :updated_at, :provider)"
+                )
+                if not modern:
+                    sql=sql.replace(", provider)", ")").replace(", :provider)", ")")
+                connection.execute(sql,
+                    {
+                        "provider": source.provider,
+                        "source_id": source.source_id,
+                        "source_type": source.source_type.value,
+                        "canonical_url": source.canonical_url,
+                        "channel_id": source.channel_id,
+                        "video_id": source.video_id,
+                        "display_name": source.display_name,
+                        "enabled": int(source.enabled),
+                        "processing_policy": source.processing_policy.value,
+                        "created_at": format_utc_datetime(source.created_at),
+                        "updated_at": format_utc_datetime(source.updated_at),
+                    },
+                )
+                row = connection.execute(
+                    "SELECT * FROM source_subscriptions WHERE source_id = :source_id",
+                    {"source_id": source.source_id},
+                ).fetchone()
+                if row is None:
+                    raise StateStoreError("source subscription was not saved")
+                return self._source_from_row(row)
+        except sqlite3.IntegrityError as error:
+>           raise IntegrityConflict(
+                "source subscription identity already exists"
+            ) from error
+E           youtube_intel.state.IntegrityConflict: source subscription identity already exists
+
+src/youtube_intel/state.py:4828: IntegrityConflict
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_content.py::test_crash_before_content_admission_can_retry
+1 failed in 0.51s

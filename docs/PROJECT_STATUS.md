@@ -933,3 +933,22 @@ Decision needed: None | details
 ```
 
 不要把完整构建日志或长篇思考过程粘贴到主控对话；把证据保存到交接文件，只回传摘要和可定位路径。
+
+## V1.x Phase 10B — locally completed public Bilibili Provider (2026-10-04)
+
+Dedicated `chatgpt/v1x-bilibili-provider` worktree, accepted baseline
+`7e3638c0d776dcd66a343f6d2dd9b9a80d046424`. Manual public BV video ingestion
+reuses Following/Content/source authority/Summary/timed Evidence and ordinary
+Intelligence/Topic/Research/Delta. Schema 033 extends provider constraints;
+no parallel domain, credentials, video download or unqualified ASR fallback.
+Metadata-only/no-caption, offline/restart, portable backup and corruption
+rejection are verified. Three-provider provenance is fixture-qualified; one
+cookie-free live public metadata check returned no captions.
+
+Final backend: 3,496 passed, one pre-existing tokenizer-provisioning skip.
+Frontend: 178 passed, typecheck/build passed. Ruff, strict mypy, compilation,
+diff/design lint and actual bilingual responsive product/browser matrices pass.
+All 20 protected worktrees and failed Phase 9/9R records remain unchanged;
+production ASR qualification and Deep Analysis route remain NONE. No main merge,
+push, PR or deployment. Fresh acceptance and limitations:
+`docs/validation/phase10b/ACCEPTANCE.md`.

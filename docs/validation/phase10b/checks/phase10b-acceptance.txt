@@ -1,0 +1,27 @@
+........................................................................ [ 90%]
+...F....                                                                 [100%]
+=================================== FAILURES ===================================
+______________ test_bilibili_evidence_cannot_bind_another_content ______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-838/test_bilibili_evidence_cannot_0')
+
+    def test_bilibili_evidence_cannot_bind_another_content(tmp_path: Path) -> None:
+        from youtube_intel.local_content import LocalContentProvider
+        from youtube_intel.state import (
+            EvidenceAvailability, EvidenceLineageKind, EvidenceRole,
+            EvidenceTextBindingWrite, EvidenceWrite, IntegrityConflict, build_evidence_id,
+        )
+        repo, provider, _ = setup(tmp_path)
+        imported = provider.import_input(BV)
+        timed = repo.get_verified_timed_transcript(video_id=imported.content_id)
+        assert timed is not None
+        local_file = tmp_path / 'other.txt'
+        local_file.write_text('Different Content authority.')
+>       other = LocalContentProvider(repo, tmp_path / 'data', now=lambda: NOW).import_file(local_file)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LocalContentProvider' object has no attribute 'import_file'. Did you mean: 'import_bytes'?
+
+tests/integration/test_bilibili_content.py:200: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_content.py::test_bilibili_evidence_cannot_bind_another_content
+1 failed, 79 passed in 8.00s

@@ -80,7 +80,9 @@ try {
     await noOverflow(); await page.screenshot({ path: join(screenshots, `${offline ? 'offline-' : ''}${language}-${width}-research.png`), fullPage: true });
     await page.getByRole('navigation').getByRole('button', { name: text('Home', '首页'), exact: true }).click();
     await page.locator('.knowledge-delta').getByText(new RegExp('Sentence1 Bilibili trusted captions')).first().waitFor(); await noOverflow();
-    scenarios.push(`${offline ? 'restart/offline/' : ''}${language}/${width}: Following Add, no-caption, bounded retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta`);
+    scenarios.push(offline
+      ? `restart/offline/${language}/${width}: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta`
+      : `${language}/${width}: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta`);
     await page.close();
   }
   assert.deepEqual(errors, []); assert.deepEqual(external, []);

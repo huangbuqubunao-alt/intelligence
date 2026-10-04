@@ -1,0 +1,24 @@
+{
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "status": 503,
+      "code": "BILIBILI_NETWORK_UNAVAILABLE",
+      "newContentAdmitted": false,
+      "external": [],
+      "expectedHttpFailureConsole": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "language": "en",
+      "status": 503,
+      "code": "BILIBILI_NETWORK_UNAVAILABLE",
+      "newContentAdmitted": false,
+      "external": [],
+      "expectedHttpFailureConsole": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    }
+  ]
+}

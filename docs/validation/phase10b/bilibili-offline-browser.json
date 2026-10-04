@@ -1,0 +1,17 @@
+{
+  "fixture": true,
+  "scenarios": [
+    "restart/offline/zh-CN/320: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/zh-CN/768: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/zh-CN/1024: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/zh-CN/1440: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/en/320: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/en/768: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/en/1024: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta",
+    "restart/offline/en/1440: stored no-caption Content, captions, Summary, Evidence, reload, mixed Research, Delta"
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "noNewPrimaryNavigation": true
+}

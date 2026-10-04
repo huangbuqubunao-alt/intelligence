@@ -1,0 +1,28 @@
+{
+  "cookie_browser_asr_imports": [],
+  "provider_imports": [
+    "from __future__ import annotations",
+    "import http.client",
+    "import ipaddress",
+    "import json",
+    "import math",
+    "import queue",
+    "import re",
+    "import socket",
+    "import ssl",
+    "import threading",
+    "import time",
+    "import unicodedata",
+    "from collections.abc import Callable",
+    "from dataclasses import dataclass",
+    "from datetime import UTC, datetime",
+    "from typing import Any",
+    "from urllib.parse import parse_qs, urlsplit",
+    "from youtube_intel.source_transcript import MediaTranscript",
+    "from youtube_intel.state import TimedTranscriptCueWrite"
+  ],
+  "localized_status_count": 14,
+  "missing_chinese_statuses": [],
+  "failed_qualification_and_production_route_files_unchanged": true,
+  "production_dependencies_and_lockfiles_unchanged": true
+}

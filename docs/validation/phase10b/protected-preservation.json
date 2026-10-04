@@ -1,0 +1,122 @@
+{
+  "/Users/hua/youtube-intel": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "3e7eceb49510f98504a9ba0b9499776a409a19bd"
+  },
+  "/Users/hua/Documents/yia-worktrees/m10-core-backup-restore": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "075d752fe6f3778108c72356e04d54020ed1f46a"
+  },
+  "/Users/hua/Documents/yia-worktrees/m12-golden-ui": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "bfda6c5bd62c736fc11034ac70f8afeb1162cf02"
+  },
+  "/Users/hua/Documents/yia-worktrees/m12-status-finalize": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "33caf99789e921e5f781fff5065abc63745020a5"
+  },
+  "/Users/hua/Documents/yia-worktrees/m13-dogfood": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "e228294f705401b0200439076c3378b78f9c9d84"
+  },
+  "/Users/hua/Documents/yia-worktrees/m5-local-model-qualification": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "355f22d8156847d5d6f7c79b82cb27f94338815a"
+  },
+  "/Users/hua/Documents/yia-worktrees/m8-evidence-translation": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "6ed0f11d88111cb4beb6a6a0eeb34aed923022ed"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "0a0eef4b2c5f321f46b2c58ed2535d521af05b5d"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "7e3638c0d776dcd66a343f6d2dd9b9a80d046424"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-deep-analysis": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "72950a559adc153abc9747975668201fe1813afe"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-integration": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "795275c3359a808e6faab80e7e35daeb35568024"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-local-main": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-local-provider": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "c09a6ae5077867610420e1aed80fe3c7abb10c08"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-milestone-closure": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-obsidian": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-offline-transcription": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "5324ebb3c38e941168bd9de156550bbbb65573ff"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-research-diff": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "b7aa90fd788150acb61f3f258d8353b5ec33edef"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-research-history": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "15f720377b661164a227ba599281b81b33a1e189"
+  },
+  "/Users/hua/Documents/yia-worktrees/v1x-research-lite": {
+    "head_unchanged": true,
+    "status_unchanged": true,
+    "diff_unchanged": true,
+    "head": "22ea84a79bba3f27566a221e774c93c3cc797a4f"
+  }
+}

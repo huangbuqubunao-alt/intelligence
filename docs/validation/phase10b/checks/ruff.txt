@@ -1,0 +1,17 @@
+I001 [*] Import block is un-sorted or un-formatted
+   --> tests/integration/test_bilibili_content.py:189:5
+    |
+188 |   def test_bilibili_evidence_cannot_bind_another_content(tmp_path: Path) -> None:
+189 | /     from youtube_intel.local_content import LocalContentProvider
+190 | |     from youtube_intel.state import (
+191 | |         EvidenceAvailability, EvidenceLineageKind, EvidenceRole,
+192 | |         EvidenceTextBindingWrite, EvidenceWrite, IntegrityConflict, build_evidence_id,
+193 | |     )
+    | |_____^
+194 |       repo, provider, _ = setup(tmp_path)
+195 |       imported = provider.import_input(BV)
+    |
+help: Organize imports
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

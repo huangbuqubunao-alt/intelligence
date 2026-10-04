@@ -1,0 +1,592 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+................................................................F....... [ 26%]
+.......................................................F................ [ 28%]
+..FFFFFF..................................F............................. [ 30%]
+................................................................F....... [ 32%]
+..............F......................................................... [ 35%]
+...................F.................................................... [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+........................................................................ [ 59%]
+...................................................................s.... [ 61%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+__________ test_fresh_database_applies_m006_with_exact_domain_schema ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_fresh_database_applies_m00')
+
+    def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) -> None:
+        repository = SQLiteStateRepository(_database_path(tmp_path))
+    
+        version = repository.initialize(now=NOW)
+    
+>       assert (version.version, version.name) == (
+            32,
+            "032_add_source_provider_authority.sql",
+        )
+E       AssertionError: assert (33, '033_add...provider.sql') == (32, '032_add...uthority.sql')
+E         
+E         At index 0 diff: 33 != 32
+E         Use -v to get more diff
+
+tests/integration/test_task018_domain_persistence.py:141: AssertionError
+________ test_fresh_database_reaches_current_schema_and_preserves_m013 _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_fresh_database_reaches_cu0')
+
+    def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM schema_migrations ORDER BY version"
+                )
+            )
+        finally:
+            connection.close()
+>       assert migrations[-17:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E         
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task021_source_policy_filtering.py:116: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice0-CLOUD_FINAL_CONTENT_MISSING] _
+
+choice = {'finish_reason': 'stop', 'message': {'content': None, 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_FINAL_CONTENT_MISSING').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice1-CLOUD_FINAL_CONTENT_MISSING] _
+
+choice = {'finish_reason': 'stop', 'message': {'content': '', 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_FINAL_CONTENT_MISSING'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_FINAL_CONTENT_MISSING').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice2-CLOUD_OUTPUT_TRUNCATED] _
+
+choice = {'finish_reason': 'length', 'message': {'content': None, 'reasoning_content': 'private-reasoning'}}
+expected_reason = 'CLOUD_OUTPUT_TRUNCATED'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_OUTPUT_TRUNCATED').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice3-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'finish_reason': 'stop', 'message': 'malformed-message'}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice4-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'finish_reason': ['malformed'], 'message': {'content': '{}'}}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+_ test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice5-CLOUD_HTTP_RESPONSE_INVALID] _
+
+choice = {'message': {'content': '{}'}}
+expected_reason = 'CLOUD_HTTP_RESPONSE_INVALID'
+
+    @pytest.mark.parametrize(
+        ("choice", "expected_reason"),
+        [
+            ({"finish_reason": "stop", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "stop", "message": {"content": "", "reasoning_content": "private-reasoning"}}, "CLOUD_FINAL_CONTENT_MISSING"),
+            ({"finish_reason": "length", "message": {"content": None, "reasoning_content": "private-reasoning"}}, "CLOUD_OUTPUT_TRUNCATED"),
+            ({"finish_reason": "stop", "message": "malformed-message"}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"finish_reason": ["malformed"], "message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+            ({"message": {"content": "{}"}}, "CLOUD_HTTP_RESPONSE_INVALID"),
+        ],
+    )
+    def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
+        choice: object, expected_reason: str,
+    ) -> None:
+        verified = _verified_input_for_nvidia_nim_test()
+        transport = NvidiaNimCloudDistillationTransport(
+            authorization=CloudDistillationAuthorization(
+                cloud_enabled=True, provider="nvidia_nim", model="moonshotai/kimi-k3",
+                credential_available=True, provider_available=True,
+                qualification_input_hash=verified.semantic_hash,
+            ),
+            credential_resolver=lambda: "synthetic-secret-never-report",
+            wire_transport=lambda *_: {
+                "model": "moonshotai/kimi-k3", "choices": [choice],
+                "usage": {"prompt_tokens": 120, "completion_tokens": 32},
+            },
+        )
+    
+        with pytest.raises(KnownCloudDistillationResponseError) as captured:
+            transport.generate(verified)
+        error = captured.value
+        assert error.reason == expected_reason
+        assert error.result is not None
+        assert error.result.input_tokens == 120
+>       assert error.result.output_tokens == 33
+E       AssertionError: assert 32 == 33
+E        +  where 32 = DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200).output_tokens
+E        +    where DistillationTransportResult(raw='', actual_provider='nvidia_nim', actual_model='moonshotai/kimi-k3', input_tokens=120, output_tokens=32, cost_microunits=None, duration_ms=None, http_status_code=200) = KnownCloudDistillationResponseError('CLOUD_HTTP_RESPONSE_INVALID').result
+
+tests/integration/test_task022_personalized_distillation.py:373: AssertionError
+______ test_fresh_database_reaches_current_schema_with_integrated_schema _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_fresh_database_reaches_cu1')
+
+    def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+    
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        finally:
+            connection.close()
+    
+>       assert migrations[-17:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E         
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task022_personalized_distillation.py:1706: AssertionError
+______ test_topic_contract_remains_available_with_m013_weekly_foundation _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_topic_contract_remains_av0')
+
+    def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+    
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                row["name"]
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+        finally:
+            connection.close()
+    
+>       assert migrations[-18:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E         
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task023_topic_timeline.py:214: AssertionError
+______ test_m013_fresh_database_preserves_empty_source_runs_and_weeklies _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_m013_fresh_database_prese0')
+
+    def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+    
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                str(row["name"])
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+            assert connection.execute("SELECT COUNT(*) FROM source_runs").fetchone()[0] == 0
+        finally:
+            connection.close()
+    
+>       assert migrations[-18:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E         
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task023a_source_run_persistence.py:203: AssertionError
+__________________ test_fresh_m014_creates_empty_saved_state ___________________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-840/test_fresh_m014_creates_empty_0')
+
+    def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
+        repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+        assert repository.initialize(now=NOW).version == 33
+        connection = repository._connect()
+        try:
+            assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+            names = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM schema_migrations ORDER BY version"
+                )
+            ]
+>           assert names[-18:] == [
+                "015_add_timed_transcript_evidence_bindings.sql",
+                "016_add_ambiguous_resource_ledger_outcome.sql",
+                "017_add_current_content_summary.sql",
+                "018_add_global_output_language.sql",
+                "019_add_evidence_excerpt_stance.sql",
+                "020_add_no_new_intelligence_result.sql",
+                "021_seal_distillation_output_language.sql",
+                "022_bind_current_local_summary.sql",
+                "023_add_evidence_translation_presentation.sql",
+                "024_bind_current_summary_to_content.sql",
+                "025_add_explicit_cloud_execution_audit.sql",
+                "026_add_openai_cloud_execution_audit.sql",
+                "027_add_moonshot_cloud_execution_audit.sql",
+                "028_add_cloud_response_failure_ledger.sql",
+                "030_add_deep_analysis_durable_evidence.sql",
+                "031_add_research_lite.sql",
+                "032_add_source_provider_authority.sql",
+                "033_add_bilibili_provider.sql",
+            ]
+E           AssertionError: assert ['016_add_amb...age.sql', ...] == ['015_add_tim...ult.sql', ...]
+E             
+E             At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E             Use -v to get more diff
+
+tests/integration/test_task025a_saved_intelligence.py:50: AssertionError
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+tests/unit/test_task016c_domain_contracts.py::test_model_construct_bypass_is_revalidated
+  /Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='status', input_value='REJECT', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_task018_domain_persistence.py::test_fresh_database_applies_m006_with_exact_domain_schema
+FAILED tests/integration/test_task021_source_policy_filtering.py::test_fresh_database_reaches_current_schema_and_preserves_m013
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice0-CLOUD_FINAL_CONTENT_MISSING]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice1-CLOUD_FINAL_CONTENT_MISSING]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice2-CLOUD_OUTPUT_TRUNCATED]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice3-CLOUD_HTTP_RESPONSE_INVALID]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice4-CLOUD_HTTP_RESPONSE_INVALID]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_kimi_known_response_cases_are_finite_and_never_expose_reasoning[choice5-CLOUD_HTTP_RESPONSE_INVALID]
+FAILED tests/integration/test_task022_personalized_distillation.py::test_fresh_database_reaches_current_schema_with_integrated_schema
+FAILED tests/integration/test_task023_topic_timeline.py::test_topic_contract_remains_available_with_m013_weekly_foundation
+FAILED tests/integration/test_task023a_source_run_persistence.py::test_m013_fresh_database_preserves_empty_source_runs_and_weeklies
+FAILED tests/integration/test_task025a_saved_intelligence.py::test_fresh_m014_creates_empty_saved_state
+12 failed, 3484 passed, 1 skipped, 2 warnings in 936.50s (0:15:36)

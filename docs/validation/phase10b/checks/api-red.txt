@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_shared_api_projects_caption_source_and_failure ______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-825/test_shared_api_projects_capti0')
+
+    def test_shared_api_projects_caption_source_and_failure(tmp_path: Path) -> None:
+        from youtube_intel.local_api import LocalApiApplication
+        from youtube_intel.orchestration_service import ProductOrchestrationService
+        repo, provider, fixture = setup(tmp_path)
+>       app = LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=tmp_path / "data",
+            bilibili_adapter=provider.adapter, now=lambda: NOW)
+E       TypeError: LocalApiApplication.__init__() got an unexpected keyword argument 'bilibili_adapter'
+
+tests/integration/test_bilibili_content.py:135: TypeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_content.py::test_shared_api_projects_caption_source_and_failure
+1 failed in 0.52s

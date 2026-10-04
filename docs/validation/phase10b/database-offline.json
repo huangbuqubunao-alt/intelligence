@@ -1,0 +1,34 @@
+{
+  "schema": 33,
+  "integrity": "ok",
+  "foreign_keys": [],
+  "providers": {
+    "BILIBILI": 2,
+    "LOCAL": 1,
+    "YOUTUBE": 1
+  },
+  "sources": [
+    {
+      "content_id": "local-f7e69ab7ef45252d285175ef2f8e963b3d5262d0f94886599f1f8e57c009fb97",
+      "provider": "LOCAL",
+      "status": "READY"
+    },
+    {
+      "content_id": "bilibili-BV1Q541167Qg",
+      "provider": "BILIBILI",
+      "status": "CAPTION_UNAVAILABLE"
+    },
+    {
+      "content_id": "bilibili-BV1xx411c7mD",
+      "provider": "BILIBILI",
+      "status": "READY"
+    }
+  ],
+  "production_deep_analysis_route": null,
+  "verified_bilibili_evidence_count": 3,
+  "offline_provider_attempts": [
+    "https://api.bilibili.com/x/web-interface/view?bvid=BV1GJ411x7h7",
+    "https://api.bilibili.com/x/web-interface/view?bvid=BV1GJ411x7h7"
+  ],
+  "stored_read_provider_requests": 0
+}

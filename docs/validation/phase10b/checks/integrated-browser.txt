@@ -1,0 +1,1 @@
+8 integrated real HTTP/SQLite/vault flows passed; production NONE, no-result/result/evidence/publish/Home, both languages, four widths, zero console errors or external requests.

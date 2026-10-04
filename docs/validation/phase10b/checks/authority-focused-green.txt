@@ -1,0 +1,17 @@
+.....................................................................F.. [ 60%]
+...............................................                          [100%]
+=================================== FAILURES ===================================
+_________________ test_no_media_or_unqualified_executor_route __________________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-833/test_no_media_or_unqualified_e0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108c3a960>
+
+    def test_no_media_or_unqualified_executor_route(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from youtube_intel import local_content
+>       from youtube_intel.offline_transcription import LocalTranscriptionJobs
+E       ImportError: cannot import name 'LocalTranscriptionJobs' from 'youtube_intel.offline_transcription' (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/src/youtube_intel/offline_transcription.py). Did you mean: 'local_transcription_jobs'?
+
+tests/integration/test_bilibili_content.py:170: ImportError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_content.py::test_no_media_or_unqualified_executor_route
+1 failed, 118 passed in 22.95s

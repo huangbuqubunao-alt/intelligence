@@ -324,3 +324,19 @@ uv、依赖白名单和锁文件方向已在 `TASK-000` 批准；实际安装、
 - Historical Local-only-first sequencing is superseded globally for Deep
   Analysis by the provider-neutral P0--P7 gate in ADR-027 / TASK-016
   Correction R1; no provider implementation is thereby authorized.
+
+## V1.x Phase 10B — manual public Bilibili video
+
+Following → Add → Bilibili accepts one HTTPS BV video URL or BV id without an
+account/cookies. It creates/reuses ordinary Content and a manual video source;
+it does not follow the creator. Original public timed captions, when available,
+retain source language/text/timing and support normal Summary and durable Evidence.
+Metadata-only Content honestly explains unavailable captions/Summary/Evidence and
+permits explicit retry. Reading imported authority, Research and restored backups
+works offline. UI language, source language and output language stay separate.
+
+This slice supports the first/single part up to the accepted two-hour duration
+limit. It defers creator monitoring, short links, other video parts, private/paid
+or authenticated content, favorites, comments/danmaku, global search, media
+archive and acoustic fallback. No primary navigation is added. Existing model
+qualification failures and production Deep Analysis route remain unchanged.

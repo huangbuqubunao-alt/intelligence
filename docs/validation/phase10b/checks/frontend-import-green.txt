@@ -1,0 +1,14 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run --run src/workspace/BilibiliImport.test.tsx
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend
+
+ ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 151ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  17:24:21
+   Duration  691ms (transform 60ms, setup 0ms, collect 154ms, tests 151ms, environment 197ms, prepare 35ms)
+

@@ -1,0 +1,53 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend
+
+ ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 706ms
+   ✓ shows a truthful empty seven-day surface 445ms
+ ✓ src/workspace/LocalImport.test.tsx (3 tests) 772ms
+   ✓ requires explicit confirmation and submits only selected File bytes 563ms
+ ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 876ms
+   ✓ imports only the supplied public video and exposes truthful no-caption Content 687ms
+ ✓ src/workspace/LocalTranscription.test.tsx (7 tests) 1027ms
+   ✓ distinguishes acoustic qualification from installed assets in en 554ms
+ ✓ src/workspace/ResearchDiff.test.tsx (15 tests) 1108ms
+   ✓ shows directional context and no-change in en 445ms
+ ✓ src/workspace/Research.test.tsx (18 tests) 1789ms
+   ✓ rejects invalid question and empty scope before dispatch 385ms
+stderr | src/workspace/App.test.tsx > Chinese Following explains discovery-only state and the insight processing choice
+Warning: An update to SourceForm inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SourceForm (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/App.tsx:3673:23)
+    at div
+    at SourceDetail (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/App.tsx:4369:25)
+    at Sources (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/App.tsx:3466:20)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/App.tsx:1103:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/uiLanguage.tsx:835:31)
+    at App
+
+ ✓ src/demo-v1/App.test.tsx (32 tests) 5671ms
+   ✓ pre-freeze path A keeps 18 Followings findable by group, filter and search 1122ms
+   ✓ add Following exposes Provider breadth while keeping a complete YouTube mock flow 526ms
+   ✓ revision 3 paths F and G mock safe backup restore and Obsidian publishing 500ms
+   ✓ processing recovery remains mock-only without network 304ms
+ ✓ src/workspace/App.test.tsx (94 tests) 6708ms
+   ✓ Chinese Settings edits global interests through existing authority 521ms
+
+ Test Files  8 passed (8)
+      Tests  178 passed (178)
+   Start at  17:56:21
+   Duration  11.15s (transform 3.48s, setup 0ms, collect 12.03s, tests 18.66s, environment 14.66s, prepare 1.72s)
+
