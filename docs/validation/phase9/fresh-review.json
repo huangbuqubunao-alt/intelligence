@@ -1,0 +1,43 @@
+{
+  "baseline": "5324ebb3c38e941168bd9de156550bbbb65573ff",
+  "code_head": "41263eb18cf3a6919a5a3736ab00744908cbda84",
+  "reviewed_axes": [
+    "correctness",
+    "readability",
+    "Phase 8 architecture",
+    "ordinary Settings and portable authority boundaries",
+    "bounded resources"
+  ],
+  "reviewed_files": [
+    "DESIGN.md",
+    "docs/validation/V1X-PHASE9-PLAN.md",
+    "frontend/acoustic-qualification.e2e.mjs",
+    "frontend/src/workspace/LocalTranscription.test.tsx",
+    "frontend/src/workspace/LocalTranscription.tsx",
+    "frontend/src/workspace/uiLanguage.tsx",
+    "scripts/generate_phase9_corpus.py",
+    "scripts/provision_phase9_whisper.py",
+    "scripts/qualify_phase9_acoustics.py",
+    "scripts/seal_phase9_evidence.py",
+    "scripts/verify_phase9_product.py",
+    "src/youtube_intel/acoustic_qualification.py",
+    "src/youtube_intel/acoustic_scoring.py",
+    "src/youtube_intel/local_transcription_jobs.py",
+    "src/youtube_intel/offline_transcription.py",
+    "src/youtube_intel/state.py",
+    "tests/e2e/acoustic_qualification_server.py",
+    "tests/integration/test_acoustic_qualification_boundary.py",
+    "tests/integration/test_offline_transcription_jobs.py",
+    "tests/unit/test_acoustic_qualification.py",
+    "tests/unit/test_acoustic_scoring.py",
+    "tests/unit/test_offline_transcription.py"
+  ],
+  "corpus_and_raw_output_hashes_verified": true,
+  "model_verdict": "ACOUSTIC_QUALIFICATION_FAILED",
+  "qualification_receipt_identity": "a2548f57dfa695581a2a66ac3a0f07924e542bb29bcb6c5c939f73960133c553",
+  "fresh_full_backend": "3400 passed, 1 existing optional asset skip, 2 existing negative-fixture warnings",
+  "in_scope_unresolved_implementation_defects": [],
+  "remaining_model_defect": "medium decoder nonfinite metadata, hallucinated tail and invalid timeline",
+  "provider_discovery_guard": "Two preexisting DA localhost metadata probes denied before dispatch; no model inference or external connection. Real browser server suppresses discovery and retains production DA NONE.",
+  "protected_worktrees_unchanged": 18
+}

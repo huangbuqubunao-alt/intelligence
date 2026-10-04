@@ -1,0 +1,195 @@
+{
+  "protected_worktrees": [
+    {
+      "worktree": "youtube-intel",
+      "head": "3e7eceb49510f98504a9ba0b9499776a409a19bd",
+      "unchanged": true
+    },
+    {
+      "worktree": "m10-core-backup-restore",
+      "head": "075d752fe6f3778108c72356e04d54020ed1f46a",
+      "unchanged": true
+    },
+    {
+      "worktree": "m12-golden-ui",
+      "head": "bfda6c5bd62c736fc11034ac70f8afeb1162cf02",
+      "unchanged": true
+    },
+    {
+      "worktree": "m12-status-finalize",
+      "head": "33caf99789e921e5f781fff5065abc63745020a5",
+      "unchanged": true
+    },
+    {
+      "worktree": "m13-dogfood",
+      "head": "e228294f705401b0200439076c3378b78f9c9d84",
+      "unchanged": true
+    },
+    {
+      "worktree": "m5-local-model-qualification",
+      "head": "355f22d8156847d5d6f7c79b82cb27f94338815a",
+      "unchanged": true
+    },
+    {
+      "worktree": "m8-evidence-translation",
+      "head": "6ed0f11d88111cb4beb6a6a0eeb34aed923022ed",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-deep-analysis",
+      "head": "72950a559adc153abc9747975668201fe1813afe",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-integration",
+      "head": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-knowledge-delta",
+      "head": "795275c3359a808e6faab80e7e35daeb35568024",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-local-main",
+      "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-local-provider",
+      "head": "c09a6ae5077867610420e1aed80fe3c7abb10c08",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-milestone-closure",
+      "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-obsidian",
+      "head": "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-offline-transcription",
+      "head": "5324ebb3c38e941168bd9de156550bbbb65573ff",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-research-diff",
+      "head": "b7aa90fd788150acb61f3f258d8353b5ec33edef",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-research-history",
+      "head": "15f720377b661164a227ba599281b81b33a1e189",
+      "unchanged": true
+    },
+    {
+      "worktree": "v1x-research-lite",
+      "head": "22ea84a79bba3f27566a221e774c93c3cc797a4f",
+      "unchanged": true
+    }
+  ],
+  "protected_count": 18,
+  "dependency_versions_identical": 83,
+  "comparison_scope": "all dependencies; editable project distribution excluded",
+  "dependency_versions": {
+    "shellingham": "1.5.4",
+    "pydantic-core": "2.46.4",
+    "numba": "0.66.0",
+    "iniconfig": "2.3.0",
+    "huggingface-hub": "1.24.0",
+    "typer": "0.27.1",
+    "preshed": "3.0.13",
+    "srsly": "2.5.3",
+    "llvmlite": "0.48.0",
+    "click": "8.4.2",
+    "requests": "2.34.2",
+    "mlx-metal": "0.32.0",
+    "rich": "15.0.0",
+    "tiktoken": "0.13.0",
+    "networkx": "3.6.1",
+    "spacy-legacy": "3.0.12",
+    "filelock": "3.31.0",
+    "weasel": "1.0.0",
+    "spacy-loggers": "1.0.5",
+    "mypy": "2.3.0",
+    "packaging": "26.2",
+    "catalogue": "2.0.10",
+    "regex": "2026.7.10",
+    "numpy": "2.4.6",
+    "ruff": "0.15.21",
+    "mlx-whisper": "0.4.3",
+    "cloudpathlib": "0.24.0",
+    "charset-normalizer": "3.4.9",
+    "httpcore": "1.0.9",
+    "confection": "1.3.3",
+    "websockets": "16.1",
+    "wrapt": "2.3.0",
+    "en-core-web-sm": "3.8.0",
+    "sympy": "1.14.0",
+    "mutagen": "1.48.1",
+    "anyio": "4.14.2",
+    "pytest": "9.1.1",
+    "cymem": "2.0.13",
+    "certifi": "2026.6.17",
+    "jiter": "0.16.0",
+    "h11": "0.16.0",
+    "sniffio": "1.3.1",
+    "pygments": "2.20.0",
+    "mdurl": "0.1.2",
+    "thinc": "8.3.13",
+    "mpmath": "1.3.0",
+    "pyyaml": "6.0.3",
+    "blis": "1.3.3",
+    "deno": "2.9.2",
+    "smart-open": "8.0.1",
+    "mlx": "0.32.0",
+    "wasabi": "1.1.3",
+    "torch": "2.13.0",
+    "setuptools": "83.0.0",
+    "scipy": "1.18.0",
+    "openai": "2.46.0",
+    "jinja2": "3.1.6",
+    "markdown-it-py": "4.2.0",
+    "annotated-doc": "0.0.5",
+    "markupsafe": "3.0.3",
+    "spacy": "3.8.15",
+    "murmurhash": "1.0.15",
+    "yt-dlp-ejs": "0.8.0",
+    "distro": "1.9.0",
+    "pluggy": "1.6.0",
+    "fsspec": "2026.6.0",
+    "pathspec": "1.1.1",
+    "yt-dlp": "2026.7.4",
+    "pycryptodomex": "3.23.0",
+    "pydantic": "2.13.4",
+    "hf-xet": "1.5.2",
+    "brotli": "1.2.0",
+    "urllib3": "2.7.0",
+    "httpx": "0.28.1",
+    "typing-extensions": "4.16.0",
+    "ast-serialize": "0.6.0",
+    "idna": "3.18",
+    "typing-inspection": "0.4.2",
+    "annotated-types": "0.7.0",
+    "mypy-extensions": "1.1.0",
+    "more-itertools": "11.1.0",
+    "librt": "0.13.0",
+    "tqdm": "4.69.0"
+  },
+  "unchanged_dependency_files": {
+    "uv.lock": "782947100813f925f08e238e45ace62a9247a8a89b60cc706d8419969709d82f",
+    "pyproject.toml": "98bd7540b4a5d140e611420453a6952ae49d0452d92ef908d0aee0e865d92e57",
+    "frontend/package-lock.json": "8f9c5497c26b9d714e00746beaa5bd360c0e36278317a1708a0903466e25bead",
+    "frontend/package.json": "96c41ae81282330e7b2230c9ab5a19b8c3f80f064acda81f58798ea43bb73172"
+  },
+  "migration_files_unchanged": 31,
+  "downloaded_regular_model_assets": [
+    "config.json",
+    "weights.safetensors"
+  ],
+  "model_hashes_reverified": true,
+  "model_binary_git_files": []
+}

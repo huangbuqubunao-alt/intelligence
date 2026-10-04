@@ -1,0 +1,23 @@
+NONFINITE /segments/18/avg_logprob nan
+NONFINITE /segments/19/avg_logprob nan
+NONFINITE /segments/20/avg_logprob nan
+NONFINITE /segments/21/avg_logprob nan
+NONFINITE /segments/22/avg_logprob nan
+NONFINITE /segments/23/avg_logprob nan
+NONFINITE /segments/24/avg_logprob nan
+NONFINITE /segments/25/avg_logprob nan
+NONFINITE /segments/26/avg_logprob nan
+NONFINITE /segments/27/avg_logprob nan
+NONFINITE /segments/28/avg_logprob nan
+NONFINITE /segments/29/avg_logprob nan
+NONFINITE /segments/30/avg_logprob nan
+NONFINITE /segments/31/avg_logprob nan
+NONFINITE /segments/32/avg_logprob nan
+NONFINITE /segments/33/avg_logprob nan
+NONFINITE /segments/34/avg_logprob nan
+NONFINITE /segments/35/avg_logprob nan
+NONFINITE /segments/36/avg_logprob nan
+NONFINITE /segments/37/avg_logprob nan
+NONFINITE /segments/38/avg_logprob nan
+NONFINITE /segments/39/avg_logprob nan
+SEGMENTS [(0.0, 3.94, ' The first section describes a small library beside the river.'), (6.36, 10.74, ' The second section explains how readers find books on the shelves.'), (13.200000000000001, 17.3, ' The third section mentions a quiet room for studying history.'), (19.740000000000002, 23.84, ' The fourth section describes a map displayed near the entrance.'), (23.84, 30.9, ' The fifth section introduces a calendar of community activities.'), (33.3, 37.7, ' The sixth section explains the rules for returning borrowed books.'), (40.120000000000005, 44.620000000000005, ' The seventh section describes a table where visitors read newspapers.'), (47.260000000000005, 51.06, ' The eighth section mentions a garden with trees and benches.'), (53.84, 57.940000000000005, ' The ninth section explains how volunteers organize the collection.'), (60.400000000000006, 64.62, ' The tenth section describes an afternoon workshop about writing.'), (67.06, 71.84, ' The next section explains that all test audio is generated locally.'), (74.48, 78.62, ' Another section confirms that no personal recording is included.'), (78.62, 85.68, ' A later section checks that every meaningful sentence remains present.'), (88.08000000000001, 92.62, ' The following section checks that timestamps preserve the speech order.'), (92.62, 99.94, ' This section confirms that design silence is different from missing speech.'), (102.4, 107.34, ' The next section describes a summary with citations to original words.'), (107.34, 114.78, ' The following section explains that a saved transcript survives a restart.'), (117.5, 122.08, ' The final section closes the test and thanks the listener for their attention.'), (122.08, 123.08, ' The final section says a few minutes.'), (123.08, 123.08, ''), (123.08, 123.08, ''), (123.08, 123.08, ''), (123.08, 123.08, ''), (123.08, 123.08, ''), (123.08, 124.08, ' The final section says a few minutes.'), (124.08, 125.08, ' The final section says a few minutes.'), (125.08, 125.08, ''), (125.08, 126.08, ' The final section says a few minutes.'), (126.08, 127.08, ' The final section says a few minutes.'), (127.08, 128.07999999999998, ' The final section says a few minutes.'), (128.07999999999998, 129.07999999999998, ' The final section says a few minutes.'), (129.07999999999998, 129.07999999999998, ''), (129.07999999999998, 130.07999999999998, ' The final section says a few minutes.'), (130.07999999999998, 131.07999999999998, ' The final section says a few minutes.'), (131.07999999999998, 131.07999999999998, ''), (131.07999999999998, 132.07999999999998, ' The final section says a few minutes.'), (132.07999999999998, 133.07999999999998, ' The final section says a few minutes.'), (133.07999999999998, 133.07999999999998, ''), (133.07999999999998, 133.07999999999998, ''), (133.07999999999998, 133.07999999999998, '')]

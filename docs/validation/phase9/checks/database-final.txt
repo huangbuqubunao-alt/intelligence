@@ -1,0 +1,37 @@
+{
+  "real": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_count": 31,
+    "schema": 32
+  },
+  "safety": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_count": 31,
+    "schema": 32
+  },
+  "restored": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_count": 31,
+    "schema": 32
+  },
+  "phase8": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_count": 31,
+    "schema": 32
+  },
+  "phase7": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_count": 31,
+    "schema": 32
+  }
+}

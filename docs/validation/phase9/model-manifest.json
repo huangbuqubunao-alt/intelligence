@@ -1,0 +1,32 @@
+{
+  "repository": "mlx-community/whisper-large-v3-turbo",
+  "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+  "files": [
+    {
+      "name": "config.json",
+      "bytes": 268,
+      "sha256": "b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379"
+    },
+    {
+      "name": "weights.safetensors",
+      "bytes": 1613977612,
+      "sha256": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+    }
+  ],
+  "total_bytes": 1613977880,
+  "config": {
+    "n_mels": 128,
+    "n_audio_ctx": 1500,
+    "n_audio_state": 1280,
+    "n_audio_head": 20,
+    "n_audio_layer": 32,
+    "n_vocab": 51866,
+    "n_text_ctx": 448,
+    "n_text_state": 1280,
+    "n_text_head": 20,
+    "n_text_layer": 4,
+    "model_type": "whisper"
+  },
+  "phase8_model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+  "manifest_sha256": "bc204b003b65c104fb1ae5301c4be03575841b5ee792e232bdfae60e60d27034"
+}

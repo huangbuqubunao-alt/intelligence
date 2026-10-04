@@ -1,0 +1,1 @@
+{"trusted_transcripts": 8, "qualification": "FAILED", "current_receipt": "a2548f57dfa695581a2a66ac3a0f07924e542bb29bcb6c5c939f73960133c553", "database": "ok"}

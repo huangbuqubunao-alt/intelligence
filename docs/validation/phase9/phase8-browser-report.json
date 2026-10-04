@@ -1,0 +1,152 @@
+{
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "mediaId": "local-f4c2da1bc8f050373c7f157a7a46f1e21606d297c90a72d6fef57e09fa5791ee",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "mediaId": "local-dbb7b3fba6309c2a46e81346472ae3a3cebae50995abd9d5996c09beafd77469",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "mediaId": "local-e476473766f52d2192a7655cdcb8764d5fd25ea9654afbe4c687dabf5b13a47f",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "mediaId": "local-dfe60d71017cb7163280be299dfec3e2fa259fc0623480bfb310a34077b7fd8f",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "mediaId": "local-6cd383b0bb980ce759f147a7fae6f66c6b9eefacc303a7796f6fc07307d2dfef",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "mediaId": "local-136b220d46f8cccf031625e09b11a494e1ecf1bb33900a56244997211bc26dce",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "mediaId": "local-00af7e634e7dc1f24e99da50e9aeb3c4658b56587cd1f454956898204103cba8",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "mediaId": "local-a42d49b83c341cee19ebed5ace487cfb446376155526cd1024118ee6db9daf3e",
+      "states": [
+        "runtime absent",
+        "model missing",
+        "ready",
+        "failure",
+        "retry",
+        "running",
+        "timed transcript",
+        "Summary",
+        "Evidence",
+        "reload",
+        "mixed Research"
+      ]
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "nativeModelValidation": false
+}

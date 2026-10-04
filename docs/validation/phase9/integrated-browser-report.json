@@ -1,0 +1,15 @@
+{
+  "scenarios": [
+    "acceptance/zh-CN/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/zh-CN/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/zh-CN/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/zh-CN/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/en/320: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/en/768: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/en/1024: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff",
+    "acceptance/en/1440: Settings/Following/DA/Evidence/Obsidian/Delta/Research/History/Diff"
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0
+}

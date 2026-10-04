@@ -1,0 +1,23 @@
+{
+  "restart_real_transcripts": 8,
+  "model_absence_preserves_authority": true,
+  "timeout": {
+    "configured_test_deadline_seconds": 0.2,
+    "production_deadline_seconds": 1800,
+    "terminal": "FAILED",
+    "failure": "EXECUTOR_TIMEOUT",
+    "whole_attempt_seconds": 1.6541824999731034,
+    "max_api_seconds": 0.0003424999304115772,
+    "temporary_cleaned": true,
+    "real_retry": "SUCCEEDED",
+    "real_retry_cues": [
+      " The local library opens every morning."
+    ]
+  },
+  "backup_restore": "passed",
+  "network_denial": {
+    "denied": true,
+    "errno": 1
+  },
+  "production_da": "NONE"
+}
