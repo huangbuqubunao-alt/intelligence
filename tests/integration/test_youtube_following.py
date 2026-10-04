@@ -726,3 +726,46 @@ def test_pause_cancels_queued_tracking_run_without_blocking_backup(
     assert BackupRestoreService(
         database=repo._database_path, data_root=runtime._data_root
     ).create_backup()
+
+
+def test_stale_lifecycle_check_is_bounded_fair_across_providers(tmp_path, monkeypatch):
+    from youtube_intel.local_api import LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+    from youtube_intel.providers.bilibili import BilibiliAdapter
+    from youtube_intel.providers.youtube_channel import canonical_channel
+
+    repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+    bili = _load_module("test_creator_following").CreatorFixture()
+    tracker.publisher.adapter = BilibiliAdapter(fetch=bili.fetch)
+    bs = tracker.follow("123")
+    tracker.providers["YOUTUBE"]._resolve = lambda alias: canonical_channel(
+        alias, "Public channel"
+    )
+    ys = []
+    for letter in "abcd":
+        fixture.now += timedelta(minutes=1)
+        ys.append(tracker.follow("UC" + letter * 22, provider="YOUTUBE"))
+    fixture.tick()
+    bili.now = fixture.now
+    for source in ys:
+        repo.update_source_subscription(source.source_id, enabled=True, now=fixture.now)
+    app = LocalApiApplication(
+        repo,
+        ProductOrchestrationService(
+            repo, source_tracking=tracker, now=lambda: fixture.now
+        ),
+        source_tracking=tracker,
+        data_root=runtime._data_root,
+        now=lambda: fixture.now,
+    )
+    status, result = app.handle("POST", "/api/v1/sources/check-stale", b"{}")
+    assert status == 202
+    assert len(result["checks"]) == 3
+    assert repo.get_source_subscription(bs.source_id).last_checked_at == fixture.now
+    status, result = app.handle("POST", "/api/v1/sources/check-stale", b"{}")
+    assert status == 202 and len(result["checks"]) == 2
+    assert all(
+        repo.get_source_subscription(s.source_id).last_checked_at == fixture.now
+        for s in [bs, *ys]
+    )
+    assert repo.list_videos() == ()

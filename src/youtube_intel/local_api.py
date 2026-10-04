@@ -48,7 +48,7 @@ from youtube_intel.evidence_translation import (
 from youtube_intel.extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
 from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.following_provider import TrackingError
-from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
+from youtube_intel.following_tracking import FollowingTrackingService
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -681,11 +681,16 @@ class LocalApiApplication:
                 self._only_keys(self._body(body), set())
                 from youtube_intel.following_tracking import tracking_due
                 results: list[str] = []
-                for source in self._repository.list_source_subscriptions():
+                # Scheduling follows the oldest due frontier, not the UI list's
+                # creation order, so newer follows cannot starve older providers.
+                with self._repository._connect() as connection:
+                    sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
+                for row in sources:
                     if len(results) >= 3:
                         break
-                    if source.enabled and is_tracked(self._repository, source.source_id) and tracking_due(self._repository, source.source_id, self._now()):
-                        result = self._service.check_source(source.source_id, command_id="stale:" + source.source_id + ":" + self._now().isoformat())
+                    source_id = row[0]
+                    if tracking_due(self._repository, source_id, self._now()):
+                        result = self._service.check_source(source_id, command_id="stale:" + source_id + ":" + self._now().isoformat())
                         results.append(result.status.value)
                 if self._source_run_wakeup is not None:
                     self._source_run_wakeup()
