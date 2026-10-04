@@ -394,21 +394,34 @@ def test_provider_budget_prevents_concurrent_creator_checks(tmp_path: Path) -> N
     import threading
     repo, tracker, fixture = setup(tmp_path)
     source = tracker.follow("123")
+    original_fetch = fixture.fetch
+    def creators(url: str, maximum: int) -> bytes:
+        payload = original_fetch(url, maximum)
+        if "mid=456" in url:
+            data = json.loads(payload)
+            if "/card?" in url:
+                data["data"]["card"]["mid"] = "456"
+            else:
+                for item in data["data"]["list"]["vlist"]:
+                    item["mid"] = 456
+            return json.dumps(data).encode()
+        return payload
+    tracker.publisher.adapter.fetch = creators
+    second = tracker.follow("456")
     fixture.tick()
     started = threading.Event()
     release = threading.Event()
-    original_fetch = fixture.fetch
     def blocked(url: str, maximum: int) -> bytes:
         started.set()
         assert release.wait(5)
-        return original_fetch(url, maximum)
+        return creators(url, maximum)
     tracker.publisher.adapter.fetch = blocked
     thread = threading.Thread(target=tracker.check, args=(source.source_id,))
     thread.start()
     assert started.wait(5)
     calls = len(fixture.calls)
     other = FollowingTrackingService(repo, tracker.publisher, now=lambda: fixture.now)
-    assert other.check(source.source_id) == "BUSY"
+    assert other.check(second.source_id) == "BUSY"
     assert len(fixture.calls) == calls
     release.set()
     thread.join(5)
@@ -441,6 +454,7 @@ def test_changing_page_total_cannot_advance_verified_state(tmp_path: Path) -> No
 
 def test_migration34_failure_is_atomic_and_upgrade_preserves_bilibili_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from dataclasses import replace
+
     from youtube_intel.state import MigrationError
     repo = SQLiteStateRepository(tmp_path / "state.sqlite")
     migrations = repo._load_migrations()
@@ -462,3 +476,24 @@ def test_migration34_failure_is_atomic_and_upgrade_preserves_bilibili_authority(
     assert repo.initialize(now=NOW).version == 34
     assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
     assert repo.list_evidence_for_presentation(imported.content_id) == evidence
+
+
+def test_wrong_creator_relationship_fails_tracking_and_portable_backup_validation(tmp_path: Path) -> None:
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    repo, tracker, fixture = setup(tmp_path)
+    source = tracker.follow("123")
+    fixture.items.insert(0, (NEW, NOW + timedelta(seconds=1)))
+    fixture.tick()
+    tracker.check(source.source_id)
+    stamp = format_utc_datetime(NOW)
+    with repo._connect() as connection:
+        connection.execute("INSERT INTO source_subscriptions(source_id,provider,source_type,canonical_url,channel_id,display_name,enabled,processing_policy,created_at,updated_at) VALUES('bilibili-creator-456','BILIBILI','CREATOR','https://space.bilibili.com/456','456','Other creator',1,'DISCOVER_ONLY',?,?)", (stamp, stamp))
+        connection.execute("INSERT INTO source_tracking_state(source_id,contract,followed_at,baseline_at,verified_at,next_check_at,coverage,health) VALUES('bilibili-creator-456','source-tracking-v1',?,?,?,?,'COMPLETE','HEALTHY')", (stamp, stamp, stamp, stamp))
+        connection.execute("INSERT INTO source_video_links(source_id,video_id,discovered_at) VALUES('bilibili-creator-456',?,?)", ("bilibili-" + NEW, stamp))
+        connection.execute("INSERT INTO source_observations SELECT 'bilibili-creator-456',canonical_identity,published_at,observed_at,baseline,enrollment,content_id,error_code FROM source_observations WHERE source_id=? AND baseline=0", (source.source_id,))
+    assert tracker.projection("bilibili-creator-456")["health"] == "STATE_INVALID"
+    assert tracker.check("bilibili-creator-456") == "STATE_INVALID"
+    assert len(repo.list_videos()) == 1
+    service = BackupRestoreService(database=tmp_path / "state.sqlite", data_root=tmp_path / "data")
+    with pytest.raises(BackupRestoreError, match="Following Content relationship"):
+        service.create_backup()

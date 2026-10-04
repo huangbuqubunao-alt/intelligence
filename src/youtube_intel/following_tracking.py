@@ -47,7 +47,8 @@ def _stamp(value: str) -> datetime:
     return stamp
 
 
-def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None) -> None:
+def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None, *,
+                    repository: SQLiteStateRepository | None = None) -> None:
     """Reject corrupt portable tracking, never silently bootstrap it from zero."""
     if connection.execute("SELECT 1 FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.source_type!='CREATOR' LIMIT 1").fetchone() is not None:
         raise ValueError("tracking source kind is corrupt")
@@ -89,6 +90,14 @@ def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None
                     (row["source_id"], video.content_id),
                 ).fetchone() is None:
                     raise ValueError("tracking Content relationship is corrupt")
+                if repository is not None:
+                    accepted = verify_source(repository, connection, video.content_id)
+                    if accepted is None or accepted["provider"] != "BILIBILI":
+                        raise ValueError("tracking Content source is corrupt")
+                    artifact = repository.get_artifact(accepted["snapshot_artifact_id"])
+                    root = repository._source_data_root
+                    if artifact is None or root is None or json.loads(read_managed(root, artifact.relative_path, maximum=256 * 1024))["uploader_id"] != identity.mid:
+                        raise ValueError("tracking Content creator is corrupt")
         for receipt in connection.execute("SELECT * FROM source_checks WHERE source_id=?", (row["source_id"],)):
             started = _stamp(receipt["started_at"])
             if started < followed or (receipt["finished_at"] is not None and _stamp(receipt["finished_at"]) < started):
@@ -119,6 +128,7 @@ class FollowingTrackingService:
                  *, now: Callable[[], datetime] | None = None) -> None:
         self.repository = repository
         self.publisher = publisher
+        repository.bind_source_storage(publisher.data_root)
         self.now = now or (lambda: datetime.now(UTC))
 
     def follow(self, value: str) -> SourceSubscriptionRecord:
@@ -126,7 +136,7 @@ class FollowingTrackingService:
         existing = self.repository.get_source_subscription(identity.source_id)
         if existing is not None:
             with self.repository._connect() as connection:
-                verify_tracking(connection, identity.source_id)
+                verify_tracking(connection, identity.source_id, repository=self.repository)
             return existing
         metadata = self.publisher.adapter.fetch_creator(identity)
         now = format_utc_datetime(self.now())
@@ -158,8 +168,8 @@ class FollowingTrackingService:
             if row is None:
                 return None
             try:
-                verify_tracking(connection, source_id)
-            except (ValueError, KeyError, TypeError):
+                verify_tracking(connection, source_id, repository=self.repository)
+            except (ValueError, KeyError, TypeError, OSError):
                 return {"health": "STATE_INVALID", "coverage": "CHECK_INCOMPLETE", "update_count": 0, "pending_count": 0}
             counts = connection.execute("SELECT SUM(baseline=0),SUM(enrollment='PENDING'),SUM(enrollment IN ('UNSUPPORTED','UNAVAILABLE')),SUM(enrollment='ENROLLED') FROM source_observations WHERE source_id=?", (source_id,)).fetchone()
             processing = connection.execute("SELECT COUNT(*) FROM source_video_links l JOIN content_source_snapshots c ON c.content_id=l.video_id WHERE l.source_id=? AND c.status!='READY'", (source_id,)).fetchone()[0]
@@ -187,8 +197,8 @@ class FollowingTrackingService:
         with self.repository._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
-                verify_tracking(connection, source_id)
-            except (ValueError, KeyError, TypeError):
+                verify_tracking(connection, source_id, repository=self.repository)
+            except (ValueError, KeyError, TypeError, OSError):
                 connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code='STATE_INVALID' WHERE source_id=?", (stamp, source_id))
                 return "STATE_INVALID"
             state = connection.execute("SELECT * FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()

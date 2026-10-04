@@ -1046,6 +1046,11 @@ class BackupRestoreService:
         data_root: Path,
     ) -> None:
         repository.bind_source_storage(data_root)
+        from .following_tracking import verify_tracking
+        try:
+            verify_tracking(connection, repository=repository)
+        except Exception as error:
+            raise BackupRestoreError("Following Content relationship failed validation.") from error
         from .source_authority import verify_source
         for source in connection.execute("SELECT content_id FROM content_source_snapshots"):
             if verify_source(repository,connection,str(source[0])) is None:
