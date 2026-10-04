@@ -21,11 +21,18 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 from youtube_intel.source_transcript import MediaTranscript
 from youtube_intel.state import TimedTranscriptCueWrite
+
+if TYPE_CHECKING:
+    from youtube_intel.providers.bilibili_creator import (
+        CreatorIdentity,
+        CreatorMetadata,
+        CreatorPage,
+    )
 
 MAX_METADATA = 256 * 1024
 MAX_CAPTION = 2 * 1024 * 1024
@@ -94,7 +101,7 @@ def validate_request_url(value: str) -> tuple[str, str]:
         url = urlsplit(value)
         host = url.netloc.lower()
         api = host == "api.bilibili.com" and url.path in {
-            "/x/web-interface/view", "/x/player/v2"
+            "/x/web-interface/view", "/x/player/v2", "/x/web-interface/card", "/x/space/arc/search"
         }
         caption = host in {"aisubtitle.hdslb.com", "i0.hdslb.com", "subtitle.bilibili.com"} and bool(
             re.fullmatch(r"/bfs/subtitle/[A-Za-z0-9_.-]+\.json", url.path)
@@ -344,6 +351,24 @@ class BilibiliAdapter:
         self.fetch = fetch
 
     normalize_input = staticmethod(normalize_input)
+
+    def fetch_creator(self, identity: CreatorIdentity) -> CreatorMetadata:
+        from youtube_intel.providers.bilibili_creator import parse_creator
+        return parse_creator(self.fetch(
+            f"https://api.bilibili.com/x/web-interface/card?mid={identity.mid}", MAX_METADATA
+        ), identity)
+
+    def fetch_creator_page(self, identity: CreatorIdentity, page: int) -> CreatorPage:
+        from youtube_intel.providers.bilibili_creator import (
+            PAGE_SIZE,
+            parse_creator_page,
+        )
+        if type(page) is not int or not 1 <= page <= 33334:
+            raise BilibiliError("INVALID_INPUT")
+        return parse_creator_page(self.fetch(
+            f"https://api.bilibili.com/x/space/arc/search?mid={identity.mid}&pn={page}&ps={PAGE_SIZE}&order=pubdate",
+            MAX_METADATA,
+        ), identity, page)
 
     def fetch_metadata(self, identity: BilibiliIdentity) -> BilibiliMetadata:
         data = _api_data(self.fetch(
