@@ -4,6 +4,20 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Follow a channel": "关注一个频道",
+  "Follow channel": "关注频道",
+  "Follow this channel": "关注此频道",
+  "Channel URL, @handle or channel id": "频道链接、@用户名或频道 ID",
+  "Enter an HTTPS YouTube channel URL, @handle or channel id.": "请输入 HTTPS YouTube 频道链接、@用户名或频道 ID。",
+  "Channel followed. Check Following for its starting point and source health.": "已关注频道，请在关注详情中查看跟踪起点和来源状态。",
+  "Use Follow a channel to follow from now on without importing existing videos.": "请选择“关注一个频道”，从现在开始关注，不导入已有视频。",
+  "Channel Following": "频道关注",
+  "YouTube source type": "YouTube 来源类型",
+  "Public source requests are limited. Try again later.": "公开来源请求受到限制，请稍后重试。",
+  "This source is not publicly accessible. No login is used.": "无法公开访问此来源，应用不会使用登录信息。",
+  "This public source is unavailable. Stored Content is preserved.": "此公开来源不可用，已保留存储的内容。",
+  "The source could not be checked. Try again later.": "无法检查此来源，请稍后重试。",
+
   "Videos that could not be imported": "无法导入的视频",
   "This video exceeds the supported two-hour limit.": "此视频超过当前支持的两小时时长限制。",
   "Follow Bilibili creator": "关注哔哩哔哩 UP 主",

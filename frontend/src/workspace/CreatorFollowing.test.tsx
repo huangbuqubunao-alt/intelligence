@@ -43,3 +43,25 @@ test("follow from Content sends only Content identity", async () => {
   await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
   expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/videos/bilibili-BV1xx411c7mD/follow-creator");
 });
+
+test.each([['en', 'Follow channel', 'Channel URL, @handle or channel id'], ['zh-CN', '关注频道', '频道链接、@用户名或频道 ID']])('shared YouTube form in %s', async (language, action, label) => {
+  const { CreatorFollowForm } = await import('./CreatorFollowing');
+  localStorage.setItem('yia.ui-language', language);
+  const requests: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => { requests.push(url); return { ok: true, json: async () => ({ source: {} }) }; }));
+  render(<UiLanguageProvider><CreatorFollowForm provider="YOUTUBE" onSaved={() => {}} /></UiLanguageProvider>);
+  fireEvent.change(screen.getByLabelText(label), { target: { value: 'https://youtube.com/@public' } });
+  fireEvent.click(screen.getByRole('button', { name: action }));
+  await waitFor(() => expect(requests).toEqual(['/api/v1/sources/channels']));
+});
+
+test('YouTube Content follow sends only trusted Content identity', async () => {
+  localStorage.setItem('yia.ui-language', 'en');
+  const fetch = vi.fn(async (_url: string, _options?: RequestInit) => ({ ok: true, json: async () => ({ source: {} }) }));
+  vi.stubGlobal('fetch', fetch);
+  render(<UiLanguageProvider><FollowCreatorFromContent provider="YOUTUBE" id="aaaaaaaaaaa" /></UiLanguageProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this channel' }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  expect(fetch.mock.calls[0]?.[0]).toBe('/api/v1/videos/aaaaaaaaaaa/follow-channel');
+  expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({});
+});
