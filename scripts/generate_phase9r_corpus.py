@@ -44,6 +44,8 @@ def specification():
 
 
 if __name__ == '__main__':
+    if (Path(sys.argv[1]) / 'corpus-manifest.json').exists():
+        raise ValueError('retain frozen corpus; use a distinct output root')
     generator.specification = specification
     main()
     # Declared before decoding: add a fixed seven-second terminal silence to
