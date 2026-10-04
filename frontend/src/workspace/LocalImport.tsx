@@ -18,7 +18,7 @@ export function localStatus(status: string) {
 }
 
 type Result = { content_id: string; filename: string; status: string; duplicate: boolean };
-export function LocalImport({ onClose, onSaved, onYouTube }: { onClose: () => void; onSaved: () => void; onYouTube: () => void }) {
+export function LocalImport({ onClose, onSaved, onYouTube, onBilibili }: { onClose: () => void; onSaved: () => void; onYouTube: () => void; onBilibili?: () => void }) {
   const { t } = useUiLanguage();
   const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -47,7 +47,7 @@ export function LocalImport({ onClose, onSaved, onYouTube }: { onClose: () => vo
   };
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="local-import-title">
     <div className="modal-head"><h2 id="local-import-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={busy} onClick={finished ? onSaved : onClose}>{t(finished ? "Done" : "Cancel")}</button></div>
-    {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button></div>}
+    {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy} onClick={onBilibili}>{t("Bilibili")}</button>}</div>}
     <p>{t("Import a private snapshot into your Local library. Originals stay untouched; moving, deleting or editing them does not change imported Content.")}</p>
     <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 64 MiB and two hours. Everything stays on this device.")}</p>
     {!finished && <label className="field">{t("Choose local files")}<input type="file" aria-label={t("Choose local files")} multiple accept=".txt,.md,.mp3,.m4a,.wav,.mp4,.mov,.m4v" disabled={busy} onChange={event => {

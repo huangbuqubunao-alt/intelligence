@@ -370,7 +370,7 @@ def test_kimi_known_response_cases_are_finite_and_never_expose_reasoning(
     assert error.reason == expected_reason
     assert error.result is not None
     assert error.result.input_tokens == 120
-    assert error.result.output_tokens == 33
+    assert error.result.output_tokens == 32
     assert "private-reasoning" not in repr(error)
     assert "synthetic-secret-never-report" not in repr(error)
     diagnostics = transport.last_response_diagnostics
@@ -1703,7 +1703,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-17:] == (
+    assert migrations[-18:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -1721,6 +1721,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
         "030_add_deep_analysis_durable_evidence.sql",
         "031_add_research_lite.sql",
         "032_add_source_provider_authority.sql",
+        "033_add_bilibili_provider.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:

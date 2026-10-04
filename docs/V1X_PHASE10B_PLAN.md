@@ -43,9 +43,11 @@ endpoints only; denial/rate limiting stops bounded retrieval honestly.
 
 Canonical content id `bilibili-<BV>`; Following is one VIDEO_URL per Content,
 never a creator subscription. Ready acquired authority is never overwritten.
-Display metadata may refresh only by an explicit operation; historical snapshot,
-caption language/text/timing and Evidence stay fixed. Caption acquisition can be
+Phase 10B does not refresh display metadata. A future explicit refresh may change
+display fields only; historical snapshot, caption language/text/timing and Evidence stay fixed. Caption acquisition can be
 retried before READY, bound to the original snapshot's BV/CID/duration.
+The accepted source-snapshot duration contract limits this slice to two hours.
+Other parts, longer videos and creator monitoring are deferred explicitly.
 
 ## Qualification invariant
 

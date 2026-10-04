@@ -1,3 +1,4 @@
+import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
@@ -81,7 +82,7 @@ type Topic = {
   relations: { related_topic_id: string }[];
 };
 type Source = {
-  provider?: "YOUTUBE" | "LOCAL";
+  provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   source_id: string;
   display_name: string | null;
   friendly_name?: string | null;
@@ -135,7 +136,7 @@ type ResourceUsage = {
   budget_state: string;
 };
 type ContentItem = {
-  provider?: "YOUTUBE" | "LOCAL";
+  provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   filename?: string;
   media_kind?: string;
   format?: string;
@@ -257,7 +258,7 @@ type DeepAnalysisEnvelope = {
   deep_analysis: DeepAnalysisState;
 };
 type ContentEvidence = {
-  provider?: "YOUTUBE" | "LOCAL";
+  provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   locator_type?: "TIMED_MEDIA" | "TEXT_RANGE";
   start_line?: number | null;
   end_line?: number | null;
@@ -1437,9 +1438,9 @@ function ContentPage(
           >
             <span>
               <strong>{item.title ?? item.video_id}</strong>
-              <small>{item.provider === "LOCAL" ? t("Local") : item.channel_name} · {humanDate(item.imported_at ?? item.published_at)}</small>
+              <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
             </span>
-            <Status value={item.provider === "LOCAL" ? localStatus(item.processing_status) : item.processing_status} />
+            <Status value={item.provider === "LOCAL" ? localStatus(item.processing_status) : item.provider === "BILIBILI" ? bilibiliStatus(item.processing_status) : item.processing_status} />
           </button>
         ))}
       </div>
@@ -1472,6 +1473,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Content detail…</Empty>;
   const transcript = data.transcript;
+  const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
   const visibleHistory = data.history.filter((event) =>
@@ -1481,10 +1483,10 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
       <Panel title={data.video.title ?? data.video.video_id}>
-        <div className={`reading-meta${isLocalMedia ? " local-media-meta" : ""}`}>
-          <Status value={isLocalMedia && transcriptionStatus ? transcriptionCopy(transcriptionStatus) : data.video.provider === "LOCAL" ? localStatus(isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE" ? "IMPORTED" : data.video.processing_status) : data.video.processing_status} />
-          <span>{data.video.provider === "LOCAL" ? t("Local") : data.video.channel_name} · {humanDate(data.video.imported_at ?? data.video.published_at)}</span>
-          {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])} · {data.video.format}</span>}
+        <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
+          <Status value={isLocalMedia && transcriptionStatus ? transcriptionCopy(transcriptionStatus) : data.video.provider === "LOCAL" ? localStatus(isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE" ? "IMPORTED" : data.video.processing_status) : isBilibili ? bilibiliStatus(data.video.processing_status) : data.video.processing_status} />
+          <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
+          {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
           {data.video.duration_seconds != null && <span>{t("Duration")}: {Math.ceil(data.video.duration_seconds)}s</span>}
         </div>
@@ -1497,12 +1499,13 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : null}
       </Panel>
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+        {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {transcript.status === "AVAILABLE" && transcript.text
           ? transcript.timed_segments?.length
             ? <ol className="timed-transcript">{transcript.timed_segments.map((segment, index) => <li key={index}><time>{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
             : <div className="transcript-copy">{transcript.text}</div>
-          : isLocalMedia ? null : (
+          : isLocalMedia || isBilibili ? null : (
             <div className="semantic-state state-neutral">
               <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />
               <p>{t(({
@@ -1515,7 +1518,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
-      <Panel title={data.video.provider === "LOCAL" ? "Summary" : "Summary / Video Notes"}>
+      <Panel title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
           ? (
             <div className="summary-note">
@@ -2336,7 +2339,7 @@ function Sources(
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [adding, setAdding] = useState(false);
-  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL">("YOUTUBE");
+  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "BILIBILI">("YOUTUBE");
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   return (
@@ -2362,13 +2365,13 @@ function Sources(
                   <span>
                     <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
                     <small>
-                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : "YouTube"}
+                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.provider === "BILIBILI" ? "Manually imported video" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
                     </small>
                   </span>
                 </button>
                 <div className="source-actions">
                   <Status
-                    value={source.last_error?.code ??
+                    value={source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
                       (source.enabled ? "ENABLED" : "DISABLED")}
                   />
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
@@ -2422,7 +2425,7 @@ function ruleList(value: string) {
 }
 function SourceForm(
   { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
-    initialProvider?: "YOUTUBE" | "LOCAL";
+    initialProvider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
     onClose: () => void;
     onSaved: () => void;
     source?: Source;
@@ -2515,7 +2518,8 @@ function SourceForm(
       setBusy(false);
     }
   };
-  if (providerChoice === "LOCAL") return <LocalImport onClose={onClose} onSaved={onSaved} onYouTube={() => setProviderChoice("YOUTUBE")} />;
+  if (providerChoice === "BILIBILI") return <BilibiliImport onClose={onClose} onSaved={onSaved} onProvider={setProviderChoice} />;
+  if (providerChoice === "LOCAL") return <LocalImport onBilibili={() => setProviderChoice("BILIBILI")} onClose={onClose} onSaved={onSaved} onYouTube={() => setProviderChoice("YOUTUBE")} />;
   return (
     <div className="overlay">
       <section
@@ -2537,7 +2541,7 @@ function SourceForm(
             {t("Cancel")}
           </button>
         </div>
-        {!source && <div className="button-row" aria-label={t("Source provider")}><button className="button button-primary" aria-pressed="true">YouTube</button><button className="button button-secondary" onClick={() => setProviderChoice("LOCAL")}>{t("Local files")}</button></div>}
+        {!source && <div className="button-row" aria-label={t("Source provider")}><button className="button button-primary" aria-pressed="true">YouTube</button><button className="button button-secondary" onClick={() => setProviderChoice("LOCAL")}>{t("Local files")}</button><button className="button button-secondary" onClick={() => setProviderChoice("BILIBILI")}>{t("Bilibili")}</button></div>}
         <form onSubmit={submit}>
           <label className="field">
             {t("Source URL")}<input
@@ -2769,6 +2773,11 @@ function SourceDetail(
   }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
+  if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
+    <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+    <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>
+    <ul>{data.recent_videos.map(content => <li key={content.video_id}><a href={`#Content/${content.video_id}`} onClick={onClose}>{content.title}</a></li>)}</ul>
+  </section></div>;
   if (data.source.provider === "LOCAL") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Local library")}>
     <div className="modal-head"><h2>{t("Local library")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     <p>{t("Explicit imports only")}</p><button className="button button-primary" onClick={() => setEditing(true)}>{t("Import files")}</button>

@@ -18,6 +18,16 @@
 
 ## 2. 已批准直接复用
 
+Phase 10B (2026-10-04): `DIRECT` Python standard-library HTTPS/TLS,
+DNS/IP validation, JSON and SQLite; accepted source snapshot, timed transcript,
+Summary, Evidence, Intelligence, Topic, Research, Delta and backup contracts.
+`SourceContentPublisher` extracts the existing Local publisher without changing
+its artifact/authority contracts. No production dependency or lockfile changes.
+`REJECT/DEFER` browser login/cookies, generic scraping, yt-dlp Bilibili extraction,
+media download, unqualified ASR, short-link resolution and creator polling.
+Public adapter retrieval is bounded and fixture-tested; the actual public check
+is recorded separately in `validation/phase10b/live-public-check.json`.
+
 | 组件 | 等级 | 用途 | 所属任务 | 边界 |
 |---|---|---|---|---|
 | Python `sqlite3` / `importlib.resources` | `DIRECT` | SQLite、migration 资源 | TASK-003 | 不引入 ORM；项目自有 Schema/事务语义 |

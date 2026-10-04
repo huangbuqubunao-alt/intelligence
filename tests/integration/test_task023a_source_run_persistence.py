@@ -200,7 +200,7 @@ def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-17:] == (
+    assert migrations[-18:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -218,6 +218,7 @@ def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: 
         "030_add_deep_analysis_durable_evidence.sql",
         "031_add_research_lite.sql",
         "032_add_source_provider_authority.sql",
+        "033_add_bilibili_provider.sql",
     )
     assert {"source_runs", "source_run_state_events", "source_run_checkpoint_events"} <= tables
     assert {"weekly_briefs", "brief_items", "brief_item_evidence"} <= tables

@@ -63,3 +63,19 @@ separate. Unqualified installed models cannot start new production transcription
 existing trusted text, Summary and Evidence remain readable. No Settings switch
 or navigation destination issues a qualification receipt. Benchmark detail stays
 in engineering acceptance evidence. All states have zh-CN and English copy.
+
+## Public Bilibili video import
+
+Following Add offers YouTube, Local files and Bilibili in the same dialog flow.
+Bilibili imports one explicitly supplied public video; the source label says
+manually imported video and never implies creator monitoring. The shared Content
+page shows Bilibili provenance, uploader, publication time, duration, source
+language and caption status. No primary navigation or separate provider page.
+
+Original timed captions appear in the existing Transcript, Summary and Evidence
+panels. Metadata-only Content explains why Summary and Evidence are unavailable
+and offers an explicit public-caption retry. Reading trusted stored captions makes
+no provider request; no active polling or acoustic fallback is offered. Ready
+authority has no refresh control. Long untrusted title and caption text renders as
+plain text and wraps at every supported viewport. Labels and failures use the
+existing Chinese and English UI dictionary; caption language stays independent.

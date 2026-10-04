@@ -5,6 +5,14 @@ source: styles.css
 
 # Workspace design reference
 
+Phase 10B adds Bilibili to Following Add and the existing shared Content/Research
+surfaces. Manual video import never implies creator following. Public captions
+retain original text/language/timing; no-caption Content explains unavailable
+Summary/Evidence and offers explicit retry. Show publication time and uploader;
+internal metadata artifact formats stay out of the reading UI. Use bilingual
+labels, plain text and wrapping without adding primary navigation or provider
+polling. Root `DESIGN.md` records the persistent import interaction contract.
+
 Reuse the live workspace's dark surfaces, green accent, muted typography, Panel
 borders, radius tokens and button styles from styles.css. Do not redesign Home.
 
