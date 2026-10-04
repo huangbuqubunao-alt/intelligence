@@ -1,0 +1,82 @@
+[
+  {
+    "database": ".var/phase11/browser-final-fixture/state.sqlite3",
+    "schema": 34,
+    "quick_check": [
+      "ok"
+    ],
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_check": [],
+    "tracking_valid": true,
+    "migration_lineage_checksum_valid": true,
+    "migration_count": 33,
+    "creator_count": 9,
+    "final_active_checks": 0
+  },
+  {
+    "database": ".var/phase11/browser-fixture/state.sqlite3",
+    "schema": 34,
+    "quick_check": [
+      "ok"
+    ],
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_check": [],
+    "tracking_valid": true,
+    "migration_lineage_checksum_valid": true,
+    "migration_count": 33,
+    "creator_count": 8,
+    "final_active_checks": 0
+  },
+  {
+    "database": ".var/phase11/browser-acceptance-fixture/state.sqlite3",
+    "schema": 34,
+    "quick_check": [
+      "ok"
+    ],
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_check": [],
+    "tracking_valid": true,
+    "migration_lineage_checksum_valid": true,
+    "migration_count": 33,
+    "creator_count": 8,
+    "final_active_checks": 0
+  },
+  {
+    "database": ".var/phase11/browser-production-fixture/state.sqlite3",
+    "schema": 34,
+    "quick_check": [
+      "ok"
+    ],
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_check": [],
+    "tracking_valid": true,
+    "migration_lineage_checksum_valid": true,
+    "migration_count": 33,
+    "creator_count": 8,
+    "final_active_checks": 0
+  },
+  {
+    "database": ".var/phase11/browser-verified-fixture/state.sqlite3",
+    "schema": 34,
+    "quick_check": [
+      "ok"
+    ],
+    "integrity_check": [
+      "ok"
+    ],
+    "foreign_key_check": [],
+    "tracking_valid": true,
+    "migration_lineage_checksum_valid": true,
+    "migration_count": 33,
+    "creator_count": 9,
+    "final_active_checks": 0
+  }
+]

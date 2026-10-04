@@ -1,0 +1,71 @@
+{
+  "fixture": true,
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "offline": false,
+      "mid": "1000",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "offline": false,
+      "mid": "1001",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "offline": false,
+      "mid": "1002",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "offline": false,
+      "mid": "1003",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "offline": false,
+      "mid": "1004",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "offline": false,
+      "mid": "1005",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "offline": false,
+      "mid": "1006",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "offline": false,
+      "mid": "1007",
+      "flows": "manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings"
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "mid": "1008",
+      "flows": "numeric creator input; automatic stale-source discovery; live list refresh; Has updates; grouped Following without per-video rows"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "noNewPrimaryNavigation": true
+}

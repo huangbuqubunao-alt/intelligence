@@ -1,0 +1,91 @@
+{
+  "baseline": "bda7e3eeeaf7f71ab243a82bd75dc4995825d06b",
+  "reviewed_code_head": "0153cf8ef0d08e8492683deb2d2287767c061b74",
+  "no_changed_dependencies_secrets_config_or_prior_migrations": true,
+  "production_files": [
+    {
+      "path": "frontend/src/workspace/App.tsx",
+      "sha256": "9d251ba486c014e66767e5f7a7798e315c03d40143321644a6231cfd60fec593"
+    },
+    {
+      "path": "frontend/src/workspace/BilibiliImport.tsx",
+      "sha256": "b2240aa69abe30be1e95480a0124938ae99047733d5fc9aeb5dedd890d35a52a"
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.test.tsx",
+      "sha256": "bcb1c83734c3c90e9faffbea9f74cb410602f88acd681a46f5474bba6b975231"
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.tsx",
+      "sha256": "96e4f2e1495cb7d99638b852f73ff3fb835336e6c5a77d58ef2e8be7f7ef2690"
+    },
+    {
+      "path": "frontend/src/workspace/DESIGN.md",
+      "sha256": "aa4ca670d1c5b7a33742a155004b60be9886b906759dd55f969965ec153a0cf0"
+    },
+    {
+      "path": "frontend/src/workspace/uiLanguage.tsx",
+      "sha256": "008686b2938907be4bc2d9b68ad72791e694edbcfd65a51f0117ad217b89ab97"
+    },
+    {
+      "path": "src/youtube_intel/backup_restore.py",
+      "sha256": "ff7ce7161bcaba8204b06a389caf94de190f701194d8ef904fd0e8cd0d582a49"
+    },
+    {
+      "path": "src/youtube_intel/bilibili_content.py",
+      "sha256": "05729d2d0b2a5f2e3015976d2edb917a5bb0267a7e7a558023b4c94b77067bc6"
+    },
+    {
+      "path": "src/youtube_intel/following_tracking.py",
+      "sha256": "ceaf00b68d38af9583203b91ad4a505ede490cfb7d5ea08221ffea45cc4a694c"
+    },
+    {
+      "path": "src/youtube_intel/knowledge_delta.py",
+      "sha256": "0d4eb7115419e71a0fbff0231ad8c9607b3a8f18035270ff1e43b6fa3b49e3c6"
+    },
+    {
+      "path": "src/youtube_intel/local_api.py",
+      "sha256": "92c88321db3d5b2429ee1a2a9e73b7489d87cbf536d1f0dff8bb0bb99dd3486e"
+    },
+    {
+      "path": "src/youtube_intel/migrations/034_add_source_tracking.sql",
+      "sha256": "8e0b2b525217c1dd32657d641529df4ac3aae4096e82b8f683279ce2a5c813da"
+    },
+    {
+      "path": "src/youtube_intel/orchestration.py",
+      "sha256": "ae93aab0170f1736575d74d136d891eaaf8a64fdc263dca590134019a0a71782"
+    },
+    {
+      "path": "src/youtube_intel/orchestration_service.py",
+      "sha256": "fd1b3c7ff40d32e13a1597a1e8e7080dfd4064d9ef98e863975ef5ac46fe206a"
+    },
+    {
+      "path": "src/youtube_intel/processing_orchestrator.py",
+      "sha256": "8defd77a740fa912036b9686296bcd96ddb7f0326e5569df21a29535fc50e443"
+    },
+    {
+      "path": "src/youtube_intel/providers/bilibili.py",
+      "sha256": "717d2fd5108e16625bbb0c8fca1b797ca838f1bbb3e8b2bd54dcccd78613de2d"
+    },
+    {
+      "path": "src/youtube_intel/providers/bilibili_creator.py",
+      "sha256": "87ed7da3d545d9519882dac3e69d3dc58f1f1bd2e90e38539a27fe40449edd2e"
+    },
+    {
+      "path": "src/youtube_intel/runtime.py",
+      "sha256": "b9b4a747f236c1ffaa6ed970cca1b31d87a53df79ec0ddd4c8aea55739ffba59"
+    },
+    {
+      "path": "src/youtube_intel/runtime_composition.py",
+      "sha256": "1c6b76f4285c2881a360409c5359fb05b6f34e50eda36301153b6c24c605463c"
+    },
+    {
+      "path": "src/youtube_intel/source_authority.py",
+      "sha256": "75a4be24dc4a425a3e14e1b006df1fc9a9d00f54dc4d98e4ad56167a6c56875a"
+    },
+    {
+      "path": "src/youtube_intel/state.py",
+      "sha256": "015058fcd48507e0041b0282cf417b2d24ec7a69c83faf90dfa630ad623e000c"
+    }
+  ]
+}

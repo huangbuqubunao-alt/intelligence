@@ -1,0 +1,17 @@
+{
+  "fixture": true,
+  "scenarios": [
+    "zh-CN/320: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "zh-CN/768: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "zh-CN/1024: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "zh-CN/1440: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "en/320: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "en/768: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "en/1024: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta",
+    "en/1440: Following Add, no-caption, explicit retry, caption Content, Summary, Evidence, dedupe, mixed Research, Delta"
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "noNewPrimaryNavigation": true
+}

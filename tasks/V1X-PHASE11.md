@@ -20,3 +20,12 @@ cookies/accounts, anti-abuse bypass, OS scheduler, unqualified acoustic/model pa
 Execution slices: audit/contract; provider identity; durable tracking; worker/API;
 frontend; adversarial/restore/product validation; regression/review/remediation;
 fresh acceptance/local completion. No merge, push, PR, dependency/toolchain changes.
+
+Completed: creator Following, atomic incremental tracking, public Content/captions,
+portable restart/restore state, truthful health and bilingual UI. Final acceptance:
+3,550 backend passes / one inherited tokenizer-resource skip; 181 frontend passes;
+typecheck/build/static/design/database checks passed; nine online and eight offline
+creator browser flows plus 32 prior-phase browser scenarios passed. Three review
+passes and fresh complete-diff acceptance resolved all P0/P1/material Phase 11 P2.
+Evidence: [Phase 11 acceptance](../docs/validation/phase11/ACCEPTANCE.md).
+Protected worktrees preserved; local branch commits only. Production ASR/DA NONE.

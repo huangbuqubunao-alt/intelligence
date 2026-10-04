@@ -101,6 +101,7 @@ try {
       assert.equal(after.last_success_at, before.last_success_at);
       assert.equal(after.tracking.verified_at, before.tracking.verified_at);
       assert.equal(after.tracking.update_count, 2);
+      await dialog.getByText(text('Unable to connect. Your last successful check is preserved.', '暂时无法连接，已保留上次成功检查的状态。'), { exact: true }).waitFor();
       await noOverflow(); await page.screenshot({ path: join(screenshots, `offline-${language}-${width}-source.png`), fullPage: true });
       await dialog.getByRole('button', { name: text('Close', '关闭'), exact: true }).click();
     }
@@ -166,6 +167,7 @@ try {
     for (const bv of info.creators['1008'].slice(1)) assert.equal(await page.locator('.source-row').getByText(new RegExp(escape(bv))).count(), 0);
     await page.getByText('公开 UP 主 1008', { exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Creator Following' });
+    await dialog.locator('li').first().waitFor();
     assert.equal(await dialog.locator('li').count(), 2);
     await page.screenshot({ path: join(screenshots, 'en-320-stale-source-automatic.png'), fullPage: true });
     scenarios.push({ language: 'en', width: 320, mid: '1008', flows: 'numeric creator input; automatic stale-source discovery; live list refresh; Has updates; grouped Following without per-video rows' });
