@@ -284,6 +284,16 @@ WITH attempts AS (
                           WHERE checkpoint.run_id = run.run_id AND checkpoint.checkpoint = 'DISCOVERY'
                             AND checkpoint.event_status = 'COMPLETED')
       ))
+    UNION ALL
+    SELECT s.source_id, s.display_name, check_record.check_id,
+           delta_time(check_record.finished_at),
+           check_record.status = 'SUCCEEDED' AND check_record.complete = 1,
+           delta_time(check_record.finished_at) || ':' || check_record.check_id
+    FROM source_checks check_record
+    JOIN source_subscriptions s ON s.source_id = check_record.source_id
+    WHERE s.enabled = 1 AND s.source_type = 'CREATOR'
+      AND check_record.status IN ('SUCCEEDED','FAILED','INTERRUPTED')
+      AND delta_time(check_record.finished_at) IS NOT NULL
 ), ordered AS (
     SELECT *, COALESCE(SUM(success) OVER (
         PARTITION BY source_id ORDER BY sort_key

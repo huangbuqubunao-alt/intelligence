@@ -33,7 +33,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
     version = repository.initialize(now=NOW)
-    assert version.version == 33
+    assert version.version == 34
     return repository
 
 
@@ -419,7 +419,7 @@ def test_v007_upgrade_preserves_source_automation_and_trusted_intelligence(
     assert preserved["claim_kind"] == "FACT"
 
     monkeypatch.undo()
-    assert upgraded.initialize(now=NOW).version == 33
+    assert upgraded.initialize(now=NOW).version == 34
     assert (
         AuthoritativeIntelligenceReader(upgraded)
         .read_current("intelligence-1")

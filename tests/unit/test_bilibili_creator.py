@@ -49,3 +49,24 @@ def test_creator_risk_control_is_terminal_public_failure(code: int) -> None:
     adapter = BilibiliAdapter(fetch=lambda *_: json.dumps({"code": code}).encode())
     with pytest.raises(BilibiliError, match="RISK_CONTROLLED"):
         adapter.fetch_creator(normalize_creator("123"))
+
+
+def test_live_risk_response_cools_down_shared_direct_video_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    from youtube_intel.providers import bilibili
+    actual_fetch = bilibili.fetch_public
+    def risk(*args: object, **kwargs: object) -> bytes:
+        return b'{"code":-352}'
+    monkeypatch.setattr(bilibili, "fetch_public", risk)
+    monkeypatch.setattr(bilibili, "_RATE_UNTIL", 0.0)
+    adapter = BilibiliAdapter(fetch=risk)
+    with pytest.raises(BilibiliError, match="RISK_CONTROLLED"):
+        adapter.fetch_creator(normalize_creator("123"))
+    with pytest.raises(BilibiliError, match="RATE_LIMITED"):
+        actual_fetch("https://api.bilibili.com/x/web-interface/view?bvid=BV1xx411c7mD", bilibili.MAX_METADATA)
+
+
+def test_short_page_cannot_claim_complete_list() -> None:
+    from youtube_intel.providers.bilibili_creator import parse_creator_page
+    data = {"list": {"vlist": []}, "page": {"pn": 1, "ps": 30, "count": 31}}
+    with pytest.raises(BilibiliError, match="METADATA_FAILED"):
+        parse_creator_page(json.dumps({"code": 0, "data": data}).encode(), normalize_creator("123"), 1)

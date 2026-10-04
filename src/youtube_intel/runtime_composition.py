@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 from youtube_intel.backup_restore import BackupRestoreService
+from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.config import AppConfig
 from youtube_intel.deep_analysis_obsidian import DeepAnalysisObsidianPublisher
 from youtube_intel.deep_analysis_service import (
@@ -26,6 +27,7 @@ from youtube_intel.distillation import (
     PersonalizedDistillationService,
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
+from youtube_intel.following_tracking import FollowingTrackingService
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.model_settings import (
     CredentialStore,
@@ -33,6 +35,7 @@ from youtube_intel.model_settings import (
     ModelSettingsService,
     local_models,
 )
+from youtube_intel.orchestration import SourceType
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
     DurableProcessingOrchestrator,
@@ -60,11 +63,21 @@ class RuntimeSourceRunIngestion:
         self,
         runtime: RuntimeOperations,
         source_policy: SourcePolicyApplicationService,
+        source_tracking: FollowingTrackingService | None = None,
     ) -> None:
         self._runtime = runtime
         self._source_policy = source_policy
+        self._source_tracking = source_tracking
 
     def ingest(self, source_id: str) -> None:
+        source = self._runtime._repository.get_source_subscription(source_id)
+        if source is not None and source.source_type is SourceType.CREATOR:
+            if self._source_tracking is None:
+                raise SourceRunDiscoveryError("Source tracking is unavailable")
+            category = self._source_tracking.check(source_id)
+            if category not in {"COMPLETE", "UPDATE_GAP", "COOLDOWN"}:
+                raise SourceRunDiscoveryError("Source check did not complete")
+            return
         policy = self._source_policy.effective_policy(source_id)
         try:
             self._runtime.ingest_source_to_transcript(
@@ -268,18 +281,20 @@ def build_local_source_run_runtime(
         OllamaEvidenceTranslator(settings=config.settings.local_analysis),
         now=now_fn,
     )
+    source_tracking = FollowingTrackingService(repository, BilibiliContentProvider(repository, data_root, now=now_fn), now=now_fn)
     orchestrator = DurableProcessingOrchestrator(
         repository,
         source_policy=source_policy,
         distillation=distillation,
         discovery=PersistedSourceRunDiscovery(repository),
-        ingestion=RuntimeSourceRunIngestion(runtime, source_policy),
+        ingestion=RuntimeSourceRunIngestion(runtime, source_policy, source_tracking),
         preparation=RuntimeSourceRunPreparation(runtime),
         now=now_fn,
     )
     product = ProductOrchestrationService(
         repository,
         source_run_submitter=orchestrator,
+        source_tracking=source_tracking,
         now=now_fn,
     )
     worker = DurableSourceRunWorker(orchestrator)
@@ -325,6 +340,7 @@ def build_local_source_run_runtime(
         output_language_default=config.settings.general.output_language,
         now=now_fn,
         source_run_wakeup=worker.notify,
+        source_tracking=source_tracking,
         local_distillation_available=transport.available,
         analysis_reader=runtime._load_analysis,
         evidence_translation_service=evidence_translation,

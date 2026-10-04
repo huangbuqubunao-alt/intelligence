@@ -113,6 +113,8 @@ def parse_creator_page(payload: bytes, identity: CreatorIdentity, page: int) -> 
             or type(info["count"]) is not int or not 0 <= info["count"] <= 1000000
         ):
             raise ValueError()
+        if len(entries) != min(PAGE_SIZE, max(0, info["count"] - (page - 1) * PAGE_SIZE)):
+            raise ValueError()
         items = []
         for entry in entries:
             if type(entry["mid"]) is not int or str(entry["mid"]) != identity.mid:

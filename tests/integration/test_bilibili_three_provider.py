@@ -6,6 +6,7 @@ import json
 import sqlite3
 import zipfile
 from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,38 @@ def seed_three(tmp_path: Path):
     bilibili = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=network.fetch), now=lambda: NOW)
     bili_id = bilibili.import_input(fixtures.BV).content_id
     return repo, network, [authority.VIDEO, local_id, bili_id]
+
+
+def test_creator_discovered_content_uses_mixed_research_and_intelligence_authority(tmp_path: Path) -> None:
+    from youtube_intel.following_tracking import FollowingTrackingService
+    creator = _load_module("test_creator_following")
+    repo, _, content_ids = seed_three(tmp_path)
+    fixture = creator.CreatorFixture()
+    publisher = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=fixture.fetch), now=lambda: fixture.now)
+    tracker = FollowingTrackingService(repo, publisher, now=lambda: fixture.now)
+    source = tracker.follow("123")
+    fixture.items.insert(0, (creator.NEW, fixture.now + timedelta(seconds=1)))
+    fixture.tick()
+    tracker.check(source.source_id)
+    discovered_id = "bilibili-" + creator.NEW
+    content_ids.append(discovered_id)
+    packet = ResearchLiteService(repo, now=lambda: fixture.now).assemble(
+        ResearchRequest(question="sentence1", content_ids=content_ids), output_language="en").packet
+    assert {item.content_id for item in packet.evidence} == set(content_ids)
+    assert {item.provider for item in packet.evidence} == {"YOUTUBE", "LOCAL", "BILIBILI"}
+    refs = tuple(item.evidence_id for item in packet.evidence)
+    repo.create_intelligence(intelligence_id="creator-mixed", now=fixture.now)
+    repo.append_intelligence_revision(intelligence_id="creator-mixed", revision=IntelligenceRevisionWrite(
+        revision_id="creator-mixed-revision", interpretation_kind=IntelligenceInterpretationKind.SYNTHESIS,
+        claim_kind=IntelligenceClaimKind.EVIDENCE_BACKED_STATEMENT,
+        content_hash=digest({"fixture": "creator-mixed", "evidence": refs}), state=IntelligenceState.NEW,
+        reason="Fixture verifies ordinary admission; no creator-specific inference", evidence_ids=refs), now=fixture.now)
+    for index, evidence_id in enumerate(refs):
+        repo.create_dependency_edge(DependencyEdgeWrite(edge_id=f"creator-edge-{index}", dependent_revision_id="creator-mixed-revision",
+            relation=DependencyRelation.EVIDENCE_SUPPORT, input_evidence_id=evidence_id, input_revision_id=None), now=fixture.now)
+    assert set(AuthoritativeIntelligenceReader(repo).read_current("creator-mixed").evidence_ids) == set(refs)
+    assert repo.list_topics() == ()
+    assert repo.list_source_videos(source.source_id)[0].video_id == discovered_id
 
 
 def test_three_provider_research_sealed_intelligence_topic_delta(tmp_path: Path) -> None:
@@ -117,7 +150,7 @@ def test_three_provider_backup_restore_offline(tmp_path: Path) -> None:
     with restored._connect() as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
 
 
 def test_corrupt_backed_up_caption_rejected_with_rehashed_archive(tmp_path: Path) -> None:
@@ -160,14 +193,15 @@ def test_schema33_failure_atomic_and_upgrade_preserves_local(tmp_path: Path, mon
     content_id = local.import_bytes("notes.txt", b"Existing Local authority.\n").content_id
     refs = repo.list_evidence_for_presentation(content_id)
     before = tuple(repo.resolve_verified_evidence_text(e) for e in refs)
-    broken = replace(migrations[-1], sql=migrations[-1].sql + "\nCREATE TABLE invalid_syntax(;", checksum="f" * 64)
+    migration33 = next(m for m in migrations if m.version == 33)
+    broken = replace(migration33, sql=migration33.sql + "\nCREATE TABLE invalid_syntax(;", checksum="f" * 64)
     monkeypatch.setattr(repo, "_load_migrations", lambda: (*old, broken))
     with pytest.raises(MigrationError, match="failed to apply migration 33"):
         repo.initialize(now=NOW)
     assert repo.schema_version().version == 32
     assert tuple(repo.resolve_verified_evidence_text(e) for e in refs) == before
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=NOW).version == 33
+    assert repo.initialize(now=NOW).version == 34
     assert tuple(repo.resolve_verified_evidence_text(e) for e in refs) == before
     with repo._connect() as connection:
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

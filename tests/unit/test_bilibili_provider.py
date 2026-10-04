@@ -142,6 +142,7 @@ def test_private_dns_is_denied(address: str, monkeypatch: pytest.MonkeyPatch) ->
 def test_finite_retry_and_no_access_denial_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     delays = []
+    monkeypatch.setattr(bilibili, "_RATE_UNTIL", 0.0)
     monkeypatch.setattr(bilibili, "_pace", lambda: None)
     monkeypatch.setattr(bilibili.time, "sleep", delays.append)
     def fail(url: str, maximum: int) -> bytes:
@@ -159,6 +160,7 @@ def test_finite_retry_and_no_access_denial_retry(monkeypatch: pytest.MonkeyPatch
     with pytest.raises(BilibiliError, match="ACCESS_DENIED"):
         bilibili.fetch_public("https://api.bilibili.com/x/player/v2", bilibili.MAX_METADATA)
     assert len(calls) == 1
+    assert bilibili._RATE_UNTIL > bilibili.time.monotonic()
 
 
 def test_concurrency_bound_across_adapters(monkeypatch: pytest.MonkeyPatch) -> None:

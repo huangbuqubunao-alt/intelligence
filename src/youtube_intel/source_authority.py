@@ -469,6 +469,9 @@ def _source_schema(connection: sqlite3.Connection) -> tuple[tuple[str, str], ...
         "content_source_snapshots",
         "evidence_source_ranges",
         "evidence_search_text",
+        "source_tracking_state",
+        "source_observations",
+        "source_checks",
     )
     marks = ",".join("?" for _ in tables)
     return tuple(

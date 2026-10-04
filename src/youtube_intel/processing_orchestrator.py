@@ -18,6 +18,7 @@ from youtube_intel.distillation import (
     DistillationExecutionStatus,
     PersonalizedDistillationService,
 )
+from youtube_intel.orchestration import SourceType
 from youtube_intel.source_policy import (
     MetadataFilterCandidate,
     SourcePolicyApplicationService,
@@ -112,6 +113,11 @@ class PersistedSourceRunDiscovery:
         self._repository = repository
 
     def discover(self, source_id: str) -> tuple[MetadataFilterCandidate, ...]:
+        source = self._repository.get_source_subscription(source_id)
+        if source is not None and source.source_type is SourceType.CREATOR:
+            # Public captions already use ordinary extractive Summary/Evidence.
+            # Discovery does not authorize an unqualified model or cloud dispatch.
+            return ()
         return tuple(
             MetadataFilterCandidate(
                 video_id=video.video_id,
@@ -343,9 +349,10 @@ class DurableProcessingOrchestrator:
                     return self._fail(run)
                 # Source check success is only recorded after the entire legal
                 # pipeline above has completed and immediately before final proof.
-                self._repository.record_source_check(
-                    run.source_id, now=self._now(), succeeded=True
-                )
+                if source.source_type is not SourceType.CREATOR:
+                    self._repository.record_source_check(
+                        run.source_id, now=self._now(), succeeded=True
+                    )
                 self._complete_checkpoint(run, checkpoint)
                 current = self.get_run(run.run_id)
                 if current.state is SourceRunState.COMPLETED:

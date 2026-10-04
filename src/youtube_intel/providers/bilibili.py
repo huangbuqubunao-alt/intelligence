@@ -212,10 +212,10 @@ def _fetch_once(url: str, maximum: int) -> bytes:
         connection.close()
 
 
-def fetch_public(url: str, maximum: int) -> bytes:
+def fetch_public(url: str, maximum: int, *, attempts: int = MAX_ATTEMPTS) -> bytes:
     global _RATE_UNTIL
     validate_request_url(url)
-    if maximum not in {MAX_METADATA, MAX_CAPTION}:
+    if maximum not in {MAX_METADATA, MAX_CAPTION} or type(attempts) is not int or not 1 <= attempts <= MAX_ATTEMPTS:
         raise BilibiliError("INVALID_INPUT")
     with _PACE_LOCK:
         if time.monotonic() < _RATE_UNTIL:
@@ -223,20 +223,20 @@ def fetch_public(url: str, maximum: int) -> bytes:
     if not _REQUEST_SLOTS.acquire(timeout=1):
         raise BilibiliError("RATE_LIMITED")
     try:
-        for attempt in range(MAX_ATTEMPTS):
+        for attempt in range(attempts):
             _pace()
             try:
                 return _fetch_once(url, maximum)
             except (OSError, http.client.HTTPException):
                 error = BilibiliError("NETWORK_UNAVAILABLE")
             except BilibiliError as failure:
-                if failure.code == "RATE_LIMITED":
+                if failure.code in {"RATE_LIMITED", "ACCESS_DENIED"}:
                     with _PACE_LOCK:
                         _RATE_UNTIL = time.monotonic() + 30
                 if failure.code != "NETWORK_UNAVAILABLE":
                     raise
                 error = failure
-            if attempt == MAX_ATTEMPTS - 1:
+            if attempt == attempts - 1:
                 raise error
             time.sleep(0.5 * 2 ** attempt)
         raise BilibiliError("NETWORK_UNAVAILABLE")
@@ -352,10 +352,25 @@ class BilibiliAdapter:
 
     normalize_input = staticmethod(normalize_input)
 
+    def _creator_request(self, url: str) -> bytes:
+        # Creator checks retry through the durable application cooldown instead
+        # of multiplying page retries. Direct video ingestion retains its budget.
+        from youtube_intel.providers.bilibili_creator import _creator_data
+        global _RATE_UNTIL
+        payload = fetch_public(url, MAX_METADATA, attempts=1) if self.fetch is fetch_public else self.fetch(url, MAX_METADATA)
+        try:
+            _creator_data(payload)
+        except BilibiliError as failure:
+            if self.fetch is fetch_public and failure.code in {"RISK_CONTROLLED", "RATE_LIMITED"}:
+                with _PACE_LOCK:
+                    _RATE_UNTIL = max(_RATE_UNTIL, time.monotonic() + 15 * 60)
+            raise
+        return payload
+
     def fetch_creator(self, identity: CreatorIdentity) -> CreatorMetadata:
         from youtube_intel.providers.bilibili_creator import parse_creator
-        return parse_creator(self.fetch(
-            f"https://api.bilibili.com/x/web-interface/card?mid={identity.mid}", MAX_METADATA
+        return parse_creator(self._creator_request(
+            f"https://api.bilibili.com/x/web-interface/card?mid={identity.mid}"
         ), identity)
 
     def fetch_creator_page(self, identity: CreatorIdentity, page: int) -> CreatorPage:
@@ -365,9 +380,8 @@ class BilibiliAdapter:
         )
         if type(page) is not int or not 1 <= page <= 33334:
             raise BilibiliError("INVALID_INPUT")
-        return parse_creator_page(self.fetch(
-            f"https://api.bilibili.com/x/space/arc/search?mid={identity.mid}&pn={page}&ps={PAGE_SIZE}&order=pubdate",
-            MAX_METADATA,
+        return parse_creator_page(self._creator_request(
+            f"https://api.bilibili.com/x/space/arc/search?mid={identity.mid}&pn={page}&ps={PAGE_SIZE}&order=pubdate"
         ), identity, page)
 
     def fetch_metadata(self, identity: BilibiliIdentity) -> BilibiliMetadata:
@@ -385,10 +399,13 @@ class BilibiliAdapter:
             mid = data["owner"]["mid"]
             if type(cid) is not int or cid <= 0 or type(mid) is not int or mid <= 0:
                 raise ValueError()
+            duration = _number(data["duration"], 0.001, 86400 * 365)
+            if duration > 7200:
+                raise BilibiliError("DURATION_UNSUPPORTED")
             return BilibiliMetadata(identity, cid, _text(data["title"], 500), str(mid),
                 _text(data["owner"]["name"], 200),
                 datetime.fromtimestamp(_number(data["pubdate"], 0, time.time() + 86400), UTC),
-                _number(data["duration"], 0.001, 7200), datetime.now(UTC))
+                duration, datetime.now(UTC))
         except BilibiliError:
             raise
         except (ValueError, KeyError, TypeError, OverflowError):

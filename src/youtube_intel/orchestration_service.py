@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 from uuid import uuid4
 
 from youtube_intel.orchestration import (
@@ -12,6 +12,7 @@ from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
     ScheduleFrequency,
+    SourceType,
     due_scheduled_for,
     normalize_source_url,
     validate_policy,
@@ -26,6 +27,9 @@ from youtube_intel.state import (
     SourceSubscriptionRecord,
     SQLiteStateRepository,
 )
+
+if TYPE_CHECKING:
+    from youtube_intel.following_tracking import FollowingTrackingService
 
 
 class SourceCheckExecutor(Protocol):
@@ -70,12 +74,17 @@ class ProductOrchestrationService:
         execution_enabled: bool = False,
         source_check_executor: SourceCheckExecutor | None = None,
         source_run_submitter: SourceRunSubmitter | None = None,
+        source_tracking: FollowingTrackingService | None = None,
     ) -> None:
         self._repository = repository
         self._now = now or (lambda: datetime.now(UTC))
         self._execution_enabled = execution_enabled
         self._source_check_executor = source_check_executor
         self._source_run_submitter = source_run_submitter
+        self._source_tracking = source_tracking
+
+    def bind_source_tracking(self, service: FollowingTrackingService) -> None:
+        self._source_tracking = service
 
     def add_source(
         self, *, url: str, processing_policy: ProcessingPolicy
@@ -119,6 +128,9 @@ class ProductOrchestrationService:
         enabled: bool | None = None,
         processing_policy: ProcessingPolicy | None = None,
     ) -> SourceSubscriptionRecord | None:
+        source = self._repository.get_source_subscription(source_id)
+        if source is not None and source.source_type is SourceType.CREATOR and processing_policy not in {None, ProcessingPolicy.DISCOVER_ONLY}:
+            raise ValueError("Creator Following uses public Content acquisition only")
         if processing_policy is ProcessingPolicy.FULL_INTELLIGENCE:
             validate_policy(processing_policy, deep_analysis_eligible=False)
         return self._repository.update_source_subscription(
@@ -189,12 +201,24 @@ class ProductOrchestrationService:
         source = self._repository.get_source_subscription(source_id)
         if source is None:
             raise ValueError("source does not exist")
-        if source.provider in {"LOCAL", "BILIBILI"}:
+        if source.provider in {"LOCAL", "BILIBILI"} and source.source_type is not SourceType.CREATOR:
             return SourceCheckResult(AutomationRunStatus.BLOCKED,"Imported sources use explicit ingestion only.")
         if not source.enabled:
             return SourceCheckResult(
                 AutomationRunStatus.BLOCKED, "Source is disabled; no check was started."
             )
+        if source.source_type is SourceType.CREATOR:
+            from youtube_intel.following_tracking import tracking_due
+            if not tracking_due(self._repository, source_id, self._now()):
+                return SourceCheckResult(AutomationRunStatus.BLOCKED, "COOLDOWN")
+            if self._source_run_submitter is None:
+                if self._source_tracking is None:
+                    return SourceCheckResult(AutomationRunStatus.BLOCKED, "CHECK_UNAVAILABLE")
+                category = self._source_tracking.check(source_id)
+                return SourceCheckResult(
+                    AutomationRunStatus.SUCCEEDED if category in {"COMPLETE", "UPDATE_GAP"} else AutomationRunStatus.BLOCKED,
+                    category,
+                )
         if self._source_run_submitter is not None:
             if not isinstance(command_id, str) or not command_id.strip():
                 raise ValueError("Check Now requires a durable command identity")

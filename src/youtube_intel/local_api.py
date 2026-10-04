@@ -47,6 +47,7 @@ from youtube_intel.evidence_translation import (
 )
 from youtube_intel.extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
 from youtube_intel.extractive_summary import ExtractiveSummaryService
+from youtube_intel.following_tracking import FollowingTrackingService
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -479,6 +480,7 @@ class LocalApiApplication:
         deep_analysis_publisher: DeepAnalysisObsidianPublisher | None = None,
         transcription_jobs: LocalTranscriptionJobs | None = None,
         bilibili_adapter: BilibiliAdapter | None = None,
+        source_tracking: FollowingTrackingService | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -504,6 +506,9 @@ class LocalApiApplication:
         self._local_import_slot = threading.BoundedSemaphore(1)
         self._local_provider = None if self._data_root is None else LocalContentProvider(repository, self._data_root, now=now)
         self._bilibili_provider = None if self._data_root is None else BilibiliContentProvider(repository, self._data_root, adapter=bilibili_adapter, now=now)
+        self._source_tracking = source_tracking or (None if self._bilibili_provider is None else FollowingTrackingService(repository, self._bilibili_provider, now=now))
+        if self._source_tracking is not None:
+            service.bind_source_tracking(self._source_tracking)
         self._bilibili_import_slot = threading.BoundedSemaphore(1)
         self._vault_root = None if vault_root is None else vault_root.resolve()
         self._timezone = timezone
@@ -659,6 +664,31 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-creator", route)
+            if method == "POST" and (route == "/api/v1/sources/creators" or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input"})
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1]) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "")
+                except BilibiliError as error:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "BILIBILI_" + error.code, "The public creator could not be followed.") from None
+                return HTTPStatus.OK, {"source": self._source_projection(source)}
+            if method == "POST" and route == "/api/v1/sources/check-stale":
+                self._only_keys(self._body(body), set())
+                from youtube_intel.following_tracking import tracking_due
+                from youtube_intel.orchestration import SourceType
+                results: list[str] = []
+                for source in self._repository.list_source_subscriptions():
+                    if len(results) >= 3:
+                        break
+                    if source.enabled and source.source_type is SourceType.CREATOR and tracking_due(self._repository, source.source_id, self._now()):
+                        result = self._service.check_source(source.source_id, command_id="stale:" + source.source_id + ":" + self._now().isoformat())
+                        results.append(result.status.value)
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"checks": results}
             if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
                 if self._bilibili_provider is None:
                     raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
@@ -2356,6 +2386,11 @@ class LocalApiApplication:
     def _source_projection(self, source: SourceSubscriptionRecord) -> dict[str, object]:
         """Project the best persisted public Source name without network lookup."""
         projection = _source_dto(source)
+        projection["tracking"] = None if self._source_tracking is None else self._source_tracking.projection(source.source_id)
+        with self._repository._connect() as connection:
+            candidates = tuple(row[0] for row in connection.execute(
+                "SELECT DISTINCT i.intelligence_id FROM intelligences i JOIN intelligence_revision_evidence r ON r.revision_id=i.current_revision_id JOIN evidence e USING(evidence_id) JOIN source_video_links l ON l.video_id=e.video_id WHERE l.source_id=? LIMIT 100", (source.source_id,)))
+        projection["insight_count"] = sum(self._intelligence_projection(identity).get("status") == "AVAILABLE" for identity in candidates)
         friendly_name = source.display_name
         if friendly_name is None:
             videos = self._repository.list_source_videos(source.source_id, limit=1)

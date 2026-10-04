@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 
 class SourceType(str, Enum):
+    CREATOR = "CREATOR"
     LOCAL_LIBRARY = "LOCAL_LIBRARY"
     CHANNEL = "CHANNEL"
     VIDEO_URL = "VIDEO_URL"

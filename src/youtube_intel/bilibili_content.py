@@ -68,13 +68,22 @@ class BilibiliContentProvider(SourceContentPublisher):
         self.adapter = adapter or BilibiliAdapter()
         self.now = now or (lambda: datetime.now(UTC))
 
-    def import_input(self, value: str) -> NetworkImportResult:
+    def import_input(self, value: str, *, expected_uploader: str | None = None,
+                     following_source_id: str | None = None) -> NetworkImportResult:
         identity = normalize_input(value)
         with _IMPORT_LOCK:
             existing = self.repository.get_video(identity.content_id)
             if existing is not None:
+                if expected_uploader is not None:
+                    with self.repository._connect() as connection:
+                        source = verify_source(self.repository, connection, identity.content_id)
+                        artifact = None if source is None else self.repository.get_artifact(source["snapshot_artifact_id"])
+                        if artifact is None or json.loads(read_managed(self.data_root, artifact.relative_path, maximum=256 * 1024))["uploader_id"] != expected_uploader:
+                            raise BilibiliError("SOURCE_UNTRUSTED")
                 return self._existing(identity.content_id)
             metadata = self.adapter.fetch_metadata(identity)
+            if expected_uploader is not None and metadata.uploader_id != expected_uploader:
+                raise BilibiliError("SOURCE_UNTRUSTED")
             now = self.now()
             timestamp = format_utc_datetime(now)
             payload = metadata_snapshot(metadata)
@@ -83,6 +92,10 @@ class BilibiliContentProvider(SourceContentPublisher):
             snapshot = self._artifact_write(identity.content_id, "metadata-" + digest + ".json", payload, ArtifactKind.SUBTITLE_SOURCE)
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
+                if following_source_id is not None:
+                    following = connection.execute("SELECT enabled,channel_id,source_type FROM source_subscriptions WHERE source_id=?", (following_source_id,)).fetchone()
+                    if following is None or not following["enabled"] or following["source_type"] != "CREATOR" or following["channel_id"] != metadata.uploader_id:
+                        raise BilibiliError("FOLLOWING_PAUSED")
                 connection.execute(
                     "INSERT INTO source_subscriptions(source_id,provider,source_type,canonical_url,video_id,display_name,enabled,processing_policy,last_checked_at,last_success_at,created_at,updated_at) VALUES(?,'BILIBILI','VIDEO_URL',?,?,?,1,'DISCOVER_ONLY',?,?,?,?)",
                     (source_id, identity.canonical_url, identity.content_id, metadata.title, timestamp, timestamp, timestamp, timestamp))

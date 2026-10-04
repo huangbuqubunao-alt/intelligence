@@ -35,7 +35,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 33
+LATEST_SCHEMA_VERSION = 34
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -68,6 +68,9 @@ _REQUIRED_TABLES = {
     "content_source_snapshots", "evidence_source_ranges",
     "schema_migrations",
     "source_subscriptions",
+    "source_tracking_state",
+    "source_observations",
+    "source_checks",
     "videos",
     "artifacts",
     "current_content_summaries",
@@ -1012,6 +1015,8 @@ class BackupRestoreService:
             ResearchLiteService(repository).verify_schema(connection)
             from .source_authority import verify_source_schema
             verify_source_schema(connection)
+            from .following_tracking import verify_tracking
+            verify_tracking(connection)
         except Exception as error:
             raise BackupRestoreError("Research persistence constraints are incompatible.") from error
         membership_columns = tuple(
@@ -1130,6 +1135,9 @@ class BackupRestoreService:
     ) -> list[str]:
         reasons: list[str] = []
         repository = repository or SQLiteStateRepository(self.database)
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_checks'").fetchone() is not None:
+            if connection.execute("SELECT 1 FROM source_checks WHERE status='RUNNING' LIMIT 1").fetchone() is not None:
+                reasons.append("SOURCE_RUN_ACTIVE")
         for (status,) in connection.execute("SELECT DISTINCT status FROM jobs"):
             if status not in _TERMINAL_JOBS:
                 reasons.append("JOBS_ACTIVE")

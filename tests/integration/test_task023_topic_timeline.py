@@ -42,7 +42,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     return repository
 
 
@@ -199,7 +199,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -230,6 +230,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
         "031_add_research_lite.sql",
         "032_add_source_provider_authority.sql",
         "033_add_bilibili_provider.sql",
+        "034_add_source_tracking.sql",
     )
     assert {"topics", "topic_memberships", "topic_timeline_events", "topic_relations"} <= tables
 
@@ -245,7 +246,7 @@ def test_v010_upgrade_preserves_data_and_creates_no_synthetic_topic_truth(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 33
+    assert upgraded.initialize(now=NOW).version == 34
     assert upgraded.get_intelligence("preserved-intelligence").intelligence_id == "preserved-intelligence"
     assert upgraded.list_topics() == ()
 

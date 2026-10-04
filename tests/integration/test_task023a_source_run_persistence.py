@@ -41,7 +41,7 @@ NOW = datetime(2026, 9, 8, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     return repository
 
 
@@ -187,7 +187,7 @@ def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: 
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -236,7 +236,7 @@ def test_v011_upgrade_preserves_existing_automation_and_creates_no_synthetic_run
         occurrence = _scheduled_occurrence(old_repository, source_id)
 
     repository = SQLiteStateRepository(database)
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     assert repository.get_source_subscription(source_id) is not None
     assert repository.list_automation_runs() == (occurrence,)
     assert repository.list_source_runs() == ()
@@ -480,7 +480,7 @@ def test_finalized_source_run_can_complete_and_remains_terminal(tmp_path: Path) 
 def test_checkpoint_progress_and_priority_are_durable_across_reopen(tmp_path: Path) -> None:
     database = tmp_path / "state.sqlite3"
     repository = SQLiteStateRepository(database)
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     source_id = _source(repository)
     low = repository.create_source_run(
         SourceRunWrite.manual_check_now(

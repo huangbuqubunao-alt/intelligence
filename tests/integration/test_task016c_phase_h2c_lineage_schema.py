@@ -142,10 +142,10 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
 
     version = repository.initialize(now=NOW + td(hours=1))
 
-    assert version.version == 33
+    assert version.version == 34
     assert version.name == "033_add_bilibili_provider.sql"
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
         history = tuple(
             connection.execute(
                 "SELECT version, name FROM schema_migrations ORDER BY version"
@@ -190,8 +190,8 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
 def test_fresh_database_applies_all_migrations_to_v24(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(_database_path(tmp_path))
     version = repository.initialize(now=NOW)
-    assert version.version == 33
-    assert repository.schema_version().version == 33
+    assert version.version == 34
+    assert repository.schema_version().version == 34
 
 
 def test_migration_002_adds_exact_columns(tmp_path: Path) -> None:

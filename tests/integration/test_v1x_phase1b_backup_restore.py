@@ -73,7 +73,7 @@ def test_valid_archive_restores_same_verified_claims_and_note(tmp_path: Path) ->
     service.confirm_restore(preview.restore_id)
     service.recover_and_apply_pending_restore()
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=authority.NOW).version == 33
+    assert repository.initialize(now=authority.NOW).version == 34
     restored = authority.service(repository).read(content_id=authority.VIDEO)
     assert restored.as_dict() == view.as_dict()
     result = DeepAnalysisPersistenceStore(repository).read_persisted_deep_analysis_result(result_identity=view.result_identity)

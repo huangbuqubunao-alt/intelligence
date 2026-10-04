@@ -36,11 +36,11 @@ NOW = datetime(2026, 9, 8, 10, tzinfo=UTC)
 
 def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     connection = repository._connect()
     try:
         assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 33
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
         names = [
             row[0]
             for row in connection.execute(
@@ -66,6 +66,7 @@ def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
             "031_add_research_lite.sql",
             "032_add_source_provider_authority.sql",
             "033_add_bilibili_provider.sql",
+            "034_add_source_tracking.sql",
         ]
     finally:
         connection.close()
@@ -591,7 +592,7 @@ def test_v013_upgrade_to_current_preserves_prior_domains_and_save_never_mutates_
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 33
+    assert upgraded.initialize(now=NOW).version == 34
     assert upgraded.get_source_subscription(source_id) == source
     assert upgraded.get_topic(topic.topic_id) == topic
     assert upgraded.get_preference(explicit.preference_id) == explicit
@@ -640,7 +641,7 @@ def test_v013_upgrade_to_current_preserves_prior_domains_and_save_never_mutates_
     assert _domain_rows(upgraded) == before
     service.unsave(UnsaveIntelligence(intelligence_id))
     assert _domain_rows(upgraded) == before
-    assert SQLiteStateRepository(path).initialize(now=NOW).version == 33
+    assert SQLiteStateRepository(path).initialize(now=NOW).version == 34
     assert _domain_rows(upgraded) == before
 
 
@@ -677,7 +678,7 @@ def test_m014_failure_rolls_back_and_checksum_mismatch_fails_closed(
     finally:
         connection.close()
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 33
+    assert repository.initialize(now=NOW).version == 34
     modified = replace(migrations[13], checksum="0" * 64)
     monkeypatch.setattr(
         repository, "_load_migrations", lambda: (*migrations[:13], modified)
