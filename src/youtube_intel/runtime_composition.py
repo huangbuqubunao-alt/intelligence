@@ -27,7 +27,7 @@ from youtube_intel.distillation import (
     PersonalizedDistillationService,
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
-from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.model_settings import (
     CredentialStore,
@@ -35,7 +35,6 @@ from youtube_intel.model_settings import (
     ModelSettingsService,
     local_models,
 )
-from youtube_intel.orchestration import SourceType
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
     DurableProcessingOrchestrator,
@@ -71,7 +70,7 @@ class RuntimeSourceRunIngestion:
 
     def ingest(self, source_id: str) -> None:
         source = self._runtime._repository.get_source_subscription(source_id)
-        if source is not None and source.source_type is SourceType.CREATOR:
+        if source is not None and is_tracked(self._runtime._repository, source.source_id):
             if self._source_tracking is None:
                 raise SourceRunDiscoveryError("Source tracking is unavailable")
             category = self._source_tracking.check(source_id)
@@ -281,7 +280,8 @@ def build_local_source_run_runtime(
         OllamaEvidenceTranslator(settings=config.settings.local_analysis),
         now=now_fn,
     )
-    source_tracking = FollowingTrackingService(repository, BilibiliContentProvider(repository, data_root, now=now_fn), now=now_fn)
+    from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider
+    source_tracking = FollowingTrackingService(repository, BilibiliContentProvider(repository, data_root, now=now_fn), youtube=YouTubeFollowingProvider(enroll_video=runtime.enroll_followed_youtube_video), now=now_fn)
     orchestrator = DurableProcessingOrchestrator(
         repository,
         source_policy=source_policy,

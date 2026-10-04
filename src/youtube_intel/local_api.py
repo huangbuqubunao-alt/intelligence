@@ -47,7 +47,8 @@ from youtube_intel.evidence_translation import (
 )
 from youtube_intel.extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
 from youtube_intel.extractive_summary import ExtractiveSummaryService
-from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.following_provider import TrackingError
+from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -664,26 +665,26 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
-            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-creator", route)
-            if method == "POST" and (route == "/api/v1/sources/creators" or creator_from_content):
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
                 if self._source_tracking is None:
                     raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
                 data = self._body(body)
                 self._only_keys(data, set() if creator_from_content else {"input"})
                 try:
-                    source = self._source_tracking.follow_content(creator_from_content[1]) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "")
-                except BilibiliError as error:
-                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "BILIBILI_" + error.code, "The public creator could not be followed.") from None
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, following_provider + "_" + error.code, "The public source could not be followed.") from None
                 return HTTPStatus.OK, {"source": self._source_projection(source)}
             if method == "POST" and route == "/api/v1/sources/check-stale":
                 self._only_keys(self._body(body), set())
                 from youtube_intel.following_tracking import tracking_due
-                from youtube_intel.orchestration import SourceType
                 results: list[str] = []
                 for source in self._repository.list_source_subscriptions():
                     if len(results) >= 3:
                         break
-                    if source.enabled and source.source_type is SourceType.CREATOR and tracking_due(self._repository, source.source_id, self._now()):
+                    if source.enabled and is_tracked(self._repository, source.source_id) and tracking_due(self._repository, source.source_id, self._now()):
                         result = self._service.check_source(source.source_id, command_id="stale:" + source.source_id + ":" + self._now().isoformat())
                         results.append(result.status.value)
                 if self._source_run_wakeup is not None:
@@ -2537,7 +2538,7 @@ class LocalApiApplication:
             if text is not None:
                 return {
                     "status": "AVAILABLE",
-                    **({"timed_segments": [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]} if video is not None and video.provider in {"LOCAL", "BILIBILI"} and (timed := self._repository.get_verified_timed_transcript(video_id=video_id)) is not None else {}),
+                    **({"timed_segments": [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in timed.cues]} if (timed := self._repository.get_verified_timed_transcript(video_id=video_id)) is not None else {}),
                     "text": text,
                     "created_at": _timestamp(artifact.created_at),
                     "content_length": len(text),

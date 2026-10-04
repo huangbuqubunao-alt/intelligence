@@ -18,7 +18,7 @@ from youtube_intel.distillation import (
     DistillationExecutionStatus,
     PersonalizedDistillationService,
 )
-from youtube_intel.orchestration import SourceType
+from youtube_intel.following_tracking import is_tracked
 from youtube_intel.source_policy import (
     MetadataFilterCandidate,
     SourcePolicyApplicationService,
@@ -114,7 +114,7 @@ class PersistedSourceRunDiscovery:
 
     def discover(self, source_id: str) -> tuple[MetadataFilterCandidate, ...]:
         source = self._repository.get_source_subscription(source_id)
-        if source is not None and source.source_type is SourceType.CREATOR:
+        if source is not None and is_tracked(self._repository, source.source_id):
             # Public captions already use ordinary extractive Summary/Evidence.
             # Discovery does not authorize an unqualified model or cloud dispatch.
             return ()
@@ -296,6 +296,8 @@ class DurableProcessingOrchestrator:
                 run.run_id, to_state=SourceRunState.RUNNING, now=self._now()
             )
         source = self._repository.get_source_subscription(run.source_id)
+        if source is not None and not source.enabled and is_tracked(self._repository, run.source_id):
+            return self._repository.transition_source_run(run.run_id, to_state=SourceRunState.CANCELLED, now=self._now())
         if source is None or not source.enabled:
             return self._needs_attention(
                 run,
@@ -313,6 +315,11 @@ class DurableProcessingOrchestrator:
                         self._ingestion.ingest(run.source_id)
                     self._discover_candidates(run)
                 except SourceRunDiscoveryError:
+                    if is_tracked(self._repository, run.source_id):
+                        # A public tracking attempt has a bounded durable result,
+                        # not an unresolved model/dispatch outcome. Leave health
+                        # and pending identities intact and terminate this run.
+                        return self._fail(run)
                     return self._needs_attention(
                         run,
                         reason=SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED,
@@ -349,7 +356,7 @@ class DurableProcessingOrchestrator:
                     return self._fail(run)
                 # Source check success is only recorded after the entire legal
                 # pipeline above has completed and immediately before final proof.
-                if source.source_type is not SourceType.CREATOR:
+                if not is_tracked(self._repository, source.source_id):
                     self._repository.record_source_check(
                         run.source_id, now=self._now(), succeeded=True
                     )

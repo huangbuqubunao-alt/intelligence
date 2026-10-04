@@ -12,7 +12,6 @@ from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
     ScheduleFrequency,
-    SourceType,
     due_scheduled_for,
     normalize_source_url,
     validate_policy,
@@ -128,8 +127,9 @@ class ProductOrchestrationService:
         enabled: bool | None = None,
         processing_policy: ProcessingPolicy | None = None,
     ) -> SourceSubscriptionRecord | None:
+        from youtube_intel.following_tracking import is_tracked
         source = self._repository.get_source_subscription(source_id)
-        if source is not None and source.source_type is SourceType.CREATOR and processing_policy not in {None, ProcessingPolicy.DISCOVER_ONLY}:
+        if source is not None and is_tracked(self._repository, source.source_id) and processing_policy not in {None, ProcessingPolicy.DISCOVER_ONLY}:
             raise ValueError("Creator Following uses public Content acquisition only")
         if processing_policy is ProcessingPolicy.FULL_INTELLIGENCE:
             validate_policy(processing_policy, deep_analysis_eligible=False)
@@ -198,16 +198,17 @@ class ProductOrchestrationService:
     def check_source(
         self, source_id: str, *, command_id: str | None = None
     ) -> SourceCheckResult:
+        from youtube_intel.following_tracking import is_tracked
         source = self._repository.get_source_subscription(source_id)
         if source is None:
             raise ValueError("source does not exist")
-        if source.provider in {"LOCAL", "BILIBILI"} and source.source_type is not SourceType.CREATOR:
+        if source.provider in {"LOCAL", "BILIBILI"} and not is_tracked(self._repository, source.source_id):
             return SourceCheckResult(AutomationRunStatus.BLOCKED,"Imported sources use explicit ingestion only.")
         if not source.enabled:
             return SourceCheckResult(
                 AutomationRunStatus.BLOCKED, "Source is disabled; no check was started."
             )
-        if source.source_type is SourceType.CREATOR:
+        if is_tracked(self._repository, source.source_id):
             from youtube_intel.following_tracking import tracking_due
             if not tracking_due(self._repository, source_id, self._now()):
                 return SourceCheckResult(AutomationRunStatus.BLOCKED, "COOLDOWN")

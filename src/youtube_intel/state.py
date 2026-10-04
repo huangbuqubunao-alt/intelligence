@@ -2357,6 +2357,7 @@ class SQLiteStateRepository:
         *,
         pipeline_version: str,
         now: datetime,
+        following_source_id: str | None = None,
     ) -> VideoRecord:
         now_text = format_utc_datetime(now)
         languages = tuple(dict.fromkeys(metadata.available_languages))
@@ -2368,6 +2369,18 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                if following_source_id is not None:
+                    from youtube_intel.following_provider import TrackingError
+                    following = connection.execute("SELECT * FROM source_subscriptions WHERE source_id=?", (following_source_id,)).fetchone()
+                    if following is None or not following["enabled"]:
+                        raise TrackingError("FOLLOWING_PAUSED")
+                    if following["provider"] != "YOUTUBE" or following["source_type"] != "CHANNEL" or following["channel_id"] != metadata.channel_id:
+                        raise TrackingError("SOURCE_UNTRUSTED")
+                    existing = connection.execute("SELECT * FROM videos WHERE video_id=?", (metadata.video_id,)).fetchone()
+                    if existing is not None:
+                        if existing["provider"] != "YOUTUBE" or existing["channel_id"] != metadata.channel_id:
+                            raise TrackingError("SOURCE_UNTRUSTED")
+                        return self._video_from_row(existing)
                 connection.execute(
                     "INSERT INTO videos "
                     "(video_id, channel_id, channel_name, title, description, "

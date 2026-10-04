@@ -42,6 +42,7 @@ from youtube_intel.domain import (
     DeterministicGateReason,
     ErrorCode,
     JobStatus,
+    LiveStatus,
     MetadataProvider,
     PipelineStatus,
     ProcessingStage,
@@ -2573,6 +2574,51 @@ class RuntimeOperations(Operations):
             )
             pipeline.resume_video_through_transcript(video_id, now=now)
         return video_ids
+
+    def enroll_followed_youtube_video(self, video_id: str, *, channel_id: str,
+                                      source_id: str, followed_at: datetime) -> str:
+        """Verify membership then reuse ordinary metadata and subtitle ingestion.
+
+        This boundary invokes only the existing transcript stage. It never
+        enters scoring, media acquisition, acoustic inference or Deep Analysis.
+        """
+        from youtube_intel.extractive_summary import ExtractiveSummaryService
+        from youtube_intel.following_provider import TrackingError
+        from youtube_intel.providers.youtube_channel import VIDEO_ID, canonical_channel
+        if not VIDEO_ID.fullmatch(video_id):
+            raise TrackingError("SOURCE_UNTRUSTED")
+        canonical_channel(channel_id)
+        existing = self._repository.get_video(video_id)
+        metadata = self._dependencies.metadata_provider.fetch(video_id) if existing is None else self._video_metadata(existing)
+        if (metadata.video_id != video_id or metadata.channel_id != channel_id
+            or metadata.source_url != "https://www.youtube.com/watch?v=" + video_id
+            or metadata.availability.value != "public"
+            or (existing is not None and existing.provider != "YOUTUBE")):
+            raise TrackingError("SOURCE_UNTRUSTED")
+        if metadata.published_at <= followed_at:
+            raise TrackingError("HISTORICAL_VIDEO")
+        if metadata.live_status in {LiveStatus.LIVE, LiveStatus.UPCOMING}:
+            raise TrackingError("VIDEO_UNSUPPORTED")
+        if not 0 < metadata.duration_seconds <= self._config.settings.execution.max_video_duration_minutes * 60:
+            raise TrackingError("DURATION_UNSUPPORTED")
+        now = _utcnow()
+        self._repository.upsert_video_metadata(metadata, pipeline_version=PIPELINE_VERSION,
+                                              now=now, following_source_id=source_id)
+        current = self._repository.get_video(video_id)
+        if current is not None and current.pipeline_status is PipelineStatus.DISCOVERED:
+            self._repository.advance_pipeline(video_id, expected_status=PipelineStatus.DISCOVERED,
+                target_status=PipelineStatus.METADATA_READY, pipeline_version=PIPELINE_VERSION, now=now)
+        if self._repository.get_verified_timed_transcript(video_id=video_id) is None and current is not None and current.pipeline_status in {PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY}:
+            self._orchestrator().resume_video_through_transcript(video_id, now=now)
+        acquisition = self._repository.latest_video_job(video_id, target_stage=ProcessingStage.TRANSCRIPT)
+        if acquisition is not None and acquisition.status in {JobStatus.PENDING, JobStatus.RUNNING, JobStatus.RETRY_PENDING}:
+            # Initial acquisition stays pending through the ordinary retry job;
+            # source discovery must not strand it as an enrolled observation.
+            raise TrackingError({"TRANSIENT_NETWORK": "NETWORK_UNAVAILABLE", "PROVIDER_UNAVAILABLE": "NETWORK_UNAVAILABLE",
+                "RATE_LIMITED": "RATE_LIMITED", "PERMISSION_DENIED": "ACCESS_DENIED"}.get(acquisition.last_error_code or "", "METADATA_FAILED"))
+        if self._repository.get_verified_timed_transcript(video_id=video_id) is not None and self._repository.current_local_summary_pointer(video_id) is None:
+            ExtractiveSummaryService(self._repository, self._data_root).create(video_id, now=now)
+        return video_id
 
     def _refresh_output_language_for_new_batch(self) -> None:
         """Freeze the latest preference for the next processing batch only."""

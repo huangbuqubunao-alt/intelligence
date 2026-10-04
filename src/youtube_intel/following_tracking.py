@@ -16,12 +16,22 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from youtube_intel.bilibili_content import BilibiliContentProvider
-from youtube_intel.orchestration import ProcessingPolicy, SourceType
+from youtube_intel.following_provider import (
+    BilibiliFollowingProvider,
+    Candidate,
+    FollowingProvider,
+    SourceIdentity,
+    TrackingError,
+)
+from youtube_intel.orchestration import ProcessingPolicy
 from youtube_intel.providers.bilibili import BilibiliError, normalize_input
 from youtube_intel.providers.bilibili_creator import (
-    PAGE_SIZE,
-    CreatorVideo,
     normalize_creator,
+)
+from youtube_intel.providers.youtube_channel import (
+    VIDEO_ID,
+    canonical_channel,
+    channel_input,
 )
 from youtube_intel.source_authority import read_managed, verify_source
 from youtube_intel.state import (
@@ -30,12 +40,12 @@ from youtube_intel.state import (
     format_utc_datetime,
 )
 
-MAX_PAGES = 3
+MAX_CANDIDATES = 90
 MAX_ENROLLMENTS = 5
 CHECK_SECONDS = 180.0
 COOLDOWN = timedelta(minutes=15)
 LEASE = timedelta(minutes=10)
-_CHECK_SLOT = threading.BoundedSemaphore(1)
+_CHECK_SLOTS = {provider: threading.BoundedSemaphore(1) for provider in ("BILIBILI", "YOUTUBE")}
 _HEALTH = {"NETWORK_UNAVAILABLE": "OFFLINE", "METADATA_FAILED": "PROVIDER_ERROR",
            "RESPONSE_TOO_LARGE": "PROVIDER_ERROR", "SOURCE_UNTRUSTED": "STATE_INVALID"}
 
@@ -50,23 +60,23 @@ def _stamp(value: str) -> datetime:
 def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None, *,
                     repository: SQLiteStateRepository | None = None) -> None:
     """Reject corrupt portable tracking, never silently bootstrap it from zero."""
-    if connection.execute("SELECT 1 FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.source_type!='CREATOR' LIMIT 1").fetchone() is not None:
+    if connection.execute("SELECT 1 FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE NOT ((s.source_type='CREATOR' AND s.provider='BILIBILI') OR (s.source_type='CHANNEL' AND s.provider='YOUTUBE')) LIMIT 1").fetchone() is not None:
         raise ValueError("tracking source kind is corrupt")
     for table in ("source_observations", "source_checks"):
         if connection.execute(f"SELECT 1 FROM {table} o LEFT JOIN source_tracking_state t USING(source_id) WHERE t.source_id IS NULL LIMIT 1").fetchone() is not None:
             raise ValueError("tracking relationship is absent")
     rows = connection.execute(
-        "SELECT s.*,t.contract,t.followed_at,t.baseline_at,t.verified_at,t.latest_published_at,t.next_check_at,t.next_page,t.coverage,t.health FROM source_subscriptions s LEFT JOIN source_tracking_state t USING(source_id) WHERE s.source_type='CREATOR'" +
+        "SELECT s.*,t.contract,t.followed_at,t.baseline_at,t.verified_at,t.latest_published_at,t.next_check_at,t.next_page,t.coverage,t.health FROM source_subscriptions s LEFT JOIN source_tracking_state t USING(source_id) WHERE (s.source_type='CREATOR' OR t.source_id IS NOT NULL)" +
         (" AND s.source_id=?" if source_id else ""), (source_id,) if source_id else (),
     ).fetchall()
     for row in rows:
-        identity = normalize_creator(str(row["channel_id"]))
-        if (row["source_id"] != identity.source_id or row["provider"] != "BILIBILI"
+        identity = source_identity(row["provider"], str(row["channel_id"]), row["display_name"] or "")
+        if ((((row["provider"] == "BILIBILI" or row["source_id"].startswith("youtube-channel-")) and row["source_id"] != identity.source_id) or row["source_type"] != identity.kind)
             or row["canonical_url"] != identity.canonical_url or row["contract"] != "source-tracking-v1"
             or row["processing_policy"] != ProcessingPolicy.DISCOVER_ONLY.value):
             raise ValueError("tracking identity is corrupt")
         followed = _stamp(row["followed_at"])
-        if followed != _stamp(row["created_at"]):
+        if followed < _stamp(row["created_at"]):
             raise ValueError("tracking origin is corrupt")
         _stamp(row["next_check_at"])
         for key in ("baseline_at", "verified_at"):
@@ -79,34 +89,32 @@ def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None
         if row["latest_published_at"] is not None:
             _stamp(row["latest_published_at"])
         for item in connection.execute("SELECT * FROM source_observations WHERE source_id=?", (row["source_id"],)):
-            video = normalize_input(item["canonical_identity"])
+            content_id = content_identity(row["provider"], item["canonical_identity"])
             published = _stamp(item["published_at"])
             observed = _stamp(item["observed_at"])
             if observed < followed or (not item["baseline"] and published <= followed):
                 raise ValueError("tracking observation is corrupt")
             if item["enrollment"] == "ENROLLED":
-                if item["content_id"] != video.content_id or connection.execute(
-                    "SELECT 1 FROM source_video_links l JOIN videos v USING(video_id) WHERE l.source_id=? AND l.video_id=? AND v.provider='BILIBILI'",
-                    (row["source_id"], video.content_id),
+                if item["content_id"] != content_id or connection.execute(
+                    "SELECT 1 FROM source_video_links l JOIN videos v USING(video_id) WHERE l.source_id=? AND l.video_id=? AND v.provider=?",
+                    (row["source_id"], content_id, row["provider"]),
                 ).fetchone() is None:
                     raise ValueError("tracking Content relationship is corrupt")
                 if repository is not None:
-                    accepted = verify_source(repository, connection, video.content_id)
-                    if accepted is None or accepted["provider"] != "BILIBILI":
-                        raise ValueError("tracking Content source is corrupt")
-                    artifact = repository.get_artifact(accepted["snapshot_artifact_id"])
-                    root = repository._source_data_root
-                    if artifact is None or root is None or json.loads(read_managed(root, artifact.relative_path, maximum=256 * 1024))["uploader_id"] != identity.mid:
-                        raise ValueError("tracking Content creator is corrupt")
+                    if trusted_content_channel(repository, connection, content_id, row["provider"]) != identity.channel_id:
+                        raise ValueError("tracking Content channel is corrupt")
+        for linked in connection.execute("SELECT video_id FROM source_video_links WHERE source_id=?", (row["source_id"],)):
+            if connection.execute("SELECT 1 FROM source_observations WHERE source_id=? AND content_id=? AND enrollment='ENROLLED'", (row["source_id"], linked[0])).fetchone() is None:
+                raise ValueError("tracking Content has no enrollment authority")
         for receipt in connection.execute("SELECT * FROM source_checks WHERE source_id=?", (row["source_id"],)):
             started = _stamp(receipt["started_at"])
             if started < followed or (receipt["finished_at"] is not None and _stamp(receipt["finished_at"]) < started):
                 raise ValueError("tracking check time is corrupt")
             identities = json.loads(receipt["discovered_identities_json"])
-            if not isinstance(identities, list) or len(identities) > MAX_PAGES * PAGE_SIZE or len(set(identities)) != len(identities):
+            if not isinstance(identities, list) or len(identities) > MAX_CANDIDATES or len(set(identities)) != len(identities):
                 raise ValueError("tracking check discoveries are corrupt")
             for bv in identities:
-                normalize_input(bv)
+                content_identity(row["provider"], bv)
                 if connection.execute("SELECT 1 FROM source_observations WHERE source_id=? AND canonical_identity=? AND baseline=0", (row["source_id"], bv)).fetchone() is None:
                     raise ValueError("tracking check discovery is absent")
 
@@ -123,44 +131,100 @@ def tracking_due(repository: SQLiteStateRepository, source_id: str, now: datetim
             return True
 
 
+def source_identity(provider: str, channel_id: str, name: str = "") -> SourceIdentity:
+    if provider == "YOUTUBE":
+        return canonical_channel(channel_id, name)
+    if provider == "BILIBILI":
+        identity = normalize_creator(channel_id)
+        return SourceIdentity(provider, "CREATOR", identity.mid, identity.source_id, identity.canonical_url, name)
+    raise ValueError("unsupported tracking provider")
+
+
+def content_identity(provider: str, value: str) -> str:
+    if provider == "YOUTUBE" and isinstance(value, str) and VIDEO_ID.fullmatch(value):
+        return value
+    if provider == "BILIBILI":
+        return normalize_input(value).content_id
+    raise ValueError("invalid provider Content identity")
+
+
+def trusted_content_channel(repository: SQLiteStateRepository, connection: sqlite3.Connection,
+                            content_id: str, provider: str) -> str:
+    if provider == "YOUTUBE":
+        row = connection.execute("SELECT * FROM videos WHERE video_id=? AND provider='YOUTUBE' AND availability='public'", (content_id,)).fetchone()
+        if row is None or row["source_url"] != "https://www.youtube.com/watch?v=" + content_identity(provider, content_id):
+            raise ValueError("untrusted YouTube metadata")
+        return canonical_channel(row["channel_id"]).channel_id
+    accepted = verify_source(repository, connection, content_id)
+    if accepted is None or accepted["provider"] != provider:
+        raise ValueError("untrusted Content metadata")
+    artifact = repository.get_artifact(accepted["snapshot_artifact_id"])
+    root = repository._source_data_root
+    if artifact is None or root is None:
+        raise ValueError("untrusted Content snapshot")
+    return str(json.loads(read_managed(root, artifact.relative_path, maximum=256 * 1024))["uploader_id"])
+
+
+def is_tracked(repository: SQLiteStateRepository, source_id: str) -> bool:
+    with repository._connect() as connection:
+        return connection.execute("SELECT 1 FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone() is not None
+
+
 class FollowingTrackingService:
     def __init__(self, repository: SQLiteStateRepository, publisher: BilibiliContentProvider,
-                 *, now: Callable[[], datetime] | None = None) -> None:
+                 *, youtube: FollowingProvider | None = None,
+                 now: Callable[[], datetime] | None = None) -> None:
         self.repository = repository
         self.publisher = publisher
         repository.bind_source_storage(publisher.data_root)
+        from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider
+        self.providers: dict[str, FollowingProvider] = {"BILIBILI": BilibiliFollowingProvider(publisher),
+                                                      "YOUTUBE": youtube or YouTubeFollowingProvider()}
         self.now = now or (lambda: datetime.now(UTC))
 
-    def follow(self, value: str) -> SourceSubscriptionRecord:
-        identity = normalize_creator(value)
-        existing = self.repository.get_source_subscription(identity.source_id)
-        if existing is not None:
-            with self.repository._connect() as connection:
-                verify_tracking(connection, identity.source_id, repository=self.repository)
-            return existing
-        metadata = self.publisher.adapter.fetch_creator(identity)
+    def follow(self, value: str, *, provider: str = "BILIBILI") -> SourceSubscriptionRecord:
+        # Stable ids can reuse stored sources without a provider call.
+        channel_id = channel_input(value) if provider == "YOUTUBE" else normalize_creator(value).mid
+        if not channel_id.startswith("@"):
+            canonical = source_identity(provider, channel_id)
+            existing = self.repository.get_source_by_canonical_url(canonical.canonical_url)
+            if existing is not None and is_tracked(self.repository, existing.source_id):
+                with self.repository._connect() as connection:
+                    verify_tracking(connection, existing.source_id, repository=self.repository)
+                return existing
+        identity = self.providers[provider].resolve(value)
+        expected = source_identity(provider, identity.channel_id, identity.name)
+        if identity != expected:
+            raise TrackingError("SOURCE_UNTRUSTED")
         now = format_utc_datetime(self.now())
         with self.repository._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute("INSERT OR IGNORE INTO source_subscriptions(source_id,provider,source_type,canonical_url,channel_id,display_name,enabled,processing_policy,created_at,updated_at) VALUES(?,'BILIBILI','CREATOR',?,?,?,1,'DISCOVER_ONLY',?,?)",
-                               (identity.source_id, identity.canonical_url, identity.mid, metadata.name, now, now))
-            connection.execute("INSERT OR IGNORE INTO source_tracking_state(source_id,contract,followed_at,next_check_at) VALUES(?,'source-tracking-v1',?,?)", (identity.source_id, now, now))
-        self.check(identity.source_id)
-        result = self.repository.get_source_subscription(identity.source_id)
+            existing_row = connection.execute("SELECT * FROM source_subscriptions WHERE canonical_url=?", (identity.canonical_url,)).fetchone()
+            source_id = identity.source_id if existing_row is None else existing_row["source_id"]
+            if existing_row is not None and (existing_row["provider"] != provider or existing_row["channel_id"] != identity.channel_id or existing_row["source_type"] != identity.kind):
+                raise TrackingError("SOURCE_UNTRUSTED")
+            connection.execute("INSERT OR IGNORE INTO source_subscriptions(source_id,provider,source_type,canonical_url,channel_id,display_name,enabled,processing_policy,created_at,updated_at) VALUES(?,?,?,?,?,?,1,'DISCOVER_ONLY',?,?)",
+                (source_id, provider, identity.kind, identity.canonical_url, identity.channel_id, identity.name, now, now))
+            if existing_row is not None and connection.execute("SELECT 1 FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone() is None:
+                # Adopt a canonical legacy channel configuration, without using
+                # its historical scalar cursor or importing history.
+                if connection.execute("SELECT 1 FROM source_video_links WHERE source_id=?", (source_id,)).fetchone():
+                    raise TrackingError("SOURCE_UNTRUSTED")
+                connection.execute("UPDATE source_subscriptions SET processing_policy='DISCOVER_ONLY' WHERE source_id=?", (source_id,))
+            connection.execute("INSERT OR IGNORE INTO source_tracking_state(source_id,contract,followed_at,next_check_at) VALUES(?,'source-tracking-v1',?,?)", (source_id, now, now))
+            verify_tracking(connection, source_id, repository=self.repository)
+        self.check(source_id)
+        result = self.repository.get_source_subscription(source_id)
         assert result is not None
         return result
 
-    def follow_content(self, content_id: str) -> SourceSubscriptionRecord:
-        with self.repository._connect() as connection:
-            source = verify_source(self.repository, connection, content_id)
-            if source is None or source["provider"] != "BILIBILI":
-                raise BilibiliError("SOURCE_UNTRUSTED")
-            artifact = self.repository.get_artifact(source["snapshot_artifact_id"])
-            if artifact is None:
-                raise BilibiliError("SOURCE_UNTRUSTED")
-            doc = json.loads(read_managed(self.publisher.data_root, artifact.relative_path, maximum=256 * 1024))
-            mid = doc["uploader_id"]
-        return self.follow(mid)
+    def follow_content(self, content_id: str, *, provider: str = "BILIBILI") -> SourceSubscriptionRecord:
+        try:
+            with self.repository._connect() as connection:
+                channel_id = trusted_content_channel(self.repository, connection, content_id, provider)
+        except (ValueError, TypeError, KeyError, OSError):
+            raise (BilibiliError("SOURCE_UNTRUSTED") if provider == "BILIBILI" else TrackingError("SOURCE_UNTRUSTED")) from None
+        return self.follow(channel_id, provider=provider)
 
     def projection(self, source_id: str) -> dict[str, object] | None:
         with self.repository._connect() as connection:
@@ -172,22 +236,26 @@ class FollowingTrackingService:
             except (ValueError, KeyError, TypeError, OSError):
                 return {"health": "STATE_INVALID", "coverage": "CHECK_INCOMPLETE", "update_count": 0, "pending_count": 0}
             counts = connection.execute("SELECT SUM(baseline=0),SUM(enrollment='PENDING'),SUM(enrollment IN ('UNSUPPORTED','UNAVAILABLE')),SUM(enrollment='ENROLLED') FROM source_observations WHERE source_id=?", (source_id,)).fetchone()
-            processing = connection.execute("SELECT COUNT(*) FROM source_video_links l JOIN content_source_snapshots c ON c.content_id=l.video_id WHERE l.source_id=? AND c.status!='READY'", (source_id,)).fetchone()[0]
+            processing = connection.execute("SELECT COUNT(*) FROM source_video_links l JOIN videos v ON v.video_id=l.video_id LEFT JOIN content_source_snapshots c ON c.content_id=l.video_id WHERE l.source_id=? AND ((v.provider='YOUTUBE' AND NOT EXISTS(SELECT 1 FROM timed_transcripts t WHERE t.video_id=v.video_id)) OR (c.content_id IS NOT NULL AND c.status!='READY'))", (source_id,)).fetchone()[0]
             active = connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING' UNION ALL SELECT 1 FROM source_runs WHERE source_id=? AND state IN ('QUEUED','RUNNING','WAITING','PARTIAL') LIMIT 1", (source_id, source_id)).fetchone() is not None
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
                     "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing}
 
     def check(self, source_id: str) -> str:
-        if not _CHECK_SLOT.acquire(blocking=False):
+        source = self.repository.get_source_subscription(source_id)
+        if source is None or source.provider not in _CHECK_SLOTS:
+            raise TrackingError("SOURCE_UNTRUSTED")
+        slot = _CHECK_SLOTS[source.provider]
+        if not slot.acquire(blocking=False):
             return "BUSY"
         try:
             return self._check(source_id)
         finally:
-            _CHECK_SLOT.release()
+            slot.release()
 
     def _check(self, source_id: str) -> str:
         source = self.repository.get_source_subscription(source_id)
-        if source is None or source.source_type is not SourceType.CREATOR:
+        if source is None or not is_tracked(self.repository, source_id):
             raise BilibiliError("SOURCE_UNTRUSTED")
         if not source.enabled:
             return "PAUSED"
@@ -212,68 +280,58 @@ class FollowingTrackingService:
                 return "COOLDOWN"
             connection.execute("INSERT INTO source_checks(check_id,source_id,started_at,status) VALUES(?,?,?,'RUNNING')", (check_id, source_id, stamp))
             connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?", (format_utc_datetime(now + COOLDOWN), source_id))
-        identity = normalize_creator(source.channel_id or "")
+        identity = source_identity(source.provider, source.channel_id or "", source.display_name or "")
         deadline = time.monotonic() + CHECK_SECONDS
         discovered: list[str] = []
         try:
-            metadata = self.publisher.adapter.fetch_creator(identity)
-            items: dict[str, CreatorVideo] = {}
             initial = state["baseline_at"] is None
-            # Every pass starts at the head. Deeper offsets are only recovery hints.
-            start_page = 1 if initial else state["next_page"]
-            pages = [1] if initial else ([1, 2, 3] if start_page == 1 else [1, start_page, start_page + 1])
-            complete = False
-            last_page = 1
-            total: int | None = None
-            overlap = False
-            for page_number in pages:
-                if time.monotonic() >= deadline:
-                    raise BilibiliError("NETWORK_UNAVAILABLE")
-                page = self.publisher.adapter.fetch_creator_page(identity, page_number)
-                if total is not None and total != page.total:
-                    raise BilibiliError("METADATA_FAILED")
-                total = page.total
-                last_page = page_number
-                for item in page.items:
-                    previous = items.get(item.bvid)
-                    if previous is not None and previous.published_at != item.published_at:
-                        raise BilibiliError("METADATA_FAILED")
-                    overlap = overlap or previous is not None
-                    items[item.bvid] = item
-                reached_end = page_number * PAGE_SIZE >= page.total
-                # Neither a pinned item nor an old page proves that later pages
-                # contain no new identities. Completeness requires list end.
-                if initial or reached_end:
-                    complete = initial or (start_page == 1 and not overlap)
-                    break
+            with self.repository._connect() as connection:
+                known = tuple(Candidate(row["canonical_identity"], _stamp(row["published_at"])) for row in connection.execute("SELECT canonical_identity,published_at FROM source_observations WHERE source_id=? AND observed_at<=? ORDER BY published_at DESC,canonical_identity DESC LIMIT 90", (source_id, state["verified_at"] or stamp)))
+            enumeration = self.providers[source.provider].enumerate(identity, initial=initial,
+                next_page=state["next_page"], known=known,
+                verified_at=None if state["verified_at"] is None else _stamp(state["verified_at"]))
+            items = {item.identity: item for item in enumeration.items}
+            if len(enumeration.items) > MAX_CANDIDATES or len(items) != len(enumeration.items):
+                raise TrackingError("METADATA_FAILED")
+            for item in items.values():
+                content_identity(source.provider, item.identity)
+                if item.published_at.tzinfo is None or item.published_at > now + timedelta(days=1):
+                    raise TrackingError("METADATA_FAILED")
+            complete = enumeration.complete
             coverage = "COMPLETE" if complete else "UPDATE_GAP"
-            next_page = 1 if complete or (last_page * PAGE_SIZE >= page.total) else min(last_page + 1, 33333)
+            next_page = enumeration.next_page
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 enabled = connection.execute("SELECT enabled FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()[0]
                 if not enabled:
                     connection.execute("UPDATE source_checks SET status='PAUSED',finished_at=?,result_category='PAUSED' WHERE check_id=?", (format_utc_datetime(self.now()), check_id))
                     return "PAUSED"
-                for item in sorted(items.values(), key=lambda item: (item.published_at, item.bvid)):
+                for item in sorted(items.values(), key=lambda item: (item.published_at, item.identity)):
                     baseline = initial or item.published_at <= _stamp(state["followed_at"])
                     changed = connection.execute("INSERT OR IGNORE INTO source_observations(source_id,canonical_identity,published_at,observed_at,baseline,enrollment) VALUES(?,?,?,?,?,?)",
-                        (source_id, item.bvid, format_utc_datetime(item.published_at), stamp, int(baseline), "BASELINE" if baseline else "PENDING")).rowcount
+                        (source_id, item.identity, format_utc_datetime(item.published_at), stamp, int(baseline), "BASELINE" if baseline else "PENDING")).rowcount
                     if changed and not baseline:
-                        discovered.append(item.bvid)
+                        discovered.append(item.identity)
                 latest = max((item.published_at for item in items.values()), default=None)
+                if state["latest_published_at"] is not None:
+                    previous_latest = _stamp(state["latest_published_at"])
+                    latest = previous_latest if latest is None else max(latest, previous_latest)
                 connection.execute("UPDATE source_tracking_state SET baseline_at=COALESCE(baseline_at,?),verified_at=CASE WHEN ? THEN ? ELSE verified_at END,latest_published_at=CASE WHEN ? THEN ? ELSE latest_published_at END,coverage=?,health=?,next_page=? WHERE source_id=?",
                     (stamp, complete, stamp, complete, None if latest is None else format_utc_datetime(latest), coverage,
                      "HEALTHY" if complete else coverage, next_page, source_id))
-                connection.execute("UPDATE source_subscriptions SET display_name=?,last_checked_at=?,last_success_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?",
-                    (metadata.name, stamp, stamp, None if complete else coverage, stamp, source_id))
+                connection.execute("UPDATE source_subscriptions SET display_name=?,last_checked_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?",
+                    (enumeration.name, stamp, None if complete else coverage, stamp, source_id))
                 connection.execute("UPDATE source_checks SET discovered_identities_json=?,complete=? WHERE check_id=?", (json.dumps(discovered), int(complete), check_id))
-            self._enroll(source_id, identity.mid, deadline, _stamp(state["followed_at"]))
+            self._enroll(source_id, identity, deadline, _stamp(state["followed_at"]))
             with self.repository._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                if complete:
+                    connection.execute("UPDATE source_subscriptions SET last_success_at=? WHERE source_id=?", (stamp, source_id))
                 connection.execute("UPDATE source_checks SET status='SUCCEEDED',finished_at=?,result_category=?,discovered_identities_json=?,complete=? WHERE check_id=?",
                     (format_utc_datetime(self.now()), coverage, json.dumps(discovered), int(complete), check_id))
             return coverage
         except Exception as failure:
-            code = failure.code if isinstance(failure, BilibiliError) else "METADATA_FAILED"
+            code = failure.code if isinstance(failure, (BilibiliError, TrackingError)) else "METADATA_FAILED"
             health = _HEALTH.get(code, code if code in {"RISK_CONTROLLED", "RATE_LIMITED", "ACCESS_DENIED", "NOT_FOUND"} else "PROVIDER_ERROR")
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -282,7 +340,7 @@ class FollowingTrackingService:
                 connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?", (stamp, health, stamp, source_id))
             return health
 
-    def _enroll(self, source_id: str, mid: str, deadline: float, followed_at: datetime) -> None:
+    def _enroll(self, source_id: str, identity: SourceIdentity, deadline: float, followed_at: datetime) -> None:
         with self.repository._connect() as connection:
             pending = connection.execute("SELECT canonical_identity FROM source_observations WHERE source_id=? AND enrollment='PENDING' ORDER BY published_at,canonical_identity LIMIT ?", (source_id, MAX_ENROLLMENTS)).fetchall()
         for row in pending:
@@ -293,17 +351,22 @@ class FollowingTrackingService:
                 return
             bv = row[0]
             try:
-                result = self.publisher.import_input(bv, expected_uploader=mid, following_source_id=source_id, published_after=followed_at)
+                result = self.providers[identity.provider].enroll(bv, channel_id=identity.channel_id, source_id=source_id, followed_at=followed_at)
                 with self.repository._connect() as connection:
                     connection.execute("BEGIN IMMEDIATE")
-                    connection.execute("INSERT OR IGNORE INTO source_video_links(source_id,video_id,discovered_at) VALUES(?,?,?)", (source_id, result.content_id, format_utc_datetime(self.now())))
-                    connection.execute("UPDATE source_observations SET enrollment='ENROLLED',content_id=?,error_code=NULL WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", (result.content_id, source_id, bv))
-            except BilibiliError as failure:
+                    current = connection.execute("SELECT enabled FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
+                    if current is None or not current[0]:
+                        return
+                    if result != content_identity(identity.provider, bv) or trusted_content_channel(self.repository, connection, result, identity.provider) != identity.channel_id:
+                        raise TrackingError("SOURCE_UNTRUSTED")
+                    connection.execute("INSERT OR IGNORE INTO source_video_links(source_id,video_id,discovered_at) VALUES(?,?,?)", (source_id, result, format_utc_datetime(self.now())))
+                    connection.execute("UPDATE source_observations SET enrollment='ENROLLED',content_id=?,error_code=NULL WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", (result, source_id, bv))
+            except (BilibiliError, TrackingError) as failure:
                 if failure.code == "FOLLOWING_PAUSED":
                     return
                 with self.repository._connect() as connection:
                     connection.execute("UPDATE source_observations SET error_code=? WHERE source_id=? AND canonical_identity=?", (failure.code, source_id, bv))
-                    if failure.code in {"DURATION_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED", "HISTORICAL_VIDEO"}:
-                        connection.execute("UPDATE source_observations SET enrollment=? WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", ("UNSUPPORTED" if failure.code == "DURATION_UNSUPPORTED" else "UNAVAILABLE", source_id, bv))
+                    if failure.code in {"DURATION_UNSUPPORTED", "VIDEO_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED", "HISTORICAL_VIDEO"}:
+                        connection.execute("UPDATE source_observations SET enrollment=? WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", ("UNSUPPORTED" if failure.code in {"DURATION_UNSUPPORTED", "VIDEO_UNSUPPORTED"} else "UNAVAILABLE", source_id, bv))
                 if failure.code in {"NETWORK_UNAVAILABLE", "RATE_LIMITED", "ACCESS_DENIED", "RISK_CONTROLLED"}:
                     raise

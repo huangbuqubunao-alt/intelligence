@@ -135,6 +135,11 @@ class PipelineOrchestrator:
     ) -> None:
         """Run only the ingestion stages needed to persist a transcript body."""
 
+        current = self.repository.get_video(video_id)
+        if current is not None and current.pipeline_status not in {
+            PipelineStatus.DISCOVERED, PipelineStatus.METADATA_READY, PipelineStatus.DEFERRED
+        }:
+            return
         timestamp = self._now(now)
         self.planner.recover(now=timestamp)
         self.planner.ensure_next_job(video_id, now=timestamp)
@@ -164,9 +169,10 @@ class PipelineOrchestrator:
             )
             if claimed is None:
                 return
-            self._execute(claimed, now=now)
+            self._execute(claimed, now=now, stop_at_status=stop_at_status)
 
-    def _execute(self, job: JobRecord, *, now: datetime) -> None:
+    def _execute(self, job: JobRecord, *, now: datetime,
+                 stop_at_status: PipelineStatus | None = None) -> None:
         if job.video_id is None or job.pipeline_version != self.planner.pipeline_version:
             self._fail(job, self._invalid_job_error(job), now=now)
             return
@@ -223,6 +229,9 @@ class PipelineOrchestrator:
             self._fail(job, self._invalid_job_error(job), now=now)
             return
         if disposition is StageDisposition.CONTINUE:
+            current = self.repository.get_video(video.video_id)
+            if stop_at_status is not None and current is not None and current.pipeline_status is stop_at_status:
+                return
             self.planner.ensure_next_job(video.video_id, now=now)
 
     def _run_stage(
