@@ -113,7 +113,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
         )
     finally:
         connection.close()
-    assert migrations[-18:] == (
+    assert migrations[-19:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",

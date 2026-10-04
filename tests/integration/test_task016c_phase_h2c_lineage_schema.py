@@ -143,7 +143,7 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
     version = repository.initialize(now=NOW + td(hours=1))
 
     assert version.version == 34
-    assert version.name == "033_add_bilibili_provider.sql"
+    assert version.name == "034_add_source_tracking.sql"
     with _raw_connection(path) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
         history = tuple(
@@ -184,6 +184,7 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
         (31, "031_add_research_lite.sql"),
         (32, "032_add_source_provider_authority.sql"),
         (33, "033_add_bilibili_provider.sql"),
+        (34, "034_add_source_tracking.sql"),
     ]
 
 
@@ -389,15 +390,15 @@ def test_unsupported_schema_versions_fail_closed(
     with _raw_connection(path) as connection:
         connection.execute(
             "INSERT INTO schema_migrations (version, name, checksum, applied_at) "
-            "VALUES (34, '034_future.sql', ?, ?)",
+            "VALUES (35, '035_future.sql', ?, ?)",
             ("f" * 64, NOW.isoformat()),
         )
-        connection.execute("PRAGMA user_version = 34")
+        connection.execute("PRAGMA user_version = 35")
     with pytest.raises(MigrationError, match="unsupported"):
         repository.initialize(now=NOW)
     with _raw_connection(path) as connection:
-        connection.execute("DELETE FROM schema_migrations WHERE version = 34")
-        connection.execute("PRAGMA user_version = 33")
+        connection.execute("DELETE FROM schema_migrations WHERE version = 35")
+        connection.execute("PRAGMA user_version = 34")
 
     # A malformed history (missing user_version agreement) fails closed.
     with _raw_connection(path) as connection:
@@ -406,7 +407,7 @@ def test_unsupported_schema_versions_fail_closed(
         repository.initialize(now=NOW)
 
 
-def test_doctor_database_check_accepts_exactly_version_33(tmp_path: Path) -> None:
+def test_doctor_database_check_accepts_exactly_version_34(tmp_path: Path) -> None:
     path = _database_path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
@@ -416,10 +417,10 @@ def test_doctor_database_check_accepts_exactly_version_33(tmp_path: Path) -> Non
         connection.execute("PRAGMA user_version = 1")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
-        connection.execute("PRAGMA user_version = 34")
+        connection.execute("PRAGMA user_version = 35")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
-        connection.execute("PRAGMA user_version = 33")
+        connection.execute("PRAGMA user_version = 34")
     assert _database_check(path).status == "PASS"
 
 

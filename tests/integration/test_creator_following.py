@@ -437,3 +437,28 @@ def test_changing_page_total_cannot_advance_verified_state(tmp_path: Path) -> No
     fixture.tick()
     tracker.check(source.source_id)
     assert tracker.projection(source.source_id)["discovered_count"] == 31
+
+
+def test_migration34_failure_is_atomic_and_upgrade_preserves_bilibili_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import replace
+    from youtube_intel.state import MigrationError
+    repo = SQLiteStateRepository(tmp_path / "state.sqlite")
+    migrations = repo._load_migrations()
+    old = tuple(m for m in migrations if m.version <= 33)
+    monkeypatch.setattr(repo, "_load_migrations", lambda: old)
+    assert repo.initialize(now=NOW).version == 33
+    fixture = CreatorFixture()
+    publisher = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=fixture.fetch), now=lambda: fixture.now)
+    imported = publisher.import_input(BV)
+    before = repo.get_verified_timed_transcript(video_id=imported.content_id)
+    evidence = repo.list_evidence_for_presentation(imported.content_id)
+    broken = replace(migrations[-1], sql=migrations[-1].sql + "\nCREATE TABLE invalid_syntax(;", checksum="f" * 64)
+    monkeypatch.setattr(repo, "_load_migrations", lambda: (*old, broken))
+    with pytest.raises(MigrationError, match="failed to apply migration 34"):
+        repo.initialize(now=NOW)
+    assert repo.schema_version().version == 33
+    assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
+    monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
+    assert repo.initialize(now=NOW).version == 34
+    assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
+    assert repo.list_evidence_for_presentation(imported.content_id) == evidence

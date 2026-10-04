@@ -47,7 +47,7 @@ def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
                 "SELECT name FROM schema_migrations ORDER BY version"
             )
         ]
-        assert names[-18:] == [
+        assert names[-19:] == [
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
             "017_add_current_content_summary.sql",

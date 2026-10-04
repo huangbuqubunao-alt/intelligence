@@ -1703,7 +1703,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-18:] == (
+    assert migrations[-19:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -1722,6 +1722,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
         "031_add_research_lite.sql",
         "032_add_source_provider_authority.sql",
         "033_add_bilibili_provider.sql",
+        "034_add_source_tracking.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:

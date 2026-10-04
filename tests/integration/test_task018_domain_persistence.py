@@ -139,8 +139,8 @@ def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) ->
     version = repository.initialize(now=NOW)
 
     assert (version.version, version.name) == (
-        33,
-        "033_add_bilibili_provider.sql",
+        34,
+        "034_add_source_tracking.sql",
     )
     with _connection(_database_path(tmp_path)) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 34

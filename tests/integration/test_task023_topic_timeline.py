@@ -211,7 +211,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-18:] == (
+    assert migrations[-19:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
