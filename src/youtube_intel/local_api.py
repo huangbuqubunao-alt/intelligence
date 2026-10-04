@@ -2388,6 +2388,8 @@ class LocalApiApplication:
         projection = _source_dto(source)
         projection["tracking"] = None if self._source_tracking is None else self._source_tracking.projection(source.source_id)
         with self._repository._connect() as connection:
+            projection["tracking_parent_source_ids"] = [row[0] for row in connection.execute(
+                "SELECT source_id FROM source_observations WHERE content_id=? AND enrollment='ENROLLED' ORDER BY source_id", (source.video_id,))] if source.video_id is not None else []
             candidates = tuple(row[0] for row in connection.execute(
                 "SELECT DISTINCT i.intelligence_id FROM intelligences i JOIN intelligence_revision_evidence r ON r.revision_id=i.current_revision_id JOIN evidence e USING(evidence_id) JOIN source_video_links l ON l.video_id=e.video_id WHERE l.source_id=? LIMIT 100", (source.source_id,)))
         projection["insight_count"] = sum(self._intelligence_projection(identity).get("status") == "AVAILABLE" for identity in candidates)

@@ -173,7 +173,7 @@ class FollowingTrackingService:
                 return {"health": "STATE_INVALID", "coverage": "CHECK_INCOMPLETE", "update_count": 0, "pending_count": 0}
             counts = connection.execute("SELECT SUM(baseline=0),SUM(enrollment='PENDING'),SUM(enrollment IN ('UNSUPPORTED','UNAVAILABLE')),SUM(enrollment='ENROLLED') FROM source_observations WHERE source_id=?", (source_id,)).fetchone()
             processing = connection.execute("SELECT COUNT(*) FROM source_video_links l JOIN content_source_snapshots c ON c.content_id=l.video_id WHERE l.source_id=? AND c.status!='READY'", (source_id,)).fetchone()[0]
-            active = connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING'", (source_id,)).fetchone() is not None
+            active = connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING' UNION ALL SELECT 1 FROM source_runs WHERE source_id=? AND state IN ('QUEUED','RUNNING','WAITING','PARTIAL') LIMIT 1", (source_id, source_id)).fetchone() is not None
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
                     "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing}
 
@@ -267,7 +267,7 @@ class FollowingTrackingService:
                 connection.execute("UPDATE source_subscriptions SET display_name=?,last_checked_at=?,last_success_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?",
                     (metadata.name, stamp, stamp, None if complete else coverage, stamp, source_id))
                 connection.execute("UPDATE source_checks SET discovered_identities_json=?,complete=? WHERE check_id=?", (json.dumps(discovered), int(complete), check_id))
-            self._enroll(source_id, identity.mid, deadline)
+            self._enroll(source_id, identity.mid, deadline, _stamp(state["followed_at"]))
             with self.repository._connect() as connection:
                 connection.execute("UPDATE source_checks SET status='SUCCEEDED',finished_at=?,result_category=?,discovered_identities_json=?,complete=? WHERE check_id=?",
                     (format_utc_datetime(self.now()), coverage, json.dumps(discovered), int(complete), check_id))
@@ -282,7 +282,7 @@ class FollowingTrackingService:
                 connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?", (stamp, health, stamp, source_id))
             return health
 
-    def _enroll(self, source_id: str, mid: str, deadline: float) -> None:
+    def _enroll(self, source_id: str, mid: str, deadline: float, followed_at: datetime) -> None:
         with self.repository._connect() as connection:
             pending = connection.execute("SELECT canonical_identity FROM source_observations WHERE source_id=? AND enrollment='PENDING' ORDER BY published_at,canonical_identity LIMIT ?", (source_id, MAX_ENROLLMENTS)).fetchall()
         for row in pending:
@@ -293,7 +293,7 @@ class FollowingTrackingService:
                 return
             bv = row[0]
             try:
-                result = self.publisher.import_input(bv, expected_uploader=mid, following_source_id=source_id)
+                result = self.publisher.import_input(bv, expected_uploader=mid, following_source_id=source_id, published_after=followed_at)
                 with self.repository._connect() as connection:
                     connection.execute("BEGIN IMMEDIATE")
                     connection.execute("INSERT OR IGNORE INTO source_video_links(source_id,video_id,discovered_at) VALUES(?,?,?)", (source_id, result.content_id, format_utc_datetime(self.now())))
@@ -303,7 +303,7 @@ class FollowingTrackingService:
                     return
                 with self.repository._connect() as connection:
                     connection.execute("UPDATE source_observations SET error_code=? WHERE source_id=? AND canonical_identity=?", (failure.code, source_id, bv))
-                    if failure.code in {"DURATION_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED"}:
+                    if failure.code in {"DURATION_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED", "HISTORICAL_VIDEO"}:
                         connection.execute("UPDATE source_observations SET enrollment=? WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", ("UNSUPPORTED" if failure.code == "DURATION_UNSUPPORTED" else "UNAVAILABLE", source_id, bv))
                 if failure.code in {"NETWORK_UNAVAILABLE", "RATE_LIMITED", "ACCESS_DENIED", "RISK_CONTROLLED"}:
                     raise

@@ -89,6 +89,8 @@ try {
       await dialog.getByRole('button', { name: text('Check Now', '立即检查'), exact: true }).click();
       await page.waitForFunction(async id => !(await (await fetch(`/api/v1/sources/${id}`)).json()).source.tracking.checking, `bilibili-creator-${mid}`);
       await dialog.getByRole('button', { name: text('Close', '关闭'), exact: true }).click();
+      // A discovered Content's technical per-video source is not another Following.
+      for (const bv of [caption, captionless]) assert.equal(await page.locator('.source-row').getByText(new RegExp(escape(bv))).count(), 0);
     } else {
       const before = (await get(`sources/bilibili-creator-${mid}`)).source;
       await advance(false);
@@ -135,6 +137,38 @@ try {
     await page.getByText(text('Deep Analysis is unavailable.', '深度分析不可用。'), { exact: true }).first().waitFor();
     await noOverflow();
     scenarios.push({ language, width, offline, mid, flows: 'manual import; creator baseline; follow from Content; cooldown; discovery/dedupe; no-op; pause/resume; captions/no-captions; restart; Research; Delta; Settings' });
+    await page.close();
+  }
+  if (!offline) {
+    const page = await browser.newPage({ viewport: { width: 320, height: 1000 } });
+    page.setDefaultTimeout(30000);
+    page.on('pageerror', error => errors.push(String(error)));
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) errors.push(message.text()); });
+    page.on('request', request => { if (!request.url().startsWith(base)) external.push(request.url()); });
+    await page.addInitScript(() => localStorage.setItem('yia.ui-language', 'en'));
+    await page.goto(base + '#Following');
+    await page.getByRole('button', { name: 'Add Source', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Bilibili', exact: true }).click();
+    let dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Follow a creator', exact: true }).click();
+    await dialog.getByLabel('Creator profile URL or numeric id').fill('1008');
+    await dialog.getByRole('button', { name: 'Follow creator', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    const advance = await page.request.post(`${base}api/v1/fixture/advance`, { headers: { 'X-YIA-Request': 'local-ui' }, data: { mid: '1008', publish: true } });
+    assert.equal(advance.status(), 200);
+    await page.reload(); // Opening Following checks a stale source without Check Now.
+    await page.waitForFunction(async () => {
+      const body = await (await fetch('/api/v1/sources/bilibili-creator-1008')).json();
+      return body.source.tracking.update_count === 2 && !body.source.tracking.checking;
+    });
+    await page.getByLabel('Following filter').selectOption('updates');
+    await page.getByText('公开 UP 主 1008', { exact: true }).waitFor();
+    for (const bv of info.creators['1008'].slice(1)) assert.equal(await page.locator('.source-row').getByText(new RegExp(escape(bv))).count(), 0);
+    await page.getByText('公开 UP 主 1008', { exact: true }).click();
+    dialog = page.getByRole('dialog', { name: 'Creator Following' });
+    assert.equal(await dialog.locator('li').count(), 2);
+    await page.screenshot({ path: join(screenshots, 'en-320-stale-source-automatic.png'), fullPage: true });
+    scenarios.push({ language: 'en', width: 320, mid: '1008', flows: 'numeric creator input; automatic stale-source discovery; live list refresh; Has updates; grouped Following without per-video rows' });
     await page.close();
   }
   assert.deepEqual(errors, []); assert.deepEqual(external, []);

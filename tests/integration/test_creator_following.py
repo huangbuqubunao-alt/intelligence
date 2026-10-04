@@ -257,6 +257,10 @@ def test_creator_api_follow_check_pause_and_content_follow(tmp_path: Path) -> No
     fixture.items.insert(0, (NEW, NOW + timedelta(seconds=1)))
     status, _ = application.handle("POST", "/api/v1/sources/bilibili-creator-123/check", b'{"command_id":"check-1"}')
     assert status == 200 and len(repo.list_videos()) == 1
+    status, sources = application.handle("GET", "/api/v1/sources")
+    assert status == 200
+    backing = next(item for item in sources["sources"] if item["video_id"] == "bilibili-" + NEW)
+    assert backing["tracking_parent_source_ids"] == ["bilibili-creator-123"]
     status, followed = application.handle("POST", "/api/v1/videos/bilibili-" + NEW + "/follow-creator", b'{}')
     assert status == 200 and followed["source"]["source_id"] == "bilibili-creator-123"
     application.handle("PATCH", "/api/v1/sources/bilibili-creator-123", b'{"enabled":false}')
@@ -351,8 +355,8 @@ def test_enrollment_failure_keeps_pending_identity_and_retry_recovers(tmp_path: 
     assert len(repo.list_videos()) == 1 and tracker.projection(source.source_id)["pending_count"] == 0
 
 
-@pytest.mark.parametrize("field,value", [("duration", 7201), ("owner", {"mid": 456, "name": "Other creator"})])
-def test_unsupported_or_wrong_creator_video_never_gets_trusted_content(tmp_path: Path, field: str, value: object) -> None:
+@pytest.mark.parametrize("field,value", [("duration", 7201), ("owner", {"mid": 456, "name": "Other creator"}), ("pubdate", 1700000000)])
+def test_unsupported_historical_or_wrong_creator_video_never_gets_trusted_content(tmp_path: Path, field: str, value: object) -> None:
     repo, tracker, fixture = setup(tmp_path)
     source = tracker.follow("123")
     fixture.items.insert(0, (NEW, NOW + timedelta(seconds=1)))
@@ -497,3 +501,27 @@ def test_wrong_creator_relationship_fails_tracking_and_portable_backup_validatio
     service = BackupRestoreService(database=tmp_path / "state.sqlite", data_root=tmp_path / "data")
     with pytest.raises(BackupRestoreError, match="Following Content relationship"):
         service.create_backup()
+
+
+def test_queued_check_is_visible_and_rapid_commands_reuse_one_source_run(tmp_path: Path) -> None:
+    from conftest import _load_module
+
+    from youtube_intel.local_api import LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+    repo, tracker, fixture = setup(tmp_path)
+    source = tracker.follow("123")
+    fixture.tick()
+    helper = _load_module("test_task024_processing_orchestration")
+    transport = helper._Transport(available=False)
+    orchestrator = helper._orchestrator(repo, transport)
+    service = ProductOrchestrationService(repo, source_run_submitter=orchestrator, now=lambda: fixture.now)
+    application = LocalApiApplication(repo, service, data_root=tmp_path / "data", source_tracking=tracker, now=lambda: fixture.now)
+    before = len(fixture.calls)
+    runs = []
+    for index in range(10):
+        status, body = application.handle("POST", f"/api/v1/sources/{source.source_id}/check", json.dumps({"command_id": f"rapid-{index}"}).encode())
+        assert status == 202
+        runs.append(body["source_run"]["run_id"])
+    assert len(set(runs)) == 1
+    assert tracker.projection(source.source_id)["checking"] is True
+    assert len(fixture.calls) == before and transport.calls == 0

@@ -69,7 +69,8 @@ class BilibiliContentProvider(SourceContentPublisher):
         self.now = now or (lambda: datetime.now(UTC))
 
     def import_input(self, value: str, *, expected_uploader: str | None = None,
-                     following_source_id: str | None = None) -> NetworkImportResult:
+                     following_source_id: str | None = None,
+                     published_after: datetime | None = None) -> NetworkImportResult:
         identity = normalize_input(value)
         with _IMPORT_LOCK:
             existing = self.repository.get_video(identity.content_id)
@@ -78,12 +79,19 @@ class BilibiliContentProvider(SourceContentPublisher):
                     with self.repository._connect() as connection:
                         source = verify_source(self.repository, connection, identity.content_id)
                         artifact = None if source is None else self.repository.get_artifact(source["snapshot_artifact_id"])
-                        if artifact is None or json.loads(read_managed(self.data_root, artifact.relative_path, maximum=256 * 1024))["uploader_id"] != expected_uploader:
+                        if artifact is None:
                             raise BilibiliError("SOURCE_UNTRUSTED")
+                        accepted = json.loads(read_managed(self.data_root, artifact.relative_path, maximum=256 * 1024))
+                        if accepted["uploader_id"] != expected_uploader:
+                            raise BilibiliError("SOURCE_UNTRUSTED")
+                        if published_after is not None and datetime.fromisoformat(accepted["published_at"].replace("Z", "+00:00")) <= published_after:
+                            raise BilibiliError("HISTORICAL_VIDEO")
                 return self._existing(identity.content_id)
             metadata = self.adapter.fetch_metadata(identity)
             if expected_uploader is not None and metadata.uploader_id != expected_uploader:
                 raise BilibiliError("SOURCE_UNTRUSTED")
+            if published_after is not None and metadata.published_at <= published_after:
+                raise BilibiliError("HISTORICAL_VIDEO")
             now = self.now()
             timestamp = format_utc_datetime(now)
             payload = metadata_snapshot(metadata)

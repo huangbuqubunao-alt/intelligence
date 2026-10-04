@@ -84,6 +84,7 @@ type Topic = {
 };
 type Source = {
   source_type?: string;
+  tracking_parent_source_ids?: string[];
   tracking?: Tracking | null;
   insight_count?: number;
   provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
@@ -2346,6 +2347,11 @@ function Sources(
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState("all");
   useEffect(() => {
+    if (!data?.sources.some(source => source.tracking?.checking)) return;
+    const timer = setTimeout(onRefresh, 2000);
+    return () => clearTimeout(timer);
+  }, [data]);
+  useEffect(() => {
     const check = () => { if (document.visibilityState !== "hidden") void post("/sources/check-stale", {}).then(onRefresh).catch(() => {}); };
     check(); window.addEventListener("focus", check);
     return () => window.removeEventListener("focus", check);
@@ -2371,7 +2377,7 @@ function Sources(
               <option value="insights">{t("Produces new insights")}</option><option value="attention">{t("Needs attention")}</option>
               <option value="paused">{t("Paused")}</option>
             </select></label>
-            {data.sources.filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
+            {data.sources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
               || (filter === "insights" && (source.insight_count ?? 0) > 0)
               || (filter === "attention" && Boolean(source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
               || (filter === "paused" && !source.enabled)).map((source) => (
@@ -2390,7 +2396,7 @@ function Sources(
                 </button>
                 <div className="source-actions">
                   <Status
-                    value={source.source_type === "CREATOR" ? trackingCopy(source.tracking?.health ?? "BASELINE_PENDING") : source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
+                    value={source.source_type === "CREATOR" ? source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING") : source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
                       (source.enabled ? "ENABLED" : "DISABLED")}
                   />
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
