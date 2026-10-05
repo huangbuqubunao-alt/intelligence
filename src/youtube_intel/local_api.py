@@ -61,6 +61,7 @@ from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
     ScheduleFrequency,
+    SourceType,
     next_scheduled_for,
     provider_model_statuses,
 )
@@ -68,7 +69,12 @@ from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.output_language import OutputLanguagePreferenceService
 from youtube_intel.preference_service import PreferenceApplicationService
 from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
-from youtube_intel.providers.bilibili import BilibiliAdapter, BilibiliError
+from youtube_intel.providers.bilibili import (
+    CREATOR_FOLLOWING_AVAILABLE,
+    CREATOR_FOLLOWING_CODE,
+    BilibiliAdapter,
+    BilibiliError,
+)
 from youtube_intel.research_contract import ResearchRequest
 from youtube_intel.research_lite import ResearchLiteService, ResearchRejected
 from youtube_intel.saved_intelligence import (
@@ -117,6 +123,58 @@ from youtube_intel.summary_evidence_authority import (
     LegacySummaryNotCurrentAuthority,
 )
 from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
+
+# One shared BilibiliError -> HTTP status map for every Bilibili entry point, so
+# the same provider failure is never reported as 422 here and 429 there.  The
+# codes are the truthful category of what the provider actually said; a genuine
+# user-input problem still stays 422.
+_BILIBILI_ERROR_STATUS = {
+    "RATE_LIMITED": HTTPStatus.TOO_MANY_REQUESTS,
+    "RISK_CONTROLLED": HTTPStatus.TOO_MANY_REQUESTS,
+    "ACCESS_DENIED": HTTPStatus.FORBIDDEN,
+    "NOT_FOUND": HTTPStatus.NOT_FOUND,
+    "VIDEO_UNAVAILABLE": HTTPStatus.NOT_FOUND,
+    "NETWORK_UNAVAILABLE": HTTPStatus.SERVICE_UNAVAILABLE,
+    "METADATA_FAILED": HTTPStatus.BAD_GATEWAY,
+    "RESPONSE_TOO_LARGE": HTTPStatus.BAD_GATEWAY,
+    "SOURCE_UNTRUSTED": HTTPStatus.CONFLICT,
+    "CAPTION_UNAVAILABLE": HTTPStatus.BAD_GATEWAY,
+    "CAPTION_INVALID": HTTPStatus.BAD_GATEWAY,
+    "DURATION_UNSUPPORTED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "UNSUPPORTED_URL": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "INVALID_INPUT": HTTPStatus.UNPROCESSABLE_ENTITY,
+}
+CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE = (
+    "Continuous Bilibili creator tracking is currently unavailable. "
+    "You can still add public Bilibili videos."
+)
+# Truthful, code-based capability projection for the user interface.  Structured
+# codes let the Chinese UI localize without translating backend prose.
+_BILIBILI_CAPABILITY: dict[str, object] = {
+    "provider": "BILIBILI",
+    "video_ingestion": {
+        "available": True,
+        "code": "PUBLIC_VIDEO_INGESTION_AVAILABLE",
+    },
+    "creator_following": {
+        "available": CREATOR_FOLLOWING_AVAILABLE,
+        "code": "CREATOR_FOLLOWING_AVAILABLE"
+        if CREATOR_FOLLOWING_AVAILABLE
+        else CREATOR_FOLLOWING_CODE,
+        "endpoint": "/x/space/arc/search",
+        "message": None
+        if CREATOR_FOLLOWING_AVAILABLE
+        else CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+    },
+    "public_captions": {
+        "available": True,
+        "code": "PUBLIC_CAPTION_ATTEMPTED",
+        "note": "A caption exists only when the provider exposes a public one. "
+        "Bilibili usually exposes none without a signed-in session, which the "
+        "product never uses; without a trusted caption there is no transcript, "
+        "Summary or Evidence.",
+    },
+}
 
 
 class ApiError(Exception):
@@ -670,20 +728,31 @@ class LocalApiApplication:
                     raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
                 data = self._body(body)
                 self._only_keys(data, set() if creator_from_content else {"input"})
+                if not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
                 try:
                     source = self._source_tracking.follow_content(creator_from_content[1]) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "")
                 except BilibiliError as error:
-                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "BILIBILI_" + error.code, "The public creator could not be followed.") from None
+                    raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), "BILIBILI_" + error.code, "The public creator could not be followed.") from None
                 return HTTPStatus.OK, {"source": self._source_projection(source)}
             if method == "POST" and route == "/api/v1/sources/check-stale":
                 self._only_keys(self._body(body), set())
                 from youtube_intel.following_tracking import tracking_due
-                from youtube_intel.orchestration import SourceType
                 results: list[str] = []
                 for source in self._repository.list_source_subscriptions():
                     if len(results) >= 3:
                         break
                     if source.enabled and source.source_type is SourceType.CREATOR and tracking_due(self._repository, source.source_id, self._now()):
+                        if not CREATOR_FOLLOWING_AVAILABLE:
+                            # A withdrawn capability must not run silent requests.
+                            results.append("CAPABILITY_UNAVAILABLE")
+                            continue
                         result = self._service.check_source(source.source_id, command_id="stale:" + source.source_id + ":" + self._now().isoformat())
                         results.append(result.status.value)
                 if self._source_run_wakeup is not None:
@@ -704,9 +773,9 @@ class LocalApiApplication:
                     else:
                         imported = self._bilibili_provider.retry(route.split("/")[4])
                 except BilibiliError as rejection:
-                    status = {"RATE_LIMITED": HTTPStatus.TOO_MANY_REQUESTS, "ACCESS_DENIED": HTTPStatus.FORBIDDEN,
-                        "NOT_FOUND": HTTPStatus.NOT_FOUND, "NETWORK_UNAVAILABLE": HTTPStatus.SERVICE_UNAVAILABLE,
-                        "METADATA_FAILED": HTTPStatus.BAD_GATEWAY, "SOURCE_UNTRUSTED": HTTPStatus.CONFLICT}.get(rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY)
+                    status = _BILIBILI_ERROR_STATUS.get(
+                        rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY
+                    )
                     raise ApiError(status, "BILIBILI_" + rejection.code, "The public video could not be imported.") from None
                 finally:
                     self._bilibili_import_slot.release()
@@ -1431,6 +1500,18 @@ class LocalApiApplication:
             ):
                 source_id = route.split("/")[-2]
                 self._only_keys(data, {"command_id"})
+                existing = self._repository.get_source_subscription(source_id)
+                if (
+                    existing is not None
+                    and existing.source_type is SourceType.CREATOR
+                    and not CREATOR_FOLLOWING_AVAILABLE
+                ):
+                    # Stored creator rows stay readable, but a withdrawn
+                    # capability must not answer Check Now with a silent request.
+                    return HTTPStatus.OK, {
+                        "status": "CAPABILITY_UNAVAILABLE",
+                        "message": CREATOR_FOLLOWING_CODE,
+                    }
                 result = self._service.check_source(
                     source_id,
                     command_id=self._string(data, "command_id"),
@@ -2027,6 +2108,7 @@ class LocalApiApplication:
                         moonshot_credential_available=self._cloud_credential_available,
                     )
                 ],
+                "bilibili": _BILIBILI_CAPABILITY,
             }
         if route == "/api/v1/system":
             return {

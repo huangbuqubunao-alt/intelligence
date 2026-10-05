@@ -1,4 +1,4 @@
-import { CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy } from "./CreatorFollowing";
+import { CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
@@ -426,7 +426,12 @@ function statusLabel(value: string) {
       (letter) => letter.toUpperCase(),
     );
 }
-function Status({ value }: { value: string }) {
+/**
+ * `value` decides the tone and is looked up as an enum. `label` is for text that
+ * is already a sentence: without it, a ready-made phrase would be de-CamelCased
+ * and lowercased into something the user never sees in any other language.
+ */
+function Status({ value, label }: { value: string; label?: string }) {
   const { t } = useUiLanguage();
   const upper = value.toUpperCase();
   const tone =
@@ -437,7 +442,7 @@ function Status({ value }: { value: string }) {
           .test(upper)
       ? "warning"
       : "neutral";
-  return <span className={`status status-${tone}`}>{t(statusLabel(value))}</span>;
+  return <span className={`status status-${tone}`}>{label ? t(label) : t(statusLabel(value))}</span>;
 }
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useUiLanguage();
@@ -1121,7 +1126,7 @@ function Workspace() {
         <div className="brand">
           <Logo className="brand-logo" />
           <div>
-            <strong>Intelligence</strong>
+            <strong>{t("Intelligence")}</strong>
             <small>{t("Local-first workspace")}</small>
           </div>
         </div>
@@ -1457,6 +1462,7 @@ function ContentPage(
     );
 }
 function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+  const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
@@ -1503,7 +1509,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
-      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} />}
+      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
@@ -2395,10 +2401,15 @@ function Sources(
                   </span>
                 </button>
                 <div className="source-actions">
-                  <Status
-                    value={source.source_type === "CREATOR" ? source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING") : source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
-                      (source.enabled ? "ENABLED" : "DISABLED")}
-                  />
+                  {source.source_type === "CREATOR"
+                    ? <Status
+                        value={source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
+                        label={source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
+                      />
+                    : <Status
+                        value={source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
+                          (source.enabled ? "ENABLED" : "DISABLED")}
+                      />}
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
                     href={source.canonical_url}
                     target="_blank"
@@ -2768,6 +2779,7 @@ function SourceDetail(
   },
 ) {
   const { t } = useUiLanguage();
+  const creatorCapability = useCreatorFollowingCapability();
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<
     {
@@ -2798,7 +2810,7 @@ function SourceDetail(
   }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
-  if (data.source.source_type === "CREATOR") return <CreatorFollowingDetail id={id} onClose={onClose} onRefresh={onRefresh} />;
+  if (data.source.source_type === "CREATOR") return <CreatorFollowingDetail id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>

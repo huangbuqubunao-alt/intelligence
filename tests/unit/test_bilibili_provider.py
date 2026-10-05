@@ -280,3 +280,112 @@ def test_transport_bounds_body_and_rejects_compression(headers: dict[str, str], 
     with pytest.raises(BilibiliError, match=code):
         bilibili._fetch_once('https://api.bilibili.com/x/player/v2', bilibili.MAX_METADATA)
     assert consumed <= bilibili.MAX_METADATA + 1 and closed == [True]
+
+
+# --- Phase 11R real-world remediation -------------------------------------
+
+
+def test_metadata_bound_admits_the_largest_response_the_provider_actually_returns() -> None:
+    """The bound must be set from measured bytes, not from a guess.
+
+    8 public videos were sampled live (`.var/phase11r/evidence/
+    r2_response_sizes.json`). The largest `/x/web-interface/view` response was
+    371 358 bytes, which the previous 256 KiB bound rejected outright.
+    """
+    observed = 371_358
+    assert bilibili.MAX_METADATA >= observed, "the bound must not refuse a real response"
+    assert bilibili.MAX_METADATA <= 2 * observed, (
+        "the bound must stay a memory guard rather than an open door"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [(412, "RISK_CONTROLLED"), (429, "RATE_LIMITED"), (401, "ACCESS_DENIED"), (403, "ACCESS_DENIED")],
+)
+def test_provider_status_codes_are_classified_by_what_they_mean(
+    status: int, expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ban is risk control, not a missing resource, and must not be retried."""
+
+    class Response:
+        def __init__(self) -> None:
+            self.status = status
+        def getheader(self, key: str, default: str | None = None) -> str | None:
+            return default
+        def read1(self, count: int) -> bytes:
+            return b""
+    class Connection:
+        sock = None
+        def __init__(self, host: str, address: str) -> None:
+            pass
+        def request(self, method: str, target: str, headers: dict[str, str]) -> None:
+            pass
+        def getresponse(self) -> Response:
+            return Response()
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(bilibili, "public_addresses", lambda h: ("8.8.8.8",))
+    monkeypatch.setattr(bilibili, "_PinnedHTTPS", Connection)
+    with pytest.raises(BilibiliError, match=expected):
+        bilibili._fetch_once("https://api.bilibili.com/x/player/v2", bilibili.MAX_METADATA)
+
+
+def test_refusals_cool_the_provider_down_long_enough_to_stop_re_asking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A risk-controlled provider must be left alone, not retried promptly."""
+
+    from youtube_intel.providers import bilibili_creator
+
+    adapter = bilibili.BilibiliAdapter(
+        fetch=lambda url, maximum: b'{"code":-412}'
+    )
+    with pytest.raises(BilibiliError, match="RISK_CONTROLLED"):
+        adapter.fetch_creator(bilibili_creator.normalize_creator("123"))
+    assert bilibili._RATE_UNTIL > bilibili.time.monotonic()
+    remaining = bilibili._RATE_UNTIL - bilibili.time.monotonic()
+    assert remaining >= bilibili.PROVIDER_BACKOFF_SECONDS["RISK_CONTROLLED"] - 5
+
+
+def test_creator_following_is_declared_unavailable_rather_than_guessed() -> None:
+    assert bilibili.CREATOR_FOLLOWING_AVAILABLE is False
+    assert bilibili.CREATOR_FOLLOWING_CODE == "CREATOR_TRACKING_UNAVAILABLE"
+    assert bilibili.CREATOR_FOLLOWING_ENDPOINT == "/x/space/arc/search"
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    ["0.0.0.0", "127.0.0.1", "10.0.0.1", "169.254.169.254", "224.0.0.1", "::1", ""],
+)
+def test_only_global_unicast_addresses_are_usable(candidate: str) -> None:
+    assert bilibili._usable_address(candidate) is False
+
+
+@pytest.mark.parametrize("candidate", ["93.184.216.34", "8.8.8.8", "2606:2800:220:1::1"])
+def test_global_unicast_addresses_remain_usable(candidate: str) -> None:
+    assert bilibili._usable_address(candidate) is True
+
+
+def test_answer_count_is_a_memory_guard_not_an_access_decision() -> None:
+    """A large answer set is bounded, but the bound must never deny a public target."""
+
+    import socket
+
+    many = [
+        (2, 1, 6, "", (f"93.184.{(index >> 8) % 256}.{index % 256}", 443))
+        for index in range(600)
+    ]
+
+    original = socket.getaddrinfo
+    socket.getaddrinfo = lambda *a, **k: many  # type: ignore[assignment]
+    try:
+        with pytest.raises(BilibiliError, match="ACCESS_DENIED"):
+            bilibili.public_addresses("api.bilibili.com")
+    finally:
+        socket.getaddrinfo = original  # type: ignore[assignment]
+
+    # The same oversized set is refused for being oversized, never because the
+    # bound silently became an allow-list of "acceptable" provider answers.
+    assert bilibili.MAX_RESOLVED_ADDRESSES == 512

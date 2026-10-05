@@ -127,12 +127,42 @@ _SOURCE_RUN_STATE_TRANSITIONS: dict[SourceRunState, frozenset[SourceRunState]] =
             SourceRunState.CANCELLED,
         }
     ),
-    SourceRunState.NEEDS_ATTENTION: frozenset(),
+    # NEEDS_ATTENTION is a settled outcome, not a live execution.  A run that
+    # reached it holds no worker, no checkpoint in flight and no authority that
+    # can still change on its own, so it must be able to be *resolved* — either
+    # dismissed by the user or closed as failed.  It may never be re-queued and
+    # never COMPLETED: a retry always creates a new, separate run, so failed
+    # history is never rewritten into a false success.
+    SourceRunState.NEEDS_ATTENTION: frozenset(
+        {SourceRunState.CANCELLED, SourceRunState.FAILED}
+    ),
     SourceRunState.COMPLETED: frozenset(),
     SourceRunState.FAILED: frozenset(),
     SourceRunState.AMBIGUOUS: frozenset(),
     SourceRunState.CANCELLED: frozenset(),
 }
+
+
+#: States in which a Source Run still holds live execution: a worker may exist, a
+#: checkpoint may still advance, or an irreversible dispatch may still be in
+#: flight.  Only these states block a data-protection operation.  Every other
+#: state is settled history that can be read and backed up safely.
+SOURCE_RUN_ACTIVE_STATES: frozenset[SourceRunState] = frozenset(
+    {
+        SourceRunState.QUEUED,
+        SourceRunState.RUNNING,
+        SourceRunState.WAITING,
+        SourceRunState.PARTIAL,
+    }
+)
+
+
+def source_run_is_active(state: SourceRunState) -> bool:
+    """Whether a durable run still holds live execution authority."""
+
+    if not isinstance(state, SourceRunState):
+        raise ValueError("Source Run state must be finite")
+    return state in SOURCE_RUN_ACTIVE_STATES
 
 
 _SOURCE_RUN_CHILD_TRANSITIONS: dict[

@@ -1,4 +1,4 @@
-import { CreatorFollowForm } from "./CreatorFollowing";
+import { CreatorFollowForm, CreatorFollowingCapabilityState, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { useState } from "react";
 import { ApiRequestError, post } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
@@ -30,6 +30,9 @@ export function BilibiliImport({ onClose, onSaved, onProvider }: {
   onClose: () => void; onSaved: () => void; onProvider: (provider: "YOUTUBE" | "LOCAL") => void;
 }) {
   const { t } = useUiLanguage();
+  const capability: CreatorFollowingCapabilityState = useCreatorFollowingCapability();
+  // "Follow a creator" is only offered when the service says it works.
+  const creatorOff = capability.known && capability.capability !== null && !capability.capability.available;
   const [mode, setMode] = useState<"video" | "creator">("video");
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,11 +55,12 @@ export function BilibiliImport({ onClose, onSaved, onProvider }: {
       <button className="button button-secondary" disabled={busy} onClick={() => onProvider("LOCAL")}>{t("Local files")}</button>
       <button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Bilibili")}</button>
     </div>}
-    {!result && <div className="button-row" aria-label={t("Bilibili source type")}>
+    {!result && !creatorOff && <div className="button-row" aria-label={t("Bilibili source type")}>
       <button className="button button-secondary" disabled={busy} aria-pressed={mode === "video"} onClick={() => setMode("video")}>{t("Add one video")}</button>
       <button className="button button-secondary" disabled={busy} aria-pressed={mode === "creator"} onClick={() => setMode("creator")}>{t("Follow a creator")}</button>
     </div>}
-    {mode === "creator" ? <CreatorFollowForm onSaved={onSaved} /> : <>
+    {creatorOff && <p className="hint">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
+    {mode === "creator" ? <CreatorFollowForm capability={capability} onSaved={onSaved} /> : <>
     <p>{t("Import one public Bilibili video. This does not follow its creator. No account or cookies are needed.")}</p>
     {!result && <form onSubmit={event => { event.preventDefault(); void submit(); }}>
       <label className="field">{t("Bilibili video URL or BV id")}<input autoFocus aria-label={t("Bilibili video URL or BV id")} value={input} maxLength={2048} disabled={busy} onChange={event => setInput(event.target.value)} placeholder="https://www.bilibili.com/video/BV…/" /></label>

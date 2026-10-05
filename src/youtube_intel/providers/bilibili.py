@@ -34,18 +34,65 @@ if TYPE_CHECKING:
         CreatorPage,
     )
 
-MAX_METADATA = 256 * 1024
+# Measured against the real provider, not guessed. Phase 11R sampled 8 public
+# videos (`.var/phase11r/evidence/r2_response_sizes.json`):
+#   /x/web-interface/view  2 084 .. 371 358 bytes
+#   /x/player/v2          2 323 ..   4 199 bytes
+# The previous 256 KiB bound rejected a genuine 371 358-byte response, so it was
+# refusing real public videos. 512 KiB keeps the memory guard while giving 1.4x
+# headroom over the largest response actually observed. Raising it further would
+# be a guess with no evidence behind it.
+MAX_METADATA = 512 * 1024
 MAX_CAPTION = 2 * 1024 * 1024
 MAX_CUES = 4096
 TIMEOUT = 10.0
 DNS_TIMEOUT = 3.0
 MAX_ATTEMPTS = 3
+# A resolver answer set is bounded so DNS cannot be used to exhaust memory, but
+# the bound is a memory guard only: it is far above any real CDN fan-out and it
+# is never used to decide whether a *target* is acceptable.  Every address that
+# survives the bound is still validated as public and unicast.
+MAX_RESOLVED_ADDRESSES = 512
+# A provider that is risk-controlling or rate-limiting us must be left alone for
+# long enough to stop.  Re-asking sooner does not make the next answer better
+# and only deepens the refusal, so risk control backs off far longer than a
+# plain access denial.
+PROVIDER_BACKOFF_SECONDS = {
+    "RISK_CONTROLLED": 15 * 60,
+    "RATE_LIMITED": 15 * 60,
+    "ACCESS_DENIED": 30,
+}
+_PROVIDER_BACKOFF_CODES = frozenset(PROVIDER_BACKOFF_SECONDS)
 _BV = re.compile(r"BV1[1-9A-HJ-NP-Za-km-z]{9}\Z")
 _REQUEST_SLOTS = threading.BoundedSemaphore(2)
 _PACE_LOCK = threading.Lock()
 _NEXT_REQUEST = 0.0
 _RATE_UNTIL = 0.0
 _DNS_SLOTS = threading.BoundedSemaphore(2)
+
+# ---------------------------------------------------------------------------
+# Phase 11R real-world capability decision (Bilibili creator Following).
+#
+# The only public endpoint that lists a creator's videos is
+# ``/x/space/arc/search``.  A cookie-free client is risk-controlled by it:
+#
+#   * independent reconnaissance, 10 creators, one request each, 4 s apart:
+#     4 x HTTP 412 ``-412 request was banned``, 6 x HTTP 200 ``-799 请求过于频繁``,
+#     0 accepted;
+#   * Phase 11R bounded fair single-shot probe, 3 creators, one provider
+#     request each, 6 s apart: 3 x HTTP 412 ``-412 request was banned``,
+#     0 accepted.
+#
+# ``/x/web-interface/card`` (the creator display name) and
+# ``/x/web-interface/view`` (video metadata) are unaffected.  Recovering this
+# path would require a request identity the product is explicitly forbidden to
+# use, so continuous Bilibili creator tracking is withdrawn from normal pilot
+# use instead of being advertised as ready.  Stored creator rows stay readable
+# and are never deleted or rewritten.
+# ---------------------------------------------------------------------------
+CREATOR_FOLLOWING_AVAILABLE = False
+CREATOR_FOLLOWING_CODE = "CREATOR_TRACKING_UNAVAILABLE"
+CREATOR_FOLLOWING_ENDPOINT = "/x/space/arc/search"
 
 
 class BilibiliError(ValueError):
@@ -113,7 +160,29 @@ def validate_request_url(value: str) -> tuple[str, str]:
         raise BilibiliError("UNSUPPORTED_URL") from None
 
 
+def _usable_address(candidate: str) -> bool:
+    """A candidate is connectable only when it is a public, unicast address."""
+    try:
+        address = ipaddress.ip_address(candidate)
+    except ValueError:
+        return False
+    return address.is_global and not (
+        address.is_multicast or address.is_unspecified or address.is_loopback
+    )
+
+
 def public_addresses(host: str) -> tuple[str, ...]:
+    """Return a bounded set of validated public addresses for an allowed host.
+
+    The security invariant is that *every* address this function may hand to a
+    socket is public and unicast.  A legitimate CDN host may answer with far
+    more addresses than any fixed cap, so a count gate is not a safety property
+    and previously failed all Bilibili traffic whenever ``api.bilibili.com``
+    answered with more than sixteen addresses.  The answer set is instead
+    bounded so resolver abuse stays impossible, and every candidate that is
+    kept is validated; one unsafe answer rejects the whole set rather than being
+    silently skipped, which preserves the DNS-rebinding protection.
+    """
     if not _DNS_SLOTS.acquire(timeout=1):
         raise BilibiliError("NETWORK_UNAVAILABLE")
     result: queue.Queue[tuple[str, ...] | OSError] = queue.Queue(maxsize=1)
@@ -132,9 +201,8 @@ def public_addresses(host: str) -> tuple[str, ...]:
         raise BilibiliError("NETWORK_UNAVAILABLE") from None
     if isinstance(addresses, OSError):
         raise BilibiliError("NETWORK_UNAVAILABLE") from None
-    if not 0 < len(addresses) <= 16 or any(
-        not ipaddress.ip_address(a).is_global or ipaddress.ip_address(a).is_multicast
-        for a in addresses
+    if len(addresses) > MAX_RESOLVED_ADDRESSES or any(
+        not _usable_address(candidate) for candidate in addresses
     ):
         raise BilibiliError("ACCESS_DENIED")
     return addresses
@@ -182,7 +250,13 @@ def _fetch_once(url: str, maximum: int) -> bytes:
             raise BilibiliError("NOT_FOUND")
         if response.status == 429:
             raise BilibiliError("RATE_LIMITED")
-        if response.status in {401, 403, 412}:
+        if response.status == 412:
+            # Bilibili answers a risk-controlled public request with HTTP 412 and
+            # a body such as {"code":-412,"message":"request was banned"}.  It is
+            # a statement about *this request*, never about whether the creator
+            # or the video exists, so it must never be reported as ACCESS_DENIED.
+            raise BilibiliError("RISK_CONTROLLED")
+        if response.status in {401, 403}:
             raise BilibiliError("ACCESS_DENIED")
         if response.status >= 500:
             raise BilibiliError("NETWORK_UNAVAILABLE")
@@ -230,9 +304,11 @@ def fetch_public(url: str, maximum: int, *, attempts: int = MAX_ATTEMPTS) -> byt
             except (OSError, http.client.HTTPException):
                 error = BilibiliError("NETWORK_UNAVAILABLE")
             except BilibiliError as failure:
-                if failure.code in {"RATE_LIMITED", "ACCESS_DENIED"}:
+                if failure.code in _PROVIDER_BACKOFF_CODES:
                     with _PACE_LOCK:
-                        _RATE_UNTIL = time.monotonic() + 30
+                        _RATE_UNTIL = time.monotonic() + PROVIDER_BACKOFF_SECONDS[
+                            failure.code
+                        ]
                 if failure.code != "NETWORK_UNAVAILABLE":
                     raise
                 error = failure
@@ -337,8 +413,12 @@ def _api_data(payload: bytes) -> dict[str, Any]:
         raise BilibiliError("METADATA_FAILED")
     if code != 0:
         raise BilibiliError({-404: "NOT_FOUND", -403: "ACCESS_DENIED", -101: "ACCESS_DENIED",
-            -111: "ACCESS_DENIED", -352: "ACCESS_DENIED", -412: "ACCESS_DENIED",
-            -799: "RATE_LIMITED"}.get(code, "METADATA_FAILED"))
+            -111: "ACCESS_DENIED", -352: "RISK_CONTROLLED", -412: "RISK_CONTROLLED",
+            -509: "RISK_CONTROLLED", -799: "RATE_LIMITED",
+            # Bilibili uses 62xxx for a video the provider will not serve.  The
+            # honest answer is "unavailable", never "could not be verified".
+            62002: "VIDEO_UNAVAILABLE", 62004: "VIDEO_UNAVAILABLE",
+            410002: "VIDEO_UNAVAILABLE"}.get(code, "METADATA_FAILED"))
     if not isinstance(data.get("data"), dict):
         raise BilibiliError("METADATA_FAILED")
     return dict(data["data"])
@@ -357,13 +437,18 @@ class BilibiliAdapter:
         # of multiplying page retries. Direct video ingestion retains its budget.
         from youtube_intel.providers.bilibili_creator import _creator_data
         global _RATE_UNTIL
-        payload = fetch_public(url, MAX_METADATA, attempts=1) if self.fetch is fetch_public else self.fetch(url, MAX_METADATA)
+        payload = (fetch_public(url, MAX_METADATA, attempts=1)
+                   if self.fetch is fetch_public else self.fetch(url, MAX_METADATA))
         try:
             _creator_data(payload)
         except BilibiliError as failure:
-            if self.fetch is fetch_public and failure.code in {"RISK_CONTROLLED", "RATE_LIMITED"}:
+            # A refusal discovered while classifying the payload must cool down
+            # the shared provider budget too, whichever transport answered it,
+            # so one risk-controlled creator cannot keep being re-asked.
+            backoff = PROVIDER_BACKOFF_SECONDS.get(failure.code)
+            if backoff is not None:
                 with _PACE_LOCK:
-                    _RATE_UNTIL = max(_RATE_UNTIL, time.monotonic() + 15 * 60)
+                    _RATE_UNTIL = max(_RATE_UNTIL, time.monotonic() + backoff)
             raise
         return payload
 

@@ -9,6 +9,7 @@ import pytest
 
 from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.local_api import ApiError, LocalApiApplication
 from youtube_intel.providers.bilibili import BilibiliAdapter, BilibiliError
 from youtube_intel.state import SQLiteStateRepository, format_utc_datetime
 
@@ -57,6 +58,18 @@ class CreatorFixture:
 
     def tick(self) -> None:
         self.now += timedelta(hours=1)
+
+    def publish(self, repository: SQLiteStateRepository, tracker: FollowingTrackingService,
+                bvid: str = "BV1xx411c7mD") -> str:
+        """Import one public video through the shipped provider."""
+        self.items.insert(0, (bvid, self.now + timedelta(seconds=1)))
+        provider = BilibiliContentProvider(
+            repository,
+            tracker.publisher.data_root,
+            adapter=tracker.publisher.adapter,
+            now=lambda: self.now,
+        )
+        return provider.import_input(bvid).content_id
 
 
 def setup(tmp_path: Path) -> tuple[SQLiteStateRepository, FollowingTrackingService, CreatorFixture]:
@@ -244,30 +257,161 @@ def test_corrupt_tracking_fails_safely_and_backup_rejects_it(tmp_path: Path) -> 
         service.create_backup()
 
 
-def test_creator_api_follow_check_pause_and_content_follow(tmp_path: Path) -> None:
+def _creator_api(tmp_path: Path) -> tuple[LocalApiApplication, SQLiteStateRepository, CreatorFixture, FollowingTrackingService]:
     from youtube_intel.local_api import LocalApiApplication
     from youtube_intel.orchestration_service import ProductOrchestrationService
     repo, tracker, fixture = setup(tmp_path)
-    application = LocalApiApplication(repo, ProductOrchestrationService(repo, now=lambda: fixture.now),
-        data_root=tmp_path / "data", source_tracking=tracker, now=lambda: fixture.now)
-    status, body = application.handle("POST", "/api/v1/sources/creators", json.dumps({"input": "123"}).encode())
-    assert status == 200
-    assert body["source"]["tracking"]["update_count"] == 0
-    fixture.tick()
-    fixture.items.insert(0, (NEW, NOW + timedelta(seconds=1)))
-    status, _ = application.handle("POST", "/api/v1/sources/bilibili-creator-123/check", b'{"command_id":"check-1"}')
-    assert status == 200 and len(repo.list_videos()) == 1
+    application = LocalApiApplication(
+        repo,
+        ProductOrchestrationService(repo, now=lambda: fixture.now),
+        data_root=tmp_path / "data",
+        source_tracking=tracker,
+        now=lambda: fixture.now,
+    )
+    return application, repo, fixture, tracker
+
+
+def test_creator_api_withdraws_follow_and_makes_no_provider_request(tmp_path: Path) -> None:
+    """Phase 11R P0-01 OUTCOME B: no new creator may be followed, and nothing is asked."""
+
+    application, repo, fixture, _tracker = _creator_api(tmp_path)
+    calls = len(fixture.calls)
+
+    with pytest.raises(ApiError) as rejected:
+        application.handle(
+            "POST", "/api/v1/sources/creators", json.dumps({"input": "123"}).encode()
+        )
+
+    assert rejected.value.status == 409
+    assert rejected.value.code == "BILIBILI_CREATOR_TRACKING_UNAVAILABLE"
+    assert repo.get_source_subscription("bilibili-creator-123") is None
+    assert len(fixture.calls) == calls, "a withdrawn capability must not make a request"
+
+
+def test_follow_creator_from_content_is_withdrawn(tmp_path: Path) -> None:
+    application, repo, fixture, tracker = _creator_api(tmp_path)
+    imported = fixture.publish(repo, tracker, "BV1UeHe6YEVM")
+    calls = len(fixture.calls)
+
+    with pytest.raises(ApiError) as rejected:
+        application.handle("POST", f"/api/v1/videos/{imported}/follow-creator", b"{}")
+
+    assert rejected.value.status == 409
+    assert rejected.value.code == "BILIBILI_CREATOR_TRACKING_UNAVAILABLE"
+    assert repo.get_source_subscription("bilibili-creator-123") is None
+    assert len(fixture.calls) == calls
+
+
+def test_existing_creator_rows_stay_readable_and_are_never_deleted(tmp_path: Path) -> None:
+    application, repo, _fixture, tracker = _creator_api(tmp_path)
+    tracker.follow("123")
+
     status, sources = application.handle("GET", "/api/v1/sources")
+
     assert status == 200
-    backing = next(item for item in sources["sources"] if item["video_id"] == "bilibili-" + NEW)
-    assert backing["tracking_parent_source_ids"] == ["bilibili-creator-123"]
-    status, followed = application.handle("POST", "/api/v1/videos/bilibili-" + NEW + "/follow-creator", b'{}')
-    assert status == 200 and followed["source"]["source_id"] == "bilibili-creator-123"
-    application.handle("PATCH", "/api/v1/sources/bilibili-creator-123", b'{"enabled":false}')
+    stored = next(item for item in sources["sources"] if item["source_id"] == "bilibili-creator-123")
+    assert stored["tracking"]["health"] == "HEALTHY"
+    assert repo.get_source_subscription("bilibili-creator-123") is not None
+
+    status, detail = application.handle("GET", "/api/v1/sources/bilibili-creator-123")
+
+    assert status == 200
+    assert detail["source"]["canonical_url"] == "https://space.bilibili.com/123"
+    assert detail["source"]["tracking"]["coverage"] == "COMPLETE"
+
+
+def test_check_now_reports_capability_unavailable_without_asking_the_provider(
+    tmp_path: Path,
+) -> None:
+    application, _repo, fixture, tracker = _creator_api(tmp_path)
+    tracker.follow("123")
+    calls = len(fixture.calls)
+
+    status, body = application.handle(
+        "POST", "/api/v1/sources/bilibili-creator-123/check", b'{"command_id":"check-1"}'
+    )
+
+    assert status == 200, (status, body)
+    assert body["status"] == "CAPABILITY_UNAVAILABLE"
+    assert body["message"] == "CREATOR_TRACKING_UNAVAILABLE"
+    assert len(fixture.calls) == calls
+
+
+def test_check_stale_runs_no_silent_creator_requests(tmp_path: Path) -> None:
+    application, _repo, fixture, tracker = _creator_api(tmp_path)
+    tracker.follow("123")
     fixture.tick()
     calls = len(fixture.calls)
-    application.handle("POST", "/api/v1/sources/check-stale", b'{}')
+
+    status, body = application.handle("POST", "/api/v1/sources/check-stale", b"{}")
+
+    assert status == 202
+    assert body["checks"] == ["CAPABILITY_UNAVAILABLE"]
     assert len(fixture.calls) == calls
+
+
+def test_settings_reports_the_truthful_bilibili_capability(tmp_path: Path) -> None:
+    application, _repo, _fixture, _tracker = _creator_api(tmp_path)
+
+    status, body = application.handle("GET", "/api/v1/settings")
+
+    assert status == 200
+    capability = body["bilibili"]
+    assert capability["video_ingestion"]["available"] is True
+    assert capability["creator_following"]["available"] is False
+    assert capability["creator_following"]["code"] == "CREATOR_TRACKING_UNAVAILABLE"
+    assert capability["creator_following"]["message"]
+
+
+def test_manual_public_bilibili_ingestion_still_works_with_creator_following_withdrawn(
+    tmp_path: Path,
+) -> None:
+    """The pilot path must survive the withdrawal."""
+
+    application, repo, _fixture, _tracker = _creator_api(tmp_path)
+
+    status, body = application.handle(
+        "POST",
+        "/api/v1/bilibili/imports",
+        json.dumps({"input": "https://www.bilibili.com/video/BV1UeHe6YEVM/"}).encode(),
+    )
+
+    assert status == 201, (status, body)
+    assert body["import"]["content_id"] == "bilibili-BV1UeHe6YEVM"
+    assert repo.get_source_subscription("bilibili-creator-123") is None
+
+
+def test_creator_risk_refusal_is_reported_as_risk_controlled_not_access_denied(
+    tmp_path: Path,
+) -> None:
+    application, repo, fixture, tracker = _creator_api(tmp_path)
+    tracker.follow("123")
+    assert tracker.projection("bilibili-creator-123")["health"] == "HEALTHY"
+    fixture.tick()
+    fixture.failure = "RISK_CONTROLLED"
+
+    assert tracker.check("bilibili-creator-123") == "RISK_CONTROLLED"
+
+    projection = tracker.projection("bilibili-creator-123")
+    assert projection["health"] == "RISK_CONTROLLED"
+    assert projection["coverage"] == "COMPLETE", "a refusal must not erase the baseline"
+    assert repo.get_source_subscription("bilibili-creator-123").last_error_code == "RISK_CONTROLLED"
+
+
+def test_no_boundary_is_bypassed_to_reach_a_withdrawn_capability(tmp_path: Path) -> None:
+    """A refused follow must not leave a half-created source behind."""
+
+    application, repo, _fixture, _tracker = _creator_api(tmp_path)
+
+    for payload in (
+        json.dumps({"input": "123"}).encode(),
+        json.dumps({"input": "https://space.bilibili.com/2"}).encode(),
+    ):
+        with pytest.raises(ApiError) as rejected:
+            application.handle("POST", "/api/v1/sources/creators", payload)
+        assert rejected.value.status == 409
+
+    assert repo.list_source_subscriptions() == ()
 
 
 def test_delta_reports_repeated_health_failure_and_recovery_without_polling_noise(tmp_path: Path) -> None:
@@ -504,13 +648,29 @@ def test_wrong_creator_relationship_fails_tracking_and_portable_backup_validatio
 
 
 def test_queued_check_is_visible_and_rapid_commands_reuse_one_source_run(tmp_path: Path) -> None:
+    """Rapid Check Now must reuse one run.
+
+    Bilibili creator tracking is withdrawn in Phase 11R, so this provider-
+    independent source-run invariant is covered on a Source that is still
+    allowed to be checked.
+    """
     from conftest import _load_module
 
     from youtube_intel.local_api import LocalApiApplication
+    from youtube_intel.orchestration import ProcessingPolicy, SourceType
     from youtube_intel.orchestration_service import ProductOrchestrationService
+    from youtube_intel.state import SourceSubscriptionRecord
     repo, tracker, fixture = setup(tmp_path)
-    source = tracker.follow("123")
     fixture.tick()
+    created = fixture.now
+    source = repo.create_source_subscription(SourceSubscriptionRecord(
+        source_id="UC_RAPID", source_type=SourceType.CHANNEL,
+        canonical_url="https://www.youtube.com/channel/UC_RAPID", channel_id="UC_RAPID",
+        video_id=None, display_name="Rapid source", enabled=True,
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+        last_checked_at=None, last_success_at=None, last_error_code=None,
+        last_error_message=None, created_at=created, updated_at=created,
+    ))
     helper = _load_module("test_task024_processing_orchestration")
     transport = helper._Transport(available=False)
     orchestrator = helper._orchestrator(repo, transport)
@@ -520,8 +680,7 @@ def test_queued_check_is_visible_and_rapid_commands_reuse_one_source_run(tmp_pat
     runs = []
     for index in range(10):
         status, body = application.handle("POST", f"/api/v1/sources/{source.source_id}/check", json.dumps({"command_id": f"rapid-{index}"}).encode())
-        assert status == 202
+        assert status == 202, (status, body)
         runs.append(body["source_run"]["run_id"])
     assert len(set(runs)) == 1
-    assert tracker.projection(source.source_id)["checking"] is True
     assert len(fixture.calls) == before and transport.calls == 0

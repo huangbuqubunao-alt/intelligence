@@ -52,6 +52,10 @@ _TERMINAL_JOBS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_PROVIDER_CALLS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_DISPATCH = {"SUCCESS_DURABLY_RECORDED", "FAILED_KNOWN"}
 _TERMINAL_SOURCE_RUNS = {"COMPLETED", "FAILED", "CANCELLED"}
+# Only a state that still holds live execution blocks a data-protection
+# operation.  A settled NEEDS_ATTENTION run holds no worker and no checkpoint in
+# flight; whether it also holds resumable authority is decided per run below.
+_ACTIVE_SOURCE_RUN_STATES = {"QUEUED", "RUNNING", "WAITING", "PARTIAL"}
 _TERMINAL_SOURCE_RUN_CHILDREN = {"COMPLETED", "SKIPPED", "FAILED", "AMBIGUOUS"}
 _AMBIGUOUS_DISTILLATION_OUTCOMES = {
     "TRANSPORT_OUTCOME_UNKNOWN": {1},
@@ -1166,11 +1170,16 @@ class BackupRestoreService:
                     state = str(run["state"])
                     if state in _TERMINAL_SOURCE_RUNS:
                         continue
+                    if state in _ACTIVE_SOURCE_RUN_STATES:
+                        reasons.append("SOURCE_RUN_ACTIVE")
+                        break
                     if self._is_terminal_ambiguous_source_run(
                         connection, repository, run
                     ):
                         continue
                     if self._is_cloud_completed_local_wait_source_run(connection, run):
+                        continue
+                    if self._is_settled_attention_source_run(connection, run):
                         continue
                     reasons.append("SOURCE_RUN_ACTIVE")
                     break
@@ -1206,6 +1215,33 @@ class BackupRestoreService:
             ):
                 raise BackupRestoreError("An ambiguous distillation checkpoint failed validation.")
         return reasons
+
+    def _is_settled_attention_source_run(
+        self, connection: sqlite3.Connection, run: sqlite3.Row
+    ) -> bool:
+        """Whether a NEEDS_ATTENTION run holds no resumable execution authority.
+
+        A run that asks for attention is settled as far as *this* run is
+        concerned: nothing is executing and no checkpoint will advance on its
+        own.  That is only safe to treat as quiescent when the run also holds no
+        child work and its source holds no open distillation checkpoint, because
+        either of those can still change and still be resumed.  Anything the
+        database cannot prove stays blocking, so corrupt state fails closed.
+        """
+        if str(run["state"]) != "NEEDS_ATTENTION":
+            return False
+        if connection.execute(
+            "SELECT 1 FROM source_run_video_executions WHERE run_id = ? AND state "
+            "NOT IN ('COMPLETED','SKIPPED','FAILED','AMBIGUOUS') LIMIT 1",
+            (str(run["run_id"]),),
+        ).fetchone() is not None:
+            return False
+        return connection.execute(
+            "SELECT 1 FROM distillation_execution_checkpoints "
+            "WHERE source_id = ? AND status IN "
+            "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') LIMIT 1",
+            (str(run["source_id"]),),
+        ).fetchone() is None
 
     def _is_cloud_completed_local_wait_source_run(
         self, connection: sqlite3.Connection, run: sqlite3.Row

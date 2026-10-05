@@ -2,6 +2,17 @@
 
 Authority: owner's Phase 11 continuous goal, 2026-10-04.
 
+> **Superseded for Bilibili by
+> [V1X-PHASE11R-BILIBILI-REALWORLD-REMEDIATION](V1X-PHASE11R-BILIBILI-REALWORLD-REMEDIATION.md).**
+> This record describes a mechanism validated against offline fixtures. Phase 11R
+> ran that same mechanism against the real public provider and measured 0 / 10
+> reconnaissance checks and 0 / 3 fair single-shot probes accepted — all raw
+> `-412 request was banned` — and 0 / 8 public videos exposing any caption.
+> Bilibili **creator Following is therefore withdrawn from pilot UX**, and the
+> caption acquisition described below did not succeed in the real world. The
+> architecture below is retained rather than deleted, and is re-enablable by one
+> constant if the provider ever permits it.
+
 ## Infrastructure audit
 
 | Existing component | Classification | Phase 11 use |
