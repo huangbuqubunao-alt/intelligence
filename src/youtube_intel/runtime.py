@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, NoReturn, cast
@@ -2596,7 +2596,20 @@ class RuntimeOperations(Operations):
             or (existing is not None and existing.provider != "YOUTUBE")):
             raise TrackingError("SOURCE_UNTRUSTED")
         if metadata.published_at <= followed_at:
-            raise TrackingError("HISTORICAL_VIDEO")
+            # The accepted metadata adapter can fall back to upload_date at
+            # midnight UTC. The verified public feed retains the precise time;
+            # allow that same-day ambiguity without rewriting Content metadata.
+            with self._repository._connect() as connection:
+                observation = connection.execute(
+                    "SELECT published_at FROM source_observations WHERE source_id=? AND canonical_identity=? AND baseline=0 AND enrollment='PENDING'",
+                    (source_id, video_id),
+                ).fetchone()
+            publication = None if observation is None else datetime.fromisoformat(observation[0].replace("Z", "+00:00"))
+            midnight = metadata.published_at.astimezone(UTC)
+            if (midnight.time() != datetime.min.time() or publication is None
+                or not midnight <= publication < midnight + timedelta(days=1)
+                or publication <= followed_at):
+                raise TrackingError("HISTORICAL_VIDEO")
         if metadata.live_status in {LiveStatus.LIVE, LiveStatus.UPCOMING}:
             raise TrackingError("VIDEO_UNSUPPORTED")
         if not 0 < metadata.duration_seconds <= self._config.settings.execution.max_video_duration_minutes * 60:

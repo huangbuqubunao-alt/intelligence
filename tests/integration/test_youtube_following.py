@@ -769,3 +769,48 @@ def test_stale_lifecycle_check_is_bounded_fair_across_providers(tmp_path, monkey
         for s in [bs, *ys]
     )
     assert repo.list_videos() == ()
+
+
+@pytest.mark.parametrize("older_day", [False, True])
+def test_feed_publication_disambiguates_date_only_metadata(tmp_path, monkeypatch, older_day):
+    repo, tracker, fixture, _ = youtube_setup(tmp_path, monkeypatch)
+    source = tracker.follow(CHANNEL, provider="YOUTUBE")
+    fixture.publish(NEW)
+    fetch = fixture.fetch
+
+    def date_only(video_id):
+        metadata = fetch(video_id)
+        return metadata.model_copy(update={
+            "published_at": NOW - timedelta(days=int(older_day))
+        })
+
+    fixture.fetch = date_only
+    assert tracker.check(source.source_id) == "COMPLETE"
+    if older_day:
+        assert repo.list_videos() == ()
+        assert tracker.projection(source.source_id)["update_count"] == 0
+    else:
+        assert [video.video_id for video in repo.list_videos()] == [NEW]
+        assert repo.get_verified_timed_transcript(video_id=NEW) is not None
+        assert tracker.projection(source.source_id)["update_count"] == 1
+
+
+def test_invalid_video_metadata_preserves_pending_and_truthful_health(tmp_path, monkeypatch):
+    repo, tracker, fixture, _ = youtube_setup(tmp_path, monkeypatch)
+    source = tracker.follow(CHANNEL, provider="YOUTUBE")
+    trusted_success = repo.get_source_subscription(source.source_id).last_success_at
+    fixture.publish(NEW)
+    fetch = fixture.fetch
+
+    def invalid(video_id):
+        raise TrackingError("METADATA_FAILED")
+
+    fixture.fetch = invalid
+    assert tracker.check(source.source_id) == "PROVIDER_ERROR"
+    assert repo.get_source_subscription(source.source_id).last_success_at == trusted_success
+    assert tracker.projection(source.source_id)["pending_count"] == 1
+    assert repo.list_videos() == ()
+    fixture.fetch = fetch
+    fixture.tick()
+    assert tracker.check(source.source_id) == "COMPLETE"
+    assert [video.video_id for video in repo.list_videos()] == [NEW]

@@ -368,5 +368,5 @@ class FollowingTrackingService:
                     connection.execute("UPDATE source_observations SET error_code=? WHERE source_id=? AND canonical_identity=?", (failure.code, source_id, bv))
                     if failure.code in {"DURATION_UNSUPPORTED", "VIDEO_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED", "HISTORICAL_VIDEO"}:
                         connection.execute("UPDATE source_observations SET enrollment=? WHERE source_id=? AND canonical_identity=? AND enrollment='PENDING'", ("UNSUPPORTED" if failure.code in {"DURATION_UNSUPPORTED", "VIDEO_UNSUPPORTED"} else "UNAVAILABLE", source_id, bv))
-                if failure.code in {"NETWORK_UNAVAILABLE", "RATE_LIMITED", "ACCESS_DENIED", "RISK_CONTROLLED"}:
+                if failure.code not in {"DURATION_UNSUPPORTED", "VIDEO_UNSUPPORTED", "NOT_FOUND", "SOURCE_UNTRUSTED", "HISTORICAL_VIDEO"}:
                     raise
