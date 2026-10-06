@@ -39,7 +39,8 @@ test("creator Following is distinct from one-video import and sends canonical in
   }));
   localStorage.setItem("yia.ui-language", "en");
   render(<UiLanguageProvider><BilibiliImport onClose={() => {}} onSaved={() => {}} onProvider={() => {}} /></UiLanguageProvider>);
-  fireEvent.click(screen.getByRole("button", { name: "Follow a creator" }));
+  // The creator entry point only appears once the service confirms it works.
+  fireEvent.click(await screen.findByRole("button", { name: "Follow a creator" }));
   const input = await screen.findByLabelText("Creator profile URL or numeric id");
   fireEvent.change(input, { target: { value: "https://space.bilibili.com/123" } });
   fireEvent.click(screen.getByRole("button", { name: "Follow creator" }));
@@ -137,4 +138,43 @@ test("follow from Content is disabled and silent while the capability is withdra
   render(<UiLanguageProvider><FollowCreatorFromContent id="bilibili-BV1xx411c7mD" capability={withdrawn} /></UiLanguageProvider>);
   expect((await screen.findByRole("button", { name: "Continuous creator tracking is currently unavailable" }) as HTMLButtonElement).disabled).toBe(true);
   expect(fetch.mock.calls.some(call => String(call[0]).includes("follow-creator"))).toBe(false);
+});
+test("a withdrawn creator is never advertised as monitoring in the Following list", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.endsWith("/settings")) return settings(withdrawn)(url)!;
+    if (url.endsWith("/sources")) return { ok: true, json: async () => ({ sources: [{
+      source_id: "bilibili-creator-123", provider: "BILIBILI", source_type: "CREATOR",
+      display_name: "Stored creator", canonical_url: "https://space.bilibili.com/123", enabled: true,
+      tracking: { health: "HEALTHY", coverage: "COMPLETE", update_count: 0, pending_count: 0 },
+      insight_count: 0, tracking_parent_source_ids: [],
+    }] }) };
+    return { ok: true, json: async () => ({}) };
+  }));
+  const { App } = await import("./App");
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /^Following$/ }));
+  await screen.findByText("Stored creator");
+  const row = screen.getByText("Stored creator").closest(".source-row") as HTMLElement;
+  expect(row.textContent).not.toContain("Monitoring");
+  expect(row.textContent).toContain("Continuous creator tracking is currently unavailable");
+});
+
+test("the creator entry point is never shown before the service confirms it", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  let releaseSettings: (() => void) | null = null;
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.endsWith("/settings")) {
+      await new Promise<void>((resolve) => { releaseSettings = resolve; });
+      return settings(withdrawn)(url)!;
+    }
+    return { ok: true, json: async () => ({}) };
+  }));
+  render(<UiLanguageProvider><BilibiliImport onClose={() => {}} onSaved={() => {}} onProvider={() => {}} /></UiLanguageProvider>);
+  // While the capability is unknown the dialog must not offer something that may
+  // turn out to be unavailable.
+  expect(screen.queryByRole("button", { name: "Follow a creator" })).toBeNull();
+  expect(screen.getByRole("status").textContent).toContain("Checking whether this is available");
+  releaseSettings?.();
+  expect(await screen.findByText("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")).toBeTruthy();
 });

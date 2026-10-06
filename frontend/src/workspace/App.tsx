@@ -624,6 +624,22 @@ function sourceLabel(source: Source) {
   return source.display_name || source.friendly_name || source.channel_id ||
     source.video_id || "YouTube Source";
 }
+/**
+ * What this Source is actually doing. A capability the service has withdrawn is
+ * never described as "monitoring", because the word would be a claim the
+ * product cannot keep.
+ */
+function sourceSummary(source: Source, creatorFollowingWithdrawn: boolean) {
+  if (source.provider === "LOCAL") return "Explicit imports only";
+  // A creator is a creator whatever provider it belongs to, so this is checked
+  // before the manual-video wording below.
+  if (source.source_type === "CREATOR") {
+    if (creatorFollowingWithdrawn) return "Continuous creator tracking is currently unavailable";
+    return source.enabled ? "Monitoring new videos" : "Monitoring is paused";
+  }
+  if (source.provider === "BILIBILI") return "Manually imported video";
+  return source.enabled ? "Monitoring new videos" : "Monitoring is paused";
+}
 function timestamp(value: number) {
   const seconds = Math.max(0, Math.floor(value / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -2363,10 +2379,14 @@ function Sources(
     return () => window.removeEventListener("focus", check);
   }, []);
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "BILIBILI">("YOUTUBE");
+  const creatorCapability = useCreatorFollowingCapability();
+  const creatorFollowingWithdrawn = creatorCapability.known &&
+    creatorCapability.capability !== null && !creatorCapability.capability.available;
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   return (
     <>
+      {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
       <div className="page-actions">
         <button
           className="button button-primary"
@@ -2396,7 +2416,7 @@ function Sources(
                   <span>
                     <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
                     <small>
-                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.source_type === "CREATOR" ? source.enabled ? "Monitoring new videos" : "Monitoring is paused" : source.provider === "BILIBILI" ? "Manually imported video" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
+                      {t(sourceSummary(source, creatorFollowingWithdrawn))} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
                     </small>
                   </span>
                 </button>

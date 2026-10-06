@@ -55,10 +55,14 @@ export function BilibiliImport({ onClose, onSaved, onProvider }: {
       <button className="button button-secondary" disabled={busy} onClick={() => onProvider("LOCAL")}>{t("Local files")}</button>
       <button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Bilibili")}</button>
     </div>}
-    {!result && !creatorOff && <div className="button-row" aria-label={t("Bilibili source type")}>
+    {/* The creator entry point is only offered once the service has confirmed
+        it works, so an entry point that may turn out to be unavailable is never
+        shown and then taken away. */}
+    {!result && capability.known && !creatorOff && <div className="button-row" aria-label={t("Bilibili source type")}>
       <button className="button button-secondary" disabled={busy} aria-pressed={mode === "video"} onClick={() => setMode("video")}>{t("Add one video")}</button>
       <button className="button button-secondary" disabled={busy} aria-pressed={mode === "creator"} onClick={() => setMode("creator")}>{t("Follow a creator")}</button>
     </div>}
+    {!capability.known && !result && <p role="status">{t("Checking whether this is available…")}</p>}
     {creatorOff && <p className="hint">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
     {mode === "creator" ? <CreatorFollowForm capability={capability} onSaved={onSaved} /> : <>
     <p>{t("Import one public Bilibili video. This does not follow its creator. No account or cookies are needed.")}</p>
